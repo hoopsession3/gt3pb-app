@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { exchangeCode, graph, outlookConfigured } from "@/lib/msgraph";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ function reqOrigin(req: Request): string {
 // Microsoft redirects the browser here with ?code&state. We validate state (CSRF) against what
 // /connect issued, exchange the code for tokens, store them (service role), then bounce to /crew.
 // Top-level redirect, so we return a plain 302 — no bearer is available here; state is the guard.
-export async function GET(req: Request) {
+async function get(req: Request) {
   const origin = reqOrigin(req);
   const back = (note: string) => new Response(null, { status: 302, headers: { Location: `${origin}/crew?outlook=${note}` } });
   const url = new URL(req.url);
@@ -42,3 +43,5 @@ export async function GET(req: Request) {
     return back("error");
   }
 }
+
+export const GET = route("outlook/callback", get);

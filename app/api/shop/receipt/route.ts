@@ -4,6 +4,7 @@ import { staffFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiA
 import { accountEmail } from "@/lib/notify";
 import { tellCustomer } from "@/lib/customerMessage";
 import { orderReceipt } from "@/lib/receipt";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
@@ -22,7 +23,7 @@ export const runtime = "nodejs";
 //
 // Nothing about the order changes. This does not alter status, does not touch money, and can be
 // pressed twice without consequence beyond the customer having two copies — which is the point.
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   // R-002: staff-gated, so any crew member may act on any order — within THEIR tenant.
@@ -80,3 +81,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, sent: sent.ok, to: address, detail: sent.detail ?? null, result: sent.email });
 }
+
+export const POST = route("shop/receipt", post);

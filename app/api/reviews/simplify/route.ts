@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { cleanBody } from "@/lib/reviews";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
@@ -32,7 +33,7 @@ Turn a raw customer review into ONE clean, display-ready quote for the truck's s
 4. Keep the customer's genuine voice and enthusiasm; one or two sentences; no hashtags, no emoji spam, no ALL CAPS.
 5. If, after removing claims and noise, nothing real is left to show, set still_genuine=false.`;
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ error: "Staff only." }, { status: 403 });
   if (!anthropicEnabled()) return NextResponse.json({ error: "AI isn't switched on yet." }, { status: 503 });
   let body: { text?: string };
@@ -54,3 +55,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: String(e?.message ?? e).slice(0, 200) }, { status: 502 });
   }
 }
+
+export const POST = route("reviews/simplify", post);

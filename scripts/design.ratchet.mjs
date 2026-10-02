@@ -223,7 +223,14 @@ async function painted() {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await page.goto(pathToFileURL(FIXTURE).href);
     await page.waitForTimeout(500);
-    return await measurePage(page);
+    const day = await measurePage(page);
+    // The same DOM in the dark theme (the console's default; `.crew-day` is the day switch). A theme
+    // changes colour, not structure — a border that exists only in one theme is a box the other
+    // theme does not have, and the measurement sees it as one.
+    await page.evaluate(() => document.querySelector(".app")?.classList.remove("crew-day"));
+    await page.waitForTimeout(300);
+    const dark = await measurePage(page);
+    return { ...day, dark };
   } catch (e) { return { error: `could not render the fixture — ${String(e.message || e).split("\n")[0]}` }; }
   finally { await browser.close(); }
 }
@@ -277,6 +284,14 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   if (p.minAgendaFontPx === null || p.minAgendaFontPx < FLOOR.minAgendaFontPx) note(false, `smallest agenda text ${p.minAgendaFontPx}px — floor ${FLOOR.minAgendaFontPx}px`);
   else note(true, `smallest agenda text ${p.minAgendaFontPx}px (floor ${FLOOR.minAgendaFontPx}px)`);
   if (list) { console.log("  deepest boxes:"); for (const d of p.deepest.slice(0, 6)) console.log(`    depth ${d.depth}  ${d.cls}  “${d.text}”`); }
+  const k = p.dark;
+  console.log("DESIGN RATCHET — the same screen, dark theme:");
+  ratchet("box depth at the innermost box", k.maxLeafDepth, CEILING.maxLeafDepth);
+  note(!k.frameOnSectionBody, k.frameOnSectionBody ? "the section body paints a focus frame in the dark theme" : "no focus frame on the section body");
+  ratchet("rail width, expanded, as a fraction of the viewport", k.railWidthFraction, CEILING.railWidthFraction);
+  if (k.minAgendaFontPx === null || k.minAgendaFontPx < FLOOR.minAgendaFontPx) note(false, `smallest agenda text ${k.minAgendaFontPx}px — floor ${FLOOR.minAgendaFontPx}px`);
+  else note(true, `smallest agenda text ${k.minAgendaFontPx}px (floor ${FLOOR.minAgendaFontPx}px)`);
+  note(k.boxes === p.boxes, k.boxes === p.boxes ? `the theme changes colour, not structure: ${k.boxes} boxes in both` : `the dark theme paints ${k.boxes} boxes where day paints ${p.boxes} — a border or fill that exists in one theme only`);
 
   if (fails.length) { console.log(`\nDESIGN RATCHET: ${fails.length} failure(s).`); process.exit(1); }
   console.log("\nDESIGN RATCHET: clean.");

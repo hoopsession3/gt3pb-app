@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { etToday } from "@/lib/dates";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
@@ -30,7 +31,7 @@ const stripHtml = (s: string) => s.replace(/<style[\s\S]*?<\/style>/gi, "").repl
 // "Ryan T <ryan@x.com>" → "ryan@x.com"
 const emailOf = (from: string) => (from.match(/<([^>]+)>/)?.[1] ?? from).trim().toLowerCase();
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   const secret = process.env.NOTES_INBOUND_SECRET;
   if (!supabaseAdmin || !secret) return NextResponse.json({ ok: false }, { status: 503 });
 
@@ -72,3 +73,5 @@ export async function POST(req: Request) {
   if (error) return NextResponse.json({ ok: false }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
+
+export const POST = route("notes/inbound", post);

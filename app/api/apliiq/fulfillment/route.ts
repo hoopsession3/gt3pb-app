@@ -5,13 +5,14 @@ import { accountEmail } from "@/lib/notify";
 import { tellCustomer } from "@/lib/customerMessage";
 import { shippedNotice } from "@/lib/receipt";
 import { integrationTenant } from "@/lib/tenantScope";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
 // APLIIQ → us: "fulfillment" (0271). When Apliiq ships an order it POSTs the tracking here. Verified
 // by HMAC, idempotent by event id: write the fulfillment, flip the order to shipped, and fire the
 // customer's "it's on the way" note through the existing notify engine. Defensive throughout.
-export async function POST(req: Request) {
+async function post(req: Request) {
   const raw = await req.text();
   if (!verifyApliiq(raw, req.headers)) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
@@ -73,3 +74,5 @@ export async function POST(req: Request) {
   } catch { /* notify is best-effort; the ship status is already recorded */ }
   return NextResponse.json({ ok: true });
 }
+
+export const POST = route("apliiq/fulfillment", post);

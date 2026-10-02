@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { staffFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -16,7 +17,7 @@ export const maxDuration = 60;
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const nice = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
   // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
@@ -91,3 +92,5 @@ export async function POST(req: Request) {
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, note_id: (note as any).id, title, existing: false });
 }
+
+export const POST = route("agents/stratsession", post);

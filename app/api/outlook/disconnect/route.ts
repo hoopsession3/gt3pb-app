@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { ownerFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
 // Owner-only. Clears the stored tokens so the company mailbox is disconnected. Keeps event mappings
 // (outlook_event_id) so a future reconnect won't duplicate. Reconnect via /connect.
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await ownerFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
   await supabaseAdmin.from("outlook_connection").update({
@@ -15,3 +16,5 @@ export async function POST(req: Request) {
   }).eq("id", 1);
   return NextResponse.json({ ok: true });
 }
+
+export const POST = route("outlook/disconnect", post);

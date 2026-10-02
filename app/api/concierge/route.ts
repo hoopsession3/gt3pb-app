@@ -6,6 +6,7 @@ import { ownerCorrections, logConvo } from "@/lib/agentKnowledge";
 import { claimSafe, CLAIM_FALLBACK } from "@/lib/claimGuard";
 import { etTimeLabel, etToday } from "@/lib/dates";
 import { money } from "@/lib/money";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
@@ -59,7 +60,7 @@ function throttled(ip: string): boolean {
   return cur.n > MAX_PER_WINDOW;
 }
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "Chat isn't available right now." }, { status: 503 });
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
   if (throttled(ip)) return NextResponse.json({ ok: false, error: "One sec — too many messages. Try again in a moment." }, { status: 429 });
@@ -177,3 +178,5 @@ To book the truck for a private event, send people to the booking page (/book). 
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
   }
 }
+
+export const POST = route("concierge", post);

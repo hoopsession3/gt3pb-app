@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { SQUARE_WEBHOOK_SIGNATURE_KEY, SQUARE_WEBHOOK_URL, mapSubStatus } from "@/lib/squareServer";
 import { raiseAlert, raiseAlertOnce } from "@/lib/serverAlerts";
 import { moneyPlain } from "@/lib/money";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs"; // needs node crypto + raw body
 
@@ -12,7 +13,7 @@ export const runtime = "nodejs"; // needs node crypto + raw body
 // any DB write, then updates the read-only mirror via the service role. The mirror
 // row is created by /api/subscriptions/create (which knows the user_id); this only
 // updates existing rows by square_subscription_id, so forged events can't grant access.
-export async function POST(req: Request) {
+async function post(req: Request) {
   // SQUARE_WEBHOOK_URL must be set and EXACTLY match the endpoint registered in Square,
   // because the HMAC is computed over (notificationUrl + rawBody). No req.url fallback —
   // behind a proxy that won't match and would silently reject every event.
@@ -196,3 +197,5 @@ export async function POST(req: Request) {
   if (eventId) { try { await supabaseAdmin.from("webhook_events").update({ processed_at: new Date().toISOString(), error: null }).eq("id", eventId); } catch { /* best-effort */ } }
   return NextResponse.json({ ok: true });
 }
+
+export const POST = route("square/webhook", post);

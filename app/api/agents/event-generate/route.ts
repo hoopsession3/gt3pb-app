@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { addDays, dayFromKey, etToday, weekdayOf } from "@/lib/dates";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -76,7 +77,7 @@ function weekendDates(todayKey: string) {
   return { sat, sun: addDays(sat, 1) };
 }
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
@@ -169,3 +170,5 @@ export async function POST(req: Request) {
   }
   return NextResponse.json({ ok: true, plan });
 }
+
+export const POST = route("agents/event-generate", post);

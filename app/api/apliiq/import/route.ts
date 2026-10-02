@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { apliiqGet } from "@/lib/apliiq";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 // The heavy-route default this codebase already uses everywhere else (agents/*, transcribe, …).
@@ -90,7 +91,7 @@ function buildVariants(p: any): any[] {
   return out;
 }
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ error: "Storage isn't switched on." }, { status: 503 });
   if (!(await staffFromRequest(req))) return NextResponse.json({ error: "Staff only." }, { status: 401 });
   // R-002: staff-gated, so unlike the two Apliiq WEBHOOKS this one has a caller and the caller is
@@ -227,3 +228,5 @@ export async function POST(req: Request) {
     sample,
   });
 }
+
+export const POST = route("apliiq/import", post);

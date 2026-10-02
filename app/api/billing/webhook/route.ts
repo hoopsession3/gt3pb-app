@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { raiseAlert } from "@/lib/serverAlerts";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
@@ -33,7 +34,7 @@ type StripeEvent = {
   } };
 };
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret || !supabaseAdmin) return NextResponse.json({ ok: true }); // dormant — ack so Stripe doesn't retry forever
   const payload = await req.text();
@@ -98,3 +99,5 @@ export async function POST(req: Request) {
   } catch { /* malformed body from a verified sender — ack and move on (don't retry a bad payload) */ }
   return NextResponse.json({ ok: true });
 }
+
+export const POST = route("billing/webhook", post);

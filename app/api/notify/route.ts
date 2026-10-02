@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { staffFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { notifyCustomer, emailEnabled, smsEnabled, notifyStatus, sendEmail, accountEmail } from "@/lib/notify";
+import { route } from "@/lib/apiRoute";
 
 // LIFECYCLE PINGS the crew fires from the boards — the customer can't be expected to sit in the
 // app. order_ready: the pass advanced an order to Ready (walk-up/pre-orders carry no phone, so
 // this reaches the member's account email). delivered: a Sunday porch run outcome (delivery
 // orders carry a phone — SMS + email). Staff-gated; env-gated senders no-op until keys land.
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   // R-002: staff-gated, so any crew member may act on any order — within THEIR tenant. Without
@@ -76,10 +77,13 @@ export async function POST(req: Request) {
 // Booleans only. notifyStatus() reads whether the switches are on; no key, no key fragment and no
 // sender address crosses this boundary. Staff-gated all the same — which integrations a business
 // has is not public.
-export async function GET(req: Request) {
+async function get(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   // Nested under `providers` on purpose: POST on this same route answers with `email` as a
   // SendResult string. Two verbs answering the same key with different types is a trap, and I
   // had just built one.
   return NextResponse.json({ ok: true, providers: notifyStatus() });
 }
+
+export const POST = route("notify", post);
+export const GET = route("notify", get);

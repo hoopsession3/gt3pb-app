@@ -3,6 +3,7 @@ import { staffFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef, type ClaudeMsg } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -43,7 +44,7 @@ const OPP: ToolDef = {
   },
 };
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
@@ -125,3 +126,5 @@ export async function POST(req: Request) {
   if (!summaryGuard.ok) console.warn(`[sales] claim-guard dropped the summary on "${summaryGuard.hit}"`);
   return NextResponse.json({ ok: true, summary: summaryGuard.ok ? (out.summary ?? "") : safeResearchSummary, opportunities });
 }
+
+export const POST = route("agents/sales", post);

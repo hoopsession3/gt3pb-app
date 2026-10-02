@@ -6,13 +6,14 @@ import { raiseAlert } from "@/lib/serverAlerts";
 import { benefitsForUser, refillIsFree, applyOrderBenefits, acceptedCode } from "@/lib/benefits";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { PRICING, FLAVORS, isPackSize, packTotal, toCents, mixComplete, mixSummary, nextDrop, dropForStop, dropDateKey, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
+import { route } from "@/lib/apiRoute";
 
 // ORDER-AHEAD reserve — records a one-off Saturday-drop reservation. Price + cutoff are recomputed
 // SERVER-SIDE from lib/orderAhead (never trust the client), the charge is a Square ONE-TIME payment
 // (no recurring), and the row is written with the service role so `paid` can't be forged. Mirrors
 // /api/checkout. Member-only: a reservation always belongs to an account (guests browse; the walk-up
 // window stays open to everyone).
-export async function POST(req: Request) {
+async function post(req: Request) {
   const token = process.env.SQUARE_ACCESS_TOKEN;
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
   if (!supabaseAdmin) {
@@ -166,3 +167,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Reservation service unavailable" }, { status: 502 });
   }
 }
+
+export const POST = route("reserve", post);

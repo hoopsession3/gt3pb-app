@@ -12,7 +12,7 @@ import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate
 import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn, rendersRawCrewOption } from "./dupe.audit.mjs";
 import { selectsIn, topLevelParts, columnsOf, ageLine, pendingMigrations, arrivingColumns, declaresArrival } from "./columns.audit.mjs";
 import { definitionsToSchema, refuseReason, projectRef } from "./schema.snapshot.mjs";
-import { classify as classifyRoute } from "./api.audit.mjs";
+import { classify as classifyRoute, unwrapped } from "./api.audit.mjs";
 import { join } from "node:path";
 
 let pass = 0, fail = 0;
@@ -450,8 +450,30 @@ ok("api: a public: line too short to be a reason does not count",
   classifyRoute(`// public: yes\nexport async function GET() { return ok(); }`) === "silent");
 ok("api: public: must be its own comment line, not buried in code",
   classifyRoute(`const why = "public: this is a string, not a declaration, long enough";\nexport async function GET() { return ok(); }`) === "silent");
+ok("api: an inline session read is a second copy of lib/apiAuth, not a guard (the old app/api/office shape)",
+  classifyRoute(`import { supabaseAdmin } from "@/lib/supabaseAdmin";\nexport async function POST(req) { const { data } = await supabaseAdmin.auth.getUser(token); if (!data.user) return no(); }`) === "silent");
 ok("api: a guarded route with a stray public: line is still reported as guarded, not public",
   classifyRoute(`// public: left over from before the guard was added, long enough\nimport { staffFromRequest } from "@/lib/apiAuth";\nexport async function GET(req) { await staffFromRequest(req); }`) === "guarded");
+
+// ── api.audit: the wrapper ─────────────────────────────────────────────────────────────────────
+ok("wrapper: the house shape is clean",
+  unwrapped(`import { route } from "@/lib/apiRoute";\nasync function post(req) { return ok(); }\nexport const POST = route("x", post);`).length === 0);
+ok("wrapper: export async function POST is outside the house",
+  unwrapped(`export async function POST(req) { return ok(); }`).join() === "POST");
+ok("wrapper: export function GET (not async) is outside the house",
+  unwrapped(`export function GET() { return ok(); }`).join() === "GET");
+ok("wrapper: export const GET = async () => … is outside the house",
+  unwrapped(`export const GET = async () => ok();`).join() === "GET");
+ok("wrapper: an export list — export { get as GET } — is outside the house, wherever on the line",
+  unwrapped(`const get = async () => ok(); export { get as GET };`).join() === "GET");
+ok("wrapper: export { POST } of a bare function is outside the house",
+  unwrapped(`async function POST() { return ok(); }\nexport { POST };`).join() === "POST");
+ok("wrapper: two handlers, one wrapped, names only the bare one",
+  unwrapped(`async function get() {}\nexport const GET = route("x", get);\nexport async function POST() {}`).join() === "POST");
+ok("wrapper: a bare handler in a comment does not count",
+  unwrapped(`// export async function POST(req) — the old shape\nasync function post() {}\nexport const POST = route("x", post);`).length === 0);
+ok("wrapper: export const runtime/maxDuration are not handlers",
+  unwrapped(`export const runtime = "nodejs";\nexport const maxDuration = 60;`).length === 0);
 
 console.log(`AUDIT CLASSIFIERS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

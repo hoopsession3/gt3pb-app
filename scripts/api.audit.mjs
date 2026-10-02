@@ -1,6 +1,7 @@
-// API AUDIT — every route under app/api says how it is guarded, or says why it is not.
+// API AUDIT — every route under app/api says how it is guarded, or says why it is not; and every
+// handler is exported through lib/apiRoute's route(), so a throw is never an HTML 500.
 //
-//   node scripts/api.audit.mjs          # fail if a route has neither a guard nor a `// public:` line
+//   node scripts/api.audit.mjs          # fail on a route with neither a guard nor a `// public:` line, or a bare handler
 //   node scripts/api.audit.mjs --list   # every route, classified
 //
 // ── WHY (2026-10-02, Ryan: "was the entire backend audited?") ───────────────────────────────────
@@ -28,8 +29,10 @@ export const GUARDS = [
   /\bverifyApliiq\(/,                         // Apliiq webhook signature (lib/apliiq.ts)
   /\btimingSafeEqual\(/, /\bcreateHmac\(/,     // a signed webhook (Stripe/Square shape)
   /\bpending_state\b/,                        // an OAuth callback checking the state it issued
-  /\.auth\.getUser\(/,                        // the session read itself, done inline (app/api/office — it needs the email too)
   /process\.env\.[A-Z_]*SECRET[A-Z_]*/,       // a shared-secret token compared on the request
+  // NOT here, on purpose: an inline `.auth.getUser(`. app/api/office did that to get the email
+  // beside the id; userFromRequest returns both now. A route that re-reads the session by hand is
+  // a second copy of lib/apiAuth and this audit names it.
 ];
 
 export function routesUnder(dir = API) {
@@ -37,6 +40,21 @@ export function routesUnder(dir = API) {
   const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else if (/^route\.(ts|js)$/.test(n)) out.push(p); } };
   walk(dir);
   return out.sort();
+}
+
+// THE WRAPPER. Every handler leaves the file as `export const X = route("name", x)` (lib/apiRoute.ts):
+// a throw becomes JSON the caller can read and a row the crew can see. A handler exported any other
+// way — `export async function POST`, `export const POST = async …`, `export { x as POST }` — is
+// outside the house and this names it. Comments stripped first, same as the guards.
+const METHODS = "GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD";
+export function unwrapped(src) {
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const out = [];
+  for (const m of code.matchAll(new RegExp(`^export\\s+(?:async\\s+)?function\\s+(${METHODS})\\b`, "gm"))) out.push(m[1]);
+  for (const m of code.matchAll(new RegExp(`^export\\s+const\\s+(${METHODS})\\s*=(?!\\s*route\\()`, "gm"))) out.push(m[1]);
+  // an export list naming a method — `export { get as GET }`, `export { GET }` — anywhere on a line
+  for (const m of code.matchAll(new RegExp(`\\bexport\\s*\\{[^}]*\\b(${METHODS})\\b[^}]*\\}`, "g"))) out.push(m[1]);
+  return out;
 }
 
 export function classify(src) {
@@ -52,10 +70,16 @@ export function classify(src) {
 
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop())) {
   const list = process.argv.includes("--list");
-  const rows = routesUnder().map((p) => ({ route: p.slice(ROOT.length + 1), kind: classify(readFileSync(p, "utf8")) }));
+  const rows = routesUnder().map((p) => { const src = readFileSync(p, "utf8"); return { route: p.slice(ROOT.length + 1), kind: classify(src), bare: unwrapped(src) }; });
   const by = (k) => rows.filter((r) => r.kind === k);
-  if (list) for (const r of rows) console.log(`  ${r.kind.padEnd(8)} ${r.route}`);
-  console.log(`API AUDIT: ${rows.length} route(s) — ${by("guarded").length} guarded, ${by("public").length} public by declaration, ${by("silent").length} silent`);
+  if (list) for (const r of rows) console.log(`  ${r.kind.padEnd(8)} ${r.route}${r.bare.length ? `  (unwrapped: ${r.bare.join(", ")})` : ""}`);
+  const bare = rows.filter((r) => r.bare.length);
+  console.log(`API AUDIT: ${rows.length} route(s) — ${by("guarded").length} guarded, ${by("public").length} public by declaration, ${by("silent").length} silent; ${bare.length} with a handler outside route()`);
+  if (bare.length) {
+    for (const r of bare) console.log(`  ✗ ${r.route} — ${r.bare.join(", ")} exported without lib/apiRoute's route(): a throw here is an HTML 500 nobody sees`);
+    console.log(`\n  Every handler is exported as   export const POST = route("<path>", post);   (see lib/apiRoute.ts).`);
+    process.exit(1);
+  }
   if (by("silent").length) {
     for (const r of by("silent")) console.log(`  ✗ ${r.route} — no guard in code and no "// public: <why>" line`);
     console.log(`\n  A route is either guarded (one of the helpers in lib/apiAuth.ts, a signature check, or a stored`);
@@ -64,5 +88,5 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
     process.exit(1);
   }
   if (rows.length === 0) { console.log("API AUDIT: NOT CHECKED — no routes found under app/api. Treated as a FAILURE."); process.exit(1); }
-  console.log("API AUDIT: every route is guarded or says why it is not — clean.");
+  console.log("API AUDIT: every route is guarded or says why it is not, and every handler leaves through route() — clean.");
 }

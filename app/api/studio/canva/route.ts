@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { canvaEnabled, canvaAutofill, canvaExport } from "@/lib/canva";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -9,7 +10,7 @@ export const maxDuration = 60;
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Studio → Canva. action "design": autofill the GT3 brand template from the piece's copy and save
 // the editable design link. action "export": render the finished design to a PNG and save its URL.
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   // R-002: the service role bypasses RLS, so a content_id from the request body has to be
   // proven to belong to the caller's tenant rather than assumed. With the filter, an id from
@@ -40,3 +41,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
   }
 }
+
+export const POST = route("studio/canva", post);

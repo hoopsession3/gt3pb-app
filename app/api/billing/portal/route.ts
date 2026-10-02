@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { ownerFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
 // SOFTWARE BILLING — Stripe customer portal (update card, cancel, invoices) for the caller's
 // tenant. Owner-gated, dormant until STRIPE_SECRET_KEY exists. Self-serve billing management is
 // table stakes for "software people pay for" — nobody emails support to update a card.
-export async function POST(req: Request) {
+async function post(req: Request) {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) return NextResponse.json({ error: "Billing isn't configured yet." }, { status: 503 });
   if (!(await ownerFromRequest(req))) return NextResponse.json({ error: "Owner only." }, { status: 403 });
@@ -27,3 +28,5 @@ export async function POST(req: Request) {
   if (!res.ok || !session.url) return NextResponse.json({ error: session.error?.message ?? "Stripe error." }, { status: 502 });
   return NextResponse.json({ url: session.url });
 }
+
+export const POST = route("billing/portal", post);

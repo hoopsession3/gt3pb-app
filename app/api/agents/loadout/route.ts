@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
 import { claimSafeDeep } from "@/lib/claimGuard";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -54,7 +55,7 @@ const TOOL: ToolDef = {
   },
 };
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
   // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
@@ -127,3 +128,5 @@ export async function POST(req: Request) {
     checklist: Array.isArray(out?.checklist) ? out.checklist.map((s: any) => String(s).slice(0, 200)) : [],
   });
 }
+
+export const POST = route("agents/loadout", post);

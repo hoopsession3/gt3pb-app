@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
@@ -39,7 +40,7 @@ export const runtime = "nodejs";
 // because /api/health answers "is this app up" for an uptime monitor hitting it every few minutes,
 // and "is this schema current" is a different question asked on a different clock. One route, one
 // question; a monitor should not be paying for a check it never reads.
-export async function GET() {
+async function get() {
   const noStore = { "cache-control": "no-store" };
   if (!supabaseAdmin) return NextResponse.json({ ok: false, why: "db unconfigured" }, { status: 503, headers: noStore });
   try {
@@ -71,3 +72,5 @@ export async function GET() {
     return NextResponse.json({ ok: false }, { status: 503, headers: noStore });
   }
 }
+
+export const GET = route("migrations", get);

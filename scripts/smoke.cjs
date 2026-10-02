@@ -4142,6 +4142,46 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   }
 }
 
+// ── THE ROUTE WRAPPER (lib/apiRoute.ts) and the error intake (lib/errorIntake.ts) ──────────────
+// Every handler under app/api leaves through route(). What it must do: hand back exactly what the
+// handler returned, with exactly the arguments it was given; and when the handler throws, answer
+// with JSON the caller can read instead of Next's HTML 500. What it must never do: throw itself.
+{
+  const { route, ROUTE_THREW } = require("../.smoke/apiRoute.js");
+  const { fingerprintOf, pathOf } = require("../.smoke/errorIntake.js");
+  const { NextResponse } = require("next/server");
+  const req = new Request("http://x/api/planted", { method: "POST" });
+  PENDING.push((async () => {
+    const own = NextResponse.json({ ok: true, n: 1 }, { status: 201 });
+    const passthrough = route("planted", async () => own);
+    ok("route: a handler's own Response comes back untouched", (await passthrough(req)) === own);
+    const seen = [];
+    const withCtx = route("planted", async (r, ctx) => { seen.push(r, ctx); return new Response("hi"); });
+    const ctx = { params: Promise.resolve({ code: "GT3" }) };
+    await withCtx(req, ctx);
+    ok("route: the request and the context arrive exactly as given", seen[0] === req && seen[1] === ctx);
+    const sync = route("planted", () => new Response("sync"));
+    ok("route: a handler that returns a Response without a promise still works", (await (await sync(req)).text()) === "sync");
+    const threw = route("planted", async () => { throw new Error("ECONNRESET, pretend"); });
+    const res = await threw(req);
+    const body = await res.json();
+    ok("route: a throw is a 500", res.status === 500, res.status);
+    ok("route: …with a JSON body the caller can read", res.headers.get("content-type")?.includes("application/json") === true);
+    ok("route: …that says ok:false and the house message, never the stack", body.ok === false && body.error === ROUTE_THREW && !JSON.stringify(body).includes("ECONNRESET"), body);
+    const threwString = route("planted", async () => { throw "a string, not an Error"; });
+    ok("route: a non-Error throw gets the same answer", (await threwString(req)).status === 500);
+    const bad4 = route("planted", async () => NextResponse.json({ error: "Bad request" }, { status: 400 }));
+    ok("route: a handler's own 400 is still its own 400 — the wrapper only catches what escapes", (await bad4(req)).status === 400);
+  })());
+  // The fingerprint is what makes "one bug, one row" true. It must not change across deploys.
+  const a = fingerprintOf("Loading chunk 123 failed: /_next/static/chunks/app-a1b2c3d4e5.js?dpl=dpl_AAA", "at x (chunk-9f8e7d.js:1:2)", "/menu");
+  const b = fingerprintOf("Loading chunk 456 failed: /_next/static/chunks/app-f6e5d4c3b2.js?dpl=dpl_BBB", "at x (chunk-9f8e7d.js:1:2)", "/menu");
+  ok("intake: the same error on two deploys is one fingerprint", a === b);
+  ok("intake: a different page is a different fingerprint", fingerprintOf("x", "", "/menu") !== fingerprintOf("x", "", "/shop"));
+  ok("intake: a different top frame is a different fingerprint", fingerprintOf("x", "at a", "/") !== fingerprintOf("x", "at b", "/"));
+  ok("intake: a server route files under its route path", pathOf("/api/office") === "/api/office" && pathOf("https://app.gt3pb.com/menu?x=1") === "/menu");
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.

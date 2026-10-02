@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { raiseAlertOnce } from "@/lib/serverAlerts";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs"; // needs node crypto + the raw body
 
@@ -42,7 +43,7 @@ function verify(raw: string, h: Headers): boolean {
   });
 }
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   const raw = await req.text();
   if (!supabaseAdmin || !process.env.RESEND_WEBHOOK_SECRET) return NextResponse.json({ ok: false }, { status: 503 });
   if (!verify(raw, req.headers)) return NextResponse.json({ ok: false }, { status: 401 });
@@ -99,3 +100,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true });
 }
+
+export const POST = route("resend/webhook", post);

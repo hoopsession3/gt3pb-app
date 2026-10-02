@@ -3,13 +3,14 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { nextDrop, dropForStop, dropDateKey } from "@/lib/orderAhead";
+import { route } from "@/lib/apiRoute";
 
 // MOVE a reservation to another pickup day — the customer's self-service reschedule.
 // Same authority as /api/reserve: the target day must be one of the truck's real upcoming drops
 // (or the Saturday fallback) and still open; the order must be the caller's, untouched by the
 // crew (not preparing/picked up), and its CURRENT drop must also still be open — once a drop
 // closes we may already be brewing that pack, so a move becomes a call-the-truck matter.
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ error: "Not available yet." }, { status: 503 });
 
   const user = await userFromRequest(req);
@@ -85,3 +86,5 @@ export async function POST(req: Request) {
   });
   return NextResponse.json({ ok: true, toDate });
 }
+
+export const POST = route("reserve/move", post);

@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { SQUARE_BASE, squareHeaders, mapSubStatus } from "@/lib/squareServer";
+import { route } from "@/lib/apiRoute";
 
 // Pause / resume / cancel the caller's own subscription via Square. The webhook
 // reconciles the mirror authoritatively; we update it optimistically for fast UI.
-export async function POST(req: Request) {
+async function post(req: Request) {
   const token = process.env.SQUARE_ACCESS_TOKEN;
   if (!token || !supabaseAdmin) return NextResponse.json({ error: "Not configured" }, { status: 503 });
   const user = await userFromRequest(req);
@@ -47,3 +48,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Service unavailable" }, { status: 502 });
   }
 }
+
+export const POST = route("subscriptions/manage", post);

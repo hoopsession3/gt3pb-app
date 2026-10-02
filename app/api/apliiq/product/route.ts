@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { verifyApliiq, firstSeen } from "@/lib/apliiq";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
 // APLIIQ → us: "add/update product to store" (0271). Verified by HMAC, idempotent by event id, the
 // product is upserted into shop_products by its Apliiq id and BORN HIDDEN (published_at null) — you
 // publish it to /shop with one tap. Defensive: a malformed payload is 400'd, never crashes.
-export async function POST(req: Request) {
+async function post(req: Request) {
   const raw = await req.text();
   if (!verifyApliiq(raw, req.headers)) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
@@ -42,3 +43,5 @@ export async function POST(req: Request) {
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, product: apliiqId, created: !existing });
 }
+
+export const POST = route("apliiq/product", post);

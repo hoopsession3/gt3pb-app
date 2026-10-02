@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { createHash } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { raiseAlert } from "@/lib/serverAlerts";
-import { stableErrorKey } from "@/lib/deploySkew";
+import { fileError } from "@/lib/errorIntake";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
@@ -14,7 +13,8 @@ export const runtime = "nodejs";
 // hit, important otherwise) — after that, repeats only bump the counter. Always 204: telemetry
 // must never give an attacker a signal or a caller an error to chase.
 //
-// TWO THINGS THAT MADE THE DEDUP A LIE, both fixed here. First, a deploy-skew message carries the
+// TWO THINGS THAT MADE THE DEDUP A LIE, both fixed in lib/errorIntake (where the fingerprint and
+// the alert live now). First, a deploy-skew message carries the
 // content-hashed chunk filename, the Vercel deployment id and an internal module number — all of
 // which change on EVERY build. So the one error that recurs most often minted a brand-new
 // fingerprint each deploy and alerted every single time; the fingerprint is computed from a
@@ -31,7 +31,7 @@ const WINDOW_MAX = 60;
 
 const s = (v: unknown, max: number): string => (typeof v === "string" ? v.slice(0, max) : "");
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   const done = new NextResponse(null, { status: 204 });
   try {
     const now = Date.now();
@@ -50,40 +50,11 @@ export async function POST(req: Request) {
     const fatal = b.fatal === true;
     const skew = b.skew === true;
 
-    // Fingerprint: message + top stack frame + path — stable across users/sessions, so one bug
-    // is one row no matter how many phones hit it.
-    const topFrame = stack.split("\n").slice(0, 2).join(" ");
-    let path = url;
-    try { path = new URL(url).pathname; } catch { /* keep as-is */ }
-    const fingerprint = createHash("sha256").update(`${stableErrorKey(message)}|${topFrame}|${path}`).digest("hex");
-
-    // Dedup: bump the counter if we've seen it; insert (and alert) if we haven't.
-    const { data: bumped } = await supabaseAdmin.rpc("bump_client_error", { p_fingerprint: fingerprint });
-    if (bumped === true) return done;
-
-    const { error } = await supabaseAdmin.from("client_errors")
-      .insert({ fingerprint, message, stack: stack || null, url: url || null, ua: ua || null, fatal, skew });
-    if (error) {
-      // Unique-violation race (two instances, same new error): bump instead.
-      await supabaseAdmin.rpc("bump_client_error", { p_fingerprint: fingerprint });
-      return done;
-    }
-    // New, never-seen error → one alert into the existing inbox/push ladder. raiseAlert is
-    // best-effort by contract, so a failure here can't break the report path.
-    // A screen that healed itself is news, not an emergency. Anything the client could not heal —
-    // including a skew that exhausted its reloads — is still the critical it always was.
-    const healed = skew && !fatal;
-    await raiseAlert({
-      severity: healed ? "fyi" : fatal ? "critical" : "important",
-      category: "system",
-      title: healed
-        ? "App recovered from a stale build"
-        : fatal ? "App error — a screen crashed" : "App error (new)",
-      body: healed
-        ? `A tab was one deploy behind and reloaded itself${path ? ` · ${path}` : ""}. Nothing was lost; no action needed.`
-        : `${message.slice(0, 200)}${path ? ` · ${path}` : ""}`,
-      link: "/crew",
-    });
+    // Fingerprint, dedupe, first-sight alert: lib/errorIntake.ts — the same path a server route
+    // that throws takes (lib/apiRoute.ts), so one bug is one row whichever side of the wire hit it.
+    await fileError({ message, stack, url, ua, fatal, skew });
   } catch { /* telemetry never throws */ }
   return done;
 }
+
+export const POST = route("errors/report", post);

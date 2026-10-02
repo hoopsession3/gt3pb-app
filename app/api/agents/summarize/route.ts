@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -38,7 +39,7 @@ const TOOL: ToolDef = {
   },
 };
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
 
@@ -112,3 +113,5 @@ Rules:
 - Keep titles tight; keep bullets specific. The summary is only the Markdown document — no preamble or closing remarks.
 - Omit any optional sub-block (Key Items / Questions / Decisions) when the notes have nothing for it.
 - Match GT3's reality: real menu names (Nature Aide, salted maple latte, nitro cold brew), gear, and event types as written. We serve in glass bottles (10oz / 16oz).`;
+
+export const POST = route("agents/summarize", post);

@@ -3,6 +3,7 @@ import { ownerFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -56,7 +57,7 @@ const TOOL: ToolDef = {
   },
 };
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await ownerFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
@@ -139,3 +140,5 @@ export async function POST(req: Request) {
     todos: snapshot.todos_open.length, incidents: snapshot.open_incidents.length, maintenance: snapshot.gear_maintenance_due.length, low_stock: snapshot.low_stock.length,
   } });
 }
+
+export const POST = route("agents/chief", post);

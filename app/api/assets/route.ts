@@ -6,8 +6,9 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { staffFromRequest } from "@/lib/apiAuth";
+import { route } from "@/lib/apiRoute";
 
-export async function GET(req: Request) {
+async function get(req: Request) {
   if (!(await staffFromRequest(req))) return Response.json({ enabled: false, items: [], error: "unauthorized" }, { status: 401 });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -53,3 +54,5 @@ export async function GET(req: Request) {
 
   return Response.json({ enabled: true, items });
 }
+
+export const GET = route("assets", get);

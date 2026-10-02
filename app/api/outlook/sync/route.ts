@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ownerFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { refresh, graph, eventToGraph, graphToEvent, outlookConfigured } from "@/lib/msgraph";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
@@ -27,7 +28,7 @@ async function validToken(): Promise<{ token: string; base: string } | null> {
   return { token: token!, base: data.calendar_id ? `/me/calendars/${data.calendar_id}` : "/me" };
 }
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await ownerFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (!outlookConfigured()) return NextResponse.json({ ok: false, error: "Outlook isn't configured." }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
@@ -83,3 +84,5 @@ export async function POST(req: Request) {
   await supabaseAdmin.from("outlook_connection").update({ last_sync_at: now, last_sync_note: note }).eq("id", 1);
   return NextResponse.json({ ok: true, pushed, updated, pulled, note });
 }
+
+export const POST = route("outlook/sync", post);

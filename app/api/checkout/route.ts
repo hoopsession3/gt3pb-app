@@ -9,6 +9,7 @@ import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { preorderWindow, preorderLeadMs } from "@/lib/orderAhead";
 import { toMarket } from "@/lib/markets";
 import { money } from "@/lib/money";
+import { route } from "@/lib/apiRoute";
 
 // Square Catalog as a secondary sync — used ONLY for items missing from `products` (a catalog gap),
 // never as the primary source. products.price_cents is the one price authority (0062, and the same
@@ -47,7 +48,7 @@ async function squarePriceMap(token: string): Promise<Record<string, number>> {
   }
 }
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   // Every write into `orders` goes through here now — paid (Square) AND pay-at-pickup (unpaid).
   // Pay-at-pickup used to insert directly from the client (RLS-gated to unpaid rows only); moving
   // it here means the SAME availability + ordering-window checks the paid path already enforces now
@@ -256,3 +257,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, paymentId, amount, recorded: false, warn: "Payment received, but we hit a snag recording your order — show this screen at the window and we'll sort it." }, { status: 200 });
   }
 }
+
+export const POST = route("checkout", post);

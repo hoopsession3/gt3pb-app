@@ -5,6 +5,7 @@ import { callClaude, anthropicEnabled, MODELS, type ClaudeMsg } from "@/lib/anth
 import { academyKnowledge } from "@/lib/operatorKb";
 import { ownerCorrections, brewRecipeFacts, logConvo, MEASURING_RULES } from "@/lib/agentKnowledge";
 import { claimSafe, CLAIM_FALLBACK } from "@/lib/claimGuard";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -36,7 +37,7 @@ FORMATTING — the app renders a small, exact subset (lib/prose.ts). Write in it
 
 WHAT YOU CAN DO IN THE APP: GT3 runs entirely in THIS app — there is NO Monday.com, Notion board, or outside scheduler, so never mention or imply such tools. The app has built-in builders. If someone asks you to CREATE an event, say you're opening the event builder (the app opens it; you don't need to do anything else). For notes or to-dos, point them to Plan → Notes / the Company Calendar. Never claim you "don't have access" to a scheduling system — just hand off to the right in-app builder.`;
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
   // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
@@ -90,3 +91,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
   }
 }
+
+export const POST = route("agents/operator", post);

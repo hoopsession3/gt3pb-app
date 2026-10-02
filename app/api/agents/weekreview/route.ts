@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { moneyRound } from "@/lib/money";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -36,7 +37,7 @@ async function revenue(fromISO: string, toISO: string): Promise<number> {
        + (await sum("business_orders", (q) => win(q.eq("payment_status", "paid").is("canceled_at", null))));
 }
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   // R-002: the service role bypasses RLS, so every read below has to name its own tenant. Without
   // this the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
@@ -162,3 +163,5 @@ export async function POST(req: Request) {
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, note_id: (note as any).id, title, existing: false });
 }
+
+export const POST = route("agents/weekreview", post);

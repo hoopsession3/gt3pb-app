@@ -3,6 +3,7 @@ import { staffFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiA
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -35,7 +36,7 @@ const TOOL: ToolDef = {
   },
 };
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
   // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
@@ -92,3 +93,5 @@ export async function POST(req: Request) {
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, added: rows.length, items: rows.map((r) => ({ label: r.label, critical: r.critical })) });
 }
+
+export const POST = route("agents/recap", post);

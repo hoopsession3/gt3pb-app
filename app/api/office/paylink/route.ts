@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { SQUARE_BASE, squareHeaders, safeIdemKey } from "@/lib/squareServer";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,7 @@ export const runtime = "nodejs";
 // stored on the business_order; when the customer pays, the webhook matches payment.order_id →
 // square_order_id, auto-marks it paid, and stores payment_id (which also powers the walk-up dedupe,
 // 0220). Idempotent: same order → same link. Staff-gated.
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   // R-002: staff-gated, so any crew member may act on any order — within THEIR tenant. Without
   // this filter the service role would reach every tenant's orders once a second one exists.
@@ -58,3 +59,5 @@ export async function POST(req: Request) {
   if (linkErr) return NextResponse.json({ ok: false, error: "Link created but didn't save — tap again" }, { status: 502 });
   return NextResponse.json({ ok: true, url: link.url });
 }
+
+export const POST = route("office/paylink", post);

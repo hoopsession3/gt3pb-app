@@ -4,6 +4,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { studioSystem } from "@/lib/brandVoice";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { claimSafeDeep } from "@/lib/claimGuard";
+import { route } from "@/lib/apiRoute";
 
 // Recent captions the team approved/published — the live voice the agents learn from.
 // Takes the tenant rather than reading whatever is there: a helper that reads tenant data has
@@ -49,7 +50,7 @@ const TOOL: ToolDef = {
   },
 };
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   const tenant = await tenantFromRequest(req);
   if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
@@ -86,3 +87,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
   }
 }
+
+export const POST = route("agents/caption", post);

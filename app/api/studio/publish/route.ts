@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ownerFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { webflowEnabled, webflowPublish, webflowUnpublish } from "@/lib/webflow";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -12,7 +13,7 @@ export const maxDuration = 60;
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const toHtml = (s: string) => (s || "").split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await ownerFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   // R-002: the service role bypasses RLS, so a content_id from the request body has to be
   // proven to belong to the caller's tenant rather than assumed. With the filter, an id from
@@ -52,3 +53,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
   }
 }
+
+export const POST = route("studio/publish", post);

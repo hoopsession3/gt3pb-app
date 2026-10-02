@@ -4,6 +4,7 @@ import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ClaudeMsg, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -141,7 +142,7 @@ async function reapStale(state: string) {
     .eq("state", state).in("status", ["pending", "running", "searched", "extracting"]).lt("updated_at", cutoff);
 }
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
@@ -200,3 +201,5 @@ export async function POST(req: Request) {
   after(() => processResearchJob(job.id, { state, county, event_id, place }));
   return NextResponse.json({ ok: true, status: "pending", job_id: job.id, place });
 }
+
+export const POST = route("agents/inspection", post);

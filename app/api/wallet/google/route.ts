@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { route } from "@/lib/apiRoute";
 
 // Google Wallet — a "Save to Google Wallet" link is a JWT (RS256) signed with the GT3 service-account
 // key, carrying the member's loyalty object (stamps + a QR barcode of their card code). No pkpass
@@ -15,7 +16,7 @@ function signJwt(payload: object, key: string): string {
   return `${header}.${body}.${sig}`;
 }
 
-export async function GET(req: Request) {
+async function get(req: Request) {
   const issuerId = process.env.GOOGLE_WALLET_ISSUER_ID;
   const classSuffix = process.env.GOOGLE_WALLET_CLASS_SUFFIX;
   const saEmail = process.env.GOOGLE_WALLET_SA_EMAIL;
@@ -49,3 +50,5 @@ export async function GET(req: Request) {
 
   return NextResponse.json({ saveUrl: `https://pay.google.com/gp/v/save/${jwt}` });
 }
+
+export const GET = route("wallet/google", get);

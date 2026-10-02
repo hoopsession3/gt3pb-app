@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { SQUARE_BASE, squareHeaders } from "@/lib/squareServer";
 import { ownerFromRequest } from "@/lib/apiAuth";
+import { route } from "@/lib/apiRoute";
 
 // Card-connection check (owner-gated). The Web SDK's init failure is one generic sentence with
 // zero visibility; this asks Square directly with the SERVER token and reports the exact
 // mismatch in plain words. The token itself never leaves this route — only booleans and
 // location ids (which are public client values anyway).
-export async function GET(req: Request) {
+async function get(req: Request) {
   if (!(await ownerFromRequest(req))) return NextResponse.json({ ok: false, error: "Owners only." }, { status: 403 });
 
   const token = process.env.SQUARE_ACCESS_TOKEN;
@@ -46,3 +47,5 @@ export async function GET(req: Request) {
 
   return NextResponse.json({ ok: checks.every((c) => c.ok), checks });
 }
+
+export const GET = route("square/health", get);

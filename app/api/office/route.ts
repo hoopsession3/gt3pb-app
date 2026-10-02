@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { OFFICE, officeQuote, nextMondayKey, mondayLabel } from "@/lib/office";
 import { zipMarket } from "@/lib/delivery";
 import { marketServes } from "@/lib/markets";
 import { money } from "@/lib/money";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
@@ -18,19 +20,15 @@ export const runtime = "nodejs";
 // writes" hardening the cup/pack/delivery order types already have (/api/checkout, /api/reserve,
 // /api/delivery). Member-gated — an office order always belongs to an account.
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ error: "Office delivery isn't switched on yet." }, { status: 503 });
 
-  // Auth + email in one trusted read (email seeds the standing account's contact, so it comes from
-  // the verified session, never the client body). Same token check as lib/apiAuth.userFromRequest,
-  // inlined only to keep the email the standing-account path needs.
-  const authHeader = req.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  if (!token) return NextResponse.json({ error: "Sign in to set up office delivery." }, { status: 401 });
-  const { data: authData, error: authErr } = await supabaseAdmin.auth.getUser(token);
-  if (authErr || !authData.user) return NextResponse.json({ error: "Sign in to set up office delivery." }, { status: 401 });
-  const userId = authData.user.id;
-  const userEmail = authData.user.email ?? null;
+  // Auth + email in one trusted read: the email seeds the standing account's contact, so it comes
+  // from the verified session (lib/apiAuth.userFromRequest), never the client body.
+  const caller = await userFromRequest(req);
+  if (!caller) return NextResponse.json({ error: "Sign in to set up office delivery." }, { status: 401 });
+  const userId = caller.id;
+  const userEmail = caller.email;
 
   let body: {
     company?: string; contact?: string; phone?: string; headcount?: string | number;
@@ -123,3 +121,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, id: orderId, gallons: q.gallons, date: dateKey, totalCents: q.totalCents });
 }
+
+export const POST = route("office", post);

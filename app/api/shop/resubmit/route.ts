@@ -4,6 +4,7 @@ import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { submitOrderToApliiq } from "@/lib/apliiq";
 import { skuFor } from "@/lib/apliiqOrder";
 import { raiseAlert } from "@/lib/serverAlerts";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
@@ -20,7 +21,7 @@ export const runtime = "nodejs";
 // a hand-typed order matches NEITHER: when Apliiq ships it the callback 404s, the status never
 // reaches 'shipped', and the customer never gets their tracking number. Going through this route
 // keeps that thread attached.
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ ok: false, error: "Not configured." }, { status: 503 });
   // Crew only, and the FIRST thing: this spends money at a vendor.
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "Crew only." }, { status: 403 });
@@ -121,3 +122,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, apliiqOrderId: submit.apliiqOrderId });
 }
+
+export const POST = route("shop/resubmit", post);

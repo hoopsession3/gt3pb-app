@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { route } from "@/lib/apiRoute";
 
 // public: out-of-zone waitlist capture, write-only and bounded — rate-limited in Postgres, no client table access
 // OUT-OF-ZONE WAITLIST — capture only, fail-silent-ish, tightly bounded. No client table access
@@ -8,7 +9,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 // instance," not a global cap; a shared store closes that.
 const WINDOW_MS = 60_000, WINDOW_MAX = 30;
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ ok: true }); // capture is best-effort by design
   const { data: underCap } = await supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "delivery-waitlist", p_window_ms: WINDOW_MS, p_max: WINDOW_MAX });
   // Was `{ ok: true }` — same shape as a genuine success. The client (OrderFunnel.joinWaitlist) reads
@@ -33,3 +34,5 @@ export async function POST(req: Request) {
   if (error) return NextResponse.json({ ok: false, error: "That didn't save — try again." }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
+
+export const POST = route("delivery/waitlist", post);

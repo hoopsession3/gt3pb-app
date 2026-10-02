@@ -3,6 +3,7 @@ import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { etToday } from "@/lib/dates";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -34,7 +35,7 @@ const TOOL: ToolDef = {
   },
 };
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   const staff = await staffFromRequest(req);
   if (!staff) return NextResponse.json({ ok: false, error: "Staff only" }, { status: 403 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI isn't configured yet." }, { status: 400 });
@@ -75,3 +76,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: e?.message || "Something went wrong." }, { status: 500 });
   }
 }
+
+export const POST = route("agents/event-build", post);

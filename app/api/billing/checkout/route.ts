@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ownerFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,7 @@ export const runtime = "nodejs";
 //
 // client_reference_id carries the tenant id; the webhook (billing/webhook) writes the result back
 // onto public.tenants. GT3 itself is 'founder' and never comes through here.
-export async function POST(req: Request) {
+async function post(req: Request) {
   const key = process.env.STRIPE_SECRET_KEY;
   const price = process.env.STRIPE_PRICE_PRO;
   if (!key || !price) return NextResponse.json({ error: "Billing isn't configured yet." }, { status: 503 });
@@ -42,3 +43,5 @@ export async function POST(req: Request) {
   if (!res.ok || !session.url) return NextResponse.json({ error: session.error?.message ?? "Stripe error." }, { status: 502 });
   return NextResponse.json({ url: session.url });
 }
+
+export const POST = route("billing/checkout", post);

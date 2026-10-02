@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { verifyApliiq } from "@/lib/apliiq";
 import { integrationTenant } from "@/lib/tenantScope";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
 // APLIIQ → us: "product search" (0271). Apliiq asks whether we carry a product so its UI can link a
 // design to ours. Verified by HMAC; returns matching merch rows in a simple shape. Read-only.
-export async function POST(req: Request) {
+async function post(req: Request) {
   const raw = await req.text();
   if (!verifyApliiq(raw, req.headers)) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
@@ -33,3 +34,5 @@ export async function POST(req: Request) {
     })),
   });
 }
+
+export const POST = route("apliiq/search", post);

@@ -5,6 +5,7 @@ import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { money } from "@/lib/money";
+import { route } from "@/lib/apiRoute";
 import {
   quoteDelivery, deliverySlotChoices, zipInZone, perfTotal, maxRefills,
   DELIVERY_PACKS, type PerfMix,
@@ -29,7 +30,7 @@ type Body = {
   deliveryDate?: string; // which Sunday — one of the two offered keys
 };
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   const token = process.env.SQUARE_ACCESS_TOKEN;
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
   // DELIVERY IS ALWAYS PAID ON ORDER — no cash on delivery. Card + Square are required; the
@@ -183,3 +184,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, paymentId, recorded: false, deliveryLabel: slot.deliveryLabel, warn: "Payment received, but we hit a snag recording your order — we'll follow up to confirm the details." }, { status: 200 });
   }
 }
+
+export const POST = route("delivery/checkout", post);

@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { ownerFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { outlookConfigured } from "@/lib/msgraph";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
 // Owner-only. Reports whether Outlook is configured (env) and connected (tokens stored), plus the
 // connected account and last sync. Never returns tokens.
-export async function GET(req: Request) {
+async function get(req: Request) {
   if (!(await ownerFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   const configured = outlookConfigured();
   let connected = false, account: string | null = null, last_sync: string | null = null, last_note: string | null = null;
@@ -17,3 +18,5 @@ export async function GET(req: Request) {
   }
   return NextResponse.json({ ok: true, configured, connected, account, last_sync, last_note });
 }
+
+export const GET = route("outlook/status", get);

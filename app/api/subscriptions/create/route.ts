@@ -3,11 +3,12 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { SQUARE_BASE, squareHeaders, planForPack, subsConfigured, mapSubStatus } from "@/lib/squareServer";
 import { raiseAlert } from "@/lib/serverAlerts";
+import { route } from "@/lib/apiRoute";
 
 // Create a recurring subscription: ensure a Square Customer, vault the card, then
 // CreateSubscription against the owner's plan variation. Square owns billing; we keep
 // a status mirror (the webhook keeps it authoritative).
-export async function POST(req: Request) {
+async function post(req: Request) {
   const token = process.env.SQUARE_ACCESS_TOKEN;
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
   if (!subsConfigured() || !token || !locationId || !supabaseAdmin) {
@@ -130,3 +131,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Subscription couldn't start" }, { status: 400 });
   }
 }
+
+export const POST = route("subscriptions/create", post);

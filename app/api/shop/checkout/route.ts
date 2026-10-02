@@ -10,6 +10,7 @@ import { submitOrderToApliiq } from "@/lib/apliiq";
 import { skuFor } from "@/lib/apliiqOrder";
 import { integrationTenant } from "@/lib/tenantScope";
 import { money } from "@/lib/money";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
@@ -22,7 +23,7 @@ export const runtime = "nodejs";
 type InItem = { product_id?: string; variant?: unknown; qty?: number };
 type Ship = { name?: string; street?: string; city?: string; state?: string; zip?: string; email?: string };
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   const token = process.env.SQUARE_ACCESS_TOKEN;
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
   if (!supabaseAdmin) return NextResponse.json({ error: "The shop isn't switched on yet." }, { status: 503 });
@@ -169,3 +170,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Checkout service unavailable" }, { status: 502 });
   }
 }
+
+export const POST = route("shop/checkout", post);

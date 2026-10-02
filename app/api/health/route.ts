@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { buildInfo } from "@/lib/buildInfo";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
@@ -23,7 +24,7 @@ export const runtime = "nodejs";
 // three times when it had not been checked at all. Both the healthy and the unhealthy response
 // carry it, because "which commit is broken" is exactly what you want at 503. `build.known` is
 // false rather than guessed when the platform did not say.
-export async function GET() {
+async function get() {
   const noStore = { "cache-control": "no-store" };
   const build = buildInfo();
   try {
@@ -39,3 +40,5 @@ export async function GET() {
     return NextResponse.json({ ok: false, build }, { status: 503, headers: noStore });
   }
 }
+
+export const GET = route("health", get);

@@ -3,6 +3,7 @@ import { ownerFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { canvaEnabled } from "@/lib/canva";
 import { webflowEnabled } from "@/lib/webflow";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,7 @@ const TABLES: Record<string, string> = {
   audit: "audit_log", inventory: "inventory_items", events: "event_tasks",
 };
 
-export async function GET(req: Request) {
+async function get(req: Request) {
   if (!(await ownerFromRequest(req))) return NextResponse.json({ ok: false, error: "owners only" }, { status: 403 });
 
   const status: Record<string, "live" | "configured" | "staged"> = {};
@@ -37,3 +38,5 @@ export async function GET(req: Request) {
 
   return NextResponse.json({ ok: true, status });
 }
+
+export const GET = route("architecture/status", get);

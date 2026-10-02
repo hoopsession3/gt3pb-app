@@ -2,14 +2,19 @@ import { supabaseAdmin } from "./supabaseAdmin";
 import { createClient } from "@supabase/supabase-js";
 
 // Verify the caller's Supabase access token (sent as Authorization: Bearer <jwt>)
-// and return their user id. Server-only. Returns null if missing/invalid.
-export async function userFromRequest(req: Request): Promise<{ id: string } | null> {
+// and return their user id and verified email. Server-only. Returns null if missing/invalid.
+//
+// The email is here so a route that needs it (app/api/office seeds a standing account's contact
+// from it) reads it from the SAME verified session as the id, never from the client body — and
+// never by re-implementing this token check inline. This is the one place a route reads a session;
+// scripts/api.audit.mjs does not accept an inline `.auth.getUser(` as a guard.
+export async function userFromRequest(req: Request): Promise<{ id: string; email: string | null } | null> {
   const auth = req.headers.get("authorization") || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
   if (!token || !supabaseAdmin) return null;
   const { data, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !data.user) return null;
-  return { id: data.user.id };
+  return { id: data.user.id, email: data.user.email ?? null };
 }
 
 // Staff-only gate for internal READ routes (assets, inventory) so they never return

@@ -5,6 +5,7 @@ import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { money } from "@/lib/money";
+import { route } from "@/lib/apiRoute";
 
 // CANCEL A CUSTOMER ORDER — one route for all three channels (cup / pickup pack / Sunday delivery).
 // The database RPC already does the hard, trusted part (owner check + status-window check + the
@@ -30,7 +31,7 @@ const dayLabel = (isoDate: string): string => {
 
 type Canceled = { paid: boolean; who: string; label: string; phone: string | null; total_cents: number };
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anon || !supabaseAdmin) {
@@ -126,3 +127,5 @@ async function lookup(channel: Channel, id: string, userId: string): Promise<Can
       label: `${data.pack_size}-bottle delivery for ${dayLabel(data.delivery_date)}`, phone: data.phone ?? null, total_cents: data.total_cents ?? 0 };
   } catch { return null; }
 }
+
+export const POST = route("orders/cancel", post);

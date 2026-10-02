@@ -3,6 +3,7 @@ import { staffFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { accountEmail, sendEmail, sendSMS, emailEnabled } from "@/lib/notify";
 import { moneyRound } from "@/lib/money";
+import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -29,7 +30,7 @@ async function count(table: string, filter: (q: any) => any): Promise<number> {
   } catch { return 0; }
 }
 
-export async function POST(req: Request) {
+async function post(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false, error: "not configured" }, { status: 503 });
   const week = since7d();
@@ -100,3 +101,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, sent, emailConfigured: emailEnabled(), summary: headline });
 }
+
+export const POST = route("cron/digest", post);
