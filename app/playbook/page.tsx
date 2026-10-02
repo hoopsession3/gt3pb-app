@@ -7,6 +7,7 @@ import { STRATEGY_CORE, GTM_PLAYS, GOVERNANCE, FLYWHEEL, STRATEGY_REV, type GtmP
 import { StrategyThread, DecisionLog, PlayBuilder, useDrafts } from "@/components/StrategyCollab";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import Icon from "@/components/Icon";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // THE PLAYBOOK — the whole strategy on one owner screen, and now a working document: every block
 // and play carries a live discussion thread (owners get pinged), the guided builder walks you
@@ -18,6 +19,7 @@ const STATUS_LABEL = { active: "ACTIVE", planning: "PLANNING", "phase-2": "PHASE
 const keyFor = (name: string) => "gtm:" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
 export default function PlaybookPage() {
+  const confirm = useConfirm();
   const { profile, enabled } = useAuth();
   const [open, setOpen] = useState<string | null>(null); // which thread is open
   const [builder, setBuilder] = useState<null | { prefill: GtmPlay | null }>(null);
@@ -84,7 +86,7 @@ export default function PlaybookPage() {
           <Discuss k={"draft:" + d.id} label={`Draft: ${d.name}`} />
           {/* The retire the query has been filtering for since day one. */}
           <button type="button" className="pb-retire"
-                  onClick={() => { if (window.confirm(`Retire "${d.name}"?\n\nIt comes off the playbook. The draft and anything said about it are kept.`)) retire(d.id); }}>
+                  onClick={async () => { if (await confirm({ title: `Retire “${d.name}”?`, body: "It comes off the playbook. The draft and anything said about it are kept.", confirmLabel: "Retire" })) retire(d.id); }}>
             Retire this draft
           </button>
         </div>

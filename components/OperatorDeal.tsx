@@ -21,6 +21,8 @@ import {
 } from "@/lib/operatorDeal";
 import { moneyRound } from "@/lib/money";
 import { localToday } from "@/lib/dates";
+import { useConfirm } from "@/components/ConfirmSheet";
+import { usePrompt } from "@/components/PromptSheet";
 
 // OPERATOR DEAL — build, price and negotiate a market operator's agreement.
 //
@@ -194,6 +196,8 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra }: {
   row: Row; open: boolean; onToggle: () => void; onSaved: () => void;
   toast: (m: string, t?: any) => void; meId: string | null; extra?: Extra;
 }) {
+  const confirm = useConfirm();
+  const prompt = usePrompt();
   const status = toStatus(row.status);
   const [d, setD] = useState({
     operatorName: row.operator_name, operatorEmail: row.operator_email ?? "",
@@ -262,9 +266,13 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra }: {
     if (!supabase) return;
     // A preset comes from the explainer, where the operator has already said what they want by
     // moving the slider — asking them to retype it in a prompt box would be the worse experience.
-    const note = preset ?? (typeof window !== "undefined"
-      ? window.prompt(action === "accept" ? "Anything to note with your acceptance? (optional)" : "What would you like changed?") ?? ""
-      : "");
+    // Dismissing the sheet means "not now" — it used to accept with an empty note, because a
+    // cancelled window.prompt() returned "" through the `?? ""`. A closed question is not a yes.
+    const typed = preset ?? (await prompt(action === "accept"
+      ? { title: "Anything to note with your acceptance?", hint: "Optional.", confirmLabel: "Accept", multiline: true }
+      : { title: "What would you like changed?", hint: "It goes on the record with your reply.", confirmLabel: "Send", multiline: true }));
+    if (typed === null) return;
+    const note = typed;
     if (action !== "accept" && !note.trim()) { toast("Say what you'd like changed so it's on the record.", "error"); return; }
     setBusy(true);
     const { error } = await supabase.rpc("respond_to_agreement", { p_id: row.id, p_action: action, p_note: note.trim() || null });
@@ -442,10 +450,12 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra }: {
             {!isMine && isDiscardable(status) && (
               <button type="button" className="btn-sec od-discard" disabled={busy} onClick={async () => {
                 if (!supabase) return;
-                if (typeof window !== "undefined" && !window.confirm(
-                  `Discard this agreement for ${row.operator_name}?\n\nIf it has never been sent it is removed entirely. If ${row.operator_name} has already seen it, the record stays and is marked withdrawn.`)) return;
-                const why = status === "draft" ? null : (typeof window !== "undefined"
-                  ? window.prompt("Why is it being withdrawn? (goes on the record)") : null);
+                if (!(await confirm({
+                  title: `Discard this agreement for ${row.operator_name}?`,
+                  body: `If it has never been sent it is removed entirely. If ${row.operator_name} has already seen it, the record stays and is marked withdrawn.`,
+                  confirmLabel: "Discard", danger: true,
+                }))) return;
+                const why = status === "draft" ? null : await prompt({ title: "Why is it being withdrawn?", hint: "Goes on the record.", confirmLabel: "Withdraw" });
                 setBusy(true);
                 const { data, error } = await supabase.rpc("discard_agreement", { p_agreement: row.id, p_reason: why || null });
                 setBusy(false);
@@ -459,8 +469,7 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra }: {
             {(status === "active" || status === "signed" || status === "accepted") && (
               <button type="button" className="btn-sec" disabled={busy} onClick={async () => {
                 if (!supabase) return;
-                const why = typeof window !== "undefined"
-                  ? window.prompt("Why is this being replaced? (goes on the record of the old version)") : "";
+                const why = await prompt({ title: "Why is this being replaced?", hint: "Goes on the record of the old version.", confirmLabel: "Replace" });
                 if (why === null) return;
                 setBusy(true);
                 const { error } = await supabase.rpc("supersede_agreement", { p_id: row.id, p_why: why || null });

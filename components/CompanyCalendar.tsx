@@ -411,6 +411,22 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
   })();
 
   const VIEWS: View[] = ["list", "board", "cards", "week", "month", "quarter", "year"];
+  // ON A PHONE, THREE VIEWS AND A "MORE" (2026-10-02, Ryan: "do all 6"). Seven pills scrolled off
+  // the right edge of a 390px screen and clipped at "Qua…" in his screenshot. Agenda, Week and
+  // Month are the ones a phone uses; Board, Cards, Quarter and Year wait behind More. Whatever view
+  // is ACTIVE is always shown, so a saved "board" view does not come back as an unlabelled strip.
+  // Desktop keeps all seven; the width check is the same breakpoint the stylesheet uses for the rail.
+  const PHONE_VIEWS: View[] = ["list", "week", "month"];
+  const [phone, setPhone] = useState(false);
+  const [moreViews, setMoreViews] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(max-width: 640px)");
+    const apply = () => setPhone(mq.matches);
+    apply(); mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  const shownViews = !phone || moreViews ? VIEWS : VIEWS.filter((v) => PHONE_VIEWS.includes(v) || v === view);
   // Chip tap = open the pop-out editor in place (the "same standard as all others" rule) —
   // teleporting to another section on a bare tap is reserved for the aggregates (drop/delivery)
   // that have no single row to edit. Each editor still carries a jump link to its full surface.
@@ -459,7 +475,8 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
           <button type="button" className="cal-today" onClick={() => setCur(new Date(now.getFullYear(), now.getMonth(), now.getDate()))}>Today</button>
         </div>
         <div className="cal-views">
-          {VIEWS.map((v) => <button key={v} type="button" className={`cal-view${view === v ? " on" : ""}`} onClick={() => setV(v)}>{VLABEL[v]}</button>)}
+          {shownViews.map((v) => <button key={v} type="button" className={`cal-view${view === v ? " on" : ""}`} onClick={() => setV(v)}>{VLABEL[v]}</button>)}
+          {phone && <button type="button" className="cal-view cal-view-more" aria-expanded={moreViews} onClick={() => setMoreViews((m) => !m)}>{moreViews ? "Fewer" : "More"}</button>}
           <button type="button" className={`cal-filterbtn${filter !== "all" ? " on" : ""}`} onClick={() => setFilterSheet(true)} aria-haspopup="dialog">
             {filter === "all" ? "Filter" : laneFilter ? <><span className="cc-dot" style={{ background: laneFilter.color }} />{laneFilter.label}</> : <><span className="cc-dot" style={{ background: CAT[filter].color }} />{CAT[filter].label}</>}
           </button>

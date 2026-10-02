@@ -10,6 +10,7 @@ import Icon from "@/components/Icon";
 import { calFromEvent, calFromStop } from "@/lib/ics";
 import { geocode } from "@/lib/geocode";
 import { derivedStopStatus } from "@/lib/stopRecord";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // OWNER DETAILS — the edit sheet behind a truck stop or an event.
 //
@@ -23,6 +24,7 @@ import { derivedStopStatus } from "@/lib/stopRecord";
 // already moved to lib/stopRecord in the commit before this).
 
 export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { ownerType: "event" | "stop"; ownerId: string; isAdmin: boolean; onSaved: (name: string) => void; onRemoved: () => void }) {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const isEvent = ownerType === "event";
   const table = isEvent ? "events" : "stops";
@@ -54,7 +56,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
   // event/stop — same as the calendar's Remove and Live truck's Archive.
   const archive = async () => {
     if (!supabase) return;
-    if (typeof window !== "undefined" && !window.confirm(`Archive this ${what}?\n\nIt comes off the active lists (calendar, prep, route) but the record is kept — you can restore it.`)) return;
+    if (!(await confirm({ title: `Archive this ${what}?`, body: "It comes off the active lists (calendar, prep, route) but the record is kept — you can restore it.", confirmLabel: "Archive" }))) return;
     setSaving(true);
     await supabase.from(table).update({ archived_at: new Date().toISOString() }).eq("id", ownerId);
     setSaving(false); toast(`${isEvent ? "Event" : "Stop"} archived`); onRemoved();
@@ -62,7 +64,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
   // Hard delete — gone for good, plus its prep, schedule, crew, links (FK cascade).
   const del = async () => {
     if (!supabase) return;
-    if (typeof window !== "undefined" && !window.confirm(`DELETE this ${what} for good?\n\nThis permanently removes it AND its prep list, schedule, crew, and brew links. This can't be undone. (Use Archive instead if you just want it off the lists.)`)) return;
+    if (!(await confirm({ title: `Delete this ${what} for good?`, body: "This permanently removes it and its prep list, schedule, crew and brew links. It can't be undone. Use Archive instead if you just want it off the lists.", confirmLabel: "Delete for good", cancelLabel: "Keep it", danger: true }))) return;
     setSaving(true);
     const { error } = await supabase.from(table).delete().eq("id", ownerId);
     setSaving(false);
@@ -78,7 +80,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
     if (!supabase) return;
     const toEvent = !isEvent;
     const toLabel = toEvent ? "event" : "truck stop";
-    if (typeof window !== "undefined" && !window.confirm(`Change this ${what} into a ${toLabel}?\n\nIt's re-created as a ${toLabel} with the same name, date, location & vendor. The original is archived — any prep list or brew links stay with the archived copy.`)) return;
+    if (!(await confirm({ title: `Change this ${what} into a ${toLabel}?`, body: `It's re-created as a ${toLabel} with the same name, date, location and vendor. The original is archived — any prep list or brew links stay with the archived copy.`, confirmLabel: `Make it a ${toLabel}` }))) return;
     setSaving(true);
     const { data: src } = await supabase.from(table).select("*").eq("id", ownerId).maybeSingle();
     const s = (src as Record<string, unknown>) ?? {};

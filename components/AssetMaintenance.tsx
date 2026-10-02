@@ -8,6 +8,7 @@ import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // ASSET MAINTENANCE — upkeep log for the gear. Each asset shows its last service and what's due next
 // (or overdue); tap to see the full history and log a new service/repair/clean/inspection. Staff-gated
@@ -24,6 +25,7 @@ const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(
 const fmt = (s: string | null) => s ? new Date(`${s}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
 
 export default function AssetMaintenance() {
+  const confirm = useConfirm();
   const [openId, setOpenId] = useState<string | null>(null);
   const [logFor, setLogFor] = useState<Asset | null>(null);
 
@@ -42,7 +44,7 @@ export default function AssetMaintenance() {
 
   const delLog = async (id: string) => {
     if (!supabase) return;
-    if (typeof window !== "undefined" && !window.confirm("Delete this maintenance record?")) return;
+    if (!(await confirm({ title: "Delete this maintenance record?", confirmLabel: "Delete", danger: true }))) return;
     await supabase.from("asset_maintenance").delete().eq("id", id);
     reload();
   };

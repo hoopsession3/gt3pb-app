@@ -8,6 +8,7 @@ import OperatorNav, { OperatorSectionProvider } from "./OperatorNav";
 import { TaskSheetProvider } from "./TaskSheet";
 import { RecordProvider } from "./RecordSheet";
 import { ConfirmProvider } from "./ConfirmSheet";
+import { PromptProvider } from "./PromptSheet";
 import QuickDock from "./QuickDock";
 import EventCopilot from "./EventCopilot";
 import Concierge from "./Concierge";
@@ -118,13 +119,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <OperatorSectionProvider>
+     {/* "Are you sure?" and "say why" from anywhere — the two sheets that replace window.confirm()
+         and window.prompt(). OUTERMOST on purpose: TaskSheetProvider and RecordProvider render their
+         sheets as siblings after {children}, so a provider nested inside them would be invisible to
+         exactly the sheets that ask the most (delete a task, archive an event). Stacking is not a
+         concern of nesting — every Sheet portals into .app, and the one that mounts last paints on
+         top, which is always the question being asked. */}
+     <ConfirmProvider>
+     <PromptProvider>
      <TaskSheetProvider>
       {/* Records open from anywhere (?r=kind:id). Inside TaskSheetProvider so a task sheet can open
           the person it is assigned to, and so both live above every screen that prints a name. */}
       <RecordProvider>
-      {/* "Are you sure?" from anywhere — the one sheet that replaces window.confirm(). Innermost, so
-          a confirm asked from inside a record or task sheet stacks above it. */}
-      <ConfirmProvider>
       <div className={`app${inAdmin && theme === "day" ? " crew-day" : ""}${disp ? ` ${disp}` : ""}`}>
         {/* Skip link — first focusable element; keyboard users jump past the chrome to the content. */}
         <a href="#body" className="skip-link">Skip to content</a>
@@ -132,7 +138,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {!isShare && <BroadcastBanner />}
         {/* The one <main> landmark (a11y: landmark-one-main / region). A per-route sr-only <h1> gives
             every screen a level-one heading; pages that render their own visible h1 are skipped. */}
-        <main className="body" ref={bodyRef} id="body" tabIndex={-1}>
+        {/* tabIndex 0, not -1 (2026-10-02): .body is the scroll container, so a keyboard user has
+            to be able to focus it to scroll it. On a page with no focusable content inside — the
+            privacy policy — -1 left them with no way to read past the first screen, which axe
+            reports as scrollable-region-focusable the moment that route was scanned. The skip
+            link still lands here. */}
+        <main className="body" ref={bodyRef} id="body" tabIndex={0}>
           {!isShare && !H1_SKIP.has(pathname) && !pathname.startsWith("/primal/") && <h1 className="sr-only">{routeTitle(pathname)}</h1>}
           {children}
         </main>
@@ -163,9 +174,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <ErrorReporter />
         <ServiceWorkerRegister />
       </div>
-      </ConfirmProvider>
       </RecordProvider>
      </TaskSheetProvider>
+     </PromptProvider>
+     </ConfirmProvider>
     </OperatorSectionProvider>
   );
 }

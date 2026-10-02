@@ -8,6 +8,7 @@ import { useAuth } from "./AuthProvider";
 import type { Broadcast } from "@/lib/broadcasts";
 import Icon from "@/components/Icon";
 import { InfoRow } from "@/components/kit";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // BROADCAST EDITOR (Settings) — compose an announcement/ad and put it live across the app to everyone.
 // The composer exposes every option: what it says, who sees it, how it looks, an optional call-to-
@@ -21,6 +22,7 @@ const KINDS = [["announcement", "Announcement"], ["promo", "Promo / ad"], ["main
 const AUDIENCES = [["all", "Everyone"], ["members", "Signed-in members"], ["staff", "Staff only"]] as const;
 
 export default function BroadcastEditor() {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const { user } = useAuth();
   // Swallowed error → [] → "no broadcasts", i.e. the announcement you published looks unpublished.
@@ -60,7 +62,7 @@ export default function BroadcastEditor() {
     setD(BLANK); load();
   };
   const toggle = async (b: Broadcast) => { if (!supabase) return; await supabase.from("broadcasts").update({ active: !b.active }).eq("id", b.id); toast(!b.active ? "Live now" : "Taken down"); load(); };
-  const del = async (b: Broadcast) => { if (!supabase || (typeof window !== "undefined" && !window.confirm(`Delete "${b.title}"?`))) return; await supabase.from("broadcasts").delete().eq("id", b.id); if (d.id === b.id) setD(BLANK); load(); };
+  const del = async (b: Broadcast) => { if (!supabase) return; if (!(await confirm({ title: `Delete “${b.title}”?`, confirmLabel: "Delete", danger: true }))) return; await supabase.from("broadcasts").delete().eq("id", b.id); if (d.id === b.id) setD(BLANK); load(); };
 
   return (
     <div className="bce">

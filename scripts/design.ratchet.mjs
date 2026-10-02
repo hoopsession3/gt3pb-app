@@ -58,9 +58,9 @@ export const CEILING = {
 //                     wall" the Money section opens on. Whether to open some is Ryan's call; that
 //                     no new ones appear without a decision is this gate's.
 export const FRICTION = {
-  nativeDialogs: 58,
+  nativeDialogs: 0,
   crewGroupTitles: 29,
-  collapsedPanels: 34,
+  collapsedPanels: 33,
 };
 
 export function frictionCounts(read = (p) => readFileSync(join(ROOT, p), "utf8"), list = (d) => readdirSync(join(ROOT, d), { recursive: true })) {
@@ -90,31 +90,32 @@ export const FLOOR = {
 //   tap   — the smallest interactive target's short side, px (floor)
 //   text  — the smallest visible text, px (floor)
 // A route not in this table is UNMEASURED and fails the smoke: add it with its real numbers.
-// 8.5 is the masthead's "Performance Bar" caption, typed in Inter under the real mark — flagged
-// to Ryan (the brand lock says a lockup is never re-typeset; no horizontal masthead variant
-// exists in the asset set). 6.63 is the signage kiosk, bespoke by design. 26 is the folded rail
-// handle, 26 wide by 56 tall. Floors say "not smaller than this", not "this is fine".
+// The masthead caption was 8.5 everywhere and is 11 now (Ryan's call, 2026-10-02: app text at the
+// floor until a horizontal lockup is supplied); what remains under 11 on a route is its own small
+// eyebrow or tag type — 34 rules in the stylesheet sit at 8.5px and are the next typography pass.
+// 6.63 is the signage kiosk, bespoke by design. 26 is the folded rail handle, 26 wide by 56 tall.
+// Floors say "not smaller than this", not "this is fine".
 export const ROUTE = {
-  "/":              { depth: 2, tap: 26, text: 8.5 },
-  "/truck":         { depth: 2, tap: 26, text: 8.5 },
-  "/events":        { depth: 2, tap: 26, text: 8.5 },
+  "/":              { depth: 2, tap: 26, text: 9.5 },
+  "/truck":         { depth: 2, tap: 26, text: 9.5 },
+  "/events":        { depth: 2, tap: 26, text: 9.5 },
   "/menu":          { depth: 2, tap: 26, text: 8.5 },
   "/reserve":       { depth: 2, tap: 26, text: 8.5 },
-  "/delivery":      { depth: 1, tap: 26, text: 8.5 },
-  "/3mpire":        { depth: 2, tap: 26, text: 8.5 },
-  "/craft":         { depth: 2, tap: 26, text: 8.5 },
-  "/book":          { depth: 1, tap: 26, text: 8.5 },
+  "/delivery":      { depth: 1, tap: 26, text: 10 },
+  "/3mpire":        { depth: 2, tap: 26, text: 10 },
+  "/craft":         { depth: 2, tap: 26, text: 10 },
+  "/book":          { depth: 1, tap: 26, text: 10 },
   "/shop":          { depth: 2, tap: 26, text: 8.5 },
-  "/primal":        { depth: 1, tap: 26, text: 8.5 },
-  "/office":        { depth: 1, tap: 26, text: 8.5 },
-  "/academy":       { depth: 0, tap: 26, text: 8.5 },
-  "/scan":          { depth: 0, tap: 26, text: 8.5 },
-  "/architecture":  { depth: 0, tap: 26, text: 8.5 },
+  "/primal":        { depth: 1, tap: 26, text: 10 },
+  "/office":        { depth: 1, tap: 26, text: 10 },
+  "/academy":       { depth: 0, tap: 26, text: 11 },
+  "/scan":          { depth: 0, tap: 26, text: 10 },
+  "/architecture":  { depth: 0, tap: 26, text: 10 },
   "/playbook":      { depth: 0, tap: 26, text: null },
   "/driver":        { depth: 0, tap: 26, text: 32 },
   "/agreement":     { depth: 1, tap: 26, text: 11 },
   "/offer":         { depth: 1, tap: 26, text: 11 },
-  "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 34, text: 8.5 },
+  "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 34, text: 10 },
   "/display":       { depth: 1, tap: 26, text: 6.63 },
   "/privacy":       { depth: 0, tap: 26, text: 14 },
   "/terms":         { depth: 0, tap: 26, text: 14 },

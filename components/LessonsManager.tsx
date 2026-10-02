@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // RETURN TO PRIMAL · lessons manager (0273) — author the customer nutrition academy the same way the
 // menu is managed: create a draft (born hidden, 0270 publish gate), fill it in, link the menu products
@@ -114,6 +115,7 @@ export default function LessonsManager() {
 }
 
 function LessonRow({ l, products, open, onToggle, onSaved, toast }: { l: Lesson; products: ProductOpt[]; open: boolean; onToggle: () => void; onSaved: () => void; toast: (m: string, t?: any) => void }) {
+  const confirm = useConfirm();
   const [d, setD] = useState(l);
   const [keysText, setKeysText] = useState((l.key_points || []).join("\n"));
   const [links, setLinks] = useState<{ id: string; product_slug: string; rationale: string | null; sort: number }[]>([]);
@@ -138,7 +140,8 @@ function LessonRow({ l, products, open, onToggle, onSaved, toast }: { l: Lesson;
   };
   const togglePublish = () => setD({ ...d, published_at: d.published_at ? null : new Date().toISOString() });
   const del = async () => {
-    if (!supabase || !window.confirm(`Delete "${d.title}"? This removes the lesson and its menu links.`)) return;
+    if (!supabase) return;
+    if (!(await confirm({ title: `Delete “${d.title}”?`, body: "This removes the lesson and its menu links.", confirmLabel: "Delete", danger: true }))) return;
     await supabase.from("primal_lessons").delete().eq("id", l.id); toast("Deleted"); onSaved();
   };
   const addLink = async () => {
@@ -217,6 +220,7 @@ function LessonRow({ l, products, open, onToggle, onSaved, toast }: { l: Lesson;
 
 // Compact pillar/module structure editor — create + publish-toggle + rename. Born hidden; publish when ready.
 function StructureEditor({ pillars, modules, onSaved, toast }: { pillars: Pillar[]; modules: Module[]; onSaved: () => void; toast: (m: string, t?: any) => void }) {
+  const confirm = useConfirm();
   const [pTitle, setPTitle] = useState("");
   const slugify = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32);
   const addPillar = async () => {
@@ -263,8 +267,7 @@ function StructureEditor({ pillars, modules, onSaved, toast }: { pillars: Pillar
                    : " Nobody has progress against it yet.");
       }
     }
-    if (typeof window !== "undefined" &&
-        !window.confirm(`Archive "${title}"?${detail}\n\nIt comes off the academy. Nothing is deleted, and you can bring it back.`)) return;
+    if (!(await confirm({ title: `Archive “${title}”?`, body: `${detail.trim()}${detail.trim() ? " " : ""}It comes off the academy. Nothing is deleted, and you can bring it back.`, confirmLabel: "Archive" }))) return;
     const { error } = await supabase.from(table).update({ archived_at: new Date().toISOString() }).eq("id", id);
     if (error) { toast(`Error: ${error.message}`, "error"); return; }
     toast(`${title} archived`);

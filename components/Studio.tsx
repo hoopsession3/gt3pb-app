@@ -24,6 +24,7 @@ import { lintCaption } from "@/lib/captionLint";
 import { isBlank } from "@/lib/formGuard";
 import { clickable } from "@/lib/a11y";
 import { goPlanTab } from "@/lib/planNav";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // STUDIO — the collaborative marketing studio. Her money-maker, his taste → built around
 // collaboration: real-time co-editing (Supabase Realtime presence + broadcast), real version
@@ -268,6 +269,7 @@ export default function Studio() {
 }
 
 function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name: string }; onClose: () => void }) {
+  const confirm = useConfirm();
   const [item, setItem] = useState<Item | null>(null);
   const [title, setTitle] = useState(""); const [hook, setHook] = useState(""); const [caption, setCaption] = useState("");
   const [campaign, setCampaign] = useState(""); const [campaigns, setCampaigns] = useState<string[]>([]);
@@ -544,7 +546,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   };
   const unpublishSite = async () => {
     if (!supabase || pubBusy) return;
-    if (!window.confirm("Take this off the live GT3 site? The design stays in Webflow as a draft.")) return;
+    if (!(await confirm({ title: "Take this off the live GT3 site?", body: "The design stays in Webflow as a draft.", confirmLabel: "Take it off" }))) return;
     setPubBusy("unpublish"); setPubErr("");
     const j = await callStudio("/api/studio/publish", { content_id: id, action: "unpublish" });
     if (j.ok) { setPub((p) => ({ ...p, live: null })); setStatus("approved"); loadVersions(); }
@@ -554,7 +556,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
   const publish = async () => {
     if (!supabase || pubBusy) return;
-    if (!window.confirm("Publish this to the live GT3 site?")) return;
+    if (!(await confirm({ title: "Publish this to the live GT3 site?", confirmLabel: "Publish" }))) return;
     setPubBusy("publish"); setPubErr("");
     const j = await callStudio("/api/studio/publish", { content_id: id });
     if (j.ok) { setPub((p) => ({ ...p, live: j.published_url })); setStatus("published"); loadVersions(); }
@@ -592,7 +594,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   };
   const genCampaign = async () => {
     if (!supabase || !eventId || campBusy) return;
-    if (!window.confirm("Generate a teaser + day-of + recap for this event? Three drafts will be added to the calendar.")) return;
+    if (!(await confirm({ title: "Generate a teaser, a day-of and a recap for this event?", body: "Three drafts will be added to the calendar.", confirmLabel: "Generate" }))) return;
     setCampBusy(true); setPubErr("");
     try {
       const r = await authedFetch("/api/agents/campaign", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event_id: eventId, channel: item?.channel }) });
@@ -860,7 +862,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         {status === "published" && <button type="button" className="btn-ter" onClick={() => setStage("approved", {}, "unpublished")}>↩ Unpublish</button>}
         <button type="button" className="btn-sec" onClick={() => setKitOpen(true)}><Icon name="package" /> Post kit</button>
         <button type="button" className="btn-ter" onClick={() => setShowVers((s) => !s)}>History ({versions.length})</button>
-        <button type="button" className="btn-ter" onClick={async () => { if (supabase && window.confirm("Delete this piece? This can't be undone.")) { await supabase.from("content_items").delete().eq("id", id); onClose(); } }}>Delete</button>
+        <button type="button" className="btn-ter" onClick={async () => { if (supabase && (await confirm({ title: "Delete this piece?", body: "This can't be undone.", confirmLabel: "Delete", danger: true }))) { await supabase.from("content_items").delete().eq("id", id); onClose(); } }}>Delete</button>
       </div>
       {status === "changes" && item.review_note && <p className="insp-foot">Requested: {item.review_note}</p>}
 

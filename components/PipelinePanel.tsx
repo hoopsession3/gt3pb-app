@@ -19,6 +19,7 @@ import { bandFor, fmtBand, paybackPct, paybackWeeks, FALLBACK_MARGIN_PCT } from 
 import { money } from "@/lib/money";
 import { useCrew, crewLabel } from "./useCrew";
 import { localToday } from "@/lib/dates";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // PIPELINE — the sales funnel (0165). Vendor (the account) × deal (from the owner's catalog,
 // gated per vendor type) × rep × stage. The owner articulates what's on the table in the Deal
@@ -171,6 +172,7 @@ function ActivityDesk({ o, rows, bizAccts, marginPct, onLog, onChanged, onWire }
   o: Opp; rows: Activity[]; bizAccts: BizAcct[]; marginPct: number;
   onLog: (line: string) => void; onChanged: () => void; onWire: (id: string | null) => void;
 }) {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -209,7 +211,7 @@ function ActivityDesk({ o, rows, bizAccts, marginPct, onLog, onChanged, onWire }
   };
   const del = async (r: Activity) => {
     if (!supabase) return;
-    if (typeof window !== "undefined" && !window.confirm("Remove this activity? The uplift math forgets it.")) return;
+    if (!(await confirm({ title: "Remove this activity?", body: "The uplift math forgets it.", confirmLabel: "Remove", danger: true }))) return;
     const { error } = await supabase.from("account_activities").delete().eq("id", r.id);
     if (error) toast(`Couldn't remove — ${error.message}`, "error");
     else { toast("Removed"); onChanged(); }
@@ -278,6 +280,7 @@ function ActivityDesk({ o, rows, bizAccts, marginPct, onLog, onChanged, onWire }
 }
 
 export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const { user } = useAuth();
   const [openId, setOpenId] = useState<string | null>(null);   // expanded opportunity
@@ -499,7 +502,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
 
   const deleteDeal = async (d: Deal) => {
     if (!supabase) return;
-    if (typeof window !== "undefined" && !window.confirm("Remove this deal from the table? Opportunities that used it keep their record.")) return;
+    if (!(await confirm({ title: "Remove this deal from the table?", body: "Opportunities that used it keep their record.", confirmLabel: "Remove", danger: true }))) return;
     if (editId === d.id) setEditId(null);
     const { error } = await supabase.from("deals").delete().eq("id", d.id);
     if (error) toast(`Couldn't remove — ${error.message}`, "error");

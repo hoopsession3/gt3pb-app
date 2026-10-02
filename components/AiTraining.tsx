@@ -8,6 +8,7 @@ import { useAuth } from "./AuthProvider";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 import Prose from "@/components/Prose";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // TRAIN THE AI (Team → Train the AI, owner/crew) — the correction loop for the freeform agents.
 // The owner writes the truth once (with an optional photo of the recipe card / receipt as proof),
@@ -27,6 +28,7 @@ type Know = { id: string; agent: string; title: string; body: string; media_url:
 type Convo = { id: string; agent: string; question: string | null; answer: string | null; created_at: string };
 
 export default function AiTraining() {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const { user, profile } = useAuth();
   const [agent, setAgent] = useState<string>("all");
@@ -88,7 +90,7 @@ export default function AiTraining() {
   };
   const del = async (k: Know) => {
     if (!supabase) return;
-    if (typeof window !== "undefined" && !window.confirm(`Delete "${k.title}"? The agent will stop using it.`)) return;
+    if (!(await confirm({ title: `Delete “${k.title}”?`, body: "The agent will stop using it.", confirmLabel: "Delete", danger: true }))) return;
     setRows((r) => r.filter((x) => x.id !== k.id));
     await supabase.from("agent_knowledge").delete().eq("id", k.id);
   };

@@ -12,6 +12,7 @@ import { downloadCsv } from "@/lib/csv";
 import { MARKETS, MARKET_LABEL, FOUNDING_MARKET, toMarket, type Market } from "@/lib/markets";
 import { receiptGaps, totals, headline, type SpendCategory, type ExpenseRow as SpendRow, type BudgetRow } from "@/lib/spend";
 import { moneyPlain, moneyRound } from "@/lib/money";
+import { usePrompt } from "@/components/PromptSheet";
 
 // SPEND & BUDGET (0209) — the procurement side of Money. Log what the business spends (optionally to a
 // real vendor / event) and track it against a per-category monthly budget. Reads report_spend(); every
@@ -28,6 +29,7 @@ type ExpenseRow = { id: string; amount_cents: number; category: string; descript
 type Board = { rep: Report | null; vendors: { id: string; name: string }[]; items: ExpenseRow[]; cats: SpendCategory[] };
 
 export default function SpendBudget() {
+  const prompt = usePrompt();
   const { toast } = useApp();
   const [amount, setAmount] = useState(""); const [cat, setCat] = useState("supplies");
   const [desc, setDesc] = useState(""); const [vendor, setVendor] = useState(""); const [busy, setBusy] = useState(false);
@@ -169,9 +171,7 @@ export default function SpendBudget() {
   // leaves every total. The reason is required, because a void with no reason is a delete.
   const voidExpense = async (id: string) => {
     if (!supabase) return;
-    const reason = typeof window !== "undefined"
-      ? window.prompt("Why is this being voided? (duplicate, wrong amount, refunded…)") ?? ""
-      : "";
+    const reason = (await prompt({ title: "Why is this being voided?", hint: "Duplicate, wrong amount, refunded… It goes on the record.", confirmLabel: "Void it" })) ?? "";
     if (!reason.trim()) { toast("Say why — it goes on the record.", "error"); return; }
     const { error } = await supabase.rpc("void_expense", { p_id: id, p_reason: reason.trim() });
     if (error) { toast(error.message, "error"); return; }

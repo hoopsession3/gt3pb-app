@@ -12,6 +12,7 @@ import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { useCrew, crewLabel } from "./useCrew";
 import { localToday } from "@/lib/dates";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // THE WORKSTREAM REGISTRY (0264, 2026-08-03) — "the one place to manage every component and
@@ -42,6 +43,7 @@ const nice = (iso: string | null) => iso ? new Date(`${iso}T12:00:00`).toLocaleD
 const daysSince = (iso: string | null) => iso ? Math.floor((Date.now() - new Date(`${iso}T12:00:00`).getTime()) / 864e5) : null;
 
 export default function OsRegistry() {
+  const confirm = useConfirm();
   const { user, profile } = useAuth();
   const { toast } = useApp();
   const isAdmin = !!profile?.is_admin || ["owner", "admin"].includes(String((profile as any)?.role ?? ""));
@@ -110,7 +112,7 @@ export default function OsRegistry() {
   };
   const removeStream = async () => {
     if (!supabase || !auditing) return;
-    if (typeof window !== "undefined" && !window.confirm(`Remove "${auditing.name}" from the portfolio? Its audit history goes with it. (Parking by decision is usually the better move.)`)) return;
+    if (!(await confirm({ title: `Remove “${auditing.name}” from the portfolio?`, body: "Its audit history goes with it. Parking by decision is usually the better move.", confirmLabel: "Remove", danger: true }))) return;
     const { error } = await supabase.from("os_workstreams").delete().eq("id", auditing.id);
     if (error) { toast(`Couldn't remove — ${error.message}`, "error"); return; }
     toast("Removed from the portfolio"); setAuditing(null); reload();

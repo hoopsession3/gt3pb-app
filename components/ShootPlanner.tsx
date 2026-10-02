@@ -11,6 +11,7 @@ import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import { useCrew, crewLabel } from "./useCrew";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // SHOOT PLANNER (0214) — plan any content shoot: date, location, call time, and a shot list you can
 // assign and check off (planned → shot → in edit). The reusable capability behind the Atlanta shoot
@@ -28,6 +29,7 @@ const SHOT_LABEL: Record<string, ReactNode> = { planned: <><Icon name="dotOutlin
 const dnice = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null);
 
 export default function ShootPlanner() {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const [shoots, setShoots] = useState<Shoot[]>([]);
   const [shots, setShots] = useState<Shot[]>([]);
@@ -69,7 +71,8 @@ export default function ShootPlanner() {
     await supabase.from("shoots").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
   };
   const delShoot = async (id: string) => {
-    if (!supabase || (typeof window !== "undefined" && !window.confirm("Delete this shoot and its shot list?"))) return;
+    if (!supabase) return;
+    if (!(await confirm({ title: "Delete this shoot and its shot list?", confirmLabel: "Delete", danger: true }))) return;
     await supabase.from("shoots").delete().eq("id", id); setOpen(null); reload();
   };
   const addShot = async (shootId: string, description: string, sortOverride?: number) => {

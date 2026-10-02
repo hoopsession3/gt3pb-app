@@ -13,6 +13,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // DROP OPS — the order-ahead brew sheet + pickup checklist for Saturday's drop. Lives in the admin
 // "Now" section right under the kitchen pass (and pops out of reservation alerts), so walk-up orders
@@ -49,6 +50,7 @@ const stageIndex = (s: PackStage | null | undefined) => Math.max(0, PACK_STAGES.
 // tapping it opens Service mode); full is the working face (checklist, upcoming, history) and
 // lives in Service mode only, so the same list never renders on two screens.
 export default function DropOps({ brief = false, onOpen, canPlan = false }: { brief?: boolean; onOpen?: () => void; canPlan?: boolean } = {}) {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const [busy, setBusy] = useState(false);
   const [histOpen, setHistOpen] = useState(false);
@@ -142,7 +144,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
     if (at) { d = new Date(at); } else { d = new Date(`${o.drop_date}T12:00:00`); d.setDate(d.getDate() + 7); }
     const nextISO = dropDateKey(d);
     const nextLabel = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-    if (typeof window !== "undefined" && !window.confirm(`Move ${o.name}'s ${o.size}-pack to ${nextLabel}'s drop?`)) return;
+    if (!(await confirm({ title: `Move ${o.name}'s ${o.size}-pack to ${nextLabel}'s drop?`, confirmLabel: "Move it" }))) return;
     const { error } = await supabase.from("drop_orders").update({ drop_date: nextISO }).eq("id", o.id);
     if (error) { toast(`Couldn't move it — ${error.message}`, "error"); reload(); return; }
     toast(`Moved to ${nextLabel} — it's under Upcoming drops`);
@@ -161,10 +163,9 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
   // Cancel keeps the row (audit trail) and drops it from the sheet; a paid cancel flags the refund.
   const cancel = async (o: DropOrder) => {
     if (!supabase) return;
-    const msg = o.paid
-      ? `Cancel ${o.name}'s PAID ${o.size}-pack (${dollars(o.total_cents / 100)})?\n\nThe card refund is done in Square — the crew inbox gets a flag.`
-      : `Cancel ${o.name}'s ${o.size}-pack (pay at pickup — nothing was charged)?`;
-    if (typeof window !== "undefined" && !window.confirm(msg)) return;
+    if (!(await confirm(o.paid
+      ? { title: `Cancel ${o.name}'s PAID ${o.size}-pack (${dollars(o.total_cents / 100)})?`, body: "The card refund is done in Square — the crew inbox gets a flag.", confirmLabel: "Cancel pack", cancelLabel: "Keep it", danger: true }
+      : { title: `Cancel ${o.name}'s ${o.size}-pack?`, body: "Pay at pickup — nothing was charged.", confirmLabel: "Cancel pack", cancelLabel: "Keep it", danger: true }))) return;
     const { error } = await supabase.from("drop_orders").update({ canceled_at: new Date().toISOString() }).eq("id", o.id);
     if (error) { toast(`Couldn't cancel — ${error.message}`, "error"); reload(); return; }
     if (o.paid) {

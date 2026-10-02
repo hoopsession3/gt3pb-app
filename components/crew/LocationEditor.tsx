@@ -9,6 +9,7 @@ import InputSheet from "@/components/InputSheet";
 import type { Stop, Vendor } from "@/lib/db";
 import { geocode } from "@/lib/geocode";
 import { VendorPicker } from "@/components/crew/VendorPicker";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // LOCATION EDITOR — the address / pin / vendor-link row for a stop or a vendor place.
 //
@@ -26,6 +27,7 @@ export function LocationEditor({ kind, row, index, open, onToggle, onChanged, on
   // every visit row so two visits to one place can't read as two different names (panel finding).
   nameOverride?: string | null;
 }) {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const table = kind === "stop" ? "stops" : "vendors";
   const stop = kind === "stop" ? (row as Stop) : null;
@@ -66,8 +68,7 @@ export function LocationEditor({ kind, row, index, open, onToggle, onChanged, on
     return !error;
   };
   const remove = async () => {
-    const ask = kind === "stop" ? `Delete ${row.name}? This removes the record.` : `Delete ${row.name}? Linked stops/events will unlink.`;
-    if (typeof window !== "undefined" && !window.confirm(ask)) return;
+    if (!(await confirm({ title: `Delete ${row.name}?`, body: kind === "stop" ? "This removes the record." : "Linked stops and events will unlink.", confirmLabel: "Delete", danger: true }))) return;
     const { error } = await supabase!.from(table).delete().eq("id", row.id);
     toast(error ? `Error: ${error.message}` : kind === "stop" ? "Location deleted" : "Vendor deleted");
     if (!error) onChanged();

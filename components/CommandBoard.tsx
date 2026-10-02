@@ -17,6 +17,7 @@ import InlineCreate from "./InlineCreate";
 import Sheet from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { addDays, localToday } from "@/lib/dates";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // COMMAND BOARD — the shared war room both founders see: the launch initiatives with a countdown and
 // milestone progress, then This Week · Blockers · Done · Money in one glance. This is the digital twin
@@ -47,6 +48,7 @@ const localYMD = (iso: string) => { const d = new Date(iso); const p = (n: numbe
 const toWork = (rows: any[], src: "todo" | "task"): Work[] => rows.map((r) => ({ id: r.id, title: r.title ?? r.label ?? "—", due: r.due_on ?? (r.due_at ? localYMD(String(r.due_at)) : null), src }));
 
 export default function CommandBoard() {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const { user, profile } = useAuth();
   const isAdmin = !!profile?.is_admin;
@@ -137,7 +139,7 @@ export default function CommandBoard() {
   // "finish an initiative → finishes all its tasks" home; the Prep board only clears what it shows).
   const finishInit = async (it: Initiative) => {
     if (!supabase || !isAdmin) return;
-    if (typeof window !== "undefined" && !window.confirm(`Finish "${it.title}"? This completes every open task assigned to it and closes the initiative.`)) return;
+    if (!(await confirm({ title: `Finish “${it.title}”?`, body: "This completes every open task assigned to it and closes the initiative.", confirmLabel: "Finish it" }))) return;
     const { error } = await completeInitiative(it.id, user?.id);
     if (error) { toast(`Couldn't finish — ${error}`, "error"); return; }
     toast(`${it.title} finished — its tasks are done.`); reload();
@@ -163,7 +165,8 @@ export default function CommandBoard() {
     reload();
   };
   const deleteMile = async (m: Milestone) => {
-    if (!supabase || (typeof window !== "undefined" && !window.confirm(`Delete "${m.title}"?`))) return;
+    if (!supabase) return;
+    if (!(await confirm({ title: `Delete “${m.title}”?`, confirmLabel: "Delete", danger: true }))) return;
     await supabase.from("initiative_milestones").delete().eq("id", m.id);   // cascades its links
     setManage(null); reload();
   };

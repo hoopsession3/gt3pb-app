@@ -11,6 +11,7 @@ import { useOptions } from "./useOptions";
 import { withCurrent } from "@/lib/options";
 import { drinkCogs, margin, type InvCost } from "@/lib/cogs";
 import { money } from "@/lib/money";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // MENU / PRODUCT manager — the catalog as a managed, relational record. Edit every attribute
 // (name, line, price, description, ingredients), set the recipe (which inventory items a serving
@@ -79,6 +80,7 @@ export default function MenuManager() {
 }
 
 function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; inv: Inv[]; open: boolean; onToggle: () => void; onSaved: () => void; toast: (m: string, t?: any) => void }) {
+  const confirm = useConfirm();
   const timings = useOptions("menu_timing");
   const [d, setD] = useState(p);
   const [comps, setComps] = useState<Comp[]>([]);
@@ -103,7 +105,8 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
     if (error) toast(`Error: ${error.message}`, "error"); else { toast("Saved"); onSaved(); }
   };
   const del = async () => {
-    if (!supabase || !window.confirm(`Delete "${d.name}"?`)) return;
+    if (!supabase) return;
+    if (!(await confirm({ title: `Delete “${d.name}”?`, confirmLabel: "Delete", danger: true }))) return;
     await supabase.from("products").delete().eq("id", p.id); toast("Deleted"); onSaved();
   };
   const addComponent = async () => {

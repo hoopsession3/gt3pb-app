@@ -11,6 +11,7 @@ import { useLocationSuggestions } from "@/components/useLocationSuggestions";
 import Icon from "@/components/Icon";
 import { MARKETS, MARKET_LABEL, toMarket, FOUNDING_MARKET } from "@/lib/markets";
 import { derivedStopStatus } from "@/lib/stopRecord";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // FIELD-OP SHEET — the ONE quick editor for a field op's core facts (name · date · time ·
 // place · status), reachable in two taps from anywhere a stop or event shows (calendar,
@@ -74,6 +75,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
   onSaved: () => void;           // fired after any successful write (save or archive)
   onOpenPrep?: () => void;       // optional door to the full prep hub
 }) {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const locSugs = useLocationSuggestions(); // datalist under Where/Address — the venues repeat
   const isEvent = kind === "event";
@@ -183,7 +185,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
 
   const archive = async () => {
     if (!supabase) return;
-    if (typeof window !== "undefined" && !window.confirm(`Archive this ${isEvent ? "event" : "stop"}? It comes off the calendar and the customer app.`)) return;
+    if (!(await confirm({ title: `Archive this ${isEvent ? "event" : "stop"}?`, body: "It comes off the calendar and the customer app.", confirmLabel: "Archive" }))) return;
     setSaving(true);
     const { error } = await supabase.from(table).update({ archived_at: new Date().toISOString() }).eq("id", id);
     setSaving(false);

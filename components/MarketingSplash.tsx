@@ -1,16 +1,27 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "./AuthProvider";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useSiteCopy } from "@/lib/copy";
 
 // MARKETING SPLASH — the sales word-art the app opens to for guests. Fixed premium copy ("Own your
-// week."), so it ships with NO database dependency and shows the moment we deploy. Once per app
-// open (per session — reopening shows it again; navigating within a session doesn't re-nag), always
-// closeable three ways (X, tap-outside, "Skip"). If an owner later sets an active promo (0144), its
-// words override the defaults — best-effort, so a missing table just keeps the built-in copy.
+// week."), so it ships with NO database dependency and shows the moment we deploy. Always closeable
+// three ways (X, tap-outside, "Skip"). If an owner later sets an active promo (0144), its words
+// override the defaults — best-effort, so a missing table just keeps the built-in copy.
+//
+// ── WHERE AND HOW OFTEN (2026-10-02, Ryan: "do all 6") ─────────────────────────────────────────
+// It used to play once per SESSION on every customer route: 17.3 seconds (HOLD + DISSOLVE) or 3.2
+// after a tap, for someone scanning the menu at the truck, a B2B customer on /office, a candidate
+// opening /offer, and signed-in members who already know the brand. The dissolve stays exactly as
+// built. What changed is the gate:
+//   · only the front door — "/" and "/truck" — never a QR or menu arrival, never a portal;
+//   · once per DEVICE per 7 days (localStorage), not once per tab;
+//   · never for a signed-in member.
+// The 7-day mark is written only when the splash actually shows, same reason as before: an early
+// remount must not stamp the device and suppress it for a week.
 //
 // THE DISSOLVE (owner ask — "immediately start dissolving, after 10 secs all gone, smoke appears
 // into a GT3 '3', then the home page"): the ad doesn't hold and close — the moment it's up it starts
@@ -19,7 +30,11 @@ import { useSiteCopy } from "@/lib/copy";
 // takeover unmounts, revealing the home page (truck) behind it. Skippable at any instant (tap /
 // Skip / Esc). prefers-reduced-motion opts out: no auto-run, the static splash waits to be dismissed.
 
-const SESSION_KEY = "gt3-splash-shown";
+const SEEN_KEY = "gt3-splash-seen-at";          // epoch ms of the last showing on this device
+const SEEN_EVERY_MS = 7 * 24 * 60 * 60 * 1000;    // once a week
+const FRONT_DOORS = new Set(["/", "/truck"]);
+// The session flag the UI smoke sets to measure a page rather than the splash; honoured as "seen".
+const LEGACY_SESSION_KEY = "gt3-splash-shown";
 
 const HOLD_MS = 5000;       // read it first — the entrance plays, then the ad holds, readable
 const DISSOLVE_MS = 12300;  // slow smoke → brand "3" (fully out) → a beat → "Welcome" + the 3mpire signature → home
@@ -38,6 +53,8 @@ const reducedMotion = () =>
 
 export default function MarketingSplash() {
   const router = useRouter();
+  const pathname = usePathname();
+  const { ready, user } = useAuth();
   const t = useSiteCopy();
   const [copy, setCopy] = useState<Copy>(DEFAULT);
   const [show, setShow] = useState(false);
@@ -48,12 +65,17 @@ export default function MarketingSplash() {
   useFocusTrap(show, scrimRef);
 
   useEffect(() => {
-    // Once per session — but the flag is written only when the splash ACTUALLY shows (below), never
-    // at schedule time. AuthProvider resolving can remount this subtree within the first frames; if
-    // we set the flag up-front, that early remount would read it and permanently suppress the splash
-    // for the whole session (the "never opens" bug). Guard on sessionStorage; a remount before the
-    // show simply re-schedules.
-    try { if (sessionStorage.getItem(SESSION_KEY)) return; } catch { /* */ }
+    // The front door only, a guest only, once a week per device. The 7-day mark is written only
+    // when the splash ACTUALLY shows (below), never at schedule time: AuthProvider resolving can
+    // remount this subtree within the first frames, and a mark set up-front would suppress the
+    // splash before anyone saw it (the old "never opens" bug, now a week long).
+    if (!FRONT_DOORS.has(pathname)) return;
+    if (!ready || user) return;                       // a member knows the brand; wait for auth to say
+    try {
+      if (sessionStorage.getItem(LEGACY_SESSION_KEY)) return;
+      const at = Number(localStorage.getItem(SEEN_KEY));
+      if (Number.isFinite(at) && at > 0 && Date.now() - at < SEEN_EVERY_MS) return;
+    } catch { /* storage unavailable: show it, it is the front door */ }
     let cancelled = false;
     // Best-effort owner override (promos table, 0144). Missing table → keep the built-in copy.
     if (supabase) {
@@ -75,12 +97,12 @@ export default function MarketingSplash() {
     }
     const t = setTimeout(() => {
       if (cancelled) return;
-      try { sessionStorage.setItem(SESSION_KEY, "1"); } catch { /* */ }
+      try { localStorage.setItem(SEEN_KEY, String(Date.now())); } catch { /* */ }
       setShow(true);
     }, 350);
     timers.current.push(t);
     return () => { cancelled = true; timers.current.forEach(clearTimeout); timers.current = []; };
-  }, []);
+  }, [pathname, ready, user]);
 
   // The ad HOLDS first so it can actually be read (the entrance plays, then it sits), THEN it
   // dissolves slowly — smoke blooms and the brand "3" condenses out of it — and finally unmounts,

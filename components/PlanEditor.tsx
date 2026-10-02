@@ -8,6 +8,8 @@ import { SectionHeader, InfoRow } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { money } from "@/lib/money";
+import { useConfirm } from "@/components/ConfirmSheet";
+import { usePrompt } from "@/components/PromptSheet";
 
 // MEMBERSHIP PLAN editor — manage subscription tiers in-app (was SQL-only). CRUD on subscription_plans.
 // Fetch state via useAsyncData — a failed load is a real error now, not a silent "No plans yet".
@@ -15,6 +17,7 @@ import { money } from "@/lib/money";
 type Plan = { key: string; label: string; price_cents: number; period_days: number; active: boolean };
 
 export default function PlanEditor() {
+  const prompt = usePrompt();
   const { toast } = useApp();
   const loader = useCallback(async (): Promise<Plan[]> => {
     if (!supabase) return [];
@@ -27,7 +30,7 @@ export default function PlanEditor() {
 
   const add = async () => {
     if (!supabase) return;
-    const key = prompt("Plan key (lowercase id, e.g. 'pro')")?.trim().toLowerCase();
+    const key = (await prompt({ title: "New plan", hint: "A short lowercase key, e.g. “pro”. It becomes the plan's id.", placeholder: "pro", confirmLabel: "Create" }))?.trim().toLowerCase();
     if (!key) return;
     const { error } = await supabase.from("subscription_plans").insert({ key, label: "", price_cents: 0, period_days: 14, active: false });
     if (error) toast(`Error: ${error.message}`, "error"); else reload();
@@ -57,6 +60,7 @@ export default function PlanEditor() {
 }
 
 function PlanRow({ p, onSaved, toast }: { p: Plan; onSaved: () => void; toast: (m: string, t?: any) => void }) {
+  const confirm = useConfirm();
   const [d, setD] = useState(p);
   useEffect(() => { setD(p); }, [p]);
   const dirty = d.label !== p.label || d.price_cents !== p.price_cents || d.period_days !== p.period_days || d.active !== p.active;
@@ -69,7 +73,8 @@ function PlanRow({ p, onSaved, toast }: { p: Plan; onSaved: () => void; toast: (
     if (error) toast(`Error: ${error.message}`, "error"); else { toast("Saved"); onSaved(); }
   };
   const del = async () => {
-    if (!supabase || !window.confirm(`Delete plan "${d.label}"?`)) return;
+    if (!supabase) return;
+    if (!(await confirm({ title: `Delete plan “${d.label}”?`, confirmLabel: "Delete", danger: true }))) return;
     const { error } = await supabase.from("subscription_plans").delete().eq("key", p.key);
     if (error) toast(`Error: ${error.message}`, "error"); else onSaved();
   };

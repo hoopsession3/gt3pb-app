@@ -15,6 +15,7 @@ import { relativeDay, nextWeekdayAt } from "@/lib/dates";
 import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { goPlanTab } from "@/lib/planNav";
 import { LocationEditor } from "@/components/crew/LocationEditor";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // LIVE CONTROL — the truck's live status board: where it is, whether it is open, what is next.
 //
@@ -23,6 +24,7 @@ import { LocationEditor } from "@/components/crew/LocationEditor";
 // which — so the page keeps both call sites and this file keeps the behaviour.
 
 export function LiveControl({ compact = false, manage = false }: { compact?: boolean; manage?: boolean }) {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const { setSection } = useOperatorSection();
   const openPrep = (id: string) => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue("stop", id)); } catch { /* ignore */ } setSection("prep"); };
@@ -89,10 +91,9 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
     // next stop on the route becomes the visible "next". Confirm — it drops the truck for all.
     const finished = stops.find((s) => s.id === live?.current_stop_id) ?? null;
     const next = stops.find((s) => !s.archived_at && s.status !== "done" && s.id !== finished?.id) ?? null;
-    const msg = finished
-      ? `Close out ${finished.name} and go offline?\n\nIt gets archived off the live screen${next ? `, and ${next.name} is up next` : ""}. Customers stop seeing the truck as live.`
-      : "Take the truck OFFLINE?\n\nCustomers will immediately stop seeing it as live on the Truck page.";
-    if (typeof window !== "undefined" && !window.confirm(msg)) return;
+    if (!(await confirm(finished
+      ? { title: `Close out ${finished.name} and go offline?`, body: `It gets archived off the live screen${next ? `, and ${next.name} is up next` : ""}. Customers stop seeing the truck as live.`, confirmLabel: "Go offline" }
+      : { title: "Take the truck offline?", body: "Customers will immediately stop seeing it as live on the Truck page.", confirmLabel: "Go offline" }))) return;
     stopBroadcast();
     setLive((l) => (l ? { ...l, is_live: false, current_stop_id: null, truck_lat: null, truck_lng: null, pos_updated_at: null } : { id: 1, current_stop_id: null, is_live: false, next_eta: null }));
     // Authoritative, atomic go-offline via the SECURITY-DEFINER RPC — clears is_live,
@@ -223,7 +224,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
     load();
   };
   const deleteStop = async (id: string, nm: string) => {
-    if (typeof window !== "undefined" && !window.confirm(`Delete ${nm}? This removes the record.`)) return;
+    if (!(await confirm({ title: `Delete ${nm}?`, body: "This removes the record.", confirmLabel: "Delete", danger: true }))) return;
     await supabase!.from("stops").delete().eq("id", id);
     load();
   };

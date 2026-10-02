@@ -171,6 +171,7 @@ import { VendorPicker } from "@/components/crew/VendorPicker";
 import { LocationEditor } from "@/components/crew/LocationEditor";
 import { LiveControl } from "@/components/crew/LiveControl";
 import { staffAccess } from "@/lib/access";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", command: "Command", prep: "Readiness", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Assets", driver: "Delivery", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings" };
 const SEC_WHEN: Record<OpSection, string> = {
@@ -287,6 +288,7 @@ const RECENT_MS = 30 * 60000; // picked-up orders linger 30 min for review / rec
 // removeChannel on the toggle (realtime channels are keyed by name). Unique per subscription.
 let kdsChanSeq = 0;
 function Kitchen() {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const [orders, setOrders] = useState<Order[]>([]);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -400,7 +402,7 @@ function Kitchen() {
   const advance = (o: Order) => move(o, NEXT[o.status]);
   const recall = (o: Order) => move(o, PREV[o.status]);
   const voidOrder = async (o: Order) => {
-    if (typeof window !== "undefined" && !window.confirm(`Void ${o.customer ?? "this order"}? This can't be undone.`)) return;
+    if (!(await confirm({ title: `Void ${o.customer ?? "this order"}?`, body: "This can't be undone.", confirmLabel: "Void order", danger: true }))) return;
     if (!supabase) return;
     apply(o, true);
     const { error } = await supabase.rpc("staff_set_order_status", { p_order: o.id, p_status: "void" });
@@ -1046,6 +1048,7 @@ type MyTaskRow = EventTask & {
 // which still must prompt for a recap even on a stale, never-completed stop — keeps reading the
 // true stored value untouched.
 function IncidentLog({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; ownerId: string }) {
+  const confirm = useConfirm();
   type Inc = { id: string; problem: string; severity: string; resolved: boolean; created_at: string; symptom: string | null };
   const [rows, setRows] = useState<Inc[]>([]);
   const [incFailed, setIncFailed] = useState(false);
@@ -1065,7 +1068,7 @@ function IncidentLog({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; 
   };
   const del = async (id: string) => {
     if (!supabase) return;
-    if (typeof window !== "undefined" && !window.confirm("Delete this incident from the log?")) return;
+    if (!(await confirm({ title: "Delete this incident from the log?", confirmLabel: "Delete", danger: true }))) return;
     setRows((p) => p.filter((x) => x.id !== id));
     await supabase.from("incident_log").delete().eq("id", id);
   };
@@ -1888,6 +1891,7 @@ function Garage({ events, stops, liveStopId, loaded }: { events: EventRow[]; sto
 // engine (assign, supply/gear picker, My Tasks) minus the event-only bits. Owner = event_id
 // XOR stop_id (migration 0040).
 function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: string }; onBack: () => void }) {
+  const confirm = useConfirm();
   const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
   const { user, profile } = useAuth();
   const { toast } = useApp();
@@ -2016,7 +2020,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       menuRow = (s as unknown as EventRow) ?? null;
     }
     if (!menuRow) return;
-    if (regen && typeof window !== "undefined" && !window.confirm(`Refresh the pack list from the ${isEvent ? "event" : "stop"}'s current menu/rig?\n\nNew items are added and dropped ones removed — your existing checkmarks are kept.`)) return;
+    if (regen && !(await confirm({ title: `Refresh the pack list from the ${isEvent ? "event" : "stop"}'s current menu and rig?`, body: "New items are added and dropped ones removed — your existing checkmarks are kept.", confirmLabel: "Refresh" }))) return;
     setGenerating(true);
     // Pack list (rig/menu) for both; compliance (state/county) for events, which carry a jurisdiction.
     // Menu comes from the 0173 relation (real product slugs) when it has rows; the legacy menu_*
@@ -2064,7 +2068,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const resetAll = async () => {
     if (!supabase || generating) return;
     const what = isEvent ? "event" : "truck stop";
-    if (typeof window !== "undefined" && !window.confirm(`Reset this ${what}?\n\nThis deletes its ENTIRE prep checklist and run-of-show schedule — everything you and the AI have built. The ${what} itself and its date stay. This can't be undone.`)) return;
+    if (!(await confirm({ title: `Reset this ${what}?`, body: `This deletes its entire prep checklist and run-of-show schedule — everything you and the AI have built. The ${what} itself and its date stay. It can't be undone.`, confirmLabel: "Reset it", cancelLabel: "Keep it", danger: true }))) return;
     setGenerating(true);
     const [t1, t2] = await Promise.all([
       deleteTasksForParent(ownerParent),
@@ -2678,6 +2682,7 @@ const fmtNoteDate = (iso: string) => {
 // follow-ups become event_tasks owned by meeting_note_id, so they ride the same assign + My Tasks +
 // push engine as event/stop prep. Leadership-only (RLS gates to event_manager/crew/owner).
 function MeetingNotes() {
+  const confirm = useConfirm();
   const { user, profile } = useAuth();
   const { toast } = useApp();
   const isAdmin = roleOf(profile) === "admin" || roleOf(profile) === "owner";
@@ -2807,7 +2812,7 @@ function MeetingNotes() {
   };
   const remove = async (n: MeetingNote) => {
     if (!supabase || !isAdmin) return;
-    if (typeof window !== "undefined" && !window.confirm(`Delete "${n.title}"? This also removes its follow-ups.`)) return;
+    if (!(await confirm({ title: `Delete “${n.title}”?`, body: "This also removes its follow-ups.", confirmLabel: "Delete", danger: true }))) return;
     await supabase.from("meeting_notes").delete().eq("id", n.id);
     toast("Note deleted"); load();
   };
@@ -2946,6 +2951,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   onRenamed?: (t: string) => void;
   onSummary?: (s: string) => void;
 }) {
+  const confirm = useConfirm();
   const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
   const { user, profile } = useAuth();
   const { toast } = useApp();
@@ -3049,7 +3055,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   };
   const removeFile = async (f: NoteFile) => {
     if (!supabase) return;
-    if (typeof window !== "undefined" && !window.confirm(`Remove "${f.name}" from this note?`)) return;
+    if (!(await confirm({ title: `Remove “${f.name}” from this note?`, confirmLabel: "Remove", danger: true }))) return;
     const { error } = await supabase.from("note_files").delete().eq("id", f.id);
     if (error) { toast(`Couldn't remove — ${error.message}`, "error"); return; }
     await supabase.storage.from("note-files").remove([f.path]);   // best-effort; the row is the gate
@@ -3225,7 +3231,8 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
               <div className="note-addm-h">
                 <span>Added {fmtNoteDate(a.created_at.slice(0, 10))}{a.created_by ? ` · ${a.created_by === meId ? "you" : firstNameOf(a.created_by)}` : ""}</span>
                 {(a.created_by === meId || isAdmin) && <button type="button" className="note-addm-x" onClick={async () => {
-                  if (!supabase || (typeof window !== "undefined" && !window.confirm("Remove this addition? Files it brought stay on the note."))) return;
+                  if (!supabase) return;
+                  if (!(await confirm({ title: "Remove this addition?", body: "Files it brought stay on the note.", confirmLabel: "Remove", danger: true }))) return;
                   const { error } = await supabase.from("note_addenda").delete().eq("id", a.id);
                   if (error) toast(`Couldn't remove — ${error.message}`, "error"); else { toast("Addition removed"); load(); }
                 }} aria-label="Remove this addition"><Icon name="close" /></button>}
@@ -3356,6 +3363,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
 // won private-event deal twice, one card above the other — and its "Open in Pipeline" button was
 // a no-op (you were already there). PipelinePanel's Won stage is the one home.
 function Bookings() {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const { user } = useAuth();
   const [reqs, setReqs] = useState<BookingRequest[]>([]);
@@ -3438,7 +3446,7 @@ function Bookings() {
     } finally { setPromoting(null); }
   };
   const del = async (r: BookingRequest) => {
-    if (typeof window !== "undefined" && !window.confirm(`Delete the booking request from ${r.name ?? "this contact"}? This can't be undone.`)) return;
+    if (!(await confirm({ title: `Delete the booking request from ${r.name ?? "this contact"}?`, body: "This can't be undone.", confirmLabel: "Delete", danger: true }))) return;
     setReqs((p) => p.filter((x) => x.id !== r.id)); // optimistic
     const { error } = await supabase!.from("booking_requests").delete().eq("id", r.id);
     if (error) { toast(`Couldn't delete — ${error.message}`, "error"); load(); } else toast("Booking request deleted");
@@ -3514,6 +3522,7 @@ function Bookings() {
 
 // ───────────────────────── reserves (limited drops) ─────────────────────────
 function ReservesAdmin() {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const reservesState = useAsyncData<Reserve[]>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
@@ -3535,11 +3544,11 @@ function ReservesAdmin() {
     if (!error) load();
   };
   const archive = async (id: string) => {
-    if (typeof window !== "undefined" && !window.confirm("Archive this reserve? It disappears from the app.")) return;
+    if (!(await confirm({ title: "Archive this reserve?", body: "It disappears from the app.", confirmLabel: "Archive" }))) return;
     await update(id, { status: "archived" });
   };
   const remove = async (id: string, nm: string) => {
-    if (typeof window !== "undefined" && !window.confirm(`Delete "${nm}" for good?\n\nThis permanently removes the reserve and any claims on it. Can't be undone. (Archive instead if you just want it hidden.)`)) return;
+    if (!(await confirm({ title: `Delete “${nm}” for good?`, body: "This permanently removes the reserve and any claims on it. It can't be undone. Archive instead if you just want it hidden.", confirmLabel: "Delete for good", cancelLabel: "Keep it", danger: true }))) return;
     const { error } = await supabase!.from("reserves").delete().eq("id", id);
     toast(error ? `Couldn't delete — ${error.message}` : "Reserve deleted");
     if (!error) load();
@@ -3696,6 +3705,7 @@ const initials = (name: string | null) =>
   (name ?? "").trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "·";
 
 function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; isSelf: boolean; ownerCount: number; onPatch: (id: string, role: string) => void; onSaved: () => void }) {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const [name, setName] = useState(m.display_name ?? "");
   const role = rawRole(m);
@@ -3735,8 +3745,8 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
     const name = m.display_name ?? "this person";
     // Safety rails: never strand the business without an owner; double-check elevations + demotions.
     if (role === "owner" && next !== "owner" && ownerCount <= 1) { toast("Can't remove the last owner — promote someone else first."); return; }
-    if (isSelf && role === "owner" && next !== "owner") { if (!window.confirm("Demote yourself from Owner? You'll lose full access immediately.")) return; }
-    else if (next === "owner" || next === "admin" || role === "owner") { if (!window.confirm(`Set ${name} to ${roleLabel(next)}?`)) return; }
+    if (isSelf && role === "owner" && next !== "owner") { if (!(await confirm({ title: "Demote yourself from Owner?", body: "You'll lose full access immediately.", confirmLabel: "Demote me", danger: true }))) return; }
+    else if (next === "owner" || next === "admin" || role === "owner") { if (!(await confirm({ title: `Set ${name} to ${roleLabel(next)}?`, confirmLabel: "Set role" }))) return; }
     onPatch(m.id, next); // optimistic — reflect the pick instantly
     const { error } = await supabase!.rpc("admin_set_role", { member: m.id, new_role: next });
     if (error) { onPatch(m.id, role); toast(`Error: ${error.message}`); }
@@ -3822,6 +3832,7 @@ function scrollHereUntilItSticks(ref: { current: HTMLElement | null }, tries = 1
 }
 
 function PromotePanel({ onDone }: { onDone: () => void }) {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<{ id: string; display_name: string | null; email: string | null; customer_name: string | null }[]>([]);
@@ -3902,7 +3913,7 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
     if (!supabase || !pick) return;
     const who = rows.find((r) => r.id === pick);
     const name = who?.display_name || who?.customer_name || "this person";
-    if (!window.confirm(`Bring ${name} onto the crew as ${roleLabel(role)}${market ? ` in ${market}` : ""}${lead ? `, leading ${market}` : ""}?`)) return;
+    if (!(await confirm({ title: `Bring ${name} onto the crew as ${roleLabel(role)}?`, body: market ? `In ${market}${lead ? `, leading ${market}` : ""}.` : undefined, confirmLabel: "Bring them on" }))) return;
     setBusy(true);
     const { error } = await supabase.rpc("promote_to_crew", {
       p_member: pick, p_role: role, p_market: market || null, p_lead: lead,
@@ -4400,6 +4411,7 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
   onSaveEcon: (econ: EventEcon) => void;
   onOpenPrep: (id: string) => void;
 }) {
+  const confirm = useConfirm();
   const juris = useJurisdictions();
   const [planOpen, setPlanOpen] = useState(false);
   const [prepAIOpen, setPrepAIOpen] = useState(false);
@@ -4461,7 +4473,7 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
           </div>
 
           {/* The one action that matters most gets its own banner — throw the green flag. */}
-          <button className={`ev-golive${e.is_live ? " on" : ""}`} onClick={() => { if (e.is_live && typeof window !== "undefined" && !window.confirm("Close this event? Sales tracking stops and the command-center HUD goes dark.")) return; onSetLive(!e.is_live); }}>
+          <button className={`ev-golive${e.is_live ? " on" : ""}`} onClick={async () => { if (e.is_live && !(await confirm({ title: "Close this event?", body: "Sales tracking stops and the command-center HUD goes dark.", confirmLabel: "Close event" }))) return; onSetLive(!e.is_live); }}>
             <span className="ev-golive-dot" />
             <span>{e.is_live ? "Green flag out — POS & app sales tracking here" : "Throw the green flag — go live"}</span>
             <span className="ev-golive-state">{e.is_live ? "LIVE" : "OFF"}</span>
@@ -4583,6 +4595,7 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
 }
 
 function EventsAdmin() {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const { setSection } = useOperatorSection();
   const openPrep = (id: string) => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue("event", id)); } catch { /* ignore */ } setSection("prep"); };
@@ -4655,7 +4668,7 @@ function EventsAdmin() {
     if (!error) { if (data) setOpenId((data as { id: string }).id); load(); } // open the new one for editing
   };
   const remove = async (id: string) => {
-    if (typeof window !== "undefined" && !window.confirm("Remove this event?")) return;
+    if (!(await confirm({ title: "Remove this event?", confirmLabel: "Remove", danger: true }))) return;
     const { error } = await supabase!.from("events").delete().eq("id", id);
     toast(error ? `Error: ${error.message}` : "Event removed");
     if (!error) load();
@@ -4946,6 +4959,7 @@ function VendorLocationsEditor({ vendorId, vendorName }: { vendorId: string; ven
 }
 
 function VendorsAdmin() {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const { profile } = useAuth();
   const isAdmin = ["owner", "admin"].includes(roleOf(profile));
@@ -5018,7 +5032,7 @@ function VendorsAdmin() {
   // Owner-gated merge (0226): repoints stops/events/pipeline/notes/spend, archives the dupes.
   const merge = async (keep: DupePair["a"], dupe: string, keepName: string, dupeName: string) => {
     if (!supabase || merging) return;
-    if (typeof window !== "undefined" && !window.confirm(`Merge “${dupeName}” into “${keepName}”? Everything linked to ${dupeName} gets repointed; it's archived (reversible), never deleted.`)) return;
+    if (!(await confirm({ title: `Merge “${dupeName}” into “${keepName}”?`, body: `Everything linked to ${dupeName} gets repointed; it's archived (reversible), never deleted.`, confirmLabel: "Merge" }))) return;
     setMerging(true);
     const { data, error } = await supabase.rpc("merge_vendors", { p_keep: keep, p_dupes: [dupe] });
     setMerging(false);
@@ -5030,7 +5044,7 @@ function VendorsAdmin() {
   };
   const archive = async (id: string) => { await supabase!.from("vendors").update({ archived_at: new Date().toISOString() }).eq("id", id); setOpenId(null); load(); };
   const restore = async (id: string) => { await supabase!.from("vendors").update({ archived_at: null }).eq("id", id); load(); };
-  const del = async (id: string, nm: string) => { if (typeof window !== "undefined" && !window.confirm(`Delete ${nm}?`)) return; await supabase!.from("vendors").delete().eq("id", id); load(); };
+  const del = async (id: string, nm: string) => { if (!(await confirm({ title: `Delete ${nm}?`, confirmLabel: "Delete", danger: true }))) return; await supabase!.from("vendors").delete().eq("id", id); load(); };
   // Approve a venue that was added on the fly from a truck stop (0191) — it becomes a first-class
   // vendor. Opening it to fill in the contact details is the natural next step.
   const approve = async (id: string) => { await supabase!.from("vendors").update({ status: "approved" }).eq("id", id); toast("Vendor approved"); setOpenId(id); load(); };
@@ -5629,10 +5643,13 @@ export default function AdminPage() {
           )}
           {planTab === "calendar" && (
             <>
-              {/* 0263 exec rhythm — the review step lives at the TOP of Plan: rituals first, then
-                  the calendar they feed, then collaboration's front door (collapsed). */}
-              <OperatingRhythm isAdmin={isAdmin} onOpenNotes={() => setSection("notes")} />
+              {/* Needs sorting → the calendar → the rituals → discussions (2026-10-02, Ryan: "do all
+                  6"). 0263 had put the rituals at the TOP of Plan; two months on, both read
+                  "Latest: Aug 2" and sat — a paragraph, a pulse line and two cards — between the
+                  problems and the calendar, which is what Plan is opened for. The rituals are
+                  weekly and keep their cards; they are just below the thing you came for. */}
               <CompanyCalendar />
+              <OperatingRhythm isAdmin={isAdmin} onOpenNotes={() => setSection("notes")} />
               <Panel id="plan-discussions" title="Discussions · every open thread, one place"><Discussions onOpenNotes={() => setSection("notes")} /></Panel>
             </>
           )}
@@ -5765,7 +5782,10 @@ export default function AdminPage() {
             <a className="adm-golink" style={{ display: "inline-block", marginTop: 10 }} href="https://squareup.com/dashboard/sales/transactions" target="_blank" rel="noreferrer">Refunds &amp; disputes — Square Dashboard <Icon name="externalLink" /></a>
           </Panel>
           <div className="crew-group">The numbers</div>
-          <Panel id="sales" title="Sales"><Reports /></Panel>
+          {/* Open at rest (2026-10-02, Ryan: "do all 6"): Money used to open on MoneyKpis and then
+              seventeen closed titles — the accordion wall. One panel per section opens on its own,
+              the one most looked at; here that is Sales. The rest stay folded and remembered. */}
+          <Panel id="sales" title="Sales" defaultOpen><Reports /></Panel>
           <Panel id="snapshot" title="Business snapshot"><SnapshotReport /></Panel>
           <Panel id="pnl" title="Per-event P&L"><EventPnlReport /></Panel>
           <Panel id="funnels" title="Funnels · where people drop off"><FunnelReport /></Panel>

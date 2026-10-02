@@ -114,7 +114,10 @@ p,.entry-why,.gl-uc,.k-sub{text-wrap:pretty}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .skip-link{position:fixed;top:8px;left:8px;z-index:200;transform:translateY(-150%);background:var(--gold);color:#15120d;font-family:'Inter';font-weight:700;font-size:13px;padding:9px 14px;border-radius:var(--r-lg);box-shadow:0 8px 24px rgba(0,0,0,.4);transition:transform .16s ease}
 .skip-link:focus{transform:none;outline:2px solid var(--cream);outline-offset:2px}
-#body:focus{}
+/* The scroll region is keyboard-focusable (tabIndex 0, see AppShell) so a keyboard user can scroll a
+   page with nothing else to focus. Its ring is INSET and quiet: visible to a keyboard user, and not
+   a frame around the whole phone if a browser ever counts a tap on text as visible focus. */
+#body:focus-visible{outline:2px solid color-mix(in srgb, var(--gold2) 55%, transparent);outline-offset:-2px}
 /* The section body (.op-trans) is script-focused on every section switch so a screen reader lands
    on the new region. It is tabindex=-1 — no keyboard user can reach it — so a ring here serves
    nobody, and it was painting a 2px gold FRAME around the entire screen on iPhone (all three of
@@ -1246,7 +1249,8 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .menu .toprow{padding-top:4px}
 .mast-brand{display:flex;flex-direction:column;line-height:1}
 .mast-brand .g3{font-family:'Archivo Black';font-size:22px;letter-spacing:.4px;color:#221F18;line-height:1}
-.mast-brand .pb{font-family:'Inter';font-weight:600;font-size:8.5px;letter-spacing:3px;text-transform:uppercase;color:#6f6a59;margin-top:5px}
+/* The light masthead's copy of the caption — same call as .k-lock .k-pb above: app text at the floor. */
+.mast-brand .pb{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#6f6a59;margin-top:4px}
 .mast-stmt{font-family:'Fraunces';font-weight:400;font-size:17px;line-height:1.5;color:#33301f;margin-top:18px;letter-spacing:.1px}
 /* mast-stmt was born on the paper menu (ink #33301f) — on the DARK reserve screen that ink was
    near-invisible, Ryan's loudest 2026-08-01 audit finding. Dark surface → cream serif. */
@@ -4175,6 +4179,11 @@ body:has(.conc-sheet) .rail{display:flex}
 @keyframes sheet2up{from{transform:translateY(30px);opacity:.4}to{transform:translateY(0);opacity:1}}
 .sheet2-grab{flex:0 0 auto;height:24px;display:flex;align-items:center;justify-content:center;cursor:grab;touch-action:none}
 .sheet2-grab::before{content:"";width:40px;height:4px;border-radius:3px;background:var(--line2)}
+/* Text colour from the token, NOT inherited (2026-10-02): .app's own color is the dark theme's cream
+   and the day theme only redefines tokens, so any text inside a sheet that did not set its own
+   colour came out cream-on-cream in day mode — the confirm sheet's title did, and PromptSheet's
+   had since it was written. Same defect .so-row recorded; this is the one home for every sheet. */
+.sheet2{color:var(--cream)}
 .sheet2-head{flex:0 0 auto;padding:2px 18px 12px;touch-action:none}
 .sheet2-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:0 18px calc(18px + env(safe-area-inset-bottom))}
 .sheet2-foot{flex:0 0 auto;padding:12px 18px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--bg,#161310)}
@@ -6604,7 +6613,12 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .k-mast{display:flex;align-items:flex-start;justify-content:space-between;padding-top:2px}
 .k-lock{display:flex;flex-direction:column;line-height:1}
 .k-lock .g3{font-family:'Archivo Black';font-size:22px;letter-spacing:.4px;color:var(--cream);line-height:1}
-.k-lock .k-pb{font-family:'Inter';font-weight:600;font-size:8.5px;letter-spacing:.3em;text-transform:uppercase;color:var(--cream-d);margin-top:6px}
+/* "Performance Bar" under the mark is APP TEXT, not the lockup (2026-10-02, Ryan's call): the GT3
+   Performance Bar lockup exists only as a stacked vector and there is no horizontal masthead
+   variant in the asset set, so this caption is set in the app's own face at the 11px phone floor
+   rather than approximating the mark at 8.5px. The day a horizontal lockup is supplied, it goes in
+   here as the real file and this line goes. */
+.k-lock .k-pb{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--cream-d);margin-top:5px}
 /* 02 · Type scale — five steps, one title font */
 .k-eyb{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);display:flex;align-items:center}
 .k-eyb.live{color:#7fce82}
@@ -8095,3 +8109,6 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .acs-rows-first{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--line)}
 .acs-row.crew{background:color-mix(in srgb, var(--brand-gold) 10%, transparent)}
 .acs-row.crew:hover,.acs-row.crew:active{background:color-mix(in srgb, var(--brand-gold) 16%, transparent)}
+
+/* The calendar's "More" pill on a phone (CompanyCalendar: three views shown, four behind it). */
+.cal-view-more{color:var(--gold2);border-style:dashed}

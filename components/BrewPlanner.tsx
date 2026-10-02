@@ -18,6 +18,7 @@ import EmptyState from "./EmptyState";
 import { useApp } from "./AppProvider";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // BREW — recipes + a back-scheduled batch plan. Pick a recipe, set the batch size in GALLONS (the
 // recipe scales exactly to it and hits its OG/Signal-Score spec), tie it to the event it's for, and
@@ -80,6 +81,7 @@ const remain = (target: string | null, now: number) => {
 };
 
 export default function BrewPlanner() {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const [plan, setPlan] = useState<Recipe | null>(null);
   // Set by PrepDetail's "Plan a brew for this event/stop" (localStorage bridge, same pattern as
@@ -271,8 +273,11 @@ export default function BrewPlanner() {
   const removeBatch = async (b: Batch): Promise<boolean> => {
     if (!supabase) return false;
     const name = b.recipe_name || "batch";
-    if (typeof window !== "undefined" && !window.confirm(
-      `Remove this ${name} (${b.batch_gal} gal)?\n\nUse this when the batch was logged by mistake. If anything already points at it — an order, a stock movement — it is kept and marked discarded instead of deleted, so the trail survives.`)) return false;
+    if (!(await confirm({
+      title: `Remove this ${name} (${b.batch_gal} gal)?`,
+      body: "Use this when the batch was logged by mistake. If anything already points at it — an order, a stock movement — it is kept and marked discarded instead of deleted, so the trail survives.",
+      confirmLabel: "Remove it", danger: true,
+    }))) return false;
     const { data, error } = await supabase.rpc("discard_batch", { p_batch: b.id, p_reason: null });
     if (error) { setMutErr(error.message); return false; }
     toast(data === "deleted"

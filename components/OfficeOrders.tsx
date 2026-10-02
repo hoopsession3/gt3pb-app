@@ -11,6 +11,7 @@ import EmptyState from "./EmptyState";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
+import { usePrompt } from "@/components/PromptSheet";
 
 // CREW · OFFICE ORDERS — the operator's control surface for the Monday B2B route (0187). See upcoming
 // office deliveries, log the jug swap (full out / empties in) on delivery, and settle billing
@@ -29,6 +30,7 @@ type BOrder = {
 type Board = { rows: BOrder[]; standingN: number };
 
 export default function OfficeOrders() {
+  const prompt = usePrompt();
   const { toast } = useApp();
   const [openId, setOpenId] = useState<string | null>(null);
   const [empties, setEmpties] = useState<Record<string, number>>({});
@@ -75,8 +77,7 @@ export default function OfficeOrders() {
       .select("id, jugs_out, jugs_in").eq("business_order_id", o.id).order("created_at", { ascending: false }).limit(1);
     const row = ((rows as { id: string; jugs_out: number; jugs_in: number }[]) ?? [])[0];
     if (!row) { toast("No open jug entry on this delivery to undo.", "error"); return; }
-    const why = typeof window !== "undefined"
-      ? window.prompt(`Undo the swap logged for ${o.company} — ${row.jugs_out} out, ${row.jugs_in} back. Why?`, "miscounted the empties") : "";
+    const why = await prompt({ title: `Undo the swap logged for ${o.company}?`, hint: `${row.jugs_out} out, ${row.jugs_in} back. Say why — it goes on the record.`, defaultValue: "miscounted the empties", confirmLabel: "Undo it" });
     if (!why || !why.trim()) return;
     setBusyId(o.id);
     const { error } = await supabase.rpc("void_jug_entry", { p_id: row.id, p_reason: why.trim() });

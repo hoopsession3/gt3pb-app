@@ -11,6 +11,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import { useCrew, crewLabel } from "@/components/useCrew";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // TASKSHEET — the ONE task-detail sheet, opened from any task chip anywhere via useTaskSheet().
 // It reads the row from the all_tasks spine (0225) — so it doesn't care whether the task is an
@@ -54,6 +55,7 @@ export function TaskSheetProvider({ children }: { children: React.ReactNode }) {
 
 // ── the sheet ───────────────────────────────────────────────────────────────────────────────────
 function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; onClose: () => void }) {
+  const confirm = useConfirm();
   const { user, profile } = useAuth();
   const { toast } = useApp();
   const router = useRouter();
@@ -137,7 +139,7 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
     setEditing(false);
   };
   const remove = async () => {
-    if (!window.confirm("Delete this task? This can't be undone.")) return;
+    if (!(await confirm({ title: "Delete this task?", body: "This can't be undone.", confirmLabel: "Delete", danger: true }))) return;
     setBusy(true);
     const { error } = await deleteTask(source, id);
     setBusy(false);

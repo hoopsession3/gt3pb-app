@@ -10,6 +10,7 @@ import { useSuggestions } from "./useSuggestions";
 import { withCurrent } from "@/lib/options";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // Inventory — the GT3 stock register, read from Postgres (system-of-record). Staff add / edit /
 // delete inline; writes go straight to `inventory_items` (RLS: staff-write). Lives next to the
@@ -32,6 +33,7 @@ const toDraft = (r: InvItem): Draft => ({
 });
 
 export default function InventoryLibrary() {
+  const confirm = useConfirm();
   const [resp, setResp] = useState<InventoryResp | null>(null);
   const [open, setOpen] = useState(true); // renders inside the Garage fold — default open so it's one fold, not two
   const [editing, setEditing] = useState<string | null>(null);
@@ -85,7 +87,8 @@ export default function InventoryLibrary() {
   };
 
   const del = async (r: InvItem) => {
-    if (!supabase || typeof window === "undefined" || !window.confirm(`Delete "${r.name}"? This can't be undone.`)) return;
+    if (!supabase) return;
+    if (!(await confirm({ title: `Delete “${r.name}”?`, body: "This can't be undone.", confirmLabel: "Delete", danger: true }))) return;
     const { error } = await supabase.from("inventory_items").delete().eq("id", r.id);
     if (error) { setErr(error.message); return; }
     load();

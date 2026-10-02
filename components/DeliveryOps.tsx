@@ -11,6 +11,7 @@ import Sheet, { CloseButton } from "./Sheet";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
+import { usePrompt } from "@/components/PromptSheet";
 
 // SUNDAY DELIVERY OPS — the crew side of the delivery debrief, in DropOps' shape: one summary
 // sentence (units, one hero thought), the Saturday brew totals (incl. Performance combos), and a
@@ -205,6 +206,7 @@ export default function DeliveryOps() {
 // Feeds the Loop-participation KPI and gives the 8/6 loyalty-mechanic decision real behavior to
 // read. NOT the office jug float (business_accounts.jug_balance) — different container, on purpose.
 function LoopQuickLog() {
+  const prompt = usePrompt();
   const [n, setN] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   // TODAY'S ENTRIES, so a miscount has somewhere to go (0309/0310).
@@ -244,8 +246,7 @@ function LoopQuickLog() {
     if (!supabase) return;
     // The reason is required by the function, not optional politeness — a reversal nobody explained
     // is unreadable six weeks later, which is exactly when someone asks about the credit.
-    const why = typeof window !== "undefined"
-      ? window.prompt(`Void the entry for ${count} return${count === 1 ? "" : "s"}. Why?`, "miscounted") : "";
+    const why = await prompt({ title: `Void the entry for ${count} return${count === 1 ? "" : "s"}?`, hint: "Say why — a reversal nobody explained is unreadable six weeks later.", defaultValue: "miscounted", confirmLabel: "Void it" });
     if (!why || !why.trim()) return;
     const { error } = await supabase.rpc("void_loop_txn", { p_id: id, p_reason: why.trim() });
     setMsg(error ? `couldn't void — ${error.message}` : `voided ${count} · $${(count * 2).toFixed(0)} credit taken back`);

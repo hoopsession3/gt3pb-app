@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { uploadToBucket } from "@/lib/uploads";
 import Icon from "@/components/Icon";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // BRAND KIT — GT3's logos, palette, fonts & voice, in the Studio. Seeded with the real brand;
 // leadership can edit voice/tagline, the wordmark, and the palette. The reference both of you
@@ -17,6 +18,7 @@ const EMPTY: Kit = { voice: "", tagline: "", logo_url: "", wordmark_url: "", col
 type Asset = { id: string; label: string; kind: string; url: string; notes: string | null };
 
 export default function BrandKit({ canEdit }: { canEdit: boolean }) {
+  const confirm = useConfirm();
   const [kit, setKit] = useState<Kit | null>(null);
   const [draft, setDraft] = useState<Kit>(EMPTY);
   const [edit, setEdit] = useState(false);
@@ -60,7 +62,8 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
     setUploading(false);
   };
   const delAsset = async (id: string) => {
-    if (!supabase || !window.confirm("Remove this asset?")) return;
+    if (!supabase) return;
+    if (!(await confirm({ title: "Remove this asset?", confirmLabel: "Remove", danger: true }))) return;
     await supabase.from("brand_assets").delete().eq("id", id);
     setAssets((a) => a.filter((x) => x.id !== id));
   };

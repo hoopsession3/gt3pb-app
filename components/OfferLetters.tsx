@@ -18,6 +18,7 @@ import {
 } from "@/lib/offerLetter";
 import { payAtVolumes, DEFAULT_VOLUMES } from "@/lib/dealExplainer";
 import { roleLabel } from "@/lib/roles";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // OFFER LETTERS (0281) — the owner's side of hiring someone.
 //
@@ -61,6 +62,7 @@ const centsToDollars = (c: number | null | undefined) => (c == null ? "" : Strin
 const when = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
 export default function OfferLetters() {
+  const confirm = useConfirm();
   const { toast } = useApp();
   const { user, profile } = useAuth();
   const isOwner = roleOf(profile) === "owner";
@@ -291,7 +293,7 @@ export default function OfferLetters() {
               {!["accepted", "declined", "withdrawn", "expired"].includes(open.status) && (
                 <button type="button" className="btn-ter" disabled={busy} onClick={async () => {
                   if (!supabase) return;
-                  if (typeof window !== "undefined" && !window.confirm("Withdraw this offer? It stays on the record.")) return;
+                  if (!(await confirm({ title: "Withdraw this offer?", body: "It stays on the record.", confirmLabel: "Withdraw" }))) return;
                   setBusy(true);
                   const { error } = await supabase.from("offer_letters").update({ status: "withdrawn", updated_at: new Date().toISOString() }).eq("id", open.id);
                   setBusy(false);
