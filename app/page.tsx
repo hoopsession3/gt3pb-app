@@ -128,6 +128,10 @@ export default function TodayScreen() {
   const { ready, enabled, user, profile, profileStatus } = useAuth();
   const t = useSiteCopy();
   const router = useRouter();
+  // A guest's slow way to the truck — after the page loaded, hydrated, painted a skeleton and asked
+  // the session. proxy.ts (THE FRONT DOOR) sends a KNOWN guest to /truck before any of that, from
+  // the cookie lib/viewerHint.ts writes; this stays for the first visit, a cleared browser, and a
+  // session that turned out to be gone. Same destination either way.
   useEffect(() => {
     if (!enabled || (ready && !user)) router.replace("/truck");
   }, [enabled, ready, user, router]);

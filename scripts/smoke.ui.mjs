@@ -366,6 +366,25 @@ try {
     ok("nav · and in none of the three does a tab move after paint", guest.shift === 0 && member.shift === 0 && none.shift === 0, `${guest.shift} ${member.shift} ${none.shift}`);
   }
 
+  // 8) THE FRONT DOOR (proxy.ts, 2026-10-03). "/" is the PWA's start_url and a member's home; a
+  //    guest used to load it, hydrate it, watch a skeleton, and be sent to /truck by the page. Now
+  //    a request whose cookie says guest is sent there before a byte of "/" is served. Three
+  //    requests, nothing else running: a guest is redirected, a member is not, and nobody (no
+  //    cookie — a first visit) is not. The page's own slow redirect still covers the last two.
+  {
+    const door = async (cookie) => {
+      const r = await fetch(BASE + "/?ref=smoke", { redirect: "manual", headers: cookie ? { cookie } : {} });
+      return { status: r.status, location: r.headers.get("location") || "", cache: r.headers.get("cache-control") || "" };
+    };
+    const guest = await door("gt3-viewer=guest"), member = await door("gt3-viewer=member"), nobody = await door(null);
+    ok("door · a known guest is sent to /truck before the page is served — query string and all", guest.status === 307 && /\/truck\?ref=smoke$/.test(guest.location), JSON.stringify(guest));
+    ok("door · …and the redirect is marked private, so no shared cache ever hands it to a member", /private/.test(guest.cache) && /no-store/.test(guest.cache), guest.cache);
+    ok("door · a member gets the page", member.status === 200, JSON.stringify(member));
+    ok("door · no cookie at all (a first visit) gets the page, exactly as before", nobody.status === 200, JSON.stringify(nobody));
+    const elsewhere = await fetch(BASE + "/menu", { redirect: "manual", headers: { cookie: "gt3-viewer=guest" } });
+    ok("door · the door is on \"/\" alone — a guest on /menu is not touched", elsewhere.status === 200, String(elsewhere.status));
+  }
+
   await browser.close();
 } finally {
   await stopServer();

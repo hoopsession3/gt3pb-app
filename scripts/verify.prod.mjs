@@ -20,7 +20,8 @@
 //   2. CURRENT   — /api/migrations holds every file in supabase/migrations (nothing pending, no gap)
 //   2b. POSTURE  — the committed security snapshot (RLS, grants, policies) judged by security.audit
 //   3. ANSWERS   — a handful of routes, with and without a session, answer JSON — never Next's HTML
-//                  500 page (lib/apiRoute.ts is what makes this true; this is what checks it)
+//                  500 page (lib/apiRoute.ts is what makes this true; this is what checks it); and
+//                  the front door (proxy.ts) sends a known guest from "/" to /truck
 //   4. PAINTED   — every public route at phone width, with real data: box depth, tap, text, what
 //                  moved after paint, axe — against PROD_ROUTE and SHIFT in scripts/design.ratchet.mjs
 //
@@ -47,7 +48,7 @@ const json = async (path, init) => {
   const res = await fetch(APP + path, { ...init, headers: { "cache-control": "no-cache", ...(init?.headers || {}) }, signal: AbortSignal.timeout(20000) });
   const type = res.headers.get("content-type") || "";
   let body = null; try { body = type.includes("json") ? await res.json() : await res.text(); } catch { /* keep null */ }
-  return { status: res.status, type, body };
+  return { status: res.status, type, body, location: res.headers.get("location") || "" };
 };
 
 // ── 1. LIVE ─────────────────────────────────────────────────────────────────────────────────────
@@ -111,6 +112,16 @@ for (const pr of PROBES) {
   const r = await json(pr.p, { method: pr.m, body: pr.body, headers: pr.body ? { "content-type": "application/json" } : {} });
   const jsonOr204 = r.status === 204 || r.type.includes("application/json");
   ok(`answers: ${pr.m} ${pr.p} → ${r.status}${r.status === 204 ? "" : ", JSON"}`, pr.want.includes(r.status) && jsonOr204, `got ${r.status} ${r.type || "(no content-type)"}`);
+}
+// THE FRONT DOOR (proxy.ts): a request to "/" that says it is a guest is sent to /truck before the
+// page is served; a member, or nobody, gets the page. The cookie is the one lib/viewerHint.ts
+// writes; here it is set by hand, which is all the door ever sees.
+{
+  const door = (cookie) => json("/", { redirect: "manual", headers: cookie ? { cookie } : {} });
+  const guest = await door("gt3-viewer=guest"), member = await door("gt3-viewer=member"), nobody = await door(null);
+  ok(`door: GET / as a known guest → ${guest.status} to ${guest.location || "?"}`, guest.status === 307 && /\/truck$/.test(guest.location), `got ${guest.status} ${guest.location}`);
+  ok(`door: GET / as a member → ${member.status}, the page`, member.status === 200, `got ${member.status}`);
+  ok(`door: GET / with no cookie → ${nobody.status}, the page`, nobody.status === 200, `got ${nobody.status}`);
 }
 
 // ── 4. PAINTED ──────────────────────────────────────────────────────────────────────────────────

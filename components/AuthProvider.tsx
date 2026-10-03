@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase, supabaseEnabled } from "@/lib/supabase";
+import { writeViewerHint } from "@/lib/viewerHint";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import type { Role } from "@/lib/roles";
 
@@ -132,6 +133,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       // profile load, so we don't fetch (or attach_referral) twice on cold start.
       setUser(data.session?.user ?? null);
       setReady(true);
+      writeViewerHint(!!data.session?.user);                   // the front door's copy (lib/viewerHint.ts)
       if (!data.session?.user) setProfileStatus("ready");      // no session ⇒ no profile, and we know it
       // Utilization (0267): no session = an anonymous visitor — count the visit (daily counter,
       // no IDs, throttled to one ping per device per hour in lib/track).
@@ -140,6 +142,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user ?? null;
       setUser(u);
+      writeViewerHint(!!u);
       if (u) loadProfile(u.id);
       else { setProfile(null); setProfileStatus("ready"); }   // signed out: known, not unknown
       // Utilization (0267): a real sign-in bumps the login counter; INITIAL_SESSION (cold-start

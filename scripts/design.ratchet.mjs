@@ -191,10 +191,14 @@ export const PROD_ROUTE = {
 // both identity tabs and corrects the viewer hint (THE NAV THAT MOVED UNDER YOUR THUMB) — which
 // crossed the rounding line on the two lightest routes and nowhere else. The cost of a nav that
 // does not move is 148 bytes; written down here so the next kilobyte has to be, too.
+// 2026-10-03: /, /menu, /architecture, /offer +1 — +249 bytes raw (102 gzipped) in AuthProvider's
+// chunk for the front door's cookie writer (lib/viewerHint.ts, proxy.ts), which tipped the four
+// routes that were sitting within 102 bytes of a rounding line. Measured, not estimated: 274 892 →
+// 274 994 bytes gzipped on /menu.
 export const WEIGHT = {
   "/truck":                    { js: 284, css: 102, chunks: 16 },
   "/events":                   { js: 284, css: 102, chunks: 16 },
-  "/menu":                     { js: 268, css: 100, chunks: 16 },
+  "/menu":                     { js: 269, css: 100, chunks: 16 },
   "/reserve":                  { js: 291, css: 100, chunks: 17 },
   "/delivery":                 { js: 290, css: 100, chunks: 17 },
   "/3mpire":                   { js: 284, css: 100, chunks: 16 },
@@ -203,18 +207,18 @@ export const WEIGHT = {
   "/academy":                  { js: 316, css: 100, chunks: 16 },
   "/office":                   { js: 277, css: 100, chunks: 16 },
   "/scan":                     { js: 260, css: 100, chunks: 15 },
-  "/architecture":             { js: 269, css: 100, chunks: 15 },
+  "/architecture":             { js: 270, css: 100, chunks: 15 },
   "/playbook":                 { js: 276, css: 100, chunks: 16 },
   "/driver":                   { js: 280, css: 102, chunks: 16 },
   "/agreement":                { js: 267, css: 100, chunks: 15 },
-  "/offer":                    { js: 276, css: 100, chunks: 15 },
+  "/offer":                    { js: 277, css: 100, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 259, css: 100, chunks: 15 },
   "/display":                  { js: 260, css: 100, chunks: 15 },
   "/shop":                     { js: 297, css: 100, chunks: 17 },
   "/primal":                   { js: 269, css: 100, chunks: 16 },
   "/privacy":                  { js: 258, css: 100, chunks: 14 },
   "/terms":                    { js: 258, css: 100, chunks: 14 },
-  "/":                         { js: 274, css: 100, chunks: 16 },
+  "/":                         { js: 275, css: 100, chunks: 16 },
 };
 
 export function weightVerdict(path, w, row = WEIGHT[path]) {

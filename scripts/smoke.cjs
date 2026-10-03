@@ -4255,6 +4255,27 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /html\[data-viewer="guest"\] \.tab\[data-for="member"\]\{display:none\}/.test(css) && /html:not\(\[data-viewer="guest"\]\) \.tab\[data-for="guest"\]\{display:none\}/.test(css));
 }
 
+// ── THE FRONT DOOR: one cookie, one writer, one door ──────────────────────────────────────────
+// proxy.ts may send a guest from "/" to /truck and may do nothing else: not decide for a member,
+// not touch another route, not grant a thing. lib/viewerHint.ts owns the cookie's name and the
+// only function that writes it; components/AuthProvider.tsx calls that function on both answers
+// the session gives (the cold read and every change). scripts/smoke.ui.mjs knocks on the door
+// three ways; this holds the sources so the door cannot quietly widen.
+{
+  const { readFileSync } = require("node:fs");
+  const { join } = require("node:path");
+  const read = (f) => readFileSync(join(__dirname, "..", f), "utf8");
+  const proxy = read("proxy.ts"), hint = read("lib/viewerHint.ts"), auth = read("components/AuthProvider.tsx");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  ok("door: proxy.ts is matched on \"/\" exactly and nothing else", /export const config = \{ matcher: "\/" \};/.test(code(proxy)));
+  ok("door: …it redirects only a cookie that says guest, to /truck, temporarily (307)", /\.value === "guest"\)/.test(code(proxy)) && /url\.pathname = "\/truck";/.test(code(proxy)) && /NextResponse\.redirect\(url, 307\)/.test(code(proxy)) && !/"member"/.test(code(proxy)));
+  ok("door: …and passes everything else through untouched", /return NextResponse\.next\(\);/.test(code(proxy)) && (code(proxy).match(/NextResponse\.(redirect|rewrite)\(/g) || []).length === 1);
+  ok("door: …reading the cookie by the one name lib/viewerHint.ts owns", /import \{ VIEWER_COOKIE \} from "@\/lib\/viewerHint";/.test(proxy) && /cookies\.get\(VIEWER_COOKIE\)/.test(code(proxy)) && /export const VIEWER_COOKIE = "gt3-viewer";/.test(hint));
+  ok("door: the cookie is written by one function, as a hint for a year, never HttpOnly (the browser writes it)", /export function writeViewerHint\(signedIn: boolean\)/.test(hint) && /max-age=31536000; samesite=lax/.test(hint) && !/httponly/i.test(hint));
+  ok("door: AuthProvider writes it on the cold session read AND on every change — a stale hint never outlives the next answer", /getSession\(\)[\s\S]*?writeViewerHint\(!!data\.session\?\.user\)/.test(code(auth)) && /onAuthStateChange\(\(event, session\) => \{\s*const u = session\?\.user \?\? null;\s*setUser\(u\);\s*writeViewerHint\(!!u\);/.test(code(auth)));
+  ok("door: the slow way stays — app/page.tsx still sends a guest to /truck itself", /router\.replace\("\/truck"\)/.test(code(read("app/page.tsx"))));
+}
+
 // ── errorMessage (lib/errorMessage.ts): the one place a thrown value becomes a string ──────────
 {
   const { errorMessage } = require("../.smoke/errorMessage.js");
