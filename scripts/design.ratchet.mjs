@@ -85,6 +85,25 @@ export const FLOOR = {
   minAgendaFontPx: 11,   // smallest text in the agenda list (was 9.5)
 };
 
+// ── WHAT MOVES AFTER IT IS PAINTED (2026-10-02) ─────────────────────────────────────────────────
+// Measured on production at 390px, as a guest, before anything was fixed: on 19 of 23 routes the
+// only movement was the bottom nav's three shared tabs sliding one slot left a quarter second in
+// (0.0087 — the server painted the member shape, the client re-shaped it for a guest); on /reserve
+// and /shop the order funnel jumped up 164px a second in (0.14 and 0.12 — a 150px card skeleton
+// standing in for a section that is almost always empty). Both fixed the same day
+// (components/BottomNav.tsx, components/Reserves.tsx). What is left is the settling every page does
+// — a web font landing, a chips row arriving with its data — 0.000 to 0.015 on a route, and it
+// varies run to run with the network, so this one is a GATE with a margin and not a per-route
+// ratchet: a ratchet on a number that moves on its own is a flake generator, and a Reserves-class
+// regression is an order of magnitude above the margin.
+//   chrome — a nav tab, the cart bar or the rail moved: the one thing a thumb relies on. Exact 0.
+//   total  — the page's own layout-shift score. 0.04 is three times the settling ever measured and
+//            a third of Google's "poor" line.
+export const SHIFT = {
+  chrome: 0,
+  total: 0.04,
+};
+
 // ── EVERY PUBLIC ROUTE, AT PHONE WIDTH — read by scripts/smoke.ui.mjs ───────────────────────────
 // Measured 2026-10-02 after the first pass, with the splash dismissed (the splash is a finding of
 // its own, not the page). Three numbers a route may not get worse on:
@@ -168,6 +187,10 @@ export const PROD_ROUTE = {
 // real number is slack and fails too — bytes move by a few hundred with any edit, so the dead-band
 // is what keeps this from crying wolf. Not here on purpose: images (content, not code) and fonts
 // (the same files on every route).
+// 2026-10-03: /privacy and /terms 257 → 258. +148 bytes raw in the shell chunk — BottomNav renders
+// both identity tabs and corrects the viewer hint (THE NAV THAT MOVED UNDER YOUR THUMB) — which
+// crossed the rounding line on the two lightest routes and nowhere else. The cost of a nav that
+// does not move is 148 bytes; written down here so the next kilobyte has to be, too.
 export const WEIGHT = {
   "/truck":                    { js: 284, css: 102, chunks: 16 },
   "/events":                   { js: 284, css: 102, chunks: 16 },
@@ -189,8 +212,8 @@ export const WEIGHT = {
   "/display":                  { js: 260, css: 100, chunks: 15 },
   "/shop":                     { js: 297, css: 100, chunks: 17 },
   "/primal":                   { js: 269, css: 100, chunks: 16 },
-  "/privacy":                  { js: 257, css: 100, chunks: 14 },
-  "/terms":                    { js: 257, css: 100, chunks: 14 },
+  "/privacy":                  { js: 258, css: 100, chunks: 14 },
+  "/terms":                    { js: 258, css: 100, chunks: 14 },
   "/":                         { js: 274, css: 100, chunks: 16 },
 };
 
@@ -220,6 +243,11 @@ export function routeVerdict(path, m, row = ROUTE[path]) {
   if (row.text !== null && m.smallestText !== null) {
     if (m.smallestText < row.text) out.push(`${path}: smallest text ${m.smallestText}px (${m.smallestTextWhat}) — floor ${row.text}px. Smaller.`);
     else if (m.smallestText > row.text) out.push(`${path}: smallest text ${m.smallestText}px — floor ${row.text}px sits below it. Good; now raise the floor to ${m.smallestText}.`);
+  }
+  if (m.shift) {
+    const what = m.shift.worst ? ` (biggest: ${m.shift.worst.v} at ${m.shift.worst.t}ms — ${m.shift.worst.src})` : "";
+    if (m.shift.chrome > SHIFT.chrome) out.push(`${path}: the nav, cart bar or rail moved after paint — shift ${m.shift.chrome}${what}. Fixed chrome never moves.`);
+    if (m.shift.total > SHIFT.total) out.push(`${path}: layout shift ${m.shift.total} — gate ${SHIFT.total}${what}. Something is painted, then pushed.`);
   }
   return out;
 }

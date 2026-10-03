@@ -5,7 +5,6 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
-import Skeleton from "./Skeleton";
 import Sheet from "./Sheet";
 import SignIn from "./SignIn";
 import type { Reserve, ReserveClaim } from "@/lib/db";
@@ -86,7 +85,14 @@ export default function Reserves() {
     load();
   };
 
-  if (!loaded) return <Skeleton variant="card" />;
+  // THE CARD THAT WAS NEVER THERE (2026-10-02). This used to paint a 150px card skeleton until the
+  // query answered, and the query's usual answer is "no live drops" — so on /reserve and /shop
+  // every guest watched the order funnel jump up 164px about a second in (layout shift 0.14 and
+  // 0.12 on production, the two largest in the app). A skeleton stands in for content that is
+  // coming; it is the wrong tool for a section that is usually absent. Nothing paints until the
+  // answer is known: the common case never moves, and a live drop, when there is one, arrives as
+  // the one thing on the page that was worth waiting for.
+  if (!loaded) return null;
   if (loadFailed && reserves.length === 0) return <p className="rsv-err" role="alert">Couldn&rsquo;t load reserves right now — check back shortly.</p>;
   if (reserves.length === 0) return null;
 

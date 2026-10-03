@@ -19,7 +19,7 @@ const CHROME = process.env.PW_CHROME || "/opt/pw-browsers/chromium/chrome-linux/
 // DESIGN at phone width (2026-10-02): the same measurement the Plan fixture uses, run on every
 // route in a 390px context — box depth, smallest tap target, smallest text — against per-route
 // ceilings that live in ONE place, scripts/design.ratchet.mjs, beside the stylesheet's own.
-import { MEASURE } from "./design.measure.mjs";
+import { MEASURE, OBSERVE } from "./design.measure.mjs";
 import { routeVerdict, weightVerdict } from "./design.ratchet.mjs";
 const design = [];        // { path, m } per route
 const designErrors = [];  // routes the phone pass could not measure
@@ -178,6 +178,8 @@ try {
   // session on every customer route — in the audit, Ryan's call), not the page's structure.
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   await phone.addInitScript(() => { try { sessionStorage.setItem("gt3-splash-shown", "1"); } catch { /* */ } });
+  // What moves after paint is only visible from before the page loads (SHIFT in design.ratchet.mjs).
+  await phone.addInitScript(OBSERVE);
 
   for (const route of ROUTES) {
     // 1) SSR CONTRACT (deterministic): the raw server response carries status + kit markers.
@@ -324,6 +326,46 @@ try {
     await rp.close();
   }
 
+  // 7) THE NAV THAT MOVED UNDER YOUR THUMB (components/BottomNav.tsx, 2026-10-02). On production
+  //    every guest watched the three shared tabs slide one slot left a quarter second after paint:
+  //    the server painted the member shape, the client re-shaped it. Now both identity tabs are in
+  //    the DOM and <html data-viewer> — set before first paint — picks one. This build has no
+  //    Supabase, so the script that sets the hint is not emitted (nobody is a guest without one)
+  //    and the production twin (verify:prod, SHIFT) is what proves the script; what is proved here
+  //    is the contract the script relies on: the server sends both tabs, and the attribute alone —
+  //    set before load, as the script sets it — decides the shape, with nothing moving afterwards.
+  {
+    const ssr = await fetch(BASE + "/menu").then((r) => r.text()).catch(() => "");
+    const fors = [...ssr.matchAll(/class="tab[^"]*"[^>]*data-for="([a-z]+)"/g)].map((m) => m[1]);
+    ok("nav · the server sends both identity tabs, Today for a member and Join for a guest, with the three shared ones", fors.join(",") === "member,all,all,all,guest", fors.join(","));
+    const shape = async (viewer) => {
+      const vp = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+      await vp.addInitScript(() => { try { sessionStorage.setItem("gt3-splash-shown", "1"); } catch { /* */ } });
+      await vp.addInitScript(OBSERVE);
+      // An init script runs before <html> exists; the real script runs from inside <head>. Set the
+      // attribute the moment the root element appears — still before any paint.
+      if (viewer) await vp.addInitScript((v) => {
+        const set = () => { if (!document.documentElement) return false; document.documentElement.setAttribute("data-viewer", v); return true; };
+        if (!set()) new MutationObserver((_, o) => { if (set()) o.disconnect(); }).observe(document, { childList: true });
+      }, viewer);
+      const np = await vp.newPage();
+      await np.goto(BASE + "/menu", { waitUntil: "domcontentloaded", timeout: 20000 });
+      try { await np.waitForLoadState("networkidle", { timeout: 4000 }); } catch { /* settled enough */ }
+      await sleep(600);
+      const r = await np.evaluate(() => ({
+        shown: [...document.querySelectorAll(".nav .tab")].filter((t) => t.getBoundingClientRect().height > 0).map((t) => t.getAttribute("data-for")),
+        shift: (window.__gt3shifts || []).filter((e) => e.chrome).reduce((a, e) => a + e.v, 0),
+      }));
+      await vp.close();
+      return r;
+    };
+    const guest = await shape("guest"), member = await shape("member"), none = await shape(null);
+    ok("nav · a guest's first paint shows Join and not Today — four tabs", guest.shown.join(",") === "all,all,all,guest", guest.shown.join(","));
+    ok("nav · a member's first paint shows Today and not Join — four tabs", member.shown.join(",") === "member,all,all,all", member.shown.join(","));
+    ok("nav · no hint at all is the member shape (a build with no Supabase has no guests)", none.shown.join(",") === "member,all,all,all", none.shown.join(","));
+    ok("nav · and in none of the three does a tab move after paint", guest.shift === 0 && member.shift === 0 && none.shift === 0, `${guest.shift} ${member.shift} ${none.shift}`);
+  }
+
   await browser.close();
 } finally {
   await stopServer();
@@ -373,7 +415,7 @@ try {
   console.log(`\nDESIGN (phone, 390px): ${design.length} route(s) measured — deepest box ${worst}, smallest tap target ${tiniest.v === 999 ? "n/a" : `${tiniest.v}px (${tiniest.p}: ${tiniest.w})`}`);
   for (const d of design) {
     const problems = routeVerdict(d.path, d.m);
-    ok(`design · ${d.path} · depth ${d.m.maxLeafDepth}, tap ${d.m.smallestTap}px, text ${d.m.smallestText}px within the recorded ceilings`, problems.length === 0, problems.slice(0, 2).join(" | "));
+    ok(`design · ${d.path} · depth ${d.m.maxLeafDepth}, tap ${d.m.smallestTap}px, text ${d.m.smallestText}px, shift ${d.m.shift ? d.m.shift.total.toFixed(3) : "?"} within the recorded ceilings`, problems.length === 0, problems.slice(0, 2).join(" | "));
   }
   ok("design: every route was actually measured — an unmeasured route is not a clean one", designErrors.length === 0, designErrors.slice(0, 2).join("; "));
 }

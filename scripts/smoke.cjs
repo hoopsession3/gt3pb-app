@@ -4233,6 +4233,28 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   })());
 }
 
+// ── THE NAV THAT MOVED UNDER YOUR THUMB: three parts, one gate ────────────────────────────────
+// components/BottomNav.tsx renders both identity tabs; app/layout.tsx marks <html data-viewer>
+// before first paint from the stored session; app/globals.css hides the tab that is not for you.
+// Each part is useless without the other two, and nothing in the type system ties them together:
+// drop the script and every guest is back to a nav that re-shapes itself a quarter second in,
+// with every test still green. scripts/smoke.ui.mjs paints the shape; this holds the sources.
+{
+  const { readFileSync } = require("node:fs");
+  const { join } = require("node:path");
+  const read = (f) => readFileSync(join(__dirname, "..", f), "utf8");
+  const layout = read("app/layout.tsx"), nav = read("components/BottomNav.tsx"), css = read("app/globals.css");
+  const script = (layout.match(/__html:\s*`([^`]*data-viewer[^`]*)`/) || [])[1] || "";
+  ok("nav shape: app/layout.tsx carries the pre-paint script that sets data-viewer from the stored session", /setAttribute\("data-viewer",\s*m\s*\?\s*"member"\s*:\s*"guest"\)/.test(script), script.slice(0, 80));
+  const key = (script.match(/\/(\^sb-[^/]+\$)\//) || [])[1] || "";
+  ok("nav shape: …keyed on supabase-js's session entry and not on its PKCE verifier", !!key && new RegExp(key).test("sb-hmpxgomiiyjjxxxyzzbg-auth-token") && !new RegExp(key).test("sb-hmpxgomiiyjjxxxyzzbg-auth-token-code-verifier"), key);
+  ok("nav shape: …emitted only when Supabase is configured (without it nobody is a guest)", /NEXT_PUBLIC_SUPABASE_URL && \(/.test(layout) && layout.indexOf("data-viewer") > layout.indexOf("NEXT_PUBLIC_SUPABASE_URL && ("));
+  ok("nav shape: BottomNav renders one static list with data-for on every tab and never re-orders it", /const TABS = \[TODAY, \.\.\.CORE, JOIN\]/.test(nav) && /data-for=\{tab\.for\}/.test(nav) && !/guest \? \[/.test(nav));
+  ok("nav shape: …and corrects the hint only from a real session, never without Supabase", /if \(!enabled \|\| !ready\) return;\s*document\.documentElement\.dataset\.viewer = user \? "member" : "guest";/.test(nav));
+  ok("nav shape: globals.css hides Today for a guest and Join for everyone else, by the html attribute alone",
+    /html\[data-viewer="guest"\] \.tab\[data-for="member"\]\{display:none\}/.test(css) && /html:not\(\[data-viewer="guest"\]\) \.tab\[data-for="guest"\]\{display:none\}/.test(css));
+}
+
 // ── errorMessage (lib/errorMessage.ts): the one place a thrown value becomes a string ──────────
 {
   const { errorMessage } = require("../.smoke/errorMessage.js");

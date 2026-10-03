@@ -22,6 +22,28 @@
 //                   cannot scroll away from.
 //   headings      — h1 count and h2 count: one h1 and a real outline, or a screen reader has none.
 //   nestedScroll  — scroll containers inside scroll containers: a trap for a thumb on a phone.
+//   shift         — what moved AFTER it was painted (2026-10-02). `total` is the page's layout-shift
+//                   score (the browser's own CLS, input-free shifts summed); `chrome` is the part of
+//                   it where a nav tab, the cart bar or the rail moved — fixed chrome that must never
+//                   move; `worst` names the biggest single shift and what slid. Needs OBSERVE below
+//                   installed before the page loads (page.addInitScript); null when it was not.
+export const OBSERVE = `(() => {
+  try {
+    window.__gt3shifts = [];
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) {
+        if (e.hadRecentInput) continue;
+        const nodes = (e.sources || []).map((s) => s.node).filter((n) => n && n.nodeType === 1);
+        window.__gt3shifts.push({
+          v: e.value, t: Math.round(e.startTime),
+          chrome: nodes.some((n) => !!n.closest(".nav,.cartbar,.rail")),
+          src: nodes.slice(0, 3).map((n) => n.tagName.toLowerCase() + (typeof n.className === "string" && n.className ? "." + n.className.trim().split(/\\s+/).slice(0, 2).join(".") : "")),
+        });
+      }
+    }).observe({ type: "layout-shift", buffered: true });
+  } catch (e) { /* no layout-shift API: shift stays null */ }
+})()`;
+
 export const MEASURE = `(() => {
   const alpha = (c) => { const m = c && c.match(/rgba?\\(([^)]+)\\)/); if (!m) return c && c !== "transparent" ? 1 : 0; const p = m[1].split(",").map(Number); return p.length === 4 ? p[3] : 1; };
   const vis = (el) => { const cs = getComputedStyle(el); return cs.display !== "none" && cs.visibility !== "hidden" && Number(cs.opacity) > 0.05; };
@@ -104,10 +126,22 @@ export const MEASURE = `(() => {
   const scrollers = [...document.querySelectorAll("body *")].filter((el) => { const cs = getComputedStyle(el); return /(auto|scroll)/.test(cs.overflowY) && el.scrollHeight > el.clientHeight + 4 && vis(el); });
   for (const s of scrollers) { let p = s.parentElement; while (p) { if (scrollers.includes(p)) { nestedScroll++; break; } p = p.parentElement; } }
 
+  let shift = null;
+  if (Array.isArray(window.__gt3shifts)) {
+    const all = window.__gt3shifts;
+    const worst = all.reduce((w, e) => (!w || e.v > w.v ? e : w), null);
+    shift = {
+      total: +all.reduce((a, e) => a + e.v, 0).toFixed(4),
+      chrome: +all.filter((e) => e.chrome).reduce((a, e) => a + e.v, 0).toFixed(4),
+      worst: worst ? { v: +worst.v.toFixed(4), t: worst.t, src: worst.src.join(", ") } : null,
+    };
+  }
+
   return {
     viewport: innerWidth + "x" + innerHeight, boxes: boxes.length, leafBoxes: leaves.length, maxLeafDepth: max, leafDepthHistogram: hist, deepest: rows.slice(0, 8),
     frameOnSectionBody: frame, railAreaFraction: railArea, railCoversFixed, minAgendaFontPx: minFont === 99 ? null : minFont,
     overflowX, smallestTap: smallestTap === 999 ? null : smallestTap, smallestTapWhat, smallestText: smallestText === 99 ? null : smallestText, smallestTextWhat, fixedOverlays, headings, nestedScroll,
+    shift,
   };
 })()`;
 

@@ -21,8 +21,8 @@
 //   2b. POSTURE  — the committed security snapshot (RLS, grants, policies) judged by security.audit
 //   3. ANSWERS   — a handful of routes, with and without a session, answer JSON — never Next's HTML
 //                  500 page (lib/apiRoute.ts is what makes this true; this is what checks it)
-//   4. PAINTED   — every public route at phone width, with real data: box depth, tap, text, axe —
-//                  against PROD_ROUTE in scripts/design.ratchet.mjs, the production twin of ROUTE
+//   4. PAINTED   — every public route at phone width, with real data: box depth, tap, text, what
+//                  moved after paint, axe — against PROD_ROUTE and SHIFT in scripts/design.ratchet.mjs
 //
 // It needs the network and a finished deploy, so it is NOT in `npm run verify` and it is not a
 // build gate: it is the post-deploy gate, and it exits 1 like one. .github/workflows/production.yml
@@ -31,7 +31,7 @@
 // production that drifts between deploys, is a red run in the owner's inbox and not a complaint.
 import { execSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { MEASURE } from "./design.measure.mjs";
+import { MEASURE, OBSERVE } from "./design.measure.mjs";
 import { PROD_ROUTE, routeVerdict } from "./design.ratchet.mjs";
 import { migrationFiles, pendingFrom, readLedger } from "./migrations.pending.mjs";
 
@@ -128,6 +128,8 @@ try {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
   // The splash is a finding of its own, not the page (scripts/design.ratchet.mjs says the same).
   await ctx.addInitScript(() => { try { sessionStorage.setItem("gt3-splash-shown", "1"); localStorage.setItem("gt3-splash-seen-at", String(Date.now())); } catch { /* ignore */ } });
+  // What moves after paint is only visible from before the page loads (SHIFT in design.ratchet.mjs).
+  await ctx.addInitScript(OBSERVE);
   const page = await ctx.newPage();
   const a11y = [];
   for (const path of Object.keys(PROD_ROUTE)) {
@@ -145,7 +147,7 @@ try {
     }
     if (!m) { ok(`painted: ${path}`, false, `could not measure — ${String(err?.message || err).split("\n")[0].slice(0, 100)}`); continue; }
     const problems = routeVerdict(path, m, PROD_ROUTE[path]);
-    ok(`painted: ${path.padEnd(26)} depth ${m.maxLeafDepth}, tap ${m.smallestTap}px, text ${m.smallestText}px, no sideways scroll`,
+    ok(`painted: ${path.padEnd(26)} depth ${m.maxLeafDepth}, tap ${m.smallestTap}px, text ${m.smallestText}px, shift ${m.shift ? m.shift.total.toFixed(3) : "?"}, no sideways scroll`,
       problems.length === 0 && (m.overflowX || []).length === 0,
       [...problems, ...(m.overflowX?.length ? [`scrolls sideways: ${JSON.stringify(m.overflowX).slice(0, 80)}`] : [])].join(" | "));
   }

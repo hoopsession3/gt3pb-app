@@ -50,6 +50,19 @@ export default function RootLayout({
           <>
             <link rel="preconnect" href={process.env.NEXT_PUBLIC_SUPABASE_URL} crossOrigin="anonymous" />
             <link rel="dns-prefetch" href={process.env.NEXT_PUBLIC_SUPABASE_URL} />
+            {/* Who is reading, before first paint (components/BottomNav.tsx: THE NAV THAT MOVED
+                UNDER YOUR THUMB). The server cannot know; the browser already does — supabase-js
+                keeps the session under sb-<ref>-auth-token in localStorage. A stored session paints
+                the member nav, none paints the guest nav, and BottomNav's effect corrects the hint
+                once the session has really been read. Inline + pre-hydration on purpose, like the
+                style probe below: the whole point is to be right before React runs. Only emitted
+                when Supabase is configured — without it nobody is a guest, and the attribute is
+                absent, which the CSS reads as the member shape. */}
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `try{var m=Object.keys(localStorage).some(function(k){return /^sb-.+-auth-token$/.test(k)});document.documentElement.setAttribute("data-viewer",m?"member":"guest")}catch(e){}`,
+              }}
+            />
           </>
         )}
         {/* Style probe — heals the "raw HTML" render. If the app stylesheet failed to load

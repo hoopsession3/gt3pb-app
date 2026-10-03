@@ -546,6 +546,11 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
    tabs + float rail ghost through the OS chrome. Both are untappable mid-typing; visibility (not
    display) keeps the flex column's height stable under the pan. AppShell toggles html.kb-open. */
 html.kb-open .nav,html.kb-open .rail{visibility:hidden}
+/* THE NAV THAT MOVED UNDER YOUR THUMB (components/BottomNav.tsx): both identity tabs are always in
+   the DOM — Today for a member, Join for a guest — and <html data-viewer>, set before first paint
+   by app/layout.tsx, picks one. No attribute (no Supabase, or no script) is the member shape. */
+html[data-viewer="guest"] .tab[data-for="member"]{display:none}
+html:not([data-viewer="guest"]) .tab[data-for="guest"]{display:none}
 .tab{position:relative;flex:1;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 2px;color:var(--cream);opacity:.6;cursor:pointer;text-decoration:none;transition:opacity .15s,transform .1s;-webkit-appearance:none;appearance:none;background:none;border:none;font:inherit}
 .tab.on{opacity:1}.tab.on .ti{color:var(--red)}
 /* active-tab marker — a short bar at the top edge (the highest-frequency element gets a real state) */
