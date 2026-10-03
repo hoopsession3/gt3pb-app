@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
 import { MEASURING_RULES } from "@/lib/agentKnowledge";
-import { SERVE_OZ, OZ_PER_GAL } from "@/lib/brewMath";
+import { SERVE_OZ, OZ_PER_GAL, scaleIngredients } from "@/lib/brewMath";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
@@ -21,18 +21,9 @@ export const maxDuration = 60;
 
 // The pour and the gallon come from lib/brewMath, which is where the batch floor is derived from
 // them (2026-10-01). This file used to declare its own 10 and 128; two copies of a number that now
-// sets the smallest batch this app will plan is one copy too many.
-const round = (n: number) => Math.round(n * 10) / 10;
-
-// Linear scale of a recipe's ingredient list to a target water volume. Exact, deterministic.
-function scaleIngredients(ingredients: any[], factor: number) {
-  return (ingredients ?? []).map((i: any) => ({
-    name: String(i.name ?? "").slice(0, 80),
-    qty: i.scales === false ? i.qty : round(Number(i.qty ?? 0) * factor),
-    unit: String(i.unit ?? "").slice(0, 24),
-    scales: i.scales !== false,
-  }));
-}
+// sets the smallest batch this app will plan is one copy too many. 2026-10-03: the ingredient
+// scaler went the same way — the brew sheet previews a batch with lib/brewMath's scaleIngredients
+// before this route is ever called, and the list this route saves must be the list the cook saw.
 
 const TOOL: ToolDef = {
   name: "brew_plan",
@@ -159,7 +150,7 @@ async function post(req: Request) {
   const base = {
     ok: true,
     recipe: { id: recipeId, name: (recipe as any).name, style: (recipe as any).style, ratio: (recipe as any).ratio, target_spec: (recipe as any).target_spec },
-    batch_gal: batchGal, factor: round(factor), scaled,
+    batch_gal: batchGal, factor: Math.round(factor * 100) / 100, scaled,
     servings, finished_oz: Math.round(finishedOz), serve_oz: SERVE_OZ,
     extraction_hours: extractionHours, brew_date: brewDate, ready_at: readyAt,
     event: eventTitle ? { title: eventTitle, day: eventDay } : null,

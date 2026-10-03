@@ -35,6 +35,12 @@ import { createRequire } from "node:module";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CSS = join(ROOT, "app/globals.css");
 const FIXTURE = join(ROOT, "scripts/fixtures/plan-screen.html");
+// A second double, same rules (2026-10-03): the brew sheet, after Ryan scored it 5/10 from his
+// phone. Its own ceilings: depth 4 is the kit's segmented control (a filled option inside its
+// bordered track, inside the sheet); 31 px is the house chip (.ts-chip) — every chip in the
+// console is that height, and raising it is a decision for all of them, not a side effect here.
+const BREW_FIXTURE = join(ROOT, "scripts/fixtures/brew-sheet.html");
+export const BREW_SHEET = { depth: 4, tap: 31, text: 10.5 };
 
 // ── THE CEILINGS — measured, not remembered (2026-10-01, after the one-box-per-level pass) ───────
 export const CEILING = {
@@ -43,6 +49,7 @@ export const CEILING = {
   dupSelectors: 54,      // single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02)
   rootBlocks: 1,         // separate `:root{` blocks — tokens have one home (6 → 1 on 2026-10-02: motion, spring, eyebrow tracking, color-scheme and the radius scale folded in)
   subFloorFontRules: 0,  // px font-sizes under THE TYPE FLOOR (10px, see the note in globals.css). 184 → 0 on 2026-10-02
+  selectShorthands: 0,   // rules on a <select> that paint with the `background` SHORTHAND. It resets background-repeat, and the chevron the app draws on every select then tiles across it — stripes, in the day theme, on every select whose container had one (Ryan's brew sheet, 2026-10-03). 19 → 0: colour is background-color.
   maxLeafDepth: 2,       // boxes around the innermost box on the Plan screen (was 4)
   railAreaFraction: 0.066, // expanded rail as a share of a 390×844 viewport — a 48px row plus 8px of air above the nav, in the layout flow (2026-10-02). Width used to be the number (0.46 → 0.27 → a bar); area is what a toolbar can be held to
   railCoversFixed: 0,      // fixed-position buttons the expanded rail sits on top of
@@ -195,9 +202,13 @@ export const PROD_ROUTE = {
 // chunk for the front door's cookie writer (lib/viewerHint.ts, proxy.ts), which tipped the four
 // routes that were sitting within 102 bytes of a rounding line. Measured, not estimated: 274 892 →
 // 274 994 bytes gzipped on /menu.
+// 2026-10-03: /truck, /events, /driver css 102 → 103 — +302 bytes gzipped (104 835 → 105 137 on
+// /truck) for the brew sheet's styles (.bq-*) net of the .bsz rules they replaced; the three routes
+// that share the second stylesheet sat 0.12 KB under the line. /menu moved the same 342 bytes and
+// stayed at 100.
 export const WEIGHT = {
-  "/truck":                    { js: 284, css: 102, chunks: 16 },
-  "/events":                   { js: 284, css: 102, chunks: 16 },
+  "/truck":                    { js: 284, css: 103, chunks: 16 },
+  "/events":                   { js: 284, css: 103, chunks: 16 },
   "/menu":                     { js: 269, css: 100, chunks: 16 },
   "/reserve":                  { js: 291, css: 100, chunks: 17 },
   "/delivery":                 { js: 290, css: 100, chunks: 17 },
@@ -209,7 +220,7 @@ export const WEIGHT = {
   "/scan":                     { js: 260, css: 100, chunks: 15 },
   "/architecture":             { js: 270, css: 100, chunks: 15 },
   "/playbook":                 { js: 276, css: 100, chunks: 16 },
-  "/driver":                   { js: 280, css: 102, chunks: 16 },
+  "/driver":                   { js: 280, css: 103, chunks: 16 },
   "/agreement":                { js: 267, css: 100, chunks: 15 },
   "/offer":                    { js: 277, css: 100, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 259, css: 100, chunks: 15 },
@@ -282,7 +293,16 @@ export function staticCounts(css) {
   // retired. font-size:0 is the icon-whitespace trick, not text; max(10px, …) is the floor itself.
   const subFloorFontRules = [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/font-size\s*:\s*(\d*\.?\d+)px/g)]
     .map((m) => parseFloat(m[1])).filter((v) => v > 0 && v < 10).length;
-  return { cardRules, rawRadii: radii.size, rawRadiiList: [...radii].sort((a, b) => b[1] - a[1]), dupSelectors: dups.length, dupList: dups.sort((a, b) => b[1] - a[1]), rootBlocks, subFloorFontRules };
+  // A <select> painted with the `background` shorthand. The shorthand resets background-repeat
+  // (and -image and -position), and the chevron rule at the end of the file sets those at a
+  // specificity a `.app.crew-day .x select{background:…}` beats — so the arrow tiles across the
+  // control. Only the shorthand is counted; background-color is the honest way to colour one.
+  let selectShorthands = 0;
+  for (const [sel, body] of blocks) {
+    if (!/\bselect\b/.test(sel.replace(/\/\*[\s\S]*?\*\//g, ""))) continue;
+    if (/(^|;)\s*background\s*:/.test(body)) selectShorthands++;
+  }
+  return { cardRules, rawRadii: radii.size, rawRadiiList: [...radii].sort((a, b) => b[1] - a[1]), dupSelectors: dups.length, dupList: dups.sort((a, b) => b[1] - a[1]), rootBlocks, subFloorFontRules, selectShorthands };
 }
 
 // ── THE FIXTURE NAMES ITS SOURCES ────────────────────────────────────────────────────────────────
@@ -323,7 +343,7 @@ export function fixtureDrift(html, readSrc = (p) => readFileSync(join(ROOT, p), 
 }
 
 // ── PAINTED ──────────────────────────────────────────────────────────────────────────────────────
-async function painted() {
+async function painted(fixture = FIXTURE) {
   const require = createRequire(import.meta.url);
   let chromium;
   try { ({ chromium } = require("playwright")); } catch { return { error: "playwright is not installed" }; }
@@ -335,7 +355,7 @@ async function painted() {
   try {
     const { measurePage } = await import(pathToFileURL(join(ROOT, "scripts/design.measure.mjs")).href);
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    await page.goto(pathToFileURL(FIXTURE).href);
+    await page.goto(pathToFileURL(fixture).href);
     await page.waitForTimeout(500);
     const day = await measurePage(page);
     // The same DOM in the dark theme (the console's default; `.crew-day` is the day switch). A theme
@@ -368,6 +388,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   ratchet("selectors declared more than once", s.dupSelectors, CEILING.dupSelectors);
   ratchet(":root blocks", s.rootBlocks, CEILING.rootBlocks);
   ratchet("px font-sizes under the 10px type floor", s.subFloorFontRules, CEILING.subFloorFontRules);
+  ratchet("<select> rules painted with the background shorthand (the chevron tiles)", s.selectShorthands, CEILING.selectShorthands);
   const f = frictionCounts();
   console.log("DESIGN RATCHET — friction in the source:");
   ratchet("native confirm()/prompt() dialogs still to migrate to the house sheets", f.nativeDialogs, FRICTION.nativeDialogs);
@@ -408,6 +429,27 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   if (k.minAgendaFontPx === null || k.minAgendaFontPx < FLOOR.minAgendaFontPx) note(false, `smallest agenda text ${k.minAgendaFontPx}px — floor ${FLOOR.minAgendaFontPx}px`);
   else note(true, `smallest agenda text ${k.minAgendaFontPx}px (floor ${FLOOR.minAgendaFontPx}px)`);
   note(k.boxes === p.boxes, k.boxes === p.boxes ? `the theme changes colour, not structure: ${k.boxes} boxes in both` : `the dark theme paints ${k.boxes} boxes where day paints ${p.boxes} — a border or fill that exists in one theme only`);
+
+  // ── THE BREW SHEET, the same way ──
+  let brewHtml;
+  try { brewHtml = readFileSync(BREW_FIXTURE, "utf8"); } catch { console.log("DESIGN RATCHET: NOT CHECKED — the brew sheet fixture is missing. Treated as a FAILURE."); process.exit(1); }
+  const brewDrift = fixtureDrift(brewHtml);
+  console.log("DESIGN RATCHET — the brew sheet fixture names its sources:");
+  note(brewDrift.length === 0, brewDrift.length === 0 ? "every class in scripts/fixtures/brew-sheet.html still exists in the file it claims" : `${brewDrift.length} class(es) no longer exist in the file the fixture claims them from:`);
+  for (const d of brewDrift) console.log(`      ${d}`);
+  const b = await painted(BREW_FIXTURE);
+  console.log("DESIGN RATCHET — the brew sheet, painted at 390px (day, then dark):");
+  if (b.error) { console.log(`  NOT CHECKED — ${b.error}. Treated as a FAILURE.`); process.exit(1); }
+  for (const [theme, m] of [["day", b], ["dark", b.dark]]) {
+    ratchet(`${theme}: box depth at the innermost box`, m.maxLeafDepth, BREW_SHEET.depth);
+    if (m.smallestTap === null || m.smallestTap < BREW_SHEET.tap) note(false, `${theme}: smallest tap target ${m.smallestTap}px (${m.smallestTapWhat}) — floor ${BREW_SHEET.tap}px`);
+    else if (m.smallestTap > BREW_SHEET.tap) note(false, `${theme}: smallest tap target ${m.smallestTap}px — floor ${BREW_SHEET.tap}px sits below it. Good; now raise the floor to ${m.smallestTap}.`);
+    else note(true, `${theme}: smallest tap target ${m.smallestTap}px (${m.smallestTapWhat}; floor ${BREW_SHEET.tap}px)`);
+    if (m.smallestText === null || m.smallestText < BREW_SHEET.text) note(false, `${theme}: smallest text ${m.smallestText}px (${m.smallestTextWhat}) — floor ${BREW_SHEET.text}px`);
+    else note(true, `${theme}: smallest text ${m.smallestText}px (floor ${BREW_SHEET.text}px)`);
+    note((m.overflowX || []).length === 0, (m.overflowX || []).length === 0 ? `${theme}: nothing scrolls sideways` : `${theme}: scrolls sideways: ${JSON.stringify(m.overflowX).slice(0, 80)}`);
+  }
+  note(b.dark.boxes === b.boxes, b.dark.boxes === b.boxes ? `the theme changes colour, not structure: ${b.boxes} boxes in both` : `the dark theme paints ${b.dark.boxes} boxes where day paints ${b.boxes}`);
 
   if (fails.length) { console.log(`\nDESIGN RATCHET: ${fails.length} failure(s).`); process.exit(1); }
   console.log("\nDESIGN RATCHET: clean.");

@@ -827,7 +827,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .adm-fields{display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap}
 .adm-fields label{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-m);display:flex;flex-direction:column;gap:4px}
 .adm-fields input[type=number],.adm-fields input[type=text]{width:74px;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:9px;color:var(--cream);font-family:'DM Mono';font-size:16px;outline:none}
-.adm-fields select{background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:9px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:14px;min-height:40px;outline:none}
+.adm-fields select{background-color:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:9px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:14px;min-height:40px;outline:none}
 .adm-prep-label{font-family:'Inter';font-weight:650;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2);margin:12px 0 6px}
 .adm-hud .sec{display:flex;align-items:center}
 .adm-ready-bar{margin-top:8px;padding:11px 13px;border-radius:var(--r-xl);background:rgba(0,0,0,.28);border:1px solid var(--line2);font-family:'Inter';font-size:13px;color:var(--cream)}
@@ -894,7 +894,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
    the crowding at every breakpoint instead of hand-tuning column widths per media query; it also
    leaves Day/Start/End/Going as a clean, evenly-filled 4-up row instead of a 5th item wrapping alone. */
 .ev-f.full{grid-column:1/-1}
-.ev-f input,.ev-f select{width:100%;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:10px;color:var(--cream);font-family:'DM Mono';font-size:15px;outline:none;min-width:0}
+.ev-f input,.ev-f select{width:100%;background-color:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:10px;color:var(--cream);font-family:'DM Mono';font-size:15px;outline:none;min-width:0}
 .ev-f select{font-family:'Inter';font-weight:600}
 .ev-f input:focus,.ev-f select:focus{border-color:var(--gold2)}
 /* Day/Start/End use plausible-looking example placeholders ("SAT", "9:00") so an empty field can be
@@ -2170,7 +2170,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .gl-f{display:block;margin-bottom:9px}
 .gl-f>span{display:block;font-family:'Inter';font-size:11px;color:var(--cream-m);margin-bottom:3px}
 .gl-f>span i{color:var(--cream-d);font-style:normal}
-.gl-f input,.gl-f select,.gl-f textarea{width:100%;background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:7px;padding:8px 9px;color:var(--cream);font-family:'Inter';font-size:13px;box-sizing:border-box}
+.gl-f input,.gl-f select,.gl-f textarea{width:100%;background-color:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:7px;padding:8px 9px;color:var(--cream);font-family:'Inter';font-size:13px;box-sizing:border-box}
 .gl-f textarea{resize:vertical}
 .gl-f input:focus,.gl-f select:focus,.gl-f textarea:focus{border-color:var(--gold2)}
 .gl-frow{display:flex;gap:8px}
@@ -2586,7 +2586,7 @@ h5.pr-h{font-size:12.5px;color:var(--cream-d)}
 .qd-tabs{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
 .qd-tab{background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:var(--r-pill);padding:8px 14px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .qd-tab.on{background:color-mix(in srgb, var(--brand-gold) 18%, transparent);border-color:var(--gold2);color:var(--gold2)}
-.qd-x{margin-left:auto;background:none;border:none;color:var(--cream-m);font-size:18px;cursor:pointer;padding:4px 8px}
+.qd-x{margin-left:auto;background:none;border:none;color:var(--cream-m);font-size:18px;cursor:pointer;padding:4px 8px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}  /* 44×44: the close on every sheet measured 30px (2026-10-03) */
 .qd-body{flex:1 1 auto;min-height:0;padding:14px 14px calc(18px + env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .qd-note-row{display:flex;gap:8px;align-items:flex-start}
 .qd-note textarea{flex:1;width:100%;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px 15px;color:var(--cream);font-family:'Inter';font-size:16px;line-height:1.5;resize:vertical;-webkit-appearance:none;appearance:none}
@@ -2962,7 +2962,7 @@ h5.pr-h{font-size:12.5px;color:var(--cream-d)}
 .note-tab{background:transparent;border:1px solid var(--line2);border-radius:var(--r-pill);padding:9px 14px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none;white-space:nowrap}
 .note-tab.on{background:var(--gold);border-color:var(--gold);color:#1a1610}
 .note-foot{display:flex;gap:14px;align-items:center;margin-top:6px}
-.note-arch{background:none;border:none;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;padding:4px 0}
+.note-arch{background:none;border:none;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;padding:4px 10px 4px 0;min-height:44px}  /* 44: a thumb's floor, not a text button's whim (2026-10-03, the brew sheet measured its Cancel at 24px) */
 .note-arch:hover{color:var(--cream)}
 
 /* ── Follow-up: AI proposed completion ── */
@@ -3069,7 +3069,7 @@ h5.pr-h{font-size:12.5px;color:var(--cream-d)}
 .app.crew-day .ev-f input,.app.crew-day .ev-f select,
 .app.crew-day .adm-fields input[type=number],.app.crew-day .adm-fields input[type=text],.app.crew-day .adm-fields select,
 .app.crew-day .gl-f input,.app.crew-day .gl-f select,.app.crew-day .gl-f textarea,
-.app.crew-day .isheet-in{background:var(--card);color:var(--cream);border-color:var(--ink-onLight-24)}
+.app.crew-day .isheet-in{background-color:var(--card);color:var(--cream);border-color:var(--ink-onLight-24)}
 .app.crew-day .isheet-in::placeholder{color:rgba(34,31,24,.55)}
 .app.crew-day .ev-f input::placeholder{color:rgba(34,31,24,.55)}
 .app.crew-day .tm-av,.app.crew-day .alert-ack,.app.crew-day .offchip,.app.crew-day .sw-update{background:var(--card)}
@@ -3247,8 +3247,8 @@ body:has(.conc-sheet) .rail{display:flex}
 .prod-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
 .prod-f{display:flex;flex-direction:column;gap:4px;margin-top:9px}
 .prod-f span{font-family:'Inter';font-weight:600;font-size:11.5px;color:var(--cream-m)}
-.prod-f input,.prod-f textarea,.prod-f select,.prod-addc select,.prod-addc input{background:var(--bg,#0d0b08);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--cream);font-family:'Inter';font-size:15px;-webkit-appearance:none;appearance:none}
-.app.crew-day .prod-f input,.app.crew-day .prod-f textarea,.app.crew-day .prod-f select,.app.crew-day .prod-addc select,.app.crew-day .prod-addc input{background:var(--card)}
+.prod-f input,.prod-f textarea,.prod-f select,.prod-addc select,.prod-addc input{background-color:var(--bg,#0d0b08);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--cream);font-family:'Inter';font-size:15px;-webkit-appearance:none;appearance:none}
+.app.crew-day .prod-f input,.app.crew-day .prod-f textarea,.app.crew-day .prod-f select,.app.crew-day .prod-addc select,.app.crew-day .prod-addc input{background-color:var(--card)}
 .prod-f input:focus,.prod-f textarea:focus,.prod-f select:focus{border-color:var(--gold2)}
 .prod-f input,.prod-f textarea,.prod-f select{width:100%;min-width:0}
 .prod-toggle{display:flex;align-items:center;gap:8px;margin-top:12px;font-family:'Inter';font-size:14px;color:var(--cream)}
@@ -4520,31 +4520,45 @@ body:has(.conc-sheet) .rail{display:flex}
 
 /* Sizing a batch by an ingredient rather than by water. Same tokens .prod-f already resolves in
    both themes; the over-capacity note borrows --warn, which .app.crew-day redefines for cream. */
-.bsz{margin-top:10px;border:1px dashed var(--line2);border-radius:var(--r-xl);padding:11px 13px}
-/* One number and the unit it is in, on one line — replaced two stacked boxes that were
-   asking the same question twice. The select sizes to its content so the number keeps the
-   room; on a narrow phone they wrap rather than squeezing the input to nothing. */
-.bsz-row{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap}
-.bsz-row input{flex:1 1 7em;min-width:0}
-.bsz-row select{flex:0 1 auto;background:var(--char2);border:1px solid var(--line2);
-  border-radius:9px;padding:7px 9px;color:var(--cream);font-family:'Inter';font-size:13px;max-width:100%}
-.app.crew-day .bsz-row select{background:var(--card);color:var(--cream)}
-.bsz-note{margin:8px 0 0;font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m)}
-.bsz-note b{color:var(--gold2);font-variant-numeric:tabular-nums}
-.bsz-over{color:var(--warn);font-weight:700}
-/* Too SMALL for the vessel (0310). Quieter than .bsz-over on purpose: over capacity is a fact —
-   the water has nowhere to go — while too shallow is a prompt to look at the basket, and the real
-   minimum is not recorded anywhere. It reads as a question, so it should not shout like an error. */
-.bsz-shallow{color:var(--gold2);font-weight:650}
-/* WHY the size box will not go lower (2026-10-01). Deliberately not styled as a warning: nothing is
-   wrong, this is the floor and its reason. An unexplained minimum is one somebody types around; the
-   three reasons have three different ways out — buy a finer scale, measure the vessel, or accept
-   it — which is why smallestBatch() names the binding one instead of returning a bare number. */
-.bsz-floor{display:flex;gap:6px;align-items:baseline;margin:8px 0 0;padding-top:8px;
-  border-top:1px solid var(--line);font-family:'Inter';font-size:12px;line-height:1.5;
-  color:var(--cream-m)}
-.bsz-floor b{color:var(--cream);font-variant-numeric:tabular-nums}
-.bsz-floor .k-ic{flex:none;color:var(--gold2);position:relative;top:2px}
+/* THE BREW SHEET ASKS WHAT A COOK KNOWS (components/BrewPlanner.tsx › BrewSheet, 2026-10-03).
+   One question — how many drinks — a live answer card, the vessel as a consequence, and what it
+   is for. This replaced .bsz: a number box beside a unit <select> the day theme painted as stripes
+   (its `background` shorthand tiled the chevron), and two paragraphs explaining the rounding. */
+.bq{margin-top:14px}
+.bq-q{display:block;font-family:'Inter';font-weight:700;font-size:14px;color:var(--cream);margin-bottom:8px}
+.bq-opt{font-weight:500;font-size:12px;color:var(--cream-d)}
+/* The number is the biggest thing on the sheet — it is the only thing being asked. */
+.bq-num{display:flex;align-items:center;gap:8px}
+.bq-num input{flex:0 1 7.5em;min-width:0;width:7.5em;text-align:center;font-family:'Inter';font-weight:700;font-size:26px;line-height:1;padding:9px 8px;background:var(--bg,#0d0b08);border:1px solid var(--line2);border-radius:var(--r-lg);color:var(--cream);font-variant-numeric:tabular-nums;-webkit-appearance:none;appearance:none;-moz-appearance:textfield}
+.bq-num input::-webkit-outer-spin-button,.bq-num input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.bq-num input:focus{border-color:var(--gold2);outline:none}
+.app.crew-day .bq-num input{background:var(--card)}
+/* The kit's icon button, at the 44px a thumb needs (the kit's 38 is for a row of them). */
+.bq-num .k-icon-btn{width:44px;height:44px;font-size:22px;line-height:1}
+.bq-unit{font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream-m)}
+.bq-picks{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.bq-picks .ts-chip b{font-weight:800;font-variant-numeric:tabular-nums}
+.bq-pick-sub{font-weight:500;font-size:11px;color:var(--cream-d)}
+.ts-chip.on .bq-pick-sub{color:var(--cream-m)}
+/* Three ways to say one batch — the kit's segmented control (.k-seg), visibly a switch: a menu
+   that opened was indistinguishable from a box that did not. */
+.bq-units{margin-top:10px;max-width:22em}
+/* The answer, live — .brew-spec, the same gold box the planner answers in. One box, the result. */
+.bq-card{margin:14px 0 0;padding:12px 14px}
+.bq-card-h{font-family:'Inter';font-weight:700;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--gold2);margin-bottom:8px}
+.bq-rows{margin:0;display:flex;flex-direction:column;gap:6px}
+.bq-row{display:grid;grid-template-columns:5.2em 1fr;gap:10px;align-items:baseline;font-family:'Inter';font-size:13.5px;line-height:1.45;color:var(--cream)}
+.bq-row dt{margin:0;color:var(--cream-d);font-weight:600;font-size:12px}
+.bq-row dd{margin:0;min-width:0}
+.bq-row b{font-weight:750;color:var(--cream);font-variant-numeric:tabular-nums}
+.bq-dim{color:var(--cream-m);font-size:12.5px}
+.bq-short{color:var(--warn);font-weight:700;font-size:12.5px}
+.bq-note{display:flex;gap:6px;align-items:baseline;margin:9px 0 0;padding-top:9px;border-top:1px solid var(--line);font-family:'Inter';font-size:12.5px;line-height:1.45;color:var(--cream-m)}
+.bq-note .k-ic{flex:none;color:var(--gold2);position:relative;top:2px}
+/* Over capacity is a fact and reads like one; too small is a question and reads like one. */
+.bq-fit{margin:8px 0 0;font-family:'Inter';font-size:12.5px;line-height:1.45;color:var(--cream-m)}
+.bq-fit.warn{color:var(--warn);font-weight:700}
+.bq-fit.ask{color:var(--gold2);font-weight:650}
 /* "Take me off" beside the waitlist confirmation (0310). Inline and underlined rather than a button
    shape: it sits inside a sentence, and the opt-out should be findable without competing with the
    thing the person actually came to do. */
@@ -4708,7 +4722,7 @@ body:has(.conc-sheet) .rail{display:flex}
   border-top:1px solid var(--line2);padding-top:11px}
 .tm-hire-form label{display:flex;flex-direction:column;gap:4px;font-family:'Inter';font-size:11px;
   letter-spacing:.3px;text-transform:uppercase;color:var(--cream-m)}
-.tm-hire-form select{font-family:'Inter';font-size:13px;color:var(--cream);background:var(--card);
+.tm-hire-form select{font-family:'Inter';font-size:13px;color:var(--cream);background-color:var(--card);
   border:1px solid var(--line2);border-radius:var(--r-md);padding:7px 9px}
 .tm-hire-form .adm-check{flex-direction:row;align-items:center;gap:6px;text-transform:none;
   letter-spacing:0;font-size:12.5px}
@@ -5472,7 +5486,7 @@ button.mkpi-tile:active{transform:scale(.98)}
 .shoot-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .shoot-fields label{display:flex;flex-direction:column;gap:3px}
 .shoot-fields label span{font-family:'Inter';font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--cream-m)}
-.shoot-fields input,.shoot-fields select{font-family:'Inter';font-size:12.5px;padding:6px 9px;border-radius:var(--r-md);border:1px solid var(--line2);background:rgba(255,255,255,.05);color:var(--cream)}
+.shoot-fields input,.shoot-fields select{font-family:'Inter';font-size:12.5px;padding:6px 9px;border-radius:var(--r-md);border:1px solid var(--line2);background-color:rgba(255,255,255,.05);color:var(--cream)}
 .shoot-f-wide{grid-column:1 / -1}
 .shoot-shots{display:flex;flex-direction:column;gap:5px}
 .shoot-shot{display:flex;align-items:center;gap:8px}
@@ -5484,7 +5498,7 @@ button.mkpi-tile:active{transform:scale(.98)}
 .shoot-del{background:none;border:none;color:var(--cream-m);cursor:pointer;font-size:12px;opacity:.6}
 .shoot-delshoot{align-self:flex-start;font-family:'Inter';font-size:11px;color:#c98b7a;background:none;border:none;cursor:pointer;padding:2px 0}
 .app.crew-day .shoot-card{background:var(--card);border-color:var(--ink2-onLight-10)}
-.app.crew-day .shoot-fields input,.app.crew-day .shoot-fields select,.app.crew-day .shoot-assign{background:var(--card)}
+.app.crew-day .shoot-fields input,.app.crew-day .shoot-fields select,.app.crew-day .shoot-assign{background-color:var(--card)}
 .app.crew-day .mkpi-v{color:#7a5a1e}
 .app.crew-day .mkpi-k{color:rgba(26,22,16,.55)}
 .paysettings{display:flex;flex-direction:column;gap:14px}
@@ -5767,8 +5781,8 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .pipe-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .pipe-grid label{display:flex;flex-direction:column;gap:4px;font-family:'Inter';font-weight:650;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--cream-m)}
 .pipe-grid label i{font-style:normal;text-transform:none;font-weight:500;color:var(--cream-d)}
-.pipe-grid input,.pipe-grid select{background:var(--char2);border:1px solid var(--line2);border-radius:9px;padding:9px 10px;color:var(--cream);font-family:'Inter';font-size:13px;font-weight:400;text-transform:none;letter-spacing:0;width:100%;min-width:0}
-.app.crew-day .pipe-grid input,.app.crew-day .pipe-grid select{background:var(--card);color:var(--cream)}
+.pipe-grid input,.pipe-grid select{background-color:var(--char2);border:1px solid var(--line2);border-radius:9px;padding:9px 10px;color:var(--cream);font-family:'Inter';font-size:13px;font-weight:400;text-transform:none;letter-spacing:0;width:100%;min-width:0}
+.app.crew-day .pipe-grid input,.app.crew-day .pipe-grid select{background-color:var(--card);color:var(--cream)}
 .pipe-lost{margin-top:8px;font-size:11.5px;color:var(--cream-m)}
 .pipe-catalog{border:1px solid var(--line);border-radius:var(--r-xl);padding:10px 12px;margin:10px 0 14px}
 .pipe-dealrow{display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px dashed var(--line)}
@@ -5818,8 +5832,8 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .goal-init.add .auth-input{flex:1;padding:8px 10px;font-size:13px}
 .goal-init-who{flex:0 0 auto;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;color:var(--cream-m)}
 .goal-init-meta{display:flex;gap:7px;margin:2px 0 6px 30px}
-.goal-init-meta select,.goal-init-meta input{background:var(--char2);border:1px solid var(--line2);border-radius:var(--r-md);padding:5px 8px;color:var(--cream-m);font-family:'Inter';font-size:11px}
-.app.crew-day .goal-init-meta select,.app.crew-day .goal-init-meta input{background:var(--card);color:var(--cream)}
+.goal-init-meta select,.goal-init-meta input{background-color:var(--char2);border:1px solid var(--line2);border-radius:var(--r-md);padding:5px 8px;color:var(--cream-m);font-family:'Inter';font-size:11px}
+.app.crew-day .goal-init-meta select,.app.crew-day .goal-init-meta input{background-color:var(--card);color:var(--cream)}
 .goal-lane-pick{margin-left:auto;background:var(--char2);border:1px solid var(--line2);border-radius:9px;padding:5px 8px;color:var(--cream-m);font-family:'Inter';font-size:10.5px}
 .app.crew-day .goal-lane-pick{background:var(--card);color:var(--cream)}
 
@@ -7326,7 +7340,7 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .shop-blurb{font-family:'Inter';font-size:15px;line-height:1.6;color:#4a4335;margin:12px 0 0;max-width:56ch}
 .shop-vari{display:flex;flex-direction:column;gap:6px;margin:18px 0 0}
 .shop-vari span{font-family:'Inter';font-weight:750;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:#7a5a1e}
-.shop-vari select{padding:12px;border:1px solid rgba(34,31,24,.2);border-radius:var(--r-lg);background:#FBF8EF;color:#221F18;font-family:'Inter';font-size:15px}
+.shop-vari select{padding:12px;border:1px solid rgba(34,31,24,.2);border-radius:var(--r-lg);background-color:#FBF8EF;color:#221F18;font-family:'Inter';font-size:15px}
 .shop-qty{display:flex;align-items:center;gap:0;margin:16px 0;width:fit-content;border:1px solid rgba(34,31,24,.2);border-radius:var(--r-pill);overflow:hidden}
 .shop-qty button{width:44px;height:42px;background:#FBF8EF;border:0;font-size:20px;color:#221F18;cursor:pointer}
 .shop-qty span{min-width:44px;text-align:center;font-family:var(--mono);font-size:15px}
@@ -7794,7 +7808,7 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 
 /* 2. THE BASE CONTROL. Zero specificity, so it is a floor and never a ceiling. */
 .app :where(select),.app :where(input:not([type="checkbox"]):not([type="radio"])),.app :where(textarea){
-  background:var(--bg,#0d0b08);border:1px solid var(--line);border-radius:9px;
+  background-color:var(--bg,#0d0b08);border:1px solid var(--line);border-radius:9px;
   padding:10px 12px;color:var(--cream);font-family:'Inter';font-size:15px;line-height:1.2;
   width:100%;min-width:0;min-height:44px;   /* WCAG 2.5.5 — these sheets get used one-handed */
 }
@@ -7805,13 +7819,13 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
       data URI: no network request. This one is NOT in :where(), and is repeated for the containers
       whose own rules use the `background` shorthand — which resets background-image to none and
       would otherwise silently eat the chevron. */
-.app select,.ev-f select,.gl-f select,.prod-f select,.codes-f select,.bsz-row select,.tm-hire-form select{
+.app select,.ev-f select,.gl-f select,.prod-f select,.codes-f select,.tm-hire-form select{
   -webkit-appearance:none;appearance:none;
   background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%23F5F1E8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' opacity='.65'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 12px center;padding-right:34px;
 }
 .app.crew-day select,.app.crew-day .ev-f select,.app.crew-day .gl-f select,.app.crew-day .prod-f select,
-.app.crew-day .codes-f select,.app.crew-day .bsz-row select,.app.crew-day .tm-hire-form select{
+.app.crew-day .codes-f select,.app.crew-day .tm-hire-form select{
   background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%23221F18' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' opacity='.6'/%3E%3C/svg%3E");
 }
 /* A select whose container sets its own ground keeps it — only the arrow was added above. */
@@ -7821,8 +7835,8 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 
 /* 4. THE OPTION LIST IS PAINTED BY THE OS. Linux Chrome and Firefox land dark text on a dark popup
       unless the options are told. Cheap insurance, no effect where the OS gets it right. */
-.app select option{background:var(--bg,#0d0b08);color:var(--cream)}
-.app.crew-day select option{background:#fff;color:#221F18}
+.app select option{background-color:var(--bg,#0d0b08);color:var(--cream)}
+.app.crew-day select option{background-color:#fff;color:#221F18}
 
 /* 5. FOCUS YOU CAN SEE WITHOUT LOOKING FOR IT. The old convention moved a 1px border by one shade
       against charcoal — invisible, and WCAG 2.4.11 says so. A ring, keyboard-only, so a tap does

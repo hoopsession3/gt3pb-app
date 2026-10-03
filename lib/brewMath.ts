@@ -233,6 +233,97 @@ export const ingredientForGallons = (gal: number, perGal: number) =>
  *  round up: rounding 16.2 gal to 16.25 asks for coffee that is not on the shelf. */
 export const quarterGalDown = (g: number) => Math.max(0, Math.floor(g * 4) / 4);
 
+// ═══ A VOLUME SOMEBODY CAN POUR (2026-10-03) ════════════════════════════════════════════════════
+//
+// Ryan's screenshot of the brew sheet: a number box reading 2.5, a unit menu he did not know was a
+// menu, and under it "rounds down to the nearest 0.05 gal". And Ask GT3, the same day: "Measure
+// 1.214 gal of Mountain Valley Spring Water." Nobody can measure 1.214 gal. Everybody can measure
+// a gallon and three and a half cups. lib/agentKnowledge tells the model exactly that rule
+// (A VOLUME SHE CAN MEASURE); this is the same rule for the screens, so the two can never state a
+// batch two ways. 1 gal = 4 qt = 16 cups = 128 fl oz, by definition; cups to the nearest quarter,
+// because a quarter cup is the smallest line on a measuring cup.
+export const CUPS_PER_GAL = 16;
+export type Pourable = {
+  /** Whole gallons to pour. */
+  gallons: number;
+  /** Cups on top, to the nearest quarter. */
+  cups: number;
+  /** The whole volume in fluid ounces, from the UNROUNDED gallons. */
+  flOz: number;
+  /** "1 gal + 3½ cups" / "2 gal" / "¾ cup" */
+  display: string;
+  /** display with the fluid ounces: "1 gal + 3½ cups (about 155 fl oz)". "about" only when the
+   *  quarter-cup rounding moved it. */
+  withOz: string;
+};
+const FRACTION: Record<number, string> = { 0.25: "¼", 0.5: "½", 0.75: "¾" };
+const cupsText = (c: number): string => {
+  const whole = Math.floor(c + 1e-9), frac = +(c - whole).toFixed(2);
+  const glyph = FRACTION[frac] ?? "";
+  const n = `${whole > 0 ? whole : ""}${glyph}`;
+  return `${n} cup${c > 1 ? "s" : ""}`;
+};
+export function pourable(gal: number): Pourable {
+  const g = Number(gal);
+  if (!(g > 0)) return { gallons: 0, cups: 0, flOz: 0, display: "0 gal", withOz: "0 gal (0 fl oz)" };
+  let gallons = Math.floor(g + 1e-9);
+  let cups = Math.round((g - gallons) * CUPS_PER_GAL * 4) / 4;
+  if (cups >= CUPS_PER_GAL) { gallons += 1; cups = 0; }
+  const flOz = Math.round(g * OZ_PER_GAL);
+  const stated = gallons * OZ_PER_GAL + cups * (OZ_PER_GAL / CUPS_PER_GAL);
+  const display = gallons > 0 && cups > 0 ? `${gallons} gal + ${cupsText(cups)}`
+    : gallons > 0 ? `${gallons} gal`
+    : cupsText(cups);
+  const about = Math.abs(stated - g * OZ_PER_GAL) >= 0.5 ? "about " : "";
+  return { gallons, cups, flOz, display, withOz: `${display} (${about}${flOz} fl oz)` };
+}
+
+// ═══ SCALING A RECIPE TO A BATCH, ONCE ═══════════════════════════════════════════════════════════
+//
+// This lived inline in app/api/agents/brew (round everything to a tenth) while the brew sheet had
+// nothing to preview with until the planner answered. Both read it from here now: the sheet shows
+// a cook what a batch takes BEFORE the button, and the planner saves exactly the same list after.
+// Rounding is by what the thing is, not a flat tenth: a count is whole (nobody adds 0.6 of a
+// cardamom pod), grams are whole (the scale reads whole grams — SCALE_RESOLUTION_G), ounces a
+// tenth, a volume a hundredth of a gallon so the water line equals the batch it was sized to.
+export type ScaledIngredient = { name: string; qty: number | string; unit: string; scales: boolean };
+export function scaleIngredients(ingredients: SizingIngredient[] | null | undefined, factor: number): ScaledIngredient[] {
+  const f = Number(factor);
+  return (Array.isArray(ingredients) ? ingredients : []).filter(Boolean).map((i) => {
+    const unit = String(i.unit ?? "").slice(0, 24);
+    const key = unit.trim().toLowerCase();
+    const scales = i.scales !== false;
+    const raw = Number(i.qty ?? 0) * f;
+    let qty: number | string = i.qty;
+    if (scales && Number.isFinite(raw)) {
+      const weighed = TO_GRAMS[key] !== undefined;
+      if (VOLUME_UNITS.has(key)) qty = Math.round(raw * 100) / 100;              // gal, l, cups
+      else if (weighed && key.startsWith("k")) qty = Math.round(raw * 100) / 100; // kg
+      else if (weighed && key.startsWith("g")) qty = Math.round(raw);             // grams: what the scale reads
+      else if (weighed) qty = Math.round(raw * 10) / 10;                          // oz, lb
+      else qty = Math.round(raw);                                                 // pods, sticks, bags
+    }
+    return { name: String(i.name ?? "").slice(0, 80), qty, unit, scales };
+  });
+}
+
+// ═══ WHICH VESSEL, AND HOW MANY (2026-10-03) ═════════════════════════════════════════════════════
+//
+// The sheet asked "which vessel?" first and "how many?" second, and only then what size — the
+// order the code was written in, not the order a cook thinks in. A cook knows how many drinks are
+// needed; the vessel is a consequence. So: given the batch, the fewest vessels that hold it, and
+// among equals the one it fills best. A cook can still override by tapping another vessel; the
+// count follows the batch either way.
+export function vesselPlan<V extends { id: string; capacity_gal: number | string }>(gal: number, vessels: V[]): { vessel: V; count: number } | null {
+  const g = Number(gal);
+  const usable = vessels.filter((v) => Number(v.capacity_gal) > 0);
+  if (!usable.length) return null;
+  if (!(g > 0)) return { vessel: usable.slice().sort((a, b) => Number(a.capacity_gal) - Number(b.capacity_gal))[0], count: 1 };
+  const plans = usable.map((v) => ({ vessel: v, count: Math.max(1, Math.ceil(g / Number(v.capacity_gal) - 1e-9)) }));
+  plans.sort((a, b) => a.count - b.count || Number(a.vessel.capacity_gal) - Number(b.vessel.capacity_gal));
+  return plans[0];
+}
+
 // ═══ THE RECIPE AS A SENTENCE THE ASSISTANT CAN ONLY READ, NOT RE-DERIVE ═════════════════════════
 //
 // Ask GT3 was asked "Rise 340 grams" on two days and gave two different water volumes — 1.21 gal

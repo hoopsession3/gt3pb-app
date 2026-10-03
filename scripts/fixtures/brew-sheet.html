@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>fixture · Brew › plan a batch, day theme</title>
+<!--
+  A TEST DOUBLE OF THE BREW SHEET, AND IT SAYS SO.
+
+  Ryan, 2026-10-03, from this sheet on his phone: "I had no idea I could select a different
+  metric. Nothing on pages are insightful. From a new operator user experience it's overwhelming,
+  not helpful. I couldn't put in a batch size — or how many drinks you want to serve." 5 out of 10.
+
+  The console needs a signed-in session the design ratchet does not have, so — same as
+  plan-screen.html — this is the sheet's DOM, class for class, as components/BrewPlanner.tsx
+  (BrewSheet) and components/Sheet.tsx produce it, styled by the REAL app/globals.css and rendered
+  in the real Chromium at phone width. Every block names the file it was copied from in
+  `data-from`, and scripts/design.ratchet.mjs FAILS if a class used here no longer appears in that
+  file. The numbers are GT3 Dusk (OG) at 2.5 gal: 32 drinks, 700 g coffee, 10 sticks, 60 pods,
+  one full Toddy — real recipe lines, fixed values.
+
+  Measured twice per run: as written (.crew-day, the day theme of the screenshot) and again with
+  .crew-day removed (the console's default). Same ceilings both times.
+-->
+<link rel="stylesheet" href="../../app/globals.css">
+<style>html,body{margin:0;background:#F4EFE3}</style>
+</head>
+<body>
+<div class="app crew-day" data-from="components/AppShell.tsx">
+  <div class="sheet2-scrim" data-from="components/Sheet.tsx" style="position:static;padding:12px 0 0">
+    <div class="sheet2 " role="dialog" aria-modal="true" aria-labelledby="bq-title" style="margin:0 auto">
+      <div class="sheet2-grab"></div>
+      <div class="sheet2-head">
+        <div style="display:flex;align-items:center" data-from="components/BrewPlanner.tsx">
+          <div class="dp-head-l"><div class="dp-eyebrow">Brew</div><div class="dp-title" id="bq-title">GT3 Dusk (OG)</div></div>
+          <button type="button" class="qd-x" aria-label="Close" data-from="components/Sheet.tsx">✕</button>
+        </div>
+      </div>
+      <div class="sheet2-body" data-from="components/Sheet.tsx">
+       <div data-from="components/BrewPlanner.tsx">
+
+        <div class="bq">
+          <label class="bq-q" for="bq-n">How many drinks do you need?</label>
+          <div class="bq-num">
+            <button type="button" class="k-icon-btn" aria-label="Fewer">−</button>
+            <input id="bq-n" type="number" inputmode="numeric" min="0" step="1" value="32">
+            <button type="button" class="k-icon-btn" aria-label="More">+</button>
+            <span class="bq-unit">drinks</span>
+          </div>
+          <div class="bq-picks" role="group" aria-label="Quick sizes">
+            <button type="button" class="ts-chip"><b>40</b><span class="bq-pick-sub">Dear Deandra Jazz Brunch expects</span></button>
+            <button type="button" class="ts-chip"><b>12</b></button>
+            <button type="button" class="ts-chip"><b>24</b></button>
+            <button type="button" class="ts-chip on"><b>32</b><span class="bq-pick-sub">a full Toddy (commercial)</span></button>
+            <button type="button" class="ts-chip"><b>64</b><span class="bq-pick-sub">a full Cold Brew Avenue</span></button>
+          </div>
+          <div class="k-seg bq-units" role="tablist" aria-label="Size it by">
+            <button type="button" role="tab" aria-selected="true" class="k-seg-opt on">Drinks</button>
+            <button type="button" role="tab" aria-selected="false" class="k-seg-opt">Gallons</button>
+            <button type="button" role="tab" aria-selected="false" class="k-seg-opt">Coffee (g)</button>
+          </div>
+        </div>
+
+        <div class="brew-spec bq-card" aria-live="polite">
+          <div class="bq-card-h">What this batch takes</div>
+          <dl class="bq-rows">
+            <div class="bq-row"><dt>Pours</dt><dd><b>32 drinks</b> <span class="bq-dim">· 10 oz each</span></dd></div>
+            <div class="bq-row"><dt>Water</dt><dd><b>2 gal + 8 cups</b> <span class="bq-dim">· 2.5 gal, 320 fl oz</span></dd></div>
+            <div class="bq-row"><dt>Coffee</dt><dd><b>700 g (24.7 oz)</b> <span class="bq-dim">· coarse, weighed on a level scale</span><span class="bq-dim"><br>2,040 g on hand — enough for 2 batches like this.</span></dd></div>
+            <div class="bq-row"><dt>Also</dt><dd><span class="bq-line"><b>10</b> Ceylon cinnamon sticks</span><span class="bq-line"><br><b>60</b> cardamom pods<span class="bq-dim"> · lightly cracked</span></span></dd></div>
+            <div class="bq-row"><dt>Time</dt><dd><b>20 h</b> <span class="bq-dim">· cold extraction — scheduled to be ready the morning of Dear Deandra Jazz Brunch</span></dd></div>
+          </dl>
+        </div>
+
+        <div class="bq">
+          <div class="bq-q">Brew it in</div>
+          <div class="ts-chips" style="margin-bottom:0">
+            <button type="button" class="ts-chip on" aria-pressed="true">✓ Toddy (commercial)<span class="bq-pick-sub">holds 32 drinks</span></button>
+            <button type="button" class="ts-chip" aria-pressed="false">Cold Brew Avenue<span class="bq-pick-sub">holds 64 drinks</span></button>
+          </div>
+          <p class="bq-fit">Fills it exactly.</p>
+        </div>
+
+        <div class="bq">
+          <div class="bq-q">What's it for? <span class="bq-opt">optional · the first pick sets when to start</span></div>
+          <div class="ts-chips" style="margin-bottom:0">
+            <button type="button" class="ts-chip on" aria-pressed="true">✓ Dear Deandra Jazz Brunch<span class="bq-pick-sub">Sat, Oct 11</span></button>
+            <button type="button" class="ts-chip" aria-pressed="false">Saturday market</button>
+          </div>
+        </div>
+
+        <div class="prod-actions" style="margin-top:14px">
+          <button type="button" class="note-arch">Cancel</button>
+          <button type="button" class="note-save">Scale + schedule</button>
+        </div>
+       </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

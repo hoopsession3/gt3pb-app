@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { FLAVORS } from "@/lib/orderAhead";
-import { bottlesFor, brewStartOverdue, sizingOptions, primarySizing, gallonsFromIngredient, ingredientForGallons, stepDownGal, vesselFit, smallestBatch, BREW_STEP_GAL } from "@/lib/brewMath";
+import { bottlesFor, gallonsForBottles, brewStartOverdue, sizingOptions, primarySizing, gallonsFromIngredient, ingredientForGallons, stepDownGal, stepUpGal, vesselFit, smallestBatch, pourable, scaleIngredients, vesselPlan, cookQuantity, SERVE_OZ, BREW_STEP_GAL } from "@/lib/brewMath";
 import { localToday } from "@/lib/dates";
 import AssignTaskSheet from "@/components/AssignTaskSheet";
 import Sheet, { CloseButton } from "@/components/Sheet";
@@ -33,7 +33,7 @@ type Vessel = { id: string; name: string; capacity_gal: number; filter_type: str
 type ScaledIng = { name: string; qty: number | string; unit?: string | null };
 type Batch = { id: string; recipe_id: string | null; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; stop_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null; extraction_hours: number | null; brew_started_at: string | null; vessel: string | null; coffee_lot: string | null; brewer: string | null; taste_notes: string | null; created_at?: string | null; needed_by: string | null; latest_start_at: string | null; drop_date: string | null; hold_hours: number | null; scaled: ScaledIng[] | null };
 type InvItem = { name: string; qty: number | null; unit: string | null };
-type Ev = { id: string; title: string | null; day: string | null; day_label: string | null };
+type Ev = { id: string; title: string | null; day: string | null; day_label: string | null; expected_attendance: number | null; going_count: number | null };
 type St = { id: string; name: string; starts_at: string | null; status: string | null };
 type BrewBoard = { recipes: Recipe[]; vessels: Vessel[]; batches: Batch[]; events: Ev[]; stops: St[]; inv: InvItem[]; demand: Record<string, Record<string, number>> };
 
@@ -123,7 +123,7 @@ export default function BrewPlanner() {
     const [r, b, e, v, st, ii] = await Promise.all([
       supabase.from("brew_recipes").select("id, name, style, ratio, target_spec, base_water_gal, extraction_hours, yield_factor, product_slug, ingredients").is("archived_at", null).order("sort"),
       supabase.from("brew_batches").select("id, recipe_id, recipe_name, batch_gal, brew_date, ready_at, event_id, stop_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at, needed_by, latest_start_at, drop_date, hold_hours, scaled").order("created_at", { ascending: false }),
-      supabase.from("events").select("id, title, day, day_label").is("archived_at", null).order("day"),
+      supabase.from("events").select("id, title, day, day_label, expected_attendance, going_count").is("archived_at", null).order("day"),
       // Migrations here are pasted BY HAND after the push, so every deploy has a window running new
       // code against the previous schema. Without the fallback in vesselsRead, one column that does
       // not exist yet throws out of this Promise.all and takes the whole Brew board with it:
@@ -474,7 +474,7 @@ export default function BrewPlanner() {
       </div>
       </>)}
 
-      {plan && <BrewSheet recipe={plan} events={events} stops={stops} vessels={vessels} initialTarget={pendingTarget ?? undefined} onClose={() => { setPlan(null); setPendingTarget(null); }} onDone={() => { setPlan(null); setPendingTarget(null); reload(); }} />}
+      {plan && <BrewSheet recipe={plan} events={events} stops={stops} vessels={vessels} inv={inv} initialTarget={pendingTarget ?? undefined} onClose={() => { setPlan(null); setPendingTarget(null); }} onDone={() => { setPlan(null); setPendingTarget(null); reload(); }} />}
       {pack && <BottleLoadout batch={pack} onClose={() => setPack(null)} />}
       {logBatch && <BatchLog batch={logBatch} events={events} stops={stops} onClose={() => setLogBatch(null)} onSaved={() => { setLogBatch(null); reload(); }} onRemove={removeBatch} />}
       {stepsFor && <BrewSteps batch={stepsFor as any} onClose={() => setStepsFor(null)} onChanged={reload} />}
@@ -712,61 +712,106 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
   );
 }
 
-function BrewSheet({ recipe, events, stops, vessels, initialTarget, onClose, onDone }: { recipe: Recipe; events: Ev[]; stops: St[]; vessels: Vessel[]; initialTarget?: string; onClose: () => void; onDone: () => void }) {
-  const [vesselId, setVesselId] = useState(vessels[0]?.id ?? "");
-  const [vesselCount, setVesselCount] = useState(1);
-  const vessel = vessels.find((v) => v.id === vesselId) || null;
-  // batch size follows the chosen vessel(s); still editable as an override
-  const [gal, setGal] = useState(() => vessels[0] ? String(vessels[0].capacity_gal) : "4");
-  // Sizing by an ingredient instead of by water. The recipe's own list decides what is offered and
-  // what the rate is — nothing about coffee is hardcoded here beyond which line opens first.
+function BrewSheet({ recipe, events, stops, vessels, inv, initialTarget, onClose, onDone }: { recipe: Recipe; events: Ev[]; stops: St[]; vessels: Vessel[]; inv: InvItem[]; initialTarget?: string; onClose: () => void; onDone: () => void }) {
+  // ── THE SHEET ASKS WHAT A COOK KNOWS (2026-10-03) ───────────────────────────────────────────
+  // Ryan, from the sheet on his phone: "I had no idea I could select a different metric. Nothing
+  // on pages are insightful. From a new operator user experience it's overwhelming, not helpful.
+  // I couldn't put in a batch size — or how many drinks you want to serve. Based on questions the
+  // metrics should show." 5 out of 10.
+  //
+  // It asked for a vessel first, then how many of them, then a number of gallons beside a unit
+  // menu that was painted as stripes (the day theme's `background` shorthand tiled the chevron),
+  // and explained its own rounding under that. The order the code was written in. A cook knows
+  // one thing walking up to this sheet: how many drinks are needed. Everything else — gallons,
+  // grams, which vessel, how many of them, when to start — is a consequence, and this sheet now
+  // treats it as one. One question, one live answer card, one optional "what for".
+  //
+  // Gallons stay the number the batch is BUILT from (the planner and the saved row take gallons);
+  // drinks, gallons and coffee are three ways of saying the same batch, and the one showing is
+  // the one the cook chose to think in.
+  const y = Number(recipe.yield_factor) || undefined;
   const sizeBy = primarySizing(sizingOptions(recipe.ingredients, recipe.base_water_gal));
-  const [byIng, setByIng] = useState("");
-  // Keep the ingredient box honest when the gallons are changed from the vessel picker or by hand.
-  useEffect(() => {
-    if (!sizeBy) return;
-    const g = Number(gal);
-    setByIng(g > 0 ? String(Math.round(ingredientForGallons(g, sizeBy.perGal))) : "");
-  }, [gal, sizeBy]);
-  const [override, setOverride] = useState(false);
-  const pickVessel = (id: string, count = vesselCount) => {
-    setVesselId(id); setVesselCount(count); setOverride(false);
-    const v = vessels.find((x) => x.id === id);
-    if (v) setGal(String(+(v.capacity_gal * count).toFixed(2)));
+  const floor = smallestBatch({ ingredients: recipe.ingredients, baseWaterGal: recipe.base_water_gal, yieldFactor: recipe.yield_factor, vesselMinGal: null });
+  const [gal, setGal] = useState<number>(() => Math.max(floor.gal, Number(vessels[0]?.capacity_gal) || floor.gal));
+  type Unit = "drinks" | "gal" | "ing";
+  const [unit, setUnit] = useState<Unit>("drinks");
+  // What is typed, as typed — the number box must not fight the thumb mid-entry ("2." → "2").
+  const [typed, setTyped] = useState<string | null>(null);
+  const drinks = bottlesFor(gal, y);
+  const coffeeG = sizeBy ? Math.round(ingredientForGallons(gal, sizeBy.perGal)) : null;
+  const shown = typed ?? (unit === "drinks" ? String(drinks) : unit === "gal" ? String(+gal.toFixed(2)) : String(coffeeG ?? ""));
+  const fromTyped = (u: Unit, v: string) => {
+    const n = parseFloat(v);
+    if (!Number.isFinite(n) || n <= 0) return;
+    // Drinks round UP so nobody is short; coffee rounds DOWN so it never asks for a bag that is
+    // not on the shelf; gallons are taken to the brewable step.
+    if (u === "drinks") setGal(gallonsForBottles(n, y));
+    else if (u === "gal") setGal(stepUpGal(n));
+    else if (sizeBy) setGal(stepDownGal(gallonsFromIngredient(n, sizeBy.perGal)));
   };
+  const nudge = (dir: 1 | -1) => {
+    setTyped(null);
+    if (unit === "drinks") setGal(gallonsForBottles(Math.max(1, drinks + dir), y));
+    else if (unit === "gal") setGal(Math.max(BREW_STEP_GAL, stepUpGal(gal + dir * BREW_STEP_GAL * 5)));   // a quarter gallon a tap; the step itself is too fine for a thumb
+    else if (sizeBy && coffeeG !== null) setGal(stepDownGal(gallonsFromIngredient(Math.max(1, coffeeG + dir * 50), sizeBy.perGal)));
+  };
+
+  // THE VESSEL FOLLOWS THE BATCH. The fewest vessels that hold it, the best-filled among equals;
+  // a tap on another vessel pins it and the count follows the batch from then on.
+  const [pinned, setPinned] = useState<string | null>(null);
+  const planned = vesselPlan(gal, vessels);
+  const vessel = (pinned ? vessels.find((v) => v.id === pinned) : null) ?? planned?.vessel ?? null;
+  const vesselCount = vessel ? Math.max(1, Math.ceil(gal / Number(vessel.capacity_gal) - 1e-9)) : 1;
   const vesselLabel = vessel ? `${vesselCount > 1 ? `${vesselCount}× ` : ""}${vessel.name} (${vessel.capacity_gal} gal${vesselCount > 1 ? ` ea` : ""})` : undefined;
+  const fit = vessel ? vesselFit(gal, vessel.capacity_gal, vesselCount, vessel.min_gal) : null;
+  const capacity = vessel ? Number(vessel.capacity_gal) * vesselCount : 0;
+  // The floor WITH the vessel's measured minimum, now that one is chosen.
+  const floorHere = smallestBatch({ ingredients: recipe.ingredients, baseWaterGal: recipe.base_water_gal, yieldFactor: recipe.yield_factor, vesselMinGal: vessel?.min_gal != null ? Number(vessel.min_gal) * vesselCount : null });
+  const underFloor = gal + 1e-9 < floorHere.gal;
 
-  // ── HOW SMALL THIS ONE CAN GO (2026-10-01) ───────────────────────────────────────────────────
-  // Ryan: "Recipe should be able to scale down as small as possible to not waste and expand as
-  // needed… Start at 3 servings 30OZ." The input used to carry min="0.25" step="0.25" — a flat
-  // floor of 3.2 servings with no reason attached, and a step that is 5% of a 5 gal batch and 50%
-  // of a half-gallon one. Both are computed per recipe now, and the reason is on screen: a minimum
-  // nobody can account for is one somebody overrides out of frustration.
-  const floor = smallestBatch({
-    ingredients: recipe.ingredients, baseWaterGal: recipe.base_water_gal,
-    yieldFactor: recipe.yield_factor,
-    // Per vessel × count, and NULL until somebody measures it (0337). A null floor is not applied.
-    vesselMinGal: vessel?.min_gal != null ? Number(vessel.min_gal) * vesselCount : null,
-  });
-  // Servings is the unit Ryan actually thinks in — he gave the floor as "3 servings 30OZ", not as
-  // gallons. Gallons stay the value the batch is built from; this rides alongside.
-  const servingsNow = bottlesFor(Number(gal) || 0, recipe.yield_factor);
+  // What the batch takes, live — the same scaler the planner saves with, so the card and the
+  // saved row cannot differ.
+  const factor = Number(recipe.base_water_gal) > 0 ? gal / Number(recipe.base_water_gal) : 1;
+  const scaled = scaleIngredients(recipe.ingredients, factor);
+  const water = pourable(gal);
+  const isWater = (n: string) => /\bwater\b/i.test(n);
+  const isCoffee = (n: string) => !!sizeBy && n.trim() === sizeBy.name;
+  const rest = scaled.filter((i) => !isWater(i.name) && !isCoffee(i.name) && i.scales);
+  const fixed = scaled.filter((i) => !i.scales);
+  const hours = Number(recipe.extraction_hours) || 0;
+  // Coffee on the shelf, beside the coffee this batch takes — the same name match the batch list
+  // uses for its "short" flags, and only when the units agree (grams against grams; a bag is not a
+  // number). Nothing to say when inventory has no line for it.
+  const onHand = (() => {
+    if (!sizeBy || coffeeG === null) return null;
+    const item = inv.find((i) => nameMatch(i.name, sizeBy.name));
+    const u = (x?: string | null) => (x ?? "").toLowerCase().trim().replace(/s$/, "");
+    if (!item || item.qty == null || u(item.unit) !== u(sizeBy.unit)) return null;
+    const have = Number(item.qty);
+    if (!Number.isFinite(have)) return null;
+    return { have, batches: coffeeG > 0 ? Math.floor(have / coffeeG) : 0, short: Math.max(0, coffeeG - have) };
+  })();
 
-  // Upcoming only, soonest first. The raw lists are every event/stop ever (no date floor, oldest
-  // first for events) — scanning all of history to find "the next one" was the actual complaint
-  // ("planning a brew for the event and next truck stop is frustrating"). Pre-select the soonest of
-  // each below so the common case — brewing for what's coming up — needs zero scrolling.
+  // Upcoming only, soonest first. Nothing preselected: the first pick drives the back-schedule,
+  // so a default would silently decide when to start brewing. A batch opened from an event or a
+  // stop arrives with that one chosen, because that IS a choice the person made on the way in.
   const today = localToday();
   const upcomingEvents = events.filter((e) => e.day && e.day >= today);
   const upcomingStops = stops.filter((s) => s.status !== "done");
-  // NOTHING IS PRESELECTED. This used to seed the first upcoming event AND the first upcoming stop,
-  // so every batch arrived already committed to two things nobody picked — under a label that says
-  // "optional". The first selection also drives the back-schedule, so a default here silently
-  // decided when to start brewing. A batch opened from a specific event or stop still arrives with
-  // that one chosen, because that IS a choice the person made on the way in.
   const [targets, setTargets] = useState<string[]>(() => initialTarget ? [initialTarget] : []);
-  // ["e:<id>"|"s:<id>"] — a batch can serve several; first is primary (back-schedule)
-  const [sizeUnit, setSizeUnit] = useState<"gal" | "ing">("gal");
+  const primaryEvent = (() => { const t = targets[0]; if (!t || !t.startsWith("e:")) return null; return upcomingEvents.find((e) => `e:${e.id}` === t) ?? null; })();
+  // A headcount the event already knows is a suggestion, never a default: it sets the chip, not
+  // the batch. One drink a head is the starting guess a cook adjusts, not a forecast.
+  const expected = primaryEvent ? (Number(primaryEvent.expected_attendance) || Number(primaryEvent.going_count) || 0) : 0;
+
+  // Quick picks: round numbers, plus what a full vessel pours — the number a cook ends up learning
+  // anyway, taught here instead of discovered.
+  const picks: { label: string; drinks: number; sub?: string }[] = [
+    ...(expected > 0 ? [{ label: `${expected}`, drinks: expected, sub: `${primaryEvent?.title || "the event"} expects` }] : []),
+    { label: "12", drinks: 12 }, { label: "24", drinks: 24 },
+    ...vessels.slice().sort((a, b) => Number(a.capacity_gal) - Number(b.capacity_gal)).map((v) => ({ label: `${bottlesFor(Number(v.capacity_gal), y)}`, drinks: bottlesFor(Number(v.capacity_gal), y), sub: `a full ${v.name}` })),
+  ].filter((p, i, a) => p.drinks > 0 && a.findIndex((q) => q.drinks === p.drinks) === i);
+
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [res, setRes] = useState<any | null>(null);
@@ -775,7 +820,7 @@ function BrewSheet({ recipe, events, stops, vessels, initialTarget, onClose, onD
   const call = async (payload: any) => {
     const [tt, tid] = (targets[0] || "").split(":"); // primary target drives the back-schedule date
     const owner = targets[0] ? (tt === "s" ? { stop_id: tid } : { event_id: tid }) : {};
-    const r = await authedFetch("/api/agents/brew", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipe_id: recipe.id, batch_gal: Number(gal) || 1, ...owner, vessel: vesselLabel, ...payload }) });
+    const r = await authedFetch("/api/agents/brew", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipe_id: recipe.id, batch_gal: +gal.toFixed(2) || 1, ...owner, vessel: vesselLabel, ...payload }) });
     return r.json();
   };
   const planIt = async () => {
@@ -799,8 +844,17 @@ function BrewSheet({ recipe, events, stops, vessels, initialTarget, onClose, onD
     setBusy(false);
   };
 
+  // What the floor means to a cook, by the reason that binds — the engineering note stays on the
+  // function for the people who need it.
+  const floorWords = floorHere.reason === "vessel" && vessel
+    ? `${vessel.name} can't brew less than ${floorHere.gal.toFixed(2)} gal — that's ${floorHere.servings} drinks.`
+    : floorHere.reason === "measurement"
+      ? `Under ${floorHere.servings} drinks the ${floorHere.limiting?.name ?? "coffee"} is too little to weigh on a 1 g scale.`
+      : `${floorHere.servings} drinks is the smallest batch worth making.`;
+  const unitName = unit === "drinks" ? "drinks" : unit === "gal" ? "gal of water" : `${sizeBy ? sizeBy.unit : "g"} of coffee`;
+
   return (
-    <Sheet open onClose={onClose} label="Scale a brew" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">Brew · exact scale to spec</div><div className="dp-title">{recipe.name}</div></div><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Plan a brew" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">Brew</div><div className="dp-title">{recipe.name}</div></div><CloseButton onClick={onClose} /></div>}>
           {saved ? (
             <div className="eg-done">
               <div className="eg-done-h"><Icon name="check" /> Batch added to the brew schedule</div>
@@ -809,117 +863,109 @@ function BrewSheet({ recipe, events, stops, vessels, initialTarget, onClose, onD
             </div>
           ) : !res ? (
             <>
-              <div className="dp-hint">Which vessel are you brewing in? The batch sizes to it and the recipe scales exactly to hold {recipe.target_spec || "the spec"}. Tie it to an event and it back-schedules so it&apos;s ready in time.</div>
-              {vessels.length > 0 && (
-                <>
-                  <div className="ts-chips" style={{ marginTop: 12 }}>
-                    {vessels.map((v) => (
-                      <button key={v.id} type="button" className={`ts-chip${vesselId === v.id && !override ? " on" : ""}`} onClick={() => pickVessel(v.id)}><Icon name="jar" /> {v.name} · {v.capacity_gal} gal</button>
-                    ))}
-                  </div>
-                  <div className="dp-daysctl" style={{ padding: "8px 0 0" }}>
-                    <span>How many</span>
-                    <button type="button" className="dp-step" onClick={() => pickVessel(vesselId, Math.max(1, vesselCount - 1))} aria-label="Fewer">−</button>
-                    <b>{vesselCount}</b><span>{vessel ? vessel.name : "vessel"}{vesselCount === 1 ? "" : "s"}</span>
-                    <button type="button" className="dp-step" onClick={() => pickVessel(vesselId, vesselCount + 1)} aria-label="More">+</button>
-                  </div>
-                </>
-              )}
-              {/* ONE FIELD, NOT TWO. This was a "Batch size (gal)" box and, below it, an "…or set it
-                  by coffee (g)" box — two inputs for one decision, and both filled in at once, so
-                  the sheet looked like it wanted two answers. It is one number and the unit it is
-                  in. You buy coffee by the bag and water by the tap, so the fixed quantity is
-                  usually the coffee; whichever unit is showing, the note underneath states the
-                  other, and gal stays the value the batch is actually built from. */}
-              <div className="prod-grid" style={{ marginTop: 12 }}>
-                <label className="prod-f">
-                  <span>Batch size{vessel && !override ? ` · ${vesselLabel}` : ""}</span>
-                  <div className="bsz-row">
-                    {/* min and step are the RECIPE's, not a constant. 0.25/0.25 was a flat 3.2-
-                        serving floor and a step worth half a small batch; see `floor` above. */}
-                    <input type="number"
-                           min={sizeUnit === "gal" ? String(floor.gal) : "0"}
-                           step={sizeUnit === "gal" ? String(BREW_STEP_GAL) : "10"}
-                           value={sizeUnit === "gal" ? gal : byIng}
-                           onChange={(e) => {
-                             const v = e.target.value;
-                             setOverride(true);
-                             if (sizeUnit === "gal") { setGal(v); return; }
-                             setByIng(v);
-                             const q = parseFloat(v);
-                             if (sizeBy && Number.isFinite(q) && q > 0) {
-                               // Sizing from a fixed amount of coffee still rounds DOWN — asking for
-                               // more than is on the shelf is the one direction that cannot be
-                               // allowed — but down to the brewable step now, not to a quarter
-                               // gallon, which could throw away three servings' worth of a bag.
-                               setGal(stepDownGal(gallonsFromIngredient(q, sizeBy.perGal)).toFixed(2));
-                             }
-                           }} />
-                    <select aria-label="Size this batch by" value={sizeUnit}
-                            onChange={(e) => {
-                              const u = e.target.value as "gal" | "ing";
-                              setSizeUnit(u);
-                              // Switching unit must not change the batch — carry the current size across.
-                              if (u === "ing" && sizeBy && Number(gal) > 0) {
-                                setByIng(String(Math.round(ingredientForGallons(Number(gal), sizeBy.perGal))));
-                              }
-                            }}>
-                      <option value="gal">gal of water</option>
-                      {sizeBy && <option value="ing">{sizeBy.name.replace(/^Coarse-ground\s+/i, "")} ({sizeBy.unit})</option>}
-                    </select>
-                  </div>
-                </label>
+              {/* 1. THE QUESTION */}
+              <div className="bq">
+                <label className="bq-q" htmlFor="bq-n">How many drinks do you need?</label>
+                <div className="bq-num">
+                  <button type="button" className="k-icon-btn" onClick={() => nudge(-1)} aria-label="Fewer">−</button>
+                  <input id="bq-n" type="number" inputMode={unit === "drinks" ? "numeric" : "decimal"} min="0" step={unit === "drinks" ? "1" : unit === "gal" ? String(BREW_STEP_GAL) : "10"}
+                         value={shown}
+                         onChange={(e) => { setTyped(e.target.value); fromTyped(unit, e.target.value); }}
+                         onBlur={() => setTyped(null)} />
+                  <button type="button" className="k-icon-btn" onClick={() => nudge(1)} aria-label="More">+</button>
+                  <span className="bq-unit">{unitName}</span>
+                </div>
+                <div className="bq-picks" role="group" aria-label="Quick sizes">
+                  {picks.map((p) => (
+                    <button key={p.label + (p.sub ?? "")} type="button" className={`ts-chip${drinks === p.drinks ? " on" : ""}`} onClick={() => { setTyped(null); setGal(gallonsForBottles(p.drinks, y)); }}>
+                      <b>{p.label}</b>{p.sub ? <span className="bq-pick-sub">{p.sub}</span> : null}
+                    </button>
+                  ))}
+                </div>
+                {/* Three ways to say one batch. Pills, not a menu: a menu looked like a text box with
+                    stripes, and nobody knew it opened. */}
+                <div className="k-seg bq-units" role="tablist" aria-label="Size it by">
+                  {([["drinks", "Drinks"], ["gal", "Gallons"], ...(sizeBy ? [["ing", `Coffee (${sizeBy.unit})`]] : [])] as [Unit, string][]).map(([u, label]) => (
+                    <button key={u} type="button" role="tab" aria-selected={unit === u} className={`k-seg-opt${unit === u ? " on" : ""}`} onClick={() => { setTyped(null); setUnit(u); }}>{label}</button>
+                  ))}
+                </div>
               </div>
 
-              {sizeBy && (
-                <div className="bsz">
-                  <p className="bsz-note">
-                    {Number(gal) > 0
-                      ? <>A {gal} gal batch needs <b>{Math.round(ingredientForGallons(Number(gal), sizeBy.perGal))} {sizeBy.unit}</b> and pours <b>{servingsNow} serving{servingsNow === 1 ? "" : "s"}</b>. Sizing from the {sizeBy.unit} rounds down to the nearest {BREW_STEP_GAL} gal, so it never asks for more than you have.</>
-                      : <>Enter what you have and the batch sizes to it.</>}
-                    {/* The over-capacity half of this already existed. The other half is what bit a
-                        real brew on 2026-09-07: 170 g of coffee sizes to 0.5 gal, which is correct
-                        and is 10% of the only vessel on file — half a gallon does not reach the
-                        filter basket in a 5 gal tower. The sheet showed the vessel and the size
-                        side by side and never mentioned that one did not fit the other. */}
-                    {(() => {
-                      const fit = vessel ? vesselFit(Number(gal), vessel.capacity_gal, vesselCount, vessel.min_gal) : null;
-                      if (!fit || fit.verdict === "fits") return null;
-                      const cap = (vessel!.capacity_gal * vesselCount).toFixed(2);
-                      if (fit.verdict === "over") {
-                        return <> <span className="bsz-over">That is {fit.overBy} gal more than {vesselCount > 1 ? `${vesselCount} × ` : ""}{vessel!.name} holds ({cap} gal).</span></>;
-                      }
-                      // MEASURED (0337) — states a fact, with the number somebody went and took.
-                      if (fit.verdict === "under") {
-                        return <> <span className="bsz-shallow">{vessel!.name} cannot brew less than <b>{fit.minGal} gal</b> — that is the measured minimum on file, and this is {gal} gal.</span></>;
-                      }
-                      // GUESSED — asks rather than asserts, because nobody has measured this vessel
-                      // yet. Deliberately different words from the measured case: one is a fact and
-                      // one is a question, and saying them the same way would launder the guess.
-                      return <> <span className="bsz-shallow">That fills only {fit.pct}% of {vessel!.name} ({cap} gal), and no measured minimum is on file for it. Check the grounds will actually be submerged — then record the real minimum so nobody has to guess again.</span></>;
-                    })()}
-                  </p>
-                  {/* WHY the box will not go lower. An unexplained minimum is one somebody types
-                      around; a minimum with its reason attached is one they can act on — buy a
-                      finer scale, measure the vessel, or accept it. The three reasons have three
-                      different ways out, which is exactly why smallestBatch names which is binding
-                      instead of returning a bare number. */}
-                  <p className="bsz-floor">
-                    <Icon name="info" /> Smallest batch for {recipe.name}: <b>{floor.gal.toFixed(2)} gal</b> ({floor.servings} serving{floor.servings === 1 ? "" : "s"}). {floor.note}
-                  </p>
+              {/* 2. THE ANSWER, LIVE */}
+              <div className="brew-spec bq-card" aria-live="polite">
+                <div className="bq-card-h">What this batch takes</div>
+                <dl className="bq-rows">
+                  <div className="bq-row"><dt>Pours</dt><dd><b>{drinks} drink{drinks === 1 ? "" : "s"}</b> <span className="bq-dim">· {SERVE_OZ} oz each</span></dd></div>
+                  <div className="bq-row"><dt>Water</dt><dd><b>{water.display}</b> <span className="bq-dim">· {+gal.toFixed(2)} gal{water.withOz.includes("about") ? ", about" : ","} {water.flOz} fl oz</span></dd></div>
+                  {sizeBy && coffeeG !== null && (
+                    <div className="bq-row"><dt>Coffee</dt><dd>
+                      <b>{cookQuantity(coffeeG, sizeBy.unit).display}</b> <span className="bq-dim">· coarse, weighed on a level scale</span>
+                      {onHand && (onHand.short > 0
+                        ? <span className="bq-short"><br />Only {onHand.have.toLocaleString()} {sizeBy.unit} on hand — short {onHand.short.toLocaleString()} {sizeBy.unit}.</span>
+                        : <span className="bq-dim"><br />{onHand.have.toLocaleString()} {sizeBy.unit} on hand — enough for {onHand.batches} batch{onHand.batches === 1 ? "" : "es"} like this.</span>)}
+                    </dd></div>
+                  )}
+                  {rest.length > 0 && (
+                    <div className="bq-row"><dt>Also</dt><dd>
+                      {rest.map((i, n) => {
+                        // "10 sticks · Organic Ceylon cinnamon sticks" says sticks twice and organic once
+                        // too often for a line read mid-pour. The quantity leads; the name follows it,
+                        // without the prefix and without repeating its own unit; a note in parentheses
+                        // ("add after filtration") stays, dimmed — it is the one part that is an instruction.
+                        const note = (i.name.match(/\(([^)]*)\)/) || [])[1];
+                        const bare = i.name.replace(/\s*\([^)]*\)\s*/g, " ").replace(/^organic\s+/i, "").trim();
+                        const q = cookQuantity(i.qty, i.unit);
+                        const unitWord = i.unit.trim().toLowerCase();
+                        const endsWithUnit = unitWord && bare.toLowerCase().endsWith(unitWord);
+                        return <span key={i.name} className="bq-line">{n > 0 && <br />}<b>{endsWithUnit ? String(q.primary).replace(new RegExp(`\\s*${unitWord}$`, "i"), "") : q.display}</b> {bare}{note ? <span className="bq-dim"> · {note}</span> : null}</span>;
+                      })}
+                    </dd></div>
+                  )}
+                  {fixed.length > 0 && <div className="bq-row"><dt>Each brew</dt><dd>{fixed.map((i) => `${cookQuantity(i.qty, i.unit).display} ${i.name.replace(/^organic\s+/i, "")}`).join(" · ")}</dd></div>}
+                  {hours > 0 && <div className="bq-row"><dt>Time</dt><dd><b>{hours} h</b> <span className="bq-dim">· cold extraction{targets[0] ? ` — scheduled to be ready the morning of ${primaryEvent ? (primaryEvent.title || primaryEvent.day_label || "the event") : upcomingStops.find((st) => `s:${st.id}` === targets[0])?.name || "the stop"}` : ""}</span></dd></div>}
+                </dl>
+                {underFloor && <p className="bq-note"><Icon name="info" /> {floorWords}</p>}
+              </div>
+
+              {/* 3. THE VESSEL, AS A CONSEQUENCE */}
+              {vessels.length > 0 && (
+                <div className="bq">
+                  <div className="bq-q">Brew it in</div>
+                  <div className="ts-chips" style={{ marginBottom: 0 }}>
+                    {vessels.map((v) => {
+                      const n = Math.max(1, Math.ceil(gal / Number(v.capacity_gal) - 1e-9));
+                      const on = vessel?.id === v.id;
+                      return (
+                        <button key={v.id} type="button" className={`ts-chip${on ? " on" : ""}`} aria-pressed={on} onClick={() => setPinned(v.id)}>
+                          {on && <><Icon name="check" /> </>}<Icon name="jar" /> {n > 1 ? `${n} × ` : ""}{v.name}<span className="bq-pick-sub">holds {bottlesFor(Number(v.capacity_gal), y)} drinks</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {vessel && fit && (
+                    <p className={`bq-fit${fit.verdict === "over" ? " warn" : fit.verdict === "fits" ? "" : " ask"}`}>
+                      {fit.verdict === "fits" && (fit.pct >= 99 ? `Fills ${vesselCount > 1 ? `all ${vesselCount}` : "it"} exactly.` : `Fills ${vesselCount > 1 ? `${vesselCount} × ${vessel.name}` : vessel.name} to ${fit.pct}% — ${+(capacity - gal).toFixed(2)} gal of room.`)}
+                      {fit.verdict === "over" && `That's ${fit.overBy} gal more than ${vesselCount > 1 ? `${vesselCount} × ` : ""}${vessel.name} holds.`}
+                      {fit.verdict === "under" && `${vessel.name} can't brew less than ${fit.minGal} gal — that's ${bottlesFor(fit.minGal, y)} drinks.`}
+                      {fit.verdict === "shallow" && `Only ${fit.pct}% of ${vessel.name} — check the grounds stay under water, and record the real minimum once you know it.`}
+                    </p>
+                  )}
                 </div>
               )}
-              <div className="prod-f" style={{ marginTop: 8 }}><span>Serving which events / stops? (optional · pick any — first one drives the back-schedule)</span>
-                <div className="ts-chips" style={{ marginTop: 4 }}>
-                  {upcomingEvents.map((ev) => { const k = `e:${ev.id}`; const on = targets.includes(k); return <button key={ev.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="event" /> {ev.title || ev.day_label}</button>; })}
-                  {upcomingStops.map((s) => { const k = `s:${s.id}`; const on = targets.includes(k); return <button key={s.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="truck" /> {s.name}</button>; })}
+
+              {/* 4. WHAT FOR */}
+              <div className="bq">
+                <div className="bq-q">What&apos;s it for? <span className="bq-opt">optional · the first pick sets when to start</span></div>
+                <div className="ts-chips" style={{ marginBottom: 0 }}>
+                  {upcomingEvents.map((ev) => { const k = `e:${ev.id}`; const on = targets.includes(k); return <button key={ev.id} type="button" className={`ts-chip${on ? " on" : ""}`} aria-pressed={on} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="event" /> {ev.title || ev.day_label}{ev.day ? <span className="bq-pick-sub">{fmtDate(ev.day)}</span> : null}</button>; })}
+                  {upcomingStops.map((s) => { const k = `s:${s.id}`; const on = targets.includes(k); return <button key={s.id} type="button" className={`ts-chip${on ? " on" : ""}`} aria-pressed={on} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="truck" /> {s.name}</button>; })}
                   {upcomingEvents.length === 0 && upcomingStops.length === 0 && <span className="dp-hint">No upcoming events or stops yet.</span>}
                 </div>
               </div>
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
-                <button type="button" className="note-save" onClick={planIt} disabled={busy || !(Number(gal) > 0)}>{busy ? "Scaling…" : "Scale + schedule"}</button>
+                <button type="button" className="note-save" onClick={planIt} disabled={busy || !(gal > 0)}>{busy ? "Scaling…" : "Scale + schedule"}</button>
               </div>
             </>
           ) : (

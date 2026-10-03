@@ -3127,6 +3127,65 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     }
   }
 
+  // ── THE BREW SHEET ASKS WHAT A COOK KNOWS (2026-10-03) ───────────────────────────────────────
+  // Ryan: "I had no idea I could select a different metric… I couldn't put in a batch size, or how
+  // many drinks you want to serve. Based on questions the metrics should show." The sheet now asks
+  // for drinks and answers with what the batch takes; these are the conversions it answers with.
+  {
+    // A volume somebody can pour — the same rule lib/agentKnowledge gives the model, in code.
+    ok("pourable: 1.214 gal is a gallon and three and a half cups, about 155 fl oz — the model's own example",
+      B.pourable(1.214).withOz === "1 gal + 3½ cups (about 155 fl oz)", B.pourable(1.214));
+    ok("pourable: 2.5 gal is 2 gal + 8 cups, exactly 320 fl oz — no 'about' when the quarter-cup rounding moved nothing",
+      B.pourable(2.5).withOz === "2 gal + 8 cups (320 fl oz)", B.pourable(2.5));
+    ok("pourable: whole gallons stay whole", B.pourable(2).display === "2 gal" && B.pourable(2).cups === 0);
+    ok("pourable: under a gallon is cups alone, singular when it is one or less", B.pourable(0.05).display === "¾ cup" && B.pourable(1 / 16).display === "1 cup" && B.pourable(0.5).display === "8 cups", [B.pourable(0.05).display, B.pourable(1 / 16).display, B.pourable(0.5).display]);
+    ok("pourable: fifteen and seven-eighths cups rounds up to the next gallon rather than '16 cups'", B.pourable(0.999).display === "1 gal", B.pourable(0.999));
+    ok("pourable: zero and nonsense are 0 gal, never NaN", B.pourable(0).display === "0 gal" && B.pourable(NaN).display === "0 gal" && B.pourable(-1).display === "0 gal");
+
+    // Scaling, once — the route and the sheet share it, and rounding is by what the thing is.
+    const dusk = [
+      { name: "Mountain Valley Spring Water", qty: 2, unit: "gal", scales: true },
+      { name: "Coarse-ground organic single-origin coffee", qty: 560, unit: "g", scales: true },
+      { name: "Organic Ceylon cinnamon sticks", qty: 8, unit: "sticks", scales: true },
+      { name: "Organic cardamom pods (lightly cracked)", qty: 48, unit: "pods", scales: true },
+      { name: "Filter", qty: 1, unit: "", scales: false },
+    ];
+    const sc = B.scaleIngredients(dusk, 1.214 / 2);
+    ok("scale: a count is whole — nobody adds 0.6 of a cardamom pod", sc[3].qty === 29 && sc[2].qty === 5, sc);
+    ok("scale: grams are whole — what a 1 g scale reads", sc[1].qty === 340, sc[1]);
+    ok("scale: a volume keeps two decimals so the water line equals the batch it was sized to", sc[0].qty === 1.21, sc[0]);
+    ok("scale: a line that does not scale is passed through as written", sc[4].qty === 1 && sc[4].scales === false);
+    ok("scale: ounces keep a tenth", B.scaleIngredients([{ name: "Coconut water", qty: 32, unit: "oz", scales: true }], 1.25)[0].qty === 40 && B.scaleIngredients([{ name: "x", qty: 32, unit: "oz", scales: true }], 0.607)[0].qty === 19.4);
+    ok("scale: a null list scales to an empty one, never a throw", B.scaleIngredients(null, 2).length === 0 && B.scaleIngredients(undefined, 2).length === 0);
+
+    // The vessel follows the batch.
+    const vessels = [{ id: "cba", name: "Cold Brew Avenue", capacity_gal: 5 }, { id: "toddy", name: "Toddy", capacity_gal: 2.5 }];
+    ok("vessel: a batch that fills a Toddy exactly gets the Toddy, not half a Cold Brew Avenue", B.vesselPlan(2.5, vessels).vessel.id === "toddy" && B.vesselPlan(2.5, vessels).count === 1);
+    ok("vessel: three gallons is one Cold Brew Avenue, not two Toddys", B.vesselPlan(3, vessels).vessel.id === "cba" && B.vesselPlan(3, vessels).count === 1);
+    ok("vessel: seven gallons is two Cold Brew Avenues", B.vesselPlan(7, vessels).vessel.id === "cba" && B.vesselPlan(7, vessels).count === 2);
+    ok("vessel: half a gallon goes in the smallest vessel (the fit check says whether it reaches the basket)", B.vesselPlan(0.5, vessels).vessel.id === "toddy");
+    ok("vessel: no vessels is null, not a crash; no batch yet is the smallest vessel", B.vesselPlan(2, []) === null && B.vesselPlan(0, vessels).vessel.id === "toddy");
+    ok("vessel: a vessel with no capacity on file is never chosen", B.vesselPlan(2, [{ id: "x", capacity_gal: 0 }, ...vessels]).vessel.id === "toddy");
+
+    // Drinks in, gallons out, drinks back — the three ways of saying one batch agree.
+    ok("drinks: 32 drinks at a 1.0 yield is 2.5 gal, and 2.5 gal pours 32", B.gallonsForBottles(32, 1) === 2.5 && B.bottlesFor(2.5, 1) === 32);
+    ok("drinks: 40 drinks at a 0.92 yield rounds the water UP so nobody is short", B.gallonsForBottles(40, 0.92) === 3.4 && B.bottlesFor(3.4, 0.92) >= 40, [B.gallonsForBottles(40, 0.92), B.bottlesFor(3.4, 0.92)]);
+
+    {
+      const { readFileSync } = require("node:fs");
+      const { join } = require("node:path");
+      const read = (f) => readFileSync(join(__dirname, "..", f), "utf8");
+      const route = read("app/api/agents/brew/route.ts"), sheet = read("components/BrewPlanner.tsx");
+      ok("one scaler: the brew route imports scaleIngredients from lib/brewMath and keeps no copy of its own",
+        /import \{[^}]*\bscaleIngredients\b[^}]*\} from "@\/lib\/brewMath"/.test(route) && !/function scaleIngredients/.test(route));
+      ok("one scaler: the sheet previews with the same function", /\bscaleIngredients\(recipe\.ingredients, factor\)/.test(sheet));
+      ok("the sheet asks for drinks first, in those words", /How many drinks do you need\?/.test(sheet));
+      ok("the sheet's units are the kit's segmented control, not a <select> (the one the day theme striped)", /className="k-seg bq-units" role="tablist"/.test(sheet) && !/<select aria-label="Size this batch by"/.test(sheet));
+      ok("the sheet reads the event's expected headcount for its suggestion", /expected_attendance, going_count/.test(sheet));
+      ok("the sheet states the water as something pourable", /pourable\(gal\)/.test(sheet) && /water\.display/.test(sheet));
+    }
+  }
+
   // A recipe with nothing measured must REFUSE, not emit a half-fact the model completes itself.
   {
     const bare = B.recipeFactLine({ name: "Mystery", base_water_gal: 0, ingredients: null, ratio: "1:13" });
@@ -3969,10 +4028,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // the alert-guard gate above learned it three times in one night.
   const code = (t) => t.replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, "").replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
   const plannerCode = code(planner);
-  ok("batch floor: the planner's size input takes its minimum from the recipe, not a constant",
-    /min=\{sizeUnit === "gal" \? String\(floor\.gal\)/.test(plannerCode));
-  ok("batch floor: …and its step from BREW_STEP_GAL",
-    /step=\{sizeUnit === "gal" \? String\(BREW_STEP_GAL\)/.test(plannerCode));
+  // 2026-10-03: the sheet asks for drinks, so the floor is no longer the input's min attribute — it
+  // is derived from the recipe (and the chosen vessel's measured minimum) and SAID, in a cook's
+  // words, the moment the batch goes under it. Same intent: no constant anywhere.
+  ok("batch floor: the planner derives its minimum from the recipe and the chosen vessel, not a constant",
+    /smallestBatch\(\{ ingredients: recipe\.ingredients, baseWaterGal: recipe\.base_water_gal, yieldFactor: recipe\.yield_factor, vesselMinGal: vessel\?\.min_gal != null/.test(plannerCode)
+    && /const underFloor = gal \+ 1e-9 < floorHere\.gal;/.test(plannerCode) && /\{underFloor && <p className="bq-note">/.test(plannerCode));
+  ok("batch floor: …and the gallon input steps by BREW_STEP_GAL",
+    /unit === "gal" \? String\(BREW_STEP_GAL\)/.test(plannerCode));
   ok("batch floor: …and no hard-coded 0.25 floor or step survives anywhere in it",
     !/(min|step)=\{?"?0\.25/.test(plannerCode), (plannerCode.match(/(min|step)=\{?"?0\.25[^\n]*/g) || []).slice(0, 2));
   // PROVE IT BITES, and that the comment-strip makes it precise rather than blind.
@@ -4022,7 +4085,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("vessel min: over capacity still wins over everything — the water has nowhere to go",
       B.vesselFit(6, 5, 1, 1.5).verdict === "over");
     ok("vessel min: the planner passes the measured number through",
-      /vesselFit\(Number\(gal\), vessel\.capacity_gal, vesselCount, vessel\.min_gal\)/.test(plannerCode)
+      /vesselFit\(gal, vessel\.capacity_gal, vesselCount, vessel\.min_gal\)/.test(plannerCode)
       && /select\("id, name, capacity_gal, filter_type, min_gal"\)/.test(plannerCode));
   }
 }
