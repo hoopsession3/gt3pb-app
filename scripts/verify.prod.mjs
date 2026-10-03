@@ -113,6 +113,17 @@ for (const pr of PROBES) {
   const jsonOr204 = r.status === 204 || r.type.includes("application/json");
   ok(`answers: ${pr.m} ${pr.p} → ${r.status}${r.status === 204 ? "" : ", JSON"}`, pr.want.includes(r.status) && jsonOr204, `got ${r.status} ${r.type || "(no content-type)"}`);
 }
+// THE WORKER (public/sw.js): every installed phone runs whatever /sw.js production hands out, and
+// for three weeks that worker served three-week-old pages (THE APP THAT STOPPED UPDATING). The one
+// in production must be the one in this tree, byte for byte — a stale worker is a stale app.
+{
+  const { readFileSync } = await import("node:fs");
+  const ours = readFileSync(new URL("../public/sw.js", import.meta.url), "utf8");
+  const theirs = await json("/sw.js");
+  const same = typeof theirs.body === "string" && theirs.body === ours;
+  const name = (ours.match(/const CACHE = "([^"]+)";/) || [])[1] || "?";
+  ok(`worker: /sw.js is this tree's worker (${name})`, theirs.status === 200 && same, theirs.status !== 200 ? `HTTP ${theirs.status}` : `production's worker differs from public/sw.js (${(theirs.body || "").length} vs ${ours.length} bytes)`);
+}
 // THE FRONT DOOR (proxy.ts): a request to "/" that says it is a guest is sent to /truck before the
 // page is served; a member, or nobody, gets the page. The cookie is the one lib/viewerHint.ts
 // writes; here it is set by hand, which is all the door ever sees.

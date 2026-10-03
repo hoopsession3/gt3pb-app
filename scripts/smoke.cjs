@@ -3762,6 +3762,23 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /hard, flat, level surface/.test(rules) && /TARE\/ZERO|TARE \/ ZERO/.test(rules));
   ok("measuring: being descriptive is scoped to things being MADE, so a stock lookup stays short",
     /BE DESCRIPTIVE WHEN SOMETHING IS BEING MADE/.test(rules) && /Lookups \(/.test(rules));
+  // 2026-10-03, Ryan's screenshot: "Measure `1.214 gal` of Mountain Valley Spring Water". Nobody can
+  // measure 1.214 gal, and the rules' own examples were teaching the model to box every amount in
+  // backticks. The amount is bold, the volume is something a person can pour, and a number says
+  // what it is.
+  const measuring = (rules.match(/export const MEASURING_RULES =([\s\S]*?);\n/) || [])[1] || "";
+  ok("measuring: a fractional gallon is also given as gallons + cups (to the quarter cup) and fl oz, with the table that makes it checkable",
+    /A VOLUME SHE CAN MEASURE/.test(measuring) && /1 gal = 4 qt = 16 cups = 128 fl oz/.test(measuring) && /nearest quarter cup/.test(measuring));
+  ok("measuring: amounts are bold, and the rules' own examples no longer box a single quantity in backticks",
+    /Bold, never backticks/.test(measuring) && !/`\d/.test(measuring) && /\*\*560 g \(19\.8 oz\)\*\*/.test(measuring));
+  ok("measuring: every number is named for what it is — a volume of water is not a \"scale factor\"",
+    /NAME EVERY NUMBER/.test(measuring) && /scale factor/.test(measuring));
+  {
+    const op = read("app/api/agents/operator/route.ts");
+    ok("operator: code spans are for things typed or read off a display, never an amount", /\\`code\\` ONLY for something typed or read off a display/.test(op) && /Never for an amount/.test(op));
+    ok("operator: one answer — the likely reading in full, the other in one line, never answer-ask-answer", /ONE ANSWER\./.test(op) && /Never\s+answer, then ask whether you understood, then answer again/.test(op));
+    ok("operator: the \"---\" rule is named among what not to write, with tables and blockquotes", /blockquotes or "---" rules/.test(op));
+  }
   for (const agent of ["app/api/agents/operator/route.ts", "app/api/agents/brew/route.ts"]) {
     const src = read(agent);
     ok(`measuring: ${agent.split("/")[3]} imports the shared rules`, /MEASURING_RULES/.test(src)

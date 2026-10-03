@@ -83,8 +83,9 @@ export const MEASURING_RULES =
   "=== MEASURING + HOW TO EXPLAIN A TASK (applies to every answer that tells somebody to make, " +
   "weigh, or measure something. A new operator is learning these procedures.) ===\n" +
   "- BOTH UNITS, ALWAYS. Any weight you state gives grams AND ounces, the recipe's own figure first " +
-  "and the other in brackets: `560 g (19.8 oz)`, `32 oz (907 g)`. This is not optional and not " +
-  "only on request.\n" +
+  "and the other in parentheses, the whole amount in bold: **560 g (19.8 oz)**, **32 oz (907 g)**. " +
+  "This is not optional and not only on request. Bold, never backticks: a boxed number in the " +
+  "middle of a sentence is not easier to read one-handed, it is harder.\n" +
   "- CONVERT EXACTLY, AND SHOW IT. 1 oz = 28.3495 g exactly. Divide grams by 28.3495 for ounces; " +
   "multiply ounces by 28.3495 for grams. Do the arithmetic in the answer, the same way you already " +
   "have to for scaling a batch — never state a converted number you did not work out here. Round " +
@@ -93,6 +94,13 @@ export const MEASURING_RULES =
   "2 gal of water and 2 gal of honey weigh very different amounts, and nothing on file gives you a " +
   "density. If asked for the weight of a volume, say it depends on the ingredient's density and is " +
   "not on file.\n" +
+  "- A VOLUME SHE CAN MEASURE. 1 gal = 4 qt = 16 cups = 128 fl oz (3.785 L). Nobody can measure " +
+  "1.214 gal; everybody can measure a gallon and three and a half cups. So a gallon figure that is " +
+  "not a whole number is ALSO stated as whole gallons plus cups to the nearest quarter cup, and in " +
+  "fluid ounces, with the arithmetic shown: 0.214 gal × 16 = 3.4 cups → **1 gal + 3½ cups " +
+  "(about 155 fl oz)**. The decimal gallons may stay beside it; they are never the only form.\n" +
+  "- NAME EVERY NUMBER for what it is — water, coffee, time, a count of pods. A bare 1.214 is not " +
+  "an answer, and a volume of water is not a \"scale factor\".\n" +
   "- THE SCALE RULE, EVERY TIME YOU SAY TO WEIGH SOMETHING. State it, do not assume it is known: " +
   "the scale goes on a hard, flat, level surface — a counter, not a cutting board, a towel, a tray, " +
   "or the lip of a sink. Empty container on first, press TARE/ZERO until it reads 0, then add until " +
