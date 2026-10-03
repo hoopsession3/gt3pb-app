@@ -123,7 +123,7 @@ export async function brewRecipeFacts(): Promise<string> {
   if (!supabaseAdmin) return "";
   const { data } = await supabaseAdmin
     .from("brew_recipes")
-    .select("name, product_slug, style, ratio, base_water_gal, ingredients, extraction_hours, target_spec")
+    .select("name, product_slug, style, ratio, base_water_gal, ingredients, extraction_hours, target_spec, method")
     .is("archived_at", null)
     .limit(50);
   if (!data || data.length === 0) return "";
@@ -139,11 +139,19 @@ export async function brewRecipeFacts(): Promise<string> {
   // below in the general knowledge dump, and the gear was a flat asset list with nothing marking
   // which of it a brew actually needs. Quantities answer "how much"; a crew mid-shift is asking
   // "how". So the recipe ships with its steps and its kit, in one place, at the top.
+  // 2026-10-03: the STEPS are the row's own `method` column — the same column the brew planner
+  // writes a batch sheet from — so the two assistants a cook talks to teach one procedure. The
+  // cookbook adds what the row does not keep (serve, storage, quality, troubleshooting), and when
+  // its copy names a different extraction time, recipeFactLine reports it as training copy that
+  // drifted, for an owner, instead of telling the cook to go and confirm the time.
   const gear = await brewKit();
   const fmt = data
     .map((r: unknown) => {
-      const row = r as RecipeFacts & { product_slug?: string | null };
-      return recipeFactLine({ ...row, method: methodFor(row), gear });
+      const row = r as RecipeFacts & { product_slug?: string | null; method?: unknown };
+      // The row's `method` column is text[] — the planner's steps; the cookbook is RecipeMethod.
+      // Same word, two shapes: name them apart before they meet.
+      const rowMethod = Array.isArray(row.method) ? (row.method as unknown[]).map(String) : null;
+      return recipeFactLine({ ...row, rowMethod, method: methodFor(row), gear });
     })
     .join("\n");
   return (

@@ -261,6 +261,9 @@ export type RecipeFacts = {
   extraction_hours?: number | null; target_spec?: string | null;
   /** The written method, joined in from the cookbook. Quantities are data; HOW is procedure. */
   method?: RecipeMethod | null;
+  /** The recipe row's OWN steps (brew_recipes.method) — the column the brew planner writes a batch
+   *  sheet from. When present these are THE steps, and the cookbook only adds what the row lacks. */
+  rowMethod?: string[] | null;
   /** The gear this brew needs, by name. A recipe without its kit is a recipe you cannot run. */
   gear?: string[] | null;
 };
@@ -332,14 +335,29 @@ export function recipeFactLine(r: RecipeFacts): string {
     .join(", ");
 
   const m = r.method ?? null;
-  const steps = (m?.brew ?? []).filter(Boolean);
+  // ONE PROCEDURE (2026-10-03). The brew planner (app/api/agents/brew) writes a batch sheet from
+  // the recipe row's own `method` column — "Cold-extract 12–20 hrs (20 preferred)" — while this
+  // line was handing the operator's assistant the cookbook in lib/academy ("~18-hr"), so the two
+  // assistants a cook talks to taught two procedures, and every Ask GT3 brew answer ended with
+  // "confirm the time with an owner". The row is the recipe's home; its steps are the steps here
+  // too. The cookbook still supplies what the row does not keep — serve, storage, the quality
+  // gate, troubleshooting — and where its copy names a different time, that is reported as
+  // training copy that drifted, for an owner, not as a question for the cook.
+  const rowSteps = (Array.isArray(r.rowMethod) ? r.rowMethod : []).map((x) => String(x ?? "").trim()).filter(Boolean);
+  const cookbookSteps = (m?.brew ?? []).filter(Boolean);
+  const steps = rowSteps.length ? rowSteps : cookbookSteps;
   const serve = (m?.serve ?? []).filter(Boolean);
   const trouble = (m?.troubleshoot ?? []).filter((t) => t && t.issue && t.fix);
 
-  // Two sources name an extraction time and they do not agree. Say so rather than choose.
-  const proseHours = hoursNamedIn([m?.batch, ...steps, ...(trouble.map((t) => t.fix))].join(" "));
   const rowHours = Number(r.extraction_hours) || 0;
-  const clash = rowHours > 0 && proseHours.length > 0 && !proseHours.includes(rowHours);
+  // Hours the cookbook's own prose names — batch line, its steps, its fixes.
+  const cookbookHours = hoursNamedIn([m?.batch, ...cookbookSteps, ...(trouble.map((t) => t.fix))].join(" "));
+  // With no steps of its own, the row's number and the cookbook's prose are two sources of one
+  // procedure, and when they disagree nobody here gets to choose. Say so.
+  const clash = !rowSteps.length && rowHours > 0 && cookbookHours.length > 0 && !cookbookHours.includes(rowHours);
+  // With its own steps, the row IS the procedure. A cookbook that still says something else is
+  // copy that drifted from the recipe — an owner's fix, never the cook's doubt.
+  const drift = rowSteps.length > 0 && rowHours > 0 && cookbookHours.length > 0 && !cookbookHours.includes(rowHours);
 
   return [
     `${head}: ${anchor}.`,
@@ -357,7 +375,10 @@ export function recipeFactLine(r: RecipeFacts): string {
     trouble.length ? `IF IT COMES OUT WRONG: ${trouble.map((t) => `${t.issue} → ${t.fix}`).join(" ")}` : "",
     r.gear?.length ? `GEAR THIS BREW NEEDS: ${r.gear.join("; ")}.` : "",
     clash
-      ? `CONFLICT — the recipe record says ${rowHours} h but the written method says ${proseHours.join("/")} h. State BOTH, say they disagree, and tell them to confirm with an owner. Do NOT pick one.`
+      ? `CONFLICT — the recipe record says ${rowHours} h but the written method says ${cookbookHours.join("/")} h. State BOTH, say they disagree, and tell them to confirm with an owner. Do NOT pick one.`
+      : "",
+    drift
+      ? `TRAINING COPY DRIFT — the recipe (the spec) says ${rowHours} h; the training copy in the academy still says ${cookbookHours.join("/")} h. Brew to the recipe. Mention once, in one line, that the academy copy needs an owner's update; do not tell the cook to confirm the time.`
       : "",
   ].filter(Boolean).join(" ");
 }

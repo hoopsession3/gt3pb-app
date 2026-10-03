@@ -3094,6 +3094,37 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       B.hoursNamedIn("18 hrs, 20 hour, 12h, 1.5 hrs"));
     ok("brewfacts: a recipe with no method still renders its quantities",
       /ANCHOR/.test(B.recipeFactLine(rise)) && !/METHOD/.test(B.recipeFactLine(rise)));
+
+    // ONE PROCEDURE (2026-10-03). The brew planner writes a batch sheet from brew_recipes.method;
+    // Ask GT3 was handed the academy cookbook instead, so one cook got "20 preferred" on the sheet
+    // and "~18 hrs, confirm with an owner" in the chat. The row's steps are the steps; the
+    // cookbook adds what the row lacks; a cookbook number that disagrees is an owner's copy fix.
+    const rowSteps = ["Add the coarse-ground coffee", "Pour in the spring water; saturate all grounds", "Cold-extract 12–20 hrs (20 hrs preferred)", "Filter thoroughly until it runs clean"];
+    const cookbook = { batch: "Standard Batch - GT3 (1:13, ~18-hr cold extraction).", brew: ["Weigh beans 1:13", "Cold-extract ~18 hrs", "Filter"], serve: ["Pour over ice"], storage: "Keep cold.", quality: "Signal Score 8+.", troubleshoot: [{ issue: "Weak", fix: "Verify 1:13 ratio and full 18-hr extraction." }] };
+    const oneProcedure = B.recipeFactLine({ ...rise, extraction_hours: 20, rowMethod: rowSteps, method: cookbook });
+    ok("one procedure: with steps of its own, the row's steps are THE steps — the planner's column, not the cookbook's",
+      /METHOD \(give EVERY step[^:]*\): 1\) Add the coarse-ground coffee 2\) Pour in the spring water[^]*3\) Cold-extract 12–20 hrs \(20 hrs preferred\) 4\) Filter thoroughly/.test(oneProcedure) && !/Weigh beans 1:13/.test(oneProcedure), oneProcedure);
+    ok("one procedure: the cookbook still supplies serve, storage, the quality gate and the fixes",
+      /SERVE: Pour over ice/.test(oneProcedure) && /STORAGE: Keep cold/.test(oneProcedure) && /QUALITY GATE: Signal Score 8\+/.test(oneProcedure) && /IF IT COMES OUT WRONG: Weak/.test(oneProcedure));
+    ok("one procedure: no CONFLICT for the cook — the recipe is the spec",
+      !/CONFLICT/.test(oneProcedure) && !/confirm with an owner/.test(oneProcedure));
+    ok("one procedure: …and the cookbook's 18 h is reported as training copy that drifted, for an owner, with both numbers",
+      /TRAINING COPY DRIFT — the recipe \(the spec\) says 20 h; the training copy in the academy still says 18 h\. Brew to the recipe\./.test(oneProcedure) && /needs an owner's update/.test(oneProcedure) && /do not tell the cook to confirm the time/.test(oneProcedure), oneProcedure);
+    ok("one procedure: a cookbook that agrees with the row raises nothing at all",
+      !/DRIFT|CONFLICT/.test(B.recipeFactLine({ ...rise, extraction_hours: 20, rowMethod: rowSteps, method: { ...cookbook, batch: "Standard Batch (20-hr).", brew: ["Cold-extract 20 hrs"], troubleshoot: [] } })));
+    ok("one procedure: a row with an EMPTY method column falls back to the cookbook, conflict rule and all",
+      /CONFLICT/.test(B.recipeFactLine({ ...rise, extraction_hours: 20, rowMethod: [], method: cookbook })) && /1\) Weigh beans 1:13/.test(B.recipeFactLine({ ...rise, extraction_hours: 20, rowMethod: [], method: cookbook })));
+    ok("one procedure: blank and non-string entries in the column are dropped, not numbered",
+      /1\) Add 2\) Filter/.test(B.recipeFactLine({ ...rise, extraction_hours: 20, rowMethod: ["Add", "", null, "  ", "Filter"], method: null })));
+    {
+      const { readFileSync } = require("node:fs");
+      const { join } = require("node:path");
+      const read = (f) => readFileSync(join(__dirname, "..", f), "utf8");
+      ok("one procedure: the operator's grounding selects the row's method column…",
+        /\.select\("name, product_slug, style, ratio, base_water_gal, ingredients, extraction_hours, target_spec, method"\)/.test(read("lib/agentKnowledge.ts")) && /rowMethod/.test(read("lib/agentKnowledge.ts")));
+      ok("one procedure: …which is the same column the brew planner writes its sheet from",
+        /method_template: \(recipe as any\)\.method/.test(read("app/api/agents/brew/route.ts")));
+    }
   }
 
   // A recipe with nothing measured must REFUSE, not emit a half-fact the model completes itself.
