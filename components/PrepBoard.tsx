@@ -10,7 +10,8 @@ import EmptyState from "./EmptyState";
 import { completeTask, updateTask } from "@/lib/tasks";
 import { useTaskSheet } from "./TaskSheet";
 import Icon from "@/components/Icon";
-import { isStopPast } from "@/lib/stopRecord";
+import { targetIsCurrent } from "@/lib/readiness";
+import { localToday } from "@/lib/dates";
 import { useCrew, crewLabel } from "./useCrew";
 
 // PREP BOARD — the aggregate readiness triage surface. Every open prep task, ROLLED UP into
@@ -25,11 +26,16 @@ import { useCrew, crewLabel } from "./useCrew";
 // visit >8h past "stale" and files it under Past visits — this board kept showing it as a plain
 // current group, so the same stop could read as active in one lane and archived in another. Not
 // hiding it (an open task for a past stop is still real, maybe more urgent) — just naming it the
-// same way Route already does, so the two screens agree. See isStopPast below.
+// same way Route already does, so the two screens agree.
+// 2026-10-03: the same for EVENTS, and from one rule — lib/readiness decides what is still ahead,
+// for this board, for the Readiness tiles above it and for the prep list beside it. Groups whose
+// target has gone (day passed, stage done, archived) sort LAST and say so; the tiles count only
+// what is ahead, so their number is the number of rows at the top of this board.
 type Task = {
   id: string; label: string; critical: boolean; due_at: string | null; assignee: string | null;
   event_id: string | null; stop_id: string | null; section: string | null; initiative_id: string | null;
-  events: { title: string | null } | null; stops: { name: string | null; starts_at: string | null } | null;
+  events: { title: string | null; day: string | null; archived_at: string | null; stage: string | null } | null;
+  stops: { name: string | null; starts_at: string | null; archived_at: string | null; status: string | null } | null;
   initiatives: { title: string | null; emoji: string | null } | null;
 };
 type Filter = "all" | "critical" | "mine" | "overdue";
@@ -38,10 +44,6 @@ type BoardData = { rows: Task[] };
 
 const nowISO = () => new Date().toISOString();
 const dueLabel = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "");
-// Mirrors Route's own >8h-past grace exactly (app/crew/page.tsx's isAhead/graceMs) — same cutoff, so
-// a stop reads the same age in both places even though the two components can't share the literal
-// function across this file/route boundary.
-// isStopPast now comes from lib/stopRecord, the same rule the status a person sees is derived from.
 
 export default function PrepBoard() {
   const { user } = useAuth();
@@ -57,7 +59,7 @@ export default function PrepBoard() {
     // 60s TTL, shared with every other picker) and degrades to an empty list rather than an error,
     // which is the right failure for a picker: the tasks still render, one <select> is short.
     const { data, error } = await supabase.from("event_tasks")
-      .select("id, label, critical, due_at, assignee, event_id, stop_id, section, initiative_id, events(title), stops(name, starts_at), initiatives(title, emoji)")
+      .select("id, label, critical, due_at, assignee, event_id, stop_id, section, initiative_id, events(title, day, archived_at, stage), stops(name, starts_at, archived_at, status), initiatives(title, emoji)")
       .eq("done", false).limit(300);
     if (error) throw new Error(error.message);
     return { rows: (data as unknown as Task[]) ?? [] };
@@ -81,6 +83,7 @@ export default function PrepBoard() {
   };
 
   const now = nowISO();
+  const today = localToday();
   const isOver = (t: Task) => !!t.due_at && t.due_at < now;
   const shown = useMemo(() => {
     const f = rows.filter((t) =>
@@ -101,16 +104,19 @@ export default function PrepBoard() {
         const kind: Group["kind"] = t.initiative_id ? "initiative" : t.event_id ? "event" : t.stop_id ? "stop" : "general";
         const label = t.initiative_id ? (t.initiatives?.title || "Initiative") : (t.events?.title || t.stops?.name || t.section || "General");
         const icon = kind === "initiative" ? (t.initiatives?.emoji || "🎯") : kind === "event" ? <Icon name="calendar" /> : kind === "stop" ? <Icon name="pin" /> : "•";
-        // Only a plain stop-kind group can be "past" — an initiative can span many stops, so no
-        // single date applies to it (mirrors Route: isAhead only ever judges one stop at a time).
-        const past = kind === "stop" ? isStopPast(t.stops?.starts_at) : false;
+        // An event or stop group is "past" by lib/readiness's one rule. An initiative can span many
+        // stops, so no single date applies to it (mirrors Route: isAhead only ever judges one stop
+        // at a time); a general group has no date at all.
+        const past = kind === "event" ? !targetIsCurrent(t.events, null, today) : kind === "stop" ? !targetIsCurrent(null, t.stops, today) : false;
         g = { key, label, kind, initiativeId: t.initiative_id, icon, tasks: [], past };
         map.set(key, g);
       }
       g.tasks.push(t);
     }
-    return [...map.values()];
-  }, [shown]);
+    // What is ahead first; what was left open last. Within each half the task sort still decides.
+    const all = [...map.values()];
+    return [...all.filter((g) => !g.past), ...all.filter((g) => g.past)];
+  }, [shown, today]);
 
   // Within a group, show each task's OTHER binding as sub-context (event/stop inside an initiative;
   // section inside an event/stop) — never repeating the group's own label.
@@ -132,6 +138,9 @@ export default function PrepBoard() {
   };
 
   const counts = { all: rows.length, critical: rows.filter((t) => t.critical).length, mine: rows.filter((t) => t.assignee === user?.id).length, overdue: rows.filter(isOver).length };
+  // The tiles above this board count what is ahead; this is the rest, named once at the top so the
+  // two numbers never look like a disagreement.
+  const leftOpen = groups.filter((g) => g.past).reduce((n, g) => n + g.tasks.length, 0);
 
   return (
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load prep" emptyTitle="Nothing here yet">
@@ -144,6 +153,7 @@ export default function PrepBoard() {
               </button>
             ))}
           </div>
+          {leftOpen > 0 && <p className="pbd-leftopen">{leftOpen} of these belong to events or stops that have already passed — they sit at the end. Finish them, or mark the event done, and they clear.</p>}
           {shown.length === 0 ? (
             // "all" empty means the whole board is clear — the designed empty state. A filtered tab
             // (critical/mine/overdue) coming up empty is a filtered VIEW, not the board itself — same
@@ -161,7 +171,7 @@ export default function PrepBoard() {
                       <span className={`pbd-chev${open ? " open" : ""}`} aria-hidden>›</span>
                       <span className="pbd-group-ic" aria-hidden>{g.icon}</span>
                       <span className="pbd-group-nm">{g.label}</span>
-                      {g.past && <span className="pbd-group-past">past visit</span>}
+                      {g.past && <span className="pbd-group-past">{g.kind === "event" ? "past · not closed out" : "past visit"}</span>}
                       <span className="pbd-group-n">{g.tasks.length}{crit ? ` · ${crit} crit` : ""}</span>
                     </button>
                     <button type="button" className={`pbd-group-all${armed === g.key ? " armed" : ""}`}

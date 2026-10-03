@@ -2681,13 +2681,16 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // restored their open state and pushed the target 3,760px down the page. Both are runtime
   // behaviours, so what is asserted here is that the MECHANISM is still wired: the jump asks the
   // panel to open, and Panel listens. If either side is deleted, this fails.
+  // 2026-10-03: the jump moved to lib/anchors (one home — the Readiness tiles had a weaker copy).
+  // The mechanism is the same; it is read where it lives now.
   const crewSrc = fs.readFileSync(path.join(root, "app/crew/page.tsx"), "utf8");
+  const jumpSrc = fs.readFileSync(path.join(root, "lib/anchors.ts"), "utf8");
   ok("deep links: the jump asks the target panel to open, rather than assuming it already is",
-    /dispatchEvent\(new CustomEvent\(OPEN_PANEL_EVENT/.test(crewSrc));
+    /dispatchEvent\(new CustomEvent\(OPEN_PANEL_EVENT/.test(jumpSrc));
   ok("deep links: Panel listens for that request",
     /addEventListener\(OPEN_PANEL_EVENT/.test(crewSrc));
   ok("deep links: and the scroll waits for the page to settle instead of guessing a delay",
-    /stable\s*\+=\s*1/.test(crewSrc) && /stable\s*<\s*3/.test(crewSrc));
+    /stable\s*\+=\s*1/.test(jumpSrc) && /stable\s*<\s*3/.test(jumpSrc));
 }
 
 // ── which build is answering (lib/buildInfo.ts) ────────────────────────────────────────────────
@@ -4385,6 +4388,44 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("door: the cookie is written by one function, as a hint for a year, never HttpOnly (the browser writes it)", /export function writeViewerHint\(signedIn: boolean\)/.test(hint) && /max-age=31536000; samesite=lax/.test(hint) && !/httponly/i.test(hint));
   ok("door: AuthProvider writes it on the cold session read AND on every change — a stale hint never outlives the next answer", /getSession\(\)[\s\S]*?writeViewerHint\(!!data\.session\?\.user\)/.test(code(auth)) && /onAuthStateChange\(\(event, session\) => \{\s*const u = session\?\.user \?\? null;\s*setUser\(u\);\s*writeViewerHint\(!!u\);/.test(code(auth)));
   ok("door: the slow way stays — app/page.tsx still sends a guest to /truck itself", /router\.replace\("\/truck"\)/.test(code(read("app/page.tsx"))));
+}
+
+// ── READINESS COUNTS WHAT IS AHEAD, AND A TILE LANDS WHERE IT SAYS (2026-10-03) ─────────────────
+// Ryan: "I clicked on each metric and it just scrolled to the bottom." Under the tiles, July and
+// August events read "Not started". lib/readiness is the one rule for what is still prep;
+// lib/anchors is the one jump to a panel. Three readers each.
+{
+  const R = require("../.smoke/readiness.js");
+  const today = "2026-10-03";
+  ok("readiness: an event before today is past; today and later are not", R.eventIsPast("2026-08-15", today) && !R.eventIsPast(today, today) && !R.eventIsPast("2026-10-24", today) && !R.eventIsPast(null, today));
+  ok("readiness: done or archived is closed, whatever the date", R.eventIsClosed({ stage: "done", day: "2026-12-01" }) && R.eventIsClosed({ archived_at: "2026-09-01T00:00:00Z" }) && !R.eventIsClosed({ stage: "prep", day: "2026-12-01" }));
+  ok("readiness: an upcoming, open event is current", R.targetIsCurrent({ day: "2026-10-24", stage: "prep", archived_at: null }, null, today));
+  ok("readiness: July's event is not, however open its tasks", !R.targetIsCurrent({ day: "2026-07-31", stage: "prep", archived_at: null }, null, today));
+  ok("readiness: a done event is not, even next month", !R.targetIsCurrent({ day: "2026-11-01", stage: "done", archived_at: null }, null, today));
+  ok("readiness: an undated event is current (nothing says it has passed)", R.targetIsCurrent({ day: null, stage: "lead", archived_at: null }, null, today));
+  ok("readiness: a stop is judged by lib/stopRecord's rule — 8 h past its start", !R.targetIsCurrent(null, { starts_at: new Date(Date.now() - 9 * 3600e3).toISOString(), status: "planned", archived_at: null }, today) && R.targetIsCurrent(null, { starts_at: new Date(Date.now() + 3600e3).toISOString(), status: "planned", archived_at: null }, today));
+  ok("readiness: a done or archived stop is not current", !R.targetIsCurrent(null, { starts_at: new Date(Date.now() + 3600e3).toISOString(), status: "done", archived_at: null }, today) && !R.targetIsCurrent(null, { starts_at: null, status: "planned", archived_at: "2026-09-01T00:00:00Z" }, today));
+  ok("readiness: a task with no target at all is current", R.taskIsCurrent({ event_id: null, stop_id: null, events: null, stops: null }, today));
+  ok("readiness: a task bound to an event the query could not embed is orphaned, not general", !R.taskIsCurrent({ event_id: "e1", stop_id: null, events: null, stops: null }, today));
+  ok("readiness: a task follows its event", R.taskIsCurrent({ event_id: "e1", stop_id: null, events: { day: "2026-10-24", stage: "prep", archived_at: null }, stops: null }, today) && !R.taskIsCurrent({ event_id: "e2", stop_id: null, events: { day: "2026-08-15", stage: "prep", archived_at: null }, stops: null }, today));
+  ok("readiness: the prep buckets put the past LAST and name it", R.prepBucket("2026-07-31", today).key === 5 && R.prepBucket("2026-07-31", today).label === "Past · not closed out" && R.prepBucket("2026-07-31", today).key > R.prepBucket(null, today).key);
+  ok("readiness: today, this week, later, unscheduled", R.prepBucket(today, today).label === "Today" && R.prepBucket("2026-10-08", today).label === "This week" && R.prepBucket("2026-10-24", today).label === "Later" && R.prepBucket(null, today).label === "Unscheduled" && R.prepBucket("not a date", today).label === "Unscheduled");
+  {
+    const { readFileSync } = require("node:fs");
+    const { join } = require("node:path");
+    const read = (f) => readFileSync(join(__dirname, "..", f), "utf8");
+    const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+    const kpis = code(read("components/CrewKpis.tsx")), board = code(read("components/PrepBoard.tsx")), page = code(read("app/crew/page.tsx")), plan = code(read("lib/planNav.ts")), anchors = read("lib/anchors.ts");
+    ok("one jump: lib/anchors owns the panel-open event and the jump", /export const OPEN_PANEL_EVENT = "gt3-open-panel";/.test(anchors) && /export function scrollToAnchor\(/.test(anchors));
+    ok("one jump: the crew page defines neither any more — it imports both", !/const OPEN_PANEL_EVENT =/.test(page) && !/function scrollToAnchor\(/.test(page) && /import \{ OPEN_PANEL_EVENT, scrollToAnchor \} from "@\/lib\/anchors";/.test(page));
+    ok("one jump: a KPI tile jumps with scrollToAnchor — no bare scrollIntoView, no localStorage panel key", /scrollToAnchor\(d\.anchor\)/.test(kpis) && !/scrollIntoView/.test(kpis) && !/gt3-mpanel-/.test(kpis));
+    ok("one jump: a Plan-tab jump goes through goPlanTab with the section setter and an anchor", /goPlanTab\(d\.planTab, \{ setSection, anchor: d\.anchor \}\)/.test(kpis) && /scrollToAnchor\(opts\.anchor\)/.test(plan) && !/scrollIntoView/.test(plan));
+    ok("one jump: the events list carries the anchor the tile lands on", /<div id="plan-events">/.test(page) && /anchor: "plan-events"/.test(kpis));
+    ok("one rule: the tiles, the board and the prep list all read lib/readiness", /from "@\/lib\/readiness"/.test(kpis) && /from "@\/lib\/readiness"/.test(board) && /from "@\/lib\/readiness"/.test(page));
+    ok("one rule: the tiles and the board embed the same target columns to judge by", /events\(day, archived_at, stage\), stops\(starts_at, archived_at, status\)/.test(kpis) && /events\(title, day, archived_at, stage\), stops\(name, starts_at, archived_at, status\)/.test(board));
+    ok("one rule: the tiles count what is ahead, not the table", /taskIsCurrent\(t, today\)/.test(kpis) && !/head\(db, "event_tasks"\)\.eq\("done", false\), to:/.test(kpis) && /label: "Upcoming events"/.test(kpis) && !/label: "Events on the books"/.test(kpis));
+    ok("one rule: the board sorts what was left open last and says so", /\[\.\.\.all\.filter\(\(g\) => !g\.past\), \.\.\.all\.filter\(\(g\) => g\.past\)\]/.test(board) && /past · not closed out/.test(board) && /pbd-leftopen/.test(board));
+  }
 }
 
 // ── errorMessage (lib/errorMessage.ts): the one place a thrown value becomes a string ──────────

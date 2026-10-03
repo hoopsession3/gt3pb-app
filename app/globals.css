@@ -5455,6 +5455,8 @@ button.mkpi-tile:active{transform:scale(.98)}
 .pbd-filter.crit:not(.on){border-color:rgba(196,69,60,.5);color:#d98a7d}
 .pbd-fn{font-variant-numeric:tabular-nums;font-weight:700;opacity:.85}
 .pbd-empty{font-family:'Inter';font-size:13px;color:var(--cream-m);padding:8px 2px}
+/* What the tiles do not count, said once (lib/readiness, 2026-10-03). */
+.pbd-leftopen{margin:0 0 10px;font-family:'Inter';font-size:12.5px;line-height:1.45;color:var(--cream-m)}
 .pbd-list{display:flex;flex-direction:column;gap:6px}
 .pbd-row{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:11px;border:1px solid var(--line2);background:var(--card)}
 .pbd-row.crit{border-color:rgba(196,69,60,.42)}

@@ -13,6 +13,8 @@ import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
 import { localToday, etToday, dayKey, relativeDay, ageLabel } from "@/lib/dates";
+import { prepBucket } from "@/lib/readiness";
+import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
 import { downloadCsv } from "@/lib/csv";
 import { brewStartOverdue } from "@/lib/brewMath";
 import { useWorkStreams, streamOfCategory } from "@/lib/streams";
@@ -633,44 +635,8 @@ function alertDest(category: string | null | undefined, title?: string | null, l
 // accordion header. A link that half-works is worse than one that plainly does not — lib/records.ts
 // wrote that rule down before this file broke it twice.
 //
-// ── WHAT THIS DOES ─────────────────────────────────────────────────────────────────────────────
-// Ask the panel to open, then wait for the page to STOP MOVING before scrolling — three identical
-// measurements 80ms apart — with a 5s deadline so a screen that never settles still gets its jump.
-// One correction pass after the animation, because a dynamic() body landing mid-scroll moves the
-// target under us; checked once and corrected without animation so it cannot oscillate.
-export const OPEN_PANEL_EVENT = "gt3-open-panel";
-
-function scrollToAnchor(anchor?: string) {
-  if (!anchor || typeof window === "undefined") return;
-  const deadline = Date.now() + 5000;
-  let lastTop = -1, stable = 0, asked = false;
-
-  const tick = () => {
-    const el = document.getElementById(anchor);
-    if (!el) {
-      // The section may not have mounted yet — ?s= hydration and this effect race. Keep looking.
-      if (Date.now() < deadline) setTimeout(tick, 80);
-      return;
-    }
-    if (!asked) {
-      asked = true;
-      window.dispatchEvent(new CustomEvent(OPEN_PANEL_EVENT, { detail: anchor }));
-    }
-    const top = Math.round(el.getBoundingClientRect().top + window.scrollY);
-    if (top === lastTop) stable += 1; else { stable = 0; lastTop = top; }
-    if (stable < 3 && Date.now() < deadline) { setTimeout(tick, 80); return; }
-
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
-    setTimeout(() => {
-      const r = document.getElementById(anchor)?.getBoundingClientRect();
-      if (r && (r.top < -8 || r.top > window.innerHeight * 0.5)) {
-        document.getElementById(anchor)?.scrollIntoView({ block: "start" });
-      }
-    }, 600);
-  };
-  setTimeout(tick, 80);
-}
-
+// The jump to a panel — and the event every <Panel> opens on — live in lib/anchors.ts (2026-10-03):
+// the Readiness tiles had grown a second, weaker copy that never opened the panel it pointed at.
 // Content-review alerts are handled IN PLACE (like reservations) — no jump to the noisy calendar.
 function alertIsContentReview(title: string | null | undefined): boolean {
   return /content ready for review/i.test(title || "");
@@ -1459,18 +1425,9 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
 // ───────────────────────── per-event prep: card picker + detail ─────────────────────────
 type Readiness = { done: number; total: number; crit: number };
 
-// "By date / when" bucket for the Prep cards (events.day vs today).
-function whenBucket(day: string | null | undefined): { key: number; label: string } {
-  if (!day) return { key: 4, label: "Unscheduled" };
-  const d = new Date(`${day}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return { key: 4, label: "Unscheduled" };
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
-  if (diff < 0) return { key: 0, label: "Past" };
-  if (diff === 0) return { key: 1, label: "Today" };
-  if (diff <= 7) return { key: 2, label: "This week" };
-  return { key: 3, label: "Later" };
-}
+// "By date / when" bucket for the Prep cards — lib/readiness decides (Past comes LAST there, named
+// "not closed out"; it used to sort first and read "Not started", two months on).
+const whenBucket = (day: string | null | undefined) => prepBucket(day, localToday());
 
 // Pull-up sheet to categorize the card view (date/when sort direction).
 function PrepViewSheet({ dir, setDir, onClose }: { dir: "asc" | "desc"; setDir: (d: "asc" | "desc") => void; onClose: () => void }) {
@@ -5655,9 +5612,9 @@ export default function AdminPage() {
             </>
           )}
           {planTab === "events" && (
-            <>
+            <div id="plan-events">
               <EventsAdmin />
-            </>
+            </div>
           )}
           {planTab === "route" && (
             <>

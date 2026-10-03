@@ -19,6 +19,8 @@
 // So the mechanism lives here once. A fourth caller gets it right by importing it, and the deep-link
 // check in scripts/smoke.cjs makes sure nobody hand-writes a `?a=` at an anchor that does not exist.
 
+import { scrollToAnchor } from "./anchors";
+
 export const PLAN_TABS = ["calendar", "events", "vendors", "route", "leads"] as const;
 export type PlanTab = (typeof PLAN_TABS)[number];
 
@@ -94,10 +96,9 @@ export function goPlanTab(
     stampPlanTab(tab);
     window.dispatchEvent(new Event(PLAN_TAB_EVENT));
     opts.setSection("plan");
-    // The tab's contents mount after the section switch; scroll once they exist.
-    if (opts.anchor) {
-      setTimeout(() => document.getElementById(opts.anchor!)?.scrollIntoView({ behavior: "smooth", block: "start" }), 260);
-    }
+    // The tab's contents mount after the section switch; lib/anchors waits for them (and for the
+    // page to stop moving) before scrolling — the one jump, not a third copy of it.
+    if (opts.anchor) scrollToAnchor(opts.anchor);
     return;
   }
   // Leaving: do NOT dispatch — the page about to be destroyed would eat the handoff. The URL is

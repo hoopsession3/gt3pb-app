@@ -5,6 +5,9 @@ import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useOperatorSection, type OpSection } from "@/components/OperatorNav";
 import { goPlanTab, isPlanTab } from "@/lib/planNav";
+import { scrollToAnchor } from "@/lib/anchors";
+import { taskIsCurrent, targetIsCurrent } from "@/lib/readiness";
+import { localToday } from "@/lib/dates";
 
 // Shared KPI strip — the cohesion audit's "generalize MoneyKpis into one KpiRow" recommendation. One
 // engine renders the .mkpi glance grid that opens Money/Customers/Team/Prep/Garage; each tab just
@@ -19,17 +22,20 @@ import { goPlanTab, isPlanTab } from "@/lib/planNav";
 // jump across sections (down to the same "gt3-plan-tab" localStorage bridge), so this is one more
 // caller of an existing, proven mechanism — not a new one.
 type Sb = NonNullable<typeof supabase>;
-export type KpiDest = { section?: OpSection; planTab?: "calendar" | "events" | "vendors"; anchor?: string; openPanel?: string };
+export type KpiDest = { section?: OpSection; planTab?: "calendar" | "events" | "vendors"; anchor?: string };
 export type KpiTile = { key: string; label: string; load: (db: Sb) => PromiseLike<{ count?: number | null }>; to?: KpiDest };
 
+// A TILE LANDS WHERE IT SAYS (2026-10-03). This used to write `gt3-mpanel-<id>=1` to localStorage
+// and scrollIntoView the anchor 120ms later. <Panel> reads that key once, on mount — so a board
+// someone had collapsed stayed collapsed, and scrolling its closed header (near the end of the
+// screen) to the top took the page as far as it would go. Ryan: "I clicked on each metric and it
+// just scrolled to the bottom." lib/anchors' scrollToAnchor is the jump the alerts and the
+// Settings deep links already use: it asks the panel to open, waits for the page to settle, then
+// scrolls. One jump, three callers.
 function goToDest(d: KpiDest, setSection: (s: OpSection) => void) {
-  // Order matters: stash the sub-tab and force-open the target panel BEFORE switching section, so
-  // whatever mounts as a result of setSection already sees them (same order the alert-click handler
-  // in app/crew/page.tsx uses for the identical bridge).
-  if (d.planTab && isPlanTab(d.planTab)) { goPlanTab(d.planTab); }
-  if (d.openPanel) { try { localStorage.setItem(`gt3-mpanel-${d.openPanel}`, "1"); } catch { /* ignore */ } }
+  if (d.planTab && isPlanTab(d.planTab)) { goPlanTab(d.planTab, { setSection, anchor: d.anchor }); return; }
   if (d.section) setSection(d.section);
-  if (d.anchor) setTimeout(() => document.getElementById(d.anchor!)?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+  if (d.anchor) scrollToAnchor(d.anchor);
 }
 
 function KpiStrip({ tiles, label }: { tiles: KpiTile[]; label: string }) {
@@ -81,15 +87,34 @@ const TEAM_TILES: KpiTile[] = [
 ];
 
 // ── Prep ── what's open before the next event
+// READINESS COUNTS WHAT IS AHEAD (2026-10-03). These counted every open task in the table and every
+// event ever entered: "32 open · 15 critical · 10 on the books", with two-month-old events under
+// them reading "Not started". lib/readiness is the one rule for what is current; the board below
+// the strip reads the same rule, so the number on the tile is the number of rows it opens onto.
+// What is left open from the past is still on the board — last, and named — just not called
+// readiness.
+const openTasks = (db: Sb) => db.from("event_tasks")
+  .select("id, critical, event_id, stop_id, events(day, archived_at, stage), stops(starts_at, archived_at, status)")
+  .eq("done", false).limit(1000);
+type OpenTaskRow = { critical: boolean; event_id: string | null; stop_id: string | null; events: { day: string | null; archived_at: string | null; stage: string | null } | null; stops: { starts_at: string | null; archived_at: string | null; status: string | null } | null };
+const currentTasks = async (db: Sb, critical = false) => {
+  const { data, error } = await openTasks(db);
+  if (error) throw error;
+  const today = localToday();
+  return { count: ((data as unknown as OpenTaskRow[]) ?? []).filter((t) => (!critical || t.critical) && taskIsCurrent(t, today)).length };
+};
 const PREP_TILES: KpiTile[] = [
-  // Open/Critical both point at the exact board sitting right below this strip on the same
-  // screen — force it open (it defaults open, but don't trust that if someone previously
-  // collapsed it — same belt-and-suspenders the Settings deep-links already use) and scroll to it.
-  { key: "open", label: "Open prep tasks", load: (db) => head(db, "event_tasks").eq("done", false), to: { anchor: "prep-board", openPanel: "prep-board" } },
-  { key: "crit", label: "Critical open", load: (db) => head(db, "event_tasks").eq("done", false).eq("critical", true), to: { anchor: "prep-board", openPanel: "prep-board" } },
-  // Events on the books isn't reachable from anywhere on THIS screen — it's a real cross-section
-  // jump to Plan → Events (the only place events are actually managed).
-  { key: "events", label: "Events on the books", load: (db) => head(db, "events"), to: { section: "plan", planTab: "events" } },
+  // Open/Critical both point at the exact board sitting right below this strip on the same screen.
+  { key: "open", label: "Open prep tasks", load: (db) => currentTasks(db), to: { anchor: "prep-board" } },
+  { key: "crit", label: "Critical open", load: (db) => currentTasks(db, true), to: { anchor: "prep-board" } },
+  // Upcoming events isn't reachable from anywhere on THIS screen — it's a real cross-section jump
+  // to Plan › Events (the only place events are actually managed), landing on the list itself.
+  { key: "events", label: "Upcoming events", load: async (db) => {
+      const { data, error } = await db.from("events").select("day, archived_at, stage").is("archived_at", null).limit(1000);
+      if (error) throw error;
+      const today = localToday();
+      return { count: ((data as { day: string | null; archived_at: string | null; stage: string | null }[]) ?? []).filter((e) => targetIsCurrent(e, null, today)).length };
+    }, to: { section: "plan", planTab: "events", anchor: "plan-events" } },
 ];
 
 // ── Assets ── assets + stock health (internal "garage" naming kept for the section key/tiles below,
