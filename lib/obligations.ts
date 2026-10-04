@@ -29,6 +29,10 @@ import { isUuid } from "./uuid";
 // obligationFor() keeps a row only for a viewer who can act on it — its one tap (equipment upkeep is
 // anybody's to log), its being theirs (their to-do, their certificate), or a door they can open.
 //
+// ── A PERMIT RULE OPENS ITSELF (2026-10-04, 0342) ──────────────────────────────────────────────
+// "Needs re-checking" went to the top of Prep and could be answered nowhere. It opens the rule now
+// (components/ComplianceRuleRecord), where the re-check is recorded with where it was checked.
+//
 // ── AN INVOICE IS ITS OWN ANSWER (2026-10-04, 0341) ────────────────────────────────────────────
 // Invoices never reached this list — the app wrote them without a due date and the view keeps only
 // dated ones. Now they do, and the one thing to do about an invoice that is due is say it was paid,
@@ -46,6 +50,7 @@ export type ObligationGo =
   | { kind: "initiative"; id: string }
   | { kind: "page"; href: string }
   | { kind: "section"; section: string; anchor?: string }
+  | { kind: "rule"; id: string }
   | { kind: "none" };
 
 /** Who is looking: their id, the sections their role opens (sectionsForRole), and whether they manage. */
@@ -77,6 +82,11 @@ export function obligationGo(r: ObligationRow, viewer?: Viewer): ObligationGo {
       return { kind: "section", section: "money", anchor: "shoporders" };
     case "invoices":
       return { kind: "none" };
+    case "compliance_rules":
+      // The rule itself (0342): what it says, where to check it, and the answer. Its route said Prep,
+      // which holds nothing about any one rule.
+      if (isUuid(r.subject_id)) return { kind: "rule", id: r.subject_id };
+      break;
   }
   const s = /[?&]s=([a-z-]+)/.exec(r.route || "")?.[1];
   const a = /[?&]a=([a-z0-9-]+)/.exec(r.route || "")?.[1];
@@ -103,6 +113,8 @@ export function obligationFor(r: ObligationRow, v: Viewer): boolean {
       return mine || v.sections.includes("team");    // yours, or the admin who runs the team
     case "invoices":
       return v.sections.includes("money");           // the people who handle money — owners and admins
+    case "compliance_rules":
+      return v.sections.includes("prep");            // whoever preps events — they are the ones who call the county
   }
   const to = obligationGo(r, v);
   if (to.kind === "initiative") return v.sections.includes("command");

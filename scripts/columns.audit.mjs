@@ -173,6 +173,27 @@ export function arrivingColumns(pending = pendingMigrations()) {
   return out;
 }
 
+/**
+ * Tables that pending migrations CREATE, as relation → migration number (2026-10-04).
+ *
+ * The same narrow question as arrivingColumns, one level up. 0342 creates compliance_checks and the
+ * rule sheet reads it — a relation production cannot know until the paste, exactly the state 0337
+ * put a column in. Without this the audit had only one answer for it, "relation not in the
+ * database", which is the stale-snapshot answer, and refreshing the snapshot cannot fix it. Same
+ * comment stripping as arrivingColumns, same null-means-nothing-is-excused rule.
+ */
+export function arrivingRelations(pending = pendingMigrations()) {
+  const out = new Map();
+  if (!pending) return out;
+  for (const [num, raw] of pending) {
+    const sql = raw.split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
+    for (const m of sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z0-9_]+)\s*\(/gi)) {
+      out.set(m[1].toLowerCase(), num);
+    }
+  }
+  return out;
+}
+
 /** Does this file declare that it survives the column being absent? `// arrives-with: 0337` */
 export function declaresArrival(src, num) {
   return new RegExp(`//\\s*arrives-with:\\s*0*${num}\\b`).test(src);
@@ -321,14 +342,33 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   }
 
   const schema = JSON.parse(readFileSync(SNAPSHOT, "utf8"));
-  const arriving = arrivingColumns();
+  const pend = pendingMigrations();
+  const arriving = arrivingColumns(pend);
+  const arrivingRels = arrivingRelations(pend);
   const missingRel = [], missingCol = [], declared = [], undeclared = [];
   for (const [rel, m] of need) {
     // META is the provenance record, not a relation. It cannot collide with one — relation names are
     // [a-zA-Z0-9_]+ — and nothing here would ever look it up, but naming it keeps that deliberate.
     if (rel === META) continue;
     const have = schema[rel];
-    if (!have) { missingRel.push(rel); continue; }
+    if (!have) {
+      const born = arrivingRels.get(rel);
+      if (born === undefined) { missingRel.push(rel); continue; }
+      // A table a pending migration creates: the arriving-column question, asked of every column
+      // the app names on it. Each must be one that migration's create table declares — otherwise
+      // it is a typo in a table that does not exist yet — and every file naming it must say how
+      // it survives the window before the paste.
+      for (const [c, files] of m) {
+        const where = [...files];
+        if (arriving.get(`${rel}.${c}`) !== born) { missingCol.push(`${rel}.${c}  ← ${where.join(", ")} (not in ${String(born).padStart(4, "0")}'s create table)`); continue; }
+        const silent = where.filter((f) => {
+          try { return !declaresArrival(readFileSync(join(ROOT, f), "utf8"), born); } catch { return true; }
+        });
+        if (silent.length) undeclared.push(`${rel}.${c}  arrives with ${String(born).padStart(4, "0")}  ← ${silent.join(", ")}`);
+        else declared.push(`${rel}.${c}  arrives with ${String(born).padStart(4, "0")}  ← ${where.join(", ")}`);
+      }
+      continue;
+    }
     const set = new Set(have);
     for (const [c, files] of m) {
       if (set.has(c)) continue;

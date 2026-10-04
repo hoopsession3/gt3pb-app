@@ -5650,9 +5650,80 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("money: the database test runs in db:test", /node scripts\/db\.collect\.test\.mjs/.test(require("../package.json").scripts["db:test"]));
   ok("collect sheet: the pass and the sheet are painted and held by the design ratchet, day and dark",
     /scripts\/fixtures\/collect-sheet\.html/.test(read("scripts/design.ratchet.mjs"))
-    && /export const COLLECT_SHEET = \{ depth: 2, tap: 44, text: 11\.5 \};/.test(read("scripts/design.ratchet.mjs")));
+    && /export const COLLECT_SHEET = \{ depth: 3, tap: 44, text: 11\.5 \};/.test(read("scripts/design.ratchet.mjs"))
+    && !/class="screen/.test(read("scripts/fixtures/collect-sheet.html")));
   ok("money: the migration names its app half", /lib\/collect\.ts isSettled\(\)/.test(read("supabase/migrations/0341_the_window_says_what_it_took.sql"))
     && /components\/CollectSheet/.test(read("supabase/migrations/0341_the_window_says_what_it_took.sql")));
+}
+
+// ── A PERMIT RULE CAN BE RE-CHECKED FROM THE LIST THAT ASKS FOR IT (2026-10-04, 0342) ───────────
+// Needs you listed permit rules due a re-check, and nothing in the app could record one: verified_on
+// had no writer, and the row went to the top of Prep, which holds nothing about any one rule.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const K = require("../.smoke/complianceCheck.js");
+  const R = require("../.smoke/records.js");
+  const O = require("../.smoke/obligations.js");
+  const uid = "3fe59a00-2e58-43da-a075-aa0484bc4363";
+
+  ok("permits: a re-check names where it was checked, and 'it has changed' says what changed",
+    K.recheckProblem("confirmed", "the county") === null && /where you checked/.test(K.recheckProblem("confirmed", "  ") || "")
+    && /what has changed/.test(K.recheckProblem("changed", "the county", "") || "") && K.recheckProblem("changed", "the county", "new form") === null);
+  ok("permits: a correction needs the rule's words, its source, and a deadline that says how it counts",
+    K.correctionProblem({ label: "Temp permit, 30 business days", link: "", authority: "", leadDays: 30, leadBasis: "business", checkedAgainst: "county site" }) === null
+    && /its words/.test(K.correctionProblem({ label: "x", link: "", authority: "", leadDays: null, leadBasis: null, checkedAgainst: "county site" }) || "")
+    && /business or calendar/.test(K.correctionProblem({ label: "Temp permit", link: "", authority: "", leadDays: 30, leadBasis: null, checkedAgainst: "county site" }) || "")
+    && /not negative/.test(K.correctionProblem({ label: "Temp permit", link: "", authority: "", leadDays: -1, leadBasis: "calendar", checkedAgainst: "county site" }) || ""));
+  ok("permits: a deadline in its own unit, and a date said the way the app says dates",
+    K.deadlineWords(30, "business") === "30 business days before" && K.deadlineWords(null, null) === null
+    && /^Never dated/.test(K.lastCheckedWords(null, "2026-10-04")) && /— today$/.test(K.lastCheckedWords("2026-10-04", "2026-10-04"))
+    && /— 28 days ago$/.test(K.lastCheckedWords("2026-09-06", "2026-10-04")));
+  {
+    const calls = [];
+    const fake = { rpc: async (fn, args) => { calls.push([fn, args]); return { data: null, error: fn === "correct_compliance_rule" ? { message: "only an owner or admin can correct a rule" } : null }; } };
+    PENDING.push((async () => {
+      const a = await K.recheckRule(fake, uid, "confirmed", "  SCDA by phone  ", "  ");
+      const b = await K.correctRule(fake, uid, { label: " Temp permit ", link: "", authority: " SCDA ", leadDays: 10, leadBasis: "business", checkedAgainst: "SCDA", note: "" });
+      ok("permits: the writes are the two RPCs — trimmed, empty as null — and a refusal comes back as the database's sentence",
+        JSON.stringify(calls[0]) === JSON.stringify(["recheck_compliance_rule", { p_rule: uid, p_outcome: "confirmed", p_checked_against: "SCDA by phone", p_note: null }])
+        && JSON.stringify(calls[1]) === JSON.stringify(["correct_compliance_rule", { p_rule: uid, p_label: "Temp permit", p_link: null, p_authority: "SCDA", p_lead_days: 10, p_lead_basis: "business", p_checked_against: "SCDA", p_note: null }])
+        && a.error === null && b.error === "only an owner or admin can correct a rule", { calls, a, b });
+    })());
+  }
+
+  ok("permits: a rule is a record — it has an address, a label, and the 'it changed' alert opens it",
+    R.isRecordKind("compliance_rule") && R.RECORD_LABEL.compliance_rule === "Compliance rule"
+    && R.parseRecordParam(`compliance_rule:${uid}`)?.kind === "compliance_rule"
+    && JSON.stringify(R.recordForAlert("compliance_changed", uid)) === JSON.stringify({ kind: "compliance_rule", id: uid }));
+  ok("permits: a Needs-you rule opens the rule — its route said Prep, which holds nothing about it",
+    JSON.stringify(O.obligationGo({ source: "compliance_rules", subject_id: uid, route: "/crew?s=prep" })) === JSON.stringify({ kind: "rule", id: uid })
+    && O.obligationGo({ source: "compliance_rules", subject_id: "not-a-uuid", route: "/crew?s=prep" }).kind === "section");
+
+  const owedSrc = code(read("components/Owed.tsx")), sheetHost = code(read("components/RecordSheet.tsx"));
+  const rec = code(read("components/ComplianceRuleRecord.tsx")), crew = code(read("app/crew/page.tsx"));
+  ok("permits: Needs you opens the rule's record, and the record host knows the kind",
+    /if \(to\.kind === "rule"\) \{ openRecord\("compliance_rule", to\.id\); return; \}/.test(owedSrc)
+    && /ref\?\.kind === "compliance_rule" && <ComplianceRuleRecord ruleId=\{ref\.id\} onClose=\{closeRecord\} \/>/.test(sheetHost)
+    && /const ComplianceRuleRecord = dynamic\(\(\) => import\("\.\/ComplianceRuleRecord"\), \{ ssr: false \}\);/.test(sheetHost));
+  ok("permits: the sheet answers only where the database can record it — the row says (0342's verified_by key)",
+    /canRecord: !!rule && "verified_by" in rule,/.test(rec) && /\) : !d\.canRecord \? \(/.test(rec));
+  ok("permits: the two answers — still true, dated today; changed, which does not rewrite the rule — and both need where it was checked",
+    /onClick=\{\(\) => recheck\("confirmed"\)\}/.test(rec) && /onClick=\{\(\) => recheck\("changed"\)\}/.test(rec)
+    && /const problem = recheckProblem\(outcome, against, note\);/.test(rec) && /<span>Where did you check it\?<\/span>/.test(rec));
+  ok("permits: correcting the rule is an owner's or admin's, and is checked before it is sent",
+    /\{admin && rule\.active && d\.canRecord && \(/.test(rec) && /const problem = correctionProblem\(c\);/.test(rec) && /await correctRule\(supabase, rule\.id, c\)/.test(rec));
+  ok("permits: the sheet shows what to check it against — the source page, the authority, the deadline, the last check",
+    /Check it against the source/.test(rec) && /Issued by \{rule\.authority\}\./.test(rec) && /lastCheckedWords\(rule\.verified_on, localToday\(\)\)/.test(rec) && /deadlineWords\(rule\.lead_days, rule\.lead_basis\)/.test(rec));
+  ok("permits: approving or dismissing a proposed rule says when the database refused it — it said 'Approved' whatever happened",
+    /const \{ error \} = approve\s*\? await supabase\.from\("compliance_rules"\)\.update\(\{ active: true, verified: true \}\)\.eq\("id", id\)\s*: await supabase\.from\("compliance_rules"\)\.delete\(\)\.eq\("id", id\);\s*if \(error\) \{ toast\(/.test(crew));
+  ok("permits: the vocabulary of a check and of a deadline is declared to the audit",
+    /\/\/ vocab: compliance_checks\.outcome\nexport const CHECK_OUTCOMES/.test(read("lib/complianceCheck.ts")) && /\/\/ vocab: compliance_rules\.lead_basis\nexport const LEAD_BASES/.test(read("lib/complianceCheck.ts")));
+  ok("permits: the database test runs in db:test", /node scripts\/db\.compliance\.test\.mjs/.test(require("../package.json").scripts["db:test"]));
+  ok("permits: the rule sheet is painted and held by the design ratchet — its forms are sections, not boxes in a box",
+    /scripts\/fixtures\/rule-sheet\.html/.test(read("scripts/design.ratchet.mjs")) && /export const RULE_SHEET = \{ depth: 3, tap: 44, text: 10\.5 \};/.test(read("scripts/design.ratchet.mjs"))
+    && /\.crr-fix \.ts-chip\{min-height:44px;/.test(read("app/globals.css")));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

@@ -67,11 +67,18 @@ const PREP_FIXTURE = join(ROOT, "scripts/fixtures/prep-target.html");
 export const PREP_TARGET = { depth: 2, tap: 44, text: 10 };
 // Money at the window (2026-10-04, 0341): two tickets on the pass — one owed with its "Collect",
 // one collected with the collector's undo — under the sheet "Picked up" opens on an owed ticket.
-// Worked one-handed through a window. Measured when it was built: depth 2 is an answer's line
-// inside its card; 44 is every control (the ticket's ⋯ is 44 only inside .admin, which is why the
-// fixture carries the console's own section); 11.5 is a ticket's money line.
+// Worked one-handed through a window. Measured: depth 3 is an answer's card inside the sheet's panel
+// inside its scrim; 44 is every control (the ticket's ⋯ is 44 only inside .admin, which is why the
+// fixture carries that class); 11.5 is a ticket's money line. It first measured depth 2 — over the
+// tickets alone, because the measurement roots at .screen when there is one and the fixture had
+// one, so the sheet was never read. Corrected with the rule sheet (0342), which is how it was found.
 const COLLECT_FIXTURE = join(ROOT, "scripts/fixtures/collect-sheet.html");
-export const COLLECT_SHEET = { depth: 2, tap: 44, text: 11.5 };
+export const COLLECT_SHEET = { depth: 3, tap: 44, text: 11.5 };
+// One permit rule, opened (2026-10-04, 0342): the SC event rule 0284 left unconfirmed, its re-check
+// form and the owner's correction form, the deadline's counts as chips. Filled in on a phone, often
+// on the call to the county; the limits are what it measured when it was built.
+const RULE_FIXTURE = join(ROOT, "scripts/fixtures/rule-sheet.html");
+export const RULE_SHEET = { depth: 3, tap: 44, text: 10.5 };
 const SHEETS = [
   { name: "brew sheet",     file: BREW_FIXTURE,     rel: "scripts/fixtures/brew-sheet.html",     limits: BREW_SHEET },
   { name: "record sheet",   file: RECORD_FIXTURE,   rel: "scripts/fixtures/record-sheet.html",   limits: RECORD_SHEET },
@@ -79,6 +86,7 @@ const SHEETS = [
   { name: "My Day screen",  file: MYDAY_FIXTURE,    rel: "scripts/fixtures/my-day.html",         limits: MY_DAY },
   { name: "prep screen",    file: PREP_FIXTURE,     rel: "scripts/fixtures/prep-target.html",    limits: PREP_TARGET },
   { name: "collect sheet",  file: COLLECT_FIXTURE,  rel: "scripts/fixtures/collect-sheet.html",  limits: COLLECT_SHEET },
+  { name: "rule sheet",     file: RULE_FIXTURE,     rel: "scripts/fixtures/rule-sheet.html",     limits: RULE_SHEET },
 ];
 // The crew console's bottom chrome (2026-10-04): the nav, the floating tier, the rail. Not a depth
 // or a tap floor — a COLLISION check, because the defect was a button painted on top of a tab.

@@ -21,7 +21,7 @@
 
 import { isUuid } from "./uuid";
 
-export const RECORD_KINDS = ["person", "customer", "shop_order", "event", "stop"] as const;
+export const RECORD_KINDS = ["person", "customer", "shop_order", "event", "stop", "compliance_rule"] as const;
 export type RecordKind = (typeof RECORD_KINDS)[number];
 
 export const RECORD_LABEL: Record<RecordKind, string> = {
@@ -37,6 +37,10 @@ export const RECORD_LABEL: Record<RecordKind, string> = {
   // Fourth. Sixteen tables reference a stop — more than the event — and the audit's note about
   // "three editors that disagree about which owns its identity" turned out to be four.
   stop: "Truck stop",
+  // Fifth (2026-10-04, 0342). A permit rule due for a re-check sat under Needs you with nowhere to be
+  // answered; its row went to the top of Prep, which holds nothing about it. Two lines and one
+  // component, again.
+  compliance_rule: "Compliance rule",
 };
 
 export const isRecordKind = (v: unknown): v is RecordKind =>
@@ -66,6 +70,9 @@ export const ALERT_KIND_RECORD: Record<string, RecordKind> = {
   // 0340's stall watchdog names the paid order that has not moved — its critical alert used to open
   // the Money section's order list, leaving the owner to find the one it meant (2026-10-04).
   shop_order_stalled: "shop_order",
+  // 0342: somebody re-checked a permit rule and was told it has changed — Open shows the rule, where
+  // an owner corrects it.
+  compliance_changed: "compliance_rule",
 };
 
 /** Alerts about ONE TASK — every producer writes the event_tasks id as the subject. Open shows that

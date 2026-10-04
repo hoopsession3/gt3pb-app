@@ -183,6 +183,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
     if (to.kind === "person") { openRecord("person", to.id); return; }
     if (to.kind === "initiative") { setInitId(to.id); return; }
     if (to.kind === "page") { window.location.assign(to.href); return; }
+    if (to.kind === "rule") { openRecord("compliance_rule", to.id); return; }
     if (to.kind === "none") return;
     setSection((VALID as Set<string>).has(to.section) ? (to.section as OpSection) : "day");
     scrollToAnchor(to.anchor);

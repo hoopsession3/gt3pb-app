@@ -1698,12 +1698,19 @@ function InspectionPrep() {
     setBusy(false);
   };
 
+  // Approve and dismiss used to drop the proposal from the list and say "Approved" whatever the
+  // database answered — an approve refused by RLS (only an owner or admin may write a rule, 0027)
+  // looked done and never reached the checklist. An approved rule has no date until somebody checks
+  // it with the authority, so it arrives under Needs you to be re-checked (0342) — on purpose: the
+  // agent's research is not a check.
   const decide = async (id: string, approve: boolean) => {
     if (!supabase) return;
-    if (approve) await supabase.from("compliance_rules").update({ active: true, verified: true }).eq("id", id);
-    else await supabase.from("compliance_rules").delete().eq("id", id);
+    const { error } = approve
+      ? await supabase.from("compliance_rules").update({ active: true, verified: true }).eq("id", id)
+      : await supabase.from("compliance_rules").delete().eq("id", id);
+    if (error) { toast(`Couldn't ${approve ? "approve" : "dismiss"} it — ${error.message}`, "error"); return; }
     setRes((r) => r ? { ...r, proposed: r.proposed.filter((p) => p.id !== id) } : r);
-    toast(approve ? "Approved — now in the official checklist" : "Dismissed");
+    toast(approve ? "Approved — on the checklist. Check it with the authority to date it." : "Dismissed");
   };
 
   return (

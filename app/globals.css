@@ -1232,6 +1232,11 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .dops-check.collect{border-color:var(--gold2);color:var(--cream);font-weight:700}
 .oo-badge.done{background:transparent;border:1px solid var(--ok);color:var(--ok)}
 .mypack-paidnote{font-size:12px;color:var(--cream-m);margin:9px 0 0}
+/* A permit rule, opened (components/ComplianceRuleRecord, 0342). Its two forms are headed sections,
+   not boxes inside the sheet's box — the inputs are boxes already. The deadline's two counts are
+   chips, and on a sheet filled in one-handed a chip is a 44px target like everything else on it. */
+.crr-form,.crr-fix{margin-top:16px}
+.crr-fix .ts-chip{min-height:44px;padding:0 14px}
 @keyframes kdsflash{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--brand-red) 0%, transparent)}50%{box-shadow:0 0 0 2px var(--red),0 0 22px color-mix(in srgb, var(--brand-red) 50%, transparent)}}
 .adm-attn{background:rgba(210,69,63,.1);border:1px solid rgba(210,69,63,.32);border-radius:var(--r-xl);padding:11px 14px;margin-top:9px;font-size:12.5px;line-height:1.45;color:#e7b6b3}
 .adm-attn b{color:#fff;font-weight:600}

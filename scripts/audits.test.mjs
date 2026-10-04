@@ -10,7 +10,7 @@ import { classifyEffect, effectAt } from "./render.audit.mjs";
 import { isFalseEmpty, catchesButHides } from "./falseempty.audit.mjs";
 import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate.audit.mjs";
 import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn, rendersRawCrewOption, peelsErrorMessageByHand } from "./dupe.audit.mjs";
-import { selectsIn, topLevelParts, columnsOf, ageLine, pendingMigrations, arrivingColumns, declaresArrival } from "./columns.audit.mjs";
+import { selectsIn, topLevelParts, columnsOf, ageLine, pendingMigrations, arrivingColumns, arrivingRelations, declaresArrival } from "./columns.audit.mjs";
 import { definitionsToSchema, refuseReason, projectRef } from "./schema.snapshot.mjs";
 import { classify as classifyRoute, unwrapped, boundOf } from "./api.audit.mjs";
 import { reassemble } from "./security.snapshot.mjs";
@@ -431,6 +431,14 @@ ok("arriving: with nothing pending, NOTHING is arriving — an applied migration
 // "exempt everything" — a failed read is not an empty list, in the direction that stays strict.
 ok("arriving: an unreadable pending set exempts nothing",
   arrivingColumns(null).size === 0);
+
+// A TABLE that arrives (2026-10-04): 0342 creates compliance_checks and the rule sheet reads it.
+ok("arriving: a table a pending migration creates is found, with its migration",
+  arrivingRelations(pm).get("new_thing") === 337 && arrivingRelations(pm).size === 1, [...arrivingRelations(pm)]);
+ok("arriving: a create table quoted in a COMMENT is not a table",
+  !arrivingRelations(pendingMigrations(paste(1, section("0337_adds.sql", "-- create table public.ghost (\n--   id uuid\n-- );\nselect 1;")))).has("ghost"));
+ok("arriving: with nothing pending, or an unreadable pending set, no table is arriving",
+  arrivingRelations(pendingMigrations(paste(0))).size === 0 && arrivingRelations(null).size === 0);
 
 ok("arriving: a call site declares it survives the gap with the marker",
   declaresArrival("// arrives-with: 0337 — falls back\nconst x = 1;", 337) === true);

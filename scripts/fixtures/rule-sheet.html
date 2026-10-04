@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>fixture · Compliance rule › re-check, day theme</title>
+<!--
+  A TEST DOUBLE OF ONE PERMIT RULE, OPENED, AND IT SAYS SO (2026-10-04, migration 0342).
+
+  A rule due for a re-check under Needs you went to the top of Prep and could be answered nowhere.
+  This is the sheet it opens now, as an owner sees it: the South Carolina event-authorization rule
+  0284 left NOT CONFIRMED, its re-check form, and the correction form opened — the deadline's two
+  counts as chips.
+
+  Same construction as record-sheet.html: the DOM class for class as
+  components/ComplianceRuleRecord.tsx and components/Sheet.tsx produce it, styled by the REAL
+  app/globals.css, painted in the real Chromium at phone width, day and dark. Every block names its
+  source in `data-from`, and scripts/design.ratchet.mjs FAILS if a class used here no longer appears
+  in that file.
+
+  The floor that matters is the TAP FLOOR, 44px: it is filled in on a phone, often on the call.
+-->
+<link rel="stylesheet" href="../../app/globals.css">
+<style>html,body{margin:0;background:#F4EFE3}</style>
+</head>
+<body>
+<div class="app crew-day" data-from="components/AppShell.tsx">
+  <div class="sheet2-scrim" data-from="components/Sheet.tsx" style="position:static;padding:12px 0 0">
+    <div class="sheet2 " role="dialog" aria-modal="true" aria-label="Compliance rule" style="margin:0 auto">
+      <div class="sheet2-grab"></div>
+      <div class="sheet2-head">
+        <div class="cp-head" data-from="components/ComplianceRuleRecord.tsx">
+          <b>Compliance rule</b>
+          <button type="button" class="qd-x" title="Close" aria-label="Close" data-from="components/Sheet.tsx">✕</button>
+        </div>
+      </div>
+      <div class="sheet2-body">
+       <div data-from="components/ComplianceRuleRecord.tsx">
+        <div class="so-id">
+          <div class="cp-id-t"><b>Permit · critical</b><span>SC · statewide</span></div>
+          <span class="so-pill so-us">Not confirmed</span>
+        </div>
+        <p class="so-means" style="color:var(--cream)">Event authorization for a temporary/mobile setup — CONFIRM the current form and agency with SCDA</p>
+        <p class="pnl-note">Issued by South Carolina Department of Agriculture (verify).</p>
+        <p class="pnl-note">Deadline: 14 calendar days before the event.</p>
+        <p class="pnl-note">Never dated — nobody recorded when this was confirmed · UNVERIFIED — do not rely on it without asking the authority.</p>
+        <p class="evr-owed">NOT CONFIRMED. A DHEC event-authorization form (DHEC 1717, rev 12/2023) recommends submitting 14 days ahead — but retail food permitting has since moved to SCDA. Ask SCDA which form applies now.</p>
+        <a class="cp-go" href="#" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px">Check it against the source ↗</a>
+
+        <div class="crr-form">
+          <div class="cp-block-h">Re-check it</div>
+          <label class="prod-f"><span>Where did you check it?</span>
+            <input class="note-in" value="SCDA, 803-896-0640" aria-label="Where did you check it?">
+          </label>
+          <label class="prod-f"><span>Anything to add? (optional)</span>
+            <textarea class="note-in" rows="2" aria-label="Anything to add?"></textarea>
+          </label>
+          <div class="prod-actions" style="margin-top:12px">
+            <button type="button" class="note-arch">It’s changed</button>
+            <button type="button" class="note-save">Still true — checked today</button>
+          </div>
+        </div>
+
+        <button type="button" class="prep-collapse prep-tool" aria-expanded="true">
+          <span class="prep-collapse-l"><b>Correct the rule</b><span>From what the authority said — with where you checked, above</span></span>
+          <span class="ev-chev open">›</span>
+        </button>
+          <div class="crr-fix">
+            <label class="prod-f"><span>What it requires</span>
+              <textarea class="note-in" rows="3" aria-label="What it requires">Event authorization — apply in the SCDA portal at least 10 business days out</textarea>
+            </label>
+            <label class="prod-f"><span>Issued by</span>
+              <input class="note-in" value="South Carolina Department of Agriculture" aria-label="Issued by">
+            </label>
+            <label class="prod-f"><span>The page it is checked against</span>
+              <input class="note-in" inputmode="url" value="https://retailfoodregistration.agriculture.sc.gov/registration" aria-label="The page it is checked against">
+            </label>
+            <div class="prod-f"><span>Deadline before the event — leave empty if there is none</span>
+              <div style="display:flex;gap:8px">
+                <input class="note-in" inputmode="numeric" value="10" aria-label="Days" style="width:90px">
+                <div class="ts-chips" role="group" aria-label="Business or calendar days">
+                  <button type="button" class="ts-chip on" aria-pressed="true">business days</button>
+                  <button type="button" class="ts-chip" aria-pressed="false">calendar days</button>
+                </div>
+              </div>
+            </div>
+            <div class="prod-actions" style="margin-top:12px">
+              <span></span>
+              <button type="button" class="note-save">Save the correction</button>
+            </div>
+          </div>
+       </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
