@@ -17,6 +17,7 @@ let pass = 0, fail = 0;
 const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
 const db = new PGlite();
 const q1 = async (s) => (await db.query(s)).rows[0];
+const rows = async (s) => (await db.query(s)).rows;
 
 await db.exec(`
   create role anon; create role authenticated; create role service_role;
@@ -54,6 +55,17 @@ await db.exec(`
 
 // 0050's alerts table and 0255's watchdog, from their own files — the thing being changed.
 await db.exec(readFileSync(join(ROOT, "supabase/migrations/0050_alerts.sql"), "utf8"));
+// 0157 is the fan-out (every alert INSERT is a push to every owner's phone and a Teams message) and
+// the per-person read state behind "Got it". Its trigger calls supabase_functions.http_request,
+// which PGlite does not have: the double RECORDS each call instead of making it, so the 0340 block
+// below can count the pushes a change would have sent, which is the cost an owner actually feels.
+await db.exec(`
+  create schema if not exists supabase_functions;
+  create table public.test_pushes (alert_id uuid, at timestamptz default now());
+  create or replace function supabase_functions.http_request() returns trigger language plpgsql as $$
+  begin insert into public.test_pushes (alert_id) values (new.id); return new; end $$;
+`);
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0157_alert_spine.sql"), "utf8"));
 // 0174 is what gives an alert a `kind` — the column the whole dedupe turns on.
 await db.exec(readFileSync(join(ROOT, "supabase/migrations/0174_actionable_alerts.sql"), "utf8"));
 await db.exec(readFileSync(join(ROOT, "supabase/migrations/0255_ops_heartbeat_watchdog.sql"), "utf8"));
@@ -339,6 +351,236 @@ ok("0327: a healthy heartbeat raises nothing — the check still has to be able 
       where version='0336_the_guard_that_matched_on_a_sentence'`)).n === 1);
 }
 
+
+// ── 0340: A MONITOR JUDGED BY ITS OWN PERIOD ───────────────────────────────────────────────────
+// Ryan's inbox, 2026-10-04: "No uptime monitor is watching the app ×63". A monitor had existed for
+// two days — production.yml, verify:prod --quick every thirty minutes, each run stamping the
+// heartbeat — and the watchdog called a stamp stale after thirty. GitHub's scheduler is late by
+// documented policy (top-of-hour load; queued runs dropped), so every late run was a "silence".
+//
+// TIME IS SIMULATED THE WAY THE EPISODE HELPER ABOVE DOES IT: by moving every stored clock
+// backwards, which is all the passage of time is to rows that only ever compare themselves to now().
+{
+  // GitHub's half-hourly check as it arrives: the :00 runs late under top-of-hour load, the :30
+  // runs a little late, and one run (index 23) never comes. Minutes after the scheduled time.
+  const DELAYS = [14, 4, 22, 6, 9, 3, 31, 9, 17, 5, 12, 2, 26, 7, 8, 4, 19, 3, 35, 8, 11, 5, 24, null,
+                  16, 2, 9, 4, 28, 7, 13, 3, 21, 5, 7, 6, 33, 4, 15, 3, 10, 8, 25, 2, 18, 5, 12, 4];
+  const EVENTS = [];
+  DELAYS.forEach((d, i) => { if (d != null) EVENTS.push({ t: 30 * i + d, k: "stamp" }); });
+  for (let t = 10; t <= 24 * 60; t += 10) EVENTS.push({ t, k: "watch" });    // pg_cron, */10
+  EVENTS.sort((a, b) => a.t - b.t || (a.k === "stamp" ? -1 : 1));
+
+  // What a rule with threshold T must count on that day: distinct stamps ever seen stale.
+  const silences = (T) => {
+    let last = 0; const seen = new Set();
+    for (const e of EVENTS) {
+      if (e.k === "stamp") last = e.t;
+      else if (e.t - last >= T) seen.add(last);
+    }
+    return seen.size;
+  };
+
+  let counted = false;   // ops_heartbeat.counted_stamp exists from 0340 on
+  const advance = async (mins) => {
+    if (mins <= 0) return;
+    await db.exec(`
+      update public.ops_heartbeat set seen_at = seen_at - interval '${mins} minutes'
+        ${counted ? `, counted_stamp = counted_stamp - interval '${mins} minutes'` : ""} where id = 1;
+      update public.alerts set created_at = created_at - interval '${mins} minutes',
+                               last_seen_at = last_seen_at - interval '${mins} minutes'
+       where kind = 'heartbeat_stale';`);
+  };
+  const stamp = () => db.exec(`update public.ops_heartbeat set seen_at = now() where id = 1`);
+  const watch = () => db.exec(`select public.heartbeat_watchdog()`);
+  const replayDay = async () => {
+    await stamp();
+    let at = 0;
+    for (const e of EVENTS) { await advance(e.t - at); at = e.t; if (e.k === "stamp") await stamp(); else await watch(); }
+  };
+  // Quiet for `mins`, the watchdog running every ten minutes throughout.
+  const quietFor = async (mins) => { for (let m = 10; m <= mins; m += 10) { await advance(10); await watch(); } };
+  const hb = async () => rows(`select id, title, body, severity, occurrences, ack_at, ack_by, created_at, last_seen_at
+                                  from public.alerts where kind = 'heartbeat_stale' order by created_at`);
+  const openHb = async () => (await hb()).filter((a) => a.ack_at === null);
+  const pushes = async () => Number((await q1(`select count(*) n from public.test_pushes`)).n);
+
+  // ── REPRODUCE: the jittery day, judged by 0327's thirty minutes ──────────────────────────────
+  await db.exec(`delete from public.alerts where kind = 'heartbeat_stale'`);
+  await replayDay();
+  const day27 = await openHb();
+  ok("0327: a monitor that never once stopped still produces an 'uptime' alert",
+    day27.length === 1, day27.length);
+  ok("0327: …counting a 'silence' every time the check was late — what the ×63 was made of",
+    Number(day27[0]?.occurrences) === silences(30) && silences(30) >= 10, { db: day27[0]?.occurrences, expected: silences(30) });
+  ok("0327: …under a title that says no monitor exists, which was false",
+    /no uptime monitor/i.test(day27[0]?.title ?? ""), day27[0]?.title);
+  ok("the day itself has no gap a 90-minute rule would call a silence", silences(90) === 0, silences(90));
+
+  // ── THE CRASH ROWS 0303 RULED ON AND NEVER RESTATED ─────────────────────────────────────────
+  // What the pre-0303 producer wrote (app/api/errors/report as of b6c923b): kind null, category
+  // system, link /crew, title by fatality, body = the message and " · " and the path. The first two
+  // are the two rows in Ryan's inbox; the rest are what must NOT be swept up with them.
+  const crash = [
+    { k: "jul16",   at: "2026-07-16 15:02:00+00", sev: "critical", kind: null, body: "module factory is not available · /menu", restate: true },
+    { k: "sep6",    at: "2026-09-07 00:30:00+00", sev: "critical", kind: null, body: "Failed to load chunk /_next/static/chunks/0pfvpf_6yqhu-.js?dpl=dpl_AXuE7noGhgUrg8BQPrzp6uVDzLjQ from module 74850 · /crew", restate: true },
+    { k: "webpack", at: "2026-08-01 12:00:00+00", sev: "critical", kind: null, body: "ChunkLoadError: Loading chunk 42 failed. · /reserve", restate: true },
+    { k: "import",  at: "2026-08-02 12:00:00+00", sev: "critical", kind: null, body: "Importing a module script failed. · /shop", restate: true },
+    // lib/deploySkew calls these skew too (REBUILT) — broad there because a wrong guess costs one
+    // reload. Here a wrong guess would cost a real crash its alert, so they are left alone.
+    { k: "rebuilt", at: "2026-08-03 12:00:00+00", sev: "critical", kind: null, body: "t.mixTotal is not a function · /reserve", restate: false },
+    { k: "safari",  at: "2026-08-04 12:00:00+00", sev: "critical", kind: null, body: "undefined is not an object (evaluating 'o.mixTotal') · /reserve", restate: false },
+    { k: "realbug", at: "2026-08-05 12:00:00+00", sev: "critical", kind: null, body: "Cannot read properties of null (reading 'market') · /plan", restate: false },
+    { k: "api",     at: "2026-08-06 12:00:00+00", sev: "critical", kind: null, body: "Request failed with status 500 · /money", restate: false },
+    // After 0303's producer: a critical skew row means three reloads failed. 0303 kept it critical on purpose.
+    { k: "after",   at: "2026-09-20 12:00:00+00", sev: "critical", kind: null, body: "Failed to load chunk /_next/static/chunks/abc.js from module 1 · /crew", restate: false },
+    // Someone else's critical that happens to mention a chunk, and an important that is one.
+    { k: "kinded",  at: "2026-08-07 12:00:00+00", sev: "critical", kind: "ops_incident", body: "ChunkLoadError while sending · /crew", restate: false },
+    { k: "notcrit", at: "2026-08-08 12:00:00+00", sev: "important", kind: null, body: "ChunkLoadError: Loading chunk 7 failed. · /crew", restate: false },
+  ];
+  for (const c of crash) {
+    await db.exec(`insert into public.alerts (severity, category, title, body, link, kind, created_at)
+      values ('${c.sev}', 'system', 'App error — a screen crashed', '${c.body.replace(/'/g, "''")}', '/crew',
+              ${c.kind ? `'${c.kind}'` : "null"}, '${c.at}')`);
+  }
+  const crashRow = async (c) => q1(`select severity, ack_at, ack_by, title, body from public.alerts
+                                     where body = '${c.body.replace(/'/g, "''")}' and created_at = '${c.at}'`);
+
+  // ── AND THE SUBJECT THE DATABASE REFUSES ─────────────────────────────────────────────────────
+  // alerts.subject_id is a uuid (0174). lib/errorIntake keyed its storm line on the business DAY and
+  // the Square webhook keyed chargeback_open on Square's dispute id — neither is a uuid, the insert
+  // fails, and raiseAlert swallows the failure by contract. So the critical "a card dispute was
+  // opened" alert has never been able to exist. Shown here at the database; fixed in lib/serverAlerts.
+  for (const [what, key] of [["a business day", "2026-10-04"], ["a Square dispute id", "XDgyFu7yo1E2S5lQGGpYn"]]) {
+    let refused = null;
+    try { await db.exec(`insert into public.alerts (severity, category, title, kind, subject_id)
+                         values ('critical', 'money', 'x', 'probe', '${key}')`); }
+    catch (e) { refused = String(e?.message ?? e); }
+    ok(`alerts.subject_id refuses ${what} — the insert raiseAlert has been silently losing`,
+      refused !== null && /uuid/i.test(refused), refused);
+  }
+
+  // ── APPLY 0340 ───────────────────────────────────────────────────────────────────────────────
+  // 0340 restates the stalled-order alerts by running their producer, which reads v_shop_orders.
+  // This world sells no merch, so it gets the view with no rows — the shape 0340 reads, nothing else.
+  await db.exec(`create view public.v_shop_orders as
+    select null::uuid as id, null::text as who, null::text as status, null::int as age_hours,
+           null::int as total_cents, null::text as items, null::timestamptz as created_at,
+           null::timestamptz as status_changed_at, false as waiting_on_us
+     where false`);
+  const pushesBefore = await pushes();
+  await db.exec(readFileSync(join(ROOT, "supabase/migrations/0340_three_things_the_inbox_still_said.sql"), "utf8"));
+  counted = true;
+  ok("0340 applies against a real Postgres", true);
+  ok("0340: applying it pushed nobody's phone", (await pushes()) === pushesBefore, (await pushes()) - pushesBefore);
+
+  const retired = (await hb())[0];
+  ok("0340: the ×N line is retired — acknowledged by the mechanism, kept for history",
+    (await openHb()).length === 0 && retired?.ack_at !== null && retired?.ack_by === null, retired);
+
+  for (const c of crash) {
+    const r = await crashRow(c);
+    if (c.restate) {
+      ok(`0340: ${c.k} — restated to what 0303 decided this family is, and swept out of the feed`,
+        r?.severity === "fyi" && r?.ack_at !== null && r?.ack_by === null, r);
+      ok(`0340: ${c.k} — its title and body untouched: what it said is the record of what was shown`,
+        r?.title === "App error — a screen crashed" && r?.body === c.body);
+    } else if (c.sev === "critical") {
+      ok(`0340: ${c.k} — left exactly as it was`, r?.severity === "critical" && r?.ack_at === null, r);
+    } else {
+      // Not restated. The sweep 0340 runs may still age a non-critical out — exactly what it would
+      // have done at :17 — so what is asserted is that 0340 did not reclassify it.
+      ok(`0340: ${c.k} — not reclassified`, r?.severity === c.sev, r);
+    }
+  }
+
+  // THE KNOWN PAIR: 0340's signatures must be a SUBSET of what the app itself calls skew. The real
+  // lib/deploySkew.ts is compiled and asked about every message above.
+  const ts = (await import("typescript")).default;
+  const mod = { exports: {} };
+  new Function("module", "exports", "require",
+    ts.transpileModule(readFileSync(join(ROOT, "lib/deploySkew.ts"), "utf8"),
+      { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText,
+  )(mod, mod.exports, () => ({}));
+  const isSkew = mod.exports.isDeploySkew;
+  ok("known pair: lib/deploySkew was compiled and found", typeof isSkew === "function");
+  const claimedButNotSkew = crash.filter((c) => c.restate && !isSkew(c.body.replace(/ · \/[a-z]*$/, "")));
+  ok("known pair: every message 0340 restates is one the app itself calls a stale build",
+    claimedButNotSkew.length === 0, claimedButNotSkew.map((c) => c.k));
+  ok("known pair: …and the REBUILT family the app guesses at is deliberately not claimed",
+    isSkew("t.mixTotal is not a function") && !crash.find((c) => c.k === "rebuilt").restate);
+
+  // ── THE SAME DAY, JUDGED BY THREE PERIODS ────────────────────────────────────────────────────
+  await replayDay();
+  ok("0340: the jittery day — late runs, a dropped one — raises nothing at all", (await hb()).length === 1, (await hb()).length);
+
+  // ── A REAL SILENCE ───────────────────────────────────────────────────────────────────────────
+  const p0 = await pushes();
+  await stamp();                                            // the silence starts now
+  await quietFor(80);
+  ok("0340: eighty quiet minutes is still not a silence", (await openHb()).length === 0, (await openHb()).length);
+  await quietFor(10);
+  let open = await openHb();
+  ok("0340: at ninety it is — one line", open.length === 1, open.length);
+  ok("0340: …saying how long in minutes while it is under two hours", / — 9\d minutes, against/.test(open[0]?.body ?? ""), open[0]?.body);
+  await quietFor(60);                                       // 150 minutes in all
+  open = await openHb();
+  ok("0340: …and in hours past that, rounded DOWN and said so", / — over 2 hours, against/.test(open[0]?.body ?? ""), open[0]?.body);
+  ok("0340: …one push, not one per run", (await pushes()) === p0 + 1, (await pushes()) - p0);
+  ok("0340: …important, as 0327 decided", open[0]?.severity === "important");
+  ok("0340: …titled so it stays true after the check comes back", open[0]?.title === "The uptime check went quiet", open[0]?.title);
+  ok("0340: …and it says what is true now that a monitor exists",
+    /GitHub \(Actions › Production\)/.test(open[0]?.body ?? "") && /every half hour/.test(open[0]?.body ?? "")
+    && !/no uptime monitor|wire one/i.test(open[0]?.body ?? ""), open[0]?.body);
+  ok("0340: a continuous silence is one occurrence however many runs see it", Number(open[0]?.occurrences) === 1);
+  ok("0340: last_seen_at now means one thing — the last run that found it quiet",
+    Math.abs(new Date(open[0]?.last_seen_at).getTime() - Date.now()) < 60_000, open[0]?.last_seen_at);
+
+  // ── IT COMES BACK ────────────────────────────────────────────────────────────────────────────
+  await db.exec(`create table public.test_hb_writes (n int);
+    create or replace function public.test_count_hb() returns trigger language plpgsql as $$
+    begin if new.kind = 'heartbeat_stale' then insert into public.test_hb_writes values (1); end if; return new; end $$;
+    create trigger test_count_hb after update on public.alerts for each row execute function public.test_count_hb();`);
+  await stamp(); await advance(10); await watch();
+  open = await openHb();
+  ok("0340: when checks resume, the line stops saying nothing has checked",
+    /^It went quiet after \w{3}, \w{3} \d{1,2}, \d{1,2}:\d{2} [AP]M ET and was still quiet at \d{1,2}:\d{2} [AP]M ET\. It has been checking in again since\./.test(open[0]?.body ?? ""), open[0]?.body);
+  const writes = async () => Number((await q1(`select count(*) n from public.test_hb_writes`)).n);
+  // No clock is moved here on purpose: the harness simulates time by shifting stored timestamps,
+  // which would change the absolute times this text prints. In the real world nothing it prints
+  // moves while checks are healthy (when it went quiet, when it was last seen quiet), and that is
+  // the property under test — six healthy runs, zero writes.
+  const w1 = await writes();
+  for (let i = 0; i < 6; i++) { await stamp(); await watch(); }
+  ok("0340: …written once — a healthy hour is not six updates to every open console", (await writes()) === w1, (await writes()) - w1);
+
+  // ── DISMISSED, THEN IT HAPPENS AGAIN ─────────────────────────────────────────────────────────
+  const U = (await q1(`insert into auth.users default values returning id`)).id;
+  await db.exec(`insert into public.alert_reads (alert_id, user_id) values ('${open[0].id}', '${U}')`);
+  const p1 = await pushes();
+  await quietFor(120);
+  open = await openHb();
+  ok("0340: a new silence is counted on the same line", open.length === 1 && Number(open[0]?.occurrences) === 2, open);
+  ok("0340: …and RE-SURFACES it for whoever dismissed the last one — Got it on a broadcast never sets ack_at",
+    Number((await q1(`select count(*) n from public.alert_reads where alert_id = '${open[0].id}'`)).n) === 0);
+  ok("0340: …without another push: same line, same story", (await pushes()) === p1, (await pushes()) - p1);
+  ok("0340: …and the body is back to saying it is quiet", /^Nothing has checked \/api\/health since/.test(open[0]?.body ?? ""), open[0]?.body);
+
+  // Cleared by a mechanism (the sweep, 0258), the next silence is a new line and a new push.
+  await stamp(); await advance(10); await watch();
+  await db.exec(`update public.alerts set ack_at = now() where kind = 'heartbeat_stale' and ack_at is null`);
+  const p2 = await pushes();
+  await quietFor(100);
+  ok("0340: once a line is cleared, the next silence opens a new one and says so out loud",
+    (await openHb()).length === 1 && (await pushes()) === p2 + 1);
+
+  ok("0340: a stranger cannot run the watchdog", (await q1(
+    `select has_function_privilege('anon', 'public.heartbeat_watchdog()', 'execute') a,
+            has_function_privilege('authenticated', 'public.heartbeat_watchdog()', 'execute') b`)).a === false);
+
+  ok("0340 recorded itself", (await q1(
+    `select count(*)::int n from public.schema_migrations where version='0340_three_things_the_inbox_still_said'`)).n === 1);
+}
+
 console.log(`AN ALERT THAT CRIES WOLF: ${pass} passed, ${fail} failed`);
-console.log(`0255 + 0258 + 0327 + 0333 executed against a real Postgres.\n`);
+console.log(`0157 + 0255 + 0258 + 0327 + 0333 + 0336 + 0340 executed against a real Postgres.\n`);
 process.exit(fail ? 1 : 0);

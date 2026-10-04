@@ -35,6 +35,8 @@
 // environment variable", which is the difference between a decision someone can make and one they
 // keep postponing.
 
+import { isUuid } from "./uuid";
+
 /**
  * The founding GT3PB tenant. The same literal 0134's stamp_tenant() falls back to, so a row written
  * by a guest and a row read for a guest agree by construction rather than by luck.
@@ -54,5 +56,4 @@ export const integrationTenant = (): string =>
   process.env.GT3_INTEGRATION_TENANT_ID?.trim() || FOUNDING_TENANT;
 
 /** True when a value looks like the uuid a tenant id is, so a mistyped env var fails loudly. */
-export const isTenantId = (v: unknown): v is string =>
-  typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+export const isTenantId = (v: unknown): v is string => isUuid(v);

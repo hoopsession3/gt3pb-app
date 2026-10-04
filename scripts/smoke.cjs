@@ -3705,6 +3705,237 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   }
 }
 
+// ── THREE THINGS THE INBOX STILL SAID (0340) ─────────────────────────────────────────────────────
+// Ryan's inbox, 2026-10-04, "3 critical", and not one of the three lines true about now: a stalled-
+// order title frozen at "12 hours" over a body reading 119; two crash alerts 0303 had already ruled
+// were reloads; and "No uptime monitor ×63" about a monitor that existed. Each one is a pair of
+// things that had stopped agreeing, so each one is checked here as a pair.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const root = path.join(__dirname, "..");
+  const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
+  const migDir = path.join(root, "supabase", "migrations");
+  const migs = fs.readdirSync(migDir).filter((n) => n.endsWith(".sql")).sort();
+  const sqlOf = (n) => fs.readFileSync(path.join(migDir, n), "utf8");
+  const latestDefining = (fn) => [...migs].reverse().find((n) =>
+    new RegExp(`create\\s+or\\s+replace\\s+function\\s+public\\.${fn}\\s*\\(`, "i").test(sqlOf(n)));
+  // The body of one function: from its create to the end of its $$…$$.
+  const fnText = (sql, fn) => {
+    const at = sql.search(new RegExp(`create\\s+or\\s+replace\\s+function\\s+public\\.${fn}\\s*\\(`, "i"));
+    if (at < 0) return "";
+    const open = sql.indexOf("$$", at);
+    const close = open < 0 ? -1 : sql.indexOf("$$", open + 2);
+    return close < 0 ? "" : sql.slice(at, close + 2);
+  };
+  const noComments = (t) => t.split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
+
+  // ── 1 · THE MONITOR AND THE RULE THAT JUDGES IT ─────────────────────────────────────────────
+  // production.yml checks the app every N minutes; heartbeat_watchdog calls the check quiet after M.
+  // 0327 had M = 30 against N = 30, so any late run was a "silence" — and GitHub's scheduler is late
+  // by documented policy. Two files, neither able to read the other: a known pair, held to M ≥ 3N
+  // (one late run and one dropped run must not be an alert).
+  const periodOf = (cron) => {           // minutes between runs, for a schedule whose hour field is *
+    const [min, hour] = String(cron || "").trim().split(/\s+/);
+    if (hour !== "*" || !min) return null;
+    const step = /^\*\/(\d+)$/.exec(min);
+    if (step) return Number(step[1]);
+    const list = min.split(",").map(Number);
+    if (!list.length || list.some((n) => !Number.isInteger(n) || n < 0 || n > 59)) return null;
+    const m = [...list].sort((a, b) => a - b);
+    return Math.max(...m.map((x, i) => (i + 1 < m.length ? m[i + 1] - x : 60 - x + m[0])));
+  };
+  const startsAtTopOfHour = (cron) => {
+    const min = String(cron || "").trim().split(/\s+/)[0] || "";
+    return /^\*\/\d+$/.test(min) || min.split(",").map(Number).includes(0);
+  };
+  const wf = read(".github/workflows/production.yml");
+  const quick = /-\s*cron:\s*"([^"]+)"\s*#\s*quick/.exec(wf);
+  const N = quick ? periodOf(quick[1]) : null;
+  const hbFile = latestDefining("heartbeat_watchdog");
+  const hbSql = hbFile ? sqlOf(hbFile) : "";
+  const declared = /--\s*heartbeat-stale-after:\s*(\d+)/i.exec(hbSql);
+  const used = /hb\s*>\s*now\(\)\s*-\s*interval\s*'(\d+) minutes'/i.exec(fnText(hbSql, "heartbeat_watchdog"));
+  ok("uptime pair: production.yml's quick schedule was found", !!quick, quick && quick[1]);
+  ok("uptime pair: …and its period read", Number.isInteger(N) && N > 0, N);
+  ok("uptime pair: the latest heartbeat_watchdog declares its threshold with `-- heartbeat-stale-after:`", !!declared, hbFile);
+  ok("uptime pair: …and the function uses exactly that number", !!used && !!declared && used[1] === declared[1],
+    { declared: declared && declared[1], used: used && used[1] });
+  ok("uptime pair: the watchdog waits at least three of the monitor's periods",
+    !!declared && Number.isInteger(N) && Number(declared[1]) >= 3 * N, { threshold: declared && declared[1], period: N });
+  ok("uptime pair: the quick check is off the top of the hour (GitHub's busiest minute)",
+    !!quick && !startsAtTopOfHour(quick[1]), quick && quick[1]);
+  ok("uptime pair: the step that picks the quick form compares against the schedule that exists",
+    !!quick && wf.includes(`github.event.schedule }}" = "${quick[1]}"`));
+  // PROVE IT BITES — 0327's numbers, and the parser on the shapes a schedule can take.
+  ok("uptime pair: fed 0327's thirty minutes against a */30 schedule, the rule fails", !(30 >= 3 * periodOf("*/30 * * * *")));
+  ok("uptime pair: periods are read the way cron means them",
+    periodOf("7,37 * * * *") === 30 && periodOf("*/15 * * * *") === 15 && periodOf("0 * * * *") === 60
+    && periodOf("5,20,50 * * * *") === 30 && periodOf("10 6 * * *") === null);
+  ok("uptime pair: */30 is a top-of-the-hour schedule, 7,37 is not",
+    startsAtTopOfHour("*/30 * * * *") && startsAtTopOfHour("0,30 * * * *") && !startsAtTopOfHour("7,37 * * * *"));
+
+  // ── 2 · A PRODUCER RE-EMITTED MUST RESTATE WHAT IT ALREADY WROTE ──────────────────────────────
+  // 0333's header says this gate exists: "a migration that re-emits an alert producer must either
+  // restate the existing rows or say in one line why none need it". It did not. 0303 then turned out
+  // to be the case it was for — producer fixed, rows left critical, two of them in Ryan's inbox a
+  // month later. FLOOR at 0340, where the claim finally becomes true; history is not retro-judged.
+  //
+  // A producer is a function that writes alerts (an INSERT or alert_open_once). It is restated by:
+  //   (a) the migration running it   — alert_open_once rewrites its open rows' title and body
+  //   (b) an UPDATE of public.alerts naming one of the kinds it writes
+  //   (c) a line `-- existing rows: <function> — <why none need restating>`
+  const PRODUCER_FLOOR = 340;
+  const producersIn = (sql) => {
+    const out = [];
+    for (const m of sql.matchAll(/create\s+or\s+replace\s+function\s+public\.([a-z_0-9]+)\s*\(/gi)) {
+      const name = m[1];
+      if (name === "alert_open_once") continue;
+      const body = fnText(sql, name);
+      if (/insert\s+into\s+public\.alerts/i.test(body) || /alert_open_once\s*\(/i.test(body)) {
+        const kinds = [...body.matchAll(/alert_open_once\(\s*'([a-z_0-9]+)'/gi)].map((k) => k[1]);
+        out.push({ name, kinds });
+      }
+    }
+    return out;
+  };
+  const unrestated = (sql) => {
+    const top = noComments(sql).replace(/\$\$[\s\S]*?\$\$/g, " ");     // outside every function body
+    const updates = [...top.matchAll(/update\s+public\.alerts\b[\s\S]*?;/gi)].map((u) => u[0]);
+    return producersIn(sql).filter((p) =>
+      !new RegExp(`select\\s+public\\.${p.name}\\s*\\(`, "i").test(top)
+      && !p.kinds.some((k) => updates.some((u) => new RegExp(`kind\\s*=\\s*'${k}'`, "i").test(u)))
+      && !new RegExp(`--\\s*existing rows:\\s*${p.name}\\b`, "i").test(sql)).map((p) => p.name);
+  };
+  const late = migs.filter((n) => Number(n.slice(0, 4)) >= PRODUCER_FLOOR);
+  ok("restated rows: the floor still names migrations to read", late.length >= 1, late.length);
+  const offenders = late.flatMap((n) => unrestated(sqlOf(n)).map((f) => `${n}: ${f}`));
+  ok("restated rows: every alert producer re-emitted from 0340 on restates the rows it already wrote",
+    offenders.length === 0, offenders);
+  ok("restated rows: 0340 re-emits two producers and the rule sees both",
+    producersIn(sqlOf(late[0])).map((p) => p.name).sort().join(",") === "heartbeat_watchdog,shop_order_stall_watchdog",
+    producersIn(sqlOf(late[0])).map((p) => p.name));
+  // PROVE IT BITES: a producer re-emitted bare, then the same with each way out.
+  {
+    const bare = "create or replace function public.p() returns void language plpgsql as $$ begin perform public.alert_open_once('k_x', null); end $$;";
+    ok("restated rows: a bare re-emission is caught", unrestated(bare).join() === "p");
+    ok("restated rows: …running it is a restatement", unrestated(bare + "\nselect public.p();").length === 0);
+    ok("restated rows: …so is an update of its kind", unrestated(bare + "\nupdate public.alerts set ack_at = now() where kind = 'k_x';").length === 0);
+    ok("restated rows: …so is a stated reason", unrestated(bare + "\n-- existing rows: p — none have ever been written").length === 0);
+    ok("restated rows: …but an update of SOMEONE ELSE'S kind is not", unrestated(bare + "\nupdate public.alerts set ack_at = now() where kind = 'other';").join() === "p");
+    ok("restated rows: …nor a call that only appears inside a function body",
+      unrestated(bare + "\ncreate or replace function public.q() returns void language sql as $$ select public.p(); $$;").join() === "p");
+  }
+
+  // ── 3 · MONEY IN AN ALERT HAS ITS DOLLAR SIGN ────────────────────────────────────────────────
+  // "Ryan paid 32.00". Ten producers in these migrations write '$' || to_char(cents / 100.0, …) or a
+  // 'FM$…' format; 0329 and 0331 did neither. A cents-to-dollars to_char inside an alert producer
+  // needs one or the other. FLOOR at 0340.
+  const bareMoney = (body) => {
+    const hits = [];
+    let i = 0;
+    while ((i = body.indexOf("to_char(", i)) >= 0) {
+      let depth = 0, j = i + 7;
+      for (; j < body.length; j++) { if (body[j] === "(") depth++; else if (body[j] === ")" && --depth === 0) break; }
+      const call = body.slice(i, j + 1);
+      if (/\/\s*100(\.0)?\b/.test(call)) {
+        const fmt = /'([^']*)'\s*\)$/.exec(call);
+        const before = body.slice(Math.max(0, i - 16), i);
+        if (!(fmt && fmt[1].includes("$")) && !/\$'\s*\|\|\s*$/.test(before)) hits.push(call.slice(0, 70));
+      }
+      i = j;
+    }
+    return hits;
+  };
+  const moneyOffenders = late.flatMap((n) => producersIn(sqlOf(n)).flatMap((p) =>
+    bareMoney(fnText(sqlOf(n), p.name)).map((h) => `${n} ${p.name}: ${h}`)));
+  ok("alert money: every cents-to-dollars amount an alert producer writes carries its $ (0340 on)",
+    moneyOffenders.length === 0, moneyOffenders);
+  ok("alert money: fed 0331's own sentence, the rule finds the missing sign",
+    bareMoney("r.who || ' paid ' || to_char((coalesce(r.total_cents, 0) / 100.0), 'FM999990.00') || ' for '").length === 1);
+  ok("alert money: …and passes both house spellings of a dollar amount",
+    bareMoney("' paid $' || to_char(coalesce(r.total_cents, 0) / 100.0, 'FM999,999,990.00')").length === 0
+    && bareMoney("to_char(i.amount_cents / 100.0, 'FM$999,999.00')").length === 0);
+
+  // ── 4 · THE STALL ALERT SPEAKS THE SHOP PANEL'S STATUS WORDS ─────────────────────────────────
+  // 0329 had one body for every status the view calls waiting-on-us, and it said "this app sent it"
+  // about orders still marked Paid. Now each such status has its own sentence quoting the label the
+  // shop panel shows. Read from lib/shopOrder and from the latest migration defining the producer, so
+  // a status added to one and not the other fails here.
+  const SO = require("../.smoke/shopOrder.js");
+  const waitingUs = Object.entries(SO.SHOP_STATUS_META).filter(([, m]) => m.waiting === "us");
+  const stallFile = latestDefining("shop_order_stall_watchdog");
+  const stallFn = stallFile ? fnText(sqlOf(stallFile), "shop_order_stall_watchdog") : "";
+  const branchOf = (fn, status) =>
+    (new RegExp(`when\\s+'${status}'\\s+then\\s+([\\s\\S]*?)(?=\\n\\s*when\\s+'|\\n\\s*else\\b)`).exec(fn) || [])[1] || "";
+  ok("stall alert: the shop's waiting-on-us statuses were read from lib/shopOrder", waitingUs.length >= 3, waitingUs.map(([k]) => k));
+  for (const [status, meta] of waitingUs) {
+    ok(`stall alert: '${status}' has its own sentence`, branchOf(stallFn, status).length > 0, stallFile);
+    ok(`stall alert: …quoting the shop panel's label "${meta.label}"`, branchOf(stallFn, status).includes(`"${meta.label}"`));
+  }
+  ok("stall alert: fed 0329's one-body-fits-all function, the rule fails",
+    branchOf(fnText(sqlOf("0329_a_paid_order_can_stop_moving_and_nobody_hears.sql"), "shop_order_stall_watchdog"), "paid") === "");
+
+  // ── 5 · AN ALERT'S SUBJECT IS A UUID, OR THE ALERT DOES NOT EXIST ─────────────────────────────
+  // Found while fixing the above: lib/errorIntake keyed its storm line on the business DAY and the
+  // Square webhook keyed chargeback_open on Square's dispute id. alerts.subject_id is a uuid, the
+  // database refuses both (proved in db.alertnoise), and the helpers swallow the refusal by contract.
+  // The critical "a card dispute was opened" alert has never once been able to fire.
+  const S = require("../.smoke/alertSubject.js");
+  const K = require("../.smoke/alertKinds.js");
+  const U = require("../.smoke/uuid.js");
+  ok("subject: RFC 4122's own version-5 example comes out right",
+    S.uuidV5("www.example.com", "6ba7b810-9dad-11d1-80b4-00c04fd430c8") === "2ed6657d-e927-568b-95e1-2665a8aea6a2");
+  const rowId = "3e52372d-3da3-48ca-9959-e2dbba3972f8";
+  ok("subject: a row of ours passes through untouched, so inline handlers still load it", S.alertSubject("task_due", rowId) === rowId);
+  const storm = S.alertSubject("error_storm", "2026-10-04");
+  const dispute = S.alertSubject("chargeback_open", "XDgyFu7yo1E2S5lQGGpYn");
+  ok("subject: a business day becomes a uuid the database takes", U.isUuid(storm), storm);
+  ok("subject: …the same one on every call, so one storm a day is still one line",
+    storm === S.alertSubject("error_storm", "2026-10-04") && storm !== S.alertSubject("error_storm", "2026-10-05"));
+  ok("subject: a Square dispute id becomes a stable uuid — the chargeback alert can exist",
+    U.isUuid(dispute) && dispute === S.alertSubject("chargeback_open", "XDgyFu7yo1E2S5lQGGpYn"));
+  ok("subject: two kinds sharing an external key do not collide", S.alertSubject("a_kind", "k1") !== S.alertSubject("b_kind", "k1"));
+  ok("subject: version 5, RFC variant", /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(dispute), dispute);
+  ok("subject: no key, no subject", S.alertSubject("x", "") === null && S.alertSubject("x", "  ") === null
+    && S.alertSubject("x", null) === null && S.alertSubject("x", undefined) === null);
+  ok("subject: isUuid says no to a day, a Square id and nothing", !U.isUuid("2026-10-04") && !U.isUuid("XDgyFu7yo1E2S5lQGGpYn") && !U.isUuid(undefined));
+  ok("subject: …and yes to a row id, in either case", U.isUuid(rowId) && U.isUuid(rowId.toUpperCase()));
+
+  // ONE HOME FOR THE PATTERN. Four files had their own copy of the uuid regex by the time this was
+  // written; lib/uuid.ts is the only one allowed now.
+  const uuidCopies = [];
+  (function walk(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const f = path.join(d, e.name);
+      if (e.isDirectory()) { if (!/node_modules|\.next|\.smoke|\.git/.test(f)) walk(f); continue; }
+      if (!/\.tsx?$/.test(e.name) || f === path.join(root, "lib", "uuid.ts")) continue;
+      if (fs.readFileSync(f, "utf8").includes("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}")) uuidCopies.push(f.replace(root + "/", ""));
+    }
+  })(root);
+  ok("uuid: the pattern lives in lib/uuid.ts and nowhere else in the app", uuidCopies.length === 0, uuidCopies);
+  const serverDoor = read("lib/serverAlerts.ts"), clientDoor = read("lib/clientAlerts.ts");
+  ok("subject: raiseAlert writes alertSubject(kind, subjectId) — never the raw key",
+    /subject_id:\s*alertSubject\(a\.kind,\s*a\.subjectId\)/.test(serverDoor) && !/subject_id:\s*a\.subjectId\b/.test(serverDoor));
+  ok("subject: raiseAlertOnce asks about the same subject it will write",
+    /const subject = alertSubject\(a\.kind, a\.subjectId\)/.test(serverDoor) && /\.eq\("subject_id", subject\)/.test(serverDoor));
+  ok("subject: the browser door drops a key that is not a uuid rather than losing the whole alert",
+    /subject_id:\s*isUuid\(a\.subjectId\)\s*\?\s*a\.subjectId\s*:\s*null/.test(clientDoor));
+
+  // ── 6 · WHICH MOMENT A CARD SHOWS ────────────────────────────────────────────────────────────
+  ok("when: a single episode shows when it was raised, however recently its producer refreshed it",
+    K.alertWhen({ created_at: "raised", last_seen_at: "refreshed", occurrences: 1 }) === "raised");
+  ok("when: a folded recurrence shows its latest",
+    K.alertWhen({ created_at: "raised", last_seen_at: "latest", occurrences: 4 }) === "latest");
+  ok("when: a recurrence with no last_seen_at falls back to raised",
+    K.alertWhen({ created_at: "raised", last_seen_at: null, occurrences: 3 }) === "raised");
+  ok("when: a row from before 0327 (no count) is one episode",
+    K.alertWhen({ created_at: "raised", last_seen_at: "x" }) === "raised");
+  const crewPage = read("app/crew/page.tsx");
+  ok("when: the inbox card asks alertWhen and nothing else",
+    /<span className="alert-when">\{ageLabel\(alertWhen\(a\)\)\}<\/span>/.test(crewPage) && !/ageLabel\(a\.last_seen_at \?\? a\.created_at\)/.test(crewPage));
+}
+
 // ── MEASURING SAFETY (2026-10-01) ──────────────────────────────────────────────────────────────
 // Ryan is adding a second operator who will also be cooking: "make sure that the ai is descriptive
 // in explaining the task… the measuring scale is on a flat surface when measuring out ingredients…
@@ -4320,7 +4551,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
         if (fn === "rate_limit_hit") { counts[args.p_bucket] = (counts[args.p_bucket] || 0) + 1; return limiter ? limiter(args, counts[args.p_bucket]) : { data: counts[args.p_bucket] <= args.p_max }; }
         throw new Error(`unexpected rpc ${fn}`);
       },
-      from: () => ({ insert: async (row) => { seen.add(row.fingerprint); rows.push(row); return { error: null }; } }),
+      // insert(row).select("id").single() — the intake asks for the new row's id back, so its alert
+      // can name the row (kind client_error, subject = that id). Ids are uuid-shaped like the real ones.
+      from: () => ({ insert: (row) => {
+        seen.add(row.fingerprint); rows.push(row);
+        const id = `00000000-0000-4000-8000-${String(rows.length).padStart(12, "0")}`;
+        return { select: () => ({ single: async () => ({ data: { id }, error: null }) }) };
+      } }),
     };
     const deps = { admin, raiseAlert: async (a) => { alerts.push(a); }, raiseAlertOnce: async (a) => { once.push(a); return true; } };
     const file = (i, extra = {}) => fileError({ message: `error number ${i}`, url: "/menu", ua: "Safari", ...extra }, deps);
@@ -4329,6 +4566,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   PENDING.push((async () => {
     const t = intake();
     ok("budget: a never-seen error files a row and one alert, linked to the Errors screen", (await t.file(1)) === true && t.rows.length === 1 && t.alerts.length === 1 && t.alerts[0].link === ERRORS_LINK);
+    // 0340 had to find two of these alerts from July and September by MATCHING THEIR MESSAGE,
+    // because the intake never said which row an alert was about. It does now.
+    ok("budget: …and the alert names the row it is about — kind client_error, subject the new row's id",
+      t.alerts[0].kind === "client_error" && t.alerts[0].subjectId === "00000000-0000-4000-8000-000000000001", t.alerts[0]);
     ok("budget: a first-sight alert spends the alert budget and the row budget once each", t.counts[NEW_ALERTS.bucket] === 1 && t.counts[NEW_ROWS.bucket] === 1);
     ok("budget: the same error again is a bump — no row, no alert, and neither budget is touched", (await t.file(1)) === false && t.rows.length === 1 && t.alerts.length === 1 && t.counts[NEW_ALERTS.bucket] === 1 && t.counts[NEW_ROWS.bucket] === 1);
     for (let i = 2; i <= NEW_ALERTS.max; i++) await t.file(i);

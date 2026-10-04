@@ -19,6 +19,8 @@
 // Adding a kind is two lines here plus one detail component. That is the point: the next entity
 // should not need another architecture conversation.
 
+import { isUuid } from "./uuid";
+
 export const RECORD_KINDS = ["person", "customer", "shop_order", "event", "stop"] as const;
 export type RecordKind = (typeof RECORD_KINDS)[number];
 
@@ -87,6 +89,6 @@ export function parseRecordParam(v: string | null | undefined): RecordRef | null
   const id = v.slice(i + 1).trim();
   if (!isRecordKind(kind) || !id) return null;
   // ids in this app are uuids; anything else is a malformed or hand-edited link
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null;
+  if (!isUuid(id)) return null;
   return { kind, id };
 }

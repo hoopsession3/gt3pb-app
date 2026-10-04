@@ -98,8 +98,12 @@ export async function fileError(r: ErrorReport, deps: IntakeDeps = { admin: supa
     const { data: rowFits } = await admin.rpc("rate_limit_hit", { p_bucket: NEW_ROWS.bucket, p_window_ms: NEW_ROWS.windowMs, p_max: NEW_ROWS.max });
     if (rowFits === false) return false;
 
-    const { error } = await admin.from("client_errors")
-      .insert({ fingerprint, message, stack: stack || null, url: url || null, ua: r.ua || null, fatal, skew });
+    // The id comes back so the alert can NAME this row (kind client_error, subject = the row). Until
+    // 2026-10-04 it carried no key at all, so the only way to find the alerts this intake had written
+    // was to match their message — which is how 0340 had to retire two from July and September.
+    const { data: filed, error } = await admin.from("client_errors")
+      .insert({ fingerprint, message, stack: stack || null, url: url || null, ua: r.ua || null, fatal, skew })
+      .select("id").single();
     if (error) {
       // Unique-violation race (two instances, same new error): bump instead.
       await admin.rpc("bump_client_error", { p_fingerprint: fingerprint });
@@ -132,6 +136,8 @@ export async function fileError(r: ErrorReport, deps: IntakeDeps = { admin: supa
     await deps.raiseAlert({
       severity: healed ? "fyi" : fatal ? "critical" : "important",
       category: "system",
+      kind: "client_error",
+      subjectId: (filed as { id?: string } | null)?.id,
       title: healed
         ? "App recovered from a stale build"
         : fatal ? "App error — a screen crashed" : server ? "Server error — a route threw" : "App error (new)",

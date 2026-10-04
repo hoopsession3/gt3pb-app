@@ -11,7 +11,12 @@
 #                    A deploy that never lands, or lands wrong, is a red run — in the inbox, not
 #                    a complaint at the window.
 #   every 30 min   — --quick: health, ledger, posture, probes. No browser. The uptime check this
-#                    app did not have (R-list: "uptime monitor on /api/health").
+#                    app did not have (R-list: "uptime monitor on /api/health"). At :07 and :37,
+#                    not :00 and :30 — GitHub's own docs: "High load times include the start of
+#                    every hour … schedule your workflow to run at a different time of the hour."
+#                    Every run stamps the heartbeat, and heartbeat_watchdog (0340) waits THREE of
+#                    these periods before it calls the check quiet; scripts/smoke.cjs reads this
+#                    schedule and that threshold and fails if the two stop fitting.
 #   daily 06:10 UTC — the full run again, because production can drift between deploys
 #                    (a row that changes how a page paints, a policy pasted by hand).
 #
@@ -23,7 +28,7 @@ on:
   push:
     branches: ["main"]
   schedule:
-    - cron: "*/30 * * * *"   # quick
+    - cron: "7,37 * * * *"   # quick
     - cron: "10 6 * * *"     # full
   workflow_dispatch:
     inputs:
@@ -55,7 +60,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
             echo "args=--wait=900" >> "$GITHUB_OUTPUT"; echo "browser=yes" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "*/30 * * * *" ]; then
+          elif [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "7,37 * * * *" ]; then
             # a short wait so a run that lands mid-deploy is not a false red
             echo "args=--quick --wait=240" >> "$GITHUB_OUTPUT"; echo "browser=no" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event.inputs.quick }}" = "true" ]; then

@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "./supabaseAdmin";
 import type { AlertCategory, AlertSeverity } from "./alertKinds";
+import { alertSubject } from "./alertSubject";
 
 // Raise an in-app alert from a server route. The INSERT is the whole contract: the
 // alerts_push_fanout database trigger (migration 0157) delivers web push + Teams for every alert
@@ -28,7 +29,10 @@ export async function raiseAlert(a: {
       link: a.link ?? "/crew",
       target_user_id: a.targetUserId ?? null,
       kind: a.kind ?? null,
-      subject_id: a.subjectId ?? null,
+      // The column is a uuid. A key that is not one (a Square dispute id, a business day) used to be
+      // written as-is, refused by the database, and swallowed by the catch below — the alert never
+      // existed. lib/alertSubject makes it a stable uuid instead; a uuid passes through untouched.
+      subject_id: alertSubject(a.kind, a.subjectId),
     });
   } catch { /* best effort — alerting must never break a money/order write */ }
 }
@@ -52,11 +56,17 @@ export async function raiseAlertOnce(
 ): Promise<boolean> {
   if (!supabaseAdmin) return false;
   try {
-    const { data, error } = await supabaseAdmin.from("alerts")
-      .select("id").eq("kind", a.kind).eq("subject_id", a.subjectId).is("ack_at", null).limit(1);
-    // A FAILED READ IS NOT AN EMPTY LIST. If we cannot tell whether one is already open, raise it:
-    // a duplicate chargeback alert is a nuisance, a missing one is a deadline nobody saw.
-    if (!error && data && data.length > 0) return false;
+    // The SAME subject raiseAlert will write — asked about any other way, a key that is not a uuid
+    // makes this read fail every time, and a failed read raises (below): a new alert on every call.
+    // An empty key has nothing to dedupe on, so it is raised, like a read that could not answer.
+    const subject = alertSubject(a.kind, a.subjectId);
+    if (subject) {
+      const { data, error } = await supabaseAdmin.from("alerts")
+        .select("id").eq("kind", a.kind).eq("subject_id", subject).is("ack_at", null).limit(1);
+      // A FAILED READ IS NOT AN EMPTY LIST. If we cannot tell whether one is already open, raise it:
+      // a duplicate chargeback alert is a nuisance, a missing one is a deadline nobody saw.
+      if (!error && data && data.length > 0) return false;
+    }
   } catch { /* fall through and raise */ }
   await raiseAlert(a);
   return true;

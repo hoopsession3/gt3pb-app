@@ -146,6 +146,9 @@ async function post(req: Request) {
         const decided = ["WON", "LOST", "ACCEPTED"].includes(String(dp?.state ?? ""));
         if (!err && !decided) {
           const by = dp?.due_at ? ` Evidence is due by ${String(dp.due_at).slice(0, 10)}.` : "";
+          // Square's dispute id is not a uuid. Until 2026-10-04 that made the database refuse this
+          // alert outright (alerts.subject_id is a uuid) and the helper swallowed the refusal, so it
+          // never fired. raiseAlertOnce now turns the id into a stable uuid (lib/alertSubject).
           await raiseAlertOnce({
             severity: "critical", category: "money", kind: "chargeback_open", subjectId: String(dId),
             title: `A card dispute was opened for $${moneyPlain(cents)}`,

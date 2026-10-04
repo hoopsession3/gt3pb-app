@@ -93,14 +93,27 @@ await db.exec(`
     order_id uuid not null references public.shop_orders(id) on delete cascade,
     carrier text, tracking_number text, tracking_url text,
     shipped_at timestamptz, created_at timestamptz not null default now());
+
+  -- 0157's fan-out trigger calls supabase_functions.http_request, which PGlite does not have. The
+  -- double records each call instead of making it, so a test can COUNT the pushes an owner's phone
+  -- would have received — the cost that matters when a migration restates rows already in the inbox.
+  create schema if not exists supabase_functions;
+  create table public.test_pushes (alert_id uuid, at timestamptz default now());
+  create or replace function supabase_functions.http_request() returns trigger language plpgsql as $$
+  begin insert into public.test_pushes (alert_id) values (new.id); return new; end $$;
 `);
 
 // The real files, in the order production saw them. 0174 is what gives an alert `kind` and
 // `subject_id` — the two columns this whole design turns on. 0327 adds occurrences/last_seen_at.
-// 0328 is the view that owns "who is waiting", which 0329 reads instead of re-deriving.
+// 0328 is the view that owns "who is waiting", which 0329 reads instead of re-deriving. 0157 (the
+// fan-out and per-person reads), 0255 (the heartbeat table), 0258 (the sweep) and 0336
+// (alert_open_once, loaded further down) are here because 0340 stands on all of them.
 for (const f of [
   "0050_alerts.sql",
+  "0157_alert_spine.sql",
   "0174_actionable_alerts.sql",
+  "0255_ops_heartbeat_watchdog.sql",
+  "0258_alert_autoexpire.sql",
   "0313_a_paid_order_nobody_can_see.sql",
   "0327_an_alert_that_cries_wolf.sql",
   "0328_who_is_waiting_had_two_answers.sql",
@@ -231,8 +244,121 @@ const capId = await mkOrder("submitted", 25, "Ryan", 3200);
                        where version = '0331_a_deep_link_nothing_was_checking'`))?.n) === 1);
 }
 
+// ── 0340: THE TITLE THAT STOPPED AT TWELVE HOURS ───────────────────────────────────────────────
+// Ryan's inbox, 2026-10-04: "A paid order has not moved in 12 hours" over a body reading 119, about
+// the same order, and "Ryan paid 32.00" with no dollar sign. Reproduced first, against the function
+// production was running (0331's), then fixed by 0340's own file — which restates the rows already
+// there by running the producer once, so the assertions below are about rows written BEFORE the fix.
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0336_the_guard_that_matched_on_a_sentence.sql"), "utf8"));
+{
+  const open = async (id) => q1(`select id, title, body, severity, occurrences, ack_at, ack_by
+                                   from public.alerts where kind = 'shop_order_stalled' and subject_id = '${id}' and ack_at is null`);
+  await db.exec(`update public.alerts set ack_at = now() where kind = 'shop_order_stalled'`);
+  await db.exec(`update public.shop_orders set status = 'delivered'`);   // earlier orders are not this story
+
+  // THE SCREENSHOT. Raised the night it was twelve hours old, then left to sit.
+  const shot = await mkOrder("submitted", 12, "Ryan", 3200);
+  await run(12);
+  await db.exec(`update public.shop_orders set created_at = now() - interval '119 hours' where id = '${shot}'`);
+  await run(24);
+  const was = await open(shot);
+  ok("0331: the title froze at the age the alert was raised", /in 12 hours$/.test(was?.title ?? ""), was?.title);
+  ok("0331: …while the body counted on, about the same order", /119 hours/.test(was?.body ?? ""), was?.body?.slice(0, 120));
+  ok("0331: …and the money had no dollar sign", /paid 32\.00/.test(was?.body ?? "") && !/\$32/.test(was?.body ?? ""));
+
+  // A STALL THAT WAS RESOLVED. Raised, then the order moved to the printer. Under 0331 nothing ever
+  // closes it: "Got it" on a broadcast is a per-person read (0157) and 0258 never expires a critical.
+  const moved = await mkOrder("needs_fulfillment", 30, "Dana", 5000);
+  await run(24);
+  await db.exec(`update public.shop_orders set status = 'in_production' where id = '${moved}'`);
+  await run(24);
+  ok("0331: an alert for an order that has since moved stays open for ever", !!(await open(moved)));
+
+  // A PAID ORDER — never sent anywhere — told "this app sent it".
+  const paidOnly = await mkOrder("paid", 30, "Paula", 4500);
+  await run(24);
+  ok("0331: an order still marked Paid is described as sent, which it never was",
+    /this app sent it/.test((await open(paidOnly))?.body ?? ""));
+
+  const pushesBefore = Number((await q1(`select count(*) n from public.test_pushes`)).n);
+  await db.exec(readFileSync(join(ROOT, "supabase/migrations/0340_three_things_the_inbox_still_said.sql"), "utf8"));
+  ok("0340 applies against a real Postgres", true);
+
+  // ── the restatement, by the migration alone ──
+  const now = await open(shot);
+  ok("0340: the open row is restated in place — same row, not a second one",
+    now?.id === was?.id, { before: was?.id, after: now?.id });
+  ok("0340: the title says what the view measures, in the shop's words, with the dollar sign",
+    now?.title === "Ryan paid $32.00 4 days ago — still waiting on us", now?.title);
+  ok("0340: the body leads with what was bought", /^1x GT3 6-Panel Cap\. /.test(now?.body ?? ""), now?.body);
+  ok("0340: …names the status the way the shop panel does",
+    (now?.body ?? "").includes('The shop shows it as "Sent, not confirmed"'), now?.body);
+  ok("0340: …and says what sent means, and where a refusal goes",
+    /went to Apliiq on \w{3}, \w{3} \d{1,2} and nothing has come back since/.test(now?.body ?? "")
+    && /emailing the account owner/.test(now?.body ?? ""), now?.body);
+  ok("0340: the body carries no second age to contradict the title", !/\d+ hours/.test(now?.body ?? ""), now?.body);
+  ok("0340: still critical, still one episode", now?.severity === "critical" && Number(now?.occurrences) === 1, now);
+
+  const shut = await q1(`select ack_at, ack_by from public.alerts
+                          where kind = 'shop_order_stalled' and subject_id = '${moved}' order by created_at desc limit 1`);
+  ok("0340: the alert for the order that moved is closed by the mechanism, not a person",
+    shut?.ack_at !== null && shut?.ack_by === null, shut);
+  const paidNow = (await open(paidOnly))?.body ?? "";
+  ok("0340: a Paid order is told the truth: nothing has gone to the printer",
+    paidNow.includes('"Paid": the card cleared and nothing has gone to the printer') && !/sent it/.test(paidNow), paidNow);
+  const pushesAfter = Number((await q1(`select count(*) n from public.test_pushes`)).n);
+  ok("0340: restating the inbox pushed nobody's phone again", pushesAfter === pushesBefore, pushesAfter - pushesBefore);
+
+  // ── and from now on ──
+  await db.exec(`update public.shop_orders set created_at = now() - interval '143 hours' where id = '${shot}'`);
+  await run(24);
+  ok("0340: a day later the TITLE moves with the body — the 12-over-119 split cannot recur",
+    (await open(shot))?.title === "Ryan paid $32.00 5 days ago — still waiting on us", (await open(shot))?.title);
+
+  const needs = await mkOrder("needs_fulfillment", 26, "Nadia", 123456789);
+  await run(24);
+  const nb = await open(needs);
+  ok("0340: thousands are grouped, the way every other money sentence here writes them",
+    nb?.title === "Nadia paid $1,234,567.89 1 day ago — still waiting on us", nb?.title);
+  ok("0340: Needs fulfilment says so, in the panel's spelling",
+    (nb?.body ?? "").includes('"Needs fulfilment": paid, and the printer was never reached or never asked'), nb?.body);
+
+  // 0329's contract, kept: acknowledging means "tell me again".
+  await db.exec(`update public.alerts set ack_at = now() where kind = 'shop_order_stalled' and subject_id = '${needs}'`);
+  ok("0340: an alert acknowledged while its order is still stuck opens again on the next run",
+    (await run(24)) === 1 && !!(await open(needs)));
+
+  // The cap moves: its alert closes on the next run, and only its alert.
+  await db.exec(`update public.shop_orders set status = 'in_production' where id = '${shot}'`);
+  await run(24);
+  ok("0340: when the order finally moves, its alert closes itself", !(await open(shot)));
+  ok("0340: …and the other stuck orders keep theirs", !!(await open(needs)) && !!(await open(paidOnly)));
+
+  // ── THE KNOWN PAIR: the age in the alert and the age in the shop panel ─────────────────────────
+  // shop_age_words is a mirror of lib/shopOrder.ts ageLabel. A mirror nobody compares is the drift
+  // this repo keeps finding, so the real TypeScript is compiled here and both are run over every
+  // hour from -2 to 1000. Rounding instead of flooring would have said "5 days" in the alert and
+  // "the oldest for 4 days" in the queue headline, about the same order.
+  const ts = (await import("typescript")).default;
+  const mod = { exports: {} };
+  new Function("module", "exports", "require",
+    ts.transpileModule(readFileSync(join(ROOT, "lib/shopOrder.ts"), "utf8"),
+      { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText,
+  )(mod, mod.exports, () => ({}));
+  const ageLabel = mod.exports.ageLabel;
+  ok("known pair: lib/shopOrder's ageLabel was compiled and found", typeof ageLabel === "function");
+  const sqlAges = await rows(`select h, public.shop_age_words(h) w from generate_series(-2, 1000) h`);
+  const off = sqlAges.filter((r) => r.w !== ageLabel(r.h)).map((r) => `${r.h}h: sql "${r.w}" vs ts "${ageLabel(r.h)}"`);
+  ok("known pair: shop_age_words and ageLabel agree for every hour from -2 to 1000",
+    sqlAges.length === 1003 && off.length === 0, off.slice(0, 5));
+  ok("known pair: …and on a missing age", (await q1(`select public.shop_age_words(null) w`)).w === ageLabel(null));
+
+  ok("0340 recorded itself", Number((await q1(`select count(*) n from public.schema_migrations
+                                                where version = '0340_three_things_the_inbox_still_said'`)).n) === 1);
+}
+
 console.log(fail
   ? `A PAID ORDER THAT STOPS MOVING: ${pass} passed, ${fail} FAILED`
   : `A PAID ORDER THAT STOPS MOVING: ${pass} passed, 0 failed`);
-console.log("0313 + 0327 + 0328 + 0329 + 0331 executed against a real Postgres.\n");
+console.log("0313 + 0327 + 0328 + 0329 + 0331 + 0340 executed against a real Postgres.\n");
 process.exit(fail ? 1 : 0);

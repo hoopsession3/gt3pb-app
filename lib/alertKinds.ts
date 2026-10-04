@@ -33,3 +33,13 @@ export function normalizeCategory(raw: string | null | undefined): AlertCategory
   if (c === "note") return "content"; // historic: notes were mostly content approvals; router also checks title
   return "system";
 }
+
+// ── WHICH MOMENT AN ALERT CARD SHOWS ──────────────────────────────────────────────────────────
+// last_seen_at is "when this was last true" (0340 gave it that one meaning). For a condition that
+// folds recurrences into one line, the latest one is the news — "×4 · 20m ago". For a single
+// continuous episode it is the WRONG clock: a producer refreshes it on every run, so a stall raised
+// five days ago read "12m ago", fresh, under a title about five days. A single episode shows when it
+// was raised.
+export function alertWhen(a: { created_at: string; last_seen_at?: string | null; occurrences?: number | null }): string {
+  return (a.occurrences ?? 1) > 1 && a.last_seen_at ? a.last_seen_at : a.created_at;
+}
