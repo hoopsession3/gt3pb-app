@@ -111,6 +111,24 @@ export const MEASURE = `(() => {
     if (r.bottom <= 0 || r.right <= 0) continue; // parked off-screen on purpose (the skip link) — not a target until focused
     if (s > 0 && s < smallestTap) { smallestTap = +s.toFixed(1); smallestTapWhat = (el.getAttribute("aria-label") || el.innerText || el.className || el.tagName).toString().trim().replace(/\\s+/g, " ").slice(0, 36); }
   }
+  // uaButtons (2026-10-04) — buttons wearing the BROWSER's face: the grey fill and outset border every
+  // button gets until a rule takes them away. .cp-go was written for links and then put on buttons
+  // in four files; each one painted a grey box with a dark border around "Open it ›". Compared to a
+  // bare <button> made here, so it is the real default in this browser and this colour scheme.
+  const uaRef = document.createElement("button");
+  uaRef.style.cssText = "position:absolute;left:-9999px;top:0";
+  document.body.appendChild(uaRef);
+  const uaCs = getComputedStyle(uaRef);
+  const uaBg = uaCs.backgroundColor, uaBorder = uaCs.borderTopStyle;
+  uaRef.remove();
+  const uaButtons = [];
+  for (const el of document.querySelectorAll("button")) {
+    if (!vis(el) || !onScreenish(el)) continue;
+    const cs = getComputedStyle(el);
+    const greyFill = cs.backgroundColor === uaBg && !/rgba?\\(0, 0, 0, 0\\)|transparent/.test(uaBg);
+    const uaEdge = cs.borderTopStyle === uaBorder && /outset|inset/.test(uaBorder);
+    if (greyFill || uaEdge) uaButtons.push((el.getAttribute("aria-label") || el.innerText || el.className || "button").toString().trim().replace(/\\s+/g, " ").slice(0, 36));
+  }
   let smallestText = 99, smallestTextWhat = "";
   for (const el of all) {
     if (!vis(el)) continue;
@@ -141,6 +159,7 @@ export const MEASURE = `(() => {
     viewport: innerWidth + "x" + innerHeight, boxes: boxes.length, leafBoxes: leaves.length, maxLeafDepth: max, leafDepthHistogram: hist, deepest: rows.slice(0, 8),
     frameOnSectionBody: frame, railAreaFraction: railArea, railCoversFixed, minAgendaFontPx: minFont === 99 ? null : minFont,
     overflowX, smallestTap: smallestTap === 999 ? null : smallestTap, smallestTapWhat, smallestText: smallestText === 99 ? null : smallestText, smallestTextWhat, fixedOverlays, headings, nestedScroll,
+    uaButtons,
     shift,
   };
 })()`;

@@ -4641,6 +4641,22 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       /\.fab-dock\{order:4;position:relative;flex:0 0 auto;height:0\}/.test(css) && /\.nav\{order:10;/.test(css) && /\.rail:not\(\.rail-folded\)\{position:static;order:5;/.test(css));
     ok("chrome: the folded handle adds the phone's own inset instead of guessing it", /calc\(\$\{bottom\}px \+ env\(safe-area-inset-bottom, 0px\)\)/.test(read("components/FloatRail.tsx")));
     ok("chrome: the pickup card's accent is its own edge, not a rule beside it", /\.dops\.zone-pickup > \.mpanel\{border-left:3px solid var\(--gold2\)\}/.test(css) && !/\.dops\.zone-pickup\{/.test(css));
+
+    // The Event heads-up, with nothing live (Ryan's second screenshot): it says what is coming.
+    const page = code(read("app/crew/page.tsx"));
+    const hud = (page.match(/function EventHUD\([\s\S]*?\n\}\n/) || [""])[0];
+    const idle = (hud.match(/if \(!ev\) \{[\s\S]*?\n  \}\n/) || [""])[0];
+    ok("heads-up: with nothing live it reads the next event — not archived, not done, today or later, soonest first",
+      /from\("v_event_record"\)/.test(hud) && /\.is\("archived_at", null\)\.neq\("stage", "done"\)\.gte\("day", localToday\(\)\)/.test(hud) && /\.order\("day", \{ ascending: true \}\)\.limit\(1\)/.test(hud));
+    ok("heads-up: a failed read is said as a failure, never as an empty calendar", /setNext\(nxErr \? "error"/.test(hud) && /Couldn&apos;t read what&apos;s next/.test(idle));
+    ok("heads-up: four honest states — checking, nothing on the calendar, today and not live, next",
+      /Checking the calendar/.test(idle) && /Nothing on the calendar\./.test(idle) && /is today, and it isn&apos;t live\./.test(idle) && /Next: <b>\{title\}<\/b>/.test(idle));
+    ok("heads-up: today's event can be made live from here, through the one RPC that owns the rule", /setEventLive\(supabase, next\.id, true\)/.test(idle) && /label: "Make it live"/.test(idle));
+    ok("heads-up: the next event opens its record, and says the one thing it is waiting on", /openRecord\("event", next\.id\)/.test(idle) && /owedLine\(next\)/.test(idle) && /dayWithDate\(next\.day\)/.test(idle));
+    ok("heads-up: no box inside the panel's box — the idle state draws no EmptyState", !/<EmptyState/.test(idle) && /<WayButtons/.test(idle));
+    ok("links on buttons: .cp-go takes the browser's grey face off a <button> (the painted check is design.measure's uaButtons)",
+      /\.cp-go\{[^}]*background:none;border:0;padding:0;cursor:pointer;-webkit-appearance:none;appearance:none\}/.test(css)
+        && /uaButtons/.test(read("scripts/design.measure.mjs")) && /button\(s\) in the browser's default grey face/.test(read("scripts/design.ratchet.mjs")));
   }
 }
 

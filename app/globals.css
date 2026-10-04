@@ -7041,7 +7041,10 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .cp-line{margin:8px 0 0;font-family:'Inter';font-size:13px;line-height:1.55;color:var(--cream)}
 .cp-line.dim,.cp-line .dim{color:var(--cream-m)}
 .cp-go{display:inline-flex;align-items:center;gap:4px;min-height:44px;margin-top:4px;
-  font-family:'Inter';font-size:12.5px;font-weight:650;color:var(--gold2);text-decoration:none}
+  font-family:'Inter';font-size:12.5px;font-weight:650;color:var(--gold2);text-decoration:none;
+  /* A link's look on a <button> too: written for <a>, then used on buttons in four files, where the
+     browser's grey face and outset border showed through around "Open it ›" (2026-10-04). */
+  background:none;border:0;padding:0;cursor:pointer;-webkit-appearance:none;appearance:none}
 
 /* An action that belongs INSIDE a sentence — "Step them down", "Put X in charge of Atlanta".
    A button, not a link, because it performs the change; styled as text because it reads as part

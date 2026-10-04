@@ -12,7 +12,7 @@ import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
-import { localToday, etToday, dayKey, relativeDay, ageLabel } from "@/lib/dates";
+import { localToday, etToday, dayKey, dayWithDate, relativeDay, ageLabel } from "@/lib/dates";
 import { prepBucket } from "@/lib/readiness";
 import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
 import { archiveOwner, setEventLive } from "@/lib/wrap";
@@ -29,7 +29,8 @@ import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY
 import { useTaskSheet } from "@/components/TaskSheet";
 import { useRecord } from "@/components/RecordSheet";
 import { recordForAlert } from "@/lib/records";
-import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
+import { owedLine, prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
+import { WayButtons } from "@/components/RecordWays";
 import { goPlanTab, isPlanTab, planTabFromUrl, stampPlanTab, PLAN_TAB_KEY, PLAN_TAB_EVENT } from "@/lib/planNav";
 import GtmCard from "@/components/GtmCard";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
@@ -4077,8 +4078,20 @@ function Members() {
 // ───────────────────────── live event HUD (command center) ─────────────────────────
 // The 3 numbers that matter mid-event, scoped to the live event. Sales = paid app orders
 // + Square POS mirror (event_sales), so walk-up cart sales count too.
+// The next event on the calendar, as v_event_record reads it — enough to say when it is and the one
+// loudest thing it is waiting on (lib/eventRecord owedLine), without opening it.
+type NextEvent = {
+  id: string; title: string | null; day: string | null; stage: string | null; phase: string | null;
+  tasks: number | null; tasks_open: number | null; tasks_critical_open: number | null;
+  staff: number | null; sales_count: number | null; recap: string | null;
+};
 function EventHUD({ onGoEvents }: { onGoEvents?: () => void }) {
+  const { toast } = useApp();
+  const { openRecord } = useRecord();
   const [ev, setEv] = useState<EventRow | null>(null);
+  // undefined = still looking; "error" = could not read it (never shown as "nothing on the calendar")
+  const [next, setNext] = useState<NextEvent | null | "error" | undefined>(undefined);
+  const [arming, setArming] = useState(false);
   const [stats, setStats] = useState<{ cents: number; orders: number; firstAt: string | null }>({ cents: 0, orders: 0, firstAt: null });
   const [econ, setEcon] = useState<EventEcon | null>(null);
   const [catalog, setCatalog] = useState<ProductEcon[]>([]);
@@ -4086,7 +4099,17 @@ function EventHUD({ onGoEvents }: { onGoEvents?: () => void }) {
     if (!supabase) return;
     const { data: e } = await supabase.from("events").select("*").eq("is_live", true).maybeSingle();
     setEv((e as EventRow) ?? null);
-    if (!e) { setStats({ cents: 0, orders: 0, firstAt: null }); return; }
+    if (!e) {
+      setStats({ cents: 0, orders: 0, firstAt: null });
+      // Nothing live: say what IS coming, instead of an empty box. Not archived, not done, today
+      // or later on the operator's calendar, soonest first.
+      const { data: nx, error: nxErr } = await supabase.from("v_event_record")
+        .select("id, title, day, stage, phase, tasks, tasks_open, tasks_critical_open, staff, sales_count, recap")
+        .is("archived_at", null).neq("stage", "done").gte("day", localToday())
+        .order("day", { ascending: true }).limit(1).maybeSingle();
+      setNext(nxErr ? "error" : ((nx as NextEvent | null) ?? null));
+      return;
+    }
     const eid = (e as EventRow).id;
     const [{ data: ords }, { data: sales }, { data: cat }, { data: ec }] = await Promise.all([
       supabase.from("orders").select("total_cents, paid, created_at").eq("event_id", eid),
@@ -4113,19 +4136,62 @@ function EventHUD({ onGoEvents }: { onGoEvents?: () => void }) {
   if (!ev) {
     // The Panel wrapping EventHUD (id="hud", "Event heads-up") is gated on canManage only, not on
     // whether an event is live, so a manager always sees a tappable panel — which most of the time
-    // (no live event) used to open onto a totally blank body. Same EmptyState pattern used
-    // elsewhere in this file for an empty Panel body.
+    // (no live event) used to open onto a totally blank body.
     // 2026-07-29 audit: this told you where to go ("Sales and pace will show here once an event
-    // goes live") without a way to actually get there — same dead-end pattern as the KPI tiles and
-    // Overview's glance line. EmptyState already had an `action` slot built for exactly this; it
-    // just wasn't being used here.
+    // goes live") without a way to actually get there; the empty state grew a Go to Events button.
+    // 2026-10-04, Ryan's Live Ops at 9 PM on a Saturday: that empty state was the biggest thing on
+    // the screen — a dashed box inside the panel's card saying nothing about what is coming. It says
+    // what is coming now, in the panel's own box: the next event, when, and the one thing it is
+    // waiting on; an event that is TODAY and not live says so and offers to make it live, because
+    // the Square mirror files a card sale against the live event and against nothing otherwise
+    // (0024) — a forgotten switch is exactly how an event ends up "complete, with nothing recorded
+    // as taken". The truck instrument above answers the same question for stops.
+    const goEvents = onGoEvents ? { label: "Go to Events", go: true, onClick: onGoEvents } : null;
+    if (next === undefined) return <div className="adm-sec adm-hud"><p className="cp-line dim">Checking the calendar…</p></div>;
+    if (next === "error") {
+      return (
+        <div className="adm-sec adm-hud">
+          <p className="cp-line">No event live. Couldn&apos;t read what&apos;s next just now.</p>
+          {goEvents && <WayButtons ways={[goEvents]} />}
+        </div>
+      );
+    }
+    if (next === null) {
+      return (
+        <div className="adm-sec adm-hud">
+          <p className="cp-line"><b>Nothing on the calendar.</b> Sales and pace show here once an event goes live.</p>
+          {onGoEvents && <WayButtons ways={[{ label: "Plan an event", go: true, onClick: onGoEvents }]} />}
+        </div>
+      );
+    }
+    const title = next.title?.trim() || "Untitled event";
+    const isToday = next.day === localToday();
+    const makeLive = async () => {
+      if (!supabase || arming) return;
+      setArming(true);
+      const { error } = await setEventLive(supabase, next.id, true);
+      setArming(false);
+      if (error) { toast(`Couldn't make it live — ${error.message}`, "error"); return; }
+      toast("Event is live — sales now track to it");
+      load();
+    };
     return (
       <div className="adm-sec adm-hud">
-        <EmptyState
-          title="No event live"
-          sub="Sales and pace will show here once an event goes live."
-          action={onGoEvents ? <button type="button" className="btn-ter" onClick={onGoEvents}>Go to Events →</button> : undefined}
-        />
+        {isToday ? (
+          <>
+            <p className="cp-line"><b>{title}</b> is today, and it isn&apos;t live.</p>
+            <p className="cp-line dim">Card sales only count toward an event while it&apos;s live.</p>
+          </>
+        ) : (
+          <>
+            <p className="cp-line">Next: <b>{title}</b> · {next.day ? dayWithDate(next.day) : "no date yet"}</p>
+            <p className="cp-line dim">{owedLine(next)}</p>
+          </>
+        )}
+        <WayButtons ways={[
+          ...(isToday ? [{ label: "Make it live", busy: arming, onClick: makeLive }] : []),
+          { label: "Open it", go: true, onClick: () => openRecord("event", next.id) },
+        ]} />
       </div>
     );
   }

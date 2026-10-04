@@ -290,6 +290,8 @@ export function routeVerdict(path, m, row = ROUTE[path]) {
     if (m.shift.chrome > SHIFT.chrome) out.push(`${path}: the nav, cart bar or rail moved after paint — shift ${m.shift.chrome}${what}. Fixed chrome never moves.`);
     if (m.shift.total > SHIFT.total) out.push(`${path}: layout shift ${m.shift.total} — gate ${SHIFT.total}${what}. Something is painted, then pushed.`);
   }
+  // A button in the browser's grey face is a style rule that never reached it (2026-10-04, .cp-go).
+  if (Array.isArray(m.uaButtons) && m.uaButtons.length) out.push(`${path}: ${m.uaButtons.length} button(s) in the browser's default grey face — ${m.uaButtons.slice(0, 3).join(" · ")}. Give the class a reset.`);
   return out;
 }
 
@@ -528,6 +530,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   }
   ratchet("box depth at the innermost box", p.maxLeafDepth, CEILING.maxLeafDepth);
   note(!p.frameOnSectionBody, p.frameOnSectionBody ? "the section body paints a focus frame around the whole screen again" : "no focus frame on the section body");
+  note((p.uaButtons || []).length === 0, (p.uaButtons || []).length === 0 ? "no button in the browser's default grey face" : `${p.uaButtons.length} button(s) in the browser's default grey face — ${p.uaButtons.slice(0, 3).join(" · ")}`);
   ratchet("rail area, expanded, as a fraction of the viewport", p.railAreaFraction, CEILING.railAreaFraction);
   ratchet("fixed buttons the expanded rail covers", p.railCoversFixed, CEILING.railCoversFixed);
   if (p.minAgendaFontPx === null || p.minAgendaFontPx < FLOOR.minAgendaFontPx) note(false, `smallest agenda text ${p.minAgendaFontPx}px — floor ${FLOOR.minAgendaFontPx}px`);
@@ -563,6 +566,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
       if (m.smallestText === null || m.smallestText < L.text) note(false, `${theme}: smallest text ${m.smallestText}px (${m.smallestTextWhat}) — floor ${L.text}px`);
       else note(true, `${theme}: smallest text ${m.smallestText}px (floor ${L.text}px)`);
       note((m.overflowX || []).length === 0, (m.overflowX || []).length === 0 ? `${theme}: nothing scrolls sideways` : `${theme}: scrolls sideways: ${JSON.stringify(m.overflowX).slice(0, 80)}`);
+      note((m.uaButtons || []).length === 0, (m.uaButtons || []).length === 0 ? `${theme}: no button in the browser's default grey face` : `${theme}: ${m.uaButtons.length} button(s) in the browser's default grey face — ${m.uaButtons.slice(0, 3).join(" · ")}`);
     }
     note(b.dark.boxes === b.boxes, b.dark.boxes === b.boxes ? `the theme changes colour, not structure: ${b.boxes} boxes in both` : `the dark theme paints ${b.dark.boxes} boxes where day paints ${b.boxes}`);
   }
