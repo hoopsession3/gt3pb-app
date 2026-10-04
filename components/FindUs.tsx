@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import AccountPill from "@/components/AccountPill";
 import EditCopyPill from "@/components/EditCopyPill";
 import EditableCopy from "@/components/EditableCopy";
@@ -25,6 +25,7 @@ import type { LiveStatus, EventRow } from "@/lib/db";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
+import Skeleton from "@/components/Skeleton";
 
 // FIND US — the one answer to "where's GT3?", on the field_ops spine. Stops and events used to
 // live on two strangers of pages; they're one chronological road now, each row self-typing:
@@ -55,6 +56,7 @@ type FieldOp = {
   is_public: boolean;
 };
 type Board = { ops: FieldOp[]; live: LiveStatus | null };
+const NO_OPS: FieldOp[] = [];
 
 // ── stop label helpers (from the truck page — hand-set labels win, else derive) ─────────────────
 function whenDay(s: FieldOp): string {
@@ -154,8 +156,6 @@ export default function FindUs() {
   const router = useRouter();
   const t = useSiteCopy();
   const avail = useAvailability();
-  const [ops, setOps] = useState<FieldOp[]>([]);
-  const [live, setLive] = useState<LiveStatus | null>(null);
   const [openStop, setOpenStop] = useState<string | null>(null);
   const [showPast, setShowPast] = useState(false);
 
@@ -165,11 +165,14 @@ export default function FindUs() {
   }, []);
   const board = useAsyncData(loader, []);
 
-  // Mirror the board into local state for rendering — the silent background refresh below writes
-  // into the same mirror, so both paths feed one source of truth for the JSX below.
-  useEffect(() => {
-    if (board.data) { setOps(board.data.ops); setLive(board.data.live); }
-  }, [board.data]);
+  // ONE ROAD ON SCREEN: the first read, until the silent refresh below has a newer one. This was a
+  // mirror an effect filled from the first read — one render AFTER it landed, so the frame in
+  // between drew "nothing scheduled" over an empty road and the next one pushed the real stop in
+  // under it (2026-10-04, the layout-shift finding below).
+  const [fresh, setFresh] = useState<Board | null>(null);
+  const road = fresh ?? board.data ?? null;
+  const ops = road?.ops ?? NO_OPS;
+  const live = road?.live ?? null;
 
   // Silent background refresh — realtime + 20s poll + focus/visibility. Deliberately independent
   // of `board`/AsyncSection: a dropped socket or a missed poll must never reject unhandled or flip
@@ -177,8 +180,7 @@ export default function FindUs() {
   const refreshQuietly = useCallback(async () => {
     if (!supabase) return;
     try {
-      const road = await fetchRoad();
-      setOps(road.ops); setLive(road.live);
+      setFresh(await fetchRoad());
     } catch { /* keep last-known road */ }
   }, []);
 
@@ -290,6 +292,17 @@ export default function FindUs() {
         live={isLive}
         right={<div className="mast-right"><EditCopyPill group="Truck" /><AccountPill /></div>}
       />
+
+      {/* NOTHING BELOW THE MASTHEAD IS DRAWN BEFORE THE ROAD IS READ (2026-10-04).
+          The first paint used to be the page with nothing in it — "…", "Day: Soon", "Open: —", the
+          red button, "Loading the schedule…" — and then the real stop filled it in: a subtitle, an
+          address three lines tall, a second chip row, the list. Everything under the title moved
+          ~90px down at once. Production measured layout shift 0.38 on /truck (the gate is 0.04;
+          Google calls anything over 0.25 poor), on the page every QR code opens.
+          Now a skeleton stands in for the whole page and is REPLACED when the read lands, never
+          filled in: layout shift measures things that move, and nodes that are replaced do not
+          move. The key makes React swap them rather than reuse them. */}
+      {!(board.data || board.status === "error") ? <FindUsSkeleton /> : (<Fragment key="road">
 
       {/* City switcher — renders ONLY once a second market genuinely has something on the road.
           While Greenville runs alone there is no choice to make, so there is no control to explain,
@@ -444,6 +457,38 @@ export default function FindUs() {
         )}
       </AsyncSection>
 
+      <FindUsCoda />
+      </Fragment>)}
+    </section>
+  );
+}
+
+// The stand-in for the page while the road is read: the hero's shape (title, a line, the facts,
+// the button) and two rows of the road, in the house shimmer. Busy for assistive tech, which hears
+// one sentence instead of a pile of empty shapes.
+function FindUsSkeleton() {
+  return (
+    <>
+      <div className="fu-skel" aria-busy="true">
+        <h1 className="k-title lg">…</h1>
+        <Skeleton variant="line" />
+        <Skeleton variant="card" />
+        <Skeleton variant="row" count={3} />
+      </div>
+      <FindUsCoda />
+    </>
+  );
+}
+
+// The page's close — booking the bar, the craft link, the sign-off. Nothing in it depends on the
+// road, so it is drawn on the server and under the skeleton too; it is rendered in both halves of
+// the swap rather than outside them, because anything outside would be pushed down when the road
+// lands — the thing this swap exists to stop.
+function FindUsCoda() {
+  const router = useRouter();
+  const t = useSiteCopy();
+  return (
+    <>
       <SectionHeader label={<EditableCopy k="findus.byo_title" value={t("findus.byo_title")} />} annotation={<EditableCopy k="findus.byo_note" value={t("findus.byo_note")} />} />
       <EditableCopy k="findus.byo_pitch" value={t("findus.byo_pitch")} as="p" style={{ fontSize: 14, color: "var(--cream-m)", margin: "14px 2px 12px" }} multiline />
       <button type="button" className="btn-ter" onClick={() => router.push("/book")}>
@@ -459,7 +504,7 @@ export default function FindUs() {
       </button>
 
       <ClosingBeat />
-    </section>
+    </>
   );
 }
 
@@ -473,14 +518,14 @@ export default function FindUs() {
 function LivePingButton() {
   const { user, profile } = useAuth();
   const t = useSiteCopy();
-  const [state, setState] = useState<"hidden" | "off" | "on" | "busy">("hidden");
-  useEffect(() => {
-    if (typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && typeof Notification !== "undefined") {
-      let on = false;
-      try { on = localStorage.getItem("gt3-live-ping") === "1"; } catch { /* ignore */ }
-      setState(on ? "on" : "off");
-    }
-  }, []);
+  // Known on the first render, not one after it (2026-10-04): the chip arrived a frame late and
+  // wrapped the chip row onto a second line under everything already drawn — the last 0.018 of the
+  // page's layout shift. This mounts only in the browser now (FindUs draws its skeleton on the
+  // server and until the road is read), so there is a window to ask.
+  const [state, setState] = useState<"hidden" | "off" | "on" | "busy">(() => {
+    if (!(typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && typeof Notification !== "undefined")) return "hidden";
+    try { return localStorage.getItem("gt3-live-ping") === "1" ? "on" : "off"; } catch { return "off"; }
+  });
   const toggle = async () => {
     if (state === "busy" || state === "hidden") return;
     const turningOn = state === "off";

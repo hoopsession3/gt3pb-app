@@ -115,6 +115,8 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
 
   // ── pickup-only ──
   const [stops, setStops] = useState<{ name: string | null; starts_at: string }[]>([]);
+  // Whether the stops have been read yet — until then the Saturday picker keeps its place (below).
+  const [stopsRead, setStopsRead] = useState(false);
   const [stopIdx, setStopIdx] = useState(0);
   const [now, setNow] = useState(0);
   const [replacing, setReplacing] = useState<MyPack | null>(null);
@@ -211,7 +213,9 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
     supabase.from("stops").select("name, starts_at").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
       .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(8)
       .then(({ data }) => {
-        if (!live || !data) return;
+        if (!live) return;
+        setStopsRead(true);
+        if (!data) return;
         const seen = new Set<string>();
         const uniq = (data as { name: string | null; starts_at: string }[]).filter((st) => {
           if (dropForStop(st.starts_at).cutoff.getTime() <= Date.now()) return false;
@@ -575,6 +579,19 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
                     <span>{sunLabel(c.deliveryDateKey)} · order by {c.cutoffLabel.replace(", 6:00 PM", " 6 PM")}</span>
                   </button>
                 ))}
+              </div>
+            </>
+          ) : !stopsRead ? (
+            /* THE SATURDAY PICKER KEEPS ITS PLACE (2026-10-04). With two Saturdays on the road it
+               arrived a second after the page and pushed the packs, the note and the button 117px
+               down (production layout shift 0.041, gate 0.04). Until the stops are read, its label
+               and two chips' worth of shimmer hold the room it usually takes. One stop or none and
+               it goes — the less common morning, and a shorter move. */
+            <>
+              <EditableCopy k="funnel.pickup_day_label" value={t("funnel.pickup_day_label")} as="div" className="oa-slabel" />
+              <div className="dl-days" aria-hidden="true">
+                <span className="oa-day sk"><b>&nbsp;</b><span>&nbsp;</span></span>
+                <span className="oa-day sk"><b>&nbsp;</b><span>&nbsp;</span></span>
               </div>
             </>
           ) : stops.length > 1 ? (

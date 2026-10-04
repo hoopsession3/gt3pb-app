@@ -6463,6 +6463,32 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /select\("market, leads_market"\)\.eq\("id", user\.id\)\.eq\("tenant_id", tenant\)/.test(ir) && (ir.match(/\.\.\.inMarket,/g) || []).length === 2);
 }
 
+// ── THE TRUCK PAGE DRAWS ONCE (2026-10-04) ────────────────────────────────────────────────────────
+// Production measured layout shift 0.38 on /truck, 0.21 on /events, 0.12 on / and 0.041 on /reserve
+// (the gate is 0.04) — 0.001, 0.000, 0.028 and 0.000 before 8dd36fe, whose first-visit reload had
+// been hiding it. Find Us drew an empty page and let the road fill it in, ~90px of everything
+// moving at once; the live-ping chip arrived a frame late and wrapped the chip row; the reserve
+// page's Saturday picker arrived under the packs. Measured on a stand-in road that answers after
+// 900ms: 0.2004 → 0.0011 on /truck and /events, 0.0411 → 0 on /reserve.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const fu = code(read("components/FindUs.tsx"));
+  ok("find us: a skeleton until the road is read, then the page — swapped, never filled in",
+    /\{!\(board\.data \|\| board\.status === "error"\) \? <FindUsSkeleton \/> : \(<Fragment key="road">/.test(fu) && /function FindUsSkeleton\(\)/.test(fu) && /aria-busy="true"/.test(fu));
+  ok("find us: the title and the close are on the server's page, in both halves of the swap",
+    /<h1 className="k-title lg">…<\/h1>/.test(fu) && (fu.match(/<FindUsCoda \/>/g) || []).length === 2 && /function FindUsCoda\(\)/.test(fu));
+  ok("find us: the road is drawn from the read itself — no effect copies it into state a render later",
+    /const road = fresh \?\? board\.data \?\? null;/.test(fu) && !/setOps\(|setLive\(/.test(fu));
+  ok("find us: the live-ping chip knows itself on its first render",
+    /useState<"hidden" \| "off" \| "on" \| "busy">\(\(\) => \{/.test(fu) && !/setState\(on \? "on" : "off"\)/.test(fu));
+  const of = code(read("components/OrderFunnel.tsx"));
+  ok("reserve: the Saturday picker keeps its place until the stops are read",
+    /\) : !stopsRead \? \(/.test(of) && /<span className="oa-day sk"><b>&nbsp;<\/b><span>&nbsp;<\/span><\/span>/.test(of) && /if \(!live\) return;\s*setStopsRead\(true\);/.test(of));
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.
