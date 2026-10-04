@@ -52,10 +52,18 @@ export const RECORD_SHEET = { depth: 6, tap: 44, text: 10.5 };
 // is used one-handed at a register, so its tap floor is 44 like the record sheet's.
 const PURCHASE_FIXTURE = join(ROOT, "scripts/fixtures/purchase-sheet.html");
 export const PURCHASE_SHEET = { depth: 3, tap: 44, text: 10.5 };
+// My Day (2026-10-04) — the screen the console opens on, after Ryan's 10:13 PM screenshot: the top
+// three painted as grey slabs in the day theme, the greeting a lowercase fragment wedged under them.
+// The section's own content, measured: depth 2 is the brief inside today's op card; 44 is every
+// control once the task tick was widened from its 26px box and a one-line top-three item was given
+// a floor (it measured 35); 10 is the eyebrows, at the type floor.
+const MYDAY_FIXTURE = join(ROOT, "scripts/fixtures/my-day.html");
+export const MY_DAY = { depth: 2, tap: 44, text: 10 };
 const SHEETS = [
   { name: "brew sheet",     file: BREW_FIXTURE,     rel: "scripts/fixtures/brew-sheet.html",     limits: BREW_SHEET },
   { name: "record sheet",   file: RECORD_FIXTURE,   rel: "scripts/fixtures/record-sheet.html",   limits: RECORD_SHEET },
   { name: "purchase sheet", file: PURCHASE_FIXTURE, rel: "scripts/fixtures/purchase-sheet.html", limits: PURCHASE_SHEET },
+  { name: "My Day screen",  file: MYDAY_FIXTURE,    rel: "scripts/fixtures/my-day.html",         limits: MY_DAY },
 ];
 // The crew console's bottom chrome (2026-10-04): the nav, the floating tier, the rail. Not a depth
 // or a tap floor — a COLLISION check, because the defect was a button painted on top of a tab.
@@ -70,11 +78,12 @@ export const CHROME_CLEARANCE = 8;
 
 // ── THE CEILINGS — measured, not remembered (2026-10-01, after the one-box-per-level pass) ───────
 export const CEILING = {
-  cardRules: 817,        // rules that make a card: radius + (border | fill). 818 → 817: the account sheet lost its stat tiles (2026-10-02)
+  cardRules: 815,        // rules that make a card: radius + (border | fill). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04)
   rawRadii: 27,          // distinct border-radius values that are not a --r-* token, 50% or 0
-  dupSelectors: 54,      // single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02)
+  dupSelectors: 53,      // single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02; 54 → 53: .myday-live, declared twice, retired with the card it lived on, 2026-10-04)
   rootBlocks: 1,         // separate `:root{` blocks — tokens have one home (6 → 1 on 2026-10-02: motion, spring, eyebrow tracking, color-scheme and the radius scale folded in)
   subFloorFontRules: 0,  // px font-sizes under THE TYPE FLOOR (10px, see the note in globals.css). 184 → 0 on 2026-10-02
+  darkWells: 35,         // fills of literal black at 10–44% with no rule for a light surface — see darkWellCounts. Measured 37 the day it was written (2026-10-04); 37 → 35 that day: the task checkbox and My Day's top three
   selectShorthands: 0,   // rules on a <select> that paint with the `background` SHORTHAND. It resets background-repeat, and the chevron the app draws on every select then tiles across it — stripes, in the day theme, on every select whose container had one (Ryan's brew sheet, 2026-10-03). 19 → 0: colour is background-color.
   maxLeafDepth: 2,       // boxes around the innermost box on the Plan screen (was 4)
   railAreaFraction: 0.066, // expanded rail as a share of a 390×844 viewport — a 48px row plus 8px of air above the nav, in the layout flow (2026-10-02). Width used to be the number (0.46 → 0.27 → a bar); area is what a toolbar can be held to
@@ -350,7 +359,40 @@ export function staticCounts(css) {
     if (!/\bselect\b/.test(sel.replace(/\/\*[\s\S]*?\*\//g, ""))) continue;
     if (/(^|;)\s*background\s*:/.test(body)) selectShorthands++;
   }
-  return { cardRules, rawRadii: radii.size, rawRadiiList: [...radii].sort((a, b) => b[1] - a[1]), dupSelectors: dups.length, dupList: dups.sort((a, b) => b[1] - a[1]), rootBlocks, subFloorFontRules, selectShorthands };
+  const { darkWells, darkWellList } = darkWellCounts(css);
+  return { cardRules, rawRadii: radii.size, rawRadiiList: [...radii].sort((a, b) => b[1] - a[1]), dupSelectors: dups.length, dupList: dups.sort((a, b) => b[1] - a[1]), rootBlocks, subFloorFontRules, selectShorthands, darkWells, darkWellList };
+}
+
+// ── DARK WELLS ON PAPER (2026-10-04) ─────────────────────────────────────────────────────────────
+// Ryan's My Day, in the day theme: his top three priorities and every unticked task box painted as
+// mid-grey slabs that read as DISABLED. Both were `background: rgba(0,0,0,.18–.22)` — an inset
+// tone mixed for the charcoal ground, where black at 20% is a gentle well. On cream it is grey.
+// .ofr-stat met the same thing through a token (--well) and was patched by hand; nothing counted
+// the rest. This counts rules that fill with literal black between 10% and 44% and that no rule
+// in a light scope (.app.crew-day, paper: .shop/.menu/.paper) restates. Under 10% is an ink wash
+// that works on either ground; 45% and over is an overlay — a scrim, a badge on a photo — dark on
+// purpose in both themes, as is anything named a scrim, backdrop or overlay. Comments are
+// stripped first: a comma in a comment is not a selector list.
+export function darkWellCounts(css) {
+  const plain = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  // A statement before a rule (an @import, a stray `;`) is not part of its selector.
+  const rules = [...plain.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => [m[1].split(";").pop().trim(), m[2]]);
+  const LIGHT = /\.app\.crew-day|body\.light|\.shop\b|\.menu\b|\.paper\b/;
+  const restated = rules.filter(([sel, body]) => LIGHT.test(sel) && /(^|;)\s*background(-color)?\s*:/.test(body)).map(([sel]) => sel);
+  // Whole compound selectors only: `.code` is not restated by a rule for `.code-row`.
+  const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const covers = (rule, part) => new RegExp(`(^|[\\s>+~(,])${esc(part)}(?![\\w-])`).test(rule);
+  const darkWellList = [];
+  for (const [sel, body] of rules) {
+    if (LIGHT.test(sel) || /scrim|backdrop|overlay/.test(sel)) continue;
+    const m = body.match(/(^|;)\s*background(?:-color)?\s*:\s*rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*(\d*\.?\d+)\s*\)/);
+    if (!m) continue;
+    const a = parseFloat(m[2]);
+    if (!(a >= 0.1 && a < 0.45)) continue;
+    const bare = sel.split(",").map((x) => x.trim()).filter((x) => x && !restated.some((r) => covers(r, x)));
+    if (bare.length) darkWellList.push(`${a}  ${bare.join(", ")}`);
+  }
+  return { darkWells: darkWellList.length, darkWellList };
 }
 
 // ── THE FIXTURE NAMES ITS SOURCES ────────────────────────────────────────────────────────────────
@@ -524,6 +566,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   ratchet(":root blocks", s.rootBlocks, CEILING.rootBlocks);
   ratchet("px font-sizes under the 10px type floor", s.subFloorFontRules, CEILING.subFloorFontRules);
   ratchet("<select> rules painted with the background shorthand (the chevron tiles)", s.selectShorthands, CEILING.selectShorthands);
+  ratchet("dark wells with no light-surface rule (a grey slab on paper)", s.darkWells, CEILING.darkWells);
   const f = frictionCounts();
   console.log("DESIGN RATCHET — friction in the source:");
   ratchet("native confirm()/prompt() dialogs still to migrate to the house sheets", f.nativeDialogs, FRICTION.nativeDialogs);
@@ -532,6 +575,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   if (list) {
     console.log("  raw radii, most used first:"); for (const [v, n] of s.rawRadiiList.slice(0, 12)) console.log(`    ${String(n).padStart(4)}  ${v}`);
     console.log("  duplicate selectors, most repeated first:"); for (const [v, n] of s.dupList.slice(0, 12)) console.log(`    ${String(n).padStart(4)}  ${v}`);
+    console.log("  dark wells with no light-surface rule:"); for (const v of s.darkWellList) console.log(`    ${v}`);
   }
 
   let html;

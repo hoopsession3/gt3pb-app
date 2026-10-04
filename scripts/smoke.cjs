@@ -5124,6 +5124,71 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("errorMessage: no max, no cap", errorMessage(new Error("x".repeat(500))).length === 500);
 }
 
+// ── MY DAY, 10:13 PM (2026-10-04) ──────────────────────────────────────────────────────────────
+// Ryan's screenshot: "evening, Ryan." in 30px between his top three and his inbox; the top three as
+// grey slabs that looked disabled and said nothing about how late they were; "11 overdue · 7 tasks
+// past due"; and under it, a day whose op card, flags, stops and brews all went silent on a failed
+// read. These hold each fix to the rule it now lives in.
+{
+  const DT = require("../.smoke/dayWords.js");
+  ok("greeting: the part of the day, capitalised — 'evening, Ryan.' was the Design System pass dropping 'Good ' and the capital with it",
+    DT.partOfDay(22) === "Evening" && DT.partOfDay(9) === "Morning" && DT.partOfDay(13) === "Afternoon");
+  ok("greeting: the edges — 5 is morning, 12 afternoon, 17 evening",
+    DT.partOfDay(4) === "Evening" && DT.partOfDay(5) === "Morning" && DT.partOfDay(11) === "Morning" && DT.partOfDay(12) === "Afternoon" && DT.partOfDay(16) === "Afternoon" && DT.partOfDay(17) === "Evening");
+  ok("greeting: 1 AM after an event is still the evening, not 'morning'", DT.partOfDay(0) === "Evening" && DT.partOfDay(1) === "Evening");
+  ok("days between: calendar days, positive forward, and a DST change is still one day",
+    DT.daysBetween("2026-10-03", "2026-10-04") === 1 && DT.daysBetween("2026-10-04", "2026-09-30") === -4
+    && DT.daysBetween("2026-11-01", "2026-11-02") === 1 && DT.daysBetween("2026-03-08", "2026-03-09") === 1 && DT.daysBetween("2026-07-01", "2026-10-03") === 94);
+  ok("due word: late, today, ahead — one wording for Needs-you and the top three",
+    DT.dueWord(-94) === "94 days late" && DT.dueWord(-1) === "1 day late" && DT.dueWord(0) === "due today" && DT.dueWord(1) === "in 1 day" && DT.dueWord(4) === "in 4 days");
+
+  const fs = require("node:fs"), path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const crew = code(read("app/crew/page.tsx"));
+  const myDay = crew.slice(crew.indexOf("function MyDay("), crew.indexOf("function MyTasks("));
+  const head = code(read("components/DayHeadline.tsx")), owed = code(read("components/Owed.tsx")), alerts = code(read("lib/useMyAlerts.ts"));
+  const css = read("app/globals.css");
+
+  ok("my day: the greeting is lib/dayWords partOfDay, not 'Good …' with its first word cut off",
+    /partOfDay\(now\.getHours\(\)\)/.test(myDay) && !/greet\.replace\("Good ", ""\)/.test(crew));
+  ok("my day: the greeting opens the day — the headline renders inside My Day, after it, and nowhere else",
+    myDay.indexOf('className="myday-hero"') > -1 && myDay.indexOf('className="myday-hero"') < myDay.indexOf("<DayHeadline ")
+    && (crew.match(/<DayHeadline /g) || []).length === 1 && !/canManage && <DayHeadline/.test(crew));
+  ok("my day: the morning screen's headline is a static import, as the code-split note requires of the daily path",
+    /^import DayHeadline from "@\/components\/DayHeadline";$/m.test(read("app/crew/page.tsx")) && !/dynamic\(\(\) => import\("@\/components\/DayHeadline"\)/.test(crew));
+  ok("my day: one card for today's op — My Day's own event card is gone, and the headline reads active events with their brief",
+    !/myday-ev/.test(crew) && /from\("events"\)\.select\("id, title, day_label, is_live"\)\.eq\("day", localToday\(\)\)\.is\("archived_at", null\)/.test(head)
+    && /from\("event_ops"\)/.test(head) && !/field_ops/.test(head));
+  ok("headline: every read throws on failure — the error branch it had could never be reached",
+    /if \(ev\.error\) throw new Error/.test(head) && /if \(tk\.error\) throw new Error/.test(head) && /if \(o\.error\) throw new Error/.test(head));
+  ok("headline: the op card opens its event, and each of the top three says how late it is, in Needs-you's words",
+    /onClick=\{\(\) => onOpenOp\(op\.id\)\}/.test(head) && /dueWord\(out\)/.test(head) && /daysBetween\(d\.dueDay, t\.due\)/.test(head) && /onOpenOp=\{openOp\}/.test(myDay));
+  ok("my day: stops, drops and brews throw on a failed read and say so, instead of drawing an empty day",
+    /const failed = \[st\.error, dr\.error, de\.error, br\.error\]\.find\(Boolean\);\s*if \(failed\) throw new Error/.test(myDay) && /rhythmState\.status === "error"/.test(myDay));
+  ok("flags: a failed read keeps the last answer and says so; My Day and the inbox show it instead of silence or 'all caught up'",
+    /const failed = \[al\.error, rd\.error, pf\.error, sz\.error\]\.find\(Boolean\);\s*if \(failed\) \{ setError\(failed\.message\); return; \}/.test(alerts)
+    && /return \{ flags, held, quietActive, critCount, error,/.test(alerts)
+    && /\) : flagsErr \? \(/.test(myDay) && /readErr \? \(/.test(crew) && !/\[\{ data: alerts \}/.test(alerts));
+  ok("needs you: one number for late — '11 overdue · 7 tasks past due' read as if the seven were among the eleven",
+    /const lateCount = late\.length \+ tasks\.length;/.test(owed) && /`\$\{lateCount\} late`/.test(owed) && !/tasks past due/.test(owed)
+    && /from "@\/lib\/dayWords"/.test(owed) && !/const ageWord =/.test(owed) && !/const localYMD =/.test(owed));
+  // The console's words stay out of lib/dates: it rides in the chunk every guest page loads, and the
+  // three of them cost each of those pages 151 bytes there (measured, 2026-10-04).
+  ok("weight: partOfDay, daysBetween and dueWord live in lib/dayWords, not the lib/dates every page carries",
+    !/export function (partOfDay|daysBetween|dueWord)\b/.test(read("lib/dates.ts")) && /export function partOfDay/.test(read("lib/dayWords.ts")));
+  // The checkbox's day rule must not outrank a ticked or picked box. :where() holds it at (0,2,0),
+  // under `.adm-task.done .task-box` (0,3,0); `.task-box.on` is ALSO (0,2,0), so the day rule has to
+  // come first in the file or every picked box in the day theme turns white.
+  const boxDay = css.indexOf(".app.crew-day :where(.task-box){background:var(--card)");
+  ok("paper: the empty task box is white with an ink edge in the day theme, and never outranks the ticked or picked states",
+    boxDay > 0 && boxDay < css.indexOf(".task-box.on{"));
+  ok("paper: the top three are cards in the day theme, not 18% black", /\.app\.crew-day \.dayhead-t\{background:var\(--card\)\}/.test(css));
+  ok("paper: the day console restates --field, --well and --ink-whisper — they fell through to :root's black",
+    /--field:#FFFFFF; --well:rgba\(34,31,24,\.05\); --ink-whisper:rgba\(34,31,24,\.64\);/.test(css));
+  ok("paper: 'late' is one colour, the legible red for text in either theme", /\.owed-row\.late \.owed-age,\.owed-age\.late\{color:var\(--red-onLight\)\}/.test(css));
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.

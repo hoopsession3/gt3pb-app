@@ -9,6 +9,8 @@ import { fetchInventory, rollupLowStock, type InvItem } from "@/lib/inventory";
 import { goPlanTab } from "@/lib/planNav";
 import { useTaskSheet } from "./TaskSheet";
 import AsyncSection from "./AsyncSection";
+import { dayKey } from "@/lib/dates";
+import { daysBetween, dueWord } from "@/lib/dayWords";
 
 // WHAT NEEDS YOU — one panel, because My Day was carrying two.
 //
@@ -66,12 +68,8 @@ type Task = { id: string; label: string; owner: { kind: "event" | "stop"; id: st
 type Data = { rows: Row[]; tasks: Task[]; low: InvItem[]; bookings: number; extrasFailed: boolean };
 
 const SHOW = 5;
-const localYMD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-const ageWord = (d: number) =>
-  d < 0 ? `${Math.abs(d)} day${Math.abs(d) === 1 ? "" : "s"} late`
-  : d === 0 ? "due today"
-  : `in ${d} day${d === 1 ? "" : "s"}`;
+// The day key and the "N days late" wording were private copies here; lib/dates and lib/dayWords
+// own them now, so My Day's top three and this panel cannot say lateness two ways.
 
 export default function Owed({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -80,7 +78,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
 
   const loader = useCallback(async (): Promise<Data> => {
     if (!supabase) return { rows: [], tasks: [], low: [], bookings: 0, extrasFailed: false };
-    const today = localYMD(new Date());
+    const today = dayKey(new Date());
     const nowIso = new Date().toISOString();
 
     // The list itself. This one throws.
@@ -115,19 +113,16 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
       const evName = new Map(allEv.map((e) => [e.id, e.title ?? "Event"]));
       const stName = new Map(allSt.map((x) => [x.id, x.name ?? "Stop"]));
       const evDay = new Map(allEv.map((e) => [e.id, e.day]));
-      const stDay = new Map(allSt.map((x) => [x.id, x.starts_at ? localYMD(new Date(x.starts_at)) : null]));
+      const stDay = new Map(allSt.map((x) => [x.id, x.starts_at ? dayKey(new Date(x.starts_at)) : null]));
       const dueEv = new Set(allEv.filter((e) => e.day && e.day < today).map((e) => e.id));
-      const dueSt = new Set(allSt.filter((x) => x.status === "done" || (x.starts_at && localYMD(new Date(x.starts_at)) < today)).map((x) => x.id));
+      const dueSt = new Set(allSt.filter((x) => x.status === "done" || (x.starts_at && dayKey(new Date(x.starts_at)) < today)).map((x) => x.id));
 
-      const daysLate = (ymd: string | null | undefined) => {
-        if (!ymd) return null;
-        return Math.round((Date.parse(`${today}T12:00:00`) - Date.parse(`${ymd}T12:00:00`)) / 86400000);
-      };
+      const daysLate = (ymd: string | null | undefined) => (ymd ? daysBetween(ymd, today) : null);
 
       for (const t of ((tk.data as { id: string; label: string; event_id: string | null; stop_id: string | null; due_at: string | null }[]) ?? [])) {
         const isPast = t.due_at ? t.due_at < nowIso : ((t.event_id && dueEv.has(t.event_id)) || (t.stop_id && dueSt.has(t.stop_id)));
         if (!isPast) continue;
-        const own = t.due_at ? localYMD(new Date(t.due_at)) : (t.event_id ? evDay.get(t.event_id) : t.stop_id ? stDay.get(t.stop_id) : null);
+        const own = t.due_at ? dayKey(new Date(t.due_at)) : (t.event_id ? evDay.get(t.event_id) : t.stop_id ? stDay.get(t.stop_id) : null);
         const owner = t.event_id ? { kind: "event" as const, id: t.event_id, name: evName.get(t.event_id) ?? "Event" }
                     : t.stop_id ? { kind: "stop" as const, id: t.stop_id, name: stName.get(t.stop_id) ?? "Stop" }
                     : null;
@@ -166,10 +161,13 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
         const soon = rows.filter((r) => r.severity === "soon");
         const shown = open ? rows : rows.slice(0, compact ? 3 : SHOW);
         // Every count in one sentence. Two panels meant two headlines and the reader did the
-        // addition; the point of merging them is that they do not have to.
+        // addition; the point of merging them is that they do not have to. And it has to be ONE
+        // number for one idea: "11 overdue · 7 tasks past due" (Ryan's My Day, 2026-10-04) read as if
+        // the seven were among the eleven — two words for late, and a sum left to the reader. The
+        // split is still one glance down: the rows, then "7 team tasks late".
+        const lateCount = late.length + tasks.length;
         const bits = [
-          late.length > 0 ? `${late.length} overdue` : "",
-          tasks.length > 0 ? `${tasks.length} task${tasks.length === 1 ? "" : "s"} past due` : "",
+          lateCount > 0 ? `${lateCount} late` : "",
           soon.length > 0 ? `${soon.length} due soon` : "",
         ].filter(Boolean);
 
@@ -189,7 +187,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
                   <i>{r.kind} · {r.detail}</i>
                 </span>
                 {/* The word, not just the colour — a red row that does not say "late" is a colour. */}
-                <span className="owed-age">{ageWord(Number(r.days_out))}</span>
+                <span className="owed-age">{dueWord(Number(r.days_out))}</span>
                 <span className="owed-c" aria-hidden="true">›</span>
               </a>
             ))}
@@ -209,7 +207,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
             {tasks.length > 0 && (
               <>
                 <button type="button" className="owed-more" onClick={() => setOpenTasks((v) => !v)} aria-expanded={openTasks}>
-                  {tasks.length} team task{tasks.length === 1 ? "" : "s"} past due <span aria-hidden="true">{openTasks ? "⌄" : "›"}</span>
+                  {tasks.length} team task{tasks.length === 1 ? "" : "s"} late <span aria-hidden="true">{openTasks ? "⌄" : "›"}</span>
                 </button>
                 {openTasks && tasks.slice(0, 8).map((t) => (
                   <button key={t.id} type="button" className="owed-row late"
@@ -221,11 +219,11 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
                           prep screen it does not belong to. */}
                       <i>{t.owner ? `${t.owner.kind} · ${t.owner.name}` : "not attached to an event or stop"}</i>
                     </span>
-                    <span className="owed-age">{t.late != null && t.late > 0 ? ageWord(-t.late) : "past due"}</span>
+                    <span className="owed-age">{t.late != null && t.late > 0 ? dueWord(-t.late) : "late"}</span>
                     <span className="owed-c" aria-hidden="true">›</span>
                   </button>
                 ))}
-                {openTasks && tasks.length > 8 && <div className="pnl-note">+ {tasks.length - 8} more past due.</div>}
+                {openTasks && tasks.length > 8 && <div className="pnl-note">+ {tasks.length - 8} more late.</div>}
               </>
             )}
 

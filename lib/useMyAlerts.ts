@@ -46,11 +46,17 @@ export function useMyAlerts(userId: string | null, enabled = true) {
   const [flags, setFlags] = useState<MyFlag[]>([]);
   const [held, setHeld] = useState<MyFlag[]>([]);       // non-criticals held by quiet hours (the digest)
   const [quietActive, setQuietActive] = useState(false);
+  // A FAILED READ IS NOT "NOTHING NEEDS YOU" (2026-10-04). All four reads below used to destructure
+  // `data` alone, so a refused alerts read set the list to empty — the bell went quiet and My Day,
+  // whose rule is "when nothing needs you, we say NOTHING", said nothing. A failure keeps the last
+  // answer on screen and says it could not refresh; and a failed alert_reads or snoozes read is a
+  // failure too, because without it broadcasts already dismissed would count again.
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase || !userId) { setFlags([]); setHeld([]); setQuietActive(false); return; }
     const nowIso = new Date().toISOString();
-    const [{ data: alerts }, { data: reads }, { data: prefsRow }, { data: snz }] = await Promise.all([
+    const [al, rd, pf, sz] = await Promise.all([
       supabase.from("alerts")
         .select("id, severity, title, body, category, link, target_user_id, created_by, kind, subject_id, created_at, occurrences, last_seen_at")
         .or(`target_user_id.eq.${userId},target_user_id.is.null`)
@@ -61,6 +67,10 @@ export function useMyAlerts(userId: string | null, enabled = true) {
       supabase.from("notif_prefs").select("muted_categories, quiet_start, quiet_end").eq("user_id", userId).maybeSingle(),
       supabase.from("alert_snoozes").select("alert_id, until").eq("user_id", userId).gt("until", nowIso),
     ]);
+    const failed = [al.error, rd.error, pf.error, sz.error].find(Boolean);
+    if (failed) { setError(failed.message); return; }
+    setError(null);
+    const alerts = al.data, reads = rd.data, prefsRow = pf.data, snz = sz.data;
     const readIds = new Set(((reads ?? []) as { alert_id: string }[]).map((r) => r.alert_id));
     const snoozed = new Set(((snz ?? []) as { alert_id: string }[]).map((r) => r.alert_id));
     const prefs = (prefsRow as { muted_categories?: string[]; quiet_start?: number | null; quiet_end?: number | null } | null);
@@ -142,5 +152,5 @@ export function useMyAlerts(userId: string | null, enabled = true) {
   }, [held, userId]);
 
   const critCount = flags.filter((f) => f.severity === "critical").length;
-  return { flags, held, quietActive, critCount, ack, clearAll, clearHeld, snooze, reload: load };
+  return { flags, held, quietActive, critCount, error, ack, clearAll, clearHeld, snooze, reload: load };
 }

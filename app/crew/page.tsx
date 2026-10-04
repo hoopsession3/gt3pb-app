@@ -13,6 +13,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, alertWhen, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
 import { localToday, etToday, dayKey, dayWithDate, relativeDay, ageLabel } from "@/lib/dates";
+import { partOfDay } from "@/lib/dayWords";
 import { prepBucket } from "@/lib/readiness";
 import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
 import { archiveOwner, setEventLive } from "@/lib/wrap";
@@ -23,6 +24,10 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "@/components/AsyncSection";
 import Owed from "@/components/Owed";  // daily path: the overdue list is on the default screen
+// Daily path too (2026-10-04): today's op card lives here now, for everybody, so it is a static
+// import like the rest of the morning screen — a crew member opening My Day must never wait on a
+// chunk to see where they are working (see "Code-split" below).
+import DayHeadline from "@/components/DayHeadline";
 import EmptyState from "@/components/EmptyState";
 import { rememberMode } from "@/lib/mode";
 import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY_GROUP, VALID as VALID_SECTIONS, type OpSection } from "@/components/OperatorNav";
@@ -75,7 +80,6 @@ const KpiBoard = dynamic(() => import("@/components/KpiBoard"), { loading: () =>
 const UtilizationPanel = dynamic(() => import("@/components/UtilizationPanel"), { loading: () => <PourFill label="Loading…" /> });
 const CrewPerson = dynamic(() => import("@/components/CrewPerson"), { ssr: false });
 import { RecordLink } from "@/components/RecordSheet";
-const DayHeadline = dynamic(() => import("@/components/DayHeadline"), { loading: () => null });
 const InviteTeammate = dynamic(() => import("@/components/InviteTeammate"), { loading: () => <PourFill label="Loading…" /> });
 const CrmPanel = dynamic(() => import("@/components/CrmPanel"), { loading: () => <PourFill label="Loading…" /> });
 const CodesPanel = dynamic(() => import("@/components/CodesPanel"), { loading: () => <PourFill label="Loading…" /> });
@@ -775,7 +779,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
   // One source of truth for "what needs me" — the same hook drives My Day's flags and the nav
   // badge, so the three counters that used to disagree now agree by construction. Ack semantics
   // live in the hook: row-ack for targeted alerts, per-user read for broadcasts (0157).
-  const { flags: mine, held, critCount: crit, ack, clearAll, clearHeld, snooze } = useMyAlerts(userId);
+  const { flags: mine, held, critCount: crit, error: readErr, reload, ack, clearAll, clearHeld, snooze } = useMyAlerts(userId);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [digestOpen, setDigestOpen] = useState(false);
   const streams = useWorkStreams();
@@ -836,7 +840,13 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
     return (
       <div className="adm-sec">
         <SectionHeader label={title} />
-        <EmptyState title="You're all caught up" sub="No flags or pings need you right now." />
+        {/* "All caught up" is a claim about the inbox, so it needs the inbox to have answered. */}
+        {readErr ? (
+          <EmptyState role="alert" title="Couldn't check your inbox" sub={`${readErr}. This is not "all caught up" — the read did not answer.`}
+            action={<button type="button" className="btn-ter" onClick={() => reload()}>Try again</button>} />
+        ) : (
+          <EmptyState title="You're all caught up" sub="No flags or pings need you right now." />
+        )}
       </div>
     );
   }
@@ -1180,89 +1190,89 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
   );
 }
 
+type Rhythm = { stops: { id: string; name: string | null; starts_at: string | null }[]; dropPacks: number; porches: number; brews: { id: string; recipe_name: string; batch_gal: number; warn: boolean }[] };
+const NO_RHYTHM: Rhythm = { stops: [], dropPacks: 0, porches: 0, brews: [] };
+
 function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string | null; meName: string; isLeader: boolean; canPrep: boolean; canBrew: boolean }) {
   // Flags ride the one shared hook (same source as the Now strip + nav badge). Crew see their own
   // pings + broadcasts now too — the old isLeader gate predates the staff-wide alerts RLS (0157).
-  const { flags } = useMyAlerts(userId);
+  const { flags, error: flagsErr, reload: reloadFlags } = useMyAlerts(userId);
   const { setSection } = useOperatorSection();
   const streams = useWorkStreams();
   const t = useSiteCopy();
   const laneColor = (cat: string) => streamOfCategory(cat, streams)?.color;
-  const [today, setToday] = useState<{ id: string; title: string | null; day_label: string | null; is_live: boolean | null; dress_code?: string | null; crew_brief?: string | null }[]>([]);
   // Clock read CLIENT-SIDE only: /crew is prerendered, so a render-time new Date() bakes build/UTC
   // time+date into the HTML and mismatches the browser on hydration (React #418). null on SSR + the
   // first client render (they match), then the effect fills the real local greeting + date.
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => { setNow(new Date()); }, []);
-  // The day's rhythm — the same anchors the company calendar carries. Events use the operator's
+  // The day's rhythm — the same anchors the company calendar carries. Stops use the operator's
   // wall-clock day; drop/delivery are BUSINESS days (ET) so a late evening doesn't flip them early.
-  const [rhythm, setRhythm] = useState<{ stops: { id: string; name: string | null; starts_at: string | null }[]; dropPacks: number; porches: number; brews: { id: string; recipe_name: string; batch_gal: number; warn: boolean }[] }>({ stops: [], dropPacks: 0, porches: 0, brews: [] });
-  useEffect(() => {
-    if (!supabase) return;
+  // A FAILED READ IS NOT A QUIET DAY (2026-10-04): these four read .data straight through PostgREST
+  // error objects, so a failure drew no stop, no drop, no brew — exactly what an empty day draws.
+  const rhythmLoader = useCallback(async (): Promise<Rhythm> => {
+    if (!supabase) return NO_RHYTHM;
     const d = localToday();
-    // Brief fields live on the staff-only event_ops sibling now — pull today's events, then merge
-    // their ops rows by id (keeps the card's e.dress_code / e.crew_brief render unchanged).
-    supabase.from("events").select("id, title, day_label, is_live").eq("day", d).is("archived_at", null).then(async ({ data }) => {
-      const evs = (data ?? []) as { id: string; title: string | null; day_label: string | null; is_live: boolean | null }[];
-      if (!evs.length || !supabase) { setToday(evs); return; }
-      const { data: ops, error: opsErr } = await supabase.from("event_ops").select("event_id, dress_code, crew_brief").in("event_id", evs.map((e) => e.id));
-      if (opsErr) throw new Error(opsErr.message);   // else every event silently loses its dress code and brief
-      const m = new Map((ops ?? []).map((o: { event_id: string; dress_code: string | null; crew_brief: string | null }) => [o.event_id, o]));
-      setToday(evs.map((e) => ({ ...e, dress_code: m.get(e.id)?.dress_code ?? null, crew_brief: m.get(e.id)?.crew_brief ?? null })));
-    });
     const dayStart = new Date(`${d}T00:00:00`);
     const bd = etToday();
-    Promise.all([
+    const [st, dr, de, br] = await Promise.all([
       supabase.from("stops").select("id, name, starts_at").is("archived_at", null).neq("status", "done").gte("starts_at", dayStart.toISOString()).lt("starts_at", new Date(dayStart.getTime() + 86400000).toISOString()),
       supabase.from("drop_orders").select("id", { count: "exact", head: true }).eq("drop_date", bd).is("canceled_at", null),
       supabase.from("delivery_orders").select("id", { count: "exact", head: true }).eq("delivery_date", bd).is("canceled_at", null),
       supabase.from("brew_batches").select("id, recipe_name, batch_gal, latest_start_at, status").in("status", ["planned", "brewing"]).eq("brew_date", d),
-    ]).then(([st, dr, de, br]) => {
-      setRhythm({
-        stops: ((st.data ?? []) as { id: string; name: string | null; starts_at: string | null }[]),
-        dropPacks: dr.count ?? 0,
-        porches: de.count ?? 0,
-        brews: ((br.data ?? []) as { id: string; recipe_name: string; batch_gal: number; latest_start_at: string | null; status: string }[]).map((b) => ({ id: b.id, recipe_name: b.recipe_name, batch_gal: b.batch_gal, warn: brewStartOverdue(b) })),
-      });
-    });
+    ]);
+    const failed = [st.error, dr.error, de.error, br.error].find(Boolean);
+    if (failed) throw new Error(failed.message);
+    return {
+      stops: ((st.data ?? []) as { id: string; name: string | null; starts_at: string | null }[]),
+      dropPacks: dr.count ?? 0,
+      porches: de.count ?? 0,
+      brews: ((br.data ?? []) as { id: string; recipe_name: string; batch_gal: number; latest_start_at: string | null; status: string }[]).map((b) => ({ id: b.id, recipe_name: b.recipe_name, batch_gal: b.batch_gal, warn: brewStartOverdue(b) })),
+    };
   }, []);
+  const rhythmState = useAsyncData<Rhythm>(rhythmLoader, []);
+  const rhythm = rhythmState.data ?? NO_RHYTHM;
 
-  const greet = now ? (now.getHours() < 12 ? "Good morning" : now.getHours() < 17 ? "Good afternoon" : "Good evening") : "";
+  // "Evening, Ryan." — lib/dayWords partOfDay. It read "evening, Ryan." from 2026-07-15 to 2026-10-04.
   const first = meName.split(" ")[0];
   const named = first && first !== "Me" ? first : "";
   const motto = t("board.welcome");
+  const dateLabel = now ? now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }) : "";
+  // A middle dot between the date and the motto: the motto carries its own em dash, and two of them
+  // in one line ("Saturday, October 3 — Precision in every pour — let's…") read as one long aside.
+  const sub = now ? [dateLabel, motto].filter(Boolean).join(" · ") : "";
+  // Today's op opens the way a stop chip does: its readiness for those who prep, Live Ops otherwise.
+  const openOp = (id: string) => {
+    if (!canPrep) { setSection("now"); return; }
+    try { localStorage.setItem(prepHandoffKey, prepHandoffValue("event", id)); } catch { /* ignore */ }
+    setSection("prep");
+  };
 
   const [leadOpen, setLeadOpen] = useState(false); // leadership briefing/intake — collapsed by default (decrowd)
   return (
     <>
-      {/* compact kit header: title · ONE italic line (date — motto). No banner block. No "My Day"
+      {/* compact kit header: title · ONE italic line (date · motto). No banner block. No "My Day"
           eyebrow here (2026-07-16, decrowd) — the persistent op-head title directly above this
           component already says "My Day"; repeating it as an eyebrow read as two titles stacked
-          for one screen. */}
+          for one screen.
+          THE GREETING OPENS THE DAY (2026-10-04). It used to render BELOW the leader's headline, so
+          on Ryan's phone a 30px "evening, Ryan." sat between his top three and his inbox, reading
+          like the title of whatever came next. It is the frame, so it comes first; the headline
+          still comes before the plates, which is all P3 asked. The two lines hold their height
+          until the clock is read, so nothing below jumps when it is. */}
       <div className="myday-hero">
-        {now && (
-          <>
-            {/* h2, not h1 — op-head-t directly above this is now the section's real h1 ("My Day");
-                this greeting is content within that section, one level down. */}
-            <h2 className="k-title">{greet.replace("Good ", "")}{named ? `, ${named}` : ""}.</h2>
-            <p className="k-sub">{now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}{motto ? ` — ${motto}` : ""}</p>
-          </>
-        )}
+        {/* h2, not h1 — op-head-t directly above this is now the section's real h1 ("My Day");
+            this greeting is content within that section, one level down. */}
+        <h2 className="k-title">{now ? `${partOfDay(now.getHours())}${named ? `, ${named}` : ""}.` : "\u00a0"}</h2>
+        <p className="k-sub">{sub || "\u00a0"}</p>
       </div>
-      {today.length > 0 && (
-        <div className="myday-today">
-          {today.map((e) => (
-            <div key={e.id} className="myday-ev-wrap">
-              <div className="myday-ev">{e.is_live && <span className="myday-live">LIVE</span>}<span><Icon name="pin" /> {e.title || e.day_label || "Event"}</span></div>
-              {(e.dress_code?.trim() || e.crew_brief?.trim()) && (
-                <div className="myday-brief">
-                  {e.dress_code?.trim() && <div className="myday-brief-row"><b>Wear</b><span>{e.dress_code}</span></div>}
-                  {e.crew_brief?.trim() && <div className="myday-brief-row"><b>Details</b><span style={{ whiteSpace: "pre-wrap" }}>{e.crew_brief}</span></div>}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+      {/* Today's op (everybody) and the top three (leaders): the headline, before the plates. */}
+      <DayHeadline leader={isLeader} onOpenOp={openOp} />
+      {rhythmState.status === "error" && (
+        <p className="load-failed" role="status">
+          Couldn&apos;t read today&apos;s stops, drops and brews — this is not &ldquo;nothing on&rdquo;.{" "}
+          <button type="button" className="btn-ter" onClick={() => rhythmState.reload()}>Try again</button>
+        </p>
       )}
       {(rhythm.stops.length > 0 || rhythm.dropPacks > 0 || rhythm.porches > 0 || rhythm.brews.length > 0) && (
         <div className="myday-rhythm">
@@ -1282,11 +1292,17 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
       )}
       {/* The one inbox pointer — counts live in ONE place (the 🔔 bell is the same number). When
           nothing needs you, we say NOTHING: silence is the signal, not another banner. */}
-      {flags.length > 0 && (
+      {flags.length > 0 ? (
         <button type="button" className="myday-inbox-ptr" onClick={() => window.dispatchEvent(new Event("gt3-open-inbox"))}>
           <span className="myday-inbox-n">{flags.length}</span> flag{flags.length === 1 ? "" : "s"} &amp; ping{flags.length === 1 ? "" : "s"} for you <span className="myday-inbox-go">Open inbox <Icon name="arrowRight" /></span>
         </button>
-      )}
+      ) : flagsErr ? (
+        // Silence is only the signal when the read answered. A failed one used to be silence too.
+        <p className="load-failed" role="status">
+          Couldn&apos;t check your flags &amp; pings — this is not &ldquo;nothing for you&rdquo;.{" "}
+          <button type="button" className="btn-ter" onClick={() => reloadFlags()}>Try again</button>
+        </p>
+      ) : null}
       {/* MY TASKS above the fold — the day's work leads; everything else follows. */}
       <MyTasks userId={userId} />
       {/* WHAT IS OWED (0320). Under the day's work, because a task due today outranks a permit due
@@ -5533,8 +5549,8 @@ export default function AdminPage() {
       {sec === "day" && (
         <>
           {/* P3 (2026-08-03): a leader's day opens with the headline — today's op + top 3 due —
-              before the plates. Renders nothing on a quiet day. */}
-          {canManage && <DayHeadline />}
+              before the plates. MyDay renders it now (2026-10-04), under the greeting, so the
+              greeting opens the screen and today's op has one card for everybody. */}
           <MyDay userId={user?.id ?? null} meName={profile?.display_name?.trim() || "Me"} isLeader={canManage} canPrep={canPrep} canBrew={canManage || role === "operator"} />
         </>
       )}

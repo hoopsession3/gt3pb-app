@@ -15,6 +15,7 @@ import { definitionsToSchema, refuseReason, projectRef } from "./schema.snapshot
 import { classify as classifyRoute, unwrapped, boundOf } from "./api.audit.mjs";
 import { reassemble } from "./security.snapshot.mjs";
 import { judge, staleBecause, expand } from "./security.audit.mjs";
+import { darkWellCounts } from "./design.ratchet.mjs";
 import { PGlite } from "@electric-sql/pglite";
 import { join } from "node:path";
 
@@ -573,6 +574,31 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
   ok("security: a result read without its digest row is refused", /digest row/.test(reassemble(rows.slice(0, -1)).error || ""));
   ok("security: the Supabase 'Copy as JSON' shape ({row, chunk}) and a bare [row, chunk] both read", !reassemble(rows.map((x) => [x.row, x.chunk])).error);
   await db.close();
+}
+
+// ── darkWellCounts (scripts/design.ratchet.mjs) ─────────────────────────────────────────────────
+// The rules are the two that painted Ryan's My Day grey (2026-10-04), copied from app/globals.css.
+{
+  const dw = (css) => darkWellCounts(css).darkWells;
+  const BOX = ".task-box{flex:0 0 auto;border:2px solid var(--line2);background:rgba(0,0,0,.22)}";
+  const TOP = ".dayhead-t{display:flex;background:rgba(0,0,0,.18);border:1px solid var(--line2)}";
+  ok("dark wells: the task box and the top-three card, with no day rule, are two", dw(BOX + TOP) === 2);
+  ok("dark wells: a day rule restates one — :where() and a plain descendant both count as restating",
+    dw(BOX + TOP + ".app.crew-day :where(.task-box){background:var(--card)}") === 1
+    && dw(BOX + TOP + ".app.crew-day :where(.task-box){background:var(--card)}.app.crew-day .dayhead-t{background:var(--card)}") === 0);
+  ok("dark wells: a day rule that does not touch the background does not restate it",
+    dw(BOX + ".app.crew-day .task-box{border-color:red}") === 1);
+  ok("dark wells: a rule for .code-row does not restate .code (whole selectors, not substrings)",
+    dw(".code{background:rgba(0,0,0,.25)}.app.crew-day .code-row{background:#fff}") === 1);
+  ok("dark wells: under 10% is a wash and 45% and over is an overlay — neither is counted",
+    dw(".a{background:rgba(0,0,0,.05)}.b{background:rgba(0,0,0,.6)}.c{background:rgba(0,0,0,.45)}") === 0);
+  ok("dark wells: a scrim is dark on purpose", dw(".sheet-scrim{background:rgba(0,0,0,.3)}") === 0);
+  ok("dark wells: a selector list counts once, and stays counted while any part is bare",
+    dw(".a,.b{background:rgba(0,0,0,.2)}.app.crew-day .a{background:#fff}") === 1
+    && dw(".a,.b{background:rgba(0,0,0,.2)}.app.crew-day :is(.a,.b){background:#fff}") === 0);
+  ok("dark wells: a comma inside a comment is not a selector list",
+    dw("/* Ryan, 2026-10-04 */.a{background:rgba(0,0,0,.2)}.app.crew-day .a{background:#fff}") === 0);
+  ok("dark wells: the paper scope restates too", dw(".a{background:rgba(0,0,0,.2)}.shop .a{background:#fff}") === 0);
 }
 
 console.log(`AUDIT CLASSIFIERS: ${pass} passed, ${fail} failed`);
