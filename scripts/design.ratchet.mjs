@@ -244,6 +244,14 @@ export const PROD_ROUTE = {
 // the dock gained the purchase sheet. A different hash string gzips differently: +50 and −10 bytes,
 // 287 217 → 287 257 bytes in all, which is 15 bytes past the 280.49 KB rounding line. Compression
 // noise on a filename, written down so it is not mistaken for weight.
+// 2026-10-04: /book 268 → 269, /primal 269 → 270, /academy 316 → 318. Measured by building the
+// commit before and after and gzipping what each route's HTML references: every route +90 bytes —
+// lib/surfaces, the one rule for which pages carry the cart bar, order status and concierge (the
+// cart bar was sitting on the crew's training page) — which tipped the two routes sitting within 90
+// bytes of a rounding line (274 896 → 274 986; 275 952 → 276 042). /academy +1 515: those 90; its
+// readiness rows saying what is left and opening it, and certifications that can finally renew
+// (+703); and its reads and writes saying when they fail instead of "complete" or 0%, with the team
+// board on the same rules as the person's own page (+722) — 323 781 → 325 296.
 export const WEIGHT = {
   "/truck":                    { js: 284, css: 103, chunks: 16 },
   "/events":                   { js: 284, css: 103, chunks: 16 },
@@ -252,8 +260,8 @@ export const WEIGHT = {
   "/delivery":                 { js: 290, css: 100, chunks: 17 },
   "/3mpire":                   { js: 284, css: 100, chunks: 16 },
   "/craft":                    { js: 268, css: 100, chunks: 16 },
-  "/book":                     { js: 268, css: 100, chunks: 16 },
-  "/academy":                  { js: 316, css: 100, chunks: 16 },
+  "/book":                     { js: 269, css: 100, chunks: 16 },
+  "/academy":                  { js: 318, css: 100, chunks: 16 },
   "/office":                   { js: 277, css: 100, chunks: 16 },
   "/scan":                     { js: 260, css: 100, chunks: 15 },
   "/architecture":             { js: 270, css: 100, chunks: 15 },
@@ -264,7 +272,7 @@ export const WEIGHT = {
   "/built/gt3-built-k7m9x4q2": { js: 259, css: 100, chunks: 15 },
   "/display":                  { js: 260, css: 100, chunks: 15 },
   "/shop":                     { js: 297, css: 100, chunks: 17 },
-  "/primal":                   { js: 269, css: 100, chunks: 16 },
+  "/primal":                   { js: 270, css: 100, chunks: 16 },
   "/privacy":                  { js: 258, css: 100, chunks: 14 },
   "/terms":                    { js: 258, css: 100, chunks: 14 },
   "/":                         { js: 275, css: 100, chunks: 16 },

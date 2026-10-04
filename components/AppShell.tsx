@@ -23,6 +23,7 @@ import FloatRail from "./FloatRail";
 import ErrorReporter from "./ErrorReporter";
 import MarketingSplash from "./MarketingSplash";
 import BroadcastBanner from "./BroadcastBanner";
+import { surfaceOf, showsCommerce } from "@/lib/surfaces";
 import dynamic from "next/dynamic";
 
 // CODE-SPLIT WHAT A GUEST NEVER SEES (2026-10-02). Measured on the built /menu at phone width: the
@@ -104,11 +105,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Employee Mode: inside /crew the customer 5-tab nav is replaced by the
   // role-scoped operator console nav (OperatorNav falls back to the customer nav
   // for non-staff so they can still navigate away).
-  const inAdmin = pathname.startsWith("/crew");
+  // Which kind of page this is decides the chrome — one rule, in lib/surfaces (2026-10-04: the cart
+  // bar and the concierge used to disagree about whether the Academy was a shop).
+  const surface = surfaceOf(pathname);
+  const inAdmin = surface === "console";
   // Read-only partner "what we've built" share page — a bare surface: no nav, no concierge, no commerce.
-  const isShare = pathname.startsWith("/built");
-  // Guest concierge shows on the customer-facing surfaces only (not the crew console, architecture, academy, or a share page).
-  const customerSurface = !inAdmin && !isShare && !pathname.startsWith("/architecture") && !pathname.startsWith("/academy");
+  const isShare = surface === "share";
+  // Commerce chrome (cart bar, order status, concierge, splash) on the pages people order from only.
+  const customerSurface = showsCommerce(surface);
 
   // Day mode: the crew console defaults to a light theme for daylight/outdoor use. Persisted;
   // toggle back to dark anytime. Customer-facing pages are unaffected.
@@ -161,8 +165,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <Checkout />
         <Toast />
         <Notifications />
-        {inAdmin || isShare ? null : <OrderStatus />}
-        {inAdmin || isShare ? null : <CartBar />}
+        {customerSurface ? <OrderStatus /> : null}
+        {customerSurface ? <CartBar /> : null}
         {isShare ? null : inAdmin ? <OperatorNav /> : <BottomNav />}
         {/* THE FLOATING TIER SITS ON THE CHROME, NOT ON A NUMBER (2026-10-04).
             The theme toggle, the quick-actions button, the offline chip and the update prompt were

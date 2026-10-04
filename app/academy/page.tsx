@@ -6,6 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
 import Skeleton from "@/components/Skeleton";
+import EmptyState from "@/components/EmptyState";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
@@ -13,7 +14,8 @@ import CookEnforcement from "@/components/CookEnforcement";
 import {
   PRODUCTS, CERTS, ROLES, READINESS, PASS_DEFAULT, ACKS, ackByKey, certExpiryDays,
   moduleBySlug, certByKey, pathForRole, certEarned, requiredModules, sectionMeta, expectationsFor,
-  type Module, type Product, type QuizQ, type Role, type Ack,
+  readinessGap, renewalLeft, assignmentDone, teamMemberRow,
+  type Module, type Product, type QuizQ, type Role, type Ack, type AssignmentLike,
 } from "@/lib/academy";
 import { staffAccess } from "@/lib/access";
 
@@ -50,7 +52,7 @@ function ExpectationsCard({ role, roleLabel }: { role: Role; roleLabel: string }
 }
 
 type View = { k: "home" } | { k: "module"; slug: string } | { k: "product"; key: string } | { k: "team" } | { k: "ack"; key: string };
-interface Assignment { target_type: string; target_key: string; due_at: string | null }
+type Assignment = AssignmentLike; // one shape, in lib/academy, shared with the team board
 const DAY = 86400000;
 
 
@@ -66,29 +68,38 @@ export default function AcademyPage() {
   const { ready, enabled, user, profile, profileStatus } = useAuth();
   const { toast } = useApp();
   const role = toAcademyRole(roleOf(profile));
-  const [progress, setProgress] = useState<Record<string, { status: string; best_score: number | null }>>({});
+  const [progress, setProgress] = useState<Record<string, { status: string; best_score: number | null; completed_at: string | null }>>({});
   const [certs, setCerts] = useState<Set<string>>(new Set());
   const [certExp, setCertExp] = useState<Record<string, string | null>>({});
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [acks, setAcks] = useState<Set<string>>(new Set());
   const [view, setView] = useState<View>({ k: "home" });
+  const [loaded, setLoaded] = useState(false);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase || !user) return;
-    // assignments/acks tables may not exist pre-0031 — queries fail soft to [].
-    const [{ data: pr }, { data: ce }, { data: asg }, { data: ak }] = await Promise.all([
-      supabase.from("academy_progress").select("module_slug,status,best_score").eq("user_id", user.id),
+    const [pr, ce, asg, ak] = await Promise.all([
+      supabase.from("academy_progress").select("module_slug,status,best_score,completed_at").eq("user_id", user.id),
       supabase.from("academy_certifications").select("cert_key,expires_at").eq("user_id", user.id),
       supabase.from("academy_assignments").select("target_type,target_key,due_at").eq("user_id", user.id),
       supabase.from("academy_acknowledgements").select("doc_key").eq("user_id", user.id),
     ]);
-    const p: Record<string, { status: string; best_score: number | null }> = {};
-    (pr ?? []).forEach((r: { module_slug: string; status: string; best_score: number | null }) => { p[r.module_slug] = { status: r.status, best_score: r.best_score }; });
+    // A FAILED READ IS NOT AN EMPTY LIST (2026-10-04). All four used to "fail soft to []" — a note
+    // from before 0031, when two of these tables might not exist yet. They do now, so a refused read
+    // is a dropped connection or a policy, and reading it as nothing-done told a trained person they
+    // were at 0%, owed the food-safety sign-off, and could serve no one. Keep what was last read.
+    const failed = [pr, ce, asg, ak].find((r) => r.error)?.error;
+    if (failed) { setLoadErr(failed.message); return; }
+    setLoadErr(null);
+    const p: Record<string, { status: string; best_score: number | null; completed_at: string | null }> = {};
+    (pr.data ?? []).forEach((r: { module_slug: string; status: string; best_score: number | null; completed_at: string | null }) => { p[r.module_slug] = { status: r.status, best_score: r.best_score, completed_at: r.completed_at }; });
     setProgress(p);
-    setCerts(new Set((ce ?? []).map((r: { cert_key: string }) => r.cert_key)));
-    setCertExp(Object.fromEntries((ce ?? []).map((r: { cert_key: string; expires_at: string | null }) => [r.cert_key, r.expires_at])));
-    setAssignments((asg ?? []) as Assignment[]);
-    setAcks(new Set((ak ?? []).map((r: { doc_key: string }) => r.doc_key)));
+    setCerts(new Set((ce.data ?? []).map((r: { cert_key: string }) => r.cert_key)));
+    setCertExp(Object.fromEntries((ce.data ?? []).map((r: { cert_key: string; expires_at: string | null }) => [r.cert_key, r.expires_at])));
+    setAssignments((asg.data ?? []) as Assignment[]);
+    setAcks(new Set((ak.data ?? []).map((r: { doc_key: string }) => r.doc_key)));
+    setLoaded(true);
   }, [user]);
   useEffect(() => { load(); }, [load]);
 
@@ -100,9 +111,14 @@ export default function AcademyPage() {
     return s;
   }, [certs, completed]);
 
+  // A FAILED WRITE IS NOT A SIGNATURE, AND NOT A COMPLETION (2026-10-04). Both of these said "Signed"
+  // and "Module complete" whatever the database answered, then went home — so a dropped connection
+  // looked exactly like a sign-off that counted toward "Can serve customers". A refused write now
+  // says so and stays on the page, so the same button tries again.
   const signAck = useCallback(async (key: string, name: string) => {
     if (!supabase || !user) return;
-    await supabase.from("academy_acknowledgements").upsert({ user_id: user.id, doc_key: key, signed_name: name, signed_at: new Date().toISOString() }, { onConflict: "user_id,doc_key" });
+    const { error } = await supabase.from("academy_acknowledgements").upsert({ user_id: user.id, doc_key: key, signed_name: name, signed_at: new Date().toISOString() }, { onConflict: "user_id,doc_key" });
+    if (error) { toast(`Not signed — ${error.message}. Try again.`, "error"); return; }
     toast("Signed — thank you");
     await load();
     setView({ k: "home" });
@@ -112,25 +128,46 @@ export default function AcademyPage() {
     if (!supabase || !user) return;
     const prevBest = progress[slug]?.best_score ?? 0;
     const best = score == null ? null : Math.max(score, prevBest);
-    await supabase.from("academy_progress").upsert(
+    const { error: progErr } = await supabase.from("academy_progress").upsert(
       { user_id: user.id, module_slug: slug, status: "complete", score, best_score: best, completed_at: new Date().toISOString() },
       { onConflict: "user_id,module_slug" }
     );
+    if (progErr) { toast(`Not saved — ${progErr.message}. Try again.`, "error"); return; }
     const nowComplete = new Set(completed); nowComplete.add(slug);
-    const newly = CERTS.filter((c) => certEarned(c, nowComplete) && !earned.has(c.key));
-    if (newly.length) {
-      const rows = newly.map((c) => {
+    // Against the RECORDED certs, not the ones the module list implies: a cert whose row never landed
+    // (a failed write, or a module added to it later) is written now, where the team board and the
+    // deadlines (0320) can see it, instead of being "earned" on this phone only.
+    const newly = CERTS.filter((c) => certEarned(c, nowComplete) && !certs.has(c.key));
+    // RENEWAL (2026-10-04). An expired cert used to stay expired for ever — only never-earned certs
+    // were ever awarded. It renews when every one of its modules has been retaken since it lapsed:
+    // the module just finished counts as retaken now. Any lapsed cert, not only this module's, so a
+    // renewal whose write failed is picked up by the next module finished.
+    const nowMs = Date.now();
+    const lapsed = (key: string) => { const e = certExp[key]; return !!e && new Date(e).getTime() < nowMs; };
+    const retaken = (m: string, key: string) => m === slug
+      || (!!progress[m]?.completed_at && !!certExp[key] && new Date(progress[m]!.completed_at!).getTime() > new Date(certExp[key]!).getTime());
+    const renewed = CERTS.filter((c) => certs.has(c.key) && lapsed(c.key) && renewalLeft(c, retaken).length === 0);
+    const award = [...newly, ...renewed];
+    if (award.length) {
+      const rows = award.map((c) => {
         const days = certExpiryDays(c.key);
         return { user_id: user.id, cert_key: c.key, awarded_at: new Date().toISOString(), expires_at: days > 0 ? new Date(Date.now() + days * DAY).toISOString() : null };
       });
-      await supabase.from("academy_certifications").upsert(rows, { onConflict: "user_id,cert_key" });
-      toast(`Certified — ${newly.map((c) => c.title).join(", ")}`);
+      const { error: certErr } = await supabase.from("academy_certifications").upsert(rows, { onConflict: "user_id,cert_key" });
+      if (certErr) {
+        toast(`Module complete, but ${award.map((c) => c.title).join(", ")} did not record — ${certErr.message}. It records the next time you finish a module.`, "error");
+      } else {
+        toast([
+          newly.length ? `Certified — ${newly.map((c) => c.title).join(", ")}` : "",
+          renewed.length ? `Renewed — ${renewed.map((c) => c.title).join(", ")}` : "",
+        ].filter(Boolean).join(" · "));
+      }
     } else {
       toast("Module complete");
     }
     await load();
     setView({ k: "home" });
-  }, [user, progress, completed, earned, load, toast]);
+  }, [user, progress, completed, certs, certExp, load, toast]);
 
   // a cert's live status from earned + expiry
   const certStatus = useCallback((key: string): "none" | "active" | "expiring" | "expired" => {
@@ -161,6 +198,18 @@ export default function AcademyPage() {
       <Link className="btn" href="/">← Back to GT3</Link>
     </section>
   );
+  // Until the record has been read once, there is nothing true to say about it — the first paint
+  // used to be "0/N modules · 0%" for everyone, done or not, until the read came back.
+  if (!loaded) return (
+    <section className="screen academy">
+      <Masthead eyebrow="GT3 Academy" right={<Link className="pf" href="/3mpire" aria-label="Exit">‹</Link>} />
+      {loadErr ? (
+        <EmptyState role="alert" title="Your training record did not load"
+          sub={`${loadErr}. Nothing you have done is lost — this was a read that did not answer.`}
+          action={<button type="button" className="handle" onClick={() => load()}>Try again</button>} />
+      ) : <Skeleton variant="row" count={5} />}
+    </section>
+  );
 
   const path = pathForRole(role);
   const required = requiredModules(role);
@@ -187,11 +236,8 @@ export default function AcademyPage() {
   }
 
   const pendingAcks = ACKS.filter((a) => a.required && !acks.has(a.key));
-  const assignDone = (a: Assignment): boolean =>
-    a.target_type === "module" ? completed.has(a.target_key)
-      : a.target_type === "cert" ? certOk(a.target_key)
-        : required.every((m) => completed.has(m.slug));
-  const openAssignments = assignments.filter((a) => !assignDone(a));
+  // The same answer the team board gives (lib/academy assignmentDone) — the two used to disagree.
+  const openAssignments = assignments.filter((a) => !assignmentDone(a, role, completed, certOk));
   // Every assignment card is tappable — resolve each to a concrete module so cert/path
   // taps aren't dead: route to the first incomplete required module (fall back to the first).
   const assignTarget = (a: Assignment): string | null =>
@@ -204,6 +250,7 @@ export default function AcademyPage() {
       <Masthead eyebrow="GT3 Academy" right={<Link className="pf" href="/3mpire" aria-label="Exit">‹</Link>} />
       <h1 className="h-title">Your <em className="it">path.</em></h1>
       <div className="subm" style={{ marginTop: 10 }}>{roleLabel} track · {reqDone}/{required.length} modules</div>
+      {loadErr && <p className="subm" role="status">Could not refresh your record — {loadErr}. This is what was last read.</p>}
 
       {/* progress + certifications */}
       <div className="ac-top">
@@ -256,12 +303,30 @@ export default function AcademyPage() {
         </>
       )}
 
-      {/* operational readiness */}
+      {/* operational readiness — each row says what is left and opens the next thing (2026-10-04).
+          It was five dashes: not ready, but not why, not how far, and nothing to tap. */}
       <SectionHeader label="Operational readiness" />
       <div className="ac-ready">
         {READINESS.map((r) => {
-          const ok = r.need.every((k) => certOk(k)) && (!r.ack || acks.has(r.ack));
-          return <div key={r.q} className={`ac-rrow${ok ? " ok" : ""}`}><span className="ac-rmark">{ok ? <Icon name="check" /> : "—"}</span>{r.q}</div>;
+          const gap = readinessGap(r, {
+            certStatus, completed, acked: acks,
+            retakenSince: (m, key) => !!progress[m]?.completed_at && !!certExp[key]
+              && new Date(progress[m]!.completed_at!).getTime() > new Date(certExp[key]!).getTime(),
+          });
+          const next = gap.next;
+          const open = () => { if (!next) return; setView(next.k === "ack" ? { k: "ack", key: next.key } : { k: "module", slug: next.slug }); };
+          return gap.ok || !next ? (
+            <div key={r.q} className={`ac-rrow${gap.ok ? " ok" : ""}`}>
+              <span className="ac-rmark">{gap.ok ? <Icon name="check" /> : "—"}</span>
+              <span className="ac-rtext"><b>{r.q}</b><i>{gap.line}</i></span>
+            </div>
+          ) : (
+            <button type="button" key={r.q} className="ac-rrow go" onClick={open}>
+              <span className="ac-rmark">—</span>
+              <span className="ac-rtext"><b>{r.q}</b><i>{gap.line}</i></span>
+              <span className="ev-chev">›</span>
+            </button>
+          );
         })}
       </div>
 
@@ -504,34 +569,37 @@ function TeamBoard({ onBack }: { onBack: () => void }) {
   const { toast } = useApp();
   const [rows, setRows] = useState<{ id: string; name: string; role: string; done: number; certs: number; overdue: number }[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
   const [memberId, setMemberId] = useState("");
   const [target, setTarget] = useState("path");
   const [due, setDue] = useState("");
 
   const load = useCallback(async () => {
     if (!supabase) { setLoaded(true); return; }
-    const [{ data: profs }, { data: prog }, { data: cs }, { data: asg }] = await Promise.all([
+    const [profs, prog, cs, asg] = await Promise.all([
       supabase.from("profiles").select("id,display_name,role").neq("role", "member"),
       supabase.from("academy_progress").select("user_id,module_slug,status"),
-      supabase.from("academy_certifications").select("user_id,cert_key"),
+      supabase.from("academy_certifications").select("user_id,cert_key,expires_at"),
       supabase.from("academy_assignments").select("user_id,target_type,target_key,due_at"),
     ]);
+    // A FAILED READ IS NOT AN EMPTY TEAM (2026-10-04): any one of these four not answering used to
+    // read as "No team members yet", or as everybody at 0%.
+    const failed = [profs, prog, cs, asg].find((r) => r.error)?.error;
+    if (failed) { setLoadErr(failed.message); setLoaded(true); return; }
+    setLoadErr(null);
     const doneMods: Record<string, Set<string>> = {};
-    (prog ?? []).forEach((r: { user_id: string; module_slug: string; status: string }) => { if (r.status === "complete") (doneMods[r.user_id] ??= new Set()).add(r.module_slug); });
-    const certKeys: Record<string, Set<string>> = {};
-    (cs ?? []).forEach((r: { user_id: string; cert_key: string }) => { (certKeys[r.user_id] ??= new Set()).add(r.cert_key); });
+    (prog.data ?? []).forEach((r: { user_id: string; module_slug: string; status: string }) => { if (r.status === "complete") (doneMods[r.user_id] ??= new Set()).add(r.module_slug); });
+    const certExp: Record<string, Record<string, string | null>> = {};
+    (cs.data ?? []).forEach((r: { user_id: string; cert_key: string; expires_at: string | null }) => { (certExp[r.user_id] ??= {})[r.cert_key] = r.expires_at; });
+    const asgBy: Record<string, AssignmentLike[]> = {};
+    (asg.data ?? []).forEach((a: AssignmentLike & { user_id: string }) => { (asgBy[a.user_id] ??= []).push(a); });
+    // One rule with the person's own page (lib/academy teamMemberRow): required modules only, certs
+    // held only while in date, and a whole-path assignment is done when the path is.
     const now = Date.now();
-    const overdueBy: Record<string, number> = {};
-    (asg ?? []).forEach((a: { user_id: string; target_type: string; target_key: string; due_at: string | null }) => {
-      if (!a.due_at || new Date(a.due_at).getTime() >= now) return;
-      const done = a.target_type === "module" ? doneMods[a.user_id]?.has(a.target_key) : a.target_type === "cert" ? certKeys[a.user_id]?.has(a.target_key) : false;
-      if (!done) overdueBy[a.user_id] = (overdueBy[a.user_id] ?? 0) + 1;
-    });
-    const out = (profs ?? []).map((p: { id: string; display_name: string | null; role: string | null }) => {
+    const out = (profs.data ?? []).map((p: { id: string; display_name: string | null; role: string | null }) => {
       const r = toAcademyRole(p.role ?? "member");
-      const need = requiredModules(r).length;
-      const done = doneMods[p.id]?.size ?? 0;
-      return { id: p.id, name: p.display_name ?? "Member", role: r, done: need ? Math.round((done / need) * 100) : 0, certs: certKeys[p.id]?.size ?? 0, overdue: overdueBy[p.id] ?? 0 };
+      const row = teamMemberRow({ role: r, completed: doneMods[p.id] ?? new Set(), certExpiry: certExp[p.id] ?? {}, assignments: asgBy[p.id] ?? [] }, now);
+      return { id: p.id, name: p.display_name ?? "Member", role: r, done: row.pct, certs: row.held, overdue: row.overdue };
     }).sort((a, b) => b.overdue - a.overdue || a.done - b.done);
     setRows(out);
     setLoaded(true);
@@ -543,7 +611,7 @@ function TeamBoard({ onBack }: { onBack: () => void }) {
     const target_type = target === "path" ? "path" : "cert";
     const target_key = target === "path" ? "path" : target;
     const { error } = await supabase.from("academy_assignments").insert({ user_id: memberId, target_type, target_key, due_at: due ? new Date(due).toISOString() : null, assigned_by: user.id });
-    if (error) toast(`Error: ${error.message}`); else { toast("Training assigned"); setMemberId(""); setDue(""); load(); }
+    if (error) toast(`Not assigned — ${error.message}`, "error"); else { toast("Training assigned"); setMemberId(""); setDue(""); load(); }
   };
 
   return (
@@ -569,12 +637,17 @@ function TeamBoard({ onBack }: { onBack: () => void }) {
       <div className="ac-team">
         {rows.map((r) => (
           <div key={r.id} className="ac-trow">
-            <div className="ac-tmain"><b>{r.name}{r.overdue > 0 && <span className="ac-overdue">{r.overdue} overdue</span>}</b><span>{ROLES.find((x) => x.key === r.role)?.label ?? r.role} · {r.certs} certs</span></div>
+            <div className="ac-tmain"><b>{r.name}{r.overdue > 0 && <span className="ac-overdue">{r.overdue} overdue</span>}</b><span>{ROLES.find((x) => x.key === r.role)?.label ?? r.role} · {r.certs} {r.certs === 1 ? "cert" : "certs"} held</span></div>
             <div className="ac-tbar"><i style={{ width: `${r.done}%` }} /></div>
             <div className={`ac-tpct${r.done >= 100 ? " ok" : r.done === 0 ? " zero" : ""}`}>{r.done}%</div>
           </div>
         ))}
-        {loaded && rows.length === 0 && <div className="h-sub">No team members yet.</div>}
+        {loaded && loadErr && (
+          <EmptyState role="alert" title="The team's training records did not load"
+            sub={`${loadErr}. Nobody's training is lost — this was a read that did not answer.`}
+            action={<button type="button" className="handle" onClick={() => load()}>Try again</button>} />
+        )}
+        {loaded && !loadErr && rows.length === 0 && <div className="h-sub">No team members yet.</div>}
       </div>
     </section>
   );

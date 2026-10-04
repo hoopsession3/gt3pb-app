@@ -1199,3 +1199,115 @@ export function pathHeadline(p: PathProgress): string {
   if (p.modulesDone === 0) return `${p.roleLabel} path — not started. ${p.modulesTotal} modules, about ${Math.round(p.minutesLeft / 60)}h.`;
   return `${p.roleLabel} path — ${p.certsEarned} of ${p.certsTotal} certifications, ${p.modulesLeft} module${p.modulesLeft === 1 ? "" : "s"} to go.`;
 }
+
+// ─────────────────────────── readiness, said as what is left ───────────────────────────
+// Ryan's Academy screenshot, 2026-10-04: OPERATIONAL READINESS — five rows ("Can serve customers",
+// "Can work an event"…) each led by a dash. Not ready, plainly, but not why, not how far, and not a
+// thing to tap: the list described five doors and opened none of them. The data to say all three was
+// already here — each row names the certifications and the sign-off it needs.
+//
+// A certification is held when it is earned and in date. Eight of the twelve expire, after one or
+// two years (CERT_EXPIRY_DAYS), and until this there was no way to renew one: completeModule only ever awarded certs that had never
+// been earned, so an expired cert stayed expired for ever and every readiness row that needed it
+// read "—" for ever. A cert now renews when every one of its modules has been RETAKEN since it
+// expired — `retakenSince` is how the caller says which (module completed_at after the expiry).
+export type CertStatus = "none" | "active" | "expiring" | "expired";
+export type ReadinessStep = { k: "ack"; key: string } | { k: "module"; slug: string };
+export interface ReadinessState {
+  certStatus: (key: string) => CertStatus;
+  completed: ReadonlySet<string>;
+  acked: ReadonlySet<string>;
+  /** Has this module been completed since this cert expired? Absent = never. */
+  retakenSince?: (slug: string, certKey: string) => boolean;
+}
+export interface ReadinessGap {
+  ok: boolean;
+  modulesLeft: number;
+  needsAck: boolean;
+  expired: string[];          // titles of needed certs that have lapsed
+  next: ReadinessStep | null; // the one thing to open next
+  line: string;               // what is left, in a sentence
+}
+
+const certHeld = (st: CertStatus) => st === "active" || st === "expiring";
+
+/** The modules a lapsed cert still needs retaken before it renews, in its own order. */
+export function renewalLeft(cert: Cert, retakenSince: ((slug: string, certKey: string) => boolean) | undefined): string[] {
+  return cert.modules.filter((m) => !(retakenSince?.(m, cert.key) ?? false));
+}
+
+export function readinessGap(r: Readiness, s: ReadinessState): ReadinessGap {
+  const needsAck = !!r.ack && !s.acked.has(r.ack);
+  const left: string[] = [];
+  const expired: string[] = [];
+  for (const key of r.need) {
+    const cert = certByKey(key);
+    if (!cert) continue;
+    const st = s.certStatus(key);
+    if (certHeld(st)) continue;
+    if (st === "expired") {
+      expired.push(cert.title.replace(/ Certified$/, ""));
+      left.push(...renewalLeft(cert, s.retakenSince));
+    } else {
+      left.push(...cert.modules.filter((m) => !s.completed.has(m)));
+    }
+  }
+  const modules = [...new Set(left)];
+  const ok = !needsAck && modules.length === 0 && expired.length === 0;
+  // A lapsed cert whose modules have all been retaken renews on the next completion — so even then
+  // there is a door: the cert's first module.
+  const lapsedFirst = r.need.map((k) => certByKey(k)).find((c) => c && s.certStatus(c.key) === "expired")?.modules[0];
+  // The sign-off comes first: it is the one thing marked "required before serving".
+  const next: ReadinessStep | null = needsAck && r.ack ? { k: "ack", key: r.ack }
+    : modules[0] ? { k: "module", slug: modules[0] }
+    : lapsedFirst ? { k: "module", slug: lapsedFirst } : null;
+  const parts: string[] = [];
+  if (modules.length) parts.push(`${modules.length} module${modules.length === 1 ? "" : "s"}`);
+  if (needsAck && r.ack) parts.push(`the ${ackByKey(r.ack)?.title ?? r.ack} sign-off`);
+  const lapsed = expired.length ? `${expired.join(", ")} expired — retake to renew` : "";
+  const line = ok ? "Ready"
+    : parts.length ? `${parts.join(" and ")} to go${lapsed ? ` · ${lapsed}` : ""}`
+    : lapsed;
+  return { ok, modulesLeft: modules.length, needsAck, expired, next, line };
+}
+
+// ─────────────────────────── one answer to "is this assignment done?" ───────────────────────────
+// The Academy page and the admin's team board each answered it, differently (2026-10-04). The board
+// had no case for a whole-path assignment, so a path assigned with a due date read "overdue" for
+// ever once the date passed — finished or not. It counted a lapsed certification as held. And it
+// scored a person by every module they had ever finished over the modules their role requires, so
+// someone who took extra modules read 120% and the bar ran out of its track.
+export type AssignmentLike = { target_type: string; target_key: string; due_at: string | null };
+
+/** A recorded certification is held while it is in date. `null` expiry = it does not expire. */
+export const certInDate = (expiresAt: string | null | undefined, nowMs: number): boolean =>
+  expiresAt === null || (typeof expiresAt === "string" && Date.parse(expiresAt) >= nowMs);
+
+export function assignmentDone(a: AssignmentLike, role: Role | string, completed: ReadonlySet<string>, held: (certKey: string) => boolean): boolean {
+  if (a.target_type === "module") return completed.has(a.target_key);
+  if (a.target_type === "cert") return held(a.target_key);
+  return requiredModules(role).every((m) => completed.has(m.slug)); // "path": the role's whole path
+}
+
+export function assignmentOverdue(a: AssignmentLike, role: Role | string, completed: ReadonlySet<string>, held: (certKey: string) => boolean, nowMs: number): boolean {
+  return !!a.due_at && Date.parse(a.due_at) < nowMs && !assignmentDone(a, role, completed, held);
+}
+
+export interface TeamMemberRow { pct: number; held: number; overdue: number }
+
+/** One row of the team board: share of the role's REQUIRED modules done, certs held, overdue work. */
+export function teamMemberRow(m: {
+  role: Role | string;
+  completed: ReadonlySet<string>;
+  certExpiry: Readonly<Record<string, string | null>>; // recorded certs → expires_at
+  assignments: readonly AssignmentLike[];
+}, nowMs: number): TeamMemberRow {
+  const need = requiredModules(m.role);
+  const done = need.filter((x) => m.completed.has(x.slug)).length;
+  const held = (k: string) => Object.prototype.hasOwnProperty.call(m.certExpiry, k) && certInDate(m.certExpiry[k], nowMs);
+  return {
+    pct: need.length ? Math.round((done / need.length) * 100) : 0,
+    held: Object.keys(m.certExpiry).filter(held).length,
+    overdue: m.assignments.filter((a) => assignmentOverdue(a, m.role, m.completed, held, nowMs)).length,
+  };
+}

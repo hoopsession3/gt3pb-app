@@ -1371,6 +1371,115 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     `${A.pathHeadline(op)} | ${A.pathHeadline(done)}`);
   ok("academy: a part-done path reports certifications rather than 'not started'",
     /certifications/.test(A.pathHeadline(partial)), A.pathHeadline(partial));
+
+  // ── READINESS, SAID AS WHAT IS LEFT (2026-10-04) ──────────────────────────────────────────────
+  // Ryan's Academy screenshot: five readiness rows, each a dash — not ready, but not why, not how far,
+  // and nothing to tap. And no cert could ever renew: an expired one stayed expired for ever.
+  {
+    const serve = A.READINESS.find((r) => r.q === "Can serve customers");
+    const cx = A.certByKey("cx"), product = A.certByKey("product");
+    const st = (o = {}) => ({
+      certStatus: (k) => o.status?.[k] ?? "none",
+      completed: new Set(o.done ?? []),
+      acked: new Set(o.acked ?? []),
+      retakenSince: o.retaken ? (m, k) => (o.retaken[k] ?? []).includes(m) : undefined,
+    });
+    const fresh = A.readinessGap(serve, st());
+    const need = new Set([...cx.modules, ...product.modules]).size;
+    ok("readiness: nothing done says how much, and names the sign-off",
+      fresh.line === `${need} modules and the Food Safety & Handling sign-off to go` && !fresh.ok, fresh.line);
+    ok("readiness: …and opens the sign-off first — it is the one marked required before serving",
+      fresh.next?.k === "ack" && fresh.next?.key === "food-safety", fresh.next);
+    const signed = A.readinessGap(serve, st({ acked: ["food-safety"], done: [cx.modules[0]] }));
+    ok("readiness: signed, it counts only the modules left and opens the first of them",
+      signed.line === `${need - 1} modules to go` && signed.next?.k === "module" && signed.next?.slug === cx.modules[1], signed);
+    const ready = A.readinessGap(serve, st({ acked: ["food-safety"], status: { cx: "active", product: "expiring" } }));
+    ok("readiness: held certs (expiring is still held) and the sign-off read Ready, with nothing to open",
+      ready.ok && ready.line === "Ready" && ready.next === null, ready);
+    const lapsed = A.readinessGap(serve, st({ acked: ["food-safety"], status: { cx: "expired", product: "active" },
+      done: [...cx.modules], retaken: { cx: [cx.modules[0]] } }));
+    ok("readiness: a lapsed cert counts the modules still to RETAKE, and says it expired",
+      lapsed.line === `${cx.modules.length - 1} modules to go · Hospitality expired — retake to renew` && lapsed.next?.slug === cx.modules[1], lapsed.line);
+    const allRetaken = A.readinessGap(serve, st({ acked: ["food-safety"], status: { cx: "expired", product: "active" },
+      retaken: { cx: [...cx.modules] } }));
+    ok("readiness: retaken but not yet renewed still has a door, never a dead row",
+      !allRetaken.ok && allRetaken.line === "Hospitality expired — retake to renew" && allRetaken.next?.slug === cx.modules[0], allRetaken);
+    ok("renewal: a lapsed cert needs every module retaken since it lapsed",
+      A.renewalLeft(cx, (m) => m === cx.modules[0]).join() === cx.modules.slice(1).join()
+      && A.renewalLeft(cx, () => true).length === 0 && A.renewalLeft(cx, undefined).length === cx.modules.length);
+
+    const fs = require("node:fs"), path = require("node:path");
+    const page = fs.readFileSync(path.join(__dirname, "..", "app/academy/page.tsx"), "utf8");
+    ok("academy page: a row with something left is a button that opens it",
+      /className="ac-rrow go" onClick=\{open\}/.test(page) && /readinessGap\(r, \{/.test(page) && !/\{ok \? <Icon name="check" \/> : "—"\}<\/span>\{r\.q\}/.test(page));
+    ok("academy page: completing a module of a lapsed cert renews it, and progress carries completed_at to say so",
+      /const renewed = CERTS\.filter/.test(page) && /renewalLeft\(c, retaken\)/.test(page) && /select\("module_slug,status,best_score,completed_at"\)/.test(page));
+    // A renewal or a first cert whose write failed is not lost: both are worked out against the rows
+    // that were RECORDED, so the next module finished writes them. Gating renewal on "this module is
+    // one of the cert's" would leave a failed renewal waiting on one particular module.
+    ok("academy page: new certs are measured against recorded rows, and any lapsed cert can renew",
+      /certEarned\(c, nowComplete\) && !certs\.has\(c\.key\)/.test(page)
+      && /CERTS\.filter\(\(c\) => certs\.has\(c\.key\) && lapsed\(c\.key\) && renewalLeft\(c, retaken\)\.length === 0\)/.test(page));
+    // A FAILED WRITE IS NOT A COMPLETION. Each of the three writes reads its error and says so.
+    ok("academy page: a refused progress, certification or sign-off write says so instead of 'complete'",
+      /const \{ error: progErr \} = await supabase\.from\("academy_progress"\)/.test(page) && /if \(progErr\) \{ toast\(/.test(page)
+      && /const \{ error: certErr \} = await supabase\.from\("academy_certifications"\)/.test(page) && /if \(certErr\) \{/.test(page)
+      && /const \{ error \} = await supabase\.from\("academy_acknowledgements"\)/.test(page) && /if \(error\) \{ toast\(`Not signed/.test(page));
+    // A FAILED READ IS NOT AN EMPTY LIST. It used to "fail soft to []", which reads as 0% and owing
+    // the food-safety sign-off — to someone who had done all of it.
+    ok("academy page: a failed read keeps the last record and says so; nothing is claimed before the first read",
+      /const failed = \[pr, ce, asg, ak\]\.find\(\(r\) => r\.error\)\?\.error;/.test(page) && /if \(failed\) \{ setLoadErr\(failed\.message\); return; \}/.test(page)
+      && /if \(!loaded\) return \(/.test(page) && !/queries fail soft to \[\]/.test(page));
+
+    // ── ONE ANSWER TO "IS THIS ASSIGNMENT DONE?" ──────────────────────────────────────────────────
+    // The admin's team board answered it on its own: no case for a whole-path assignment (overdue for
+    // ever once past due, finished or not), a lapsed cert counted as held, and every module ever done
+    // over the role's required ones — 120%, and a bar wider than its track.
+    const now = Date.parse("2026-10-04T12:00:00Z");
+    const past = "2026-09-01T00:00:00Z", future = "2026-12-01T00:00:00Z";
+    const opPath = A.requiredModules("operator").map((m) => m.slug);
+    const pathAsg = { target_type: "path", target_key: "path", due_at: past };
+    ok("assignments: a whole-path assignment past due is done once the path is, and overdue until then",
+      A.assignmentDone(pathAsg, "operator", new Set(opPath), () => false)
+      && !A.assignmentOverdue(pathAsg, "operator", new Set(opPath), () => false, now)
+      && A.assignmentOverdue(pathAsg, "operator", new Set(opPath.slice(1)), () => false, now));
+    ok("assignments: not yet due, or no due date, is never overdue",
+      !A.assignmentOverdue({ ...pathAsg, due_at: future }, "operator", new Set(), () => false, now)
+      && !A.assignmentOverdue({ ...pathAsg, due_at: null }, "operator", new Set(), () => false, now));
+    ok("certs: held while in date; a null expiry never lapses; no row is not held",
+      A.certInDate(null, now) && A.certInDate(future, now) && !A.certInDate(past, now) && !A.certInDate(undefined, now));
+    const everything = new Set(A.MODULES.map((m) => m.slug));
+    const row = A.teamMemberRow({ role: "operator", completed: everything,
+      certExpiry: { cx: past, product: null, brand: future },
+      assignments: [pathAsg, { target_type: "cert", target_key: "cx", due_at: past }] }, now);
+    ok("team board: every module done is 100% of the path, a lapsed cert is not held, and only the lapsed cert is overdue",
+      everything.size > opPath.length && row.pct === 100 && row.held === 2 && row.overdue === 1, row);
+    ok("academy page: the team board and the person's own page answer with lib/academy, and a failed read is not an empty team",
+      /teamMemberRow\(\{ role: r, completed:/.test(page) && /assignmentDone\(a, role, completed, certOk\)/.test(page)
+      && /const failed = \[profs, prog, cs, asg\]\.find\(\(r\) => r\.error\)\?\.error;\s*if \(failed\) \{ setLoadErr\(failed\.message\); setLoaded\(true\); return; \}/.test(page)
+      && /loaded && !loadErr && rows\.length === 0/.test(page) && !/overdueBy\[a\.user_id\]/.test(page));
+  }
+}
+
+// ── WHICH KIND OF PAGE THIS IS (2026-10-04) ────────────────────────────────────────────────────
+// The drinks cart bar sat across the bottom of the crew's training page. The shell decided commerce
+// chrome three ways; lib/surfaces is the one rule now.
+{
+  const S = require("../.smoke/surfaces.js");
+  const kinds = Object.fromEntries(["/", "/menu", "/truck", "/shop", "/events", "/reserve", "/primal/sleep", "/c/AB12", "/privacy",
+    "/academy", "/architecture", "/driver", "/scan", "/playbook", "/agreement", "/offer", "/display",
+    "/crew", "/crew?s=money", "/built/gt3-built-k7m9x4q2", "/academyx"].map((p) => [p, S.surfaceOf(p)]));
+  ok("surfaces: ordering pages are customer", ["/", "/menu", "/truck", "/shop", "/events", "/reserve", "/primal/sleep", "/c/AB12", "/privacy"].every((p) => kinds[p] === "customer"), kinds);
+  ok("surfaces: training, tools, documents and the TV loop are work",
+    ["/academy", "/architecture", "/driver", "/scan", "/playbook", "/agreement", "/offer", "/display"].every((p) => kinds[p] === "work"), kinds);
+  ok("surfaces: the console and a share page keep their own kinds", kinds["/crew"] === "console" && kinds["/crew?s=money"] === "console" && kinds["/built/gt3-built-k7m9x4q2"] === "share");
+  ok("surfaces: a prefix is not a match — /academyx is not the Academy", kinds["/academyx"] === "customer");
+  ok("surfaces: commerce chrome is for customer pages only", S.showsCommerce("customer") && !["work", "console", "share"].some((k) => S.showsCommerce(k)));
+  const fs = require("node:fs"), path = require("node:path");
+  const shell = fs.readFileSync(path.join(__dirname, "..", "components/AppShell.tsx"), "utf8");
+  ok("surfaces: the shell asks lib/surfaces, and the cart bar and order status ride the same rule as the concierge",
+    /const surface = surfaceOf\(pathname\)/.test(shell) && /\{customerSurface \? <CartBar \/> : null\}/.test(shell)
+    && /\{customerSurface \? <OrderStatus \/> : null\}/.test(shell) && !/pathname\.startsWith\("\/academy"\)/.test(shell));
 }
 
 // ── Sizing a batch by coffee, not by water ────────────────────────────────────────────────────
