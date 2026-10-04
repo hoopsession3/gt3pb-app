@@ -29,6 +29,13 @@ import { isUuid } from "./uuid";
 // obligationFor() keeps a row only for a viewer who can act on it — its one tap (equipment upkeep is
 // anybody's to log), its being theirs (their to-do, their certificate), or a door they can open.
 //
+// ── AN INVOICE IS ITS OWN ANSWER (2026-10-04, 0341) ────────────────────────────────────────────
+// Invoices never reached this list — the app wrote them without a due date and the view keeps only
+// dated ones. Now they do, and the one thing to do about an invoice that is due is say it was paid,
+// once the money is in: "Paid" on the row (mark_invoice_paid, an owner's or admin's). There is no
+// panel that lists invoices, so the row goes nowhere else — `none` — rather than to the top of Money,
+// a jump that would land on nothing about it.
+//
 // Kept apart from the component so the smoke can hold every source to its destination.
 
 export type ObligationRow = { source: string; subject_id: string; route: string | null; owner_user_id?: string | null };
@@ -38,7 +45,8 @@ export type ObligationGo =
   | { kind: "person"; id: string }
   | { kind: "initiative"; id: string }
   | { kind: "page"; href: string }
-  | { kind: "section"; section: string; anchor?: string };
+  | { kind: "section"; section: string; anchor?: string }
+  | { kind: "none" };
 
 /** Who is looking: their id, the sections their role opens (sectionsForRole), and whether they manage. */
 export type Viewer = { id: string | null; sections: readonly string[]; manage: boolean };
@@ -67,6 +75,8 @@ export function obligationGo(r: ObligationRow, viewer?: Viewer): ObligationGo {
       return { kind: "section", section: "command", anchor: "os-registry" };
     case "square_disputes":
       return { kind: "section", section: "money", anchor: "shoporders" };
+    case "invoices":
+      return { kind: "none" };
   }
   const s = /[?&]s=([a-z-]+)/.exec(r.route || "")?.[1];
   const a = /[?&]a=([a-z0-9-]+)/.exec(r.route || "")?.[1];
@@ -74,9 +84,10 @@ export function obligationGo(r: ObligationRow, viewer?: Viewer): ObligationGo {
 }
 
 /** Sources with a one-tap answer on the row itself, and who may give it (the database's own rule). */
-export const OBLIGATION_WAYS: Record<string, "staff"> = {
+export const OBLIGATION_WAYS: Record<string, "staff" | "admin"> = {
   asset_maintenance: "staff",   // "Done today" — asset_maintenance insert is is_staff() (0083)
   todos: "staff",               // "Mark done" — the same write My Tasks' checkbox makes
+  invoices: "admin",            // "Paid" — mark_invoice_paid is is_admin() (0341)
 };
 
 /** Is this row the viewer's to act on? See the header: "Needs you" is not "needs somebody". */
@@ -90,6 +101,8 @@ export function obligationFor(r: ObligationRow, v: Viewer): boolean {
     case "academy_certifications":
     case "academy_assignments":
       return mine || v.sections.includes("team");    // yours, or the admin who runs the team
+    case "invoices":
+      return v.sections.includes("money");           // the people who handle money — owners and admins
   }
   const to = obligationGo(r, v);
   if (to.kind === "initiative") return v.sections.includes("command");

@@ -5215,8 +5215,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && forWho("manager", row("initiatives")) && forWho("manager", row("todos", { owner_user_id: uid })) && !forWho("manager", row("offer_letters"))
     && ["asset_maintenance", "todos", "initiatives", "goals", "os_workstreams", "offer_letters", "operator_agreements", "square_disputes", "invoices", "compliance_rules"]
       .every((s) => forWho("owner", row(s, { route: s === "invoices" ? "/crew?s=money" : s === "compliance_rules" ? "/crew?s=prep" : "/crew?s=command" }))));
-  ok("needs you: the one-tap answers are the two the database lets any staff member give",
-    JSON.stringify(Object.keys(O.OBLIGATION_WAYS).sort()) === JSON.stringify(["asset_maintenance", "todos"]));
+  ok("needs you: the one-tap answers — two any staff member may give, and an invoice's \"Paid\", which is an owner's or admin's (0341 mark_invoice_paid)",
+    JSON.stringify(Object.keys(O.OBLIGATION_WAYS).sort()) === JSON.stringify(["asset_maintenance", "invoices", "todos"])
+    && O.OBLIGATION_WAYS.asset_maintenance === "staff" && O.OBLIGATION_WAYS.todos === "staff" && O.OBLIGATION_WAYS.invoices === "admin");
+  ok("needs you: an invoice is its own answer — no panel lists invoices, so the row goes nowhere rather than to the top of Money",
+    JSON.stringify(go("invoices", { route: "/crew?s=money" })) === JSON.stringify({ kind: "none" }));
+  ok("needs you: an invoice is the money people's — the owner gets it, a server and an event manager do not",
+    forWho("owner", row("invoices", { route: "/crew?s=money" })) && !forWho("server", row("invoices", { route: "/crew?s=money" }))
+    && !forWho("manager", row("invoices", { route: "/crew?s=money" })));
   ok("needs you: an unknown source still lands in the app, on its own route, parsed — never a reload",
     JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: "/crew?s=garage" })) === JSON.stringify({ kind: "section", section: "garage" })
     && JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: null })) === JSON.stringify({ kind: "section", section: "day" }));
@@ -5304,8 +5310,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // ── elsewhere in the console ──
   ok("live ops: the stop the truck instrument names opens its record",
     /<RecordLink kind="stop" id=\{curStop\.id\}>/.test(read("components/crew/LiveControl.tsx")) && /<RecordLink kind="stop" id=\{nextStop\.id\}>/.test(read("components/crew/LiveControl.tsx")));
-  ok("the pass: an unpaid ticket says to collect — 'pre-order' named a payment state as an ordering one",
-    /"UNPAID · collect at pickup"/.test(crew) && !/"pre-order"/.test(crew));
+  ok("the pass: an unpaid ticket says to collect — 'pre-order' named a payment state as an ordering one (the word lives in lib/collect since 0341)",
+    /"UNPAID · collect at pickup"/.test(read("lib/collect.ts")) && /\{passWord\(o\)\}/.test(crew) && !/"pre-order"/.test(crew));
   ok("readiness: a board group's event or stop opens its record; a past one says Wrap up",
     /openRecord\(g\.kind as "event" \| "stop", g\.recId!\)/.test(read("components/PrepBoard.tsx")) && /\{g\.past \? "Wrap up" : "Open"\}/.test(read("components/PrepBoard.tsx")));
   ok("plan: on the crew calendar an event or stop opens its record instead of a row that does nothing",
@@ -5481,6 +5487,172 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\.admin \.adm-prep-back,\.atc-btn,\.ownerdet-edit,\.daybrief-edit\{min-height:44px\}/.test(css));
   ok("prep: the screen is painted and held by the design ratchet", /scripts\/fixtures\/prep-target\.html/.test(read("scripts/design.ratchet.mjs"))
     && /export const PREP_TARGET = \{ depth: 2, tap: 44, text: 10 \};/.test(read("scripts/design.ratchet.mjs")));
+}
+
+// ── MONEY AT THE WINDOW, AND INVOICES THAT FALL DUE (2026-10-04, 0341) ─────────────────────────────
+// Ryan: "All four, in order" — money first; "Both cash and reader". Nothing in the app could mark a
+// pay-at-pickup order paid, an invoice the app wrote had no due date, and nothing marked one paid.
+// The database half is held by scripts/db.collect.test.mjs; this holds the app half.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const C = require("../.smoke/collect.js");
+  const OFQ = require("../.smoke/offline.js");
+
+  // ── the rule ──
+  ok("money: settled is paid, or collected at the window — or the stored answer, for a screen that read only that",
+    C.isSettled({ paid: true }) && C.isSettled({ paid: false, collected_at: "2026-10-04T20:00:00Z" }) && C.isSettled({ payment_status: "paid" })
+    && !C.isSettled({ paid: false, payment_status: "pending" }) && !C.isSettled({ paid: false, collected_at: null }) && !C.isSettled({}));
+  ok("money: the crew can collect only when something is owed AND the row says the database can record it (0341's column present)",
+    !C.canCollect({ paid: false }) && C.canCollect({ paid: false, collected_at: null })
+    && !C.canCollect({ paid: true, collected_at: null }) && !C.canCollect({ paid: false, collected_at: "2026-10-04T20:00:00Z" }));
+  ok("money: how it was paid — the two ways at the window, online by card, some other way, or not",
+    C.paidHow({ collected_via: "cash", collected_at: "x", paid: true }) === "cash" && C.paidHow({ collected_via: "card_reader", collected_at: "x", paid: false }) === "card_reader"
+    && C.paidHow({ paid: true, payment_id: "sq_1" }) === "online" && C.paidHow({ paid: true }) === "paid" && C.paidHow({ paid: false }) === null);
+  ok("money: the pass says which, and the export says it in an accountant's words",
+    C.passWord({ paid: false }) === "UNPAID · collect at pickup" && C.passWord({ paid: false }, true) === "UNPAID"
+    && C.passWord({ collected_via: "cash", collected_at: "x", paid: true }) === "PAID · cash" && C.passWord({ collected_via: "card_reader", collected_at: "x" }) === "PAID · reader"
+    && C.passWord({ paid: true, payment_id: "p" }) === "PAID"
+    && C.ledgerWord({ collected_via: "cash", collected_at: "x", paid: true }) === "cash at the window" && C.ledgerWord({ collected_via: "card_reader", collected_at: "x" }) === "card reader at the window"
+    && C.ledgerWord({ paid: true, payment_id: "p" }) === "paid online" && C.ledgerWord({ paid: false }) === "unpaid");
+  const cashP = C.collectedPatch({ paid: false }, "cash", "2026-10-04T20:00:00Z", "u1"), readerP = C.collectedPatch({ paid: false }, "card_reader", "2026-10-04T20:00:00Z", "u1");
+  ok("money: cash sets paid; the reader does not — Square already counts it, and counting it here too is the same money twice",
+    cashP.paid === true && readerP.paid === false && cashP.payment_status === "paid" && readerP.payment_status === "paid"
+    && readerP.collected_via === "card_reader" && readerP.collected_by === "u1");
+  ok("money: taking one back unsets only what it set — cash off paid, the reader never touched it",
+    JSON.stringify(C.undonePatch({ paid: true, collected_via: "cash", collected_at: "x" })) === JSON.stringify({ paid: false, collected_via: null, collected_at: null, collected_by: null, payment_status: "pending" })
+    && C.undonePatch({ paid: false, collected_via: "card_reader", collected_at: "x" }).paid === false);
+  const t0 = Date.parse("2026-10-04T20:00:00Z"), mine = { collected_via: "cash", collected_at: "2026-10-04T19:30:00Z", collected_by: "u1", paid: true };
+  ok("money: undo is the collector's inside the hour, an admin's any time, and never an online card's — the database's rule",
+    C.canUndo(mine, "u1", false, t0) && !C.canUndo(mine, "u2", false, t0) && !C.canUndo(mine, "u1", false, t0 + 3600e3)
+    && C.canUndo(mine, "u2", true, t0 + 9 * 3600e3) && !C.canUndo({ paid: true, payment_id: "p" }, "u1", true, t0) && C.UNDO_WINDOW_MS === 3600e3);
+  ok("money: each way tells the crew what it does to the count — cash is not rung on Square too; the reader counts there",
+    /Don't ring it on Square too/.test(C.VIA_HINT.cash) && /counts there/.test(C.VIA_HINT.card_reader)
+    && JSON.stringify(C.COLLECT_VIA) === JSON.stringify(["cash", "card_reader"]) && /\/\/ vocab: orders\.collected_via\nexport const COLLECT_VIA/.test(read("lib/collect.ts")));
+  {
+    const calls = [];
+    const fake = (answer) => ({ rpc: async (fn, args) => { calls.push([fn, args]); return answer; } });
+    PENDING.push((async () => {
+      const a = await C.collectPayment(fake({ data: "collected", error: null }), "cup", "o1", "cash");
+      const b = await C.collectPayment(fake({ data: "already settled", error: null }), "pickup", "p1", "card_reader");
+      const c = await C.collectPayment(fake({ data: null, error: { message: "that order was voided — nothing to collect" } }), "cup", "o2", "cash");
+      const d = await C.undoCollection(fake({ data: "nothing to undo", error: null }), "cup", "o3");
+      const e = await C.markInvoicePaid(fake({ data: "already paid", error: null }), "i1");
+      ok("money: the writes are the three RPCs, with the kind, the row and the way — and a refusal comes back as the database's sentence",
+        JSON.stringify(calls[0]) === JSON.stringify(["staff_collect_payment", { p_kind: "cup", p_id: "o1", p_via: "cash" }])
+        && JSON.stringify(calls[1]) === JSON.stringify(["staff_collect_payment", { p_kind: "pickup", p_id: "p1", p_via: "card_reader" }])
+        && calls[3][0] === "staff_undo_collection" && JSON.stringify(calls[4]) === JSON.stringify(["mark_invoice_paid", { p_invoice: "i1" }])
+        && a.error === null && !a.already && b.already && c.error === "that order was voided — nothing to collect" && d.already && e.already, { calls, a, b, c, d, e });
+    })());
+  }
+
+  // ── no signal at the window ──
+  const st = OFQ.orderStatusOp("o1", "done", 100), col = OFQ.collectCupOp("o1", "cash", 101);
+  const qOff = OFQ.enqueueOp(OFQ.enqueueOp([], st), col);
+  ok("money: a collection taken offline is queued under its own key — it never coalesces away the ticket's status, nor the status it",
+    col.key === "collect_cup:o1" && col.kind === "collect_cup" && col.value === "cash" && qOff.length === 2
+    && OFQ.enqueueOp(qOff, OFQ.collectCupOp("o1", "card_reader", 102)).filter((q) => q.kind === "collect_cup").map((q) => q.value).join() === "card_reader");
+  const offSrc = code(read("components/offline.ts"));
+  ok("money: the replay sends a queued collection to staff_collect_payment as a cup — the rest still to staff_set_order_status",
+    /op\.kind === "collect_cup"\s*\? await supabase\.rpc\("staff_collect_payment", \{ p_kind: "cup", p_id: op\.id, p_via: op\.value \}\)\s*: await supabase\.rpc\("staff_set_order_status"/.test(offSrc));
+
+  // ── the pass ──
+  const crewSrc = code(read("app/crew/page.tsx"));
+  const kit = crewSrc.slice(crewSrc.indexOf("function Kitchen("), crewSrc.indexOf("function ServicePulse("));
+  ok("pass: an owed ticket has 'Collect $…' — the ticket's own recall button, recoloured — and only where the database can record it",
+    /\{canCollect\(o\) && <button type="button" className="adm-recall adm-collect" onClick=\{\(\) => collect\(o\)\}>Collect \{money\(o\.total_cents\)\}<\/button>\}/.test(kit)
+    && (kit.match(/canCollect\(o\) && <button/g) || []).length === 2);
+  ok("pass: 'Picked up' on an owed ticket asks how they paid first — hand-off is when the money is asked about",
+    /if \(to === "done" && canCollect\(o\)\) \{\s*const how = await askCollect\(\{ who: o\.customer \?\? "Guest", cents: o\.total_cents, handOff: true \}\);\s*if \(!how\) return;\s*const row = how === "unpaid" \? o : await takeMoney\(o, how\);\s*if \(!row\) return;\s*return move\(row, to\);/.test(kit));
+  ok("pass: taking money is instant like a move, and with no signal it is parked and replayed — the till does not wait for bars",
+    /apply\(paidRow, false\);/.test(kit) && /if \(isNetworkError\(res\.error\)\) \{ queueCollectCup\(o\.id, via\);/.test(kit) && /apply\(o, false\);\s*toast\(`Couldn't record it/.test(kit));
+  ok("pass: the money word is lib/collect's — 'PAID · cash', 'PAID · reader' — on the board and in the picked-up tray",
+    /<span className=\{isSettled\(o\) \? "pd" : "unp"\}>\{passWord\(o\)\}<\/span>/.test(kit) && /\{passWord\(o, true\)\}/.test(kit) && !/o\.paid \? "PAID"/.test(kit));
+  ok("pass: a collection can be undone by the one who took it, inside the hour, where canUndo says it will work",
+    (kit.match(/\{canUndo\(o, me, admin\) && \(/g) || []).length === 2 && /await undoCollection\(supabase, "cup", o\.id\)/.test(kit));
+  ok("pass: voiding a paid order says what the refund is, and a card refund is flagged critical — it said only 'can't be undone'",
+    /how === "cash" \? `They paid \$\{amt\} cash — hand it back\./.test(kit) && /severity: "critical", category: "money", kind: "refund_needed", subjectId: o\.id,/.test(kit)
+    && /if \(how && how !== "cash"\) \{/.test(kit));
+  ok("pass: the collect sheet is mounted on the board that asks", /\{collectSheet\}\s*<\/div>\s*\);\s*\}\s*$/.test(kit.trimEnd() + "\n"));
+  ok("orders export: the paid column is lib/collect's ledger word — it called every unpaid order 'at pickup', picked up or not",
+    /paid: ledgerWord\(o\),/.test(crewSrc) && !/paid: o\.paid \? "paid online" : "at pickup"/.test(crewSrc));
+  ok("event HUD: a card paid online is not counted twice — once as the order, again as its own Square payment",
+    /const linked = new Set\(o\.map\(\(x\) => x\.payment_id\)\.filter\(Boolean\)\);/.test(crewSrc)
+    && /\.filter\(\(x\) => !x\.square_payment_id \|\| !linked\.has\(x\.square_payment_id\)\)/.test(crewSrc));
+
+  // ── the pickup board ──
+  const dops = code(read("components/DropOps.tsx"));
+  ok("pickup: 'still to collect at the window' counts what is owed — it counted every pack not paid online",
+    /const dueAtWindow = rows\.filter\(\(o\) => !isSettled\(o\)\)/.test(dops) && !/rows\.filter\(\(o\) => !o\.paid\)/.test(dops));
+  ok("pickup: a pack can be collected, and handing it over asks first — whichever button got it to picked up",
+    /\{canCollect\(o\) && <button type="button" className="dops-check collect" onClick=\{\(\) => collect\(o\)\}>/.test(dops)
+    && /if \(stage === "picked_up" && canCollect\(o\)\) \{\s*const how = await askCollect\(\{ who: o\.name, cents: o\.total_cents, handOff: true \}\);/.test(dops)
+    && (dops.match(/setStage\(o, /g) || []).length === 2 && !/setStage\(o\.id,/.test(dops) && /\{collectSheet\}/.test(dops));
+  ok("pickup: a canceled pack's refund is what its payment was — cash back across the window, a card in Square, flagged critical (0242's rule)",
+    /how === "cash" \? \{ title: `Cancel \$\{o\.name\}'s \$\{o\.size\}-pack, paid \$\{amt\} cash\?`, body: "Hand the cash back — nothing to refund in Square\."/.test(dops)
+    && /severity: "critical", category: "money", kind: "refund_needed"/.test(dops) && !/severity: "important", category: "money"/.test(dops));
+  ok("pickup: a stage, a bottle check or a batch that did not save says so — they wrote and reloaded without looking",
+    (dops.match(/if \(error\) toast\(`Didn't save — \$\{error\.message\}`, "error"\);/g) || []).length === 3);
+  ok("pickup: 'paid' on the upcoming and past lists is settled, not paid-online", /\{isSettled\(o\) \? <> · paid <Icon name="check" \/><\/> : ""\}/.test(dops) && /\{isSettled\(o\) \? "" : " · unpaid"\}/.test(dops));
+
+  // ── the customer ──
+  const packs = code(read("components/MyPacks.tsx")), status = code(read("components/OrderStatus.tsx")), funnel = code(read("components/OrderFunnel.tsx"));
+  const inbox = code(read("components/MemberInbox.tsx")), mpire = code(read("app/3mpire/page.tsx")), move = code(read("app/api/reserve/move/route.ts"));
+  ok("customer: a pack paid at the window reads paid, buzzes paid, and is not '$ at pickup'",
+    /: isSettled\(p\) \? <><Icon name="check" \/> paid<\/> : "\$ at pickup"\}/.test(packs) && /return cur && !isSettled\(prev\) && isSettled\(cur\); \}\)\) haptic\(HAPTIC\.paid\);/.test(packs)
+    && /const atPickup = rows\.filter\(\(x\) => !isSettled\(x\)\)\.length;/.test(packs) && !/p\.paid \? <>|p\.paid \? "paid"|: p\.paid \? "paid"/.test(packs));
+  ok("customer: paid at the window, the pack and the cup are the crew's to cancel — no button that the database will refuse",
+    /\{!p\.collected_at && <button type="button" className="danger" onClick=\{\(\) => cancel\(p\)\}/.test(packs) && /\{onChange && !p\.collected_at && /.test(packs)
+    && /\{o\.status === "new" && !o\.collected_at && \(/.test(status) && /const paid = isSettled\(o\);/.test(status));
+  ok("customer: the lists that select their own columns read the stored answer (payment_status, there since 0155) — never a column 0341 has yet to add",
+    /\.select\("id, size, paid, payment_status, picked_up"\)/.test(funnel) && /\$\{isSettled\(o\) \? "paid" : "pay at pickup"\}/.test(funnel)
+    && /\.select\("id, size, drop_date, paid, payment_status, picked_up, canceled_at, status_changed_at, created_at"\)/.test(inbox) && /\$\{isSettled\(p\) \? "" : " · pay at pickup"\}/.test(inbox)
+    && /\{isSettled\(o\) \? "Paid" : "Pre-order"\}/.test(mpire)
+    && /\.select\("id, user_id, drop_date, size, glass, name, paid, payment_status, picked_up, stage, canceled_at"\)/.test(move) && /\(\$\{isSettled\(order\) \? "paid" : "pay at pickup"\}\)/.test(move));
+  // A refund is still decided by `paid` — only a card paid online goes back through Square, and a
+  // collected order cannot be canceled from a phone — so this looks for the WORDS of a payment state.
+  ok("customer: the customer's screens import the rule from lib/settled — lib/collect is the crew's half, and every page loads what they import (0.7 KB, measured)",
+    [packs, status, funnel, inbox, mpire, move].every((t) => /import \{ isSettled \} from "@\/lib\/settled";/.test(t) && !/from "@\/lib\/collect"/.test(t))
+    && /export \{ isSettled, type Collectable \};/.test(read("lib/collect.ts")) && !/export function isSettled/.test(read("lib/collect.ts")));
+  ok("customer: no screen says paid-or-owed from `paid` alone any more",
+    ![packs, status, funnel, inbox, mpire, move, dops, kit].some((t) => /\b[opx]\.paid \? (?:<>|"(?:PAID|Paid|paid)\b|"" : " · (?:unpaid|pay at pickup)")/.test(t) || /\(o\) => !o\.paid\)/.test(t)));
+
+  // ── office invoices ──
+  const oo = code(read("components/OfficeOrders.tsx")), owedSrc = code(read("components/Owed.tsx")), office = code(read("app/office/page.tsx"));
+  ok("office: a delivered order stays while it is still owed, and for the week after — delivery used to take it off the only screen that took its money",
+    /\.or\(`status\.neq\.delivered,payment_status\.in\.\(pending,failed\),delivery_date\.gte\.\$\{weekAgo\}`\)/.test(oo) && !/\.neq\("status", "delivered"\)/.test(oo));
+  ok("office: 'Undo jug swap' only where there is a swap — after a delivery — and 'Log delivery' / 'Cancel' only before one",
+    /\{o\.status === "delivered" && <button type="button" className="btn-ter" onClick=\{\(\) => voidSwap\(o\)\}/.test(oo)
+    && /\{o\.status !== "delivered" && <button type="button" className="btn-sec" onClick=\{\(\) => \{ setOpenId\(o\.id\);/.test(oo)
+    && /\{o\.status !== "delivered" && <button type="button" className="btn-ter" onClick=\{\(\) => cancel\(o\)\}/.test(oo));
+  ok("office: settling moves only from a state that still owes (a second tap cannot make a second invoice), and the invoice write is checked",
+    /\.eq\("id", o\.id\)\.in\("payment_status", \["pending", "failed"\]\)\.select\("id"\);/.test(oo)
+    && /const \{ error: invErr \} = await supabase\.from\("invoices"\)\.insert\(/.test(oo) && /if \(invErr\) \{\s*await supabase\.from\("business_orders"\)\.update\(\{ payment_status: o\.payment_status \}\)/.test(oo));
+  ok("needs you: an invoice that falls due has 'Paid' on the row — an admin's, behind a question, settling invoice and order in one write",
+    /if \(r\.source === "invoices"\) return \{ label: "Paid", busy, run: \(\) => invoicePaid\(r\) \};/.test(owedSrc)
+    && /if \(!way \|\| \(way === "admin" && !admin\)\) return null;/.test(owedSrc) && /const res = await markInvoicePaid\(supabase, r\.subject_id\);/.test(owedSrc)
+    && /confirmLabel: "Mark paid"/.test(owedSrc));
+  ok("needs you: a row with nowhere to go and nothing to tap is not drawn as a door",
+    /if \(to\.kind === "none"\) return false;/.test(owedSrc) && /if \(to\.kind === "none"\) return;/.test(owedSrc) && /if \(!answer\) return canGo\(r\) \? \(/.test(owedSrc));
+  ok("office: the customer sees when an invoice is due, and 'paid' once it is — it said the database's 'open' for ever",
+    /\.select\("id, amount_cents, status, issued_at, terms, due_at"\)/.test(office) && /`due \$\{new Date\(`\$\{v\.due_at\}T12:00:00`\)/.test(office));
+
+  // ── the report, the sheet, the wiring ──
+  const rep = read("components/Reports.tsx");
+  ok("sales: the cash taken at the window is said on its own — the part of revenue that is in a till — and only once the column exists",
+    /\/\/ arrives-with: 0341\n\s*const \[o, p\] = await Promise\.all\(\[/.test(rep) && /\.eq\("collected_via", "cash"\)\.neq\("status", "void"\)/.test(rep)
+    && /\.eq\("collected_via", "cash"\)\.is\("canceled_at", null\)/.test(rep) && /if \(o\.error \|\| p\.error\) \{ setCash\(null\); return; \}/.test(rep));
+  const sheet = read("components/CollectSheet.tsx"), css = read("app/globals.css");
+  ok("collect sheet: two answers as the house choice card, the third quiet but a full 44px target",
+    /className="dl-card collect-way"/.test(sheet) && /Hand it over unpaid/.test(sheet) && /\.collect-skip\{[^}]*min-height:44px/.test(css)
+    && /\.adm-collect\{[^}]*\}/.test(css) && !/\.adm-collect\{[^}]*border-radius/.test(css) && !/\.collect-way\{[^}]*border-radius/.test(css));
+  ok("money: the database test runs in db:test", /node scripts\/db\.collect\.test\.mjs/.test(require("../package.json").scripts["db:test"]));
+  ok("collect sheet: the pass and the sheet are painted and held by the design ratchet, day and dark",
+    /scripts\/fixtures\/collect-sheet\.html/.test(read("scripts/design.ratchet.mjs"))
+    && /export const COLLECT_SHEET = \{ depth: 2, tap: 44, text: 11\.5 \};/.test(read("scripts/design.ratchet.mjs")));
+  ok("money: the migration names its app half", /lib\/collect\.ts isSettled\(\)/.test(read("supabase/migrations/0341_the_window_says_what_it_took.sql"))
+    && /components\/CollectSheet/.test(read("supabase/migrations/0341_the_window_says_what_it_took.sql")));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

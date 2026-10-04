@@ -99,6 +99,13 @@ export interface Order {
   // Customer → pass signal ("I'm on the way / outside / running late"), set via set_order_eta (0138).
   eta_status?: "on_way" | "outside" | "late" | null;
   eta_at?: string | null;
+  // Money taken at the window (0341) — how, when, by whom — and the settled answer the triggers
+  // derive from it (lib/collect isSettled). The three collected_* keys are ABSENT on a row read
+  // before 0341 is applied, and that absence is how the pass knows it cannot record one yet.
+  payment_status?: string | null;
+  collected_via?: "cash" | "card_reader" | null;
+  collected_at?: string | null;
+  collected_by?: string | null;
 }
 
 export interface BookingRequest {

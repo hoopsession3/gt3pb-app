@@ -5,6 +5,7 @@ import { useApp } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { mondayLabel, nextMondayKey } from "@/lib/office";
+import { addDays, etToday } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
@@ -21,6 +22,15 @@ import { usePrompt } from "@/components/PromptSheet";
 // there's truly no office program yet (no standing accounts, no orders) — same as before. What's fixed:
 // a fetch error used to collapse into that exact same "nothing" state, indistinguishable from a quiet
 // week; now it surfaces as a real error instead of vanishing.
+//
+// DELIVERED IS NOT DONE (2026-10-04). The list read `.neq("status", "delivered")`, so the moment a
+// driver logged the swap the order left the only screen that could take its money: a prepaid order
+// delivered before its link was paid could never be marked paid, a net-terms order could no longer
+// be invoiced, and "Undo jug swap" — which only means something AFTER a delivery — sat on every
+// order that had not had one, where it could only ever answer "No open jug entry". Delivered orders
+// now stay while money is still owed on them (pending, or a failed payment) and for the week after,
+// so a miscounted swap can be put right; an invoiced one is followed by its invoice under Needs you.
+// The two "deliver" actions show on the undelivered, the undo on the delivered.
 type BOrder = {
   id: string; business_id: string | null; company: string; contact_phone: string | null;
   address_street: string; address_city: string; address_zip: string; access_instructions: string | null;
@@ -38,13 +48,20 @@ export default function OfficeOrders() {
 
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { rows: [], standingN: 0 };
+    const weekAgo = addDays(etToday(), -7);
     const [ord, acct] = await Promise.all([
-      supabase.from("business_orders").select("*").is("canceled_at", null).neq("status", "delivered").order("delivery_date").limit(100),
+      supabase.from("business_orders").select("*").is("canceled_at", null)
+        .or(`status.neq.delivered,payment_status.in.(pending,failed),delivery_date.gte.${weekAgo}`)
+        .order("delivery_date").limit(100),
       supabase.from("business_accounts").select("id", { count: "exact", head: true }).eq("standing_active", true),
     ]);
     if (ord.error) throw new Error(ord.error.message);
     if (acct.error) throw new Error(acct.error.message);
-    return { rows: (ord.data as BOrder[]) ?? [], standingN: acct.count ?? 0 };
+    // The route first, in date order; what is already delivered after it, newest first.
+    const all = (ord.data as BOrder[]) ?? [];
+    const route = all.filter((o) => o.status !== "delivered");
+    const done = all.filter((o) => o.status === "delivered").sort((a, b) => b.delivery_date.localeCompare(a.delivery_date));
+    return { rows: [...route, ...done], standingN: acct.count ?? 0 };
   }, []);
   const board = useAsyncData(loader, []);
   const { reload } = board;
@@ -99,13 +116,30 @@ export default function OfficeOrders() {
     setBusyId(null); setOpenId(null); toast(`${o.company} — delivered`); reload();
   };
 
+  // Settling an office order. The status moves only from a state that still owes, so a second tap —
+  // or a second phone — finds nothing to move instead of making a second invoice. The invoice write
+  // is checked: it used to be fired and forgotten, so a refused insert left the order saying
+  // "invoiced" with no invoice behind it, owed by nobody. Its due date comes from the terms in the
+  // database (0341), which is what puts it under Needs you when it falls due.
   const setPay = async (o: BOrder, status: "paid" | "invoiced") => {
     if (!supabase || busyId) return; setBusyId(o.id);
-    const { error } = await supabase.from("business_orders").update({ payment_status: status }).eq("id", o.id);
-    if (status === "invoiced" && !error && o.business_id) {
-      await supabase.from("invoices").insert({ business_id: o.business_id, business_order_id: o.id, amount_cents: o.total_cents, terms: o.billing_terms === "net30" ? "net30" : "net15", status: "open" });
+    const { data: moved, error } = await supabase.from("business_orders").update({ payment_status: status })
+      .eq("id", o.id).in("payment_status", ["pending", "failed"]).select("id");
+    if (error || !moved?.length) {
+      setBusyId(null);
+      toast(error ? `Didn't save — ${error.message}` : `${o.company} was already ${o.payment_status === "paid" ? "paid" : "settled"}`, error ? "error" : undefined);
+      reload(); return;
     }
-    setBusyId(null); toast(error ? "Didn't save" : status === "paid" ? "Marked paid" : "Invoice queued", error ? "error" : undefined); reload();
+    if (status === "invoiced") {
+      const { error: invErr } = await supabase.from("invoices").insert({ business_id: o.business_id, business_order_id: o.id, amount_cents: o.total_cents, terms: o.billing_terms === "net30" ? "net30" : "net15", status: "open" });
+      if (invErr) {
+        await supabase.from("business_orders").update({ payment_status: o.payment_status }).eq("id", o.id).eq("payment_status", "invoiced");
+        setBusyId(null); toast(`Couldn't make the invoice — ${invErr.message}`, "error"); reload(); return;
+      }
+    }
+    setBusyId(null);
+    toast(status === "paid" ? `${o.company} — marked paid` : `${o.company} — invoiced, ${o.billing_terms === "net30" ? "due in 30 days" : "due in 15 days"}`);
+    reload();
   };
 
   // The app creates the Square payment link itself (0221) — one tap, link on the clipboard, and when
@@ -162,7 +196,7 @@ export default function OfficeOrders() {
                   <div key={o.id}>
                     <InfoRow
                       name={o.company}
-                      nameExtra={o.standing && <span className="oo-badge">standing</span>}
+                      nameExtra={<>{o.standing && <span className="oo-badge">standing</span>}{o.status === "delivered" && <span className="oo-badge done">delivered</span>}</>}
                       trailing={<span className="oo-gal">{Math.round(o.gallons)} gal</span>}
                       meta={<>
                         <div className="oo-meta">
@@ -176,8 +210,8 @@ export default function OfficeOrders() {
 
                         {!open ? (
                           <div className="oo-acts">
-                            <button type="button" className="btn-sec" onClick={() => { setOpenId(o.id); setEmpties((e) => ({ ...e, [o.id]: Math.round(o.gallons) })); }}>Log delivery</button>
-                            {o.payment_status !== "paid" && o.payment_status !== "invoiced" && (
+                            {o.status !== "delivered" && <button type="button" className="btn-sec" onClick={() => { setOpenId(o.id); setEmpties((e) => ({ ...e, [o.id]: Math.round(o.gallons) })); }}>Log delivery</button>}
+                            {(o.payment_status === "pending" || o.payment_status === "failed") && (
                               o.billing_terms === "prepaid"
                                 ? <>
                                     <button type="button" className="btn-sec" onClick={() => payLink(o)} disabled={busyId === o.id}>Payment link</button>
@@ -185,11 +219,11 @@ export default function OfficeOrders() {
                                   </>
                                 : <button type="button" className="btn-sec" onClick={() => setPay(o, "invoiced")} disabled={busyId === o.id}>Invoice</button>
                             )}
-                            <button type="button" className="btn-ter" onClick={() => cancel(o)} disabled={busyId === o.id}>Cancel</button>
+                            {o.status !== "delivered" && <button type="button" className="btn-ter" onClick={() => cancel(o)} disabled={busyId === o.id}>Cancel</button>}
                             {/* A wrong empties count landed in two places — the ledger row AND the
                                 account's container balance — and could be corrected in neither.
-                                Voiding puts both back (0309/0310). */}
-                            <button type="button" className="btn-ter" onClick={() => voidSwap(o)} disabled={busyId === o.id}>Undo jug swap</button>
+                                Voiding puts both back (0309/0310). Only a delivery has a swap. */}
+                            {o.status === "delivered" && <button type="button" className="btn-ter" onClick={() => voidSwap(o)} disabled={busyId === o.id}>Undo jug swap</button>}
                           </div>
                         ) : (
                           <div className="oo-log">

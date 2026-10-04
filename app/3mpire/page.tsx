@@ -21,6 +21,7 @@ import type { Order } from "@/lib/db";
 import { clickable } from "@/lib/a11y";
 import { useSiteCopy } from "@/lib/copy";
 import { money, moneyPlain, moneyRound } from "@/lib/money";
+import { isSettled } from "@/lib/settled";
 
 const RING = 232; // 2πr for r=37, matches prototype stroke-dasharray
 
@@ -55,7 +56,7 @@ function OrderHistory() {
         <div className="hist-row" key={o.id}>
           <div className="hist-row-l">
             <b>{o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ")}</b>
-            <span>{histDate(o.created_at)} · {o.paid ? "Paid" : "Pre-order"}</span>
+            <span>{histDate(o.created_at)} · {isSettled(o) ? "Paid" : "Pre-order"}</span>
           </div>
           <span className="hist-px">{money(o.total_cents)}</span>
           <button className="hist-redo" onClick={() => reorder(o.items as DrinkId[])} aria-label="Order this again">↻</button>

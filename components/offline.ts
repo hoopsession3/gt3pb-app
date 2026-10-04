@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { enqueueOp, pruneStale, orderStatusOp, type OfflineOp } from "@/lib/offline";
+import { enqueueOp, pruneStale, orderStatusOp, collectCupOp, type OfflineOp } from "@/lib/offline";
 
 // OFFLINE ENGINE — localStorage persistence + replay for lib/offline's pure queue. One queue for
 // the whole crew console; writes that fail on the network are parked here and replayed in order
@@ -26,6 +26,11 @@ export function queueOrderStatus(orderId: string, status: string): void {
   writeQueue(enqueueOp(pruneStale(readQueue(), Date.now()), orderStatusOp(orderId, status, Date.now())));
 }
 
+// Park money taken at the window for replay (0341). One per order; a second tap replaces the first.
+export function queueCollectCup(orderId: string, via: string): void {
+  writeQueue(enqueueOp(pruneStale(readQueue(), Date.now()), collectCupOp(orderId, via, Date.now())));
+}
+
 // Heuristic: was this a connectivity failure (park + retry) vs. a real server rejection (don't)?
 export function isNetworkError(message: string | undefined | null): boolean {
   if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
@@ -43,7 +48,9 @@ export async function flushQueue(supabase: SupabaseClient | null): Promise<numbe
     let queue = pruneStale(readQueue(), Date.now());
     while (queue.length > 0) {
       const op = queue[0];
-      const { error } = await supabase.rpc("staff_set_order_status", { p_order: op.id, p_status: op.value });
+      const { error } = op.kind === "collect_cup"
+        ? await supabase.rpc("staff_collect_payment", { p_kind: "cup", p_id: op.id, p_via: op.value })
+        : await supabase.rpc("staff_set_order_status", { p_order: op.id, p_status: op.value });
       if (error && isNetworkError(error.message)) break;       // still offline — try again later
       queue = queue.slice(1);                                   // done (or definitively rejected)
       writeQueue(queue);

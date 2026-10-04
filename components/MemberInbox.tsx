@@ -7,6 +7,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import { etToday, nearDay } from "@/lib/dates";
 import Icon, { type IconName } from "@/components/Icon";
+import { isSettled } from "@/lib/settled";
 
 // MEMBER INBOX — "what's happening with my stuff," on the customer Today. A read-only aggregation
 // over the member's OWN orders (cup), packs (drop_orders) and deliveries (delivery_orders) — every
@@ -61,13 +62,13 @@ export default function MemberInbox() {
     // same in-flight order a second time on the same screen, with its own realtime subscription
     // and poll on the same table. Packs & deliveries stay: they have no other live surface.
     const [packs, dels] = await Promise.all([
-      safe(() => supabase!.from("drop_orders").select("id, size, drop_date, paid, picked_up, canceled_at, status_changed_at, created_at").eq("user_id", user.id).is("canceled_at", null).gte("drop_date", dayFloor).order("drop_date").limit(5)),
+      safe(() => supabase!.from("drop_orders").select("id, size, drop_date, paid, payment_status, picked_up, canceled_at, status_changed_at, created_at").eq("user_id", user.id).is("canceled_at", null).gte("drop_date", dayFloor).order("drop_date").limit(5)),
       safe(() => supabase!.from("delivery_orders").select("id, pack_size, delivery_date, status, payment_status, canceled_at, status_changed_at, created_at").eq("user_id", user.id).is("canceled_at", null).neq("status", "delivered").order("delivery_date").limit(5)),
     ]);
 
     const out: Item[] = [];
-    for (const p of (packs.data as { id: string; size: number; drop_date: string; paid: boolean; picked_up: boolean; status_changed_at: string | null; created_at: string }[]) ?? []) {
-      const line = p.picked_up ? <>Picked up <Icon name="check" /></> : `Pickup ${dayLabel(p.drop_date)}${p.paid ? "" : " · pay at pickup"}`;
+    for (const p of (packs.data as { id: string; size: number; drop_date: string; paid: boolean; payment_status: string | null; picked_up: boolean; status_changed_at: string | null; created_at: string }[]) ?? []) {
+      const line = p.picked_up ? <>Picked up <Icon name="check" /></> : `Pickup ${dayLabel(p.drop_date)}${isSettled(p) ? "" : " · pay at pickup"}`;
       out.push({ key: `pack-${p.id}`, icon: "package", title: `${p.size}-pack`, line, when: REL(p.status_changed_at ?? p.created_at), tone: p.picked_up ? "done" : "live", href: "/reserve" });
     }
     for (const d of (dels.data as { id: string; pack_size: number; delivery_date: string; status: string; status_changed_at: string | null; created_at: string }[]) ?? []) {

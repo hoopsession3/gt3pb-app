@@ -20,7 +20,7 @@ import { money } from "@/lib/money";
 // amber-jug balance, and invoices. Everything reads their own rows (RLS, 0187).
 type Acct = { id: string; company: string; standing_active: boolean; standing_gallons: number | null; jug_balance: number; billing_terms: string };
 type Ord = { id: string; delivery_date: string; gallons: number; total_cents: number; status: string; payment_status: string };
-type Inv = { id: string; amount_cents: number; status: string; issued_at: string; terms: string };
+type Inv = { id: string; amount_cents: number; status: string; issued_at: string; terms: string; due_at: string | null };
 
 export default function OfficeScreen() {
   const { ready, user, enabled } = useAuth();
@@ -49,7 +49,7 @@ export default function OfficeScreen() {
     if (ac) {
       const [o, i] = await Promise.all([
         supabase.from("business_orders").select("id, delivery_date, gallons, total_cents, status, payment_status").is("canceled_at", null).order("delivery_date", { ascending: false }).limit(12),
-        supabase.from("invoices").select("id, amount_cents, status, issued_at, terms").eq("business_id", ac.id).order("issued_at", { ascending: false }).limit(8),
+        supabase.from("invoices").select("id, amount_cents, status, issued_at, terms, due_at").eq("business_id", ac.id).order("issued_at", { ascending: false }).limit(8),
       ]);
       if (o.error || i.error) toast("Some account details didn't load — try refreshing", "error");
       setOrders((o.data as Ord[]) ?? []); setInvoices((i.data as Inv[]) ?? []);
@@ -136,8 +136,12 @@ export default function OfficeScreen() {
             <SectionHeader label="Invoices" />
             {invoices.map((v) => (
               <div key={v.id} className="op-row">
-                <div className="op-row-x"><b>{money(v.amount_cents)}</b><span>{new Date(v.issued_at).toLocaleDateString()} · {v.terms}</span></div>
-                <div className={`op-row-pay p-${v.status === "paid" ? "paid" : "open"}`}>{v.status}</div>
+                <div className="op-row-x"><b>{money(v.amount_cents)}</b><span>{new Date(v.issued_at).toLocaleDateString()} · {v.terms === "net30" ? "net 30" : "net 15"}</span></div>
+                {/* "open" was the database's word, and it never changed — nothing marked an invoice
+                    paid. The customer's question is when it is due, and whether we have it. */}
+                <div className={`op-row-pay p-${v.status === "paid" ? "paid" : "open"}`}>
+                  {v.status === "paid" ? "paid" : v.status === "void" ? "canceled" : v.due_at ? `due ${new Date(`${v.due_at}T12:00:00`).toLocaleDateString([], { month: "short", day: "numeric" })}` : "open"}
+                </div>
               </div>
             ))}
           </div>

@@ -13,6 +13,8 @@ import { obligationGo, obligationFor, OBLIGATION_WAYS, type ObligationRow, type 
 import { roleOf, canOf } from "@/lib/roles";
 import { logDone } from "@/lib/upkeep";
 import { completeTask } from "@/lib/tasks";
+import { markInvoicePaid } from "@/lib/collect";
+import { useConfirm } from "./ConfirmSheet";
 import { fetchInventory, rollupLowStock, type InvItem } from "@/lib/inventory";
 import { goPlanTab } from "@/lib/planNav";
 import { useTaskSheet } from "./TaskSheet";
@@ -86,6 +88,8 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
   const { setSection } = useOperatorSection();
   const { user, profile } = useAuth();
   const { toast } = useApp();
+  const confirm = useConfirm();
+  const admin = canOf(profile).admin;
   // Who is looking decides what is theirs (lib/obligations obligationFor) — read once, as plain values,
   // so the loader below re-runs only when the person or their role actually changes.
   const meId = user?.id ?? null;
@@ -179,6 +183,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
     if (to.kind === "person") { openRecord("person", to.id); return; }
     if (to.kind === "initiative") { setInitId(to.id); return; }
     if (to.kind === "page") { window.location.assign(to.href); return; }
+    if (to.kind === "none") return;
     setSection((VALID as Set<string>).has(to.section) ? (to.section as OpSection) : "day");
     scrollToAnchor(to.anchor);
   };
@@ -186,6 +191,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
   // only some roles can open Assets — for the rest the row is its one tap, and promises nothing more.
   const canGo = (r: ObligationRow) => {
     const to = obligationGo(r, viewer);
+    if (to.kind === "none") return false;
     return to.kind !== "section" || viewer.sections.includes(to.section);
   };
 
@@ -213,12 +219,27 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
     setDoing(null);
     if (ok) { toast(`${r.title} — done.`); state.reload(); } else toast("Couldn't mark it done — try again.", "error");
   };
+  // An invoice is paid when the money is in — a cheque, a transfer — which only a person can see.
+  // One tap and a question, because it closes the invoice AND its order (0341), and money said
+  // received by a slip of the thumb is worse than a row left one more day.
+  const invoicePaid = async (r: Row) => {
+    if (!supabase || doing) return;
+    if (!(await confirm({ title: `Mark ${r.title} paid?`, body: "When the money is in. It closes the invoice and marks its office order paid.", confirmLabel: "Mark paid" }))) return;
+    setDoing(keyOf(r));
+    const res = await markInvoicePaid(supabase, r.subject_id);
+    setDoing(null);
+    if (res.error) { toast(`Couldn't mark it paid — ${res.error}`, "error"); return; }
+    toast(res.already ? `${r.title} — already paid.` : `${r.title} — paid.`);
+    state.reload();
+  };
   // The answer is a tick — the same box My tasks ticks, because it is the same act: this is done.
   const answerFor = (r: Row): { label: string; busy: boolean; run: () => void } | null => {
-    if (!OBLIGATION_WAYS[r.source]) return null;
+    const way = OBLIGATION_WAYS[r.source];
+    if (!way || (way === "admin" && !admin)) return null;
     const busy = doing === keyOf(r);
     if (r.source === "asset_maintenance") return { label: "Done today", busy, run: () => doneToday(r) };
     if (r.source === "todos") return { label: "Mark done", busy, run: () => markDone(r) };
+    if (r.source === "invoices") return { label: "Paid", busy, run: () => invoicePaid(r) };
     return null;
   };
 
@@ -271,11 +292,15 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
               );
               const answer = answerFor(r);
               const lateCls = r.severity === "overdue" ? " late" : "";
-              if (!answer) return (
+              if (!answer) return canGo(r) ? (
                 <button type="button" key={keyOf(r)} className={`owed-row${lateCls}`} onClick={() => go(r)}>
                   {body}
                   <span className="owed-c" aria-hidden="true">›</span>
                 </button>
+              ) : (
+                // Nowhere to go and nothing this viewer may tap: the row is information, and says so
+                // by not looking like a door.
+                <div key={keyOf(r)} className={`owed-row${lateCls}`}>{body}</div>
               );
               // A row with its own answer: the tick in front, the row behind it still opening what
               // it names when this viewer can go there — and plain text when they cannot.

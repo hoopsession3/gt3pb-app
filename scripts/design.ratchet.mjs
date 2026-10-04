@@ -65,12 +65,20 @@ export const MY_DAY = { depth: 2, tap: 44, text: 10 };
 // calendar" and "‹ All prep" 28 before it; 10 is the eyebrow over the event's name, at the floor.
 const PREP_FIXTURE = join(ROOT, "scripts/fixtures/prep-target.html");
 export const PREP_TARGET = { depth: 2, tap: 44, text: 10 };
+// Money at the window (2026-10-04, 0341): two tickets on the pass — one owed with its "Collect",
+// one collected with the collector's undo — under the sheet "Picked up" opens on an owed ticket.
+// Worked one-handed through a window. Measured when it was built: depth 2 is an answer's line
+// inside its card; 44 is every control (the ticket's ⋯ is 44 only inside .admin, which is why the
+// fixture carries the console's own section); 11.5 is a ticket's money line.
+const COLLECT_FIXTURE = join(ROOT, "scripts/fixtures/collect-sheet.html");
+export const COLLECT_SHEET = { depth: 2, tap: 44, text: 11.5 };
 const SHEETS = [
   { name: "brew sheet",     file: BREW_FIXTURE,     rel: "scripts/fixtures/brew-sheet.html",     limits: BREW_SHEET },
   { name: "record sheet",   file: RECORD_FIXTURE,   rel: "scripts/fixtures/record-sheet.html",   limits: RECORD_SHEET },
   { name: "purchase sheet", file: PURCHASE_FIXTURE, rel: "scripts/fixtures/purchase-sheet.html", limits: PURCHASE_SHEET },
   { name: "My Day screen",  file: MYDAY_FIXTURE,    rel: "scripts/fixtures/my-day.html",         limits: MY_DAY },
   { name: "prep screen",    file: PREP_FIXTURE,     rel: "scripts/fixtures/prep-target.html",    limits: PREP_TARGET },
+  { name: "collect sheet",  file: COLLECT_FIXTURE,  rel: "scripts/fixtures/collect-sheet.html",  limits: COLLECT_SHEET },
 ];
 // The crew console's bottom chrome (2026-10-04): the nav, the floating tier, the rail. Not a depth
 // or a tap floor — a COLLISION check, because the defect was a button painted on top of a tab.

@@ -50,7 +50,11 @@ import { readFileSync, existsSync } from "node:fs";
 //
 // 2026-10-03: 114 → 113. The old BrewSheet's effect went with its rewrite (ca5b1fd, "the brew sheet
 // asks what a cook knows"); the ratchet sat one under its baseline for a commit. Locked in.
-export const BASELINE = 113;
+//
+// 2026-10-04: 113 → 112. 1aa0f5f ("Today's op opens…") took one out and nobody lowered the line —
+// measured by running this file at a9989be (113) and at 1aa0f5f (112). It sat one under for three
+// commits. Locked in with the money pass (0341), which adds none.
+export const BASELINE = 112;
 
 const RULE = "react-hooks/set-state-in-effect";
 

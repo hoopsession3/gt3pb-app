@@ -39,7 +39,9 @@ import { goPlanTab, isPlanTab, planTabFromUrl, stampPlanTab, PLAN_TAB_KEY, PLAN_
 import GtmCard from "@/components/GtmCard";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
-import { queueOrderStatus, isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
+import { queueOrderStatus, queueCollectCup, isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
+import { canCollect, canUndo, collectPayment, undoCollection, collectedPatch, undonePatch, isSettled, paidHow, passWord, ledgerWord, VIA_LABEL, type CollectVia } from "@/lib/collect";
+import { useCollectSheet } from "@/components/CollectSheet";
 import { snapshotUsable } from "@/lib/offline";
 import MenuRigChips, { MENU_RIG_COLUMNS, type MenuRigPatch, type MenuRigValue } from "@/components/MenuRigChips";
 // ── Code-split (2026-07-29, speed round): every component below renders only inside ONE section
@@ -297,6 +299,10 @@ let kdsChanSeq = 0;
 function Kitchen() {
   const confirm = useConfirm();
   const { toast } = useApp();
+  const { user, profile } = useAuth();
+  const me = user?.id ?? null;
+  const admin = canOf(profile).admin;
+  const [askCollect, collectSheet] = useCollectSheet();
   const [orders, setOrders] = useState<Order[]>([]);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [flash, setFlash] = useState<Set<string>>(new Set());
@@ -406,16 +412,83 @@ function Kitchen() {
       setErr(error.message); toast(`Couldn't update — ${error.message}`, "error"); load();
     }
   };
-  const advance = (o: Order) => move(o, NEXT[o.status]);
+  // ── MONEY AT THE WINDOW (2026-10-04, 0341) ─────────────────────────────────────────────────────
+  // "UNPAID · collect at pickup" was a sentence with nothing behind it: nothing in the app could
+  // mark a pay-at-pickup order paid. Taking it is instant like a move — the ticket says PAID the
+  // moment the crew taps and the database answers after — and with no signal the tap is parked and
+  // replayed, because the till does not wait for bars. Returns the row as now painted, or null.
+  const takeMoney = async (o: Order, via: CollectVia): Promise<Order | null> => {
+    if (!supabase) return null;
+    const paidRow = { ...o, ...collectedPatch(o, via, new Date().toISOString(), me) } as Order;
+    apply(paidRow, false);
+    haptic(HAPTIC.paid);
+    const res = await collectPayment(supabase, "cup", o.id, via);
+    if (res.error) {
+      if (isNetworkError(res.error)) { queueCollectCup(o.id, via); toast(`No signal — ${VIA_LABEL[via].toLowerCase()} saved, will sync`, "info"); return paidRow; }
+      apply(o, false);
+      toast(`Couldn't record it — ${res.error}`, "error"); load(); return null;
+    }
+    if (res.already) { toast(`${o.customer ?? "Guest"} had already paid — nothing taken`); load(); }
+    return paidRow;
+  };
+  const collect = async (o: Order) => {
+    const how = await askCollect({ who: o.customer ?? "Guest", cents: o.total_cents });
+    if (how === "cash" || how === "card_reader") await takeMoney(o, how);
+  };
+  // A wrong tap is put right by the one who made it, inside the hour (or an admin) — the database's
+  // rule (staff_undo_collection), mirrored by canUndo so the button is only where it will work.
+  const undoTake = async (o: Order) => {
+    if (!supabase) return;
+    const how = o.collected_via === "cash" ? "cash" : "card-reader";
+    if (!(await confirm({ title: `Undo the ${money(o.total_cents)} ${how} payment from ${o.customer ?? "Guest"}?`, body: "Only if it wasn't paid that way. You can collect it again after.", confirmLabel: "Undo it" }))) return;
+    apply({ ...o, ...undonePatch(o) } as Order, false);
+    const res = await undoCollection(supabase, "cup", o.id);
+    if (res.error) {
+      apply(o, false);
+      toast(isNetworkError(res.error) ? "No signal — undo it once you're back online" : `Couldn't undo it — ${res.error}`, "error");
+      return;
+    }
+    toast(res.already ? "Nothing to undo — it wasn't taken at the window" : `${o.customer ?? "Guest"} — back to unpaid`);
+  };
+  // Handing it over is when the money is asked about: an order still owed does not leave the window
+  // without the question. The third answer, handing it over unpaid, is there and says what it is.
+  const advance = async (o: Order) => {
+    const to = NEXT[o.status];
+    if (to === "done" && canCollect(o)) {
+      const how = await askCollect({ who: o.customer ?? "Guest", cents: o.total_cents, handOff: true });
+      if (!how) return;
+      const row = how === "unpaid" ? o : await takeMoney(o, how);
+      if (!row) return;
+      return move(row, to);
+    }
+    return move(o, to);
+  };
   const recall = (o: Order) => move(o, PREV[o.status]);
+  // Voiding a paid order is a refund somebody has to make. It used to say only "This can't be
+  // undone" — about an order a card had paid for — and flag nobody; the pack board's cancel already
+  // flagged its refunds (and 0242 made those critical so they escalate). Now both say the same.
   const voidOrder = async (o: Order) => {
-    if (!(await confirm({ title: `Void ${o.customer ?? "this order"}?`, body: "This can't be undone.", confirmLabel: "Void order", danger: true }))) return;
+    const how = paidHow(o);
+    const amt = money(o.total_cents);
+    const body = how === "cash" ? `They paid ${amt} cash — hand it back. This can't be undone.`
+      : how === "card_reader" ? `They paid ${amt} on the card reader — refund it in Square; the inbox gets a flag. This can't be undone.`
+      : how ? `They paid ${amt} online — refund it in Square; the inbox gets a flag. This can't be undone.`
+      : "Nothing was paid. This can't be undone.";
+    if (!(await confirm({ title: `Void ${o.customer ?? "this order"}?`, body, confirmLabel: "Void order", danger: true }))) return;
     if (!supabase) return;
     apply(o, true);
     const { error } = await supabase.rpc("staff_set_order_status", { p_order: o.id, p_status: "void" });
     if (error) {
-      if (isNetworkError(error.message)) { queueOrderStatus(o.id, "void"); toast("No signal — void saved, will sync", "info"); return; }
-      setErr(error.message); toast(`Couldn't void — ${error.message}`, "error"); load();
+      if (isNetworkError(error.message)) { queueOrderStatus(o.id, "void"); toast("No signal — void saved, will sync", "info"); }
+      else { setErr(error.message); toast(`Couldn't void — ${error.message}`, "error"); load(); return; }
+    }
+    if (how && how !== "cash") {
+      await raiseAlertClient({
+        severity: "critical", category: "money", kind: "refund_needed", subjectId: o.id,
+        title: "Voided a PAID order — refund needed",
+        body: `${o.customer ?? "Guest"} · #${o.id.slice(0, 4).toUpperCase()} · ${amt} paid ${how === "card_reader" ? "on the card reader" : "online"}. Refund it in Square.`,
+        link: "/crew?s=money&a=pay",
+      });
     }
   };
 
@@ -480,9 +553,15 @@ function Kitchen() {
                         {o.eta_status === "outside" ? <><Icon name="pin" /> OUTSIDE — call the name</> : o.eta_status === "on_way" ? "🏃 On the way" : <><Icon name="clock" /> Running late</>}
                       </span>
                     )}
-                    <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "UNPAID · collect at pickup"}</span> · <span className="kds-stagetime">{ago(o.status_changed_at)} in stage</span></div>
+                    <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={isSettled(o) ? "pd" : "unp"}>{passWord(o)}</span> · <span className="kds-stagetime">{ago(o.status_changed_at)} in stage</span></div>
                     <div className="adm-actions-row">
                       {PREV[o.status] && <button className="adm-recall" onClick={() => recall(o)} aria-label="Move back a stage">↩</button>}
+                      {canCollect(o) && <button type="button" className="adm-recall adm-collect" onClick={() => collect(o)}>Collect {money(o.total_cents)}</button>}
+                      {canUndo(o, me, admin) && (
+                        <button type="button" className="adm-recall adm-collect done" onClick={() => undoTake(o)} aria-label={`Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment from ${o.customer ?? "Guest"}`}>
+                          {o.collected_via === "cash" ? "Cash" : "Reader"} <Icon name="check" />
+                        </button>
+                      )}
                       <button className={`adm-act ${ACT_CLASS[o.status]}`} onClick={() => advance(o)}>{st.action}</button>
                     </div>
                   </div>
@@ -506,9 +585,17 @@ function Kitchen() {
                   <span className="adm-age calm">picked up {ago(o.status_changed_at)} ago</span>
                 </div>
                 <div className="adm-items">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")}</div>
-                <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "unpaid"}</span></div>
+                <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={isSettled(o) ? "pd" : "unp"}>{passWord(o, true)}</span></div>
                 <div className="adm-actions-row">
                   <button className="adm-recall" onClick={() => recall(o)} aria-label={`Bring ${o.customer ?? "order"} back to ready`}>↩ Recall</button>
+                  {/* Handed over unpaid and settled a minute later — a regular squaring up — is
+                      still money taken at the window, and this tray is where that order still is. */}
+                  {canCollect(o) && <button type="button" className="adm-recall adm-collect" onClick={() => collect(o)}>Collect {money(o.total_cents)}</button>}
+                  {canUndo(o, me, admin) && (
+                    <button type="button" className="adm-recall adm-collect done" onClick={() => undoTake(o)} aria-label={`Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment from ${o.customer ?? "Guest"}`}>
+                      {o.collected_via === "cash" ? "Cash" : "Reader"} <Icon name="check" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -516,6 +603,7 @@ function Kitchen() {
         )}
       </div>
       {active.length === 0 && done.length === 0 && <EmptyState title="The pass is clear" sub="New orders arrive here in realtime." />}
+      {collectSheet}
     </div>
   );
 }
@@ -4131,13 +4219,19 @@ function EventHUD({ onGoEvents }: { onGoEvents?: () => void }) {
     }
     const eid = (e as EventRow).id;
     const [{ data: ords }, { data: sales }, { data: cat }, { data: ec }] = await Promise.all([
-      supabase.from("orders").select("total_cents, paid, created_at").eq("event_id", eid),
-      supabase.from("event_sales").select("amount_cents, created_at").eq("event_id", eid),
+      supabase.from("orders").select("total_cents, paid, payment_id, created_at").eq("event_id", eid),
+      supabase.from("event_sales").select("amount_cents, square_payment_id, created_at").eq("event_id", eid),
       supabase.from("product_economics_live").select("*").eq("active", true).order("sort"),
       supabase.from("event_economics").select("*").eq("event_id", eid).maybeSingle(),
     ]);
-    const o = (ords as { total_cents: number; paid: boolean; created_at: string }[]) ?? [];
-    const s = (sales as { amount_cents: number; created_at: string }[]) ?? [];
+    const o = (ords as { total_cents: number; paid: boolean; payment_id: string | null; created_at: string }[]) ?? [];
+    // A card paid online is a Square payment too, and the webhook mirrors every completed Square
+    // payment into event_sales — so this HUD added the same money twice for every app order paid
+    // during the event. report_sales has never done that (it drops event_sales rows whose payment
+    // is an order's, 0216/0220); now the live number agrees with it.
+    const linked = new Set(o.map((x) => x.payment_id).filter(Boolean));
+    const s = ((sales as { amount_cents: number; square_payment_id: string | null; created_at: string }[]) ?? [])
+      .filter((x) => !x.square_payment_id || !linked.has(x.square_payment_id));
     const cents = o.filter((x) => x.paid).reduce((a, x) => a + x.total_cents, 0) + s.reduce((a, x) => a + x.amount_cents, 0);
     const times = [...o.map((x) => x.created_at), ...s.map((x) => x.created_at)].filter(Boolean).sort();
     setStats({ cents, orders: o.length + s.length, firstAt: times[0] ?? null });
@@ -4891,7 +4985,7 @@ function OrdersHistory() {
             <button type="button" className="dops-mini" style={{ marginBottom: 8 }} onClick={() => downloadCsv("gt3-orders.csv", shown.map((o) => ({
               when: o.status_changed_at ?? "", order: o.id.slice(0, 4), customer: o.customer ?? "guest",
               items: o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · "),
-              total: moneyPlain(o.total_cents), status: o.status, paid: o.paid ? "paid online" : "at pickup",
+              total: moneyPlain(o.total_cents), status: o.status, paid: ledgerWord(o),
             })))}>Export CSV</button>
             <SectionHeader label="Order history" right={done > 0 ? <span className="adm-pill">{done} completed</span> : undefined} />
             <input className="adm-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name · order # · item · amount" aria-label="Search order history" />

@@ -10,6 +10,7 @@ import { saveSnapshot, readSnapshot, isNetworkError } from "./offline";
 import { snapshotUsable } from "@/lib/offline";
 import Icon from "@/components/Icon";
 import { useConfirm } from "./ConfirmSheet";
+import { isSettled } from "@/lib/settled";
 
 // A live "your order" banner for signed-in members — preparing → ready in realtime,
 // no push permission required (RLS lets a member read only their own orders). Guests
@@ -75,7 +76,7 @@ export default function OrderStatus() {
   // Surface the most-advanced active order (ready beats preparing beats new), newest first.
   const o = [...orders].sort((a, b) => (RANK[b.status] - RANK[a.status]) || (a.created_at < b.created_at ? 1 : -1))[0];
   const items = o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ");
-  const paid = Boolean((o as Order & { paid?: boolean }).paid);
+  const paid = isSettled(o);
 
   // Customer → pass quick replies ("I'm on the way / outside / running late"). One tap writes
   // eta_status via the definer RPC (owner-only, active orders only); the KDS shows it live and
@@ -118,7 +119,9 @@ export default function OrderStatus() {
           <b>{STATUS_LABEL[o.status] ?? "Your order"}</b>
           <span>{items}{orders.length > 1 ? ` · +${orders.length - 1} more` : ""}{stale ? " · offline — last known" : ""}</span>
         </div>
-        {o.status === "new" && (
+        {/* Paid at the window, the order is the crew's to cancel: the database refuses it from a
+            phone (0341), so the button that can only fail is not here. */}
+        {o.status === "new" && !o.collected_at && (
           <button type="button" className="orderbar-cancel" onClick={cancel} disabled={canceling}>
             {canceling ? "Canceling…" : "Cancel"}
           </button>

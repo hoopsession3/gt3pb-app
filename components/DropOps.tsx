@@ -14,6 +14,10 @@ import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { useAuth } from "./AuthProvider";
+import { canOf } from "@/lib/roles";
+import { canCollect, canUndo, collectPayment, undoCollection, isSettled, paidHow, type CollectVia } from "@/lib/collect";
+import { useCollectSheet } from "./CollectSheet";
 
 // DROP OPS — the order-ahead brew sheet + pickup checklist for Saturday's drop. Lives in the admin
 // "Now" section right under the kitchen pass (and pops out of reservation alerts), so walk-up orders
@@ -30,6 +34,9 @@ type DropOrder = {
   mix: Mix; total_cents: number; paid: boolean; drop_date: string; picked_up: boolean; bottles_returned: boolean;
   stage?: PackStage | null; canceled_at?: string | null;
   batch_id?: string | null;   // recall traceability (0261): which brew filled this pack
+  // Money (0341): payment_id = paid online; collected_* = taken at the window, absent before 0341.
+  payment_id?: string | null; payment_status?: string | null;
+  collected_via?: string | null; collected_at?: string | null; collected_by?: string | null;
 };
 type PlannedBatch = { id: string; recipe_name: string | null; batch_gal: number; status: string };
 type Board = { rows: DropOrder[]; batches: PlannedBatch[]; history: DropOrder[]; upcoming: DropOrder[] };
@@ -52,6 +59,10 @@ const stageIndex = (s: PackStage | null | undefined) => Math.max(0, PACK_STAGES.
 export default function DropOps({ brief = false, onOpen, canPlan = false }: { brief?: boolean; onOpen?: () => void; canPlan?: boolean } = {}) {
   const confirm = useConfirm();
   const { toast } = useApp();
+  const { user, profile } = useAuth();
+  const me = user?.id ?? null;
+  const admin = canOf(profile).admin;
+  const [askCollect, collectSheet] = useCollectSheet();
   const [busy, setBusy] = useState(false);
   const [histOpen, setHistOpen] = useState(false);
   const [listOpen, setListOpen] = useState<boolean | null>(null); // null = open on drop day only
@@ -111,23 +122,59 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
   const history = board.data?.history ?? [];
   const batches = board.data?.batches ?? [];
 
+  // Each of these three used to write and reload without looking at the answer, so a refused write
+  // (a dropped signal, a lapsed session) left the board showing the tap as done until the next
+  // reload contradicted it. A write that did not land says so.
   const toggle = async (id: string, key: "picked_up" | "bottles_returned", val: boolean) => {
     if (!supabase) return;
-    await supabase.from("drop_orders").update({ [key]: val }).eq("id", id);
+    const { error } = await supabase.from("drop_orders").update({ [key]: val }).eq("id", id);
+    if (error) toast(`Didn't save — ${error.message}`, "error");
+    reload();
+  };
+  // ── MONEY AT THE WINDOW (2026-10-04, 0341) ─────────────────────────────────────────────────────
+  // A pack reserved "pay at pickup" could never be marked paid — nothing in the app wrote paid but
+  // the online reserve — so "still to collect at the window" counted packs paid an hour earlier.
+  const takeMoney = async (o: DropOrder, via: CollectVia): Promise<boolean> => {
+    if (!supabase) return false;
+    const res = await collectPayment(supabase, "pickup", o.id, via);
+    if (res.error) { toast(`Couldn't record it — ${res.error}`, "error"); reload(); return false; }
+    toast(res.already ? `${o.name} had already paid — nothing taken` : `${o.name} — ${dollars(o.total_cents / 100)} ${via === "cash" ? "cash" : "on the card reader"}`);
+    reload();
+    return true;
+  };
+  const collect = async (o: DropOrder) => {
+    const how = await askCollect({ who: o.name, cents: o.total_cents });
+    if (how === "cash" || how === "card_reader") await takeMoney(o, how);
+  };
+  const undoTake = async (o: DropOrder) => {
+    if (!supabase) return;
+    const how = o.collected_via === "cash" ? "cash" : "card-reader";
+    if (!(await confirm({ title: `Undo the ${dollars(o.total_cents / 100)} ${how} payment from ${o.name}?`, body: "Only if it wasn't paid that way. You can collect it again after.", confirmLabel: "Undo it" }))) return;
+    const res = await undoCollection(supabase, "pickup", o.id);
+    if (res.error) toast(`Couldn't undo it — ${res.error}`, "error");
+    else toast(res.already ? "Nothing to undo — it wasn't taken at the window" : `${o.name} — back to unpaid`);
     reload();
   };
   // Advance (or jump) a pack's fulfillment stage. The DB trigger keeps picked_up in sync, and the
-  // customer's pack card updates live (drop_orders is realtime).
-  const setStage = async (id: string, stage: PackStage) => {
+  // customer's pack card updates live (drop_orders is realtime). Handing a pack over is when the
+  // money is asked about — whichever button got it there.
+  const setStage = async (o: DropOrder, stage: PackStage) => {
     if (!supabase) return;
-    await supabase.from("drop_orders").update({ stage }).eq("id", id);
+    if (stage === "picked_up" && canCollect(o)) {
+      const how = await askCollect({ who: o.name, cents: o.total_cents, handOff: true });
+      if (!how) return;
+      if (how !== "unpaid" && !(await takeMoney(o, how))) return;
+    }
+    const { error } = await supabase.from("drop_orders").update({ stage }).eq("id", o.id);
+    if (error) toast(`Didn't save — ${error.message}`, "error");
     reload();
   };
   // Recall traceability (0261, blind-spot round): stamp WHICH brew filled the pack at pack-out.
   // One tap per pack; "which customers got batch X?" becomes a query instead of a shrug.
   const setBatch = async (id: string, batchId: string) => {
     if (!supabase) return;
-    await supabase.from("drop_orders").update({ batch_id: batchId || null }).eq("id", id);
+    const { error } = await supabase.from("drop_orders").update({ batch_id: batchId || null }).eq("id", id);
+    if (error) toast(`Didn't save — ${error.message}`, "error");
     reload();
   };
 
@@ -162,22 +209,28 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
   };
 
   // Cancel keeps the row (audit trail) and drops it from the sheet; a paid cancel flags the refund.
+  // How it was paid decides what the refund is (0341): cash goes back across the window, a card —
+  // online or on the reader — is refunded in Square. The flag is critical, like the member's own
+  // cancel (0242: an 'important' refund alert has no escalation behind it).
   const cancel = async (o: DropOrder) => {
     if (!supabase) return;
-    if (!(await confirm(o.paid
-      ? { title: `Cancel ${o.name}'s PAID ${o.size}-pack (${dollars(o.total_cents / 100)})?`, body: "The card refund is done in Square — the crew inbox gets a flag.", confirmLabel: "Cancel pack", cancelLabel: "Keep it", danger: true }
+    const how = paidHow(o);
+    const amt = dollars(o.total_cents / 100);
+    if (!(await confirm(
+      how === "cash" ? { title: `Cancel ${o.name}'s ${o.size}-pack, paid ${amt} cash?`, body: "Hand the cash back — nothing to refund in Square.", confirmLabel: "Cancel pack", cancelLabel: "Keep it", danger: true }
+      : how ? { title: `Cancel ${o.name}'s PAID ${o.size}-pack (${amt})?`, body: `${how === "card_reader" ? "Paid on the card reader" : "Paid by card"} — the refund is done in Square, and the crew inbox gets a flag.`, confirmLabel: "Cancel pack", cancelLabel: "Keep it", danger: true }
       : { title: `Cancel ${o.name}'s ${o.size}-pack?`, body: "Pay at pickup — nothing was charged.", confirmLabel: "Cancel pack", cancelLabel: "Keep it", danger: true }))) return;
     const { error } = await supabase.from("drop_orders").update({ canceled_at: new Date().toISOString() }).eq("id", o.id);
     if (error) { toast(`Couldn't cancel — ${error.message}`, "error"); reload(); return; }
-    if (o.paid) {
+    if (how && how !== "cash") {
       await raiseAlertClient({
-        severity: "important", category: "money", kind: "refund_needed", subjectId: o.id,
+        severity: "critical", category: "money", kind: "refund_needed", subjectId: o.id,
         title: "Canceled a PAID reservation — refund needed",
-        body: `${o.name} · ${o.size}-pack · ${dollars(o.total_cents / 100)} for ${satLabel}'s drop. Refund it in Square.`,
+        body: `${o.name} · ${o.size}-pack · ${amt} ${how === "card_reader" ? "on the card reader" : "paid online"} for ${satLabel}'s drop. Refund it in Square.`,
         link: "/crew",
       });
     }
-    toast("Reservation canceled");
+    toast(how === "cash" ? `Reservation canceled — hand back ${amt} cash` : "Reservation canceled");
     reload();
   };
 
@@ -211,7 +264,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
   const bottles = rows.reduce((a, o) => a + o.size, 0);
   const glassBack = rows.filter((o) => o.glass === "return").reduce((a, o) => a + o.size, 0);
   const revenue = rows.reduce((a, o) => a + o.total_cents, 0) / 100;
-  const dueAtWindow = rows.filter((o) => !o.paid).reduce((a, o) => a + o.total_cents, 0) / 100;
+  const dueAtWindow = rows.filter((o) => !isSettled(o)).reduce((a, o) => a + o.total_cents, 0) / 100;
   const perF: Record<string, number> = flavorDemand(rows, FLAVORS);
   // Under a Saturday rush the queue has to scan fast: unfulfilled float to the top, completed dim
   // out. Progress counters tell the lead where the drop stands at a glance.
@@ -283,7 +336,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
                       name={o.name}
                       nameExtra={<span className={`dops-chip ${o.glass === "return" ? "ret" : "new"}`}>{o.glass === "return" ? `GLASS BACK ×${o.size}` : "NEW GLASS"}</span>}
                       meta={<>{mixSummary(o.mix)}{o.phone ? <><br /><a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>{o.phone}</a></> : null}</>}
-                      trailing={<span className="dops-total">{dollars(o.total_cents / 100)} {o.paid ? <Icon name="check" /> : <em className="dops-owe">due</em>}</span>}
+                      trailing={<span className="dops-total">{dollars(o.total_cents / 100)} {isSettled(o) ? <Icon name="check" /> : <em className="dops-owe">due</em>}</span>}
                     />
                   </div>
                   {/* Fulfillment stepper — tap a stage to jump, or the primary button to advance one.
@@ -298,14 +351,20 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
                             const idx = i + 1; // slice(1) skips 'reserved'
                             const on = cur === idx, done = cur > idx;
                             return (
-                              <button key={st.key} type="button" className={`dops-stage${on ? " on" : ""}${done ? " done" : ""}`} aria-current={on} onClick={() => setStage(o.id, st.key)}>
+                              <button key={st.key} type="button" className={`dops-stage${on ? " on" : ""}${done ? " done" : ""}`} aria-current={on} onClick={() => setStage(o, st.key)}>
                                 {done ? <><Icon name="check" /> {st.label}</> : st.label}
                               </button>
                             );
                           })}
                         </div>
                         <div className="dops-actions">
-                          {nextLabel && <button type="button" className="dops-check adv" onClick={() => setStage(o.id, PACK_STAGES[cur + 1].key)}>{nextLabel}</button>}
+                          {nextLabel && <button type="button" className="dops-check adv" onClick={() => setStage(o, PACK_STAGES[cur + 1].key)}>{nextLabel}</button>}
+                          {canCollect(o) && <button type="button" className="dops-check collect" onClick={() => collect(o)}>Collect {dollars(o.total_cents / 100)}</button>}
+                          {canUndo(o, me, admin) && (
+                            <button type="button" className="dops-check done" onClick={() => undoTake(o)} aria-label={`Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment from ${o.name}`}>
+                              {o.collected_via === "cash" ? "Cash" : "Reader"} <Icon name="check" />
+                            </button>
+                          )}
                           {batches.length > 0 && (
                             <select className={`dops-batchsel${o.batch_id ? " set" : ""}`} value={o.batch_id ?? ""} onChange={(e) => setBatch(o.id, e.target.value)} aria-label="Filled from batch" title="Filled from batch — recall traceability">
                               <option value="">batch?</option>
@@ -339,7 +398,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
                   <div className="dops-up-h">Upcoming · {new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · {os.reduce((a, o) => a + o.size, 0)} bottles</div>
                   {os.map((o) => (
                     <div className="dops-up-row" key={o.id}>
-                      <span><b>{o.name}</b> — {o.size}-pack{o.paid ? <> · paid <Icon name="check" /></> : ""}</span>
+                      <span><b>{o.name}</b> — {o.size}-pack{isSettled(o) ? <> · paid <Icon name="check" /></> : ""}</span>
                       <span className="dops-up-act">
                         <button type="button" className="dops-mini" onClick={() => pullBack(o)}>← This drop</button>
                         <button type="button" className="dops-mini danger" onClick={() => cancel(o)}>Cancel</button>
@@ -364,7 +423,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
                     <div className="dops-hist-meta"><b>{label}</b> · {kept.length} pack{kept.length === 1 ? "" : "s"} · {kept.reduce((a, o) => a + o.size, 0)} bottles · {dollars(rev)}</div>
                     {os.map((o) => (
                       <div className="dops-hist-row" key={o.id}>
-                        <span>{o.name} — {o.size}-pack{o.paid ? "" : " · unpaid"}</span>
+                        <span>{o.name} — {o.size}-pack{isSettled(o) ? "" : " · unpaid"}</span>
                         <span className={`dops-hist-st ${o.canceled_at ? "cx" : o.picked_up ? "ok" : "miss"}`}>
                           {o.canceled_at ? "canceled" : o.picked_up ? <><Icon name="check" /> picked up{o.glass === "return" ? (o.bottles_returned ? " · bottles in" : " · bottles out") : ""}</> : "no-show"}
                         </span>
@@ -375,6 +434,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
               })}
             </div>
           )}
+          {collectSheet}
         </div>
       )}
     </AsyncSection>

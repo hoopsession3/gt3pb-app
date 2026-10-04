@@ -6,14 +6,22 @@
 
 export type OfflineOp = {
   key: string;      // coalescing identity, e.g. "order_status:<orderId>"
-  kind: "order_status";
+  kind: "order_status" | "collect_cup";
   id: string;       // target row id
-  value: string;    // for order_status: the status to set
+  value: string;    // order_status: the status to set · collect_cup: how it was paid (lib/collect)
   at: number;       // when the human did it (ms) — display + staleness
 };
 
 export const orderStatusOp = (orderId: string, status: string, at: number): OfflineOp => ({
   key: `order_status:${orderId}`, kind: "order_status", id: orderId, value: status, at,
+});
+
+// Money taken at the window with no signal (0341). The till does not wait for bars, so the tap is
+// kept and replayed like a status change. Its own key, so it never coalesces with the ticket's
+// status — "paid cash" and "picked up" are two facts, and both have to arrive. Replaying it is safe:
+// the database answers "already settled" to a second one and refuses a voided order outright.
+export const collectCupOp = (orderId: string, via: string, at: number): OfflineOp => ({
+  key: `collect_cup:${orderId}`, kind: "collect_cup", id: orderId, value: via, at,
 });
 
 // Enqueue with coalescing: a later write to the same target REPLACES the earlier one (the pass

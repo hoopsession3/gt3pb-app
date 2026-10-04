@@ -29,6 +29,7 @@ import {
 } from "@/lib/delivery";
 import { money } from "@/lib/money";
 import { useIdemKey } from "./useIdemKey";
+import { isSettled } from "@/lib/settled";
 
 // ORDER FUNNEL — one screen, two fulfillment modes. Pickup (Saturday truck-stop reserve →
 // /api/reserve) and Delivery (Sunday prepaid → /api/delivery/checkout) were separate screens with
@@ -407,13 +408,13 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
     const key = targetDayKey();
     if (!supabase || !user || !key || dupOk === key) { setStep("pay"); return; }
     const [dr, de] = await Promise.all([
-      supabase.from("drop_orders").select("id, size, paid, picked_up").eq("user_id", user.id).eq("drop_date", key).is("canceled_at", null),
+      supabase.from("drop_orders").select("id, size, paid, payment_status, picked_up").eq("user_id", user.id).eq("drop_date", key).is("canceled_at", null),
       supabase.from("delivery_orders").select("id, pack_size, status").eq("user_id", user.id).eq("delivery_date", key).is("canceled_at", null),
     ]);
     const found: { kind: "pickup" | "delivery"; label: string }[] = [
-      ...(((dr.data ?? []) as { id: string; size: number; paid: boolean; picked_up: boolean }[])
+      ...(((dr.data ?? []) as { id: string; size: number; paid: boolean; payment_status: string | null; picked_up: boolean }[])
         .filter((o) => o.id !== replacing?.id && !o.picked_up)
-        .map((o) => ({ kind: "pickup" as const, label: `${o.size}-pack for pickup · ${o.paid ? "paid" : "pay at pickup"}` }))),
+        .map((o) => ({ kind: "pickup" as const, label: `${o.size}-pack for pickup · ${isSettled(o) ? "paid" : "pay at pickup"}` }))),
       ...(((de.data ?? []) as { id: string; pack_size: number; status: string }[])
         .filter((o) => o.status !== "delivered")
         .map((o) => ({ kind: "delivery" as const, label: `${o.pack_size} bottles by delivery` }))),

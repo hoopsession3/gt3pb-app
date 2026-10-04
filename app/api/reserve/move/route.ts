@@ -4,6 +4,7 @@ import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { nextDrop, dropForStop, dropDateKey } from "@/lib/orderAhead";
 import { route } from "@/lib/apiRoute";
+import { isSettled } from "@/lib/settled";
 
 // MOVE a reservation to another pickup day — the customer's self-service reschedule.
 // Same authority as /api/reserve: the target day must be one of the truck's real upcoming drops
@@ -49,7 +50,7 @@ async function post(req: Request) {
   // the access it describes; four lines up, the audit could not see it.
   // scoped-by: order.user_id !== user.id, two lines below, 404s anything that is not the caller's
   const { data: order } = await supabaseAdmin.from("drop_orders")
-    .select("id, user_id, drop_date, size, glass, name, paid, picked_up, stage, canceled_at").eq("id", id).maybeSingle();
+    .select("id, user_id, drop_date, size, glass, name, paid, payment_status, picked_up, stage, canceled_at").eq("id", id).maybeSingle();
   if (!order || order.user_id !== user.id) return NextResponse.json({ error: "Order not found." }, { status: 404 });
   if (order.canceled_at) return NextResponse.json({ error: "That order was canceled." }, { status: 400 });
   if (order.picked_up || (order.stage && order.stage !== "reserved")) {
@@ -81,7 +82,7 @@ async function post(req: Request) {
   // FYI the crew: the drop rollups recalc live, but brew planning likes to know a pack walked.
   await raiseAlert({
     severity: "fyi", category: "order", kind: "pack_moved", subjectId: id, title: "Pack moved to another drop",
-    body: `${order.name} moved a ${order.size}-pack (${order.paid ? "paid" : "pay at pickup"}) from ${order.drop_date} to ${toDate}.`,
+    body: `${order.name} moved a ${order.size}-pack (${isSettled(order) ? "paid" : "pay at pickup"}) from ${order.drop_date} to ${toDate}.`,
     link: "/crew?s=now",
   });
   return NextResponse.json({ ok: true, toDate });

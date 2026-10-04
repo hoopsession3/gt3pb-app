@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { SectionHeader } from "@/components/kit";
 import { fetchSalesReport, type SalesReport } from "@/lib/reports";
 import { moneyRound } from "@/lib/money";
+import { supabase } from "@/lib/supabase";
 
 // Sales actuals — the first reporting dashboard (MONEY tab). Real revenue + per-event actuals +
 // product mix + daily trend, read from one staff-gated RPC. On-brand bars, no chart dependency.
@@ -22,6 +23,30 @@ export default function Reports() {
     let live = true;
     setLoading(true);
     fetchSalesReport(days).then((r) => { if (live) { setRep(r); setLoading(false); } });
+    return () => { live = false; };
+  }, [days]);
+
+  // CASH AT THE WINDOW (2026-10-04, 0341). It is inside the revenue above — cash sets paid — and
+  // said on its own because it is the one part of that number in a till rather than a bank: the
+  // count to check the drawer against. Same window and same exclusions as report_sales. Its own
+  // read, apart from the report's: the column arrives with 0341, and until then the filter is
+  // refused and the line is simply not drawn — never a zero that looks like a count.
+  const [cash, setCash] = useState<{ cents: number; n: number } | null>(null);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      if (!supabase) return;
+      const since = `${new Date(Date.now() - (Math.max(days, 1) - 1) * 864e5).toISOString().slice(0, 10)}T00:00:00Z`;
+      // arrives-with: 0341
+      const [o, p] = await Promise.all([
+        supabase.from("orders").select("total_cents").eq("collected_via", "cash").neq("status", "void").gte("created_at", since),
+        supabase.from("drop_orders").select("total_cents").eq("collected_via", "cash").is("canceled_at", null).gte("created_at", since),
+      ]);
+      if (!live) return;
+      if (o.error || p.error) { setCash(null); return; }
+      const got = [...((o.data ?? []) as { total_cents: number }[]), ...((p.data ?? []) as { total_cents: number }[])];
+      setCash({ cents: got.reduce((a, r) => a + (r.total_cents || 0), 0), n: got.length });
+    })();
     return () => { live = false; };
   }, [days]);
 
@@ -56,6 +81,7 @@ export default function Reports() {
             {/* revenue is the hero; the rest is one quiet line (zero-tiles never render) */}
             <div className="rpt-hero"><b>{moneyRound(rev)}</b><span>revenue · {days}d</span></div>
             <p className="rpt-line">{orders.toLocaleString()} orders · {usd2(aov)} avg · est. margin {moneyRound(margin)} at {Math.round((1 - cogs) * 100)}%</p>
+            {cash && cash.cents > 0 && <p className="rpt-line">{usd2(cash.cents)} of it cash at the window · {cash.n} pre-order{cash.n === 1 ? "" : "s"}</p>}
             <>
               {(rep?.by_event?.length ?? 0) > 0 && (
                 <div className="rpt-block">

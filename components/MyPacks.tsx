@@ -11,6 +11,7 @@ import { haptic, HAPTIC } from "@/lib/haptics";
 import { nearDay } from "@/lib/dates";
 import Icon from "@/components/Icon";
 import { useConfirm } from "./ConfirmSheet";
+import { isSettled } from "@/lib/settled";
 
 // YOUR PACK — the customer's own reservations, right on /reserve. Reserving is only half the
 // product: coming back should show what you've got coming, live (staff checking you off at the
@@ -23,6 +24,8 @@ export type MyPack = {
   id: string; name: string; phone: string | null; size: number; glass: GlassPath;
   mix: Partial<Mix>; total_cents: number; paid: boolean; drop_date: string;
   picked_up: boolean; bottles_returned: boolean; stage?: PackStage | null; canceled_at: string | null;
+  // Paid at the window (0341): settled without `paid` when it was the card reader — lib/collect.
+  payment_status?: string | null; collected_at?: string | null; collected_via?: string | null;
 };
 
 // What the customer sees for each stage the crew sets — plain, reassuring, present-tense.
@@ -102,7 +105,8 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
       .order("drop_date").order("created_at");
     const next = (data as MyPack[]) ?? [];
     // The realtime money moment: a pack flipping to PAID while you watch gets the settle buzz.
-    if (rowsRef.current.some((prev) => { const cur = next.find((n) => n.id === prev.id); return cur && !prev.paid && cur.paid; })) haptic(HAPTIC.paid);
+    // Paid at the window counts: the crew's tap is the moment the money settled (0341).
+    if (rowsRef.current.some((prev) => { const cur = next.find((n) => n.id === prev.id); return cur && !isSettled(prev) && isSettled(cur); })) haptic(HAPTIC.paid);
     rowsRef.current = next;
     setRows(next);
   }, [user]);
@@ -142,7 +146,7 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
   // Collapse the stack to one summary row in the order-ahead flow so it never buries the size picker.
   const canCollapse = !!collapsible && rows.length >= 2;
   const collapsed = canCollapse && !listOpen;
-  const atPickup = rows.filter((x) => !x.paid).length;
+  const atPickup = rows.filter((x) => !isSettled(x)).length;
   const summary = `${rows.length} packs · ${rows.reduce((s, x) => s + x.size, 0)} bottles${atPickup ? ` · ${atPickup} at pickup` : ""}`;
   return (
     <div className={`mypacks${collapsed ? " collapsed" : ""}`}>
@@ -159,20 +163,20 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
           {group.length > 1 && (
             <div className="mypack-dayh">
               <b>{packDayLabel({ drop_date: day })}</b>
-              <span>{group.length} packs · {group.reduce((s, x) => s + x.size, 0)} bottles · {group.filter((x) => x.paid).length ? `${group.filter((x) => x.paid).length} paid` : ""}{group.some((x) => !x.paid) ? `${group.filter((x) => x.paid).length ? " · " : ""}${group.filter((x) => !x.paid).length} at pickup` : ""}</span>
+              <span>{group.length} packs · {group.reduce((s, x) => s + x.size, 0)} bottles · {group.filter(isSettled).length ? `${group.filter(isSettled).length} paid` : ""}{group.some((x) => !isSettled(x)) ? `${group.filter(isSettled).length ? " · " : ""}${group.filter((x) => !isSettled(x)).length} at pickup` : ""}</span>
             </div>
           )}
           {group.map((p) => {
         const isOpen = open === p.id;
         return (
-          <div className={`mypack pay-${p.picked_up ? "done" : p.paid ? "paid" : "due"}${isOpen ? " open" : ""}`} key={p.id}>
+          <div className={`mypack pay-${p.picked_up ? "done" : isSettled(p) ? "paid" : "due"}${isOpen ? " open" : ""}`} key={p.id}>
             <button type="button" className="mypack-row" onClick={() => setOpen(isOpen ? null : p.id)} aria-expanded={isOpen}>
               <span className="mypack-main">
                 <b>{p.size}-pack{group.length > 1 ? "" : ` · ${packDayLabel(p)}`}</b>
                 <span className="mypack-sub">{mixSummary(packMix(p)) || "your mix"} · #{p.id.slice(0, 6).toUpperCase()}</span>
               </span>
               <span className="mypack-rt">
-                <span className={`mypack-flag ${p.picked_up ? "done" : p.paid ? "paid" : "due"}`}>{p.picked_up ? <><Icon name="check" /> picked up</> : p.paid ? <><Icon name="check" /> paid</> : "$ at pickup"}</span>
+                <span className={`mypack-flag ${p.picked_up ? "done" : isSettled(p) ? "paid" : "due"}`}>{p.picked_up ? <><Icon name="check" /> picked up</> : isSettled(p) ? <><Icon name="check" /> paid</> : "$ at pickup"}</span>
                 <span className="mypack-car">{isOpen ? "▾" : "▸"}</span>
               </span>
             </button>
@@ -203,9 +207,13 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
                       {days.some((d) => d.key !== p.drop_date) && (
                         <button type="button" onClick={() => setMoving(moving === p.id ? null : p.id)} aria-expanded={moving === p.id}>Move day</button>
                       )}
-                      {onChange && <button type="button" onClick={() => onChange(p)}>Change the pack</button>}
-                      <button type="button" className="danger" onClick={() => cancel(p)} disabled={busy === p.id}>{busy === p.id ? "Canceling…" : "Cancel"}</button>
+                      {/* Paid at the window: the money is in the crew's hands, so changing or
+                          canceling it is theirs too — the database refuses it from here (0341),
+                          and a button that can only fail is not offered. */}
+                      {onChange && !p.collected_at && <button type="button" onClick={() => onChange(p)}>Change the pack</button>}
+                      {!p.collected_at && <button type="button" className="danger" onClick={() => cancel(p)} disabled={busy === p.id}>{busy === p.id ? "Canceling…" : "Cancel"}</button>}
                     </div>
+                    {p.collected_at && <p className="mypack-paidnote">Paid at the window — to change or cancel it, ask the crew.</p>}
                     {moving === p.id && (
                       <div className="mypack-move">
                         <span>Pick the new day — everything else stays the same.</span>

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>fixture · The Pass › Collect at the window, day theme</title>
+<!--
+  A TEST DOUBLE OF MONEY TAKEN AT THE WINDOW, AND IT SAYS SO (2026-10-04, migration 0341).
+
+  Ryan: "Both cash and reader." Two tickets on the pass — one still owed, with its "Collect $8.50",
+  one collected in cash a minute ago, with the collector's "Cash ✓" (the undo) — and over them the
+  sheet that "Picked up" opens on an owed ticket: two answers, each saying what it does to the
+  count, and the quiet third, handing it over unpaid.
+
+  Same construction as purchase-sheet.html: the DOM class for class as app/crew/page.tsx,
+  components/CollectSheet.tsx and components/Sheet.tsx produce it, styled by the REAL
+  app/globals.css, painted in the real Chromium at phone width, day and dark. Every block names its
+  source in `data-from`, and scripts/design.ratchet.mjs FAILS if a class used here no longer appears
+  in that file.
+
+  The floor that matters is the TAP FLOOR, 44px: it is worked one-handed through a window, with the
+  other hand holding a cup or a card reader.
+-->
+<link rel="stylesheet" href="../../app/globals.css">
+<style>html,body{margin:0;background:#F4EFE3}</style>
+</head>
+<body>
+<div class="app crew-day" data-from="components/AppShell.tsx">
+<div class="body">
+<section class="screen admin" data-from="app/crew/page.tsx">
+  <div class="adm-sec" style="padding:12px 16px">
+    <div class="adm-order st-ready">
+      <button class="adm-act-more" aria-label="Void Dana">⋯</button>
+      <div class="adm-order-top"><b>Dana</b><span class="adm-age calm">6m</span></div>
+      <div class="adm-items">2× RISE</div>
+      <div class="meta">#A1B2 · $8.50 · <span class="unp">UNPAID · collect at pickup</span> · <span class="kds-stagetime">1m in stage</span></div>
+      <div class="adm-actions-row">
+        <button class="adm-recall" aria-label="Move back a stage">↩</button>
+        <button type="button" class="adm-recall adm-collect">Collect $8.50</button>
+        <button class="adm-act done">Picked up</button>
+      </div>
+    </div>
+    <div class="adm-order st-preparing">
+      <button class="adm-act-more" aria-label="Void Lee">⋯</button>
+      <div class="adm-order-top"><b>Lee</b><span class="adm-age calm">3m</span></div>
+      <div class="adm-items">FLOW</div>
+      <div class="meta">#C3D4 · $4.25 · <span class="pd">PAID · cash</span> · <span class="kds-stagetime">2m in stage</span></div>
+      <div class="adm-actions-row">
+        <button class="adm-recall" aria-label="Move back a stage">↩</button>
+        <button type="button" class="adm-recall adm-collect done" aria-label="Undo the cash payment from Lee">Cash ✓</button>
+        <button class="adm-act primary">Mark ready</button>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+  <div class="sheet2-scrim" data-from="components/Sheet.tsx" style="position:static;padding:12px 0 0">
+    <div class="sheet2 " role="dialog" aria-modal="true" aria-label="Collect $8.50 from Dana" style="margin:0 auto">
+      <div class="sheet2-grab"></div>
+      <div class="sheet2-head">
+        <div class="collect-head" data-from="components/CollectSheet.tsx">
+          <b>Collect $8.50 from Dana</b>
+          <button type="button" class="qd-x" title="Close" aria-label="Close" data-from="components/Sheet.tsx">✕</button>
+        </div>
+      </div>
+      <div class="sheet2-body">
+        <p class="dp-hint collect-q" data-from="components/CollectSheet.tsx">Still owed. How did they pay?</p>
+        <div class="collect-ways" data-from="components/CollectSheet.tsx">
+          <button type="button" class="dl-card collect-way"><b>Cash</b><span>In the till. Don't ring it on Square too — it counts here.</span></button>
+          <button type="button" class="dl-card collect-way"><b>Card reader</b><span>Rung on the Square reader — it counts there.</span></button>
+        </div>
+        <button type="button" class="collect-skip" data-from="components/CollectSheet.tsx">Hand it over unpaid</button>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
