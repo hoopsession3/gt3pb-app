@@ -15,6 +15,7 @@ import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
 import { localToday, etToday, dayKey, relativeDay, ageLabel } from "@/lib/dates";
 import { prepBucket } from "@/lib/readiness";
 import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
+import { archiveOwner, setEventLive } from "@/lib/wrap";
 import { downloadCsv } from "@/lib/csv";
 import { brewStartOverdue } from "@/lib/brewMath";
 import { useWorkStreams, streamOfCategory } from "@/lib/streams";
@@ -4633,14 +4634,14 @@ function EventsAdmin() {
   };
   // Mark an event live — sales (POS + app) start tracking to it; only one live at a time.
   const setLive = async (id: string, live: boolean) => {
-    const { error } = await supabase!.rpc("admin_set_event_live", { p_event: id, p_live: live });
+    const { error } = await setEventLive(supabase!, id, live);
     toast(error ? `Error: ${error.message}` : live ? "Event is live — sales now track to it" : "Event closed");
     if (!error) load();
   };
   // Archive — closes the event (clears live) and files it out of the active workspace.
   // It stays in the DB for records/AAR; restore brings it back.
   const archive = async (id: string) => {
-    const { error } = await supabase!.from("events").update({ archived_at: new Date().toISOString(), is_live: false }).eq("id", id);
+    const { error } = await archiveOwner(supabase!, { kind: "event", id });
     toast(error ? `Error: ${error.message}` : "Event archived");
     if (!error) { setOpenId(null); load(); }
   };

@@ -86,10 +86,23 @@ await db.exec(`
   create table public.event_approvals (id uuid primary key default gen_random_uuid(),
     event_id uuid references public.events(id) on delete cascade, approver_id uuid,
     approved_at timestamptz, tenant_id uuid, stop_id uuid, field_op_id uuid);
+  -- event_sales as 0024 shipped it: source defaults to 'square', the counts default to 0, the
+  -- payment id is unique, RLS is on. 0339's insert policy is asserted against exactly that.
   create table public.event_sales (id uuid primary key default gen_random_uuid(),
-    event_id uuid references public.events(id) on delete cascade, source text, square_payment_id text,
-    amount_cents int, item_count int, created_at timestamptz default now(),
-    tenant_id uuid, field_op_id uuid);
+    event_id uuid references public.events(id) on delete cascade, source text not null default 'square',
+    square_payment_id text unique, amount_cents int not null default 0, item_count int not null default 0,
+    created_at timestamptz default now(), tenant_id uuid default '${T}', field_op_id uuid);
+  alter table public.event_sales enable row level security;
+  grant usage on schema public to anon, authenticated;
+  -- the gate functions 0339's policy and trigger call, as switches (same idiom as db.waysout.test)
+  create or replace function public.is_staff() returns boolean language sql stable as $$
+    select coalesce(current_setting('test.staff', true), 'on') = 'on' $$;
+  create or replace function public.current_tenant() returns uuid language sql stable as $$
+    select '${T}'::uuid $$;
+  create or replace function public.effective_tenant() returns uuid language sql stable as $$
+    select coalesce(public.current_tenant(), '${T}'::uuid) $$;
+  create or replace function public.stamp_tenant() returns trigger language plpgsql as $$
+  begin new.tenant_id := coalesce(public.current_tenant(), new.tenant_id, '${T}'::uuid); return new; end $$;
   create table public.event_menu_items (id uuid primary key default gen_random_uuid(),
     tenant_id uuid, event_id uuid references public.events(id) on delete cascade, stop_id uuid,
     product_slug text, created_at timestamptz default now(), field_op_id uuid);
@@ -274,6 +287,77 @@ ok("0314 introduces no event state machine — 0075 already has one", fns.length
 ok("0314 recorded itself by filename",
   (await q1(`select version as v from public.schema_migrations where seq=314`)).v === "0314_an_event_is_ten_screens_and_no_record");
 ok("and said what changed, twice", Number((await q1(`select count(*) as c from public.changelog`)).c) === 2);
+
+// ── 9) 0339: THE SENTENCE THAT DESCRIBED A DOOR ────────────────────────────────────────────────
+// Executed on top of 0314, the way production will run it. The claims: "it took nothing" answers
+// no_sales; a manual row counts as takings; the insert policy admits exactly the honest shape and
+// nothing else; and every rule above still fires both ways afterwards.
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0339_the_sentence_that_described_a_door.sql"), "utf8"));
+console.log("0339 executed on top of it.");
+
+ok("0339: the record carries the answer column, appended last",
+  (await all(`select column_name from information_schema.columns where table_name='v_event_record' order by ordinal_position`)).at(-1)?.column_name === "took_nothing_at");
+ok("0339: a finished event with nothing recorded is still chased — the rule did not go soft",
+  (await gapsFor(doneNoSales)).includes("no_sales"));
+await db.exec(`insert into public.event_ops (event_id, took_nothing_at) values ('${doneNoSales}', now())
+  on conflict (event_id) do update set took_nothing_at = excluded.took_nothing_at`);
+ok("0339: 'it took nothing', said once, ends the question", !(await gapsFor(doneNoSales)).includes("no_sales"), await gapsFor(doneNoSales));
+ok("0339: and the record says so, dated",
+  (await q1(`select took_nothing_at from public.v_event_record where id='${doneNoSales}'`)).took_nothing_at != null);
+ok("0339: the note is still owed — one answer does not pay for the other", (await gapsFor(doneNoSales)).includes("no_recap"));
+ok("0339: no_recap lost its note-to-self",
+  (await q1(`select detail from public.v_event_gaps where event_id='${doneNoSales}' and gap='no_recap'`)).detail === "Complete, with no after-action note.");
+
+const doneCash = await mk({ title: `'Farmers Market (cash box)'`, day: `current_date - 6`, stage: `'done'` });
+ok("0339: a cash day is chased before the number goes in", (await gapsFor(doneCash)).includes("no_sales"));
+
+// The policy, under the role it governs. No RETURNING: the fixture carries no select policy and
+// the point is the INSERT gate, not the read.
+const asStaff = async (sql, staff = "on") => {
+  await db.exec(`set test.staff = '${staff}'; set role authenticated;`);
+  let err = null;
+  try { await db.exec(sql); } catch (e) { err = String(e.message || e); }
+  await db.exec("reset role;");
+  return err;
+};
+// The client sends a FOREIGN tenant on purpose: the stamp must replace it, or the policy must refuse it.
+const manual = await asStaff(`insert into public.event_sales (event_id, source, amount_cents, item_count, tenant_id) values ('${doneCash}', 'manual', 18400, 38, '00000000-0000-0000-0000-00000000beef')`);
+ok("0339: staff can record what Square did not see", manual === null, manual);
+ok("0339: and it counts as takings — the gap leaves, the money lands",
+  !(await gapsFor(doneCash)).includes("no_sales")
+    && Number((await q1(`select sales_cents, items_sold from public.v_event_record where id='${doneCash}'`)).sales_cents) === 18400
+    && Number((await q1(`select items_sold from public.v_event_record where id='${doneCash}'`)).items_sold) === 38,
+  await q1(`select sales_cents, items_sold from public.v_event_record where id='${doneCash}'`));
+ok("0339: the row was stamped with the writer's tenant, not whatever the client sent",
+  (await q1(`select tenant_id from public.event_sales where event_id='${doneCash}'`)).tenant_id === T);
+const forged = await asStaff(`insert into public.event_sales (event_id, source, amount_cents) values ('${doneCash}', 'square', 100)`);
+ok("0339: a client cannot forge a Square row", forged !== null && /row-level security/i.test(forged), forged);
+const withId = await asStaff(`insert into public.event_sales (event_id, source, square_payment_id, amount_cents) values ('${doneCash}', 'manual', 'pay_123', 100)`);
+ok("0339: nor attach a payment id — it can never collide with the webhook's key", withId !== null, withId);
+const negative = await asStaff(`insert into public.event_sales (event_id, source, amount_cents) values ('${doneCash}', 'manual', -500)`);
+ok("0339: nor write a negative — a correction is an admin's job (0308), not a minus sign", negative !== null, negative);
+const orphan = await asStaff(`insert into public.event_sales (source, amount_cents) values ('manual', 500)`);
+ok("0339: nor file money against no event", orphan !== null, orphan);
+const member = await asStaff(`insert into public.event_sales (event_id, source, amount_cents) values ('${doneCash}', 'manual', 100)`, "off");
+ok("0339: a member cannot — is_staff() is the gate", member !== null, member);
+ok("0339: exactly one row landed from all of that",
+  Number((await q1(`select count(*) as c from public.event_sales where event_id='${doneCash}'`)).c) === 1);
+ok("0339: the policy is INSERT only — no new read or delete path rides along",
+  (await all(`select cmd from pg_policies where tablename='event_sales'`)).map((r) => r.cmd).join(",") === "INSERT",
+  await all(`select policyname, cmd from pg_policies where tablename='event_sales'`));
+
+// every rule still fires both ways with the new definition in place
+ok("0339: every rule in the restated view still fires at least once",
+  (await all(`select distinct gap from public.v_event_gaps order by gap`)).map((r) => r.gap).length === 9,
+  (await all(`select distinct gap from public.v_event_gaps order by gap`)).map((r) => r.gap));
+ok("0339: a clean upcoming event still has nothing to answer for", (await gapsFor(bare)).length === 0, await gapsFor(bare));
+ok("0339: a properly finished event is still quiet", (await gapsFor(donePast)).length === 0, await gapsFor(donePast));
+ok("0339: both views still honour the RLS beneath them",
+  (await all(`select c.relname, coalesce(array_to_string(c.reloptions,','),'') as opts from pg_class c join pg_namespace n on n.oid=c.relnamespace
+     where n.nspname='public' and c.relkind='v' and c.relname in ('v_event_record','v_event_gaps')`)).every((r) => /security_invoker=on/.test(r.opts)));
+ok("0339 recorded itself by filename",
+  (await q1(`select version as v from public.schema_migrations where seq=339`)).v === "0339_the_sentence_that_described_a_door");
+ok("and said what changed, once", Number((await q1(`select count(*) as c from public.changelog`)).c) === 3);
 
 console.log(`\nAN EVENT IS TEN SCREENS AND NO RECORD: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

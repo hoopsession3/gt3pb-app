@@ -11,6 +11,8 @@ import { calFromEvent, calFromStop } from "@/lib/ics";
 import { geocode } from "@/lib/geocode";
 import { derivedStopStatus } from "@/lib/stopRecord";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { NoteBox } from "@/components/RecordWays";
+import { archiveOwner, cleanRecap, saveRecap, wrapOwner } from "@/lib/wrap";
 
 // OWNER DETAILS — the edit sheet behind a truck stop or an event.
 //
@@ -53,13 +55,17 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
   const origStage = useRef<string | null>(null);
 
   // Remove from the active lists (keeps the record, reversible). The standard "delete" for a real
-  // event/stop — same as the calendar's Remove and Live truck's Archive.
+  // event/stop — same as the calendar's Remove and Live truck's Archive. The write is lib/wrap's,
+  // shared with the record sheets and EventsAdmin, so an archived event also drops its live flag
+  // here (this copy used to forget that).
   const archive = async () => {
     if (!supabase) return;
     if (!(await confirm({ title: `Archive this ${what}?`, body: "It comes off the active lists (calendar, prep, route) but the record is kept — you can restore it.", confirmLabel: "Archive" }))) return;
     setSaving(true);
-    await supabase.from(table).update({ archived_at: new Date().toISOString() }).eq("id", ownerId);
-    setSaving(false); toast(`${isEvent ? "Event" : "Stop"} archived`); onRemoved();
+    const { error } = await archiveOwner(supabase, { kind: ownerType, id: ownerId });
+    setSaving(false);
+    if (error) { toast(`Couldn't archive — ${error.message}`, "error"); return; }
+    toast(`${isEvent ? "Event" : "Stop"} archived`); onRemoved();
   };
   // Hard delete — gone for good, plus its prep, schedule, crew, links (FK cascade).
   const del = async () => {
@@ -95,33 +101,41 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
       error = r.error;
     }
     if (error) { setSaving(false); toast(`Couldn't convert — ${error.message}`, "error"); return; }
-    await supabase.from(table).update({ archived_at: new Date().toISOString() }).eq("id", ownerId);
+    await archiveOwner(supabase, { kind: ownerType, id: ownerId });
     setSaving(false); toast(`Changed to ${toLabel} — the original is archived`); onRemoved();
   };
 
   // Complete (wrap) an event OR a stop: mark it done, stamp when, and file the after-action.
   // Optionally archive it off the active lists in the same move. DB triggers keep the world
   // consistent: a completed event can't stay is_live, and completing the live STOP takes the
-  // truck offline (0125).
+  // truck offline (0125). The write itself is lib/wrap's wrapOwner — the same one the record
+  // sheets and LiveControl's go-offline use — so "done" means one thing everywhere.
   const complete = async (alsoArchive: boolean) => {
     if (!supabase) return;
     setSaving(true);
     const now = new Date().toISOString();
-    const patch: Record<string, string | boolean | null> = isEvent
-      ? { stage: "done", completed_at: now, is_live: false }
-      : { status: "done", completed_at: now };
-    if (alsoArchive) patch.archived_at = now;
-    const { error } = await supabase.from(table).update(patch).eq("id", ownerId);
-    // recap lives on the staff-only ops sibling now — write it there (best-effort; the completion
-    // status is the important part, and it already committed above).
-    await supabase.from(opsTable).upsert({ [opsKey]: ownerId, recap: recap.trim() || null }, { onConflict: opsKey });
+    const { error } = await wrapOwner(supabase, { kind: ownerType, id: ownerId, recap, archive: alsoArchive, now });
     setSaving(false);
     if (error) { toast(`Couldn't complete — ${error.message}`, "error"); return; }
     setWrapping(false);
     toast(alsoArchive ? `${isEvent ? "Event" : "Stop"} completed + archived` : `${isEvent ? "Event" : "Stop"} completed — nice work`);
     if (alsoArchive) { onRemoved(); return; }
     origStage.current = "done"; // this write already committed above — keep the edit-guard baseline in sync
-    setF((p) => ({ ...(p ?? {}), ...(isEvent ? { stage: "done" } : { status: "done" }), completed_at: now, recap: recap.trim() || null }));
+    setF((p) => ({ ...(p ?? {}), ...(isEvent ? { stage: "done" } : { status: "done" }), completed_at: now, recap: cleanRecap(recap) }));
+  };
+
+  // The note alone, for something already done. This used to go through complete(false), which
+  // re-stamped completed_at to "now" every time a recap was edited — the date an event finished
+  // drifted forward each time somebody fixed a typo in its write-up.
+  const saveNote = async () => {
+    if (!supabase) return;
+    setSaving(true);
+    const { error } = await saveRecap(supabase, { kind: ownerType, id: ownerId, recap });
+    setSaving(false);
+    if (error) { toast(`Couldn't save the note — ${error.message}`, "error"); return; }
+    setWrapping(false);
+    toast("After-action saved");
+    setF((p) => ({ ...(p ?? {}), recap: cleanRecap(recap) }));
   };
 
   const ownerState = useAsyncData<{ d: Record<string, unknown>; recap: string | null }>(async () => {
@@ -259,17 +273,22 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
           ) : null}
         </div>
         {wrapping && (
-          <div className="ownerdet-wrap">
-            <div className="ownerdet-wrap-lbl">After-action <span>optional — what sold, what ran short, one change for next time</span></div>
-            <textarea className="note-in" rows={3} value={recap} onChange={(e) => setRecap(e.target.value)} placeholder="e.g. Rise + Tide sold out by noon; ran short on ice; bring a second cooler next time." />
-            <div className="ownerdet-wrap-actions">
-              <button type="button" className="ownerdet-complete" onClick={() => complete(false)} disabled={saving}>Mark complete</button>
-              <button type="button" className="ownerdet-arch" onClick={() => complete(true)} disabled={saving}>Complete &amp; archive</button>
-              <button type="button" className="ownerdet-cancel" onClick={() => setWrapping(false)} disabled={saving}>Cancel</button>
-            </div>
-          </div>
+          // One box (components/RecordWays.NoteBox), shared with the record sheets. Already done →
+          // the note is all that gets written; not yet → the note rides on the completion.
+          <NoteBox value={recap} onChange={setRecap} busy={saving} actions={done ? [
+            { label: "Save the note", primary: true, onClick: saveNote },
+            { label: "Cancel", quiet: true, onClick: () => setWrapping(false) },
+          ] : [
+            { label: "Mark complete", primary: true, onClick: () => complete(false) },
+            { label: "Complete & archive", onClick: () => complete(true) },
+            { label: "Cancel", quiet: true, onClick: () => setWrapping(false) },
+          ]} />
         )}
-        {done && f.recap && !wrapping && <div className="ownerdet-recap"><b>Recap</b> {f.recap}{isAdmin && <button type="button" className="ownerdet-recap-edit" onClick={() => { setRecap(f.recap ?? ""); setWrapping(true); }}>edit</button>}</div>}
+        {/* A done owner with NO note used to have no way to get one — the edit button was gated on
+            the note already existing. Now the gate is "done", and the empty case offers the box. */}
+        {done && !wrapping && (f.recap
+          ? <div className="ownerdet-recap"><b>Recap</b> {f.recap}{isAdmin && <button type="button" className="ownerdet-recap-edit" onClick={() => { setRecap(f.recap ?? ""); setWrapping(true); }}>edit</button>}</div>
+          : isAdmin && <button type="button" className="ownerdet-complete" onClick={() => { setRecap(""); setWrapping(true); }}>Add the after-action note</button>)}
         <AddToCalendar ev={cal} defaultBuffer={Number(f.default_buffer_min) || 0} />
         {isAdmin && <button type="button" className="ownerdet-edit" onClick={() => {
           // Seed the edit-guard baseline NOW, from what's about to show in the form — for stops,

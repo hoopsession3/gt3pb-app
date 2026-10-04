@@ -85,6 +85,34 @@ const STOP_GAP_FIX: Record<StopGapKey, string> = {
 export const stopGapFix = (k: string | null | undefined): string =>
   (k && (STOP_GAP_FIX as Record<string, string>)[k]) || "";
 
+// ── the way OUT of each gap (2026-10-03) ─────────────────────────────────────────────────────────
+// The sentence above says what to do; this says what the record sheet puts a BUTTON on. Same closed
+// vocabulary idea as lib/eventRecord's WAYS_OUT, with the stop's own doors:
+//
+//   edit     the editor behind the prep checklist (OwnerDetails) — date, time, address + pin
+//   archive  it did not happen: off the lists, record kept              (lib/wrap.archiveOwner)
+//   wrap     it happened: done, stamped, with the note                  (lib/wrap.wrapOwner)
+//   recap    the note alone, for something already done                 (lib/wrap.saveRecap)
+//   resync   copy the venue's name and address onto this stop           (resync_stop_from_vendor)
+//   venue    Plan › Venues — the venue's own row
+//   route    Plan › Route — where a stop is linked to its venue and where the truck goes offline
+//            (LiveControl owns both; the sheet points there rather than growing a second switch)
+export const STOP_WAYS_OUT = ["edit", "archive", "wrap", "recap", "resync", "venue", "route"] as const;
+export type StopWayOut = (typeof STOP_WAYS_OUT)[number];
+
+const STOP_GAP_WAY: Record<StopGapKey, readonly StopWayOut[]> = {
+  name_drift:   ["resync", "venue"],
+  no_pin:       ["edit", "route"],
+  no_day:       ["edit", "archive"],
+  live_past:    ["route"],
+  unlinked:     ["route"],
+  addr_drift:   ["edit", "venue"],
+  stale_status: ["wrap", "edit"],
+  no_recap:     ["recap"],
+};
+export const stopGapWaysOut = (k: string | null | undefined): readonly StopWayOut[] =>
+  (k && (STOP_GAP_WAY as Record<string, readonly StopWayOut[]>)[k]) || [];
+
 /** Only one gap on this list is visible to a customer. The screen says so. */
 export const isGuestFacing = (k: string | null | undefined): boolean =>
   k === "name_drift" || k === "no_pin" || k === "live_past";

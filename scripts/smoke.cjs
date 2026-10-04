@@ -1669,8 +1669,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 // here rather than as a row with no advice on it.
 {
   const E = require("../.smoke/eventRecord.js");
-  const sqlE = require("node:fs").readFileSync(
-    require("node:path").join(__dirname, "..", "supabase/migrations/0314_an_event_is_ten_screens_and_no_record.sql"), "utf8");
+  // Read from the LATEST migration that defines the view, not a remembered one: 0339 restated
+  // v_event_gaps, and a cross-check pinned to 0314 would have gone on checking a definition
+  // production no longer runs.
+  const { readFileSync: rfE, readdirSync: rdE } = require("node:fs");
+  const migDirE = require("node:path").join(__dirname, "..", "supabase/migrations");
+  const definesGaps = rdE(migDirE).filter((f) => f.endsWith(".sql")).sort()
+    .filter((f) => /create or replace view public\.v_event_gaps\b/.test(rfE(require("node:path").join(migDirE, f), "utf8")));
+  ok("eventRecord: the view's latest definition is 0339's", definesGaps.at(-1) === "0339_the_sentence_that_described_a_door.sql", definesGaps);
+  const sqlE = rfE(require("node:path").join(migDirE, definesGaps.at(-1)), "utf8");
   const inSql = [...sqlE.matchAll(/\(\s*'([a-z_]+)',\s*'[^']*',\s*'(high|medium|low)'/g)].map((m) => m[1]);
   ok("eventRecord: the migration's gap list was actually found in the file", inSql.length === 9, inSql);
   ok("eventRecord: every gap the database can emit has a fix sentence — no row of advice-free blame",
@@ -4425,6 +4432,115 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("one rule: the tiles and the board embed the same target columns to judge by", /events\(day, archived_at, stage\), stops\(starts_at, archived_at, status\)/.test(kpis) && /events\(title, day, archived_at, stage\), stops\(name, starts_at, archived_at, status\)/.test(board));
     ok("one rule: the tiles count what is ahead, not the table", /taskIsCurrent\(t, today\)/.test(kpis) && !/head\(db, "event_tasks"\)\.eq\("done", false\), to:/.test(kpis) && /label: "Upcoming events"/.test(kpis) && !/label: "Events on the books"/.test(kpis));
     ok("one rule: the board sorts what was left open last and says so", /\[\.\.\.all\.filter\(\(g\) => !g\.past\), \.\.\.all\.filter\(\(g\) => g\.past\)\]/.test(board) && /past · not closed out/.test(board) && /pbd-leftopen/.test(board));
+  }
+}
+
+// ── CLOSING OUT (lib/wrap.ts): one write path, and every finding carries its way out ────────────
+// Ryan, 2026-10-03, on the WineXpress stop sheet: "Finished, with no after-action note. Two lines on
+// how it went, while you still remember." — and nowhere to write them. These gates hold the three
+// claims the fix makes: the done/archive/note/takings writes have ONE home, every gap the database
+// can emit has at least one way out, and each record sheet renders every way out it declares.
+{
+  const W = require("../.smoke/wrap.js");
+  const E = require("../.smoke/eventRecord.js");
+  const S = require("../.smoke/stopRecord.js");
+  const NOW = "2026-10-03T14:00:00.000Z";
+
+  // the patches, pure
+  ok("wrap: an event done is stage done, stamped, and not live", JSON.stringify(W.wrapPatch("event", NOW)) === JSON.stringify({ stage: "done", completed_at: NOW, is_live: false }));
+  ok("wrap: a stop done is status done and stamped — a stop has no live column", JSON.stringify(W.wrapPatch("stop", NOW)) === JSON.stringify({ status: "done", completed_at: NOW }));
+  ok("wrap: archive rides on the same patch when asked", W.wrapPatch("event", NOW, true).archived_at === NOW && W.wrapPatch("stop", NOW, true).archived_at === NOW && !("archived_at" in W.wrapPatch("event", NOW)));
+  ok("wrap: an archived event drops its live flag; a stop just files", JSON.stringify(W.archivePatch("event", NOW)) === JSON.stringify({ archived_at: NOW, is_live: false }) && JSON.stringify(W.archivePatch("stop", NOW)) === JSON.stringify({ archived_at: NOW }));
+  ok("wrap: the note is trimmed and blank becomes null, so the gap view sees 'no note'", W.cleanRecap("  sold out by noon  ") === "sold out by noon" && W.cleanRecap("   ") === null && W.cleanRecap(null) === null);
+  ok("wrap: the ops sibling and its key, per kind", W.opsTable("event") === "event_ops" && W.opsKey("event") === "event_id" && W.opsTable("stop") === "stop_ops" && W.opsKey("stop") === "stop_id" && W.ownerTable("stop") === "stops");
+
+  // what it took
+  ok("takings: dollars become cents", W.parseDollars("184").cents === 18400 && W.parseDollars("184.5").cents === 18450 && W.parseDollars("$1,200.50").cents === 120050 && W.parseDollars(" 19.99 ").cents === 1999);
+  ok("takings: anything that is not money is refused by name", "error" in W.parseDollars("") && "error" in W.parseDollars("abc") && "error" in W.parseDollars("-5") && "error" in W.parseDollars("1.234") && "error" in W.parseDollars("1e3"));
+  ok("takings: a count is optional and whole", W.parseCount("").count === null && W.parseCount("38").count === 38 && "error" in W.parseCount("2.5") && "error" in W.parseCount("-1"));
+  ok("takings: the row is the honest shape — manual, no payment id, on the event", (() => { const r = W.takingsRow("ev1", "184.50", "38"); return !("error" in r) && JSON.stringify(r.row) === JSON.stringify({ event_id: "ev1", source: "manual", amount_cents: 18450, item_count: 38 }); })());
+  ok("takings: a bad count refuses the whole row — no half-entries", "error" in W.takingsRow("ev1", "10", "x") && W.takingsRow("ev1", "10", "").row.item_count === 0);
+  ok("takings: the source name matches what 0339's policy admits", W.MANUAL_SOURCE === "manual" && /source = 'manual'/.test(require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "supabase/migrations/0339_the_sentence_that_described_a_door.sql"), "utf8")));
+
+  // the writers, under a fake client that records every call in order
+  const fake = (fail = null) => {
+    const calls = [];
+    const res = (table, op) => Promise.resolve({ error: fail && fail.table === table && fail.op === op ? { message: `boom:${table}.${op}` } : null, data: null });
+    const sb = {
+      from: (table) => ({
+        update: (patch) => ({ eq: (col, v) => { calls.push({ table, op: "update", patch, col, v }); return res(table, "update"); } }),
+        upsert: (row, opts) => { calls.push({ table, op: "upsert", row, opts }); return res(table, "upsert"); },
+        insert: (row) => { calls.push({ table, op: "insert", row }); return res(table, "insert"); },
+      }),
+      rpc: (fn, args) => { calls.push({ op: "rpc", fn, args }); return res(fn, "rpc"); },
+    };
+    return { sb, calls };
+  };
+  PENDING.push((async () => {
+    let f = fake();
+    let r = await W.wrapOwner(f.sb, { kind: "event", id: "e1", recap: " great day ", now: NOW });
+    ok("wrapOwner: status first, then the note on the ops sibling, keyed and upserted", r.error === null && f.calls.length === 2
+      && f.calls[0].table === "events" && f.calls[0].op === "update" && f.calls[0].v === "e1" && f.calls[0].patch.stage === "done"
+      && f.calls[1].table === "event_ops" && f.calls[1].op === "upsert" && f.calls[1].row.event_id === "e1" && f.calls[1].row.recap === "great day" && f.calls[1].opts.onConflict === "event_id", f.calls);
+    f = fake();
+    r = await W.wrapOwner(f.sb, { kind: "stop", id: "s1", now: NOW, archive: true });
+    ok("wrapOwner: no note given means the note is left alone", r.error === null && f.calls.length === 1 && f.calls[0].table === "stops" && f.calls[0].patch.archived_at === NOW, f.calls);
+    f = fake({ table: "events", op: "update" });
+    r = await W.wrapOwner(f.sb, { kind: "event", id: "e1", recap: "x", now: NOW });
+    ok("wrapOwner: a failed status write stops everything — no note filed against something still upcoming", r.error && /boom/.test(r.error.message) && f.calls.length === 1, f.calls);
+    f = fake();
+    r = await W.saveRecap(f.sb, { kind: "stop", id: "s1", recap: "" });
+    ok("saveRecap: the note alone, blank stored as null, nothing else touched", r.error === null && f.calls.length === 1 && f.calls[0].table === "stop_ops" && f.calls[0].row.recap === null && f.calls[0].row.stop_id === "s1", f.calls);
+    f = fake();
+    r = await W.archiveOwner(f.sb, { kind: "event", id: "e1", now: NOW });
+    ok("archiveOwner: one update, the archive patch", r.error === null && f.calls.length === 1 && f.calls[0].op === "update" && f.calls[0].patch.is_live === false && f.calls[0].patch.archived_at === NOW, f.calls);
+    f = fake();
+    r = await W.addTakings(f.sb, { eventId: "e1", dollars: "184.50", items: "38" });
+    ok("addTakings: one insert into event_sales, the honest row", r.error === null && f.calls.length === 1 && f.calls[0].table === "event_sales" && f.calls[0].op === "insert" && f.calls[0].row.source === "manual" && f.calls[0].row.amount_cents === 18450 && !("square_payment_id" in f.calls[0].row), f.calls);
+    f = fake();
+    r = await W.addTakings(f.sb, { eventId: "e1", dollars: "lots" });
+    ok("addTakings: a refused number never reaches the database, and the refusal is the message the screen shows", r.error && /Dollars and cents/.test(r.error.message) && f.calls.length === 0, { r, calls: f.calls });
+    f = fake();
+    r = await W.tookNothing(f.sb, "e1", NOW);
+    ok("tookNothing: the answer lands on event_ops, upserted by event", r.error === null && f.calls.length === 1 && f.calls[0].table === "event_ops" && f.calls[0].row.took_nothing_at === NOW && f.calls[0].opts.onConflict === "event_id", f.calls);
+    f = fake();
+    r = await W.setEventLive(f.sb, "e1", false);
+    ok("setEventLive: through the RPC that owns the one-live-at-a-time rule", r.error === null && f.calls[0].op === "rpc" && f.calls[0].fn === "admin_set_event_live" && f.calls[0].args.p_event === "e1" && f.calls[0].args.p_live === false, f.calls);
+  })());
+
+  // every gap has a way out, in a closed vocabulary, and nothing in the vocabulary is unused
+  ok("ways out: every event gap has at least one", E.GAP_KEYS.every((k) => E.gapWaysOut(k).length > 0), E.GAP_KEYS.filter((k) => E.gapWaysOut(k).length === 0));
+  ok("ways out: every event way is in the vocabulary, and every word in it is used", E.GAP_KEYS.flatMap((k) => E.gapWaysOut(k)).every((w) => E.WAYS_OUT.includes(w)) && E.WAYS_OUT.every((w) => E.GAP_KEYS.some((k) => E.gapWaysOut(k).includes(w))));
+  ok("ways out: every stop gap has at least one", S.STOP_GAP_KEYS.every((k) => S.stopGapWaysOut(k).length > 0), S.STOP_GAP_KEYS.filter((k) => S.stopGapWaysOut(k).length === 0));
+  ok("ways out: every stop way is in the vocabulary, and every word in it is used", S.STOP_GAP_KEYS.flatMap((k) => S.stopGapWaysOut(k)).every((w) => S.STOP_WAYS_OUT.includes(w)) && S.STOP_WAYS_OUT.every((w) => S.STOP_GAP_KEYS.some((k) => S.stopGapWaysOut(k).includes(w))));
+  ok("ways out: an unknown gap gets none, not a crash", E.gapWaysOut("nope").length === 0 && S.stopGapWaysOut(null).length === 0);
+  ok("ways out: the two findings Ryan saw resolve where they are shown", E.gapWaysOut("no_recap").includes("recap") && S.stopGapWaysOut("no_recap").includes("recap") && E.gapWaysOut("stale_stage").includes("wrap") && S.stopGapWaysOut("stale_status").includes("wrap") && E.gapWaysOut("no_sales").includes("takings"));
+  ok("ways out: going offline and linking a venue point at the screen that owns them, not a second switch", S.stopGapWaysOut("live_past").join() === "route" && S.stopGapWaysOut("unlinked").join() === "route");
+  ok("owed: 'took nothing' is an answer, so a done event that said so is not chased for a number", E.owedLine({ stage: "done", sales_count: 0, took_nothing_at: NOW, recap: "" }) === "Finished. No after-action note yet." && E.owedLine({ stage: "done", sales_count: 0, took_nothing_at: NOW, recap: "fine" }) === "Finished and written up.");
+
+  // the sheets render every way they declare, and nobody writes "done" by hand any more
+  {
+    const { readFileSync } = require("node:fs");
+    const { join } = require("node:path");
+    const read = (f) => readFileSync(join(__dirname, "..", f), "utf8");
+    const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+    const ev = code(read("components/EventRecord.tsx")), st = code(read("components/StopRecord.tsx")), od = code(read("components/crew/OwnerDetails.tsx"));
+    const lc = code(read("components/crew/LiveControl.tsx")), fo = code(read("components/FieldOpSheet.tsx")), page = code(read("app/crew/page.tsx")), ways = code(read("components/RecordWays.tsx"));
+    ok("sheets: the event sheet draws every way out its vocabulary names", E.WAYS_OUT.every((w) => new RegExp(`case "${w}":`).test(ev)), E.WAYS_OUT.filter((w) => !new RegExp(`case "${w}":`).test(ev)));
+    ok("sheets: the stop sheet draws every way out its vocabulary names", S.STOP_WAYS_OUT.every((w) => new RegExp(`case "${w}":`).test(st)), S.STOP_WAYS_OUT.filter((w) => !new RegExp(`case "${w}":`).test(st)));
+    ok("sheets: which gap gets which control is the library's call, not the sheet's", /gapWaysOut\(gap\)/.test(ev) && /stopGapWaysOut\(gap\)/.test(st) && !/case "no_recap"/.test(ev) && !/case "no_recap"/.test(st));
+    ok("sheets: the name question's buttons come from the same mapping as the list's", /waysFor\("name_drift", s\)\.buttons/.test(st) && !/onClick=\{resync\}/.test(st));
+    ok("sheets: the stop sheet leads with the stop's name — the one the list shows and guests see", /<b>\{s\.name\?\.trim\(\) \|\| s\.canonical_name\?\.trim\(\)/.test(st));
+    ok("sheets: one after-action box, shared (RecordWays.NoteBox) — the sheets and OwnerDetails all draw it", /export function NoteBox\(/.test(ways) && /<NoteBox /.test(ev) && /<NoteBox /.test(st) && /<NoteBox /.test(od) && !/<textarea/.test(od));
+    ok("sheets: one placeholder for the note, in one file", (ways.match(/Rise \+ Tide sold out by noon/g) || []).length === 1 && !/Rise \+ Tide/.test(od) && !/Rise \+ Tide/.test(ev));
+    ok("one write: OwnerDetails wraps, archives and saves the note through lib/wrap", /wrapOwner\(supabase, \{ kind: ownerType, id: ownerId, recap, archive: alsoArchive, now \}\)/.test(od) && /archiveOwner\(supabase, \{ kind: ownerType, id: ownerId \}\)/.test(od) && /saveRecap\(supabase, \{ kind: ownerType, id: ownerId, recap \}\)/.test(od) && !/stage: "done", completed_at/.test(od) && !/status: "done", completed_at/.test(od));
+    ok("one write: a done owner with no note is offered the box — the edit button is no longer gated on a note existing", !/done && f\.recap && !wrapping/.test(od) && /Add the after-action note/.test(od));
+    ok("one write: editing a note no longer re-stamps completed_at", /const saveNote = async/.test(od) && /done \? \[\s*\{ label: "Save the note"/.test(od));
+    ok("one write: LiveControl's go-offline closes the stop through lib/wrap, with the stamp it used to skip", /wrapOwner\(supabase!, \{ kind: "stop", id: finished\.id, archive: true \}\)/.test(lc) && !/update\(\{ status: "done", archived_at/.test(lc));
+    ok("one write: FieldOpSheet and EventsAdmin archive through lib/wrap", /archiveOwner\(supabase, \{ kind, id \}\)/.test(fo) && /archiveOwner\(supabase!, \{ kind: "event", id \}\)/.test(page) && !/archived_at: new Date\(\)\.toISOString\(\), is_live: false/.test(page));
+    ok("one write: the event live flag has one caller shape — lib/wrap's RPC call", /setEventLive\(supabase!, id, live\)/.test(page) && !/rpc\("admin_set_event_live"/.test(page) && !/rpc\("admin_set_event_live"/.test(ev));
+    ok("one write: no component sends a done patch to the database by hand", ["components/EventRecord.tsx", "components/StopRecord.tsx", "components/crew/OwnerDetails.tsx", "components/crew/LiveControl.tsx", "components/FieldOpSheet.tsx"].every((f) => !/\.update\(\{[^)]*completed_at/.test(code(read(f))) && !/\.update\(\{[^)]*(stage|status): "done"/.test(code(read(f)))));
+    ok("tap floor: the wrap box's buttons and the complete button clear 44px", /\.ownerdet-wrap-actions button\{[^}]*min-height:44px/.test(read("app/globals.css")) && /\.ownerdet-complete\{[^}]*min-height:44px/.test(read("app/globals.css")));
   }
 }
 

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>fixture · Event record › needs sorting, day theme</title>
+<!--
+  A TEST DOUBLE OF THE EVENT RECORD SHEET, AND IT SAYS SO.
+
+  Ryan, 2026-10-03, from Plan › Needs sorting on his phone: tapped a row, got a sheet that said
+  "Finished, with no after-action note. Two lines on how it went, while you still remember." and
+  offered nowhere to write them. This is that sheet AFTER the fix: every finding carries its way
+  out — a button, or the box itself when the finding is the form.
+
+  Same construction as brew-sheet.html: the DOM class for class as components/EventRecord.tsx,
+  components/RecordWays.tsx and components/Sheet.tsx produce it, styled by the REAL app/globals.css
+  and rendered in the real Chromium at phone width. Every block names the file it was copied from in
+  `data-from`, and scripts/design.ratchet.mjs FAILS if a class used here no longer appears in that
+  file. The event is the shape the live database had on 2026-09-07 (0314's header): done, still
+  flagged live, nothing recorded as taken, no note, critical prep unticked — four findings.
+
+  Measured twice per run: as written (.crew-day) and with .crew-day removed (the console's default).
+  The number that matters most here is the TAP FLOOR: 44px, because the controls on this sheet are
+  new and the box they share with OwnerDetails measured 31px before this.
+-->
+<link rel="stylesheet" href="../../app/globals.css">
+<style>html,body{margin:0;background:#F4EFE3}</style>
+</head>
+<body>
+<div class="app crew-day" data-from="components/AppShell.tsx">
+  <div class="sheet2-scrim" data-from="components/Sheet.tsx" style="position:static;padding:12px 0 0">
+    <div class="sheet2 " role="dialog" aria-modal="true" aria-labelledby="rec-title" style="margin:0 auto">
+      <div class="sheet2-grab"></div>
+      <div class="sheet2-head">
+        <div class="cp-head" data-from="components/EventRecord.tsx"><b>Event</b><button type="button" class="qd-x" aria-label="Close" data-from="components/Sheet.tsx">✕</button></div>
+      </div>
+      <div class="sheet2-body">
+       <div data-from="components/EventRecord.tsx">
+
+        <div class="so-id">
+          <div class="cp-id-t">
+            <b id="rec-title">Gratitude Greenville</b>
+            <span>Thu, Jul 31 · 64 days ago</span>
+          </div>
+          <span class="so-pill so-nobody">Done</span>
+        </div>
+        <p class="evr-owed due">Finished, with nothing recorded as taken.</p>
+
+        <div class="cp-block evr-gaps">
+          <div class="cp-block-h"><span>Needs sorting</span><b>4</b></div>
+
+          <div class="evr-gap sev-high">
+            <b>Still flagged live, but the day has passed. The public site may still show it.</b>
+            <i>Turn the live flag off — the public site reads it.</i>
+            <div class="str-drift-b" data-from="components/RecordWays.tsx">
+              <button type="button" class="so-move">Turn the live flag off</button>
+            </div>
+          </div>
+
+          <div class="evr-gap sev-medium">
+            <b>Complete, with nothing recorded as taken. If it sold, the number is missing.</b>
+            <i>Add what it took, or confirm it took nothing.</i>
+            <div class="ownerdet-wrap" data-from="components/RecordWays.tsx">
+              <div class="ownerdet-wrap-lbl">What it took <span>cash, a tab, a card reader Square never saw</span></div>
+              <div class="evr-take">
+                <label><span>Dollars</span><input class="note-in" inputmode="decimal" placeholder="184.50"></label>
+                <label><span>Items · optional</span><input class="note-in" inputmode="numeric" placeholder="38"></label>
+              </div>
+              <div class="ownerdet-wrap-actions">
+                <button type="button" class="ownerdet-complete">Add what it took</button>
+                <button type="button">It took nothing</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="evr-gap sev-low">
+            <b>Complete, with no after-action note.</b>
+            <i>Two lines on how it went, while you still remember.</i>
+            <div class="ownerdet-wrap" data-from="components/RecordWays.tsx">
+              <div class="ownerdet-wrap-lbl">After-action <span>optional — what sold, what ran short, one change for next time</span></div>
+              <textarea class="note-in" rows="3" placeholder="e.g. Rise + Tide sold out by noon; ran short on ice; bring a second cooler next time." aria-label="After-action"></textarea>
+              <div class="ownerdet-wrap-actions">
+                <button type="button" class="ownerdet-complete">Save the note</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="evr-gap sev-low">
+            <b>Complete, with critical prep still unticked.</b>
+            <i>Tick them or delete them — they are counted as outstanding everywhere.</i>
+            <div class="str-drift-b" data-from="components/RecordWays.tsx">
+              <button type="button" class="cp-go">Open the prep checklist <span aria-hidden="true">›</span></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="cp-block">
+          <div class="cp-block-h"><span>Where</span><b>greenville</b></div>
+          <p class="cp-line">Unity Park · Greenville, SC</p>
+          <p class="cp-line dim">Power unknown · water unknown · flagged live</p>
+        </div>
+
+        <div class="cp-block">
+          <div class="cp-block-h"><span>On it</span><b>4/6 done</b></div>
+          <div class="so-kpis" style="margin-top:10px;margin-bottom:0">
+            <span class="so-kpi"><b>2</b><i>critical open</i></span>
+            <span class="so-kpi"><b>3</b><i>crew</i></span>
+            <span class="so-kpi"><b>18</b><i>rsvps</i></span>
+            <span class="so-kpi"><b>5</b><i>menu</i></span>
+            <span class="so-kpi"><b>4</b><i>run of show</i></span>
+          </div>
+          <button type="button" class="cp-go" style="margin-top:10px">Open the prep checklist <span aria-hidden="true">›</span></button>
+        </div>
+
+        <div class="cp-block">
+          <div class="cp-block-h"><span>Took</span><b>—</b></div>
+          <p class="cp-line dim">Nothing recorded yet. Card sales land here from Square on their own; once the event is wrapped, cash gets added here too.</p>
+          <p class="cp-line dim">No cost assumptions set — the P&amp;L can't be worked out.</p>
+        </div>
+
+        <p class="so-foot">event · market</p>
+       </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

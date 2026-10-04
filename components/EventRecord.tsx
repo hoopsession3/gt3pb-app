@@ -1,13 +1,17 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useApp } from "./AppProvider";
+import { useConfirm } from "./ConfirmSheet";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Sheet, { CloseButton } from "./Sheet";
+import { NoteBox, TakingsBox, WayButtons, type Way } from "./RecordWays";
+import { addTakings, archiveOwner, saveRecap, setEventLive, tookNothing, wrapOwner, type WriteResult } from "@/lib/wrap";
 import {
-  gapFix, money, owedLine, placeLine, prepHandoffKey, prepHandoffValue,
-  sortGaps, stageLabel, whenLabel,
+  gapFix, gapWaysOut, money, owedLine, placeLine, prepHandoffKey, prepHandoffValue,
+  sortGaps, stageLabel, whenLabel, type WayOut,
 } from "@/lib/eventRecord";
 
 // ONE EVENT, WHOLE (0314).
@@ -24,6 +28,13 @@ import {
 // ORDERED BY WHAT DISAGREES. The gap block sits directly under the header, above the counts,
 // because a row that contradicts itself is more urgent than any number on it. Two events sat at
 // "confirmed" for over a month after they happened, and nothing in this app was capable of saying so.
+//
+// AND EVERY FINDING CARRIES ITS WAY OUT (2026-10-03). The first version of this sheet rendered each
+// gap as the diagnosis plus a sentence — "Wrap it if it happened, archive it if it didn't" — and no
+// control. The wrap lived behind the prep checklist, the archive behind an edit form, and "add what
+// it took" lived nowhere at all. Now the sentence is followed by the button, or by the box itself
+// when the finding IS the form (the after-action note, what it took). The writes are lib/wrap's;
+// which gap gets which control is lib/eventRecord's gapWaysOut, so the sheet cannot drift from it.
 
 type Rec = {
   id: string; title: string | null; public_title: string | null; stage: string | null;
@@ -41,6 +52,7 @@ type Rec = {
   menu_items: number | null; schedule_items: number | null;
   sales_cents: number | null; sales_count: number | null; items_sold: number | null;
   has_economics: boolean | null;
+  took_nothing_at?: string | null;   // arrives with 0339; optional so the sheet renders before it lands
 };
 type Gap = { gap: string; detail: string; severity: string };
 type Data = { ev: Rec | null; gaps: Gap[] };
@@ -52,6 +64,12 @@ const dayLine = (e: Rec) => {
 };
 
 export default function EventRecord({ eventId, onClose }: { eventId: string; onClose: () => void }) {
+  const { toast } = useApp();
+  const confirm = useConfirm();
+  const [busy, setBusy] = useState(false);
+  const [wrapping, setWrapping] = useState(false);   // the stale_stage wrap box, opened by its button
+  const [note, setNote] = useState<string | null>(null);   // null = not yet seeded from the record
+
   const loader = useCallback(async (): Promise<Data> => {
     if (!supabase) return { ev: null, gaps: [] };
     const [e, g] = await Promise.all([
@@ -62,13 +80,56 @@ export default function EventRecord({ eventId, onClose }: { eventId: string; onC
     return { ev: (e.data as Rec) ?? null, gaps: (g.data as Gap[]) ?? [] };
   }, [eventId]);
   const state = useAsyncData<Data>(loader, [eventId]);
+  const reload = state.reload;
 
   // The prep checklist still lives at ?s=prep behind the handoff key. Built from the one helper in
   // lib/eventRecord rather than spelled out again — a sixth hand-written encoding is how the first
   // five drifted apart. A full navigation (not setSection) so the section param lands in the URL.
   const openPrep = () => {
     try { localStorage.setItem(prepHandoffKey, prepHandoffValue("event", eventId)); } catch { /* ignore */ }
-    window.location.href = "/crew?s=prep";
+    window.location.assign("/crew?s=prep");
+  };
+
+  // Every write goes through here: one busy flag, the database's own sentence on failure, a reload
+  // on success so the finding that was just answered leaves the list rather than lingering.
+  const run = async (what: () => Promise<WriteResult>, done: string) => {
+    if (!supabase || busy) return;
+    setBusy(true);
+    const { error } = await what();
+    setBusy(false);
+    if (error) { toast(error.message, "error"); return; }
+    setWrapping(false); setNote(null);
+    toast(done);
+    reload();
+  };
+  const sb = supabase!;
+  const kind = "event" as const;
+
+  const archive = async () => {
+    if (!(await confirm({ title: "Archive this event?", body: "It comes off the calendar, prep and readiness, and the record is kept — you can restore it from Plan › Events.", confirmLabel: "Archive" }))) return;
+    run(() => archiveOwner(sb, { kind, id: eventId }), "Event archived");
+  };
+
+  // gap → controls. Which gaps get which is lib/eventRecord's call (gapWaysOut); this only knows how
+  // to draw each one. `recap` and `takings` draw a box rather than a button: the finding is the form.
+  const waysFor = (gap: string, e: Rec): { buttons: Way[]; box: "wrap" | "recap" | "takings" | null } => {
+    const buttons: Way[] = [];
+    let box: "wrap" | "recap" | "takings" | null = null;
+    for (const w of gapWaysOut(gap) as readonly WayOut[]) {
+      switch (w) {
+        case "edit":     buttons.push({ label: "Edit the details", go: true, onClick: openPrep }); break;
+        case "prep":     buttons.push({ label: "Open the prep checklist", go: true, onClick: openPrep }); break;
+        case "archive":  buttons.push({ label: gap === "twin" ? "Archive this one" : "It didn't happen — archive", onClick: archive, busy }); break;
+        case "live_off": buttons.push({ label: "Turn the live flag off", busy, onClick: () => run(() => setEventLive(sb, eventId, false), "Live flag cleared") }); break;
+        case "wrap":
+          if (wrapping) box = "wrap";
+          else buttons.push({ label: "It happened — wrap it up", busy, onClick: () => { setNote(e.recap ?? ""); setWrapping(true); } });
+          break;
+        case "recap":    box = "recap"; break;
+        case "takings":  box = "takings"; break;
+      }
+    }
+    return { buttons, box };
   };
 
   return (
@@ -106,12 +167,33 @@ export default function EventRecord({ eventId, onClose }: { eventId: string; onC
                     <span>Needs sorting</span>
                     <b>{sorted.length}</b>
                   </div>
-                  {sorted.map((g) => (
-                    <div className={`evr-gap sev-${g.severity}`} key={g.gap}>
-                      <b>{g.detail}</b>
-                      <i>{gapFix(g.gap)}</i>
-                    </div>
-                  ))}
+                  {sorted.map((g) => {
+                    const { buttons, box } = waysFor(g.gap, e);
+                    const noteValue = note ?? e.recap ?? "";
+                    return (
+                      <div className={`evr-gap sev-${g.severity}`} key={g.gap}>
+                        <b>{g.detail}</b>
+                        <i>{gapFix(g.gap)}</i>
+                        <WayButtons ways={buttons} />
+                        {box === "wrap" && (
+                          <NoteBox value={noteValue} onChange={setNote} busy={busy} autoFocus actions={[
+                            { label: "Mark done", primary: true, onClick: () => run(() => wrapOwner(sb, { kind, id: eventId, recap: noteValue }), "Event wrapped — nice work") },
+                            { label: "Cancel", quiet: true, onClick: () => { setWrapping(false); setNote(null); } },
+                          ]} />
+                        )}
+                        {box === "recap" && (
+                          <NoteBox value={noteValue} onChange={setNote} busy={busy} actions={[
+                            { label: "Save the note", primary: true, onClick: () => run(() => saveRecap(sb, { kind, id: eventId, recap: noteValue }), "After-action saved") },
+                          ]} />
+                        )}
+                        {box === "takings" && (
+                          <TakingsBox busy={busy}
+                            onAdd={(dollars, items) => run(() => addTakings(sb, { eventId, dollars, items }), "Takings added")}
+                            onNothing={() => run(() => tookNothing(sb, eventId), "Noted — it took nothing")} />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
@@ -163,9 +245,13 @@ export default function EventRecord({ eventId, onClose }: { eventId: string; onC
                     <b>{e.sales_count}</b> sale{Number(e.sales_count) === 1 ? "" : "s"}
                     {Number(e.items_sold ?? 0) > 0 && <> · <b>{e.items_sold}</b> items</>}
                   </p>
+                ) : e.took_nothing_at ? (
+                  <p className="cp-line">
+                    Took nothing at the window — noted {new Date(e.took_nothing_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}.
+                  </p>
                 ) : (
                   <p className="cp-line dim">
-                    Nothing recorded. Card sales land here automatically from Square; cash has to be added.
+                    Nothing recorded yet. Card sales land here from Square on their own; once the event is wrapped, cash gets added here too.
                   </p>
                 )}
                 <p className="cp-line dim">

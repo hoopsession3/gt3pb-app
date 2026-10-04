@@ -11,6 +11,7 @@ import { useLocationSuggestions } from "@/components/useLocationSuggestions";
 import Icon from "@/components/Icon";
 import { MARKETS, MARKET_LABEL, toMarket, FOUNDING_MARKET } from "@/lib/markets";
 import { derivedStopStatus } from "@/lib/stopRecord";
+import { archiveOwner } from "@/lib/wrap";
 import { useConfirm } from "@/components/ConfirmSheet";
 
 // FIELD-OP SHEET — the ONE quick editor for a field op's core facts (name · date · time ·
@@ -187,7 +188,9 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
     if (!supabase) return;
     if (!(await confirm({ title: `Archive this ${isEvent ? "event" : "stop"}?`, body: "It comes off the calendar and the customer app.", confirmLabel: "Archive" }))) return;
     setSaving(true);
-    const { error } = await supabase.from(table).update({ archived_at: new Date().toISOString() }).eq("id", id);
+    // lib/wrap's write, shared with OwnerDetails, EventsAdmin and the record sheets — an archived
+    // event drops its live flag with it, which this copy used to leave set.
+    const { error } = await archiveOwner(supabase, { kind, id });
     setSaving(false);
     if (error) { toast(`Couldn't archive — ${error.message}`, "error"); return; }
     toast("Archived");

@@ -41,6 +41,16 @@ const FIXTURE = join(ROOT, "scripts/fixtures/plan-screen.html");
 // console is that height, and raising it is a decision for all of them, not a side effect here.
 const BREW_FIXTURE = join(ROOT, "scripts/fixtures/brew-sheet.html");
 export const BREW_SHEET = { depth: 4, tap: 31, text: 10.5 };
+// The event record sheet with its ways out (2026-10-03). Depth 6 is the box inside the finding
+// inside the gaps block inside the sheet — an honest nesting, since the finding IS the form. The
+// floor that matters is the tap: 44, because the box these controls share with OwnerDetails
+// measured 31px before the sheets started drawing it.
+const RECORD_FIXTURE = join(ROOT, "scripts/fixtures/record-sheet.html");
+export const RECORD_SHEET = { depth: 6, tap: 44, text: 10.5 };
+const SHEETS = [
+  { name: "brew sheet",   file: BREW_FIXTURE,   rel: "scripts/fixtures/brew-sheet.html",   limits: BREW_SHEET },
+  { name: "record sheet", file: RECORD_FIXTURE, rel: "scripts/fixtures/record-sheet.html", limits: RECORD_SHEET },
+];
 
 // ── THE CEILINGS — measured, not remembered (2026-10-01, after the one-box-per-level pass) ───────
 export const CEILING = {
@@ -430,26 +440,29 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   else note(true, `smallest agenda text ${k.minAgendaFontPx}px (floor ${FLOOR.minAgendaFontPx}px)`);
   note(k.boxes === p.boxes, k.boxes === p.boxes ? `the theme changes colour, not structure: ${k.boxes} boxes in both` : `the dark theme paints ${k.boxes} boxes where day paints ${p.boxes} — a border or fill that exists in one theme only`);
 
-  // ── THE BREW SHEET, the same way ──
-  let brewHtml;
-  try { brewHtml = readFileSync(BREW_FIXTURE, "utf8"); } catch { console.log("DESIGN RATCHET: NOT CHECKED — the brew sheet fixture is missing. Treated as a FAILURE."); process.exit(1); }
-  const brewDrift = fixtureDrift(brewHtml);
-  console.log("DESIGN RATCHET — the brew sheet fixture names its sources:");
-  note(brewDrift.length === 0, brewDrift.length === 0 ? "every class in scripts/fixtures/brew-sheet.html still exists in the file it claims" : `${brewDrift.length} class(es) no longer exist in the file the fixture claims them from:`);
-  for (const d of brewDrift) console.log(`      ${d}`);
-  const b = await painted(BREW_FIXTURE);
-  console.log("DESIGN RATCHET — the brew sheet, painted at 390px (day, then dark):");
-  if (b.error) { console.log(`  NOT CHECKED — ${b.error}. Treated as a FAILURE.`); process.exit(1); }
-  for (const [theme, m] of [["day", b], ["dark", b.dark]]) {
-    ratchet(`${theme}: box depth at the innermost box`, m.maxLeafDepth, BREW_SHEET.depth);
-    if (m.smallestTap === null || m.smallestTap < BREW_SHEET.tap) note(false, `${theme}: smallest tap target ${m.smallestTap}px (${m.smallestTapWhat}) — floor ${BREW_SHEET.tap}px`);
-    else if (m.smallestTap > BREW_SHEET.tap) note(false, `${theme}: smallest tap target ${m.smallestTap}px — floor ${BREW_SHEET.tap}px sits below it. Good; now raise the floor to ${m.smallestTap}.`);
-    else note(true, `${theme}: smallest tap target ${m.smallestTap}px (${m.smallestTapWhat}; floor ${BREW_SHEET.tap}px)`);
-    if (m.smallestText === null || m.smallestText < BREW_SHEET.text) note(false, `${theme}: smallest text ${m.smallestText}px (${m.smallestTextWhat}) — floor ${BREW_SHEET.text}px`);
-    else note(true, `${theme}: smallest text ${m.smallestText}px (floor ${BREW_SHEET.text}px)`);
-    note((m.overflowX || []).length === 0, (m.overflowX || []).length === 0 ? `${theme}: nothing scrolls sideways` : `${theme}: scrolls sideways: ${JSON.stringify(m.overflowX).slice(0, 80)}`);
+  // ── THE SHEETS, the same way: each fixture names its sources, then is painted in both themes ──
+  for (const sheet of SHEETS) {
+    let html;
+    try { html = readFileSync(sheet.file, "utf8"); } catch { console.log(`DESIGN RATCHET: NOT CHECKED — the ${sheet.name} fixture is missing. Treated as a FAILURE.`); process.exit(1); }
+    const drift = fixtureDrift(html);
+    console.log(`DESIGN RATCHET — the ${sheet.name} fixture names its sources:`);
+    note(drift.length === 0, drift.length === 0 ? `every class in ${sheet.rel} still exists in the file it claims` : `${drift.length} class(es) no longer exist in the file the fixture claims them from:`);
+    for (const d of drift) console.log(`      ${d}`);
+    const b = await painted(sheet.file);
+    console.log(`DESIGN RATCHET — the ${sheet.name}, painted at 390px (day, then dark):`);
+    if (b.error) { console.log(`  NOT CHECKED — ${b.error}. Treated as a FAILURE.`); process.exit(1); }
+    const L = sheet.limits;
+    for (const [theme, m] of [["day", b], ["dark", b.dark]]) {
+      ratchet(`${theme}: box depth at the innermost box`, m.maxLeafDepth, L.depth);
+      if (m.smallestTap === null || m.smallestTap < L.tap) note(false, `${theme}: smallest tap target ${m.smallestTap}px (${m.smallestTapWhat}) — floor ${L.tap}px`);
+      else if (m.smallestTap > L.tap) note(false, `${theme}: smallest tap target ${m.smallestTap}px — floor ${L.tap}px sits below it. Good; now raise the floor to ${m.smallestTap}.`);
+      else note(true, `${theme}: smallest tap target ${m.smallestTap}px (${m.smallestTapWhat}; floor ${L.tap}px)`);
+      if (m.smallestText === null || m.smallestText < L.text) note(false, `${theme}: smallest text ${m.smallestText}px (${m.smallestTextWhat}) — floor ${L.text}px`);
+      else note(true, `${theme}: smallest text ${m.smallestText}px (floor ${L.text}px)`);
+      note((m.overflowX || []).length === 0, (m.overflowX || []).length === 0 ? `${theme}: nothing scrolls sideways` : `${theme}: scrolls sideways: ${JSON.stringify(m.overflowX).slice(0, 80)}`);
+    }
+    note(b.dark.boxes === b.boxes, b.dark.boxes === b.boxes ? `the theme changes colour, not structure: ${b.boxes} boxes in both` : `the dark theme paints ${b.dark.boxes} boxes where day paints ${b.boxes}`);
   }
-  note(b.dark.boxes === b.boxes, b.dark.boxes === b.boxes ? `the theme changes colour, not structure: ${b.boxes} boxes in both` : `the dark theme paints ${b.dark.boxes} boxes where day paints ${b.boxes}`);
 
   if (fails.length) { console.log(`\nDESIGN RATCHET: ${fails.length} failure(s).`); process.exit(1); }
   console.log("\nDESIGN RATCHET: clean.");

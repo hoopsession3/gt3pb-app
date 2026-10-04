@@ -47,7 +47,10 @@ import { readFileSync, existsSync } from "node:fs";
 // into components/Prose.tsx. The hit it carried was never the reason to delete it; it just went
 // with it. A deletion that lowers a ratchet gets the ratchet lowered, or the next person reads a
 // number with a gap under it and cannot tell whether the gap is progress or a broken check.
-export const BASELINE = 114;
+//
+// 2026-10-03: 114 → 113. The old BrewSheet's effect went with its rewrite (ca5b1fd, "the brew sheet
+// asks what a cook knows"); the ratchet sat one under its baseline for a commit. Locked in.
+export const BASELINE = 113;
 
 const RULE = "react-hooks/set-state-in-effect";
 

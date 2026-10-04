@@ -14,6 +14,7 @@ import { haptic, HAPTIC } from "@/lib/haptics";
 import { relativeDay, nextWeekdayAt } from "@/lib/dates";
 import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { goPlanTab } from "@/lib/planNav";
+import { wrapOwner } from "@/lib/wrap";
 import { LocationEditor } from "@/components/crew/LocationEditor";
 import { useConfirm } from "@/components/ConfirmSheet";
 
@@ -106,8 +107,10 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
       load();
       return;
     }
-    // Archive the just-finished stop off the live screen (record kept).
-    if (finished) await supabase!.from("stops").update({ status: "done", archived_at: new Date().toISOString() }).eq("id", finished.id);
+    // Close out the just-finished stop and archive it off the live screen (record kept). lib/wrap's
+    // write, shared with the record sheets and OwnerDetails — this copy used to skip completed_at,
+    // so a stop closed from here never said WHEN it finished.
+    if (finished) await wrapOwner(supabase!, { kind: "stop", id: finished.id, archive: true });
     // Verify against the source of truth — never claim offline if it didn't take.
     const { data: chk } = await supabase!.from("live_status").select("is_live").eq("id", 1).maybeSingle();
     if (chk && (chk as { is_live: boolean }).is_live === true) {

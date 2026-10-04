@@ -65,6 +65,36 @@ const GAP_FIX: Record<GapKey, string> = {
 export const gapFix = (k: string | null | undefined): string =>
   (k && (GAP_FIX as Record<string, string>)[k]) || "";
 
+// ── the way OUT of each gap (2026-10-03) ─────────────────────────────────────────────────────────
+// gapFix says what to do. This says what the record sheet puts a BUTTON on, so a finding is never a
+// sentence pointing at a door that is not there — which is what "Two lines on how it went" was on
+// the WineXpress sheet until this. The vocabulary is closed and scripts/smoke.cjs checks that every
+// gap has at least one, and that components/EventRecord.tsx renders every one of them.
+//
+//   edit      the editor behind the prep checklist (OwnerDetails) — title, date, place
+//   archive   it did not happen, or this is the duplicate: off the lists, record kept
+//   wrap      it happened: done, stamped, with the note       (lib/wrap.wrapOwner)
+//   recap     the note alone, for something already done     (lib/wrap.saveRecap)
+//   takings   what it took — the number, or "nothing"        (lib/wrap.addTakings / tookNothing)
+//   live_off  clear the live flag the public site reads      (lib/wrap.setEventLive)
+//   prep      the checklist itself
+export const WAYS_OUT = ["edit", "archive", "wrap", "recap", "takings", "live_off", "prep"] as const;
+export type WayOut = (typeof WAYS_OUT)[number];
+
+const GAP_WAY: Record<GapKey, readonly WayOut[]> = {
+  no_title:    ["edit"],
+  no_day:      ["edit", "archive"],
+  done_early:  ["edit"],
+  twin:        ["edit", "archive"],
+  live_past:   ["live_off"],
+  stale_stage: ["wrap", "archive"],
+  no_sales:    ["takings"],
+  no_recap:    ["recap"],
+  open_tasks:  ["prep"],
+};
+export const gapWaysOut = (k: string | null | undefined): readonly WayOut[] =>
+  (k && (GAP_WAY as Record<string, readonly WayOut[]>)[k]) || [];
+
 const SEVERITY_RANK: Record<GapSeverity, number> = { high: 0, medium: 1, low: 2 };
 export const severityRank = (s: string | null | undefined): number =>
   (s && (SEVERITY_RANK as Record<string, number>)[s] != null) ? SEVERITY_RANK[s as GapSeverity] : 3;
@@ -81,6 +111,7 @@ export type EventCounts = {
   stage?: string | null; phase?: string | null;
   tasks?: number | null; tasks_open?: number | null; tasks_critical_open?: number | null;
   staff?: number | null; sales_count?: number | null; recap?: string | null;
+  took_nothing_at?: string | null;
 };
 
 /**
@@ -94,7 +125,8 @@ export function owedLine(e: EventCounts | null | undefined): string {
   const staff = Number(e.staff ?? 0);
 
   if (e.stage === "done") {
-    if (Number(e.sales_count ?? 0) === 0) return "Finished, with nothing recorded as taken.";
+    // "Took nothing", said once (0339), is an answer — not the absence of one.
+    if (Number(e.sales_count ?? 0) === 0 && !e.took_nothing_at) return "Finished, with nothing recorded as taken.";
     if (!String(e.recap ?? "").trim()) return "Finished. No after-action note yet.";
     return "Finished and written up.";
   }

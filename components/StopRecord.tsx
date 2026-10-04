@@ -3,14 +3,17 @@
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
+import { useConfirm } from "./ConfirmSheet";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Sheet, { CloseButton } from "./Sheet";
+import { NoteBox, WayButtons, type Way } from "./RecordWays";
+import { archiveOwner, saveRecap, wrapOwner, type WriteResult } from "@/lib/wrap";
 import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { goPlanTab } from "@/lib/planNav";
 import {
-  isGuestFacing, money, nameDriftAdvice, placeLine, sortGaps, stopGapFix,
-  stopOwedLine, stopStatusLabel, whenLabel,
+  isGuestFacing, money, nameDriftAdvice, placeLine, sortGaps, stopGapFix, stopGapWaysOut,
+  stopOwedLine, stopStatusLabel, whenLabel, type StopWayOut,
 } from "@/lib/stopRecord";
 
 // ONE TRUCK STOP, WHOLE (0315).
@@ -25,6 +28,16 @@ import {
 //
 // The fix is a button, not a trigger. saveName exists, so some stop names WERE typed on purpose, and
 // silently overwriting those is a worse morning than being told the name is stale.
+//
+// AND EVERY OTHER FINDING CARRIES ITS WAY OUT TOO (2026-10-03). Ryan tapped "Wine Express — Five
+// Forks" in Plan › Needs sorting and this sheet said "Finished, with no after-action note. Two lines
+// on how it went, while you still remember." — with nowhere to write them. Measured: nowhere in the
+// app, either (see lib/wrap.ts). Now the sentence is followed by its control: the note box, the
+// wrap, the archive, or a link to the one screen that owns the fix. Which gap gets which is
+// lib/stopRecord's stopGapWaysOut; the writes are lib/wrap's.
+//
+// The header shows the STOP's name first — the name the list shows and the name guests see. It
+// used to lead with the venue's, so "Wine Express — Five Forks" opened a sheet titled "WineXpress".
 
 type Rec = {
   id: string; name: string | null; canonical_name: string | null; name_is_stale: boolean | null;
@@ -58,7 +71,10 @@ const when = (r: Rec) => {
 
 export default function StopRecord({ stopId, onClose }: { stopId: string; onClose: () => void }) {
   const { toast } = useApp();
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
+  const [wrapping, setWrapping] = useState(false);   // the stale_status wrap box, opened by its button
+  const [note, setNote] = useState<string | null>(null);   // null = not yet seeded from the record
 
   const loader = useCallback(async (): Promise<Data> => {
     if (!supabase) return { stop: null, gaps: [] };
@@ -89,7 +105,50 @@ export default function StopRecord({ stopId, onClose }: { stopId: string; onClos
 
   const openPrep = () => {
     try { localStorage.setItem(prepHandoffKey, prepHandoffValue("stop", stopId)); } catch { /* ignore */ }
-    window.location.href = "/crew?s=prep";
+    window.location.assign("/crew?s=prep");
+  };
+
+  // Every write goes through here: one busy flag, the database's own sentence on failure, a reload
+  // on success so the finding that was just answered leaves the list.
+  const run = async (what: () => Promise<WriteResult>, done: string) => {
+    if (!supabase || busy) return;
+    setBusy(true);
+    const { error } = await what();
+    setBusy(false);
+    if (error) { toast(error.message, "error"); return; }
+    setWrapping(false); setNote(null);
+    toast(done);
+    reload();
+  };
+  const sb = supabase!;
+  const kind = "stop" as const;
+
+  const archive = async () => {
+    if (!(await confirm({ title: "Archive this stop?", body: "It comes off the route, the calendar and readiness, and the record is kept — you can restore it from Plan › Route.", confirmLabel: "Archive" }))) return;
+    run(() => archiveOwner(sb, { kind, id: stopId }), "Stop archived");
+  };
+
+  // gap → controls. Which gaps get which is lib/stopRecord's call (stopGapWaysOut); this only knows
+  // how to draw each one. The name question's two buttons come from here too, so the header block
+  // and the list cannot offer different doors for the same gap.
+  const waysFor = (gap: string, s: Rec): { buttons: Way[]; box: "wrap" | "recap" | null } => {
+    const buttons: Way[] = [];
+    let box: "wrap" | "recap" | null = null;
+    for (const w of stopGapWaysOut(gap) as readonly StopWayOut[]) {
+      switch (w) {
+        case "edit":    buttons.push({ label: gap === "stale_status" ? "Move the date" : "Edit the details", go: true, onClick: openPrep }); break;
+        case "venue":   buttons.push({ label: gap === "name_drift" ? "Edit the venue instead" : "Edit the venue", go: true, onClick: () => goPlanTab("vendors") }); break;
+        case "route":   buttons.push({ label: gap === "live_past" ? "Take the truck offline" : "Link the venue", go: true, onClick: () => goPlanTab("route") }); break;
+        case "resync":  buttons.push({ label: `Use "${s.canonical_name}" on this stop`, busy, onClick: resync }); break;
+        case "archive": buttons.push({ label: "It didn't happen — archive", busy, onClick: archive }); break;
+        case "wrap":
+          if (wrapping) box = "wrap";
+          else buttons.push({ label: "It happened — mark it done", busy, onClick: () => { setNote(s.recap ?? ""); setWrapping(true); } });
+          break;
+        case "recap":   box = "recap"; break;
+      }
+    }
+    return { buttons, box };
   };
 
   return (
@@ -116,7 +175,7 @@ export default function StopRecord({ stopId, onClose }: { stopId: string; onClos
               {/* what it is ───────────────────────────────────────────────────────────────── */}
               <div className="so-id">
                 <div className="cp-id-t">
-                  <b>{s.canonical_name?.trim() || s.name?.trim() || "Unnamed stop"}</b>
+                  <b>{s.name?.trim() || s.canonical_name?.trim() || "Unnamed stop"}</b>
                   <span>{when(s)} · {whenLabel(s.phase, s.days_away)}</span>
                 </div>
                 <span className={`so-pill ${s.is_live_now ? "so-us" : s.status === "done" ? "so-nobody" : "so-carrier"}`}>
@@ -133,18 +192,11 @@ export default function StopRecord({ stopId, onClose }: { stopId: string; onClos
                 <div className="str-drift">
                   <b>{drift.detail}</b>
                   <p>{drift.fix}</p>
-                  <div className="str-drift-b">
-                    <button type="button" className="so-move" disabled={busy} onClick={resync}>
-                      {busy ? "…" : `Use "${s.canonical_name}" on this stop`}
-                    </button>
-                    {/* NOT an <a href="/crew?s=plan&a=vendors">. That was the first version and it
-                        silently did nothing: ?a= is an anchor, and #vendors does not exist because
-                        VendorsAdmin only mounts once the tab is selected. lib/planNav owns the one
-                        mechanism that actually lands you there. */}
-                    <button type="button" className="cp-go" onClick={() => goPlanTab("vendors")}>
-                      Edit the venue instead <span aria-hidden="true">›</span>
-                    </button>
-                  </div>
+                  {/* The venue link is NOT an <a href="/crew?s=plan&a=vendors">. That was the first
+                      version and it silently did nothing: ?a= is an anchor, and #vendors does not
+                      exist because VendorsAdmin only mounts once the tab is selected. lib/planNav
+                      owns the one mechanism that actually lands you there (goPlanTab, in waysFor). */}
+                  <WayButtons ways={waysFor("name_drift", s).buttons} />
                 </div>
               )}
 
@@ -157,12 +209,28 @@ export default function StopRecord({ stopId, onClose }: { stopId: string; onClos
                     <span>Needs sorting</span>
                     <b>{sorted.filter((g) => g.gap !== "name_drift").length}</b>
                   </div>
-                  {sorted.filter((g) => g.gap !== "name_drift").map((g) => (
-                    <div className={`evr-gap sev-${g.severity}`} key={g.gap}>
-                      <b>{g.detail}{isGuestFacing(g.gap) && <span className="str-guest">guests see this</span>}</b>
-                      <i>{stopGapFix(g.gap)}</i>
-                    </div>
-                  ))}
+                  {sorted.filter((g) => g.gap !== "name_drift").map((g) => {
+                    const { buttons, box } = waysFor(g.gap, s);
+                    const noteValue = note ?? s.recap ?? "";
+                    return (
+                      <div className={`evr-gap sev-${g.severity}`} key={g.gap}>
+                        <b>{g.detail}{isGuestFacing(g.gap) && <span className="str-guest">guests see this</span>}</b>
+                        <i>{stopGapFix(g.gap)}</i>
+                        <WayButtons ways={buttons} />
+                        {box === "wrap" && (
+                          <NoteBox value={noteValue} onChange={setNote} busy={busy} autoFocus actions={[
+                            { label: "Mark done", primary: true, onClick: () => run(() => wrapOwner(sb, { kind, id: stopId, recap: noteValue }), "Stop closed out — nice work") },
+                            { label: "Cancel", quiet: true, onClick: () => { setWrapping(false); setNote(null); } },
+                          ]} />
+                        )}
+                        {box === "recap" && (
+                          <NoteBox value={noteValue} onChange={setNote} busy={busy} actions={[
+                            { label: "Save the note", primary: true, onClick: () => run(() => saveRecap(sb, { kind, id: stopId, recap: noteValue }), "After-action saved") },
+                          ]} />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
