@@ -14,6 +14,7 @@ import { useTaskSheet } from "./TaskSheet";
 import { completeInitiative } from "@/lib/tasks";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import InlineCreate from "./InlineCreate";
+import InitiativeSheet from "./InitiativeSheet";
 import Sheet from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { addDays, localToday } from "@/lib/dates";
@@ -55,6 +56,9 @@ export default function CommandBoard() {
   const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
   const { setSection } = useOperatorSection(); // for the Money pointer below
   const [manage, setManage] = useState<Milestone | null>(null);   // milestone open in the manage sheet
+  // The initiative itself, opened (2026-10-04): its date, status and name had no editor anywhere —
+  // only Finish, which completes every task under it. components/InitiativeSheet is that editor.
+  const [openInit, setOpenInit] = useState<string | null>(null);
 
   const loader = useCallback(async (): Promise<BoardData> => {
     if (!supabase) return EMPTY_BOARD;
@@ -194,6 +198,8 @@ export default function CommandBoard() {
                       name={<>{it.emoji ? `${it.emoji} ` : ""}{it.title}</>}
                       sub={it.summary || undefined}
                       trailing={it.target_date ? <span className={`cmd-cd${late ? " late" : ""}`}>{dnice(it.target_date)} · {cd}</span> : undefined}
+                      onClick={() => setOpenInit(it.id)}
+                      ariaLabel={`Open ${it.title}`}
                     />
                   </div>
                   <div className="cmd-prog"><span className="cmd-prog-bar"><span style={{ width: `${pct}%` }} /></span><span className="cmd-prog-n">{doneN}/{ms.length} · {pct}%</span></div>
@@ -313,8 +319,10 @@ export default function CommandBoard() {
             {/* ── Money ── a pointer, not a second KPI strip (2026-07-30 redundancy audit): the
                 full MoneyKpis grid already opens the Money section — mounting it here duplicated
                 all five tiles, and for event managers (Command is canManage, the money queries are
-                admin-gated) they rendered as a block of dead "—"s. One strip, one home. */}
-            <button type="button" className="adm-golink" onClick={() => setSection("money")}>Money — the live glance · Money ›</button>
+                admin-gated) they rendered as a block of dead "—"s. One strip, one home.
+                And the pointer itself is an admin's (2026-10-04): Money is not a section an event
+                manager can open, so for them it was a link to the screen they are already on. */}
+            {isAdmin && <button type="button" className="adm-golink" onClick={() => setSection("money")}>Money — the live glance · Money ›</button>}
 
             {manage && (
               <MilestoneManage
@@ -328,6 +336,7 @@ export default function CommandBoard() {
                 onClose={() => setManage(null)}
               />
             )}
+            {openInit && <InitiativeSheet id={openInit} onClose={() => setOpenInit(null)} onSaved={reload} />}
           </div>
         );
       }}

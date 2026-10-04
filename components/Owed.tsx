@@ -3,15 +3,21 @@
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
-import { useOperatorSection, VALID, type OpSection } from "./OperatorNav";
+import { useOperatorSection, VALID, sectionsForRole, type OpSection } from "./OperatorNav";
 import { useRecord } from "./RecordSheet";
+import { useAuth } from "./AuthProvider";
+import { useApp } from "./AppProvider";
+import InitiativeSheet from "./InitiativeSheet";
 import { scrollToAnchor } from "@/lib/anchors";
-import { obligationGo, type ObligationRow } from "@/lib/obligations";
+import { obligationGo, obligationFor, OBLIGATION_WAYS, type ObligationRow, type Viewer } from "@/lib/obligations";
+import { roleOf, canOf } from "@/lib/roles";
+import { logDone } from "@/lib/upkeep";
+import { completeTask } from "@/lib/tasks";
 import { fetchInventory, rollupLowStock, type InvItem } from "@/lib/inventory";
 import { goPlanTab } from "@/lib/planNav";
 import { useTaskSheet } from "./TaskSheet";
 import AsyncSection from "./AsyncSection";
-import { dayKey } from "@/lib/dates";
+import { dayKey, localToday } from "@/lib/dates";
 import { daysBetween, dueWord } from "@/lib/dayWords";
 
 // WHAT NEEDS YOU — one panel, because My Day was carrying two.
@@ -78,6 +84,14 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const [openTasks, setOpenTasks] = useState(false);
   const { setSection } = useOperatorSection();
+  const { user, profile } = useAuth();
+  const { toast } = useApp();
+  // Who is looking decides what is theirs (lib/obligations obligationFor) — read once, as plain values,
+  // so the loader below re-runs only when the person or their role actually changes.
+  const meId = user?.id ?? null;
+  const role = roleOf(profile);
+  const manage = canOf(profile).manage;
+  const viewer: Viewer = { id: meId, sections: sectionsForRole(role), manage };
 
   const loader = useCallback(async (): Promise<Data> => {
     if (!supabase) return { rows: [], tasks: [], low: [], bookings: 0, extrasFailed: false };
@@ -94,8 +108,14 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
 
     // The three softer feeds. Anything that fails here returns empty rather than taking the panel
     // with it — see the header.
+    //
+    // And only for whoever can act on them (2026-10-04): past-due TEAM tasks and new booking
+    // requests are a manager's to triage (a server's own tasks are in My tasks, and the leads tab is
+    // a manager's), and the restock line goes to Assets, which only the roles that open Assets can.
+    // A server's My Day listed all three, and two of them tapped through to a screen she cannot open.
+    const wantTeam = manage, wantStock = sectionsForRole(role).includes("garage");
     let tasks: Task[] = [], low: InvItem[] = [], bookings = 0, extrasFailed = false;
-    try {
+    if (wantTeam || wantStock) try {
       const [b, evs, st, tk, inv] = await Promise.all([
         supabase.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
         supabase.from("events").select("*").order("day"),
@@ -136,10 +156,15 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       low = inv.enabled ? rollupLowStock(inv.items, allEv.filter((e) => e.day && e.day >= today) as any) : [];
     } catch { extrasFailed = true; tasks = []; low = []; bookings = 0; }
+    if (!wantTeam) { tasks = []; bookings = 0; }
+    if (!wantStock) low = [];
 
-    return { rows: (ob.data as Row[]) ?? [], tasks, low, bookings, extrasFailed };
-  }, []);
-  const state = useAsyncData<Data>(loader, []);
+    // "Needs you" means you: only the rows this viewer can act on (lib/obligations obligationFor).
+    const v: Viewer = { id: meId, sections: sectionsForRole(role), manage };
+    const rows = ((ob.data as Row[]) ?? []).filter((r) => obligationFor(r, v));
+    return { rows, tasks, low, bookings, extrasFailed };
+  }, [meId, role, manage]);
+  const state = useAsyncData<Data>(loader, [loader]);
 
   const { openTask } = useTaskSheet();
   const { openRecord } = useRecord();
@@ -147,12 +172,54 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
   const [allLow, setAllLow] = useState(false);
   // A row goes where lib/obligations says: the task, the person, or the panel that holds it — an
   // in-app jump, never the full reload the <a href> rows were (2026-10-04).
+  const [initId, setInitId] = useState<string | null>(null);
   const go = (r: ObligationRow) => {
-    const to = obligationGo(r);
+    const to = obligationGo(r, viewer);
     if (to.kind === "task") { openTask(to.id, to.source); return; }
     if (to.kind === "person") { openRecord("person", to.id); return; }
+    if (to.kind === "initiative") { setInitId(to.id); return; }
+    if (to.kind === "page") { window.location.assign(to.href); return; }
     setSection((VALID as Set<string>).has(to.section) ? (to.section as OpSection) : "day");
     scrollToAnchor(to.anchor);
+  };
+  // Whether the row has somewhere to go for THIS viewer. Equipment upkeep is everybody's to log, but
+  // only some roles can open Assets — for the rest the row is its one tap, and promises nothing more.
+  const canGo = (r: ObligationRow) => {
+    const to = obligationGo(r, viewer);
+    return to.kind !== "section" || viewer.sections.includes(to.section);
+  };
+
+  // ── THE ONE TAP ON THE ROW (2026-10-04, Ryan's My Day at 10:40 PM) ─────────────────────────────
+  // Four pieces of equipment 71–94 days "late" because saying "it's clean" took eight steps in
+  // Assets; a to-do due today took opening its sheet to tick. Each now answers where it is listed.
+  const [doing, setDoing] = useState<string | null>(null);
+  const keyOf = (r: Row) => `${r.source}:${r.subject_id}`;
+  const fmtDay = (k: string) => new Date(`${k}T12:00:00`).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+  const doneToday = async (r: Row) => {
+    if (!supabase || doing) return;
+    setDoing(keyOf(r));
+    const res = await logDone(supabase, r.subject_id, localToday(), { userId: meId, name: profile?.display_name ?? null });
+    setDoing(null);
+    if (res.error === null) {
+      toast(res.already ? `${r.title} — already logged for today.`
+        : `${r.title} — ${res.kind} logged for today${res.next_due_on ? `. Next due ${fmtDay(res.next_due_on)}.` : "."}`);
+      state.reload();
+    } else toast(`Couldn't log it — ${res.error}`, "error");
+  };
+  const markDone = async (r: Row) => {
+    if (doing) return;
+    setDoing(keyOf(r));
+    const ok = await completeTask("todo", r.subject_id, meId);
+    setDoing(null);
+    if (ok) { toast(`${r.title} — done.`); state.reload(); } else toast("Couldn't mark it done — try again.", "error");
+  };
+  // The answer is a tick — the same box My tasks ticks, because it is the same act: this is done.
+  const answerFor = (r: Row): { label: string; busy: boolean; run: () => void } | null => {
+    if (!OBLIGATION_WAYS[r.source]) return null;
+    const busy = doing === keyOf(r);
+    if (r.source === "asset_maintenance") return { label: "Done today", busy, run: () => doneToday(r) };
+    if (r.source === "todos") return { label: "Mark done", busy, run: () => markDone(r) };
+    return null;
   };
 
   return (
@@ -191,17 +258,38 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
               </b>
             </div>
 
-            {shown.map((r) => (
-              <button type="button" key={`${r.source}:${r.subject_id}`} className={`owed-row${r.severity === "overdue" ? " late" : ""}`} onClick={() => go(r)}>
-                <span className="owed-row-b">
-                  <b>{r.title}</b>
-                  <i>{r.kind} · {r.detail}</i>
-                </span>
-                {/* The word, not just the colour — a red row that does not say "late" is a colour. */}
-                <span className="owed-age">{dueWord(Number(r.days_out))}</span>
-                <span className="owed-c" aria-hidden="true">›</span>
-              </button>
-            ))}
+            {shown.map((r) => {
+              const body = (
+                <>
+                  <span className="owed-row-b">
+                    <b>{r.title}</b>
+                    <i>{r.kind} · {r.detail}</i>
+                  </span>
+                  {/* The word, not just the colour — a red row that does not say "late" is a colour. */}
+                  <span className="owed-age">{dueWord(Number(r.days_out))}</span>
+                </>
+              );
+              const answer = answerFor(r);
+              const lateCls = r.severity === "overdue" ? " late" : "";
+              if (!answer) return (
+                <button type="button" key={keyOf(r)} className={`owed-row${lateCls}`} onClick={() => go(r)}>
+                  {body}
+                  <span className="owed-c" aria-hidden="true">›</span>
+                </button>
+              );
+              // A row with its own answer: the tick in front, the row behind it still opening what
+              // it names when this viewer can go there — and plain text when they cannot.
+              return (
+                <div key={keyOf(r)} className={`owed-row${lateCls}`}>
+                  <button type="button" className="task-check" onClick={answer.run} disabled={answer.busy} aria-label={`${answer.label}: ${r.title}`} title={answer.label}>
+                    <span className="task-box" aria-hidden="true">{answer.busy ? "…" : null}</span>
+                  </button>
+                  {canGo(r)
+                    ? <button type="button" className="owed-row-go" onClick={() => go(r)}>{body}<span className="owed-c" aria-hidden="true">›</span></button>
+                    : <div className="owed-row-go">{body}</div>}
+                </div>
+              );
+            })}
 
             {rows.length > shown.length && (
               <button type="button" className="owed-more" onClick={() => setOpen(true)}>
@@ -280,6 +368,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
                 </div>
               </>
             )}
+            {initId && <InitiativeSheet id={initId} onClose={() => setInitId(null)} onSaved={() => state.reload()} />}
           </div>
         );
       }}

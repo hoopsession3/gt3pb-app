@@ -9,31 +9,48 @@ import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { useApp } from "./AppProvider";
+import { useAuth } from "./AuthProvider";
+import { governing, cadenceDays, logDone } from "@/lib/upkeep";
+import { addDays, localToday } from "@/lib/dates";
+import { errorMessage } from "@/lib/errorMessage";
 
 // ASSET MAINTENANCE — upkeep log for the gear. Each asset shows its last service and what's due next
 // (or overdue); tap to see the full history and log a new service/repair/clean/inspection. Staff-gated
 // via RLS. Lives under the gear library. Fetch state via useAsyncData — a failed load is a real error
 // now, not an empty "No assets yet" painted before the first request even resolves.
+//
+// ── DUE MEANS THE LATEST WORD, AND DONE IS ONE TAP (2026-10-04) ──────────────────────────────────
+// This panel called an asset due by the EARLIEST next date any of its entries ever set, so once one
+// old entry's date had passed the asset read DUE forever, whatever was logged after it — while My
+// Day's list (v_obligations) went by the most recent entry. Both read lib/upkeep's governing() now.
+// An overdue asset gets "Done today", the same write My Day's row makes; the log sheet starts from
+// the job that is due (its kind, its words, its steps) and puts the next date the same distance
+// ahead, so an entry no longer leaves the schedule behind by leaving that box empty. And a save
+// that fails says so and keeps the sheet — it used to close as if it had worked.
 
 type Asset = { id: string; name: string; make_model: string | null; brand: string | null };
-type Log = { id: string; asset_id: string; kind: string; performed_on: string; summary: string; how_to: string | null; next_due_on: string | null; cost_cents: number | null; performed_by: string | null };
+type Log = { id: string; asset_id: string; kind: string; performed_on: string; summary: string; how_to: string | null; next_due_on: string | null; cost_cents: number | null; performed_by: string | null; created_at: string | null };
 type Board = { assets: Asset[]; logs: Log[] };
 
+// vocab: asset_maintenance.kind
 const KINDS = ["service", "repair", "clean", "inspect", "calibrate", "note"];
 const KIND_ICON: Record<string, ReactNode> = { service: <Icon name="wrench" />, repair: <Icon name="wrench" />, clean: "🧽", inspect: <Icon name="search" />, calibrate: "🎚️", note: "📝" };
-const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 const fmt = (s: string | null) => s ? new Date(`${s}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
 
 export default function AssetMaintenance() {
   const confirm = useConfirm();
+  const { toast } = useApp();
+  const { user, profile } = useAuth();
   const [openId, setOpenId] = useState<string | null>(null);
-  const [logFor, setLogFor] = useState<Asset | null>(null);
+  const [logFor, setLogFor] = useState<{ asset: Asset; from: Log | null } | null>(null);
+  const [doing, setDoing] = useState<string | null>(null);
 
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { assets: [], logs: [] };
     const [a, l] = await Promise.all([
       supabase.from("assets").select("id, name, make_model, brand").order("name"),
-      supabase.from("asset_maintenance").select("id, asset_id, kind, performed_on, summary, how_to, next_due_on, cost_cents, performed_by").order("performed_on", { ascending: false }),
+      supabase.from("asset_maintenance").select("id, asset_id, kind, performed_on, summary, how_to, next_due_on, cost_cents, performed_by, created_at").order("performed_on", { ascending: false }),
     ]);
     if (a.error) throw new Error(a.error.message);
     if (l.error) throw new Error(l.error.message);
@@ -45,22 +62,33 @@ export default function AssetMaintenance() {
   const delLog = async (id: string) => {
     if (!supabase) return;
     if (!(await confirm({ title: "Delete this maintenance record?", confirmLabel: "Delete", danger: true }))) return;
-    await supabase.from("asset_maintenance").delete().eq("id", id);
+    const { error } = await supabase.from("asset_maintenance").delete().eq("id", id);
+    if (error) { toast(`Couldn't delete it — ${error.message}`, "error"); return; }
     reload();
+  };
+  // The same write My Day's "Done today" makes (lib/upkeep logDone), from the entry that governs.
+  const doneToday = async (a: Asset, due: Log) => {
+    if (!supabase || doing) return;
+    setDoing(a.id);
+    const res = await logDone(supabase, due.id, localToday(), { userId: user?.id ?? null, name: profile?.display_name ?? null });
+    setDoing(null);
+    if (res.error === null) { toast(res.already ? `${a.name} — already logged for today.` : `${a.name} — ${res.kind} logged for today.`); reload(); }
+    else toast(`Couldn't log it — ${res.error}`, "error");
   };
 
   return (
     <AsyncSection state={board} isEmpty={(data) => data.assets.length === 0} emptyTitle="No assets yet" emptySub="Add gear in the library first." errorTitle="Couldn't load maintenance">
       {(data) => {
         const { logs } = data;
-        const tdy = today();
+        const tdy = localToday();
         const statusOf = (id: string) => {
           const mine = logs.filter((x) => x.asset_id === id);
           const last = mine[0]?.performed_on ?? null;
-          const dues = mine.map((x) => x.next_due_on).filter(Boolean) as string[];
-          const nextDue = dues.length ? dues.sort()[0] : null;
+          // The entry that governs (lib/upkeep) — v_obligations' rule, so this panel and My Day agree.
+          const due = governing(mine);
+          const nextDue = due?.next_due_on ?? null;
           const overdue = !!nextDue && nextDue < tdy;
-          return { last, nextDue, overdue, count: mine.length };
+          return { last, nextDue, overdue, due, count: mine.length };
         };
         // sort: overdue first, then soonest-due, then by name
         const sorted = [...data.assets].sort((a, b) => {
@@ -109,14 +137,19 @@ export default function AssetMaintenance() {
                             ))}
                           </div>
                         )}
-                        <button type="button" className="brew-pack-btn" style={{ marginTop: 8 }} onClick={() => setLogFor(a)}>+ Log maintenance</button>
+                        <div className="str-drift-b">
+                          {s.overdue && s.due && cadenceDays(s.due) != null && (
+                            <button type="button" className="so-move" onClick={() => doneToday(a, s.due!)} disabled={doing === a.id}>{doing === a.id ? "…" : "Done today"}</button>
+                          )}
+                          <button type="button" className="brew-pack-btn" onClick={() => setLogFor({ asset: a, from: s.due })}>+ Log maintenance</button>
+                        </div>
                       </div>
                     )}
                   </div>
                 );
               })}
             </div>
-            {logFor && <LogSheet asset={logFor} onClose={() => setLogFor(null)} onSaved={() => { setLogFor(null); reload(); }} />}
+            {logFor && <LogSheet asset={logFor.asset} from={logFor.from} onClose={() => setLogFor(null)} onSaved={() => { setLogFor(null); reload(); }} />}
           </div>
         );
       }}
@@ -124,39 +157,55 @@ export default function AssetMaintenance() {
   );
 }
 
-function LogSheet({ asset, onClose, onSaved }: { asset: Asset; onClose: () => void; onSaved: () => void }) {
-  const [kind, setKind] = useState("service");
-  const [summary, setSummary] = useState("");
-  const [performedOn, setPerformedOn] = useState(today());
-  const [nextDue, setNextDue] = useState("");
+function LogSheet({ asset, from, onClose, onSaved }: { asset: Asset; from: Log | null; onClose: () => void; onSaved: () => void }) {
+  // It starts from the job that is due — its kind, its words, its steps — and puts the next date the
+  // same distance ahead of the day it was done. Change the kind and it is a different job: no date.
+  const gap = from ? cadenceDays(from) : null;
+  const [kind, setKind] = useState(from?.kind ?? "service");
+  const [summary, setSummary] = useState(from?.summary ?? "");
+  const [performedOn, setPerformedOn] = useState(localToday());
+  const [nextDue, setNextDue] = useState(gap ? addDays(localToday(), gap) : "");
+  const [nextTouched, setNextTouched] = useState(false);
   const [cost, setCost] = useState("");
   const [who, setWho] = useState("");
-  const [howTo, setHowTo] = useState("");
+  const [howTo, setHowTo] = useState(from?.how_to ?? "");
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const rhythm = gap && from && kind === from.kind ? gap : null;
+  const onDone = (v: string) => { setPerformedOn(v); if (!nextTouched && rhythm && v) setNextDue(addDays(v, rhythm)); };
+  const onKind = (k: string) => { setKind(k); if (!nextTouched) setNextDue(gap && from && k === from.kind ? addDays(performedOn || localToday(), gap) : ""); };
   const save = async () => {
     if (!supabase || !summary.trim() || busy) return;
-    setBusy(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("asset_maintenance").insert({
-      asset_id: asset.id, kind, summary: summary.trim(), how_to: howTo.trim() || null, performed_on: performedOn || today(),
-      next_due_on: nextDue || null, cost_cents: cost ? Math.round(parseFloat(cost) * 100) : null,
-      performed_by: who.trim() || null, created_by: user?.id ?? null,
-    });
-    setBusy(false); onSaved();
+    setBusy(true); setErr(null);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase.from("asset_maintenance").insert({
+        asset_id: asset.id, kind, summary: summary.trim(), how_to: howTo.trim() || null, performed_on: performedOn || localToday(),
+        next_due_on: nextDue || null, cost_cents: cost ? Math.round(parseFloat(cost) * 100) : null,
+        performed_by: who.trim() || null, created_by: user?.id ?? null,
+      });
+      if (error) throw error;
+      onSaved();
+    } catch (e) {
+      setErr(`Couldn't save it — ${errorMessage(e)}`);
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <Sheet open onClose={onClose} label="Maintenance log" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Log · {asset.name}</b><CloseButton onClick={onClose} /></div>}>
           <div className="ts-chips">
-            {KINDS.map((k) => <button key={k} type="button" className={`ts-chip${kind === k ? " on" : ""}`} onClick={() => setKind(k)}>{KIND_ICON[k]} {k}</button>)}
+            {KINDS.map((k) => <button key={k} type="button" className={`ts-chip${kind === k ? " on" : ""}`} onClick={() => onKind(k)}>{KIND_ICON[k]} {k}</button>)}
           </div>
           <input className="note-in" style={{ marginTop: 10 }} value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="What was done? e.g. Replaced CO2 regulator, cleaned lines" autoFocus />
           <div className="prod-grid" style={{ marginTop: 10 }}>
-            <label className="prod-f"><span>Done on</span><input type="date" value={performedOn} onChange={(e) => setPerformedOn(e.target.value)} /></label>
-            <label className="prod-f"><span>Next due (optional)</span><input type="date" value={nextDue} onChange={(e) => setNextDue(e.target.value)} /></label>
+            <label className="prod-f"><span>Done on</span><input type="date" value={performedOn} onChange={(e) => onDone(e.target.value)} /></label>
+            <label className="prod-f"><span>{rhythm ? `Next due — every ${rhythm} day${rhythm === 1 ? "" : "s"}` : "Next due (optional)"}</span><input type="date" value={nextDue} onChange={(e) => { setNextTouched(true); setNextDue(e.target.value); }} /></label>
             <label className="prod-f"><span>Cost (optional)</span><input type="number" min="0" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0.00" /></label>
             <label className="prod-f"><span>By (optional)</span><input value={who} onChange={(e) => setWho(e.target.value)} placeholder="Pit crew / shop" /></label>
           </div>
           <label className="prod-f" style={{ marginTop: 8 }}><span>How-to / steps (optional — one per line)</span><textarea className="note-in" rows={3} value={howTo} onChange={(e) => setHowTo(e.target.value)} placeholder="Steps to do this next time" /></label>
+          {err && <p className="load-failed" role="alert">{err}</p>}
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
             <button type="button" className="note-save" onClick={save} disabled={busy || !summary.trim()}>{busy ? "Saving…" : "Log it"}</button>

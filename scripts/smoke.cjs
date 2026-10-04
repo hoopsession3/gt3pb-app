@@ -5183,7 +5183,40 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     JSON.stringify(go("offer_letters")) === JSON.stringify({ kind: "section", section: "money", anchor: "offers" }));
   ok("needs you: agreements, goals, workstreams and disputes land on their panels",
     go("operator_agreements").anchor === "operators" && go("goals").anchor === "goals" && go("goals").section === "command"
-    && go("os_workstreams").anchor === "os-registry" && go("initiatives").anchor === "os-registry" && go("square_disputes").anchor === "shoporders");
+    && go("os_workstreams").anchor === "os-registry" && go("square_disputes").anchor === "shoporders");
+  ok("needs you: an initiative opens itself — it went to the workstreams panel, which does not hold it (10:40 PM)",
+    JSON.stringify(go("initiatives", { subject_id: uid })) === JSON.stringify({ kind: "initiative", id: uid }));
+  // ── "needs you" means you (lib/obligations obligationFor) ──
+  // The sections each role opens, read from their one home (components/OperatorNav ROLE_SECTIONS) —
+  // a fixture typed here would pass on a table that has since changed.
+  const navTxt = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "components/OperatorNav.tsx"), "utf8");
+  const roleSecs = (r) => (new RegExp(`\\b${r}: \\[([^\\]]*)\\]`).exec(navTxt)?.[1] ?? "").match(/"([a-z]+)"/g)?.map((x) => x.slice(1, -1)) ?? [];
+  const secs = { server: roleSecs("server"), operator: roleSecs("operator"), manager: roleSecs("event_manager"), owner: roleSecs("owner") };
+  ok("needs you is yours: the role table was read (server, operator, event manager, owner)",
+    secs.server.includes("day") && !secs.server.includes("garage") && secs.operator.includes("garage") && secs.manager.includes("command") && !secs.manager.includes("money") && secs.owner.includes("team"), secs);
+  const me = "22222222-3333-4444-8555-666666666666";
+  const V = (who) => ({ id: me, sections: secs[who], manage: who === "manager" || who === "owner" });
+  const row = (source, extra = {}) => ({ source, subject_id: uid, route: "/crew?s=command", owner_user_id: null, ...extra });
+  const forWho = (who, r) => O.obligationFor(r, V(who));
+  ok("needs you is yours: a server keeps equipment upkeep (its one tap is anybody's) and her own to-do — not the company's",
+    forWho("server", row("asset_maintenance", { route: "/crew?s=garage" })) && forWho("server", row("todos", { owner_user_id: me, route: "/crew?s=day" }))
+    && !forWho("server", row("todos", { owner_user_id: uid, route: "/crew?s=day" })) && !forWho("server", row("todos", { route: "/crew?s=day" })));
+  ok("needs you is yours: a server does not get Aug 1 Launch, a goal, a workstream, an offer or a dispute — none opens for her",
+    !forWho("server", row("initiatives")) && !forWho("server", row("goals")) && !forWho("server", row("os_workstreams"))
+    && !forWho("server", row("offer_letters", { route: "/crew?s=team&a=offers" })) && !forWho("server", row("square_disputes", { route: "/crew?s=money&a=shoporders" }))
+    && !forWho("server", row("compliance_rules", { route: "/crew?s=prep" })));
+  ok("needs you is yours: her own certificate is hers, and it opens the Academy, where it is renewed — not an admin's person record",
+    forWho("server", row("academy_certifications", { owner_user_id: me, route: "/crew?s=team" }))
+    && !forWho("server", row("academy_certifications", { owner_user_id: uid, route: "/crew?s=team" }))
+    && JSON.stringify(O.obligationGo(row("academy_certifications", { owner_user_id: me }), V("server"))) === JSON.stringify({ kind: "page", href: "/academy" })
+    && JSON.stringify(O.obligationGo(row("academy_certifications", { owner_user_id: uid }), V("owner"))) === JSON.stringify({ kind: "person", id: uid }));
+  ok("needs you is yours: an operator gets the permit re-check (Prep is hers); a manager gets the initiative and every to-do; the owner gets everything",
+    forWho("operator", row("compliance_rules", { route: "/crew?s=prep" })) && !forWho("operator", row("initiatives"))
+    && forWho("manager", row("initiatives")) && forWho("manager", row("todos", { owner_user_id: uid })) && !forWho("manager", row("offer_letters"))
+    && ["asset_maintenance", "todos", "initiatives", "goals", "os_workstreams", "offer_letters", "operator_agreements", "square_disputes", "invoices", "compliance_rules"]
+      .every((s) => forWho("owner", row(s, { route: s === "invoices" ? "/crew?s=money" : s === "compliance_rules" ? "/crew?s=prep" : "/crew?s=command" }))));
+  ok("needs you: the one-tap answers are the two the database lets any staff member give",
+    JSON.stringify(Object.keys(O.OBLIGATION_WAYS).sort()) === JSON.stringify(["asset_maintenance", "todos"]));
   ok("needs you: an unknown source still lands in the app, on its own route, parsed — never a reload",
     JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: "/crew?s=garage" })) === JSON.stringify({ kind: "section", section: "garage" })
     && JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: null })) === JSON.stringify({ kind: "section", section: "day" }));
@@ -5315,6 +5348,107 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /\.not\("status", "in", BATCH_OVER_IN\)/.test(read("app/api/agents/chief/route.ts"))
     && !/"\(served,dumped\)"|from\("brew_batches"\)[^\n]*neq\("status", "archived"\)/.test(read("components/PackPlan.tsx") + read("components/CompanyCalendar.tsx") + read("app/api/agents/chief/route.ts"))
     && (read("components/BrewPlanner.tsx").match(/batchIsOver\(/g) || []).length === 2 && !/status !== "served"/.test(read("components/BrewPlanner.tsx")));
+}
+
+// ── MY DAY, 10:40 PM: FOUR CLEANINGS NOBODY COULD LOG, AND A LAUNCH NOBODY COULD MOVE (2026-10-04) ──
+// Ryan's screenshot, no words: Needs you led with the nitro tap 94 days late and three more pieces of
+// gear 71 days late, all "clean last done Jun 25", then "Aug 1 Launch — Initiative target · 64 days
+// late". Logging a clean took eight steps and could not stick (the Assets panel took the EARLIEST next
+// date any entry ever set); an initiative's date had no editor anywhere. These hold each answer.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const U = require("../.smoke/upkeep.js");
+  // The screenshot's own rhythm: the nitro tap set Jul 2 from Jun 25 (weekly), the other three Jul 25.
+  const NITRO = { id: "m1", asset_id: "a1", kind: "clean", performed_on: "2026-06-25", next_due_on: "2026-07-02", summary: "Clean the stout faucet", how_to: "Pull the faucet\nSoak 20 min", created_at: "2026-06-25T15:00:00Z" };
+  const GRINDER = { ...NITRO, id: "m2", asset_id: "a2", next_due_on: "2026-07-25", summary: "Clean burrs" };
+  ok("upkeep: the rhythm is the gap the due entry set — weekly for the nitro tap, thirty days for the grinder",
+    U.cadenceDays(NITRO) === 7 && U.cadenceDays(GRINDER) === 30 && U.cadenceDays({ performed_on: "2026-06-25", next_due_on: null }) === null
+    && U.cadenceDays({ performed_on: "2026-06-25", next_due_on: "2026-06-25" }) === null && U.cadenceDays({ performed_on: "2026-06-25", next_due_on: "2026-06-01" }) === null);
+  ok("upkeep: the entry that governs is the latest that set a date — not the earliest date ever set (the Assets panel's rule, which never cleared)",
+    U.governing([NITRO, { ...NITRO, id: "m9", performed_on: "2026-10-04", next_due_on: "2026-10-11" }]).id === "m9"
+    && U.governing([{ ...NITRO, id: "m9", performed_on: "2026-10-04", next_due_on: "2026-10-11" }, NITRO]).id === "m9");
+  ok("upkeep: an entry with no date does not govern — a note leaves the cleaning schedule where it was, as v_obligations does",
+    U.governing([NITRO, { ...NITRO, id: "n1", kind: "note", performed_on: "2026-08-01", next_due_on: null }]).id === "m1" && U.governing([]) === null);
+  ok("upkeep: same day, the later entry wins — the view's 'performed_on desc, created_at desc'",
+    U.governing([{ ...NITRO, id: "early", created_at: "2026-06-25T09:00:00Z" }, { ...NITRO, id: "late", created_at: "2026-06-25T18:00:00Z" }]).id === "late");
+  ok("upkeep: done today is the same job again — same asset, kind, words and steps, the next date the same distance ahead, and who did it",
+    JSON.stringify(U.donePatch(NITRO, "2026-10-04", { userId: "u1", name: " Ryan Thompkins " })) === JSON.stringify({
+      asset_id: "a1", kind: "clean", performed_on: "2026-10-04", summary: "Clean the stout faucet", how_to: "Pull the faucet\nSoak 20 min",
+      next_due_on: "2026-10-11", performed_by: "Ryan Thompkins", created_by: "u1" })
+    && U.donePatch(GRINDER, "2026-10-04", { userId: null, name: null }).next_due_on === "2026-11-03"
+    && U.donePatch({ ...NITRO, summary: "  " }, "2026-10-04", { userId: null, name: null }).summary === "Clean");
+  const upkeepFake = ({ entry = NITRO, dup = [], fail = null } = {}) => {
+    const calls = [];
+    const sb = { from: (table) => {
+      const q = { filters: [] };
+      const chain = {
+        select: (cols) => { q.cols = cols; return chain; },
+        eq: (c, v) => { q.filters.push(["eq", c, v]); return chain; },
+        gte: (c, v) => { q.filters.push(["gte", c, v]); return chain; },
+        limit: () => { calls.push({ table, op: "dup", filters: q.filters }); return Promise.resolve(fail === "dup" ? { data: null, error: { message: "boom:dup" } } : { data: dup, error: null }); },
+        maybeSingle: () => { calls.push({ table, op: "get", filters: q.filters }); return Promise.resolve(fail === "get" ? { data: null, error: { message: "boom:get" } } : { data: entry, error: null }); },
+        insert: (row) => { calls.push({ table, op: "insert", row }); return Promise.resolve({ data: null, error: fail === "insert" ? { message: "boom:insert" } : null }); },
+      };
+      return chain;
+    } };
+    return { sb, calls };
+  };
+  PENDING.push((async () => {
+    let f = upkeepFake();
+    let r = await U.logDone(f.sb, "m1", "2026-10-04", { userId: "u1", name: "Ryan" });
+    ok("logDone: reads the entry Needs-you named, checks today is not already logged, writes the next — in that order",
+      r.error === null && r.already === false && r.next_due_on === "2026-10-11" && f.calls.map((c) => c.op).join() === "get,dup,insert"
+      && f.calls[0].filters[0][2] === "m1" && JSON.stringify(f.calls[1].filters) === JSON.stringify([["eq", "asset_id", "a1"], ["eq", "kind", "clean"], ["gte", "performed_on", "2026-10-04"]])
+      && f.calls[2].table === "asset_maintenance" && f.calls[2].row.next_due_on === "2026-10-11", { r, calls: f.calls });
+    f = upkeepFake({ dup: [{ id: "x" }] });
+    r = await U.logDone(f.sb, "m1", "2026-10-04", { userId: "u1", name: "Ryan" });
+    ok("logDone: a second tap — or a second phone — writes nothing twice; the answer is 'already done'", r.error === null && r.already === true && !f.calls.some((c) => c.op === "insert"), f.calls);
+    f = upkeepFake({ entry: null });
+    r = await U.logDone(f.sb, "gone", "2026-10-04", { userId: null, name: null });
+    ok("logDone: an entry that is gone is refused in words the screen can show, and nothing is written", typeof r.error === "string" && /Assets/.test(r.error) && f.calls.length === 1, r);
+    f = upkeepFake({ entry: { ...NITRO, next_due_on: null } });
+    r = await U.logDone(f.sb, "m1", "2026-10-04", { userId: null, name: null });
+    ok("logDone: no rhythm to keep is refused — a 'done' with no next date would leave the old one governing, still late", typeof r.error === "string" && !f.calls.some((c) => c.op === "insert"), r);
+    for (const where of ["get", "dup", "insert"]) {
+      f = upkeepFake({ fail: where });
+      r = await U.logDone(f.sb, "m1", "2026-10-04", { userId: null, name: null });
+      ok(`logDone: a failed ${where} is the error, never 'done'`, r.error === `boom:${where}`, r);
+    }
+  })());
+
+  const owed = code(read("components/Owed.tsx")), am = code(read("components/AssetMaintenance.tsx"));
+  const sheet = read("components/InitiativeSheet.tsx"), board = code(read("components/CommandBoard.tsx"));
+  ok("needs you: a row answers where it is listed — equipment 'Done today' through lib/upkeep, a to-do 'Mark done' through lib/tasks",
+    /logDone\(supabase, r\.subject_id, localToday\(\), \{ userId: meId, name: profile\?\.display_name \?\? null \}\)/.test(owed)
+    && /completeTask\("todo", r\.subject_id, meId\)/.test(owed)
+    && /label: "Done today", busy, run: \(\) => doneToday\(r\)/.test(owed) && /label: "Mark done", busy, run: \(\) => markDone\(r\)/.test(owed)
+    && /<button type="button" className="task-check" onClick=\{answer\.run\} disabled=\{answer\.busy\} aria-label=\{`\$\{answer\.label\}: \$\{r\.title\}`\}/.test(owed)
+    && /if \(res\.error === null\) \{/.test(owed));
+  ok("needs you: a row with an answer keeps its door when the viewer has one, and is plain text when they do not — no chevron to nowhere",
+    /\{canGo\(r\)\s*\? <button type="button" className="owed-row-go" onClick=\{\(\) => go\(r\)\}>\{body\}<span className="owed-c" aria-hidden="true">›<\/span><\/button>\s*: <div className="owed-row-go">\{body\}<\/div>\}/.test(owed));
+  ok("needs you: the list is the viewer's — obligationFor in the loader, and team tasks, bookings and restock only for whoever can act on them",
+    /const rows = \(\(ob\.data as Row\[\]\) \?\? \[\]\)\.filter\(\(r\) => obligationFor\(r, v\)\);/.test(owed) && /if \(wantTeam \|\| wantStock\) try \{/.test(owed)
+    && /if \(!wantTeam\) \{ tasks = \[\]; bookings = 0; \}/.test(owed) && /if \(!wantStock\) low = \[\];/.test(owed)
+    && /const wantTeam = manage, wantStock = sectionsForRole\(role\)\.includes\("garage"\);/.test(owed) && /useAsyncData<Data>\(loader, \[loader\]\)/.test(owed));
+  ok("needs you: an initiative row opens the initiative's own sheet", /if \(to\.kind === "initiative"\) \{ setInitId\(to\.id\); return; \}/.test(owed) && /<InitiativeSheet id=\{initId\}/.test(owed));
+  ok("assets: due is the governing entry's date — the same rule as My Day — and never the earliest date ever set",
+    /const due = governing\(mine\);\s*const nextDue = due\?\.next_due_on \?\? null;/.test(am) && !/\.sort\(\)\[0\]/.test(am));
+  ok("assets: an overdue asset has 'Done today', the same write; the log sheet starts from the due job and keeps its rhythm",
+    /logDone\(supabase, due\.id, localToday\(\)/.test(am) && /const gap = from \? cadenceDays\(from\) : null;/.test(am)
+    && /useState\(gap \? addDays\(localToday\(\), gap\) : ""\)/.test(am) && /setLogFor\(\{ asset: a, from: s\.due \}\)/.test(am));
+  ok("assets: a save or a delete that fails says so — the sheet used to close as if it had worked",
+    /const \{ error \} = await supabase\.from\("asset_maintenance"\)\.insert\(/.test(am) && /if \(error\) throw error;/.test(am)
+    && /const \{ error \} = await supabase\.from\("asset_maintenance"\)\.delete\(\)\.eq\("id", id\);\s*if \(error\)/.test(am));
+  ok("initiative: one sheet changes its date, status and name — an admin's, as the database's policy is (0201)",
+    /\.update\(\{ title: title\.trim\(\), summary: summary\.trim\(\) \|\| null, target_date: target \|\| null, status \}\)\.eq\("id", it\.id\)/.test(sheet)
+    && /canEdit=\{can\.admin\}/.test(sheet) && /\/\/ vocab: initiatives\.status\nconst SETTABLE = \["planning", "active", "paused"\] as const;/.test(sheet)
+    && /if \(error\) throw error;/.test(sheet) && /role="alert">\{err\}/.test(sheet));
+  ok("command: an initiative on the board opens the same sheet; the Money pointer is an admin's, since only an admin can open Money",
+    /onClick=\{\(\) => setOpenInit\(it\.id\)\}/.test(board) && /<InitiativeSheet id=\{openInit\}/.test(board)
+    && /\{isAdmin && <button type="button" className="adm-golink" onClick=\{\(\) => setSection\("money"\)\}>/.test(board));
+  ok("assets: the kinds the log sheet offers are declared to the vocabulary audit", /\/\/ vocab: asset_maintenance\.kind\nconst KINDS = /.test(read("components/AssetMaintenance.tsx")));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

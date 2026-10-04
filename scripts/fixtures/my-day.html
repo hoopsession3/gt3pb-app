@@ -17,6 +17,9 @@
   the "10 flags & pings for you" card that repeated the bell, "✎ Note to self" (the quick-actions
   Note tab). What arrived: the whole op card is a button that opens the event, with "Make it live"
   beside it for whoever may throw that switch; every Needs-you row is a button to the thing it names.
+  And from the 10:40 PM screenshot: a row that can be answered where it is listed leads with My
+  tasks' tick — the nitro tap and the grinder are "Done today" in one tap — and the initiative opens
+  its own sheet.
 
   Same construction as purchase-sheet.html: the DOM class for class as app/crew/page.tsx,
   components/DayHeadline.tsx, components/RecordWays.tsx, components/Owed.tsx and components/kit.tsx
@@ -87,9 +90,25 @@
         <span class="owed-k">Needs you</span>
         <b>18 late<span class="dim"> · 6 due soon</span></b>
       </div>
+      <div class="owed-row late">
+        <button type="button" class="task-check" aria-label="Done today: Nitro tap (stout faucet)" title="Done today"><span class="task-box" aria-hidden="true"></span></button>
+        <button type="button" class="owed-row-go">
+          <span class="owed-row-b"><b>Nitro tap (stout faucet)</b><i>Service due · clean last done Jun 25.</i></span>
+          <span class="owed-age">94 days late</span>
+          <span class="owed-c" aria-hidden="true">›</span>
+        </button>
+      </div>
+      <div class="owed-row late">
+        <button type="button" class="task-check" aria-label="Done today: Timemore grinder" title="Done today"><span class="task-box" aria-hidden="true"></span></button>
+        <button type="button" class="owed-row-go">
+          <span class="owed-row-b"><b>Timemore grinder</b><i>Service due · clean last done Jun 25.</i></span>
+          <span class="owed-age">71 days late</span>
+          <span class="owed-c" aria-hidden="true">›</span>
+        </button>
+      </div>
       <button type="button" class="owed-row late">
-        <span class="owed-row-b"><b>Nitro tap (stout faucet)</b><i>Service due · clean last done Jun 25</i></span>
-        <span class="owed-age">94 days late</span>
+        <span class="owed-row-b"><b>Aug 1 Launch</b><i>Initiative target · The end-of-July to Aug-1 launch: every channel live at once.</i></span>
+        <span class="owed-age">64 days late</span>
         <span class="owed-c" aria-hidden="true">›</span>
       </button>
       <button type="button" class="owed-row">

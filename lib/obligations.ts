@@ -16,6 +16,19 @@ import { isUuid } from "./uuid";
 // panel that holds it otherwise, and only for a source this file does not know does it fall back to
 // the view's own route — parsed, so even that is an in-app jump and not a reload.
 //
+// ── AN INITIATIVE OPENS ITSELF (later that night) ──────────────────────────────────────────────
+// "Aug 1 Launch — Initiative target · 64 days late" went to os-registry: the workstreams panel, which
+// does not hold initiatives (CommandBoard, below it, does). And nowhere in the app could its date be
+// moved — only "Finish", which completes every open task under it. It opens its own sheet now
+// (components/InitiativeSheet): the date, the status, the name.
+//
+// ── "NEEDS YOU" MEANS YOU (same night) ─────────────────────────────────────────────────────────
+// v_obligations is security_invoker, so a row reaches whoever may READ its source — and initiatives,
+// goals and workstreams are readable by all staff. A server's My Day listed "Aug 1 Launch" and a tap
+// on it landed on Command, which a server cannot open: a promise to someone who cannot keep it.
+// obligationFor() keeps a row only for a viewer who can act on it — its one tap (equipment upkeep is
+// anybody's to log), its being theirs (their to-do, their certificate), or a door they can open.
+//
 // Kept apart from the component so the smoke can hold every source to its destination.
 
 export type ObligationRow = { source: string; subject_id: string; route: string | null; owner_user_id?: string | null };
@@ -23,15 +36,26 @@ export type ObligationRow = { source: string; subject_id: string; route: string 
 export type ObligationGo =
   | { kind: "task"; id: string; source: "todo" | "event" }
   | { kind: "person"; id: string }
+  | { kind: "initiative"; id: string }
+  | { kind: "page"; href: string }
   | { kind: "section"; section: string; anchor?: string };
 
-export function obligationGo(r: ObligationRow): ObligationGo {
+/** Who is looking: their id, the sections their role opens (sectionsForRole), and whether they manage. */
+export type Viewer = { id: string | null; sections: readonly string[]; manage: boolean };
+
+export function obligationGo(r: ObligationRow, viewer?: Viewer): ObligationGo {
   switch (r.source) {
     case "todos":
       return { kind: "task", id: r.subject_id, source: "todo" };
     case "academy_certifications":
     case "academy_assignments":
+      // Your own certificate is renewed, and your own training done, in the Academy; the person
+      // record is the team admin's view of somebody else.
+      if (viewer && r.owner_user_id && r.owner_user_id === viewer.id && !viewer.sections.includes("team")) return { kind: "page", href: "/academy" };
       if (r.owner_user_id && isUuid(r.owner_user_id)) return { kind: "person", id: r.owner_user_id };
+      break;
+    case "initiatives":
+      if (isUuid(r.subject_id)) return { kind: "initiative", id: r.subject_id };
       break;
     case "offer_letters":
       return { kind: "section", section: "money", anchor: "offers" };
@@ -39,7 +63,6 @@ export function obligationGo(r: ObligationRow): ObligationGo {
       return { kind: "section", section: "money", anchor: "operators" };
     case "goals":
       return { kind: "section", section: "command", anchor: "goals" };
-    case "initiatives":
     case "os_workstreams":
       return { kind: "section", section: "command", anchor: "os-registry" };
     case "square_disputes":
@@ -48,4 +71,28 @@ export function obligationGo(r: ObligationRow): ObligationGo {
   const s = /[?&]s=([a-z-]+)/.exec(r.route || "")?.[1];
   const a = /[?&]a=([a-z0-9-]+)/.exec(r.route || "")?.[1];
   return { kind: "section", section: s || "day", ...(a ? { anchor: a } : {}) };
+}
+
+/** Sources with a one-tap answer on the row itself, and who may give it (the database's own rule). */
+export const OBLIGATION_WAYS: Record<string, "staff"> = {
+  asset_maintenance: "staff",   // "Done today" — asset_maintenance insert is is_staff() (0083)
+  todos: "staff",               // "Mark done" — the same write My Tasks' checkbox makes
+};
+
+/** Is this row the viewer's to act on? See the header: "Needs you" is not "needs somebody". */
+export function obligationFor(r: ObligationRow, v: Viewer): boolean {
+  const mine = !!v.id && r.owner_user_id === v.id;
+  switch (r.source) {
+    case "asset_maintenance":
+      return true;                                   // its one tap is anybody's on staff
+    case "todos":
+      return mine || v.manage;                       // yours, or a manager triaging the company's
+    case "academy_certifications":
+    case "academy_assignments":
+      return mine || v.sections.includes("team");    // yours, or the admin who runs the team
+  }
+  const to = obligationGo(r, v);
+  if (to.kind === "initiative") return v.sections.includes("command");
+  if (to.kind === "section") return v.sections.includes(to.section);
+  return true;
 }
