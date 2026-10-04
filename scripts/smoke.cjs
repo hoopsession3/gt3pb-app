@@ -4569,7 +4569,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 // `[...].find(x => x.error)` and then THROWS, so one not-yet-existing column takes down the whole
 // Brew board — recipes, batches, events, stops, inventory, none of them related to the column.
 {
-  const D = require("../.smoke/deploySkew.js");
+  const D = require("../.smoke/schemaSkew.js");
   const fs = require("node:fs");
   const path = require("node:path");
   const planner = fs.readFileSync(path.join(__dirname, "..", "components/BrewPlanner.tsx"), "utf8");
@@ -5773,7 +5773,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const O = require("../.smoke/ordering.js");
   const DT2 = require("../.smoke/dates.js");
   const OA2 = require("../.smoke/orderAhead.js");
-  const SK = require("../.smoke/deploySkew.js");
+  const SK = require("../.smoke/schemaSkew.js");
   const fs = require("node:fs");
   const path = require("node:path");
   const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
@@ -6024,6 +6024,161 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && glued(`export const B = () => <div>a <b>x</b>\n  with it</div>;`, "b.tsx").length === 1
     && glued(`export const C = () => <div>a <b>x</b>{" "}— we&apos;ll go.\n  </div>;`, "c.tsx").length === 0
     && glued(`export const D = () => <div>a <b>x</b> — we will go.\n  </div>;`, "d.tsx").length === 0);
+}
+
+// ── THE FORM AUDIT, PART 1: WHAT THE FORMS GOT WRONG (2026-10-04, 0344 · 0345) ────────────────────
+// Ryan: "auto fill where applicable … if relational database, generate pick list … audit where this
+// could 10/10". Reading every form for what it should already know turned up forms that were not
+// merely unhelpful but WRONG — a text box where a pick list belonged, writing the wrong thing:
+//   · the merch state: the printer was sent the first two letters ("New York" → NE, Nebraska)
+//   · Gear: Save wrote null over the asset tag and serial the editor never loaded
+//   · linking a stop to a venue with no address erased the stop's address and pin
+//   · saving a venue's address moved every stop it ever had, past ones and other locations too
+//   · confirming a count filed it on Greenville's shelf whatever city the event was in
+//   · quiet hours: "10pm" saved as 10 — ten in the morning
+//   · a workstream re-owned kept its old owner's id (0307's column, never written)
+//   · the KPI board's Log refused since 0275 (the old conflict key), filing weeks by day
+//   · the brew alarms: brewer (text) coalesced with created_by (uuid) — every run since 0145 failed
+//   · a proposal could not be sent or won (0180 wrote stages 0265 no longer allows)
+// These pin each fix. The two database fixes are proved in scripts/db.brewalarm / db.proposal.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const US = require("../.smoke/usAddress.js");
+  const AQ = require("../.smoke/apliiqOrder.js");
+  const SR = require("../.smoke/stopRecord.js");
+  const DT3 = require("../.smoke/dates.js");
+
+  // ── a US address, part by part ──
+  ok("address: fifty states and DC, each code once", US.US_STATES.length === 51 && new Set(US.US_STATES.map(([c]) => c)).size === 51);
+  ok("address: a state reads by its code, any case, with or without dots",
+    US.stateCode("SC") === "SC" && US.stateCode("sc") === "SC" && US.stateCode("S.C.") === "SC" && US.stateCode(" s c ") === "SC");
+  ok("address: a state reads by its name, any case or spacing",
+    US.stateCode("New York") === "NY" && US.stateCode("  new   york ") === "NY" && US.stateCode("MISSISSIPPI") === "MS" && US.stateCode("District of Columbia") === "DC");
+  ok("address: anything else is null — never a guess", US.stateCode("Nwe York") === null && US.stateCode("NW") === null && US.stateCode("") === null && US.stateCode(null) === null && US.stateCode("Ontario") === null);
+  ok("address: a ZIP is five digits or ZIP+4, written the post office's way",
+    US.usZip("29601") === "29601" && US.usZip(" 29601 ") === "29601" && US.usZip("29601-1234") === "29601-1234" && US.usZip("296011234") === "29601-1234" && US.usZip("29601 1234") === "29601-1234");
+  ok("address: a ZIP that is not one is null", US.usZip("2960") === null && US.usZip("29601-12") === null && US.usZip("SC 29601") === null && US.usZip("") === null);
+
+  // ── the order the printer gets ──
+  const SHIP2 = { name: "Ryan Thompkins", street: "1 Main St", city: "Brooklyn", state: "New York", zip: "11201" };
+  const line2 = { id: "p1", title: "Tee", qty: 1, priceCents: 3400, sku: "APQ-5902678S8A1" };
+  const ny = AQ.buildOrderPayload({ id: "abcd1234-0000-0000-0000-000000000000", ship: SHIP2, items: [line2] });
+  ok("apliiq: a state typed as its name reaches the printer as ITS code — New York is NY, not NE (Nebraska)",
+    ny.ok && ny.payload.shipping_address.province_code === "NY", ny.ok ? ny.payload.shipping_address.province_code : ny.reason);
+  const ms = AQ.buildOrderPayload({ id: "x", ship: { ...SHIP2, state: "Mississippi" }, items: [line2] });
+  ok("apliiq: Mississippi is MS, not MI (Michigan)", ms.ok && ms.payload.shipping_address.province_code === "MS");
+  const typo = AQ.buildOrderPayload({ id: "x", ship: { ...SHIP2, state: "Nwe York" }, items: [line2] });
+  ok("apliiq: a state that is not one refuses the order, naming what was typed — never a parcel to a guess",
+    typo.ok === false && /Nwe York/.test(typo.reason), typo.ok ? "built" : typo.reason);
+  const badZip = AQ.buildOrderPayload({ id: "x", ship: { ...SHIP2, zip: "1120" }, items: [line2] });
+  ok("apliiq: a ZIP that is not one refuses the order", badZip.ok === false && /ZIP/.test(badZip.reason));
+  const zip4 = AQ.buildOrderPayload({ id: "x", ship: { ...SHIP2, zip: "112011234" }, items: [line2] });
+  ok("apliiq: a nine-digit ZIP goes as ZIP+4", zip4.ok && zip4.payload.shipping_address.zip === "11201-1234");
+
+  // ── the merch checkout picks the state, and the server reads it before the card is charged ──
+  const shop = code(read("components/ShopCheckout.tsx"));
+  const shopGrid = code(read("components/Shop.tsx"));
+  ok("weight: the merch checkout loads when it is wanted, not with the grid",
+    /const ShopCheckout = dynamic\(\(\) => import\("\.\/ShopCheckout"\)\)/.test(shopGrid) && !/import ShopCheckout from/.test(shopGrid)
+    && !/US_STATES|PaymentCard/.test(shopGrid) && /if \(hasCart\) void import\("\.\/ShopCheckout"\)/.test(shopGrid));
+  const stateSel = shop.slice(shop.indexOf("<select aria-label={t(\"checkout.ph_state\")}"), shop.indexOf("</select>", shop.indexOf("checkout.ph_state")));
+  ok("shop: the state is a pick list over US_STATES, autofilled as address-level1",
+    stateSel.includes("value={ship.state}") && stateSel.includes('autoComplete="address-level1"') && /US_STATES\.map\(/.test(stateSel));
+  ok("shop: no free-text state box remains", !/<input[^>]*value=\{ship\.state\}/.test(shop));
+  const shopRoute = code(read("app/api/shop/checkout/route.ts"));
+  ok("shop checkout: the state and ZIP are read by lib/usAddress BEFORE the card is charged",
+    /stateCode\(addr\.state\)/.test(shopRoute) && /usZip\(addr\.zip\)/.test(shopRoute)
+    && shopRoute.indexOf("stateCode(addr.state)") < shopRoute.indexOf("chargeCard({"));
+  ok("shop checkout: a state or ZIP it cannot read is refused, and the order keeps the code",
+    /if \(!state\) return NextResponse\.json\(/.test(shopRoute) && /if \(!zip\) return NextResponse\.json\(/.test(shopRoute) && /addr\.state = state; addr\.zip = zip;/.test(shopRoute));
+  ok("apliiq: lib/apliiqOrder reads the state through stateCode, not its first two letters",
+    /stateCode\(s\.state\)/.test(code(read("lib/apliiqOrder.ts"))) && !/toUpperCase\(\)\.slice\(0,\s*2\)/.test(code(read("lib/apliiqOrder.ts")).replace(/country_code = [^\n]*/, "")));
+
+  // ── Gear: the editor opens with what Save writes ──
+  const assetsRoute = code(read("app/api/assets/route.ts"));
+  ok("gear: /api/assets returns the asset tag and serial", /assetTag:\s*a\.asset_tag/.test(assetsRoute) && /serialNo:\s*a\.serial_no/.test(assetsRoute));
+  const gear = code(read("components/GearLibrary.tsx"));
+  const toDraft = gear.slice(gear.indexOf("const toDraft"), gear.indexOf("});", gear.indexOf("const toDraft")));
+  ok("gear: the editor opens an asset WITH its tag and serial, so Save cannot erase them",
+    /assetTag:\s*a\.assetTag/.test(toDraft) && /serialNo:\s*a\.serialNo/.test(toDraft) && !/assetTag:\s*""/.test(toDraft));
+
+  // ── a stop and its venue ──
+  const bare = SR.stopPatchFromVendor({ id: "v1", name: "Wine Express", address: null, location_text: "", lat: null, lng: null });
+  ok("venue link: a venue with no address or pin leaves the stop's own alone",
+    JSON.stringify(bare) === JSON.stringify({ vendor_id: "v1", name: "Wine Express" }), bare);
+  const full = SR.stopPatchFromVendor({ id: "v1", name: "Wine Express", address: " 1 Main St ", location_text: "Five Forks", lat: 34.8, lng: -82.3 });
+  ok("venue link: a venue with a place gives the stop all of it",
+    full.address === "1 Main St" && full.location_text === "Five Forks" && full.lat === 34.8 && full.lng === -82.3);
+  const half = SR.stopPatchFromVendor({ id: "v1", name: "W", address: "1 Main St", lat: 34.8, lng: null });
+  ok("venue link: a pin is copied whole or not at all", !("lat" in half) && !("lng" in half));
+  const live = code(read("components/crew/LiveControl.tsx"));
+  const linkFn = live.slice(live.indexOf("const linkVendor"), live.indexOf("useEffect(() => { load(); }, [load]);"));
+  ok("venue link: Route's link asks stopPatchFromVendor and reads the write's answer",
+    /stopPatchFromVendor\(v\)/.test(linkFn) && /const \{ error \} = await supabase!\.from\("stops"\)\.update/.test(linkFn) && /if \(error\) \{ toast\(/.test(linkFn) && !/p\.address = v\.address/.test(linkFn));
+  ok("venue link: FieldOpSheet's auto-link asks the same rule", /stopPatchFromVendor\(v\)/.test(code(read("components/FieldOpSheet.tsx"))));
+
+  const OLD = { name: "Wine Express", address: "1 Main St, Greenville, SC", location_text: "1 Main St, Greenville, SC" };
+  ok("venue move: a visit at the old address moves (case and spacing aside)", SR.wasAtVendorsPlace(OLD, { address: "1 main st,  Greenville, SC" }));
+  ok("venue move: a visit with no place yet takes the venue's", SR.wasAtVendorsPlace(OLD, { address: null, location_text: "" }));
+  ok("venue move: a visit at the venue's SECOND location stays where it is", !SR.wasAtVendorsPlace(OLD, { address: "9 Oak Ave, Greenville, SC", location_text: "9 Oak Ave" }));
+  ok("venue move: an event whose place reads as the venue's name is at the venue", SR.wasAtVendorsPlace(OLD, { location_text: "wine express" }));
+  const loc = code(read("components/crew/LocationEditor.tsx"));
+  ok("venue move: a venue's new address no longer goes to EVERY row with its id",
+    !/\.update\(\{ address: q[^)]*\}\)\.eq\("vendor_id", row\.id\)/.test(loc) && !/from\("events"\)\.update\(\{ location_text: q \}\)\.eq\("vendor_id"/.test(loc));
+  ok("venue move: only visits still ahead (the road, the calendar) at the old place",
+    /isStopAhead\(s\) && wasAtVendorsPlace\(old, s\)/.test(loc) && /!eventIsPast\(e\.day, today\) && wasAtVendorsPlace\(old, e\)/.test(loc) && /\.in\("id", stopIds\)/.test(loc));
+  ok("venue move: a failed read of the venue's visits moves nothing and says so", /if \(st\.error \|\| ev\.error\) return/.test(loc));
+
+  // ── the crew page: a count on its city's shelf, quiet hours by the clock ──
+  const crewSrc = code(read("app/crew/page.tsx"));
+  const cq = crewSrc.slice(crewSrc.indexOf("const confirmQty"), crewSrc.indexOf("const adjustOnHand"));
+  ok("confirm actual: the ledger entry is filed on the event's own market", /from\("inventory_ledger"\)\.insert\(\{[^}]*\bmarket\b/.test(cq), cq.slice(0, 80));
+  ok("confirm actual: the task write's answer is read, and a non-number refused", /const \{ error \} = await supabase\.from\("event_tasks"\)/.test(cq) && /Number\.isFinite\(n\)/.test(cq));
+  const np = crewSrc.slice(crewSrc.indexOf("function NotifPrefsSheet"), crewSrc.indexOf("function AlertsInbox"));
+  ok("quiet hours: a pick of the 24 hours, not a number box read by parseInt",
+    !/parseInt/.test(np) && /<select value=\{qs\}/.test(np) && /<select value=\{qe\}/.test(np) && /QUIET_HOURS\.map/.test(np));
+  ok("quiet hours: the hours read the app's way", crewSrc.includes("fmt12(`${h}:00`)") && DT3.fmt12("22:00") === "10:00pm" && DT3.fmt12("0:00") === "12:00am" && DT3.fmt12("12:00") === "12:00pm");
+  ok("quiet hours: a failed read locks the sheet — saving over prefs it could not read would unmute everything",
+    /if \(error\) \{ setRead\("failed"\)/.test(np) && /read !== "ok"\) return false/.test(np));
+  const inboxSrc = crewSrc.slice(crewSrc.indexOf("function AlertsInbox"), crewSrc.indexOf("if (mine.length === 0 && held.length === 0)", crewSrc.indexOf("function AlertsInbox")) + 400);
+  ok("quiet hours: the door to them is on the empty inbox too — not only beside a list with something in it",
+    /const prefsDoor = <button type="button" className="alert-prefs-btn" onClick=\{\(\) => setPrefsOpen\(true\)\} aria-label="Notification settings">/.test(inboxSrc)
+    && /if \(mine\.length === 0 && held\.length === 0\) \{\s*return \(\s*<div className="adm-sec">\s*<SectionHeader label=\{title\} right=\{prefsDoor\} \/>\s*\{prefsSheet\}/.test(inboxSrc));
+  ok("quiet hours: \"Saved\" is said only when it saved", !/onBlur=\{\(\) => \{ save\(/.test(np) && /if \(error\) \{ toast\(`Couldn't save/.test(np));
+
+  // ── a workstream's owner is the person ──
+  const osr = code(read("components/OsRegistry.tsx"));
+  ok("workstream owner: one pick (PersonPick) writes the id AND the name",
+    /<PersonPick label="Workstream owner"/.test(osr) && /owner_user_id: draft\.owner\.id/.test(osr) && /owner: draft\.owner\.name/.test(osr));
+  ok("workstream owner: the sheet opens on the id it has, not a spelling", /owner: \{ id: w\.owner_user_id/.test(osr));
+
+  // ── the KPI board files where it reads ──
+  const kpi = code(read("components/KpiBoard.tsx"));
+  ok("kpi board: the Log names 0275's key (metric, period, market) and carries the market",
+    /onConflict: "metric,period,market"/.test(kpi) && /\{ metric: key, period, value: v, market,/.test(kpi));
+  ok("kpi board: it reads the market it writes", /\.eq\("market", market\)/.test(kpi));
+  ok("kpi board: a weekly figure is filed under its week's Monday", /cadence === "weekly" \? weekStartKey\(today\)/.test(kpi)
+    && DT3.weekStartKey("2026-10-04") === "2026-09-28" && DT3.weekStartKey("2026-09-28") === "2026-09-28" && DT3.weekStartKey("2026-10-03") === "2026-09-28");
+
+  // ── the brew alarms ring for the person brewing ──
+  const bp = code(read("components/BrewPlanner.tsx"));
+  ok("brew: Start brew names the brewer from the crew, and writes the id the alarms read",
+    /<PersonPick label="Brewer"/.test(bp) && /\.\.\.\(extras\?\.brewer \? \{ brewer_id: extras\.brewer\.id \} : \{\}\)/.test(bp) && /arrives-with: 0344/.test(read("components/BrewPlanner.tsx")));
+  ok("brew: the batch log moves the id when the brewer is changed, and leaves it when not",
+    /\.\.\.\(brewerSet \|\| brewer\.id \? \{ brewer_id: brewer\.id \} : \{\}\)/.test(bp));
+  ok("brew: a start or a log that fails says so — the sheet stays open", /if \(error\) \{ setMutErr\(error\.message\); return false; \}/.test(bp) && /if \(await startBrew\(starting, extras\)\) setStarting\(null\)/.test(bp) && /if \(error\) \{ setErr\(error\.message\); setBusy\(false\); return; \}/.test(bp));
+  ok("brew: a batch planned on the brew sheet (through /api/agents/brew) or by the drop planner says who planned it — the alarms' fallback",
+    /created_by: planner\?\.id \?\? null/.test(code(read("app/api/agents/brew/route.ts"))) && /created_by: me/.test(code(read("components/DropOps.tsx"))));
+  ok("weight: the database-skew helpers live in lib/schemaSkew, out of the module app/error.tsx loads on every page",
+    !/export (async )?function (isMissingColumn|writeAcrossSkew)/.test(read("lib/deploySkew.ts"))
+    && /export function isMissingColumn/.test(read("lib/schemaSkew.ts")) && /export async function writeAcrossSkew/.test(read("lib/schemaSkew.ts"))
+    && !/schemaSkew/.test(code(read("app/error.tsx"))));
+  const pp = code(read("components/PersonPick.tsx"));
+  ok("person pick: YOU first, the crew, and \"Someone else…\" — which says it links to no one",
+    /`You — \$\{crewLabel\(c\)\}`/.test(pp) && /Someone else…/.test(pp) && /not linked to anyone on the crew/.test(pp));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

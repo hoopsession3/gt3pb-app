@@ -10,7 +10,7 @@ import VendorResolve from "@/components/VendorResolve";
 import { useLocationSuggestions } from "@/components/useLocationSuggestions";
 import Icon from "@/components/Icon";
 import { MARKETS, MARKET_LABEL, toMarket, FOUNDING_MARKET } from "@/lib/markets";
-import { derivedStopStatus } from "@/lib/stopRecord";
+import { derivedStopStatus, stopPatchFromVendor, type VendorPlace } from "@/lib/stopRecord";
 import { archiveOwner } from "@/lib/wrap";
 import { useConfirm } from "@/components/ConfirmSheet";
 
@@ -43,19 +43,16 @@ type Kind = "event" | "stop";
 // wrap flow, in OwnerDetails) always wins over the date math.
 
 // Pull a vendor's canonical name + saved address/coords onto a stop patch about to be written —
-// the SAME fields Route's own linkVendor denormalizes onto a stop, so a name-triggered auto-link
-// behaves identically to picking the vendor by hand. Returns the vendor's name for toast copy.
+// lib/stopRecord's stopPatchFromVendor, the one rule Route's linkVendor asks too, so a
+// name-triggered auto-link behaves identically to picking the vendor by hand. Returns the vendor's
+// name for toast copy.
 async function pullVendorFields(vendorId: string, patch: Record<string, string | number | null>): Promise<string | null> {
   patch.vendor_id = vendorId;
   if (!supabase) return null;
-  const { data } = await supabase.from("vendors").select("name, address, location_text, lat, lng").eq("id", vendorId).maybeSingle();
-  const v = data as { name: string; address: string | null; location_text: string | null; lat: number | null; lng: number | null } | null;
+  const { data } = await supabase.from("vendors").select("id, name, address, location_text, lat, lng").eq("id", vendorId).maybeSingle();
+  const v = data as VendorPlace | null;
   if (!v) return null;
-  patch.name = v.name;
-  if (v.address) patch.address = v.address;
-  if (v.location_text) patch.location_text = v.location_text;
-  if (v.lat != null) patch.lat = v.lat;
-  if (v.lng != null) patch.lng = v.lng;
+  Object.assign(patch, stopPatchFromVendor(v));
   return v.name;
 }
 

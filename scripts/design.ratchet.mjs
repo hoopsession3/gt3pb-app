@@ -111,12 +111,13 @@ export const CHROME_CLEARANCE = 8;
 
 // ── THE CEILINGS — measured, not remembered (2026-10-01, after the one-box-per-level pass) ───────
 export const CEILING = {
-  cardRules: 814,        // rules that make a card: radius + (border | fill). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04)
+  cardRules: 810,        // rules that make a card: radius + (border | fill). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04)
   rawRadii: 27,          // distinct border-radius values that are not a --r-* token, 50% or 0
   dupSelectors: 53,      // single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02; 54 → 53: .myday-live, declared twice, retired with the card it lived on, 2026-10-04)
   rootBlocks: 1,         // separate `:root{` blocks — tokens have one home (6 → 1 on 2026-10-02: motion, spring, eyebrow tracking, color-scheme and the radius scale folded in)
   subFloorFontRules: 0,  // px font-sizes under THE TYPE FLOOR (10px, see the note in globals.css). 184 → 0 on 2026-10-02
   darkWells: 35,         // fills of literal black at 10–44% with no rule for a light surface — see darkWellCounts. Measured 37 the day it was written (2026-10-04); 37 → 35 that day: the task checkbox and My Day's top three
+  selectClassShorthands: 0, // rules that paint a class some <select> carries with the `background` shorthand (selectClassShorthands). Measured 25 the day it was written (2026-10-04) and 25 → 0 that day: background-color, the way the rest of the selects are painted — the stripes under OsRegistry's Status pick (.note-in), and the arrow the day theme erased from the brew board's status, the goal and shoot owner picks, the assignee picks and the rest
   selectShorthands: 0,   // rules on a <select> that paint with the `background` SHORTHAND. It resets background-repeat, and the chevron the app draws on every select then tiles across it — stripes, in the day theme, on every select whose container had one (Ryan's brew sheet, 2026-10-03). 19 → 0: colour is background-color.
   maxLeafDepth: 2,       // boxes around the innermost box on the Plan screen (was 4)
   railAreaFraction: 0.066, // expanded rail as a share of a 390×844 viewport — a 48px row plus 8px of air above the nav, in the layout flow (2026-10-02). Width used to be the number (0.46 → 0.27 → a bar); area is what a toolbar can be held to
@@ -154,6 +155,39 @@ export function frictionCounts(read = (p) => readFileSync(join(ROOT, p), "utf8")
     for (const m of code.matchAll(/<Panel\b([^>]*)>/g)) if (!/defaultOpen/.test(m[1])) collapsedPanels++;
   }
   return { nativeDialogs, crewGroupTitles, collapsedPanels };
+}
+
+// ── A SELECT PAINTED THROUGH ITS CLASS (2026-10-04) ─────────────────────────────────────────────
+// selectShorthands (below) counts rules whose SELECTOR says "select". The form audit found the same
+// stripes on a select it did not count: OsRegistry's Status pick is <select className="note-in">,
+// and `.app.crew-day .note-in{background:var(--card)}` — the shorthand, through the class — beat the
+// arrow's no-repeat, so in the day theme the chevron tiled across the control; where nothing paints
+// the arrow back at a higher specificity, the shorthand erases it and the select reads as a text box.
+// This reads the source for every class a <select> carries and counts the CSS rules that paint that
+// class with the shorthand. Some of what it counts may hide the arrow on purpose (a borderless pick
+// styled as a link); each still has to say so in background-color terms. It may only fall.
+export function selectClassShorthands(css, read = (p) => readFileSync(join(ROOT, p), "utf8"), list = (d) => readdirSync(join(ROOT, d), { recursive: true })) {
+  const classes = new Set();
+  for (const dir of ["components", "app"]) for (const f of list(dir)) {
+    if (!/\.tsx$/.test(String(f))) continue;
+    let src; try { src = read(`${dir}/${f}`); } catch { continue; }
+    for (const m of src.matchAll(/<select\b[^>]*?className=(?:"([^"]+)"|\{`([^`]+)`\})/g)) {
+      for (const c of (m[1] || m[2] || "").replace(/\$\{[^}]*\}/g, " ").split(/\s+/)) if (/^[A-Za-z][\w-]*$/.test(c)) classes.add(c);
+    }
+  }
+  const plain = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const hits = [];
+  for (const m of plain.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const sel = m[1].split(";").pop().trim(), body = m[2];
+    if (!/(^|;)\s*background\s*:/.test(body)) continue;
+    for (const part of sel.split(",")) {
+      const last = part.trim().split(/[\s>+~]+/).pop() || "";
+      if (/::?(placeholder|before|after)|\b(input|textarea|button|option)\b/.test(last)) continue;
+      const hit = [...classes].find((c) => new RegExp(`\\.${c.replace(/-/g, "\\-")}(?![\\w-])`).test(last));
+      if (hit) { hits.push(part.trim()); break; }
+    }
+  }
+  return { selectClassShorthands: hits.length, selectClassShorthandList: hits };
 }
 
 export const FLOOR = {
@@ -628,6 +662,8 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   ratchet(":root blocks", s.rootBlocks, CEILING.rootBlocks);
   ratchet("px font-sizes under the 10px type floor", s.subFloorFontRules, CEILING.subFloorFontRules);
   ratchet("<select> rules painted with the background shorthand (the chevron tiles)", s.selectShorthands, CEILING.selectShorthands);
+  const sc = selectClassShorthands(css);
+  ratchet("rules painting a class a <select> carries with the background shorthand", sc.selectClassShorthands, CEILING.selectClassShorthands);
   ratchet("dark wells with no light-surface rule (a grey slab on paper)", s.darkWells, CEILING.darkWells);
   const f = frictionCounts();
   console.log("DESIGN RATCHET — friction in the source:");
@@ -638,6 +674,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
     console.log("  raw radii, most used first:"); for (const [v, n] of s.rawRadiiList.slice(0, 12)) console.log(`    ${String(n).padStart(4)}  ${v}`);
     console.log("  duplicate selectors, most repeated first:"); for (const [v, n] of s.dupList.slice(0, 12)) console.log(`    ${String(n).padStart(4)}  ${v}`);
     console.log("  dark wells with no light-surface rule:"); for (const v of s.darkWellList) console.log(`    ${v}`);
+    console.log("  classes on a <select> painted with the background shorthand:"); for (const v of selectClassShorthands(css).selectClassShorthandList) console.log(`    ${v}`);
   }
 
   let html;

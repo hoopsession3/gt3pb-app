@@ -8,7 +8,8 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
-import { etToday } from "@/lib/dates";
+import { etToday, weekStartKey } from "@/lib/dates";
+import { toMarket, MARKET_LABEL } from "@/lib/markets";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // THE TWELVE (0264 · Playbook v1 §12; 0268 flipped the board live) — every KPI in the strategy,
@@ -128,17 +129,21 @@ export default function KpiBoard() {
   const { toast } = useApp();
   const isAdmin = !!profile?.is_admin || ["owner", "admin"].includes(String((profile as any)?.role ?? ""));
   const [entry, setEntry] = useState<Record<string, string>>({});
+  // ONE CITY'S TWELVE: the board reads the market it writes. 0275 keyed snapshots by market; the
+  // read took the newest 96 of every city, so the moment a second city logged a figure the
+  // "latest" here could be Atlanta's under Greenville's entry.
+  const market = toMarket(profile?.market);
 
   const loader = useCallback(async (): Promise<BoardData> => {
     if (!supabase) return { snaps: [], live: {} };
     const [{ data, error }, live] = await Promise.all([
-      supabase.from("kpi_snapshots").select("metric, period, value").order("period", { ascending: false }).limit(96),
+      supabase.from("kpi_snapshots").select("metric, period, value").eq("market", market).order("period", { ascending: false }).limit(96),
       computeLive(),
     ]);
     if (error) throw new Error(error.message);
     return { snaps: (data as Snap[]) ?? [], live };
-  }, []);
-  const state = useAsyncData(loader, []);
+  }, [market]);
+  const state = useAsyncData(loader, [market]);
   useRealtimeTable(["kpi_snapshots"], state.reload);
 
   const save = async (key: string) => {
@@ -146,9 +151,17 @@ export default function KpiBoard() {
     const raw = (entry[key] ?? "").trim();
     const v = Number(raw);
     if (!raw || !Number.isFinite(v)) { toast("Numbers only", "error"); return; }
-    const period = etToday();   // a snapshot key: the business's day, not the device's
+    // FILED WHERE THE BOARD SAYS IT IS (2026-10-04, the form audit). 0275 widened the unique key to
+    // (metric, period, market) so each city keeps its own KPIs; this upsert still named the old
+    // (metric, period), which Postgres refuses outright (42P10, "no unique or exclusion constraint
+    // matching the ON CONFLICT specification") — every "Log" since 0275 failed. And the period was
+    // the day, so "same week re-entry updates in place" filed each entry beside the last: a weekly
+    // figure goes under its week's Monday now, a monthly one under the 1st, the rest under the day.
+    const today = etToday();
+    const cadence = KPIS.find((k) => k.key === key)?.cadence;
+    const period = cadence === "weekly" ? weekStartKey(today) : cadence === "monthly" ? `${today.slice(0, 8)}01` : today;
     const { error } = await supabase.from("kpi_snapshots").upsert(
-      { metric: key, period, value: v, created_by: user?.id ?? null }, { onConflict: "metric,period" });
+      { metric: key, period, value: v, market, created_by: user?.id ?? null }, { onConflict: "metric,period,market" });
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
     setEntry((e) => ({ ...e, [key]: "" }));
     toast("Logged"); state.reload();
@@ -156,7 +169,7 @@ export default function KpiBoard() {
 
   return (
     <div className="adm-sec" id="cmd-kpis">
-      <SectionHeader label="The twelve" annotation="Monday entry until live" />
+      <SectionHeader label="The twelve" annotation={`Monday entry until live · ${MARKET_LABEL[market]}`} />
       <div className="h-sub">The Playbook's KPI framework — the audit's Signal criterion reads this board. Same week re-entry updates in place.</div>
       <AsyncSection state={state} isEmpty={() => false} emptyTitle="—" loadingLabel="Loading KPIs…" errorTitle="Couldn't load KPIs">
         {({ snaps, live }) => (

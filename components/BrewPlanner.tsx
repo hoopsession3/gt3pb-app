@@ -11,7 +11,8 @@ import Sheet, { CloseButton } from "@/components/Sheet";
 import BrewSteps from "@/components/BrewSteps";
 import CookNeedList, { type CookIngredient } from "@/components/CookNeedList";
 import ProgressRing from "@/components/ProgressRing";
-import { isMissingColumn } from "@/lib/deploySkew";
+import { isMissingColumn, writeAcrossSkew } from "@/lib/schemaSkew";
+import PersonPick, { usePersonMe, type PersonValue } from "@/components/PersonPick";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
@@ -97,7 +98,7 @@ export default function BrewPlanner() {
   const [view, setView] = useState<"schedule" | "log">("schedule");
   const [now, setNow] = useState(() => Date.now());
 
-  // THE SCHEMA CAN BE ONE MIGRATION BEHIND THIS BUILD (see lib/deploySkew.isMissingColumn). Ask for
+  // THE SCHEMA CAN BE ONE MIGRATION BEHIND THIS BUILD (see lib/schemaSkew.isMissingColumn). Ask for
   // min_gal; if the database has not been given 0337 yet, ask again without it and carry on with
   // min_gal absent — which is precisely the state the rest of this component already handles, since
   // an unmeasured vessel is the normal case until somebody goes and measures one.
@@ -222,17 +223,25 @@ export default function BrewPlanner() {
     reload();
   };
   // Start the brew NOW — stamp the start, set ready_at = now + extraction_hours, capture the coffee
-  // lot + brewer for traceability, reset alert flags.
-  const startBrew = async (b: Batch, extras?: { coffee_lot?: string; brewer?: string }) => {
-    if (!supabase) return;
+  // lot + brewer for traceability, reset alert flags. The brewer is a PERSON now (0344): the brew
+  // alarms ring for brewer_id, and the name stays on `brewer` for the production log. Before 0344
+  // is pasted the write goes in without brewer_id (lib/schemaSkew), and a write that fails says so
+  // instead of starting a countdown nobody's database knows about.
+  const startBrew = async (b: Batch, extras?: { coffee_lot?: string; brewer?: PersonValue }): Promise<boolean> => {
+    if (!supabase) return false;
     const hrs = Number(b.extraction_hours) || 20;
     const startIso = new Date().toISOString();
     const readyIso = new Date(Date.now() + hrs * 3600000).toISOString();
     const lot = extras?.coffee_lot?.trim() || b.coffee_lot || null;
-    const brewer = extras?.brewer?.trim() || b.brewer || null;
+    const brewer = extras?.brewer?.name.trim() || b.brewer || null;
     setNow(Date.now());
-    await supabase.from("brew_batches").update({ status: "brewing", brew_started_at: startIso, ready_at: readyIso, coffee_lot: lot, brewer, alerted_soon: false, alerted_ready: false, alerted_started: false, alerted_overextract: false, alerted_hold_soon: false, alerted_hold_expired: false }).eq("id", b.id);
+    // arrives-with: 0344
+    const { error } = await writeAcrossSkew((row) => supabase!.from("brew_batches").update(row).eq("id", b.id),
+      { status: "brewing", brew_started_at: startIso, ready_at: readyIso, coffee_lot: lot, brewer, ...(extras?.brewer ? { brewer_id: extras.brewer.id } : {}), alerted_soon: false, alerted_ready: false, alerted_started: false, alerted_overextract: false, alerted_hold_soon: false, alerted_hold_expired: false } as Record<string, unknown>,
+      ["brewer_id"]);
+    if (error) { setMutErr(error.message); return false; }
     reload();
+    return true;
   };
   // BREW FLEXIBILITY — the real brew rarely starts exactly when you tap Start. Fix the actual start
   // time (ready recomputes from it), stop early to bottle now, or undo a start entirely. Maximum
@@ -477,7 +486,7 @@ export default function BrewPlanner() {
       {pack && <BottleLoadout batch={pack} onClose={() => setPack(null)} />}
       {logBatch && <BatchLog batch={logBatch} events={events} stops={stops} onClose={() => setLogBatch(null)} onSaved={() => { setLogBatch(null); reload(); }} onRemove={removeBatch} />}
       {stepsFor && <BrewSteps batch={stepsFor as any} onClose={() => setStepsFor(null)} onChanged={reload} />}
-      {starting && <StartBrewSheet batch={starting} onClose={() => setStarting(null)} onStart={async (extras) => { await startBrew(starting, extras); setStarting(null); }} />}
+      {starting && <StartBrewSheet batch={starting} onClose={() => setStarting(null)} onStart={async (extras) => { if (await startBrew(starting, extras)) setStarting(null); }} />}
       {adjust && <BrewAdjust batch={adjust} onClose={() => setAdjust(null)} onSaveTime={saveBrewTime} onStop={stopBrew} onUndo={undoStart} onRemove={removeBatch} />}
     </div>
       )}
@@ -487,19 +496,21 @@ export default function BrewPlanner() {
 
 // Start-brew sheet — captures the coffee lot + brewer at the moment of brewing (traceability), then
 // kicks off the countdown. Lot is the field a recall would hinge on, so prompt for it up front.
-function StartBrewSheet({ batch, onClose, onStart }: { batch: Batch; onClose: () => void; onStart: (extras: { coffee_lot: string; brewer: string }) => void | Promise<void> }) {
+function StartBrewSheet({ batch, onClose, onStart }: { batch: Batch; onClose: () => void; onStart: (extras: { coffee_lot: string; brewer: PersonValue }) => void | Promise<void> }) {
   const [lot, setLot] = useState(batch.coffee_lot ?? "");
-  const [brewer, setBrewer] = useState(batch.brewer ?? "");
+  // You, unless you say otherwise — the person starting the brew is almost always the one brewing.
+  const me = usePersonMe();
+  const [brewer, setBrewer] = useState<PersonValue>(batch.brewer ? { id: null, name: batch.brewer } : me);
   const [busy, setBusy] = useState(false);
   const hrs = Number(batch.extraction_hours) || 20;
   return (
     <Sheet open onClose={onClose} label="Start brew" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Start brew · {batch.recipe_name}</b><CloseButton onClick={onClose} /></div>}>
           <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""} · {hrs}h cold extraction → ready ~{new Date(Date.now() + hrs * 3600000).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}</div>
           <label className="prod-f"><span>Coffee lot — origin · roast date (for traceability)</span><input value={lot} onChange={(e) => setLot(e.target.value)} placeholder="e.g. Colombia single-origin · roasted 6/20" autoFocus /></label>
-          <label className="prod-f" style={{ marginTop: 8 }}><span>Brewer</span><input value={brewer} onChange={(e) => setBrewer(e.target.value)} placeholder="Barista on duty" /></label>
+          <label className="prod-f" style={{ marginTop: 8 }}><span>Brewer — the brew alarms ring for them</span><PersonPick label="Brewer" value={brewer} onChange={setBrewer} /></label>
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
-            <button type="button" className="note-save" onClick={async () => { setBusy(true); await onStart({ coffee_lot: lot, brewer }); }} disabled={busy}>{busy ? "Starting…" : `▶ Start the ${hrs}h brew`}</button>
+            <button type="button" className="note-save" onClick={async () => { setBusy(true); await onStart({ coffee_lot: lot, brewer }); setBusy(false); }} disabled={busy}>{busy ? "Starting…" : `▶ Start the ${hrs}h brew`}</button>
           </div>
     </Sheet>
   );
@@ -545,7 +556,15 @@ function BrewAdjust({ batch, onClose, onSaveTime, onStop, onUndo, onRemove }: { 
 
 function BatchLog({ batch, events, stops, onClose, onSaved, onRemove }: { batch: Batch; events: Ev[]; stops: St[]; onClose: () => void; onSaved: () => void; onRemove: (b: Batch) => Promise<boolean> }) {
   const [f, setF] = useState<Batch>(batch);
+  // The board does not read brewer_id (it arrives with 0344, and a select naming it would fail the
+  // whole board until then), so the log knows the brewer by name: a name that is a crew member's is
+  // linked by PersonPick. Once the brewer is CHANGED here the id follows the pick — none, or someone
+  // off the crew, clears it so the alarms fall back to the planner; left alone, it is not touched.
+  const [brewer, setBrewer] = useState<PersonValue>({ id: null, name: batch.brewer ?? "" });
+  const [brewerSet, setBrewerSet] = useState(false);
+  const pickBrewer = useCallback((v: PersonValue) => { setBrewer(v); setBrewerSet(true); }, []);
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [targets, setTargets] = useState<string[]>([]); // ["e:<id>"|"s:<id>"] this batch serves
   const set = (k: keyof Batch, v: any) => setF((p) => ({ ...p, [k]: v }));
   useEffect(() => {
@@ -554,13 +573,16 @@ function BatchLog({ batch, events, stops, onClose, onSaved, onRemove }: { batch:
   }, [batch.id]);
   const save = async () => {
     if (!supabase || busy) return;
-    setBusy(true);
-    await supabase.from("brew_batches").update({
+    setBusy(true); setErr(null);
+    // arrives-with: 0344
+    const { error } = await writeAcrossSkew((row) => supabase!.from("brew_batches").update(row).eq("id", batch.id), {
       status: f.status, og: f.og?.trim() || null, signal_score: f.signal_score,
-      coffee_lot: f.coffee_lot?.trim() || null, brewer: f.brewer?.trim() || null, taste_notes: f.taste_notes?.trim() || null,
+      coffee_lot: f.coffee_lot?.trim() || null, brewer: brewer.name.trim() || null, taste_notes: f.taste_notes?.trim() || null,
+      ...(brewerSet || brewer.id ? { brewer_id: brewer.id } : {}),
       event_id: targets[0]?.startsWith("e:") ? targets[0].slice(2) : null,  // first selection = primary (back-schedule)
       stop_id: targets[0]?.startsWith("s:") ? targets[0].slice(2) : null,
-    }).eq("id", batch.id);
+    } as Record<string, unknown>, ["brewer_id"]);
+    if (error) { setErr(error.message); setBusy(false); return; }
     // Re-sync the links to the chosen set (clear + insert).
     await supabase.from("brew_batch_links").delete().eq("batch_id", batch.id);
     if (targets.length) await supabase.from("brew_batch_links").insert(targets.map((t) => { const [k, id] = t.split(":"); return k === "s" ? { batch_id: batch.id, stop_id: id } : { batch_id: batch.id, event_id: id }; }));
@@ -586,7 +608,7 @@ function BatchLog({ batch, events, stops, onClose, onSaved, onRemove }: { batch:
             </label>
             <label className="prod-f"><span>OG / spec</span><input value={f.og ?? ""} onChange={(e) => set("og", e.target.value)} placeholder="e.g. on spec" /></label>
             <label className="prod-f"><span>Coffee lot (origin · roast date)</span><input value={f.coffee_lot ?? ""} onChange={(e) => set("coffee_lot", e.target.value)} placeholder="e.g. Colombia · roasted 6/20" /></label>
-            <label className="prod-f"><span>Brewer</span><input value={f.brewer ?? ""} onChange={(e) => set("brewer", e.target.value)} placeholder="Barista on duty" /></label>
+            <label className="prod-f"><span>Brewer</span><PersonPick label="Brewer" value={brewer} onChange={pickBrewer} allowNone noneLabel="Not recorded" /></label>
           </div>
           <div className="brew-score" style={{ marginTop: 10 }}>Signal Score
             {[6, 7, 8, 9, 10].map((n) => <button key={n} type="button" className={`brew-score-b${f.signal_score === n ? " on" : ""}`} onClick={() => set("signal_score", n)}>{n}</button>)}
@@ -599,6 +621,7 @@ function BatchLog({ batch, events, stops, onClose, onSaved, onRemove }: { batch:
               {events.length === 0 && stops.length === 0 && <span className="dp-hint">No events or stops yet.</span>}
             </div>
           </div>
+          {err && <div className="dp-err" role="alert">Couldn&apos;t save the log — {err}</div>}
           <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
             <button type="button" className="note-arch brew-del" onClick={del} disabled={busy}>Remove batch</button>
             <div style={{ display: "flex", gap: 8 }}>

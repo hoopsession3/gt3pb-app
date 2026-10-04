@@ -12,7 +12,7 @@ import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, alertWhen, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
-import { localToday, etToday, dayKey, dayWithDate, relativeDay, ageLabel } from "@/lib/dates";
+import { localToday, etToday, dayKey, dayWithDate, relativeDay, ageLabel, fmt12 } from "@/lib/dates";
 import { orderClockFrom, waitingToOpen, waitingLabel } from "@/lib/ordering";
 import { prepBucket } from "@/lib/readiness";
 import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
@@ -821,29 +821,63 @@ const NOTIF_CATS: { key: string; label: string }[] = [
   { key: "content", label: "Studio / content" },
   { key: "strategy", label: "Pipeline & strategy" },
 ];
+// QUIET HOURS ARE A PICK, NOT A NUMBER (2026-10-04, the form audit). They were two text boxes read
+// with parseInt: "10pm" saved as 10 — ten in the MORNING — "7pm" as 7am, and "10:30" as 10, with
+// "Saved" toasted on every blur whatever happened. notif_prefs.quiet_start/_end are hours 0–23 on
+// the phone's own clock (lib/useMyAlerts.inQuietHours), so the pick is those 24 hours, written the
+// way every other time in the app is (lib/dates.fmt12: "10:00pm").
+const QUIET_HOURS = Array.from({ length: 24 }, (_, h) => h);
+const quietHourLabel = (h: number): string => fmt12(`${h}:00`) ?? String(h);
 function NotifPrefsSheet({ userId, onClose }: { userId: string | null; onClose: () => void }) {
   const { toast } = useApp();
   const [muted, setMuted] = useState<string[]>([]);
   const [qs, setQs] = useState<string>("");
   const [qe, setQe] = useState<string>("");
+  // Picking one end of an unset window fills the other with the usual night (10:00pm–7:00am, the
+  // boxes' old placeholders); setting either end to Off turns the window off.
+  //
+  // A FAILED READ IS NOT AN EMPTY LIST. Every save writes the whole row, so saving over prefs this
+  // sheet could not read would unmute everything the person had muted. Until the read answers,
+  // nothing here can be changed; if it fails, the sheet says so and stays read-only.
+  const [read, setRead] = useState<"loading" | "ok" | "failed">("loading");
   useEffect(() => {
     if (!supabase || !userId) return;
     supabase.from("notif_prefs").select("muted_categories, quiet_start, quiet_end").eq("user_id", userId).maybeSingle()
-      .then(({ data }) => { const p = data as { muted_categories?: string[]; quiet_start?: number | null; quiet_end?: number | null } | null; if (p) { setMuted(p.muted_categories ?? []); setQs(p.quiet_start != null ? String(p.quiet_start) : ""); setQe(p.quiet_end != null ? String(p.quiet_end) : ""); } });
+      .then(({ data, error }) => {
+        if (error) { setRead("failed"); return; }
+        const p = data as { muted_categories?: string[]; quiet_start?: number | null; quiet_end?: number | null } | null;
+        if (p) { setMuted(p.muted_categories ?? []); setQs(p.quiet_start != null ? String(p.quiet_start) : ""); setQe(p.quiet_end != null ? String(p.quiet_end) : ""); }
+        setRead("ok");
+      });
   }, [userId]);
-  const save = async (nextMuted: string[], nqs: string, nqe: string) => {
-    if (!supabase || !userId) return;
-    await supabase.from("notif_prefs").upsert({ user_id: userId, muted_categories: nextMuted,
-      quiet_start: nqs === "" ? null : Math.max(0, Math.min(23, parseInt(nqs, 10) || 0)),
-      quiet_end: nqe === "" ? null : Math.max(0, Math.min(23, parseInt(nqe, 10) || 0)), updated_at: new Date().toISOString() });
+  const save = async (nextMuted: string[], nqs: string, nqe: string): Promise<boolean> => {
+    if (!supabase || !userId || read !== "ok") return false;
+    const { error } = await supabase.from("notif_prefs").upsert({ user_id: userId, muted_categories: nextMuted,
+      quiet_start: nqs === "" ? null : Number(nqs), quiet_end: nqe === "" ? null : Number(nqe), updated_at: new Date().toISOString() });
+    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return false; }
+    return true;
   };
-  const toggle = (k: string) => { const next = muted.includes(k) ? muted.filter((x) => x !== k) : [...muted, k]; setMuted(next); save(next, qs, qe); };
+  const toggle = async (k: string) => {
+    const before = muted;
+    const next = muted.includes(k) ? muted.filter((x) => x !== k) : [...muted, k];
+    setMuted(next);
+    if (!(await save(next, qs, qe))) setMuted(before);
+  };
+  const setQuiet = async (nqs: string, nqe: string) => {
+    const before = [qs, qe];
+    setQs(nqs); setQe(nqe);
+    if (await save(muted, nqs, nqe)) toast(nqs !== "" && nqe !== "" && nqs !== nqe ? `Quiet ${quietHourLabel(Number(nqs))}–${quietHourLabel(Number(nqe))}` : "Quiet hours off");
+    else { setQs(before[0]); setQe(before[1]); }
+  };
+  const locked = read !== "ok";
+  const halfSet = (qs === "") !== (qe === "");
   return (
     <Sheet open onClose={onClose} label="Notifications" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Notifications</b><CloseButton onClick={onClose} /></div>}>
       <p className="h-sub" style={{ marginTop: 0 }}>Quiet the categories you don&rsquo;t need. Critical alerts always come through.</p>
+      {read === "failed" && <div className="dp-err" role="alert">Couldn&rsquo;t read your notification settings, so nothing here can be changed right now. Close this and try again.</div>}
       <div className="notif-cats">
         {NOTIF_CATS.map((c) => (
-          <button key={c.key} type="button" className={`notif-cat${muted.includes(c.key) ? " muted" : ""}`} onClick={() => toggle(c.key)} aria-pressed={muted.includes(c.key)}>
+          <button key={c.key} type="button" className={`notif-cat${muted.includes(c.key) ? " muted" : ""}`} onClick={() => toggle(c.key)} aria-pressed={muted.includes(c.key)} disabled={locked}>
             <span>{c.label}</span><span className="notif-cat-s">{muted.includes(c.key) ? "🔕 Muted" : <><Icon name="bell" /> On</>}</span>
           </button>
         ))}
@@ -852,9 +886,15 @@ function NotifPrefsSheet({ userId, onClose }: { userId: string | null; onClose: 
         <span className="adm-prep-label">Quiet hours (optional)</span>
         <p className="h-sub" style={{ margin: "0 0 8px" }}>During these hours, non-critical alerts are held into a morning digest instead of pinging you — they surface on their own when quiet hours end. Critical alerts always come through.</p>
         <div className="notif-quiet-r">
-          <label>From<input inputMode="numeric" placeholder="22" value={qs} onChange={(e) => setQs(e.target.value)} onBlur={() => { save(muted, qs, qe); toast("Saved"); }} /></label>
-          <label>to<input inputMode="numeric" placeholder="7" value={qe} onChange={(e) => setQe(e.target.value)} onBlur={() => { save(muted, qs, qe); toast("Saved"); }} /></label>
-          <span className="notif-quiet-h">hour of day, 0&ndash;23</span>
+          <label>From<select value={qs} disabled={locked} onChange={(e) => (e.target.value === "" ? setQuiet("", "") : setQuiet(e.target.value, qe === "" ? "7" : qe))}>
+            <option value="">Off</option>
+            {QUIET_HOURS.map((h) => <option key={h} value={String(h)}>{quietHourLabel(h)}</option>)}
+          </select></label>
+          <label>to<select value={qe} disabled={locked} onChange={(e) => (e.target.value === "" ? setQuiet("", "") : setQuiet(qs === "" ? "22" : qs, e.target.value))}>
+            <option value="">Off</option>
+            {QUIET_HOURS.map((h) => <option key={h} value={String(h)}>{quietHourLabel(h)}</option>)}
+          </select></label>
+          <span className="notif-quiet-h">{halfSet ? "set both ends to turn it on" : qs !== "" && qs === qe ? "the same hour at both ends is off" : "on this phone\u2019s clock"}</span>
         </div>
       </div>
     </Sheet>
@@ -932,12 +972,19 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
     );
   }
 
+  // The ONE door to notification settings (mutes, quiet hours). It used to be drawn only beside a
+  // list with something in it, so on a quiet day — the evening you would set quiet hours — the
+  // inbox said "all caught up" and offered no way in (2026-10-04, the form audit). Both faces carry it.
+  const prefsDoor = <button type="button" className="alert-prefs-btn" onClick={() => setPrefsOpen(true)} aria-label="Notification settings">⚙</button>;
+  const prefsSheet = prefsOpen && <NotifPrefsSheet userId={userId} onClose={() => setPrefsOpen(false)} />;
+
   // Full/sheet face (My Day inbox): unlike the compact strip, this is a destination you open on
   // purpose — say something, don't just vanish. Held-quiet-hours-only counts as "nothing" here too.
   if (mine.length === 0 && held.length === 0) {
     return (
       <div className="adm-sec">
-        <SectionHeader label={title} />
+        <SectionHeader label={title} right={prefsDoor} />
+        {prefsSheet}
         {/* "All caught up" is a claim about the inbox, so it needs the inbox to have answered. */}
         {readErr ? (
           <EmptyState role="alert" title="Couldn't check your inbox" sub={`${readErr}. This is not "all caught up" — the read did not answer.`}
@@ -956,9 +1003,9 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
       <SectionHeader label={title} right={<>
         {mine.length > 0 && <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>}
         {mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearAll()}>Clear all</button>}
-        <button type="button" className="alert-prefs-btn" onClick={() => setPrefsOpen(true)} aria-label="Notification settings">⚙</button>
+        {prefsDoor}
       </>} />
-      {prefsOpen && <NotifPrefsSheet userId={userId} onClose={() => setPrefsOpen(false)} />}
+      {prefsSheet}
 
       {/* Quiet-hours digest (0177 + S·5b): non-criticals that arrived during your quiet window are
           held off the glance and gathered here — the morning digest. They surface on their own when
@@ -2213,15 +2260,23 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const confirmQty = async (t: EventTask, v: string) => {
     if (!supabase) return;
     const n = v.trim() === "" ? null : Number(v);
+    if (n != null && !Number.isFinite(n)) { toast("That isn't a number", "error"); return; }
     const delta = (n ?? 0) - (t.actual_qty ?? 0);
     setTasks((p) => p.map((x) => (x.id === t.id ? { ...x, actual_qty: n, done: n != null } : x)));
-    await supabase.from("event_tasks").update({ actual_qty: n, done: n != null, done_at: n != null ? new Date().toISOString() : null, done_by: n != null ? user?.id ?? null : null }).eq("id", t.id);
-    // back the clean UI with an append-only ledger entry (signed delta) for reports + carryover
+    const { error } = await supabase.from("event_tasks").update({ actual_qty: n, done: n != null, done_at: n != null ? new Date().toISOString() : null, done_by: n != null ? user?.id ?? null : null }).eq("id", t.id);
+    if (error) { toast(`Couldn't confirm — ${error.message}`, "error"); load(); return; }
+    // back the clean UI with an append-only ledger entry (signed delta) for reports + carryover.
+    //
+    // ON THIS EVENT'S SHELF (2026-10-04, the form audit). The entry carried no market, so it took
+    // the column's default (0288: 'greenville') — an Atlanta event's confirmed count went onto
+    // Greenville's shelf, and this screen, which reads on-hand for the event's own market, never
+    // showed it. adjustOnHand below has always passed `market`; now both do.
     if (delta !== 0) {
-      await supabase.from("inventory_ledger").insert({
-        item: t.label.slice(0, 160), task_id: t.id, kind: "confirm", qty: delta,
+      const { error: le } = await supabase.from("inventory_ledger").insert({
+        item: t.label.slice(0, 160), task_id: t.id, kind: "confirm", qty: delta, market,
         event_id: isEvent ? target.id : null, stop_id: isEvent ? null : target.id, created_by: user?.id ?? null,
       });
+      if (le) toast(`Confirmed, but on-hand didn't move — ${le.message}`, "error");
       loadOnHand();
     }
   };

@@ -10,11 +10,40 @@ import type { Stop, Vendor } from "@/lib/db";
 import { geocode } from "@/lib/geocode";
 import { VendorPicker } from "@/components/crew/VendorPicker";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { isStopAhead, wasAtVendorsPlace, type RoadStop } from "@/lib/stopRecord";
+import { eventIsPast } from "@/lib/readiness";
+import { localToday } from "@/lib/dates";
 
 // LOCATION EDITOR — the address / pin / vendor-link row for a stop or a vendor place.
 //
 // Lifted verbatim from app/crew/page.tsx, where it was rendered from two unrelated screens (the
 // live-truck control and the vendors admin) while living in the middle of a 6,400-line file.
+
+type LinkedStop = RoadStop & { address: string | null; location_text: string | null };
+type LinkedEvent = { id: string; location_text: string | null; day: string | null; completed_at: string | null; archived_at: string | null };
+
+/** A venue's new address, carried to its visits still ahead that were at its old one. Returns the toast's tail. */
+async function moveUpcomingVisits(venue: Vendor | Stop, address: string, geo: { lat: number; lng: number }): Promise<string> {
+  const old = { name: venue.name, address: venue.address, location_text: venue.location_text };
+  const [st, ev] = await Promise.all([
+    supabase!.from("stops").select("id, address, location_text, starts_at, status, completed_at, archived_at").eq("vendor_id", venue.id),
+    supabase!.from("events").select("id, location_text, day, completed_at, archived_at").eq("vendor_id", venue.id),
+  ]);
+  // A FAILED READ IS NOT AN EMPTY LIST: the venue saved, and nothing linked to it was touched.
+  if (st.error || ev.error) return " — couldn't read its stops and events, so none were moved";
+  const today = localToday();
+  const stopIds = ((st.data ?? []) as LinkedStop[]).filter((s) => isStopAhead(s) && wasAtVendorsPlace(old, s)).map((s) => s.id);
+  const eventIds = ((ev.data ?? []) as LinkedEvent[])
+    .filter((e) => !e.archived_at && !e.completed_at && !eventIsPast(e.day, today) && wasAtVendorsPlace(old, e)).map((e) => e.id);
+  const [su, eu] = await Promise.all([
+    stopIds.length ? supabase!.from("stops").update({ address, location_text: address, lat: geo.lat, lng: geo.lng }).in("id", stopIds) : { error: null },
+    eventIds.length ? supabase!.from("events").update({ location_text: address }).in("id", eventIds) : { error: null },
+  ]);
+  const failed = su.error ?? eu.error;
+  if (failed) return ` — couldn't move its upcoming visits (${failed.message})`;
+  const n = stopIds.length + eventIds.length;
+  return n ? ` — ${n} upcoming ${n === 1 ? "visit" : "visits"} moved with it` : " — no upcoming visits were at the old address";
+}
 
 export function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive, isCur, onGoLive, onGoOffline, vendors, onLinkVendor, onOpenPrep, nameOverride }: {
   kind: "stop" | "vendor"; row: Stop | Vendor; index: number; isCur?: boolean; open: boolean; onToggle: () => void;
@@ -55,15 +84,18 @@ export function LocationEditor({ kind, row, index, open, onToggle, onChanged, on
     const geo = await geocode(q);
     if (!geo) { setBusy(false); toast("Couldn't find that address — add city & state, then retry."); return false; }
     const { error } = await supabase!.from(table).update({ address: q, location_text: q, lat: geo.lat, lng: geo.lng }).eq("id", row.id);
-    // A vendor's location is the source of truth — push it to every linked stop/event so directions
-    // stay accurate everywhere the venue is used (audit P1·7: the "edit once, updates everywhere"
-    // promise was only half-true — POC read live, but address/coords were snapshotted and went stale).
-    if (!error && kind === "vendor") {
-      await supabase!.from("stops").update({ address: q, location_text: q, lat: geo.lat, lng: geo.lng }).eq("vendor_id", row.id);
-      await supabase!.from("events").update({ location_text: q }).eq("vendor_id", row.id);
-    }
+    // A vendor's location is the source of truth — push it to the linked stops and events so
+    // directions stay accurate everywhere the venue is used (audit P1·7: the "edit once, updates
+    // everywhere" promise was only half-true — POC read live, but address/coords were snapshotted).
+    //
+    // But only to the visits STILL AHEAD that were AT THE OLD PLACE (2026-10-04, the form audit).
+    // This updated every row with the vendor's id: a stop that had already happened was rewritten
+    // to an address it was never at, and a stop at the venue's second location was moved to its
+    // first. lib/stopRecord.wasAtVendorsPlace says which visits were here; the road (isStopAhead)
+    // and the calendar (eventIsPast) say which are still to come.
+    const moved = !error && kind === "vendor" ? await moveUpcomingVisits(row, q, geo) : "";
     setBusy(false);
-    toast(error ? `Error: ${error.message}` : kind === "vendor" ? "Location saved — linked stops & events updated" : "Location pinned — directions are now accurate");
+    toast(error ? `Error: ${error.message}` : kind === "vendor" ? `Location saved${moved}` : "Location pinned — directions are now accurate");
     if (!error) onChanged();
     return !error;
   };

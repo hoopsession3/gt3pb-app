@@ -49,6 +49,10 @@ async function get(req: Request) {
       criticality: a.criticality ?? "standard",
       disposition: a.disposition ?? null,
       retiredOn: a.retired_on ?? null,
+      // Read back so the editor opens with them: the editor writes both on every save, and a field
+      // the editor writes but cannot read is a field it erases.
+      assetTag: a.asset_tag ?? null,
+      serialNo: a.serial_no ?? null,
     }))
     .sort((x: any, y: any) => (rank[x.brand] ?? 3) - (rank[y.brand] ?? 3) || x.name.localeCompare(y.name));
 

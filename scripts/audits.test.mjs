@@ -15,7 +15,7 @@ import { definitionsToSchema, refuseReason, projectRef } from "./schema.snapshot
 import { classify as classifyRoute, unwrapped, boundOf } from "./api.audit.mjs";
 import { reassemble } from "./security.snapshot.mjs";
 import { judge, staleBecause, expand } from "./security.audit.mjs";
-import { darkWellCounts } from "./design.ratchet.mjs";
+import { darkWellCounts, selectClassShorthands } from "./design.ratchet.mjs";
 import { promisesIn, PLACES, CHEVRON_CEILING, DIRECTION_CEILING } from "./affordance.audit.mjs";
 import { vocabularies, wordsIn, judge as judgeWords, listOf, REFUSED_CEILING } from "./vocab.audit.mjs";
 import { PGlite } from "@electric-sql/pglite";
@@ -609,6 +609,23 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
   ok("dark wells: a comma inside a comment is not a selector list",
     dw("/* Ryan, 2026-10-04 */.a{background:rgba(0,0,0,.2)}.app.crew-day .a{background:#fff}") === 0);
   ok("dark wells: the paper scope restates too", dw(".a{background:rgba(0,0,0,.2)}.shop .a{background:#fff}") === 0);
+}
+
+// ── selectClassShorthands (scripts/design.ratchet.mjs) ──────────────────────────────────────────
+// The rules are the two that striped OsRegistry's Status pick in the day theme (2026-10-04), copied
+// from app/globals.css as they were; the source is the pick's own line from components/OsRegistry.
+{
+  const SRC = { "components/OsRegistry.tsx": `<select className="note-in" value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value })}>` };
+  const read = (p) => { if (!(p in SRC)) throw new Error("no file"); return SRC[p]; };
+  const list = (d) => (d === "components" ? ["OsRegistry.tsx"] : []);
+  const n = (css) => selectClassShorthands(css, read, list).selectClassShorthands;
+  const NOTE = ".note-in{width:100%;background:rgba(0,0,0,.28);border:1px solid var(--line2)}";
+  const DAY = ".app.crew-day .note-in,.app.crew-day .note-area{background:var(--card);color:var(--cream)}";
+  ok("select class: the dark rule and the day rule that striped the Status pick are two", n(NOTE + DAY) === 2);
+  ok("select class: background-color is the honest way to colour one", n(NOTE.replace("background:", "background-color:") + DAY.replace("background:", "background-color:")) === 0);
+  ok("select class: the class on an input alone is not a select's", n(".note-in input{background:#fff}.note-in::placeholder{background:red}") === 0);
+  ok("select class: a class no select carries is not counted", n(".note-area{background:#fff}.note-input{background:#fff}") === 0);
+  ok("select class: whole classes, not prefixes — .note-in is not .note-intro", n(".note-intro{background:#fff}") === 0);
 }
 
 // ── promisesIn (scripts/affordance.audit.mjs) ───────────────────────────────────────────────────

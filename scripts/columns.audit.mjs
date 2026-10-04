@@ -407,7 +407,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
     if (undeclared.length) {
       console.log(`\n    The "arrives with" ones are NOT stale-snapshot cases and refreshing will not help —`);
       console.log(`    production cannot know that column until the migration is pasted. Make the call site`);
-      console.log(`    survive the gap (lib/deploySkew.isMissingColumn) and say so next to the select:`);
+      console.log(`    survive the gap (lib/schemaSkew.isMissingColumn) and say so next to the select:`);
       console.log(`        // arrives-with: 0337  — <how this screen copes until it is applied>`);
       console.log(`    PostgREST fails the WHOLE select, so one absent column takes out every query`);
       console.log(`    sharing its Promise.all — which is how c11e418 killed the entire Brew board.`);

@@ -22,6 +22,11 @@ export interface AssetItem {
   criticality: string;
   disposition: string | null;
   retiredOn: string | null;
+  // The tag and serial the editor writes (0276). /api/assets did not return them, so the editor
+  // opened every asset with both boxes empty and its Save wrote null over what was there — editing
+  // a grinder's notes erased its serial number (2026-10-04, the form audit).
+  assetTag: string | null;
+  serialNo: string | null;
 }
 export interface AssetsResp { enabled: boolean; items: AssetItem[]; error?: string }
 

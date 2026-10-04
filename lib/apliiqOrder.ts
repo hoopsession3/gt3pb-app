@@ -1,4 +1,5 @@
 import { moneyPlain } from "./money";
+import { stateCode, usZip } from "./usAddress";
 // THE ORDER WE SEND APLIIQ — pure, so it can be tested without a network or a database.
 //
 // ── WHY THIS FILE EXISTS ───────────────────────────────────────────────────────────────────────
@@ -179,7 +180,16 @@ export function buildOrderPayload(order: { id: string; ship: OrderShip; items: O
   // GT3 ships US-only today; the field is required and was absent entirely, so it is stated here
   // rather than left for Apliiq to assume. When a second country exists this reads it from `ship`.
   const country_code = (s.country ?? "US").trim().toUpperCase().slice(0, 2);
-  const province_code = String(s.state ?? "").trim().toUpperCase().slice(0, 2);
+  const us = country_code === "US";
+  // THE STATE BY ITS NAME OR ITS CODE (lib/usAddress, 2026-10-04). This was the first two letters
+  // of whatever was typed, upper-cased: "New York" went to the printer as NE — Nebraska — and
+  // "Mississippi" as MI. Checkout picks the state from a list now; an order typed before the list
+  // existed is read by its name, so a resubmit reaches the right state. Not a state → refused,
+  // naming what was typed, into the crew queue: never a parcel addressed to a guess.
+  const province_code = us ? stateCode(s.state) : null;
+  if (us && !province_code) return { ok: false, reason: `shipping state "${String(s.state).trim()}" is not a US state` };
+  const zip = us ? usZip(s.zip) : String(s.zip).trim();
+  if (!zip) return { ok: false, reason: `shipping ZIP "${String(s.zip).trim()}" is not a US ZIP` };
 
   return {
     ok: true,
@@ -203,9 +213,9 @@ export function buildOrderPayload(order: { id: string; ship: OrderShip; items: O
         address1: s.street.trim(),
         city: s.city.trim(),
         province: s.state.trim(),
-        province_code: country_code === "US" ? province_code : undefined,
-        zip: s.zip.trim(),
-        country: country_code === "US" ? "United States" : country_code,
+        province_code: province_code ?? undefined,
+        zip,
+        country: us ? "United States" : country_code,
         country_code,
       },
     },

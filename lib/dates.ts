@@ -49,6 +49,14 @@ export function addDays(key: string, n: number): string {
   return dayKey(d);
 }
 
+/** The Monday of the week a key falls in — the key a weekly figure is filed under (2026-10-04: the
+ *  KPI board promised "same week re-entry updates in place" and filed every entry under its own day). */
+export function weekStartKey(key: string): string {
+  const d = dayFromKey(key);
+  if (Number.isNaN(d.getTime())) return key;
+  return addDays(key, -((d.getDay() + 6) % 7));
+}
+
 /** The weekday a key falls on. Takes a key, not a Date, so there is no time zone to get wrong. */
 const WD_LONG = new Intl.DateTimeFormat("en-US", { weekday: "long" });
 const WD_SHORT = new Intl.DateTimeFormat("en-US", { weekday: "short" });

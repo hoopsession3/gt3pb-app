@@ -3,7 +3,7 @@
 // 0343 adds one column, orders.ready_from, and the claims worth a database are about the window
 // around it rather than the column itself:
 //   1. The push lands before the paste. Until 0343 is applied, /api/checkout's write carries a key
-//      the table does not have; lib/deploySkew.writeAcrossSkew must write the order anyway, without
+//      the table does not have; lib/schemaSkew.writeAcrossSkew must write the order anyway, without
 //      that key — and must NOT forgive a column it was not told about. Run here against a real
 //      Postgres error (42703), with the real TypeScript compiled, not restated.
 //   2. After the paste the same call writes ready_from, and an order placed now carries none.
@@ -38,9 +38,9 @@ function load(rel) {
   });
   return mod.exports;
 }
-const SK = load("lib/deploySkew.ts");
+const SK = load("lib/schemaSkew.ts");
 const OR = load("lib/ordering.ts");
-ok("known pair: lib/deploySkew and lib/ordering compiled", typeof SK.writeAcrossSkew === "function" && typeof OR.orderClockFrom === "function");
+ok("known pair: lib/schemaSkew and lib/ordering compiled", typeof SK.writeAcrossSkew === "function" && typeof OR.orderClockFrom === "function");
 
 await db.exec(`
   create schema if not exists auth;

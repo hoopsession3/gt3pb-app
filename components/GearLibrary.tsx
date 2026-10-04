@@ -39,7 +39,9 @@ const toDraft = (a: AssetItem): Draft => ({
   name: a.name, makeModel: a.makeModel || "", brand: a.brand || "Shared", categoryStr: (a.category || []).join(", "),
   useCase: a.useCase || "", manual: a.manual || "", kbStatus: a.kbStatus || "Drafted", qty: a.qty != null ? String(a.qty) : "", notes: a.notes || "",
   lenIn: a.lenIn != null ? String(a.lenIn) : "", widthIn: a.widthIn != null ? String(a.widthIn) : "", heightIn: a.heightIn != null ? String(a.heightIn) : "", weightLb: a.weightLb != null ? String(a.weightLb) : "",
-  market: toMarket(a.market), status: toStatus(a.status), criticality: toCriticality(a.criticality), assetTag: "", serialNo: "",
+  market: toMarket(a.market), status: toStatus(a.status), criticality: toCriticality(a.criticality),
+  // Were "" — so Save wrote null over the asset's tag and serial every time anything was edited.
+  assetTag: a.assetTag ?? "", serialNo: a.serialNo ?? "",
 });
 const cuft = (a: AssetItem) => (a.lenIn && a.widthIn && a.heightIn ? Math.round(((a.lenIn * a.widthIn * a.heightIn) / 1728) * 10) / 10 : null);
 

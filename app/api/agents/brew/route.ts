@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
@@ -109,8 +109,13 @@ async function post(req: Request) {
       }
     } catch { /* fall through to the column default */ }
 
+    // Who planned it (0344): the brew alarms go to the brewer once one is named, and to the
+    // planner until then. This insert never said who that was, so every alarm went to nobody in
+    // particular — which, once 0344 makes them ring again, would mean everybody.
+    const planner = await userFromRequest(req);
     const { data: ins, error } = await supabaseAdmin.from("brew_batches").insert({
       recipe_id: recipeId, recipe_name: (recipe as any).name, batch_gal: batchGal,
+      created_by: planner?.id ?? null,
       ...(batchMarket ? { market: batchMarket } : {}),
       brew_date: brewDate, ready_at: readyAt, event_id: body.event_id ?? null, stop_id: body.stop_id ?? null,
       needed_by: needBy ? etEight(needBy).toISOString() : null,

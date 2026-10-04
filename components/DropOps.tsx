@@ -250,7 +250,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
       const gal = gallonsForBottles(perF[f], r?.yield_factor);
       return {
         recipe_id: r?.id ?? null, recipe_name: r?.name ?? `GT3 ${f}`, batch_gal: gal,
-        brew_date: brewISO, status: "planned", drop_date: dropISO,
+        brew_date: brewISO, status: "planned", drop_date: dropISO, created_by: me,   // who queued it: the brew alarms' fallback (0344)
         notes: `${perF[f]}× ${f} bottles for ${satLabel}'s drop`,
       };
     });

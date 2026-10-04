@@ -10,7 +10,8 @@ import AsyncSection from "./AsyncSection";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
-import { useCrew, crewLabel } from "./useCrew";
+import { useCrew } from "./useCrew";
+import PersonPick, { type PersonValue } from "./PersonPick";
 import { localToday } from "@/lib/dates";
 import { useConfirm } from "@/components/ConfirmSheet";
 
@@ -24,7 +25,7 @@ import { useConfirm } from "@/components/ConfirmSheet";
 // legal, stalled-without-a-decision is not.
 
 type Ws = {
-  id: string; name: string; owner: string; status: "active" | "blocked" | "parked";
+  id: string; name: string; owner: string; owner_user_id: string | null; status: "active" | "blocked" | "parked";
   health: number; next_action: string | null; due: string | null; blocker: string | null;
   last_audited: string | null; sort: number;
 };
@@ -50,7 +51,11 @@ export default function OsRegistry() {
   const [auditing, setAuditing] = useState<Ws | null>(null);
   const [scores, setScores] = useState<Record<string, number>>({});
   const crew = useCrew();
-  const [draft, setDraft] = useState({ name: "", owner: "", next_action: "", due: "", blocker: "", status: "active" as Ws["status"], note: "" });
+  const [draft, setDraft] = useState({ name: "", owner: { id: null, name: "" } as PersonValue, next_action: "", due: "", blocker: "", status: "active" as Ws["status"], note: "" });
+  // The person is the id (0307); the text is what prints when the person has no account. A linked
+  // owner reads by their CURRENT name, so a rename on the crew roster renames them here too.
+  const ownerName = (w: Ws) => (w.owner_user_id && crew.find((c) => c.id === w.owner_user_id)?.display_name) || w.owner;
+  const hasOwner = !!draft.owner.id || !!draft.owner.name.trim();
   const [saving, setSaving] = useState(false);
   const [newName, setNewName] = useState("");
 
@@ -70,7 +75,7 @@ export default function OsRegistry() {
   const openAudit = (w: Ws) => {
     setAuditing(w);
     setScores({});
-    setDraft({ name: w.name, owner: w.owner, next_action: w.next_action ?? "", due: w.due ?? "", blocker: w.blocker ?? "", status: w.status, note: "" });
+    setDraft({ name: w.name, owner: { id: w.owner_user_id ?? null, name: w.owner ?? "" }, next_action: w.next_action ?? "", due: w.due ?? "", blocker: w.blocker ?? "", status: w.status, note: "" });
   };
   const total = CRITERIA.reduce((s, c) => s + (scores[c.key] ?? 0), 0);
   const anyScored = CRITERIA.some((c) => scores[c.key] !== undefined);
@@ -81,7 +86,7 @@ export default function OsRegistry() {
   // DETAILS edit (rename, re-own, re-date, re-status — nothing else moves). Partial scoring
   // blocks the save so a half-audit can never masquerade as either.
   const save = async () => {
-    if (!supabase || !auditing || saving || (anyScored && !scored) || !draft.name.trim() || !draft.owner.trim()) return;
+    if (!supabase || !auditing || saving || (anyScored && !scored) || !draft.name.trim() || !hasOwner) return;
     setSaving(true);
     const today = localToday();
     if (scored) {
@@ -93,8 +98,13 @@ export default function OsRegistry() {
       }, { onConflict: "workstream_id,week_of" });
       if (error) { toast(`Couldn't save the audit — ${error.message}`, "error"); setSaving(false); return; }
     }
+    // THE PERSON, NOT ONLY THEIR NAME (2026-10-04, the form audit). 0307 added owner_user_id and its
+    // changelog said owners "are now picked from the crew" — but this save wrote only the text, so
+    // re-owning a stream left owner_user_id on the PREVIOUS person, every stream added here had
+    // none, and v_workstream_owners and v_obligations (which read the id) answered for the wrong
+    // person. Both columns are written now, from one pick.
     const { error: e2 } = await supabase.from("os_workstreams").update({
-      name: draft.name.trim().slice(0, 80), owner: draft.owner.trim().slice(0, 40), status: draft.status,
+      name: draft.name.trim().slice(0, 80), owner: draft.owner.name.trim().slice(0, 40), owner_user_id: draft.owner.id, status: draft.status,
       next_action: draft.next_action.trim() || null, due: draft.due || null, blocker: draft.blocker.trim() || null,
       ...(scored ? { health: total, last_audited: today } : {}),
     }).eq("id", auditing.id);
@@ -147,7 +157,7 @@ export default function OsRegistry() {
                     <button key={w.id} type="button" className={`osr-row${w.status === "parked" ? " parked" : ""}`} onClick={() => isAdmin && openAudit(w)} disabled={!isAdmin} aria-label={`Audit ${w.name}`}>
                       <span className={`osr-dot ${dotClass(w.health, w.status)}`}>{w.status === "parked" ? "‖" : w.health}</span>
                       <span className="osr-main">
-                        <span className="osr-name">{w.name}<i className="osr-owner">{w.owner}</i>{w.status === "blocked" && <i className="osr-flag">blocked</i>}{w.status === "parked" && <i className="osr-flag park">parked by decision</i>}</span>
+                        <span className="osr-name">{w.name}<i className="osr-owner">{ownerName(w)}</i>{w.status === "blocked" && <i className="osr-flag">blocked</i>}{w.status === "parked" && <i className="osr-flag park">parked by decision</i>}</span>
                         {w.status !== "parked" && (
                           <span className="osr-next">{w.next_action ?? "no next action — that's a 0 on criterion 2"}{w.due ? ` · ${nice(w.due)}` : ""}</span>
                         )}
@@ -167,33 +177,21 @@ export default function OsRegistry() {
       {auditing && (
         <Sheet open onClose={() => setAuditing(null)} label={`Audit ${auditing.name}`}
           header={<div className="note-lux-head"><span className="note-lux-eyb">Monday audit · {auditing.name}</span><CloseButton onClick={() => setAuditing(null)} /></div>}
-          footer={<div className="note-actions"><span className="osr-total">{scored ? `${total} / 10` : anyScored ? "score all five" : "details only"}</span><button type="button" className="note-cancel" onClick={() => setAuditing(null)}>Cancel</button><button type="button" className="note-save" disabled={saving || (anyScored && !scored) || !draft.name.trim() || !draft.owner.trim()} onClick={save}>{saving ? "Saving…" : scored ? "Save audit" : "Save details"}</button></div>}>
+          footer={<div className="note-actions"><span className="osr-total">{scored ? `${total} / 10` : anyScored ? "score all five" : "details only"}</span><button type="button" className="note-cancel" onClick={() => setAuditing(null)}>Cancel</button><button type="button" className="note-save" disabled={saving || (anyScored && !scored) || !draft.name.trim() || !hasOwner} onClick={save}>{saving ? "Saving…" : scored ? "Save audit" : "Save details"}</button></div>}>
           <div className="osr-audit">
             <div className="osr-audit-row">
               <label className="prod-f"><span>Workstream</span>
                 <input className="note-in" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} maxLength={80} /></label>
               {/* The label used to read "Owner — exactly one name", which is an invariant a text
                   box cannot keep: spell it differently the second time and the workstream belongs
-                  to nobody while still looking owned. It picks from the crew now (0307 added
-                  owner_user_id beside the text column and backfilled the unambiguous matches).
-                  Someone with no account is still a valid owner — that is what "someone else"
-                  keeps the text box for — but it is now visibly a different thing. */}
+                  to nobody while still looking owned. It picks from the crew (0307 added
+                  owner_user_id beside the text column and backfilled the unambiguous matches) —
+                  through PersonPick, the one person pick list, which keeps the id AND the name.
+                  Someone with no account is still a valid owner — that is what "Someone else…"
+                  keeps the text box for — and it says plainly that it links to no one. */}
               <label className="prod-f"><span>Owner</span>
-                <select className="note-in" value={crew.some((c) => (c.display_name || "") === draft.owner) ? draft.owner : (draft.owner ? "__other" : "")}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          if (v === "__other") { setDraft({ ...draft, owner: draft.owner || " " }); return; }
-                          setDraft({ ...draft, owner: v });
-                        }} aria-label="Workstream owner">
-                  <option value="">Nobody yet</option>
-                  {crew.filter((c) => c.display_name).map((c) => <option key={c.id} value={c.display_name as string}>{crewLabel(c)}</option>)}
-                  <option value="__other">Someone else — type a name</option>
-                </select></label>
-              {draft.owner !== "" && !crew.some((c) => (c.display_name || "") === draft.owner) && (
-                <label className="prod-f"><span>Name</span>
-                  <input className="note-in" value={draft.owner.trim()} onChange={(e) => setDraft({ ...draft, owner: e.target.value })} maxLength={40}
-                         placeholder="Someone without an account" autoFocus /></label>
-              )}
+                <PersonPick label="Workstream owner" value={draft.owner} allowNone noneLabel="Nobody yet"
+                  onChange={(v) => setDraft((d) => ({ ...d, owner: v }))} /></label>
             </div>
             {CRITERIA.map((c) => (
               <div key={c.key} className="osr-crit">

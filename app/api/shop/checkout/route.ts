@@ -8,6 +8,7 @@ import { tellCustomer } from "@/lib/customerMessage";
 import { orderReceipt } from "@/lib/receipt";
 import { submitOrderToApliiq } from "@/lib/apliiq";
 import { skuFor } from "@/lib/apliiqOrder";
+import { stateCode, usZip } from "@/lib/usAddress";
 import { integrationTenant } from "@/lib/tenantScope";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
@@ -44,6 +45,13 @@ async function post(req: Request) {
   if (!shipName || !addr.street || !addr.city || !addr.state || !addr.zip) {
     return NextResponse.json({ error: "A full shipping name and address are required." }, { status: 400 });
   }
+  // The state and ZIP as the printer needs them, BEFORE the card is charged (lib/usAddress). A state
+  // the printer cannot read used to be charged for and then refused at Apliiq, into the crew queue
+  // with the money already taken. The order keeps the code: "SC", never "south carolina".
+  const state = stateCode(addr.state), zip = usZip(addr.zip);
+  if (!state) return NextResponse.json({ error: "Pick the state to ship to — we ship within the US." }, { status: 400 });
+  if (!zip) return NextResponse.json({ error: "Check the ZIP — five digits." }, { status: 400 });
+  addr.state = state; addr.zip = zip;
   if (!email) return NextResponse.json({ error: "An email is required for your order + tracking." }, { status: 400 });
 
   // Rebuild the cart from trusted product ids only, and price it from the catalog.

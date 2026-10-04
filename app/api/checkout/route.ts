@@ -8,7 +8,7 @@ import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { orderingNow, readyWords, refusalWords, pickupWords, type Ordering } from "@/lib/ordering";
 import { readOrdering } from "@/lib/orderingRead";
-import { writeAcrossSkew } from "@/lib/deploySkew";
+import { writeAcrossSkew } from "@/lib/schemaSkew";
 import { toMarket } from "@/lib/markets";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
@@ -138,7 +138,7 @@ async function post(req: Request) {
   // ahead of a stop, it is made from the stop's start (orders.ready_from, 0343); otherwise now.
   const promise = { readyFrom: ordering.readyFrom, ready: readyWords(ordering), pickup: pickupWords(ordering) };
   // 0343 may not be pasted yet when this ships: the order goes in without ready_from rather than not
-  // at all (lib/deploySkew.writeAcrossSkew — the one column named, nothing else forgiven).
+  // at all (lib/schemaSkew.writeAcrossSkew — the one column named, nothing else forgiven).
   // arrives-with: 0343
   const insertOrder = (row: Record<string, unknown>) =>
     writeAcrossSkew((r) => supabaseAdmin!.from("orders").insert(r), promise.readyFrom ? { ...row, ready_from: promise.readyFrom } : row, ["ready_from"]);
