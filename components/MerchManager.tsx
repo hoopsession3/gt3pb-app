@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useApp } from "./AppProvider";
 import { isBlank } from "@/lib/formGuard";
 import { supabase } from "@/lib/supabase";
@@ -19,6 +19,15 @@ import { money, moneyPlain } from "@/lib/money";
 // path for a custom store, since Apliiq only auto-pushes to Shopify). Writes go straight through the
 // browser client under RLS `is_staff()`. Publish = stamp published_at; archived items are tucked away
 // behind a toggle. Nothing sells until it's published.
+//
+// AN APLIIQ ID IS LOOKED UP AS IT IS TYPED (2026-10-04, the form audit). The ID is the POD link — a
+// transposed digit charges a sale that never ships — and it is UNIQUE across the shop (0271), so an
+// ID the sync already brought in could not be added again: + Add product inserted anyway and failed
+// with a raw duplicate-key error, and the editor did the same on Save when a hand-curated product was
+// given the ID its synced copy already held. Now both look the ID up in the products already loaded
+// here: a match shows that product's mockup, cost and state; the add form opens it instead of adding a
+// second copy; the editor can move the link — and the mockup, cost and sizes the curated product lacks
+// — from the synced copy, which is archived in the same save. A brand-new ID still saves as typed.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Product = {
@@ -103,6 +112,14 @@ export default function MerchManager() {
     setNa({ title: "", price: "", apliiq: "", image: "", sizes: "", colors: "" }); setShowAdd(false); await reload();
   };
 
+  // The product that already holds the typed Apliiq ID, if any (the ID is unique across the shop).
+  const twin = na.apliiq.trim() ? products.find((p) => (p.apliiq_product_id ?? "").trim() === na.apliiq.trim()) ?? null : null;
+  const openTwin = (t: Product) => {
+    if (t.archived_at) setShowArchived(true);
+    setShowAdd(false);
+    setOpenId(t.id);
+  };
+
   const archivedCount = products.filter((p) => p.archived_at).length;
   const shown = products.filter((p) => showArchived || !p.archived_at);
   const live = products.filter((p) => p.published_at && !p.archived_at).length;
@@ -130,12 +147,19 @@ export default function MerchManager() {
               <div className="prod-grid">
                 <label className="prod-f"><span>Title</span><input value={na.title} onChange={(e) => setNa({ ...na, title: e.target.value })} placeholder="GT3 Five-Panel Cap" /></label>
                 <label className="prod-f"><span>Retail price ($)</span><input type="number" step="0.01" min="0" value={na.price} onChange={(e) => setNa({ ...na, price: e.target.value })} /></label>
-                <label className="prod-f"><span>Apliiq product ID (for POD)</span><input value={na.apliiq} onChange={(e) => setNa({ ...na, apliiq: e.target.value })} placeholder="5888216" /></label>
+                <label className="prod-f"><span>Apliiq product ID (for POD)</span><input value={na.apliiq} onChange={(e) => setNa({ ...na, apliiq: e.target.value.trim() })} placeholder="5888216" inputMode="numeric" /></label>
                 <label className="prod-f"><span>Mockup image address</span><input value={na.image} onChange={(e) => setNa({ ...na, image: e.target.value })} placeholder="https://…" /></label>
                 <label className="prod-f"><span>Sizes (comma-sep)</span><input value={na.sizes} onChange={(e) => setNa({ ...na, sizes: e.target.value })} placeholder="S, M, L, XL" /></label>
                 <label className="prod-f"><span>Colors (comma-sep)</span><input value={na.colors} onChange={(e) => setNa({ ...na, colors: e.target.value })} placeholder="Black, Cream" /></label>
               </div>
-              <div className="prod-actions"><button type="button" className="btn-pri" onClick={addProduct} disabled={isBlank(na.title)}>Add (hidden)</button></div>
+              {twin ? (
+                <ApliiqMatch p={twin} lead={`Apliiq #${na.apliiq.trim()} is already in the shop list —`}>
+                  <button type="button" className="btn-sec" onClick={() => openTwin(twin)}>Open it</button>
+                </ApliiqMatch>
+              ) : na.apliiq.trim() !== "" && (
+                <div className="dp-hint">{`No synced product has Apliiq #${na.apliiq.trim()} — it is saved as typed. Check the digits against Apliiq: a wrong ID charges a sale that never ships.`}</div>
+              )}
+              <div className="prod-actions"><button type="button" className="btn-pri" onClick={addProduct} disabled={isBlank(na.title) || !!twin}>Add (hidden)</button></div>
             </div>
           )}
 
@@ -153,7 +177,8 @@ export default function MerchManager() {
           )}
 
           {shown.map((p) => (
-            <MerchRow key={p.id} p={p} open={openId === p.id} onToggle={() => setOpenId(openId === p.id ? null : p.id)} onSaved={reload} toast={toast} />
+            <MerchRow key={p.id} p={p} all={products} open={openId === p.id} onToggle={() => setOpenId(openId === p.id ? null : p.id)}
+              onOpen={(t) => openTwin(t)} onSaved={reload} toast={toast} />
           ))}
         </div>
       )}
@@ -161,16 +186,56 @@ export default function MerchManager() {
   );
 }
 
-function MerchRow({ p, open, onToggle, onSaved, toast }: { p: Product; open: boolean; onToggle: () => void; onSaved: () => void; toast: (m: string, t?: any) => void }) {
+/** A product already holding an Apliiq ID: its mockup, title, state and cost — so the match is seen. */
+function ApliiqMatch({ p, lead, children }: { p: Product; lead: string; children?: React.ReactNode }) {
+  const state = p.archived_at ? "archived" : p.published_at ? "live in /shop" : "hidden";
+  return (
+    <div className="insp-lbl" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+      {p.image_url && <img src={p.image_url} alt="" style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover" }} />}
+      <span style={{ flex: "1 1 180px", minWidth: 0 }}>
+        {`${lead} “${p.public_title || p.title}”, ${state}`}
+        {p.cost_cents != null ? ` · Apliiq cost ${money(p.cost_cents)}` : ""}
+        {p.variants.length ? ` · ${p.variants.length} option${p.variants.length === 1 ? "" : "s"}` : ""}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+function MerchRow({ p, all, open, onToggle, onOpen, onSaved, toast }: {
+  p: Product; all: Product[]; open: boolean; onToggle: () => void; onOpen: (p: Product) => void; onSaved: () => void; toast: (m: string, t?: any) => void;
+}) {
   const [d, setD] = useState(p);
+  // The synced copy whose Apliiq link this product is taking on Save (see "Move the link here").
+  const [absorb, setAbsorb] = useState<Product | null>(null);
   const [priceStr, setPriceStr] = useState(moneyPlain(p.price_cents));
   const [media, setMedia] = useState<MediaItem[]>(() => readMedia(p));
   // The SKU block as text, so it round-trips exactly what was pasted.
   const [skuText, setSkuText] = useState<string>(() => formatSkuBlock(p.variants));
-  useEffect(() => { setD(p); setPriceStr(moneyPlain(p.price_cents)); setMedia(readMedia(p)); }, [p]);
+  // A reload hands this row a new `p`: the draft starts again from it. Done while rendering, against
+  // the row last seen, rather than in an effect that renders the stale draft once first.
+  const [seen, setSeen] = useState(p);
+  if (seen !== p) { setSeen(p); setD(p); setPriceStr(moneyPlain(p.price_cents)); setMedia(readMedia(p)); }
 
   const published = !!d.published_at && !d.archived_at;
   const dollarsToCents = (s: string) => Math.max(0, Math.round((Number(s) || 0) * 100));
+
+  // Who else holds the Apliiq ID typed here — the ID is unique, so Save would be refused while they do.
+  const typedId = (d.apliiq_product_id ?? "").trim();
+  const holder = typedId ? all.find((x) => x.id !== p.id && (x.apliiq_product_id ?? "").trim() === typedId) ?? null : null;
+  const absorbing = absorb && holder && absorb.id === holder.id ? absorb : null;
+  // Take the link from the synced copy, and what this product lacks from it: the mockup now (it joins
+  // the media on Save, like a pasted address), the cost and the sizes on Save.
+  const takes = absorbing ? [
+    absorbing.cost_cents != null && p.cost_cents == null ? "its cost" : "",
+    absorbing.variants.length > 0 && p.variants.length === 0 && !skuText.trim() ? "its sizes" : "",
+  ].filter(Boolean) : [];
+  const takesText = takes.length ? `, with ${takes.join(" and ")}` : "";
+  const moveHere = () => {
+    if (!holder) return;
+    setAbsorb(holder);
+    if (!(d.image_url ?? "").trim() && media.length === 0 && holder.image_url) setD({ ...d, image_url: holder.image_url });
+  };
 
   const save = async () => {
     if (!supabase) return;
@@ -184,6 +249,18 @@ function MerchRow({ p, open, onToggle, onSaved, toast }: { p: Product; open: boo
       : media;
     // media is canonical; image_url/images are DERIVED so every pre-0278 reader is untouched.
     const cols = toColumns(merged);
+    if (holder && !absorbing) { toast(`Apliiq #${typedId} is on “${holder.public_title || holder.title}” — move the link here, or open that one.`, "error"); return; }
+    // Moving the link: the synced copy lets go of the ID first (the index allows one holder), and is
+    // archived — it was this product's duplicate. Matched on the ID it held, so a row that changed
+    // since this screen loaded is not touched. If this product's save then fails, it gets it back.
+    const now = new Date().toISOString();
+    if (absorbing) {
+      const { data: freed, error: freeErr } = await supabase.from("shop_products")
+        .update({ apliiq_product_id: null, archived_at: absorbing.archived_at ?? now, updated_at: now })
+        .eq("id", absorbing.id).eq("apliiq_product_id", typedId).select("id");
+      if (freeErr || !freed?.length) { toast(`Couldn't move the link — ${freeErr?.message ?? "that product changed since this loaded; reopen the shop"}`, "error"); return; }
+    }
+    const skus = parseSkuBlock(skuText);
     const { error } = await supabase.from("shop_products").update({
       title: d.title.trim(), public_title: d.public_title?.trim() || null, blurb: d.blurb,
       price_cents, media: cols.media, image_url: cols.image_url, images: cols.images,
@@ -192,11 +269,17 @@ function MerchRow({ p, open, onToggle, onSaved, toast }: { p: Product; open: boo
       apliiq_product_id: d.apliiq_product_id?.trim() || null,
       // Parsed SKUs replace variants when the block has any; an empty box leaves the existing
       // variants alone rather than wiping a product's sizes because nobody filled this in.
-      ...(parseSkuBlock(skuText).length ? { variants: parseSkuBlock(skuText) } : {}),
+      ...(skus.length ? { variants: skus }
+        : absorbing && p.variants.length === 0 && absorbing.variants.length ? { variants: absorbing.variants } : {}),
+      ...(absorbing && p.cost_cents == null && absorbing.cost_cents != null ? { cost_cents: absorbing.cost_cents } : {}),
       sort: d.sort, published_at: d.published_at, archived_at: d.archived_at,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     }).eq("id", p.id);
-    if (error) toast(`Error: ${error.message}`, "error"); else { toast("Saved"); onSaved(); }
+    if (error && absorbing) {
+      await supabase.from("shop_products").update({ apliiq_product_id: typedId, archived_at: absorbing.archived_at, updated_at: now }).eq("id", absorbing.id);
+    }
+    if (error) toast(`Error: ${error.message}`, "error");
+    else { toast(absorbing ? `Saved — Apliiq #${typedId} is linked here, and “${absorbing.public_title || absorbing.title}” is archived.` : "Saved"); setAbsorb(null); onSaved(); }
   };
   // ONE LIFECYCLE, NOT TWO CHECKBOXES. This was a "Published" box and an "Archived" box, and the
   // line above already proves they are one value: published = has a published_at AND no archived_at.
@@ -263,6 +346,21 @@ function MerchRow({ p, open, onToggle, onSaved, toast }: { p: Product; open: boo
               inputMode="numeric"
             />
           </label>
+          {holder && !absorbing && (
+            <ApliiqMatch p={holder} lead={`Apliiq #${typedId} is on`}>
+              <button type="button" className="btn-sec" onClick={moveHere}>Move the link here</button>
+              <button type="button" className="btn-ter" onClick={() => onOpen(holder)}>Open it</button>
+            </ApliiqMatch>
+          )}
+          {absorbing && (
+            <div className="dp-hint">
+              {`On Save, “${absorbing.public_title || absorbing.title}” is archived and Apliiq #${typedId} moves here${takesText}. `}
+              <button type="button" className="btn-ter" onClick={() => setAbsorb(null)}>Undo</button>
+            </div>
+          )}
+          {!holder && typedId !== "" && typedId !== (p.apliiq_product_id ?? "").trim() && (
+            <div className="dp-hint">{`No synced product has Apliiq #${typedId} — it is saved as typed. Check the digits against Apliiq: a wrong ID charges a sale that never ships.`}</div>
+          )}
 
           {/* THE SKUs — what actually orders. Apliiq's Create Order takes a per-size sku
               ("APQ-########S#A#"), not a product id, so this is the field that decides whether a
@@ -303,7 +401,7 @@ function MerchRow({ p, open, onToggle, onSaved, toast }: { p: Product; open: boo
           {life === "published" && d.published_at && <div className="dp-hint">Live since {new Date(d.published_at).toLocaleDateString()}.</div>}
           {life === "archived" && d.published_at && <div className="dp-hint">Was live since {new Date(d.published_at).toLocaleDateString()} — set back to Published to restore it.</div>}
           <div className="prod-actions" style={{ flexWrap: "wrap" }}>
-            <button type="button" className="btn-pri" onClick={save} disabled={isBlank(d.title)}>Save</button>
+            <button type="button" className="btn-pri" onClick={save} disabled={isBlank(d.title) || (!!holder && !absorbing)}>Save</button>
           </div>
         </div>
       )}

@@ -7,6 +7,8 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import { BATCH_OVER_IN } from "@/lib/brewMath";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
+import { bottleStock, type ShelfRow } from "@/lib/bottleShelf";
+import { MARKET_LABEL, toMarket } from "@/lib/markets";
 
 // PACK PLAN — the whole event/stop's pack-out in one view: take every batch brewing for it, split each
 // between KEGS (poured on tap) and 10/16oz BOTTLES (grab-and-go in the cooler), and allocate the keg
@@ -14,6 +16,12 @@ import Icon from "@/components/Icon";
 // UVDTF labels + coolers needed, and it flags when you're short on bottle stock or keg space.
 // Fetch state via useAsyncData — a failed load is a real error now, not a silent "No batches tied to
 // this event yet" (which used to mean two very different things).
+//
+// BOTTLES ON HAND ARE READ, NOT REMEMBERED (2026-10-04, the form audit). The box opened at 122 — 0044's
+// seed row, frozen into this file — and drove "Short on bottles" in every city at either size. It
+// now starts from the bottle shelves of this event's own city (lib/bottleShelf), says which shelf it
+// read, and starts empty when the shelf counts cases or has no such bottle. With no number, the plan
+// says it cannot check the stock instead of warning against a made-up one.
 
 type Batch = { id: string; recipe_name: string | null; batch_gal: number; status: string };
 type Board = { batches: Batch[]; fleet: { cap: number; qty: number }[] };
@@ -37,7 +45,8 @@ const kegStr = (plan: { cap: number; count: number }[]) => plan.map((k) => `${k.
 export default function PackPlan({ ownerType, ownerId, title, onClose }: { ownerType: "event" | "stop"; ownerId: string; title: string; onClose: () => void }) {
   const ownerCol = ownerType === "stop" ? "stop_id" : "event_id";
   const [oz, setOz] = useState(10);
-  const [stock, setStock] = useState("122");      // 10/16oz bottles on hand
+  // Bottles on hand: what the person typed, else (null) what the shelf says for this size.
+  const [typed, setTyped] = useState<string | null>(null);
   const [coolerCap, setCoolerCap] = useState("45"); // 10oz bottles that fit one cooler w/ ice
   const [kegGal, setKegGal] = useState<Record<string, string>>({}); // per-batch gallons → keg
 
@@ -54,8 +63,27 @@ export default function PackPlan({ ownerType, ownerId, title, onClose }: { owner
     return { batches, fleet };
   }, [ownerCol, ownerId]);
   const board = useAsyncData(loader, [ownerCol, ownerId]);
-  const batches = board.data?.batches ?? [];
-  const fleet = board.data?.fleet ?? [];
+  const batches = useMemo(() => board.data?.batches ?? [], [board.data]);
+  const fleet = useMemo(() => board.data?.fleet ?? [], [board.data]);
+
+  // The shelf, read apart from the plan: a shelf that cannot be read leaves the box for a person and
+  // says why — it never takes the batches and kegs down with it.
+  const shelfLoader = useCallback(async (): Promise<{ market: string; shelves: ShelfRow[] }> => {
+    if (!supabase) return { market: "", shelves: [] };
+    const [o, sh] = await Promise.all([
+      ownerType === "stop"
+        ? supabase.from("stops").select("market").eq("id", ownerId).maybeSingle()
+        : supabase.from("events").select("market").eq("id", ownerId).maybeSingle(),
+      supabase.from("inventory_status").select("name, unit, effective_on_hand, market").ilike("name", "%bottle%"),
+    ]);
+    if (o.error) throw new Error(o.error.message);
+    if (sh.error) throw new Error(sh.error.message);
+    return { market: toMarket((o.data as { market?: string } | null)?.market), shelves: (sh.data as ShelfRow[]) ?? [] };
+  }, [ownerType, ownerId]);
+  const shelf = useAsyncData(shelfLoader, [ownerType, ownerId]);
+  const city = shelf.data ? MARKET_LABEL[toMarket(shelf.data.market)] : "";
+  const onShelf = shelf.data ? bottleStock(shelf.data.shelves, oz, shelf.data.market) : null;
+  const stock = typed ?? (onShelf?.kind === "count" ? String(onShelf.bottles) : "");
 
   // Sequential allocation across the SHARED fleet — earlier batches claim kegs first.
   const plan = useMemo(() => {
@@ -70,10 +98,11 @@ export default function PackPlan({ ownerType, ownerId, title, onClose }: { owner
     return { rows, totalBottles: rows.reduce((s, r) => s + r.bottles, 0), totalKegShort: rows.reduce((s, r) => s + r.shortfall, 0) };
   }, [batches, kegGal, fleet, oz]);
 
-  const stockN = Number(stock) || 0;
+  const stockKnown = stock.trim() !== "" && Number.isFinite(Number(stock));
+  const stockN = stockKnown ? Number(stock) : 0;
   const coolerN = Math.max(1, Number(coolerCap) || 45);
   const coolers = Math.ceil(plan.totalBottles / coolerN);
-  const shortBottles = Math.max(0, plan.totalBottles - stockN);
+  const shortBottles = stockKnown ? Math.max(0, plan.totalBottles - stockN) : 0;
   const totalGal = batches.reduce((s, b) => s + (Number(b.batch_gal) || 0), 0);
   const kegFleetStr = fleet.length ? fleet.map((k) => `${k.qty}× ${k.cap}gal`).join(" + ") : "no kegs configured";
 
@@ -87,8 +116,19 @@ export default function PackPlan({ ownerType, ownerId, title, onClose }: { owner
         {() => (
           <>
             <div className="pp-cfg">
-              <div className="ts-chips">{[10, 16].map((n) => <button key={n} type="button" className={`ts-chip${oz === n ? " on" : ""}`} onClick={() => setOz(n)}>{n}oz</button>)}</div>
-              <label className="prod-f"><span>{oz}oz bottles on hand</span><input type="number" min="0" value={stock} onChange={(e) => setStock(e.target.value)} /></label>
+              {/* A typed count is about one size — switching size goes back to what the shelf says. */}
+              <div className="ts-chips">{[10, 16].map((n) => <button key={n} type="button" className={`ts-chip${oz === n ? " on" : ""}`} onClick={() => { setOz(n); setTyped(null); }}>{n}oz</button>)}</div>
+              <label className="prod-f"><span>{oz}oz bottles on hand</span><input type="number" min="0" value={stock} placeholder="How many?" onChange={(e) => setTyped(e.target.value)} /></label>
+              {/* Where that number came from, right under it. */}
+              <div className="dp-hint pp-src">
+              {shelf.status === "loading" ? "Reading the shelf…"
+                : shelf.status === "error" ? `Couldn't read the shelf — ${shelf.error?.message ?? "no answer"}. Enter the bottles you have.`
+                : onShelf?.kind === "count" ? (typed !== null && typed !== String(onShelf.bottles)
+                    ? `You entered this. ${city}'s shelf says ${onShelf.bottles}.`
+                    : `From ${city}'s shelf: ${onShelf.shelves.join(" + ")}.`)
+                : onShelf?.kind === "other" ? `${city}'s shelf has ${onShelf.shelves.map((x) => `${x.name} — ${x.qty ?? "no count"} ${x.unit ?? "(no unit)"}`).join("; ")}. That isn't a bottle count — enter the bottles.`
+                : `No ${oz} oz bottle on ${city}'s shelf — enter what you have.`}
+              </div>
               <label className="prod-f"><span>Bottles per cooler</span><input type="number" min="1" value={coolerCap} onChange={(e) => setCoolerCap(e.target.value)} /></label>
             </div>
             <div className="pp-quick"><span>Fleet: {kegFleetStr}</span><span /><button type="button" className="pp-mini" onClick={allKeg}>All to keg</button><button type="button" className="pp-mini" onClick={allBottle}>All to bottles</button></div>
@@ -113,6 +153,7 @@ export default function PackPlan({ ownerType, ownerId, title, onClose }: { owner
               <div className="pp-tot-row"><span>UVDTF labels</span><b>{plan.totalBottles}{plan.totalBottles ? ` (order ~${Math.ceil(plan.totalBottles * 1.05)})` : ""}</b></div>
               <div className="pp-tot-row"><span>Coolers needed</span><b>{coolers}</b></div>
               {shortBottles > 0 && <div className="pp-tot-row warn"><span><Icon name="warning" /> Short on bottles</span><b>need {shortBottles} more {oz}oz</b></div>}
+              {!stockKnown && plan.totalBottles > 0 && <div className="pp-tot-row"><span>Bottle stock</span><b>not entered — can&apos;t check it</b></div>}
               {plan.totalKegShort > 0.01 && <div className="pp-tot-row warn"><span><Icon name="warning" /> Not enough keg space</span><b>{plan.totalKegShort.toFixed(1)} gal won&apos;t fit</b></div>}
             </div>
             <div className="dp-hint" style={{ marginTop: 10 }}>Tip: tune each batch&apos;s keg gallons until the cooler count and bottle stock work. The fleet is shared — earlier batches claim kegs first.</div>

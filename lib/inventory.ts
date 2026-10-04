@@ -20,6 +20,7 @@ export interface InvItem {
   reorderLink: string | null;
   vendor: string | null;
   notes: string | null;
+  market?: string | null;     // the city whose shelf this is (0288)
 }
 export interface InventoryResp { enabled: boolean; items: InvItem[]; error?: string }
 

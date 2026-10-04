@@ -626,6 +626,16 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
   ok("select class: the class on an input alone is not a select's", n(".note-in input{background:#fff}.note-in::placeholder{background:red}") === 0);
   ok("select class: a class no select carries is not counted", n(".note-area{background:#fff}.note-input{background:#fff}") === 0);
   ok("select class: whole classes, not prefixes — .note-in is not .note-intro", n(".note-intro{background:#fff}") === 0);
+  // 2026-10-04: an element test written as a bare word skipped every class NAMED like an element —
+  // \binput\b is true of ".auth-input" — so the shorthand on the class every discount-code and perk
+  // select carries was never counted, and those selects tiled their chevron in the day theme. The
+  // source line is CodesPanel's Kind pick; the two rules are app/globals.css's as they were.
+  const SRC2 = { "components/CodesPanel.tsx": `<select className="auth-input" value={kind} onChange={(e) => setKind(e.target.value as Kind)} aria-label="Discount kind">` };
+  const n2 = (css) => selectClassShorthands(css, (p) => { if (!(p in SRC2)) throw new Error("no file"); return SRC2[p]; }, (d) => (d === "components" ? ["CodesPanel.tsx"] : [])).selectClassShorthands;
+  ok("select class: a class named like an element is still a class — .auth-input is not <input>",
+    n2(".auth-input{width:100%;background:var(--field)}.app.crew-day .auth-input{background:var(--card)}") === 2);
+  ok("select class: an element compound is still not a select's — textarea.auth-input, input.auth-input",
+    n2("textarea.auth-input{background:#fff}input.auth-input{background:#fff}") === 0);
 }
 
 // ── promisesIn (scripts/affordance.audit.mjs) ───────────────────────────────────────────────────

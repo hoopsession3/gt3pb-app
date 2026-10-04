@@ -2,7 +2,9 @@
 
 import { useCallback, useState } from "react";
 import { useApp } from "./AppProvider";
-import { benefitValueText } from "@/lib/benefitText";
+import { benefitValueText, targetChoices, targetLabel, reachText, reachesNothing, menuPriceOf, KIND_REACH } from "@/lib/benefitText";
+import { useBenefitProducts } from "./useBenefitProducts";
+import { money } from "@/lib/money";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -35,15 +37,10 @@ type PerkRow = {
   created_at: string;
 };
 
-// Same target vocabulary as CodesPanel — kept as its own small copy rather than a shared import;
-// the two panels are independent enough (different scope, different form shape) that sharing four
-// lines isn't worth coupling them.
-const TARGETS: { v: string; label: string }[] = [
-  { v: "", label: "Whole order" },
-  { v: "straight_brew", label: "Straight brew (Rise/Flow/Dusk)" },
-  { v: "maple", label: "Salted Maple Latte" },
-  { v: "salted-latte", label: "Latte (bulk)" },
-];
+// "Applies to" — the menu itself, shared with CodesPanel (components/useBenefitProducts), and only
+// what the chosen kind can reach (lib/benefitText). This was "its own small copy" of CodesPanel's
+// four-item constant, kept apart because "sharing four lines isn't worth coupling them": the copy
+// could not name TIDE, FORGE or KING ME, and could name a bulk latte the checkout never sells.
 
 export default function PerksPanel() {
   const { toast } = useApp();
@@ -71,27 +68,34 @@ export default function PerksPanel() {
   const { reload } = board;
   useRealtimeTable("member_benefits", reload);
 
+  const menu = useBenefitProducts();
+  const products = menu.data ?? [];
+  const choices = targetChoices(kind, products);
+  const tgt = choices.some((c) => c.value === target) ? target : "";
+  const needsDrink = !KIND_REACH[kind].whole;
+  const menuPrice = kind === "price_override" ? menuPriceOf(tgt, products) : null;
+  const priceCents = Math.round(Number(price) * 100);
+
   const dollarsToCents = (v: string | number | null | undefined) => {
     const n = Number(v);
     return Number.isFinite(n) && String(v ?? "").trim() !== "" ? Math.round(n * 100) : null;
   };
   const autoLabel = () => {
-    const tgt = TARGETS.find((t) => t.v === target)?.label ?? "Whole order";
     const who = tier === "founding" ? (vip ? "Founding VIP" : "Founding") : "Member";
     // Same describer as CodesPanel. This branch had no amount_off case, so a $5-off perk
     // auto-labelled itself "Free" — the second place the same drift produced the same wrong word.
-    return `${who} · ${benefitValueText({ kind, percent: Number(percent), value_cents: dollarsToCents(price) })} · ${tgt}`;
+    return `${who} · ${benefitValueText({ kind, percent: Number(percent), value_cents: dollarsToCents(price) })} · ${targetLabel(tgt, products)}`;
   };
 
   const mint = async () => {
     if (!supabase) return;
     if (kind === "percent_off" && (!Number(percent) || Number(percent) < 1 || Number(percent) > 100)) { toast("Percent must be 1–100", "error"); return; }
     if (kind === "price_override" && !(Number(price) >= 0)) { toast("Enter a valid price", "error"); return; }
-    if (kind === "price_override" && !target) { toast("Set-price perks need a product target", "error"); return; }
+    if (kind === "price_override" && !tgt) { toast("Set-price perks need a product target", "error"); return; }
     setSaving(true);
     const row = {
       scope: "tier" as const, tier, code: null, requires_vip: tier === "founding" && vip,
-      kind, target: target || null,
+      kind, target: tgt || null,
       value_cents: kind === "price_override" ? Math.round(Number(price) * 100) : null,
       percent: kind === "percent_off" ? Math.round(Number(percent)) : null,
       label: (label.trim() || autoLabel()), active: true,
@@ -112,7 +116,12 @@ export default function PerksPanel() {
   };
 
   const valueText = (r: PerkRow) => benefitValueText(r);
-  const targetText = (r: PerkRow) => TARGETS.find((t) => t.v === (r.target ?? ""))?.label ?? r.target ?? "Whole order";
+  // Where it applies — and, for a perk on file that applies nowhere, why (lib/benefitText.reachesNothing).
+  // 0176's own "Founding · $8 latte (bulk)" is one: salted-latte is not a cup the checkout sells.
+  const targetText = (r: PerkRow) => {
+    const why = reachesNothing(r.kind, r.target, menu.data);
+    return <>{targetLabel(r.target, products)}{why && <span className="codes-warn">{` · ${why}`}</span>}</>;
+  };
   const whoText = (r: PerkRow) => r.tier === "founding" ? (r.requires_vip ? "Founding VIP" : "Founding") : "Member";
 
   return (
@@ -163,8 +172,9 @@ export default function PerksPanel() {
           <div className="codes-row">
             <label className="codes-f">
               <span>Applies to</span>
-              <select className="auth-input" value={target} onChange={(e) => setTarget(e.target.value)} aria-label="Applies to">
-                {TARGETS.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
+              <select className="auth-input" value={tgt} onChange={(e) => setTarget(e.target.value)} aria-label="Applies to">
+                {needsDrink && <option value="" disabled>Choose the drink…</option>}
+                {choices.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </label>
             {kind === "percent_off" && (
@@ -175,11 +185,16 @@ export default function PerksPanel() {
             )}
             {kind === "price_override" && (
               <label className="codes-f">
-                <span>Price ($)</span>
+                <span>{menuPrice ? `Price ($) — menu ${menuPrice.low === menuPrice.high ? money(menuPrice.low) : `${money(menuPrice.low)}–${money(menuPrice.high)}`}` : "Price ($)"}</span>
                 <input className="auth-input" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ""))} placeholder="8" aria-label="Set price in dollars" />
               </label>
             )}
           </div>
+          <p className="codes-reach">{reachText(kind, tgt, products)}</p>
+          {menu.status === "error" && <p className="codes-warn">{`Couldn't read the menu — ${menu.error?.message ?? "no answer"}. A single drink can be chosen once it loads.`}</p>}
+          {menuPrice && Number.isFinite(priceCents) && price.trim() !== "" && priceCents >= menuPrice.high && (
+            <p className="codes-warn">{`That isn't below the menu price (${money(menuPrice.high)}), so the perk would change nothing.`}</p>
+          )}
           <label className="codes-f">
             <span>Label (optional — for you)</span>
             <input className="auth-input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={autoLabel()} aria-label="Label" />
@@ -198,7 +213,7 @@ export default function PerksPanel() {
                 <InfoRow
                   name={<span className="codes-code">{r.requires_vip ? <Icon name="star" /> : null} {whoText(r)}</span>}
                   nameExtra={<span className="codes-badge">{valueText(r)}</span>}
-                  sub={`${r.label} · ${targetText(r)}`}
+                  sub={<>{`${r.label} · `}{targetText(r)}</>}
                   trailing={
                     <button type="button" className={`codes-toggle${r.active ? " on" : ""}`} onClick={() => toggle(r)} role="switch" aria-checked={r.active} aria-label={`${whoText(r)} perk ${r.active ? "active" : "paused"}`}>
                       {r.active ? "Active" : "Paused"}

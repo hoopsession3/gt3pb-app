@@ -9,6 +9,7 @@ import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { MARKETS, MARKET_LABEL, toMarket, isMarket } from "@/lib/markets";
+import { homeMarket } from "@/lib/homeMarket";
 import DealExplainer from "./DealExplainer";
 import { useOptions } from "./useOptions";
 import {
@@ -138,7 +139,7 @@ export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) 
   // and full name are read when they are picked (lib/personFacts).
   const crew = useCrew();
   const people = useMemo<OperatorPerson[]>(() => crew.map((c) => ({
-    id: c.id, name: c.display_name ?? "", email: null, market: c.leads_market ?? c.market ?? null,
+    id: c.id, name: c.display_name ?? "", email: null, market: homeMarket(c),
   })), [crew]);
 
   const createDraft = async (forWho?: OperatorPerson) => {

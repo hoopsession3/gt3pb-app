@@ -42,6 +42,9 @@ async function get(req: Request) {
     reorderLink: r.reorder_link ?? null,
     vendor: r.vendor ?? null,
     notes: r.notes ?? null,
+    // Which city's shelf (0288). Two cities' shelves are different rows; without this the register
+    // could not say whose shelf it was showing, or correct a count on the right one.
+    market: r.market ?? null,
   }));
 
   return Response.json({ enabled: true, items });

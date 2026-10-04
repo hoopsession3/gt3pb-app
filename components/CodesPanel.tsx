@@ -2,12 +2,14 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useApp } from "./AppProvider";
-import { benefitValueText } from "@/lib/benefitText";
+import { benefitValueText, targetChoices, targetLabel, reachText, reachesNothing, menuPriceOf, KIND_REACH } from "@/lib/benefitText";
+import { useBenefitProducts } from "./useBenefitProducts";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { InfoRow } from "@/components/kit";
+import { money, moneyPlain } from "@/lib/money";
 
 // DISCOUNT CODES — the owner mints redeemable codes as data (member_benefits, scope='code'). A code
 // is a rule: kind (percent_off | price_override | free_refill) × target (whole order, the straight-
@@ -28,14 +30,8 @@ type CodeRow = {
   created_at: string;
 };
 
-// The order-ahead flavors + the "$8 latte" family, offered as quick targets. null = whole order.
-const TARGETS: { v: string; label: string }[] = [
-  { v: "", label: "Whole order" },
-  { v: "straight_brew", label: "Straight brew (Rise/Flow/Dusk)" },
-  { v: "maple", label: "Salted Maple Latte" },
-  { v: "salted-latte", label: "Latte (bulk)" },
-];
-
+// "Applies to" is the menu itself (components/useBenefitProducts), and only what the chosen kind can
+// reach (lib/benefitText) — it was a four-item constant here and another in PerksPanel. null = whole order.
 
 export default function CodesPanel() {
   const { toast } = useApp();
@@ -62,7 +58,17 @@ export default function CodesPanel() {
   const board = useAsyncData(loader, []);
   const { reload } = board;
   useRealtimeTable("member_benefits", reload);
-  const rows = board.data ?? [];
+  const rows = useMemo(() => board.data ?? [], [board.data]);
+
+  // The menu, for "Applies to" — and a target the chosen kind cannot reach is not kept: switching a
+  // 15%-off-Tide code to "$ off" lands on the whole order, which is the only place $ off applies.
+  const menu = useBenefitProducts();
+  const products = menu.data ?? [];
+  const choices = targetChoices(kind, products);
+  const tgt = choices.some((c) => c.value === target) ? target : "";
+  const needsDrink = !KIND_REACH[kind].whole;
+  const menuPrice = kind === "price_override" ? menuPriceOf(tgt, products) : null;
+  const priceCents = Math.round(Number(price) * 100);
 
   const codeClean = code.trim().toUpperCase().replace(/\s+/g, "");
   const dupe = useMemo(() => rows.some((r) => (r.code ?? "").toUpperCase() === codeClean), [rows, codeClean]);
@@ -72,10 +78,9 @@ export default function CodesPanel() {
     return Number.isFinite(n) && String(v ?? "").trim() !== "" ? Math.round(n * 100) : null;
   };
   const autoLabel = () => {
-    const tgt = TARGETS.find((t) => t.v === target)?.label ?? "Whole order";
-    // The benefit half comes from the one describer; only the "· where" half is local to this
-    // panel. Written out twice, this branch and PerksPanel's drifted the same way valueText did.
-    return `${benefitValueText({ kind, percent: Number(percent), value_cents: dollarsToCents(kind === "amount_off" ? amount : price) })} · ${tgt}`;
+    // Both halves come from the one describer (lib/benefitText). Written out twice, this branch and
+    // PerksPanel's drifted the same way valueText did.
+    return `${benefitValueText({ kind, percent: Number(percent), value_cents: dollarsToCents(kind === "amount_off" ? amount : price) })} · ${targetLabel(tgt, products)}`;
   };
 
   const mint = async () => {
@@ -84,12 +89,12 @@ export default function CodesPanel() {
     if (dupe) { toast("That code already exists", "error"); return; }
     if (kind === "percent_off" && (!Number(percent) || Number(percent) < 1 || Number(percent) > 100)) { toast("Percent must be 1–100", "error"); return; }
     if (kind === "price_override" && !(Number(price) >= 0)) { toast("Enter a valid price", "error"); return; }
-    if (kind === "price_override" && !target) { toast("Set-price codes need a product target", "error"); return; }
+    if (kind === "price_override" && !tgt) { toast("Set-price codes need a product target", "error"); return; }
     if (kind === "amount_off" && !(Number(amount) > 0)) { toast("Enter the $ off (e.g. 5)", "error"); return; }
     setSaving(true);
     const row = {
       scope: "code" as const, code: codeClean, tier: null,
-      kind, target: target || null,
+      kind, target: tgt || null,
       value_cents: kind === "price_override" ? Math.round(Number(price) * 100) : kind === "amount_off" ? Math.round(Number(amount) * 100) : null,
       percent: kind === "percent_off" ? Math.round(Number(percent)) : null,
       label: (label.trim() || autoLabel()), active: true,
@@ -117,7 +122,11 @@ export default function CodesPanel() {
     try { await navigator.clipboard.writeText(url); toast("QR link copied — point the printed QR here"); }
     catch { toast(url); }
   };
-  const targetText = (r: CodeRow) => TARGETS.find((t) => t.v === (r.target ?? ""))?.label ?? r.target ?? "Whole order";
+  // Where it applies — and, for a code on file that applies nowhere, why (lib/benefitText.reachesNothing).
+  const targetText = (r: CodeRow) => {
+    const why = reachesNothing(r.kind, r.target, menu.data);
+    return <>{targetLabel(r.target, products)}{why && <span className="codes-warn">{` · ${why}`}</span>}</>;
+  };
 
   return (
     <div className="codes">
@@ -147,8 +156,9 @@ export default function CodesPanel() {
           <div className="codes-row">
             <label className="codes-f">
               <span>Applies to</span>
-              <select className="auth-input" value={target} onChange={(e) => setTarget(e.target.value)} aria-label="Applies to">
-                {TARGETS.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
+              <select className="auth-input" value={tgt} onChange={(e) => setTarget(e.target.value)} aria-label="Applies to">
+                {needsDrink && <option value="" disabled>Choose the drink…</option>}
+                {choices.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </label>
             {kind === "percent_off" && (
@@ -159,8 +169,8 @@ export default function CodesPanel() {
             )}
             {kind === "price_override" && (
               <label className="codes-f">
-                <span>Price ($)</span>
-                <input className="auth-input" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ""))} placeholder="8" aria-label="Set price in dollars" />
+                <span>{menuPrice ? `Price ($) — menu ${menuPrice.low === menuPrice.high ? money(menuPrice.low) : `${money(menuPrice.low)}–${money(menuPrice.high)}`}` : "Price ($)"}</span>
+                <input className="auth-input" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ""))} placeholder={menuPrice ? moneyPlain(menuPrice.low) : "8"} aria-label="Set price in dollars" />
               </label>
             )}
             {kind === "amount_off" && (
@@ -170,6 +180,11 @@ export default function CodesPanel() {
               </label>
             )}
           </div>
+          <p className="codes-reach">{reachText(kind, tgt, products)}</p>
+          {menu.status === "error" && <p className="codes-warn">{`Couldn't read the menu — ${menu.error?.message ?? "no answer"}. A single drink can be chosen once it loads.`}</p>}
+          {menuPrice && Number.isFinite(priceCents) && price.trim() !== "" && priceCents >= menuPrice.high && (
+            <p className="codes-warn">{`That isn't below the menu price (${money(menuPrice.high)}), so the code would change nothing.`}</p>
+          )}
           <label className="codes-f">
             <span>Label (optional — for you)</span>
             <input className="auth-input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={autoLabel()} aria-label="Label" />

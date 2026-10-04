@@ -180,6 +180,7 @@ import { useJurisdictions } from "@/components/useJurisdictions";
 import AcademyCard from "@/components/AcademyCard";
 import { money, moneyPlain, moneyRound } from "@/lib/money";
 import { FOUNDING_MARKET, toMarket } from "@/lib/markets";
+import { setStock as planStock, setLeft as planLeft, goneOf, type StockChange } from "@/lib/reserveStock";
 import { OwnerDetails } from "@/components/crew/OwnerDetails";
 import { VendorPicker } from "@/components/crew/VendorPicker";
 import { LocationEditor } from "@/components/crew/LocationEditor";
@@ -3719,12 +3720,38 @@ function Bookings() {
 function ReservesAdmin() {
   const confirm = useConfirm();
   const { toast } = useApp();
+  // Which card is correcting Left by hand (lib/reserveStock.setLeft) — Stock is the usual box.
+  const [fixingLeft, setFixingLeft] = useState<string | null>(null);
   const reservesState = useAsyncData<Reserve[]>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
-    const { data } = await supabase.from("reserves").select("*").order("sort");
+    // A failed read is not "No reserves yet" — it was, until the error was read.
+    const { data, error } = await supabase.from("reserves").select("*").order("sort");
+    if (error) throw new Error(error.message);
     return (data as Reserve[]) ?? [];
   }, []);
   const load = reservesState.reload;
+
+  // STOCK AND LEFT MOVE TOGETHER (lib/reserveStock). The write is matched on the two numbers it was
+  // worked out from: a member claiming in between makes it miss, and it is worked out again from the
+  // row as it now stands — never written over a claim. Returns whether it landed.
+  const writeStock = async (r: Reserve, plan: (cur: Reserve) => StockChange, said: (c: StockChange & { ok: true }) => string): Promise<boolean> => {
+    if (!supabase) return false;
+    let cur = r;
+    for (let i = 0; i < 3; i++) {
+      const c = plan(cur);
+      if (!c.ok) { toast(c.reason, "error"); return false; }
+      const { data, error } = await supabase.from("reserves").update(c.patch)
+        .eq("id", cur.id).eq("stock_total", cur.stock_total).eq("stock_remaining", cur.stock_remaining).select("id");
+      if (error) { toast(`Couldn't update — ${error.message}`, "error"); load(); return false; }
+      if (data && data.length) { toast(said(c)); load(); return true; }
+      const { data: fresh, error: again } = await supabase.from("reserves").select("*").eq("id", cur.id).maybeSingle();
+      if (again || !fresh) { toast(`Couldn't update — ${again?.message ?? "that reserve is gone"}`, "error"); load(); return false; }
+      cur = fresh as Reserve;
+    }
+    toast("Claims kept landing while this saved — nothing changed. Try again.", "error");
+    load();
+    return false;
+  };
 
   const update = async (id: string, patch: Partial<Reserve>) => {
     const { error } = await supabase!.from("reserves").update(patch).eq("id", id);
@@ -3772,8 +3799,26 @@ function ReservesAdmin() {
                   <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px", marginTop: 6 }} maxLength={300} defaultValue={r.blurb ?? ""} placeholder="One line guests see" onBlur={(e) => (e.target.value.trim() || null) !== r.blurb && update(r.id, { blurb: e.target.value.trim() || null })} />
                   <div className="adm-fields">
                     <label>Price $<input type="text" inputMode="decimal" defaultValue={moneyPlain(r.price_cents)} onBlur={(e) => update(r.id, { price_cents: Math.max(0, Math.round(parseFloat(e.target.value || "0") * 100)) })} /></label>
-                    <label>Stock<input type="number" min={0} defaultValue={r.stock_total} onBlur={(e) => update(r.id, { stock_total: Math.max(0, parseInt(e.target.value) || 0) })} /></label>
-                    <label>Left<input type="number" min={0} defaultValue={r.stock_remaining} onBlur={(e) => update(r.id, { stock_remaining: Math.max(0, parseInt(e.target.value) || 0) })} /></label>
+                    <label>Stock<input type="number" min={goneOf(r)} defaultValue={r.stock_total} key={`st-${r.stock_total}`} onBlur={async (e) => {
+                      const el = e.currentTarget;
+                      const n = Number(el.value);
+                      if (el.value.trim() === "" || n === r.stock_total) { el.value = String(r.stock_total); return; }
+                      const landed = await writeStock(r, (cur) => planStock(cur, n), (c) => `Stock ${c.patch.stock_total} · ${c.patch.stock_remaining} left${c.gone ? ` · ${c.gone} claimed or held` : ""}`);
+                      if (!landed) el.value = String(r.stock_total);
+                    }} /></label>
+                    {fixingLeft === r.id ? (
+                      <label>Left<input type="number" min={0} max={r.stock_total} defaultValue={r.stock_remaining} autoFocus onBlur={async (e) => {
+                        const el = e.currentTarget;
+                        const n = Number(el.value);
+                        if (el.value.trim() !== "" && n !== r.stock_remaining) await writeStock(r, (cur) => planLeft(cur, n), (c) => `${c.patch.stock_remaining} left of ${c.patch.stock_total}`);
+                        setFixingLeft(null);
+                      }} /></label>
+                    ) : (
+                      <span className="adm-left">
+                        {`${r.stock_remaining} left${goneOf(r) ? ` · ${goneOf(r)} claimed or held` : ""}`}
+                        <button type="button" className="btn-ter" onClick={() => setFixingLeft(r.id)}>Correct</button>
+                      </span>
+                    )}
                     <label>Limit<input type="number" min={1} defaultValue={r.per_member_limit} onBlur={(e) => update(r.id, { per_member_limit: Math.max(1, parseInt(e.target.value) || 1) })} /></label>
                   </div>
                   <div className="adm-fields">

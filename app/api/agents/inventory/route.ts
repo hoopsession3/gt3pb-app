@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { homeMarket } from "@/lib/homeMarket";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
@@ -79,8 +80,17 @@ async function post(req: Request) {
   if (body.commit && body.item?.name?.trim()) {
     const row = norm(body.item);
     if (!row.name) return NextResponse.json({ ok: false, error: "name required" }, { status: 400 });
+    // WHICH CITY'S SHELF (2026-10-04, the form audit) — the same answer smart intake gives: the
+    // filer's market (lib/markets.homeMarket), read from their own profile here and never taken from
+    // the request. Without it every AI-drafted item took 0288's column default, Greenville, and an
+    // Atlanta lead's delivery could not be received onto it. A read that fails leaves the default.
+    const user = await userFromRequest(req).catch(() => null);
+    const { data: filer } = user
+      ? await supabaseAdmin.from("profiles").select("market, leads_market").eq("id", user.id).eq("tenant_id", tenant).maybeSingle()
+      : { data: null };
+    const market = homeMarket(filer as { market?: string | null; leads_market?: string | null } | null);
     const { data, error } = await supabaseAdmin.from("inventory_items")
-      .insert({ ...row, tenant_id: TENANT }).select("id, name").single();
+      .insert({ ...row, tenant_id: TENANT, ...(market ? { market } : {}) }).select("id, name, market").single();
     if (error || !data) return NextResponse.json({ ok: false, error: (error?.message ?? "could not save").slice(0, 300) }, { status: 502 });
     return NextResponse.json({ ok: true, saved: data });
   }

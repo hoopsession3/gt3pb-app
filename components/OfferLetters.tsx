@@ -9,6 +9,7 @@ import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { MARKETS, MARKET_LABEL, toMarket } from "@/lib/markets";
+import { homeMarket } from "@/lib/homeMarket";
 import OfferLetterPrint, { type LetterRow } from "./OfferLetterPrint";
 import {
   ROLE_ACCESS, OFFERABLE_ROLES, toRoleKey, toOfferStatus, isEditable, money, summarize,
@@ -116,7 +117,7 @@ export default function OfferLetters() {
   const people = useMemo<OfferPerson[]>(() => [
     ...crew.filter((c) => c.id !== user?.id).map((c) => ({
       id: c.id, name: c.display_name ?? "", email: null,
-      role: c.role, market: c.leads_market ?? c.market ?? null, title: c.title ?? null,
+      role: c.role, market: homeMarket(c), title: c.title ?? null,
     })),
     ...members.map((m) => ({
       id: m.id, name: fullestName(m.customer_name, m.display_name), email: m.email,

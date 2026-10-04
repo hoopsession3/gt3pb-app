@@ -41,7 +41,7 @@ export default function VendorResolve({
     <Sheet open onClose={onClose} label="Possible duplicate vendor"
       header={<div style={{ display: "flex", alignItems: "center" }}>Already in the book?<span style={{ marginLeft: "auto" }} /><CloseButton onClick={onClose} label="Cancel" /></div>}>
       <div className="pnl-note" style={{ marginBottom: 10 }}>
-        “<b>{name}</b>” looks like {candidates.length === 1 ? "a vendor that already exists" : "vendors that already exist"}. One partner, one record — link it, or add a new location under it.
+        “<b>{name}</b>” looks like {candidates.length === 1 ? "a vendor that already exists" : "vendors that already exist"}.{onAddLocation ? " One partner, one record — link it, or add a new location under it." : " One company, one record — use it, or say it really is new."}
       </div>
       <div className="vres-list">
         {candidates.map((c) => (

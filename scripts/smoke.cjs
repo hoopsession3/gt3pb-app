@@ -6489,6 +6489,234 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\) : !stopsRead \? \(/.test(of) && /<span className="oa-day sk"><b>&nbsp;<\/b><span>&nbsp;<\/span><\/span>/.test(of) && /if \(!live\) return;\s*setStopsRead\(true\);/.test(of));
 }
 
+// ── THE FORM AUDIT, PART 3b: THINGS (2026-10-04) ─────────────────────────────────────────────────
+// A THING on a crew form is picked from what is on file, the way a person is: the supplier of a
+// purchase (expenses.vendor_id — the capture sheet never wrote it, and taught typing the store into
+// the description), the drink a discount code names (the menu, not a four-item constant that could
+// mint a code for a latte the checkout never sells), the bottles on the shelf (read, not a frozen 122),
+// a reserve's stock (Left moves with it), an Apliiq ID (looked up, not inserted into a duplicate-key
+// error), a new shelf's city and its count (the shelf's, through the ledger).
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const SUP = require("../.smoke/suppliers.js");
+  const BT = require("../.smoke/benefitText.js");
+  const BEN = require("../.smoke/benefits.js");
+  const BS = require("../.smoke/bottleShelf.js");
+  const RS = require("../.smoke/reserveStock.js");
+  const MK = require("../.smoke/homeMarket.js");
+
+  // ── whose city ──
+  ok("home market: the city someone leads, else the one they work in, else nobody's",
+    MK.homeMarket({ market: "greenville", leads_market: "atlanta" }) === "atlanta" && MK.homeMarket({ market: "atlanta", leads_market: null }) === "atlanta"
+    && MK.homeMarket({ market: "paris" }) === null && MK.homeMarket(null) === null && MK.homeMarket(undefined) === null);
+  ok("home market: beside lib/markets, not in it — every public page carries lib/markets",
+    !/homeMarket/.test(code(read("lib/markets.ts"))) && /export function homeMarket/.test(read("lib/homeMarket.ts")));
+  ok("home market: one home — the intake route, the offer letter and the operator agreement ask it",
+    /homeMarket\(filer as/.test(code(read("app/api/agents/intake/route.ts"))) && /market: homeMarket\(c\)/.test(code(read("components/OfferLetters.tsx")))
+    && /market: homeMarket\(c\)/.test(code(read("components/OperatorDeal.tsx")))
+    && !/leads_market \?\? c\.market|leads_market \|\| shelf\?\.market/.test(code(read("components/OfferLetters.tsx")) + code(read("components/OperatorDeal.tsx")) + code(read("app/api/agents/intake/route.ts"))));
+
+  // ── who a purchase was bought from ──
+  const V = [
+    { id: "spr", name: "Sprouts Farmers Market", kind: "supplier" },
+    { id: "rd", name: "Restaurant Depot", kind: "both" },
+    { id: "wx", name: "Wine Express", kind: "venue" },
+    { id: "aca", name: "ACA Sports Club", kind: "venue" },
+    { id: "tri", name: "TricorBraun", kind: "supplier" },
+  ];
+  const P = [
+    { vendor_id: "rd", category: "supplies" }, { vendor_id: "rd", category: "supplies" }, { vendor_id: "rd", category: "supplies" },
+    { vendor_id: "spr", category: "ingredients" }, { vendor_id: "spr", category: "ingredients" }, { vendor_id: "spr", category: "supplies" },
+    { vendor_id: "wx", category: "other" },
+    { vendor_id: null, category: "fees" },
+  ];
+  const ranked = SUP.rankSuppliers(V, P);
+  ok("suppliers: the ones bought from most come first, then the rest by name",
+    ranked.map((s) => s.id).join(",") === "rd,spr,wx,tri", ranked.map((s) => s.id));
+  ok("suppliers: a venue a purchase was bought from is offered (same company); one never bought from is not",
+    ranked.some((s) => s.id === "wx") && !ranked.some((s) => s.id === "aca"));
+  ok("suppliers: a usual category needs two purchases and three in four of them",
+    ranked.find((s) => s.id === "rd").usual === "supplies" && ranked.find((s) => s.id === "spr").usual === null
+    && ranked.find((s) => s.id === "wx").usual === null && ranked.find((s) => s.id === "tri").usual === null);
+  ok("suppliers: four of five is usual, two of three is not",
+    SUP.rankSuppliers(V, [...Array(4)].map(() => ({ vendor_id: "tri", category: "supplies" })).concat([{ vendor_id: "tri", category: "equipment" }])).find((s) => s.id === "tri").usual === "supplies");
+  ok("suppliers: a typed name that IS a supplier is that supplier — case and spacing aside",
+    SUP.supplierNamed(ranked, "  restaurant   depot ")?.id === "rd" && SUP.supplierNamed(ranked, "Restaurant Dep") === null && SUP.supplierNamed(ranked, "  ") === null);
+
+  const lp = code(read("components/LogPurchase.tsx"));
+  ok("purchase sheet: the vendor book is read — active rows, with their kind — and the last 90 days say who and what",
+    /\.from\("vendors"\)\.select\("id, name, kind"\)\.is\("archived_at", null\)\.neq\("status", "archived"\)/.test(lp)
+    && /\.from\("expenses"\)\.select\("category, vendor_id"\)/.test(lp) && /rankSuppliers\(/.test(lp));
+  ok("purchase sheet: a failed vendor read is said, and the purchase can still be logged",
+    /if \(v\.error\) setVendErr\(v\.error\.message\);/.test(lp) && /Couldn't load the vendor book/.test(lp));
+  ok("purchase sheet: the purchase records WHO — expenses.vendor_id is written",
+    /spent_on: spentOn, market, vendor_id: settled\.id,/.test(lp));
+  ok("purchase sheet: a new supplier goes through THE resolver — approved, a supplier, filed in the purchase's city",
+    /resolveVendor\(typed, \{ status: "approved", source: "a purchase", extra: \{ kind: "supplier", market \} \}\)/.test(lp)
+    && /if \(r\.kind === "similar"\) \{ setBusy\(false\); setAsking\(/.test(lp));
+  ok("purchase sheet: a look-alike is asked about — use it, create it as new, or log with none",
+    /<VendorResolve name=\{asking\.name\}/.test(lp) && /onUse=\{\(c\) => \{ setAsking\(null\); save\(\{ id: c\.id, name: c\.name \}\); \}\}/.test(lp)
+    && /decision: \{ createDistinct: true \}/.test(lp) && /onSkip=\{\(\) => \{ setAsking\(null\); save\(\{ id: null \}\); \}\}/.test(lp));
+  ok("purchase sheet: the placeholder no longer teaches typing the store into the description",
+    !/placeholder="[^"]*Restaurant Depot/.test(lp) && /placeholder="Cups and lids, 16 oz"/.test(lp));
+  ok("purchase sheet: a supplier's usual category fills only an untouched category (lib/pickFill), and says so",
+    /setCat\(follow\(cat, catFrom\?\.slug, usual\) \|\| null\);/.test(lp) && /const pickCat = \(slug: string\) => \{ setCat\(slug\); setCatFrom\(null\); \};/.test(lp)
+    && /is what \$\{catFrom\.who\} usually is/.test(lp));
+  ok("purchase sheet: a device with no remembered city starts in its person's",
+    /useState<Market>\(\(\) => readMarket\(homeMarket\(profile\)\)\)/.test(lp) && /localStorage\.getItem\(MARKET_KEY\) \|\| home \|\| FOUNDING_MARKET/.test(lp));
+
+  // ── what a discount can name — and reach ──
+  // The table against the engine that applies it: every reach the table grants changes a price,
+  // and every one it withholds changes none — but one, the set price on every cup, which the forms refuse.
+  const cupEffect = (b, slug) => BEN.priceForSlug([b], slug, 1000) < 1000;
+  const packEffect = (b) => BEN.applyOrderBenefits(1000, [b]) < 1000 || BEN.refillIsFree([b]);
+  const sample = { percent_off: { percent: 10 }, price_override: { value_cents: 800 }, amount_off: { value_cents: 300 }, free_refill: {} };
+  const engine = (kind, target) => {
+    const b = { scope: "code", tier: null, code: "X", kind, target, value_cents: null, percent: null, label: "x", ...sample[kind] };
+    return target === null ? cupEffect(b, "tide") || packEffect(b) : target === "straight_brew" ? cupEffect(b, "rise") || packEffect(b) : cupEffect(b, target) || packEffect(b);
+  };
+  const drift = [];
+  for (const kind of Object.keys(BT.KIND_REACH)) {
+    const r = BT.KIND_REACH[kind];
+    if (r.product !== engine(kind, "tide")) drift.push(`${kind}/product`);
+    if (r.family !== engine(kind, "straight_brew")) drift.push(`${kind}/family`);
+    if (r.whole !== engine(kind, null) && !(kind === "price_override" && !r.whole)) drift.push(`${kind}/whole`);
+  }
+  ok("benefit reach: the forms' table and lib/benefits agree on every kind and target", drift.length === 0, drift);
+  ok("benefit reach: a set price on the whole order is the one deliberate refusal (the engine would reprice every cup)",
+    engine("price_override", null) === true && BT.KIND_REACH.price_override.whole === false);
+  ok("benefit reach: the family is lib/benefits' straight brew",
+    BT.FAMILY_SLUGS.every((s) => BEN.priceForSlug([{ kind: "price_override", target: "straight_brew", value_cents: 1 }], s, 1000) === 1)
+    && BEN.priceForSlug([{ kind: "price_override", target: "straight_brew", value_cents: 1 }], "tide", 1000) === 1000);
+
+  const MENU = [
+    { slug: "rise", name: "RISE", price_cents: 1000, active: true, cup: true },
+    { slug: "flow", name: "FLOW", price_cents: 1000, active: true, cup: true },
+    { slug: "dusk", name: "DUSK", price_cents: 1100, active: true, cup: true },
+    { slug: "hunt", name: "HUNT", price_cents: 1200, active: false, cup: true },
+    { slug: "tide", name: "TIDE", price_cents: 1200, active: true, cup: true },
+    { slug: "salted-latte", name: "Salted Latte", price_cents: 900, active: true, cup: false },
+  ];
+  const vals = (k) => BT.targetChoices(k, MENU).map((c) => c.value).join(",");
+  ok("applies to: percent off reaches the whole order, the family, and every cup the checkout sells — on the menu first",
+    vals("percent_off") === ",straight_brew,rise,flow,dusk,tide,hunt", vals("percent_off"));
+  ok("applies to: a drink off the menu is still offered, and says so",
+    BT.targetChoices("percent_off", MENU).find((c) => c.value === "hunt").label === "HUNT (off the menu)");
+  ok("applies to: a set price names a drink or the family — never the whole order",
+    vals("price_override") === "straight_brew,rise,flow,dusk,tide,hunt");
+  ok("applies to: $ off and free reach a whole pack — no single drink is offered",
+    vals("amount_off") === ",straight_brew" && vals("free_refill") === ",straight_brew");
+  ok("applies to: a product the checkout does not sell is never offered",
+    !BT.targetChoices("percent_off", MENU).some((c) => c.value === "salted-latte"));
+  ok("applies to: a rule on file that reaches nothing says why — and the menu not loaded is not a verdict",
+    /not sold through the checkout/.test(BT.reachesNothing("price_override", "salted-latte", MENU))
+    && /changes no price/.test(BT.reachesNothing("amount_off", "tide", MENU)) && /changes no price/.test(BT.reachesNothing("free_refill", "maple", null))
+    && /not on the menu/.test(BT.reachesNothing("percent_off", "gone", MENU))
+    && BT.reachesNothing("price_override", "salted-latte", null) === null && BT.reachesNothing("price_override", "tide", MENU) === null
+    && BT.reachesNothing("percent_off", null, MENU) === null && BT.reachesNothing("free_refill", "straight_brew", MENU) === null);
+  ok("applies to: what a choice does is said before it is minted",
+    BT.reachText("amount_off", "", MENU) === "Comes off an order-ahead pack's total — never off a cup."
+    && BT.reachText("percent_off", "tide", MENU) === "TIDE by the cup, at checkout." && BT.reachText("percent_off", "", MENU) === "Every cup at checkout, and every order-ahead pack.");
+  ok("applies to: a set price is weighed against the menu — one cup, or the family's range",
+    JSON.stringify(BT.menuPriceOf("tide", MENU)) === JSON.stringify({ low: 1200, high: 1200 })
+    && JSON.stringify(BT.menuPriceOf("straight_brew", MENU)) === JSON.stringify({ low: 1000, high: 1100 }) && BT.menuPriceOf("", MENU) === null);
+
+  const ubp = code(read("components/useBenefitProducts.ts"));
+  ok("applies to: one read of the menu for both panels, a failed read thrown, a cup is what lib/menu sells",
+    /\.from\("products"\)\.select\("slug, name, price_cents, active, sort"\)/.test(ubp) && /if \(error\) throw new Error\(error\.message\);/.test(ubp)
+    && /cup: Object\.prototype\.hasOwnProperty\.call\(DRINKS, p\.slug\)/.test(ubp));
+  for (const [f, verb] of [["components/CodesPanel.tsx", "code"], ["components/PerksPanel.tsx", "perk"]]) {
+    const src = code(read(f));
+    ok(`applies to (${verb}s): the menu, through the shared list — the constant is gone`,
+      !/const TARGETS/.test(src) && /useBenefitProducts\(\)/.test(src) && /targetChoices\(kind, products\)/.test(src)
+      && /const tgt = choices\.some\(\(c\) => c\.value === target\) \? target : "";/.test(src) && /kind, target: tgt \|\| null,/.test(src));
+    ok(`applies to (${verb}s): a rule on file that reaches nothing says so on its row`, /reachesNothing\(r\.kind, r\.target, menu\.data\)/.test(src));
+    // Found driving the perks list on a stand-in backend: the row's target, now drawn as an element,
+    // was still interpolated into a template string — every perk read "· [object Object]".
+    ok(`applies to (${verb}s): a row's target is drawn, never interpolated into a string`, /targetText\(r\)/.test(src) && !/\$\{targetText\(/.test(src));
+    ok(`applies to (${verb}s): the menu price beside a set price, and a price that changes nothing is called out`,
+      /menuPriceOf\(tgt, products\)/.test(src) && /priceCents >= menuPrice\.high/.test(src) && /menu\.status === "error"/.test(src));
+  }
+
+  // ── bottles on the shelf ──
+  ok("bottle shelf: the name says bottle and the size — any spacing, never a bigger number",
+    BS.isBottleShelf("10 oz Clear Glass Stout Decanter Bottle 38-405 Neck Finish", 10) && BS.isBottleShelf("Amber bottles 10oz", 10)
+    && BS.isBottleShelf("10-oz bottle", 10) && !BS.isBottleShelf("110 oz bottle", 10) && !BS.isBottleShelf("10 oz Clear Glass Stout Decanter Bottle", 16)
+    && !BS.isBottleShelf("10 oz cups", 10));
+  const SH = [
+    { name: "10 oz Clear Glass Stout Decanter Bottle", unit: "each", effective_on_hand: 60, market: "greenville" },
+    { name: "10oz Amber Bottle", unit: "Each", effective_on_hand: 40.5, market: "greenville" },
+    { name: "10 oz Clear Glass Stout Decanter Bottle", unit: "case", effective_on_hand: 122, market: "atlanta" },
+    { name: "16 oz Bottle", unit: "each", effective_on_hand: 24, market: "atlanta" },
+  ];
+  const g10 = BS.bottleStock(SH, 10, "greenville");
+  ok("bottle shelf: single bottles add up across the city's shelves", g10.kind === "count" && g10.bottles === 100 && g10.shelves.length === 2, g10);
+  ok("bottle shelf: a shelf counted in cases is shown as it is, never converted on a guess",
+    BS.bottleStock(SH, 10, "atlanta").kind === "other" && BS.bottleStock(SH, 10, "atlanta").shelves[0].unit === "case");
+  ok("bottle shelf: another city's shelf is not this one's, and no shelf is said",
+    BS.bottleStock(SH, 16, "greenville").kind === "none" && BS.bottleStock(SH, 16, "atlanta").bottles === 24);
+  const pp = code(read("components/PackPlan.tsx"));
+  ok("pack-out plan: no frozen 122 — the box starts from the event's own city's shelf",
+    !/useState\("122"\)/.test(pp) && /bottleStock\(shelf\.data\.shelves, oz, shelf\.data\.market\)/.test(pp)
+    && /supabase\.from\("events"\)\.select\("market"\)/.test(pp) && /supabase\.from\("stops"\)\.select\("market"\)/.test(pp)
+    && /\.from\("inventory_status"\)\.select\("name, unit, effective_on_hand, market"\)/.test(pp));
+  ok("pack-out plan: no count, no 'short' — it says it cannot check instead",
+    /const shortBottles = stockKnown \? Math\.max\(0, plan\.totalBottles - stockN\) : 0;/.test(pp) && /not entered — can&apos;t check it/.test(pp));
+  ok("pack-out plan: a typed count is the person's, and belongs to one size",
+    /const stock = typed \?\? \(onShelf\?\.kind === "count" \? String\(onShelf\.bottles\) : ""\);/.test(pp) && /setOz\(n\); setTyped\(null\);/.test(pp));
+  ok("pack-out plan: a shelf that cannot be read is said, and does not take the plan down",
+    /const shelf = useAsyncData\(shelfLoader/.test(pp) && /Couldn't read the shelf/.test(pp));
+
+  // ── a reserve's stock ──
+  const R = { stock_total: 12, stock_remaining: 7, status: "live" };
+  ok("reserve stock: raising stock moves what is left by the same amount",
+    JSON.stringify(RS.setStock(R, 24).patch) === JSON.stringify({ stock_total: 24, stock_remaining: 19, status: "live" }));
+  ok("reserve stock: stock cannot go under what is claimed or held, and says how many",
+    RS.setStock(R, 4).ok === false && /5 already claimed or held/.test(RS.setStock(R, 4).reason) && RS.setStock(R, 5).patch.stock_remaining === 0);
+  ok("reserve stock: live with nothing left is sold out; sold out with stock again is live; a draft stays a draft",
+    RS.setStock(R, 5).patch.status === "sold_out" && RS.setStock({ stock_total: 5, stock_remaining: 0, status: "sold_out" }, 8).patch.status === "live"
+    && RS.setStock({ stock_total: 5, stock_remaining: 5, status: "draft" }, 0).patch.status === "draft");
+  ok("reserve stock: Left is corrected within 0 and the stock, never past it",
+    RS.setLeft(R, 12).ok === true && RS.setLeft(R, 13).ok === false && RS.setLeft(R, -1).ok === false && RS.setLeft(R, 0).patch.status === "sold_out" && RS.setStock(R, 2.5).ok === false);
+  const ra = code(read("app/crew/page.tsx"));
+  ok("reserve card: one write, matched on the numbers it was worked out from — never over a claim",
+    /\.update\(c\.patch\)\s*\.eq\("id", cur\.id\)\.eq\("stock_total", cur\.stock_total\)\.eq\("stock_remaining", cur\.stock_remaining\)\.select\("id"\)/.test(ra)
+    && /writeStock\(r, \(cur\) => planStock\(cur, n\)/.test(ra) && /writeStock\(r, \(cur\) => planLeft\(cur, n\)/.test(ra)
+    && !/update\(r\.id, \{ stock_total:/.test(ra) && !/update\(r\.id, \{ stock_remaining:/.test(ra));
+  ok("reserve card: a failed read is not 'No reserves yet'",
+    /const \{ data, error \} = await supabase\.from\("reserves"\)\.select\("\*"\)\.order\("sort"\);\s*if \(error\) throw new Error\(error\.message\);/.test(ra));
+
+  // ── an Apliiq ID ──
+  const mm = code(read("components/MerchManager.tsx"));
+  ok("apliiq id: the add form finds the product that already holds it and opens that instead of adding a copy",
+    /const twin = na\.apliiq\.trim\(\) \? products\.find\(/.test(mm) && /disabled=\{isBlank\(na\.title\) \|\| !!twin\}/.test(mm) && /onClick=\{\(\) => openTwin\(twin\)\}>Open it</.test(mm));
+  ok("apliiq id: the editor will not save onto another product's ID — it moves the link, or opens that one",
+    /disabled=\{isBlank\(d\.title\) \|\| \(!!holder && !absorbing\)\}/.test(mm) && /onClick=\{moveHere\}>Move the link here</.test(mm) && /onClick=\{\(\) => onOpen\(holder\)\}>Open it</.test(mm));
+  ok("apliiq id: moving the link frees the synced copy first, matched on the ID it held, and gives it back if this save fails",
+    /\.update\(\{ apliiq_product_id: null, archived_at: absorbing\.archived_at \?\? now, updated_at: now \}\)\s*\.eq\("id", absorbing\.id\)\.eq\("apliiq_product_id", typedId\)\.select\("id"\)/.test(mm)
+    && /if \(error && absorbing\) \{\s*await supabase\.from\("shop_products"\)\.update\(\{ apliiq_product_id: typedId, archived_at: absorbing\.archived_at/.test(mm));
+  ok("apliiq id: what the curated product lacks comes with the link — cost and sizes, never over its own",
+    /absorbing && p\.cost_cents == null && absorbing\.cost_cents != null \? \{ cost_cents: absorbing\.cost_cents \}/.test(mm)
+    && /absorbing && p\.variants\.length === 0 && absorbing\.variants\.length \? \{ variants: absorbing\.variants \}/.test(mm));
+
+  // ── a shelf's city, and its count ──
+  const il = code(read("components/InventoryLibrary.tsx"));
+  ok("inventory: a new shelf starts in its person's city and is filed there",
+    /setDraft\(blankDraft\(homeMarket\(profile\) \?\? FOUNDING_MARKET\)\)/.test(il) && /insert\(\{ \.\.\.row, qty: count, market: draft\.market \}\)/.test(il));
+  ok("inventory: a changed count on a shelf is a correction through set_on_hand, on that shelf's city",
+    /supabase\.rpc\("set_on_hand", \{\s*p_item: row\.name, p_want: count, p_market: toMarket\(editingItem\.market\)/.test(il)
+    && /update\(count != null && Number\.isFinite\(count\) \? \{ \.\.\.row, qty: count \} : row\)/.test(il) && !/qty: draft\.qty/.test(il));
+  ok("inventory: the register shows what the shelf holds (the ledger's balance) and flags low by it",
+    /const onHandOf = \(r: InvItem\): number \| null => r\.onHand \?\? r\.qty;/.test(il) && /className=\{`gl-item\$\{isLow\(it\) \? " low" : ""\}`\}/.test(il));
+  ok("inventory: the register's read says whose shelf each row is",
+    /market: r\.market \?\? null,/.test(code(read("app/api/inventory/route.ts"))));
+  ok("inventory: an AI-drafted item is filed on its filer's city, read from their profile",
+    /homeMarket\(filer as/.test(code(read("app/api/agents/inventory/route.ts"))) && /\.\.\.\(market \? \{ market \} : \{\}\)/.test(code(read("app/api/agents/inventory/route.ts"))));
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.

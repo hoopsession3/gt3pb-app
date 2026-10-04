@@ -182,7 +182,12 @@ export function selectClassShorthands(css, read = (p) => readFileSync(join(ROOT,
     if (!/(^|;)\s*background\s*:/.test(body)) continue;
     for (const part of sel.split(",")) {
       const last = part.trim().split(/[\s>+~]+/).pop() || "";
-      if (/::?(placeholder|before|after)|\b(input|textarea|button|option)\b/.test(last)) continue;
+      // An ELEMENT selector (input, textarea…) is not a select's class — but only as the compound's
+      // type, at its start. As a bare word it also matched inside class names: \binput\b is true of
+      // ".auth-input", so the shorthand on .auth-input — the class every discount-code and perk select
+      // carries — was skipped, and in the day theme those selects tiled their chevron (found driving
+      // Discount codes, 2026-10-04: Kind and Applies to striped across). Same for .ev-input.
+      if (/::?(placeholder|before|after)|^(input|textarea|button|option)\b/.test(last)) continue;
       const hit = [...classes].find((c) => new RegExp(`\\.${c.replace(/-/g, "\\-")}(?![\\w-])`).test(last));
       if (hit) { hits.push(part.trim()); break; }
     }

@@ -6,6 +6,7 @@ import { claimSafeDeep } from "@/lib/claimGuard";
 import { etToday } from "@/lib/dates";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
+import { homeMarket } from "@/lib/homeMarket";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -85,8 +86,7 @@ async function post(req: Request) {
     const { data: filer } = user
       ? await supabaseAdmin.from("profiles").select("market, leads_market").eq("id", user.id).eq("tenant_id", tenant).maybeSingle()
       : { data: null };
-    const shelf = (filer as { market?: string | null; leads_market?: string | null } | null);
-    const market = shelf?.leads_market || shelf?.market || null;
+    const market = homeMarket(filer as { market?: string | null; leads_market?: string | null } | null);
     const inMarket = market ? { market } : {};
     try {
       if (kind === "asset") {
