@@ -1347,7 +1347,7 @@ function MyDay({ userId, isLeader, canGoLive, canBrew }: { userId: string | null
           is about. The greeting is gone, the motto with it (its copy key is retired, so Settings no
           longer offers to edit a line that shows nowhere), and the date rides on today's op card.
           The headline still comes before the plates, which is all P3 asked. */}
-      <DayHeadline leader={isLeader} canGoLive={canGoLive} />
+      <DayHeadline canGoLive={canGoLive} />
       {rhythmState.status === "error" && (
         <p className="load-failed" role="status">
           Couldn&apos;t read today&apos;s stops, drops and brews — this is not &ldquo;nothing on&rdquo;.{" "}
@@ -1420,8 +1420,13 @@ function MyDay({ userId, isLeader, canGoLive, canBrew }: { userId: string | null
 function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boolean }) {
   const { setSection } = useOperatorSection();
   const { openTask } = useTaskSheet();
+  const { toast } = useApp();
   const [tasks, setTasks] = useState<MyTaskRow[]>([]);
   const [loaded, setLoaded] = useState(false);
+  // A FAILED READ IS NOT AN EMPTY PLATE (2026-10-04). This read .data straight through PostgREST's
+  // error object, so a failure drew "Nothing on your plate — you're clear for today": the most
+  // reassuring sentence on the screen, said about a list it never saw.
+  const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase || !userId) { setTasks([]); setLoaded(true); return; }
@@ -1429,12 +1434,14 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
     // the op/note/goal context joined in the database. Same plate the WorkloadBoard reads, so task
     // surfaces can't drift apart again. Op context rides the field_ops spine, which is why a
     // STOP-owned task now shows its stop's name (it rendered as a bare "Event" before).
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("all_tasks")
       .select("*")
       .eq("assignee", userId)
       .eq("done", false)
       .order("sort", { ascending: true, nullsFirst: false });   // events keep their sort; sortless to-dos land after, as before
+    if (error) { setErr(error.message); setLoaded(true); return; }
+    setErr(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rows: MyTaskRow[] = ((data as any[]) ?? []).map((r) =>
       r.source === "todo"
@@ -1462,11 +1469,13 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
   const complete = async (t: MyTaskRow) => {
     if (!supabase) return;
     setTasks((p) => p.filter((x) => x.id !== t.id)); // optimistic
-    await completeTask(t.source === "todo" ? "todo" : "event", t.id, userId);   // ONE complete path (lib/tasks)
+    const ok = await completeTask(t.source === "todo" ? "todo" : "event", t.id, userId);   // ONE complete path (lib/tasks)
+    // The tick took the row away before the write answered; a write that did not land puts it back.
+    if (!ok) { toast(`Couldn't mark "${t.label}" done — try again.`, "error"); load(); }
   };
 
   if (!userId) return null;
-  const empty = loaded && tasks.length === 0;
+  const empty = loaded && !err && tasks.length === 0;
 
   // Priority: critical first, then overdue, then important (warn), then tasks on a LIVE event, then by date.
   const nowIso = new Date().toISOString();
@@ -1479,6 +1488,13 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
   // Chip face (Live Ops): the full list has ONE home — My Day. During service this is a pointer,
   // the same pattern the alerts strip uses. Nothing on your plate → the pointer itself is noise.
   if (chip) {
+    if (err) return (
+      <button type="button" className="alerts-strip taskptr" onClick={() => setSection("day")}>
+        <span className="alerts-strip-i" aria-hidden><Icon name="check" /></span>
+        <span className="alerts-strip-t"><b>Couldn&apos;t check your tasks</b></span>
+        <span className="alerts-strip-go">Open in My Day <Icon name="arrowRight" /></span>
+      </button>
+    );
     if (empty) return null;
     return (
       <button type="button" className="alerts-strip taskptr" onClick={() => setSection("day")}>
@@ -1486,6 +1502,17 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
         <span className="alerts-strip-t"><b>{tasks.length} task{tasks.length === 1 ? "" : "s"} on your plate</b>{over ? ` · ${over} overdue` : crit ? ` · ${crit} critical` : ""}</span>
         <span className="alerts-strip-go">Open in My Day <Icon name="arrowRight" /></span>
       </button>
+    );
+  }
+
+  if (err) {
+    return (
+      <div className="adm-sec" id="my-day-tasks">
+        <p className="load-failed" role="status">
+          Couldn&apos;t load your tasks — this is not &ldquo;nothing on your plate&rdquo;.{" "}
+          <button type="button" className="btn-ter" onClick={() => load()}>Try again</button>
+        </p>
+      </div>
     );
   }
 

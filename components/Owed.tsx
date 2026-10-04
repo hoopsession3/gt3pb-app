@@ -19,6 +19,7 @@ import { fetchInventory, rollupLowStock, type InvItem } from "@/lib/inventory";
 import { goPlanTab } from "@/lib/planNav";
 import { useTaskSheet } from "./TaskSheet";
 import AsyncSection from "./AsyncSection";
+import Icon from "./Icon";
 import { dayKey, localToday } from "@/lib/dates";
 import { daysBetween, dueWord } from "@/lib/dayWords";
 
@@ -75,7 +76,11 @@ type Row = {
 // it replaced pushed a task ONLY when it had an event or a stop to name — so a past-due task
 // attached to neither was skipped by both, silently, forever. Measured in production: all SEVEN
 // past-due tasks are exactly that shape. They were visible on Command and nowhere on My Day.
-type Task = { id: string; label: string; owner: { kind: "event" | "stop"; id: string; name: string } | null; late: number | null };
+type Task = { id: string; label: string; owner: { kind: "event" | "stop"; id: string; name: string } | null; late: number | null; critical: boolean };
+// The team's late tasks lead with this many, unfolded. They were all folded behind one line, while the
+// headline above listed the three most urgent of them again as "Top 3" — the same tasks, twice. The
+// headline's list is gone (components/DayHeadline); its three are here, once (2026-10-04).
+const TEAM_LEAD = 3;
 type Data = { rows: Row[]; tasks: Task[]; low: InvItem[]; bookings: number; extrasFailed: boolean };
 
 const SHOW = 5;
@@ -124,7 +129,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
         supabase.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
         supabase.from("events").select("*").order("day"),
         supabase.from("stops").select("id, name, starts_at, status, archived_at").order("starts_at"),
-        supabase.from("event_tasks").select("id, label, event_id, stop_id, due_at").eq("done", false).eq("kind", "task"),
+        supabase.from("event_tasks").select("id, label, event_id, stop_id, due_at, critical, assignee").eq("done", false).eq("kind", "task"),
         fetchInventory(),
       ]);
       // CHECKED FIRST, BEFORE ANYTHING READS .data. PostgREST returns an error OBJECT rather than
@@ -146,16 +151,21 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
 
       const daysLate = (ymd: string | null | undefined) => (ymd ? daysBetween(ymd, today) : null);
 
-      for (const t of ((tk.data as { id: string; label: string; event_id: string | null; stop_id: string | null; due_at: string | null }[]) ?? [])) {
+      for (const t of ((tk.data as { id: string; label: string; event_id: string | null; stop_id: string | null; due_at: string | null; critical: boolean | null; assignee: string | null }[]) ?? [])) {
+        // ONE TASK, ONE PLACE (2026-10-04): a task assigned to you is in My tasks, right above. The team
+        // list is everybody else's.
+        if (meId && t.assignee === meId) continue;
         const isPast = t.due_at ? t.due_at < nowIso : ((t.event_id && dueEv.has(t.event_id)) || (t.stop_id && dueSt.has(t.stop_id)));
         if (!isPast) continue;
         const own = t.due_at ? dayKey(new Date(t.due_at)) : (t.event_id ? evDay.get(t.event_id) : t.stop_id ? stDay.get(t.stop_id) : null);
         const owner = t.event_id ? { kind: "event" as const, id: t.event_id, name: evName.get(t.event_id) ?? "Event" }
                     : t.stop_id ? { kind: "stop" as const, id: t.stop_id, name: stName.get(t.stop_id) ?? "Stop" }
                     : null;
-        tasks.push({ id: t.id, label: t.label, owner, late: daysLate(own) });
+        tasks.push({ id: t.id, label: t.label, owner, late: daysLate(own), critical: !!t.critical });
       }
-      tasks.sort((a, b) => (b.late ?? 0) - (a.late ?? 0));
+      // Critical first, then the latest — the order the headline's top three used, so the three that
+      // lead here are the three it used to show.
+      tasks.sort((a, b) => Number(b.critical) - Number(a.critical) || (b.late ?? 0) - (a.late ?? 0));
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       low = inv.enabled ? rollupLowStock(inv.items, allEv.filter((e) => e.day && e.day >= today) as any) : [];
@@ -331,15 +341,16 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
                 with their own look, which is what made one screen read as two. */}
             {tasks.length > 0 && (
               <>
-                <button type="button" className="owed-more" onClick={() => setOpenTasks((v) => !v)} aria-expanded={openTasks}>
-                  {tasks.length} team task{tasks.length === 1 ? "" : "s"} late <span aria-hidden="true">{openTasks ? "⌄" : "›"}</span>
-                </button>
-                {openTasks && (allTasks ? tasks : tasks.slice(0, 8)).map((t) => (
+                <div className="owed-head sub">
+                  <span className="owed-k">Team tasks late</span>
+                  <b>{tasks.length}</b>
+                </div>
+                {(openTasks ? (allTasks ? tasks : tasks.slice(0, 8)) : tasks.slice(0, TEAM_LEAD)).map((t) => (
                   // The task itself opens (2026-10-04) — it is what is late, and its sheet completes,
                   // reassigns and re-dates it. It used to open its event's whole prep checklist.
                   <button key={t.id} type="button" className="owed-row late" onClick={() => openTask(t.id, "event")}>
                     <span className="owed-row-b">
-                      <b>{t.label}</b>
+                      <b>{t.critical && <Icon name="warning" />}{t.label}</b>
                       {/* A task with no event or stop is not a broken row — it is a task somebody
                           wrote down on its own. Say that, and open the task itself rather than a
                           prep screen it does not belong to. */}
@@ -349,8 +360,16 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
                     <span className="owed-c" aria-hidden="true">›</span>
                   </button>
                 ))}
+                {!openTasks && tasks.length > TEAM_LEAD && (
+                  <button type="button" className="owed-more" onClick={() => setOpenTasks(true)} aria-expanded={false}>
+                    Show the other {tasks.length - TEAM_LEAD} <span aria-hidden="true">›</span>
+                  </button>
+                )}
                 {openTasks && !allTasks && tasks.length > 8 && (
                   <button type="button" className="owed-more" onClick={() => setAllTasks(true)}>Show the other {tasks.length - 8} <span aria-hidden="true">›</span></button>
+                )}
+                {openTasks && (
+                  <button type="button" className="owed-more" onClick={() => { setOpenTasks(false); setAllTasks(false); }} aria-expanded>Show fewer</button>
                 )}
               </>
             )}

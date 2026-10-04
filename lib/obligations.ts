@@ -107,7 +107,9 @@ export function obligationFor(r: ObligationRow, v: Viewer): boolean {
     case "asset_maintenance":
       return true;                                   // its one tap is anybody's on staff
     case "todos":
-      return mine || v.manage;                       // yours, or a manager triaging the company's
+      // Yours is on your plate — My tasks is the one home for a task assigned to you (2026-10-04, "one
+      // task, one place"). A manager triages the company's others here.
+      return !mine && v.manage;
     case "academy_certifications":
     case "academy_assignments":
       return mine || v.sections.includes("team");    // yours, or the admin who runs the team

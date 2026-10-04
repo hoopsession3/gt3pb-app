@@ -5154,7 +5154,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("days between: calendar days, positive forward, and a DST change is still one day",
     DW.daysBetween("2026-10-03", "2026-10-04") === 1 && DW.daysBetween("2026-10-04", "2026-09-30") === -4
     && DW.daysBetween("2026-11-01", "2026-11-02") === 1 && DW.daysBetween("2026-03-08", "2026-03-09") === 1 && DW.daysBetween("2026-07-01", "2026-10-03") === 94);
-  ok("due word: late, today, ahead — one wording for Needs-you and the top three",
+  ok("due word: late, today, ahead — one wording for lateness wherever it is said",
     DW.dueWord(-94) === "94 days late" && DW.dueWord(-1) === "1 day late" && DW.dueWord(0) === "due today" && DW.dueWord(1) === "in 1 day" && DW.dueWord(4) === "in 4 days");
 
   // ── who may do what (lib/roles canOf) ──
@@ -5198,8 +5198,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const V = (who) => ({ id: me, sections: secs[who], manage: who === "manager" || who === "owner" });
   const row = (source, extra = {}) => ({ source, subject_id: uid, route: "/crew?s=command", owner_user_id: null, ...extra });
   const forWho = (who, r) => O.obligationFor(r, V(who));
-  ok("needs you is yours: a server keeps equipment upkeep (its one tap is anybody's) and her own to-do — not the company's",
-    forWho("server", row("asset_maintenance", { route: "/crew?s=garage" })) && forWho("server", row("todos", { owner_user_id: me, route: "/crew?s=day" }))
+  ok("needs you is yours: a server keeps equipment upkeep (its one tap is anybody's); her own to-do is in My tasks, and the company's are not hers",
+    forWho("server", row("asset_maintenance", { route: "/crew?s=garage" })) && !forWho("server", row("todos", { owner_user_id: me, route: "/crew?s=day" }))
     && !forWho("server", row("todos", { owner_user_id: uid, route: "/crew?s=day" })) && !forWho("server", row("todos", { route: "/crew?s=day" })));
   ok("needs you is yours: a server does not get Aug 1 Launch, a goal, a workstream, an offer or a dispute — none opens for her",
     !forWho("server", row("initiatives")) && !forWho("server", row("goals")) && !forWho("server", row("os_workstreams"))
@@ -5210,9 +5210,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && !forWho("server", row("academy_certifications", { owner_user_id: uid, route: "/crew?s=team" }))
     && JSON.stringify(O.obligationGo(row("academy_certifications", { owner_user_id: me }), V("server"))) === JSON.stringify({ kind: "page", href: "/academy" })
     && JSON.stringify(O.obligationGo(row("academy_certifications", { owner_user_id: uid }), V("owner"))) === JSON.stringify({ kind: "person", id: uid }));
-  ok("needs you is yours: an operator gets the permit re-check (Prep is hers); a manager gets the initiative and every to-do; the owner gets everything",
+  ok("needs you is yours: an operator gets the permit re-check (Prep is hers); a manager gets the initiative and every to-do but his own; the owner gets everything",
     forWho("operator", row("compliance_rules", { route: "/crew?s=prep" })) && !forWho("operator", row("initiatives"))
-    && forWho("manager", row("initiatives")) && forWho("manager", row("todos", { owner_user_id: uid })) && !forWho("manager", row("offer_letters"))
+    && forWho("manager", row("initiatives")) && forWho("manager", row("todos", { owner_user_id: uid })) && !forWho("manager", row("todos", { owner_user_id: me })) && !forWho("manager", row("offer_letters"))
     && ["asset_maintenance", "todos", "initiatives", "goals", "os_workstreams", "offer_letters", "operator_agreements", "square_disputes", "invoices", "compliance_rules"]
       .every((s) => forWho("owner", row(s, { route: s === "invoices" ? "/crew?s=money" : s === "compliance_rules" ? "/crew?s=prep" : "/crew?s=command" }))));
   ok("needs you: the one-tap answers — two any staff member may give, and an invoice's \"Paid\", which is an owner's or admin's (0341 mark_invoice_paid)",
@@ -5257,9 +5257,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     !/myday-ev/.test(crew) && /from\("events"\)\.select\("id, title, day_label, is_live, stage"\)\.eq\("day", localToday\(\)\)\.is\("archived_at", null\)/.test(head)
     && /from\("event_ops"\)/.test(head) && !/field_ops/.test(head) && (crew.match(/<DayHeadline /g) || []).length === 1);
   ok("headline: every read throws on failure — the error branch it had could never be reached",
-    /if \(ev\.error\) throw new Error/.test(head) && /if \(tk\.error\) throw new Error/.test(head) && /if \(o\.error\) throw new Error/.test(head));
-  ok("headline: each of the top three says how late it is, in Needs-you's words and colour",
-    /dueWord\(out\)/.test(head) && /daysBetween\(d\.dueDay, t\.due\)/.test(head) && /className=\{`owed-age\$\{out < 0 \? " late" : ""\}`\}/.test(head));
+    /if \(ev\.error\) throw new Error/.test(head) && /if \(o\.error\) throw new Error/.test(head));
+  ok("headline: today's op and nothing else — its 'Top 3' were tasks already on the screen, task for task (one task, one place)",
+    !/all_tasks/.test(head) && !/openTask/.test(head) && !/dayhead-t/.test(head) && /export default function DayHeadline\(\{ canGoLive \}: \{ canGoLive: boolean \}\)/.test(head)
+    && /<DayHeadline canGoLive=\{canGoLive\} \/>/.test(crew));
   ok("headline: the morning screen's headline is a static import, as the code-split note requires of the daily path",
     /^import DayHeadline from "@\/components\/DayHeadline";$/m.test(read("app/crew/page.tsx")) && !/dynamic\(\(\) => import\("@\/components\/DayHeadline"\)/.test(crew));
 
@@ -5326,7 +5327,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const boxDay = css.indexOf(".app.crew-day :where(.task-box){background:var(--card)");
   ok("paper: the empty task box is white with an ink edge in the day theme, and never outranks the ticked or picked states",
     boxDay > 0 && boxDay < css.indexOf(".task-box.on{"));
-  ok("paper: the top three are cards in the day theme, not 18% black", /\.app\.crew-day \.dayhead-t\{background:var\(--card\)\}/.test(css));
+  ok("paper: the top three's cards left with them — no style is kept for a list that is not drawn", !/\.dayhead-t\b|\.dayhead-top\b/.test(css));
   ok("paper: the day console restates --field, --well and --ink-whisper — they fell through to :root's black",
     /--field:#FFFFFF; --well:rgba\(34,31,24,\.05\); --ink-whisper:rgba\(34,31,24,\.64\);/.test(css));
   ok("paper: 'late' is one colour, the legible red for text in either theme", /\.owed-row\.late \.owed-age,\.owed-age\.late\{color:var\(--red-onLight\)\}/.test(css));
@@ -5724,6 +5725,41 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("permits: the rule sheet is painted and held by the design ratchet — its forms are sections, not boxes in a box",
     /scripts\/fixtures\/rule-sheet\.html/.test(read("scripts/design.ratchet.mjs")) && /export const RULE_SHEET = \{ depth: 3, tap: 44, text: 10\.5 \};/.test(read("scripts/design.ratchet.mjs"))
     && /\.crr-fix \.ts-chip\{min-height:44px;/.test(read("app/globals.css")));
+}
+
+// ── MY DAY: ONE TASK, ONE PLACE (2026-10-04) ───────────────────────────────────────────────────
+// A task could show three times on one screen: in the headline's "Top 3", in My tasks, and in Needs
+// you. Now it has one place — yours in My tasks; everybody else's under Needs you, where the team's
+// most urgent three lead the list unfolded.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const O = require("../.smoke/obligations.js");
+  const owed = code(read("components/Owed.tsx")), crew = code(read("app/crew/page.tsx"));
+  const mine = crew.slice(crew.indexOf("function MyTasks("), crew.indexOf("// ───────────────────────── per-event prep"));
+  const me = "11111111-2222-4333-8444-555555555555", other = "22222222-3333-4444-8555-666666666666";
+  const V = (manage) => ({ id: me, sections: ["day"], manage });
+  ok("one place: a to-do assigned to you is in My tasks and not in Needs you — for anyone, manager or not",
+    !O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: me }, V(true))
+    && !O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: me }, V(false)));
+  ok("one place: somebody else's to-do, or nobody's, is a manager's to triage in Needs you",
+    O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: other }, V(true))
+    && O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: null }, V(true))
+    && !O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: other }, V(false)));
+  ok("one place: the team's late tasks skip yours — they are in My tasks, right above",
+    /\.select\("id, label, event_id, stop_id, due_at, critical, assignee"\)/.test(owed) && /if \(meId && t\.assignee === meId\) continue;/.test(owed));
+  ok("one place: the team list leads with its three most urgent, unfolded — critical first, then the latest — under its own head",
+    /tasks\.sort\(\(a, b\) => Number\(b\.critical\) - Number\(a\.critical\) \|\| \(b\.late \?\? 0\) - \(a\.late \?\? 0\)\);/.test(owed)
+    && /const TEAM_LEAD = 3;/.test(read("components/Owed.tsx")) && /: tasks\.slice\(0, TEAM_LEAD\)\)\.map\(/.test(owed)
+    && /<span className="owed-k">Team tasks late<\/span>/.test(owed) && /\{t\.critical && <Icon name="warning" \/>\}/.test(owed));
+  ok("my tasks: a failed read says so — it said 'Nothing on your plate — you're clear for today' about a list it never saw",
+    /const \{ data, error \} = await supabase\s*\.from\("all_tasks"\)/.test(mine) && /if \(error\) \{ setErr\(error\.message\); setLoaded\(true\); return; \}/.test(mine)
+    && /const empty = loaded && !err && tasks\.length === 0;/.test(mine) && /Couldn&apos;t load your tasks — this is not &ldquo;nothing on your plate&rdquo;\./.test(mine));
+  ok("my tasks: a tick that did not save puts the task back and says so — it vanished either way",
+    /const ok = await completeTask\(/.test(mine) && /if \(!ok\) \{ toast\(/.test(mine));
+  ok("one place: the painted My Day has no top three, and its team list leads with them",
+    !/dayhead-top/.test(read("scripts/fixtures/my-day.html")) && /<div class="owed-head sub">/.test(read("scripts/fixtures/my-day.html")));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

@@ -2,16 +2,13 @@
 
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { etToday, localToday } from "@/lib/dates";
-import { daysBetween, dueWord } from "@/lib/dayWords";
+import { localToday } from "@/lib/dates";
 import { setEventLive } from "@/lib/wrap";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useRealtimeTable } from "@/lib/realtime";
-import { useTaskSheet } from "./TaskSheet";
 import { useRecord } from "./RecordSheet";
 import { useApp } from "./AppProvider";
 import { WayButtons } from "./RecordWays";
-import Icon from "@/components/Icon";
 
 // THE DAY'S HEADLINE — what today is about, before the plates.
 //
@@ -38,42 +35,34 @@ import Icon from "@/components/Icon";
 // most important switch, which lived in a folded panel at the foot of Live Ops, is on the card itself
 // for whoever may throw it: today, not live, not wrapped — "Make it live".
 //
+// ── AND THE TOP THREE ARE GONE (2026-10-04, "one task, one place") ──────────────────────────────
+// For a leader the headline also listed the three most urgent tasks due — company-wide, critical
+// first. Every one of them was already on the same screen, once or twice: a task assigned to you is
+// in My tasks, and the team's late tasks and the company's to-dos are under Needs you. Ryan's 10:13
+// screen had all three of its top three in Needs you's team list as well. So a task now has one place
+// on My Day — yours in My tasks, everybody else's under Needs you, where the most urgent three now
+// lead the team list unfolded (components/Owed) — and the headline is what it says: today's op.
+//
 // A FAILED READ IS NOT A QUIET DAY. Every read below throws. This used to read .data straight
 // through a PostgREST error object — which is not a throw — so the error branch it had was
 // unreachable and a failure rendered as the silence that means "nothing on today".
 
 type Op = { id: string; title: string | null; day_label: string | null; is_live: boolean | null; stage: string | null; dress_code: string | null; crew_brief: string | null };
-type T = { id: string; source: string; title: string; due: string | null; critical: boolean };
-type Data = { ops: Op[]; top: T[]; dueDay: string; dayLabel: string };
-type Read<R> = { data: R | null; error: { message: string } | null };
+type Data = { ops: Op[]; dayLabel: string };
 
-export default function DayHeadline({ leader, canGoLive }: { leader: boolean; canGoLive: boolean }) {
-  const { openTask } = useTaskSheet();
+export default function DayHeadline({ canGoLive }: { canGoLive: boolean }) {
   const { openRecord } = useRecord();
   const { toast } = useApp();
   const [arming, setArming] = useState<string | null>(null);
   const loader = useCallback(async (): Promise<Data> => {
-    // Two "todays", each the one lib/dates says it means: the event is the crew's wall-clock day,
-    // a task's due date is the business day it was always compared against here.
-    const dueDay = etToday();
-    // The date rides on the card rather than a greeting line above it: on an operator's first screen
-    // the day's op is the headline, and the date is its caption. Read here, not in render.
+    // The event is the crew's wall-clock day (lib/dates localToday). The date rides on the card rather
+    // than a greeting line above it: on an operator's first screen the day's op is the headline, and
+    // the date is its caption. Read here, not in render.
     const dayLabel = new Date(`${localToday()}T12:00:00`).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
-    if (!supabase) return { ops: [], top: [], dueDay, dayLabel };
+    if (!supabase) return { ops: [], dayLabel };
     const sb = supabase;
-    const topThree = async (): Promise<Read<T[]>> => {
-      if (!leader) return { data: [], error: null };
-      const r = await sb.from("all_tasks").select("id, source, title, due, critical")
-        .eq("done", false).not("due", "is", null).lte("due", dueDay)
-        .order("critical", { ascending: false }).order("due").limit(3);
-      return { data: (r.data as T[] | null), error: r.error };
-    };
-    const [ev, tk] = await Promise.all([
-      sb.from("events").select("id, title, day_label, is_live, stage").eq("day", localToday()).is("archived_at", null).order("title"),
-      topThree(),
-    ]);
+    const ev = await sb.from("events").select("id, title, day_label, is_live, stage").eq("day", localToday()).is("archived_at", null).order("title");
     if (ev.error) throw new Error(ev.error.message);
-    if (tk.error) throw new Error(tk.error.message);
     const evs = (ev.data ?? []) as Omit<Op, "dress_code" | "crew_brief">[];
     let briefs = new Map<string, { dress_code: string | null; crew_brief: string | null }>();
     if (evs.length) {
@@ -84,13 +73,11 @@ export default function DayHeadline({ leader, canGoLive }: { leader: boolean; ca
     }
     return {
       ops: evs.map((e) => ({ ...e, dress_code: briefs.get(e.id)?.dress_code ?? null, crew_brief: briefs.get(e.id)?.crew_brief ?? null })),
-      top: tk.data ?? [],
-      dueDay,
       dayLabel,
     };
-  }, [leader]);
+  }, []);
   const state = useAsyncData(loader, [loader]);
-  useRealtimeTable(["events", "event_ops", "event_tasks", "todos"], state.reload);
+  useRealtimeTable(["events", "event_ops"], state.reload);
 
   // The same write Live Ops' heads-up makes (lib/wrap setEventLive → admin_set_event_live).
   const makeLive = async (id: string) => {
@@ -106,11 +93,11 @@ export default function DayHeadline({ leader, canGoLive }: { leader: boolean; ca
   const d = state.data;
   if (state.status === "error") return (
     <p className="load-failed" role="status">
-      Couldn&apos;t load today&apos;s op{leader ? " and top three" : ""} — this is not &ldquo;nothing on&rdquo;.{" "}
+      Couldn&apos;t load today&apos;s op — this is not &ldquo;nothing on&rdquo;.{" "}
       <button type="button" className="btn-ter" onClick={() => state.reload()}>Try again</button>
     </p>
   );
-  if (!d || (d.ops.length === 0 && d.top.length === 0)) return null;
+  if (!d || d.ops.length === 0) return null;
   return (
     <div className="dayhead">
       {d.ops.map((op) => {
@@ -138,22 +125,6 @@ export default function DayHeadline({ leader, canGoLive }: { leader: boolean; ca
           </div>
         );
       })}
-      {d.top.length > 0 && (
-        <div className="dayhead-top">
-          <span className="dayhead-k">Top {d.top.length}</span>
-          {d.top.map((t) => {
-            const out = t.due ? daysBetween(d.dueDay, t.due) : null;
-            return (
-              <button key={t.id} type="button" className={`dayhead-t${t.critical ? " crit" : ""}`} onClick={() => openTask(t.id, t.source === "todo" ? "todo" : "event")}>
-                {t.critical && <Icon name="warning" />}
-                <span className="dayhead-tt">{t.title}</span>
-                {/* The same words and the same look as Needs-you's rows: lateness is said one way. */}
-                {out != null && <span className={`owed-age${out < 0 ? " late" : ""}`}>{dueWord(out)}</span>}
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

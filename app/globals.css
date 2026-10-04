@@ -7136,6 +7136,7 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
    No new colour, no new radius — a new feature should make the system stronger, not wider. */
 .owed{display:flex;flex-direction:column;gap:2px;margin-top:12px}
 .owed-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:0 2px 6px}
+.owed-head.sub{padding-top:12px}
 .owed-k{font-family:'DM Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.07em;
   text-transform:uppercase;color:var(--gold2)}
 .owed-head b{font-family:'Inter';font-size:13px;font-weight:700;color:var(--cream)}
@@ -7161,6 +7162,7 @@ div.owed-row-go{cursor:default}
 .owed-row-b{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
 .owed-row-b b{font-family:'Inter';font-size:13px;font-weight:600;color:var(--cream);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.owed-row-b b svg{width:13px;height:13px;color:var(--warn);vertical-align:-2px;margin-right:5px}
 .owed-row-b i{font-style:normal;font-family:'Inter';font-size:11.5px;color:var(--cream-m);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .owed-age{flex:none;font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;
@@ -7222,13 +7224,6 @@ div.owed-row-go{cursor:default}
 .dayhead-op-go,.owed-row-go{display:flex;align-items:center;gap:10px;width:100%;min-width:0;min-height:44px;margin:0;padding:0;background:none;border:none;text-align:left;color:inherit;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}
 .dayhead-op-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .dayhead-op .myday-brief{margin:8px 0 0}
-.dayhead-top{display:flex;flex-direction:column;gap:6px}
-.dayhead-t{display:flex;align-items:center;gap:7px;min-height:44px;text-align:left;background:rgba(0,0,0,.18);border:1px solid var(--line2);border-radius:11px;padding:9px 12px;cursor:pointer;font-family:'Inter';font-weight:600;font-size:12.5px;color:var(--cream);-webkit-appearance:none;appearance:none}
-/* The same 18% black on cream made Ryan's top three priorities look disabled (2026-10-04). */
-.app.crew-day .dayhead-t{background:var(--card)}
-.dayhead-tt{flex:1;min-width:0}
-.dayhead-t.crit{border-color:var(--warn)}
-.dayhead-t svg{width:13px;height:13px;color:var(--warn);flex:0 0 auto}
 .kpib-live{font-style:normal;margin-left:6px;color:#5b9a6b;letter-spacing:.6px}
 .brew-taste{margin-left:10px;background:none;border:1px solid var(--line2);border-radius:var(--r-pill);padding:3px 10px;cursor:pointer;font-family:'Inter';font-weight:650;font-size:10.5px;color:var(--cream);-webkit-appearance:none;appearance:none}
 .mkpi-stage{font-family:'Fraunces',serif;font-style:italic;font-size:13px;color:var(--cream-m);margin:0 0 10px}
