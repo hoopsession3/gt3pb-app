@@ -59,11 +59,18 @@ export const PURCHASE_SHEET = { depth: 3, tap: 44, text: 10.5 };
 // a floor (it measured 35); 10 is the eyebrows, at the type floor.
 const MYDAY_FIXTURE = join(ROOT, "scripts/fixtures/my-day.html");
 export const MY_DAY = { depth: 2, tap: 44, text: 10 };
+// One event's prep screen (2026-10-04, Ryan's 10:44 PM screenshot of the Dear Deandra Jazz Brunch,
+// three weeks out with no pick list). Measured after the pass: depth 2 is a tool card's line inside
+// the card; 44 is every control — "+ Add" on the brief measured 22, "Edit details" 24, "Add to
+// calendar" and "‹ All prep" 28 before it; 10 is the eyebrow over the event's name, at the floor.
+const PREP_FIXTURE = join(ROOT, "scripts/fixtures/prep-target.html");
+export const PREP_TARGET = { depth: 2, tap: 44, text: 10 };
 const SHEETS = [
   { name: "brew sheet",     file: BREW_FIXTURE,     rel: "scripts/fixtures/brew-sheet.html",     limits: BREW_SHEET },
   { name: "record sheet",   file: RECORD_FIXTURE,   rel: "scripts/fixtures/record-sheet.html",   limits: RECORD_SHEET },
   { name: "purchase sheet", file: PURCHASE_FIXTURE, rel: "scripts/fixtures/purchase-sheet.html", limits: PURCHASE_SHEET },
   { name: "My Day screen",  file: MYDAY_FIXTURE,    rel: "scripts/fixtures/my-day.html",         limits: MY_DAY },
+  { name: "prep screen",    file: PREP_FIXTURE,     rel: "scripts/fixtures/prep-target.html",    limits: PREP_TARGET },
 ];
 // The crew console's bottom chrome (2026-10-04): the nav, the floating tier, the rail. Not a depth
 // or a tap floor — a COLLISION check, because the defect was a button painted on top of a tab.

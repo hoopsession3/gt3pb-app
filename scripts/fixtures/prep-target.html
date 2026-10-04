@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>fixture · Service › Prep › one event, day theme</title>
+<!--
+  A TEST DOUBLE OF ONE EVENT'S PREP SCREEN, AND IT SAYS SO.
+
+  Ryan, 2026-10-04, 10:44 PM: a screenshot of Prep › Dear Deandra Jazz Brunch and no words. Three
+  weeks out, no pick list. What it showed: a strip reading "0 open · 0 critical · 21 days to go" (two
+  zeros that were buttons to anchors that do not exist without a list); "✓ Complete event" beside
+  "Confirmed", twenty-one days early; and five tools in three looks — two of them thin gold text that
+  read as labels ("Schedule · when to leave", "Pack-out plan · kegs vs bottles").
+
+  This is the screen after that pass, in the same state: the strip says "No pick list yet" and lands
+  on the buttons that make one; Complete waits for the day; every tool is the same card.
+
+  Same construction as my-day.html: the DOM class for class as components/CrewKpis.tsx,
+  app/crew/page.tsx (PrepDetail, MenuEditor, DayBrief), components/crew/OwnerDetails.tsx,
+  components/AddToCalendar.tsx and components/kit.tsx produce it, styled by the REAL app/globals.css
+  and painted in the real Chromium at phone width, in the day theme and then the dark one. Every
+  block names its source in `data-from`, and scripts/design.ratchet.mjs FAILS if a class used here
+  no longer appears in that file.
+-->
+<link rel="stylesheet" href="../../app/globals.css">
+<style>html,body{margin:0;background:#F4EFE3}</style>
+</head>
+<body>
+<div class="app crew-day" data-from="components/AppShell.tsx">
+<div class="body">
+<section class="screen admin" data-from="app/crew/page.tsx">
+
+  <div class="op-trans" role="region" aria-label="Prep section">
+
+    <div class="mkpi" role="group" aria-label="This target's readiness" data-from="components/CrewKpis.tsx">
+      <button type="button" class="mkpi-tile mkpi-go"><div class="mkpi-v">—</div><div class="mkpi-k">No pick list yet</div></button>
+      <div class="mkpi-tile"><div class="mkpi-v">—</div><div class="mkpi-k">Critical open</div></div>
+      <button type="button" class="mkpi-tile mkpi-go"><div class="mkpi-v">21</div><div class="mkpi-k">Days to go</div></button>
+    </div>
+
+    <div class="adm-sec adm-prep" data-from="app/crew/page.tsx">
+      <button class="adm-prep-back">‹ All prep</button>
+      <div class="k-sec" data-from="components/kit.tsx"><span class="k-sec-lbl"><h2 class="l">Dear Deandra Jazz Brunch</h2><span class="a">prep</span></span><span class="k-sec-r"></span></div>
+
+      <div id="prep-target-details">
+        <div class="ownerdet" data-from="components/crew/OwnerDetails.tsx">
+          <span class="ownerdet-meta"><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span> Sat, Oct 24 · <span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-6.5-5.4-6.5-10a6.5 6.5 0 0 1 13 0c0 4.6-6.5 10-6.5 10z"/><circle cx="12" cy="10.6" r="2.3"/></svg></span> Charlotte, NC</span>
+          <div class="ownerdet-life"><span class="ownerdet-stage st-confirmed">Confirmed</span></div>
+          <div class="atc" data-from="components/AddToCalendar.tsx"><button type="button" class="atc-btn" aria-haspopup="menu" aria-expanded="false"><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span> Add to calendar</button></div>
+          <button type="button" class="ownerdet-edit">Edit details</button>
+        </div>
+      </div>
+
+      <div class="adm-prep-actions" id="prep-target-start" style="flex-wrap:wrap">
+        <button class="adm-btn primary">Generate pack list from menu</button>
+        <button class="adm-btn"><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.1 4.9 5.3.4-4 3.5 1.2 5.2L12 14.7 7.4 17.4l1.2-5.2-4-3.5 5.3-.4z"/></svg></span> AI prep list</button>
+        <button class="adm-btn ts-btn"><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.8 2.8-2-2z"/></svg></span> Troubleshoot</button>
+      </div>
+
+      <div class="menued" data-from="app/crew/page.tsx">
+        <button type="button" class="prep-collapse prep-tool" aria-expanded="false">
+          <span class="prep-collapse-l"><b><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3h8v3.5c1.5.8 2.5 2.3 2.5 4.5v8a2 2 0 0 1-2 2H9.5a2 2 0 0 1-2-2v-8c0-2.2 1-3.7 2.5-4.5z"/><path d="M8 3h8"/></svg></span> Menu &amp; setup</b><span>what we're pouring · the rig · power &amp; water</span></span>
+          <span class="ev-chev">›</span>
+        </button>
+      </div>
+      <button type="button" class="prep-collapse prep-tool">
+        <span class="prep-collapse-l"><b><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c3 3.8 5.5 6.7 5.5 10a5.5 5.5 0 0 1-11 0C6.5 9.7 9 6.8 12 3z"/><path d="M9.5 13.5a2.5 2.5 0 0 0 2.5 2.5"/></svg></span> Brew</b><span>nothing planned for this event yet — plan one</span></span>
+        <span class="ev-chev" aria-hidden="true">›</span>
+      </button>
+      <button type="button" class="prep-collapse prep-tool">
+        <span class="prep-collapse-l"><b><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span> Schedule</b><span>when to leave · the run of show</span></span>
+        <span class="ev-chev" aria-hidden="true">›</span>
+      </button>
+      <button type="button" class="prep-collapse prep-tool" aria-expanded="false">
+        <span class="prep-collapse-l"><b><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h11v8H3z"/><path d="M14 10h4l3 3v2h-7z"/><circle cx="7" cy="17" r="1.6"/><circle cx="18" cy="17" r="1.6"/></svg></span> Load-out &amp; tow</b><span>space plan · tongue weight · the load checklist</span></span>
+        <span class="ev-chev">›</span>
+      </button>
+      <button type="button" class="prep-collapse prep-tool">
+        <span class="prep-collapse-l"><b><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg></span> Pack-out plan</b><span>kegs vs bottles, from the brew coming here</span></span>
+        <span class="ev-chev" aria-hidden="true">›</span>
+      </button>
+
+      <div class="daybrief" data-from="app/crew/page.tsx">
+        <div class="daybrief-h">Day-of brief · how to show up<button type="button" class="daybrief-edit">+ Add</button></div>
+        <div class="empty" data-from="components/EmptyState.tsx"><div class="empty-t">No brief yet</div><div class="empty-s">Add dress code + call details so the crew knows how to show up.</div></div>
+      </div>
+    </div>
+
+  </div>
+</section>
+</div>
+</div>
+</body>
+</html>

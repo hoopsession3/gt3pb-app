@@ -3526,6 +3526,11 @@ body:has(.conc-sheet) .rail{display:flex}
 .prep-collapse-l b{font-family:'Inter';font-weight:700;font-size:14.5px;color:var(--cream)}
 .prep-collapse-l span{font-family:'Inter';font-size:12px;color:var(--cream-m)}
 .prep-collapse .ev-chev{margin-left:auto;transition:transform .15s}
+/* The prep screen's tools — Brew, Schedule, Load-out, Pack-out — one card each, stacked (2026-10-04). */
+.prep-tool{margin-top:10px}
+/* The prep screen's small controls get the 44px every other control there has (2026-10-04): they
+   measured 22–28px — "+ Add" on the brief, "Edit details", "Add to calendar", "‹ All prep". */
+.admin .adm-prep-back,.atc-btn,.ownerdet-edit,.daybrief-edit{min-height:44px}
 
 /* ── Event generator (create from notes) ── */
 .adm-btn.eg-btn{margin-right:7px}

@@ -13,6 +13,7 @@ import { derivedStopStatus } from "@/lib/stopRecord";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { NoteBox } from "@/components/RecordWays";
 import { archiveOwner, cleanRecap, saveRecap, wrapOwner } from "@/lib/wrap";
+import { localToday } from "@/lib/dates";
 
 // OWNER DETAILS — the edit sheet behind a truck stop or an event.
 //
@@ -261,6 +262,11 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
       : calFromStop({ id: ownerId, name: f.name ?? "", starts_at: f.starts_at ?? null, location_text: f.location_text, address: f.address });
     const STAGE_LABEL: Record<string, string> = { lead: "Lead", confirmed: "Confirmed", prep: "Prep", live: "Live", done: "Done", upcoming: "Upcoming" };
     const done = f.completed_at != null || (isEvent ? f.stage === "done" : f.status === "done");
+    // COMPLETE IS FOR THE DAY IT HAPPENS (2026-10-04, Ryan's prep screen at 10:44 PM). "✓ Complete
+    // event" sat beside "Confirmed" on the Dear Deandra Jazz Brunch three weeks out — a green button
+    // that, tapped, takes an event nobody has worked yet off every upcoming list. It shows from the
+    // day itself (or with no date at all, when there is nothing to wait for).
+    const arrived = !dateVal || dateVal <= localToday();
     return (
       <div className="ownerdet">
         <span className="ownerdet-meta"><Icon name="calendar" /> {date}{place ? <> · <Icon name="pin" /> {place}</> : ""}</span>
@@ -268,7 +274,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
           <span className={`ownerdet-stage st-${status ?? (isEvent ? "confirmed" : "upcoming")}`}>{STAGE_LABEL[status ?? ""] ?? status}</span>
           {done ? (
             <span className="ownerdet-completed"><Icon name="check" /> Completed{f.completed_at ? ` ${new Date(f.completed_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</span>
-          ) : isAdmin ? (
+          ) : isAdmin && arrived ? (
             <button type="button" className="ownerdet-complete" onClick={() => { setRecap(f.recap ?? ""); setWrapping((w) => !w); }}><Icon name="check" /> Complete {isEvent ? "event" : "stop"}</button>
           ) : null}
         </div>

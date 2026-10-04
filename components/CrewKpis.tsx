@@ -23,7 +23,10 @@ import { localToday } from "@/lib/dates";
 // caller of an existing, proven mechanism — not a new one.
 type Sb = NonNullable<typeof supabase>;
 export type KpiDest = { section?: OpSection; planTab?: "calendar" | "events" | "vendors"; anchor?: string };
-export type KpiTile = { key: string; label: string; load: (db: Sb) => PromiseLike<{ count?: number | null }>; to?: KpiDest };
+// A tile's load may also say what it found means: a different label ("No pick list yet" is not
+// "0 open"), and a different destination — or none (to: null), when there is nothing to land on.
+export type KpiRead = { count?: number | null; label?: string; to?: KpiDest | null };
+export type KpiTile = { key: string; label: string; load: (db: Sb) => PromiseLike<KpiRead>; to?: KpiDest };
 
 // A TILE LANDS WHERE IT SAYS (2026-10-03). This used to write `gt3-mpanel-<id>=1` to localStorage
 // and scrollIntoView the anchor 120ms later. <Panel> reads that key once, on mount — so a board
@@ -40,6 +43,7 @@ export function goToDest(d: KpiDest, setSection: (s: OpSection) => void) {
 
 function KpiStrip({ tiles, label }: { tiles: KpiTile[]; label: string }) {
   const [vals, setVals] = useState<Record<string, string>>({});
+  const [reads, setReads] = useState<Record<string, KpiRead>>({});
   const { setSection } = useOperatorSection();
   useEffect(() => {
     if (!supabase) return;
@@ -47,11 +51,11 @@ function KpiStrip({ tiles, label }: { tiles: KpiTile[]; label: string }) {
     (async () => {
       const out = await Promise.all(
         tiles.map(async (t) => {
-          try { const r = await t.load(supabase!); return [t.key, r.count != null ? String(r.count) : "—"] as const; }
-          catch { return [t.key, "—"] as const; }
+          try { const r = await t.load(supabase!); return [t.key, r.count != null ? String(r.count) : "—", r] as const; }
+          catch { return [t.key, "—", {} as KpiRead] as const; }
         }),
       );
-      if (live) setVals(Object.fromEntries(out));
+      if (live) { setVals(Object.fromEntries(out.map(([k, v]) => [k, v]))); setReads(Object.fromEntries(out.map(([k, , r]) => [k, r]))); }
     })();
     return () => { live = false; };
   }, [tiles]);
@@ -59,15 +63,18 @@ function KpiStrip({ tiles, label }: { tiles: KpiTile[]; label: string }) {
     <div className="mkpi" role="group" aria-label={label}>
       {tiles.map((t) => {
         const v = vals[t.key] ?? "—";
-        return t.to ? (
-          <button key={t.key} type="button" className="mkpi-tile mkpi-go" onClick={() => goToDest(t.to!, setSection)}>
+        const r = reads[t.key];
+        const to = r && r.to !== undefined ? r.to : t.to;
+        const lbl = r?.label ?? t.label;
+        return to ? (
+          <button key={t.key} type="button" className="mkpi-tile mkpi-go" onClick={() => goToDest(to, setSection)}>
             <div className="mkpi-v">{v}</div>
-            <div className="mkpi-k">{t.label}</div>
+            <div className="mkpi-k">{lbl}</div>
           </button>
         ) : (
           <div className="mkpi-tile" key={t.key}>
             <div className="mkpi-v">{v}</div>
-            <div className="mkpi-k">{t.label}</div>
+            <div className="mkpi-k">{lbl}</div>
           </div>
         );
       })}
@@ -136,7 +143,14 @@ export const GarageKpis = () => <KpiStrip tiles={GARAGE_TILES} label="Assets at 
 // tiles still drill, each to its own spot on the detail below (Ryan: "It should still drill to
 // that when warranted … put it where it makes sense"): Open → the checklist, Critical → the
 // first open critical line, Days to go → the identity/date card. All same-screen anchors — no
-// section hop — and a missing anchor (0 criticals) is a quiet no-op: nothing to drill to.
+// section hop.
+//
+// NOTHING PLANNED IS NOT NOTHING OPEN (2026-10-04, Ryan's prep screen at 10:44 PM). Inside the Dear
+// Deandra Jazz Brunch, three weeks out with no pick list, this strip read "0 open · 0 critical ·
+// 21 days to go" — every number the colour of done, about an event nobody had planned. And the two
+// zeros were buttons to anchors that do not exist without a list ("a quiet no-op": a tap that does
+// nothing). Now: no list says "No pick list yet" and lands on the buttons that make one; a count
+// with nothing behind it is a number, not a button.
 // One realtime ear on event_tasks keeps both flavors honest as tasks get checked off — the bump
 // mints a fresh tiles identity, and KpiStrip's [tiles] effect refetches.
 export function PrepKpis({ target }: { target?: { kind: "event" | "stop"; id: string } | null }) {
@@ -147,8 +161,26 @@ export function PrepKpis({ target }: { target?: { kind: "event" | "stop"; id: st
     if (!target) return [...PREP_TILES];
     const col = target.kind === "event" ? "event_id" : "stop_id";
     return [
-      { key: "open", label: `Open tasks · this ${target.kind === "event" ? "event" : "stop"}`, load: (db) => head(db, "event_tasks").eq("done", false).eq(col, target.id), to: { anchor: "prep-target-tasks" } },
-      { key: "crit", label: "Critical open", load: (db) => head(db, "event_tasks").eq("done", false).eq("critical", true).eq(col, target.id), to: { anchor: "prep-first-crit" } },
+      {
+        key: "open", label: `Open tasks · this ${target.kind === "event" ? "event" : "stop"}`, to: { anchor: "prep-target-tasks" },
+        load: async (db) => {
+          const [all, open] = await Promise.all([head(db, "event_tasks").eq(col, target.id), head(db, "event_tasks").eq("done", false).eq(col, target.id)]);
+          if (all.error) throw all.error;
+          if (open.error) throw open.error;
+          if (!all.count) return { count: null, label: "No pick list yet", to: { anchor: "prep-target-start" } };
+          return { count: open.count ?? 0 };
+        },
+      },
+      {
+        key: "crit", label: "Critical open", to: { anchor: "prep-first-crit" },
+        load: async (db) => {
+          const [all, r] = await Promise.all([head(db, "event_tasks").eq(col, target.id), head(db, "event_tasks").eq("done", false).eq("critical", true).eq(col, target.id)]);
+          if (all.error) throw all.error;
+          if (r.error) throw r.error;
+          if (!all.count) return { count: null, to: null };                  // no list: not "0 critical"
+          return { count: r.count ?? 0, to: r.count ? undefined : null };   // none open: a number, not a door
+        },
+      },
       {
         key: "days", label: "Days to go", load: async (db) => {
           const iso = target.kind === "event"

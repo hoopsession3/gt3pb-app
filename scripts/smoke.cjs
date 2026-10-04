@@ -5451,6 +5451,38 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("assets: the kinds the log sheet offers are declared to the vocabulary audit", /\/\/ vocab: asset_maintenance\.kind\nconst KINDS = /.test(read("components/AssetMaintenance.tsx")));
 }
 
+// ── PREP, 10:44 PM: THREE WEEKS OUT, NOTHING PLANNED, AND THE SCREEN SAID ALL CLEAR (2026-10-04) ──
+// Ryan's screenshot of Prep › Dear Deandra Jazz Brunch, no words: "0 open · 0 critical · 21 days to
+// go" over an event with no pick list; "✓ Complete event" three weeks early; five tools in three
+// looks, two of which read as labels; four controls under 30px.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const kpis = code(read("components/CrewKpis.tsx")), own = code(read("components/crew/OwnerDetails.tsx"));
+  const crewSrc = code(read("app/crew/page.tsx")), css = read("app/globals.css");
+  const prep = crewSrc.slice(crewSrc.indexOf("function PrepDetail("), crewSrc.indexOf("function AssignSheet(") > 0 ? crewSrc.indexOf("function AssignSheet(") : undefined);
+  ok("prep: an event with no list says so — 'No pick list yet', landing on the buttons that make one — not '0 open'",
+    /if \(!all\.count\) return \{ count: null, label: "No pick list yet", to: \{ anchor: "prep-target-start" \} \};/.test(kpis)
+    && (crewSrc.match(/id="prep-target-start"/g) || []).length === 2);
+  ok("prep: no list is not '0 critical', and a count with nothing behind it is a number, not a button",
+    /if \(!all\.count\) return \{ count: null, to: null \};/.test(kpis) && /return \{ count: r\.count \?\? 0, to: r\.count \? undefined : null \};/.test(kpis)
+    && /const to = r && r\.to !== undefined \? r\.to : t\.to;/.test(kpis) && /return to \? \(/.test(kpis) && /const lbl = r\?\.label \?\? t\.label;/.test(kpis));
+  ok("prep: Complete waits for the day — it sat beside 'Confirmed' three weeks early",
+    /const arrived = !dateVal \|\| dateVal <= localToday\(\);/.test(own) && /\) : isAdmin && arrived \? \(/.test(own));
+  ok("prep: the five tools are one card each — Menu, Brew, Schedule, Load-out, Pack-out — none of them thin text",
+    (crewSrc.match(/className="prep-collapse prep-tool"/g) || []).length === 5
+    && /<b><Icon name="calendar" \/> Schedule<\/b>/.test(prep) && /<b><Icon name="package" \/> Pack-out plan<\/b>/.test(prep) && /<b><Icon name="coffee" \/> Brew<\/b>/.test(prep)
+    && !/adm-regen" onClick=\{\(\) => setPlanOpen\(true\)\}/.test(prep) && !/adm-regen" onClick=\{\(\) => setPackPlanOpen\(true\)\}/.test(prep)
+    && (prep.match(/onClick=\{planBrew\}/g) || []).length === 2 && /\.prep-tool\{margin-top:10px\}/.test(css));
+  ok("prep: a menu chip that did not save goes back and says so — the write's result was ignored",
+    /const \{ error \} = await supabase\.from\(table\)\.update\(patch\)\.eq\("id", ownerId\);\s*if \(error\) \{ setF\(before\); toast\(/.test(crewSrc));
+  ok("prep: the controls that measured 22–28px have the 44 every other one there has",
+    /\.admin \.adm-prep-back,\.atc-btn,\.ownerdet-edit,\.daybrief-edit\{min-height:44px\}/.test(css));
+  ok("prep: the screen is painted and held by the design ratchet", /scripts\/fixtures\/prep-target\.html/.test(read("scripts/design.ratchet.mjs"))
+    && /export const PREP_TARGET = \{ depth: 2, tap: 44, text: 10 \};/.test(read("scripts/design.ratchet.mjs")));
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.

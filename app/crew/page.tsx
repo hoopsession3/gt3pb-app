@@ -1097,6 +1097,7 @@ function IncidentLog({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; 
 // the chips themselves are the shared MenuRigChips (one option set with Plan › Events).
 function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "event" | "stop"; ownerId: string; isAdmin: boolean; onChanged: () => void }) {
   const table = ownerType === "event" ? "events" : "stops";
+  const { toast } = useApp();
   const [f, setF] = useState<MenuRigValue | null>(null);
   const [open, setOpen] = useState(false);
 
@@ -1110,18 +1111,22 @@ function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "ev
   }, [table, ownerId]);
   useEffect(() => { load(); }, [load]);
 
+  // A chip that did not save goes back to what is saved, and says so (2026-10-04). The write's
+  // result was ignored: a refused save left the chip showing a menu the pack list would never see.
   const save = async (patch: MenuRigPatch) => {
     if (!supabase || !f) return;
+    const before = f;
     setF({ ...f, ...patch });
-    await supabase.from(table).update(patch).eq("id", ownerId);
+    const { error } = await supabase.from(table).update(patch).eq("id", ownerId);
+    if (error) { setF(before); toast(`Couldn't save the menu — ${error.message}`, "error"); return; }
     onChanged();
   };
   if (!isAdmin || !f) return null;
 
   return (
     <div className="menued">
-      <button type="button" className="prep-collapse" style={{ marginTop: 10 }} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <span className="prep-collapse-l"><b>Menu &amp; setup</b><span>what we&apos;re pouring · the rig · power &amp; water</span></span>
+      <button type="button" className="prep-collapse prep-tool" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="prep-collapse-l"><b><Icon name="jar" /> Menu &amp; setup</b><span>what we&apos;re pouring · the rig · power &amp; water</span></span>
         <span className={`ev-chev${open ? " open" : ""}`}>›</span>
       </button>
       {open && (
@@ -2024,6 +2029,11 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     toast(toAdd.length || staleIds.length ? `Refreshed — ${toAdd.length} added, ${staleIds.length} removed, checkmarks kept` : "Already up to date");
     load();
   };
+  // Plan a brew for exactly this one: Brew's picker opens with it already chosen (2026-07-29).
+  const planBrew = () => {
+    try { localStorage.setItem("gt3-brew-target", `${isEvent ? "e" : "s"}:${target.id}`); } catch { /* ignore */ }
+    setSection("brew");
+  };
   // Nuke / reset — wipe everything built for this event/stop (AI-generated prep + run-of-show schedule)
   // so the crew can start clean. The event/stop itself, its date, and its day-of brief stay.
   const resetAll = async () => {
@@ -2237,12 +2247,13 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           )}
         </>
       ) : isAdmin ? (
-        <div className="adm-prep-actions" style={{ flexWrap: "wrap" }}>
+        // id: the scoped "No pick list yet" tile lands here — on the buttons that make one.
+        <div className="adm-prep-actions" id="prep-target-start" style={{ flexWrap: "wrap" }}>
           <button className="adm-btn primary" onClick={() => generate()} disabled={generating}>{generating ? "Generating…" : "Generate pack list from menu"}</button>
           <button className="adm-btn" onClick={() => setPrepAIOpen(true)}><Icon name="sparkles" /> AI prep list</button>
           <button className="adm-btn ts-btn" onClick={() => setTroubleshootOpen(true)}><Icon name="wrench" /> Troubleshoot</button>
         </div>
-      ) : <EmptyState title="No pick list yet" />}
+      ) : <div id="prep-target-start"><EmptyState title="No pick list yet" /></div>}
       {prepAIOpen && (
         <EventPrepAI ownerType={target.kind} ownerId={target.id} title={name ?? (isEvent ? "Event" : "Stop")}
           onClose={() => setPrepAIOpen(false)} onAdded={load} />
@@ -2260,35 +2271,36 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           to start a NEW one without leaving for the separate Brew section and hunting through every
           event/stop ever made for this one. The button below skips all of that: it drops this exact
           target into Brew's picker (already pre-selected) and jumps straight there. */}
-      {(brewBatches.length > 0 || isAdmin) && (
+      {/* THE TOOLS FOR THIS ONE, IN ONE SHAPE (2026-10-04, Ryan's prep screen at 10:44 PM). Menu &
+          setup and Load-out & tow were cards with a chevron; "Plan a brew" was a tinted pill;
+          "Schedule · when to leave" and "Pack-out plan · kegs vs bottles" were thin gold text that
+          read as labels — three looks for five doors, two of which did not look like doors. Each is
+          the same card now: what it is, what is in it, ›. */}
+      {brewBatches.length > 0 && (
         <div className="brewlink">
-          {brewBatches.length > 0 && (
-            <>
-              <div className="brewlink-h"><Icon name="coffee" /> Brew coming to this {isEvent ? "event" : "stop"}</div>
-              {brewBatches.map((b) => (
-                <div key={b.id} className="brewlink-row">
-                  <span className="brewlink-name">{b.recipe_name || "Batch"} · {b.batch_gal} gal</span>
-                  <span className="brewlink-st">{b.status}{b.ready_at && (b.status === "brewing" || b.status === "planned") ? ` · ready ${new Date(b.ready_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</span>
-                </div>
-              ))}
-            </>
-          )}
-          {isAdmin && (
-            <button type="button" className="brewlink-plan" onClick={() => {
-              try { localStorage.setItem("gt3-brew-target", `${isEvent ? "e" : "s"}:${target.id}`); } catch { /* ignore */ }
-              setSection("brew");
-            }}>
-              <Icon name="coffee" /> {brewBatches.length > 0 ? "Plan another brew for this" : "Plan a brew for this"} {isEvent ? "event" : "stop"}
-            </button>
-          )}
+          <div className="brewlink-h"><Icon name="coffee" /> Brew coming to this {isEvent ? "event" : "stop"}</div>
+          {brewBatches.map((b) => (
+            <div key={b.id} className="brewlink-row">
+              <span className="brewlink-name">{b.recipe_name || "Batch"} · {b.batch_gal} gal</span>
+              <span className="brewlink-st">{b.status}{b.ready_at && (b.status === "brewing" || b.status === "planned") ? ` · ready ${new Date(b.ready_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</span>
+            </div>
+          ))}
+          {isAdmin && <button type="button" className="brewlink-plan" onClick={planBrew}><Icon name="coffee" /> Plan another brew for this {isEvent ? "event" : "stop"}</button>}
         </div>
+      )}
+      {brewBatches.length === 0 && isAdmin && (
+        <button type="button" className="prep-collapse prep-tool" onClick={planBrew}>
+          <span className="prep-collapse-l"><b><Icon name="coffee" /> Brew</b><span>nothing planned for this {isEvent ? "event" : "stop"} yet — plan one</span></span>
+          <span className="ev-chev" aria-hidden="true">›</span>
+        </button>
       )}
 
       {/* Run-of-show / "when do we leave" planner — identical for events and stops. */}
       {isAdmin && (
-        <div className="adm-prep-actions" style={{ marginTop: 10 }}>
-          <button className="adm-regen" onClick={() => setPlanOpen(true)}><Icon name="calendar" /> Schedule · when to leave</button>
-        </div>
+        <button type="button" className="prep-collapse prep-tool" onClick={() => setPlanOpen(true)}>
+          <span className="prep-collapse-l"><b><Icon name="calendar" /> Schedule</b><span>when to leave · the run of show</span></span>
+          <span className="ev-chev" aria-hidden="true">›</span>
+        </button>
       )}
       {planOpen && (
         <EventDayPlanner
@@ -2305,13 +2317,14 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       {/* Load-out & tow + pack-out plan, scoped to this event/stop — part of the one hub. */}
       {isAdmin && (
         <>
-          <button type="button" className="prep-collapse" style={{ marginTop: 10 }} onClick={() => setLoadoutOpen((o) => !o)} aria-expanded={loadoutOpen}>
+          <button type="button" className="prep-collapse prep-tool" onClick={() => setLoadoutOpen((o) => !o)} aria-expanded={loadoutOpen}>
             <span className="prep-collapse-l"><b><Icon name="truck" /> Load-out &amp; tow</b><span>space plan · tongue weight · the load checklist</span></span>
             <span className={`ev-chev${loadoutOpen ? " open" : ""}`}>›</span>
           </button>
-          <div className="adm-prep-actions" style={{ marginTop: 8 }}>
-            <button className="adm-regen" onClick={() => setPackPlanOpen(true)}><Icon name="package" /> Pack-out plan · kegs vs bottles</button>
-          </div>
+          <button type="button" className="prep-collapse prep-tool" onClick={() => setPackPlanOpen(true)}>
+            <span className="prep-collapse-l"><b><Icon name="package" /> Pack-out plan</b><span>kegs vs bottles, from the brew coming here</span></span>
+            <span className="ev-chev" aria-hidden="true">›</span>
+          </button>
         </>
       )}
       {loadoutOpen && isAdmin && <TrailerLoadout lockTo={{ kind: target.kind, id: target.id }} />}
