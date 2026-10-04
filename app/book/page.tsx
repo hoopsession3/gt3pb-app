@@ -9,13 +9,25 @@ import { Masthead, ClosingBeat } from "@/components/kit";
 import { supabase } from "@/lib/supabase";
 import { useSiteCopy, fillCopy } from "@/lib/copy";
 import { etToday } from "@/lib/dates";
+import { useCustomerKnown, useKnownField } from "@/components/useCustomerKnown";
+import { useViewerMarket } from "@/components/useViewerMarket";
 
 // "Book the bar" intake — captures B2B/event requests into Supabase (admins manage them
 // in the back office). Booking Tool v5 stays the rate source of truth; the app never quotes.
 export default function BookScreen() {
   const { toast } = useApp();
   const t = useSiteCopy();
-  const [f, setF] = useState({ name: "", email: "", phone: "", event_date: "", headcount: "", location_text: "", notes: "" });
+  const [f, setF] = useState({ event_date: "", headcount: "", location_text: "", notes: "" });
+  // Who is asking starts from what we know (lib/customerKnown, 2026-10-04) — a signed-in customer was
+  // asked to type their own name, email and phone. Each is theirs the moment they type in it; a guest
+  // types them, and every field says what it is, so the phone's own autofill offers them.
+  const known = useCustomerKnown();
+  const [name, setName] = useKnownField(known?.fullName);
+  const [email, setEmail] = useKnownField(known?.email);
+  const [phone, setPhone] = useKnownField(known?.phone);
+  // Filed under a city: the customer's own, else the one they are looking at. It went in as the
+  // column's default (0275: 'greenville') wherever it came from.
+  const { market: viewerMarket } = useViewerMarket();
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
@@ -26,13 +38,14 @@ export default function BookScreen() {
     // space too) — that combination used to hit this early return with zero feedback: no toast, no
     // visual change, the tap just visibly did nothing. Toast it like every other validation failure
     // in this codebase does.
-    if (!f.name.trim() || !f.email.trim()) { toast("Add your name and email", "error"); return; }
+    if (!name.trim() || !email.trim()) { toast("Add your name and email", "error"); return; }
     setBusy(true);
     if (supabase) {
       const { error } = await supabase.from("booking_requests").insert({
-        name: f.name.trim(),
-        email: f.email.trim(),
-        phone: f.phone.trim() || null,
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim() || null,
+        market: known?.market ?? viewerMarket,
         event_date: f.event_date || null,
         headcount: f.headcount ? parseInt(f.headcount) : null,
         location_text: f.location_text.trim() || null,
@@ -61,7 +74,7 @@ export default function BookScreen() {
           {/* 2026-07-30 (Ryan): no internal tool names ("Booking Tool v5") and no crew first names
               in guest-facing copy — "it's not professional." The card speaks as the business.
               {name} is filled live via fillCopy; the raw template is what's edited/saved. */}
-          <EditableCopy k="book.done_thanks" value={t("book.done_thanks")} displayValue={fillCopy(t("book.done_thanks"), { name: f.name.split(" ")[0] })} as="p" multiline />
+          <EditableCopy k="book.done_thanks" value={t("book.done_thanks")} displayValue={fillCopy(t("book.done_thanks"), { name: name.split(" ")[0] })} as="p" multiline />
         </div>
         <ClosingBeat />
       </section>
@@ -81,11 +94,11 @@ export default function BookScreen() {
           so labels + placeholders render as plain t() — editable via Settings → the Book group. */}
       <form className="auth-form" onSubmit={submit} style={{ marginTop: 18 }}>
         <label className="auth-label" htmlFor="b-name">{t("book.f_name")}</label>
-        <input id="b-name" className="auth-input" value={f.name} onChange={set("name")} placeholder={t("book.ph_name")} maxLength={200} required />
+        <input id="b-name" className="auth-input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder={t("book.ph_name")} maxLength={200} required />
         <label className="auth-label" htmlFor="b-email">{t("book.f_email")}</label>
-        <input id="b-email" className="auth-input" type="email" inputMode="email" value={f.email} onChange={set("email")} placeholder={t("book.ph_email")} maxLength={200} required />
+        <input id="b-email" className="auth-input" type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("book.ph_email")} maxLength={200} required />
         <label className="auth-label" htmlFor="b-phone">{t("book.f_phone")}</label>
-        <input id="b-phone" className="auth-input" type="tel" inputMode="tel" autoComplete="tel" value={f.phone} onChange={set("phone")} placeholder={t("book.ph_phone")} maxLength={40} />
+        <input id="b-phone" className="auth-input" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t("book.ph_phone")} maxLength={40} />
         <EditableCopy k="book.consent" value={t("book.consent")} as="p" className="tel-consent" multiline />
         <div className="b-row">
           <div><label className="auth-label" htmlFor="b-date">{t("book.f_date")}</label><input id="b-date" className="auth-input" type="date" value={f.event_date} onChange={set("event_date")} min={etToday()} required /></div>

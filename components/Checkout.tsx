@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
+import { useCustomerKnown, useKnownField, invalidateCustomerKnown } from "./useCustomerKnown";
 import { authedFetch } from "@/lib/authedFetch";
 import { subscribePush } from "@/lib/push";
 import { DRINKS, type DrinkId } from "@/lib/menu";
@@ -77,10 +78,12 @@ export default function Checkout() {
   // the polite version: name the item, let them remove it, keep the rest of the order alive).
   const { soldOut } = useAvailability();
   const blocked86 = lines.filter(([id]) => soldOut.has(id)).map(([id]) => DRINKS[id].n);
-  // A name is required so the operator can call the order at pickup. Prefilled from
-  // the member's profile when the sheet opens; guests must type one.
-  const [name, setName] = useState("");
-  useEffect(() => { if (open) setName((n) => n || profile?.display_name || ""); }, [open, profile?.display_name]);
+  // A name is required so the operator can call the order at pickup. It starts from what we know
+  // (lib/customerKnown: what they asked to be called, else the name on their record or their last
+  // order — not only display_name, which is often empty) and is theirs the moment they type. A guest
+  // types one; the field says it is a name, so the phone's own autofill offers it.
+  const known = useCustomerKnown(open);
+  const [name, setName] = useKnownField(known?.callName || profile?.display_name);
   const customer = name.trim();
 
   // Tip (card path only; pre-orders tip in person). Default to NO tip so selecting card never
@@ -158,6 +161,7 @@ export default function Checkout() {
     toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ${p.readyFrom ? "made when we open" : "ready in ~8 min"}`);
     checkout({ silentToast: true }); // clears cart — this toast already fired above
     setDone({ paid: false, total: capturedTotal, lines: capturedLines, name: capturedName, ...p });
+    invalidateCustomerKnown();   // the next form starts from this order
     setBusy(false);
   };
 
@@ -195,6 +199,7 @@ export default function Checkout() {
       // dropped entirely: the toast above never even rendered (React batches it with checkout()'s own
       // toast and only the last one shows), and `done` had nowhere to put it even if it had.
       setDone({ paid: true, total: grandCents, lines: capturedLines, name: capturedName, warn: data.warn, ref: data.ref, ...p });
+      invalidateCustomerKnown();
     } catch {
       setBusy(false);
       // We can't tell whether the card was captured before the connection dropped, but the idempotency

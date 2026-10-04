@@ -7,6 +7,7 @@ import { zipMarket } from "@/lib/delivery";
 import { marketServes } from "@/lib/markets";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
+import { writeAcrossSkew } from "@/lib/schemaSkew";
 
 export const runtime = "nodejs";
 
@@ -76,24 +77,38 @@ async function post(req: Request) {
   // Standing account create/update (service role, scoped to this user) — the same reuse-not-duplicate
   // logic the client had, now un-forgeable. The DB unique index on (user_id, lower(company)) (0242)
   // is the concurrent-double-submit backstop.
+  //
+  // THE ACCOUNT KEEPS ITS CITY AND ITS DOOR (2026-10-04, the form audit). `market` went in as the
+  // column's default — 'greenville' — for every office, so Atlanta's corporate accounts (the market's
+  // whole opening plan, lib/markets) were filed under Greenville, and generate_office_route (0282),
+  // which prices and schedules a standing account by ITS market, read Greenville's terms for them.
+  // And the access notes ("suite 300, badge at the desk") went on the first order only: the account
+  // had no column for them (0346 adds it), so every order the generator made afterwards reached the
+  // door without them.
   let businessId: string | null = null;
   if (standing) {
     const companyNorm = company.replace(/\s+/g, " ");
-    const acctRow = {
+    const acctRow: Record<string, unknown> = {
       user_id: userId, company: companyNorm, contact_name: contact || null, contact_phone: phone || null,
       contact_email: userEmail, address_street: street, address_city: city, address_zip: zip,
-      headcount, billing_terms: billing, standing_active: true, standing_gallons: q.gallons,
+      headcount, billing_terms: billing, standing_active: true, standing_gallons: q.gallons, market,
+      access_instructions: access || null,   // arrives-with: 0346
     };
     const { data: existing } = await supabaseAdmin.from("business_accounts").select("id")
       .eq("user_id", userId).ilike("company", companyNorm.replace(/[%_\\]/g, (c) => `\\${c}`)).maybeSingle();
     if (existing?.id) {
-      const { error } = await supabaseAdmin.from("business_accounts").update(acctRow).eq("id", existing.id);
+      const { error } = await writeAcrossSkew((row) => supabaseAdmin!.from("business_accounts").update(row).eq("id", existing.id), acctRow, ["access_instructions"]);
       if (error) return NextResponse.json({ error: `Couldn't update your standing account — ${error.message}` }, { status: 500 });
       businessId = existing.id as string;
     } else {
-      const { data: acct, error } = await supabaseAdmin.from("business_accounts").insert(acctRow).select("id").single();
+      let made: { id: string } | null = null;
+      const { error } = await writeAcrossSkew(async (row) => {
+        const r = await supabaseAdmin!.from("business_accounts").insert(row).select("id").single();
+        made = (r.data as { id: string } | null) ?? null;
+        return r;
+      }, acctRow, ["access_instructions"]);
       if (error) return NextResponse.json({ error: `Couldn't set up your standing account — ${error.message}` }, { status: 500 });
-      businessId = (acct as { id: string } | null)?.id ?? null;
+      businessId = (made as { id: string } | null)?.id ?? null;
     }
   }
 
@@ -104,7 +119,7 @@ async function post(req: Request) {
     access_instructions: access || null, delivery_date: dateKey, delivery_window: OFFICE.window,
     gallons: q.gallons, price_per_gallon_cents: priceCents,
     subtotal_cents: q.subtotalCents, delivery_fee_cents: q.deliveryFeeCents, tax_cents: q.taxCents, total_cents: q.totalCents,
-    billing_terms: billing, standing,
+    billing_terms: billing, standing, market,
   }).select("id").single();
   if (error) return NextResponse.json({ error: `Couldn't book it — ${error.message}` }, { status: 500 });
 

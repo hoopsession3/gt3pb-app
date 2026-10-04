@@ -12,6 +12,7 @@ import { useIdemKey } from "./useIdemKey";
 import { payErrorText } from "@/lib/idempotency";
 import { US_STATES } from "@/lib/usAddress";
 import { variantLabel, type CartLine } from "@/lib/shopCart";
+import { useCustomerKnown, useKnownField, invalidateCustomerKnown } from "./useCustomerKnown";
 
 // THE MERCH CHECKOUT — the cart, where it ships, and the card (0273). Moved out of components/Shop.tsx
 // on 2026-10-04 and loaded only when a shopper opens it (Shop warms it as soon as the cart has
@@ -26,7 +27,18 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [ship, setShip] = useState({ name: "", street: "", city: "", state: "", zip: "", email: "" });
+  // WHERE IT SHIPS STARTS FROM WHAT WE KNOW (lib/customerKnown, 2026-10-04): a member's last shipping
+  // label, else the door their last delivery went to — the full name a parcel needs, not the first
+  // name they signed up with. Each field is theirs the moment they type in it. A guest types it, and
+  // every field says what it is, so the phone's own saved address fills it.
+  const known = useCustomerKnown(isMember);
+  const [name, setName] = useKnownField(known?.fullName);
+  const [street, setStreet, fromLast] = useKnownField(known?.ship?.street);
+  const [city, setCity] = useKnownField(known?.ship?.city);
+  const [state, setShipState] = useKnownField(known?.ship?.state);
+  const [zip, setZip] = useKnownField(known?.ship?.zip);
+  const [email, setEmail] = useState("");
+  const ship = { name, street, city, state, zip, email };
   // Was useMemo(newKey, [cart]): stable across retries but blind to the card nonce, which is
   // single-use and fresh on every tap of Pay. The second attempt at Ryan's cap order was refused
   // by Square and every attempt after it would have been too. See lib/idempotency.ts.
@@ -49,6 +61,7 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
       });
       const data = await r.json();
       if (!r.ok) { setErr(payErrorText(data.error)); setBusy(false); return; }
+      invalidateCustomerKnown();   // the next form starts from this order
       onDone(data.warn, data.emailed === true);
     } catch { setErr("Something went wrong — you were not charged twice; check your email or try again."); setBusy(false); }
   };
@@ -78,20 +91,21 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
 
       <div className="shop-ship">
         <EditableCopy k="checkout.ship_to" value={t("checkout.ship_to")} as="div" className="shop-ship-n" />
-        <input placeholder={t("checkout.ph_name")} value={ship.name} onChange={(e) => setShip({ ...ship, name: e.target.value })} autoComplete="name" />
-        <input placeholder={t("checkout.ph_street")} value={ship.street} onChange={(e) => setShip({ ...ship, street: e.target.value })} autoComplete="address-line1" />
-        <input placeholder={t("checkout.ph_city")} value={ship.city} onChange={(e) => setShip({ ...ship, city: e.target.value })} autoComplete="address-level2" />
+        {fromLast && <p className="known-note">From your {known?.shipFrom === "shop" ? "last order" : "last delivery"} — change anything that&apos;s different.</p>}
+        <input placeholder={t("checkout.ph_name")} value={ship.name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+        <input placeholder={t("checkout.ph_street")} value={ship.street} onChange={(e) => setStreet(e.target.value)} autoComplete="address-line1" />
+        <input placeholder={t("checkout.ph_city")} value={ship.city} onChange={(e) => setCity(e.target.value)} autoComplete="address-level2" />
         {/* THE STATE IS A PICK (lib/usAddress). It was a 90px text box, and the printer was sent its
             first two letters: "New York" shipped as NE. The list keeps the code; a browser's saved
             address fills it by name or code alike. The city has its own line so the state's name fits. */}
         <div className="shop-ship-row">
-          <select aria-label={t("checkout.ph_state")} value={ship.state} onChange={(e) => setShip({ ...ship, state: e.target.value })} autoComplete="address-level1" className={ship.state ? undefined : "ph"}>
+          <select aria-label={t("checkout.ph_state")} value={ship.state} onChange={(e) => setShipState(e.target.value)} autoComplete="address-level1" className={ship.state ? undefined : "ph"}>
             <option value="">{t("checkout.ph_state")}</option>
             {US_STATES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
           </select>
-          <input placeholder={t("checkout.ph_zip")} value={ship.zip} onChange={(e) => setShip({ ...ship, zip: e.target.value })} autoComplete="postal-code" inputMode="numeric" maxLength={10} style={{ maxWidth: 120 }} />
+          <input placeholder={t("checkout.ph_zip")} value={ship.zip} onChange={(e) => setZip(e.target.value)} autoComplete="postal-code" inputMode="numeric" maxLength={10} style={{ maxWidth: 120 }} />
         </div>
-        {!isMember && <input placeholder={t("checkout.ph_email")} value={ship.email} onChange={(e) => setShip({ ...ship, email: e.target.value })} autoComplete="email" type="email" />}
+        {!isMember && <input placeholder={t("checkout.ph_email")} value={ship.email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" type="email" />}
       </div>
 
       <div className="shop-pay">

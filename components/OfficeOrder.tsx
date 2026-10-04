@@ -5,6 +5,7 @@ import Sheet from "@/components/Sheet";
 import Gt3Mark from "@/components/Gt3Mark";
 import Icon from "@/components/Icon";
 import { useAuth } from "@/components/AuthProvider";
+import { useCustomerKnown, useKnownField, invalidateCustomerKnown } from "@/components/useCustomerKnown";
 import { useApp } from "@/components/AppProvider";
 import { authedFetch } from "@/lib/authedFetch";
 import { OFFICE, officeQuote, mondayLabel } from "@/lib/office";
@@ -21,15 +22,21 @@ import { money } from "@/lib/money";
 export default function OfficeOrder({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
   const { toast } = useApp();
-  const [company, setCompany] = useState("");
+  // An office that has ordered before starts from its account (lib/customerKnown, 2026-10-04): the
+  // company, who to text, the door and the access notes from its last order there. Every field was
+  // empty on every order, phone included — and phone is required on the prepaid path, so a returning
+  // office was blocked until it retyped one. Each field is theirs the moment they type in it.
+  const known = useCustomerKnown(!!user);
+  const o = known?.office;
+  const [company, setCompany] = useKnownField(o?.company);
   const [gallons, setGallons] = useState<number>(OFFICE.minGallons);
-  const [headcount, setHeadcount] = useState("");
-  const [contact, setContact] = useState("");
-  const [phone, setPhone] = useState("");
-  const [street, setStreet] = useState("");
-  const [city, setCity] = useState("");
-  const [zip, setZip] = useState("");
-  const [access, setAccess] = useState("");
+  const [headcount, setHeadcount] = useKnownField(o?.headcount);
+  const [contact, setContact] = useKnownField(o?.contact || known?.fullName);
+  const [phone, setPhone] = useKnownField(o?.phone || known?.phone);
+  const [street, setStreet, fromAccount] = useKnownField(o?.street);
+  const [city, setCity] = useKnownField(o?.city);
+  const [zip, setZip] = useKnownField(o?.zip);
+  const [access, setAccess] = useKnownField(o?.access);
   const [standing, setStanding] = useState(false);
   const [billing, setBilling] = useState<"prepaid" | "net15">("prepaid");
   const [busy, setBusy] = useState(false);
@@ -73,6 +80,7 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.ok) { toast(j.error || "Couldn't book it — try again", "error"); setBusy(false); return; }
       setBusy(false);
+      invalidateCustomerKnown();   // the next order starts from this one
       setDone({ gallons: j.gallons, date: j.date });
     } catch {
       toast("Couldn't reach the server — check your connection", "error");
@@ -123,17 +131,18 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
 
       {/* who + where */}
       <div className="office-fields">
-        <input className="auth-input" placeholder="Company / office name" value={company} onChange={(e) => setCompany(e.target.value)} maxLength={80} aria-label="Company" />
+        {fromAccount && <p className="known-note">From your office account — change anything that&apos;s different.</p>}
+        <input className="auth-input" placeholder="Company / office name" value={company} onChange={(e) => setCompany(e.target.value)} autoComplete="organization" maxLength={80} aria-label="Company" />
         <div className="office-two">
-          <input className="auth-input" placeholder="Contact name" value={contact} onChange={(e) => setContact(e.target.value)} maxLength={60} aria-label="Contact name" />
+          <input className="auth-input" placeholder="Contact name" value={contact} onChange={(e) => setContact(e.target.value)} autoComplete="name" maxLength={60} aria-label="Contact name" />
           <input className="auth-input" placeholder="# of people" inputMode="numeric" value={headcount} onChange={(e) => setHeadcount(e.target.value.replace(/\D/g, "").slice(0, 4))} aria-label="Headcount" />
         </div>
-        <input className="auth-input" placeholder="Phone (delivery-morning texts)" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
+        <input className="auth-input" placeholder="Phone (delivery-morning texts)" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
         <p className="tel-consent">Your number gets delivery texts from GT3 only — never marketing. Reply STOP anytime.</p>
-        <input className="auth-input" placeholder="Street address" value={street} onChange={(e) => setStreet(e.target.value)} maxLength={120} aria-label="Street" />
+        <input className="auth-input" placeholder="Street address" value={street} onChange={(e) => setStreet(e.target.value)} autoComplete="address-line1" maxLength={120} aria-label="Street" />
         <div className="office-two">
-          <input className="auth-input" placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} maxLength={60} aria-label="City" />
-          <input className="auth-input" inputMode="numeric" maxLength={5} placeholder="ZIP" value={zip} onChange={(e) => setZip(e.target.value.replace(/\D/g, ""))} aria-label="ZIP" />
+          <input className="auth-input" placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} autoComplete="address-level2" maxLength={60} aria-label="City" />
+          <input className="auth-input" inputMode="numeric" autoComplete="postal-code" maxLength={5} placeholder="ZIP" value={zip} onChange={(e) => setZip(e.target.value.replace(/\D/g, ""))} aria-label="ZIP" />
         </div>
         <input className="auth-input" placeholder="Suite / access notes (optional)" value={access} onChange={(e) => setAccess(e.target.value)} maxLength={200} aria-label="Access" />
       </div>

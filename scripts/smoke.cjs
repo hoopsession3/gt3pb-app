@@ -6181,6 +6181,101 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /`You — \$\{crewLabel\(c\)\}`/.test(pp) && /Someone else…/.test(pp) && /not linked to anyone on the crew/.test(pp));
 }
 
+// ── WHAT WE ALREADY KNOW ABOUT THE CUSTOMER (2026-10-04, the form audit · 0346) ────────────────────
+// Ryan: "name for order, auto populate with users name if signed in". Every customer form started
+// empty but the cup checkout, and that one knew only display_name. lib/customerKnown is the one rule
+// for which of a customer's own rows each field starts from; components/useCustomerKnown the one
+// read, loaded only for someone signed in; useKnownField makes a field theirs the moment they type.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const K = require("../.smoke/customerKnown.js");
+  const k = (r) => K.knownFrom(r);
+
+  // ── the name to call at the window ──
+  ok("known: the name they asked to be called comes first", k({ displayName: "Ryan", customer: { name: "Ryan Thompkins" } }).callName === "Ryan");
+  ok("known: no display name → the name on their record", k({ displayName: "", customer: { name: "Ryan Thompkins" } }).callName === "Ryan Thompkins");
+  ok("known: a display name that is an email is not a name", k({ displayName: "ryan@x.test", lastCup: { customer: "Ryan" } }).callName === "Ryan");
+  ok("known: the last resort is the email's handle, as words", k({ email: "pat.example42@x.test" }).callName === "Pat Example" && K.nameFromEmail("pat_example@x") === "Pat Example");
+  ok("known: nothing known is an empty string, never undefined", k({}).callName === "" && k({}).fullName === "" && k({}).phone === "" && k({}).email === "");
+
+  // ── the full name for a parcel or a door ──
+  ok("known: a parcel gets the last shipping label's full name, not the sign-up first name",
+    k({ displayName: "Ryan", lastShop: { ship_name: "Ryan Thompkins" } }).fullName === "Ryan Thompkins");
+  ok("known: any name with a surname beats one without — even one that comes first",
+    k({ displayName: "Ryan", lastPack: { name: "Ryan T" } }).fullName === "Ryan T" && k({ customer: { name: "Ryan" }, lastDelivery: { name: "Ryan Thompkins" } }).fullName === "Ryan Thompkins");
+  ok("known: a first name alone is still a name", k({ displayName: "Ryan" }).fullName === "Ryan");
+
+  // ── phone and email ──
+  ok("known: phone — their record first", k({ customer: { phone: "864-555-0100" }, lastPack: { phone: "864-555-0199" } }).phone === "864-555-0100");
+  ok("known: phone — then the last pack, the last delivery, the office account",
+    k({ lastPack: { phone: "1" }, lastDelivery: { phone: "2" } }).phone === "1" && k({ lastDelivery: { phone: "2" }, business: { contact_phone: "3" } }).phone === "2" && k({ business: { contact_phone: "3" } }).phone === "3");
+  ok("known: email — the sign-in address first", k({ email: "me@x.test", customer: { email: "old@x.test" } }).email === "me@x.test");
+
+  // ── where it ships, where it is delivered ──
+  const shipped = k({ lastShop: { ship_name: "R T", ship_address: { street: "1 Main St", city: "Greenville", state: "south carolina", zip: "29601" } } });
+  ok("known: a parcel goes where the last one went, its state read as a code",
+    shipped.ship && shipped.ship.street === "1 Main St" && shipped.ship.state === "SC" && shipped.shipFrom === "shop", shipped.ship);
+  const fromDoor = k({ lastDelivery: { address_street: "9 Oak Ave", address_city: "Greenville", address_zip: "29607", access_instructions: "Gate 4411" } });
+  ok("known: else where their last delivery went — the state from the market that ZIP belongs to",
+    fromDoor.ship && fromDoor.ship.street === "9 Oak Ave" && fromDoor.ship.state === "SC" && fromDoor.shipFrom === "delivery", fromDoor.ship);
+  ok("known: the delivery door keeps its gate code", fromDoor.delivery && fromDoor.delivery.access === "Gate 4411" && fromDoor.delivery.zip === "29607");
+  ok("known: an address with no street is not an address", k({ lastShop: { ship_address: { city: "Greenville" } } }).ship === null);
+
+  // ── the office ──
+  const off = k({ displayName: "Ryan", customer: { name: "Ryan Thompkins", phone: "864" }, business: { company: "Acme", address_street: "1 Main St", address_city: "Greenville", address_zip: "29601", headcount: 40 },
+    lastOffice: { address_street: "1 main st", access_instructions: "Suite 300" } });
+  ok("known: the office account, with its last order's access notes for the same door", off.office && off.office.company === "Acme" && off.office.access === "Suite 300" && off.office.headcount === "40");
+  ok("known: …and who to text falls back to them", off.office && off.office.contact === "Ryan Thompkins" && off.office.phone === "864");
+  ok("known: notes written for another door stay there",
+    k({ business: { company: "Acme", address_street: "9 New Rd" }, lastOffice: { address_street: "4 Old Ave", access_instructions: "Old code" } }).office.access === "");
+
+  // ── the read: own rows only, and only for someone signed in ──
+  const readSrc = code(read("lib/customerKnownRead.ts"));
+  ok("known read: every source is the customer's own rows", (readSrc.match(/\.eq\("user_id", userId\)/g) || []).length === 3 && /sb\.from\(table\)\.select\(cols\)\.eq\("user_id", userId\)/.test(readSrc));
+  const hook = code(read("components/useCustomerKnown.ts"));
+  ok("known read: loaded on demand — a guest's first load never carries it",
+    /import\("@\/lib\/customerKnownRead"\)/.test(hook) && /if \(!enabled \|\| !uid \|\| !supabase\) return;/.test(hook));
+  const statics = [];
+  const walk = (d) => { for (const f of fs.readdirSync(path.join(__dirname, "..", d), { withFileTypes: true })) { const p = path.join(d, f.name); if (f.isDirectory()) { if (f.name !== "node_modules" && !f.name.startsWith(".")) walk(p); } else if (/\.tsx?$/.test(f.name) && /from ["']@\/lib\/customerKnownRead["']/.test(read(p))) statics.push(p); } };
+  walk("components"); walk("app");
+  ok("known read: nothing imports it statically", statics.length === 0, statics);
+  ok("known field: no effect copies a known value into state — a late read never overwrites typing",
+    /export function useKnownField\(known: string \| null \| undefined\)/.test(hook) && /return \[typed \?\? known \?\? "", setTyped, typed === null && !!known\]/.test(hook));
+
+  // ── every customer form starts from it ──
+  const co = code(read("components/Checkout.tsx"));
+  ok("cup checkout: the pickup name starts from what we know, and no effect seeds it",
+    /useKnownField\(known\?\.callName \|\| profile\?\.display_name\)/.test(co) && !/setName\(\(n\) => n \|\| profile\?\.display_name/.test(co));
+  const of = code(read("components/OrderFunnel.tsx"));
+  ok("delivery: ZIP, street, city, gate code, name and phone start from their last delivery",
+    ["useKnownField(known?.delivery?.zip)", "useKnownField(known?.delivery?.street)", "useKnownField(known?.delivery?.city)", "useKnownField(known?.delivery?.access)", "useKnownField(known?.fullName || profile?.display_name)", "useKnownField(known?.phone)"].every((x) => of.includes(x)));
+  ok("delivery: the fields say what they are, so a guest's phone fills them",
+    /value=\{street\} onChange=\{\(e\) => setStreet\(e\.target\.value\)\} autoComplete="address-line1"/.test(of) && /value=\{city\} onChange=\{\(e\) => setCity\(e\.target\.value\)\} autoComplete="address-level2"/.test(of) && /autoComplete="postal-code" placeholder=\{t\("funnel\.zip_ph"\)\}/.test(of) && /autoComplete="email" placeholder="you@email\.com"/.test(of));
+  ok("delivery: it says where the details came from", /\{streetKnown && <p className="dl-sub known-note">From your last delivery/.test(of));
+  ok("weight: the office order loads when an office is chosen, not with every visit to /reserve and /delivery",
+    /const OfficeOrder = dynamic\(\(\) => import\("\.\/OfficeOrder"\)\)/.test(of) && !/import OfficeOrder from/.test(of) && /setAudience\("office"\); void import\("\.\/OfficeOrder"\);/.test(of));
+  const sc = code(read("components/ShopCheckout.tsx"));
+  ok("merch: the parcel's name and address start from what we know", ["useKnownField(known?.fullName)", "useKnownField(known?.ship?.street)", "useKnownField(known?.ship?.state)", "useKnownField(known?.ship?.zip)"].every((x) => sc.includes(x)));
+  const oo = code(read("components/OfficeOrder.tsx"));
+  ok("office: the order starts from the office account", ["useKnownField(o?.company)", "useKnownField(o?.contact || known?.fullName)", "useKnownField(o?.phone || known?.phone)", "useKnownField(o?.street)", "useKnownField(o?.access)"].every((x) => oo.includes(x))
+    && /autoComplete="organization"/.test(oo));
+  const bk = code(read("app/book/page.tsx"));
+  ok("book the bar: who is asking starts from what we know, and the request is filed under a city",
+    ["useKnownField(known?.fullName)", "useKnownField(known?.email)", "useKnownField(known?.phone)"].every((x) => bk.includes(x)) && /market: known\?\.market \?\? viewerMarket,/.test(bk));
+  const inval = ["components/Checkout.tsx", "components/OrderFunnel.tsx", "components/ShopCheckout.tsx", "components/OfficeOrder.tsx"].map((f) => (code(read(f)).match(/invalidateCustomerKnown\(\)/g) || []).length);
+  ok("known: every placed order refreshes it, so the next form starts from that order", JSON.stringify(inval) === JSON.stringify([2, 2, 1, 1]), inval);
+
+  // ── the office route keeps the city and the door (0346) ──
+  const office = code(read("app/api/office/route.ts"));
+  ok("office route: the account and the order are filed under the ZIP's market",
+    /standing_gallons: q\.gallons, market,/.test(office) && /billing_terms: billing, standing, market,/.test(office));
+  ok("office route: the account keeps its access notes, across the 0346 skew",
+    /access_instructions: access \|\| null,/.test(office) && /arrives-with: 0346/.test(read("app/api/office/route.ts")) && (office.match(/\["access_instructions"\]\)/g) || []).length === 2);
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.

@@ -7474,6 +7474,10 @@ div.owed-row-go{cursor:default}
 /* ↑ The state pick list (2026-10-04) shares the inputs' box. background-COLOR, not the shorthand: on
    a select the shorthand resets background-repeat and the app's chevron tiles (design ratchet). */
 .shop-ship-row{display:flex;gap:9px}
+/* "From your last order — change anything that's different." over a form that started from what we
+   know (lib/customerKnown). Quiet: it explains the filled boxes, it is not an alert. */
+.known-note{font-family:'Inter';font-size:12.5px;line-height:1.45;margin:0 0 9px;opacity:.85}
+.shop-ship .known-note{color:#6b6555;opacity:1}
 .shop-err{font-family:'Inter';font-size:13.5px;color:var(--red);margin:10px 0}
 .shop-fine{font-family:'Inter';font-size:12px;line-height:1.5;color:#7a7160;margin:12px 0 0;text-align:center}
 .shop-pay .mpack-cta{margin-top:14px}

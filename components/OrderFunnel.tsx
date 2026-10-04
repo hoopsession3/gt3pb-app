@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
+import { useCustomerKnown, useKnownField, invalidateCustomerKnown } from "./useCustomerKnown";
 import { usePayAtPickup } from "./usePayAtPickup";
 import SignIn from "@/components/SignIn";
 import OrderConfirm from "@/components/OrderConfirm";
@@ -11,7 +12,7 @@ import EditableCopy from "@/components/EditableCopy";
 import { useSiteCopy, fillCopy } from "@/lib/copy";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import MyPacks, { packMix, packDayLabel, type MyPack } from "./MyPacks";
-import OfficeOrder from "./OfficeOrder";
+import dynamic from "next/dynamic";
 import { trackFunnel } from "@/lib/funnel";
 import Sheet, { CloseButton } from "./Sheet";
 import Icon from "@/components/Icon";
@@ -54,6 +55,11 @@ const sunLabel = (key: string) => {
 };
 const PICKUP_TIERS = PACK_SIZES as readonly number[]; // [3, 6, 12]
 
+// The office order is its own screen, loaded when an office is chosen (2026-10-04): every visitor to
+// /reserve and /delivery downloaded it for a path few of them take. Choosing "For the office" warms
+// it, so the sheet opens at once.
+const OfficeOrder = dynamic(() => import("./OfficeOrder"));
+
 export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMode: Mode; syncUrl?: boolean }) {
   const { toast } = useApp();
   const { user, profile } = useAuth();
@@ -88,17 +94,24 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
   // stacking look-alikes. dupOk remembers the confirmation for THIS day only.
   const [dupRows, setDupRows] = useState<{ kind: "pickup" | "delivery"; label: string }[] | null>(null);
   const [dupOk, setDupOk] = useState<string | null>(null); // the day key the user confirmed
-  const [zip, setZip] = useState("");
+  // THE CUSTOMER'S OWN DETAILS START FROM WHAT WE KNOW (lib/customerKnown, 2026-10-04): the name and
+  // phone on their record or last order, and the door their last delivery went to — the ZIP, the
+  // street, the gate code. The weekly delivery is a repeat purchase that was retyped every week.
+  // Each field is theirs the moment they type in it (useKnownField).
+  // Asked for when it can be used: the delivery funnel (its ZIP is the first thing it asks) or the
+  // details step — not on every visit to the shop by a signed-in member who is only browsing.
+  const known = useCustomerKnown(mode === "delivery" || step === "details");
+  const [zip, setZip] = useKnownField(known?.delivery?.zip);
   const [zone, setZone] = useState<"ask" | "in" | "out">("ask");
-  const [wlEmail, setWlEmail] = useState("");
+  const [wlEmail, setWlEmail] = useKnownField(known?.email);
   const [wlSent, setWlSent] = useState(false);
   const [premiums, setPremiums] = useState<Record<string, number>>({});
   const [bulkItems, setBulkItems] = useState<{ slug: string; name: string }[]>([{ slug: SALTED_LATTE.key, name: SALTED_LATTE.label }]);
   const [refills, setRefills] = useState(0);
   const [ack, setAck] = useState(false);
-  const [access, setAccess] = useState("");
-  const [street, setStreet] = useState("");
-  const [city, setCity] = useState("");
+  const [access, setAccess] = useKnownField(known?.delivery?.access);
+  const [street, setStreet, streetKnown] = useKnownField(known?.delivery?.street);
+  const [city, setCity] = useKnownField(known?.delivery?.city);
 
   // ── pickup-only ──
   const [stops, setStops] = useState<{ name: string | null; starts_at: string }[]>([]);
@@ -109,8 +122,8 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
   const [packsKey, setPacksKey] = useState("");
 
   // ── shared checkout ──
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useKnownField(known?.fullName || profile?.display_name);
+  const [phone, setPhone] = useKnownField(known?.phone);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState<{ total: number; label?: string; warn?: string; paid: boolean; ref?: string } | null>(null);
@@ -181,7 +194,6 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
 
   // ── effects ──
   useEffect(() => { setNow(Date.now()); const iv = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(iv); }, []);
-  useEffect(() => { setName((n) => n || profile?.display_name || ""); }, [profile?.display_name]);
 
   // delivery: dynamic premium adds (Money → Menu bulk-orderable). Falls back to Salted Latte.
   useEffect(() => {
@@ -313,7 +325,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
     if (!usual) return; haptic(HAPTIC.tap);
     setCount(usual.size); glassTouched.current = true; setBringBack(usual.glass === "return");
     const pm = packMix(usual); setMix({ rise: pm.RISE || 0, flow: pm.FLOW || 0, dusk: pm.DUSK || 0 });
-    setName((n) => n || usual.name); setPhone((p) => p || usual.phone || "");
+    if (!name.trim()) setName(usual.name); if (!phone.trim()) setPhone(usual.phone || "");
     setReplacing(null); setErr(""); toast("Your usual — loaded");
     try { document.getElementById("body")?.scrollTo({ top: 0, behavior: "smooth" }); } catch { /* ignore */ }
   };
@@ -335,6 +347,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
       if (!res.ok) { setErr(data.error || "Something went wrong — try again."); return; }
       haptic(HAPTIC.success);
       setDone({ total: totalCents, paid: !!data.paid, ref: (data.id || data.ref || "").toString(), label: dayName(drop.sat) });
+      invalidateCustomerKnown();   // the next form starts from this order
       trackFunnel("reserve", "done");
       setStep("done");
       if (replacing && supabase) {
@@ -375,6 +388,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
       if (!res.ok) { setErr(data.error || "Payment failed"); return; }
       haptic(HAPTIC.success);
       setDone({ total: data.totalCents ?? deliveryQuote.totalCents, label: data.deliveryLabel, warn: data.warn, paid: true });
+      invalidateCustomerKnown();
       trackFunnel("delivery", "done");
       setStep("done");
     } catch {
@@ -498,7 +512,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
             <button type="button" role="radio" aria-checked={audience === "home"} className={`aud${audience === "home" ? " on" : ""}`} onClick={() => setAudience("home")}>
               <span className="aud-ic">🏠</span><b>{t("funnel.aud_home")}</b><span className="aud-d">{t("funnel.aud_home_sub")}</span>
             </button>
-            <button type="button" role="radio" aria-checked={audience === "office"} className={`aud${audience === "office" ? " on" : ""}`} onClick={() => setAudience("office")}>
+            <button type="button" role="radio" aria-checked={audience === "office"} className={`aud${audience === "office" ? " on" : ""}`} onClick={() => { setAudience("office"); void import("./OfficeOrder"); }}>
               <span className="aud-ic">🏢</span><b>{t("funnel.aud_office")}</b><span className="aud-d">{t("funnel.aud_office_sub")}</span>
             </button>
           </div>
@@ -512,7 +526,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
           ) : (<>
           <EditableCopy k="funnel.zip_lead" value={t("funnel.zip_lead")} as="p" className="dl-sub dl-zlead" />
           <div className="dl-ziprow dl-ziprow-xl">
-            <input className="auth-input" inputMode="numeric" maxLength={5} placeholder={t("funnel.zip_ph")} value={zip} onChange={(e) => { setZip(e.target.value.replace(/\D/g, "")); setZone("ask"); }} aria-label="ZIP code" />
+            <input className="auth-input" inputMode="numeric" maxLength={5} autoComplete="postal-code" placeholder={t("funnel.zip_ph")} value={zip} onChange={(e) => { setZip(e.target.value.replace(/\D/g, "")); setZone("ask"); }} aria-label="ZIP code" />
             <button type="button" className="handle" onClick={checkZone} disabled={zip.length !== 5}><span>{t("funnel.zip_check")}</span></button>
           </div>
           {zone === "out" && (
@@ -524,7 +538,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
                 </p>
               ) : (
                 <div className="dl-ziprow">
-                  <input className="auth-input" type="email" placeholder="you@email.com" value={wlEmail} onChange={(e) => setWlEmail(e.target.value)} aria-label="Email" />
+                  <input className="auth-input" type="email" inputMode="email" autoComplete="email" placeholder="you@email.com" value={wlEmail} onChange={(e) => setWlEmail(e.target.value)} aria-label="Email" />
                   <button type="button" className="handle" onClick={joinWaitlist}><span>{t("funnel.notify")}</span></button>
                 </div>
               )}
@@ -722,12 +736,13 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
             </>
           ) : mode === "delivery" ? (
             <>
-              <input className="auth-input" placeholder={t("funnel.f_name")} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} aria-label="Name" />
-              <input className="auth-input" placeholder={t("funnel.f_phone_del")} inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
+              {streetKnown && <p className="dl-sub known-note">From your last delivery — change anything that&apos;s different.</p>}
+              <input className="auth-input" placeholder={t("funnel.f_name")} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={80} aria-label="Name" />
+              <input className="auth-input" placeholder={t("funnel.f_phone_del")} type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
               <EditableCopy k="funnel.tel_consent" value={t("funnel.tel_consent")} as="p" className="tel-consent" multiline />
-              <input className="auth-input" placeholder={t("funnel.f_street")} value={street} onChange={(e) => setStreet(e.target.value)} maxLength={120} aria-label="Street address" />
+              <input className="auth-input" placeholder={t("funnel.f_street")} value={street} onChange={(e) => setStreet(e.target.value)} autoComplete="address-line1" maxLength={120} aria-label="Street address" />
               <div className="dl-ziprow">
-                <input className="auth-input" placeholder={t("funnel.f_city")} value={city} onChange={(e) => setCity(e.target.value)} maxLength={60} aria-label="City" />
+                <input className="auth-input" placeholder={t("funnel.f_city")} value={city} onChange={(e) => setCity(e.target.value)} autoComplete="address-level2" maxLength={60} aria-label="City" />
                 <input className="auth-input dl-zip" value={zip} readOnly aria-label="ZIP (from your zone check)" />
               </div>
               <input className="auth-input" placeholder={t("funnel.f_access")} value={access} onChange={(e) => setAccess(e.target.value)} maxLength={200} aria-label="Access instructions" />
