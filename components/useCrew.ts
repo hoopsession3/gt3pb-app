@@ -39,7 +39,10 @@ import { roleLabel } from "@/lib/roles";
 // Graceful failure is unchanged: an empty list is a working state, not a broken one — the caller
 // falls back to whatever text it already had.
 
-export type CrewMember = { id: string; display_name: string | null; role: string };
+// market / leads_market / title ride along (2026-10-04, the form audit): a person picked on a form
+// brings their city with them — an offer letter, an operator agreement, a hire — instead of every
+// form defaulting to Greenville and asking again.
+export type CrewMember = { id: string; display_name: string | null; role: string; market?: string | null; leads_market?: string | null; title?: string | null };
 
 const TTL_MS = 60_000;
 let cache: CrewMember[] | null = null;
@@ -57,7 +60,7 @@ async function load(): Promise<CrewMember[]> {
     try {
       if (supabase) {
         const { data, error } = await supabase.from("profiles")
-          .select("id, display_name, role").neq("role", "member").order("display_name");
+          .select("id, display_name, role, market, leads_market, title").neq("role", "member").order("display_name");
         if (!error && Array.isArray(data)) out = data as CrewMember[];
       }
     } catch { /* an empty crew list degrades to the free-text behaviour it replaced */ }

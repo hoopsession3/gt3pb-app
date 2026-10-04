@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf } from "@/components/AuthProvider";
@@ -12,13 +12,19 @@ import { MARKETS, MARKET_LABEL, toMarket } from "@/lib/markets";
 import OfferLetterPrint, { type LetterRow } from "./OfferLetterPrint";
 import {
   ROLE_ACCESS, OFFERABLE_ROLES, toRoleKey, toOfferStatus, isEditable, money, summarize,
-  validateOffer, classificationFlags, emptyOffer, approvalTally, STATUTORY_FIELDS, missingStatutory,
+  validateOffer, classificationFlags, approvalTally, STATUTORY_FIELDS,
   money as fmtMoney,
   type OfferStatus, type OfferTerms, type RoleKey,
 } from "@/lib/offerLetter";
+import { startOffer, restateDefaults, forPerson, type OfferPerson, type HouseRow, type OfferContext } from "@/lib/offerDraft";
 import { payAtVolumes, DEFAULT_VOLUMES } from "@/lib/dealExplainer";
 import { roleLabel } from "@/lib/roles";
 import { useConfirm } from "@/components/ConfirmSheet";
+import PersonPick, { type PersonValue, type PersonHow } from "./PersonPick";
+import { useCrew } from "./useCrew";
+import { fullestName } from "@/lib/customerKnown";
+import { readParam, dropParam } from "@/lib/urlParam";
+import { usePersonFacts, withFacts } from "@/lib/personFacts";
 
 // OFFER LETTERS (0281) — the owner's side of hiring someone.
 //
@@ -34,7 +40,7 @@ import { useConfirm } from "@/components/ConfirmSheet";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Row = {
-  id: string; market: string; candidate_name: string; candidate_email: string; title: string;
+  id: string; market: string; candidate_name: string; candidate_email: string; candidate_user_id: string | null; title: string;
   role: string; employment_type: string; base_cents: number | null; rate_per: string | null;
   commission_pct: number | null; starts_on: string | null; reports_to: string | null;
   package: any; notes: string | null; status: string; author_id: string | null;
@@ -43,6 +49,10 @@ type Row = {
 };
 type Approval = { offer_id: string; approver_id: string; decision: string | null; note: string | null; decided_at: string | null };
 type Ev = { id: string; offer_id: string; at: string; kind: string; note: string | null; from_status: string | null; to_status: string | null };
+/** A customer with an account who is not on the crew (v_promotable, 0299) — an offer can go to them before they are hired. */
+type Member = { id: string; display_name: string | null; email: string | null; market: string | null; customer_name: string | null };
+// An offer already settled is not the one to reopen for someone: a new letter is.
+const SETTLED = new Set(["declined", "withdrawn", "expired"]);
 
 const STATUS_COPY: Record<OfferStatus, { label: string; tone: "draft" | "wait" | "ok" | "stop" }> = {
   draft:             { label: "Draft",              tone: "draft" },
@@ -72,24 +82,94 @@ export default function OfferLetters() {
   const [printing, setPrinting] = useState<LetterRow | null>(null);
 
   const loader = useCallback(async () => {
-    if (!supabase) return { rows: [] as Row[], approvals: [] as Approval[], events: [] as Ev[], letters: [] as LetterRow[] };
-    const [{ data: rows, error }, { data: ap }, { data: ev }] = await Promise.all([
+    if (!supabase) return { rows: [] as Row[], approvals: [] as Approval[], events: [] as Ev[], letters: [] as LetterRow[], members: [] as Member[], membersFailed: false };
+    const [{ data: rows, error }, { data: ap }, { data: ev }, mem] = await Promise.all([
       supabase.from("offer_letters").select("*").order("updated_at", { ascending: false }),
       supabase.from("offer_approvals").select("offer_id, approver_id, decision, note, decided_at"),
       supabase.from("offer_events").select("id, offer_id, at, kind, note, from_status, to_status").order("at", { ascending: false }),
+      // Who an offer can go to besides the crew: customers who already have an account.
+      supabase.from("v_promotable").select("id, display_name, email, market, customer_name"),
     ]);
     if (error) throw new Error(error.message);
     // v_offer_letter (0286) carries the market's disclaimer alongside the offer, so the printed
     // letter is one read and cannot disagree with the record it came from.
     const { data: letters } = await supabase.from("v_offer_letter").select("*");
     return { rows: (rows as Row[]) ?? [], approvals: (ap as Approval[]) ?? [], events: (ev as Ev[]) ?? [],
-             letters: (letters as LetterRow[]) ?? [] };
+             letters: (letters as LetterRow[]) ?? [],
+             // A failed read of the customers is said, not shown as "nobody has an account".
+             members: (mem.data as Member[]) ?? [], membersFailed: !!mem.error };
   }, []);
   const board = useAsyncData(loader, []);
-  const rows = board.data?.rows ?? [];
-  const approvals = board.data?.approvals ?? [];
-  const events = board.data?.events ?? [];
-  const letters = board.data?.letters ?? [];
+  // One identity per load, so the memos below recompute when the board does and not every render.
+  const data = board.data;
+  const rows = useMemo(() => data?.rows ?? [], [data]);
+  const approvals = useMemo(() => data?.approvals ?? [], [data]);
+  const events = useMemo(() => data?.events ?? [], [data]);
+  const letters = data?.letters ?? [];
+  const members = useMemo(() => data?.members ?? [], [data]);
+
+  // ── WHO AN OFFER CAN BE FOR, AND WHAT WE ALREADY KNOW ABOUT THEM ─────────────────────────────
+  // The crew (useCrew — everyone but you) and customers with an account, as lib/offerDraft's
+  // OfferPerson. A crew member's email is not on the roster; it is read from their customer record
+  // when they are picked (lib/personFacts), and fills the letter if nobody has typed one meanwhile.
+  const crew = useCrew();
+  const people = useMemo<OfferPerson[]>(() => [
+    ...crew.filter((c) => c.id !== user?.id).map((c) => ({
+      id: c.id, name: c.display_name ?? "", email: null,
+      role: c.role, market: c.leads_market ?? c.market ?? null, title: c.title ?? null,
+    })),
+    ...members.map((m) => ({
+      id: m.id, name: fullestName(m.customer_name, m.display_name), email: m.email,
+      role: null, market: m.market, title: null,
+    })),
+  ], [crew, members, user?.id]);
+  const personOf = useCallback((id: string | null | undefined): OfferPerson | null =>
+    withFacts(id ? people.find((p) => p.id === id) ?? null : null), [people]);
+  // The person just picked (or arrived for), whose file is read once to fill what the roster lacks.
+  const [fresh, setFresh] = useState<string | null>(null);
+  const memberOptions = useMemo(() => members.map((m) => ({ id: m.id, name: fullestName(m.customer_name, m.display_name) || m.email || "Unnamed" })), [members]);
+  // The defaults that follow a choice (lib/offerDraft restateDefaults): the house wording from past
+  // letters, and who leads the market the offer is for.
+  const ctx = useMemo<OfferContext>(() => ({
+    history: rows as readonly HouseRow[],
+    leadOf: (m, candidate) => {
+      const c = crew.find((x) => x.leads_market === m && x.id !== candidate);
+      return c ? { id: c.id, name: c.display_name ?? "" } : null;
+    },
+  }), [rows, crew]);
+
+  const pickFor = useCallback((v: PersonValue, how: PersonHow) => {
+    if (how === "type") return;
+    setDraft((d) => {
+      if (!d) return d;
+      const p = v.id ? personOf(v.id) ?? { id: v.id, name: v.name, email: null, role: null, market: null, title: null } : null;
+      return restateDefaults(d, forPerson(d, personOf(d.candidateUserId), p), ctx);
+    });
+    setFresh(v.id);
+  }, [personOf, ctx]);
+
+  // What their file adds — a crew member's email, the name they gave in full — fills the letter if
+  // it is still for them and the fields still hold what the pick put there.
+  usePersonFacts(fresh, (id) => {
+    const roster = people.find((p) => p.id === id) ?? null;
+    setDraft((d) => (d && roster && d.candidateUserId === id ? forPerson(d, roster, withFacts(roster)) : d));
+  });
+
+  // ── ARRIVING FOR SOMEONE: ?offer_for=<their id> ─────────────────────────────────────────────
+  // From their page on the crew, or from "Draft their offer letter" right after bringing them on:
+  // the letter they already have opens, or a new one starts already for them. Read once (lib/urlParam);
+  // acted on the first render that has both lists, so it never guesses from half of them.
+  const [arriving, setArriving] = useState<string | null>(() => readParam("offer_for"));
+  useEffect(() => { dropParam("offer_for"); }, []);
+  const [arrivedNote, setArrivedNote] = useState<string | null>(null);
+  if (arriving && board.data && crew.length > 0) {
+    setArriving(null);
+    const theirs = rows.find((r) => r.candidate_user_id === arriving && !SETTLED.has(r.status));
+    const p = people.find((x) => x.id === arriving) ?? null;
+    if (theirs) { setOpenId(theirs.id); setDraft(null); }
+    else if (p) { const s0 = startOffer(ctx); setOpenId(null); setDraft(restateDefaults(s0, forPerson(s0, null, withFacts(p)), ctx)); setFresh(p.id); }
+    else setArrivedNote("That person isn't on the crew or among the customers with an account any more — pick them from the list, or start the offer for someone new.");
+  }
 
   const open = rows.find((r) => r.id === openId) ?? null;
   const openApprovals = useMemo(() => approvals.filter((a) => a.offer_id === openId), [approvals, openId]);
@@ -116,6 +196,9 @@ export default function OfferLetters() {
     setBusy(true);
     const patch = {
       market: draft.market, candidate_name: draft.candidateName.trim(), candidate_email: draft.candidateEmail.trim(),
+      // Who it is for, by account — what their onboarding steps, the deadlines board and their own
+      // copy read (0311, 0320). Nothing wrote it before; it was linked only when they answered.
+      candidate_user_id: draft.candidateUserId ?? null,
       title: draft.title.trim(), role: draft.role, employment_type: draft.employmentType,
       base_cents: draft.baseCents, rate_per: draft.baseCents ? draft.ratePer : null,
       commission_pct: draft.commissionPct, starts_on: draft.startOn || null,
@@ -150,11 +233,12 @@ export default function OfferLetters() {
       <AsyncSection state={board} loadingLabel="Loading offers…" errorTitle="Couldn’t load offers" emptyTitle="No offers yet">{() => (
        <>
         <div className="ofr-actions">
-          <button type="button" className="btn-pri" onClick={() => { setOpenId(null); setDraft(emptyOffer()); }}>
+          <button type="button" className="btn-pri" onClick={() => { setOpenId(null); setArrivedNote(null); setDraft(startOffer(ctx)); }}>
             <Icon name="plus" /> New offer
           </button>
         </div>
 
+        {arrivedNote && <p className="ofr-stat-why" role="status">{arrivedNote}</p>}
         {rows.length === 0 && !draft && <p className="ofr-empty">No offers yet. The first one starts with a name and a title.</p>}
 
         {/* ── the list ── */}
@@ -183,7 +267,8 @@ export default function OfferLetters() {
         )}
 
         {/* ── the writer ── */}
-        {draft && <OfferForm draft={draft} setDraft={setDraft} onSave={saveDraft} onCancel={() => setDraft(null)} busy={busy} />}
+        {draft && <OfferForm draft={draft} setDraft={setDraft} onSave={saveDraft} onCancel={() => setDraft(null)} busy={busy}
+                             onPick={pickFor} members={memberOptions} membersFailed={!!board.data?.membersFailed} ctx={ctx} />}
 
         {/* ── one offer, opened ── */}
         {open && !draft && (
@@ -263,6 +348,7 @@ export default function OfferLetters() {
               {isEditable(toOfferStatus(open.status)) && (
                 <>
                   <button type="button" className="btn-sec" disabled={busy} onClick={() => setDraft({
+                    candidateUserId: open.candidate_user_id,
                     candidateName: open.candidate_name, candidateEmail: open.candidate_email, title: open.title,
                     role: toRoleKey(open.role), market: toMarket(open.market),
                     employmentType: open.employment_type === "contractor" ? "contractor" : "employee",
@@ -403,10 +489,15 @@ function PayRange({ offer }: { offer: Row }) {
 }
 
 // ── the writer ───────────────────────────────────────────────────────────────────────────────────
-function OfferForm({ draft, setDraft, onSave, onCancel, busy }: {
-  draft: OfferTerms; setDraft: (d: OfferTerms) => void; onSave: () => void; onCancel: () => void; busy: boolean;
+function OfferForm({ draft, setDraft, onSave, onCancel, busy, onPick, members, membersFailed, ctx }: {
+  draft: OfferTerms; setDraft: React.Dispatch<React.SetStateAction<OfferTerms | null>>; onSave: () => void; onCancel: () => void; busy: boolean;
+  onPick: (v: PersonValue, how: PersonHow) => void; members: readonly { id: string; name: string }[]; membersFailed: boolean;
+  ctx: OfferContext;
 }) {
-  const set = <K extends keyof OfferTerms>(k: K, v: OfferTerms[K]) => setDraft({ ...draft, [k]: v });
+  // Every change goes through restateDefaults: a change of role, type or market moves the defaults
+  // hanging off it (the house wording, who it reports to) while they are still defaults.
+  const patch = (p: Partial<OfferTerms>) => setDraft((d) => d && restateDefaults(d, { ...d, ...p }, ctx));
+  const set = <K extends keyof OfferTerms>(k: K, v: OfferTerms[K]) => patch({ [k]: v } as Partial<OfferTerms>);
   const v = validateOffer(draft);
   // Only meaningful when the letter claims "contractor" — the question doesn't exist otherwise.
   const flags = classificationFlags({
@@ -418,9 +509,24 @@ function OfferForm({ draft, setDraft, onSave, onCancel, busy }: {
 
   return (
     <div className="ofr-form">
+      {/* WHO IT IS FOR, FIRST (2026-10-04, the form audit). A typed name linked the letter to nobody:
+          the person's own page said "draft their offer letter" under a letter already drafted, and
+          the deadlines board could not tell them theirs was expiring. Picking them links it and
+          fills in what is on file; someone new is typed, and linked when they answer from the
+          account they sign up with. */}
+      <label className="prod-f"><span>Who is this for?</span>
+        <PersonPick label="Who this offer is for" value={{ id: draft.candidateUserId ?? null, name: draft.candidateName }}
+                    onChange={onPick} allowOther={false} allowNone noneLabel="Someone new — not on the app yet"
+                    withoutMe matchByName={false} others={members} othersLabel="Customers with an account" /></label>
+      <p className="ofr-stat-why" style={{ marginTop: 6 }}>
+        {draft.candidateUserId
+          ? "Linked to their account: the letter shows on their page and in their own app."
+          : "Type their name and the email they will sign up with — the letter reaches them there."}
+        {membersFailed && " Couldn't load the customers who have an account just now, so only the crew is listed."}
+      </p>
       <div className="prod-grid">
-        <label className="prod-f"><span>Their name</span>
-          <input value={draft.candidateName} onChange={(e) => set("candidateName", e.target.value)} placeholder="Full name" /></label>
+        <label className="prod-f"><span>Name on the letter</span>
+          <input value={draft.candidateName} onChange={(e) => set("candidateName", e.target.value)} placeholder="Full name" autoComplete="off" /></label>
         <label className="prod-f"><span>Their email</span>
           <input type="email" value={draft.candidateEmail} onChange={(e) => set("candidateEmail", e.target.value)} placeholder="name@example.com" /></label>
         <label className="prod-f"><span>Title</span>
@@ -455,8 +561,11 @@ function OfferForm({ draft, setDraft, onSave, onCancel, busy }: {
         <label className="prod-f"><span>Commission (%)</span>
           <input inputMode="decimal" value={draft.commissionPct ?? ""} placeholder="none"
             onChange={(e) => { const n = Number(e.target.value); set("commissionPct", Number.isFinite(n) && e.target.value !== "" ? n : null); }} /></label>
+        {/* Starts as whoever leads the market (restateDefaults), and follows the market until changed.
+            offer_letters.reports_to is the name the letter prints; a manager not hired yet is typed. */}
         <label className="prod-f"><span>Reports to</span>
-          <input value={draft.reportsTo ?? ""} onChange={(e) => set("reportsTo", e.target.value)} placeholder="Who they report to" /></label>
+          <PersonPick label="Reports to" value={{ id: draft.reportsToId ?? null, name: draft.reportsTo ?? "" }} allowNone noneLabel="Not set"
+                      onChange={(v) => patch({ reportsTo: v.name || null, reportsToId: v.id })} /></label>
       </div>
 
       {/* THE STATUTORY FOUR (0286). South Carolina requires these in writing at the time of hiring —

@@ -10,6 +10,8 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { useLocationSuggestions } from "./useLocationSuggestions";
 import { errorMessage } from "@/lib/errorMessage";
+import { useCrew } from "./useCrew";
+import { follow } from "@/lib/pickFill";
 
 // EVENT DAY PLANNER — a multi-day, time-by-time run of show for one event. Pick how many days the
 // event runs, then build each day block by block: leave home 9:00, drive, arrive Airbnb (address +
@@ -49,6 +51,20 @@ const QUICK: { title: string; kind: string; start?: string }[] = [
   { title: "Load out", kind: "travel" }, { title: "Debrief", kind: "meeting" },
 ];
 
+// WHAT A NEW BLOCK ALREADY KNOWS (2026-10-04, the form audit). The event or stop this run sheet is
+// for has a place, and usually a crew; the day has a block before this one. Each new block was
+// typed from nothing: the venue retyped for setup, service and teardown, "Ryan" / "ryan" / "R" for
+// who, a start time when the last block already said when it ends.
+//   · Start — where the day's last block ends (blank if it says no end: a guessed time reads as one
+//     somebody chose).
+//   · Place and Address — the event's or stop's own, for the blocks that happen there; they follow
+//     the kind while untouched (lib/pickFill), so switching a block to Travel takes them away again.
+//   · Who — the crew on this event or stop as tap chips (everyone, when nobody is on it yet), still a
+//     free-text box for "Host" or "Both".
+const AT_THE_VENUE = new Set(["setup", "service", "teardown"]);
+type Venue = { place: string; address: string };
+const NO_VENUE: Venue = { place: "", address: "" };
+
 const pad = (n: number) => String(n).padStart(2, "0");
 const isoAddDays = (iso: string, n: number) => { const d = new Date(`${iso}T00:00:00`); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 const fmtDate = (iso: string) => { const d = new Date(`${iso}T00:00:00`); return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); };
@@ -87,7 +103,36 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
   const board = useAsyncData(loader, [eventId, ownerCol]);
   const { reload } = board;
   useRealtimeTable({ table: "event_schedule_items", filter: `${ownerCol}=eq.${eventId}` }, reload);
-  const items = board.data ?? [];
+  const items = useMemo(() => board.data ?? [], [board.data]);
+
+  // The place and the crew of the event or stop this sheet is for. A convenience, not the sheet:
+  // if it does not load, blocks start blank exactly as they used to.
+  const aboutLoader = useCallback(async (): Promise<{ venue: Venue | null; staff: string[] }> => {
+    if (!supabase) return { venue: null, staff: [] };
+    const [own, st] = await Promise.all([
+      ownerType === "stop"
+        ? supabase.from("stops").select("name, location_text, address").eq("id", eventId).maybeSingle()
+        : supabase.from("events").select("location_text, vendors(name, address)").eq("id", eventId).maybeSingle(),
+      supabase.from("event_staff").select("user_id").eq(ownerCol, eventId),
+    ]);
+    const o = (own.data ?? null) as { name?: string | null; location_text?: string | null; address?: string | null; vendors?: { name?: string | null; address?: string | null } | { name?: string | null; address?: string | null }[] | null } | null;
+    const v = Array.isArray(o?.vendors) ? o?.vendors[0] : o?.vendors;
+    const place = (o?.location_text || v?.name || o?.name || "").trim();
+    const address = (o?.address || v?.address || "").trim();
+    return {
+      venue: place || address ? { place, address } : null,
+      staff: ((st.data as { user_id: string | null }[] | null) ?? []).map((r) => r.user_id).filter((x): x is string => !!x),
+    };
+  }, [eventId, ownerCol, ownerType]);
+  const about = useAsyncData(aboutLoader, [eventId, ownerCol, ownerType]);
+  const crewList = useCrew();
+  const onSite = useMemo(() => {
+    const ids = about.data?.staff ?? [];
+    const pool = ids.length ? crewList.filter((c) => ids.includes(c.id)) : crewList;
+    return { names: pool.map((c) => (c.display_name ?? "").trim()).filter(Boolean), staffed: ids.length > 0 };
+  }, [about.data, crewList]);
+  const venue = about.data?.venue ?? null;
+  const venueFor = (kind: string | null | undefined): Venue => (venue && AT_THE_VENUE.has(kind ?? "") ? venue : NO_VENUE);
 
   const dayDate = (di: number) => (eventDay ? isoAddDays(eventDay, di - 1) : null);
   const dayItems = useMemo(
@@ -139,6 +184,8 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
 
   const dd = dayDate(active);
   const doneCount = dayItems.filter((i) => i.done).length;
+  // Where the day's last block ends is where the next one starts.
+  const nextStart = (dayItems[dayItems.length - 1]?.end_time ?? "").trim();
 
   return (
     <>
@@ -217,7 +264,9 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
 
           <div className="dp-quick">
             {QUICK.map((q) => (
-              <button key={q.title} type="button" className="dp-qchip" style={{ ["--c" as string]: kindOf(q.kind).color }} onClick={() => addItem({ title: q.title, kind: q.kind, start_time: q.start ?? null })}>
+              <button key={q.title} type="button" className="dp-qchip" style={{ ["--c" as string]: kindOf(q.kind).color }}
+                onClick={() => addItem({ title: q.title, kind: q.kind, start_time: q.start ?? (nextStart || null),
+                  location: venueFor(q.kind).place || null, address: venueFor(q.kind).address || null })}>
                 <span>{kindOf(q.kind).icon}</span>{q.title}
               </button>
             ))}
@@ -236,6 +285,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
       {editing && (
         <ItemForm
           item={editing === "new" ? null : editing}
+          start={nextStart} venueFor={venueFor} onSite={onSite}
           onClose={() => setEditing(null)}
           onSave={async (patch) => { if (editing === "new") await addItem(patch); else await saveItem(editing.id, patch); setEditing(null); }}
         />
@@ -249,16 +299,28 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
 }
 
 // Add / edit a single block — every logistic field in one place.
-function ItemForm({ item, onClose, onSave }: { item: Item | null; onClose: () => void; onSave: (patch: Partial<Item>) => void | Promise<void> }) {
-  const [f, setF] = useState<Partial<Item>>(item ?? { title: "", kind: "other", start_time: "", end_time: "", location: "", address: "", details: "", who: "" });
+function ItemForm({ item, start, venueFor, onSite, onClose, onSave }: {
+  item: Item | null; start: string; venueFor: (kind: string | null | undefined) => Venue; onSite: { names: string[]; staffed: boolean };
+  onClose: () => void; onSave: (patch: Partial<Item>) => void | Promise<void>;
+}) {
+  const [f, setF] = useState<Partial<Item>>(item ?? { title: "", kind: "other", start_time: start, end_time: "", location: "", address: "", details: "", who: "" });
   const locSugs = useLocationSuggestions();
   const set = (k: keyof Item, v: any) => setF((p) => ({ ...p, [k]: v }));
+  // The venue follows the kind while Place and Address are untouched (lib/pickFill).
+  const setKind = (k: string) => setF((p) => {
+    const was = venueFor(p.kind), now = venueFor(k);
+    return { ...p, kind: k, location: follow(p.location, was.place, now.place), address: follow(p.address, was.address, now.address) };
+  });
+  // Who: names as chips over the same free-text column — "Ryan, Kayla".
+  const whoList = (f.who ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  const isOn = (n: string) => whoList.some((x) => x.toLowerCase() === n.toLowerCase());
+  const toggleWho = (n: string) => set("who", (isOn(n) ? whoList.filter((x) => x.toLowerCase() !== n.toLowerCase()) : [...whoList, n]).join(", "));
   return (
     <Sheet open onClose={onClose} label="Day-of block" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{item ? "Edit block" : "New block"}</b><CloseButton onClick={onClose} /></div>}>
           <input className="note-in" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="What's happening? e.g. Arrive Airbnb" autoFocus />
           <div className="dp-kinds">
             {KINDS.map((k) => (
-              <button key={k.key} type="button" className={`dp-kchip${f.kind === k.key ? " on" : ""}`} style={{ ["--c" as string]: k.color }} onClick={() => set("kind", k.key)}>{k.icon} {k.label}</button>
+              <button key={k.key} type="button" className={`dp-kchip${f.kind === k.key ? " on" : ""}`} style={{ ["--c" as string]: k.color }} onClick={() => setKind(k.key)}>{k.icon} {k.label}</button>
             ))}
           </div>
           <div className="prod-grid" style={{ marginTop: 10 }}>
@@ -274,6 +336,16 @@ function ItemForm({ item, onClose, onSave }: { item: Item | null; onClose: () =>
                 record that FieldOpSheet and the event card use, so neither field is blind free
                 text and "Duncan Town Square" stops acquiring a third spelling. */}
             <label className="prod-f"><span>Place</span><input value={f.location ?? ""} onChange={(e) => set("location", e.target.value)} placeholder="Airbnb, venue…" list="gt3-locs-edp" /></label>
+            {onSite.names.length > 0 && (
+              <div className="prod-f" style={{ gridColumn: "1 / -1" }}>
+                <span>{onSite.staffed ? "On this one — tap to add to Who" : "The crew — tap to add to Who"}</span>
+                <div className="ts-chips" role="group" aria-label="Who — tap to add">
+                  {onSite.names.map((n) => (
+                    <button key={n} type="button" className={`ts-chip${isOn(n) ? " on" : ""}`} aria-pressed={isOn(n)} onClick={() => toggleWho(n)}>{n}</button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <label className="prod-f" style={{ marginTop: 8 }}><span>Address (tap-to-map)</span><input value={f.address ?? ""} onChange={(e) => set("address", e.target.value)} placeholder="123 Peach St, Atlanta GA" list="gt3-locs-edp" /></label>
           {locSugs.length > 0 && <datalist id="gt3-locs-edp">{locSugs.map((sg) => <option key={sg} value={sg} />)}</datalist>}

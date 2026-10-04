@@ -16,6 +16,10 @@ import { localToday, etToday, dayKey, dayWithDate, relativeDay, ageLabel, fmt12 
 import { orderClockFrom, waitingToOpen, waitingLabel } from "@/lib/ordering";
 import { prepBucket } from "@/lib/readiness";
 import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
+import { takeParam, readParam, dropParam } from "@/lib/urlParam";
+import { mentionDraft, mentionChoices, insertMention, resolveMentions } from "@/lib/mentions";
+import PersonPick from "@/components/PersonPick";
+import { crewLabel } from "@/components/useCrew";
 import { archiveOwner, setEventLive } from "@/lib/wrap";
 import { downloadCsv } from "@/lib/csv";
 import { brewStartOverdue } from "@/lib/brewMath";
@@ -1080,9 +1084,12 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
   const { toast } = useApp();
   const [comments, setComments] = useState<Comment[]>([]);
   const [cmtFailed, setCmtFailed] = useState(false);
-  const [staff, setStaff] = useState<{ id: string; display_name: string | null }[]>([]);
+  const [staff, setStaff] = useState<{ id: string; display_name: string | null; role?: string | null }[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  // @ is a pick list (lib/mentions): who each inserted @token stands for, by id.
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const replyRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -1095,24 +1102,28 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
   useEffect(() => {
     load();
     if (!supabase) return;
-    supabase.from("profiles").select("id, display_name").neq("role", "member").then(({ data, error }) => { if (!error) setStaff((data as { id: string; display_name: string | null }[]) ?? []); });
+    supabase.from("profiles").select("id, display_name, role").neq("role", "member").then(({ data, error }) => { if (!error) setStaff((data as { id: string; display_name: string | null; role?: string | null }[]) ?? []); });
   }, [load]);
   useRealtimeTable({ table: "comments", filter: `${subject.col}=eq.${subject.id}` }, load);
 
   const nameOf = (uid: string | null) => (uid && uid === meId ? "You" : (staff.find((s) => s.id === uid)?.display_name?.trim() || "Crew"));
   const firstOf = (uid: string | null) => nameOf(uid).split(" ")[0];
 
+  const draft = mentionDraft(text);
+  const choices = draft === null ? [] : mentionChoices(staff.filter((s) => s.id !== meId), draft).slice(0, 6);
+  const reach = resolveMentions(text, staff, picked);
+  const reachIds = reach.ids.filter((id) => id !== meId);   // nobody is pinged about their own reply
   const send = async () => {
     if (!supabase || !text.trim() || sending) return;
     setSending(true);
     const sent = text.trim();
-    // @firstname → user id (case-insensitive). Lightweight; good enough for a small crew.
-    const lower = sent.toLowerCase();
-    const mentionIds = staff.filter((s) => { const fn = (s.display_name || "").trim().split(" ")[0].toLowerCase(); return fn.length > 1 && lower.includes("@" + fn); }).map((s) => s.id);
+    // Who the @s reach — the people picked from the list, and a hand-typed first name that names
+    // exactly one person (lib/mentions). Said under the box before Send, so a typo is seen in time.
+    const mentionIds = resolveMentions(sent, staff, picked).ids;
     const { error } = await supabase.from("comments").insert({ [subject.col]: subject.id, body: sent, author_id: meId, mentions: mentionIds });
     setSending(false);
     if (error) { toast(`Error: ${error.message}`, "error"); return; }
-    setText("");
+    setText(""); setPicked({});
     load();
     // Ping the counterparties + mentions (never myself) so the reply doesn't go unseen.
     const recips = Array.from(new Set([...notifyIds, ...mentionIds])).filter((id): id is string => !!id && id !== meId);
@@ -1149,9 +1160,27 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
         </div>
       ))}
       <div className="cmt-add">
-        <input className="note-in" placeholder="Reply… (@name to notify)" aria-label="Reply to comment" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
+        <input ref={replyRef} className="note-in" placeholder="Reply… (@name to notify)" aria-label="Reply to comment" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
         <button type="button" className="note-fu-addbtn" onClick={send} disabled={!text.trim() || sending}>Send</button>
       </div>
+      {choices.length > 0 && (
+        <div className="ts-chips" role="group" aria-label="Who to notify">
+          {choices.map((p) => (
+            <button key={p.id} type="button" className="ts-chip" onClick={() => {
+              const next = insertMention(text, p);
+              setText(next.text); setPicked((x) => ({ ...x, [p.id]: next.token }));
+              // Back to the box, at the end — the keyboard stays up and the sentence carries on.
+              requestAnimationFrame(() => { const el = replyRef.current; if (el) { el.focus(); el.setSelectionRange(next.text.length, next.text.length); } });
+            }}>{crewLabel({ display_name: p.display_name, role: staff.find((x) => x.id === p.id)?.role ?? null })}</button>
+          ))}
+        </div>
+      )}
+      {(reachIds.length > 0 || reach.unresolved.length > 0) && (
+        <p className="od-note" role="status" style={{ marginTop: 4 }}>
+          {reachIds.length > 0 && <>Notifies {reachIds.map((id) => firstOf(id)).join(", ")}. </>}
+          {reach.unresolved.length > 0 && <>{reach.unresolved.join(", ")} {reach.unresolved.length === 1 ? "reaches" : "reach"} nobody — pick from the list after typing @.</>}
+        </p>
+      )}
     </div>
   );
 }
@@ -2045,7 +2074,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [name, setName] = useState<string | null>(null); // display name for either kind
   const [tasks, setTasks] = useState<EventTask[]>([]);
   const [crew, setCrew] = useState<{ id: string; user_id: string; role_label: string | null }[]>([]);
-  const [staff, setStaff] = useState<{ id: string; display_name: string | null; role?: string | null }[]>([]);
+  const [staff, setStaff] = useState<{ id: string; display_name: string | null; role: string | null }[]>([]);
   const [approvals, setApprovals] = useState<{ approver_id: string }[]>([]);
   const [newTask, setNewTask] = useState("");
   const [newTaskDue, setNewTaskDue] = useState("");
@@ -2126,7 +2155,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     if (isAdmin) {
       const { data: p, error: pErr } = await supabase.from("profiles").select("id, display_name, role").neq("role", "member");
       if (pErr) throw new Error(pErr.message);
-      setStaff((p as { id: string; display_name: string | null; role?: string | null }[]) ?? []);
+      setStaff((p as { id: string; display_name: string | null; role: string | null }[]) ?? []);
     }
     // Brew batches serving THIS event/stop (many-to-many via the link table).
     const { data: bl } = await supabase.from("brew_batch_links").select("brew_batches(id, recipe_name, batch_gal, status, ready_at)").eq(ownerCol, target.id);
@@ -2539,7 +2568,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           })}
           <select className="adm-role" value="" onChange={(e) => { addCrew(e.target.value); e.target.value = ""; }} aria-label="Add crew">
             <option value="">+ crew</option>
-            {staff.filter((s) => !crew.some((c) => c.user_id === s.id)).map((s) => <option key={s.id} value={s.id}>{s.display_name ?? "—"}</option>)}
+            {staff.filter((s) => !crew.some((c) => c.user_id === s.id)).map((s) => <option key={s.id} value={s.id}>{crewLabel(s)}</option>)}
           </select>
         </div>
       )}
@@ -2879,7 +2908,9 @@ function MeetingNotes() {
       if (j.ok) {
         setCSummary(j.summary);
         if (!cTitle.trim() && j.title) setCTitle(j.title);   // fill the title only if you haven't typed one
-        setCActions(j.actionItems ?? []);
+        // Never orphaned: a follow-up the summary could not give to anyone starts as the author's
+        // (the rule /api/agents/recap already keeps) — My Tasks only shows what is assigned to you.
+        setCActions(((j.actionItems ?? []) as { title: string; category: string; critical: boolean; assignee?: string | null }[]).map((a) => ({ ...a, assignee: a.assignee ?? meId })));
         toast(`Recap ready${j.actionItems?.length ? ` · ${j.actionItems.length} task${j.actionItems.length === 1 ? "" : "s"} to add on save` : ""}`);
       } else toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Error: ${j.error}`, "error");
     } catch { toast("Couldn't reach the summarizer", "error"); }
@@ -3023,17 +3054,15 @@ function MeetingNotes() {
               <button type="button" className="note-suggest note-sum" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : <><Icon name="sparkles" /> Summarize <Icon name="arrowRight" /> title · recap · tasks</>}</button>
             </details>
             <div className="note-fu-h">Follow-ups
-              <button type="button" className="note-fu-add" onClick={() => setCActions((a) => [...a, { title: "", category: "task", critical: false, assignee: null }])}>+ Add</button>
+              <button type="button" className="note-fu-add" onClick={() => setCActions((a) => [...a, { title: "", category: "task", critical: false, assignee: meId }])}>+ Add</button>
             </div>
             {cActions.length === 0 && <div className="note-fu-empty">No follow-ups yet — add one and assign it to a partner, or <Icon name="sparkles" /> summarize a transcript to pull them out.</div>}
             {cActions.map((a, i) => (
               <div className="note-fu-edit" key={i}>
                 <input className="note-in" placeholder="Follow-up task…" value={a.title} onChange={(e) => setCActions((arr) => arr.map((x, j) => j === i ? { ...x, title: e.target.value } : x))} />
                 <div className="note-fu-edit-r">
-                  <select className="note-in" value={a.assignee ?? ""} onChange={(e) => setCActions((arr) => arr.map((x, j) => j === i ? { ...x, assignee: e.target.value || null } : x))} aria-label="Assign to">
-                    <option value="">Unassigned</option>
-                    {staff.map((m) => <option key={m.id} value={m.id}>{m.display_name?.trim() || "Crew"}</option>)}
-                  </select>
+                  <PersonPick label="Assign to" className="note-in" value={{ id: a.assignee ?? null, name: "" }} allowOther={false} allowNone noneLabel="Unassigned"
+                              onChange={(v) => setCActions((arr) => arr.map((x, j) => j === i ? { ...x, assignee: v.id } : x))} />
                   <button type="button" className={`note-fu-crit${a.critical ? " on" : ""}`} onClick={() => setCActions((arr) => arr.map((x, j) => j === i ? { ...x, critical: !x.critical } : x))} aria-pressed={a.critical} title="Mark critical"><Icon name="warning" /></button>
                   <button type="button" className="note-fu-del" onClick={() => setCActions((arr) => arr.filter((_, j) => j !== i))} aria-label="Remove"><Icon name="close" /></button>
                 </div>
@@ -3168,9 +3197,14 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   const firstNameOf = (uid: string) => staffName(uid).split(" ")[0];
   const authorName = note.created_by ? (note.created_by === meId ? "you" : firstNameOf(note.created_by)) : null;
 
+  // A follow-up added here files where the new-note sheet files them (2026-10-04, the form audit):
+  // under the note's event or stop when it has one, so it reaches that prep checklist, with the
+  // note as its origin (this card reads both) — and it is yours until you hand it on. It was filed
+  // on the note alone, assigned to nobody, and so on nobody's My Tasks.
   const add = async () => {
     if (!supabase || !newItem.trim()) return;
-    const { error } = await createEventTask({ parent: { note: note.id }, label: newItem.trim(), kind: "task", section: "Follow-up", sort: items.length });
+    const parent: TaskParent = note.event_id ? { event: note.event_id } : note.stop_id ? { stop: note.stop_id } : { note: note.id };
+    const { error } = await createEventTask({ parent, originNoteId: note.id, label: newItem.trim(), kind: "task", section: "Follow-up", sort: items.length, assignee: meId });
     setNewItem("");
     if (error) toast(`Error: ${error}`, "error"); else load();
   };
@@ -3225,7 +3259,8 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     if (!supabase || !dec.decision.trim()) return;
     let follow_up_task_id: string | null = null;
     if (dec.fu.trim()) {
-      const { id } = await createEventTask({ parent: { note: note.id }, label: dec.fu.trim(), kind: "task", section: "Follow-up", sort: 999 });
+      // The follow-through is the decision-maker's until they hand it on — unassigned, it reached nobody.
+      const { id } = await createEventTask({ parent: { note: note.id }, label: dec.fu.trim(), kind: "task", section: "Follow-up", sort: 999, assignee: meId });
       follow_up_task_id = id ?? null;
     }
     const { error } = await supabase.from("strategy_decisions").insert({
@@ -3994,34 +4029,46 @@ function scrollHereUntilItSticks(ref: { current: HTMLElement | null }, tries = 1
 function PromotePanel({ onDone }: { onDone: () => void }) {
   const confirm = useConfirm();
   const { toast } = useApp();
-  const [open, setOpen] = useState(false);
-  const [rows, setRows] = useState<{ id: string; display_name: string | null; email: string | null; customer_name: string | null }[]>([]);
+  const { profile } = useAuth();
+  // ?promote=<their profile id> — read on the first render (lib/urlParam), so the panel is born open
+  // with them wanted rather than opened by an effect a render later. Removed from the address below.
+  const [promoteFor] = useState<string | null>(() => readParam("promote"));
+  const [open, setOpen] = useState(() => !!promoteFor);
+  const [rows, setRows] = useState<{ id: string; display_name: string | null; email: string | null; customer_name: string | null; market: string | null }[]>([]);
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState("");
-  const [pick, setPick] = useState<string | null>(null);
+  const [pick, setPickRaw] = useState<string | null>(null);
   const [role, setRole] = useState<string>("operator");
-  const [market, setMarket] = useState<string>("");
+  // THE CITY STARTS AS THEIRS (2026-10-04, the form audit). It started as the first market
+  // alphabetically — Atlanta — so a Greenville customer brought on was filed in Atlanta unless
+  // somebody noticed. It now starts as the city on their own profile (v_promotable.market), else
+  // yours, else the founding market; choosing one makes it yours until someone else is picked.
+  const [marketChosen, setMarketChosen] = useState<string | null>(null);
+  const setPick = (id: string | null) => { setPickRaw(id); setMarketChosen(null); };
   const [lead, setLead] = useState(false);
   const [markets, setMarkets] = useState<{ slug: string; name: string }[]>([]);
   const [busy, setBusy] = useState(false);
-  const wantedRef = useRef<string | null>(null);
+  const wantedRef = useRef<string | null>(promoteFor);
   const boxRef = useRef<HTMLDivElement | null>(null);
   // What the promotion actually STARTED, kept after the form clears. Setting a role is the
   // paperwork, not the event: the next real steps are the offer letter and their Academy path, and
   // ending on a toast left the person who just hired someone with nowhere to go.
-  const [justHired, setJustHired] = useState<{ name: string; role: string; market: string; lead: boolean } | null>(null);
+  const [justHired, setJustHired] = useState<{ id: string; name: string; role: string; market: string; lead: boolean } | null>(null);
+  const pickedRow = pick ? rows.find((r) => r.id === pick) ?? null : null;
+  const market = marketChosen
+    ?? [pickedRow?.market, profile?.market, FOUNDING_MARKET].find((m) => !!m && markets.some((x) => x.slug === m))
+    ?? markets[0]?.slug ?? "";
 
   const load = useCallback(async () => {
     if (!supabase) return;
     setLoading(true);
     const [{ data: p }, { data: mk }] = await Promise.all([
-      supabase.from("v_promotable").select("id, display_name, email, customer_name"),
+      supabase.from("v_promotable").select("id, display_name, email, customer_name, market"),
       supabase.from("markets").select("slug, name").order("slug"),
     ]);
     const people = (p as typeof rows) ?? [];
     setRows(people);
     setMarkets((mk as typeof markets) ?? []);
-    setMarket((prev) => prev || ((mk as typeof markets) ?? [])[0]?.slug || "");
     setLoading(false);
     // Arrived from a customer's card with someone already named: pick them now that the list is
     // actually here. Done inside load rather than in an effect watching rows, because this is the
@@ -4030,7 +4077,7 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
     if (w) {
       wantedRef.current = null;
       if (people.some((r) => r.id === w)) {
-        setPick(w);
+        setPickRaw(w); setMarketChosen(null);
         scrollHereUntilItSticks(boxRef);
       } else {
         toast("They are already on the crew — change their role from the roster below.");
@@ -4042,32 +4089,17 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
 
   // ── arriving from a customer's card ───────────────────────────────────────────────────────────
   // The Customers screen is where an owner goes to act on a person, so its card links here with
-  // ?promote=<their profile id> rather than growing a second copy of this form. Consume it once per
-  // page load with a ref — the same idiom the ?a= anchor link uses — then clear the parameter so a
-  // refresh or an in-app section change never re-triggers it.
-  // The id rides in a ref, not state: nothing renders differently for holding it, and load() reads
-  // it at the one moment the list is known. Someone who is NOT in that list is already on the crew,
-  // and load() says so — silently selecting nobody reads as a broken link.
-  const consumedPromoteRef = useRef(false);
-  useEffect(() => {
-    if (consumedPromoteRef.current) return;
-    let w: string | null = null;
-    try { w = new URL(window.location.href).searchParams.get("promote"); } catch { /* ignore */ }
-    if (!w) return;
-    consumedPromoteRef.current = true;
-    wantedRef.current = w;
-    setOpen(true);
-    // The scroll itself happens in load(), NOT here. A fixed timer was the first attempt and
-    // production proved it wrong: it fired before the promotable list had come back and before the
-    // rest of Team had finished laying out, so it scrolled a document that was still growing and
-    // the panel ended up at y=1699 in a 962px viewport — open, preselected, and still off screen.
-    // The only moment worth scrolling at is the one where the thing being scrolled to exists.
-    try {
-      const u = new URL(window.location.href);
-      u.searchParams.delete("promote");
-      window.history.replaceState(window.history.state, "", u.pathname + u.search);
-    } catch { /* ignore */ }
-  }, []);
+  // ?promote=<their profile id> rather than growing a second copy of this form. It is read on the
+  // first render (promoteFor, above): the panel is born open, and the id waits in a ref for load(),
+  // which reads it at the one moment the list is known. Someone who is NOT in that list is already
+  // on the crew, and load() says so — silently selecting nobody reads as a broken link. The
+  // parameter is then cleared (lib/urlParam), so a refresh or a section change never repeats it.
+  useEffect(() => { if (promoteFor) dropParam("promote"); }, [promoteFor]);
+  // The scroll itself happens in load(), NOT here. A fixed timer was the first attempt and
+  // production proved it wrong: it fired before the promotable list had come back and before the
+  // rest of Team had finished laying out, so it scrolled a document that was still growing and
+  // the panel ended up at y=1699 in a 962px viewport — open, preselected, and still off screen.
+  // The only moment worth scrolling at is the one where the thing being scrolled to exists.
 
   const promote = async () => {
     if (!supabase || !pick) return;
@@ -4081,7 +4113,7 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
     setBusy(false);
     if (error) { toast(`Error: ${error.message}`); return; }
     toast(`${name} → ${roleLabel(role)}${lead ? ` · leads ${market}` : ""}`);
-    setJustHired({ name, role: roleLabel(role), market, lead });
+    setJustHired({ id: pick, name, role: roleLabel(role), market, lead });
     setPick(null); setLead(false);
     load();
     onDone();
@@ -4109,7 +4141,7 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
   const pickedFirst = pickedName ? pickedName.split(" ")[0] : null;
 
   return (
-    <div className="tm-hire" ref={boxRef}>
+    <div className="tm-hire" id="tm-hire" ref={boxRef}>
       <button type="button" className="tm-hire-open" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         {pickedName ? `Bring ${pickedName} onto the crew` : "Bring someone onto the crew"}
         <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
@@ -4127,10 +4159,12 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
               <b>{justHired.name} is on the crew.</b> {justHired.role}
               {justHired.market ? ` · ${justHired.market}` : ""}{justHired.lead ? " · leads the market" : ""}.
               <div className="tm-hired-next">
-                <a className="tm-hire-open" href="/crew?s=money&a=offers">
+                {/* Both carry who (lib/urlParam): the offer opens already for them, and the Academy's
+                    assign sheet opens with them chosen. */}
+                <a className="tm-hire-open" href={`/crew?s=money&a=offers&offer_for=${justHired.id}`}>
                   Draft their offer letter <span className="ev-chev" aria-hidden="true">›</span>
                 </a>
-                <a className="tm-hire-open" href="/academy">
+                <a className="tm-hire-open" href={`/academy?assign=${justHired.id}`}>
                   Their Academy path is live — see what {justHired.name.split(" ")[0]} has to complete <span className="ev-chev" aria-hidden="true">›</span>
                 </a>
               </div>
@@ -4177,7 +4211,7 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
                       </select>
                     </label>
                     <label>City
-                      <select value={market} onChange={(e) => setMarket(e.target.value)}>
+                      <select value={market} onChange={(e) => setMarketChosen(e.target.value)}>
                         {markets.map((m) => <option key={m.slug} value={m.slug}>{m.name || m.slug}</option>)}
                       </select>
                     </label>
@@ -5543,16 +5577,10 @@ export default function AdminPage() {
   const consumedAnchorRef = useRef(false);
   useEffect(() => {
     if (consumedAnchorRef.current) return;
-    let a: string | null = null;
-    try { a = new URL(window.location.href).searchParams.get("a"); } catch { /* ignore */ }
+    const a = takeParam("a");
     if (!a) return;
     consumedAnchorRef.current = true;
     scrollToAnchor(a);
-    try {
-      const u = new URL(window.location.href);
-      u.searchParams.delete("a");
-      window.history.replaceState(window.history.state, "", u.pathname + u.search);
-    } catch { /* ignore */ }
   }, [sec]);
   // The header 🔔 opens the ONE inbox (your flags + the needs-you queue). Any screen can summon it
   // (a badged nav tab, the Now strip) via the gt3-open-inbox event; navigating a section closes it.

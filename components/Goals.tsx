@@ -14,7 +14,8 @@ import { SectionHeader } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
-import { useCrew, crewLabel } from "./useCrew";
+import { useCrew } from "./useCrew";
+import PersonPick, { type PersonValue } from "./PersonPick";
 
 // GOALS — the true tracker (0163/0164). Three layers, top down:
 //   lane → goal → moves.
@@ -51,6 +52,11 @@ export default function Goals() {
   const [adding, setAdding] = useState(false);
   const [savingGoal, setSavingGoal] = useState(false);
   const [ng, setNg] = useState({ title: "", target: "", unit: "", play: "", due: "", stream: "business", source: "" });
+  // WHO OWNS A NEW GOAL (2026-10-04, the form audit). Every goal was born "Unassigned", though the
+  // lane picked in the same form has an accountable owner (Org chart, work_streams.owner_user_id)
+  // and the person creating it is signed in. It starts as the lane's owner, else you, and follows
+  // the lane until somebody picks.
+  const [ownerChosen, setOwnerChosen] = useState<PersonValue | null>(null);
   // Edit + archive (2026-07-16) — a goal could be created and have its owner/lane/progress changed,
   // but never its own title/description/target/unit/due date, and never removed. Confirmed gap from
   // the crew-console audit; "archive" (not a hard delete) matches the status column that already had
@@ -185,10 +191,21 @@ export default function Goals() {
   const addInitiative = async (goalId: string) => {
     if (!supabase || !initTitle.trim()) return;
     const label = initTitle.trim();
+    // A move starts with the goal's owner and the goal's date (2026-10-04, the form audit): it was
+    // added with neither, so it sat on nobody's My Tasks and could never be late. The owner gets the
+    // same ping assigning one by hand sends (assignMove).
+    const g = rows.find((x) => x.id === goalId);
+    const assignee = g?.owner_user_id ?? null;
     // ONE write path (lib/tasks) — createEventTask closes the last gap: every other write here
     // already had a lib/tasks helper; creating a move was the one insert with no home yet.
-    const { error } = await createEventTask({ parent: { goal: goalId }, label, kind: "task", sort: inits.filter((i) => i.goal_id === goalId).length });
+    const { id, error } = await createEventTask({
+      parent: { goal: goalId }, label, kind: "task", sort: inits.filter((i) => i.goal_id === goalId).length,
+      assignee, dueISO: g?.due_date ? new Date(`${g.due_date}T23:59:59`).toISOString() : null,
+    });
     if (error) { toast(`Couldn't add — ${error}`, "error"); return; }
+    if (id && assignee && assignee !== user?.id) {
+      raiseAlertClient({ severity: "critical", category: "task", kind: "task_assigned", subjectId: id, title: `Assigned to you: ${label}`.slice(0, 140), body: `Goal: ${g?.title ?? ""}`, link: "/crew?s=day", targetUserId: assignee });
+    }
     setInitTitle("");
     reload();
   };
@@ -220,6 +237,7 @@ export default function Goals() {
   };
   const firstName = (uid: string | null) => (staff.find((s) => s.id === uid)?.display_name || "").trim().split(/\s+/)[0] || null;
 
+  const newOwner: PersonValue = ownerChosen ?? { id: streams.find((s) => s.key === ng.stream)?.owner_user_id ?? user?.id ?? null, name: "" };
   const addGoal = async () => {
     if (!supabase || !user || savingGoal) return;
     const target = Number(ng.target);
@@ -230,12 +248,12 @@ export default function Goals() {
       title: ng.title.trim(), target_value: target,
       unit: src ? METRIC_SOURCES[src].unit : ng.unit.trim(),
       play: ng.play.trim() || null, due_date: ng.due || null,
-      stream_key: ng.stream, metric_source: src,
+      stream_key: ng.stream, metric_source: src, owner_user_id: newOwner.id,
       created_by: user.id, author_name: profile?.display_name?.trim() || null,
     });
     setSavingGoal(false);
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
-    setAdding(false); setNg({ title: "", target: "", unit: "", play: "", due: "", stream: "business", source: "" });
+    setAdding(false); setNg({ title: "", target: "", unit: "", play: "", due: "", stream: "business", source: "" }); setOwnerChosen(null);
     toast("On the board");
     reload();
   };
@@ -306,10 +324,8 @@ export default function Goals() {
         <div className="goal-owner">
           <span className="goal-owner-l">Owner</span>
           {canLead ? (
-            <select className="goal-owner-sel" value={g.owner_user_id ?? ""} onChange={(e) => setOwner(g, e.target.value)} aria-label={`Owner of ${g.title}`}>
-              <option value="">Unassigned</option>
-              {staff.map((s) => <option key={s.id} value={s.id}>{crewLabel(s)}</option>)}
-            </select>
+            <PersonPick className="goal-owner-sel" label={`Owner of ${g.title}`} value={{ id: g.owner_user_id, name: "" }}
+                        allowOther={false} allowNone noneLabel="Unassigned" onChange={(v) => setOwner(g, v.id ?? "")} />
           ) : (
             <span className="goal-owner-n">{firstName(g.owner_user_id) ?? "Unassigned"}</span>
           )}
@@ -337,10 +353,8 @@ export default function Goals() {
                 </div>
                 {canLead && !i.done && (
                   <div className="goal-init-meta">
-                    <select value={i.assignee ?? ""} onChange={(e) => assignMove(i, g.title, e.target.value)} aria-label={`Owner of ${i.label}`}>
-                      <option value="">No owner</option>
-                      {staff.map((s) => <option key={s.id} value={s.id}>{crewLabel(s)}</option>)}
-                    </select>
+                    <PersonPick label={`Owner of ${i.label}`} value={{ id: i.assignee, name: "" }}
+                                allowOther={false} allowNone noneLabel="No owner" onChange={(v) => assignMove(i, g.title, v.id ?? "")} />
                     <input type="date" value={i.due_at ? i.due_at.slice(0, 10) : ""} onChange={(e) => dueMove(i, e.target.value)} aria-label={`Due date for ${i.label}`} />
                   </div>
                 )}
@@ -432,6 +446,10 @@ export default function Goals() {
               <option value="">Measured by hand (log progress)</option>
               {Object.entries(METRIC_SOURCES).map(([k, m]) => <option key={k} value={k}>Live: {m.label}</option>)}
             </select>
+          </div>
+          <div className="goal-new-row">
+            <PersonPick className="auth-input" label="Who owns it" value={newOwner} allowOther={false} allowNone noneLabel="Unassigned"
+                        onChange={(v) => setOwnerChosen(v)} />
           </div>
           <div className="goal-new-row">
             <input className="auth-input" value={ng.play} onChange={(e) => setNg({ ...ng, play: e.target.value })} placeholder="Which play it serves (optional)" maxLength={60} />

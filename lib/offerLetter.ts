@@ -185,6 +185,8 @@ export function classificationFlags(o: {
 
 // ── the offer itself ─────────────────────────────────────────────────────────────────────────────
 export type OfferTerms = {
+  /** The person this is for, when they have an account (offer_letters.candidate_user_id, 0281). */
+  candidateUserId?: string | null;
   candidateName: string;
   candidateEmail: string;
   title: string;
@@ -196,6 +198,9 @@ export type OfferTerms = {
   commissionPct?: number | null;  // 0..100
   startOn?: string | null;        // yyyy-mm-dd
   reportsTo?: string | null;
+  /** The crew member reportsTo names, when picked from the list. The form's, not the record's:
+   *  offer_letters keeps the name the letter prints, and has no column for the person. */
+  reportsToId?: string | null;
   package?: { label: string; included: boolean; note?: string }[];
 
   // THE STATUTORY FOUR. S.C. Code 41-10-30 requires an employer — every employer, no size threshold
@@ -280,7 +285,7 @@ export function summarize(t: Partial<OfferTerms>): string {
 }
 
 export const emptyOffer = (): OfferTerms => ({
-  candidateName: "", candidateEmail: "", title: "", role: "server",
+  candidateUserId: null, candidateName: "", candidateEmail: "", title: "", role: "server",
   market: FOUNDING_MARKET, employmentType: "employee",
   baseCents: null, ratePer: "year", commissionPct: null, startOn: null, reportsTo: null,
   normalHours: null, paySchedule: null, payMethod: null, deductions: null,

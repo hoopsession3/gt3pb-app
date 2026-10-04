@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
@@ -8,7 +8,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
-import { MARKETS, MARKET_LABEL, toMarket, type Market } from "@/lib/markets";
+import { MARKETS, MARKET_LABEL, toMarket, isMarket } from "@/lib/markets";
 import DealExplainer from "./DealExplainer";
 import { useOptions } from "./useOptions";
 import {
@@ -16,13 +16,19 @@ import {
   TIERS, TIER, nextTier, STAGES, STAGE_LABEL, STATUS_LABEL,
   nextStatuses, isEditable, isDiscardable, toStatus, toTier, toStage, validateProposal,
   SCOPE_BASIS, SCOPE_BASIS_LABEL, HOURS_BASIS, HOURS_BASIS_LABEL,
-  toScopeBasis, toHoursBasis, scopeSentence,
+  toScopeBasis, toHoursBasis, scopeSentence, isClosed,
   type DealTerms, type AgreementStatus, type ScopeBasis, type HoursBasis,
 } from "@/lib/operatorDeal";
+import { forOperator, UNNAMED_OPERATOR, type OperatorPerson } from "@/lib/operatorDraft";
 import { moneyRound } from "@/lib/money";
 import { localToday, dayWithDate } from "@/lib/dates";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { usePrompt } from "@/components/PromptSheet";
+import PersonPick, { type PersonValue, type PersonHow } from "./PersonPick";
+import { useCrew } from "./useCrew";
+import { readPersonFacts, usePersonFacts, withFacts } from "@/lib/personFacts";
+import { fullestName } from "@/lib/customerKnown";
+import { readParam, dropParam } from "@/lib/urlParam";
 
 // OPERATOR DEAL — build, price and negotiate a market operator's agreement.
 //
@@ -125,26 +131,38 @@ export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) 
   }, [mine, meId]);
   const board = useAsyncData<{ rows: Row[]; extra: Record<string, Extra> }>(loader, [mine, meId]);
   const { reload } = board;
-  const rows = board.data?.rows ?? [];
+  const rows = useMemo(() => board.data?.rows ?? [], [board.data]);
   const extra = board.data?.extra ?? {};
 
-  const createDraft = async () => {
+  // Who an agreement can be for: the crew, with the market each leads (else works in). Their email
+  // and full name are read when they are picked (lib/personFacts).
+  const crew = useCrew();
+  const people = useMemo<OperatorPerson[]>(() => crew.map((c) => ({
+    id: c.id, name: c.display_name ?? "", email: null, market: c.leads_market ?? c.market ?? null,
+  })), [crew]);
+
+  const createDraft = async (forWho?: OperatorPerson) => {
     if (!supabase) return;
     // ONE BLANK AT A TIME. Every tap used to insert another "New operator" with the defaults, so the
     // list grew rows nobody could tell apart (the Business tab, 2026-10-04: two of them, identical).
-    // A draft still sitting on its defaults is the one to fill in — open it instead.
-    const blank = rows.find((r) => isUntouchedDraft(r));
+    // A draft still sitting on its defaults is the one to fill in — open it instead. A draft for a
+    // named person is not a blank: it starts linked to them.
+    const blank = forWho ? null : rows.find((r) => isUntouchedDraft(r));
     if (blank) {
       setOpenId(blank.id);
       toast("There is already a blank draft — it's open. Fill it in, or discard it.");
       return;
     }
     setBusy(true);
+    const f = forWho ? await readPersonFacts(forWho.id) : null;
     const split = computeSplit({ supplyFunding: 50, stage: "ramp", tier: "associate" });
     const { data, error } = await supabase.from("operator_agreements").insert({
       // Was hardcoded to atlanta, so every new agreement started in the wrong market and somebody
-      // had to notice. MARKETS is the list; its first entry is the sane default.
-      market: MARKETS[0], operator_name: "New operator", status: "draft",
+      // had to notice. MARKETS is the list; its first entry is the default for nobody in particular —
+      // for someone, the market they lead or work in.
+      market: forWho?.market && isMarket(forWho.market) ? forWho.market : MARKETS[0],
+      operator_name: forWho ? fullestName(f?.name, forWho.name) || UNNAMED_OPERATOR : UNNAMED_OPERATOR,
+      operator_user_id: forWho?.id ?? null, operator_email: f?.email ?? null, status: "draft",
       tier: "associate", stage: "ramp", supply_funding: 50,
       operator_pct: split.operatorPct, royalty_pct: split.royaltyPct, market_pct: split.marketPct,
       package: DEFAULT_PACKAGE, created_by: user?.id ?? null,
@@ -152,9 +170,24 @@ export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) 
     setBusy(false);
     if (error) { toast(error.message, "error"); return; }
     setCreating(false);
+    setDraftFor(null);
     setOpenId((data as any)?.id ?? null);
     reload();
   };
+
+  // ── ARRIVING FOR SOMEONE: ?agreement_for=<their id> ─────────────────────────────────────────
+  // From their page on the crew ("Open their agreement" / "Draft one"). Their live agreement opens;
+  // with none, the offer to draft one for them — a tap, not a row written by opening a link.
+  // The owner's screen only: the operator's own copy is already theirs alone.
+  const [arriving, setArriving] = useState<string | null>(() => (mine ? null : readParam("agreement_for")));
+  useEffect(() => { if (!mine) dropParam("agreement_for"); }, [mine]);
+  const [draftFor, setDraftFor] = useState<OperatorPerson | "unknown" | null>(null);
+  if (arriving && board.data && crew.length > 0) {
+    setArriving(null);
+    const theirs = rows.find((r) => r.operator_user_id === arriving && !isClosed(toStatus(r.status)));
+    if (theirs) setOpenId(theirs.id);
+    else setDraftFor(people.find((p) => p.id === arriving) ?? "unknown");
+  }
 
   return (
     <AsyncSection state={board} isEmpty={() => false} emptyTitle="No agreements yet" errorTitle="Couldn't load agreements">
@@ -165,7 +198,7 @@ export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) 
               label={mine ? "Your agreement" : "Operator agreements"}
               annotation={mine ? (rows.length === 1 ? "1 version" : `${rows.length} versions`) : `${rows.length} on file`} />
             {!mine && (
-              <button type="button" className="btn-sec" onClick={createDraft} disabled={busy || creating}>
+              <button type="button" className="btn-sec" onClick={() => createDraft()} disabled={busy || creating}>
                 {busy ? "Creating…" : "+ New agreement"}
               </button>
             )}
@@ -175,6 +208,24 @@ export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) 
               ? "What you have agreed to with GT3, and what it pays. Accept it, ask for changes, counter it, or sign it — whichever it is waiting on. Every move is kept."
               : "Build the deal on the slider, see what the operator actually takes home, then send it for their response. They can accept, ask for changes, or counter — every move is kept."}
           </div>
+
+          {draftFor && (
+            <div className="prod-recipe" style={{ marginTop: 12 }} role="status">
+              {draftFor === "unknown" ? (
+                <p className="h-sub" style={{ margin: 0 }}>That person isn&rsquo;t on the crew any more, so there is no agreement to open for them.</p>
+              ) : (
+                <>
+                  <div className="insp-lbl">No agreement for {draftFor.name || "them"} yet</div>
+                  <div className="prod-actions">
+                    <button type="button" className="note-arch" onClick={() => setDraftFor(null)}>Not now</button>
+                    <button type="button" className="btn-pri" disabled={busy} onClick={() => createDraft(draftFor)}>
+                      {busy ? "Creating…" : `Draft one for ${draftFor.name || "them"}`}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {rows.length === 0 && (
             <div className="prod-recipe" style={{ marginTop: 12 }}>
@@ -192,7 +243,7 @@ export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) 
               key={r.id} row={r} open={mine ? true : openId === r.id}
               onToggle={() => setOpenId(openId === r.id ? null : r.id)}
               onSaved={reload} toast={toast} meId={meId}
-              extra={extra[r.id]}
+              extra={extra[r.id]} people={people}
             />
           ))}
         </div>
@@ -201,15 +252,15 @@ export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) 
   );
 }
 
-function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra }: {
+function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra, people }: {
   row: Row; open: boolean; onToggle: () => void; onSaved: () => void;
-  toast: (m: string, t?: any) => void; meId: string | null; extra?: Extra;
+  toast: (m: string, t?: any) => void; meId: string | null; extra?: Extra; people: readonly OperatorPerson[];
 }) {
   const confirm = useConfirm();
   const prompt = usePrompt();
   const status = toStatus(row.status);
   const [d, setD] = useState({
-    operatorName: row.operator_name, operatorEmail: row.operator_email ?? "",
+    operatorUserId: row.operator_user_id, operatorName: row.operator_name, operatorEmail: row.operator_email ?? "",
     market: toMarket(row.market), tier: toTier(row.tier), stage: toStage(row.stage),
     supplyFunding: Number(row.supply_funding) || 50,
     pkg: row.package.length ? row.package : DEFAULT_PACKAGE,
@@ -240,9 +291,26 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra }: {
   const isMine = !!meId && row.operator_user_id === meId;
   const up = nextTier(d.tier);
 
+  // ── who it is for (lib/operatorDraft forOperator) ──
+  const roster = (id: string | null, name = ""): OperatorPerson | null =>
+    id ? people.find((p) => p.id === id) ?? { id, name, email: null, market: null } : null;
+  const [fresh, setFresh] = useState<string | null>(null);
+  const pickOperator = (v: PersonValue, how: PersonHow) => {
+    // An old agreement whose name IS a crew member's: link it, and change nothing it already says.
+    if (how === "match") { setD((x) => ({ ...x, operatorUserId: v.id })); return; }
+    setD((x) => forOperator(x, withFacts(roster(x.operatorUserId)), withFacts(roster(v.id, v.name))));
+    setFresh(v.id);
+  };
+  // Their email and the name they gave in full, read once they are picked, fill what still holds
+  // the pick's values. Only a pick made here: an agreement opened is never rewritten on screen.
+  usePersonFacts(fresh, (id) => setD((x) => {
+    const base = roster(id);
+    return x.operatorUserId === id && base ? forOperator(x, base, withFacts(base)) : x;
+  }));
+
   const save = async (extra: Record<string, unknown> = {}) => {
     if (!supabase) return;
-    const v = validateProposal({ market: d.market, operatorName: d.operatorName, terms });
+    const v = validateProposal({ market: d.market, operatorName: d.operatorName === UNNAMED_OPERATOR ? "" : d.operatorName, terms });
     if (!v.ok) { toast(v.error, "error"); return; }
     // The database refuses this too. Saying it here means the person reads a sentence instead of a
     // constraint name — and this is the field the whole interim idea rests on.
@@ -251,6 +319,8 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra }: {
     }
     setBusy(true);
     const { error } = await supabase.from("operator_agreements").update({
+      // Who it is for, by account — what their own copy, their answer and their signature find it by.
+      operator_user_id: d.operatorUserId,
       operator_name: d.operatorName.trim(), operator_email: d.operatorEmail.trim() || null,
       market: d.market, tier: d.tier, stage: d.stage, supply_funding: d.supplyFunding,
       operator_pct: split.operatorPct, royalty_pct: split.royaltyPct, market_pct: split.marketPct,
@@ -266,6 +336,12 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra }: {
   };
 
   const advance = async (to: AgreementStatus) => {
+    // Sent to nobody is sent nowhere: an agreement no account is linked to cannot be opened,
+    // answered or signed (forOperator). Said here, before the status moves.
+    if (to === "sent" && !d.operatorUserId) {
+      toast("Pick who it's for from the crew first — nobody can open an agreement that isn't linked to them.", "error");
+      return;
+    }
     await save({ status: to, ...(to === "sent" ? { sent_at: new Date().toISOString() } : {}) });
   };
 
@@ -311,12 +387,30 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra }: {
       {open && (
         <div className="prod-body">
           {/* ── who ── */}
+          {/* WHO IT IS FOR — picked from the crew, so it reaches them (lib/operatorDraft forOperator).
+              Locked and linked: who it is for, shown. Locked and linked to nobody: the one thing
+              that can still be done to it, done where it stands (LinkOperator). */}
+          {!isMine && (editable || row.operator_user_id) && (
+            <label className="prod-f"><span>Who it&rsquo;s for</span>
+              <PersonPick label="Who this agreement is for" value={{ id: d.operatorUserId, name: d.operatorName === UNNAMED_OPERATOR ? "" : d.operatorName }}
+                          onChange={pickOperator} allowOther={false} allowNone noneLabel="Not on the crew yet — not linked"
+                          prefer={["operator", "event_manager"]} disabled={!editable} />
+            </label>
+          )}
+          {!isMine && editable && !d.operatorUserId && (
+            <p className="od-note" style={{ marginTop: 6 }}>
+              Not linked to anyone&rsquo;s account, so nobody can open it to answer or sign. Someone not on the crew
+              yet comes on first — <a href="/crew?s=team&a=tm-hire">bring them onto the crew ›</a> — then pick them here.
+            </p>
+          )}
+          {!isMine && !editable && !row.operator_user_id && <LinkOperator row={row} toast={toast} onSaved={onSaved} />}
           <div className="prod-grid">
-            <label className="prod-f"><span>Operator</span>
-              <input value={d.operatorName} disabled={!editable} onChange={(e) => setD({ ...d, operatorName: e.target.value })} />
+            <label className="prod-f"><span>Name on the agreement</span>
+              <input value={d.operatorName === UNNAMED_OPERATOR ? "" : d.operatorName} disabled={!editable} placeholder="Their full name"
+                     onChange={(e) => setD({ ...d, operatorName: e.target.value })} />
             </label>
             <label className="prod-f"><span>Their email</span>
-              <input value={d.operatorEmail} disabled={!editable} onChange={(e) => setD({ ...d, operatorEmail: e.target.value })} placeholder="so they can be linked to it" />
+              <input type="email" value={d.operatorEmail} disabled={!editable} onChange={(e) => setD({ ...d, operatorEmail: e.target.value })} placeholder="name@example.com" />
             </label>
             <label className="prod-f"><span>Market</span>
               <select value={d.market} disabled={!editable} onChange={(e) => setD({ ...d, market: toMarket(e.target.value) })}>
@@ -524,6 +618,40 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra }: {
   );
 }
 
+// ── AN AGREEMENT ALREADY SENT TO NOBODY ───────────────────────────────────────────────────────────
+// Before the picker, an agreement could be sent, and even agreed in person, while linked to no
+// account — so the operator could not open it at /agreement, answer it or sign it. Its terms are
+// locked once it has moved on, but who it is for is not a term (the digest and guard_agreement_terms,
+// 0309, leave the account out), so the link can be made where it stands: one pick, one tap.
+function LinkOperator({ row, toast, onSaved }: { row: Row; toast: (m: string, t?: any) => void; onSaved: () => void }) {
+  const [who, setWho] = useState<PersonValue>({ id: null, name: row.operator_name });
+  const [busy, setBusy] = useState(false);
+  const link = async () => {
+    if (!supabase || !who.id || busy) return;
+    setBusy(true);
+    const f = await readPersonFacts(who.id);
+    const { error } = await supabase.from("operator_agreements")
+      .update({ operator_user_id: who.id, ...(row.operator_email ? {} : { operator_email: f.email }) })
+      .eq("id", row.id);
+    setBusy(false);
+    if (error) { toast(error.message, "error"); return; }
+    toast(`Linked — ${who.name || "they"} can open it now.`); onSaved();
+  };
+  return (
+    <div className="od-hours-form" style={{ marginTop: 8 }}>
+      <p className="od-note" style={{ gridColumn: "1 / -1", marginTop: 0 }}>
+        {`Not linked to anyone’s account, so ${row.operator_name || "the operator"} can’t open it to answer or sign.`}
+      </p>
+      <label className="prod-f"><span>Link it to their account</span>
+        <PersonPick label="Link this agreement to" value={who} onChange={(v) => setWho(v)} allowOther={false}
+                    allowNone noneLabel="Pick them from the crew" prefer={["operator", "event_manager"]} /></label>
+      <div className="prod-actions">
+        <button type="button" className="btn-pri" disabled={busy || !who.id} onClick={link}>{busy ? "…" : "Link it"}</button>
+      </div>
+    </div>
+  );
+}
+
 // The record of who moved what, and what they said about it.
 function Trail({ agreementId }: { agreementId: string }) {
   const loader = useCallback(async () => {
@@ -624,6 +752,7 @@ function HoursBlock({ agreementId, covers, basis, extra, canLog, toast, onSaved 
 }) {
   const acts = useOptions("agreement_activity");
   const mine = acts.filter((a) => covers.includes(a.value));
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [on, setOn] = useState(localToday);
   const [act, setAct] = useState("");
@@ -640,7 +769,8 @@ function HoursBlock({ agreementId, covers, basis, extra, canLog, toast, onSaved 
     if (!Number.isFinite(n) || n <= 0 || n > 24) { toast("Hours has to be between 0 and 24.", "error"); return; }
     setBusy(true);
     const { error } = await supabase.from("agreement_hours")
-      .insert({ agreement_id: agreementId, on_date: on, activity: act, hours: n, note: note.trim() || null });
+      // Whose entry it is (agreement_hours.logged_by, 0309): the operator and an owner can both log.
+      .insert({ agreement_id: agreementId, on_date: on, activity: act, hours: n, note: note.trim() || null, logged_by: user?.id ?? null });
     setBusy(false);
     if (error) {
       // The unique key is the useful error here — say what it means rather than showing the constraint.

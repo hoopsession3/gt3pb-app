@@ -77,11 +77,22 @@ async function post(req: Request) {
     const kind = KINDS.includes(c.kind) ? c.kind : "other";
     const name = String(c.name || "Untitled").slice(0, 200);
     const user = await userFromRequest(req).catch(() => null);
+    // WHICH CITY'S SHELF (2026-10-04, the form audit). An asset or an inventory item belongs to a
+    // market (0288), and this filed both under the column default — an Atlanta lead's intake landed
+    // on Greenville's shelf, where Atlanta's counts and deliveries never see it. Filed now under the
+    // filer's market: the one they lead, else the one they work in — read from their own profile
+    // here, not taken from the request. A read that fails leaves the default, as before.
+    const { data: filer } = user
+      ? await supabaseAdmin.from("profiles").select("market, leads_market").eq("id", user.id).eq("tenant_id", tenant).maybeSingle()
+      : { data: null };
+    const shelf = (filer as { market?: string | null; leads_market?: string | null } | null);
+    const market = shelf?.leads_market || shelf?.market || null;
+    const inMarket = market ? { market } : {};
     try {
       if (kind === "asset") {
         const { data, error } = await supabaseAdmin.from("assets").insert({
           name, make_model: c.category || null, category: c.category ? [String(c.category)] : [],
-          notes: c.summary || null, manual_url: c.path || null,
+          notes: c.summary || null, manual_url: c.path || null, ...inMarket,
         }).select("id").maybeSingle();
         if (error) return NextResponse.json({ ok: false, error: error.code === "23505" ? "already on file" : error.message }, { status: error.code === "23505" ? 409 : 502 });
         return NextResponse.json({ ok: true, filed: "asset", id: data?.id ?? null });
@@ -89,7 +100,7 @@ async function post(req: Request) {
       if (kind === "inventory") {
         const { data, error } = await supabaseAdmin.from("inventory_items").insert({
           name, qty: typeof c.qty === "number" ? c.qty : null, unit: c.unit || null,
-          category: c.category || null, status: "On Hand", notes: c.summary || null,
+          category: c.category || null, status: "On Hand", notes: c.summary || null, ...inMarket,
         }).select("id").maybeSingle();
         if (error) return NextResponse.json({ ok: false, error: error.code === "23505" ? "already on file" : error.message }, { status: error.code === "23505" ? 409 : 502 });
         return NextResponse.json({ ok: true, filed: "inventory", id: data?.id ?? null });

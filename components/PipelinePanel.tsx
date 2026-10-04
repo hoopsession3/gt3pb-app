@@ -18,6 +18,7 @@ import PromptSheet from "./PromptSheet";
 import { bandFor, fmtBand, paybackPct, paybackWeeks, FALLBACK_MARGIN_PCT } from "@/lib/uplift";
 import { money } from "@/lib/money";
 import { useCrew, crewLabel } from "./useCrew";
+import PersonPick from "./PersonPick";
 import { localToday } from "@/lib/dates";
 import { useConfirm } from "@/components/ConfirmSheet";
 
@@ -300,7 +301,10 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   // Reps open on THEIR accounts (managers see the whole board) — "work your accounts" needs a view,
   // not a scan of everyone's cards.
   const [mineOnly, setMineOnly] = useState(!isAdmin);
-  const [no, setNo] = useState({ vendorId: "", newVendor: "", newType: "gym", dealId: "", repId: "", value: "", nextStep: "" });
+  // The rep starts as whoever is adding it (2026-10-04, the form audit). It started Unassigned, and a
+  // rep's board opens on "My accounts" — so the opportunity they had just added vanished from it.
+  const blankOpp = () => ({ vendorId: "", newVendor: "", newType: "gym", dealId: "", repId: user?.id ?? "", value: "", nextStep: "" });
+  const [no, setNo] = useState(blankOpp);
   const [nd, setNd] = useState({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "", line: "wholesale" });
   const [roiVol, setRoiVol] = useState("1000");   // the "play with it" monthly-volume assumption for the live ROI card
   const [editId, setEditId] = useState<string | null>(null);    // deal being edited in the catalog
@@ -439,7 +443,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       const vn = vendors.find((v) => v.id === vendorId)?.name ?? no.newVendor;
       raiseAlertClient({ severity: "important", category: "booking", title: `Pipeline: ${vn} is yours`.slice(0, 140), body: "New opportunity — make first contact.", link: "/crew?s=plan", targetUserId: no.repId });
     }
-    setAdding(false); setNo({ vendorId: "", newVendor: "", newType: "gym", dealId: "", repId: "", value: "", nextStep: "" });
+    setAdding(false); setNo(blankOpp());
     toast("On the board"); reload();
   };
 
@@ -824,10 +828,8 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
               </select>
             </label>
             <label>Rep
-              <select value={no.repId} onChange={(e) => setNo({ ...no, repId: e.target.value })}>
-                <option value="">Unassigned</option>
-                {staff.map((s) => <option key={s.id} value={s.id}>{crewLabel(s)}</option>)}
-              </select>
+              <PersonPick label="Rep" value={{ id: no.repId || null, name: "" }} onChange={(v) => setNo({ ...no, repId: v.id ?? "" })}
+                          allowOther={false} allowNone noneLabel="Unassigned" />
             </label>
             <label>Value $<input inputMode="decimal" value={no.value} onChange={(e) => setNo({ ...no, value: e.target.value })} placeholder="500" /></label>
             <label>First step<input value={no.nextStep} onChange={(e) => setNo({ ...no, nextStep: e.target.value })} placeholder="Walk in, ask for the manager" maxLength={120} /></label>

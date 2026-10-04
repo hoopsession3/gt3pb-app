@@ -79,12 +79,18 @@ function addressFrom(raw: unknown): KnownAddress | null {
   return { street, city, state: stateCode(a.state as S) ?? "", zip };
 }
 
+/** The fullest of several names for one person: the first with a surname, else the first at all.
+ *  An email is not a name. Used for a parcel's label here and for the name on an offer letter. */
+export function fullestName(...vs: S[]): string {
+  const names = vs.map(t).filter((n) => n && !looksLikeEmail(n));
+  return names.find((n) => /\S\s+\S/.test(n)) ?? names[0] ?? "";
+}
+
 export function knownFrom(r: KnownRows): Known {
   const display = t(r.displayName);
   const orderNames = [r.lastShop?.ship_name, r.customer?.name, r.lastDelivery?.name, r.lastPack?.name, r.lastCup?.customer];
   const callName = first(looksLikeEmail(display) ? "" : display, r.customer?.name, r.lastCup?.customer, r.lastPack?.name, r.lastDelivery?.name) || nameFromEmail(r.email);
-  const names = [...orderNames, display].map(t).filter((n) => n && !looksLikeEmail(n));
-  const fullName = names.find((n) => /\S\s+\S/.test(n)) ?? names[0] ?? nameFromEmail(r.email);
+  const fullName = fullestName(...orderNames, display) || nameFromEmail(r.email);
   const phone = first(r.customer?.phone, r.lastPack?.phone, r.lastDelivery?.phone, r.business?.contact_phone);
   const email = first(r.email, r.customer?.email, r.business?.contact_email);
 

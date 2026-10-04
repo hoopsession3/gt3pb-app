@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf } from "@/components/AuthProvider";
+import { readParam, dropParam } from "@/lib/urlParam";
 import SignIn from "@/components/SignIn";
 import Skeleton from "@/components/Skeleton";
 import EmptyState from "@/components/EmptyState";
@@ -73,7 +74,12 @@ export default function AcademyPage() {
   const [certExp, setCertExp] = useState<Record<string, string | null>>({});
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [acks, setAcks] = useState<Set<string>>(new Set());
-  const [view, setView] = useState<View>({ k: "home" });
+  // ?assign=<their id> — from a crew member's page ("Assign their Academy path"), or right after
+  // bringing someone on: the team board opens with them already chosen in Assign training, which is
+  // the only place training is assigned. Read once; removed from the address (lib/urlParam).
+  const [assignFor] = useState<string | null>(() => readParam("assign"));
+  useEffect(() => { dropParam("assign"); }, []);
+  const [view, setView] = useState<View>(() => (assignFor ? { k: "team" } : { k: "home" }));
   const [loaded, setLoaded] = useState(false);
   const [loadErr, setLoadErr] = useState<string | null>(null);
 
@@ -228,7 +234,8 @@ export default function AcademyPage() {
     if (!p) return null;
     return <ProductDetail p={p} onBack={() => setView({ k: "home" })} />;
   }
-  if (view.k === "team") return <TeamBoard onBack={() => setView({ k: "home" })} />;
+  // The board is an admin's: arriving with ?assign= is not a way round the button that opens it.
+  if (view.k === "team" && isAdmin) return <TeamBoard assignFor={assignFor} onBack={() => setView({ k: "home" })} />;
   if (view.k === "ack") {
     const a = ackByKey(view.key);
     if (!a) return null;
@@ -564,13 +571,13 @@ function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
 }
 
 // ── admin team-readiness board + assignment ──
-function TeamBoard({ onBack }: { onBack: () => void }) {
+function TeamBoard({ onBack, assignFor = null }: { onBack: () => void; assignFor?: string | null }) {
   const { user } = useAuth();
   const { toast } = useApp();
   const [rows, setRows] = useState<{ id: string; name: string; role: string; done: number; certs: number; overdue: number }[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [memberId, setMemberId] = useState("");
+  const [memberId, setMemberId] = useState(assignFor ?? "");
   const [target, setTarget] = useState("path");
   const [due, setDue] = useState("");
 
@@ -606,11 +613,14 @@ function TeamBoard({ onBack }: { onBack: () => void }) {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  // Only someone on the board can be chosen: an id from a link that is not on it (not on the crew)
+  // must not be assigned under a select that shows "Member…".
+  const chosen = rows.some((r) => r.id === memberId) ? memberId : "";
   const assign = async () => {
-    if (!supabase || !user || !memberId) { toast("Pick a member first"); return; }
+    if (!supabase || !user || !chosen) { toast("Pick a member first"); return; }
     const target_type = target === "path" ? "path" : "cert";
     const target_key = target === "path" ? "path" : target;
-    const { error } = await supabase.from("academy_assignments").insert({ user_id: memberId, target_type, target_key, due_at: due ? new Date(due).toISOString() : null, assigned_by: user.id });
+    const { error } = await supabase.from("academy_assignments").insert({ user_id: chosen, target_type, target_key, due_at: due ? new Date(due).toISOString() : null, assigned_by: user.id });
     if (error) toast(`Not assigned — ${error.message}`, "error"); else { toast("Training assigned"); setMemberId(""); setDue(""); load(); }
   };
 
@@ -621,7 +631,7 @@ function TeamBoard({ onBack }: { onBack: () => void }) {
 
       <SectionHeader label="Assign training" />
       <div className="ac-assign">
-        <select className="ev-input" value={memberId} onChange={(e) => setMemberId(e.target.value)} aria-label="Member">
+        <select className="ev-input" value={chosen} onChange={(e) => setMemberId(e.target.value)} aria-label="Member">
           <option value="">Member…</option>
           {rows.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>

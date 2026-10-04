@@ -14,6 +14,7 @@ import { useAuth } from "./AuthProvider";
 import { governing, cadenceDays, logDone } from "@/lib/upkeep";
 import { addDays, localToday } from "@/lib/dates";
 import { errorMessage } from "@/lib/errorMessage";
+import PersonPick, { usePersonMe, type PersonValue } from "./PersonPick";
 
 // ASSET MAINTENANCE — upkeep log for the gear. Each asset shows its last service and what's due next
 // (or overdue); tap to see the full history and log a new service/repair/clean/inspection. Staff-gated
@@ -167,7 +168,10 @@ function LogSheet({ asset, from, onClose, onSaved }: { asset: Asset; from: Log |
   const [nextDue, setNextDue] = useState(gap ? addDays(localToday(), gap) : "");
   const [nextTouched, setNextTouched] = useState(false);
   const [cost, setCost] = useState("");
-  const [who, setWho] = useState("");
+  // WHO DID IT starts as you (2026-10-04, the form audit) — "Done today" on this same panel already
+  // records your name — picked from the crew, or "Someone else…" for an outside shop.
+  const me = usePersonMe();
+  const [who, setWho] = useState<PersonValue>(me);
   const [howTo, setHowTo] = useState(from?.how_to ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -182,7 +186,7 @@ function LogSheet({ asset, from, onClose, onSaved }: { asset: Asset; from: Log |
       const { error } = await supabase.from("asset_maintenance").insert({
         asset_id: asset.id, kind, summary: summary.trim(), how_to: howTo.trim() || null, performed_on: performedOn || localToday(),
         next_due_on: nextDue || null, cost_cents: cost ? Math.round(parseFloat(cost) * 100) : null,
-        performed_by: who.trim() || null, created_by: user?.id ?? null,
+        performed_by: who.name.trim() || null, created_by: user?.id ?? null,
       });
       if (error) throw error;
       onSaved();
@@ -202,7 +206,7 @@ function LogSheet({ asset, from, onClose, onSaved }: { asset: Asset; from: Log |
             <label className="prod-f"><span>Done on</span><input type="date" value={performedOn} onChange={(e) => onDone(e.target.value)} /></label>
             <label className="prod-f"><span>{rhythm ? `Next due — every ${rhythm} day${rhythm === 1 ? "" : "s"}` : "Next due (optional)"}</span><input type="date" value={nextDue} onChange={(e) => { setNextTouched(true); setNextDue(e.target.value); }} /></label>
             <label className="prod-f"><span>Cost (optional)</span><input type="number" min="0" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0.00" /></label>
-            <label className="prod-f"><span>By (optional)</span><input value={who} onChange={(e) => setWho(e.target.value)} placeholder="Pit crew / shop" /></label>
+            <label className="prod-f"><span>Done by</span><PersonPick label="Done by" value={who} onChange={setWho} allowNone noneLabel="Not recorded" /></label>
           </div>
           <label className="prod-f" style={{ marginTop: 8 }}><span>How-to / steps (optional — one per line)</span><textarea className="note-in" rows={3} value={howTo} onChange={(e) => setHowTo(e.target.value)} placeholder="Steps to do this next time" /></label>
           {err && <p className="load-failed" role="alert">{err}</p>}

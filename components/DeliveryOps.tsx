@@ -12,6 +12,7 @@ import { SectionHeader, InfoRow } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
 import { usePrompt } from "@/components/PromptSheet";
+import { useAuth } from "./AuthProvider";
 
 // SUNDAY DELIVERY OPS — the crew side of the delivery debrief, in DropOps' shape: one summary
 // sentence (units, one hero thought), the Saturday brew totals (incl. Performance combos), and a
@@ -34,6 +35,7 @@ type DOrder = {
   driver_outcome: string | null; empties_expected: number; empties_collected: number | null;
   delivery_date: string; canceled_at: string | null;
   batch_id?: string | null;   // 0261 recall traceability — which brew filled this porch
+  customer_id?: string | null;
 };
 
 const STATUS_NEXT: Record<string, string> = { received: "brewed", brewed: "out_for_delivery" };
@@ -135,7 +137,7 @@ export default function DeliveryOps() {
       <div className="dops-brew">Brew: <b>{(["RISE", "FLOW", "DUSK"] as const).filter((f) => perF[f] > 0).map((f) => `${perF[f]}× ${f}`).join(" · ") || "—"}</b>
         {premiumTotal > 0 && <> · Premium: <b>{Object.keys(premiumMix).length ? Object.entries(premiumMix).map(([k, n]) => `${n}× ${k}`).join(" · ") : premiumTotal}</b></>}
       </div>
-      <LoopQuickLog />
+      <LoopQuickLog porches={rows} />
       <a className="dops-driver-link" href="/driver"><Icon name="truck" /> Open the driver run — map &amp; turn-by-turn <Icon name="arrowRight" /></a>
       <button type="button" className="dops-assign-link" onClick={() => setAssign(true)}><Icon name="team" /> Assign this run to a driver <Icon name="arrowRight" /></button>
       <button type="button" className="dops-assign-link" onClick={() => setPackout(true)}><Icon name="package" /> Vehicle packout plan <Icon name="arrowRight" /></button>
@@ -205,10 +207,21 @@ export default function DeliveryOps() {
 // back. One count, one tap; the decided $2 credit rides the row default (loop_txns.credit_cents).
 // Feeds the Loop-participation KPI and gives the 8/6 loyalty-mechanic decision real behavior to
 // read. NOT the office jug float (business_accounts.jug_balance) — different container, on purpose.
-function LoopQuickLog() {
+// WHOSE BOTTLES, AND WHO COUNTED THEM (2026-10-04, the form audit). Every entry books a $2 credit,
+// and the row recorded neither: loop_txns.customer_id ("when known → the 8/6 loyalty bridge", 0268)
+// and created_by were never written. The count is now stamped with whoever logged it, and can say
+// whose bottles they were — today's porches, the swaps first. Optional: a returned crate does not
+// always come with a name.
+function LoopQuickLog({ porches }: { porches: readonly DOrder[] }) {
   const prompt = usePrompt();
+  const { user } = useAuth();
   const [n, setN] = useState("");
+  const [whose, setWhose] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  const seen = new Set<string>();
+  const people = [...porches]
+    .sort((a, b) => Number(b.refill_count > 0) - Number(a.refill_count > 0) || a.name.localeCompare(b.name))
+    .filter((o) => o.customer_id && !seen.has(o.customer_id) && (seen.add(o.customer_id), true));
   // TODAY'S ENTRIES, so a miscount has somewhere to go (0309/0310).
   //
   // This was fire-and-forget: type a number, tap Log, and the $2-a-bottle credit was baked in with
@@ -237,9 +250,9 @@ function LoopQuickLog() {
     if (!supabase) return;
     const v = Math.round(Number(n));
     if (!Number.isFinite(v) || v <= 0) { setMsg("count first"); return; }
-    const { error } = await supabase.from("loop_txns").insert({ returns: v });
+    const { error } = await supabase.from("loop_txns").insert({ returns: v, customer_id: whose || null, created_by: user?.id ?? null });
     setMsg(error ? `couldn't log — ${error.message}` : `logged ${v} return${v === 1 ? "" : "s"} · $${(v * 2).toFixed(0)} credit owed`);
-    if (!error) { setN(""); load(); }
+    if (!error) { setN(""); setWhose(""); load(); }
   };
 
   const undo = async (id: string, count: number) => {
@@ -257,6 +270,12 @@ function LoopQuickLog() {
     <div className="dops-loop">
       <span className="dops-loop-l">Loop returns{board.status === "error" ? " · couldn't load" : ""}</span>
       <input inputMode="numeric" value={n} onChange={(e) => { setN(e.target.value.replace(/\D/g, "")); setMsg(null); }} placeholder="bottles" aria-label="Loop bottles returned" />
+      {people.length > 0 && (
+        <select value={whose} onChange={(e) => setWhose(e.target.value)} aria-label="Whose bottles">
+          <option value="">Whose? — not recorded</option>
+          {people.map((o) => <option key={o.customer_id as string} value={o.customer_id as string}>{o.name}{o.refill_count > 0 ? " · swap" : ""}</option>)}
+        </select>
+      )}
       <button type="button" className="dops-mini" onClick={log} disabled={!n}>Log</button>
       {msg && <i className="dops-loop-m">{msg}</i>}
       {today.length > 0 && (

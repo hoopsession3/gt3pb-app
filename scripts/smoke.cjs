@@ -6276,6 +6276,193 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /access_instructions: access \|\| null,/.test(office) && /arrives-with: 0346/.test(read("app/api/office/route.ts")) && (office.match(/\["access_instructions"\]\)/g) || []).length === 2);
 }
 
+// ── THE FORM AUDIT, PART 3: PEOPLE (2026-10-04) ──────────────────────────────────────────────────
+// Ryan: "if relational database, generate pick list … when I fill out it's hard to know what's
+// relational." Every person on a crew form is picked from one list (components/PersonPick) and the
+// record keeps WHO, not a spelling: an offer letter's candidate (candidate_user_id), an operator
+// agreement's operator (operator_user_id — nothing wrote it, and the operator's own copy, answer and
+// signature all find the agreement by it), a goal's owner, a move's, a follow-up's. The fields that
+// hang off a choice follow it while untouched (lib/pickFill), and every link into a person's next
+// step carries who it is for (lib/urlParam).
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const F = require("../.smoke/pickFill.js");
+  const O = require("../.smoke/offerDraft.js");
+  const D = require("../.smoke/operatorDraft.js");
+  const M = require("../.smoke/mentions.js");
+  const U = require("../.smoke/urlParam.js");
+
+  // ── one rule for a field that fills from a pick ──
+  ok("pick fill: an empty field takes the pick", F.follow("", "Ann", "Bo") === "Bo" && F.follow(null, null, "Bo") === "Bo");
+  ok("pick fill: a field still holding the last pick follows the new one", F.follow("Ann", "Ann", "Bo") === "Bo" && F.follow(" Ann ", "Ann", "Bo") === "Bo");
+  ok("pick fill: a typed value stays — even when the last pick knew nothing", F.follow("Annie", "Ann", "Bo") === "Annie" && F.follow("Annie", null, "Bo") === "Annie" && F.follow("Annie", "", "Bo") === "Annie");
+  ok("pick fill: a pick that knows nothing empties only what the last pick filled", F.follow("Ann", "Ann", null) === "" && F.follow("Annie", "Ann", null) === "Annie");
+
+  // ── the house's words for the statutory four ──
+  const H = [
+    { status: "draft", employment_type: "employee", role: "server", normal_hours: "draft hours", pay_schedule: "asdf", pay_method: null, deductions: null },
+    { status: "approved", employment_type: "contractor", role: "operator", normal_hours: "as needed", pay_schedule: "monthly", pay_method: "ACH", deductions: "none" },
+    { status: "sent", employment_type: "employee", role: "server", normal_hours: "Event days, 4–8 hours", pay_schedule: "Every other Friday", pay_method: "Direct deposit", deductions: "Federal and state withholding" },
+  ];
+  const hw = O.houseWording(H, { employmentType: "employee", role: "server" });
+  ok("house wording: a letter the co-owners passed beats a newer half-typed draft", hw.paySchedule === "Every other Friday" && hw.payMethod === "Direct deposit", hw);
+  ok("house wording: the same employment type first", O.houseWording(H, { employmentType: "contractor", role: "operator" }).paySchedule === "monthly");
+  ok("house wording: normal hours only from a letter for the same role and type",
+    hw.normalHours === "Event days, 4–8 hours" && O.houseWording(H, { employmentType: "employee", role: "operator" }).normalHours === null);
+  ok("house wording: no letter, no prefill — nothing invented",
+    JSON.stringify(O.houseWording([], { employmentType: "employee", role: "server" })) === JSON.stringify({ normalHours: null, paySchedule: null, payMethod: null, deductions: null }));
+
+  // ── the defaults that follow a choice ──
+  const leads = { greenville: { id: "L1", name: "Ryan" }, atlanta: { id: "L2", name: "Niño" } };
+  const ctx = { history: H, leadOf: (m, cand) => (leads[m] && leads[m].id !== cand ? leads[m] : null) };
+  const s0 = O.startOffer(ctx);
+  ok("new offer: starts from the house wording and the market's lead", s0.paySchedule === "Every other Friday" && s0.normalHours === "Event days, 4–8 hours" && s0.reportsTo === "Ryan" && s0.reportsToId === "L1" && s0.candidateUserId === null, s0);
+  const toOp = O.restateDefaults(s0, { ...s0, role: "operator" }, ctx);
+  ok("new offer: a role change moves the role's hours while they are still the default", toOp.normalHours === null, toOp.normalHours);
+  const typed = O.restateDefaults({ ...s0, normalHours: "Mornings" }, { ...s0, normalHours: "Mornings", role: "operator" }, ctx);
+  ok("new offer: hours somebody typed stay put", typed.normalHours === "Mornings");
+  const toAtl = O.restateDefaults(s0, { ...s0, market: "atlanta" }, ctx);
+  ok("new offer: reports to follows the market's lead while untouched", toAtl.reportsTo === "Niño" && toAtl.reportsToId === "L2");
+  ok("new offer: …but not a manager somebody chose", O.restateDefaults({ ...s0, reportsTo: "Kayla" }, { ...s0, reportsTo: "Kayla", market: "atlanta" }, ctx).reportsTo === "Kayla");
+  ok("new offer: an emptied field is not refilled by an unrelated change",
+    O.restateDefaults({ ...s0, paySchedule: "" }, { ...s0, paySchedule: "", title: "Ops" }, ctx).paySchedule === "");
+  ok("new offer: the lead is never the candidate themselves", ctx.leadOf("atlanta", "L2") === null);
+
+  // ── who it is for ──
+  const ana = { id: "A", name: "Ana Ruiz", email: "ana@x.test", role: "operator", market: "atlanta", title: "Atlanta Lead" };
+  const bo = { id: "B", name: "Bo", email: null, role: "owner", market: "greenville", title: null };
+  const fa = O.forPerson(s0, null, ana);
+  ok("offer for: picking links the account and fills what is on file",
+    fa.candidateUserId === "A" && fa.candidateName === "Ana Ruiz" && fa.candidateEmail === "ana@x.test" && fa.market === "atlanta" && fa.role === "operator" && fa.title === "Atlanta Lead", fa);
+  const fb = O.forPerson(fa, ana, bo);
+  ok("offer for: a new pick replaces what the last one filled", fb.candidateUserId === "B" && fb.candidateName === "Bo" && fb.candidateEmail === "" && fb.title === "");
+  ok("offer for: an owner's role is not an access level a letter grants", fb.role === "operator");
+  ok("offer for: what the owner typed stays through a new pick", O.forPerson({ ...fa, candidateName: "Ana M. Ruiz" }, ana, bo).candidateName === "Ana M. Ruiz");
+  const fn = O.forPerson(fa, ana, null);
+  ok("offer for: someone new unlinks it and clears the last person's details", fn.candidateUserId === null && fn.candidateName === "" && fn.candidateEmail === "");
+  ok("offer for: picking then redoing the defaults moves the lead with the city",
+    O.restateDefaults(s0, O.forPerson(s0, null, ana), ctx).reportsTo === "Niño");
+
+  // ── the agreement reaches its operator ──
+  const blankDeal = { operatorUserId: null, operatorName: D.UNNAMED_OPERATOR, operatorEmail: "", market: "greenville" };
+  const nino = { id: "N", name: "Niño Ramírez", email: "nino@x.test", market: "atlanta" };
+  const dl = D.forOperator(blankDeal, null, nino);
+  ok("agreement for: picking links the operator and replaces the blank draft's placeholder",
+    dl.operatorUserId === "N" && dl.operatorName === "Niño Ramírez" && dl.operatorEmail === "nino@x.test" && dl.market === "atlanta", dl);
+  ok("agreement for: unlinking empties what the pick filled, keeps what was typed",
+    D.forOperator(dl, nino, null).operatorUserId === null && D.forOperator(dl, nino, null).operatorEmail === "" && D.forOperator({ ...dl, operatorName: "N. Ramírez" }, nino, null).operatorName === "N. Ramírez");
+
+  // ── @ is a pick list ──
+  const crew = [{ id: "c1", display_name: "Chris Lee" }, { id: "c2", display_name: "Chris Park" }, { id: "k", display_name: "Kayla" }, { id: "x", display_name: null }];
+  ok("mentions: the @word being typed, and only at the end", M.mentionDraft("hey @Ka") === "Ka" && M.mentionDraft("hey @") === "" && M.mentionDraft("hey @Ka there") === null && M.mentionDraft("a@b") === null);
+  ok("mentions: choices start with what is typed", JSON.stringify(M.mentionChoices(crew, "ch").map((p) => p.id)) === JSON.stringify(["c1", "c2"]) && M.mentionChoices(crew, "").length === 3);
+  const ins = M.insertMention("thanks @Ch", crew[1]);
+  ok("mentions: a pick puts @First in place of the typed word", ins.text === "thanks @Chris " && ins.token === "@Chris");
+  const r1 = M.resolveMentions("thanks @Chris", crew, { c2: "@Chris" });
+  ok("mentions: a picked Chris reaches that Chris — not every Chris", JSON.stringify(r1.ids) === JSON.stringify(["c2"]) && r1.unresolved.length === 0, r1);
+  const r2 = M.resolveMentions("thanks @Chris and @kayla", crew, {});
+  ok("mentions: a hand-typed name that means two people reaches nobody, and says so",
+    JSON.stringify(r2.ids) === JSON.stringify(["k"]) && JSON.stringify(r2.unresolved) === JSON.stringify(["@Chris"]), r2);
+  ok("mentions: a typo is said before sending", JSON.stringify(M.resolveMentions("@Kalya see this", crew, {}).unresolved) === JSON.stringify(["@Kalya"]));
+  ok("mentions: a pick deleted from the text no longer notifies", M.resolveMentions("never mind", crew, { k: "@Kayla" }).ids.length === 0);
+
+  // ── a link's one-time instruction, without a window ──
+  ok("url param: on the server there is nothing to read, and nothing throws", U.readParam("offer_for") === null && U.takeParam("a") === null && U.dropParam("x") === undefined);
+
+  // ── A COMPILER QUIRK, FOUND ON SCREEN ──
+  // The link note rendered "so Niñocan't open it": SWC drops the first space of a JSX text run that
+  // follows an expression when the run holds an HTML entity AND carries on to the next line
+  // (" can&rsquo;t open it.⏎" compiles to "can’t open it."; the same words without the entity keep
+  // it). Nothing else in the app was written that way; this keeps it so.
+  {
+    const files = [];
+    const walkTsx = (d) => { for (const f of fs.readdirSync(path.join(__dirname, "..", d), { withFileTypes: true })) { const p = path.join(d, f.name); if (f.isDirectory()) { if (f.name !== "node_modules" && !f.name.startsWith(".")) walkTsx(p); } else if (/\.tsx$/.test(f.name)) files.push(p); } };
+    walkTsx("app"); walkTsx("components");
+    const runs = (src) => [...src.matchAll(/\}( [^<{}]*?)(?=[<{])/g)].filter((m) => /\n/.test(m[1]) && /&[a-z]+;/.test(m[1]) && /\S/.test(m[1].split("\n")[0]));
+    const bad = files.flatMap((f) => runs(read(f)).map((m) => `${f}: ${JSON.stringify(m[1].slice(0, 50))}`));
+    ok("jsx: no text run after an expression that holds an entity and runs onto the next line", bad.length === 0, bad);
+    ok("jsx: …and the check sees the one that shipped", runs('so {n} can&rsquo;t open it.\n      </p>').length === 1 && runs('so {n} cannot open it.\n</p>').length === 0 && runs('so {n} can&rsquo;t open it.</p>').length === 0);
+  }
+
+  // ── PersonPick ──
+  const pp = code(read("components/PersonPick.tsx"));
+  ok("person pick: onChange says how — a pick, a matched old name, or typing",
+    /onChange: \(v: PersonValue, how: PersonHow\) => void;/.test(pp) && /, "match"\); \}, \[match, onChange, value\.name\]\);/.test(pp) && /onChange\(\{ id: null, name: e\.target\.value \}, "type"\)/.test(pp));
+  ok("person pick: a half-typed name is never matched to the crew", /const match = matchByName && !typing && !value\.id && value\.name\.trim\(\)/.test(pp));
+  ok("person pick: people who are not crew are listed under their own heading", /<optgroup label=\{othersLabel\}>/.test(pp) && /const roster = withoutMe \? crew\.filter\(\(c\) => c\.id !== me\) : crew;/.test(pp));
+
+  // ── the offer letter ──
+  const ol = code(read("components/OfferLetters.tsx"));
+  ok("offer letter: who it is for is saved by account", /candidate_user_id: draft\.candidateUserId \?\? null,/.test(ol) && /candidateUserId: open\.candidate_user_id,/.test(ol));
+  ok("offer letter: the drafting rules stay out of the candidate's page — the letter and the deal it explains",
+    ["lib/offerLetter.ts", "lib/operatorDeal.ts", "lib/dealExplainer.ts"].every((f) => !/["']\.\/(offerDraft|operatorDraft|pickFill)["']/.test(read(f))) && /from "@\/lib\/offerDraft"/.test(ol));
+  ok("offer letter: picked from the crew and the customers with an account — never yourself, never by a shared name",
+    /<PersonPick label="Who this offer is for"/.test(ol) && /withoutMe matchByName=\{false\} others=\{members\}/.test(ol) && /supabase\.from\("v_promotable"\)\.select\("id, display_name, email, market, customer_name"\)/.test(ol));
+  ok("offer letter: a new one starts from the house and the market's lead", /setDraft\(startOffer\(ctx\)\)/.test(ol) && /patch\(\{ reportsTo: v\.name \|\| null, reportsToId: v\.id \}\)/.test(ol));
+  ok("offer letter: the lead it reports to is never the person it is for", /crew\.find\(\(x\) => x\.leads_market === m && x\.id !== candidate\)/.test(ol));
+  ok("offer letter: every change runs the defaults that follow it", /const patch = \(p: Partial<OfferTerms>\) => setDraft\(\(d\) => d && restateDefaults\(d, \{ \.\.\.d, \.\.\.p \}, ctx\)\);/.test(ol));
+  ok("offer letter: ?offer_for= opens theirs or starts one for them, read once",
+    /useState<string \| null>\(\(\) => readParam\("offer_for"\)\)/.test(ol) && /dropParam\("offer_for"\)/.test(ol) && /r\.candidate_user_id === arriving && !SETTLED\.has\(r\.status\)/.test(ol));
+  ok("offer letter: a crew member's email comes from their file, read once on the pick", /usePersonFacts\(fresh, \(id\) =>/.test(ol));
+
+  // ── the operator agreement ──
+  const od = code(read("components/OperatorDeal.tsx"));
+  ok("agreement: who it is for is saved by account", /operator_user_id: d\.operatorUserId,/.test(od));
+  ok("agreement: nothing is sent to nobody", /if \(to === "sent" && !d\.operatorUserId\) \{/.test(od));
+  ok("agreement: one already sent unlinked can be linked where it stands",
+    /\{!isMine && !editable && !row\.operator_user_id && <LinkOperator/.test(od) && /\.update\(\{ operator_user_id: who\.id,/.test(od));
+  ok("agreement: a draft for someone starts linked to them", /operator_user_id: forWho\?\.id \?\? null, operator_email: f\?\.email \?\? null,/.test(od));
+  ok("agreement: ?agreement_for= opens theirs, or offers to draft one — a tap, not a row written by a link",
+    /readParam\("agreement_for"\)/.test(od) && /onClick=\{\(\) => createDraft\(draftFor\)\}/.test(od));
+  ok("agreement: logged hours say whose they are", /hours: n, note: note\.trim\(\) \|\| null, logged_by: user\?\.id \?\? null \}\)/.test(od));
+
+  // ── every next step carries who ──
+  const cp = code(read("components/CrewPerson.tsx"));
+  ok("person page: the offer, the agreement and the Academy path open for them",
+    cp.includes("offer:     { href: (id) => `/crew?s=money&a=offers&offer_for=${id}`") && cp.includes("agreement: { href: (id) => `/crew?s=money&a=operators&agreement_for=${id}`") && cp.includes("academy:   { href: (id) => `/academy?assign=${id}`") && /href=\{go\.href\(p\.user_id\)\}/.test(cp));
+  const ac = code(read("app/academy/page.tsx"));
+  ok("academy: ?assign= opens the board with them chosen — for an admin, and only someone on it",
+    /useState<View>\(\(\) => \(assignFor \? \{ k: "team" \} : \{ k: "home" \}\)\)/.test(ac) && /if \(view\.k === "team" && isAdmin\) return <TeamBoard assignFor=\{assignFor\}/.test(ac) && /const chosen = rows\.some\(\(r\) => r\.id === memberId\) \? memberId : "";/.test(ac));
+  const pg = code(read("app/crew/page.tsx"));
+  ok("bring someone on: the city starts as theirs, else yours, else the founding market — not Atlanta by the alphabet",
+    /supabase\.from\("v_promotable"\)\.select\("id, display_name, email, customer_name, market"\)/.test(pg) && /\[pickedRow\?\.market, profile\?\.market, FOUNDING_MARKET\]/.test(pg) && !/setMarket\(\(prev\) => prev \|\| /.test(pg));
+  ok("bring someone on: their offer and their Academy path open for them",
+    pg.includes("href={`/crew?s=money&a=offers&offer_for=${justHired.id}`}") && pg.includes("href={`/academy?assign=${justHired.id}`}"));
+  ok("crew page: a link's one-time instruction has one home", /const a = takeParam\("a"\);/.test(pg) && /readParam\("promote"\)/.test(pg) && !/searchParams\.delete\("promote"\)/.test(pg) && !/searchParams\.delete\("a"\)/.test(pg));
+
+  // ── the follow-ups reach someone ──
+  ok("notes: a new follow-up starts as the author's, and a summary never orphans one",
+    /\[\.\.\.a, \{ title: "", category: "task", critical: false, assignee: meId \}\]/.test(pg) && /assignee: a\.assignee \?\? meId/.test(pg));
+  ok("notes: a follow-up added on a note's card files under its event or stop, from the note, yours",
+    /const parent: TaskParent = note\.event_id \? \{ event: note\.event_id \} : note\.stop_id \? \{ stop: note\.stop_id \} : \{ note: note\.id \};/.test(pg) && /createEventTask\(\{ parent, originNoteId: note\.id, label: newItem\.trim\(\), kind: "task", section: "Follow-up", sort: items\.length, assignee: meId \}\)/.test(pg));
+  ok("notes: a decision's follow-through is the decision-maker's", /label: dec\.fu\.trim\(\), kind: "task", section: "Follow-up", sort: 999, assignee: meId \}\)/.test(pg));
+  ok("threads: @ resolves to people, not substrings", /const mentionIds = resolveMentions\(sent, staff, picked\)\.ids;/.test(pg) && !/lower\.includes\("@" \+ fn\)/.test(pg));
+  const gl = code(read("components/Goals.tsx"));
+  ok("goals: a new goal has an owner — the lane's, else yours", /metric_source: src, owner_user_id: newOwner\.id,/.test(gl) && /streams\.find\(\(s\) => s\.key === ng\.stream\)\?\.owner_user_id \?\? user\?\.id \?\? null/.test(gl));
+  ok("goals: a new move has the goal's owner and date, and the owner hears about it",
+    /assignee, dueISO: g\?\.due_date \? new Date\(`\$\{g\.due_date\}T23:59:59`\)\.toISOString\(\) : null,/.test(gl) && /if \(id && assignee && assignee !== user\?\.id\) \{/.test(gl));
+
+  // ── the rest of the people ──
+  const am = code(read("components/AssetMaintenance.tsx"));
+  ok("maintenance: who did it starts as you, from the crew list", /const \[who, setWho\] = useState<PersonValue>\(me\);/.test(am) && /performed_by: who\.name\.trim\(\) \|\| null,/.test(am));
+  const pl = code(read("components/PipelinePanel.tsx"));
+  ok("pipeline: a new opportunity's rep is whoever adds it", /repId: user\?\.id \?\? "",/.test(pl) && /setNo\(blankOpp\(\)\)/.test(pl));
+  const ep = code(read("components/EventDayPlanner.tsx"));
+  ok("run of show: a new block starts where the last one ends, at the venue for the venue's work, with the crew as chips",
+    /const nextStart = \(dayItems\[dayItems\.length - 1\]\?\.end_time \?\? ""\)\.trim\(\);/.test(ep) && /const AT_THE_VENUE = new Set\(\["setup", "service", "teardown"\]\);/.test(ep) && /location: follow\(p\.location, was\.place, now\.place\)/.test(ep) && /onClick=\{\(\) => toggleWho\(n\)\}/.test(ep));
+  const it = code(read("components/InviteTeammate.tsx"));
+  ok("invite: an email that already has an account is offered the door that works",
+    /\.eq\("email_norm", em\)\.not\("user_id", "is", null\)/.test(it) && it.includes("href={`/crew?s=team&promote=${hasAccount.id}`}"));
+  const dop = code(read("components/DeliveryOps.tsx"));
+  ok("loop returns: whose bottles, and who counted them", /insert\(\{ returns: v, customer_id: whose \|\| null, created_by: user\?\.id \?\? null \}\)/.test(dop));
+  const ir = code(read("app/api/agents/intake/route.ts"));
+  ok("smart intake: filed on the filer's own city's shelf, read from their profile",
+    /select\("market, leads_market"\)\.eq\("id", user\.id\)\.eq\("tenant_id", tenant\)/.test(ir) && (ir.match(/\.\.\.inMarket,/g) || []).length === 2);
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.

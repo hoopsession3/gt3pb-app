@@ -53,10 +53,17 @@ type Data = { person: Person | null; steps: Step[]; markets: Market[] };
 // point at `operators` — the "Operator agreements · deals, levels & royalties" panel — because that
 // is where an agreement is actually read and written. scripts/smoke.cjs fails the build on a link
 // into an accordion section that names no anchor.
-const GO_TO: Record<string, { href: string; cta: string }> = {
-  offer:     { href: "/crew?s=money&a=offers", cta: "Draft their offer letter" },
-  agreement: { href: "/crew?s=money&a=operators", cta: "Open their agreement" },
-  academy:   { href: "/crew?s=team",           cta: "Assign their Academy path" },
+//
+// And each carries WHO (2026-10-04, the form audit): the link opened the right panel and then asked
+// the owner to find the person all over again — an offer started blank, the agreement list made you
+// pick, and "Assign their Academy path" went to Team, where nothing assigns training at all. Now the
+// offer opens for them (?offer_for=, components/OfferLetters), their agreement opens or offers to
+// draft one for them (?agreement_for=, components/OperatorDeal), and the Academy's assign sheet
+// opens with them chosen (?assign=, app/academy — the only writer of academy_assignments).
+const GO_TO: Record<string, { href: (id: string) => string; cta: string }> = {
+  offer:     { href: (id) => `/crew?s=money&a=offers&offer_for=${id}`, cta: "Draft their offer letter" },
+  agreement: { href: (id) => `/crew?s=money&a=operators&agreement_for=${id}`, cta: "Open their agreement" },
+  academy:   { href: (id) => `/academy?assign=${id}`, cta: "Assign their Academy path" },
 };
 
 const ago = (iso: string | null) => {
@@ -182,7 +189,7 @@ export default function CrewPerson({ userId, onClose, onChanged }: {
                           <b>{s.label}</b>
                           <i>{s.detail}{!s.done && s.owed_by === "them" ? " · their move" : ""}</i>
                         </span>
-                        {go && <a className="cp-step-go" href={go.href}>{go.cta} <span aria-hidden="true">›</span></a>}
+                        {go && <a className="cp-step-go" href={go.href(p.user_id)}>{go.cta} <span aria-hidden="true">›</span></a>}
                       </div>
                     );
                   })}
@@ -277,7 +284,7 @@ export default function CrewPerson({ userId, onClose, onChanged }: {
                     {Number(p.hours_on_interim_work ?? 0) > 0 &&
                       <> · <b>{Number(p.hours_on_interim_work).toLocaleString()}</b> on interim brewing &amp; driving</>}
                   </p>
-                  <a className="cp-go" href="/crew?s=money&a=operators">Open it in Money <span aria-hidden="true">›</span></a>
+                  <a className="cp-go" href={GO_TO.agreement.href(p.user_id)}>Open it in Money <span aria-hidden="true">›</span></a>
                 </div>
               ) : (p.role === "operator" || p.role === "event_manager") && (
                 <div className="cp-block">
@@ -286,7 +293,7 @@ export default function CrewPerson({ userId, onClose, onChanged }: {
                     {first} holds {p.leads_market ? `market lead over ${p.leads_market}` : `the ${p.role} role`} with
                     nothing on paper.
                   </p>
-                  <a className="cp-go" href="/crew?s=money&a=operators">Draft one <span aria-hidden="true">›</span></a>
+                  <a className="cp-go" href={GO_TO.agreement.href(p.user_id)}>Draft one <span aria-hidden="true">›</span></a>
                 </div>
               )}
 
