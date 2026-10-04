@@ -22,8 +22,12 @@ export default function FloatRail({ children }: { children: React.ReactNode }) {
   bottomRef.current = bottom;
   const drag = useRef<{ startY: number; startBottom: number } | null>(null);
 
+  // The floor clears the floating tier: the crew nav (87px, measured — it was written down as 68)
+  // + 16 + the 54px quick-actions button + 12 clearance = 169. The phone's home-indicator inset is
+  // added in the style below rather than guessed here, because the nav grows by exactly that much.
+  // scripts/design.ratchet.mjs paints the folded handle beside that button, with and without it.
   const clamp = (b: number) =>
-    Math.min(Math.max(b, 150), Math.round((typeof window !== "undefined" ? window.innerHeight : 800) * 0.7)); // floor 150 = nav 68 + 16 + 54 FAB + 12 clearance
+    Math.min(Math.max(b, 170), Math.round((typeof window !== "undefined" ? window.innerHeight : 800) * 0.7));
 
   useEffect(() => {
     try {
@@ -58,7 +62,7 @@ export default function FloatRail({ children }: { children: React.ReactNode }) {
   });
 
   return (
-    <div className={`rail${min ? " rail-folded" : ""}${dragging ? " dragging" : ""}`} style={{ bottom }}>
+    <div className={`rail${min ? " rail-folded" : ""}${dragging ? " dragging" : ""}`} style={{ bottom: `calc(${bottom}px + env(safe-area-inset-bottom, 0px))` }}>
       {min ? (
         <button type="button" className="rail-open" onClick={toggle} aria-expanded={false} aria-label="Open quick actions — ask us, connect, display">‹</button>
       ) : (

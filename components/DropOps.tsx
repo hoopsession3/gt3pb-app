@@ -8,7 +8,7 @@ import { useApp } from "./AppProvider";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import { FLAVORS, nextDrop, dropDateKey, mixSummary, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
 import { gallonsForBottles, flavorDemand } from "@/lib/brewMath";
-import { dayKey, etToday, relativeDay } from "@/lib/dates";
+import { dayKey, dayWithDate, etToday } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
@@ -78,10 +78,11 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
   }, []);
   const dropISO = drop.iso;
   const satLabel = drop.label;
-  // Humanized, unambiguous drop date for the heading — "This Sat · Jul 18" instead of a bare
-  // "Sat, Jul 18" (relativeDay + the absolute date, per lib/dates' caller contract). satLabel
-  // stays the raw weekday label the toasts / confirms / alert bodies below already read.
-  const dropWhen = `${relativeDay(dropISO)} · ${new Date(`${dropISO}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  // Humanized, unambiguous drop date for the heading — "This Sat · Jul 18" inside the week, "Sat,
+  // Oct 10" outside it (lib/dates dayWithDate). It was `${relativeDay} · ${date}`, which read "Oct 10
+  // · Oct 10's drop" the moment the drop was a week out. satLabel stays the raw weekday label the
+  // toasts / confirms / alert bodies below already read.
+  const dropWhen = dayWithDate(dropISO);
 
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { rows: [], batches: [], history: [], upcoming: [] };

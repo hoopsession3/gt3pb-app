@@ -11,7 +11,8 @@ import InlineCreate from "@/components/InlineCreate";
 import Icon from "@/components/Icon";
 import type { Stop, LiveStatus, Vendor } from "@/lib/db";
 import { haptic, HAPTIC } from "@/lib/haptics";
-import { relativeDay, nextWeekdayAt } from "@/lib/dates";
+import { clockTime, dayWithDate, nextWeekdayAt } from "@/lib/dates";
+import { isStopAhead, isStopPast, roadAhead, stopIsDue } from "@/lib/road";
 import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { goPlanTab } from "@/lib/planNav";
 import { wrapOwner } from "@/lib/wrap";
@@ -91,7 +92,9 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
     // Going offline closes out the current stop: it's archived off the live screen and the
     // next stop on the route becomes the visible "next". Confirm — it drops the truck for all.
     const finished = stops.find((s) => s.id === live?.current_stop_id) ?? null;
-    const next = stops.find((s) => !s.archived_at && s.status !== "done" && s.id !== finished?.id) ?? null;
+    // The road rule (lib/road), minus the stop being closed — not the first row in `sort`
+    // order, which is how this sentence used to name a stop that had already happened.
+    const next = roadAhead(stops.filter((s) => s.id !== finished?.id))[0] ?? null;
     if (!(await confirm(finished
       ? { title: `Close out ${finished.name} and go offline?`, body: `It gets archived off the live screen${next ? `, and ${next.name} is up next` : ""}. Customers stop seeing the truck as live.`, confirmLabel: "Go offline" }
       : { title: "Take the truck offline?", body: "Customers will immediately stop seeing it as live on the Truck page.", confirmLabel: "Go offline" }))) return;
@@ -238,9 +241,29 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
   // stop we're live at — is stale. It must not sit in the active route as a current LOCATION row; it
   // folds into "Past visits" below instead of vanishing (the auto-archive cron files it eventually,
   // but the UI can't wait on that). One definition, shared by the route grouping and Past visits.
-  const graceMs = Date.now() - 8 * 3600 * 1000;
-  const isAhead = (s: Stop) => !s.starts_at || new Date(s.starts_at).getTime() > graceMs || (s.id === live?.current_stop_id && !!live?.is_live);
+  // The grace is lib/road's (isStopPast), not a second 8 * 3600 * 1000 spelled here.
+  const isAhead = (s: Stop) => !isStopPast(s.starts_at) || (s.id === live?.current_stop_id && !!live?.is_live);
   const stale = active.filter((s) => !isAhead(s));
+  // THE ROAD, as the instrument reads it: the same rule as the public Find Us page, so the crew and
+  // a guest can never disagree about where the truck goes next (lib/road, 2026-10-04).
+  const road = roadAhead(active, live?.is_live ? live.current_stop_id : null);
+  const nextStop = live?.is_live ? null : road[0] ?? null;
+  const nextWhen = nextStop
+    ? nextStop.starts_at ? `${dayWithDate(new Date(nextStop.starts_at))} · ${clockTime(nextStop.starts_at)}` : "no date yet"
+    : "";
+  // Go live is one tap when the stop is today (or underway); anything else — next Saturday, or no
+  // date at all — asks first, because going live is the one action in this panel a guest sees.
+  const goLiveNext = async () => {
+    if (!nextStop) return;
+    if (!stopIsDue(nextStop.starts_at) && !(await confirm({
+      title: `Go live at ${nextStop.name} now?`,
+      body: nextStop.starts_at
+        ? `It's on the road for ${nextWhen}. Guests see the truck live there the moment you do.`
+        : "It has no date yet. Guests see the truck live there the moment you do.",
+      confirmLabel: "Go live now",
+    }))) return;
+    goLive(nextStop.id);
+  };
 
   return (
     <div className="adm-sec">
@@ -255,11 +278,13 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
             <span className={`adm-dot${live?.is_live ? " on" : ""}`} />
             <div className="liveinst-state">
               <b>{live?.is_live ? "LIVE" : "OFFLINE"}</b>
-              <span>{live?.is_live ? (curStop?.name ?? "on location") : (active[0] ? `next · ${active[0].name}` : "no stops scheduled")}</span>
+              <span>{live?.is_live ? (curStop?.name ?? "on location") : nextStop ? `next · ${nextStop.name} · ${nextWhen}` : "nothing on the road"}</span>
             </div>
             {live?.is_live
               ? <button className="adm-btn ghost" onClick={pause}>Go offline</button>
-              : (active[0] && <button className="adm-btn primary liveinst-go" onClick={() => goLive(active[0].id)}>Go live</button>)}
+              : nextStop
+                ? <button className={`adm-btn ${stopIsDue(nextStop.starts_at) ? "primary" : "ghost"} liveinst-go`} onClick={goLiveNext}>Go live</button>
+                : <button className="adm-btn ghost liveinst-go" onClick={() => goPlanTab("route", { setSection })}>Plan the next stop</button>}
           </div>
           {live?.is_live ? (
             <div className="liveinst-row">
@@ -270,7 +295,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
                 : <span style={{ display: "flex", gap: 8 }}><button className="adm-btn ghost" onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</button><button className="adm-btn primary" onClick={startBroadcast}>Broadcast</button></span>}
             </div>
           ) : null}
-          <button type="button" className="adm-golink" onClick={() => goPlanTab("route", { setSection })}>{active.length > 1 ? `${active.length - 1} more location${active.length > 2 ? "s" : ""} · ` : ""}Locations &amp; ordering dial · Plan › Route</button>
+          <button type="button" className="adm-golink" onClick={() => goPlanTab("route", { setSection })}>{road.length > 1 ? `${road.length - 1} more stop${road.length > 2 ? "s" : ""} ahead · ` : ""}Locations &amp; ordering dial · Plan › Route</button>
         </div>
       ) : (
       <>
@@ -339,15 +364,15 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
             g.rows.push(s);
           }
           const fmtNext = (rows: Stop[]) => {
-            // Mirrors /truck: 8h grace, done/completed visits excluded. Past-only reads "last ·",
-            // never a stale "next ·" (panel finding).
-            const live = rows.filter((r) => r.starts_at && r.status !== "done" && !r.completed_at);
-            const dated = live.map((r) => new Date(r.starts_at as string)).sort((a, b) => a.getTime() - b.getTime());
-            const next = dated.find((d) => d.getTime() > Date.now() - 8 * 3600 * 1000);
-            // Relative + absolute, so the weekday can't misread as "next Saturday" (relativeDay: This Sat · Jul 18).
-            if (next) return `${relativeDay(next)} · ${next.toLocaleDateString([], { month: "short", day: "numeric" })}`;
+            // The road rule (lib/road): the next visit still ahead, else the last one this place
+            // had. Past-only never reads as a stale "next" (panel finding). The day is said once —
+            // dayWithDate: "This Sat · Oct 10" inside the week, "Sat, Oct 10" outside it.
+            const dated = rows.filter((r) => r.starts_at && r.status !== "done" && !r.completed_at)
+              .sort((a, b) => new Date(a.starts_at as string).getTime() - new Date(b.starts_at as string).getTime());
+            const next = dated.find((r) => isStopAhead(r));
+            if (next) return dayWithDate(new Date(next.starts_at as string));
             const last = dated[dated.length - 1];
-            return last ? `${relativeDay(last)} · ${last.toLocaleDateString([], { month: "short", day: "numeric" })}` : "undated";
+            return last ? dayWithDate(new Date(last.starts_at as string)) : "undated";
           };
           let idx = -1;
           return groups.map((g) => {

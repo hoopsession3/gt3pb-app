@@ -5,7 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import { useRealtimeTable } from "@/lib/realtime";
-import { etToday, relativeDay } from "@/lib/dates";
+import { etToday, nearDay } from "@/lib/dates";
 import Icon, { type IconName } from "@/components/Icon";
 
 // MEMBER INBOX — "what's happening with my stuff," on the customer Today. A read-only aggregation
@@ -31,14 +31,10 @@ const REL = (iso: string | null): string | null => {
   const d = Math.round(h / 24);
   return `${d}d ago`;
 };
-const dayLabel = (iso: string): string => {
-  // Humanize the near-term week (Today / Tomorrow / This Sat, or a recent "Nd ago"); keep the
-  // absolute weekday + date for anything a week or more out (relativeDay's "Next …" is excluded).
-  const rel = relativeDay(iso);
-  if (/^(Today|Tomorrow|Yesterday|This )/.test(rel) || rel.endsWith("d ago")) return rel;
-  const d = new Date(`${iso}T12:00:00`);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-};
+// Humanize the near-term week (Today / Tomorrow / This Sat, or a recent "Nd ago"); keep the absolute
+// weekday + date for anything a week or more out. lib/dates' nearDay — this was the second private
+// copy of it. A value that is not a date still prints as itself.
+const dayLabel = (iso: string): string => nearDay(iso) || iso;
 
 export default function MemberInbox() {
   const { user } = useAuth();

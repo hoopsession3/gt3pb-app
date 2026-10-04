@@ -172,9 +172,15 @@ export default function OperatorNav() {
   return (
     <>
     {/* Landmark so screen-reader users can jump straight to primary nav — role="tablist" alone is a
-        widget role, not a landmark, so it wasn't reachable via landmark navigation before this. */}
-    <nav aria-label="Section navigation">
-    <div className="nav opnav" role="tablist" aria-label="Crew console" onKeyDown={onNavKey}>
+        widget role, not a landmark, so it wasn't reachable via landmark navigation before this.
+        THE LANDMARK IS THE NAV (2026-10-04). The landmark used to be a bare <nav> wrapped around a
+        <div className="nav">, which made the WRAPPER the flex item of the app column — so `.nav
+        { order:10 }` ordered nothing, and on a phone the docked rail (order 5) fell BELOW the crew
+        nav instead of above it. The customer nav (BottomNav) never had the wrapper, which is why
+        smoke.ui, measuring /menu, saw the rail where the stylesheet promises it. Same shape now:
+        <nav className="nav"> is the column's child; the tablist inside it only lays out the tabs. */}
+    <nav className="nav opnav" aria-label="Section navigation">
+    <div className="opnav-tabs" role="tablist" aria-label="Crew console" onKeyDown={onNavKey}>
       {groups.map((g) => {
         const on = activeGroup.id === g.id;
         return (

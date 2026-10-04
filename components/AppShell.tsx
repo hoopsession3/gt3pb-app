@@ -164,13 +164,26 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {inAdmin || isShare ? null : <OrderStatus />}
         {inAdmin || isShare ? null : <CartBar />}
         {isShare ? null : inAdmin ? <OperatorNav /> : <BottomNav />}
-        {inAdmin && <QuickDock />}
+        {/* THE FLOATING TIER SITS ON THE CHROME, NOT ON A NUMBER (2026-10-04).
+            The theme toggle, the quick-actions button, the offline chip and the update prompt were
+            each position:fixed at a guess — `calc(var(--navh, 68px) + 16px)` — and --navh was never
+            set anywhere. The crew nav is 87px tall before an iPhone adds its home-indicator inset
+            (121px with it), and the docked rail can sit under or over it, so the guess put the moon
+            on the Today tab and the sparkles on More — Ryan's Live Ops screenshot, measured
+            2026-10-04: 1,242–2,646 px² of each tab covered in three of four phone states.
+            Now they ride a zero-height row of the app column, ordered after the page and before
+            the rail and the nav (app/globals.css .fab-dock), and float 16px above whatever chrome
+            is there — nav, inset, docked rail — because the column knows how tall it is. */}
+        <div className="fab-dock">
+          {inAdmin && <QuickDock />}
+          {inAdmin && <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={theme === "day" ? "Switch to dark" : "Switch to day"}>{theme === "day" ? "🌙" : "☀️"}</button>}
+          {inAdmin && <OfflineChip />}
+          <ServiceWorkerRegister />
+        </div>
         {inAdmin && <EventCopilot />}
         {inAdmin && <CommandPalette />}
         {inAdmin && <SwipeBack />}
         {inAdmin && <ScrollRestore />}
-        {inAdmin && <OfflineChip />}
-        {inAdmin && <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={theme === "day" ? "Switch to dark" : "Switch to day"}>{theme === "day" ? "🌙" : "☀️"}</button>}
         {/* Every floating tab lives on ONE movable, collapsible right-edge rail. */}
         {!isShare && (
           <FloatRail>
@@ -182,7 +195,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         )}
         {customerSurface && <MarketingSplash />}
         <ErrorReporter />
-        <ServiceWorkerRegister />
       </div>
       </RecordProvider>
      </TaskSheetProvider>

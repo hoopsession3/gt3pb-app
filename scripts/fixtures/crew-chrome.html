@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>fixture · the crew console's chrome, day theme</title>
+<!--
+  A TEST DOUBLE OF THE CREW CONSOLE'S BOTTOM CHROME, AND IT SAYS SO.
+
+  Ryan, 2026-10-04, a Live Ops screenshot with no words on it. The moon (the theme toggle) sat on
+  the Today tab, the sparkles (quick actions) sat on More, and the Display · Edit copy · Connect
+  toolbar sat UNDER the nav. Nothing in this repo had ever painted this chrome: smoke.ui measures
+  the customer nav, the console needs a session the suite does not have, and headless Chromium has
+  no home-indicator inset — the one condition that made it worst.
+
+  So this is the chrome's DOM, class for class, as components/AppShell.tsx, OperatorNav.tsx,
+  QuickDock.tsx, ServiceWorkerRegister.tsx and FloatRail.tsx (with its three tabs) produce it,
+  styled by the REAL app/globals.css. scripts/design.ratchet.mjs paints it at 390x844 four ways —
+  inset 0 and 34px (an iPhone's, set through Chromium's own safe-area emulation, so env() is the
+  real thing), rail docked and folded — and fails if anything floating touches a tab, the nav or
+  the docked rail, if the docked rail is not above the nav, or if the update prompt or the folded
+  handle lands on a button. Every block names its source in `data-from`; a class that leaves its
+  file fails the ratchet the same way the other fixtures do.
+
+  The page above the chrome is a plain block: what is measured here is the chrome, not the page.
+-->
+<link rel="stylesheet" href="../../app/globals.css">
+<style>html,body{margin:0}</style>
+</head>
+<body>
+<div class="app crew-day" data-from="components/AppShell.tsx">
+  <main class="body" id="body" tabindex="0">
+    <section class="screen admin" data-from="app/crew/page.tsx"><div style="height:1400px"></div></section>
+  </main>
+  <nav class="nav opnav" aria-label="Section navigation" data-from="components/OperatorNav.tsx">
+    <div class="opnav-tabs" role="tablist" aria-label="Crew console">
+      <button role="tab" aria-selected="false" class="tab"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/></svg><span class="nav-badge">3</span></span><span class="tl">Today</span></button>
+      <button role="tab" aria-selected="true" class="tab on"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg><span class="nav-badge lane">2</span></span><span class="tl">Service</span></button>
+      <button role="tab" aria-selected="false" class="tab"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg><span class="nav-badge lane">7</span></span><span class="tl">Business</span></button>
+      <button role="tab" aria-selected="false" class="tab"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2s6 7 6 12a6 6 0 0 1-12 0c0-5 6-12 6-12z"/></svg></span><span class="tl">Production</span></button>
+      <button role="tab" aria-selected="false" class="tab"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></span><span class="tl">More</span></button>
+    </div>
+  </nav>
+  <div class="fab-dock" data-from="components/AppShell.tsx">
+    <button type="button" class="qd-fab" aria-label="Quick actions" data-from="components/QuickDock.tsx">✦</button>
+    <button type="button" class="theme-toggle" aria-label="Switch to dark">🌙</button>
+    <button class="sw-update" aria-label="A new version is ready — tap to refresh" data-from="components/ServiceWorkerRegister.tsx"><span class="sw-update-dot"></span>A new version is ready — tap to refresh</button>
+  </div>
+  <div class="rail" style="bottom:calc(170px + env(safe-area-inset-bottom, 0px))" data-from="components/FloatRail.tsx">
+    <div class="rail-head"><button type="button" class="rail-grip">≡</button><button type="button" class="rail-fold">›</button></div>
+    <div class="rdg" data-from="components/DisplayToggle.tsx"><button type="button" class="rdg-fab"><span class="rdg-aa"><span class="rdg-a">A</span><span class="rdg-a">A</span></span><span class="rail-txt"><b>Display</b><i>text size · contrast</i></span></button></div>
+    <button type="button" class="rdg-fab ec-toggle" data-from="components/EditModeToggle.tsx"><span class="rail-txt"><b>Edit copy</b><i>Click text on the page</i></span></button>
+    <div class="chub" data-from="components/ConnectHub.tsx"><button type="button" class="chub-tab"><span class="chub-tab-i">✳</span><span class="rail-txt"><b>Connect</b><i>links · socials · order</i></span></button></div>
+  </div>
+</div>
+</body>
+</html>

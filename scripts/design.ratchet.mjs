@@ -51,6 +51,16 @@ const SHEETS = [
   { name: "brew sheet",   file: BREW_FIXTURE,   rel: "scripts/fixtures/brew-sheet.html",   limits: BREW_SHEET },
   { name: "record sheet", file: RECORD_FIXTURE, rel: "scripts/fixtures/record-sheet.html", limits: RECORD_SHEET },
 ];
+// The crew console's bottom chrome (2026-10-04): the nav, the floating tier, the rail. Not a depth
+// or a tap floor — a COLLISION check, because the defect was a button painted on top of a tab.
+const CHROME_FIXTURE = join(ROOT, "scripts/fixtures/crew-chrome.html");
+/** Four phone states: no inset and an iPhone's 34px home-indicator inset, rail docked and folded. */
+export const CHROME_STATES = [
+  { inset: 0, rail: "docked" }, { inset: 0, rail: "folded" },
+  { inset: 34, rail: "docked" }, { inset: 34, rail: "folded" },
+];
+/** The floating tier keeps at least this much air above the chrome (it is set to 16). */
+export const CHROME_CLEARANCE = 8;
 
 // ── THE CEILINGS — measured, not remembered (2026-10-01, after the one-box-per-level pass) ───────
 export const CEILING = {
@@ -216,6 +226,12 @@ export const PROD_ROUTE = {
 // /truck) for the brew sheet's styles (.bq-*) net of the .bsz rules they replaced; the three routes
 // that share the second stylesheet sat 0.12 KB under the line. /menu moved the same 342 bytes and
 // stayed at 100.
+// 2026-10-04: /playbook 276 → 277. +147 bytes gzipped in the shell chunk on every route — the
+// floating tier's dock in AppShell and the folded rail's inset-aware bottom in FloatRail (THE
+// FLOATING TIER SITS ON THE CHROME) — which tipped the one route sitting 0.06 KB under a rounding
+// line (283 073 → 283 220 bytes). /truck and /events +372 (the road rule from lib/road, which the
+// public page now shares with the crew's Live truck panel) and stayed at 284; every stylesheet
+// −35. Measured against a build of c846e47, route by route, not estimated.
 export const WEIGHT = {
   "/truck":                    { js: 284, css: 103, chunks: 16 },
   "/events":                   { js: 284, css: 103, chunks: 16 },
@@ -229,7 +245,7 @@ export const WEIGHT = {
   "/office":                   { js: 277, css: 100, chunks: 16 },
   "/scan":                     { js: 260, css: 100, chunks: 15 },
   "/architecture":             { js: 270, css: 100, chunks: 15 },
-  "/playbook":                 { js: 276, css: 100, chunks: 16 },
+  "/playbook":                 { js: 277, css: 100, chunks: 16 },
   "/driver":                   { js: 280, css: 103, chunks: 16 },
   "/agreement":                { js: 267, css: 100, chunks: 15 },
   "/offer":                    { js: 277, css: 100, chunks: 15 },
@@ -352,6 +368,93 @@ export function fixtureDrift(html, readSrc = (p) => readFileSync(join(ROOT, p), 
   return [...new Set(missing)];
 }
 
+// ── THE CHROME, PAINTED ──────────────────────────────────────────────────────────────────────────
+// Runs IN THE PAGE (page.evaluate), so it reads the same boxes a thumb lands on. Returns the boxes
+// and every collision, named. A collision is any overlap with area — touching edges are fine.
+export function chromeReport() {
+  const box = (el) => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height }; };
+  const area = (a, c) => Math.max(0, Math.min(a.r, c.r) - Math.max(a.x, c.x)) * Math.max(0, Math.min(a.b, c.b) - Math.max(a.y, c.y));
+  const visible = (el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== "hidden" && cs.display !== "none"; };
+  const label = (el) => (el.getAttribute("aria-label") || el.textContent || el.className || "").trim().replace(/\s+/g, " ").slice(0, 40);
+  const navEl = document.querySelector(".nav");
+  const railEl = document.querySelector(".rail");
+  const docked = !!railEl && !railEl.classList.contains("rail-folded");
+  const nav = navEl ? box(navEl) : null;
+  const rail = docked && railEl && visible(railEl) ? box(railEl) : null;
+  const handleEl = document.querySelector(".rail-open");
+  const handle = handleEl && visible(handleEl) ? box(handleEl) : null;
+  const tabs = [...document.querySelectorAll(".nav .tab")].filter(visible).map((el) => ({ name: label(el), ...box(el) }));
+  const fabs = [...document.querySelectorAll(".qd-fab,.theme-toggle")].filter(visible).map((el) => ({ name: el.className.split(" ")[0], ...box(el) }));
+  const prompts = [...document.querySelectorAll(".sw-update,.offchip")].filter(visible).map((el) => ({ name: el.className.split(" ")[0], ...box(el) }));
+  const hits = [];
+  for (const f of [...fabs, ...prompts]) {
+    for (const t of tabs) { const a = area(f, t); if (a > 0) hits.push(`${f.name} covers the ${t.name} tab (${Math.round(a)} px²)`); }
+    if (nav && area(f, nav) > 0) hits.push(`${f.name} overlaps the nav (${Math.round(area(f, nav))} px²)`);
+    if (rail && area(f, rail) > 0) hits.push(`${f.name} overlaps the docked rail (${Math.round(area(f, rail))} px²)`);
+    if (handle && area(f, handle) > 0) hits.push(`${f.name} overlaps the folded rail handle (${Math.round(area(f, handle))} px²)`);
+  }
+  for (const p of prompts) for (const f of fabs) { const a = area(p, f); if (a > 0) hits.push(`${p.name} lands on ${f.name} (${Math.round(a)} px²)`); }
+  // The chrome's top edge: the docked rail when it is docked above the nav, otherwise the nav.
+  const chromeTop = Math.min(nav ? nav.y : Infinity, rail ? rail.y : Infinity);
+  const lowestFab = fabs.length ? Math.max(...fabs.map((f) => f.b)) : null;
+  return {
+    nav: nav && { y: Math.round(nav.y), b: Math.round(nav.b), h: Math.round(nav.h) },
+    rail: rail && { y: Math.round(rail.y), b: Math.round(rail.b), w: Math.round(rail.w) },
+    handle: handle && { y: Math.round(handle.y), b: Math.round(handle.b) },
+    fabs: fabs.map((f) => ({ name: f.name, y: Math.round(f.y), b: Math.round(f.b) })),
+    railAboveNav: rail && nav ? rail.b <= nav.y + 0.5 : null,
+    railFullWidth: rail ? rail.x <= 1 && rail.w >= innerWidth - 2 : null,
+    air: lowestFab === null || !Number.isFinite(chromeTop) ? null : Math.round(chromeTop - lowestFab),
+    hits,
+  };
+}
+
+async function paintedChrome(fixture = CHROME_FIXTURE) {
+  const require = createRequire(import.meta.url);
+  let chromium;
+  try { ({ chromium } = require("playwright")); } catch { return { error: "playwright is not installed" }; }
+  const candidates = [process.env.PW_CHROME, "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", "/opt/pw-browsers/chromium/chrome-linux/chrome"].filter(Boolean);
+  const exe = candidates.find((p) => existsSync(p));
+  let browser;
+  try { browser = await chromium.launch(exe ? { executablePath: exe } : {}); }
+  catch (e) { return { error: `could not launch Chromium — ${String(e.message || e).split("\n")[0]}` }; }
+  try {
+    const out = [];
+    for (const st of CHROME_STATES) {
+      const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+      // The home-indicator inset, through Chromium's own emulation — env(safe-area-inset-bottom)
+      // is then the real value in the real stylesheet. Without it the suite is a phone with no
+      // inset, which is the one phone the defect did not show on.
+      try {
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: st.inset ? 47 : 0, bottom: st.inset, left: 0, right: 0 } });
+      } catch (e) { await page.close(); return { error: `this Chromium cannot emulate a safe-area inset — ${String(e.message || e).split("\n")[0]}` }; }
+      await page.goto(pathToFileURL(fixture).href);
+      if (st.rail === "folded") {
+        // FloatRail's folded branch, verbatim: the class, and the one handle button.
+        await page.evaluate(() => {
+          const r = document.querySelector(".rail");
+          if (!r) return;
+          r.classList.add("rail-folded");
+          r.innerHTML = '<button type="button" class="rail-open" aria-expanded="false" aria-label="Open quick actions — ask us, connect, display">‹</button>';
+        });
+      }
+      // At rest, not mid-entrance: the folded handle rises 26px into place over .9s (rail-raise),
+      // and a box caught on its way up is not where a thumb finds it. Finite animations only.
+      await page.evaluate(() => Promise.race([
+        Promise.all(document.getAnimations()
+          .filter((a) => a.effect?.getTiming?.().iterations !== Infinity)
+          .map((a) => a.finished.catch(() => {}))),
+        new Promise((r) => setTimeout(r, 3000)),
+      ]));
+      out.push({ ...st, report: await page.evaluate(chromeReport) });
+      await page.close();
+    }
+    return { states: out };
+  } catch (e) { return { error: `could not render the chrome fixture — ${String(e.message || e).split("\n")[0]}` }; }
+  finally { await browser.close(); }
+}
+
 // ── PAINTED ──────────────────────────────────────────────────────────────────────────────────────
 async function painted(fixture = FIXTURE) {
   const require = createRequire(import.meta.url);
@@ -462,6 +565,28 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
       note((m.overflowX || []).length === 0, (m.overflowX || []).length === 0 ? `${theme}: nothing scrolls sideways` : `${theme}: scrolls sideways: ${JSON.stringify(m.overflowX).slice(0, 80)}`);
     }
     note(b.dark.boxes === b.boxes, b.dark.boxes === b.boxes ? `the theme changes colour, not structure: ${b.boxes} boxes in both` : `the dark theme paints ${b.dark.boxes} boxes where day paints ${b.boxes}`);
+  }
+
+  // ── THE CREW CHROME — nothing floats on a tab, at any inset, with the rail docked or folded ──
+  let chromeHtml;
+  try { chromeHtml = readFileSync(CHROME_FIXTURE, "utf8"); } catch { console.log("DESIGN RATCHET: NOT CHECKED — the crew chrome fixture is missing. Treated as a FAILURE."); process.exit(1); }
+  const chromeDrift = fixtureDrift(chromeHtml);
+  console.log("DESIGN RATCHET — the crew chrome fixture names its sources:");
+  note(chromeDrift.length === 0, chromeDrift.length === 0 ? "every class in scripts/fixtures/crew-chrome.html still exists in the file it claims" : `${chromeDrift.length} class(es) no longer exist in the file the fixture claims them from:`);
+  for (const d of chromeDrift) console.log(`      ${d}`);
+  const ch = await paintedChrome();
+  console.log("DESIGN RATCHET — the crew chrome, painted at 390px (inset 0 and 34px, rail docked and folded):");
+  if (ch.error) { console.log(`  NOT CHECKED — ${ch.error}. Treated as a FAILURE.`); process.exit(1); }
+  for (const { inset, rail, report: r } of ch.states) {
+    const tag = `inset ${inset}px, rail ${rail}`;
+    note(r.hits.length === 0, r.hits.length === 0
+      ? `${tag}: nothing floating touches a tab, the nav${rail === "docked" ? ", the docked rail" : ", the rail handle"} or another button (nav ${r.nav?.h}px)`
+      : `${tag}: ${r.hits.join("; ")}`);
+    note(r.air !== null && r.air >= CHROME_CLEARANCE, `${tag}: the floating tier sits ${r.air}px above the chrome (at least ${CHROME_CLEARANCE})`);
+    if (rail === "docked") {
+      note(r.railAboveNav === true, r.railAboveNav ? `${tag}: the docked rail is a toolbar above the nav` : `${tag}: the docked rail is NOT above the nav (rail ${r.rail?.y}–${r.rail?.b}, nav from ${r.nav?.y})`);
+      note(r.railFullWidth === true, `${tag}: the docked rail spans the width`);
+    }
   }
 
   if (fails.length) { console.log(`\nDESIGN RATCHET: ${fails.length} failure(s).`); process.exit(1); }

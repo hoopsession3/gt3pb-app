@@ -234,6 +234,35 @@ export const relativeDay = (input: Date | string): string => {
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 };
 
+// ── A DAY, SAID ONCE (2026-10-04) ─────────────────────────────────────────────────────────────
+// Ryan's Live Ops, Saturday night: "PICKUP · RESERVES & PACKS   Oct 10 · Oct 10's drop". The
+// caller contract above says pair relativeDay with the absolute date, so "This Sat" cannot misread
+// as next Saturday — and five callers did, each its own way. Two of them (DropOps, the route rows in
+// LiveControl) wrote `${relativeDay(x)} · ${Mon D}`, which is right inside the week and prints the
+// date twice outside it, because outside the week relativeDay already IS the date. MyPacks and
+// MemberInbox had the correct version, as two private copies. These are that version, once.
+const RELATIVE_WORD = /^(Today|Tomorrow|Yesterday|This )/;
+/** True when relativeDay answered with a word ("This Sat", "3d ago") rather than a date. */
+const saidRelatively = (rel: string): boolean => RELATIVE_WORD.test(rel) || rel.endsWith("d ago");
+const asDate = (input: Date | string): Date =>
+  typeof input === "string" ? new Date(input.length <= 10 ? `${input}T12:00:00` : input) : input;
+
+/** "This Sat" inside the week, "Sat, Oct 10" outside it. Empty for a date that is not one. */
+export function nearDay(input: Date | string): string {
+  const rel = relativeDay(input);
+  if (!rel || saidRelatively(rel)) return rel;
+  return asDate(input).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+}
+
+/** "This Sat · Oct 10" inside the week, "Sat, Oct 10" outside it — the date never twice. */
+export function dayWithDate(input: Date | string): string {
+  const rel = relativeDay(input);
+  if (!rel) return "";
+  const d = asDate(input);
+  if (saidRelatively(rel)) return `${rel} · ${d.toLocaleDateString([], { month: "short", day: "numeric" })}`;
+  return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+}
+
 // How long ago a timestamp fired, at alert-card granularity (2026-07-30, Ryan: "put dates to
 // these alerts, alerting system is not useful atp"). An alert with no age is a rumor — this is
 // the one clock every alert surface renders. `now` is a parameter so the smoke harness can pin

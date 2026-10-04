@@ -25,30 +25,13 @@ const STATUS_LABEL: Record<StopStatus, string> = {
 export const stopStatusLabel = (s: string | null | undefined): string =>
   isStopStatus(s) ? STATUS_LABEL[s] : (s || "—");
 
-// ── when a stop is over ─────────────────────────────────────────────────────────────────────────
-// A stop's status column is not the whole answer: one nobody remembered to close is still over once
-// its start time is far enough behind us. "Far enough" was eight hours in THREE places:
-//
-//   app/crew/page.tsx        OWNERDET_STOP_GRACE_MS = 8 * 3600 * 1000  + its own derivedStopStatus
-//   components/FieldOpSheet  STOP_GRACE_MS          = 8 * 3600 * 1000  + a line-identical copy
-//   components/PrepBoard     STOP_GRACE_MS          = 8 * 3600 * 1000  + isStopPast, the same rule
-//                                                                        written a third way
-//
-// The two derivedStopStatus copies were identical apart from the constant's name. This file's own
-// header explains why that matters — a second copy of whenLabel is how "16 Days Ago" comes back on
-// one screen and not the other — and the argument is stronger here, because this decides whether a
-// stop reads as DONE. Change the grace in one file and the same stop is finished on the detail
-// sheet and still upcoming on the board.
-//
-// They HAD already drifted, in the smallest possible way: derivedStopStatus used `now - t > GRACE`,
-// isStopPast used `t <= now - GRACE`, and those disagree at exactly the eight-hour mark. One
-// instant, no practical consequence — and exactly the kind of divergence three copies produce for
-// free. Strictly-greater wins, because that is what the status a person SEES was already using.
-export const STOP_DONE_GRACE_MS = 8 * 3600 * 1000;
-
-/** Has this stop's start slipped far enough behind us to count as over? */
-export const isStopPast = (startsAt: string | null | undefined): boolean =>
-  !!startsAt && Date.now() - new Date(startsAt).getTime() > STOP_DONE_GRACE_MS;
+// ── when a stop is over, and which stops are still ahead ─────────────────────────────────────────
+// The rules live in lib/road.ts — small on purpose, because the PUBLIC Find Us page asks them too and
+// should not download this file's crew vocabulary to do it (2026-10-04: importing this file there cost
+// /truck 2 KB and a chunk). Re-exported, not copied: every caller of isStopPast and friends keeps its
+// import, and there is still one grace, one boundary, one rule.
+export { STOP_DONE_GRACE_MS, isStopPast, isStopAhead, roadAhead, stopIsDue, type RoadStop } from "./road";
+import { isStopPast } from "./road";
 
 /**
  * The status to SHOW for a stop: the column when it is decisive, otherwise derived from the clock.

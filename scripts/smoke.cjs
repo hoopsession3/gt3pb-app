@@ -4544,6 +4544,106 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   }
 }
 
+// ── THE ROAD AHEAD, A DAY SAID ONCE, AND CHROME THAT DOES NOT SIT ON A TAB (2026-10-04) ────────────
+// Ryan's Live Ops, Saturday 9:01 PM, a screenshot with no words: "OFFLINE · next · Wine Express —
+// Five Forks" over a red Go live (the public page, the same minute: "Nothing scheduled yet"); the
+// drop card "Oct 10 · Oct 10's drop"; the moon on the Today tab and the sparkles on More. Three
+// rules, each written in more than one place, each wrong in one of them. These hold the one home.
+{
+  const S = require("../.smoke/stopRecord.js");
+  const DT = require("../.smoke/dates.js");
+  const H = 3600 * 1000;
+  const iso = (ms) => new Date(Date.now() + ms).toISOString();
+
+  ok("road: a stop later today is ahead", S.isStopAhead({ id: "a", starts_at: iso(3 * H) }));
+  ok("road: one that started 2h ago is still ahead — inside the grace", S.isStopAhead({ id: "a", starts_at: iso(-2 * H) }));
+  ok("road: one that started 9h ago is not", !S.isStopAhead({ id: "a", starts_at: iso(-9 * H) }));
+  ok("road: an undated stop is ahead — somebody has to date it, and it should be in front of them", S.isStopAhead({ id: "a", starts_at: null }));
+  ok("road: done, stamped complete or archived is never ahead, whatever its date",
+    !S.isStopAhead({ id: "a", starts_at: iso(48 * H), status: "done" }) && !S.isStopAhead({ id: "a", starts_at: iso(48 * H), completed_at: iso(-H) }) && !S.isStopAhead({ id: "a", starts_at: iso(48 * H), archived_at: iso(-H) }));
+  ok("road: the live stop is on the road however late it runs", S.isStopAhead({ id: "a", starts_at: iso(-12 * H) }, "a") && !S.isStopAhead({ id: "a", starts_at: iso(-12 * H) }, "b"));
+  ok("road: …unless somebody closed it", !S.isStopAhead({ id: "a", starts_at: iso(-H), status: "done" }, "a"));
+  // The screenshot's road: the finished Wine Express visit, first in `sort` order, and a stale one.
+  const saturday = [
+    { id: "wx", name: "Wine Express — Five Forks", sort: 0, starts_at: iso(-7 * 24 * H), status: "done", completed_at: iso(-7 * 24 * H) },
+    { id: "rh", name: "Restore Hyper Wellness", sort: 0, starts_at: iso(-20 * 24 * H), status: "upcoming" },
+  ];
+  ok("road: Ryan's Saturday — a finished visit and a stale one is an EMPTY road, as Find Us said", S.roadAhead(saturday).length === 0, S.roadAhead(saturday).map((x) => x.id));
+  const week = [
+    { id: "undated", starts_at: null, sort: 0 },
+    { id: "later", starts_at: iso(5 * 24 * H), sort: 0 },
+    { id: "soon", starts_at: iso(26 * H), sort: 9 },
+    { id: "live", starts_at: iso(-10 * H), sort: 1 },
+  ];
+  ok("road: in the order the truck drives it — the live stop, then by start, undated last; never by `sort`",
+    S.roadAhead(week, "live").map((x) => x.id).join() === "live,soon,later,undated", S.roadAhead(week, "live").map((x) => x.id));
+  ok("road: offline, that live row is just a visit past its grace", S.roadAhead(week).map((x) => x.id).join() === "soon,later,undated", S.roadAhead(week).map((x) => x.id));
+  const sat901 = new Date(2026, 9, 3, 21, 1);   // the screenshot, operator-local
+  const local = (y, mo, d, h, mi) => new Date(y, mo, d, h, mi).toISOString();
+  ok("due: a stop later tonight is one tap", S.stopIsDue(local(2026, 9, 3, 22, 0), sat901));
+  ok("due: next Saturday is not — Go live asks first", !S.stopIsDue(local(2026, 9, 10, 11, 0), sat901));
+  ok("due: an undated stop, or a date that is not one, is not", !S.stopIsDue(null, sat901) && !S.stopIsDue("not a date", sat901));
+  ok("due: last night's 11 PM stop is still due at 2 AM — inside its grace across midnight", S.stopIsDue(local(2026, 9, 2, 23, 0), new Date(2026, 9, 3, 2, 0)));
+  ok("due: and not at noon, twelve hours on", !S.stopIsDue(local(2026, 9, 2, 23, 0), new Date(2026, 9, 3, 12, 0)));
+
+  const off = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return DT.dayKey(d); };
+  const md = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString([], { month: "short", day: "numeric" }); };
+  const twice = [];
+  for (let n = -40; n <= 40; n++) { const t = DT.dayWithDate(off(n)); if (t.split(md(n)).length - 1 !== 1) twice.push(`${n}: ${t}`); }
+  ok("day said once: across 81 days either side, dayWithDate prints the date exactly once", twice.length === 0, twice.slice(0, 4));
+  ok("day said once: inside the week, the word and the date", /^This \w{3} · \w{3} \d{1,2}$/.test(DT.dayWithDate(off(3))) && DT.dayWithDate(off(0)).startsWith("Today · "), [DT.dayWithDate(off(3)), DT.dayWithDate(off(0))]);
+  ok("day said once: a week out, the weekday and the date — 'Oct 10 · Oct 10' cannot come back", /^\w{3}, \w{3} \d{1,2}$/.test(DT.dayWithDate(off(7))), DT.dayWithDate(off(7)));
+  ok("day said once: nearDay is the word inside the week, weekday + date outside it, nothing for a non-date",
+    DT.nearDay(off(3)).startsWith("This ") && /^\w{3}, \w{3} \d{1,2}$/.test(DT.nearDay(off(9))) && DT.nearDay("not a date") === "", [DT.nearDay(off(3)), DT.nearDay(off(9))]);
+
+  {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const root = path.join(__dirname, "..");
+    const read = (f) => fs.readFileSync(path.join(root, f), "utf8");
+    const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+    const lc = code(read("components/crew/LiveControl.tsx")), fu = code(read("components/FindUs.tsx"));
+    ok("road: the truck instrument reads the road, not the first row in `sort` order",
+      !/active\[0\]/.test(lc) && /roadAhead\(active, live\?\.is_live \? live\.current_stop_id : null\)/.test(lc));
+    ok("road: Go live is offered only for a stop on the road, and asks first unless it is due",
+      /onClick=\{goLiveNext\}/.test(lc) && /stopIsDue\(nextStop\.starts_at\)/.test(lc) && /title: `Go live at \$\{nextStop\.name\} now\?`/.test(lc));
+    ok("road: with nothing on the road it says so, and offers to plan the next stop instead of Go live",
+      /"nothing on the road"/.test(lc) && />Plan the next stop</.test(lc));
+    ok("road: going offline names the next stop by the same rule", /roadAhead\(stops\.filter\(\(s\) => s\.id !== finished\?\.id\)\)\[0\]/.test(lc));
+    ok("road: the live panel's grace is lib/stopRecord's — no second 8 * 3600 * 1000", !/8 \* 3600 \* 1000/.test(lc));
+    ok("road: the public Find Us page asks the same rule for its stops", /isStopAhead\(r, liveId\)/.test(fu) && !/8 \* 3600 \* 1000/.test(fu));
+    ok("road: …from lib/road, the small home — not lib/stopRecord, whose crew vocabulary a guest should not download",
+      /import \{ isStopAhead \} from "@\/lib\/road";/.test(fu) && !/from "@\/lib\/stopRecord"/.test(fu)
+        && /export \{ STOP_DONE_GRACE_MS, isStopPast, isStopAhead, roadAhead, stopIsDue, type RoadStop \} from "\.\/road";/.test(read("lib/stopRecord.ts")));
+    ok("day said once: the drop heading, the route rows, the pack label and the inbox all use lib/dates",
+      /dayWithDate\(dropISO\)/.test(code(read("components/DropOps.tsx"))) && /dayWithDate\(new Date\(next\.starts_at/.test(lc)
+        && /nearDay\(p\.drop_date\)/.test(code(read("components/MyPacks.tsx"))) && /nearDay\(iso\) \|\| iso/.test(code(read("components/MemberInbox.tsx"))));
+    // The bug class itself, wherever it would come back: a relative word glued to a date by hand.
+    const glued = [];
+    (function walk(d) {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const f = path.join(d, e.name);
+        if (e.isDirectory()) { if (!/node_modules|\.next|\.smoke|\.git/.test(f)) walk(f); }
+        else if (/\.tsx?$/.test(e.name) && !/lib\/dates\.ts$/.test(f) && /relativeDay\([^)]*\)\}\s*·\s*\$\{/.test(code(fs.readFileSync(f, "utf8")))) glued.push(path.relative(root, f));
+      }
+    })(root);
+    ok("day said once: nobody glues relativeDay to a date by hand any more", glued.length === 0, glued);
+
+    const shell = code(read("components/AppShell.tsx"));
+    const css = read("app/globals.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    ok("chrome: the crew nav's landmark IS the nav — the app column's child, the same shape as the customer nav",
+      /<nav className="nav opnav" aria-label="Section navigation">/.test(read("components/OperatorNav.tsx")) && /<nav className="nav" aria-label="Primary">/.test(read("components/BottomNav.tsx")));
+    ok("chrome: the floating tier rides one dock — quick actions, the theme toggle, the offline chip, the update prompt",
+      /<div className="fab-dock">\s*\{inAdmin && <QuickDock \/>\}\s*\{inAdmin && <button type="button" className="theme-toggle"[\s\S]*?\{inAdmin && <OfflineChip \/>\}\s*<ServiceWorkerRegister \/>\s*<\/div>/.test(shell)
+        && (shell.match(/<QuickDock \/>/g) || []).length === 1 && (shell.match(/<ServiceWorkerRegister \/>/g) || []).length === 1);
+    ok("chrome: no guessed nav height left in the stylesheet", !/var\(--navh/.test(css) && !/76px \+ 78px/.test(css));
+    ok("chrome: the dock sits after the page and before the docked rail and the nav",
+      /\.fab-dock\{order:4;position:relative;flex:0 0 auto;height:0\}/.test(css) && /\.nav\{order:10;/.test(css) && /\.rail:not\(\.rail-folded\)\{position:static;order:5;/.test(css));
+    ok("chrome: the folded handle adds the phone's own inset instead of guessing it", /calc\(\$\{bottom\}px \+ env\(safe-area-inset-bottom, 0px\)\)/.test(read("components/FloatRail.tsx")));
+    ok("chrome: the pickup card's accent is its own edge, not a rule beside it", /\.dops\.zone-pickup > \.mpanel\{border-left:3px solid var\(--gold2\)\}/.test(css) && !/\.dops\.zone-pickup\{/.test(css));
+  }
+}
+
 // ── errorMessage (lib/errorMessage.ts): the one place a thrown value becomes a string ──────────
 {
   const { errorMessage } = require("../.smoke/errorMessage.js");

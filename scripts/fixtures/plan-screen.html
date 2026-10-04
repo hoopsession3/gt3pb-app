@@ -173,7 +173,7 @@
 </div>
 
 <!-- FloatRail, expanded (FloatRail.tsx) with its three tabs -->
-<div class="rail" style="bottom:170px" data-from="components/FloatRail.tsx">
+<div class="rail" style="bottom:calc(170px + env(safe-area-inset-bottom, 0px))" data-from="components/FloatRail.tsx">
   <div class="rail-head"><button type="button" class="rail-grip">≡</button><button type="button" class="rail-fold">›</button></div>
   <button type="button" class="rdg-fab" data-from="components/DisplayToggle.tsx"><span class="rdg-aa"><span class="rdg-a">A</span><span class="rdg-a">A</span></span><span class="rail-txt"><b>Display</b><i>Text size · contrast</i></span></button>
   <button type="button" class="rdg-fab ec-toggle" data-from="components/EditModeToggle.tsx"><span class="rail-txt"><b>Edit copy</b><i>Click text on the page</i></span></button>

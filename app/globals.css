@@ -182,8 +182,10 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
     box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 9px #050505,0 0 0 11px #1c1a16}
   /* On desktop/iPad the app is a centered frame — pin the floating chrome (direct children of
      .app) to THE FRAME instead of the viewport, so the FAB + toggles don't scatter to the
-     screen corners. .app is position:relative, so absolute anchors to it. */
-  .app > .qd-fab,.app > .theme-toggle,.app > .rdg,.app > .conc-fab,.app > .sw-update{position:absolute}
+     screen corners. .app is position:relative, so absolute anchors to it. The quick-actions
+     button, the theme toggle and the update prompt live in .fab-dock now (2026-10-04) and are
+     absolute against it at every width, so they are no longer listed here. */
+  .app > .rdg,.app > .conc-fab{position:absolute}
   /* keep centered modal sheets within the frame width */
   .prep-sheet,.isheet{max-width:440px}
 }
@@ -539,13 +541,13 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 
 /* Self-update prompt — appears when a new build is ready */
 /* bottom lifts above the FAB tier so fixed chrome never collides (CSS audit pack 2 2026-07) */
-.sw-update{position:fixed;left:12px;right:12px;bottom:calc(76px + 78px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:center;gap:9px;padding:12px 16px;border:none;border-radius:13px;background:#15110d;border:1px solid var(--gold2);color:var(--gold2);font-family:'Inter';font-weight:650;font-size:13px;cursor:pointer;z-index:70;box-shadow:0 10px 30px rgba(0,0,0,.5);-webkit-appearance:none;appearance:none}
+.sw-update{position:absolute;left:44px;right:44px;bottom:82px;display:flex;align-items:center;justify-content:center;gap:9px;padding:12px 16px;border:none;border-radius:13px;background:#15110d;border:1px solid var(--gold2);color:var(--gold2);font-family:'Inter';font-weight:650;font-size:13px;cursor:pointer;z-index:70;box-shadow:0 10px 30px rgba(0,0,0,.5);-webkit-appearance:none;appearance:none}
 .sw-update-dot{width:8px;height:8px;border-radius:50%;background:var(--gold2);box-shadow:0 0 0 4px rgba(184,144,47,.2)}
 .nav{order:10;/* last in the column even when the expanded rail joins the flow on a phone (see THE RAIL ON A PHONE) */flex:0 0 auto;display:flex;background:rgba(15,14,11,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:9px 6px calc(10px + env(safe-area-inset-bottom));z-index:30}
 /* Keyboard up (iOS): Safari pans the page so its input-accessory bar lands where the nav sits —
    tabs + float rail ghost through the OS chrome. Both are untappable mid-typing; visibility (not
    display) keeps the flex column's height stable under the pan. AppShell toggles html.kb-open. */
-html.kb-open .nav,html.kb-open .rail{visibility:hidden}
+html.kb-open .nav,html.kb-open .rail,html.kb-open .fab-dock{visibility:hidden}
 /* THE NAV THAT MOVED UNDER YOUR THUMB (components/BottomNav.tsx): both identity tabs are always in
    the DOM — Today for a member, Join for a guest — and <html data-viewer>, set before first paint
    by app/layout.tsx, picks one. No attribute (no Supabase, or no script) is the member shape. */
@@ -1413,6 +1415,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 
 /* Employee Mode — operator console (distinct from the customer shell) */
 .opnav{border-top:1px solid var(--gold2)}
+.opnav-tabs{display:flex;flex:1;min-width:0}   /* the tablist inside nav.nav.opnav (components/OperatorNav.tsx, 2026-10-04) */
 .opnav .tab.on{color:var(--gold2)}
 /* Top pad dropped 2px→0 (2026-07-16, ground-up redesign): pulls the title flush up against
    .toprow so the two read as one header zone instead of two stacked bands. */
@@ -2575,7 +2578,7 @@ h5.pr-h{font-size:12.5px;color:var(--cream-d)}
 .subnav-tab.on{background:color-mix(in srgb, var(--brand-gold) 14%, transparent);border-color:var(--gold2);color:var(--gold2)}
 
 /* ── QuickDock — floating Ask + Note launcher ── */
-.qd-fab{position:fixed;right:16px;bottom:calc(var(--navh,68px) + 16px);z-index:60;width:54px;height:54px;border-radius:50%;border:none;background:var(--gold);color:#1a1610;font-size:22px;font-weight:700;box-shadow:0 8px 22px rgba(0,0,0,.35);cursor:pointer;-webkit-appearance:none;appearance:none;display:flex;align-items:center;justify-content:center}
+.qd-fab{position:absolute;right:16px;bottom:16px;z-index:60;width:54px;height:54px;border-radius:50%;border:none;background:var(--gold);color:#1a1610;font-size:22px;font-weight:700;box-shadow:0 8px 22px rgba(0,0,0,.35);cursor:pointer;-webkit-appearance:none;appearance:none;display:flex;align-items:center;justify-content:center}
 .qd-fab.open{background:var(--card);color:var(--cream);border:1px solid var(--line)}
 /* Sheets are centered pop-ups that blur the screen behind, so nothing in the page (nav, FAB,
    calendar) reads through or competes with them. Bottom padding tracks the keyboard so the
@@ -3118,7 +3121,7 @@ h5.pr-h{font-size:12.5px;color:var(--cream-d)}
 /* warn is a BACKGROUND in two spots — dark ink loses on the day-deepened amber */
 .app.crew-day :is(.am-flag,.driver-stop.issue .driver-seq){color:var(--card)}
 
-.theme-toggle{position:fixed;left:16px;bottom:calc(var(--navh,68px) + 16px);z-index:60;width:46px;height:46px;border-radius:50%;border:1px solid var(--line2);background:var(--card);color:var(--cream);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(0,0,0,.22);-webkit-appearance:none;appearance:none}
+.theme-toggle{position:absolute;left:16px;bottom:16px;z-index:60;width:46px;height:46px;border-radius:50%;border:1px solid var(--line2);background:var(--card);color:var(--cream);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(0,0,0,.22);-webkit-appearance:none;appearance:none}
 
 /* ── Readability controls (global Aa toggle) — prefixed rdg* to avoid the .disp (dispatch) class ── */
 /* accessibility control — docked to the left edge, tucked, with a slow raise-in; slides fully out
@@ -3126,6 +3129,18 @@ h5.pr-h{font-size:12.5px;color:var(--cream-d)}
 /* THE RAIL — every floating tab lives on ONE right-edge rail (FloatRail): movable (drag the ≡
    grip, position persists), collapsible (fold to a slim ‹ handle, persists), and insightful when
    expanded (each tab = icon + what it does). Left edge stays clear for crew swipe-back. */
+/* ── THE FLOATING TIER SITS ON THE CHROME, NOT ON A NUMBER (2026-10-04) ──────────────────────────
+   Every floating button was position:fixed at `calc(var(--navh, 68px) + 16px)`, and --navh was
+   never set by anything. The crew nav measures 87px before an iPhone's home-indicator inset and
+   121px with it, and the docked rail can sit under it, so the theme toggle and the quick-actions
+   button landed on the Today and More tabs (components/AppShell.tsx has the measurements).
+   The dock is a zero-height row of the .app column, ordered after the page and the cart bar (0)
+   and before the docked rail (5) and the nav (10). Its children are absolute against it: the
+   buttons sit 16px above its top edge, which IS the top of the chrome, whatever that measures —
+   and the update prompt and offline chip sit above them (16 + 54 + 12 = 82px). No number to keep
+   in step with the nav, because there is no number. scripts/design.ratchet.mjs paints it at 390px
+   with and without the inset, rail docked and folded. */
+.fab-dock{order:4;position:relative;flex:0 0 auto;height:0}
 .rail{position:fixed;right:0;z-index:62;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
 /* A floating rail must never paint over an open popout (the Review Desk bug: Connect/Display panels
    landed on top of the sheet + its APPROVE button). Whenever any sheet/scrim is mounted, fold the
@@ -5085,7 +5100,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .crumbs .crumb-lk:hover{text-decoration:underline}
 .crumbs span[aria-current="page"]{color:var(--cream)}
 /* Offline chip — connectivity truth for the crew console. Amber = offline (writes queuing); green = back online, queue draining. Hidden entirely when online + empty. */
-.offchip{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + 78px + env(safe-area-inset-bottom));max-width:calc(100vw - 24px);z-index:86;display:flex;align-items:center;gap:8px;background:#33250f;border:1px solid var(--warn);color:var(--cream);border-radius:var(--r-pill);padding:8px 14px;font-family:'Inter';font-size:12.5px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.45);white-space:nowrap}
+.offchip{position:absolute;left:50%;transform:translateX(-50%);bottom:82px;max-width:calc(100vw - 24px);z-index:86;display:flex;align-items:center;gap:8px;background:#33250f;border:1px solid var(--warn);color:var(--cream);border-radius:var(--r-pill);padding:8px 14px;font-family:'Inter';font-size:12.5px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.45);white-space:nowrap}
 .offchip b{color:var(--warn);font-weight:800;letter-spacing:.04em;text-transform:uppercase;font-size:11px}
 .offchip.on{background:#13230f;border-color:var(--ok)}
 .offchip-dot{width:8px;height:8px;border-radius:50%;background:var(--warn);animation:offpulse 1.6s ease-in-out infinite;flex:0 0 auto}
@@ -5905,9 +5920,11 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .mypack-car{color:var(--cream-d);font-size:11px}
 .mypack.open .mypack-row{margin-bottom:7px}
 
-/* ops zones — pickup vs delivery are different rooms */
-.dops.zone-pickup{border-left:3px solid var(--gold2);padding-left:13px}
-.dops.zone-delivery{border-left:3px solid var(--ok);padding-left:13px}
+/* ops zones — pickup vs delivery are different rooms. The accent is the CARD's own left edge: it
+   was a rule beside the card, from before the drop block became a card, which indented the card
+   16px off every sibling on Live Ops and drew a box around the box (2026-10-04 screenshot). */
+.dops.zone-pickup > .mpanel{border-left:3px solid var(--gold2)}
+.dops.zone-delivery > .mpanel{border-left:3px solid var(--ok)}
 .zone-delivery .dops-kick{color:var(--ok)}
 
 /* stop editor: open/ends time row */

@@ -17,6 +17,7 @@ import { marketsPresent, rowInMarket, shouldOfferMarketChoice, MARKET_LABEL } fr
 import { useViewerMarket } from "@/components/useViewerMarket";
 import { useAvailability } from "@/lib/availability";
 import { localToday, relativeDay, fmt12, clockTime } from "@/lib/dates";
+import { isStopAhead } from "@/lib/road";
 import { clickable } from "@/lib/a11y";
 import type { LiveStatus, EventRow } from "@/lib/db";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -130,17 +131,19 @@ async function fetchRoad(): Promise<Board> {
   if (e2) throw new Error(e2.message);
   const lstat = l as LiveStatus | null;
   const liveId = lstat?.is_live ? lstat.current_stop_id : null;
-  const nowT = Date.now();
   // the road AHEAD: hide completed/past (8h grace for stops through their evening; events
   // stay through their whole day) — the live stop always shows. Publish gate (0270): RLS already
   // hides unpublished events from guests; this mirrors it client-side so a STAFF preview of Find Us
   // shows exactly what a guest sees. Stops are always public; an event needs published_at.
+  // A stop's half of that is lib/stopRecord's isStopAhead — the same rule the crew's Live truck
+  // instrument reads, so "next stop" cannot mean one thing to a guest and another to the crew
+  // (2026-10-04: this page said "Nothing scheduled yet" while the instrument offered Go live).
   const ops = ((fo as FieldOp[]) ?? [])
     .filter((r) => (r.kind === "stop" || r.published_at))
     .map((r) => (r.public_title ? { ...r, name: r.public_title } : r))   // guest-facing name wins on the public road
-    .filter((r) => r.status !== "done" && !r.completed_at
-      && (r.id === liveId
-        || (r.kind === "stop" ? (!r.starts_at || new Date(r.starts_at).getTime() > nowT - 8 * 3600 * 1000) : true)))
+    .filter((r) => r.kind === "stop"
+      ? isStopAhead(r, liveId)
+      : r.status !== "done" && !r.completed_at)
     .sort((a, b) => sortKey(a) - sortKey(b));
   return { ops, live: lstat };
 }
