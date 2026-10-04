@@ -4861,7 +4861,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("door: proxy.ts is matched on \"/\" exactly and nothing else", /export const config = \{ matcher: "\/" \};/.test(code(proxy)));
   ok("door: …it redirects only a cookie that says guest, to /truck, temporarily (307)", /\.value === "guest"\)/.test(code(proxy)) && /url\.pathname = "\/truck";/.test(code(proxy)) && /NextResponse\.redirect\(url, 307\)/.test(code(proxy)) && !/"member"/.test(code(proxy)));
   ok("door: …and passes everything else through untouched", /return NextResponse\.next\(\);/.test(code(proxy)) && (code(proxy).match(/NextResponse\.(redirect|rewrite)\(/g) || []).length === 1);
-  ok("door: …reading the cookie by the one name lib/viewerHint.ts owns", /import \{ VIEWER_COOKIE \} from "@\/lib\/viewerHint";/.test(proxy) && /cookies\.get\(VIEWER_COOKIE\)/.test(code(proxy)) && /export const VIEWER_COOKIE = "gt3-viewer";/.test(hint));
+  ok("door: …reading the cookie by the one name lib/viewerHint.ts owns", /import \{ VIEWER_COOKIE, DOOR_COOKIE, DOOR_MAX_AGE_S \} from "@\/lib\/viewerHint";/.test(proxy) && /cookies\.get\(VIEWER_COOKIE\)/.test(code(proxy)) && /export const VIEWER_COOKIE = "gt3-viewer";/.test(hint));
   ok("door: the cookie is written by one function, as a hint for a year, never HttpOnly (the browser writes it)", /export function writeViewerHint\(signedIn: boolean\)/.test(hint) && /max-age=31536000; samesite=lax/.test(hint) && !/httponly/i.test(hint));
   ok("door: AuthProvider writes it on the cold session read AND on every change — a stale hint never outlives the next answer", /getSession\(\)[\s\S]*?writeViewerHint\(!!data\.session\?\.user\)/.test(code(auth)) && /onAuthStateChange\(\(event, session\) => \{\s*const u = session\?\.user \?\? null;\s*setUser\(u\);\s*writeViewerHint\(!!u\);/.test(code(auth)));
   ok("door: the slow way stays — app/page.tsx still sends a guest to /truck itself", /router\.replace\("\/truck"\)/.test(code(read("app/page.tsx"))));
@@ -5760,6 +5760,270 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const ok = await completeTask\(/.test(mine) && /if \(!ok\) \{ toast\(/.test(mine));
   ok("one place: the painted My Day has no top three, and its team list leads with them",
     !/dayhead-top/.test(read("scripts/fixtures/my-day.html")) && /<div class="owed-head sub">/.test(read("scripts/fixtures/my-day.html")));
+}
+
+// ── THE CUSTOMER SIDE: ONE ORDERING RULE, AND A PRE-ORDER SAYS WHEN (2026-10-04, 0343) ────────────
+// The fourth of Ryan's four. "Can I order a cup?" had three answers — the phone's (the city's
+// switch, the stop's own lead), the server's (the singleton, the global lead) and Find Us' (none:
+// PRE-ORDER with nothing scheduled) — and nobody answered "made when?": a 7am order for an 11am stop
+// read "Ready in ~8 min" and aged red on the pass from 7. lib/ordering is the rule, lib/orderingRead
+// the read, both sides call both. These pin the rule, its words, the crew's clock, the write across
+// the 0343 skew, and that every surface asks it.
+{
+  const O = require("../.smoke/ordering.js");
+  const DT2 = require("../.smoke/dates.js");
+  const OA2 = require("../.smoke/orderAhead.js");
+  const SK = require("../.smoke/deploySkew.js");
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+
+  const H = 3600e3, M = 60e3;
+  const T = Date.parse("2026-10-10T15:00:00Z");                 // Sat Oct 10, 11:00am ET
+  const iso = (ms) => new Date(ms).toISOString();
+  const stop = (id, s, e, lead = 4 * H, extra = {}) => ({ id, name: `Stop ${id}`, starts_at: iso(s), ends_at: e == null ? null : iso(e), where: "Five Forks", leadMs: lead, pickup: false, ...extra });
+  const A = stop("A", T, T + 4 * H);                            // 11:00–3:00
+  const B = stop("B", T + 6 * H, T + 9 * H);                    // 5:00–8:00, same day
+  const at = (now, live, stops, ptr = null) => O.orderingNow(now, live, stops, ptr);
+  const st = (o) => `${o.state}/${o.open}/${o.stop ? o.stop.id : "-"}`;
+
+  // ── the states ──
+  ok("ordering: nothing scheduled and not live is none — closed, no stop", st(at(T, false, [])) === "none/false/-");
+  ok("ordering: the truck live with nothing scheduled is still a truck pouring", st(at(T, true, [])) === "live/true/-");
+  ok("ordering: before the lead window it is early, and says when cups open (start − lead)",
+    st(at(T - 5 * H, false, [A])) === "early/false/A" && at(T - 5 * H, false, [A]).opensAt === iso(T - 4 * H));
+  ok("ordering: inside the lead window it is ahead — open, made from the stop's start",
+    st(at(T - 4 * H, false, [A])) === "ahead/true/A" && at(T - H, false, [A]).readyFrom === A.starts_at);
+  ok("ordering: a stop under way with the switch not flipped is started — open, made now",
+    st(at(T + H, false, [A])) === "started/true/A" && at(T + H, false, [A]).readyFrom === null);
+  ok("ordering: live at the stop is live — made now", st(at(T + H, true, [A], "A")) === "live/true/A" && at(T + H, true, [A], "A").readyFrom === null);
+  ok("ordering: the switch flipped early, before the start, is live (not ahead) — the crew is pouring",
+    st(at(T - 30 * M, true, [A], "A")) === "live/true/A" && at(T - 30 * M, true, [A], "A").readyFrom === null);
+
+  // ── the hour before close: FindUs' rule, everywhere now ──
+  ok("ordering: online orders stop AT close − 1h (FindUs' `now < end − 60 min`), live or not",
+    st(at(T + 3 * H, true, [A], "A")) === "closing/false/A" && st(at(T + 3 * H - 1, true, [A], "A")) === "live/true/A"
+    && st(at(T + 3.5 * H, false, [A])) === "closing/false/A");
+  ok("ordering: a stop shorter than the hour still takes orders up to its start",
+    st(at(T - 10 * M, false, [stop("S", T, T + 30 * M)])) === "ahead/true/S" && st(at(T + 5 * M, false, [stop("S", T, T + 30 * M)])) === "closing/false/S");
+  ok("ordering: winding down while the next stop's window is open sends new orders to the next stop, made from its start",
+    st(at(T + 3.5 * H, false, [A, B])) === "ahead/true/B" && st(at(T + 3.5 * H, true, [A, B], "A")) === "ahead/true/B"
+    && at(T + 3.5 * H, true, [A, B], "A").readyFrom === B.starts_at);
+  ok("ordering: …and is closing when the next one's window has not opened", st(at(T + 3.5 * H, false, [A, stop("C", T + 9 * H, null)])) === "closing/false/A");
+  ok("ordering: a live switch left on past the stop's close time is not a truck pouring",
+    st(at(T + 5 * H, true, [A], "A")) === "none/false/-" && st(at(T + 5 * H, true, [A, B], "A")) === "ahead/true/B");
+  ok("ordering: …but with no close time the switch is the crew's word, as on Find Us",
+    at(T + 9 * H, true, [stop("N", T, null)], "N").state === "live");
+  ok("ordering: with no close time the grace is lib/road's 8 hours, inclusive",
+    st(at(T + 8 * H, false, [stop("N", T, null)])) === "started/true/N" && st(at(T + 8 * H + 1, false, [stop("N", T, null)])) === "none/false/-"
+    && O.PREORDER_TAIL_MS === require("../.smoke/road.js").STOP_DONE_GRACE_MS);
+  ok("ordering: lead 0 is strict live-only — closed before and during, with no opening time to quote",
+    st(at(T - H, false, [stop("Z", T, null, 0)])) === "early/false/Z" && st(at(T + H, false, [stop("Z", T, null, 0)])) === "early/false/Z"
+    && at(T - H, false, [stop("Z", T, null, 0)]).opensAt === null && st(at(T + H, true, [stop("Z", T, null, 0)], "Z")) === "live/true/Z");
+  ok("ordering: a stop's own lead widens its window (0191) — the case the server used to refuse at Pay",
+    st(at(T - 20 * H, false, [stop("L", T, null, 24 * H)])) === "ahead/true/L" && st(at(T - 20 * H, false, [stop("L", T, null)])) === "early/false/L");
+  ok("ordering: a pointer to another city's stop is not trusted — where the truck is comes from this city's road",
+    st(at(T + H, true, [A], "elsewhere")) === "live/true/A");
+  ok("ordering: an unparseable start is skipped, never a stop", st(at(T, false, [{ ...A, starts_at: "not a date" }])) === "none/false/-");
+
+  // ── the per-stop lead and the place, from a stops row ──
+  const row = { id: "r", name: " Market ", starts_at: A.starts_at, ends_at: null, location_text: "", address: "1 Main St", order_ahead_enabled: true, order_ahead_lead_min: 90, pickup_enabled: true };
+  ok("ordering: a row's own lead (on, minutes) wins; off, or no minutes, is the city's",
+    O.orderingStop(row, 4 * H).leadMs === 90 * M && O.orderingStop({ ...row, order_ahead_enabled: false }, 4 * H).leadMs === 4 * H
+    && O.orderingStop({ ...row, order_ahead_lead_min: null }, 4 * H).leadMs === 4 * H && O.orderingStop({ ...row, order_ahead_lead_min: 0 }, 4 * H).leadMs === 0);
+  ok("ordering: the place is location_text, else the address; the name trimmed; no start, no stop",
+    O.orderingStop(row, H).where === "1 Main St" && O.orderingStop({ ...row, location_text: "Five Forks" }, H).where === "Five Forks"
+    && O.orderingStop(row, H).name === "Market" && O.orderingStop({ ...row, starts_at: null }, H) === null && O.orderingStop(row, H).pickup === true);
+
+  // ── the words — server and phone say them from here ──
+  ok("words: early names the opening, in ET, with the stop; named:false leaves the name to Find Us' headline",
+    O.closedWords(at(T - 5 * H, false, [A]), { nowMs: T - 5 * H }) === "Cup orders open today at 7:00am for Stop A."
+    && O.closedWords(at(T - 5 * H, false, [A]), { nowMs: T - 5 * H, named: false }) === "Cup orders open today at 7:00am.");
+  ok("words: strict, nothing scheduled, and the open states",
+    O.closedWords(at(T - H, false, [stop("Z", T, null, 0)])) === "Cup orders open when the truck goes live."
+    && O.closedWords(at(T, false, [])) === "Cup orders open when the next stop is posted." && O.closedWords(at(T + H, true, [A], "A")) === null);
+  ok("words: closing is the owner's copy when a screen passes it, the default on the server",
+    O.closedWords(at(T + 3.5 * H, false, [A]), { closing: "Owner words." }) === "Owner words."
+    && /^Online ordering’s closed for today/.test(O.closedWords(at(T + 3.5 * H, false, [A]))));
+  ok("words: ahead is made-when, live is the ~8 minutes it always was",
+    O.readyWords(at(T - H, false, [A]), T - H) === "We make it when we open — today at 11:00am." && O.readyWords(at(T + H, true, [A], "A")) === "Ready in ~8 min.");
+  ok("words: the confirmation keeps its made-now lines byte for byte; an order placed ahead says when",
+    O.confirmWords(null, true) === "Ready in ~8 min — we'll have it waiting at the window." && O.confirmWords(null, false) === "Ready in ~8 min — pay at the truck when you arrive."
+    && O.confirmWords(A.starts_at, false, T - 20 * H) === "We make it when we open — tomorrow at 11:00am. Pay at the truck when you arrive.");
+  ok("words: the server's refusal is the page's words plus the pack — except while still pouring",
+    O.refusalWords(at(T - 5 * H, false, [A]), T - 5 * H) === "Cup orders open today at 7:00am for Stop A. Reserve a pack instead."
+    && !/Reserve a pack/.test(O.refusalWords(at(T + 3.5 * H, false, [A]))));
+  ok("words: pickup is the stop and its place, or the truck when it is live off-schedule; open words only ahead",
+    O.pickupWords(at(T + H, true, [A], "A")) === "Stop A · Five Forks" && O.pickupWords(at(T, true, [])) === "At the truck"
+    && O.pickupWords({ stop: { ...A, where: "Five Forks Plaza, Simpsonville, SC 29681" } }) === "Stop A · Five Forks Plaza, Simpsonville, SC"
+    && O.openWords(at(T + H, true, [A], "A")) === null && O.openWords(at(T - H, false, [A]), T - H) === "Order now — we make it when we open, today at 11:00am.");
+  ok("etWhen: today, tomorrow, a weekday inside the week, the date from a week out",
+    DT2.etWhen(iso(T), T - H) === "today at 11:00am" && DT2.etWhen(iso(T), T - 20 * H) === "tomorrow at 11:00am"
+    && DT2.etWhen(iso(T), T - 3 * 24 * H) === "Sat at 11:00am" && DT2.etWhen(iso(T), T - 8 * 24 * H) === "Sat, Oct 10 at 11:00am" && DT2.etWhen(null) === "");
+  ok("etWhen: the business day, not UTC's — 11pm ET Friday is still Friday",
+    DT2.etWhen("2026-10-10T03:00:00Z", Date.parse("2026-10-09T16:00:00Z")) === "today at 11:00pm", DT2.etWhen("2026-10-10T03:00:00Z", Date.parse("2026-10-09T16:00:00Z")));
+
+  // ── the crew's clock ──
+  const placed = { created_at: iso(T - 4 * H), ready_from: A.starts_at };
+  ok("pass clock: an order placed ahead is aged from its stop's opening, not from when it came in",
+    O.orderClockFrom(placed) === A.starts_at && O.orderClockFrom({ created_at: iso(T) }) === iso(T)
+    && O.orderClockFrom({ created_at: iso(T), ready_from: iso(T - H) }) === iso(T));
+  ok("pass clock: it waits until then, and its badge says for when",
+    O.waitingToOpen(placed, T - H) && !O.waitingToOpen(placed, T) && !O.waitingToOpen({ created_at: iso(T) }, T)
+    && O.waitingLabel(A.starts_at, T - H) === "for 11:00am" && O.waitingLabel(A.starts_at, T - 20 * H) === "for tomorrow at 11:00am");
+
+  // ── the pack line quotes the drop /api/reserve offers ──
+  const now = new Date(T - 2 * 24 * H);
+  ok("packs: nothing scheduled is the Saturday cadence (nextDrop), as /api/reserve falls back",
+    OA2.packDropFrom([], now).sat.getTime() === OA2.nextDrop(now).sat.getTime());
+  ok("packs: the first upcoming stop whose cutoff is still ahead — not the stop under way",
+    OA2.packDropFrom([iso(T - 3 * 24 * H), A.starts_at], now).sat.toISOString() === A.starts_at
+    && OA2.packDropFrom([iso(now.getTime() + 2 * H), A.starts_at], now).sat.toISOString() === A.starts_at);
+  ok("packs: every scheduled cutoff gone is no date to quote — not a 'reserve by' in the past",
+    OA2.packDropFrom([iso(now.getTime() + 2 * H)], now) === null);
+
+  // ── the write across the 0343 skew ──
+  ok("schema skew: PostgREST's write-side refusal (PGRST204, or its sentence) is a missing column too",
+    SK.isMissingColumn({ code: "PGRST204", message: "x" }) && SK.isMissingColumn({ message: "Could not find the 'ready_from' column of 'orders' in the schema cache" })
+    && !SK.isMissingColumn({ code: "PGRST205", message: "Could not find the table 'public.orders' in the schema cache" }));
+  PENDING.push((async () => {
+    const run = async (answers, row, arriving) => {
+      const seen = [];
+      const r = await SK.writeAcrossSkew(async (x) => { seen.push(Object.keys(x).sort().join(",")); return { error: answers[seen.length - 1] ?? null }; }, row, arriving);
+      return { ...r, seen };
+    };
+    const miss = { code: "PGRST204", message: "Could not find the 'ready_from' column of 'orders' in the schema cache" };
+    const a = await run([null], { items: 1, ready_from: "t" }, ["ready_from"]);
+    ok("write skew: a schema that has the column writes once", a.seen.length === 1 && a.error === null && a.dropped.length === 0, a);
+    const b = await run([miss, null], { items: 1, ready_from: "t" }, ["ready_from"]);
+    ok("write skew: a schema one migration behind writes again without the arriving key — and says it dropped it",
+      b.seen.join("|") === "items,ready_from|items" && b.error === null && b.dropped.join() === "ready_from", b);
+    const c = await run([{ code: "23505", message: "duplicate key" }], { items: 1, ready_from: "t" }, ["ready_from"]);
+    ok("write skew: any other error comes back untouched, no second write", c.seen.length === 1 && c.error.code === "23505", c);
+    const d = await run([miss], { items: 1 }, ["ready_from"]);
+    ok("write skew: a missing column it was not told about is not forgiven", d.seen.length === 1 && d.error === miss, d);
+  })());
+
+  // ── every surface asks the rule ──
+  const hook = code(read("components/useOrderingOpen.ts")), api = code(read("app/api/checkout/route.ts"));
+  const fu = code(read("components/FindUs.tsx")), menu = code(read("app/menu/page.tsx")), sheet = code(read("components/DrinkSheet.tsx"));
+  const co = code(read("components/Checkout.tsx")), bar = code(read("components/OrderStatus.tsx")), crew = code(read("app/crew/page.tsx"));
+  ok("one rule: the phone and the server read with lib/orderingRead and decide with lib/ordering",
+    /readOrdering\(supabase!, market\)/.test(hook) && /orderingNow\(now, inputs\.isLive, inputs\.stops, inputs\.liveStopId\)/.test(hook)
+    && /readOrdering\(supabaseAdmin, toMarket\(/.test(api) && /orderingNow\(nowMs, read\.inputs\.isLive, read\.inputs\.stops, read\.inputs\.liveStopId\)/.test(api));
+  ok("one rule: no second copy — the server no longer reads the singleton's switch or calls preorderWindow",
+    !/preorderWindow\(/.test(api) && !/preorderWindow\(/.test(hook) && !/select\("is_live, preorder_lead_h"\)\.maybeSingle\(\)/.test(api)
+    && !/ORDERS_CLOSE_BEFORE/.test(fu) && /export const ORDERS_CLOSE_BEFORE_END_MS = 60 \* 60 \* 1000;/.test(read("lib/ordering.ts")));
+  ok("one rule: the read takes the city's switch, the live pointer and the stop's own lead, and a stops error is an error",
+    /from\("market_live"\)\.select\("is_live, preorder_lead_h"\)\.eq\("market", market\)/.test(read("lib/orderingRead.ts"))
+    && /select\("is_live, preorder_lead_h, current_stop_id"\)/.test(read("lib/orderingRead.ts"))
+    && /order_ahead_enabled, order_ahead_lead_min, pickup_enabled/.test(read("lib/orderingRead.ts"))
+    && /if \(road\.error\) return \{ inputs: null, error: road\.error\.message \};/.test(read("lib/orderingRead.ts")));
+  ok("server: it refuses in the page's words, and a failed read refuses rather than charging",
+    /if \(!ordering\.open\) return NextResponse\.json\(\{ error: refusalWords\(ordering, nowMs\) \}, \{ status: 409 \}\);/.test(api)
+    && /if \(!read\.inputs\) \{\s*return NextResponse\.json\(\{ error: "We couldn't check the truck's schedule/.test(api));
+  ok("server: every order row goes through the skew-safe write, with ready_from only when placed ahead",
+    !/\.from\("orders"\)\.insert\(orderRow\)/.test(api) && (api.match(/await insertOrder\(orderRow\)/g) || []).length === 3
+    && /writeAcrossSkew\(\(r\) => supabaseAdmin!\.from\("orders"\)\.insert\(r\), promise\.readyFrom \? \{ \.\.\.row, ready_from: promise\.readyFrom \} : row, \["ready_from"\]\)/.test(api));
+  ok("server: the email says the promise, and every success answers with it",
+    (api.match(/message: `GT3: your order is in\. \$\{promise\.ready\} \$\{promise\.pickup\}\./g) || []).length === 2 && !/ready in ~8 min/.test(api)
+    && (api.match(/\.\.\.promise \}/g) || []).length >= 4);
+  ok("Find Us: asks the rule; with nothing to pre-order the button is the menu and the line says when cups open",
+    /useOrderingOpen\(true, viewerMarket, `\$\{live\?\.is_live/.test(fu) && /\}, \[active, market, refreshKey\]\);/.test(hook) && /t\(ordering && !ordering\.open \? "findus\.cta_menu" : "findus\.cta_preorder"\)/.test(fu)
+    && /closedWords\(ordering, \{ named: false \}\)/.test(fu) && /ordering\?\.state === "closing"/.test(fu)
+    && /\.fu-state\{min-height:1\.45em/.test(read("app/globals.css")));
+  ok("Find Us: the live row's Pre-order chip follows the same rule", /rowLive && ordering\?\.open !== false && <button/.test(fu));
+  ok("menu: closed, the order line is the truck's state, the price is a price and the hint says what a tap does",
+    /const closed = o !== null && !o\.open;/.test(menu) && /entry-px\$\{out \? "" : closed \? " shut" : " order"\}/.test(menu) && /\.entry-px\.shut\{border:1px solid transparent;padding:3px 10px\}/.test(read("app/globals.css"))
+    && /className="mast-order mast-state" role="status"/.test(menu) && /k="menu\.taphint_closed"/.test(menu)
+    && /closedWords\(o, \{ closing: t\("findus\.cta_closed"\) \}\) : openWords\(o\)/.test(menu));
+  ok("drink sheet: says when cups open (not the stop's start), quotes the reservable drop, and knows closing from closed",
+    /closedWords\(o, \{ closing: t\("findus\.cta_closed"\) \}\)/.test(sheet) && /packDropFrom\(ordering\.stops\.map/.test(sheet)
+    && !/toLocaleString\(undefined, \{ weekday: "short", hour/.test(sheet) && /o\?\.state === "closing" \? t\("sheet\.closing_cta"\) : t\("sheet\.closed_cta"\)/.test(sheet)
+    && /o\?\.state === "ahead"\s*\? <div className="sheet-signoff">\{readyWords\(o\)\}<\/div>/.test(sheet));
+  ok("checkout: where and when before the money; the confirmation and its receipt say the server's promise",
+    /<b>\{pickupWords\(o\)\}<\/b>/.test(co) && /<span className="co-pickup-when">\{readyWords\(o\)\}/.test(co)
+    && /sub=\{confirmWords\(done\.readyFrom, done\.paid\)\}/.test(co) && /\{ label: "Pickup", value: done\.pickup \}/.test(co)
+    && !/Ready in ~8 min/.test(co.replace(/"Ready in ~8 min\."/g, "")) && /closedWords\(o, \{ closing: t\("findus\.cta_closed"\) \}\)/.test(co));
+  ok("checkout: a refused pre-order shows the server's reason, not a generic retry",
+    /toast\(error\.message \|\| "That didn't go through — give it another tap", "error"\)/.test(co));
+  ok("order bar: an order placed ahead says when it is made, not 'Order received' for hours",
+    /o\.status === "new" && o\.ready_from && waitingToOpen\(o\)\s*\? readyWords\(\{ state: "ahead", readyFrom: o\.ready_from \}\)/.test(bar));
+  ok("the pass: late counts only tickets whose clock has started, aged from orderClockFrom, badged until then",
+    /o\.status !== "ready" && !waitingToOpen\(o\) && ageMin\(orderClockFrom\(o\)\) >= 8/.test(crew)
+    && /const sev = waiting \? "calm" : ageSev\(ageMin\(orderClockFrom\(o\)\)\);/.test(crew) && /waitingLabel\(o\.ready_from\)/.test(crew)
+    && !/ageMin\(o\.created_at\)/.test(crew));
+  ok("copy: the three new keys are registered with their defaults",
+    /key: "findus\.cta_menu"[^}]*default: "SEE THE MENU"/.test(read("lib/copy.ts")) && /key: "sheet\.closing_cta"/.test(read("lib/copy.ts")) && /key: "menu\.taphint_closed"/.test(read("lib/copy.ts")));
+
+  // ── the QR and the splash ──
+  const conn = read("lib/connect.ts"), disp = code(read("app/display/page.tsx")), splash = code(read("components/MarketingSplash.tsx"));
+  const proxy = code(read("proxy.ts")), home = code(read("app/page.tsx")), hint = read("lib/viewerHint.ts");
+  ok("QR: the truck screen's Scan to order opens the menu, not the front door",
+    /export const SCAN_TO_ORDER = `\$\{CONNECT_APP\}\/menu`;/.test(conn) && /QRCode\.toDataURL\(SCAN_TO_ORDER,/.test(disp) && !/QRCode\.toDataURL\(CONNECT_APP,/.test(disp));
+  ok("splash: /truck is the front door only when the hop from '/' said so — no door set, asked after auth",
+    !/FRONT_DOORS/.test(splash) && /if \(pathname === "\/truck" && !cameThroughFrontDoor\(\)\) return;/.test(splash)
+    && splash.indexOf("cameThroughFrontDoor()") > splash.indexOf("if (!ready || user) return;"));
+  ok("splash: the mark is cleared when the welcome SHOWS, beside its seven-day stamp — a first visit reloads /truck once, and a mark read away by the first document was gone for the second",
+    /localStorage\.setItem\(SEEN_KEY, String\(Date\.now\(\)\)\);[^\n]*\n\s*clearFrontDoor\(\);\n\s*setShow\(true\);/.test(splash) && !/takeFrontDoor/.test(splash + hint));
+  ok("splash: both hops mark it — proxy.ts on its redirect, app/page.tsx before its own",
+    /res\.cookies\.set\(DOOR_COOKIE, "1", \{ path: "\/", maxAge: DOOR_MAX_AGE_S, sameSite: "lax" \}\);/.test(proxy)
+    && /\{ markFrontDoor\(\); router\.replace\("\/truck"\); \}/.test(home));
+  const swr = code(read("components/ServiceWorkerRegister.tsx"));
+  ok("first visit: the service worker's first claim does not reload the page — only a worker replacing a worker does",
+    /let hadController = !!navigator\.serviceWorker\.controller;/.test(swr) && /if \(!hadController\) \{ hadController = true; return; \}/.test(swr)
+    && swr.indexOf("if (!hadController)") < swr.indexOf("window.location.reload()") && /self\.clients\.claim\(\)/.test(read("public/sw.js")));
+  ok("splash: the mark is a two-minute cookie that grants nothing",
+    /export const DOOR_COOKIE = "gt3-door";/.test(hint) && /export const DOOR_MAX_AGE_S = 120;/.test(hint)
+    && /document\.cookie = `\$\{DOOR_COOKIE\}=; path=\/; max-age=0; samesite=lax`;/.test(hint) && !/httponly/i.test(hint));
+}
+
+// ── WORDS THE COMPILER GLUES TOGETHER (2026-10-04) ───────────────────────────────────────────────
+// Checkout's pay-at-the-truck note read "This is a pre-order— we'll have it ready" on the screen,
+// with a space in the source. Next's compiler (SWC) drops the leading space of a JSX text child that
+// holds an HTML entity and runs onto the next line — reproduced on four samples: " — we&apos;ll
+// have it.⏎" lost it; the same line without the entity kept it, as did the entity on one line. Three
+// lines on production had the shape (checkout's note, the crew roster's CRM link, the operator
+// deal's interim hours), and a fourth had plain JSX's own trap: a line break right after </b> is no
+// space at all ("+ Add productwith its Apliiq ID"). Each now says {" "} where it means a space; this
+// reads every .tsx so the next one fails here, not on a phone.
+{
+  const ts = require("typescript");
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const root = path.join(__dirname, "..");
+  const files = [];
+  const walk = (d) => { for (const f of fs.readdirSync(d, { withFileTypes: true })) { if (f.name === "node_modules" || f.name.startsWith(".")) continue; const p = path.join(d, f.name); if (f.isDirectory()) walk(p); else if (p.endsWith(".tsx")) files.push(p); } };
+  walk(path.join(root, "components")); walk(path.join(root, "app"));
+  const INLINE = new Set(["b", "em", "strong", "i", "a", "code", "Link"]);
+  const glued = (src, file) => {
+    const out = [];
+    const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const visit = (node) => {
+      if (ts.isJsxElement(node) || ts.isJsxFragment(node)) {
+        const kids = node.children;
+        for (let i = 1; i < kids.length; i++) {
+          const k = kids[i], prev = kids[i - 1];
+          if (!ts.isJsxText(k) || !(ts.isJsxElement(prev) || ts.isJsxSelfClosingElement(prev) || ts.isJsxExpression(prev))) continue;
+          const raw = src.slice(k.pos, k.end), line = sf.getLineAndCharacterOfPosition(k.pos).line + 1;
+          if (/^[ \t]+\S/.test(raw) && /\n/.test(raw) && /&[a-zA-Z#0-9]+;/.test(raw)) out.push(`${path.relative(root, file)}:${line} "${raw.trim().slice(0, 40)}"`);
+          const tag = ts.isJsxElement(prev) ? prev.openingElement.tagName.getText(sf) : "";
+          if (/^\r?\n[ \t]*[A-Za-z0-9(]/.test(raw) && INLINE.has(tag)) out.push(`${path.relative(root, file)}:${line} after </${tag}> "${raw.trim().slice(0, 40)}"`);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+    return out;
+  };
+  const all = files.flatMap((f) => glued(fs.readFileSync(f, "utf8"), f));
+  ok("jsx spacing: no text that the compiler glues to the element before it, across every .tsx", all.length === 0, all.slice(0, 5));
+  ok("jsx spacing: the check catches both shapes it was written for",
+    glued(`export const A = () => <div>a <b>x</b> — we&apos;ll go.\n  </div>;`, "a.tsx").length === 1
+    && glued(`export const B = () => <div>a <b>x</b>\n  with it</div>;`, "b.tsx").length === 1
+    && glued(`export const C = () => <div>a <b>x</b>{" "}— we&apos;ll go.\n  </div>;`, "c.tsx").length === 0
+    && glued(`export const D = () => <div>a <b>x</b> — we will go.\n  </div>;`, "d.tsx").length === 0);
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

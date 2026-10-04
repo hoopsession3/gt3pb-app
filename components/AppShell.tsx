@@ -12,7 +12,6 @@ import { PromptProvider } from "./PromptSheet";
 import CartBar from "./CartBar";
 import OrderStatus from "./OrderStatus";
 import DrinkSheet from "./DrinkSheet";
-import Checkout from "./Checkout";
 import Toast from "./Toast";
 import Notifications from "./Notifications";
 import ServiceWorkerRegister from "./ServiceWorkerRegister";
@@ -38,6 +37,12 @@ const QuickDock = dynamic(() => import("./QuickDock"));
 const EventCopilot = dynamic(() => import("./EventCopilot"));
 const CommandPalette = dynamic(() => import("./CommandPalette"));
 const SwipeBack = dynamic(() => import("./SwipeBack"));
+// CHECKOUT, WHEN THERE IS SOMETHING TO CHECK OUT (2026-10-04). It rode in every route's first load
+// — the pay sheet, its card form, its receipt, and a fetch of /api/menu on mount — for every guest
+// reading the privacy policy or finding the truck, most of whom never open it. It mounts once the
+// cart has a drink in it (so its code is warm long before the cart bar is tapped) or the moment
+// something opens it, and then stays mounted: its confirmation outlives the cart it clears.
+const Checkout = dynamic(() => import("./Checkout"));
 const ScrollRestore = dynamic(() => import("./ScrollRestore"));
 const OfflineChip = dynamic(() => import("./OfflineChip"));
 const Concierge = dynamic(() => import("./Concierge"));
@@ -61,7 +66,11 @@ const routeTitle = (p: string): string => (p === "/" ? "GT3 Performance Bar" : H
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const bodyRef = useRef<HTMLElement>(null);
-  const { closeDrink } = useApp();
+  const { closeDrink, cartCount, coOpen } = useApp();
+  // Latched during render (React's "adjust state when an input changes"), not in an effect: once
+  // wanted it stays mounted, and an effect would paint one frame without it after the first add.
+  const [checkoutWanted, setCheckoutWanted] = useState(false);
+  if (!checkoutWanted && (cartCount > 0 || coOpen)) setCheckoutWanted(true);
 
   // Mirror the prototype go(): scroll to top + close any open sheet on navigation.
   useEffect(() => {
@@ -162,7 +171,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
         <DrinkSheet />
-        <Checkout />
+        {checkoutWanted && <Checkout />}
         <Toast />
         <Notifications />
         {customerSurface ? <OrderStatus /> : null}

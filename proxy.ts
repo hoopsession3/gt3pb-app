@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { VIEWER_COOKIE } from "@/lib/viewerHint";
+import { VIEWER_COOKIE, DOOR_COOKIE, DOOR_MAX_AGE_S } from "@/lib/viewerHint";
 
 // THE FRONT DOOR (2026-10-03).
 //
@@ -17,6 +17,9 @@ import { VIEWER_COOKIE } from "@/lib/viewerHint";
 // along (a /?ref=… referral still lands in lib/track's hands on /truck; AuthProvider captures it
 // on every route).
 //
+// It also leaves one mark: the two-minute front-door cookie (lib/viewerHint DOOR_COOKIE), so the
+// welcome splash on /truck knows this hop was the front door and a QR sticker is not.
+//
 // What it does NOT do: it never decides for a member (a cookie that says member, or no cookie at
 // all — a first visit, a cleared browser — passes straight through to the page that asks the
 // session, exactly as before), and it grants nothing: the cookie is a hint written by
@@ -29,6 +32,9 @@ export function proxy(req: NextRequest) {
     url.pathname = "/truck";
     const res = NextResponse.redirect(url, 307);
     res.headers.set("cache-control", "private, no-store");
+    // This hop IS the front door, and /truck cannot tell it from a QR sticker or a tab tap without
+    // being told: a two-minute, read-once mark for the welcome splash (lib/viewerHint, 2026-10-04).
+    res.cookies.set(DOOR_COOKIE, "1", { path: "/", maxAge: DOOR_MAX_AGE_S, sameSite: "lax" });
     return res;
   }
   return NextResponse.next();

@@ -106,6 +106,10 @@ export interface Order {
   collected_via?: "cash" | "card_reader" | null;
   collected_at?: string | null;
   collected_by?: string | null;
+  // When the truck said it would make it (0343): null = as soon as it is in; a time = placed ahead
+  // of a stop and made from its start (lib/ordering orderClockFrom / waitingToOpen). Absent before
+  // 0343 is applied, which reads exactly as null.
+  ready_from?: string | null;
 }
 
 export interface BookingRequest {

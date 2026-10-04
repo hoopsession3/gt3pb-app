@@ -120,7 +120,7 @@ export default function MerchManager() {
           </div>
           <div className="h-sub">
             {live} live in /shop · {shown.length} shown{archivedCount > 0 ? ` · ${archivedCount} archived` : ""}.
-            Curate here — set the retail price, pick the hero mockup, publish. To sell a real Apliiq item, <b>+ Add product</b>
+            Curate here — set the retail price, pick the hero mockup, publish. To sell a real Apliiq item, <b>+ Add product</b>{" "}
             with its Apliiq ID and mockup address (right-click the mockup on Apliiq → Copy image address).
           </div>
 

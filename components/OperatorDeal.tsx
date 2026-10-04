@@ -661,7 +661,7 @@ function HoursBlock({ agreementId, covers, basis, extra, canLog, toast, onSaved 
         <span><b>{extra?.days_worked ?? 0}</b> days</span>
         {(extra?.hours_on_interim_work ?? 0) > 0 && (
           <span className="od-hours-interim">
-            <b>{(extra?.hours_on_interim_work ?? 0).toLocaleString()}</b> on interim brewing &amp; driving
+            <b>{(extra?.hours_on_interim_work ?? 0).toLocaleString()}</b>{" "}on interim brewing &amp; driving
           </span>
         )}
       </div>

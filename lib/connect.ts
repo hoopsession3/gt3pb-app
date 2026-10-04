@@ -6,6 +6,11 @@ export interface ConnectGroup { q: string; links: ConnectLink[] }
 
 export const CONNECT_PRIMARY = "https://gt3pb.com"; // the hub's own multi-intent QR (ConnectHub)
 export const CONNECT_APP = "https://app.gt3pb.com"; // the ordering PWA — what a "scan to order" QR must point at
+// Where a "Scan to order" code lands (2026-10-04): the MENU. The truck's screen encoded the bare app
+// address, which is the front door — so a guest at the window who scanned to order got the 17-second
+// "Own your week · Build my pack →" takeover for Sunday delivery first, then the schedule, and was
+// still a tap from the menu. Scan to order opens the place you order.
+export const SCAN_TO_ORDER = `${CONNECT_APP}/menu`;
 
 export const CONNECT_GROUPS: ConnectGroup[] = [
   // Internal routes are RELATIVE ("/reserve") so the hub navigates in-app (clean) instead of opening

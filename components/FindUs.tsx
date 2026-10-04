@@ -15,6 +15,8 @@ import { supabase } from "@/lib/supabase";
 import { useSiteCopy } from "@/lib/copy";
 import { marketsPresent, rowInMarket, shouldOfferMarketChoice, MARKET_LABEL } from "@/lib/markets";
 import { useViewerMarket } from "@/components/useViewerMarket";
+import { useOrderingOpen } from "@/components/useOrderingOpen";
+import { closedWords, readyWords } from "@/lib/ordering";
 import { useAvailability } from "@/lib/availability";
 import { localToday, relativeDay, fmt12, clockTime } from "@/lib/dates";
 import { isStopAhead } from "@/lib/road";
@@ -205,12 +207,12 @@ export default function FindUs() {
   // A stop can carry a close time (stops.ends_at). Two automatic wind-downs hang off it, so the
   // operator never has to remember to flip anything at the end of service:
   //   • online pre-ordering closes 60 min before that close time (stop taking orders you can't fill
-  //     before packing up), and
-  //   • the truck stops reading "Live" 45 min before it.
+  //     before packing up) — lib/ordering's rule now (2026-10-04), because it was true ONLY on this
+  //     page: the menu, checkout and /api/checkout went on taking orders through the last hour; and
+  //   • the truck stops reading "Live" 45 min before it — this page's own display rule.
   // Ordering closes FIRST, then the truck goes offline — never the reverse. No close time set →
   // neither fires (the manual is_live flag stands and ordering stays open). Both are computed at
-  // render (re-evaluated on the 20s poll), so no cron has to write a flag on the tick.
-  const ORDERS_CLOSE_BEFORE_MS = 60 * 60_000;
+  // render (re-evaluated on the poll), so no cron has to write a flag on the tick.
   const LIVE_OFF_BEFORE_MS = 45 * 60_000;
   const nowMs = Date.now();
   // MARKET (0279) — the audit's step 02. This road used to be every public stop everywhere, sorted
@@ -227,7 +229,11 @@ export default function FindUs() {
   const liveStop = live?.is_live ? roadOps.find((r) => r.id === live.current_stop_id) : undefined;
   const liveEndsMs = liveStop?.ends_at ? new Date(liveStop.ends_at).getTime() : null;
   const isLive = Boolean(live?.is_live) && (liveEndsMs == null || nowMs < liveEndsMs - LIVE_OFF_BEFORE_MS);
-  const ordersOpen = liveEndsMs == null || nowMs < liveEndsMs - ORDERS_CLOSE_BEFORE_MS;
+  // CAN A CUP BE ORDERED — the rule the menu, the drink sheet, checkout and the server ask
+  // (lib/ordering). This page used to ask nothing: "PRE-ORDER · SKIP THE LINE" with no stop on the
+  // schedule, into a menu whose every drink said the truck was closed. Until the read lands it
+  // claims nothing either way (the button it always had, an empty line under it).
+  const ordering = useOrderingOpen(true, viewerMarket, `${live?.is_live ?? ""}|${live?.current_stop_id ?? ""}|${roadOps.map((r) => `${r.id}${r.starts_at ?? ""}${r.ends_at ?? ""}`).join()}`).ordering;
   // past events fold below (stops age out of the query window instead)
   const upcoming = roadOps.filter((r) => r.kind === "stop" || !r.day || r.day >= today);
   const past = roadOps.filter((r) => r.kind === "event" && r.day && r.day < today);
@@ -337,12 +343,16 @@ export default function FindUs() {
         )}
       </div>
 
-      {/* ONE red action per screen: pre-order when the truck is the story. Auto-closes 60 min before
-          the live stop's end time (ordersOpen) — past that, we say so instead of taking an order the
-          truck can't fill before it packs up. */}
-      {ordersOpen
-        ? <button type="button" className="btn-pri k-cta" onClick={() => router.push("/menu")}>{t("findus.cta_preorder")}</button>
-        : <EditableCopy k="findus.cta_closed" value={t("findus.cta_closed")} as="p" className="k-sub" style={{ marginTop: 4 }} multiline />}
+      {/* ONE red action per screen. While cups can be ordered it is the pre-order; with nothing to
+          pre-order it says what it does — the menu — and the line under it says when cups open. In
+          the stop's last hour, ordering online is over and we say so instead (lib/ordering). The
+          line is always there, one line tall, so the answer arriving moves nothing on the page. */}
+      {ordering?.state === "closing"
+        ? <EditableCopy k="findus.cta_closed" value={t("findus.cta_closed")} as="p" className="k-sub" style={{ marginTop: 4 }} multiline />
+        : <>
+            <button type="button" className="btn-pri k-cta" onClick={() => router.push("/menu")}>{t(ordering && !ordering.open ? "findus.cta_menu" : "findus.cta_preorder")}</button>
+            <p className="k-sub fu-state" role="status">{ordering ? (ordering.open ? readyWords(ordering) : closedWords(ordering, { named: false })) : " "}</p>
+          </>}
 
       {/* Quiet chip row — never a second red CTA. Get directions is the hero's one-tap "take me
           there": native turn-by-turn off the pin when the stop is geocoded, else a maps handoff on
@@ -397,12 +407,13 @@ export default function FindUs() {
                           </div>
                         )}
                         <p>{(r.notes ?? r.note) ?? <EditableCopy k="truck.stop_note" value={t("truck.stop_note")} as="span" />}</p>
-                        {rowLive && <button type="button" className="k-chip pri" onClick={() => router.push("/menu")}>{t("findus.preorder")}</button>}
+                        {/* the same rule as the red button: no Pre-order chip in the live stop's last hour */}
+                        {rowLive && ordering?.open !== false && <button type="button" className="k-chip pri" onClick={() => router.push("/menu")}>{t("findus.preorder")}</button>}
                         {/* directions works ungecoded too — coords when pinned, else maps handoff on the address text */}
                         {(r.lat != null && r.lng != null) ? (
-                          <button type="button" className="k-chip k-chip-sec" style={rowLive ? { marginLeft: 8 } : undefined} onClick={() => openDirections(r.lat as number, r.lng as number)}>{t("findus.directions")}</button>
+                          <button type="button" className="k-chip k-chip-sec" style={rowLive && ordering?.open !== false ? { marginLeft: 8 } : undefined} onClick={() => openDirections(r.lat as number, r.lng as number)}>{t("findus.directions")}</button>
                         ) : (r.location_text || r.address) ? (
-                          <button type="button" className="k-chip k-chip-sec" style={rowLive ? { marginLeft: 8 } : undefined} onClick={() => openAddress((r.location_text ?? r.address) as string)}>{t("findus.directions")}</button>
+                          <button type="button" className="k-chip k-chip-sec" style={rowLive && ordering?.open !== false ? { marginLeft: 8 } : undefined} onClick={() => openAddress((r.location_text ?? r.address) as string)}>{t("findus.directions")}</button>
                         ) : null}
                       </div>
                     )}

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>fixture · Checkout › an order placed before the stop opens</title>
+<!--
+  A TEST DOUBLE OF A PRE-ORDER PLACED AHEAD OF A STOP, AND IT SAYS SO (2026-10-04, migration 0343).
+
+  The checkout used to say neither where nor when: an order placed at 7am for an 11am stop read
+  "Pay $10", then "Ready in ~8 min". This is the sheet in lib/ordering's "ahead" state — the pickup
+  block (where, then when it is made) above the money — and under it the confirmation the server's
+  answer fills: "We make it when we open — …", with a Pickup row on the receipt.
+
+  Copied from the DOM components/Checkout.tsx, components/OrderConfirm.tsx and components/Sheet.tsx
+  rendered against a mock backend at phone width (2026-10-04), class for class, styled by the REAL
+  app/globals.css and painted in the real Chromium, day and dark. Every block names its source in
+  `data-from`, and scripts/design.ratchet.mjs FAILS if a class used here no longer appears in that
+  file. The two sheets sit one after the other here; in the app the confirmation replaces the form.
+
+  The floor that matters is the TAP FLOOR, 44px: a guest at the window, a drink in the other hand.
+-->
+<link rel="stylesheet" href="../../app/globals.css">
+<style>html,body{margin:0;background:#F4EFE3}</style>
+</head>
+<body>
+<div class="app" data-from="components/AppShell.tsx">
+  <div class="sheet2-scrim" data-from="components/Sheet.tsx" style="position:static;padding:12px 0 0">
+    <div class="sheet2 paper" data-from="components/Sheet.tsx components/Checkout.tsx" role="dialog" aria-modal="true" aria-labelledby="checkout-title" style="margin:0 auto">
+      <div class="sheet2-grab"></div>
+      <div class="sheet2-head"><div class="oa-kicker" id="checkout-title" data-from="components/Checkout.tsx">Checkout</div></div>
+      <div class="sheet2-body" data-from="components/Sheet.tsx components/Checkout.tsx">
+        <div class="spec-label">Name for pickup</div>
+        <input class="co-name" placeholder="Who's this order for?" maxlength="40" aria-label="Name for pickup" autocomplete="name" value="Ana">
+        <div class="spec-label" style="margin-top:16px">Your pre-order</div>
+        <div class="co-line">
+          <span class="co-qty"><button type="button" class="co-step" aria-label="Remove one RISE">−</button><b>1</b><button type="button" class="co-step" aria-label="Add one RISE">+</button>RISE</span>
+          <span>$10</span>
+        </div>
+        <button type="button" class="co-upsell-line">Bottles for your week? <b>Reserve a Saturday 6-pack — bottles from $7.00, save 30% ›</b></button>
+        <div class="co-pickup">
+          <span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-6.5-5.4-6.5-10a6.5 6.5 0 0 1 13 0c0 4.6-6.5 10-6.5 10z"></path><circle cx="12" cy="10.6" r="2.3"></circle></svg></span> <b>Five Forks Farmers Market · Five Forks Plaza, Simpsonville, SC</b>
+          <span class="co-pickup-when">We make it when we open — Sat at 11:00am. Skip the line at pickup.</span>
+        </div>
+        <div class="co-line co-total"><span>Total</span><span>$10</span></div>
+        <div class="honest" style="margin-top:16px">This is a <b>pre-order</b> — we'll have it ready and you pay at the truck.</div>
+        <button class="handle"><span>Send pre-order</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sheet2-scrim" data-from="components/Sheet.tsx" style="position:static;padding:12px 0 0">
+    <div class="sheet2 paper" data-from="components/Sheet.tsx components/Checkout.tsx" role="dialog" aria-modal="true" aria-label="Checkout — order in" style="margin:0 auto">
+      <div class="sheet2-grab"></div>
+      <div class="sheet2-head"><div class="oa-kicker" data-from="components/Checkout.tsx">Checkout</div></div>
+      <div class="sheet2-body">
+        <div class="dl-step dl-done" data-from="components/OrderConfirm.tsx">
+          <div class="dl-crest"><span><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l5 5L20 6.5"></path></svg></span></span></div>
+          <h2 class="dl-h serif dl-done-h">Order in.</h2>
+          <p class="dl-done-sub">We make it when we open — Sat at 11:00am. Pay at the truck when you arrive.</p>
+          <div class="dl-done-total" data-eyebrow="due at the truck"><span style="font-variant-numeric:tabular-nums">$10</span></div>
+          <div class="dl-receipt">
+            <div class="dl-receipt-row"><span>RISE</span><b>1×</b></div>
+            <div class="dl-receipt-row"><span>For</span><b>Ana</b></div>
+            <div class="dl-receipt-row"><span>Pickup</span><b>Five Forks Farmers Market · Five Forks Plaza, Simpsonville, SC</b></div>
+            <div class="dl-receipt-row"><span>Pay at pickup</span><b>$10</b></div>
+          </div>
+          <button type="button" class="oa-cta" style="margin-top:16px">Reserve a Saturday pack →</button>
+          <button type="button" class="sub-link">Not now</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -79,6 +79,15 @@ export const COLLECT_SHEET = { depth: 3, tap: 44, text: 11.5 };
 // on the call to the county; the limits are what it measured when it was built.
 const RULE_FIXTURE = join(ROOT, "scripts/fixtures/rule-sheet.html");
 export const RULE_SHEET = { depth: 3, tap: 44, text: 10.5 };
+// The checkout, for an order placed before the stop opens (2026-10-04, 0343): the pickup block —
+// where, then when it is made — above the money, and the confirmation the server's answer fills.
+// A guest at the window with a drink in the other hand. Measured when built: depth 4 is a quantity
+// stepper inside its order line and a receipt row inside the receipt (inside the sheet, inside its
+// scrim) — both as checkout and every purchase confirmation have drawn them since July; the pickup
+// block this adds sits at 3. 44 is every control, once "Not now" stopped being a 15px line of text
+// (.sub-link, the same day). 10 is the receipt's labels, at the floor.
+const CHECKOUT_FIXTURE = join(ROOT, "scripts/fixtures/checkout-sheet.html");
+export const CHECKOUT_SHEET = { depth: 4, tap: 44, text: 10 };
 const SHEETS = [
   { name: "brew sheet",     file: BREW_FIXTURE,     rel: "scripts/fixtures/brew-sheet.html",     limits: BREW_SHEET },
   { name: "record sheet",   file: RECORD_FIXTURE,   rel: "scripts/fixtures/record-sheet.html",   limits: RECORD_SHEET },
@@ -87,6 +96,7 @@ const SHEETS = [
   { name: "prep screen",    file: PREP_FIXTURE,     rel: "scripts/fixtures/prep-target.html",    limits: PREP_TARGET },
   { name: "collect sheet",  file: COLLECT_FIXTURE,  rel: "scripts/fixtures/collect-sheet.html",  limits: COLLECT_SHEET },
   { name: "rule sheet",     file: RULE_FIXTURE,     rel: "scripts/fixtures/rule-sheet.html",     limits: RULE_SHEET },
+  { name: "checkout sheet", file: CHECKOUT_FIXTURE, rel: "scripts/fixtures/checkout-sheet.html", limits: CHECKOUT_SHEET },
 ];
 // The crew console's bottom chrome (2026-10-04): the nav, the floating tier, the rail. Not a depth
 // or a tap floor — a COLLISION check, because the defect was a button painted on top of a tab.
@@ -297,30 +307,40 @@ export const PROD_ROUTE = {
 // WHEN pill's three rules: 102 911 → 103 008. a9989be's shared stylesheet sat ONE byte under the
 // 100.5 KB rounding line, so the twenty routes that carry it go 100 → 101; the three on the second
 // stylesheet (105 560 → 105 657) stay at 103.
+// 2026-10-04 (the customer side): every route 3–4 KB lighter. Built 739a67e and this commit and
+// gzipped what each route's HTML references: lib/ordering, lib/orderingRead and the words they say
+// joined the shared chunks (+2 095 bytes on /privacy, 303 303 → 305 398) — and every route went
+// over its ceiling, because the checkout sheet, its card form and its receipt rode in every first
+// load for guests who never open it. components/AppShell now mounts Checkout lazily, once the cart
+// holds a drink or something opens it (the code is warm long before the cart bar is tapped): net
+// −3 627 on /privacy (303 303 → 299 676), −3 032 on /menu, −3 187 on /truck, and one /api/menu read
+// fewer on every page load that never reaches a cart. /menu then took back the half-kilobyte that
+// says its own state — the order line, the hint and the price that know the truck is closed, and the
+// price kept in its pill's box so the answer moves no row: 271 924 bytes, 268 → 266 over the pass.
 export const WEIGHT = {
-  "/truck":                    { js: 284, css: 103, chunks: 15 },
-  "/events":                   { js: 284, css: 103, chunks: 15 },
-  "/menu":                     { js: 268, css: 101, chunks: 15 },
-  "/reserve":                  { js: 291, css: 101, chunks: 16 },
-  "/delivery":                 { js: 290, css: 101, chunks: 16 },
-  "/3mpire":                   { js: 284, css: 101, chunks: 15 },
-  "/craft":                    { js: 268, css: 101, chunks: 15 },
-  "/book":                     { js: 268, css: 101, chunks: 15 },
-  "/academy":                  { js: 317, css: 101, chunks: 15 },
-  "/office":                   { js: 277, css: 101, chunks: 15 },
-  "/scan":                     { js: 260, css: 101, chunks: 14 },
-  "/architecture":             { js: 269, css: 101, chunks: 14 },
-  "/playbook":                 { js: 276, css: 101, chunks: 15 },
-  "/driver":                   { js: 280, css: 103, chunks: 15 },
-  "/agreement":                { js: 267, css: 101, chunks: 14 },
-  "/offer":                    { js: 277, css: 101, chunks: 14 },
-  "/built/gt3-built-k7m9x4q2": { js: 259, css: 101, chunks: 14 },
-  "/display":                  { js: 260, css: 101, chunks: 14 },
-  "/shop":                     { js: 297, css: 101, chunks: 16 },
-  "/primal":                   { js: 269, css: 101, chunks: 15 },
-  "/privacy":                  { js: 258, css: 101, chunks: 13 },
-  "/terms":                    { js: 258, css: 101, chunks: 13 },
-  "/":                         { js: 274, css: 101, chunks: 15 },
+  "/truck":                    { js: 281, css: 103, chunks: 15 },
+  "/events":                   { js: 281, css: 103, chunks: 15 },
+  "/menu":                     { js: 266, css: 101, chunks: 15 },
+  "/reserve":                  { js: 290, css: 101, chunks: 16 },
+  "/delivery":                 { js: 289, css: 101, chunks: 16 },
+  "/3mpire":                   { js: 281, css: 101, chunks: 15 },
+  "/craft":                    { js: 265, css: 101, chunks: 15 },
+  "/book":                     { js: 265, css: 101, chunks: 15 },
+  "/academy":                  { js: 314, css: 101, chunks: 15 },
+  "/office":                   { js: 274, css: 101, chunks: 15 },
+  "/scan":                     { js: 256, css: 101, chunks: 14 },
+  "/architecture":             { js: 266, css: 101, chunks: 14 },
+  "/playbook":                 { js: 273, css: 101, chunks: 15 },
+  "/driver":                   { js: 277, css: 103, chunks: 15 },
+  "/agreement":                { js: 264, css: 101, chunks: 14 },
+  "/offer":                    { js: 273, css: 101, chunks: 14 },
+  "/built/gt3-built-k7m9x4q2": { js: 255, css: 101, chunks: 14 },
+  "/display":                  { js: 256, css: 101, chunks: 14 },
+  "/shop":                     { js: 296, css: 101, chunks: 16 },
+  "/primal":                   { js: 266, css: 101, chunks: 15 },
+  "/privacy":                  { js: 254, css: 101, chunks: 13 },
+  "/terms":                    { js: 254, css: 101, chunks: 13 },
+  "/":                         { js: 271, css: 101, chunks: 15 },
 };
 
 export function weightVerdict(path, w, row = WEIGHT[path]) {
@@ -435,6 +455,10 @@ export function darkWellCounts(css) {
 // Every element inside a `data-from="path"` block must use classes that appear in that file. A
 // class that has been renamed or removed at the source makes the fixture a picture of a screen
 // that no longer exists, and this is where that gets said.
+//
+// An element whose classes come from two files names both, space-separated (2026-10-04): the
+// checkout's sheet is `sheet2 paper` — "sheet2" written by components/Sheet.tsx, "paper" passed in by
+// components/Checkout.tsx. Each class must appear in ONE of the files named; none may appear in none.
 export function fixtureDrift(html, readSrc = (p) => readFileSync(join(ROOT, p), "utf8")) {
   const missing = [];
   const srcCache = new Map();
@@ -450,17 +474,19 @@ export function fixtureDrift(html, readSrc = (p) => readFileSync(join(ROOT, p), 
     const owner = from ? from[1] : (stack.length ? stack[stack.length - 1].from : null);
     const cls = attrs.match(/class="([^"]+)"/);
     if (cls && owner) {
-      const text = src(owner);
+      const owners = owner.split(/\s+/).filter(Boolean);
+      const texts = owners.map((o) => src(o));
+      const lost = owners.filter((_, i) => texts[i] === null);
       for (const c of cls[1].split(/\s+/).filter(Boolean)) {
-        if (text === null) { missing.push(`${c}  ← claimed from ${owner} (file not found)`); continue; }
+        if (lost.length) { missing.push(`${c}  ← claimed from ${lost.join(" ")} (file not found)`); continue; }
         const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         // The class as a token inside a className: bounded by quotes, whitespace, a template's
         // `${` (className={`grp-seg${on ? " on" : ""}`}) or the end. kit.tsx's SectionHeader
         // classes are single letters (.l, .a), so a bare-word search would match anything.
-        const exact = new RegExp(`["'\`\\s]${esc(c)}(["'\`\\s}$]|$)`).test(text);
+        const exact = (text) => new RegExp(`["'\`\\s]${esc(c)}(["'\`\\s}$]|$)`).test(text);
         // A suffix the component computes — `sev-${first.severity}` — is declared by its prefix.
-        const dynamic = c.split("-").slice(0, -1).some((_, i) => text.includes(`${c.split("-").slice(0, i + 1).join("-")}-\${`));
-        if (!exact && !dynamic) missing.push(`${c}  ← claimed from ${owner}`);
+        const dynamic = (text) => c.split("-").slice(0, -1).some((_, i) => text.includes(`${c.split("-").slice(0, i + 1).join("-")}-\${`));
+        if (!texts.some((t) => exact(t) || dynamic(t))) missing.push(`${c}  ← claimed from ${owner}`);
       }
     }
     if (!voidTag && !attrs.endsWith("/")) stack.push({ tag, from: owner });

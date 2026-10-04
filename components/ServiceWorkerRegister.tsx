@@ -36,9 +36,19 @@ export default function ServiceWorkerRegister() {
     const onFocus = () => reg?.update().catch(() => {});
     window.addEventListener("focus", onFocus);
 
-    // When the new worker takes control, reload once to pull the fresh assets.
+    // When a NEW worker takes control, reload once to pull the fresh assets.
+    //
+    // Not on the first one (2026-10-04). public/sw.js claims open pages when it activates, and on a
+    // first visit there is no worker yet, so it activates at once and the claim fires
+    // controllerchange here too — which reloaded every guest's first page half a second in. Traced
+    // on the customer side: "/" → /truck → a second document of /truck, the menu reloading under the
+    // thumb of someone who had just scanned the truck's code. The page a first visit has IS the
+    // current build; there is nothing fresher to pull. Only a worker replacing a worker reloads —
+    // the update this was written for, the same line the install prompt above already draws.
     let refreshing = false;
+    let hadController = !!navigator.serviceWorker.controller;
     const onControllerChange = () => {
+      if (!hadController) { hadController = true; return; }
       if (refreshing) return;
       refreshing = true;
       window.location.reload();

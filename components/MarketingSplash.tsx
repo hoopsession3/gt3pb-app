@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "./AuthProvider";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useSiteCopy } from "@/lib/copy";
+import { cameThroughFrontDoor, clearFrontDoor } from "@/lib/viewerHint";
 
 // MARKETING SPLASH — the sales word-art the app opens to for guests. Fixed premium copy ("Own your
 // week."), so it ships with NO database dependency and shows the moment we deploy. Always closeable
@@ -17,7 +18,11 @@ import { useSiteCopy } from "@/lib/copy";
 // after a tap, for someone scanning the menu at the truck, a B2B customer on /office, a candidate
 // opening /offer, and signed-in members who already know the brand. The dissolve stays exactly as
 // built. What changed is the gate:
-//   · only the front door — "/" and "/truck" — never a QR or menu arrival, never a portal;
+//   · only the front door — "/", or /truck when the redirect from "/" marked it so (2026-10-04,
+//     lib/viewerHint cameThroughFrontDoor). /truck on its own was a door too, and so was every way onto
+//     it: the truck screen's "Scan to order" code (which encoded the bare address), a QR sticker,
+//     the Find Us tab tapped by someone who came in through the menu. Never a QR or menu
+//     arrival, never a portal;
 //   · once per DEVICE per 7 days (localStorage), not once per tab;
 //   · never for a signed-in member.
 // The 7-day mark is written only when the splash actually shows, same reason as before: an early
@@ -32,7 +37,6 @@ import { useSiteCopy } from "@/lib/copy";
 
 const SEEN_KEY = "gt3-splash-seen-at";          // epoch ms of the last showing on this device
 const SEEN_EVERY_MS = 7 * 24 * 60 * 60 * 1000;    // once a week
-const FRONT_DOORS = new Set(["/", "/truck"]);
 // The session flag the UI smoke sets to measure a page rather than the splash; honoured as "seen".
 const LEGACY_SESSION_KEY = "gt3-splash-shown";
 
@@ -69,8 +73,10 @@ export default function MarketingSplash() {
     // when the splash ACTUALLY shows (below), never at schedule time: AuthProvider resolving can
     // remount this subtree within the first frames, and a mark set up-front would suppress the
     // splash before anyone saw it (the old "never opens" bug, now a week long).
-    if (!FRONT_DOORS.has(pathname)) return;
+    if (pathname !== "/" && pathname !== "/truck") return;
     if (!ready || user) return;                       // a member knows the brand; wait for auth to say
+    // /truck is the front door only when the hop from "/" said so (cleared below, when it shows).
+    if (pathname === "/truck" && !cameThroughFrontDoor()) return;
     try {
       if (sessionStorage.getItem(LEGACY_SESSION_KEY)) return;
       const at = Number(localStorage.getItem(SEEN_KEY));
@@ -98,6 +104,7 @@ export default function MarketingSplash() {
     const t = setTimeout(() => {
       if (cancelled) return;
       try { localStorage.setItem(SEEN_KEY, String(Date.now())); } catch { /* */ }
+      clearFrontDoor();
       setShow(true);
     }, 350);
     timers.current.push(t);

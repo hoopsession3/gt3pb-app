@@ -7,7 +7,8 @@ import { useAvailability } from "@/lib/availability";
 import { useViewerMarket } from "@/components/useViewerMarket";
 import { useOrderingOpen } from "./useOrderingOpen";
 import { DRINKS } from "@/lib/menu";
-import { dropForStop, nextDrop } from "@/lib/orderAhead";
+import { packDropFrom } from "@/lib/orderAhead";
+import { closedWords, readyWords } from "@/lib/ordering";
 import { useSiteCopy, fillCopy } from "@/lib/copy";
 import Sheet from "@/components/Sheet";
 import EditableCopy from "@/components/EditableCopy";
@@ -30,14 +31,16 @@ export default function DrinkSheet() {
   // add button routes to the pack reserve instead (same rule as checkout + /api/checkout).
   const { market: viewerMarket } = useViewerMarket();
   const ordering = useOrderingOpen(!!openId, viewerMarket);
+  const o = ordering.ordering;
   // Packs are a SEPARATE product from cup pre-orders and were never gated by the truck's live
   // status — that part of the old copy ("brewed to order anytime") was true. What wasn't true: a
   // real cutoff always exists (lib/orderAhead — 24h before the next stop, or the weekly Wed-6pm
-  // fallback), it just wasn't being shown. Same drop-resolution order as OrderFunnel.tsx: a
-  // scheduled stop's own cutoff first, nextDrop()'s rolling weekly cutoff otherwise.
-  const packsDrop = ordering.nextAt ? dropForStop(ordering.nextAt) : nextDrop();
+  // fallback), it just wasn't being shown. The drop is lib/orderAhead.packDropFrom's — the choice
+  // /api/reserve offers (2026-10-04: this quoted the cup window's stop, which during a stop is the
+  // one under way, so "reserve by" was a time already gone). No open drop → no dates to quote.
+  const packsDrop = packDropFrom(ordering.stops.map((s) => s.starts_at));
   const packsDay = (d: Date) => d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-  const packsCutoffLine = fillCopy(t("menu.packs_cutoff"), { cutoff: packsDay(packsDrop.cutoff), pickup: packsDay(packsDrop.sat) });
+  const packsCutoffLine = packsDrop ? fillCopy(t("menu.packs_cutoff"), { cutoff: packsDay(packsDrop.cutoff), pickup: packsDay(packsDrop.sat) }) : null;
   const d = openId ? DRINKS[openId] : null;
   const on = openId ? isInCart(openId) : false;
   const out = openId ? soldOut.has(openId) : false;
@@ -99,11 +102,15 @@ export default function DrinkSheet() {
 
           {!ordering.open && !on ? (
             <>
+              {/* Closing is not closed: the truck is still pouring for the line, just not online. */}
               <button className="order-bar" onClick={() => { closeDrink(); router.push("/reserve"); }}>
-                {t("sheet.closed_cta")}
+                {o?.state === "closing" ? t("sheet.closing_cta") : t("sheet.closed_cta")}
               </button>
+              {/* When cups open, said by lib/ordering — it used to print the STOP's start ("Cup orders
+                  open closer to the next stop — Sat 11:00 AM"), which read as the opening time and was
+                  four hours late. */}
               <div className="sheet-signoff">
-                Cup orders open {ordering.nextAt ? <>closer to the next stop — <b>{new Date(ordering.nextAt).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}{ordering.nextName ? ` · ${ordering.nextName}` : ""}</b></> : "when the truck goes live"}. <EditableCopy k="menu.packs_cutoff" value={t("menu.packs_cutoff")} displayValue={packsCutoffLine} multiline />
+                {o && closedWords(o, { closing: t("findus.cta_closed") })}{packsCutoffLine && <> <EditableCopy k="menu.packs_cutoff" value={t("menu.packs_cutoff")} displayValue={packsCutoffLine} multiline /></>}
               </div>
             </>
           ) : (
@@ -111,7 +118,10 @@ export default function DrinkSheet() {
               <button className={`order-bar${out && !on ? " order-bar-86" : ""}`} disabled={out && !on} onClick={() => { if (out && !on) { toast("Sold out today — back on the next brew", "error"); return; } if (!on) toast("Added — keep building your order"); bump(openId); closeDrink(); }}>
                 {on ? t("sheet.remove") : out ? t("sheet.soldout") : t("sheet.add")}
               </button>
-              <EditableCopy k="sheet.made_moment" value={t("sheet.made_moment")} as="div" className="sheet-signoff" />
+              {/* Ordered ahead of a stop it is made when the truck opens — not "the moment you order". */}
+              {o?.state === "ahead"
+                ? <div className="sheet-signoff">{readyWords(o)}</div>
+                : <EditableCopy k="sheet.made_moment" value={t("sheet.made_moment")} as="div" className="sheet-signoff" />}
             </>
           )}
         </>

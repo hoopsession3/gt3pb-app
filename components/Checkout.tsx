@@ -11,6 +11,8 @@ import { useAvailability } from "@/lib/availability";
 import { perBottle, PRICING } from "@/lib/orderAhead";
 import { useViewerMarket } from "@/components/useViewerMarket";
 import { useOrderingOpen } from "./useOrderingOpen";
+import { closedWords, confirmWords, pickupWords, readyWords } from "@/lib/ordering";
+import { useSiteCopy } from "@/lib/copy";
 import { usePayAtPickup } from "./usePayAtPickup";
 import { squareClientReady } from "@/lib/square";
 import { money } from "@/lib/money";
@@ -28,7 +30,9 @@ export default function Checkout() {
   // The confirmation moment — same shape as pickup/delivery's OrderConfirm. Lines/name are captured
   // at success time because checkout() clears the cart right after (lines would otherwise read empty
   // by the time the confirm screen renders).
-  const [done, setDone] = useState<{ paid: boolean; total: number; lines: [DrinkId, number][]; name: string; warn?: string; ref?: string } | null>(null);
+  // readyFrom/pickup are the SERVER's promise (/api/checkout answers with what it recorded), so the
+  // screen says what the order says — not what this sheet last read, which can be a minute old.
+  const [done, setDone] = useState<{ paid: boolean; total: number; lines: [DrinkId, number][]; name: string; warn?: string; ref?: string; readyFrom: string | null; pickup: string } | null>(null);
   useEffect(() => { if (!open) setDone(null); else trackFunnel("order", "open"); }, [open]);
   const { user, profile } = useAuth();
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -49,11 +53,18 @@ export default function Checkout() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  // "Ready in ~8 min" is only true when there's a truck to make it. One shared rule
-  // (useOrderingOpen → lib/orderAhead.preorderWindow, operator-adjustable lead, also enforced in
-  // /api/checkout): outside the window the sheet offers the pack reserve instead.
+  // "Ready in ~8 min" is only true when there's a truck to make it. One shared rule (useOrderingOpen
+  // → lib/ordering, on the read /api/checkout makes too): outside the window the sheet offers the
+  // pack reserve instead, and inside it the sheet says where to pick up and when it will be made.
   const { market: viewerMarket } = useViewerMarket();
   const ordering = useOrderingOpen(open, viewerMarket);
+  const o = ordering.ordering;
+  const t = useSiteCopy();
+  // Before the first read lands nothing is claimed; the server's answer fills the confirmation.
+  const promised = (data: { readyFrom?: string | null; pickup?: string } | null) => ({
+    readyFrom: data && "readyFrom" in data ? data.readyFrom ?? null : o?.readyFrom ?? null,
+    pickup: data?.pickup ?? (o ? pickupWords(o) : "At the truck"),
+  });
   // Operator's pay-later switch (Money section). Governs whether the "pay at the truck" pre-order
   // path is offered — on its own when Square is off, or alongside the card when Square is on.
   const payLater = usePayAtPickup(open);
@@ -111,7 +122,7 @@ export default function Checkout() {
   // Pre-orders (pay at the truck) go through /api/checkout now too (no sourceId = pay-at-pickup) —
   // same availability + ordering-window checks the paid path always had, instead of inserting
   // directly from the client. `orders` no longer has a client write door at all.
-  const recordPreOrder = async (): Promise<{ error: { message: string } | null }> => {
+  const recordPreOrder = async (): Promise<{ error: { message: string } | null; data?: { readyFrom?: string | null; pickup?: string } }> => {
     try {
       const res = await authedFetch("/api/checkout", {
         method: "POST",
@@ -120,7 +131,7 @@ export default function Checkout() {
       });
       const data = await res.json();
       if (!res.ok) return { error: { message: data?.error || "That didn't go through — try again." } };
-      return { error: null };
+      return { error: null, data };
     } catch {
       return { error: { message: "We're offline right now — try again in a moment." } };
     }
@@ -137,13 +148,16 @@ export default function Checkout() {
     if (items.length === 0) return;
     setBusy(true);
     await enableAlerts();
-    const { error } = await recordPreOrder();
-    if (error) { toast("That didn't go through — give it another tap", "error"); setBusy(false); return; }
+    const { error, data } = await recordPreOrder();
+    // The server's own words when it refused (the truck closed between the read and the tap — it
+    // says when it opens); the generic retry only when there are none.
+    if (error) { toast(error.message || "That didn't go through — give it another tap", "error"); setBusy(false); return; }
     const capturedLines = [...lines], capturedName = customer, capturedTotal = totalCents;
+    const p = promised(data ?? null);
     trackFunnel("order", "pickup");
-    toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ready in ~8 min`);
+    toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ${p.readyFrom ? "made when we open" : "ready in ~8 min"}`);
     checkout({ silentToast: true }); // clears cart — this toast already fired above
-    setDone({ paid: false, total: capturedTotal, lines: capturedLines, name: capturedName });
+    setDone({ paid: false, total: capturedTotal, lines: capturedLines, name: capturedName, ...p });
     setBusy(false);
   };
 
@@ -172,14 +186,15 @@ export default function Checkout() {
       if (!res.ok) { setErr(payErrorText(data.error)); return; }
       trackFunnel("order", "paid");
       const capturedLines = [...lines], capturedName = customer;
-      toast(data.warn || `Paid ${total} — order in. Ready in ~8 min.`);
+      const p = promised(data);
+      toast(data.warn || `Paid ${total} — order in. ${p.readyFrom ? readyWords({ state: "ahead", readyFrom: p.readyFrom }) : "Ready in ~8 min."}`);
       checkout({ silentToast: true }); // clears cart — this toast already fired above
       // data.warn/data.ref carry the "charged but not yet recorded" fallback (server alerted the
       // crew and generated a reference code) — capture them into `done` so the PERSISTENT confirm
       // screen shows it, not just a toast that auto-dismisses in a few seconds. Previously this was
       // dropped entirely: the toast above never even rendered (React batches it with checkout()'s own
       // toast and only the last one shows), and `done` had nowhere to put it even if it had.
-      setDone({ paid: true, total: grandCents, lines: capturedLines, name: capturedName, warn: data.warn, ref: data.ref });
+      setDone({ paid: true, total: grandCents, lines: capturedLines, name: capturedName, warn: data.warn, ref: data.ref, ...p });
     } catch {
       setBusy(false);
       // We can't tell whether the card was captured before the connection dropped, but the idempotency
@@ -194,13 +209,14 @@ export default function Checkout() {
       {done ? (
         <OrderConfirm
           title="Order in."
-          sub={done.paid ? "Ready in ~8 min — we'll have it waiting at the window." : "Ready in ~8 min — pay at the truck when you arrive."}
+          sub={confirmWords(done.readyFrom, done.paid)}
           totalCents={done.total}
           totalLabel={done.paid ? "paid" : "due at the truck"}
           warn={done.warn}
           rows={[
             ...done.lines.map(([id, q]) => ({ label: DRINKS[id].n, value: `${q}×` })),
             { label: "For", value: done.name },
+            { label: "Pickup", value: done.pickup },
             ...(done.ref ? [{ label: "Ref", value: `#${done.ref}` }] : []),
             { label: done.paid ? "Paid" : "Pay at pickup", value: money(done.total) },
           ]}
@@ -247,17 +263,19 @@ export default function Checkout() {
                 </button>
               )}
 
-              {ordering.open && ordering.pickup && (
-                <div className="co-pickup"><Icon name="package" /> Order-ahead pickup available{ordering.nextName ? ` at ${ordering.nextName}` : ""} — skip the line, we&apos;ll have it ready.</div>
+              {/* WHERE AND WHEN, before the money (2026-10-04). The sheet said neither: an order placed
+                  at 7am for an 11am stop read "Pay $10" here and "Ready in ~8 min" after it. */}
+              {o?.open && (
+                <div className="co-pickup">
+                  <Icon name="pin" /> <b>{pickupWords(o)}</b>
+                  <span className="co-pickup-when">{readyWords(o)}{o.stop?.pickup ? " Skip the line at pickup." : ""}</span>
+                </div>
               )}
 
               {!ordering.open ? (
                 <div className="co-closed">
-                  <div className="co-closed-t"><Icon name="coffee" /> The truck isn&apos;t pouring right now</div>
-                  <p className="co-closed-s">
-                    Cup pre-orders open <b>closer to service</b> — that&apos;s how &ldquo;ready in ~8 minutes&rdquo; stays true.
-                    {ordering.nextAt ? <> Next stop: <b>{new Date(ordering.nextAt).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}{ordering.nextName ? ` · ${ordering.nextName}` : ""}</b>.</> : <> Nothing&apos;s on the schedule yet — check the truck page for the next stop.</>}
-                  </p>
+                  <div className="co-closed-t"><Icon name="coffee" /> The truck isn&apos;t taking online orders right now</div>
+                  {o && <p className="co-closed-s">{closedWords(o, { closing: t("findus.cta_closed") })}</p>}
                   <p className="co-closed-s">Want it locked in anyway? A <b>pack reserve</b> is brewed to your order and waiting at the next drop.</p>
                   <button type="button" className="handle" onClick={() => { onClose(); router.push("/reserve"); }}><span>Reserve a pack instead</span></button>
                   <div className="signoff">Your cart stays right here for when we&apos;re pouring.</div>
@@ -299,7 +317,7 @@ export default function Checkout() {
                   {blocked86.length > 0 && <div className="co-86">{blocked86.join(" · ")} just sold out — remove {blocked86.length === 1 ? "it" : "them"} with the − button to continue.</div>}
                   <div className="co-line co-total"><span>Total</span><span>{money(totalCents)}</span></div>
                   <div className="honest" style={{ marginTop: 16 }}>
-                    This is a <b>pre-order</b> — we&apos;ll have it ready and you pay at the truck.
+                    This is a <b>pre-order</b>{" "}— we&apos;ll have it ready and you pay at the truck.
                   </div>
                   <button className="handle" onClick={sendPreOrder} disabled={busy || !customer || items.length === 0 || blocked86.length > 0}>
                     <span>{busy ? "Sending…" : blocked86.length > 0 ? "Remove sold-out items" : "Send pre-order"}</span>

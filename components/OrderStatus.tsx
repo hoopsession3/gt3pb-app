@@ -11,6 +11,7 @@ import { snapshotUsable } from "@/lib/offline";
 import Icon from "@/components/Icon";
 import { useConfirm } from "./ConfirmSheet";
 import { isSettled } from "@/lib/settled";
+import { readyWords, waitingToOpen } from "@/lib/ordering";
 
 // A live "your order" banner for signed-in members — preparing → ready in realtime,
 // no push permission required (RLS lets a member read only their own orders). Guests
@@ -77,6 +78,10 @@ export default function OrderStatus() {
   const o = [...orders].sort((a, b) => (RANK[b.status] - RANK[a.status]) || (a.created_at < b.created_at ? 1 : -1))[0];
   const items = o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ");
   const paid = isSettled(o);
+  // Placed ahead of a stop (0343): "Order received" for hours read as "any minute now". It says when.
+  const label = o.status === "new" && o.ready_from && waitingToOpen(o)
+    ? readyWords({ state: "ahead", readyFrom: o.ready_from })
+    : STATUS_LABEL[o.status] ?? "Your order";
 
   // Customer → pass quick replies ("I'm on the way / outside / running late"). One tap writes
   // eta_status via the definer RPC (owner-only, active orders only); the KDS shows it live and
@@ -116,7 +121,7 @@ export default function OrderStatus() {
       <div className={`orderbar st-${o.status}`} role="status" aria-live="polite">
         <span className="orderbar-dot" />
         <div className="orderbar-main">
-          <b>{STATUS_LABEL[o.status] ?? "Your order"}</b>
+          <b>{label}</b>
           <span>{items}{orders.length > 1 ? ` · +${orders.length - 1} more` : ""}{stale ? " · offline — last known" : ""}</span>
         </div>
         {/* Paid at the window, the order is the crew's to cancel: the database refuses it from a

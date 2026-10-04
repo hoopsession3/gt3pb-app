@@ -140,6 +140,32 @@ export function timeRange(startIso?: string | null, endIso?: string | null): str
   return end && end !== start ? `${start}\u2013${end}` : start;
 }
 
+// \u2500\u2500 A PROMISE'S "WHEN", THE SAME ON THE SERVER AND THE PHONE (2026-10-04) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// "We make it when we open \u2014 Sat at 11:00am." That sentence is written twice for every pre-order:
+// on the confirmation screen (the phone) and in the confirmation email (/api/checkout, on a UTC
+// server). relativeDay above answers in the VIEWER's day, which is right for the crew's own lists
+// and wrong for a promise both ends must word identically \u2014 so this one is pinned to the business
+// day (ET) for the day AND the clock, like etDayKey and clockTime beside it.
+//
+//   same ET day \u2192 "today at 11:00am"   next \u2192 "tomorrow at 11:00am"
+//   2\u20136 days    \u2192 "Sat at 11:00am"     a week or more \u2192 "Sat, Oct 10 at 11:00am"
+//
+// No "This Sat": inside a sentence that already says when, the weekday alone reads right, and the
+// date joins it from a week out \u2014 the same line relativeDay draws. `nowMs` is a parameter so the
+// smoke harness can pin it.
+const ET_WDMD_FMT = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric" });
+export function etWhen(iso: string | null | undefined, nowMs: number = Date.now()): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const diff = Math.round((dayFromKey(etDayKey(d)).getTime() - dayFromKey(etDayKey(new Date(nowMs))).getTime()) / 864e5);
+  const at = clockTime(iso);
+  if (diff === 0) return `today at ${at}`;
+  if (diff === 1) return `tomorrow at ${at}`;
+  if (diff > 1 && diff < 7) return `${ET_WD_FMT.format(d)} at ${at}`;
+  return `${ET_WDMD_FMT.format(d)} at ${at}`;
+}
+
 /** Local 24-hour "HH:MM", from EITHER a timestamp or a typed time string — the sort key that puts a
  *  day's items in the order they actually happen. An agenda listing 3:30pm above 11:00am is not an
  *  agenda; before this the calendar ordered each day by the order the queries happened to run in.

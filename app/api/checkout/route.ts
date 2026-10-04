@@ -6,7 +6,9 @@ import { userFromRequest } from "@/lib/apiAuth";
 import { benefitsForUser, priceForSlug, acceptedCode } from "@/lib/benefits";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
-import { preorderWindow, preorderLeadMs } from "@/lib/orderAhead";
+import { orderingNow, readyWords, refusalWords, pickupWords, type Ordering } from "@/lib/ordering";
+import { readOrdering } from "@/lib/orderingRead";
+import { writeAcrossSkew } from "@/lib/deploySkew";
 import { toMarket } from "@/lib/markets";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
@@ -113,29 +115,33 @@ async function post(req: Request) {
     for (const p of rows) if (typeof p.price_cents === "number" && p.price_cents > 0) productPrices[p.slug] = p.price_cents;
   }
 
-  // Cups are only sold when there's a truck to make them: live, or inside the window around the
-  // next stop (4h before -> 8h after start — lib/orderAhead.preorderWindow; the sheet enforces the
-  // same rule, this is the authoritative check before any charge). If these reads fail the gate
-  // closes — better to refuse an order than charge a card we can't record.
+  // Cups are only sold when there's a truck to make them — lib/ordering's rule, on lib/orderingRead's
+  // rows, the SAME two the menu, the drink sheet and this checkout's own sheet ask (2026-10-04).
+  // This used to be a second copy that read the live_status singleton and the global lead, so a
+  // stop's own order-ahead window (0191) and a city's own live switch (0285) were offered on the
+  // phone and refused here, at Pay. It is the authoritative check before any charge, and if the
+  // read fails the gate closes — better to refuse an order than charge a card we can't record.
+  //
+  // MARKET (0279): the gate asks about the buyer's city, not "is any stop anywhere next". A client
+  // that sends nothing is the founding market, gated exactly as it was.
+  let ordering: Ordering;
   {
-    // MARKET (0279): the authoritative gate has to ask about the buyer's city, not "is any stop
-    // anywhere next". Unfiltered, a stop in one city could open the ordering window in another and
-    // authorise a charge for a truck that is nowhere near them. Defaults to the founding market, so
-    // a client that sends nothing is gated exactly as it was.
-    const orderMarket = toMarket((body as { market?: unknown }).market);
-    const [{ data: ls }, { data: st }] = await Promise.all([
-      supabaseAdmin.from("live_status").select("is_live, preorder_lead_h").maybeSingle(),
-      supabaseAdmin.from("stops").select("starts_at").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
-        .eq("market", orderMarket)
-        .gte("starts_at", new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString())
-        .order("starts_at", { ascending: true }).limit(1).maybeSingle(),
-    ]);
-    const l = ls as { is_live?: boolean; preorder_lead_h?: number | null } | null;
-    const nextStart = (st as { starts_at?: string | null } | null)?.starts_at ?? null;
-    if (!preorderWindow(Date.now(), !!l?.is_live, nextStart, preorderLeadMs(l?.preorder_lead_h)).open) {
-      return NextResponse.json({ error: "The truck isn't pouring right now — cup orders open closer to the next stop. Reserve a pack instead." }, { status: 409 });
+    const nowMs = Date.now();
+    const read = await readOrdering(supabaseAdmin, toMarket((body as { market?: unknown }).market), nowMs);
+    if (!read.inputs) {
+      return NextResponse.json({ error: "We couldn't check the truck's schedule — give it another tap in a moment." }, { status: 503 });
     }
+    ordering = orderingNow(nowMs, read.inputs.isLive, read.inputs.stops, read.inputs.liveStopId);
+    if (!ordering.open) return NextResponse.json({ error: refusalWords(ordering, nowMs) }, { status: 409 });
   }
+  // What the customer was promised, said once for the screen, the email and the crew's pass: placed
+  // ahead of a stop, it is made from the stop's start (orders.ready_from, 0343); otherwise now.
+  const promise = { readyFrom: ordering.readyFrom, ready: readyWords(ordering), pickup: pickupWords(ordering) };
+  // 0343 may not be pasted yet when this ships: the order goes in without ready_from rather than not
+  // at all (lib/deploySkew.writeAcrossSkew — the one column named, nothing else forgiven).
+  // arrives-with: 0343
+  const insertOrder = (row: Record<string, unknown>) =>
+    writeAcrossSkew((r) => supabaseAdmin!.from("orders").insert(r), promise.readyFrom ? { ...row, ready_from: promise.readyFrom } : row, ["ready_from"]);
 
   // Pay-at-pickup is the owner's dial (live_status.pay_at_pickup, 0147) — server-authoritative now
   // that this path runs through the API at all, matching the subscriptions_enabled pattern (0150).
@@ -180,14 +186,14 @@ async function post(req: Request) {
   if (!paying) {
     // Pay-at-pickup: record unpaid, no Square call — the crew charges in person at the window.
     const orderRow = { items, total_cents: subtotal, paid: false, payment_id: null, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode };
-    const { error: insErr } = await supabaseAdmin.from("orders").insert(orderRow);
+    const { error: insErr } = await insertOrder(orderRow);
     if (insErr) return NextResponse.json({ error: "That didn't go through — give it another tap" }, { status: 500 });
     // Confirmation email — cup orders carry no phone (a quick on-the-spot order, not a form), so this
     // is account-email-only and only for signed-in members; guests just have the on-screen confirm.
     if (user?.id) {
-      await notifyCustomer({ email: await accountEmail(user.id), subject: "GT3 — order in", message: `GT3: your order is in — ready in ~8 min. ${money(subtotal)} at pickup.` });
+      await notifyCustomer({ email: await accountEmail(user.id), subject: "GT3 — order in", message: `GT3: your order is in. ${promise.ready} ${promise.pickup}. ${money(subtotal)} at pickup.` });
     }
-    return NextResponse.json({ ok: true, amount: subtotal, recorded: true });
+    return NextResponse.json({ ok: true, amount: subtotal, recorded: true, ...promise });
   }
 
   const idemKey = safeIdemKey(body.idempotencyKey);
@@ -216,18 +222,18 @@ async function post(req: Request) {
     if (paymentId) {
       // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by Square, never chosen by the caller — at most one row in the whole table, a stricter key than tenant_id
       const { data: already } = await supabaseAdmin.from("orders").select("id").eq("payment_id", paymentId).maybeSingle();
-      if (already) return NextResponse.json({ ok: true, paymentId, amount, recorded: true });
+      if (already) return NextResponse.json({ ok: true, paymentId, amount, recorded: true, ...promise });
     }
 
     // Record the paid order server-side (paid + payment_id are trustworthy here).
     // total_cents is the GOODS subtotal (tip excluded) so history + the referral floor
     // are consistent across paid and pre-order paths.
     const orderRow = { items, total_cents: subtotal, paid: true, payment_id: paymentId, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode };
-    let { error: insErr } = await supabaseAdmin.from("orders").insert(orderRow);
+    let { error: insErr } = await insertOrder(orderRow);
     if (insErr) {
       // Charge succeeded but recording failed. Retry once — a transient DB blip must not cost the
       // customer their order record when their money is already taken.
-      ({ error: insErr } = await supabaseAdmin.from("orders").insert(orderRow));
+      ({ error: insErr } = await insertOrder(orderRow));
     }
     if (insErr) {
       // A concurrent request (a fast double-tap before the button visually disables, or a client-side
@@ -238,23 +244,23 @@ async function post(req: Request) {
       if ((insErr as { code?: string }).code === "23505" && paymentId) {
         // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by Square, never chosen by the caller — at most one row in the whole table, a stricter key than tenant_id
         const { data: already2 } = await supabaseAdmin.from("orders").select("id").eq("payment_id", paymentId).maybeSingle();
-        if (already2) return NextResponse.json({ ok: true, paymentId, amount, recorded: true });
+        if (already2) return NextResponse.json({ ok: true, paymentId, amount, recorded: true, ...promise });
       }
       // Still failed, and not a benign race: alert the crew immediately with the payment id + items
       // so they add it by hand, and hand the customer a reference to show at the window.
       const ref = (paymentId || "").slice(-6).toUpperCase();
-      await raiseAlert({ severity: "critical", category: "money", title: "Paid order didn't record — add it", body: `A card payment succeeded (${paymentId}) but the order didn't save. ${customer ? `Name: ${customer}. ` : ""}Items: ${items.join(", ")}. Add it to the pass and confirm in Square.` });
-      return NextResponse.json({ ok: true, paymentId, amount, recorded: false, ref, warn: `Payment received${ref ? ` — ref ${ref}` : ""}. We've alerted the crew to add your order; show this ref at the window.` }, { status: 200 });
+      await raiseAlert({ severity: "critical", category: "money", title: "Paid order didn't record — add it", body: `A card payment succeeded (${paymentId}) but the order didn't save. ${customer ? `Name: ${customer}. ` : ""}Items: ${items.join(", ")}.${promise.readyFrom ? ` Placed ahead for ${promise.pickup} — the customer was told: "${promise.ready}"` : ""} Add it to the pass and confirm in Square.` });
+      return NextResponse.json({ ok: true, paymentId, amount, recorded: false, ref, warn: `Payment received${ref ? ` — ref ${ref}` : ""}. We've alerted the crew to add your order; show this ref at the window.`, ...promise }, { status: 200 });
     }
     if (user?.id) {
-      await notifyCustomer({ email: await accountEmail(user.id), subject: "GT3 — order in", message: `GT3: your order is in — ready in ~8 min. ${money(amount)} paid.` });
+      await notifyCustomer({ email: await accountEmail(user.id), subject: "GT3 — order in", message: `GT3: your order is in. ${promise.ready} ${promise.pickup}. ${money(amount)} paid.` });
     }
-    return NextResponse.json({ ok: true, paymentId, amount, recorded: true });
+    return NextResponse.json({ ok: true, paymentId, amount, recorded: true, ...promise });
   } catch {
     // The charge is DONE at this point (we have a paymentId) — an exception here means something
     // broke while RECORDING it, not while paying. "Payment service unavailable" would be actively
     // wrong (they WERE charged); point them to the crew instead of implying nothing happened.
-    return NextResponse.json({ ok: true, paymentId, amount, recorded: false, warn: "Payment received, but we hit a snag recording your order — show this screen at the window and we'll sort it." }, { status: 200 });
+    return NextResponse.json({ ok: true, paymentId, amount, recorded: false, warn: "Payment received, but we hit a snag recording your order — show this screen at the window and we'll sort it.", ...promise }, { status: 200 });
   }
 }
 

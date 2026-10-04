@@ -207,6 +207,10 @@ export const COPY_META: CopyMeta[] = [
   { key: "findus.eyebrow_stop", group: "Find Us", label: "Masthead eyebrow — next up is a stop", default: "Next stop" },
   { key: "findus.no_stops", group: "Find Us", label: "Headline — nothing on the schedule", default: "No stops yet" },
   { key: "findus.cta_preorder", group: "Find Us", label: "Primary CTA — pre-order (inside a button)", default: "PRE-ORDER · SKIP THE LINE" },
+  // 2026-10-04: with nothing to pre-order (no stop, or the next one's window not open yet) the red
+  // button still went to the menu and still said PRE-ORDER. It says what it does now; the line under
+  // it says when cup orders open (lib/ordering).
+  { key: "findus.cta_menu", group: "Find Us", label: "Primary CTA — truck closed, see the menu (inside a button)", default: "SEE THE MENU" },
   { key: "findus.cta_closed", group: "Find Us", label: "Primary CTA — after online ordering closes", multiline: true,
     default: "Online ordering’s closed for today — come see us at the bar before we pack up." },
   { key: "findus.road_title", group: "Find Us", label: "On The Road — section title", default: "On The Road" },
@@ -288,11 +292,14 @@ export const COPY_META: CopyMeta[] = [
   { key: "sheet.remove", group: "Menu", label: "Drink sheet — remove button", default: "Remove from order" },
   { key: "sheet.soldout", group: "Menu", label: "Drink sheet — sold-out button", default: "Sold out today" },
   { key: "sheet.closed_cta", group: "Menu", label: "Drink sheet — truck-closed reserve button", default: "Truck's closed — reserve a pack ›" },
+  // The last hour of a stop: still pouring for the line, no longer online — "Truck's closed" was wrong.
+  { key: "sheet.closing_cta", group: "Menu", label: "Drink sheet — online ordering closed for today (truck still pouring)", default: "Reserve a pack for the next drop ›" },
   { key: "sheet.made_moment", group: "Menu", label: "Drink sheet — made-to-order sign-off", default: "Made the moment you order, and you'll taste it." },
   // ── Menu page — nav buttons, tap hint, sold-out badge, reserve link (adoption pass 2026-08-10). ──
   { key: "menu.nav_primal", group: "Menu", label: "Nav button — Return to Primal", default: "Return to Primal" },
   { key: "menu.nav_shop", group: "Menu", label: "Nav button — Shop", default: "Shop" },
   { key: "menu.taphint", group: "Menu", label: "Tap hint under the chips", default: "tap any drink to order it" },
+  { key: "menu.taphint_closed", group: "Menu", label: "Tap hint under the chips — truck not taking orders", default: "tap any drink to see what's in it" },
   { key: "menu.sold_out", group: "Menu", label: "Menu row — sold-out badge", default: "SOLD OUT" },
   { key: "menu.reserve_pack", group: "Menu", label: "Packs — reserve link", default: "Reserve your pack ›" },
   // ── Shop — product detail + cart chrome (adoption pass 2026-08-10). ──

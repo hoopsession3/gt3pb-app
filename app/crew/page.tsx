@@ -13,6 +13,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, alertWhen, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
 import { localToday, etToday, dayKey, dayWithDate, relativeDay, ageLabel } from "@/lib/dates";
+import { orderClockFrom, waitingToOpen, waitingLabel } from "@/lib/ordering";
 import { prepBucket } from "@/lib/readiness";
 import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
 import { archiveOwner, setEventLive } from "@/lib/wrap";
@@ -496,7 +497,9 @@ function Kitchen() {
   const toggleMute = () => setMuted((m) => { const v = !m; try { localStorage.setItem("kds_muted", v ? "1" : "0"); } catch { /* */ } unlockAudio(); return v; });
   const active = orders.filter((o) => o.status !== "done");
   const done = orders.filter((o) => o.status === "done").sort((a, b) => (a.status_changed_at < b.status_changed_at ? 1 : -1));
-  const late = active.filter((o) => o.status !== "ready" && ageMin(o.created_at) >= 8);
+  // A ticket's clock starts when its order can be made (lib/ordering, 0343): placed ahead of a stop,
+  // that is the stop's opening — not 7am, three hours before the truck could have made it.
+  const late = active.filter((o) => o.status !== "ready" && !waitingToOpen(o) && ageMin(orderClockFrom(o)) >= 8);
 
   return (
     <div className="adm-sec" id="kitchen-pass">
@@ -539,13 +542,14 @@ function Kitchen() {
               </button>
               {!isCol && list.length === 0 && <div className="kds-empty">Nothing here.</div>}
               {!isCol && list.map((o) => {
-                const sev = ageSev(ageMin(o.created_at));
+                const waiting = waitingToOpen(o);
+                const sev = waiting ? "calm" : ageSev(ageMin(orderClockFrom(o)));
                 return (
                   <div className={`adm-order st-${o.status}${flash.has(o.id) ? " flash" : ""}`} key={o.id}>
                     <button className="adm-act-more" onClick={() => voidOrder(o)} aria-label={`Void ${o.customer ?? "order"}`}><Icon name="more" /></button>
                     <div className="adm-order-top">
                       <b>{o.customer ?? "Guest"}</b>
-                      <span className={`adm-age ${sev}`}>{ago(o.created_at)}</span>
+                      <span className={`adm-age ${sev}`}>{waiting && o.ready_from ? waitingLabel(o.ready_from) : ago(orderClockFrom(o))}</span>
                     </div>
                     <div className="adm-items">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")}</div>
                     {o.eta_status && (
@@ -4188,7 +4192,7 @@ function Members() {
       <SectionHeader label="Team" annotation={`${staff.length} member${staff.length === 1 ? "" : "s"}`} />
       {customerCount > 0 && (
         <button type="button" className="team-crm-link" onClick={() => setSection("customers")}>
-          {customerCount} customer account{customerCount === 1 ? "" : "s"} moved to <b>Customers</b> — the CRM. This roster is leadership &amp; crew. ›
+          {customerCount} customer account{customerCount === 1 ? "" : "s"} moved to <b>Customers</b>{" "}— the CRM. This roster is leadership &amp; crew. ›
         </button>
       )}
       <PromotePanel onDone={membersState.reload} />

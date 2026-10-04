@@ -101,32 +101,28 @@ export function dropForStop(startsAtISO: string): { sat: Date; cutoff: Date } {
   const pickup = new Date(startsAtISO);
   return { sat: pickup, cutoff: new Date(pickup.getTime() - STOP_LEAD_MS) };
 }
+/**
+ * The pack drop a customer can still reserve for — the choice /api/reserve offers, said in one
+ * place for the screens that quote it (2026-10-04): the first UPCOMING stop whose cutoff is still
+ * ahead; the Saturday cadence only when nothing is scheduled at all; null when stops are scheduled
+ * and every one of their cutoffs has passed (the reserve page then shows what is left — no date to
+ * quote here). The drink sheet used to quote the stop the cup window was about, which during a stop
+ * is the stop under way: "reserve by" a time that had already gone.
+ */
+export function packDropFrom(stopStarts: readonly string[], now: Date = new Date()): { sat: Date; cutoff: Date } | null {
+  const t = now.getTime();
+  const future = stopStarts.map((s) => Date.parse(s)).filter((ms) => Number.isFinite(ms) && ms > t).sort((a, b) => a - b);
+  if (future.length === 0) return nextDrop(now);
+  for (const ms of future) { const d = dropForStop(new Date(ms).toISOString()); if (d.cutoff.getTime() > t) return d; }
+  return null;
+}
 // the drop-date string both sides agree on — the ET business day (lib/delivery.ts convention),
 // NOT a UTC slice: a stop at/after 8pm ET would land on the next UTC day and split the drop
 // sheet, reservations, and brew links across two dates.
 export const dropDateKey = (d: Date): string => etDayKey(d);
 
 // ── à-la-carte pre-order window ──
-// A cup pre-order promises "ready in ~8 min", which is only true when there's a truck to make it.
-// Rule: pre-orders are accepted while the truck is LIVE, or inside the window around the next
-// scheduled stop — from 4h before its start (crew is heading in / on site) until 8h after (a
-// service day), so a missed "go live" toggle doesn't strand customers. Outside that, the app
-// offers the pack reserve instead. Pure + injectable clock; enforced client-side (the sheet) AND
-// server-side (/api/checkout) with this same function.
-export const PREORDER_LEAD_MS = 4 * 60 * 60 * 1000;
-export const PREORDER_TAIL_MS = 8 * 60 * 60 * 1000;
-export type PreorderWindow = { open: boolean; reason: "live" | "window" | "early" | "none" };
-// `leadMs` is the operator's dial (live_status.preorder_lead_h, 0137): how long before a stop cup
-// orders open. leadMs <= 0 means STRICT live-only — no window at all, the go-live toggle is the
-// gate (the tail exists to survive a missed toggle, so strict mode drops it too).
-export function preorderWindow(nowMs: number, isLive: boolean, nextStartISO: string | null | undefined, leadMs: number = PREORDER_LEAD_MS): PreorderWindow {
-  if (isLive) return { open: true, reason: "live" };
-  if (leadMs <= 0) return { open: false, reason: "none" };
-  if (!nextStartISO) return { open: false, reason: "none" };
-  const start = Date.parse(nextStartISO);
-  if (!Number.isFinite(start)) return { open: false, reason: "none" };
-  if (nowMs >= start - leadMs && nowMs <= start + PREORDER_TAIL_MS) return { open: true, reason: "window" };
-  return { open: false, reason: "early" };
-}
-export const preorderLeadMs = (hours: number | null | undefined): number =>
-  typeof hours === "number" && Number.isFinite(hours) ? Math.max(0, hours) * 60 * 60 * 1000 : PREORDER_LEAD_MS;
+// Moved to lib/ordering (2026-10-04), which answers the whole question — open or not, for which
+// stop, made when — for the phone and /api/checkout alike. These names stay importable from here
+// because the pack-pricing callers and the smoke suite know them by this address.
+export { PREORDER_LEAD_MS, PREORDER_TAIL_MS, preorderWindow, preorderLeadMs, type PreorderWindow } from "./ordering";

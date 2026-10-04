@@ -10,6 +10,9 @@ import Watermark from "@/components/Watermark";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
 import { useAvailability } from "@/lib/availability";
+import { useViewerMarket } from "@/components/useViewerMarket";
+import { useOrderingOpen } from "@/components/useOrderingOpen";
+import { closedWords, openWords } from "@/lib/ordering";
 import { money } from "@/lib/money";
 import { DRINKS, MENU, type DrinkId } from "@/lib/menu";
 import { PACK_SIZES, PACK_TAG, packTotal, dollars } from "@/lib/orderAhead";
@@ -21,6 +24,15 @@ export default function MenuScreen() {
   const { openDrink, isInCart } = useApp();
   const t = useSiteCopy();
   const { soldOut } = useAvailability();
+  // IS THIS A MENU YOU CAN ORDER FROM RIGHT NOW? (2026-10-04) With the truck closed the page still
+  // said "Order here, and it'll be waiting when you reach the window", every price wore the "+"
+  // order pill, and the hint said "tap any drink to order it" — then every drink sheet said the
+  // truck was closed. The page asks the rule the sheet asks (lib/ordering) and says the same thing
+  // first. Until the read lands it is the menu it always was.
+  const { market: viewerMarket } = useViewerMarket();
+  const o = useOrderingOpen(true, viewerMarket).ordering;
+  const closed = o !== null && !o.open;
+  const stateLine = o ? (closed ? closedWords(o, { closing: t("findus.cta_closed") }) : openWords(o)) : null;
   const [prices, setPrices] = useState<Record<string, number>>({});
   // Prices come from Square Catalog (one source of truth across truck + app).
   useEffect(() => {
@@ -64,7 +76,9 @@ export default function MenuScreen() {
       <Masthead tone="light" eyebrow={<EditableCopy k="masthead.menu" value={t("masthead.menu")} />} right={<AccountPill />} />
 
       <EditableCopy k="menu.statement" value={t("menu.statement")} as="p" className="mast-stmt" multiline />
-      <EditableCopy k="menu.order_line" value={t("menu.order_line")} as="div" className="mast-order" />
+      {stateLine
+        ? <div className="mast-order mast-state" role="status">{stateLine}</div>
+        : <EditableCopy k="menu.order_line" value={t("menu.order_line")} as="div" className="mast-order" />}
 
       {/* Menu's own categories below (Activation/Hydration/…) already ARE Craft's three pillars —
           this just names that connection for the customer. Plain text, not EditableCopy: same
@@ -84,7 +98,9 @@ export default function MenuScreen() {
           <button key={cat.name} type="button" role="tab" aria-selected={active === cat.name} className={`menu-chip${active === cat.name ? " on" : ""}`} onClick={() => jumpTo(cat.name)}>{t(`menu.sec.${ci}.name`)}</button>
         ))}
       </div>
-      <EditableCopy k="menu.taphint" value={t("menu.taphint")} as="div" className="menu-taphint" />
+      {closed
+        ? <EditableCopy k="menu.taphint_closed" value={t("menu.taphint_closed")} as="div" className="menu-taphint" />
+        : <EditableCopy k="menu.taphint" value={t("menu.taphint")} as="div" className="menu-taphint" />}
 
       {MENU.map((cat, ci) => (
         <div key={cat.name} ref={(el) => { catRefs.current[cat.name] = el; }} data-cat={cat.name}>
@@ -114,8 +130,10 @@ export default function MenuScreen() {
                   {on && !out && <span className="entry-in" aria-label="in your order"><Icon name="check" /></span>}
                   {/* the price is the order affordance (2026-08-01 audit: rows read as a printed
                       menu). A styled pill — not a nested <button>; the whole row is already the
-                      tap target (clickable above), same a11y rule as the category chips. */}
-                  <span className={`entry-px${out ? "" : " order"}`}>{priceLabel(id)}</span>
+                      tap target (clickable above), same a11y rule as the category chips. With the
+                      truck not taking orders it is a price again, not a "+" that cannot add — in
+                      the pill's own box (.shut), so the answer arriving moves no row. */}
+                  <span className={`entry-px${out ? "" : closed ? " shut" : " order"}`}>{priceLabel(id)}</span>
                 </div>
                 <div className="entry-body">
                   {t(`menu.${id}.lines`).split("\n").filter(Boolean).map((l) => (

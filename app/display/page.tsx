@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { DRINKS, MENU } from "@/lib/menu";
 import { pickForDisplay, type CleanReview } from "@/lib/reviews";
-import { CONNECT_APP } from "@/lib/connect";
+import { CONNECT_APP, SCAN_TO_ORDER } from "@/lib/connect";
 import { supabase } from "@/lib/supabase";
 import Gt3Mark from "@/components/Gt3Mark";
 import Icon from "@/components/Icon";
@@ -37,7 +37,7 @@ export default function DisplayPage() {
   const priceLabel = (id: keyof typeof DRINKS) => (prices[id] != null ? money(prices[id]) : DRINKS[id].px);
 
   useEffect(() => {
-    QRCode.toDataURL(CONNECT_APP, { margin: 1, width: 640, color: { dark: "#15120D", light: "#ffffff" } }).then(setQr).catch(() => setQr(""));
+    QRCode.toDataURL(SCAN_TO_ORDER, { margin: 1, width: 640, color: { dark: "#15120D", light: "#ffffff" } }).then(setQr).catch(() => setQr(""));
     QRCode.toDataURL(`${CONNECT_APP}/craft`, { margin: 1, width: 640, color: { dark: "#15120D", light: "#ffffff" } }).then(setCraftQr).catch(() => setCraftQr(""));
   }, []);
 
@@ -127,7 +127,7 @@ export default function DisplayPage() {
               <div className="tvl-connect-row"><span>Web</span><em>gt3pb.com</em></div>
             </div>
           </div>
-          {qr && <div className="tvl-connect-qr"><img src={qr} alt={`Scan to order at ${CONNECT_APP.replace(/^https?:\/\//, "")}`} /><span>Scan to order + follow</span></div>}
+          {qr && <div className="tvl-connect-qr"><img src={qr} alt={`Scan to order at ${SCAN_TO_ORDER.replace(/^https?:\/\//, "")}`} /><span>Scan to order</span></div>}
         </div>
       )}
     </div>

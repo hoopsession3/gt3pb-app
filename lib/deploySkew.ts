@@ -158,9 +158,36 @@ export function stableErrorKey(message: string | null | undefined): string {
 // The message is matched too, because PGlite and some proxies report the text without the code.
 const MISSING_COLUMN_TEXT = /column\s+\S*\.?\S+\s+does not exist/i;
 
+// THE WRITE SIDE (2026-10-04). A read names a column in its select and Postgres answers 42703. A
+// WRITE names it as a key of the row, and PostgREST refuses before Postgres sees it, with its own
+// code: PGRST204, "Could not find the 'ready_from' column of 'orders' in the schema cache". 0343
+// adds orders.ready_from and /api/checkout writes it, so between the push and the paste every
+// pre-order placed ahead of a stop would have failed — on the paid path AFTER the card was charged.
+// Same narrowness as the read side: this one code, or this one sentence, and nothing else.
+const MISSING_WRITE_COLUMN_TEXT = /Could not find the '[^']+' column of '[^']+' in the schema cache/i;
+
 /** Is this error ONLY "that column is not there yet" — i.e. the schema is behind this build? */
 export function isMissingColumn(err: { code?: string | null; message?: string | null } | null | undefined): boolean {
   if (!err) return false;
-  if (String(err.code ?? "") === "42703") return true;
-  return MISSING_COLUMN_TEXT.test(String(err.message ?? ""));
+  const code = String(err.code ?? "");
+  if (code === "42703" || code === "PGRST204") return true;
+  const msg = String(err.message ?? "");
+  return MISSING_COLUMN_TEXT.test(msg) || MISSING_WRITE_COLUMN_TEXT.test(msg);
+}
+
+/**
+ * Write a row; if the database is one migration behind and lacks a column, write it again without
+ * the keys the CALLER named as arriving (and only those — a fallback that dropped whatever the
+ * error complained about would drop a typo too). Any other error comes back exactly as it was.
+ */
+export async function writeAcrossSkew<R extends Record<string, unknown>, E extends { code?: string | null; message?: string | null }>(
+  write: (row: R) => PromiseLike<{ error: E | null }>, row: R, arriving: readonly string[],
+): Promise<{ error: E | null; dropped: string[] }> {
+  const first = await write(row);
+  const present = arriving.filter((k) => k in row);
+  if (!first.error || !isMissingColumn(first.error) || present.length === 0) return { error: first.error, dropped: [] };
+  const rest = { ...row };
+  for (const k of present) delete rest[k];
+  const second = await write(rest);
+  return { error: second.error, dropped: second.error ? [] : present };
 }

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useAuth, isStaff, type Profile } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
 import { readMode } from "@/lib/mode";
+import { markFrontDoor } from "@/lib/viewerHint";
 import { useApp } from "@/components/AppProvider";
 import { Masthead, SectionHeader, InfoRow, ClosingBeat } from "@/components/kit";
 import GenerateDay from "@/components/GenerateDay";
@@ -133,7 +134,9 @@ export default function TodayScreen() {
   // the cookie lib/viewerHint.ts writes; this stays for the first visit, a cleared browser, and a
   // session that turned out to be gone. Same destination either way.
   useEffect(() => {
-    if (!enabled || (ready && !user)) router.replace("/truck");
+    // The front door, said on the way out: the welcome splash shows on /truck only for an arrival
+    // marked here or by proxy.ts (lib/viewerHint markFrontDoor) — not for a QR or a tab tap.
+    if (!enabled || (ready && !user)) { markFrontDoor(); router.replace("/truck"); }
   }, [enabled, ready, user, router]);
   // A staff member opens the app where they left it (lib/mode.ts). Only once the profile has
   // actually loaded: roleOf(null) is "member", so deciding on a loading profile would always say

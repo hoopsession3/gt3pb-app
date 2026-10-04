@@ -2,54 +2,58 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { preorderWindow, preorderLeadMs, PREORDER_TAIL_MS } from "@/lib/orderAhead";
+import { orderingNow, type Ordering, type OrderingStop } from "@/lib/ordering";
+import { readOrdering, type OrderingInputs } from "@/lib/orderingRead";
 import { FOUNDING_MARKET, type Market } from "@/lib/markets";
 
-// IS THE TRUCK TAKING CUP ORDERS? — one hook, one answer, used by every ordering surface (menu
-// drink sheet + checkout sheet; /api/checkout runs the same rule server-side before any charge).
-// Open while the truck is LIVE, or inside the operator-set window before the next stop
-// (live_status.preorder_lead_h — 0 = strict live-only). Pack reserves are always open.
+// IS THE TRUCK TAKING CUP ORDERS? — every ordering surface asks here (Find Us, the menu, the drink
+// sheet, checkout). The rule is lib/ordering's and the read is lib/orderingRead's, the same two
+// /api/checkout runs before any charge (2026-10-04: until then the server read a different switch
+// and a different lead, and could refuse at Pay what this hook had offered).
+//
+// The answer moves with the clock as well as the data — a stop's window opens at start − lead with
+// nothing written anywhere — so it is recomputed on a tick and re-read every minute and whenever
+// the page comes back into view. Before the first read lands it is optimistic (open, unchecked,
+// no claims), and a failed read keeps the last answer: the server holds the gate either way.
 export type OrderingOpen = {
   open: boolean;
   checked: boolean;                 // false until the first read lands (render optimistically)
-  nextAt: string | null;            // next stop start (ISO) for "opens at…" copy
+  nextAt: string | null;            // the stop an order now is for, or the one ordering waits on
   nextName: string | null;
   pickup: boolean;                  // does THIS stop offer pickup? (per-stop opt-in, 0191)
+  ordering: Ordering | null;        // the whole answer — state, stop, opensAt, readyFrom — once read
+  stops: OrderingStop[];            // the city's road, for the pack line (lib/orderAhead.packDropFrom)
 };
 
-// MARKET (0279): "the next stop" has to mean the next stop IN THIS CITY. Unfiltered, whichever
-// stop was chronologically next ANYWHERE decided whether ordering was open and printed its name
-// at checkout — so an Atlanta stop could open Greenville's window, and name itself on the receipt.
-// Defaults to the founding market, so every existing caller behaves exactly as it did.
-export function useOrderingOpen(active: boolean, market: Market = FOUNDING_MARKET): OrderingOpen {
-  const [state, setState] = useState<OrderingOpen>({ open: true, checked: false, nextAt: null, nextName: null, pickup: false });
+const REREAD_MS = 60_000;
+const TICK_MS = 30_000;
+
+// MARKET (0279): "the next stop" means the next stop IN THIS CITY. Defaults to the founding market,
+// so every caller that passes nothing behaves exactly as it did. `refreshKey`: a page that already
+// hears the road in realtime (Find Us) passes what it heard, so going live re-reads at once instead
+// of on the next minute.
+export function useOrderingOpen(active: boolean, market: Market = FOUNDING_MARKET, refreshKey: string = ""): OrderingOpen {
+  const [inputs, setInputs] = useState<OrderingInputs | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!active || !supabase) return;
-    let liveFlag = true;
-    (async () => {
-      // MARKET (0285): the live flag itself used to come from the live_status SINGLETON, so flipping
-      // the truck live in Greenville told an Atlanta customer the truck was live — with no stop and
-      // nobody to serve them. market_live resolves market → singleton → default and also holds a
-      // market closed before its opening date. A market that has set nothing reads the singleton, so
-      // this is the same answer it has always been for Greenville.
-      const [{ data: ls }, { data: st }] = await Promise.all([
-        supabase!.from("market_live").select("is_live, preorder_lead_h").eq("market", market).maybeSingle()
-          .then((r) => (r.data ? r : supabase!.from("live_status").select("is_live, preorder_lead_h").maybeSingle())),
-        supabase!.from("stops").select("name, starts_at, order_ahead_enabled, order_ahead_lead_min, pickup_enabled").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
-          .eq("market", market)
-          .gte("starts_at", new Date(Date.now() - PREORDER_TAIL_MS).toISOString()) // an in-progress stop still counts
-          .order("starts_at", { ascending: true }).limit(1).maybeSingle(),
-      ]);
-      if (!liveFlag) return;
-      const l = ls as { is_live?: boolean; preorder_lead_h?: number | null } | null;
-      const s = st as { name?: string | null; starts_at?: string | null; order_ahead_enabled?: boolean; order_ahead_lead_min?: number | null; pickup_enabled?: boolean } | null;
-      // Per-stop override: a stop that opted into order-ahead with its own lead time widens the window
-      // for that stop; otherwise the global live_status window governs (no change for existing stops).
-      const lead = s?.order_ahead_enabled && s?.order_ahead_lead_min != null ? s.order_ahead_lead_min * 60_000 : preorderLeadMs(l?.preorder_lead_h);
-      const win = preorderWindow(Date.now(), !!l?.is_live, s?.starts_at ?? null, lead);
-      setState({ open: win.open, checked: true, nextAt: s?.starts_at ?? null, nextName: s?.name ?? null, pickup: !!s?.pickup_enabled });
-    })();
-    return () => { liveFlag = false; };
-  }, [active, market]);
-  return state;
+    let alive = true;
+    const read = async () => {
+      const r = await readOrdering(supabase!, market).catch(() => null);
+      if (!alive || !r?.inputs) return;
+      setInputs(r.inputs);
+      setNow(Date.now());
+    };
+    void read();
+    const reread = setInterval(read, REREAD_MS);
+    const tick = setInterval(() => setNow(Date.now()), TICK_MS);
+    const onVis = () => { if (document.visibilityState === "visible") void read(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { alive = false; clearInterval(reread); clearInterval(tick); document.removeEventListener("visibilitychange", onVis); };
+  }, [active, market, refreshKey]);
+  const o = inputs ? orderingNow(now, inputs.isLive, inputs.stops, inputs.liveStopId) : null;
+  return {
+    open: o ? o.open : true, checked: o !== null, ordering: o, stops: inputs?.stops ?? [],
+    nextAt: o?.stop?.starts_at ?? null, nextName: o?.stop?.name ?? null, pickup: !!o?.stop?.pickup,
+  };
 }
