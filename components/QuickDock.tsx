@@ -6,6 +6,7 @@ import { useOperatorSection } from "./OperatorNav";
 import { supabase } from "@/lib/supabase";
 import { haptic, HAPTIC } from "@/lib/haptics";
 import AskGT3 from "./AskGT3";
+import LogPurchase from "./LogPurchase";
 import CopilotLauncher from "./CopilotLauncher";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
@@ -22,13 +23,20 @@ export default function QuickDock() {
   const { setSection } = useOperatorSection();
 
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"do" | "ask" | "note">("do");
+  const [mode, setMode] = useState<"do" | "ask" | "note" | "spend">("do");
 
   // My Day's "✎ Note to self" chip (and anything else) can summon the note pane directly.
   useEffect(() => {
     const onNote = () => { setMode("note"); setOpen(true); };
     window.addEventListener("gt3-quick-note", onNote);
     return () => window.removeEventListener("gt3-quick-note", onNote);
+  }, []);
+  // A purchase is logged where it happens — the register, the pump — not at a desk on the Money tab
+  // (2026-10-04). Money › Spend's "Log a purchase" opens this same sheet, so there is one capture form.
+  useEffect(() => {
+    const onSpend = () => { setMode("spend"); setOpen(true); };
+    window.addEventListener("gt3-log-purchase", onSpend);
+    return () => window.removeEventListener("gt3-log-purchase", onSpend);
   }, []);
   // Anything can summon the copilot launcher (the "do" front door) directly.
   useEffect(() => {
@@ -49,14 +57,15 @@ export default function QuickDock() {
 
   return (
     <>
-      <button type="button" className={`qd-fab${open ? " open" : ""}`} onClick={() => setOpen((o) => !o)} aria-label={open ? "Close quick actions" : "Quick actions — run a copilot, ask GT3, or take a note"}>
+      <button type="button" className={`qd-fab${open ? " open" : ""}`} onClick={() => setOpen((o) => !o)} aria-label={open ? "Close quick actions" : "Quick actions — run a copilot, ask GT3, take a note, or log a purchase"}>
         {open ? <Icon name="close" /> : <Icon name="sparkles" />}
       </button>
 
       {open && (
-        <Sheet open onClose={() => setOpen(false)} label="Quick actions" header={<div style={{ display: "flex", alignItems: "center" }}><button type="button" className={`qd-tab${mode === "do" ? " on" : ""}`} onClick={() => setMode("do")}><Icon name="sparkles" /> Do</button><button type="button" className={`qd-tab${mode === "ask" ? " on" : ""}`} onClick={() => setMode("ask")}>Ask GT3</button><button type="button" className={`qd-tab${mode === "note" ? " on" : ""}`} onClick={() => setMode("note")}>Note</button><CloseButton onClick={() => setOpen(false)} /></div>}>
+        <Sheet open onClose={() => setOpen(false)} label="Quick actions" header={<div style={{ display: "flex", alignItems: "center", gap: 6 }}><button type="button" className={`qd-tab${mode === "do" ? " on" : ""}`} onClick={() => setMode("do")}><Icon name="sparkles" /> Do</button><button type="button" className={`qd-tab${mode === "ask" ? " on" : ""}`} onClick={() => setMode("ask")}>Ask GT3</button><button type="button" className={`qd-tab${mode === "note" ? " on" : ""}`} onClick={() => setMode("note")}>Note</button><button type="button" className={`qd-tab${mode === "spend" ? " on" : ""}`} onClick={() => setMode("spend")}>Spend</button><CloseButton onClick={() => setOpen(false)} /></div>}>
           {mode === "do" ? <CopilotLauncher role={role} onPick={(s) => { setSection(s); setOpen(false); }} />
             : mode === "ask" ? <AskGT3 />
+            : mode === "spend" ? <LogPurchase onDone={() => setOpen(false)} />
             : <QuickNote userId={user?.id ?? null} onSaved={() => setOpen(false)} />}
         </Sheet>
       )}

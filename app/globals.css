@@ -2587,7 +2587,7 @@ h5.pr-h{font-size:12.5px;color:var(--cream-d)}
 .qd-sheet{width:100%;max-width:560px;max-height:min(88vh,calc(100dvh - var(--kb,0px) - 32px));display:flex;flex-direction:column;background:var(--bg,#161310);border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.6);animation:qdup .18s ease;overflow:hidden}
 @keyframes qdup{from{transform:translateY(10px) scale(.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
 .qd-tabs{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
-.qd-tab{background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:var(--r-pill);padding:8px 14px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.qd-tab{background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:var(--r-pill);padding:8px 14px;min-height:44px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}  /* 44: measured 34px when the purchase sheet's fixture first painted this row (2026-10-04) — the dock is a thumb control */
 .qd-tab.on{background:color-mix(in srgb, var(--brand-gold) 18%, transparent);border-color:var(--gold2);color:var(--gold2)}
 .qd-x{margin-left:auto;background:none;border:none;color:var(--cream-m);font-size:18px;cursor:pointer;padding:4px 8px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}  /* 44×44: the close on every sheet measured 30px (2026-10-03) */
 .qd-body{flex:1 1 auto;min-height:0;padding:14px 14px calc(18px + env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
@@ -5371,8 +5371,30 @@ button.mkpi-tile:active{transform:scale(.98)}
 .spb-bar{display:block;height:7px;border-radius:var(--r-pill);background:rgba(255,255,255,.06);overflow:hidden}
 .spb-bar>span{display:block;height:100%;background:var(--gold);border-radius:var(--r-pill)}
 .spb-bar>span.over{background:#c4453c}
-.spb-add{display:flex;flex-wrap:wrap;gap:7px;align-items:center;padding-top:4px;border-top:1px solid var(--line2)}
-.spb-add .note-in{flex:1 1 auto;min-width:0}
+/* Spend › the month (2026-10-04, Ryan: "should it be architected differently?"). The five-field form
+   that sat under the report moved into the capture sheet below; what stays is one row of actions and
+   one empty state, where there used to be three. */
+.spb-acts{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 12px}
+.spb-acts .btn-sec,.spb-acts .so-go{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 16px;font-size:13px}
+/* Log a purchase (components/LogPurchase) — capture at the register: the receipt first, every target
+   thumb-sized, nothing pre-chosen. Built from the house pieces (.btn-sec, .ts-chip, .note-in, .btn-pri)
+   so it adds no new kind of box; what is local is size. The house chip is 31px everywhere and that is
+   a decision for all of them — this sheet is used one-handed at a register, so here it is 44. */
+.lp{display:flex;flex-direction:column;gap:14px}
+.lp .lp-receipt{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:56px;border-style:dashed;border-color:var(--gold2);color:var(--gold2)}  /* two classes: .btn-sec comes later in this file and would win a tie */
+.lp .lp-receipt.has{justify-content:flex-start;padding:0 4px 0 12px;border-style:solid;color:var(--cream);cursor:default}
+.lp-receipt-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;text-align:left}
+.lp-link{background:none;border:none;color:var(--gold2);font-family:'Inter';font-weight:700;font-size:13px;min-height:44px;padding:0 8px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.lp-f{display:flex;flex-direction:column;gap:6px;min-width:0}
+.lp-f > span{font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m)}
+.lp-f > span i{font-style:normal;font-weight:400;opacity:.75}
+.lp-amt{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.lp-chips{display:flex;flex-wrap:wrap;gap:8px}
+.lp .ts-chip{min-height:44px;padding:0 14px;font-size:13.5px}
+.lp-date{max-width:220px}
+.lp-ask{margin:0;font-family:'Inter';font-size:13px;line-height:1.45;color:var(--warn)}
+.lp-save:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+.lp-need{margin:-6px 0 0;text-align:center;font-family:'Inter';font-size:12px;color:var(--cream-m)}
 .spb-amt{flex:0 0 80px!important}
 .spb-desc{flex:2 1 120px!important}
 .app.crew-day .spb-bar{background:var(--ink2-onLight-08)}
@@ -5763,7 +5785,8 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .intg-sec{display:flex;flex-direction:column;gap:4px;border:1px dashed var(--line2);border-radius:11px;padding:10px 12px;margin-top:4px}
 .intg-sec b{font-family:'Inter';font-weight:700;font-size:12px;color:var(--cream)}
 .intg-sec span{font-family:'Inter';font-size:11px;color:var(--cream-m);line-height:1.55}
-.spb-export{margin-left:auto}
+.spb-export{margin-left:auto;background:none;border:none;padding:0 4px;min-height:44px;color:var(--gold2);font-family:'Inter';font-weight:700;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.spb-items-top{display:flex;align-items:center;gap:8px}
 .spb-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
 .k-legal{margin-top:10px;font-family:'Inter';font-size:10.5px;color:var(--cream-d)}
 /* 44px tall to the thumb, 10.5px to the eye: the hit area is padding pulled back with margin, and

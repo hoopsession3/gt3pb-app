@@ -7,11 +7,15 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { InfoRow } from "@/components/kit";
+import EmptyState from "@/components/EmptyState";
 import Icon from "@/components/Icon";
 import { downloadCsv } from "@/lib/csv";
-import { MARKETS, MARKET_LABEL, FOUNDING_MARKET, toMarket, type Market } from "@/lib/markets";
-import { receiptGaps, totals, headline, type SpendCategory, type ExpenseRow as SpendRow, type BudgetRow } from "@/lib/spend";
+import { FOUNDING_MARKET, type Market } from "@/lib/markets";
+import { receiptGaps, totals, headline, monthLabel, monthKey, categoryLabel, categoryOrder,
+         type SpendCategory, type ExpenseRow as SpendRow, type BudgetRow } from "@/lib/spend";
 import { moneyPlain, moneyRound } from "@/lib/money";
+import { localToday } from "@/lib/dates";
+import { attachReceipt as fileReceipt } from "@/lib/receipts";
 import { usePrompt } from "@/components/PromptSheet";
 
 // SPEND & BUDGET (0209) — the procurement side of Money. Log what the business spends (optionally to a
@@ -23,6 +27,15 @@ import { usePrompt } from "@/components/PromptSheet";
 // an expense but never see the individual row again, so a wrong amount typed in couldn't even be
 // found, let alone fixed (the audit's "worse than Goals" finding: at least Goals showed you the
 // thing you couldn't edit). The DB already allowed editing/deleting expenses; this adds the list.
+//
+// 2026-10-04 — REVIEW ONLY. Ryan: "Should you have an open field like this or should it be
+// architected differently?" Differently. The five-field form that sat under this report is gone:
+// logging a purchase is a capture job that happens at the register with the receipt in hand, so it
+// is a sheet (components/LogPurchase) reachable from the quick-actions button anywhere in the
+// console, and "Log a purchase" here opens that same sheet. What stays is the month: what was spent,
+// against what, on which days, and which receipts are still owed. One empty state instead of three,
+// the month in words instead of "2026-10", categories by their labels instead of their slugs, and
+// the list windowed on spent_on — the day the money left — which is what report_spend() totals.
 type Cat = { category: string; budget_cents: number; spent_cents: number };
 type Report = { month: string; total_spent_cents: number; total_budget_cents: number; by_category: Cat[] };
 type ExpenseRow = { id: string; amount_cents: number; category: string; description: string | null; vendor_id: string | null; created_at: string; spent_on?: string; market?: string | null; receipt_path?: string | null; voided_at?: string | null };
@@ -31,20 +44,22 @@ type Board = { rep: Report | null; vendors: { id: string; name: string }[]; item
 export default function SpendBudget() {
   const prompt = usePrompt();
   const { toast } = useApp();
-  const [amount, setAmount] = useState(""); const [cat, setCat] = useState("supplies");
-  const [desc, setDesc] = useState(""); const [vendor, setVendor] = useState(""); const [busy, setBusy] = useState(false);
   const [editCat, setEditCat] = useState<string | null>(null); const [editVal, setEditVal] = useState("");
   const [editExpId, setEditExpId] = useState<string | null>(null);
   const [ee, setEe] = useState({ amount: "", cat: "supplies", desc: "", vendor: "" });
   const [savingExp, setSavingExp] = useState(false);
   const [confirmDelId, setConfirmDelId] = useState<string | null>(null);
-  const [setupOpen, setSetupOpen] = useState(false);   // zero-state: category list waits behind one prompt
-  const [market, setMarket] = useState<Market>(FOUNDING_MARKET);
+  const [setupOpen, setSetupOpen] = useState(false);   // budgets wait behind one button until asked for
+  // Budgets are set per city (0292). The panel reads the founding market's until a city switch earns
+  // its place here; the capture sheet already files each purchase under its own city.
+  const market: Market = FOUNDING_MARKET;
   const [uploading, setUploading] = useState<string | null>(null);
 
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { rep: null, vendors: [], items: [], cats: [] };
-    const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+    // spent_on, not created_at: the list and report_spend() must agree on what "this month" means.
+    // A receipt logged on the 1st for a purchase on the 30th belongs to the month it was spent in.
+    const monthStart = `${monthKey(localToday())}-01`;
     const [r, v, e, c] = await Promise.all([
       supabase.rpc("report_spend"),
       supabase.from("vendors").select("id, name").is("archived_at", null).order("name"),
@@ -52,7 +67,7 @@ export default function SpendBudget() {
       // totals possible; without them this panel can only ever show a company-wide guess.
       supabase.from("expenses")
         .select("id, amount_cents, category, description, vendor_id, created_at, spent_on, market, receipt_path, voided_at")
-        .gte("created_at", monthStart.toISOString()).order("created_at", { ascending: false }),
+        .gte("spent_on", monthStart).order("spent_on", { ascending: false }).order("created_at", { ascending: false }),
       supabase.from("spend_categories").select("slug, label, sort, active, receipt_required_over_cents").order("sort"),
     ]);
     if (r.error) throw new Error(r.error.message);
@@ -73,7 +88,7 @@ export default function SpendBudget() {
 
   // The honest read of the month, computed from the same tested module the tests use rather than
   // re-derived in JSX. gaps is the list an accountant would ask for.
-  const month = new Date().toISOString().slice(0, 7);
+  const month = monthKey(localToday());   // local, not UTC: at 9 PM on the 31st it is still this month
   const spendRows = items as unknown as SpendRow[];
   const gaps = receiptGaps(spendRows, cats);
   const sum = totals(month, spendRows, [] as BudgetRow[], cats, null);
@@ -85,29 +100,15 @@ export default function SpendBudget() {
   // the path is derivable and two people cannot overwrite each other.
   const attachReceipt = async (row: ExpenseRow, file: File) => {
     if (!supabase) return;
-    if (file.size > 20 * 1024 * 1024) { toast("That file is over 20MB — photograph it instead of scanning it.", "error"); return; }
     setUploading(row.id);
-    const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const path = `${row.market ?? FOUNDING_MARKET}/${row.id}.${ext}`;
-    const up = await supabase.storage.from("receipts").upload(path, file, { upsert: true });
-    if (up.error) { setUploading(null); toast(up.error.message, "error"); return; }
-    const { error } = await supabase.from("expenses")
-      .update({ receipt_path: path, receipt_uploaded_at: new Date().toISOString() }).eq("id", row.id);
+    const why = await fileReceipt(supabase, row, file);
     setUploading(null);
-    if (error) { toast(error.message, "error"); return; }
+    if (why) { toast(why, "error"); return; }
     toast("Receipt attached"); reload();
   };
-
-  const addExpense = async () => {
-    if (!supabase || busy) return;
-    const cents = Math.round(parseFloat(amount) * 100);
-    if (!Number.isFinite(cents) || cents <= 0) { toast("Enter an amount", "error"); return; }
-    setBusy(true);
-    const { error } = await supabase.from("expenses").insert({ amount_cents: cents, category: cat, description: desc.trim() || null, vendor_id: vendor || null, market });
-    setBusy(false);
-    if (error) { toast(`Couldn't add — ${error.message}`, "error"); return; }
-    setAmount(""); setDesc(""); setVendor(""); toast("Expense logged"); reload();
-  };
+  // The capture sheet lives in the quick-actions dock (components/QuickDock → LogPurchase): one form,
+  // reachable from every crew screen, and this button is just another way in.
+  const logPurchase = () => window.dispatchEvent(new Event("gt3-log-purchase"));
   const saveBudget = async (category: string) => {
     if (!supabase) return;
     const raw = editVal.trim();
@@ -185,33 +186,35 @@ export default function SpendBudget() {
       {(data) => {
         const rep = data.rep;
         if (!rep) return null;
+        const label = (slug: string) => categoryLabel(slug, data.cats);
+        const nothingYet = rep.total_spent_cents === 0 && rep.total_budget_cents === 0 && data.items.length === 0;
+        const showBudgets = rep.total_spent_cents > 0 || rep.total_budget_cents > 0 || setupOpen;
         return (
           <div className="spb">
-            <div className="spb-head"><b>{moneyRound(rep.total_spent_cents)}</b> spent<span className="spb-sub"> of {moneyRound(rep.total_budget_cents)} budget · {rep.month}</span>
-              {data.items.length > 0 && <button type="button" className="dops-mini spb-export" onClick={() => downloadCsv("gt3-expenses.csv", data.items.map((x) => ({
-                when: x.created_at, amount: moneyPlain(x.amount_cents), category: x.category, description: x.description ?? "",
-              })))}>Export CSV</button>}
+            {/* The month in one line, in words: "$412 spent in October · of $1,500 budget". A budget
+                of nothing is not "$0 budget" — that reads as a limit of zero. */}
+            <div className="spb-head">
+              <b>{moneyRound(rep.total_spent_cents)}</b> spent in {monthLabel(rep.month)}
+              <span className="spb-sub">{rep.total_budget_cents > 0 ? ` · of ${moneyRound(rep.total_budget_cents)} budget` : " · no budgets set"}</span>
             </div>
-            {/* Zero-state (2026-08-01 audit): eight identical "$0 / set budget" flatlines rendered
-                emptiness as furniture. Until anything is spent or budgeted, ONE prompt stands in
-                for the wall — tap it and the full category list opens for setup. */}
-            {rep.total_spent_cents === 0 && rep.total_budget_cents === 0 && !setupOpen ? (
-              <button type="button" className="dl-card st-build" onClick={() => setSetupOpen(true)}>
-                <b>No spend logged, no budgets set</b>
-                <span>Tap to open the categories and set your first budget — or just log the first expense below.</span>
+
+            {/* What this panel lets you DO, in one row. Logging opens the capture sheet; budgets are a
+                setting you visit, not a wall of "$0 / set budget" rows you scroll past. */}
+            <div className="spb-acts">
+              <button type="button" className="so-go spb-log" onClick={logPurchase}><Icon name="plus" size={14} /> Log a purchase</button>
+              <button type="button" className="btn-sec" onClick={() => setSetupOpen((v) => !v)} aria-expanded={setupOpen}>
+                {setupOpen ? "Done with budgets" : rep.total_budget_cents > 0 ? "Edit budgets" : "Set budgets"}
               </button>
-            ) : (<></>)}
-            {/* Kit InfoRow replaces the ad-hoc .spb-row/.spb-row-h markup: category → name (a bare
-                inline textTransform:capitalize style stands in for the old .spb-cat rule, since
-                k-nm doesn't capitalize on its own — same fix Studio's version list makes via a
-                scoped CSS rule; done inline here since this pass only touches this file), the
-                spent/budget figure (button ↔ inline edit input, unchanged) → trailing, and the
-                % bar → meta. The bar keeps its exact width%/over-budget logic; it now renders at
-                the body column's width instead of full row bleed, same trade-off every other
-                migrated list in this app already makes for its meta content (e.g. WorkloadBoard's
-                own bar rides InfoRow's trailing). No data, state, or calculations changed below —
-                presentation only. */}
-            {(rep.total_spent_cents > 0 || rep.total_budget_cents > 0 || setupOpen) && (
+            </div>
+
+            {/* ONE empty state. There used to be three — a card, "Nothing logged yet this month." and
+                "Nothing spent and no budgets set yet." — saying the same thing in a row. */}
+            {nothingYet && !setupOpen && (
+              <EmptyState title={`Nothing logged for ${monthLabel(rep.month)} yet.`}
+                sub="Log purchases as they happen — from here, or from the quick-actions button on any crew screen, receipt first. Budgets are optional: set them when you want the month measured against something." />
+            )}
+
+            {showBudgets && (
             <div className="spb-list k-rows">
               {rep.by_category.map((c) => {
                 const pct = c.budget_cents > 0 ? Math.min(100, Math.round((c.spent_cents / c.budget_cents) * 100)) : 0;
@@ -219,9 +222,9 @@ export default function SpendBudget() {
                 return (
                   <InfoRow
                     key={c.category}
-                    name={<span style={{ textTransform: "capitalize" }}>{c.category}</span>}
+                    name={label(c.category)}
                     trailing={editCat === c.category ? (
-                      <input className="spb-bud-in" autoFocus inputMode="decimal" value={editVal}
+                      <input className="spb-bud-in" autoFocus inputMode="decimal" value={editVal} aria-label={`Monthly budget for ${label(c.category)}`}
                         onChange={(e) => setEditVal(e.target.value.replace(/[^0-9.]/g, ""))}
                         onBlur={() => saveBudget(c.category)} onKeyDown={(e) => { if (e.key === "Enter") saveBudget(c.category); }} />
                     ) : (
@@ -236,24 +239,28 @@ export default function SpendBudget() {
             </div>
             )}
 
-            {/* The individual rows behind the category totals above — logged, but until now never
-                shown again, so a typo'd amount couldn't be found, let alone fixed. Scoped to this
-                calendar month, matching report_spend()'s own window. */}
+            {/* The rows behind the totals, by the day the money left. */}
+            {data.items.length > 0 && (
             <div className="spb-items">
-              <div className="spb-items-h">This month's expenses{data.items.length > 0 && ` · ${data.items.length}`}</div>
-              {data.items.length === 0 ? (
-                <p className="h-sub" style={{ margin: "2px 2px 10px" }}>Nothing logged yet this month.</p>
-              ) : data.items.map((row) => {
+              {/* Export belongs to the list it exports, not to the row of things you do. */}
+              <div className="spb-items-top">
+                <div className="spb-items-h">{monthLabel(rep.month)} · {data.items.length} {data.items.length === 1 ? "purchase" : "purchases"}</div>
+                <button type="button" className="spb-export" onClick={() => downloadCsv("gt3-expenses.csv", data.items.map((x) => ({
+                  spent_on: x.spent_on ?? x.created_at.slice(0, 10), amount: moneyPlain(x.amount_cents), category: label(x.category),
+                  description: x.description ?? "", receipt: x.receipt_path ? "yes" : "no", voided: x.voided_at ? "yes" : "",
+                })))}>Export CSV</button>
+              </div>
+              {data.items.map((row) => {
                 if (editExpId === row.id) {
                   return (
                     <div className="spb-item-edit" key={row.id}>
                       <div className="goal-new-row">
                         <input className="note-in spb-amt" inputMode="decimal" value={ee.amount} onChange={(e) => setEe({ ...ee, amount: e.target.value.replace(/[^0-9.]/g, "") })} aria-label="Amount" />
-                        <select className="note-in" value={ee.cat} onChange={(e) => setEe({ ...ee, cat: e.target.value })} aria-label="Category">{rep.by_category.map((c) => <option key={c.category} value={c.category}>{c.category}</option>)}</select>
+                        <select className="note-in" value={ee.cat} onChange={(e) => setEe({ ...ee, cat: e.target.value })} aria-label="Category">{categoryOrder(data.cats).map((c) => <option key={c.slug} value={c.slug}>{label(c.slug)}</option>)}</select>
                       </div>
                       <div className="goal-new-row">
-                        <input className="note-in spb-desc" value={ee.desc} onChange={(e) => setEe({ ...ee, desc: e.target.value })} placeholder="What for?" aria-label="Description" />
-                        <select className="note-in" value={ee.vendor} onChange={(e) => setEe({ ...ee, vendor: e.target.value })} aria-label="Vendor"><option value="">Vendor (optional)</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select>
+                        <input className="note-in spb-desc" value={ee.desc} onChange={(e) => setEe({ ...ee, desc: e.target.value })} placeholder="What was it?" aria-label="What was it" />
+                        <select className="note-in" value={ee.vendor} onChange={(e) => setEe({ ...ee, vendor: e.target.value })} aria-label="Venue or account"><option value="">Venue or account (optional)</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select>
                       </div>
                       <div className="st-log-btns">
                         <button type="button" className="dops-mini" onClick={() => saveExpense(row.id)} disabled={savingExp}>{savingExp ? "Saving…" : "Save"}</button>
@@ -263,16 +270,17 @@ export default function SpendBudget() {
                   );
                 }
                 const vName = vendors.find((v) => v.id === row.vendor_id)?.name;
+                const day = row.spent_on ?? row.created_at.slice(0, 10);
                 return (
                   <div className="spb-item" key={row.id}>
                     <button type="button" className="spb-item-x" onClick={() => startEditExpense(row)} aria-label={`Edit ${moneyRound(row.amount_cents)} expense`}>
                       <span className="spb-item-main">
                         <b>{moneyRound(row.amount_cents)}</b>
-                        <span style={{ textTransform: "capitalize" }}>{row.category}</span>
+                        <span>{label(row.category)}</span>
                         {row.description && <span className="spb-item-desc">{row.description}</span>}
                         {vName && <span className="spb-item-vendor">{vName}</span>}
                       </span>
-                      <span className="spb-item-date">{new Date(row.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+                      <span className="spb-item-date">{new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
                     </button>
                     {row.voided_at ? (
                       <span className="spb-void" title="Voided — kept on the record">voided</span>
@@ -297,10 +305,12 @@ export default function SpendBudget() {
                 );
               })}
             </div>
+            )}
 
             {/* The month in one sentence, from lib/spend.ts — which leads with the bad news when
-                there is bad news rather than opening with "on track" while three categories are over. */}
-            <p className={`spb-line${sum.overCategories > 0 || gaps.length > 0 ? " flag" : ""}`}>{line}</p>
+                there is bad news rather than opening with "on track" while three categories are over.
+                Not said when the empty state above has already said it. */}
+            {!nothingYet && <p className={`spb-line${sum.overCategories > 0 || gaps.length > 0 ? " flag" : ""}`}>{line}</p>}
 
             {gaps.length > 0 && (
               <div className="spb-gaps">
@@ -309,7 +319,7 @@ export default function SpendBudget() {
                   {gaps.slice(0, 5).map((g) => (
                     <li key={g.id}>
                       <b>{moneyRound(g.amount_cents)}</b>
-                      <span>{g.description || g.category}</span>
+                      <span>{g.description || label(g.category)}</span>
                       <em>{g.spent_on ?? ""}</em>
                     </li>
                   ))}
@@ -321,19 +331,6 @@ export default function SpendBudget() {
                 </p>
               </div>
             )}
-
-            <div className="spb-add">
-              <input className="note-in spb-amt" inputMode="decimal" placeholder="$0" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} aria-label="Amount" />
-              <select className="note-in" value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Category">{rep.by_category.map((c) => <option key={c.category} value={c.category}>{c.category}</option>)}</select>
-              <input className="note-in spb-desc" placeholder="What for?" value={desc} onChange={(e) => setDesc(e.target.value)} aria-label="Description" />
-              <select className="note-in" value={vendor} onChange={(e) => setVendor(e.target.value)} aria-label="Vendor"><option value="">Vendor (optional)</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select>
-              {/* 0292: spend belongs to a city. Without this every expense lands in Greenville and
-                  the two markets share one number, which is what the report used to do. */}
-              <select className="note-in" value={market} onChange={(e) => setMarket(toMarket(e.target.value))} aria-label="City">
-                {MARKETS.map((m) => <option key={m} value={m}>{MARKET_LABEL[m]}</option>)}
-              </select>
-              <button type="button" className="note-save" onClick={addExpense} disabled={busy}>{busy ? "…" : "Log expense"}</button>
-            </div>
           </div>
         );
       }}

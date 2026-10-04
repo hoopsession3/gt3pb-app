@@ -184,3 +184,69 @@ export function headline(t: SpendTotals): string {
   if (t.budgetCents === 0) return `${moneyRound(t.spentCents)} spent, against no budget — set one to make this mean something.`;
   return `${moneyRound(t.spentCents)} of ${moneyRound(t.budgetCents)} spent, everything receipted.`;
 }
+
+// ── what a person reads and picks (2026-10-04) ───────────────────────────────────────────────────
+// Ryan, of the Spend panel: "Should you have an open field like this or should it be architected
+// differently?" It was a five-field form parked under the month's report, defaulted to "supplies"
+// and to Greenville, beside three different sentences that all said nothing had been spent. These
+// are the pieces the capture sheet and the report now share, so neither re-derives them.
+
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August",
+  "September", "October", "November", "December"];
+
+/** "2026-10" → "October" in the current year, "October 2025" otherwise. The panel printed the key. */
+export function monthLabel(key: string | null | undefined, now: Date = new Date()): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(key ?? "").trim());
+  const name = m ? MONTH_NAMES[Number(m[2]) - 1] : undefined;
+  if (!m || !name) return String(key ?? "");
+  return Number(m[1]) === now.getFullYear() ? name : `${name} ${m[1]}`;
+}
+
+/** A category's own words. The panel printed the slug ("supplies"); the table has had labels since 0292. */
+export function categoryLabel(slug: string | null | undefined, cats: readonly SpendCategory[]): string {
+  const s = String(slug ?? "").trim();
+  const c = cats.find((x) => x.slug === s);
+  if (c?.label?.trim()) return c.label.trim();
+  return s ? s.replace(/_/g, " ").replace(/^\w/, (ch) => ch.toUpperCase()) : "Uncategorised";
+}
+
+/**
+ * The categories a purchase can go in, the ones this business actually uses FIRST (most-used in
+ * `recent`), then the house order. Inactive ones are not offered. Nothing is pre-selected by the
+ * caller: a default category is a silent miscategorisation of everything that is not that category.
+ */
+export function categoryOrder(cats: readonly SpendCategory[], recent: readonly { category: string }[] = []): SpendCategory[] {
+  const uses = new Map<string, number>();
+  for (const r of recent) uses.set(r.category, (uses.get(r.category) ?? 0) + 1);
+  return cats.filter((c) => c.active !== false).slice()
+    .sort((a, b) => ((uses.get(b.slug) ?? 0) - (uses.get(a.slug) ?? 0)) || ((a.sort ?? 0) - (b.sort ?? 0)));
+}
+
+/**
+ * The day a purchase is filed under (spent_on, local yyyy-mm-dd). "Today" and "yesterday" are the
+ * two that matter at a register; anything else is picked. The old form could only ever say today,
+ * so a receipt logged the morning after was filed under the wrong day — and at month's end, the
+ * wrong month.
+ */
+export function purchaseDay(choice: "today" | "yesterday" | "pick", picked: string, now: Date): string {
+  const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  if (choice === "today") return key(now);
+  if (choice === "yesterday") { const y = new Date(now); y.setDate(y.getDate() - 1); return key(y); }
+  return /^\d{4}-\d{2}-\d{2}$/.test(picked) ? picked : "";
+}
+
+/**
+ * What to say about the receipt BEFORE the purchase is saved, or null when nothing is owed. The same
+ * rule the missing-receipt list applies afterwards (needsReceipt), asked at the one moment the
+ * receipt is usually still in someone's hand.
+ */
+export function receiptAsk(amountCents: number, slug: string, cats: readonly SpendCategory[], hasReceipt: boolean): string | null {
+  if (hasReceipt || !(amountCents > 0) || !slug) return null;
+  const owed = needsReceipt({ id: "", category: slug, amount_cents: amountCents, spent_on: "", receipt_path: null, voided_at: null }, cats);
+  if (!owed) return null;
+  const c = cats.find((x) => x.slug === slug);
+  const over = cents(c?.receipt_required_over_cents ?? 0);
+  return over > 0
+    ? `${categoryLabel(slug, cats)} needs a receipt from ${moneyRound(over)} — photograph it now and it is done.`
+    : `${categoryLabel(slug, cats)} always needs a receipt — photograph it now and it is done.`;
+}

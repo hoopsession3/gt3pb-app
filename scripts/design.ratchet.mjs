@@ -47,9 +47,15 @@ export const BREW_SHEET = { depth: 4, tap: 31, text: 10.5 };
 // measured 31px before the sheets started drawing it.
 const RECORD_FIXTURE = join(ROOT, "scripts/fixtures/record-sheet.html");
 export const RECORD_SHEET = { depth: 6, tap: 44, text: 10.5 };
+// The purchase sheet (2026-10-04) — Money › Spend's five-field form became a capture sheet in the
+// quick-actions dock, after Ryan asked whether an open form under the report was the right shape. It
+// is used one-handed at a register, so its tap floor is 44 like the record sheet's.
+const PURCHASE_FIXTURE = join(ROOT, "scripts/fixtures/purchase-sheet.html");
+export const PURCHASE_SHEET = { depth: 3, tap: 44, text: 10.5 };
 const SHEETS = [
-  { name: "brew sheet",   file: BREW_FIXTURE,   rel: "scripts/fixtures/brew-sheet.html",   limits: BREW_SHEET },
-  { name: "record sheet", file: RECORD_FIXTURE, rel: "scripts/fixtures/record-sheet.html", limits: RECORD_SHEET },
+  { name: "brew sheet",     file: BREW_FIXTURE,     rel: "scripts/fixtures/brew-sheet.html",     limits: BREW_SHEET },
+  { name: "record sheet",   file: RECORD_FIXTURE,   rel: "scripts/fixtures/record-sheet.html",   limits: RECORD_SHEET },
+  { name: "purchase sheet", file: PURCHASE_FIXTURE, rel: "scripts/fixtures/purchase-sheet.html", limits: PURCHASE_SHEET },
 ];
 // The crew console's bottom chrome (2026-10-04): the nav, the floating tier, the rail. Not a depth
 // or a tap floor — a COLLISION check, because the defect was a button painted on top of a tab.
@@ -232,6 +238,12 @@ export const PROD_ROUTE = {
 // line (283 073 → 283 220 bytes). /truck and /events +372 (the road rule from lib/road, which the
 // public page now shares with the crew's Live truck panel) and stayed at 284; every stylesheet
 // −35. Measured against a build of c846e47, route by route, not estimated.
+// 2026-10-04: /driver 280 → 281, and not one new byte of code on it. Built both sides and diffed the
+// chunks /driver's HTML references: the same files at the SAME raw sizes (44 645 and 25 972 bytes),
+// renamed, because the shell's map of lazy chunks names the quick-actions dock by content hash and
+// the dock gained the purchase sheet. A different hash string gzips differently: +50 and −10 bytes,
+// 287 217 → 287 257 bytes in all, which is 15 bytes past the 280.49 KB rounding line. Compression
+// noise on a filename, written down so it is not mistaken for weight.
 export const WEIGHT = {
   "/truck":                    { js: 284, css: 103, chunks: 16 },
   "/events":                   { js: 284, css: 103, chunks: 16 },
@@ -246,7 +258,7 @@ export const WEIGHT = {
   "/scan":                     { js: 260, css: 100, chunks: 15 },
   "/architecture":             { js: 270, css: 100, chunks: 15 },
   "/playbook":                 { js: 277, css: 100, chunks: 16 },
-  "/driver":                   { js: 280, css: 103, chunks: 16 },
+  "/driver":                   { js: 281, css: 103, chunks: 16 },
   "/agreement":                { js: 267, css: 100, chunks: 15 },
   "/offer":                    { js: 277, css: 100, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 259, css: 100, chunks: 15 },

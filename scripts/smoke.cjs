@@ -1064,6 +1064,71 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("spend: on budget but unreceipted is not reported as clean",
     /no receipt/.test(SP.headline(receiptsMissing)), SP.headline(receiptsMissing));
 
+  // ── CAPTURE AND REVIEW ARE TWO JOBS (2026-10-04) ─────────────────────────────────────────────
+  // Ryan, of Money › Spend: "Should you have an open field like this or should it be architected
+  // differently?" A five-field form under the report, defaulted to "supplies" and Greenville, the
+  // receipt only attachable after the row existed, "2026-10" for a month, slugs for categories, and
+  // three sentences in a row saying nothing had been spent. Logging moved to a sheet (LogPurchase in
+  // the quick-actions dock); the panel is the month.
+  {
+    const now = new Date(2026, 9, 4, 21, 0);       // Sat Oct 4 2026, 9 PM local
+    ok("spend words: the month is said as a month, this year without the year",
+      SP.monthLabel("2026-10", now) === "October" && SP.monthLabel("2025-10", now) === "October 2025");
+    ok("spend words: a key it cannot read comes back as it was, not as a wrong month",
+      SP.monthLabel("garbage", now) === "garbage" && SP.monthLabel("2026-13", now) === "2026-13");
+    const C = [...CATS, { slug: "supplies", label: "Supplies", sort: 20, active: true, receipt_required_over_cents: 0 }];
+    ok("spend words: a category is said by its label, never its slug", SP.categoryLabel("supplies", C) === "Supplies");
+    ok("spend words: …and one the table does not know is at least readable", SP.categoryLabel("booth_fee", C) === "Booth fee");
+    const order = SP.categoryOrder(C, [{ category: "marketing" }, { category: "marketing" }, { category: "supplies" }]).map((c) => c.slug);
+    ok("spend words: the categories this business uses come first, then the house order",
+      order.join() === "marketing,supplies,ingredients", order);
+    ok("spend words: a retired category is not offered for a new purchase", !order.includes("retired"));
+    ok("spend words: with no history it is simply the house order",
+      SP.categoryOrder(C).map((c) => c.slug).join() === "ingredients,supplies,marketing");
+    ok("receipt ask: marketing under its threshold owes nothing", SP.receiptAsk(2000, "marketing", C, false) === null);
+    ok("receipt ask: over it, the sheet says so with the number",
+      /Marketing needs a receipt from \$25/.test(SP.receiptAsk(3000, "marketing", C, false) || ""), SP.receiptAsk(3000, "marketing", C, false));
+    ok("receipt ask: an always-receipted category says always",
+      /Supplies always needs a receipt/.test(SP.receiptAsk(500, "supplies", C, false) || ""));
+    ok("receipt ask: a receipt in hand, or no amount yet, and it says nothing",
+      SP.receiptAsk(500, "supplies", C, true) === null && SP.receiptAsk(0, "supplies", C, false) === null);
+    ok("purchase day: today is the local day", SP.purchaseDay("today", "", now) === "2026-10-04");
+    ok("purchase day: yesterday crosses a month boundary correctly",
+      SP.purchaseDay("yesterday", "", new Date(2026, 9, 1, 8, 0)) === "2026-09-30");
+    ok("purchase day: a picked day is taken as given, and a bad one is refused rather than guessed",
+      SP.purchaseDay("pick", "2026-09-12", now) === "2026-09-12" && SP.purchaseDay("pick", "Sept 12", now) === "");
+
+    const fs = require("node:fs"), path = require("node:path");
+    const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+    const panel = read("components/SpendBudget.tsx"), sheet = read("components/LogPurchase.tsx"), dock = read("components/QuickDock.tsx");
+    const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+    ok("spend panel: no form lives in the report any more — it opens the one capture sheet",
+      !/spb-add/.test(code(panel)) && !/\.from\("expenses"\)\.insert\(/.test(code(panel)) && /gt3-log-purchase/.test(code(panel)));
+    ok("spend panel: its list is windowed on spent_on, the day report_spend() totals by",
+      /\.gte\("spent_on", monthStart\)/.test(code(panel)) && !/\.gte\("created_at"/.test(code(panel)));
+    ok("spend panel: one empty state, not three",
+      !/Nothing logged yet this month\./.test(code(panel)) && /<EmptyState/.test(code(panel)) && /\{!nothingYet && <p className=\{`spb-line/.test(code(panel)));
+    ok("spend panel: the month in words and categories by label",
+      /monthLabel\(rep\.month\)/.test(code(panel)) && !/\{rep\.month\}/.test(code(panel)) && /categoryLabel\(/.test(code(panel)));
+    ok("purchase sheet: nothing is pre-chosen for the category",
+      /\[cat, setCat\] = useState<string \| null>\(null\)/.test(code(sheet)) && !/useState(<[^>]*>)?\("supplies"\)/.test(code(sheet) + code(panel)));
+    ok("purchase sheet: it files the day it was spent, and the receipt through the one home",
+      /spent_on: spentOn/.test(code(sheet)) && /from "@\/lib\/receipts"/.test(sheet) && /attachReceipt\(/.test(code(sheet)));
+    ok("purchase sheet: the quick-actions dock opens it, by tab and by event",
+      /gt3-log-purchase/.test(code(dock)) && /<LogPurchase /.test(code(dock)) && /mode === "spend"/.test(code(dock)));
+    // ONE HOME FOR A RECEIPT. The panel and the sheet both file receipts; only lib/receipts touches
+    // the bucket, so the path and size rules cannot drift between them.
+    const bucketCallers = [];
+    (function walk(d) {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const f = path.join(d, e.name);
+        if (e.isDirectory()) { if (!/node_modules|\.next|\.smoke|\.git/.test(f)) walk(f); continue; }
+        if (/\.tsx?$/.test(e.name) && /storage\.from\("receipts"\)/.test(code(fs.readFileSync(f, "utf8")))) bucketCallers.push(f.replace(path.join(__dirname, "..") + "/", ""));
+      }
+    })(path.join(__dirname, ".."));
+    ok("receipts: only lib/receipts.ts touches the receipts bucket", bucketCallers.join() === "lib/receipts.ts", bucketCallers);
+  }
+
   // ── the deal explainer: the signer's side of the same math ─────────────────────────────────────
   const DX = require("../.smoke/dealExplainer.js");
   const T = (supplyFunding, stage = "profitable", tier = "operator") => ({ supplyFunding, stage, tier });
