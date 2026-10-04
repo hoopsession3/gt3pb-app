@@ -233,13 +233,34 @@ export function validateProposal(t: { market?: unknown; terms?: DealTerms | null
   return { ok: true };
 }
 
+/**
+ * The split in words. "50/0/50" was three bare numbers in an order nobody on the screen could know —
+ * operator, royalty, market — and the agreements list showed nothing else (Ryan's Business tab,
+ * 2026-10-04). Every place that shows a split says which share is which, through this.
+ */
+export function splitWords(s: Pick<DealSplit, "operatorPct" | "royaltyPct" | "marketPct">): string {
+  return `${s.operatorPct}% operator · ${s.royaltyPct}% royalty · ${s.marketPct}% market`;
+}
+
 /** One-line summary for a list row or a notification. */
 export function summarize(terms: DealTerms, market: Market): string {
   const s = computeSplit(terms);
   const who = terms.supplyFunding === 0 ? "GT3 funds supplies"
     : terms.supplyFunding === 100 ? "operator funds supplies"
     : `supplies ${terms.supplyFunding}/${100 - terms.supplyFunding} operator/GT3`;
-  return `${market} · ${TIER[terms.tier].label} · ${s.operatorPct}/${s.royaltyPct}/${s.marketPct} · ${who}`;
+  return `${market} · ${TIER[terms.tier].label} · ${splitWords(s)} · ${who}`;
+}
+
+/**
+ * A draft nobody has touched since "+ New agreement" made it. The insert stamps created_at and
+ * updated_at from the same now(); every save writes updated_at. So equal stamps on a draft mean the
+ * defaults were never changed — which is how the Business tab came to show two identical "New
+ * operator · Associate · 50/0/50" rows that nobody could tell apart, and nothing said were blank.
+ */
+export function isUntouchedDraft(r: { status?: string | null; created_at?: string | null; updated_at?: string | null }): boolean {
+  if (r.status !== "draft" || !r.created_at || !r.updated_at) return false;
+  const a = Date.parse(r.created_at), b = Date.parse(r.updated_at);
+  return Number.isFinite(a) && a === b;
 }
 
 // ── scope: what this operator actually DOES ───────────────────────────────────────────────────────

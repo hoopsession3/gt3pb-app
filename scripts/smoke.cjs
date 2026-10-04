@@ -739,6 +739,42 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     OD.validateProposal({ market: "atlanta", operatorName: "Head of Atlanta Ops", terms: { supplyFunding: 50, stage: "ramp", tier: "associate" } }).ok);
   ok("deal: unknown tier/stage/status fall back safely",
     OD.toTier("wizard") === "associate" && OD.toStage("vibes") === "ramp" && OD.toStatus(undefined) === "draft");
+
+  // ── THE BUSINESS TAB, 2026-10-04: two identical rows reading "New operator · Associate · 50/0/50" ──
+  // Three bare numbers in an order nobody on the screen could know, on two drafts nobody could tell
+  // apart or tell were blank. The split is said in words now, a draft still on its defaults says so,
+  // and "+ New agreement" opens that blank instead of making another.
+  ok("deal: a split is said in words, operator · royalty · market",
+    OD.splitWords({ operatorPct: 50, royaltyPct: 0, marketPct: 50 }) === "50% operator · 0% royalty · 50% market");
+  ok("deal: summarize says it the same way — no bare a/b/c left",
+    OD.summarize({ supplyFunding: 50, stage: "profitable", tier: "associate" }, "greenville").includes("50% operator · 30% royalty · 20% market")
+    && !/\b\d+\/\d+\/\d+\b/.test(OD.summarize({ supplyFunding: 50, stage: "profitable", tier: "associate" }, "greenville")));
+  const made = "2026-10-03T21:04:00.123456+00:00";
+  ok("deal: a draft whose stamps still match is untouched", OD.isUntouchedDraft({ status: "draft", created_at: made, updated_at: made }));
+  ok("deal: …however the instant is spelled", OD.isUntouchedDraft({ status: "draft", created_at: "2026-10-03T21:04:00Z", updated_at: "2026-10-03T21:04:00+00:00" }));
+  ok("deal: one saved even once is not", !OD.isUntouchedDraft({ status: "draft", created_at: made, updated_at: "2026-10-03T21:09:12Z" }));
+  ok("deal: nothing but a draft can be blank, and missing stamps prove nothing",
+    !OD.isUntouchedDraft({ status: "sent", created_at: made, updated_at: made })
+    && !OD.isUntouchedDraft({ status: "draft", created_at: made, updated_at: null })
+    && !OD.isUntouchedDraft({ status: "draft", created_at: "nonsense", updated_at: "nonsense" }));
+  {
+    const fs = require("node:fs"), path = require("node:path");
+    const src = fs.readFileSync(path.join(__dirname, "..", "components/OperatorDeal.tsx"), "utf8");
+    const create = src.slice(src.indexOf("const createDraft = async"), src.indexOf("return (", src.indexOf("const createDraft = async")));
+    ok("deal: + New agreement looks for an untouched draft BEFORE it inserts one",
+      create.indexOf("isUntouchedDraft") > 0 && create.indexOf("isUntouchedDraft") < create.indexOf(".insert("));
+    ok("deal: the list asks for updated_at, or the blank rule has nothing to read",
+      (src.match(/package, notes, created_at, updated_at,/g) || []).length === 2);
+    ok("deal: no list row prints the split as bare numbers",
+      !/\{row\.operator_pct\}\/\{row\.royalty_pct\}/.test(src) && /splitWords\(\{ operatorPct: row\.operator_pct/.test(src));
+    // The empty state promised "the default lands on the agreed 50/30/20". The draft it makes is a
+    // RAMP draft, and during ramp the royalty is zero — so what it actually made was 50/0/50.
+    const dflt = OD.computeSplit({ supplyFunding: 50, stage: "ramp", tier: "associate" });
+    ok("deal: a new draft is a ramp draft, and its royalty is zero",
+      /stage: "ramp"/.test(create) && dflt.royaltyPct === 0 && dflt.operatorPct === 50);
+    ok("deal: …so the empty state no longer promises 50/30/20 as the default",
+      !src.includes("the default lands on the agreed 50/30/20") && src.includes("no royalty until the market is profitable"));
+  }
 }
 
 // ── SHOP MEDIA (0278) — photos + video on a product ───────────────────────────────────────────────

@@ -12,7 +12,7 @@ import { MARKETS, MARKET_LABEL, toMarket, type Market } from "@/lib/markets";
 import DealExplainer from "./DealExplainer";
 import { useOptions } from "./useOptions";
 import {
-  computeSplit, project, bestFundingForOperator, summarize,
+  computeSplit, project, bestFundingForOperator, summarize, splitWords, isUntouchedDraft,
   TIERS, TIER, nextTier, STAGES, STAGE_LABEL, STATUS_LABEL,
   nextStatuses, isEditable, isDiscardable, toStatus, toTier, toStage, validateProposal,
   SCOPE_BASIS, SCOPE_BASIS_LABEL, HOURS_BASIS, HOURS_BASIS_LABEL,
@@ -20,7 +20,7 @@ import {
   type DealTerms, type AgreementStatus, type ScopeBasis, type HoursBasis,
 } from "@/lib/operatorDeal";
 import { moneyRound } from "@/lib/money";
-import { localToday } from "@/lib/dates";
+import { localToday, dayWithDate } from "@/lib/dates";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { usePrompt } from "@/components/PromptSheet";
 
@@ -51,7 +51,7 @@ type Row = {
   id: string; market: string; operator_name: string; operator_email: string | null;
   operator_user_id: string | null; status: string; tier: string; stage: string;
   supply_funding: number; operator_pct: number; royalty_pct: number; market_pct: number;
-  package: any[]; notes: string | null; created_at: string;
+  package: any[]; notes: string | null; created_at: string; updated_at: string | null;
   // 0309 — what they DO, on what basis, and until when
   covers: string[]; scope_basis: string; scope_until: string | null;
   hours_basis: string; hours_note: string | null;
@@ -99,11 +99,11 @@ export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) 
     const [a, integ, hrs] = await Promise.all([
       (mine
         ? supabase.from("operator_agreements")
-            .select("id, market, operator_name, operator_email, operator_user_id, status, tier, stage, supply_funding, operator_pct, royalty_pct, market_pct, package, notes, created_at, supply_sourcing, supply_price_basis, equity_eligible, equity_scope, covers, scope_basis, scope_until, hours_basis, hours_note, signed_name, signed_at, countersigned_name, countersigned_at, version, supersedes_id")
+            .select("id, market, operator_name, operator_email, operator_user_id, status, tier, stage, supply_funding, operator_pct, royalty_pct, market_pct, package, notes, created_at, updated_at, supply_sourcing, supply_price_basis, equity_eligible, equity_scope, covers, scope_basis, scope_until, hours_basis, hours_note, signed_name, signed_at, countersigned_name, countersigned_at, version, supersedes_id")
             .eq("operator_user_id", meId)
             .order("created_at", { ascending: false })
         : supabase.from("operator_agreements")
-            .select("id, market, operator_name, operator_email, operator_user_id, status, tier, stage, supply_funding, operator_pct, royalty_pct, market_pct, package, notes, created_at, supply_sourcing, supply_price_basis, equity_eligible, equity_scope, covers, scope_basis, scope_until, hours_basis, hours_note, signed_name, signed_at, countersigned_name, countersigned_at, version, supersedes_id")
+            .select("id, market, operator_name, operator_email, operator_user_id, status, tier, stage, supply_funding, operator_pct, royalty_pct, market_pct, package, notes, created_at, updated_at, supply_sourcing, supply_price_basis, equity_eligible, equity_scope, covers, scope_basis, scope_until, hours_basis, hours_note, signed_name, signed_at, countersigned_name, countersigned_at, version, supersedes_id")
             .order("created_at", { ascending: false })),
       supabase.from("v_agreement_integrity").select("id, integrity"),
       supabase.from("v_agreement_hours").select("agreement_id, hours_total, hours_on_interim_work, days_worked"),
@@ -130,6 +130,15 @@ export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) 
 
   const createDraft = async () => {
     if (!supabase) return;
+    // ONE BLANK AT A TIME. Every tap used to insert another "New operator" with the defaults, so the
+    // list grew rows nobody could tell apart (the Business tab, 2026-10-04: two of them, identical).
+    // A draft still sitting on its defaults is the one to fill in — open it instead.
+    const blank = rows.find((r) => isUntouchedDraft(r));
+    if (blank) {
+      setOpenId(blank.id);
+      toast("There is already a blank draft — it's open. Fill it in, or discard it.");
+      return;
+    }
     setBusy(true);
     const split = computeSplit({ supplyFunding: 50, stage: "ramp", tier: "associate" });
     const { data, error } = await supabase.from("operator_agreements").insert({
@@ -173,7 +182,7 @@ export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) 
               <p className="h-sub" style={{ margin: "4px 0 0" }}>
                 {mine
                   ? "There is no operator agreement in your name. When GT3 drafts one and sends it, it appears here for you to read and respond to."
-                  : "Start one for your head of Atlanta ops — the default lands on the agreed 50/30/20."}
+                  : "A new one starts at Associate while the market ramps: 50% to the operator, no royalty until the market is profitable, and the rest stays in the market. Profitable, the midpoint is the agreed 50/30/20."}
               </p>
             </div>
           )}
@@ -288,7 +297,12 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra }: {
           <span className="k-lead">{MARKET_LABEL[d.market]}</span>
           <span className="k-bd">
             <span className="k-nm">{row.operator_name}</span>
-            <span className="k-sub">{TIER[toTier(row.tier)].label} · {row.operator_pct}/{row.royalty_pct}/{row.market_pct}</span>
+            {/* Which share is which, in words (lib/operatorDeal splitWords) — and a draft nobody has
+                touched says so, with the day it was started, so two of them are never two
+                identical rows again. */}
+            <span className="k-sub">{isUntouchedDraft(row)
+              ? <>Blank — never filled in · started {dayWithDate(row.created_at)}</>
+              : <>{TIER[toTier(row.tier)].label} · {splitWords({ operatorPct: row.operator_pct, royaltyPct: row.royalty_pct, marketPct: row.market_pct })}</>}</span>
           </span>
           <span className={`od-status od-${status}`}>{STATUS_LABEL[status]}</span>
         </button>
