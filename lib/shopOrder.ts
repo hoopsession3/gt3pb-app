@@ -37,7 +37,10 @@ export const SHOP_STATUS_META: Record<ShopStatus, StatusMeta> = {
   },
   needs_fulfillment: {
     label: "Needs fulfilment",
-    means: "Paid, and the printer either wasn't reachable or hasn't been asked. Submit it by hand.",
+    // 2026-10-04: was "the printer either wasn't reachable or hasn't been asked" — false of the one
+    // real order in this state, which WAS asked, and refused (0334 moved it here). What is true of
+    // every way in is the line below; the stalled-order alert (0340) quotes the same words.
+    means: "Paid, and nothing shows the printer has it — never sent, a send that failed, or an order the printer refused. Send it by hand, or refund it.",
     waiting: "us",
   },
   // ── THE STATE THAT LIED, CORRECTED TWICE (2026-09-29) ──────────────────────────────────────────

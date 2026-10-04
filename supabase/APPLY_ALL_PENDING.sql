@@ -54,7 +54,8 @@
 --    TITLE with the body. The title states what v_shop_orders actually measures — time since
 --    payment, said the way the shop panel says it (shop_age_words mirrors lib/shopOrder's ageLabel;
 --    the db test runs both and fails if they ever disagree). The body follows the order's status:
---    0329's one body said "this app sent it" about orders still marked Paid, which were never sent.
+--    0329's one body said "this app sent it" about every order waiting on us — including the cap
+--    itself, which 0334 had moved to needs_fulfillment precisely because nothing showed it was sent.
 --    And an alert whose order is no longer waiting on us now closes itself, because "Got it" on a
 --    broadcast alert only hides it for the person who tapped it (0157), and 0258 never expires a
 --    critical — so a stall that was RESOLVED stayed open in the table for ever.
@@ -136,7 +137,7 @@ begin
     -- One sentence per status, in the shop panel's own words (lib/shopOrder.ts SHOP_STATUS_META —
     -- scripts/smoke.cjs fails if a status the view calls waiting-on-us has no branch here, or if a
     -- branch stops quoting that status's label). 0329 had one body for all three, and it said "this
-    -- app sent it" about orders still marked Paid, which had never been sent anywhere.
+    -- app sent it" about Paid and Needs-fulfilment orders too — the cap's own alert said it.
     v_body := coalesce(r.items, 'This order') || '. ' || case r.status
       when 'submitted' then
         'The shop shows it as "Sent, not confirmed": it went to Apliiq on '
@@ -144,8 +145,8 @@ begin
         || ' and nothing has come back since. Apliiq refuses an order by emailing the account owner — '
         || 'never this app — so open Apliiq and make sure it is really there.'
       when 'needs_fulfillment' then
-        'The shop shows it as "Needs fulfilment": paid, and the printer was never reached or never '
-        || 'asked. Open the order and send it to the printer, or refund it.'
+        'The shop shows it as "Needs fulfilment": paid, and nothing shows the printer has it. Open '
+        || 'the order and send it to the printer, or refund it.'
       when 'paid' then
         'The shop shows it as "Paid": the card cleared and nothing has gone to the printer. Open the '
         || 'order and send it to the printer, or refund it.'

@@ -256,8 +256,9 @@ await db.exec(readFileSync(join(ROOT, "supabase/migrations/0336_the_guard_that_m
   await db.exec(`update public.alerts set ack_at = now() where kind = 'shop_order_stalled'`);
   await db.exec(`update public.shop_orders set status = 'delivered'`);   // earlier orders are not this story
 
-  // THE SCREENSHOT. Raised the night it was twelve hours old, then left to sit.
-  const shot = await mkOrder("submitted", 12, "Ryan", 3200);
+  // THE SCREENSHOT, as production holds it: Ryan's $32 cap, moved to needs_fulfillment by 0334 after
+  // Apliiq refused it. Raised the night it was twelve hours old, then left to sit.
+  const shot = await mkOrder("needs_fulfillment", 12, "Ryan", 3200);
   await run(12);
   await db.exec(`update public.shop_orders set created_at = now() - interval '119 hours' where id = '${shot}'`);
   await run(24);
@@ -265,6 +266,8 @@ await db.exec(readFileSync(join(ROOT, "supabase/migrations/0336_the_guard_that_m
   ok("0331: the title froze at the age the alert was raised", /in 12 hours$/.test(was?.title ?? ""), was?.title);
   ok("0331: …while the body counted on, about the same order", /119 hours/.test(was?.body ?? ""), was?.body?.slice(0, 120));
   ok("0331: …and the money had no dollar sign", /paid 32\.00/.test(was?.body ?? "") && !/\$32/.test(was?.body ?? ""));
+  ok("0331: …and it told an order the app could not show the printer has that 'this app sent it' — the screenshot, word for word",
+    (was?.body ?? "").includes('Status is "needs_fulfillment", which means this app sent it'), was?.body);
 
   // A STALL THAT WAS RESOLVED. Raised, then the order moved to the printer. Under 0331 nothing ever
   // closes it: "Got it" on a broadcast is a per-person read (0157) and 0258 never expires a critical.
@@ -290,12 +293,9 @@ await db.exec(readFileSync(join(ROOT, "supabase/migrations/0336_the_guard_that_m
     now?.id === was?.id, { before: was?.id, after: now?.id });
   ok("0340: the title says what the view measures, in the shop's words, with the dollar sign",
     now?.title === "Ryan paid $32.00 4 days ago — still waiting on us", now?.title);
-  ok("0340: the body leads with what was bought", /^1x GT3 6-Panel Cap\. /.test(now?.body ?? ""), now?.body);
-  ok("0340: …names the status the way the shop panel does",
-    (now?.body ?? "").includes('The shop shows it as "Sent, not confirmed"'), now?.body);
-  ok("0340: …and says what sent means, and where a refusal goes",
-    /went to Apliiq on \w{3}, \w{3} \d{1,2} and nothing has come back since/.test(now?.body ?? "")
-    && /emailing the account owner/.test(now?.body ?? ""), now?.body);
+  ok("0340: the body is what is true of this order, in the shop panel's words, and what to do",
+    now?.body === '1x GT3 6-Panel Cap. The shop shows it as "Needs fulfilment": paid, and nothing shows the printer has it. Open the order and send it to the printer, or refund it.',
+    now?.body);
   ok("0340: the body carries no second age to contradict the title", !/\d+ hours/.test(now?.body ?? ""), now?.body);
   ok("0340: still critical, still one episode", now?.severity === "critical" && Number(now?.occurrences) === 1, now);
 
@@ -321,7 +321,16 @@ await db.exec(readFileSync(join(ROOT, "supabase/migrations/0336_the_guard_that_m
   ok("0340: thousands are grouped, the way every other money sentence here writes them",
     nb?.title === "Nadia paid $1,234,567.89 1 day ago — still waiting on us", nb?.title);
   ok("0340: Needs fulfilment says so, in the panel's spelling",
-    (nb?.body ?? "").includes('"Needs fulfilment": paid, and the printer was never reached or never asked'), nb?.body);
+    (nb?.body ?? "").includes('"Needs fulfilment": paid, and nothing shows the printer has it'), nb?.body);
+
+  // SENT, NOT CONFIRMED — the state the cap was in before 0334, and the one Apliiq's silence leaves.
+  const sent = await mkOrder("submitted", 30, "Sam", 2800);
+  await run(24);
+  const sb = (await open(sent))?.body ?? "";
+  ok("0340: a sent order is told what sent means — and where a refusal goes",
+    sb.includes('The shop shows it as "Sent, not confirmed": it went to Apliiq on ')
+    && /went to Apliiq on \w{3}, \w{3} \d{1,2} and nothing has come back since/.test(sb)
+    && /emailing the account owner/.test(sb), sb);
 
   // 0329's contract, kept: acknowledging means "tell me again".
   await db.exec(`update public.alerts set ack_at = now() where kind = 'shop_order_stalled' and subject_id = '${needs}'`);
@@ -332,7 +341,7 @@ await db.exec(readFileSync(join(ROOT, "supabase/migrations/0336_the_guard_that_m
   await db.exec(`update public.shop_orders set status = 'in_production' where id = '${shot}'`);
   await run(24);
   ok("0340: when the order finally moves, its alert closes itself", !(await open(shot)));
-  ok("0340: …and the other stuck orders keep theirs", !!(await open(needs)) && !!(await open(paidOnly)));
+  ok("0340: …and the other stuck orders keep theirs", !!(await open(needs)) && !!(await open(paidOnly)) && !!(await open(sent)));
 
   // ── THE KNOWN PAIR: the age in the alert and the age in the shop panel ─────────────────────────
   // shop_age_words is a mirror of lib/shopOrder.ts ageLabel. A mirror nobody compares is the drift
