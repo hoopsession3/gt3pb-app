@@ -18,6 +18,7 @@ import { goPlanTab } from "@/lib/planNav";
 import { wrapOwner } from "@/lib/wrap";
 import { LocationEditor } from "@/components/crew/LocationEditor";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { RecordLink } from "@/components/RecordSheet";
 
 // LIVE CONTROL — the truck's live status board: where it is, whether it is open, what is next.
 //
@@ -278,7 +279,10 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
             <span className={`adm-dot${live?.is_live ? " on" : ""}`} />
             <div className="liveinst-state">
               <b>{live?.is_live ? "LIVE" : "OFFLINE"}</b>
-              <span>{live?.is_live ? (curStop?.name ?? "on location") : nextStop ? `next · ${nextStop.name} · ${nextWhen}` : "nothing on the road"}</span>
+              {/* The stop named here opens its record (2026-10-04) — it was plain text. */}
+              <span>{live?.is_live
+                ? (curStop ? <RecordLink kind="stop" id={curStop.id}>{curStop.name}</RecordLink> : "on location")
+                : nextStop ? <>next · <RecordLink kind="stop" id={nextStop.id}>{nextStop.name}</RecordLink> · {nextWhen}</> : "nothing on the road"}</span>
             </div>
             {live?.is_live
               ? <button className="adm-btn ghost" onClick={pause}>Go offline</button>
@@ -302,7 +306,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
       <div className="adm-live">
         {!manage && <div className="adm-live-status">
           <span className={`adm-dot${live?.is_live ? " on" : ""}`} />
-          <span><b>{live?.is_live ? "Live now" : "Offline"}</b>{live?.is_live && curStop ? <span className="adm-live-at"> · {curStop.name}</span> : null}</span>
+          <span><b>{live?.is_live ? "Live now" : "Offline"}</b>{live?.is_live && curStop ? <span className="adm-live-at"> · <RecordLink kind="stop" id={curStop.id}>{curStop.name}</RecordLink></span> : null}</span>
         </div>}
         {/* The ordering dial (0137): when cup pre-orders open. Same rule everywhere — menu sheet,
             checkout, and the charge API. Pack reserves are always open regardless. Prep-day work,

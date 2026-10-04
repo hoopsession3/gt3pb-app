@@ -80,6 +80,21 @@ export const brewStartOverdue = (
   now: number = Date.now(),
 ) => b.status === "planned" && !!b.latest_start_at && new Date(b.latest_start_at).getTime() < now;
 
+// ── A BATCH THAT IS OVER, IN ONE PLACE (2026-10-04) ────────────────────────────────────────────
+// served (poured for guests), dumped (brewed and poured out — a loss, counted in yield), discarded
+// (logged by mistake: it never happened, 0308). Nothing that looks forward reads them — not the
+// schedule, not a pack plan, not the calendar. Four readers kept their own copy of this list:
+// BrewPlanner had all three words in one place and two in another, the company calendar and the
+// chief's brief still had the two from before 0308 (so a batch logged by accident kept its slot on
+// the calendar), and the pack plan filtered on 'archived' — a word brew_batches.status has never
+// had — and so filtered nothing at all: a dumped batch was still being planned into kegs.
+// The line below is read by scripts/vocab.audit.mjs, which holds this list to the table's own.
+// vocab: brew_batches.status
+export const BATCH_OVER = ["served", "dumped", "discarded"] as const;
+export const batchIsOver = (status: string | null | undefined) => (BATCH_OVER as readonly string[]).includes(status ?? "");
+/** The same list as PostgREST's `not in` takes it: `.not("status", "in", BATCH_OVER_IN)`. */
+export const BATCH_OVER_IN = `(${BATCH_OVER.join(",")})`;
+
 /** Per-flavor bottle demand across a drop's orders (each order's mix: {RISE: n, …}). */
 export function flavorDemand<F extends string>(
   rows: { mix: Partial<Record<F, number>> | null }[],

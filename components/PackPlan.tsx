@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import { useAsyncData } from "@/lib/useAsyncData";
+import { BATCH_OVER_IN } from "@/lib/brewMath";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 
@@ -43,7 +44,7 @@ export default function PackPlan({ ownerType, ownerId, title, onClose }: { owner
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { batches: [], fleet: [] };
     const [b, k] = await Promise.all([
-      supabase.from("brew_batches").select("id, recipe_name, batch_gal, status").eq(ownerCol, ownerId).neq("status", "archived").order("created_at"),
+      supabase.from("brew_batches").select("id, recipe_name, batch_gal, status").eq(ownerCol, ownerId).not("status", "in", BATCH_OVER_IN).order("created_at"),
       supabase.from("kegs").select("capacity_gal, qty").is("archived_at", null),
     ]);
     if (b.error) throw new Error(b.error.message);

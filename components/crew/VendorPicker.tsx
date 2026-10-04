@@ -6,7 +6,10 @@ import { supabase } from "@/lib/supabase";
 import { useApp } from "@/components/AppProvider";
 import Icon from "@/components/Icon";
 import PourFill from "@/components/PourFill";
-import { type OpSection } from "@/components/OperatorNav";
+import { type OpSection, useOperatorSection } from "@/components/OperatorNav";
+import { useAuth } from "@/components/AuthProvider";
+import { canOf } from "@/lib/roles";
+import { goPlanTab } from "@/lib/planNav";
 import type { Vendor, VendorLocation } from "@/lib/db";
 import { resolveVendor, addVendorLocation, type VendorMatch, type ResolveDecision } from "@/lib/vendorLink";
 
@@ -21,6 +24,8 @@ const VendorResolve = dynamic(() => import("@/components/VendorResolve"), { load
 
 export function VendorPicker({ vendors, vendorId, onLink, onCreated, onPickLocation }: { vendors: Vendor[]; vendorId: string | null | undefined; onLink: (v: Vendor | null) => void; onCreated?: () => void; onPickLocation?: (loc: VendorLocation) => void }) {
   const { toast } = useApp();
+  const { profile } = useAuth();
+  const { setSection } = useOperatorSection();
   const linked = vendors.find((v) => v.id === vendorId) || null;
   const [adding, setAdding] = useState(false);
   const [nm, setNm] = useState("");
@@ -86,7 +91,14 @@ export function VendorPicker({ vendors, vendorId, onLink, onCreated, onPickLocat
         <option value="">— not linked —</option>
         {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.status === "pending" ? " · pending" : ""}</option>)}
       </select>
-      {linked?.status === "pending" && <div className="vpend">Pending owner approval — review it in Plan › Vendors.</div>}
+      {/* "review it in Plan › Vendors" was a sentence (2026-10-04). An admin approves vendors, so an
+          admin gets the door; anyone else is told it is waiting, not sent where they cannot act. */}
+      {linked?.status === "pending" && (
+        <div className="vpend">
+          Pending owner approval.
+          {canOf(profile).admin && <button type="button" className="rec-link" onClick={() => goPlanTab("vendors", { setSection })}> Review it ›</button>}
+        </div>
+      )}
       {linked && (linked.address || linked.location_text || linked.poc_name || linked.poc_phone || linked.poc_email || linked.service_dates) && (
         <div className="vlink">
           {(linked.address || linked.location_text) && <div className="vlink-row"><span>Address</span><b>{linked.address || linked.location_text}</b></div>}

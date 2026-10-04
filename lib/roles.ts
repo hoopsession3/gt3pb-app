@@ -36,6 +36,21 @@ export function roleOf(p: { role?: string | null; is_admin?: boolean } | null): 
 export const isLeadership = (p: { role?: string | null; is_admin?: boolean } | null) => LEADERSHIP_ROLES.includes(roleOf(p) as Role);
 export const isStaff = (p: { role?: string | null; is_admin?: boolean } | null) => STAFF_ROLES.includes(roleOf(p) as Role);
 
+// ── WHAT A ROLE MAY DO (2026-10-04) ──────────────────────────────────────────────────────────────
+// The console worked these out once, inline, and the record sheets it opens worked them out not at
+// all — so a server who tapped today's op would have been offered "It happened — wrap it up" and
+// "Turn the live flag off", writes the database refuses anyone but an admin (0003, 0024). One rule:
+//   admin   owner, admin — writes events and stops, sets an event live (is_admin() in SQL)
+//   manage  + event_manager — Plan, Command, leadership's view of the inbox
+//   prep    + operator, contractor — the prep checklist (Readiness)
+export type Can = { admin: boolean; manage: boolean; prep: boolean };
+export function canOf(p: { role?: string | null; is_admin?: boolean } | null): Can {
+  const r = roleOf(p);
+  const admin = r === "owner" || r === "admin";
+  const manage = admin || r === "event_manager";
+  return { admin, manage, prep: manage || r === "operator" || r === "contractor" };
+}
+
 /** A raw profiles.role string narrowed to the vocabulary, with NO is_admin fallback. Use this
  *  where you want the role as stored — a roster row, a dropdown value. Use roleOf() where you
  *  want the role as it should be ENFORCED, which is a different question. */

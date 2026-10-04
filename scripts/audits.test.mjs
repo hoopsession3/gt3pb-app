@@ -16,6 +16,8 @@ import { classify as classifyRoute, unwrapped, boundOf } from "./api.audit.mjs";
 import { reassemble } from "./security.snapshot.mjs";
 import { judge, staleBecause, expand } from "./security.audit.mjs";
 import { darkWellCounts } from "./design.ratchet.mjs";
+import { promisesIn, PLACES, CHEVRON_CEILING, DIRECTION_CEILING } from "./affordance.audit.mjs";
+import { vocabularies, wordsIn, judge as judgeWords, listOf, REFUSED_CEILING } from "./vocab.audit.mjs";
 import { PGlite } from "@electric-sql/pglite";
 import { join } from "node:path";
 
@@ -599,6 +601,181 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
   ok("dark wells: a comma inside a comment is not a selector list",
     dw("/* Ryan, 2026-10-04 */.a{background:rgba(0,0,0,.2)}.app.crew-day .a{background:#fff}") === 0);
   ok("dark wells: the paper scope restates too", dw(".a{background:rgba(0,0,0,.2)}.shop .a{background:#fff}") === 0);
+}
+
+// ── promisesIn (scripts/affordance.audit.mjs) ───────────────────────────────────────────────────
+// The four directions are the four production carried on 2026-10-04 (origin/main a9c7f5e), copied
+// from the files named. Production had no dead chevron by this rule, so the chevron fixtures are
+// this pass's own rows, planted back the way they would regress: the same markup with its button
+// taken away.
+{
+  const p = (jsx) => promisesIn(`export default function X() { return (${jsx}); }`);
+  const ch = (jsx) => p(jsx).chevrons.length;
+  const dir = (jsx) => p(jsx).directions.length;
+
+  // chevrons
+  const RESTOCK = `<span>Restock · {low.length} low for upcoming events ›</span>`;
+  ok("affordance: a chevron on a plain row promises a door it does not have (Owed's restock rule, button taken away)",
+    ch(`<div className="wrule">${RESTOCK}</div>`) === 1);
+  ok("affordance: the same row as the button it is now is a door (components/Owed.tsx)",
+    ch(`<button type="button" className="wrule wrule-go" onClick={() => setSection("garage")}>${RESTOCK}</button>`) === 0);
+  const OP_INSIDE = `<span className="dayhead-op-t"><b>{name}</b></span><span className="ev-chev" aria-hidden="true">›</span>`;
+  ok("affordance: today's op card as the button it is now (components/DayHeadline.tsx)",
+    ch(`<button type="button" className="dayhead-op-go" onClick={() => openRecord("event", op.id)}>${OP_INSIDE}</button>`) === 0);
+  ok("affordance: the same card as the <div> it was is ONE dead chevron — the chev class and its glyph are one site",
+    ch(`<div className="dayhead-op">${OP_INSIDE}</div>`) === 1);
+  ok("affordance: a chevron in a .map() inside a button is inside the button",
+    ch(`<button type="button" onClick={go}>{rows.map((r) => <span key={r.id}>{r.name} ›</span>)}</button>`) === 0);
+  ok("affordance: a {...clickable()} spread is interactive (lib/a11y)",
+    ch(`<div className="row" {...clickable(() => open(r.id))}>${RESTOCK}</div>`) === 0);
+  ok("affordance: a breadcrumb separator is not a promise (components/Crumbs.tsx)",
+    ch(`<nav aria-label="Breadcrumb"><span>{root}</span><em className="crumb-sep" aria-hidden>›</em></nav>`) === 0);
+  ok("affordance: a chevron handed to another component as a prop is not judged — where it lands is out of sight",
+    ch(`<Row right={<span>›</span>} />`) === 0);
+  ok("affordance: JSX parked in a variable is not judged either", promisesIn(`const tail = <span>›</span>;`).chevrons.length === 0);
+  ok("affordance: '›' inside running text is not a chevron (only alone, or at the end)",
+    ch(`<p>Prep › Atlanta BeltLine is a breadcrumb in a sentence</p>`) === 0);
+
+  // directions
+  const VENDOR = `<div className="vpend">Pending owner approval — review it in Plan › Vendors.</div>`;
+  ok("affordance: 'review it in Plan › Vendors' is a direction (components/crew/VendorPicker.tsx:89, production)", dir(VENDOR) === 1);
+  ok("affordance: 'check-ins live on Command › Goals' is one (components/OperatingRhythm.tsx:91, production)",
+    dir(`<div className="rhythm-pulse"><span className="rhythm-pulse-hint">— check-ins live on Command › Goals</span></div>`) === 1);
+  ok("affordance: 'the team note is in Plan → Notes' is one (components/EventGenerator.tsx:59, production)",
+    dir(`<div className="dp-hint">Events are under Events, the team note is in Plan → Notes, and the to-dos are on the Company Calendar.</div>`) === 1);
+  ok("affordance: an arrowRight icon reads as → — 'set their unit cost in Money → Product economics' (app/crew/page.tsx:4260, production)",
+    dir(`<div className="pnl-note">Some lines use the blended {pct}% COGS — set their unit cost in Money <Icon name="arrowRight" /> Product economics for exact margin.</div>`) === 1);
+  const STUDIO = (door) => `<div className="cal-xlink">
+    <span className="cal-xlink-t">Every line guests read is edited in <b>Settings › Copy &amp; wording</b>.</span>
+    ${door ? `<button type="button" className="cal-xlink-go" onClick={goCopy}>Open the copy editor <Icon name="arrowRight" /></button>` : ""}
+  </div>`;
+  ok("affordance: a direction with its door beside it is answered (components/Studio.tsx:184)", dir(STUDIO(true)) === 0);
+  ok("affordance: …and the same sentence with the door taken away is not", dir(STUDIO(false)) === 1);
+  ok("affordance: a <select> beside a direction is not its door — VendorPicker's own select stood beside the sentence",
+    dir(`<div><select className="ev-input" value={v} onChange={pick}><option value="">— not linked —</option></select>${VENDOR}</div>`) === 1);
+  ok("affordance: …not even one whose options read like a move (planted — no select in the repo says → yet; the rule is for the day one does)",
+    dir(`<div><select className="ev-input" value={s} onChange={move}><option value="sent">Draft → Sent</option></select>${VENDOR}</div>`) === 1);
+  ok("affordance: a direction inside a button is the door itself",
+    dir(`<button type="button" onClick={go}>Set it in Money → Product economics</button>`) === 0);
+  ok("affordance: counted once, at the element that says it — not again at the card around it",
+    dir(`<div className="card"><div className="inner">${VENDOR}</div></div>`) === 1);
+  ok("affordance: 'Plan → execute → review' is a cycle, not a direction — no page follows the arrow (OperatingRhythm's own subtitle)",
+    dir(`<div className="h-sub">Plan → execute → <b>review</b> → adjust.</div>`) === 0);
+  ok("affordance: an arrow that means 'becomes' is not a direction (app/academy/page.tsx: situation → what to do)",
+    dir(`<div className="ac-scn-d"><Icon name="arrowRight" /> {s.doThis}</div>`) === 0
+    && dir(`<span>5 gal → 4.7 gal servable</span>`) === 0);
+  ok("affordance: a direction to another product is not the console's (only PLACES count)",
+    dir(`<p>Right-click the mockup on Apliiq → Copy image address.</p>`) === 0 && !PLACES.includes("Apliiq"));
+  ok("affordance: both ceilings are zero — raising one is a choice this file has to be told about",
+    CHEVRON_CEILING === 0 && DIRECTION_CEILING === 0);
+}
+
+// ── vocabularies / wordsIn / judge (scripts/vocab.audit.mjs) ────────────────────────────────────
+// The three words production refused on 2026-10-04, each with the migration that refuses it, copied
+// from the files named. Everything else is a Postgres rule the reader has to get right or it invents
+// a list that is not there (a false failure) or keeps one that was dropped (a false pass).
+{
+  const V = (...sqls) => vocabularies(sqls.map((text, i) => ({ file: `${String(i + 1).padStart(4, "0")}_t.sql`, text })));
+  const allows = (v, key) => v.get(key)?.values.join(",");
+  const W = (src, file = "x.tsx") => wordsIn(src, file).map((w) => `${w.table}.${w.col}=${w.value}:${w.how}`);
+  const refusedBy = (sqls, src) => judgeWords(V(...sqls), wordsIn(src)).refused.map((r) => `${r.table}.${r.col}=${r.value}`);
+
+  // the table's words
+  const D0139 = `create table if not exists public.delivery_orders (
+  id uuid primary key default gen_random_uuid(),
+  status               text not null default 'received' check (status in ('received','brewed','out_for_delivery','delivered','held_for_pickup','issue')),
+  driver_outcome       text check (driver_outcome in ('swap_completed','delivered_fresh_no_empties','held_no_empties')),
+  constraint delivery_refill_ack check (refill_count = 0 or empty_ack_at is not null)
+);`;
+  ok("vocab: a column's own check is its list (0139 delivery_orders.status)",
+    allows(V(D0139), "delivery_orders.status") === "received,brewed,out_for_delivery,delivered,held_for_pickup,issue");
+  ok("vocab: a check that is not a list is not one (0139's refill rule)", !V(D0139).has("delivery_orders.refill_count"));
+  const O0165 = `create table if not exists public.opportunities (
+  id uuid primary key default gen_random_uuid(),
+  stage        text not null default 'prospect'
+                 check (stage in ('prospect','first_attempt','talking','proposal','won','lost')),
+  source       text not null default 'manual'
+);`;
+  const O0265 = `alter table public.opportunities drop constraint if exists opportunities_stage_check;
+update public.opportunities set stage = case stage when 'talking' then 'warm' else stage end;
+alter table public.opportunities add constraint opportunities_stage_check
+  check (stage in ('lead','warm','sampled','pilot','live','expand','lost'));`;
+  ok("vocab: a later drop-and-add replaces the list — 'talking' was legal before 0265 and is not after",
+    allows(V(O0165), "opportunities.stage").includes("talking") && !allows(V(O0165, O0265), "opportunities.stage").includes("talking")
+    && allows(V(O0165, O0265), "opportunities.stage").includes("warm"));
+  ok("vocab: '= any (array[…])' is a list too (0308 brew_batches.status)",
+    allows(V(`create table brew_batches (id uuid, status text);`, `alter table public.brew_batches drop constraint if exists brew_batches_status_check;
+alter table public.brew_batches add constraint brew_batches_status_check
+  check (status = any (array['planned','brewing','ready','kegged','served','dumped','discarded']));`), "brew_batches.status") === "planned,brewing,ready,kegged,served,dumped,discarded");
+  ok("vocab: 'is null or … in (…)' is a list (0182 profiles.gender)",
+    allows(V(`alter table public.profiles add column if not exists gender text check (gender is null or gender in ('male','female','other'));`), "profiles.gender") === "male,female,other");
+  ok("vocab: a drop with no re-add leaves no list", !V(D0139, `alter table delivery_orders drop constraint if exists delivery_orders_status_check;`).has("delivery_orders.status"));
+  ok("vocab: a second check on a column — a length — does not unseat its list (Postgres names it …_check1)",
+    allows(V(`create table t (s text check (s in ('a','b')) check (length(s) < 3));`), "t.s") === "a,b"
+    && allows(V(`create table t (s text check (s in ('a','b')) check (length(s) < 3));`, `alter table t drop constraint t_s_check1;`), "t.s") === "a,b"
+    && !V(`create table t (s text check (s in ('a','b')) check (length(s) < 3));`, `alter table t drop constraint t_s_check;`).has("t.s"));
+  ok("vocab: two unnamed lists on one column are two constraints, …_check and …_check1, and dropping one leaves the other",
+    allows(V(`create table t (s text check (s in ('a','b','c')) check (s in ('b','c','d')));`), "t.s") === "b,c"
+    && allows(V(`create table t (s text check (s in ('a','b','c')) check (s in ('b','c','d')));`, `alter table t drop constraint t_s_check1;`), "t.s") === "a,b,c");
+  ok("vocab: a number list reads as numbers (0245 pack_size)", allows(V(`alter table public.delivery_orders add constraint delivery_orders_pack_size_check check (pack_size in (6, 12, 24));`), "delivery_orders.pack_size") === "6,12,24");
+  ok("vocab: 'create table if not exists' for a table that exists is skipped whole, as Postgres skips it",
+    allows(V(O0165, O0265, O0165), "opportunities.stage").includes("warm"));
+  ok("vocab: 'add column if not exists' for a column that exists does not add its check either",
+    allows(V(O0165, O0265, `alter table opportunities add column if not exists stage text check (stage in ('talking'));`), "opportunities.stage").includes("warm"));
+  ok("vocab: a dropped column takes its list with it", !V(D0139, `alter table delivery_orders drop column if exists driver_outcome;`).has("delivery_orders.driver_outcome"));
+  ok("vocab: a check in a comment or a function body is not DDL — a function's body runs when it is called",
+    !V(`-- alter table x add constraint x_s_check check (s in ('a'));\ncreate function f() returns void language plpgsql as $$ begin\n  perform 1;\n  alter table y add constraint y_s_check check (s in ('b'));\nend $$;`).size);
+  const A0280 = `do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'admin_emails_role_check') then
+    alter table public.admin_emails add constraint admin_emails_role_check
+      check (role in ('member','server','operator','event_manager','contractor','admin','owner'));
+  end if;
+end $$;`;
+  ok("vocab: a DO block runs where it stands, so its check is read (0280 admin_emails.role — eleven lists in this repo live in one)",
+    allows(V(A0280), "admin_emails.role") === "member,server,operator,event_manager,contractor,admin,owner");
+  ok("vocab: …and its 'if not exists … conname' guard is honoured: a name already taken keeps its list",
+    allows(V(`create table admin_emails (email text, role text check (role in ('admin','owner')));`, A0280), "admin_emails.role") === "admin,owner");
+  ok("vocab: two lists on one column both have to pass", allows(V(`create table t (s text check (s in ('a','b','c')), constraint t_s2 check (s in ('b','c','d')));`), "t.s") === "b,c");
+  ok("vocab: a list item with a quote in it reads whole", listOf(`s in ('it''s','b')`).values.join("|") === "it's|b");
+
+  // the app's words
+  ok("vocab: an update's literal (components/AlertAction.tsx:84, production) is a word for delivery_orders.status",
+    W(`await supabase.from("delivery_orders").update({ status: "picked_up" }).eq("id", flag.subject_id);`).join() === "delivery_orders.status=picked_up:update");
+  ok("vocab: an insert's literal (app/crew/page.tsx:3387, production)",
+    W(`const { data } = await supabase.from("opportunities").insert({ vendor_id: vendorId, stage: "talking", source: "inbound", next_step: "Reply to their request", created_by: user.id }).select("id").single();`).includes("opportunities.stage=talking:insert"));
+  ok("vocab: a spread of a conditional object is read (the booking_requests status beside it)",
+    W(`await supabase.from("booking_requests").update({ opportunity_id: oppId, ...(r.status === "new" ? { status: "contacted" } : {}) }).eq("id", r.id);`).includes("booking_requests.status=contacted:update"));
+  ok("vocab: both branches of a conditional, and a ?? fallback, are words",
+    W(`sb.from("t").update({ s: done ? "a" : "b", k: x ?? "c" })`).join() === "t.s=a:update,t.s=b:update,t.k=c:update");
+  ok("vocab: rows built by .map() are read", W(`sb.from("t").insert(items.map((i) => ({ s: "a", n: i })))`).join() === "t.s=a:insert");
+  ok("vocab: filters — eq, neq, in, not-in and match — are words, and a filter after a write is on the write's table",
+    W(`sb.from("t").select("*").eq("s", "a").neq("s", "b").in("s", ["c", "d"]).not("s", "in", "(e,f)").match({ s: "g" });
+       sb.from("u").update({ x: 1 }).eq("s", "h")`).sort().join() === "t.s=a:filter,t.s=b:filter,t.s=c:filter,t.s=d:filter,t.s=e:filter,t.s=f:filter,t.s=g:filter,u.s=h:filter,u.x=1:update");
+  ok("vocab: a value in a variable is not judged — the audit cannot see it, and says so", W(`sb.from("t").update(patch); sb.from("t").update({ s: next })`).length === 0);
+  ok("vocab: a list declared for a column is held like a write (lib/brewMath BATCH_OVER)",
+    W(`// vocab: brew_batches.status\nexport const BATCH_OVER = ["served", "dumped", "discarded"] as const;`, "x.ts").join() === "brew_batches.status=served:list,brew_batches.status=dumped:list,brew_batches.status=discarded:list");
+  ok("vocab: a label map declared for a column is held by its keys",
+    W(`// vocab: delivery_orders.status\nconst LABEL: Record<string, string> = { delivered: "Delivered", held_for_pickup: "HELD" };`, "x.ts").join() === "delivery_orders.status=delivered:list,delivery_orders.status=held_for_pickup:list");
+  ok("vocab: a comment naming this audit is not a declaration", W(`// see scripts/vocab.audit.mjs\nconst L = ["x"];`, "x.ts").length === 0);
+
+  // judged
+  ok("vocab: the held-delivery button was refused, and its fix is not",
+    refusedBy([D0139], `sb.from("delivery_orders").update({ status: "picked_up" })`).join() === "delivery_orders.status=picked_up"
+    && refusedBy([D0139], `sb.from("delivery_orders").update({ status: "delivered" }).eq("id", id).eq("status", "held_for_pickup")`).length === 0);
+  ok("vocab: the promote was refused after 0265 and not before it",
+    refusedBy([O0165, O0265], `sb.from("opportunities").insert({ stage: "talking" })`).length === 1
+    && refusedBy([O0165], `sb.from("opportunities").insert({ stage: "talking" })`).length === 0
+    && refusedBy([O0165, O0265], `sb.from("opportunities").insert({ stage: "warm" })`).length === 0);
+  ok("vocab: a filter for a word the column never had is refused (components/PackPlan.tsx:46, production — .neq('status', 'archived') filtered nothing)",
+    refusedBy([`create table brew_batches (status text check (status = any (array['planned','served','dumped','discarded'])))`], `sb.from("brew_batches").select("id").neq("status", "archived")`).join() === "brew_batches.status=archived");
+  ok("vocab: a table with no list is not judged, and neither is a column with none",
+    refusedBy([D0139], `sb.from("events").update({ stage: "anything" }); sb.from("delivery_orders").update({ notes: "anything" })`).length === 0);
+  {
+    const now = V(O0165, O0265), later = V(O0165, O0265, `alter table opportunities drop constraint opportunities_stage_check, add constraint opportunities_stage_check check (stage in ('lead','warm','sampled','pilot','live','expand','lost','paused'));`);
+    const j = judgeWords(now, wordsIn(`sb.from("opportunities").update({ stage: "paused" })`), later);
+    ok("vocab: a word only a pending migration allows is ARRIVING, not refused — the columns audit's rule", j.refused.length === 0 && j.arriving.length === 1);
+  }
+  ok("vocab: the ceiling is zero", REFUSED_CEILING === 0);
 }
 
 console.log(`AUDIT CLASSIFIERS: ${pass} passed, ${fail} failed`);

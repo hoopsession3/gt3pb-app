@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { moneyRound } from "@/lib/money";
+import { useOperatorSection } from "@/components/OperatorNav";
+import { goToDest, type KpiDest } from "@/components/CrewKpis";
 
 // MONEY KPIs — the "how are we doing?" answer that opens the Money section, so it reads as a
 // dashboard instead of a list of doors. The headline revenue tile prefers the reconciled report_sales
@@ -15,10 +17,22 @@ import { moneyRound } from "@/lib/money";
 // schema gap or missing table can never break the section — the number just goes quiet.
 type Kpi = { k: string; v: string; sub: string };
 
+// WHERE EACH TILE LANDS (2026-10-04). These five were plain divs shaped exactly like the tappable
+// tiles on Readiness and Assets (CrewKpis) — the first thing on Money, and tapping one did nothing.
+// Same jump CrewKpis uses (goToDest): the panel opens, the page settles, then it scrolls.
+const TO: Record<string, KpiDest> = {
+  week_rev: { section: "money", anchor: "sales" },
+  today_orders: { section: "money", anchor: "orders" },
+  subs: { section: "money", anchor: "subs" },
+  reserves: { section: "now" },        // pack pickups are worked on Live Ops (DropOps)
+  office_rev: { section: "now" },      // office orders are worked on Live Ops (OfficeOrders)
+};
+
 const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString(); };
 const startOfWeek = () => { const d = new Date(); d.setDate(d.getDate() - 6); d.setHours(0, 0, 0, 0); return d.toISOString(); };
 
 export default function MoneyKpis() {
+  const { setSection } = useOperatorSection();
   const [kpis, setKpis] = useState<Kpi[]>([
     { k: "week_rev", v: "—", sub: "Revenue · all channels · 7d" },
     { k: "today_orders", v: "—", sub: "Orders today" },
@@ -84,10 +98,10 @@ export default function MoneyKpis() {
       {preRevenue && <p className="mkpi-stage">Pre-revenue — every meter below is wired and starts counting the day the first bottle sells.</p>}
       <div className="mkpi" role="group" aria-label="Money at a glance">
         {kpis.map((t) => (
-          <div className="mkpi-tile" key={t.k}>
+          <button type="button" className="mkpi-tile mkpi-go" key={t.k} onClick={() => goToDest(TO[t.k] ?? { section: "money" }, setSection)}>
             <div className="mkpi-v">{t.v}</div>
             <div className="mkpi-k">{t.sub}</div>
-          </div>
+          </button>
         ))}
       </div>
     </>

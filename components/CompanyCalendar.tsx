@@ -9,7 +9,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import { CAL_CAT as CAT } from "@/lib/calendarTokens";
-import { brewStartOverdue } from "@/lib/brewMath";
+import { brewStartOverdue, BATCH_OVER_IN } from "@/lib/brewMath";
 import { etToday, fmt12, timeRange, sortTime, byClock } from "@/lib/dates";
 import { goPlanTab, type PlanTab } from "@/lib/planNav";
 import { useWorkStreams } from "@/lib/streams";
@@ -168,7 +168,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
       supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").not("due_on", "is", null).gte("due_on", from).lte("due_on", to),
       supabase.from("stops").select("id, name, location_text, starts_at, ends_at, status").is("archived_at", null).not("starts_at", "is", null).neq("status", "done").gte("starts_at", fromISO).lt("starts_at", toISO),
       supabase.from("event_tasks").select("id, label, due_at, event_id, stop_id, meeting_note_id, goal_id").eq("done", false).eq("kind", "task").not("due_at", "is", null).gte("due_at", fromISO).lt("due_at", toISO),
-      supabase.from("brew_batches").select("id, recipe_name, batch_gal, status, brew_date, ready_at, latest_start_at").not("status", "in", "(served,dumped)").not("brew_date", "is", null).gte("brew_date", from).lte("brew_date", to),
+      supabase.from("brew_batches").select("id, recipe_name, batch_gal, status, brew_date, ready_at, latest_start_at").not("status", "in", BATCH_OVER_IN).not("brew_date", "is", null).gte("brew_date", from).lte("brew_date", to),
       supabase.from("drop_orders").select("drop_date, size").is("canceled_at", null).gte("drop_date", from).lte("drop_date", to),
       supabase.from("delivery_orders").select("delivery_date").is("canceled_at", null).gte("delivery_date", from).lte("delivery_date", to),
       supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").is("due_on", null).eq("done", false).limit(30),
@@ -716,6 +716,7 @@ function SwipeNav({ i, n, label, onMove }: { i: number; n: number; label: string
 // row appears (Prep, Studio, My Tasks). The "↗" opens its full prep / run-of-show / studio. Archived
 // events show here (and only here) so a removed event is still reachable by opening its day.
 function DayView({ dayKey, items, events, readOnly = false, onClose, onAdd, onSaved, onEdit }: { dayKey: string; items: Item[]; events: Ev[]; readOnly?: boolean; onClose: () => void; onAdd: () => void; onSaved: () => void; onEdit?: (it: Item) => void }) {
+  const { openRecord } = useRecord();
   const { setSection } = useOperatorSection();
   const [archived, setArchived] = useState<{ id: string; title: string | null; day_label: string | null }[]>([]);
   const [edit, setEdit] = useState<{ kind: EditKind; id: string } | null>(null);
@@ -738,11 +739,20 @@ function DayView({ dayKey, items, events, readOnly = false, onClose, onAdd, onSa
           {brewLate && <div className="dv-heads">Heads up: a brew here is past its latest start.</div>}
           <div className="dv-list">
             {items.map((it) => readOnly ? (
-              // crew read-only: the day sheet IS the destination — plain info rows, no tap-through
-              // (items' go() already points back here) and no edit affordances at all.
+              // crew read-only: the day sheet IS the destination for most rows — no edit affordances.
+              // An event or a stop is the exception (2026-10-04): a server tapping "Greenville Fit
+              // Fest" here ended on a row that did nothing. It opens the record now, which shows what
+              // the crew needs (where, the brief, the checklist) and offers only the writes their
+              // role may make (lib/roles canOf).
               <div key={`${it.kind}-${it.id}`} className={`dv-row${it.done ? " done" : ""}`} style={{ ["--c" as string]: CAT[it.cat]?.color }}>
                 <span className="dv-dot" style={{ background: CAT[it.cat]?.color }} />
-                <span className="dv-main"><b>{it.title}</b><span>{CAT[it.cat]?.label}{it.meta ? ` · ${it.meta}` : ` · ${sub[it.kind]}`}{it.warn ? " · past latest start" : ""}</span></span>
+                {(it.kind === "event" || it.kind === "stop") ? (
+                  <button type="button" className="dv-main dv-tap" onClick={() => openRecord(it.kind as "event" | "stop", it.id)}>
+                    <b>{it.title}</b><span>{CAT[it.cat]?.label}{it.meta ? ` · ${it.meta}` : ` · ${sub[it.kind]}`}{it.warn ? " · past latest start" : ""}</span>
+                  </button>
+                ) : (
+                  <span className="dv-main"><b>{it.title}</b><span>{CAT[it.cat]?.label}{it.meta ? ` · ${it.meta}` : ` · ${sub[it.kind]}`}{it.warn ? " · past latest start" : ""}</span></span>
+                )}
               </div>
             ) : !isEditable(it.kind) ? (
               // read-only rollup (brew / drop / delivery) — the rows live on their own surface; tap through

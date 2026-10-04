@@ -9,6 +9,7 @@ import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import { completeTask, updateTask } from "@/lib/tasks";
 import { useTaskSheet } from "./TaskSheet";
+import { useRecord } from "./RecordSheet";
 import Icon from "@/components/Icon";
 import { targetIsCurrent } from "@/lib/readiness";
 import { localToday } from "@/lib/dates";
@@ -39,7 +40,7 @@ type Task = {
   initiatives: { title: string | null; emoji: string | null } | null;
 };
 type Filter = "all" | "critical" | "mine" | "overdue";
-type Group = { key: string; label: string; kind: "initiative" | "event" | "stop" | "general"; initiativeId: string | null; icon: React.ReactNode; tasks: Task[]; past?: boolean };
+type Group = { key: string; label: string; kind: "initiative" | "event" | "stop" | "general"; initiativeId: string | null; recId: string | null; icon: React.ReactNode; tasks: Task[]; past?: boolean };
 type BoardData = { rows: Task[] };
 
 const nowISO = () => new Date().toISOString();
@@ -49,6 +50,7 @@ export default function PrepBoard() {
   const { user } = useAuth();
   const [filter, setFilter] = useState<Filter>("all");
   const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
+  const { openRecord } = useRecord();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [armed, setArmed] = useState<string | null>(null); // group armed for a "complete all" confirm
 
@@ -108,7 +110,7 @@ export default function PrepBoard() {
         // stops, so no single date applies to it (mirrors Route: isAhead only ever judges one stop
         // at a time); a general group has no date at all.
         const past = kind === "event" ? !targetIsCurrent(t.events, null, today) : kind === "stop" ? !targetIsCurrent(null, t.stops, today) : false;
-        g = { key, label, kind, initiativeId: t.initiative_id, icon, tasks: [], past };
+        g = { key, label, kind, initiativeId: t.initiative_id, recId: kind === "event" ? t.event_id : kind === "stop" ? t.stop_id : null, icon, tasks: [], past };
         map.set(key, g);
       }
       g.tasks.push(t);
@@ -153,7 +155,7 @@ export default function PrepBoard() {
               </button>
             ))}
           </div>
-          {leftOpen > 0 && <p className="pbd-leftopen">{leftOpen} of these belong to events or stops that have already passed — they sit at the end. Finish them, or mark the event done, and they clear.</p>}
+          {leftOpen > 0 && <p className="pbd-leftopen">{leftOpen} of these belong to events or stops that have already passed — at the end, each with its Wrap up.</p>}
           {shown.length === 0 ? (
             // "all" empty means the whole board is clear — the designed empty state. A filtered tab
             // (critical/mine/overdue) coming up empty is a filtered VIEW, not the board itself — same
@@ -174,6 +176,13 @@ export default function PrepBoard() {
                       {g.past && <span className="pbd-group-past">{g.kind === "event" ? "past · not closed out" : "past visit"}</span>}
                       <span className="pbd-group-n">{g.tasks.length}{crit ? ` · ${crit} crit` : ""}</span>
                     </button>
+                    {/* The event or stop a group is named for opens its record (2026-10-04): the name only
+                        folded the list. A past one says what it is owed — the record's wrap and archive. */}
+                    {g.recId && (g.kind === "event" || g.kind === "stop") && (
+                      <button type="button" className="pbd-group-open" onClick={() => openRecord(g.kind as "event" | "stop", g.recId!)}>
+                        {g.past ? "Wrap up" : "Open"} <span aria-hidden="true">›</span>
+                      </button>
+                    )}
                     <button type="button" className={`pbd-group-all${armed === g.key ? " armed" : ""}`}
                       onClick={() => (armed === g.key ? completeGroup(g) : setArmed(g.key))}
                       onBlur={() => setArmed((a) => (a === g.key ? null : a))}

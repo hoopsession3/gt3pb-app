@@ -2836,6 +2836,25 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("deep links: and a commented-out link is not counted",
     [...stripComments(`// <a href="/crew?s=plan&a=no-such-anchor">`).matchAll(/\/crew\?s=/g)].length === 0);
 
+  // ── AND THE JUMPS THAT ARE NOT URLS (2026-10-04) ─────────────────────────────────────────────
+  // Needs-you rows, the Money tiles and the buttons that replaced "go to Plan › Vendors" sentences
+  // jump in-app — setSection, then scrollToAnchor — with no URL for the check above to read. An
+  // anchor typed wrong lands exactly as quietly as a wrong ?a= did: at the top of the section, with
+  // nothing to notice. Same rule, same ids: every literal anchor a jump names must exist.
+  // An id can also be given conditionally — Prep's first critical task is id={… ? "prep-first-crit" :
+  // undefined} — so the literals inside an id={…} count as ids here too.
+  const jumpIds = new Set(ids);
+  for (const f of files) for (const m of fs.readFileSync(f, "utf8").matchAll(/\bid=\{([^}]*)\}/g)) for (const s of m[1].matchAll(/"([a-zA-Z0-9_-]+)"/g)) jumpIds.add(s[1]);
+  const jumps = [];
+  for (const f of files) {
+    const src = stripComments(fs.readFileSync(f, "utf8"));
+    for (const m of src.matchAll(/scrollToAnchor\("([a-zA-Z0-9_-]+)"\)|\banchor: "([a-zA-Z0-9_-]+)"/g)) {
+      const a = m[1] || m[2];
+      if (!jumpIds.has(a)) jumps.push(`${f.replace(root + "/", "")}: "${a}" — no element has that id`);
+    }
+  }
+  ok("in-app jumps: every literal anchor a button or a Needs-you row jumps to names an element that exists", jumps.length === 0, jumps);
+
   // ── AN ANCHOR THAT EXISTS IS NOT THE SAME AS A PLACE YOU ARRIVE ──────────────────────────────
   // Ryan tapped a link to draft a contract and got Money's Spend & budget card. Every check above
   // passed: ?s=money is a real section and the link named no anchor, so there was nothing to
@@ -5124,62 +5143,147 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("errorMessage: no max, no cap", errorMessage(new Error("x".repeat(500))).length === 500);
 }
 
-// ── MY DAY, 10:13 PM (2026-10-04) ──────────────────────────────────────────────────────────────
-// Ryan's screenshot: "evening, Ryan." in 30px between his top three and his inbox; the top three as
-// grey slabs that looked disabled and said nothing about how late they were; "11 overdue · 7 tasks
-// past due"; and under it, a day whose op card, flags, stops and brews all went silent on a failed
-// read. These hold each fix to the rule it now lives in.
+// ── MY DAY, 10:13 PM, AND "THIS SEEMS 2/10" (2026-10-04) ───────────────────────────────────────
+// Ryan's screenshot: the top three as grey slabs that looked disabled and said nothing about how late
+// they were; "11 overdue · 7 tasks past due"; a day whose op card, flags, stops and brews all went
+// silent on a failed read. Then, that night: "Clicking on Greenville Fit Fest today's op does
+// nothing. Strategically look for where something is unnecessary information or should have
+// operational functionality." These hold each fix to the rule it now lives in.
 {
-  const DT = require("../.smoke/dayWords.js");
-  ok("greeting: the part of the day, capitalised — 'evening, Ryan.' was the Design System pass dropping 'Good ' and the capital with it",
-    DT.partOfDay(22) === "Evening" && DT.partOfDay(9) === "Morning" && DT.partOfDay(13) === "Afternoon");
-  ok("greeting: the edges — 5 is morning, 12 afternoon, 17 evening",
-    DT.partOfDay(4) === "Evening" && DT.partOfDay(5) === "Morning" && DT.partOfDay(11) === "Morning" && DT.partOfDay(12) === "Afternoon" && DT.partOfDay(16) === "Afternoon" && DT.partOfDay(17) === "Evening");
-  ok("greeting: 1 AM after an event is still the evening, not 'morning'", DT.partOfDay(0) === "Evening" && DT.partOfDay(1) === "Evening");
+  const DW = require("../.smoke/dayWords.js");
   ok("days between: calendar days, positive forward, and a DST change is still one day",
-    DT.daysBetween("2026-10-03", "2026-10-04") === 1 && DT.daysBetween("2026-10-04", "2026-09-30") === -4
-    && DT.daysBetween("2026-11-01", "2026-11-02") === 1 && DT.daysBetween("2026-03-08", "2026-03-09") === 1 && DT.daysBetween("2026-07-01", "2026-10-03") === 94);
+    DW.daysBetween("2026-10-03", "2026-10-04") === 1 && DW.daysBetween("2026-10-04", "2026-09-30") === -4
+    && DW.daysBetween("2026-11-01", "2026-11-02") === 1 && DW.daysBetween("2026-03-08", "2026-03-09") === 1 && DW.daysBetween("2026-07-01", "2026-10-03") === 94);
   ok("due word: late, today, ahead — one wording for Needs-you and the top three",
-    DT.dueWord(-94) === "94 days late" && DT.dueWord(-1) === "1 day late" && DT.dueWord(0) === "due today" && DT.dueWord(1) === "in 1 day" && DT.dueWord(4) === "in 4 days");
+    DW.dueWord(-94) === "94 days late" && DW.dueWord(-1) === "1 day late" && DW.dueWord(0) === "due today" && DW.dueWord(1) === "in 1 day" && DW.dueWord(4) === "in 4 days");
+
+  // ── who may do what (lib/roles canOf) ──
+  const R = require("../.smoke/roles.js");
+  const can = (role) => JSON.stringify(R.canOf({ role }));
+  ok("roles: owner and admin may write an event and throw its live switch; nobody else may",
+    R.canOf({ role: "owner" }).admin && R.canOf({ role: "admin" }).admin && !R.canOf({ role: "event_manager" }).admin && !R.canOf({ role: "server" }).admin);
+  ok("roles: managers manage, operators and contractors prep, servers and members do neither",
+    can("event_manager") === JSON.stringify({ admin: false, manage: true, prep: true })
+    && can("operator") === JSON.stringify({ admin: false, manage: false, prep: true })
+    && can("contractor") === JSON.stringify({ admin: false, manage: false, prep: true })
+    && can("server") === JSON.stringify({ admin: false, manage: false, prep: false })
+    && can("member") === JSON.stringify({ admin: false, manage: false, prep: false }));
+  ok("roles: a legacy is_admin profile with no role is an owner, as roleOf has always said", R.canOf({ is_admin: true }).admin);
+
+  // ── where a Needs-you row goes (lib/obligations) ──
+  const O = require("../.smoke/obligations.js");
+  const uid = "11111111-2222-4333-8444-555555555555";
+  const go = (source, extra = {}) => O.obligationGo({ source, subject_id: "abc", route: "/crew?s=team&a=offers", owner_user_id: null, ...extra });
+  ok("needs you: a to-do opens the to-do — it used to reload the screen it was already on",
+    JSON.stringify(go("todos", { subject_id: uid })) === JSON.stringify({ kind: "task", id: uid, source: "todo" }));
+  ok("needs you: an expiring cert or a training due opens the PERSON, not the top of Team",
+    JSON.stringify(go("academy_certifications", { owner_user_id: uid })) === JSON.stringify({ kind: "person", id: uid })
+    && JSON.stringify(go("academy_assignments", { owner_user_id: uid })) === JSON.stringify({ kind: "person", id: uid }));
+  ok("needs you: an offer lands on Money › Offer letters, where the panel actually is (its route said Team)",
+    JSON.stringify(go("offer_letters")) === JSON.stringify({ kind: "section", section: "money", anchor: "offers" }));
+  ok("needs you: agreements, goals, workstreams and disputes land on their panels",
+    go("operator_agreements").anchor === "operators" && go("goals").anchor === "goals" && go("goals").section === "command"
+    && go("os_workstreams").anchor === "os-registry" && go("initiatives").anchor === "os-registry" && go("square_disputes").anchor === "shoporders");
+  ok("needs you: an unknown source still lands in the app, on its own route, parsed — never a reload",
+    JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: "/crew?s=garage" })) === JSON.stringify({ kind: "section", section: "garage" })
+    && JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: null })) === JSON.stringify({ kind: "section", section: "day" }));
+  ok("needs you: a person row with no person on it falls back to its route rather than opening nothing",
+    go("academy_certifications", { owner_user_id: null, route: "/crew?s=team" }).kind === "section");
 
   const fs = require("node:fs"), path = require("node:path");
   const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
   const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
   const crew = code(read("app/crew/page.tsx"));
   const myDay = crew.slice(crew.indexOf("function MyDay("), crew.indexOf("function MyTasks("));
-  const head = code(read("components/DayHeadline.tsx")), owed = code(read("components/Owed.tsx")), alerts = code(read("lib/useMyAlerts.ts"));
+  const head = code(read("components/DayHeadline.tsx")), owed = code(read("components/Owed.tsx"));
+  const evRec = code(read("components/EventRecord.tsx")), stRec = code(read("components/StopRecord.tsx"));
   const css = read("app/globals.css");
 
-  ok("my day: the greeting is lib/dayWords partOfDay, not 'Good …' with its first word cut off",
-    /partOfDay\(now\.getHours\(\)\)/.test(myDay) && !/greet\.replace\("Good ", ""\)/.test(crew));
-  ok("my day: the greeting opens the day — the headline renders inside My Day, after it, and nowhere else",
-    myDay.indexOf('className="myday-hero"') > -1 && myDay.indexOf('className="myday-hero"') < myDay.indexOf("<DayHeadline ")
-    && (crew.match(/<DayHeadline /g) || []).length === 1 && !/canManage && <DayHeadline/.test(crew));
-  ok("my day: the morning screen's headline is a static import, as the code-split note requires of the daily path",
-    /^import DayHeadline from "@\/components\/DayHeadline";$/m.test(read("app/crew/page.tsx")) && !/dynamic\(\(\) => import\("@\/components\/DayHeadline"\)/.test(crew));
-  ok("my day: one card for today's op — My Day's own event card is gone, and the headline reads active events with their brief",
-    !/myday-ev/.test(crew) && /from\("events"\)\.select\("id, title, day_label, is_live"\)\.eq\("day", localToday\(\)\)\.is\("archived_at", null\)/.test(head)
-    && /from\("event_ops"\)/.test(head) && !/field_ops/.test(head));
+  // ── today's op: it opens, and the day's switch is on it ──
+  ok("today's op: the whole card is one button and it opens the event's record — it was a <div>",
+    /<button type="button" className="dayhead-op-go" onClick=\{\(\) => openRecord\("event", op\.id\)\}>/.test(head) && !/onOpenOp/.test(head + crew));
+  ok("today's op: the brief is inside the button as spans, so the card is one valid tap target",
+    /<span className="myday-brief">/.test(head) && /<span className="myday-brief-row">/.test(head) && !/<div className="myday-brief/.test(head));
+  ok("today's op: 'Make it live' sits on the card for whoever may throw it — today, not live, not wrapped — through lib/wrap",
+    /canGoLive && !op\.is_live && !done && \(/.test(head) && /setEventLive\(supabase, id, true\)/.test(head) && /canGoLive=\{isAdmin\}/.test(crew));
+  ok("today's op: the record runs today from where the event is — live switch and the wrap, for an admin, the day itself",
+    /Number\(e\.days_away\) === 0 && e\.stage !== "done" && can\.admin/.test(evRec) && /label: "Make it live"/.test(evRec) && /label: "Take it offline"/.test(evRec) && /label: "It's over — wrap it up"/.test(evRec));
+  ok("records: a sheet offers only the writes the viewer's role may make (the database refuses the rest)",
+    /if \(\(w === "archive" \|\| w === "wrap" \|\| w === "live_off"\) && !can\.admin\) continue;/.test(evRec)
+    && /if \(\(w === "edit" \|\| w === "prep"\) && !can\.prep\) continue;/.test(evRec)
+    && /if \(\(w === "resync" \|\| w === "archive" \|\| w === "wrap"\) && !can\.admin\) continue;/.test(stRec)
+    && /if \(\(w === "venue" \|\| w === "route"\) && !can\.manage\) continue;/.test(stRec)
+    && /\{can\.prep && \(/.test(evRec) && /\{can\.prep && \(/.test(stRec));
+  ok("today's op: the headline reads active events with their brief and stage, and is the one card for them",
+    !/myday-ev/.test(crew) && /from\("events"\)\.select\("id, title, day_label, is_live, stage"\)\.eq\("day", localToday\(\)\)\.is\("archived_at", null\)/.test(head)
+    && /from\("event_ops"\)/.test(head) && !/field_ops/.test(head) && (crew.match(/<DayHeadline /g) || []).length === 1);
   ok("headline: every read throws on failure — the error branch it had could never be reached",
     /if \(ev\.error\) throw new Error/.test(head) && /if \(tk\.error\) throw new Error/.test(head) && /if \(o\.error\) throw new Error/.test(head));
-  ok("headline: the op card opens its event, and each of the top three says how late it is, in Needs-you's words",
-    /onClick=\{\(\) => onOpenOp\(op\.id\)\}/.test(head) && /dueWord\(out\)/.test(head) && /daysBetween\(d\.dueDay, t\.due\)/.test(head) && /onOpenOp=\{openOp\}/.test(myDay));
+  ok("headline: each of the top three says how late it is, in Needs-you's words and colour",
+    /dueWord\(out\)/.test(head) && /daysBetween\(d\.dueDay, t\.due\)/.test(head) && /className=\{`owed-age\$\{out < 0 \? " late" : ""\}`\}/.test(head));
+  ok("headline: the morning screen's headline is a static import, as the code-split note requires of the daily path",
+    /^import DayHeadline from "@\/components\/DayHeadline";$/m.test(read("app/crew/page.tsx")) && !/dynamic\(\(\) => import\("@\/components\/DayHeadline"\)/.test(crew));
+
+  // ── what left My Day ──
+  ok("my day opens on the day: no greeting, no motto — the headline is the first thing it renders",
+    !/className="myday-hero"/.test(myDay) && !/k-title/.test(myDay) && !/board\.welcome/.test(crew) && !/useSiteCopy/.test(crew)
+    && myDay.indexOf("return (") < myDay.indexOf("<DayHeadline ") && !/partOfDay/.test(crew + read("lib/dayWords.ts").replace(/\/\/.*$/gm, "")));
+  ok("my day: the copy keys that showed nowhere are retired, so Settings stops offering to edit them",
+    !/key: "(board\.welcome|home\.statement|home\.principles|home\.cta)"/.test(read("lib/copy.ts")) && !/"Team board":/.test(read("lib/copy.ts")));
+  ok("my day: the bell is the inbox's one door — no card repeating its number; a failed read still says so",
+    !/myday-inbox-ptr/.test(myDay) && /\{flagsErr && flags\.length === 0 && \(/.test(myDay));
+  ok("my day: '✎ Note to self' is gone — the quick-actions Note tab is that door, on every screen", !/Note to self/.test(myDay));
+  ok("my day: a stop chip opens the stop's record — it went to a checklist a server could not open",
+    /onClick=\{\(\) => openRecord\("stop", s\.id\)\}/.test(myDay) && !/prepHandoffValue\("stop"/.test(myDay));
   ok("my day: stops, drops and brews throw on a failed read and say so, instead of drawing an empty day",
     /const failed = \[st\.error, dr\.error, de\.error, br\.error\]\.find\(Boolean\);\s*if \(failed\) throw new Error/.test(myDay) && /rhythmState\.status === "error"/.test(myDay));
-  ok("flags: a failed read keeps the last answer and says so; My Day and the inbox show it instead of silence or 'all caught up'",
-    /const failed = \[al\.error, rd\.error, pf\.error, sz\.error\]\.find\(Boolean\);\s*if \(failed\) \{ setError\(failed\.message\); return; \}/.test(alerts)
-    && /return \{ flags, held, quietActive, critCount, error,/.test(alerts)
-    && /\) : flagsErr \? \(/.test(myDay) && /readErr \? \(/.test(crew) && !/\[\{ data: alerts \}/.test(alerts));
+
+  // ── the chrome ──
+  ok("chrome: the bell loads for every role — it was gated on managers while the nav badge was not",
+    /const \{ flags: hdrFlags, critCount: hdrCrit \} = useMyAlerts\(user\?\.id \?\? null\);/.test(crew));
+  ok("chrome: no WHEN pill styled as a status, and its rules left with it",
+    !/op-head-when/.test(crew) && !/\.op-head-when\{/.test(css));
+  ok("chrome: ‹ is Back only — it no longer turns into 'Exit Crew Mode' beside the Customer view switch",
+    /\{canGoBack && <button type="button" className="pf" aria-label="Back" onClick=\{\(\) => back\(\)\}>‹<\/button>\}/.test(crew) && !/Exit Crew Mode/.test(crew));
+  const nav = code(read("components/OperatorNav.tsx"));
+  ok("chrome: tapping the lane you are on does something — the inbox when it is badged, the lane's first screen otherwise",
+    /if \(!on\) \{ openGroup\(g\); return; \}/.test(nav) && /if \(waiting > 0\) \{ window\.dispatchEvent\(new Event\("gt3-open-inbox"\)\); return; \}/.test(nav)
+    && /if \(section !== g\.members\[0\]\) setSection\(g\.members\[0\]\);/.test(nav));
+
+  // ── the inbox ──
+  const recs = require("../.smoke/records.js");
+  ok("inbox: a stalled-order alert opens the order it names (0340 carries the order id)",
+    JSON.stringify(recs.recordForAlert("shop_order_stalled", uid)) === JSON.stringify({ kind: "shop_order", id: uid }));
+  ok("inbox: an alert about one task opens that task, and the alert's own words open what it names",
+    recs.TASK_ALERT_KINDS.includes("task_assigned") && recs.TASK_ALERT_KINDS.includes("task_due")
+    && /TASK_ALERT_KINDS\.includes\(a\.kind\) && a\.subject_id\) \{ openTask\(a\.subject_id, "event"\);/.test(crew)
+    && /<button type="button" className="alert-main alert-main-go" onClick=\{\(\) => gotoAlert\(a\)\}>/.test(crew) && /\{canOpen\(a\) && \(/.test(crew));
+
+  // ── Needs you ──
   ok("needs you: one number for late — '11 overdue · 7 tasks past due' read as if the seven were among the eleven",
     /const lateCount = late\.length \+ tasks\.length;/.test(owed) && /`\$\{lateCount\} late`/.test(owed) && !/tasks past due/.test(owed)
     && /from "@\/lib\/dayWords"/.test(owed) && !/const ageWord =/.test(owed) && !/const localYMD =/.test(owed));
-  // The console's words stay out of lib/dates: it rides in the chunk every guest page loads, and the
-  // three of them cost each of those pages 151 bytes there (measured, 2026-10-04).
-  ok("weight: partOfDay, daysBetween and dueWord live in lib/dayWords, not the lib/dates every page carries",
-    !/export function (partOfDay|daysBetween|dueWord)\b/.test(read("lib/dates.ts")) && /export function partOfDay/.test(read("lib/dayWords.ts")));
-  // The checkbox's day rule must not outrank a ticked or picked box. :where() holds it at (0,2,0),
-  // under `.adm-task.done .task-box` (0,3,0); `.task-box.on` is ALSO (0,2,0), so the day rule has to
-  // come first in the file or every picked box in the day theme turns white.
+  ok("needs you: every row is a button to what it names — no <a href> full reloads; '+N more' expands instead of being text",
+    /onClick=\{\(\) => go\(r\)\}/.test(owed) && !/href=\{r\.route\}/.test(owed) && /owner_user_id"\)/.test(owed)
+    && /setAllTasks\(true\)/.test(owed) && /setAllLow\(true\)/.test(owed) && !/more late\.<\/div>/.test(owed) && !/more below reorder point\.<\/div>/.test(owed)
+    && /openTask\(t\.id, "event"\)/.test(owed));
+
+  // ── elsewhere in the console ──
+  ok("live ops: the stop the truck instrument names opens its record",
+    /<RecordLink kind="stop" id=\{curStop\.id\}>/.test(read("components/crew/LiveControl.tsx")) && /<RecordLink kind="stop" id=\{nextStop\.id\}>/.test(read("components/crew/LiveControl.tsx")));
+  ok("the pass: an unpaid ticket says to collect — 'pre-order' named a payment state as an ordering one",
+    /"UNPAID · collect at pickup"/.test(crew) && !/"pre-order"/.test(crew));
+  ok("readiness: a board group's event or stop opens its record; a past one says Wrap up",
+    /openRecord\(g\.kind as "event" \| "stop", g\.recId!\)/.test(read("components/PrepBoard.tsx")) && /\{g\.past \? "Wrap up" : "Open"\}/.test(read("components/PrepBoard.tsx")));
+  ok("plan: on the crew calendar an event or stop opens its record instead of a row that does nothing",
+    /onClick=\{\(\) => openRecord\(it\.kind as "event" \| "stop", it\.id\)\}/.test(read("components/CompanyCalendar.tsx")));
+  ok("money: the glance tiles land where they say, through CrewKpis' one jump",
+    /goToDest\(TO\[t\.k\] \?\? \{ section: "money" \}, setSection\)/.test(read("components/MoneyKpis.tsx")) && /export function goToDest/.test(read("components/CrewKpis.tsx")));
+  ok("panels: a wrapped component's duplicate title hides, its controls never — Sales' range, '+ Add', 'due soon'",
+    /\.mpanel-body > \*:not\(\.adm-hud\) > \.k-sec:first-child:has\(> \.k-sec-r\),\n\.mpanel-body > \.k-sec:first-child:has\(> \.k-sec-r\)\{display:flex;/.test(css)
+    && /:has\(> \.k-sec-r\) > \.k-sec-lbl\{display:none\}/.test(css));
+
+  // ── the paper theme (kept from the 10:13 pass) ──
   const boxDay = css.indexOf(".app.crew-day :where(.task-box){background:var(--card)");
   ok("paper: the empty task box is white with an ink edge in the day theme, and never outranks the ticked or picked states",
     boxDay > 0 && boxDay < css.indexOf(".task-box.on{"));
@@ -5187,6 +5291,30 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("paper: the day console restates --field, --well and --ink-whisper — they fell through to :root's black",
     /--field:#FFFFFF; --well:rgba\(34,31,24,\.05\); --ink-whisper:rgba\(34,31,24,\.64\);/.test(css));
   ok("paper: 'late' is one colour, the legible red for text in either theme", /\.owed-row\.late \.owed-age,\.owed-age\.late\{color:var\(--red-onLight\)\}/.test(css));
+  ok("weight: daysBetween and dueWord live in lib/dayWords, not the lib/dates every page carries",
+    !/export function (partOfDay|daysBetween|dueWord)\b/.test(read("lib/dates.ts")) && /export function dueWord/.test(read("lib/dayWords.ts")));
+  ok("audit: the affordance audit and the vocabulary audit run in npm run audit",
+    /node scripts\/affordance\.audit\.mjs/.test(read("package.json")) && /node scripts\/vocab\.audit\.mjs/.test(read("package.json")));
+
+  // ── buttons that could not work: a word the table refuses (scripts/vocab.audit.mjs) ──
+  const act = code(read("components/AlertAction.tsx"));
+  ok("held delivery: 'Picked up' writes the word delivery_orders has — 'delivered', and only to an order still held",
+    /\.update\(\{ status: "delivered" \}\)\s*\.eq\("id", flag\.subject_id\)\.eq\("status", "held_for_pickup"\)\.select\("id"\)/.test(act)
+    && !/status: "picked_up"/.test(act));
+  ok("held delivery: an order no longer held is not silently 'marked picked up' — only one already delivered counts as done",
+    /if \(\(now\.data as \{ status: string \} \| null\)\?\.status !== "delivered"\) throw new Error/.test(act));
+  ok("pipeline: a promoted booking request opens at 'warm' — 'talking' was retired by 0265, so every promote failed",
+    /from\("opportunities"\)\.insert\(\{\s*vendor_id: vendorId, stage: "warm", source: "inbound"/.test(crew) && !/stage: "talking"/.test(crew));
+  const BM = require("../.smoke/brewMath.js");
+  ok("brew: what is over — served, dumped, discarded — is one list, and it is the table's words",
+    JSON.stringify(BM.BATCH_OVER) === JSON.stringify(["served", "dumped", "discarded"]) && BM.BATCH_OVER_IN === "(served,dumped,discarded)"
+    && BM.batchIsOver("discarded") && BM.batchIsOver("dumped") && !BM.batchIsOver("kegged") && !BM.batchIsOver(null)
+    && /\/\/ vocab: brew_batches\.status\nexport const BATCH_OVER/.test(read("lib/brewMath.ts")));
+  ok("brew: the pack plan, the calendar and the chief's brief read that list — none keeps its own, none filters on 'archived'",
+    /\.not\("status", "in", BATCH_OVER_IN\)/.test(read("components/PackPlan.tsx")) && /\.not\("status", "in", BATCH_OVER_IN\)/.test(read("components/CompanyCalendar.tsx"))
+    && /\.not\("status", "in", BATCH_OVER_IN\)/.test(read("app/api/agents/chief/route.ts"))
+    && !/"\(served,dumped\)"|from\("brew_batches"\)[^\n]*neq\("status", "archived"\)/.test(read("components/PackPlan.tsx") + read("components/CompanyCalendar.tsx") + read("app/api/agents/chief/route.ts"))
+    && (read("components/BrewPlanner.tsx").match(/batchIsOver\(/g) || []).length === 2 && !/status !== "served"/.test(read("components/BrewPlanner.tsx")));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

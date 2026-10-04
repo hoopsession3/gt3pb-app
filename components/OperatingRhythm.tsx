@@ -10,6 +10,8 @@ import { DecisionLog } from "./StrategyCollab";
 import { SectionHeader } from "@/components/kit";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
+import { useOperatorSection } from "@/components/OperatorNav";
+import { scrollToAnchor } from "@/lib/anchors";
 
 // OPERATING RHYTHM (2026-08-02 exec-rhythm P1–P3) — the review step of plan → execute → REVIEW →
 // adjust, installed as a surface. Two rituals, one ledger:
@@ -26,6 +28,7 @@ type Pulse = { review: Latest; strategy: Latest; atRisk: number; quiet: number }
 const nice = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
 export default function OperatingRhythm({ isAdmin, onOpenNotes }: { isAdmin: boolean; onOpenNotes: () => void }) {
+  const { setSection } = useOperatorSection();
   const { toast } = useApp();
   const [busy, setBusy] = useState<"review" | "session" | null>(null);
   // The Post-Session Pipeline, automated (the OS's rhythm #3): paste the transcript, the five
@@ -88,7 +91,7 @@ export default function OperatingRhythm({ isAdmin, onOpenNotes }: { isAdmin: boo
       <SectionHeader label="Operating rhythm" />
       <div className="h-sub">Plan → execute → <b>review</b> → adjust. The review writes itself from live numbers; the retro is captured as additions on the note; every strategic call lands in the ledger.</div>
       {(p && (p.atRisk > 0 || p.quiet > 0)) && (
-        <div className="rhythm-pulse">{p.atRisk > 0 && <span className="rhythm-risk">🔴 {p.atRisk} goal{p.atRisk === 1 ? "" : "s"} at risk</span>}{p.quiet > 0 && <span className="rhythm-quiet">💤 {p.quiet} quiet a week+</span>}<span className="rhythm-pulse-hint">— check-ins live on Command › Goals</span></div>
+        <div className="rhythm-pulse">{p.atRisk > 0 && <span className="rhythm-risk">🔴 {p.atRisk} goal{p.atRisk === 1 ? "" : "s"} at risk</span>}{p.quiet > 0 && <span className="rhythm-quiet">💤 {p.quiet} quiet a week+</span>}<button type="button" className="rhythm-pulse-go" onClick={() => { setSection("command"); scrollToAnchor("goals"); }}>Check in on them ›</button></div>
       )}
       <div className="rhythm-cards">
         <div className="rhythm-card">

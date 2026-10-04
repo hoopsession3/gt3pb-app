@@ -63,7 +63,14 @@ export const recordParam = (r: RecordRef): string => `${r.kind}:${r.id}`;
 export const ALERT_KIND_RECORD: Record<string, RecordKind> = {
   shop_order_new: "shop_order",
   fulfillment: "shop_order",
+  // 0340's stall watchdog names the paid order that has not moved — its critical alert used to open
+  // the Money section's order list, leaving the owner to find the one it meant (2026-10-04).
+  shop_order_stalled: "shop_order",
 };
+
+/** Alerts about ONE TASK — every producer writes the event_tasks id as the subject. Open shows that
+ *  task's sheet (components/TaskSheet), not the My Day list it might be somewhere on. */
+export const TASK_ALERT_KINDS: readonly string[] = ["task_assigned", "task_due"];
 
 /** The ref an alert points at, or null if it points at a screen instead of a row. */
 export function recordForAlert(kind: string | null | undefined, subjectId: string | null | undefined): RecordRef | null {

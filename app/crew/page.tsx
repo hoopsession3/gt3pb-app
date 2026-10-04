@@ -7,13 +7,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import { useApp } from "@/components/AppProvider";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
-import { SENIORITY, roleLabel, tierOf, toRole, type Role, type Tier } from "@/lib/roles";
+import { SENIORITY, roleLabel, tierOf, toRole, canOf, type Role, type Tier } from "@/lib/roles";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, alertWhen, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
 import { localToday, etToday, dayKey, dayWithDate, relativeDay, ageLabel } from "@/lib/dates";
-import { partOfDay } from "@/lib/dayWords";
 import { prepBucket } from "@/lib/readiness";
 import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
 import { archiveOwner, setEventLive } from "@/lib/wrap";
@@ -33,7 +32,7 @@ import { rememberMode } from "@/lib/mode";
 import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY_GROUP, VALID as VALID_SECTIONS, type OpSection } from "@/components/OperatorNav";
 import { useTaskSheet } from "@/components/TaskSheet";
 import { useRecord } from "@/components/RecordSheet";
-import { recordForAlert } from "@/lib/records";
+import { recordForAlert, TASK_ALERT_KINDS } from "@/lib/records";
 import { owedLine, prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { WayButtons } from "@/components/RecordWays";
 import { goPlanTab, isPlanTab, planTabFromUrl, stampPlanTab, PLAN_TAB_KEY, PLAN_TAB_EVENT } from "@/lib/planNav";
@@ -62,7 +61,6 @@ const MaintenanceLog = dynamic(() => import("@/components/MaintenanceLog"), { lo
 import OpsPlan from "@/components/OpsPlan";
 import NoteAttach from "@/components/NoteAttach";
 import Goals from "@/components/Goals";
-import { useSiteCopy } from "@/lib/copy";
 import { useLocationSuggestions } from "@/components/useLocationSuggestions";
 import { completeTask, createEventTask, createEventTasks, deleteTask, deleteTasks, deleteTasksForParent, type NewEventTask, type TaskParent } from "@/lib/tasks";
 const AiTraining = dynamic(() => import("@/components/AiTraining"), { loading: () => <PourFill label="Loading…" /> });
@@ -482,7 +480,7 @@ function Kitchen() {
                         {o.eta_status === "outside" ? <><Icon name="pin" /> OUTSIDE — call the name</> : o.eta_status === "on_way" ? "🏃 On the way" : <><Icon name="clock" /> Running late</>}
                       </span>
                     )}
-                    <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "pre-order"}</span> · <span className="kds-stagetime">{ago(o.status_changed_at)} in stage</span></div>
+                    <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "UNPAID · collect at pickup"}</span> · <span className="kds-stagetime">{ago(o.status_changed_at)} in stage</span></div>
                     <div className="adm-actions-row">
                       {PREV[o.status] && <button className="adm-recall" onClick={() => recall(o)} aria-label="Move back a stage">↩</button>}
                       <button className={`adm-act ${ACT_CLASS[o.status]}`} onClick={() => advance(o)}>{st.action}</button>
@@ -508,7 +506,7 @@ function Kitchen() {
                   <span className="adm-age calm">picked up {ago(o.status_changed_at)} ago</span>
                 </div>
                 <div className="adm-items">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")}</div>
-                <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "pre-order"}</span></div>
+                <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "unpaid"}</span></div>
                 <div className="adm-actions-row">
                   <button className="adm-recall" onClick={() => recall(o)} aria-label={`Bring ${o.customer ?? "order"} back to ready`}>↩ Recall</button>
                 </div>
@@ -794,12 +792,20 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
   const [dropSheet, setDropSheet] = useState(false);
   const [reviewPost, setReviewPost] = useState<{ id: string; alert: MyFlag } | null>(null);
   const { openRecord } = useRecord();
+  const { openTask } = useTaskSheet();
+  // Whether Open has anywhere to go — the record or task an alert names, or the screen that owns it.
+  const canOpen = (a: MyFlag) => !!recordForAlert(a.kind, a.subject_id)
+    || (!!a.kind && TASK_ALERT_KINDS.includes(a.kind) && !!a.subject_id)
+    || alertIsReservation(a.title) || alertIsContentReview(a.title) || alertDest(a.category, a.title, a.link) != null;
   const gotoAlert = (a: MyFlag) => {
     // An alert that names a ROW opens that row. The 0174 contract has carried subject_id since
     // before anything could open one, so every shop-order ping has known exactly which order it
     // meant and still landed people at the top of this page. (0313)
     const rec = recordForAlert(a.kind, a.subject_id);
     if (rec) { openRecord(rec.kind, rec.id); onNavigate?.(); return; }
+    // An alert about ONE task opens that task (2026-10-04). "Ryan assigned you: Ice run" used to
+    // scroll My Day's list, and a task_due ping landed on the top of Readiness.
+    if (a.kind && TASK_ALERT_KINDS.includes(a.kind) && a.subject_id) { openTask(a.subject_id, "event"); onNavigate?.(); return; }
     if (alertIsReservation(a.title)) { setDropSheet(true); return; }
     if (alertIsContentReview(a.title)) {
       const pid = postIdFromLink(a.link);
@@ -891,12 +897,21 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
       {sorted.map((a) => (
         <div key={a.id} className={`alert sev-${a.severity}`}>
           <div className="alert-row">
-            <div className="alert-main">
-              <span className="alert-title">{a.title}{myLane(a.category) && <span className="myday-lane">your lane</span>}{(a.occurrences ?? 1) > 1 && <span className="alert-times" title={`Happened ${a.occurrences} times${a.last_seen_at ? `, last ${ageLabel(a.last_seen_at)}` : ""}`}>×{a.occurrences}</span>}<span className="alert-when">{ageLabel(alertWhen(a))}</span></span>
-              {a.body && <span className="alert-body">{a.body}</span>}
-            </div>
+            {/* The words that name the thing open it (2026-10-04): only the small Open button used
+                to, and "New reservation · Jess reserved a 6-pack…" was dead text beside it. */}
+            {(() => {
+              const main = (
+                <>
+                  <span className="alert-title">{a.title}{myLane(a.category) && <span className="myday-lane">your lane</span>}{(a.occurrences ?? 1) > 1 && <span className="alert-times" title={`Happened ${a.occurrences} times${a.last_seen_at ? `, last ${ageLabel(a.last_seen_at)}` : ""}`}>×{a.occurrences}</span>}<span className="alert-when">{ageLabel(alertWhen(a))}</span></span>
+                  {a.body && <span className="alert-body">{a.body}</span>}
+                </>
+              );
+              return canOpen(a)
+                ? <button type="button" className="alert-main alert-main-go" onClick={() => gotoAlert(a)}>{main}</button>
+                : <div className="alert-main">{main}</div>;
+            })()}
             {counts[a.id] ? <button type="button" className="alert-discuss" onClick={() => setOpenThread(openThread === a.id ? null : a.id)} aria-label="Discuss"><Icon name="chat" /><span className="cmt-count">{counts[a.id]}</span></button> : null}
-            {(alertIsReservation(a.title) || alertIsContentReview(a.title) || alertDest(a.category, a.title, a.link) != null) && (
+            {canOpen(a) && (
               <button type="button" className={alertHasInlineAction(a.kind) ? "alert-open ghost" : "alert-open"} onClick={() => gotoAlert(a)}>{alertHasInlineAction(a.kind) ? "Open" : <>Open <Icon name="arrowRight" /></>}</button>
             )}
             {a.severity !== "critical" && <button type="button" className="alert-snz" onClick={() => snooze(a, new Date(Date.now() + 3600_000))} aria-label="Snooze 1 hour" title="Snooze 1 hour"><Icon name="clock" /></button>}
@@ -1193,19 +1208,14 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
 type Rhythm = { stops: { id: string; name: string | null; starts_at: string | null }[]; dropPacks: number; porches: number; brews: { id: string; recipe_name: string; batch_gal: number; warn: boolean }[] };
 const NO_RHYTHM: Rhythm = { stops: [], dropPacks: 0, porches: 0, brews: [] };
 
-function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string | null; meName: string; isLeader: boolean; canPrep: boolean; canBrew: boolean }) {
+function MyDay({ userId, isLeader, canGoLive, canBrew }: { userId: string | null; isLeader: boolean; canGoLive: boolean; canBrew: boolean }) {
   // Flags ride the one shared hook (same source as the Now strip + nav badge). Crew see their own
   // pings + broadcasts now too — the old isLeader gate predates the staff-wide alerts RLS (0157).
   const { flags, error: flagsErr, reload: reloadFlags } = useMyAlerts(userId);
   const { setSection } = useOperatorSection();
+  const { openRecord } = useRecord();
   const streams = useWorkStreams();
-  const t = useSiteCopy();
   const laneColor = (cat: string) => streamOfCategory(cat, streams)?.color;
-  // Clock read CLIENT-SIDE only: /crew is prerendered, so a render-time new Date() bakes build/UTC
-  // time+date into the HTML and mismatches the browser on hydration (React #418). null on SSR + the
-  // first client render (they match), then the effect fills the real local greeting + date.
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => { setNow(new Date()); }, []);
   // The day's rhythm — the same anchors the company calendar carries. Stops use the operator's
   // wall-clock day; drop/delivery are BUSINESS days (ET) so a late evening doesn't flip them early.
   // A FAILED READ IS NOT A QUIET DAY (2026-10-04): these four read .data straight through PostgREST
@@ -1233,41 +1243,18 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
   const rhythmState = useAsyncData<Rhythm>(rhythmLoader, []);
   const rhythm = rhythmState.data ?? NO_RHYTHM;
 
-  // "Evening, Ryan." — lib/dayWords partOfDay. It read "evening, Ryan." from 2026-07-15 to 2026-10-04.
-  const first = meName.split(" ")[0];
-  const named = first && first !== "Me" ? first : "";
-  const motto = t("board.welcome");
-  const dateLabel = now ? now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }) : "";
-  // A middle dot between the date and the motto: the motto carries its own em dash, and two of them
-  // in one line ("Saturday, October 3 — Precision in every pour — let's…") read as one long aside.
-  const sub = now ? [dateLabel, motto].filter(Boolean).join(" · ") : "";
-  // Today's op opens the way a stop chip does: its readiness for those who prep, Live Ops otherwise.
-  const openOp = (id: string) => {
-    if (!canPrep) { setSection("now"); return; }
-    try { localStorage.setItem(prepHandoffKey, prepHandoffValue("event", id)); } catch { /* ignore */ }
-    setSection("prep");
-  };
 
   const [leadOpen, setLeadOpen] = useState(false); // leadership briefing/intake — collapsed by default (decrowd)
   return (
     <>
-      {/* compact kit header: title · ONE italic line (date · motto). No banner block. No "My Day"
-          eyebrow here (2026-07-16, decrowd) — the persistent op-head title directly above this
-          component already says "My Day"; repeating it as an eyebrow read as two titles stacked
-          for one screen.
-          THE GREETING OPENS THE DAY (2026-10-04). It used to render BELOW the leader's headline, so
-          on Ryan's phone a 30px "evening, Ryan." sat between his top three and his inbox, reading
-          like the title of whatever came next. It is the frame, so it comes first; the headline
-          still comes before the plates, which is all P3 asked. The two lines hold their height
-          until the clock is read, so nothing below jumps when it is. */}
-      <div className="myday-hero">
-        {/* h2, not h1 — op-head-t directly above this is now the section's real h1 ("My Day");
-            this greeting is content within that section, one level down. */}
-        <h2 className="k-title">{now ? `${partOfDay(now.getHours())}${named ? `, ${named}` : ""}.` : "\u00a0"}</h2>
-        <p className="k-sub">{sub || "\u00a0"}</p>
-      </div>
-      {/* Today's op (everybody) and the top three (leaders): the headline, before the plates. */}
-      <DayHeadline leader={isLeader} onOpenOp={openOp} />
+      {/* WHAT OPENS THE DAY IS THE DAY (2026-10-04, Ryan: "strategically look for where something is
+          unnecessary information"). This screen used to open with a 30px greeting and a motto —
+          "Evening, Ryan." over "Precision in every pour — let's make today one worth remembering."
+          — about ninety pixels of the first screen an operator sees, ahead of the one thing the day
+          is about. The greeting is gone, the motto with it (its copy key is retired, so Settings no
+          longer offers to edit a line that shows nowhere), and the date rides on today's op card.
+          The headline still comes before the plates, which is all P3 asked. */}
+      <DayHeadline leader={isLeader} canGoLive={canGoLive} />
       {rhythmState.status === "error" && (
         <p className="load-failed" role="status">
           Couldn&apos;t read today&apos;s stops, drops and brews — this is not &ldquo;nothing on&rdquo;.{" "}
@@ -1277,7 +1264,7 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
       {(rhythm.stops.length > 0 || rhythm.dropPacks > 0 || rhythm.porches > 0 || rhythm.brews.length > 0) && (
         <div className="myday-rhythm">
           {rhythm.stops.map((s) => (
-            <button key={s.id} type="button" className="myday-chip" style={{ borderLeftColor: laneColor("stop") }} onClick={() => { if (!canPrep) { setSection("now"); return; } try { localStorage.setItem(prepHandoffKey, prepHandoffValue("stop", s.id)); } catch { /* ignore */ } setSection("prep"); }}>
+            <button key={s.id} type="button" className="myday-chip" style={{ borderLeftColor: laneColor("stop") }} onClick={() => openRecord("stop", s.id)}>
               <Icon name="truck" /> {s.name || "Truck stop"}{s.starts_at ? ` · ${new Date(s.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""} ›
             </button>
           ))}
@@ -1290,19 +1277,16 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
           ))}
         </div>
       )}
-      {/* The one inbox pointer — counts live in ONE place (the 🔔 bell is the same number). When
-          nothing needs you, we say NOTHING: silence is the signal, not another banner. */}
-      {flags.length > 0 ? (
-        <button type="button" className="myday-inbox-ptr" onClick={() => window.dispatchEvent(new Event("gt3-open-inbox"))}>
-          <span className="myday-inbox-n">{flags.length}</span> flag{flags.length === 1 ? "" : "s"} &amp; ping{flags.length === 1 ? "" : "s"} for you <span className="myday-inbox-go">Open inbox <Icon name="arrowRight" /></span>
-        </button>
-      ) : flagsErr ? (
-        // Silence is only the signal when the read answered. A failed one used to be silence too.
+      {/* THE INBOX HAS ONE DOOR, THE BELL (2026-10-04). A card here repeated the bell's number on
+          the same screen — "10 flags & pings for you" under a bell reading 10 — and for every role
+          but a manager the bell itself never loaded, so the card was papering over that. The bell
+          loads for everyone now. What stays is the one thing the bell cannot say: that it failed. */}
+      {flagsErr && flags.length === 0 && (
         <p className="load-failed" role="status">
           Couldn&apos;t check your flags &amp; pings — this is not &ldquo;nothing for you&rdquo;.{" "}
           <button type="button" className="btn-ter" onClick={() => reloadFlags()}>Try again</button>
         </p>
-      ) : null}
+      )}
       {/* MY TASKS above the fold — the day's work leads; everything else follows. */}
       <MyTasks userId={userId} />
       {/* WHAT IS OWED (0320). Under the day's work, because a task due today outranks a permit due
@@ -1312,7 +1296,8 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
           workstream next-actions overdue, and six permit rules needing a re-check. Nothing in the
           product said so. Silence is only a signal when somebody is listening. */}
       <Owed />
-      <button type="button" className="btn-ter" style={{ marginTop: 10 }} onClick={() => window.dispatchEvent(new Event("gt3-quick-note"))}>✎ Note to self</button>
+      {/* "✎ Note to self" lived here — the same sheet the quick-actions button opens on its Note
+          tab, from every screen. One door (2026-10-04). */}
       {/* Lead-the-week tools: collapsed to one chip until called for (decrowd — the briefing is
           on-demand by nature; it shouldn't occupy the glance screen). */}
       {isLeader && (
@@ -3374,9 +3359,14 @@ function Bookings() {
     if (r.status === "new") setStatus(r.id, "contacted");
   };
   // The bridge, outbound direction: one tap turns a request into a pursuit on the pipeline —
-  // account from the requester (reused if we already know them), stage "talking" (they opened
-  // the conversation), and the request context as the first pursuit-trail entry. The request
-  // itself stays here, linked, so the button can't double-promote.
+  // account from the requester (reused if we already know them), stage "warm" (they opened the
+  // conversation), and the request context as the first pursuit-trail entry. The request itself
+  // stays here, linked, so the button can't double-promote.
+  //
+  // It said "talking" until 2026-10-04 — a stage 0265 retired in August (its own map: talking →
+  // warm), so every promote since made the account and then failed on opportunities_stage_check.
+  // scripts/vocab.audit.mjs found it, and now holds every literal this app writes to a checked
+  // column to the migration that checks it.
   const promote = async (r: BookingRequest, decision?: ResolveDecision) => {
     if (!supabase || !user || promoting) return;
     setPromoting(r.id);
@@ -3399,7 +3389,7 @@ function Bookings() {
         vendorId = res.id;
       }
       const { data: opp, error: oppErr } = await supabase.from("opportunities").insert({
-        vendor_id: vendorId, stage: "talking", source: "inbound",
+        vendor_id: vendorId, stage: "warm", source: "inbound",
         next_step: "Reply to their request", created_by: user.id,
       }).select("id").single();
       if (oppErr) { toast(`Couldn't open the opportunity — ${oppErr.message}`, "error"); return; }
@@ -4245,6 +4235,9 @@ function EventEconomics({ e, econRow, catalog, onSave }: {
   const fixed = econ.booth_cents + econ.transport_cents + econ.permit_cents + econ.consumables_cents;
   const profitable = proj.netCents >= 0;
   const uncosted = proj.lines.some((l) => !l.costed);
+  const { profile } = useAuth();
+  const { setSection } = useOperatorSection();
+  const canSetCosts = canOf(profile).admin;   // Money is an admin's screen
 
   return (
     <div className="ev-group ev-pnl">
@@ -4273,7 +4266,17 @@ function EventEconomics({ e, econRow, catalog, onSave }: {
               ? <>Break-even ≈ {Math.ceil(proj.breakEvenGuests)} buying guests · you&apos;re projecting {Math.round(proj.projectedGuests)}</>
               : <>Set a unit price to compute break-even</>}
           </div>
-          {uncosted && <div className="pnl-note">Some lines use the blended {pctInt(econ.cogs_pct)}% COGS — set their unit cost in Money <Icon name="arrowRight" /> Product economics for exact margin.</div>}
+          {/* The direction became the door (2026-10-04): "set their unit cost in Money → Product
+              economics" was a sentence. Whoever can open Money gets the button; anyone else is told
+              who can, not sent somewhere they cannot go. */}
+          {uncosted && (
+            <div className="pnl-note">
+              Some lines use the blended {pctInt(econ.cogs_pct)}% COGS — their own unit cost gives the exact margin.
+              {canSetCosts
+                ? <button type="button" className="adm-golink" onClick={() => { setSection("money"); scrollToAnchor("econ"); }}>Set unit costs <Icon name="arrowRight" /></button>
+                : <> An owner or admin sets them.</>}
+            </div>
+          )}
         </>
       )}
 
@@ -5321,7 +5324,10 @@ export default function AdminPage() {
   const [planTab, setPlanTab] = useState<"calendar" | "events" | "vendors" | "route" | "leads">("calendar");
   const [guideOpen, setGuideOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
-  const { flags: hdrFlags, critCount: hdrCrit } = useMyAlerts(user?.id ?? null, canManage);   // header 🔔 badge
+  // The header 🔔 badge, for EVERY role (2026-10-04). It was gated on canManage — the leader-only rule
+  // 0157 retired for alerts — so a server's bell never loaded while My Day and the nav badge counted
+  // her pings from the same hook. The bell is the inbox's one door now; it has to open for everyone.
+  const { flags: hdrFlags, critCount: hdrCrit } = useMyAlerts(user?.id ?? null);
   // First-run: the guide explains the console's language (Live Ops, Readiness, Route) — open it
   // once for a brand-new staffer instead of hoping she finds the ⓘ pill.
   useEffect(() => {
@@ -5349,7 +5355,7 @@ export default function AdminPage() {
     } catch { /* ignore */ }
   }, [sec]);
   // The header 🔔 opens the ONE inbox (your flags + the needs-you queue). Any screen can summon it
-  // (the My Day pointer, the Now strip) via the gt3-open-inbox event; navigating a section closes it.
+  // (a badged nav tab, the Now strip) via the gt3-open-inbox event; navigating a section closes it.
   useEffect(() => {
     const open = () => setInboxOpen(true);
     window.addEventListener("gt3-open-inbox", open);
@@ -5498,9 +5504,11 @@ export default function AdminPage() {
           <button type="button" className="crew-jump" onClick={() => window.dispatchEvent(new Event("gt3-open-cmdk"))} aria-label="Jump to a section, recent, or action"><span aria-hidden><Icon name="search" /></span> Jump<kbd className="crew-jump-k" aria-hidden>⌘K</kbd></button>
           {/* Section guide — what each section is for + jump there. */}
           <button type="button" className="crew-guide" onClick={() => setGuideOpen(true)} aria-haspopup="dialog"><span aria-hidden><Icon name="info" /></span> Guide</button>
-          {/* Back = previous section within crew mode; only leaves for /3mpire when there's no
-              section history to step back through. */}
-          <button type="button" className="pf" aria-label={canGoBack ? "Back" : "Exit Crew Mode"} onClick={() => { if (!back()) { rememberMode("customer"); router.push("/3mpire"); } }}>‹</button>
+          {/* Back = the previous section within crew mode, shown only when there is one (2026-10-04).
+              With no history it used to become "Exit Crew Mode" — a back arrow that flipped the
+              device into the customer app — beside the "Customer view" switch that already does
+              that, and labelled as what it is. */}
+          {canGoBack && <button type="button" className="pf" aria-label="Back" onClick={() => back()}>‹</button>}
         </div>
       </div>
       {guideOpen && <SectionGuide allowed={allowed} current={sec} onGo={setSection} onClose={() => setGuideOpen(false)} />}
@@ -5517,12 +5525,10 @@ export default function AdminPage() {
               is static ("Crew console") and never reflected which of the 17 sections you were in;
               /crew joined H1_SKIP so this is the one heading now, and it actually updates with sec. */}
           <h1 className="op-head-t">{SEC_LABEL[sec]}</h1>
-          {/* Tap the WHEN pill → the full section guide, opened on this section, with jump links.
-              The one-line "what this section is for" description used to repeat here EVERY visit
-              (op-head-s) — cut (2026-07-16, decrowd): SectionGuide already shows the identical
-              SEC_SUB line per-section, plus more (SEC_MORE, "what's inside"). One tap away via
-              this pill or the Guide button, not force-displayed above every screen forever. */}
-          <button type="button" className="op-head-when" onClick={() => setGuideOpen(true)} aria-haspopup="dialog" title="What each section is for">{SEC_WHEN[sec]}<span className="op-head-when-i" aria-hidden><Icon name="info" /></span></button>
+          {/* The WHEN pill ("START OF SHIFT ⓘ", "DURING SERVICE ⓘ") stood here until 2026-10-04: a
+              fixed tagline styled as a status — it said "During service" at 10 PM with the truck
+              offline — opening the same guide as the Guide button two inches above it. The guide
+              still carries each section's "when" (SEC_WHEN); the title no longer pretends to. */}
         </div>
       </div>
 
@@ -5551,7 +5557,7 @@ export default function AdminPage() {
           {/* P3 (2026-08-03): a leader's day opens with the headline — today's op + top 3 due —
               before the plates. MyDay renders it now (2026-10-04), under the greeting, so the
               greeting opens the screen and today's op has one card for everybody. */}
-          <MyDay userId={user?.id ?? null} meName={profile?.display_name?.trim() || "Me"} isLeader={canManage} canPrep={canPrep} canBrew={canManage || role === "operator"} />
+          <MyDay userId={user?.id ?? null} isLeader={canManage} canGoLive={isAdmin} canBrew={canManage || role === "operator"} />
         </>
       )}
       {sec === "command" && canManage && (

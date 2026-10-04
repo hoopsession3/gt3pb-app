@@ -12,22 +12,12 @@ import { DRINKS, MENU, type DrinkId } from "./menu";
 export type CopyMeta = { key: string; group: string; label: string; multiline?: boolean; default: string };
 
 export const COPY_META: CopyMeta[] = [
-  // ── Team board · back-office (the crew console) ──
-  { key: "board.welcome", group: "Team board", label: "Crew welcome line", multiline: true,
-    default: "Precision in every pour — let's make today one worth remembering." },
+  // ── Retired 2026-10-04: four fields Settings offered to edit that showed nowhere ──
+  // board.welcome was the crew motto under My Day's greeting; both left the screen when Ryan asked
+  // what was unnecessary. home.statement / home.principles / home.cta had been flagged DEAD since
+  // 2026-07-16 — no component ever read them — and an editor field that changes nothing is the
+  // same unnecessary information, one screen deeper. An override row left in site_copy is inert.
   // ── Home · signed-out (Arrival) ──
-  // 2026-07-16: home.statement / home.principles / home.cta are currently DEAD — no component
-  // reads them (confirmed by search; StorefrontStory.tsx, the actual guest arrival block on
-  // /reserve and /delivery, uses reserve.order_bar for its button and has no hero-statement or
-  // principles-line slot at all). Editing these three does nothing visible. Left in place rather
-  // than deleted since they read like an intended arrival hero that never got wired up — flagging
-  // here instead of silently dropping them; wiring them up or removing them is a real product call.
-  { key: "home.statement", group: "Home · signed-out", label: "Hero statement", multiline: true,
-    default: "We draw the coffee cold, blend the hydration from whole coconut, and simmer the broth slow — the long way, on purpose — then make every cup the moment you order it." },
-  { key: "home.principles", group: "Home · signed-out", label: "Principles line",
-    default: "Drawn cold, made to order, poured into glass" },
-  { key: "home.cta", group: "Home · signed-out", label: "Primary button",
-    default: "Start your order" },
   { key: "home.cta_sub", group: "Home · signed-out", label: "Button subtext", multiline: true,
     default: "Choose what you'd like and we'll have it waiting at the window." },
   { key: "home.signoff", group: "Home · signed-out", label: "Sign-off",
@@ -502,10 +492,9 @@ export function copyGroupAnchor(group: string): string {
 // group → the live page that actually renders it. Explicit per group (unlike the anchor, a route
 // can't be derived from the name); the per-drink "Menu · <name>" groups all fall through to /menu.
 // "Home · signed-out" points at /reserve, NOT /, because that's where its live keys actually render
-// (guest arrival is StorefrontStory on /reserve + /delivery — see the dead-key note above; / is the
-// signed-in member home and shows none of this group).
+// (guest arrival is StorefrontStory on /reserve + /delivery; / is the signed-in member home and
+// shows none of this group).
 const COPY_GROUP_ROUTE: Record<string, string> = {
-  "Team board": "/crew?s=day",
   "Home · signed-out": "/reserve",
   "Home · signed-in": "/",
   "Home · pillars": "/reserve",

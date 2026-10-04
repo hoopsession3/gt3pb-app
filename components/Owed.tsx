@@ -3,8 +3,10 @@
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
-import { useOperatorSection } from "./OperatorNav";
-import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
+import { useOperatorSection, VALID, type OpSection } from "./OperatorNav";
+import { useRecord } from "./RecordSheet";
+import { scrollToAnchor } from "@/lib/anchors";
+import { obligationGo, type ObligationRow } from "@/lib/obligations";
 import { fetchInventory, rollupLowStock, type InvItem } from "@/lib/inventory";
 import { goPlanTab } from "@/lib/planNav";
 import { useTaskSheet } from "./TaskSheet";
@@ -59,6 +61,7 @@ type Row = {
   source: string; subject_id: string; area: string; kind: string;
   title: string; detail: string; due_on: string; days_out: number;
   severity: "overdue" | "soon" | "upcoming"; route: string; market: string | null;
+  owner_user_id: string | null;
 };
 // `owner` is nullable, and that turned out to be the whole point. Both this panel and the NeedsYou
 // it replaced pushed a task ONLY when it had an event or a stop to name — so a past-due task
@@ -83,7 +86,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
 
     // The list itself. This one throws.
     const ob = await supabase.from("v_obligations")
-      .select("source, subject_id, area, kind, title, detail, due_on, days_out, severity, route, market")
+      .select("source, subject_id, area, kind, title, detail, due_on, days_out, severity, route, market, owner_user_id")
       .neq("severity", "upcoming")
       .order("due_on", { ascending: true })
       .limit(100);
@@ -139,9 +142,17 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
   const state = useAsyncData<Data>(loader, []);
 
   const { openTask } = useTaskSheet();
-  const openTarget = (kind: "event" | "stop", id: string) => {
-    try { localStorage.setItem(prepHandoffKey, prepHandoffValue(kind, id)); } catch { /* ignore */ }
-    setSection("prep");
+  const { openRecord } = useRecord();
+  const [allTasks, setAllTasks] = useState(false);
+  const [allLow, setAllLow] = useState(false);
+  // A row goes where lib/obligations says: the task, the person, or the panel that holds it — an
+  // in-app jump, never the full reload the <a href> rows were (2026-10-04).
+  const go = (r: ObligationRow) => {
+    const to = obligationGo(r);
+    if (to.kind === "task") { openTask(to.id, to.source); return; }
+    if (to.kind === "person") { openRecord("person", to.id); return; }
+    setSection((VALID as Set<string>).has(to.section) ? (to.section as OpSection) : "day");
+    scrollToAnchor(to.anchor);
   };
 
   return (
@@ -151,7 +162,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
       // An empty attention list is the system working, and should read that way rather than as an
       // absence of data.
       emptyTitle="Nothing waiting on you"
-      emptySub="Equipment service, permits, certifications, offers, invoices, agreements, goals and team tasks are all inside their dates, stock is above its reorder points, and every booking request has an answer."
+      emptySub="Every deadline is inside its date, stock is above reorder, and every booking has an answer."
       loadingLabel="Checking what's owed…"
       errorTitle="Couldn't check what's overdue"
       errorSub="This is not the same as nothing being overdue — we could not read it just now."
@@ -181,7 +192,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
             </div>
 
             {shown.map((r) => (
-              <a key={`${r.source}:${r.subject_id}`} className={`owed-row${r.severity === "overdue" ? " late" : ""}`} href={r.route}>
+              <button type="button" key={`${r.source}:${r.subject_id}`} className={`owed-row${r.severity === "overdue" ? " late" : ""}`} onClick={() => go(r)}>
                 <span className="owed-row-b">
                   <b>{r.title}</b>
                   <i>{r.kind} · {r.detail}</i>
@@ -189,7 +200,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
                 {/* The word, not just the colour — a red row that does not say "late" is a colour. */}
                 <span className="owed-age">{dueWord(Number(r.days_out))}</span>
                 <span className="owed-c" aria-hidden="true">›</span>
-              </a>
+              </button>
             ))}
 
             {rows.length > shown.length && (
@@ -209,9 +220,10 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
                 <button type="button" className="owed-more" onClick={() => setOpenTasks((v) => !v)} aria-expanded={openTasks}>
                   {tasks.length} team task{tasks.length === 1 ? "" : "s"} late <span aria-hidden="true">{openTasks ? "⌄" : "›"}</span>
                 </button>
-                {openTasks && tasks.slice(0, 8).map((t) => (
-                  <button key={t.id} type="button" className="owed-row late"
-                          onClick={() => (t.owner ? openTarget(t.owner.kind, t.owner.id) : openTask(t.id, "event"))}>
+                {openTasks && (allTasks ? tasks : tasks.slice(0, 8)).map((t) => (
+                  // The task itself opens (2026-10-04) — it is what is late, and its sheet completes,
+                  // reassigns and re-dates it. It used to open its event's whole prep checklist.
+                  <button key={t.id} type="button" className="owed-row late" onClick={() => openTask(t.id, "event")}>
                     <span className="owed-row-b">
                       <b>{t.label}</b>
                       {/* A task with no event or stop is not a broken row — it is a task somebody
@@ -223,7 +235,9 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
                     <span className="owed-c" aria-hidden="true">›</span>
                   </button>
                 ))}
-                {openTasks && tasks.length > 8 && <div className="pnl-note">+ {tasks.length - 8} more late.</div>}
+                {openTasks && !allTasks && tasks.length > 8 && (
+                  <button type="button" className="owed-more" onClick={() => setAllTasks(true)}>Show the other {tasks.length - 8} <span aria-hidden="true">›</span></button>
+                )}
               </>
             )}
 
@@ -250,16 +264,19 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
 
             {low.length > 0 && (
               <>
-                <div className="wrule"><span>Restock · {low.length} low for upcoming events</span></div>
+                {/* The rule names a job, so it goes where the job is done — Assets, where stock lives. */}
+                <button type="button" className="wrule wrule-go" onClick={() => setSection("garage")}><span>Restock · {low.length} low for upcoming events ›</span></button>
                 <div className="ev-invlist">
-                  {low.slice(0, 6).map((it, i) => (
+                  {(allLow ? low : low.slice(0, 6)).map((it, i) => (
                     <div key={i} className={`ev-inv-row${(it.qty ?? 0) <= 0 ? " out" : ""}`}>
                       <span className="ev-inv-n">{it.qty ?? "—"}</span>
                       <span className="ev-inv-x"><b>{it.name}</b><span>reorder at {it.reorderPoint ?? "—"}{it.unit ? ` ${it.unit}` : ""}</span></span>
                       {it.reorderLink && <a className="ev-inv-link" href={it.reorderLink} target="_blank" rel="noreferrer">Reorder ›</a>}
                     </div>
                   ))}
-                  {low.length > 6 && <div className="pnl-note">+ {low.length - 6} more below reorder point.</div>}
+                  {!allLow && low.length > 6 && (
+                    <button type="button" className="owed-more" onClick={() => setAllLow(true)}>Show the other {low.length - 6} <span aria-hidden="true">›</span></button>
+                  )}
                 </div>
               </>
             )}

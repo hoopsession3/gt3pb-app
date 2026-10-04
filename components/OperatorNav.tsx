@@ -184,7 +184,16 @@ export default function OperatorNav() {
       {groups.map((g) => {
         const on = activeGroup.id === g.id;
         return (
-          <button key={g.id} role="tab" aria-selected={on} className={`tab${on ? " on" : ""}`} onClick={() => { if (!on) openGroup(g); }}>
+          <button key={g.id} role="tab" aria-selected={on} className={`tab${on ? " on" : ""}`} onClick={() => {
+            if (!on) { openGroup(g); return; }
+            // ON the lane already (2026-10-04): this tap used to do nothing at all — even with a red
+            // badge on it. A badge counts things waiting, so tapping it shows them (the inbox, where
+            // every one of them lives); with no badge it goes back to the lane's first screen, as a
+            // tab bar does.
+            const waiting = g.id === "today" ? critCount : (laneCounts[g.id] ?? 0);
+            if (waiting > 0) { window.dispatchEvent(new Event("gt3-open-inbox")); return; }
+            if (section !== g.members[0]) setSection(g.members[0]);
+          }}>
             <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{g.id === "today" ? ICONS.day : streamIcon(g.icon)}</svg>{g.id === "today" && critCount > 0 && <span className="nav-badge" title={`${critCount} critical alert${critCount === 1 ? "" : "s"} — needs you now`} aria-label={`${critCount} critical alert${critCount === 1 ? "" : "s"} — needs you now`}>{critCount}</span>}{g.id !== "today" && (laneCounts[g.id] ?? 0) > 0 && <span className="nav-badge lane" title={`${laneCounts[g.id]} open item${laneCounts[g.id] === 1 ? "" : "s"} in ${g.label}`} aria-label={`${laneCounts[g.id]} open item${laneCounts[g.id] === 1 ? "" : "s"} in ${g.label}`}>{laneCounts[g.id]}</span>}</span>
             <span className="tl">{g.label}</span>
           </button>

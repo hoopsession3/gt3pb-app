@@ -3,6 +3,8 @@
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
+import { useAuth } from "./AuthProvider";
+import { canOf } from "@/lib/roles";
 import { useConfirm } from "./ConfirmSheet";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -71,6 +73,10 @@ const when = (r: Rec) => {
 
 export default function StopRecord({ stopId, onClose }: { stopId: string; onClose: () => void }) {
   const { toast } = useApp();
+  // Same rule as the event record (lib/roles canOf): staff write the note; only an admin changes the
+  // stop itself (0003); the venue and the route are Plan's, which is a manager's screen.
+  const { profile } = useAuth();
+  const can = canOf(profile);
   const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
   const [wrapping, setWrapping] = useState(false);   // the stale_status wrap box, opened by its button
@@ -135,6 +141,9 @@ export default function StopRecord({ stopId, onClose }: { stopId: string; onClos
     const buttons: Way[] = [];
     let box: "wrap" | "recap" | null = null;
     for (const w of stopGapWaysOut(gap) as readonly StopWayOut[]) {
+      if (w === "edit" && !can.prep) continue;
+      if ((w === "venue" || w === "route") && !can.manage) continue;
+      if ((w === "resync" || w === "archive" || w === "wrap") && !can.admin) continue;
       switch (w) {
         case "edit":    buttons.push({ label: gap === "stale_status" ? "Move the date" : "Edit the details", go: true, onClick: openPrep }); break;
         case "venue":   buttons.push({ label: gap === "name_drift" ? "Edit the venue instead" : "Edit the venue", go: true, onClick: () => goPlanTab("vendors") }); break;
@@ -276,9 +285,11 @@ export default function StopRecord({ stopId, onClose }: { stopId: string; onClos
                   {Number(s.incidents ?? 0) > 0 &&
                     <span className="so-kpi"><b>{s.incidents}</b><i>incidents</i></span>}
                 </div>
-                <button type="button" className="cp-go" onClick={openPrep} style={{ marginTop: 10 }}>
-                  Open the prep checklist <span aria-hidden="true">›</span>
-                </button>
+                {can.prep && (
+                  <button type="button" className="cp-go" onClick={openPrep} style={{ marginTop: 10 }}>
+                    Open the prep checklist <span aria-hidden="true">›</span>
+                  </button>
+                )}
               </div>
 
               {/* what it took ─────────────────────────────────────────────────────────────── */}

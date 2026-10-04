@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import Prose from "./Prose";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
+import { RecordLink } from "@/components/RecordSheet";
+import { useOperatorSection } from "@/components/OperatorNav";
+import { goPlanTab } from "@/lib/planNav";
 import { errorMessage } from "@/lib/errorMessage";
 
 // EVENT GENERATOR — say hey, feed it notes: the agent drafts the events + a team collaboration note
@@ -16,6 +19,7 @@ import { errorMessage } from "@/lib/errorMessage";
 const CATC: Record<string, string> = { admin: "#8b5cf6", ops: "#e0892b", event: "#6fa8dc", content: "#2bb3a3" };
 
 export default function EventGenerator({ onClose, onCreated, initialNotes }: { onClose: () => void; onCreated: () => void; initialNotes?: string }) {
+  const { setSection } = useOperatorSection();
   const [notes, setNotes] = useState(initialNotes ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -51,12 +55,22 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
           {done ? (
             <div className="eg-done">
               <div className="eg-done-h"><Icon name="check" /> Done — here&apos;s what I made</div>
+              {/* What was made, each one a door to itself (2026-10-04). This used to name them and then
+                  give directions in a sentence — "Events are under Events, the team note is in Plan →
+                  Notes, and the to-dos are on the Company Calendar." */}
               <ul className="eg-list">
-                <li>{done.events?.length ?? 0} event{(done.events?.length ?? 0) === 1 ? "" : "s"} &amp; stop{(done.events?.length ?? 0) === 1 ? "" : "s"}{done.events?.length ? `: ${done.events.map((e: any) => e.title).join(", ")}` : ""}</li>
-                <li>{done.note ? `Team note: ${done.note.title}` : "No note"}</li>
-                <li>{done.todos ?? 0} to-do{(done.todos ?? 0) === 1 ? "" : "s"} from your action items</li>
+                <li>{done.events?.length ?? 0} event{(done.events?.length ?? 0) === 1 ? "" : "s"} &amp; stop{(done.events?.length ?? 0) === 1 ? "" : "s"}{done.events?.length ? ": " : ""}
+                  {(done.events ?? []).map((e: { id: string; title: string; kind: "event" | "stop" }, i: number) => (
+                    <Fragment key={e.id}>{i ? ", " : ""}<RecordLink kind={e.kind} id={e.id}>{e.title}</RecordLink></Fragment>
+                  ))}</li>
+                <li>{done.note
+                  ? <button type="button" className="rec-link" onClick={() => { onClose(); setSection("notes"); }}>Team note: {done.note.title}</button>
+                  : "No note"}</li>
+                <li>{(done.todos ?? 0) > 0
+                  ? <button type="button" className="rec-link" onClick={() => { onClose(); goPlanTab("calendar", { setSection }); }}>{done.todos} to-do{done.todos === 1 ? "" : "s"} from your action items, on the calendar</button>
+                  : "No to-dos"}</li>
               </ul>
-              <div className="dp-hint" style={{ marginTop: 8 }}>Events are under Events, the team note is in Plan → Notes, and the to-dos are on the Company Calendar. Edit or remove anything that&apos;s off.</div>
+              <div className="dp-hint" style={{ marginTop: 8 }}>Tap any of them to open it. Edit or remove anything that&apos;s off.</div>
               <div className="prod-actions" style={{ marginTop: 12 }}><span /><button type="button" className="note-save" onClick={onClose}>Done</button></div>
             </div>
           ) : !plan ? (

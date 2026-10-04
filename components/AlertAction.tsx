@@ -81,8 +81,20 @@ export default function AlertAction({ flag, meId, onResolved }: {
         if (error) throw error;
         haptic(HAPTIC.arm);
       } else if (kind === "delivery_held") {
-        const { error } = await supabase.from("delivery_orders").update({ status: "picked_up" }).eq("id", flag.subject_id);
+        // Collected at GT3PB is the order fulfilled: "delivered". This wrote "picked_up" until
+        // 2026-10-04 — a word delivery_orders.status has never had (0139's check: received · brewed
+        // · out_for_delivery · delivered · held_for_pickup · issue), so every tap failed and the held
+        // bottles stayed held on paper. scripts/vocab.audit.mjs found it. driver_outcome keeps
+        // "held_no_empties", so the record still says it was held. Only a held order moves — one
+        // re-routed since is left alone, and one already collected is simply done.
+        const { data, error } = await supabase.from("delivery_orders").update({ status: "delivered" })
+          .eq("id", flag.subject_id).eq("status", "held_for_pickup").select("id");
         if (error) throw error;
+        if (!data?.length) {
+          const now = await supabase.from("delivery_orders").select("status").eq("id", flag.subject_id).maybeSingle();
+          if (now.error) throw now.error;
+          if ((now.data as { status: string } | null)?.status !== "delivered") throw new Error("It isn't held for pickup any more.");
+        }
         haptic(HAPTIC.success);
       }
       // refund_needed / pack_moved / reservation_new / content_approved / ops_incident are

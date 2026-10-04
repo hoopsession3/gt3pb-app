@@ -1428,10 +1428,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .op-head{padding:0 2px 14px}
 .op-head-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .op-head-t{font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;font-size:26px;color:var(--cream);line-height:1}
-/* WHEN pill — the at-a-glance cue for which moment a section is for (tap → section guide) */
-.op-head-when{display:inline-flex;align-items:center;gap:5px;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;font-weight:500;letter-spacing:.13em;text-transform:uppercase;color:var(--gold2);background:transparent;border:1px solid var(--gold2);border-radius:var(--r-pill);padding:3px 9px 2px;line-height:1;white-space:nowrap;opacity:.9;cursor:pointer;-webkit-appearance:none;appearance:none;transition:opacity .12s,background .12s}
-.op-head-when:hover,.op-head-when:active{opacity:1;background:color-mix(in srgb, var(--brand-gold2) 10%, transparent)}
-.op-head-when-i{font-size:10px;opacity:.7}
+/* (The WHEN pill's three rules lived here; the pill left the header 2026-10-04 — see app/crew/page.tsx.) */
 /* crew eyebrow → section guide */
 .eyb-guide{display:inline-flex;align-items:center;gap:6px;background:transparent;border:none;padding:0;cursor:pointer;-webkit-appearance:none;appearance:none;font:inherit;color:inherit}
 .eyb-i{font-size:10px;opacity:.6}
@@ -1624,7 +1621,9 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 
 /* my tasks */
 .mytask{display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--line)}
-.mytask .task-check{flex:0 0 auto;min-height:44px;display:flex;align-items:center;background:none;border:none;cursor:pointer;-webkit-appearance:none;appearance:none;min-width:44px;justify-content:center;margin-left:-9px}  /* 44 wide too (2026-10-04): it measured 26 — the box's own width — so ticking your one task on My Day was a 26px target. The -9px keeps the box where it was. */
+/* 44 wide too (2026-10-04): it measured 26 — the box's own width — so ticking your one task on My
+   Day was a 26px target. The -9px keeps the box where it was. */
+.mytask .task-check{flex:0 0 auto;min-height:44px;display:flex;align-items:center;background:none;border:none;cursor:pointer;-webkit-appearance:none;appearance:none;min-width:44px;justify-content:center;margin-left:-9px}
 .mytask .task-box{width:26px;height:26px}
 .mytask-main{flex:1;min-width:0}
 .mytask-label{display:block;font-family:'Inter';font-size:14.5px;color:var(--cream);line-height:1.3}
@@ -2409,6 +2408,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .task-discuss:active,.alert-discuss:active{opacity:1}
 .alert-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .alert-main{flex:1 1 62%;min-width:150px}
+/* The alert's words open what it names (2026-10-04) — a button that reads as the card's text. */
+.alert-main-go{display:block;margin:0;padding:6px 0;min-height:44px;background:none;border:none;text-align:left;color:inherit;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}
 .adm-task-wrap,.note-fu-wrap{display:block}
 
 /* ── input sheet (focused guided entry; keeps context above visible) ── */
@@ -4978,6 +4979,18 @@ body:has(.conc-sheet) .rail{display:flex}
    justify-content to do anything). */
 .mpanel-body > .adm-sec.adm-hud > .k-sec:first-child{display:flex}
 
+/* NEVER THE CONTROLS (2026-10-04). The rule above hides a wrapped component's first header as a
+   duplicate of the panel's title — and with it everything in its right slot. Measured in the code:
+   the Sales report's 7d/30d/90d (Sales was stuck on 30d), "+ Add" on Reserve drops and on Customer
+   reviews (no way to add either), and Subscribers' "N due soon". The title is the duplicate; the
+   controls and counts never were. A first header that carries a right slot keeps it, alone and
+   right-aligned. .adm-hud keeps its whole header by the rule above, so it is left out here. `*`
+   covers .adm-sec too, and :not() + :has() outrank the hiding rule's specificity on their own. */
+.mpanel-body > *:not(.adm-hud) > .k-sec:first-child:has(> .k-sec-r),
+.mpanel-body > .k-sec:first-child:has(> .k-sec-r){display:flex;justify-content:flex-end;border-bottom:0;padding-bottom:0;margin:0 0 8px}
+.mpanel-body > *:not(.adm-hud) > .k-sec:first-child:has(> .k-sec-r) > .k-sec-lbl,
+.mpanel-body > .k-sec:first-child:has(> .k-sec-r) > .k-sec-lbl{display:none}
+
 /* ─────────── stamp-card achievement states ─────────── */
 .stamp.near{border-color:var(--gold2)}
 .stamp.near .stamp-foot{color:var(--gold2);font-weight:600}
@@ -6854,6 +6867,8 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 /* Route already files a >8h-past stop under "Past visits" — this names it the same way here instead
    of silently disagreeing about whether the stop is current (crew-console audit finding). */
 .pbd-group-past{flex:0 0 auto;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-d)}
+/* 2026-10-04: the group's event or stop opens its record; a past one says Wrap up. */
+.pbd-group-open{flex:0 0 auto;min-height:32px;background:none;border:1px solid var(--line2);border-radius:var(--r-pill);padding:4px 11px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:11px;color:var(--gold2);-webkit-appearance:none;appearance:none}
 .pbd-group-all{flex:0 0 auto;background:none;border:1px solid var(--line2);border-radius:var(--r-pill);padding:4px 11px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:11px;color:var(--cream-m)}
 .pbd-group-all.armed{border-color:var(--red-h);color:var(--red-h);background:color-mix(in srgb, var(--brand-red) 6%, transparent)}
 /* Command board — the deliberate "finish the whole initiative" action (admin, scope-explicit confirm). */
@@ -6891,7 +6906,8 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .rhythm-pulse{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:2px 0 12px;font-family:'Inter';font-weight:650;font-size:12px}
 .rhythm-risk{color:var(--warn)}
 .rhythm-quiet{color:var(--cream-m)}
-.rhythm-pulse-hint{font-weight:500;font-size:11px;color:var(--cream-m)}
+/* was .rhythm-pulse-hint, a sentence pointing at Command › Goals (2026-10-04) */
+.rhythm-pulse-go{min-height:32px;padding:0 4px;background:none;border:none;font:inherit;font-weight:650;font-size:12px;color:var(--gold2);cursor:pointer;-webkit-appearance:none;appearance:none}
 .rhythm-cards{display:grid;grid-template-columns:1fr;gap:10px}
 @media (min-width:640px){.rhythm-cards{grid-template-columns:1fr 1fr}}
 /* var(--card), not rgba(0,0,0,.18): that literal was a dark-theme lift with no day value, so in
@@ -7102,6 +7118,11 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .owed-row{display:flex;align-items:center;gap:10px;min-height:44px;padding:9px 12px;
   border:1px solid var(--line);border-radius:var(--r-lg);background:var(--card);
   text-decoration:none;color:inherit}
+/* Every row is a button now (2026-10-04 — they were <a href> full reloads). The reset the button
+   rows below them never had: full width, left-aligned, the page's font rather than the browser's. */
+button.owed-row{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}
+.wrule-go{width:100%;min-height:44px;margin:14px 0 6px;padding:0;background:none;border:none;text-align:left;cursor:pointer;-webkit-appearance:none;appearance:none}
+.wrule-go span{color:var(--gold2)}
 /* Late rows carry a left rail AND the words "N days late" in the row — colour is never the only
    signal, per WCAG 1.4.1. */
 .owed-row.late{border-left:3px solid var(--red)}
@@ -7159,7 +7180,9 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .util-guests-note{width:100%;font-size:10.5px;color:var(--cream-m);font-style:italic}
 .dayhead{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
 .dayhead-op{border:1px solid var(--gold2);border-radius:var(--r-2xl);padding:12px 15px;background:color-mix(in srgb, var(--brand-gold2) 7%, transparent);display:flex;flex-direction:column;gap:2px}
-.dayhead-op.live{border-color:#5b9a6b;background:rgba(91,154,107,.08);animation:breathe 2.6s var(--ease) infinite}  /* breathes: the living element My Day's red LIVE pill carried, kept on the card that replaced it (2026-10-04); the global reduced-motion switch stills it */
+/* A live op breathes — the living element My Day's red LIVE pill carried, kept on the card that
+   replaced it (2026-10-04); the global reduced-motion switch stills it. */
+.dayhead-op.live{border-color:#5b9a6b;background:rgba(91,154,107,.08);animation:breathe 2.6s var(--ease) infinite}
 .dayhead-k{font-family:'DM Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2)}
 .dayhead-op.live .dayhead-k{color:#5b9a6b}
 .dayhead-op b{font-family:'Archivo Black';font-size:16px;color:var(--cream)}

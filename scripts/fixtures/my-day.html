@@ -7,18 +7,22 @@
 <!--
   A TEST DOUBLE OF MY DAY, AND IT SAYS SO.
 
-  Ryan, 2026-10-04, a screenshot of My Day at 10:13 PM and no words. What it showed: his top three
-  priorities as grey slabs that read as disabled (18% black on cream), none saying how late it was;
-  "evening, Ryan." in 30px sitting between them and his inbox; the one task he owns behind a grey
-  box that looked switched off; "11 overdue · 7 tasks past due · 6 due soon" squeezed under the
-  rail. This is that screen AFTER the fix, in the same state: a leader, an event today, three
-  critical tasks late, ten flags, one task of his own, and what is owed.
+  Ryan, 2026-10-04, a screenshot of My Day at 10:13 PM and no words; then, that night: "Clicking on
+  Greenville Fit Fest today's op does nothing. Strategically look for where something is
+  unnecessary information or should have operational functionality." This is the screen after both
+  passes, in the same state: an owner, an event today and not yet live, three critical tasks late,
+  one task of his own, and what is owed.
+
+  What left: the 30px greeting and the motto above everything (the date rides on the op card now),
+  the "10 flags & pings for you" card that repeated the bell, "✎ Note to self" (the quick-actions
+  Note tab). What arrived: the whole op card is a button that opens the event, with "Make it live"
+  beside it for whoever may throw that switch; every Needs-you row is a button to the thing it names.
 
   Same construction as purchase-sheet.html: the DOM class for class as app/crew/page.tsx,
-  components/DayHeadline.tsx, components/Owed.tsx and components/kit.tsx produce it, styled by the
-  REAL app/globals.css and painted in the real Chromium at phone width, in the day theme and then
-  the dark one. Every block names its source in `data-from`, and scripts/design.ratchet.mjs FAILS if
-  a class used here no longer appears in that file.
+  components/DayHeadline.tsx, components/RecordWays.tsx, components/Owed.tsx and components/kit.tsx
+  produce it, styled by the REAL app/globals.css and painted in the real Chromium at phone width, in
+  the day theme and then the dark one. Every block names its source in `data-from`, and
+  scripts/design.ratchet.mjs FAILS if a class used here no longer appears in that file.
 -->
 <link rel="stylesheet" href="../../app/globals.css">
 <style>html,body{margin:0;background:#F4EFE3}</style>
@@ -28,25 +32,24 @@
 <div class="body">
 <section class="screen admin" data-from="app/crew/page.tsx">
 
-  <!-- The section's own content, from the greeting down. The console header above it (the title,
-       the WHEN pill, the lane tabs) is the same on every section and is not My Day's to measure. -->
+  <!-- The section's own content. The console header above it (the title, the lane tabs) is the same
+       on every section and is not My Day's to measure. -->
   <div class="op-trans" role="region" aria-label="My Day section">
-
-    <div class="myday-hero">
-      <h2 class="k-title">Evening, Ryan.</h2>
-      <p class="k-sub">Saturday, October 3 · Precision in every pour — let’s make today one worth remembering.</p>
-    </div>
 
     <div class="dayhead" data-from="components/DayHeadline.tsx">
       <div class="dayhead-op">
-        <button type="button" class="dayhead-op-go" aria-label="Open Greenville Fit Fest">
-          <span class="dayhead-op-t"><span class="dayhead-k">Today's op</span><b>Greenville Fit Fest</b></span>
+        <button type="button" class="dayhead-op-go">
+          <span class="dayhead-op-t">
+            <span class="dayhead-k">Today's op · Sat, Oct 3</span>
+            <b>Greenville Fit Fest</b>
+            <span class="myday-brief">
+              <span class="myday-brief-row"><b>Wear</b><span>Black GT3 tee, cap</span></span>
+              <span class="myday-brief-row"><b>Details</b><span>Load in 7:00 at the north lot. Two-tap nitro, sampler cups.</span></span>
+            </span>
+          </span>
           <span class="ev-chev" aria-hidden="true">›</span>
         </button>
-        <div class="myday-brief">
-          <div class="myday-brief-row"><b>Wear</b><span>Black GT3 tee, cap</span></div>
-          <div class="myday-brief-row"><b>Details</b><span>Load in 7:00 at the north lot. Two-tap nitro, sampler cups.</span></div>
-        </div>
+        <div class="str-drift-b" data-from="components/RecordWays.tsx"><button type="button" class="so-move">Make it live</button></div>
       </div>
       <div class="dayhead-top">
         <span class="dayhead-k">Top 3</span>
@@ -68,8 +71,6 @@
       </div>
     </div>
 
-    <button type="button" class="myday-inbox-ptr"><span class="myday-inbox-n">10</span> flags &amp; pings for you <span class="myday-inbox-go">Open inbox</span></button>
-
     <div class="adm-sec" id="my-day-tasks">
       <div class="k-sec" data-from="components/kit.tsx"><span class="k-sec-lbl"><h2 class="l">My tasks</h2></span><span class="k-sec-r"><span class="adm-pill" data-from="app/crew/page.tsx">1</span></span></div>
       <div class="mytask">
@@ -86,17 +87,18 @@
         <span class="owed-k">Needs you</span>
         <b>18 late<span class="dim"> · 6 due soon</span></b>
       </div>
-      <a class="owed-row late" href="#">
+      <button type="button" class="owed-row late">
         <span class="owed-row-b"><b>Nitro tap (stout faucet)</b><i>Service due · clean last done Jun 25</i></span>
         <span class="owed-age">94 days late</span>
         <span class="owed-c" aria-hidden="true">›</span>
-      </a>
-      <a class="owed-row" href="#">
-        <span class="owed-row-b"><b>Greenville mobile food permit</b><i>Permit · re-check the rule</i></span>
+      </button>
+      <button type="button" class="owed-row">
+        <span class="owed-row-b"><b>Greenville mobile food permit</b><i>Needs re-checking · the county rule</i></span>
         <span class="owed-age">in 4 days</span>
         <span class="owed-c" aria-hidden="true">›</span>
-      </a>
+      </button>
       <button type="button" class="owed-more">7 team tasks late <span aria-hidden="true">›</span></button>
+      <button type="button" class="wrule wrule-go"><span>Restock · 4 low for upcoming events ›</span></button>
     </div>
 
   </div>

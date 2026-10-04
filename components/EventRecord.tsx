@@ -3,6 +3,8 @@
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
+import { useAuth } from "./AuthProvider";
+import { canOf } from "@/lib/roles";
 import { useConfirm } from "./ConfirmSheet";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -65,6 +67,12 @@ const dayLine = (e: Rec) => {
 
 export default function EventRecord({ eventId, onClose }: { eventId: string; onClose: () => void }) {
   const { toast } = useApp();
+  // WHO CAN DO WHAT HERE (2026-10-04). Today's op on My Day opens this sheet for every role now, and
+  // until this it offered everyone every write: a server would get "It happened — wrap it up" and a
+  // database refusal. Staff may write the note and what it took (0195, 0339); only an admin changes
+  // the event itself or its live flag (0003, 0024); the checklist is for those who prep.
+  const { profile } = useAuth();
+  const can = canOf(profile);
   const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
   const [wrapping, setWrapping] = useState(false);   // the stale_stage wrap box, opened by its button
@@ -116,6 +124,8 @@ export default function EventRecord({ eventId, onClose }: { eventId: string; onC
     const buttons: Way[] = [];
     let box: "wrap" | "recap" | "takings" | null = null;
     for (const w of gapWaysOut(gap) as readonly WayOut[]) {
+      if ((w === "edit" || w === "prep") && !can.prep) continue;
+      if ((w === "archive" || w === "wrap" || w === "live_off") && !can.admin) continue;
       switch (w) {
         case "edit":     buttons.push({ label: "Edit the details", go: true, onClick: openPrep }); break;
         case "prep":     buttons.push({ label: "Open the prep checklist", go: true, onClick: openPrep }); break;
@@ -159,6 +169,30 @@ export default function EventRecord({ eventId, onClose }: { eventId: string; onC
                 </span>
               </div>
               {owed && <p className={`evr-owed${e.phase === "past" && e.stage !== "done" ? " due" : ""}`}>{owed}</p>}
+
+              {/* TODAY, RUN IT FROM HERE (2026-10-04). Ryan tapped "Today's op · Greenville Fit Fest"
+                  and nothing happened; behind the tap there now has to be the day itself. The live
+                  switch lived only in a folded panel at the foot of Live Ops, and an event could be
+                  wrapped only once the date had passed — never the night it ended. */}
+              {Number(e.days_away) === 0 && e.stage !== "done" && can.admin && (
+                <div className="cp-block evr-today">
+                  <div className="cp-block-h"><span>Today</span><b>{e.is_live ? "Live" : "Not live"}</b></div>
+                  {!e.is_live && <p className="cp-line dim">Card sales only count toward an event while it&apos;s live.</p>}
+                  {wrapping && !sorted.some((g) => gapWaysOut(g.gap).includes("wrap")) ? (
+                    <NoteBox value={note ?? e.recap ?? ""} onChange={setNote} busy={busy} autoFocus actions={[
+                      { label: "Mark done", primary: true, onClick: () => run(() => wrapOwner(sb, { kind, id: eventId, recap: note ?? e.recap ?? "" }), "Event wrapped — nice work") },
+                      { label: "Cancel", quiet: true, onClick: () => { setWrapping(false); setNote(null); } },
+                    ]} />
+                  ) : (
+                    <WayButtons ways={[
+                      e.is_live
+                        ? { label: "Take it offline", busy, onClick: () => run(() => setEventLive(sb, eventId, false), "Taken offline") }
+                        : { label: "Make it live", busy, onClick: () => run(() => setEventLive(sb, eventId, true), "Event is live — sales now track to it") },
+                      { label: "It's over — wrap it up", busy, onClick: () => { setNote(e.recap ?? ""); setWrapping(true); } },
+                    ]} />
+                  )}
+                </div>
+              )}
 
               {/* what disagrees — above every number, on purpose ──────────────────────────── */}
               {sorted.length > 0 && (
@@ -229,9 +263,11 @@ export default function EventRecord({ eventId, onClose }: { eventId: string; onC
                   {Number(e.expected_attendance ?? 0) > 0 &&
                     <span className="so-kpi"><b>{e.expected_attendance}</b><i>expected</i></span>}
                 </div>
-                <button type="button" className="cp-go" onClick={openPrep} style={{ marginTop: 10 }}>
-                  Open the prep checklist <span aria-hidden="true">›</span>
-                </button>
+                {can.prep && (
+                  <button type="button" className="cp-go" onClick={openPrep} style={{ marginTop: 10 }}>
+                    Open the prep checklist <span aria-hidden="true">›</span>
+                  </button>
+                )}
               </div>
 
               {/* what it took ─────────────────────────────────────────────────────────────── */}

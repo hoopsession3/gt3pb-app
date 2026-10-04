@@ -5,6 +5,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
+import { BATCH_OVER_IN } from "@/lib/brewMath";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -77,7 +78,7 @@ async function post(req: Request) {
   const [events, stops, brews, todos, critTasks, incidents, content, bookings, maint, lowStock, noteFollowups] = await Promise.all([
     db.from("events").select("title, day, stage, location_text").is("archived_at", null).gte("day", from).lte("day", to).order("day"),
     db.from("stops").select("name, starts_at, status").not("starts_at", "is", null).neq("status", "done").gte("starts_at", fromTs).lte("starts_at", toTs).order("starts_at"),
-    db.from("brew_batches").select("recipe_name, batch_gal, ready_at, status, event_id").not("status", "in", "(served,dumped)").order("ready_at", { nullsFirst: false }),
+    db.from("brew_batches").select("recipe_name, batch_gal, ready_at, status, event_id").not("status", "in", BATCH_OVER_IN).order("ready_at", { nullsFirst: false }),
     db.from("todos").select("id, title, due_on, category, done").eq("done", false).not("due_on", "is", null).lte("due_on", to).order("due_on"),
     db.from("event_tasks").select("id, label, critical, done").eq("done", false).eq("critical", true).limit(25),
     db.from("incident_log").select("problem, severity, created_at, resolved").eq("resolved", false).order("created_at", { ascending: false }).limit(15),

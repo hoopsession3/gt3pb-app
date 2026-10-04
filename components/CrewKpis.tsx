@@ -32,7 +32,7 @@ export type KpiTile = { key: string; label: string; load: (db: Sb) => PromiseLik
 // just scrolled to the bottom." lib/anchors' scrollToAnchor is the jump the alerts and the
 // Settings deep links already use: it asks the panel to open, waits for the page to settle, then
 // scrolls. One jump, three callers.
-function goToDest(d: KpiDest, setSection: (s: OpSection) => void) {
+export function goToDest(d: KpiDest, setSection: (s: OpSection) => void) {
   if (d.planTab && isPlanTab(d.planTab)) { goPlanTab(d.planTab, { setSection, anchor: d.anchor }); return; }
   if (d.section) setSection(d.section);
   if (d.anchor) scrollToAnchor(d.anchor);

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { FLAVORS } from "@/lib/orderAhead";
-import { bottlesFor, gallonsForBottles, brewStartOverdue, sizingOptions, primarySizing, gallonsFromIngredient, ingredientForGallons, stepDownGal, stepUpGal, vesselFit, smallestBatch, pourable, scaleIngredients, vesselPlan, cookQuantity, SERVE_OZ, BREW_STEP_GAL } from "@/lib/brewMath";
+import { bottlesFor, gallonsForBottles, brewStartOverdue, sizingOptions, primarySizing, gallonsFromIngredient, ingredientForGallons, stepDownGal, stepUpGal, vesselFit, smallestBatch, pourable, scaleIngredients, vesselPlan, cookQuantity, SERVE_OZ, BREW_STEP_GAL, batchIsOver } from "@/lib/brewMath";
 import { localToday } from "@/lib/dates";
 import AssignTaskSheet from "@/components/AssignTaskSheet";
 import Sheet, { CloseButton } from "@/components/Sheet";
@@ -137,7 +137,7 @@ export default function BrewPlanner() {
     const bb = (b.data as Batch[]) ?? [];
     const inv = ((ii.data as InvItem[]) ?? []).filter((i) => i.name?.trim());
     // Demand for the drops these batches feed — per drop_date + flavor, same math as DropOps.
-    const dates = [...new Set(bb.filter((x) => x.status !== "served" && x.status !== "dumped" && x.drop_date).map((x) => x.drop_date!))];
+    const dates = [...new Set(bb.filter((x) => !batchIsOver(x.status) && x.drop_date).map((x) => x.drop_date!))];
     const demand: Record<string, Record<string, number>> = {};
     if (dates.length) {
       const { data: o, error: oErr } = await supabase.from("drop_orders").select("drop_date, mix, canceled_at").is("canceled_at", null).in("drop_date", dates);
@@ -289,9 +289,8 @@ export default function BrewPlanner() {
   };
 
   // schedule view = what's upcoming / in progress; the log view = every batch ever, the permanent
-  // record. 'discarded' joins served and dumped here: it is not upcoming, and unlike dumped it is
-  // not a real pour-out either — it is a batch that never happened.
-  const active = batches.filter((b) => b.status !== "served" && b.status !== "dumped" && b.status !== "discarded")
+  // record. What is over — served, dumped, discarded — is lib/brewMath's one list.
+  const active = batches.filter((b) => !batchIsOver(b.status))
     .sort((a, b) => (a.ready_at || "9999").localeCompare(b.ready_at || "9999"));
 
   return (
