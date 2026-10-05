@@ -46,11 +46,21 @@ if (tsc.status !== 0) {
 }
 
 // The compiled component still imports "@/lib/prose" — map the alias the way Next does.
+//
+// And every package it imports comes from THIS repo's node_modules. The compiled files live in the
+// OS temp dir, and a bare import — "react", and "react/jsx-runtime", which jsx: "react-jsx" adds to
+// every component — is otherwise looked up from there, where there is no node_modules. That is what
+// failed CI on every push from #520 (867189f, 2026-09-30, when CI began running this file) to
+// #584: "Cannot find module 'react/jsx-runtime'", nine seconds in, so the audit, the build and both
+// UI smokes after it never ran in CI. It passed on the machine that wrote it because that machine's
+// NODE_PATH points at a global node_modules that has React — the run that hid it.
 const Module = require("node:module");
 const origResolve = Module._resolveFilename;
-Module._resolveFilename = function (req, ...a) {
+const isBare = (r) => !r.startsWith(".") && !r.startsWith("/") && !r.startsWith("node:") && !Module.isBuiltin(r);
+Module._resolveFilename = function (req, parent, isMain, options) {
   if (req === "@/lib/prose") req = join(dir, "out/lib/prose.js");
-  return origResolve.call(this, req, ...a);
+  else if (isBare(req)) options = { ...(options ?? {}), paths: [ROOT] };
+  return origResolve.call(this, req, parent, isMain, options);
 };
 
 const React = require("react");
