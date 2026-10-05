@@ -111,34 +111,69 @@ export function useMyAlerts(userId: string | null, enabled = true) {
 
   // Dismiss one flag for ME (and, if it's mine alone, for the record). Works from the live glance
   // or the quiet-hours digest.
-  const ack = useCallback(async (f: MyFlag) => {
+  //
+  // EVERY WRITE HERE SAYS WHETHER IT TOOK (2026-10-05, the gesture round). They used to await the
+  // database and drop its answer: a dismissal it refused took the flag off the screen and the next
+  // read put it back, unexplained. Swiping makes dismissing a flick, so each write now answers with
+  // the database's sentence (null: it took), puts the flag back by reading again, and the screen that
+  // asked says what happened.
+  const ack = useCallback(async (f: MyFlag): Promise<string | null> => {
     setFlags((cur) => cur.filter((x) => x.id !== f.id));
     setHeld((cur) => cur.filter((x) => x.id !== f.id));
-    if (!supabase || !userId) return;
-    if (f.target_user_id === userId) {
-      await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).eq("id", f.id);
-    } else {
-      await supabase.from("alert_reads").upsert({ alert_id: f.id, user_id: userId });
-    }
-  }, [userId]);
+    if (!supabase || !userId) return null;
+    const { error } = f.target_user_id === userId
+      ? await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).eq("id", f.id)
+      : await supabase.from("alert_reads").upsert({ alert_id: f.id, user_id: userId });
+    if (error) { await load(); return error.message; }
+    return null;
+  }, [userId, load]);
 
-  const clearAll = useCallback(async () => {
+  const clearAll = useCallback(async (): Promise<string | null> => {
     const cur = flags;
     setFlags([]);
-    if (!supabase || !userId || !cur.length) return;
+    if (!supabase || !userId || !cur.length) return null;
     const mine = cur.filter((f) => f.target_user_id === userId).map((f) => f.id);
     const broadcast = cur.filter((f) => f.target_user_id !== userId).map((f) => f.id);
-    if (mine.length) await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).in("id", mine);
-    if (broadcast.length) await supabase.from("alert_reads").upsert(broadcast.map((id) => ({ alert_id: id, user_id: userId })));
-  }, [flags, userId]);
+    const a = mine.length ? await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).in("id", mine) : null;
+    const b = broadcast.length ? await supabase.from("alert_reads").upsert(broadcast.map((id) => ({ alert_id: id, user_id: userId }))) : null;
+    const error = a?.error ?? b?.error;
+    if (error) { await load(); return error.message; }
+    return null;
+  }, [flags, userId, load]);
 
-  // Push a flag to later — off my glance screen until `until`, then it returns. Criticals ignore this.
-  const snooze = useCallback(async (f: MyFlag, until: Date) => {
-    if (f.severity === "critical") return;
+  // UNDO (2026-10-05): flags dismissed by mistake come back — un-acked on the row if they were mine
+  // alone, my read taken back if they were broadcasts, a snooze lifted. On the screen at once, in the
+  // order the inbox reads them; the read that follows is the truth.
+  const putBack = useCallback((fs: MyFlag[]) => {
+    setFlags((cur) => [...cur, ...fs.filter((f) => !cur.some((x) => x.id === f.id))].sort((x, y) => y.created_at.localeCompare(x.created_at)));
+  }, []);
+  const restore = useCallback(async (fs: MyFlag[]): Promise<string | null> => {
+    if (!supabase || !userId || !fs.length) return null;
+    putBack(fs);
+    const mine = fs.filter((f) => f.target_user_id === userId).map((f) => f.id);
+    const broadcast = fs.filter((f) => f.target_user_id !== userId).map((f) => f.id);
+    const a = mine.length ? await supabase.from("alerts").update({ ack_at: null, ack_by: null }).in("id", mine) : null;
+    const b = broadcast.length ? await supabase.from("alert_reads").delete().eq("user_id", userId).in("alert_id", broadcast) : null;
+    await load();
+    return a?.error?.message ?? b?.error?.message ?? null;
+  }, [userId, load, putBack]);
+
+  // Push a flag to later — off my glance screen for `forMs`, then it returns. Criticals ignore this.
+  const snooze = useCallback(async (f: MyFlag, forMs: number): Promise<string | null> => {
+    if (f.severity === "critical") return null;
     setFlags((cur) => cur.filter((x) => x.id !== f.id));
-    if (!supabase || !userId) return;
-    await supabase.from("alert_snoozes").upsert({ alert_id: f.id, user_id: userId, until: until.toISOString() });
-  }, [userId]);
+    if (!supabase || !userId) return null;
+    const { error } = await supabase.from("alert_snoozes").upsert({ alert_id: f.id, user_id: userId, until: new Date(Date.now() + forMs).toISOString() });
+    if (error) { await load(); return error.message; }
+    return null;
+  }, [userId, load]);
+  const unsnooze = useCallback(async (f: MyFlag): Promise<string | null> => {
+    if (!supabase || !userId) return null;
+    putBack([f]);
+    const { error } = await supabase.from("alert_snoozes").delete().eq("user_id", userId).eq("alert_id", f.id);
+    await load();
+    return error?.message ?? null;
+  }, [userId, load, putBack]);
 
   // Release the whole digest onto the glance now — "read them all" (acks every held item).
   const clearHeld = useCallback(async () => {
@@ -152,5 +187,5 @@ export function useMyAlerts(userId: string | null, enabled = true) {
   }, [held, userId]);
 
   const critCount = flags.filter((f) => f.severity === "critical").length;
-  return { flags, held, quietActive, critCount, error, ack, clearAll, clearHeld, snooze, reload: load };
+  return { flags, held, quietActive, critCount, error, ack, clearAll, clearHeld, snooze, restore, unsnooze, reload: load };
 }
