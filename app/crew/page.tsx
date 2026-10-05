@@ -4781,7 +4781,9 @@ function EventCard({ e, today, open, onToggle, onUpdate, onRemove, onSetLive, on
         <span className="ev-head-main">
           <span className="ev-tag">{tag}</span>
           <span className="ev-title">{e.title || "Untitled event"}</span>
-          <span className="ev-sub">{sub || "Tap to set up"}</span>
+          {/* No hours and a venue the title already says — Soul Yoga, Sassafras on Ryan's list — is
+              an empty line, not "Tap to set up": those events are set up, and the date leads now. */}
+          {sub && <span className="ev-sub">{sub}</span>}
         </span>
         <span className="ev-head-badges">
           <span className="ev-badge stage" style={{ ["--c" as string]: STAGE_COLOR[st] }}>{stageLabel(st)}</span>
