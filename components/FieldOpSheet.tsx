@@ -5,12 +5,12 @@ import Sheet, { CloseButton } from "@/components/Sheet";
 import { useApp } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
 import { geocode } from "@/lib/geocode";
-import { resolveVendor, addVendorLocation, type VendorMatch } from "@/lib/vendorLink";
-import VendorResolve from "@/components/VendorResolve";
+import VenuePick from "@/components/VenuePickLazy";
+import type { VenueFill } from "@/lib/venues";
 import { useLocationSuggestions } from "@/components/useLocationSuggestions";
 import Icon from "@/components/Icon";
 import { MARKETS, MARKET_LABEL, toMarket, FOUNDING_MARKET } from "@/lib/markets";
-import { derivedStopStatus, stopPatchFromVendor, type VendorPlace } from "@/lib/stopRecord";
+import { derivedStopStatus } from "@/lib/stopRecord";
 import { archiveOwner } from "@/lib/wrap";
 import { useConfirm } from "@/components/ConfirmSheet";
 
@@ -25,14 +25,14 @@ import { useConfirm } from "@/components/ConfirmSheet";
 // when_label/time_label over starts_at. Whenever this sheet changes a stop's schedule it
 // CLEARS both labels, so the time a crew member just set is the time guests actually see.
 //
-// Vendor autocomplete: a stop's name field used to be plain free text — linking it to a real
-// vendor (and inheriting that vendor's saved address/coords) meant a SEPARATE trip to the
-// picker in Route's location card. That's two disconnected steps for one fact, and the easy
-// path (just type a name here, skip the picker) is exactly how a place ends up as three
-// almost-identical vendor rows. save() below now runs a typed name through the SAME resolver
-// (lib/vendorLink) that picker uses — exact match links silently, a near-miss pauses the save
-// and asks (VendorResolve, the same confirm sheet), a clean miss auto-creates a pending vendor.
-// Skipped once a stop is already linked — an existing link's identity comes from the vendor.
+// The venue is PICKED (2026-10-05, the form audit, part 4 — components/VenuePick, the one venue
+// control). save() used to match the stop's NAME against the vendor book: an exact name linked
+// silently, a look-alike paused the save behind a confirm sheet, and anything else was added to the
+// book as a pending vendor — so a stop called "Saturday" could mint a vendor called "Saturday", and
+// an event here was never linked to anything. Now the place is picked for a stop and an event alike;
+// what it fills (the name, Where, the address and the venue's pin) follows lib/pickFill, so a typed
+// value stays typed; words that already spell a venue start on it and the line under the pick says
+// saving links it; and a venue joins the book only when someone adds it, by name, from the pick.
 
 type Kind = "event" | "stop";
 
@@ -42,23 +42,13 @@ type Kind = "event" | "stop";
 // and crew already see elsewhere. An explicit "done" or a completed_at stamp (the Complete-stop
 // wrap flow, in OwnerDetails) always wins over the date math.
 
-// Pull a vendor's canonical name + saved address/coords onto a stop patch about to be written —
-// lib/stopRecord's stopPatchFromVendor, the one rule Route's linkVendor asks too, so a
-// name-triggered auto-link behaves identically to picking the vendor by hand. Returns the vendor's
-// name for toast copy.
-async function pullVendorFields(vendorId: string, patch: Record<string, string | number | null>): Promise<string | null> {
-  patch.vendor_id = vendorId;
-  if (!supabase) return null;
-  const { data } = await supabase.from("vendors").select("id, name, address, location_text, lat, lng").eq("id", vendorId).maybeSingle();
-  const v = data as VendorPlace | null;
-  if (!v) return null;
-  Object.assign(patch, stopPatchFromVendor(v));
-  return v.name;
-}
+// A pin as the row brought it: numbers from the database, typed as the form's strings.
+const numOrNull = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : null;
 
-// The address geocode, shared by save()'s main path and every VendorResolve decision below — skips
-// itself when a vendor link already supplied coords, so a resolved vendor's own saved pin always
-// wins over a fresh (and possibly slightly different) geocode of the same address text.
+// The address geocode on save — skipped when the picked venue supplied its own pin for the address
+// the stop ends up at (lib/venues.venueFill), so a venue's saved pin always wins over a fresh (and
+// possibly slightly different) geocode of the same address text.
 async function geocodeIfNoCoords(patch: Record<string, string | number | null>): Promise<void> {
   if (patch.lat != null) return;
   const q = (patch.address as string | null) || (patch.location_text as string | null) || "";
@@ -81,10 +71,11 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
   const [f, setF] = useState<Record<string, string | null> | null>(null);
   const [saving, setSaving] = useState(false);
   const [touchedWhen, setTouchedWhen] = useState(false);
-  // A name that came back "≥40% similar, not exact" — save() pauses here and asks (VendorResolve)
-  // instead of guessing; the paused patch waits in pendingPatch until that's answered.
-  const [vendorSimilar, setVendorSimilar] = useState<{ nm: string; candidates: VendorMatch[] } | null>(null);
-  const pendingPatch = useRef<Record<string, string | number | null> | null>(null);
+  // The pin the venue pick decided (lib/venues.venueFill): undefined leaves the geocode to save();
+  // null means the old pin went with the old address.
+  const [pin, setPin] = useState<{ lat: number; lng: number } | null | undefined>(undefined);
+  // The venue as loaded — what the line under the pick compares ("Saving files it to…").
+  const [origVendor, setOrigVendor] = useState<string | null>(null);
   // stage/status as loaded — only written back if the USER changed it, so the lifecycle
   // triggers (live/done automation) can't be clobbered by a stale quick-edit (panel catch).
   // For stops, "as loaded" is the DATE-DERIVED default (derivedStopStatus above), not the raw
@@ -93,17 +84,23 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
 
   useEffect(() => {
     if (!supabase) return;
-    const sel = isEvent ? "title, day, location_text, stage, published_at, public_title, market" : "name, starts_at, ends_at, location_text, address, status, completed_at, vendor_id, market";
+    const sel = isEvent ? "title, day, location_text, stage, published_at, public_title, market, vendor_id" : "name, starts_at, ends_at, location_text, address, lat, lng, status, completed_at, vendor_id, market";
     supabase.from(table).select(sel).eq("id", id).maybeSingle()
       .then(({ data }) => {
         const row = ((data ?? {}) as unknown) as Record<string, string | null>;
         if (!isEvent) row.status = derivedStopStatus(row.status ?? null, row.starts_at ?? null, row.completed_at ?? null);
         origStage.current = (isEvent ? row.stage : row.status) ?? null;
+        setOrigVendor(row.vendor_id ?? null);
         setF(row);
       });
   }, [table, isEvent, id]);
 
   const set = (k: string, v: string | null) => setF((p) => ({ ...(p ?? {}), [k]: v }));
+  // A venue picked: its words into the form, its pin aside until save.
+  const onVenue = (fill: VenueFill) => {
+    setF((p) => ({ ...(p ?? {}), ...fill.text }));
+    if (fill.pin !== undefined) setPin(fill.pin);
+  };
 
   // date/time <-> columns: events.day is a plain date; stops.starts_at is a timestamp.
   const dateVal = !f ? "" : isEvent ? (f.day || "") : (f.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : "");
@@ -133,52 +130,31 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
     set("ends_at", new Date(`${dayKey}T${v}:00`).toISOString());
   };
 
-  // The actual write, shared by the normal save path and every VendorResolve decision below.
-  const finishSave = async (patch: Record<string, string | number | null>, message?: string) => {
-    const { error } = await supabase!.from(table).update(patch).eq("id", id);
-    setSaving(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
-    toast(message ?? (isEvent ? "Event saved" : "Stop saved — guests see the new time"));
-    onSaved();
-  };
-
   const save = async () => {
     if (!supabase || !f) return;
     setSaving(true);
-    // rawName is what the human actually typed — nm falls back to a generic "Stop"/"Event" label
-    // when it's blank. Vendor resolution must gate on rawName: a blank name saving as "Stop" must
-    // never search (or worse, auto-create) a vendor literally named "Stop".
-    const rawName = (f[isEvent ? "title" : "name"] || "").trim();
-    const nm = rawName || (isEvent ? "Event" : "Stop");
+    const nm = (f[isEvent ? "title" : "name"] || "").trim() || (isEvent ? "Event" : "Stop");
+    // The venue the pick left on the form — a stop's and, since the venue pick, an event's too.
     const patch: Record<string, string | number | null> = isEvent
-      ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null, market: toMarket(f.market),
+      ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null, market: toMarket(f.market), vendor_id: f.vendor_id || null,
           // Publish gate (0270): published_at carries the guest-visibility decision; public_title is
           // the optional guest-facing name. Both are set by the toggle/field below, written verbatim.
           published_at: f.published_at || null, public_title: f.public_title?.trim() || null }
-      : { name: nm, starts_at: f.starts_at || null, ends_at: f.ends_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null, market: toMarket(f.market) };
+      : { name: nm, starts_at: f.starts_at || null, ends_at: f.ends_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null, market: toMarket(f.market), vendor_id: f.vendor_id || null };
     // stage/status: write ONLY a deliberate change (lifecycle automation owns it otherwise)
     const stageNow = (isEvent ? f.stage : f.status) ?? null;
     if (stageNow !== origStage.current) patch[isEvent ? "stage" : "status"] = stageNow;
-    let vendorNote: string | undefined;
     if (!isEvent) {
       // the schedule just changed → the derived values must win over stale hand-set labels
       if (touchedWhen) { patch.when_label = null; patch.time_label = null; }
-      // Vendor autocomplete (see the header comment) — skipped once already linked.
-      if (!f.vendor_id && rawName) {
-        const r = await resolveVendor(rawName, { source: "a truck stop", sort: 0 });
-        if (r.kind === "similar") {
-          pendingPatch.current = patch;
-          setVendorSimilar({ nm: rawName, candidates: r.candidates });
-          setSaving(false);
-          return;
-        }
-        if (r.kind === "linked") { const vn = await pullVendorFields(r.id, patch); if (vn) vendorNote = `Stop saved — linked to ${vn}`; }
-        else if (r.kind === "created") { const vn = await pullVendorFields(r.id, patch); vendorNote = `Stop saved — ${vn ?? rawName} added to the vendor book, pending approval`; }
-        // kind === "error": best-effort, same spirit as the geocode fallback below — save the plain name.
-      }
+      if (pin !== undefined) { patch.lat = pin?.lat ?? null; patch.lng = pin?.lng ?? null; }
       await geocodeIfNoCoords(patch);
     }
-    await finishSave(patch, vendorNote);
+    const { error } = await supabase.from(table).update(patch).eq("id", id);
+    setSaving(false);
+    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    toast(isEvent ? "Event saved" : "Stop saved — guests see the new time");
+    onSaved();
   };
 
   const archive = async () => {
@@ -218,7 +194,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
           <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
         </div>
       }>
-      <input className="note-in" value={f[isEvent ? "title" : "name"] ?? ""} onChange={(e) => set(isEvent ? "title" : "name", e.target.value)} placeholder={isEvent ? "Event name" : f.vendor_id ? "Stop name" : "Stop name — matches your vendor book on save"} autoFocus />
+      <input className="note-in" value={f[isEvent ? "title" : "name"] ?? ""} onChange={(e) => set(isEvent ? "title" : "name", e.target.value)} placeholder={isEvent ? "Event name" : "Stop name"} aria-label={isEvent ? "Event name" : "Stop name"} autoFocus />
       <div className="prod-grid" style={{ marginTop: 10 }}>
         <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
         {!isEvent && <label className="prod-f"><span>Start time</span><input type="time" value={timeVal} onChange={(e) => onTime(e.target.value)} /></label>}
@@ -231,9 +207,14 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
           </label>
         )}
       </div>
-      <label className="prod-f" style={{ marginTop: 8 }}><span>Where</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" list="gt3-locs-fieldop" /></label>
-      {!isEvent && <label className="prod-f" style={{ marginTop: 8 }}><span>Address (pins the map + directions)</span><input value={f.address ?? ""} onChange={(e) => set("address", e.target.value)} placeholder="123 Peach St, Atlanta GA" list="gt3-locs-fieldop" /></label>}
-      {locSugs.length > 0 && <datalist id="gt3-locs-fieldop">{locSugs.map((s) => <option key={s} value={s} />)}</datalist>}
+      <VenuePick kind={kind} source={isEvent ? "an event" : "a truck stop"} saved={origVendor} onChange={onVenue} style={{ marginTop: 8 }}
+        rec={{ vendor_id: f.vendor_id, name: f[isEvent ? "title" : "name"], location_text: f.location_text, address: f.address, market: f.market,
+               lat: pin === undefined ? numOrNull(f.lat) : pin?.lat ?? null, lng: pin === undefined ? numOrNull(f.lng) : pin?.lng ?? null }} />
+      {/* What the venue filled stays editable — a typed value stays typed (lib/pickFill). The places
+          typed before are suggested only while the stop or event is linked to no venue. */}
+      <label className="prod-f" style={{ marginTop: 8 }}><span>Where</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" list={f.vendor_id ? undefined : "gt3-locs-fieldop"} /></label>
+      {!isEvent && <label className="prod-f" style={{ marginTop: 8 }}><span>Address (pins the map + directions)</span><input value={f.address ?? ""} onChange={(e) => { set("address", e.target.value); setPin(undefined); }} placeholder="123 Peach St, Atlanta GA" list={f.vendor_id ? undefined : "gt3-locs-fieldop"} /></label>}
+      {!f.vendor_id && locSugs.length > 0 && <datalist id="gt3-locs-fieldop">{locSugs.map((s) => <option key={s} value={s} />)}</datalist>}
       {/* MARKET (0279) — which city this belongs to. It lives HERE, in the one sheet that reaches
           every stop and event in two taps, rather than in each of the three places a stop can be
           created: one control to find, and re-tagging something created in the wrong city is the
@@ -284,64 +265,6 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
         <button type="button" className="ownerdet-arch" onClick={archive} disabled={saving}>Archive</button>
       </div>
     </Sheet>
-    {vendorSimilar && (
-      <VendorResolve
-        name={vendorSimilar.nm}
-        candidates={vendorSimilar.candidates}
-        busy={saving}
-        onUse={async (c) => {
-          const patch = pendingPatch.current;
-          pendingPatch.current = null;
-          setVendorSimilar(null);
-          if (!patch) return;
-          setSaving(true);
-          const vn = await pullVendorFields(c.id, patch);
-          await geocodeIfNoCoords(patch);
-          await finishSave(patch, vn ? `Stop saved — linked to ${vn}` : undefined);
-        }}
-        onAddLocation={async (c) => {
-          const patch = pendingPatch.current;
-          const typedName = vendorSimilar.nm;
-          pendingPatch.current = null;
-          setVendorSimilar(null);
-          if (!patch) return;
-          setSaving(true);
-          // This stop IS the new location — its own typed address stays; pulling the vendor's OWN
-          // address here would show the wrong site (this is a different one under the same partner).
-          patch.vendor_id = c.id;
-          patch.name = c.name;
-          await addVendorLocation(c.id, { label: typedName, address: (patch.address as string | null) || null, location_text: (patch.location_text as string | null) ?? null });
-          await geocodeIfNoCoords(patch);
-          await finishSave(patch, `Stop saved — added as a location of ${c.name}`);
-        }}
-        onCreateDistinct={async () => {
-          const patch = pendingPatch.current;
-          const typedName = vendorSimilar.nm;
-          pendingPatch.current = null;
-          setVendorSimilar(null);
-          if (!patch) return;
-          setSaving(true);
-          const r = await resolveVendor(typedName, { source: "a truck stop", sort: 0, decision: { createDistinct: true } });
-          let vendorNote: string | undefined;
-          if (r.kind === "linked" || r.kind === "created") {
-            const vn = await pullVendorFields(r.id, patch);
-            vendorNote = r.kind === "created" ? `Stop saved — ${vn ?? typedName} added to the vendor book, pending approval` : (vn ? `Stop saved — linked to ${vn}` : undefined);
-          }
-          await geocodeIfNoCoords(patch);
-          await finishSave(patch, vendorNote);
-        }}
-        onSkip={async () => {
-          const patch = pendingPatch.current;
-          pendingPatch.current = null;
-          setVendorSimilar(null);
-          if (!patch) return;
-          setSaving(true);
-          await geocodeIfNoCoords(patch);
-          await finishSave(patch);
-        }}
-        onClose={() => { pendingPatch.current = null; setVendorSimilar(null); setSaving(false); }}
-      />
-    )}
     </>
   );
 }
