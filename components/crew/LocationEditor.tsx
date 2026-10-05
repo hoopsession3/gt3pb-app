@@ -8,8 +8,12 @@ import FieldOpSheet from "@/components/FieldOpSheet";
 import InputSheet from "@/components/InputSheet";
 import type { Stop, Vendor } from "@/lib/db";
 import { geocode } from "@/lib/geocode";
-import { VendorPicker } from "@/components/crew/VendorPicker";
+import VenueContact from "@/components/VenueContact";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { useAuth } from "@/components/AuthProvider";
+import { useOperatorSection } from "@/components/OperatorNav";
+import { canOf } from "@/lib/roles";
+import { goPlanTab } from "@/lib/planNav";
 import { isStopAhead, wasAtVendorsPlace, type RoadStop } from "@/lib/stopRecord";
 import { eventIsPast } from "@/lib/readiness";
 import { localToday, etDayKey, etToday, timeRange } from "@/lib/dates";
@@ -47,19 +51,24 @@ async function moveUpcomingVisits(venue: Vendor | Stop, address: string, geo: { 
   return n ? ` — ${n} upcoming ${n === 1 ? "visit" : "visits"} moved with it` : " — no upcoming visits were at the old address";
 }
 
-export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive, isCur, onGoLive, onGoOffline, vendors, onLinkVendor, onOpenPrep, nameOverride }: {
+export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive, isCur, onGoLive, onGoOffline, venue, onOpenPrep, nameOverride }: {
   kind: "stop" | "vendor"; row: Stop | Vendor; isCur?: boolean; open: boolean; onToggle: () => void;
   onArchive: () => void; onChanged: () => void;
   // onGoOffline is optional on top of onGoLive: without it the live banner below just stays a status
   // readout (today's Go-offline-only-from-elsewhere behavior); with it, the banner itself becomes the
   // one-tap way to end service on the live stop — see the ev-golive button.
-  onGoLive?: (id: string) => void; onGoOffline?: () => void; vendors?: Vendor[]; onLinkVendor?: (v: Vendor | null) => void; onOpenPrep?: () => void;
+  onGoLive?: (id: string) => void; onGoOffline?: () => void; onOpenPrep?: () => void;
+  // The venue a stop is linked to, from the book Route already holds — said here, picked in the
+  // stop's sheet (FieldOpSheet → components/VenuePick), the one place a stop's venue is chosen.
+  venue?: Vendor | null;
   // When a stop is vendor-linked, the VENDOR is the place's identity — show its canonical name on
   // every visit row so two visits to one place can't read as two different names (panel finding).
   nameOverride?: string | null;
 }) {
   const confirm = useConfirm();
   const { toast } = useApp();
+  const { profile } = useAuth();
+  const { setSection } = useOperatorSection();
   const table = kind === "stop" ? "stops" : "vendors";
   const stop = kind === "stop" ? (row as Stop) : null;
   // POC/service-dates live only on vendors now (0240 dropped the dead stops.poc_* columns) —
@@ -163,13 +172,26 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
               <div className="ev-group-h">Location</div>
               <div className="stop-coords ok" style={{ marginTop: 0 }}>{displayName || "Untitled location"}{stopWhen ? ` · ${stopWhen}` : " · no date"}</div>
               <div className={`stop-coords${hasCoords ? " ok" : ""}`}>{hasCoords ? `Pinned · ${(row.lat as number).toFixed(4)}, ${(row.lng as number).toFixed(4)}` : "No pin yet — add the address for accurate directions"}</div>
+              {/* THE VENUE IS SAID HERE AND PICKED IN THE SHEET (2026-10-05, the form audit, part 4).
+                  This card carried a vendor <select> of its own under the Location group — a second
+                  editor for the one fact the stop's sheet edits, against this group's own rule, with
+                  a "Which location?" list that wrote nulls over the stop's address and pin when the
+                  place picked had none. The pick lives in the sheet now (components/VenuePick, the
+                  same control on every stop and event editor); this says what it is, and who to call. */}
+              <div className={`stop-coords${venue ? " ok" : ""}`}>
+                {venue ? `Venue · ${venue.name}${venue.status === "pending" ? " · waiting on the owner's approval" : ""}`
+                  : stop?.vendor_id ? "Venue · no longer in the venue book — pick where it is now"
+                  : "No venue linked — the place is typed, and the next visit here will be too"}
+                {venue?.status === "pending" && canOf(profile).admin && <> <button type="button" className="rec-link" onClick={() => goPlanTab("vendors", { setSection })}>Review it ›</button></>}
+              </div>
               {/* the facts change HERE, in two taps (FieldOpSheet) — the prep hub stays the deep surface.
                   The one door to the hub lives in the footer below (ev-card-foot) — this group used to
                   ALSO carry its own "Full prep" button, on top of two more in the footer. Three buttons,
                   one destination — exactly the "why is prep on the screen twice" complaint that opened
                   this audit. FieldOpSheet still offers its own single door to the hub on demand; that one
                   stays (different surface, on-demand only, already correctly singular). */}
-              <button type="button" className="adm-btn" onClick={() => setEditFacts(true)}>Edit name, date, time &amp; address ›</button>
+              <button type="button" className="adm-btn" onClick={() => setEditFacts(true)}>Edit name, date, time, venue &amp; address ›</button>
+              {venue && <VenueContact venue={venue} />}
               {editFacts && (
                 <FieldOpSheet kind="stop" id={row.id} onClose={() => setEditFacts(false)}
                   onSaved={() => { setEditFacts(false); onChanged(); }} onOpenPrep={onOpenPrep} />
@@ -197,11 +219,6 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
               />
             )}
           </div>
-          )}
-
-          {kind === "stop" && vendors && onLinkVendor && (
-            <VendorPicker vendors={vendors} vendorId={stop?.vendor_id} onLink={onLinkVendor} onCreated={onChanged}
-              onPickLocation={(loc) => patch({ address: loc.address ?? null, location_text: loc.location_text ?? loc.label, lat: loc.lat ?? null, lng: loc.lng ?? null }, `Stop set to ${loc.label}`)} />
           )}
 
           {showPoc && (
