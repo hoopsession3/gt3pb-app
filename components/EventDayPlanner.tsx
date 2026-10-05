@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
-import Sheet, { CloseButton } from "@/components/Sheet";
+import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -12,6 +12,7 @@ import { useLocationSuggestions } from "./useLocationSuggestions";
 import { errorMessage } from "@/lib/errorMessage";
 import { useCrew } from "./useCrew";
 import { follow } from "@/lib/pickFill";
+import { edited } from "@/lib/formGuard";
 
 // EVENT DAY PLANNER — a multi-day, time-by-time run of show for one event. Pick how many days the
 // event runs, then build each day block by block: leave home 9:00, drive, arrive Airbnb (address +
@@ -303,7 +304,9 @@ function ItemForm({ item, start, venueFor, onSite, onClose, onSave }: {
   item: Item | null; start: string; venueFor: (kind: string | null | undefined) => Venue; onSite: { names: string[]; staffed: boolean };
   onClose: () => void; onSave: (patch: Partial<Item>) => void | Promise<void>;
 }) {
-  const [f, setF] = useState<Partial<Item>>(item ?? { title: "", kind: "other", start_time: start, end_time: "", location: "", address: "", details: "", who: "" });
+  // The block as it opened — what "unsaved" is measured against.
+  const [first] = useState<Partial<Item>>(() => item ?? { title: "", kind: "other", start_time: start, end_time: "", location: "", address: "", details: "", who: "" });
+  const [f, setF] = useState<Partial<Item>>(first);
   const locSugs = useLocationSuggestions();
   const set = (k: keyof Item, v: any) => setF((p) => ({ ...p, [k]: v }));
   // The venue follows the kind while Place and Address are untouched (lib/pickFill).
@@ -316,7 +319,7 @@ function ItemForm({ item, start, venueFor, onSite, onClose, onSave }: {
   const isOn = (n: string) => whoList.some((x) => x.toLowerCase() === n.toLowerCase());
   const toggleWho = (n: string) => set("who", (isOn(n) ? whoList.filter((x) => x.toLowerCase() !== n.toLowerCase()) : [...whoList, n]).join(", "));
   return (
-    <Sheet open onClose={onClose} label="Day-of block" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{item ? "Edit block" : "New block"}</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Day-of block" dirty={edited(f, first, ["title", "kind", "start_time", "end_time", "location", "address", "details", "who"])} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{item ? "Edit block" : "New block"}</b><CloseButton onClick={onClose} /></div>}>
           <input className="note-in" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="What's happening? e.g. Arrive Airbnb" autoFocus />
           <div className="dp-kinds">
             {KINDS.map((k) => (
@@ -351,7 +354,7 @@ function ItemForm({ item, start, venueFor, onSite, onClose, onSave }: {
           {locSugs.length > 0 && <datalist id="gt3-locs-edp">{locSugs.map((sg) => <option key={sg} value={sg} />)}</datalist>}
           <label className="prod-f" style={{ marginTop: 8 }}><span>Details — gate code, parking, contact, what to load</span><textarea className="note-in" rows={3} value={f.details ?? ""} onChange={(e) => set("details", e.target.value)} placeholder="Everything you'll want at a glance" /></label>
           <div className="prod-actions" style={{ marginTop: 14 }}>
-            <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
+            <LeaveButton className="note-arch" onClick={onClose}>Cancel</LeaveButton>
             <button type="button" className="note-save" onClick={() => onSave(f)} disabled={!f.title?.trim()}>{item ? "Save" : "Add block"}</button>
           </div>
     </Sheet>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
@@ -19,13 +19,13 @@ import { useConfirm } from "./ConfirmSheet";
 import { prepHandoffKey, prepHandoffValue, stageLabel, placeBesideTitle } from "@/lib/eventRecord";
 import { useOperatorSection } from "./OperatorNav";
 import { clickable } from "@/lib/a11y";
-import { isBlank } from "@/lib/formGuard";
+import { edited, isBlank } from "@/lib/formGuard";
 import VenuePick from "./VenuePickLazy";
 import type { VenueFill } from "@/lib/venues";
 import { localDayBoundsISO } from "@/lib/calendarMath";
 import { createTodo, updateTask, deleteTask } from "@/lib/tasks";
 import FieldOpSheet from "./FieldOpSheet";
-import Sheet, { CloseButton } from "@/components/Sheet";
+import Sheet, { CloseButton, LeaveButton, useSheetDoor } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { SectionHeader } from "@/components/kit";
 
@@ -649,24 +649,26 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
       {isOwner && <OutlookBar onSynced={reload} />}
 
       {edit && (edit.kind === "event" || edit.kind === "stop"
-        ? <FieldOpSheet kind={edit.kind} id={edit.id} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }}
+        ? <FieldOpSheet kind={edit.kind} id={edit.id} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }} onChanged={reload}
             onOpenPrep={() => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue(edit.kind === "stop" ? "stop" : "event", edit.id)); } catch { /* ignore */ } setSection("prep"); setEdit(null); }} />
         : <CalEdit kind={edit.kind} id={edit.id} events={events} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }} />)}
       {/* THE walkable editor (2026-08-01): one pop-out over the date-sorted spine — ‹ › / arrows /
           swipe move between items with the editor staying open. key= remounts per item so each
-          fetch is fresh; moving away without Save simply discards, same as Cancel. */}
+          fetch is fresh. Moving on with typed changes unsaved asks first (2026-10-05): the swipe is
+          the sheet's own (Sheet `page`), and the ‹ › pill rides inside the sheet so it leaves by the
+          same door — it used to listen to the whole screen, so a sideways swipe anywhere, on a chip
+          strip or across a field, walked away from an edit and threw it out without a word. */}
       {selIdx != null && spine[selIdx] && (() => {
         const it = spine[selIdx].it;
         const close = () => setSelIdx(null);
         const saved = () => { setSelIdx(null); reload(); };
+        const day = new Date(`${spine[selIdx].k}T00:00:00`);
+        const walk = { prev: selIdx > 0 ? () => moveSel(-1) : undefined, next: selIdx < spine.length - 1 ? () => moveSel(1) : undefined };
+        const walker = spine.length > 1 ? <SwipeNav i={selIdx} n={spine.length} label={`${DOW[day.getDay()]} ${MON3[day.getMonth()]} ${day.getDate()}`} onMove={moveSel} /> : null;
         return it.kind === "event" || it.kind === "stop"
-          ? <FieldOpSheet key={`${it.kind}-${it.id}`} kind={it.kind} id={it.id} onClose={close} onSaved={saved}
+          ? <FieldOpSheet key={`${it.kind}-${it.id}`} kind={it.kind} id={it.id} onClose={close} onSaved={saved} onChanged={reload} page={walk} walker={walker}
               onOpenPrep={() => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue(it.kind === "stop" ? "stop" : "event", it.id)); } catch { /* ignore */ } setSection("prep"); close(); }} />
-          : <CalEdit key={`${it.kind}-${it.id}`} kind={it.kind as EditKind} id={it.id} events={events} onClose={close} onSaved={saved} />;
-      })()}
-      {selIdx != null && spine[selIdx] && spine.length > 1 && (() => {
-        const d = new Date(`${spine[selIdx].k}T00:00:00`);
-        return <SwipeNav i={selIdx} n={spine.length} label={`${DOW[d.getDay()]} ${MON3[d.getMonth()]} ${d.getDate()}`} onMove={moveSel} />;
+          : <CalEdit key={`${it.kind}-${it.id}`} kind={it.kind as EditKind} id={it.id} events={events} onClose={close} onSaved={saved} page={walk} walker={walker} />;
       })()}
       {dayOpen && <DayView dayKey={dayOpen} items={byDay[dayOpen] || []} events={events} readOnly={readOnly} onClose={() => setDayOpen(null)} onAdd={() => { const k = dayOpen; setDayOpen(null); setAddDay(k); }} onSaved={reload}
         onEdit={readOnly ? undefined : (it) => { const k = dayOpen; setDayOpen(null); openItem(it, k ?? undefined); }} />}
@@ -677,39 +679,32 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
   );
 }
 
-// Floating ‹ › pill + arrow keys + horizontal swipe while the walkable editor is open. Portaled to
-// .app (the same host Sheet uses) so it joins the root stacking context ABOVE the sheet scrim
-// (z 80 — see the Sheet portal note); rendered inside .body it would trap under the nav on iOS.
-// Arrow keys are ignored while typing in a field; swipe needs a mostly-horizontal 64px flick so it
-// never fights the sheet's vertical scroll or its drag-to-dismiss handle.
+// Floating ‹ › pill + arrow keys while the walkable editor is open. Portaled to .app (the same host
+// Sheet uses) so it joins the root stacking context ABOVE the sheet scrim (z 80 — see the Sheet portal
+// note); rendered inside .body it would trap under the nav on iOS. Arrow keys are ignored while typing
+// in a field. Rendered INSIDE the editor's sheet (its `walker`), so every move goes through the sheet's
+// door: typed changes unsaved ask before the walk throws them away. The swipe is the sheet's own now.
 function SwipeNav({ i, n, label, onMove }: { i: number; n: number; label: string; onMove: (d: number) => void }) {
   const [host, setHost] = useState<HTMLElement | null>(null);
   useEffect(() => { setHost(document.querySelector<HTMLElement>(".app") ?? document.body); }, []);
+  const door = useSheetDoor();
+  const move = useEffectEvent((d: number) => (door ? door(() => onMove(d)) : onMove(d)));
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
-      if (e.key === "ArrowLeft") onMove(-1);
-      else if (e.key === "ArrowRight") onMove(1);
-    };
-    let sx = 0, sy = 0, live = false;
-    const ts = (e: TouchEvent) => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; live = true; };
-    const te = (e: TouchEvent) => {
-      if (!live) return; live = false;
-      const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
-      if (Math.abs(dx) > 64 && Math.abs(dy) < 48) onMove(dx < 0 ? 1 : -1);
+      if (e.key === "ArrowLeft") move(-1);
+      else if (e.key === "ArrowRight") move(1);
     };
     window.addEventListener("keydown", key);
-    window.addEventListener("touchstart", ts, { passive: true });
-    window.addEventListener("touchend", te, { passive: true });
-    return () => { window.removeEventListener("keydown", key); window.removeEventListener("touchstart", ts); window.removeEventListener("touchend", te); };
-  }, [onMove]);
+    return () => window.removeEventListener("keydown", key);
+  }, []);
   if (!host) return null;
   return createPortal(
     <div className="cal-swipenav" role="group" aria-label="Walk the calendar">
-      <button type="button" onClick={() => onMove(-1)} disabled={i === 0} aria-label="Previous item">‹</button>
+      <button type="button" onClick={() => (door ? door(() => onMove(-1)) : onMove(-1))} disabled={i === 0} aria-label="Previous item">‹</button>
       <span>{label} · {i + 1}/{n}</span>
-      <button type="button" onClick={() => onMove(1)} disabled={i === n - 1} aria-label="Next item">›</button>
+      <button type="button" onClick={() => (door ? door(() => onMove(1)) : onMove(1))} disabled={i === n - 1} aria-label="Next item">›</button>
     </div>,
     host,
   );
@@ -791,7 +786,7 @@ function DayView({ dayKey, items, events, readOnly = false, onClose, onAdd, onSa
           {!readOnly && <div className="prod-actions" style={{ marginTop: 14 }}><span /><button type="button" className="note-save" onClick={onAdd}>+ Add to this day</button></div>}
     </Sheet>
     {edit && (edit.kind === "event" || edit.kind === "stop"
-      ? <FieldOpSheet kind={edit.kind} id={edit.id} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); onSaved(); }}
+      ? <FieldOpSheet kind={edit.kind} id={edit.id} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); onSaved(); }} onChanged={onSaved}
           onOpenPrep={() => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue(edit.kind === "stop" ? "stop" : "event", edit.id)); } catch { /* ignore */ } setSection("prep"); setEdit(null); onClose(); }} />
       : <CalEdit kind={edit.kind} id={edit.id} events={events} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); onSaved(); }} />)}
     </>
@@ -824,13 +819,25 @@ const PIPE_STAGES: { key: string; label: string }[] = [
   { key: "pilot", label: "Pilot" }, { key: "live", label: "Live" }, { key: "expand", label: "Expand" }, { key: "lost", label: "Lost" },
 ];
 const LEAD_STATUSES = ["new", "contacted", "booked", "declined"] as const;
-function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: string; events: Ev[]; onClose: () => void; onSaved: () => void }) {
+// What CalEdit's Save writes, across its kinds — the fields whose change is unsaved. A key a kind does
+// not have reads as blank both ways and never counts.
+const CAL_SAVES = ["title", "label", "recipe_name", "name", "next_step", "due_on", "scheduled_for", "due_at", "brew_date", "due_date", "event_date", "next_step_at", "met_on",
+  "category", "event_id", "status", "batch_gal", "stage", "done"] as const;
+
+function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
+  kind: EditKind; id: string; events: Ev[]; onClose: () => void; onSaved: () => void;
+  /** The calendar's walk (see the walkable editor above). */
+  page?: { prev?: () => void; next?: () => void };
+  walker?: ReactNode;
+}) {
   const confirm = useConfirm();
   // events + stops route to FieldOpSheet (the one quick editor) before reaching here — CalEdit
   // handles every other kind: todo / content / task / brew / goal / lead / pipe / meeting.
   const cfg = SRC[kind];
   const { setSection } = useOperatorSection();
   const [f, setF] = useState<any | null>(null);
+  // The row as loaded: what "unsaved" is measured against (lib/formGuard edited).
+  const [loaded, setLoaded] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
   const sel = kind === "todo" ? "title, due_on, category, event_id, done"
     : kind === "content" ? "title, scheduled_for, status, event_id"
@@ -848,7 +855,7 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
     if (!supabase) return;
     supabase.from(cfg.table).select(sel).eq("id", id).maybeSingle().then(({ data, error }) => {
       if (error) { setLoadFailed(true); setF(null); return; }
-      setLoadFailed(false); setF(data ?? {});
+      setLoadFailed(false); setF(data ?? {}); setLoaded(data ?? {});
     });
   }, [cfg.table, sel, id]);
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
@@ -925,7 +932,7 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
   })();
   return (
     <>
-    <Sheet open onClose={onClose} className="dp-form" label="Edit calendar item" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{`Edit ${cfg.noun}`}</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} className="dp-form" label="Edit calendar item" dirty={edited(f, loaded, CAL_SAVES)} page={page} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{`Edit ${cfg.noun}`}</b><CloseButton onClick={onClose} /></div>}>
           {kind === "pipe" && f.vendors?.name && <div className="dv-sub" style={{ marginBottom: 6 }}>Account · {f.vendors.name}</div>}
           <input className="note-in" value={f[cfg.nameCol] ?? ""} onChange={(e) => set(cfg.nameCol, e.target.value)} placeholder={kind === "pipe" ? "Next step — e.g. send the proposal" : `${cfg.noun[0].toUpperCase() + cfg.noun.slice(1)} name`} autoFocus />
           <div className="prod-grid" style={{ marginTop: 10 }}>
@@ -979,14 +986,15 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
               </select>
             </label>
           )}
-          {jump && <button type="button" className="cal-tolink" style={{ marginTop: 10, marginLeft: 0 }} onClick={jump.go}>{jump.label} <Icon name="externalLink" /></button>}
+          {jump && <LeaveButton className="cal-tolink" style={{ marginTop: 10, marginLeft: 0 }} onClick={jump.go}>{jump.label} <Icon name="externalLink" /></LeaveButton>}
           <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
             {removable ? <button type="button" className="note-arch" onClick={remove} disabled={saving}>{kind === "content" ? "Unschedule" : "Delete"}</button> : <span />}
             <div style={{ display: "flex", gap: 8 }}>
-              <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
+              <LeaveButton className="note-arch" onClick={onClose}>Cancel</LeaveButton>
               <button type="button" className="note-save" onClick={save} disabled={saving || (nameRequired && isBlank(f[cfg.nameCol]))}>{saving ? "Saving…" : "Save"}</button>
             </div>
           </div>
+    {walker}
     </Sheet>
     </>
   );
@@ -1125,7 +1133,7 @@ function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[];
   return (
     // The day said in words under the kinds, not as "2026-09-27" squeezed beside them: at phone width
     // the three tabs broke over two lines each ("To-" / "do") to make room for it.
-    <Sheet open onClose={onClose} label="Add to the calendar" header={<div style={{ display: "flex", alignItems: "center", gap: 6 }}><button type="button" className={`qd-tab${kind === "todo" ? " on" : ""}`} onClick={() => setKind("todo")}>To-do</button><button type="button" className={`qd-tab${kind === "stop" ? " on" : ""}`} onClick={() => setKind("stop")}><Icon name="truck" /> Truck stop</button><button type="button" className={`qd-tab${kind === "event" ? " on" : ""}`} onClick={() => setKind("event")}>Event</button><span style={{ marginLeft: "auto" }} /><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Add to the calendar" dirty={!!(title.trim() || where.trim() || address.trim() || venueId)} header={<div style={{ display: "flex", alignItems: "center", gap: 6 }}><button type="button" className={`qd-tab${kind === "todo" ? " on" : ""}`} onClick={() => setKind("todo")}>To-do</button><button type="button" className={`qd-tab${kind === "stop" ? " on" : ""}`} onClick={() => setKind("stop")}><Icon name="truck" /> Truck stop</button><button type="button" className={`qd-tab${kind === "event" ? " on" : ""}`} onClick={() => setKind("event")}>Event</button><span style={{ marginLeft: "auto" }} /><CloseButton onClick={onClose} /></div>}>
           <div className="dp-hint" style={{ marginTop: 0, marginBottom: 8 }}>{`For ${dayWithDate(day) || day}`}</div>
           <input className="note-in" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === "todo" ? "What needs doing?" : kind === "stop" ? "Stop name — e.g. Saturday Market" : "Event name"} aria-label={kind === "todo" ? "What needs doing" : kind === "stop" ? "Stop name" : "Event name"} autoFocus />
           {kind !== "todo" && (
@@ -1153,7 +1161,7 @@ function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[];
           )}
           {err && <p className="lp-ask" role="alert" style={{ marginTop: 10 }}>{err}</p>}
           <div className="prod-actions" style={{ marginTop: 14 }}>
-            <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
+            <LeaveButton className="note-arch" onClick={onClose}>Cancel</LeaveButton>
             <button type="button" className="note-save" onClick={() => save()} disabled={!title.trim() || busy}>{busy ? "Adding…" : "Add"}</button>
           </div>
     </Sheet>

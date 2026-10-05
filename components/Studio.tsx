@@ -11,6 +11,7 @@ import { raiseAlertClient } from "@/lib/clientAlerts";
 import { GTM_PLAYS } from "@/lib/strategy";
 import { useOperatorSection } from "@/components/OperatorNav";
 import Sheet, { CloseButton } from "@/components/Sheet";
+import { usePagerLevel } from "@/components/SwipePager";
 import Icon from "@/components/Icon";
 import { InfoRow } from "@/components/kit";
 
@@ -41,6 +42,12 @@ type Item = {
 };
 type Version = { id: string; title: string | null; hook: string | null; caption: string | null; hashtags: string[] | null; status: string | null; label: string | null; edited_by: string | null; created_at: string };
 
+// Studio's views, in the order its row shows them — and the order a sideways swipe turns through them.
+type StudioView = "calendar" | "board" | "grid" | "flyer" | "letter" | "brand";
+const STUDIO_VIEWS: readonly { key: StudioView; label: string }[] = [
+  { key: "calendar", label: "Calendar" }, { key: "board", label: "Board" }, { key: "grid", label: "Grid" },
+  { key: "flyer", label: "Flyer" }, { key: "letter", label: "Letter" }, { key: "brand", label: "Brand" },
+];
 const STATUS: Record<string, { label: string; cls: string }> = {
   draft: { label: "Draft", cls: "st-draft" }, review: { label: "In review", cls: "st-review" },
   changes: { label: "Changes", cls: "st-changes" }, approved: { label: "Approved", cls: "st-approved" },
@@ -93,7 +100,7 @@ export default function Studio() {
   // nothing telling the crew it needed a re-add. Tracked so a broken cover falls back to the same
   // "tap to add a photo" placeholder a genuinely-empty piece gets.
   const [brokenCovers, setBrokenCovers] = useState<Set<string>>(new Set());
-  const [view, setView] = useState<"calendar" | "board" | "grid" | "flyer" | "letter" | "brand">(() => {
+  const [view, setView] = useState<StudioView>(() => {
     const v = typeof window !== "undefined" ? localStorage.getItem("gt3-studio-view") : null;
     return v === "board" || v === "brand" || v === "grid" || v === "flyer" || v === "letter" ? v : "calendar";
   });
@@ -126,7 +133,10 @@ export default function Studio() {
     const { data } = await supabase.from("content_items").insert({ title: "", created_by: me.id, updated_by: me.id, scheduled_for: scheduledISO ?? null, event_id: eventId ?? null }).select("id").single();
     if (data?.id) { await load(); setOpenId(data.id); }
   };
-  const pickView = (v: "calendar" | "board" | "grid" | "flyer" | "letter" | "brand") => { setView(v); if (typeof window !== "undefined") localStorage.setItem("gt3-studio-view", v); };
+  const pickView = (v: StudioView) => { setView(v); if (typeof window !== "undefined") localStorage.setItem("gt3-studio-view", v); };
+  // The views are pages: a sideways swipe on the studio turns to the next one (components/SwipePager),
+  // in the order the row shows them; past the last, on to the lane's next section.
+  usePagerLevel({ keys: STUDIO_VIEWS.map((x) => x.key), current: view, go: (k) => pickView(k as StudioView), depth: 1 });
 
   if (openId) return <StudioEditor id={openId} me={me} onClose={() => { setOpenId(null); load(); }} />;
 
@@ -159,12 +169,9 @@ export default function Studio() {
       )}
       <div className="studio-top">
         <div className="studio-views" role="tablist" aria-label="View">
-          <button type="button" className={`studio-view${view === "calendar" ? " on" : ""}`} onClick={() => pickView("calendar")}>Calendar</button>
-          <button type="button" className={`studio-view${view === "board" ? " on" : ""}`} onClick={() => pickView("board")}>Board</button>
-          <button type="button" className={`studio-view${view === "grid" ? " on" : ""}`} onClick={() => pickView("grid")}>Grid</button>
-          <button type="button" className={`studio-view${view === "flyer" ? " on" : ""}`} onClick={() => pickView("flyer")}>Flyer</button>
-          <button type="button" className={`studio-view${view === "letter" ? " on" : ""}`} onClick={() => pickView("letter")}>Letter</button>
-          <button type="button" className={`studio-view${view === "brand" ? " on" : ""}`} onClick={() => pickView("brand")}>Brand</button>
+          {STUDIO_VIEWS.map((x) => (
+            <button key={x.key} type="button" className={`studio-view${view === x.key ? " on" : ""}`} onClick={() => pickView(x.key)}>{x.label}</button>
+          ))}
         </div>
         {view !== "brand" && view !== "flyer" && view !== "letter" && <button type="button" className="rdy-run" onClick={() => create()}><Icon name="sparkles" /> New piece</button>}
       </div>

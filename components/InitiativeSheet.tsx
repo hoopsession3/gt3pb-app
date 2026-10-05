@@ -10,7 +10,7 @@ import { canOf } from "@/lib/roles";
 import { localToday } from "@/lib/dates";
 import { daysBetween, dueWord } from "@/lib/dayWords";
 import { errorMessage } from "@/lib/errorMessage";
-import Sheet, { CloseButton } from "./Sheet";
+import Sheet, { CloseButton, useUnsaved } from "./Sheet";
 import AsyncSection from "./AsyncSection";
 import { WayButtons } from "./RecordWays";
 
@@ -79,6 +79,8 @@ function InitiativeBody({ it, canEdit, canOpenBoard, onBoard, onSaved }: {
   const out = target ? daysBetween(localToday(), target) : null;
   const changed = title.trim() !== it.title || (summary.trim() || null) !== (it.summary ?? null)
     || (target || null) !== (it.target_date ?? null) || status !== it.status;
+  // What `changed` already knows, the sheet is told: leaving with it unsaved asks first.
+  useUnsaved(canEdit && changed);
 
   const save = async () => {
     if (!supabase || busy || !title.trim()) return;

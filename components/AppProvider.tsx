@@ -5,13 +5,17 @@ import { DRINKS, type DrinkId } from "@/lib/menu";
 import { useAvailability } from "@/lib/availability";
 
 type ToastVariant = "success" | "error" | "info";
+/** One thing the toast can do — "Undo" after a swipe cleared a flag (2026-10-05, the gesture round). */
+export type ToastAction = { label: string; run: () => void };
 
 interface AppCtx {
   // toast
-  toast: (msg: string, variant?: ToastVariant) => void;
+  toast: (msg: string, variant?: ToastVariant, opts?: { action?: ToastAction }) => void;
   toastMsg: string;
   toastShown: boolean;
   toastVariant: ToastVariant;
+  toastAction: ToastAction | null;
+  hideToast: () => void;
   // cart (pre-order) — quantity per drink
   cart: Record<string, number>;
   cartCount: number;
@@ -57,14 +61,22 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const [toastMsg, setToastMsg] = useState("");
   const [toastShown, setToastShown] = useState(false);
   const [toastVariant, setToastVariant] = useState<ToastVariant>("success");
+  const [toastAction, setToastAction] = useState<ToastAction | null>(null);
   const tRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const toast = useCallback((msg: string, variant: ToastVariant = "success") => {
+  const hideToast = useCallback(() => {
+    if (tRef.current) clearTimeout(tRef.current);
+    setToastShown(false);
+    setToastAction(null);
+  }, []);
+  // A toast with something to do stays long enough to reach for it.
+  const toast = useCallback((msg: string, variant: ToastVariant = "success", opts?: { action?: ToastAction }) => {
     setToastMsg(msg);
     setToastVariant(variant);
+    setToastAction(opts?.action ?? null);
     setToastShown(true);
     if (tRef.current) clearTimeout(tRef.current);
-    tRef.current = setTimeout(() => setToastShown(false), variant === "error" ? 4200 : 3000);
+    tRef.current = setTimeout(() => { setToastShown(false); setToastAction(null); }, opts?.action ? 5000 : variant === "error" ? 4200 : 3000);
   }, []);
 
   // One source of truth for prices: Square Catalog via /api/menu (falls back to the
@@ -167,8 +179,8 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   }, [toast, soldOut]);
 
   const value = useMemo<AppCtx>(
-    () => ({ toast, toastMsg, toastShown, toastVariant, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents }),
-    [toast, toastMsg, toastShown, toastVariant, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents]
+    () => ({ toast, toastMsg, toastShown, toastVariant, toastAction, hideToast, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents }),
+    [toast, toastMsg, toastShown, toastVariant, toastAction, hideToast, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

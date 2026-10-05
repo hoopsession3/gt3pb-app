@@ -8,7 +8,7 @@ import { haptic, HAPTIC } from "@/lib/haptics";
 import AskGT3 from "./AskGT3";
 import LogPurchase from "./LogPurchase";
 import CopilotLauncher from "./CopilotLauncher";
-import Sheet, { CloseButton } from "@/components/Sheet";
+import Sheet, { CloseButton, useUnsaved } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { useDictation } from "./useDictation";
 
@@ -45,13 +45,8 @@ export default function QuickDock() {
     return () => window.removeEventListener("gt3-quick-do", onDo);
   }, []);
 
-  // close on Escape
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  // Escape is the sheet's (components/Sheet): it closes the top sheet only, and asks first when a
+  // note or a purchase is half typed. This dock's own Escape closed it directly, around both.
 
   if (!isStaff) return null;
 
@@ -91,6 +86,8 @@ function QuickNote({ userId, onSaved }: { userId: string | null; onSaved: () => 
   // its emoji until the duplication was closed. This appends rather than sends: a note is written
   // in pieces, a question is asked once.
   const dictate = useDictation((t) => setText((p) => (p ? `${p} ${t}` : t)));
+  // A note half written is asked about before a swipe, a tap outside or Escape takes the dock away.
+  useUnsaved(!!text.trim());
 
   const save = async () => {
     const t = text.trim();

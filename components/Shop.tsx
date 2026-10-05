@@ -15,11 +15,11 @@ import { useSiteCopy } from "@/lib/copy";
 import OrderFunnel from "@/components/OrderFunnel";
 import Reserves from "@/components/Reserves";
 import StorefrontStory from "@/components/StorefrontStory";
-import StoryViewer from "@/components/StoryViewer";
 import { readMedia, coverOf, hasVideo, type MediaItem } from "@/lib/shopMedia";
 import { money } from "@/lib/money";
 import { useApp } from "@/components/AppProvider";
 import { variantLabel, type Variant, type Product, type CartLine } from "@/lib/shopCart";
+import SwipePager from "@/components/SwipePager";
 
 // THE SHOP (0273) — GT3 merch on the 0271 storefront spine. Reads published merch through RLS, a simple
 // cart in memory, and the shared Square card mount + /api/shop/checkout for a real one-time charge that
@@ -30,6 +30,14 @@ import { variantLabel, type Variant, type Product, type CartLine } from "@/lib/s
 // The merch checkout loads when it is wanted (components/ShopCheckout, 2026-10-04) — see the warm-up
 // in Shop below, which fetches it the moment the cart holds something.
 const ShopCheckout = dynamic(() => import("./ShopCheckout"));
+// The full-screen photos load the same way (2026-10-05): fetched once a product with a story is open
+// (ProductDetail's warm-up), so the tap on its hero opens at once — and a guest browsing the aisles
+// never downloads the viewer, nor the finger-following engine it rides.
+const StoryViewer = dynamic(() => import("./StoryViewer"), { ssr: false });
+
+// The shop's two aisles, in the order its row shows them — and the order a swipe turns through them.
+type Aisle = "bottles" | "merch";
+const SHOP_AISLES: readonly Aisle[] = ["bottles", "merch"];
 
 export default function Shop() {
   const { user } = useAuth();
@@ -49,7 +57,7 @@ export default function Shop() {
   // Two aisles under one roof (2026-08): Bottles = the Saturday-drop pack reserve (the old /reserve
   // flow, embedded) · Merch = the capsule below. Default Bottles — the everyday take-home, and it
   // keeps continuity with the Reserve tab this replaced. ?tab=merch|bottles deep-links either aisle.
-  const [section, setSection] = useState<"bottles" | "merch">("bottles");
+  const [section, setSection] = useState<Aisle>("bottles");
   useEffect(() => {
     try { const q = new URLSearchParams(window.location.search).get("tab"); if (q === "merch" || q === "bottles") setSection(q); } catch { /* ignore */ }
   }, []);
@@ -99,6 +107,10 @@ export default function Shop() {
         </div>
       )}
 
+      {/* The two aisles are pages: a sideways swipe on the shop turns from Bottles to Merch and back
+          (components/SwipePager) — the tap on the aisle row, by the thumb. Inside a product, the cart or
+          the receipt there is no row, and nothing turns. */}
+      <SwipePager levels={[(section === "bottles" || view === "grid") && { keys: SHOP_AISLES, current: section, go: (k) => setSection(k as Aisle), depth: 0 }]}>
       {section === "bottles" && (
         <>
           <EditableCopy k="reserve.headline" value={t("reserve.headline")} as="p" className="shop-stmt" multiline />
@@ -169,6 +181,7 @@ export default function Shop() {
       )}
 
       {section === "merch" && view === "grid" && <ClosingBeat />}
+      </SwipePager>
     </section>
   );
 }
@@ -183,6 +196,7 @@ function ProductDetail({ product, onBack, onAdd }: { product: Product; onBack: (
   const cover = coverOf(media);
   const storyable = media.length > 1 || (media.length === 1 && media[0].kind === "video");
   const [storyAt, setStoryAt] = useState<number | null>(null);
+  useEffect(() => { if (storyable) void import("./StoryViewer"); }, [storyable]);
   const hasVariants = product.variants.length > 0;
   const variant = hasVariants ? product.variants[vi] : null;
   return (

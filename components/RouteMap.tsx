@@ -147,7 +147,9 @@ export default function RouteMap({ points, truck }: { points: RoutePoint[]; truc
 
   return (
     <div className="routemap-wrap">
-      <div className="routemap" ref={elRef} role="group" aria-label="Truck route map across the upstate" />
+      {/* A map pans and pinches under the finger itself: no swipe around it takes the touch
+          (lib/gesture heldBy — a tab page, a sheet's pull). */}
+      <div className="routemap" ref={elRef} role="group" aria-label="Truck route map across the upstate" data-gesture="off" />
       {target && (
         <button className="rm-go" onClick={() => openDirections(target.lat, target.lng)} aria-label={`Directions to ${target.name}`}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l19-9-9 19-2-8-8-2z" /></svg>

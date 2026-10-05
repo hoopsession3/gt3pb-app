@@ -19,6 +19,7 @@ import { isStocked, orderShelves, unitCost, shelfQty, roundedLot, perUnitWords, 
 import { isMissingFunction } from "@/lib/schemaSkew";
 import { useAsyncData } from "@/lib/useAsyncData";
 import VendorResolve from "./VendorResolve";
+import { useUnsaved } from "./Sheet";
 
 // LOG A PURCHASE — the capture half of spend (2026-10-04).
 //
@@ -99,6 +100,8 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
   // Onto a shelf: which one (by id, of this city's), and how much — in the shelf's own unit.
   const [shelfId, setShelfId] = useState("");
   const [qtyTyped, setQtyTyped] = useState("");
+  // A purchase half entered — inside the quick-actions sheet — is asked about before the sheet goes.
+  useUnsaved(!!amount.trim() || !!what.trim() || !!file || !!qtyTyped.trim());
   // The clock is read once, when the sheet opens: "today" means the day you opened it.
   const [now] = useState(() => new Date());
 

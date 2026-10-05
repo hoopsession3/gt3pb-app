@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Icon from "@/components/Icon";
+import { follow, settle, useGesture } from "@/components/useGesture";
+import { viewerCloses } from "@/lib/gesture";
 import { STORY_IMAGE_MS, step, tapZone, type MediaItem } from "@/lib/shopMedia";
 
 // STORY VIEWER (0278) — a product's photos and clips, full screen, the way people already know how
@@ -115,6 +117,13 @@ export default function StoryViewer({ items, start = 0, title, onClose }: Props)
   // ── touch: swipe down closes, a press-and-hold pauses (both are the gestures people expect) ─────
   const touch = useRef<{ x: number; y: number; t: number } | null>(null);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // THE PICTURE FOLLOWS THE FINGER DOWN (2026-10-05, the gesture round). Swipe-down used to be judged
+  // only when the finger lifted — 70px and gone, nothing moving under the thumb on the way. Now the
+  // viewer rides the pull (components/useGesture), shrinking a touch and fading the way Photos does;
+  // a short pull or a flick closes it (lib/gesture viewerCloses), anything less settles back. The
+  // sideways swipe and the taps stay below; a pull that was a pull is not also a tap.
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const pulled = useRef(false);
   const onTouchStart = (e: React.TouchEvent) => {
     const t = e.touches[0];
     touch.current = { x: t.clientX, y: t.clientY, t: Date.now() };
@@ -126,6 +135,7 @@ export default function StoryViewer({ items, start = 0, title, onClose }: Props)
     const wasPaused = paused;
     if (wasPaused) setPaused(false);
     const s = touch.current; touch.current = null;
+    if (pulled.current) { pulled.current = false; return; }   // the pull above answered this touch
     if (!s) return;
     const t = e.changedTouches[0];
     const dx = t.clientX - s.x, dy = t.clientY - s.y;
@@ -135,6 +145,26 @@ export default function StoryViewer({ items, start = 0, title, onClose }: Props)
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     go(tapZone(t.clientX - rect.left, rect.width) === "prev" ? -1 : 1);
   };
+
+  useGesture(stageRef, {
+    axis: "y",
+    enabled: mounted && !!count,
+    take: (d) => d.dy > 0,
+    move: (d) => {
+      // A pull is not a hold: a slow one can outlast the hold's 260ms before the browser reports its
+      // first move (Chrome holds back moves inside its touch slop), and "Paused" rode down with it.
+      if (!pulled.current) { pulled.current = true; clearHold(); setPaused(false); }
+      const y = Math.max(0, d.dy);
+      follow(wrapRef.current, `translate3d(0,${y}px,0) scale(${1 - Math.min(0.1, y / 2400)})`, 1 - Math.min(0.55, y / 700));
+    },
+    end: (d, cancelled) => {
+      if (!cancelled && viewerCloses(d.dy, d.vy)) {
+        settle(wrapRef.current, `translate3d(0,${Math.round(window.innerHeight * 0.6)}px,0) scale(.9)`, 180, { opacity: 0, ease: "ease-in" }).then(onClose);
+        return;
+      }
+      settle(wrapRef.current, "translate3d(0,0,0)", 360, { opacity: 1, clear: true });
+    },
+  });
 
   if (!count || !item || !mounted) return null;
 
@@ -162,7 +192,7 @@ export default function StoryViewer({ items, start = 0, title, onClose }: Props)
       </div>
 
       {/* The stage takes the taps. Buttons above/below it sit on their own layer so they still work. */}
-      <div className="sv-stage" onTouchStart={onTouchStart} onTouchMove={clearHold} onTouchEnd={onTouchEnd}
+      <div className="sv-stage" ref={stageRef} onTouchStart={onTouchStart} onTouchMove={clearHold} onTouchEnd={onTouchEnd}
         onMouseDown={() => setPaused(true)} onMouseUp={() => setPaused(false)} onMouseLeave={() => setPaused(false)}>
         {item.kind === "video" && !videoFailed ? (
           <video

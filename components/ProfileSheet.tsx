@@ -6,7 +6,8 @@ import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
 import { subscribePush } from "@/lib/push";
-import Sheet from "@/components/Sheet";
+import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
+import { edited } from "@/lib/formGuard";
 import Icon from "@/components/Icon";
 
 // Your GT3 profile — photo, name, title, bio. Team culture: a face + a line on who you are, feeding
@@ -60,7 +61,8 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
 
   const initial = (name || profile?.display_name || user?.email || "?").trim().charAt(0).toUpperCase();
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span className="isheet-title">Your profile</span><button type="button" className="isheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} label="Your profile" dirty={edited({ name, title, bio }, { name: profile?.display_name, title: profile?.title, bio: profile?.bio }, ["name", "title", "bio"])}
+      header={<div style={{ display: "flex", alignItems: "center" }}><span className="isheet-title">Your profile</span><span style={{ marginLeft: "auto" }} /><CloseButton className="isheet-x" onClick={onClose} /></div>}>
           <div className="prof-av-row">
             <div className="prof-av" style={avatar ? { backgroundImage: `url(${avatar})` } : undefined} aria-hidden>{!avatar && initial}</div>
             <div className="prof-av-ctl">
@@ -84,7 +86,7 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
             )}
           </div>
           <div className="prod-actions" style={{ marginTop: 14 }}>
-            <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
+            <LeaveButton className="note-arch" onClick={onClose}>Cancel</LeaveButton>
             <button type="button" className="note-save" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save profile"}</button>
           </div>
     </Sheet>

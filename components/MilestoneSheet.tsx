@@ -36,6 +36,9 @@ export default function MilestoneSheet({ m, streams, streamsErr, linkable, initi
   const [title, setTitle] = useState(m.title);
   const [due, setDue] = useState(m.due_on ?? "");
   const [pick, setPick] = useState(() => startingPick(m, streams));
+  // Where the pick started — what "unsaved" is measured against (the portfolio may finish loading
+  // after the sheet opens; that is not the person changing it).
+  const [firstPick] = useState(pick);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const linked = new Set(linkedIds);
@@ -67,7 +70,8 @@ export default function MilestoneSheet({ m, streams, streamsErr, linkable, initi
   };
 
   return (
-    <Sheet open onClose={onClose} label="Manage milestone" header={<div className="oa-kicker">Milestone</div>}>
+    <Sheet open onClose={onClose} label="Manage milestone" header={<div className="oa-kicker">Milestone</div>}
+      dirty={title.trim() !== m.title.trim() || (due || null) !== (m.due_on ?? null) || pick !== firstPick}>
       <label className="prod-f"><span>Title</span><input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={160} /></label>
       <label className="prod-f" style={{ marginTop: 8 }}><span>Due</span><input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></label>
       <div className="prod-f" style={{ marginTop: 8 }}>
