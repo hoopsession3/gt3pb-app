@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-05T14:41:54.730Z",
+    "pulled_at": "2026-10-05T16:41:14.437Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
     "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
     "relations": 203,
-    "columns": 2610
+    "columns": 2611
   },
   "academy_acknowledgements": [
     "user_id",
@@ -1124,7 +1124,8 @@
     "done_at",
     "workstream",
     "sort",
-    "created_at"
+    "created_at",
+    "workstream_id"
   ],
   "initiatives": [
     "id",
