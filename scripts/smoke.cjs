@@ -6548,18 +6548,20 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   const lp = code(read("components/LogPurchase.tsx"));
   ok("purchase sheet: the vendor book is read — active rows, with their kind — and the last 90 days say who and what",
-    /\.from\("vendors"\)\.select\("id, name, kind"\)\.is\("archived_at", null\)\.neq\("status", "archived"\)/.test(lp)
+    /readVendorBook\(supabase\),/.test(lp)
+    && /\.from\("vendors"\)\.select\("id, name, kind"\)\.is\("archived_at", null\)\.neq\("status", "archived"\)/.test(read("lib/suppliers.ts"))
     && /\.from\("expenses"\)\.select\("category, vendor_id"\)/.test(lp) && /rankSuppliers\(/.test(lp));
   ok("purchase sheet: a failed vendor read is said, and the purchase can still be logged",
     /if \(v\.error\) setVendErr\(v\.error\.message\);/.test(lp) && /Couldn't load the vendor book/.test(lp));
   ok("purchase sheet: the purchase records WHO — expenses.vendor_id is written",
     /spent_on: spentOn, market, vendor_id: settled\.id,/.test(lp));
+  const vl = code(read("lib/vendorLink.ts"));
   ok("purchase sheet: a new supplier goes through THE resolver — approved, a supplier, filed in the purchase's city",
-    /resolveVendor\(typed, \{ status: "approved", source: "a purchase", extra: \{ kind: "supplier", market \} \}\)/.test(lp)
-    && /if \(r\.kind === "similar"\) \{ setBusy\(false\); setAsking\(/.test(lp));
+    /const r = await resolveSupplier\(typed, market, "a purchase"\);/.test(lp) && /if \(r\.kind === "similar"\) \{ setBusy\(false\); setAsking\(/.test(lp)
+    && /return resolveVendor\(name, \{ status: "approved", source, extra: \{ kind: "supplier", market \}/.test(vl) && !/resolveVendor\(/.test(lp));
   ok("purchase sheet: a look-alike is asked about — use it, create it as new, or log with none",
     /<VendorResolve name=\{asking\.name\}/.test(lp) && /onUse=\{\(c\) => \{ setAsking\(null\); save\(\{ id: c\.id, name: c\.name \}\); \}\}/.test(lp)
-    && /decision: \{ createDistinct: true \}/.test(lp) && /onSkip=\{\(\) => \{ setAsking\(null\); save\(\{ id: null \}\); \}\}/.test(lp));
+    && /resolveSupplier\(typed, market, "a purchase", \{ createDistinct: true \}\)/.test(lp) && /onSkip=\{\(\) => \{ setAsking\(null\); save\(\{ id: null \}\); \}\}/.test(lp));
   ok("purchase sheet: the placeholder no longer teaches typing the store into the description",
     !/placeholder="[^"]*Restaurant Depot/.test(lp) && /placeholder="Cups and lids, 16 oz"/.test(lp));
   ok("purchase sheet: a supplier's usual category fills only an untouched category (lib/pickFill), and says so",
@@ -6705,16 +6707,140 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // ── a shelf's city, and its count ──
   const il = code(read("components/InventoryLibrary.tsx"));
   ok("inventory: a new shelf starts in its person's city and is filed there",
-    /setDraft\(blankDraft\(homeMarket\(profile\) \?\? FOUNDING_MARKET\)\)/.test(il) && /insert\(\{ \.\.\.row, qty: count, market: draft\.market \}\)/.test(il));
+    /setDraft\(blankDraft\(homeMarket\(profile\) \?\? FOUNDING_MARKET\)\)/.test(il) && /\.insert\(r\), \{ \.\.\.row, qty: count, market: draft\.market \} as Record<string, unknown>, \["vendor_id"\]\)/.test(il));
   ok("inventory: a changed count on a shelf is a correction through set_on_hand, on that shelf's city",
     /supabase\.rpc\("set_on_hand", \{\s*p_item: row\.name, p_want: count, p_market: toMarket\(editingItem\.market\)/.test(il)
-    && /update\(count != null && Number\.isFinite\(count\) \? \{ \.\.\.row, qty: count \} : row\)/.test(il) && !/qty: draft\.qty/.test(il));
+    && /\(count != null && Number\.isFinite\(count\) \? \{ \.\.\.row, qty: count \} : row\) as Record<string, unknown>, \["vendor_id"\]\)/.test(il) && !/qty: draft\.qty/.test(il));
   ok("inventory: the register shows what the shelf holds (the ledger's balance) and flags low by it",
     /const onHandOf = \(r: InvItem\): number \| null => r\.onHand \?\? r\.qty;/.test(il) && /className=\{`gl-item\$\{isLow\(it\) \? " low" : ""\}`\}/.test(il));
   ok("inventory: the register's read says whose shelf each row is",
     /market: r\.market \?\? null,/.test(code(read("app/api/inventory/route.ts"))));
   ok("inventory: an AI-drafted item is filed on its filer's city, read from their profile",
     /homeMarket\(filer as/.test(code(read("app/api/agents/inventory/route.ts"))) && /\.\.\.\(market \? \{ market \} : \{\}\)/.test(code(read("app/api/agents/inventory/route.ts"))));
+}
+
+// ── THE FORM AUDIT, PART 3c: A DELIVERY LANDS ON ITS SHELF (2026-10-05) ──────────────────────────
+// A purchase of ingredients or supplies can go onto the shelf it was bought for: receive_lot (0347)
+// puts a costed lot there — what a unit cost, from whom, on what terms — and the restock on the
+// ledger. Until now nothing called receive_lot: a batch costed out at $0.00 wherever nobody had priced
+// a receipt by hand (0298). A shelf's supplier is a vendor, through the same supplier resolver as the
+// purchase. scripts/db.receive.test.mjs holds the SQL; this holds the forms to it.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const RV = require("../.smoke/receiving.js");
+  const SK = require("../.smoke/schemaSkew.js");
+
+  ok("receiving: ingredients and supplies are stock; equipment, fees and the rest are not",
+    RV.isStocked("ingredients") && RV.isStocked("supplies") && !RV.isStocked("equipment") && !RV.isStocked("fees") && !RV.isStocked(null) && !RV.isStocked("toString"));
+  const SH = [
+    { id: "a", name: "Org Ethiopia Coffee (bulk)", unit: "lb", kind: "ingredient" },
+    { id: "b", name: "Spring Water Case", unit: "case", kind: "ingredient" },
+    { id: "c", name: "Cups 16 oz", unit: "each", kind: "packaging" },
+    { id: "d", name: "Heat Gun", unit: "each", kind: "equipment" },
+    { id: "e", name: "Agave", unit: null, kind: null },
+  ];
+  const LOTS = [{ item_name: "Spring Water Case", vendor_id: "spr" }, { item_name: "Cups 16 oz", vendor_id: "rd" }];
+  const order = (v, c) => RV.orderShelves(SH, LOTS, v, c).map((x) => x.id).join("");
+  ok("receiving: Sprouts' water first (they have filled it), then the coffee (an ingredient), then the rest by name — never equipment",
+    order("spr", "ingredients") === "baec", order("spr", "ingredients"));
+  ok("receiving: no supplier — the category's kinds first (supplies fill packaging and consumables)",
+    order(null, "supplies") === "ceab", order(null, "supplies"));
+  ok("receiving: a unit cost is the amount over the quantity, in whole cents — or nothing",
+    RV.unitCost(9594, 6) === 1599 && RV.unitCost(6998, 2) === 3499 && RV.unitCost(2000, 3) === 667 && RV.unitCost(100, 0) === null && RV.unitCost(100, -1) === null);
+  ok("receiving: whole cents that move a lot by more than 1% are said — 1,000 cups at $45 cost out at $50",
+    RV.roundedLot(4500, 1000) === 5000 && RV.roundedLot(9594, 6) === null && RV.roundedLot(3998, 2.5) === null && RV.roundedLot(549, 6) === null
+    && RV.roundedLot(40, 1000) === 0 && RV.roundedLot(100, 0) === null, [RV.roundedLot(4500, 1000), RV.roundedLot(40, 1000)]);
+  ok("receiving: a price per unit reads as it is said — a lb, an oz, each, a unit",
+    RV.perUnitWords("lb") === "a lb" && RV.perUnitWords("oz") === "an oz" && RV.perUnitWords("each") === "each" && RV.perUnitWords("EA") === "each"
+    && RV.perUnitWords(null) === "a unit" && RV.perUnitWords("unit") === "a unit" && RV.perUnitWords("case") === "a case");
+  ok("receiving: an amount reads as a sentence says it — 6 cases, 2.5 lb, 1,000 (each), 1 case, 3 boxes, 2 dozen",
+    RV.qtyWords(6, "case") === "6 cases" && RV.qtyWords(2.5, "lb") === "2.5 lb" && RV.qtyWords(1000, "each") === "1,000" && RV.qtyWords(1, "case") === "1 case"
+    && RV.qtyWords(3, "box") === "3 boxes" && RV.qtyWords(2, "dozen") === "2 dozen" && RV.qtyWords(4, "battery") === "4 batteries" && RV.qtyWords(5, "cases") === "5 cases" && RV.qtyWords(7, null) === "7",
+    [RV.qtyWords(6, "case"), RV.qtyWords(1000, "each"), RV.qtyWords(3, "box")]);
+  ok("receiving: a quantity is a positive number, typed any reasonable way",
+    RV.shelfQty("6") === 6 && RV.shelfQty(" 2.5 ") === 2.5 && RV.shelfQty("1,000") === 1000 && RV.shelfQty(".5") === 0.5
+    && RV.shelfQty("0") === null && RV.shelfQty("") === null && RV.shelfQty("six") === null && RV.shelfQty("-2") === null);
+  ok("schema skew: a function not there yet in this shape is PGRST202, or its sentence — and nothing else",
+    SK.isMissingFunction({ code: "PGRST202" }) && SK.isMissingFunction({ message: "Could not find the function public.receive_lot(p_expense_id, p_item) in the schema cache" })
+    && !SK.isMissingFunction({ code: "42501", message: "permission denied for function receive_lot" }) && !SK.isMissingFunction({ message: "A delivery has to be more than zero." }) && !SK.isMissingFunction(null));
+
+  const lp = code(read("components/LogPurchase.tsx"));
+  ok("purchase sheet: the shelf section is for stock only, and nothing is chosen for you",
+    /const stocked = isStocked\(cat\);/.test(lp) && /\{stocked && \(/.test(lp) && /const \[shelfId, setShelfId\] = useState\(""\);/.test(lp) && /<option value="">\{shelvesHere \? "Not onto a shelf" : `Reading \$\{MARKET_LABEL\[market\]\}'s shelves…`\}<\/option>/.test(lp));
+  ok("purchase sheet: the city's shelves, and its lots to put the supplier's first — a failed read said",
+    /\.from\("inventory_items"\)\.select\("id, name, unit, kind"\)\.eq\("market", market\)/.test(lp) && /\.from\("inventory_lots"\)\.select\("item_name, vendor_id"\)\.eq\("market", market\)/.test(lp)
+    && /if \(sh\.error\) throw new Error\(sh\.error\.message\);/.test(lp) && /const shelvesFailed = !shelvesHere && !!shelfRead\.error;/.test(lp) && /\{shelvesFailed \? \(/.test(lp)
+    && /Couldn't read \$\{MARKET_LABEL\[market\]\}'s shelves/.test(lp) && /orderShelves\(shelvesHere\.shelves, shelvesHere\.lots, from\.id, cat\)/.test(lp));
+  ok("purchase sheet: a chosen shelf needs how much — the button waits, and says so",
+    /const ready = cents > 0 && !!cat && !!spentOn && !busy && \(!shelf \|\| qty !== null\);/.test(lp) && /Say how much went onto the shelf/.test(lp));
+  ok("purchase sheet: the delivery is a lot of THIS purchase — its city, its day, its supplier, its unit cost",
+    /supabase\.rpc\("receive_lot", \{\s*p_market: market, p_item: shelf\.name, p_qty: qty, p_unit: shelf\.unit, p_unit_cost_cents: perUnit,\s*p_expense_id: \(data as \{ id: string \}\)\.id, p_received_on: spentOn, p_vendor_id: settled\.id,/.test(lp));
+  ok("purchase sheet: a delivery that did not land makes the toast an error — the purchase logged, the shelf not",
+    /shelfMissed = !!recvErr;/.test(lp) && (lp.match(/\$\{onShelf\}\$\{added\}`, shelfMissed \? "error" : undefined\)/g) || []).length === 2);
+  ok("purchase sheet: what landed is said in the shelf's own words", /: ` Added \$\{qtyWords\(qty, shelf\.unit\)\} to \$\{shelf\.name\}\.`;/.test(lp));
+  ok("purchase sheet: before 0347 the shelf step says it arrives with the next update — never 0293's receive_lot",
+    /isMissingFunction\(recvErr\)/.test(lp) && /receiving onto a shelf arrives with the next database update/.test(lp) && /arrives-with: 0347/.test(read("components/LogPurchase.tsx")));
+  ok("purchase sheet: shelves belong to the city they were read for — the last city's are never offered, nor a pick among them carried over",
+    /return \{ market, shelves:/.test(lp) && /const shelvesHere = shelfRead\.data && shelfRead\.data\.market === market \? shelfRead\.data : null;/.test(lp)
+    && /const shelf = stocked \? shelfChoices\.find\(\(x\) => x\.id === shelfId\) \?\? null : null;/.test(lp));
+  ok("purchase sheet: what a unit cost reads as it is said, and whole-cent rounding that moves the lot is said before it is logged",
+    /\$\{money\(perUnit\)\} \$\{perUnitWords\(shelf\.unit\)\}/.test(lp) && /const costedAt = qty \? roundedLot\(cents, qty\) : null;/.test(lp)
+    && /Costs are kept in whole cents, so this delivery is costed at \$\{money\(costedAt\)\}, not \$\{money\(cents\)\}\./.test(lp));
+  ok("one vendor book: both supplier picks read it through lib/suppliers.readVendorBook — neither writes the query",
+    /readVendorBook\(supabase\)/.test(lp) && /readVendorBook\(supabase\)/.test(code(read("components/InventoryLibrary.tsx")))
+    && !/from\("vendors"\)\.select\("id, name, kind"\)/.test(lp + code(read("components/InventoryLibrary.tsx")))
+    && /export const readVendorBook = \(sb: SupabaseClient\) =>\s*sb\.from\("vendors"\)\.select\("id, name, kind"\)\.is\("archived_at", null\)\.neq\("status", "archived"\)\.order\("name"\);/.test(read("lib/suppliers.ts")));
+
+  const il = code(read("components/InventoryLibrary.tsx"));
+  ok("register: the supplier is a vendor pick — no suggest-list of every vendor row",
+    /<select aria-label="Supplier"/.test(il) && !/list="gt3-vendors"/.test(il) && /rankSuppliers\(book\.data \?\? \[\], items\.map/.test(il));
+  ok("register: someone new goes through the one supplier resolver, filed in the shelf's city",
+    /resolveSupplier\(name, draft\.market, "the inventory register"\)/.test(il) && /<VendorResolve name=\{asking\.name\}/.test(il));
+  ok("register: a Save that stops to ask about a look-alike carries on with the answer — a Link it only links",
+    /const \[asking, setAsking\] = useState<\{ name: string; candidates: VendorMatch\[\]; then: "save" \| "link" \} \| null>\(null\);/.test(il)
+    && /settleSupplier\(supplier\.name, "save"\)/.test(il) && /settleSupplier\(draft\.vendor\.trim\(\), "link"\)/.test(il)
+    && (il.match(/if \(then === "save"\) save\(\{ id: (c|r)\.id, name(: c\.name)? \}\);/g) || []).length === 2
+    && /let supplier: \{ id: string \| null; name: string \} = picked \?\? \{ id: draft\.vendorId, name: draft\.vendor\.trim\(\) \};/.test(il)
+    && /onClick=\{\(\) => save\(\)\}/.test(il) && !/onClick=\{save\}/.test(il));
+  ok("register: a name typed before links is kept, and linked only when asked — never behind another edit",
+    /`\$\{draft\.vendor\.trim\(\)\} \(typed\)`/.test(il) && /was typed before suppliers were links/.test(il) && /className="gl-act" onClick=\{linkTyped\}/.test(il) && /if \(!picked && draft\.naming && supplier\.name\) \{/.test(il));
+  ok("register: the link is written with the name, and survives the gap before 0347",
+    /vendor_id: supplier\.id,/.test(il) && (il.match(/\["vendor_id"\]\)/g) || []).length === 2 && /arrives-with: 0347/.test(read("components/InventoryLibrary.tsx")));
+  const api = code(read("app/api/inventory/route.ts"));
+  ok("register: the link is read from the table (the view's columns were fixed at its creation), and a failed read is said",
+    /sb\.from\("inventory_items"\)\.select\("id, vendor_id"\)/.test(api) && /vendorId: linkOf\.get\(r\.id\) \?\? null,/.test(api)
+    && /links\.error && !isMissingColumn\(links\.error\) \? links\.error\.message : undefined/.test(api) && /resp\.linkError/.test(il));
+  const vl = code(read("lib/vendorLink.ts"));
+  ok("one supplier resolver: approved, kind supplier, the city it was named in", /export function resolveSupplier\(name: string, market: string, source: string, decision\?: ResolveDecision\)/.test(vl));
+  ok("0347 is tested against a real Postgres, and in the db suite", /node scripts\/db\.receive\.test\.mjs/.test(read("package.json")));
+
+  // ── two cities, one name: what 0347 lets happen, made safe where shelves are found by name ──
+  const CG = require("../.smoke/cogs.js");
+  const INV = [
+    { id: "g", name: "Org Ethiopia Coffee (bulk)", unit_cost: 15.99, unit: "lb", market: "greenville" },
+    { id: "a", name: "org ethiopia coffee (bulk) ", unit_cost: null, unit: "lb", market: "atlanta" },
+    { id: "a2", name: "Agave", unit_cost: 4, unit: "oz", market: "atlanta" },
+    { id: "g2", name: "Agave", unit_cost: null, unit: "oz", market: "greenville" },
+    { id: "w", name: "Water", unit_cost: null, unit: "gal", market: "atlanta" },
+  ];
+  const tie = [{ id: "a", name: "Cups", unit_cost: 0.05, unit: "each", market: "atlanta" }, { id: "g", name: "Cups", unit_cost: 0.06, unit: "each", market: "greenville" }];
+  const pick = (inv, n) => CG.costByName(inv).get(n)?.id;
+  ok("two cities, one name: a recipe's ingredient finds the shelf with a cost, the founding city's first — in any row order",
+    pick(INV, "org ethiopia coffee (bulk)") === "g" && pick([...INV].reverse(), "org ethiopia coffee (bulk)") === "g"
+    && pick(INV, "agave") === "a2" && pick([...INV].reverse(), "agave") === "a2" && pick(INV, "water") === "w"
+    && pick(tie, "cups") === "g" && pick([...tie].reverse(), "cups") === "g");
+  ok("two cities, one name: a listed shelf says its city only when another city stocks that name",
+    CG.shelfLabel(INV[0], INV) === "Org Ethiopia Coffee (bulk) — Greenville" && CG.shelfLabel(INV[2], INV) === "Agave — Atlanta" && CG.shelfLabel(INV[4], INV) === "Water",
+    [CG.shelfLabel(INV[0], INV), CG.shelfLabel(INV[4], INV)]);
+  const cc = code(read("components/CogsCalculator.tsx")), mm2 = code(read("components/MenuManager.tsx"));
+  ok("two cities, one name: the COGS calculator prices a batch through costByName, reading each shelf's city",
+    /select\("id, name, unit_cost, unit, market"\)/.test(cc) && /const invByName = useMemo\(\(\) => costByName\(inv\), \[inv\]\);/.test(cc) && !/new Map\(inv\.map\(\(x\) => \[x\.name/.test(cc));
+  ok("two cities, one name: the menu's ingredient picker and a drink's recipe rows say whose shelf a repeated name is",
+    /select\("id, name, unit, unit_cost, market"\)/.test(mm2) && /<option key=\{i\.id\} value=\{i\.id\}>\{shelfLabel\(i, inv\)\}<\/option>/.test(mm2)
+    && /· \{invLabel\(c\.inventory_item_id\)\}/.test(mm2) && /cogs\.lines\.find\(\(l\) => l\.name === invName\(c\.inventory_item_id\)\)/.test(mm2));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

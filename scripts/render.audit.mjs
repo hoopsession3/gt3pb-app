@@ -54,7 +54,12 @@ import { readFileSync, existsSync } from "node:fs";
 // 2026-10-04: 113 → 112. 1aa0f5f ("Today's op opens…") took one out and nobody lowered the line —
 // measured by running this file at a9989be (113) and at 1aa0f5f (112). It sat one under for three
 // commits. Locked in with the money pass (0341), which adds none.
-export const BASELINE = 112;
+//
+// 2026-10-05: 112 → 107. Five came out over four commits and the line stayed at 112 — measured by
+// running this file at each: e99f460 112, 1c6389c 110 (the checkout and the order funnel stopped
+// seeding a name from an effect), d6ae1c9 110, 21535ba 108 (Find Us and the live chip draw their
+// first read), 5940093 107 (the shop editor's draft). Locked in with receiving (0347), which adds none.
+export const BASELINE = 107;
 
 const RULE = "react-hooks/set-state-in-effect";
 
