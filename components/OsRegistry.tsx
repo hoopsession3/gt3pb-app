@@ -14,6 +14,7 @@ import { useCrew } from "./useCrew";
 import PersonPick, { type PersonValue } from "./PersonPick";
 import { localToday } from "@/lib/dates";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { streamOwner } from "@/lib/portfolio";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // THE WORKSTREAM REGISTRY (0264, 2026-08-03) — "the one place to manage every component and
@@ -53,8 +54,9 @@ export default function OsRegistry() {
   const crew = useCrew();
   const [draft, setDraft] = useState({ name: "", owner: { id: null, name: "" } as PersonValue, next_action: "", due: "", blocker: "", status: "active" as Ws["status"], note: "" });
   // The person is the id (0307); the text is what prints when the person has no account. A linked
-  // owner reads by their CURRENT name, so a rename on the crew roster renames them here too.
-  const ownerName = (w: Ws) => (w.owner_user_id && crew.find((c) => c.id === w.owner_user_id)?.display_name) || w.owner;
+  // owner reads by their CURRENT name, so a rename on the crew roster renames them here too. The rule
+  // is lib/portfolio's, because a milestone's workstream pick on the board says the same owner.
+  const ownerName = (w: Ws) => streamOwner(w, crew);
   const hasOwner = !!draft.owner.id || !!draft.owner.name.trim();
   const [saving, setSaving] = useState(false);
   const [newName, setNewName] = useState("");

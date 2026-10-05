@@ -15,10 +15,15 @@ import { completeInitiative } from "@/lib/tasks";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import InlineCreate from "./InlineCreate";
 import InitiativeSheet from "./InitiativeSheet";
-import Sheet from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { addDays, localToday } from "@/lib/dates";
 import { useConfirm } from "@/components/ConfirmSheet";
+import dynamic from "next/dynamic";
+import { isMissingColumn } from "@/lib/schemaSkew";
+import { type PortfolioStream, milestoneStream } from "@/lib/portfolio";
+
+// The manage sheet is an admin's, opened from a milestone's ⋯ — loaded then, not with the board.
+const MilestoneSheet = dynamic(() => import("./MilestoneSheet"), { ssr: false });
 
 // COMMAND BOARD — the shared war room both founders see: the launch initiatives with a countdown and
 // milestone progress, then This Week · Blockers · Done · Money in one glance. This is the digital twin
@@ -27,7 +32,9 @@ import { useConfirm } from "@/components/ConfirmSheet";
 // failed query now surfaces as a real error state (AsyncSection) instead of silently rendering "Nothing
 // blocked 🟢" on a request that actually errored. Admins (the owners) manage initiatives + milestones.
 type Initiative = { id: string; title: string; summary: string | null; target_date: string | null; status: string; emoji: string | null };
-type Milestone = { id: string; initiative_id: string; title: string; due_on: string | null; done: boolean; workstream: string | null; sort: number };
+// workstream_id (0350) is the portfolio workstream the milestone is filed to; workstream keeps the
+// words — the stream's name, written by the database when the link is set, or words from before.
+type Milestone = { id: string; initiative_id: string; title: string; due_on: string | null; done: boolean; workstream: string | null; workstream_id?: string | null; sort: number };
 type Work = { id: string; title: string; due: string | null; src: "todo" | "task" };
 type Incident = { id: string; problem: string; severity: string; created_at: string };
 // 0263 — programs ↔ outcomes: the goals an initiative serves, and at-risk goals on the Blockers line.
@@ -36,8 +43,11 @@ type BoardData = {
   inits: Initiative[]; miles: Milestone[]; links: { initiative_id: string; milestone_id: string }[];
   week: Work[]; incidents: Incident[]; overdue: Work[]; done: Work[];
   goals: GoalLite[]; goalLinks: { initiative_id: string; goal_id: string }[];
+  // The portfolio a milestone is filed to (0350). A failed read is said in the pick, not thrown:
+  // the board is the launch, and one list it can do without must not take it down.
+  streams: PortfolioStream[]; streamsErr: string | null; linkable: boolean;
 };
-const EMPTY_BOARD: BoardData = { inits: [], miles: [], links: [], week: [], incidents: [], overdue: [], done: [], goals: [], goalLinks: [] };
+const EMPTY_BOARD: BoardData = { inits: [], miles: [], links: [], week: [], incidents: [], overdue: [], done: [], goals: [], goalLinks: [], streams: [], streamsErr: null, linkable: false };
 
 const todayKey = localToday;
 const weekAheadKey = () => addDays(localToday(), 7);
@@ -60,12 +70,24 @@ export default function CommandBoard() {
   // only Finish, which completes every task under it. components/InitiativeSheet is that editor.
   const [openInit, setOpenInit] = useState<string | null>(null);
 
+  // 0350 adds initiative_milestones.workstream_id. Until it is pasted the milestones are asked for
+  // again without it, and the board knows (linkable: false): the pick is still offered and a
+  // milestone keeps the workstream's name, which 0350 links when it lands. The forgiveness is
+  // lib/schemaSkew's one condition; every other error still throws.
+  const milesRead = useCallback(async () => {
+    // arrives-with: 0350
+    const full = await supabase!.from("initiative_milestones").select("id, initiative_id, title, due_on, done, workstream, workstream_id, sort").order("sort");
+    if (!full.error || !isMissingColumn(full.error)) return { ...full, linkable: true };
+    const prior = await supabase!.from("initiative_milestones").select("id, initiative_id, title, due_on, done, workstream, sort").order("sort");
+    return { ...prior, linkable: false };
+  }, []);
+
   const loader = useCallback(async (): Promise<BoardData> => {
     if (!supabase) return EMPTY_BOARD;
     const today = todayKey(), wk = weekAheadKey(), wago = weekAgoISO();
     const [ini, mil, lnk, tThis, eThis, inc, tOver, eOver, tDone, eDone] = await Promise.all([
       supabase.from("initiatives").select("id, title, summary, target_date, status, emoji").neq("status", "done").order("target_date", { nullsFirst: false }),
-      supabase.from("initiative_milestones").select("id, initiative_id, title, due_on, done, workstream, sort").order("sort"),
+      milesRead(),
       supabase.from("initiative_milestone_links").select("initiative_id, milestone_id"),
       supabase.from("todos").select("id, title, due_on").eq("done", false).not("due_on", "is", null).gte("due_on", today).lte("due_on", wk),
       supabase.from("event_tasks").select("id, label, due_at").eq("done", false).not("due_at", "is", null).gte("due_at", today).lte("due_at", `${wk}T23:59:59`),
@@ -79,9 +101,11 @@ export default function CommandBoard() {
       supabase.from("event_tasks").select("id, label, due_at, done_at").eq("done", true).gte("done_at", wago),
     ]);
     // 0263 additions ride a second Promise.all so the 0262-era harness order above stays byte-stable.
-    const [gls, glnk] = await Promise.all([
+    const [gls, glnk, pf] = await Promise.all([
       supabase.from("goals").select("id, title, checkin_status, current_value, target_value, unit").eq("status", "active"),
       supabase.from("initiative_goals").select("initiative_id, goal_id"),
+      // The portfolio a milestone is filed to — the same rows, in the same order, OsRegistry lists.
+      supabase.from("os_workstreams").select("id, name, owner, owner_user_id, status, blocker, sort").order("sort"),
     ]);
     const firstErr = [ini, mil, lnk, tThis, eThis, inc, tOver, eOver, tDone, eDone].find((r) => r.error)?.error;
     if (firstErr) throw new Error(firstErr.message);
@@ -95,11 +119,15 @@ export default function CommandBoard() {
       incidents: (inc.data as Incident[]) ?? [],
       overdue: [...toWork(tOver.data ?? [], "todo"), ...toWork(eOver.data ?? [], "task")].sort((a, b) => (a.due ?? "").localeCompare(b.due ?? "")),
       done: [...toWork(tDone.data ?? [], "todo"), ...toWork(eDone.data ?? [], "task")],
+      streams: pf.error ? [] : ((pf.data as PortfolioStream[]) ?? []),
+      streamsErr: pf.error ? pf.error.message : null,
+      linkable: mil.linkable,
     };
-  }, []);
+  }, [milesRead]);
   const board = useAsyncData(loader, []);
   const { reload } = board;
-  useRealtimeTable(["initiatives", "initiative_milestones", "initiative_milestone_links", "initiative_goals", "goals", "todos", "event_tasks", "incident_log"], reload);
+  // os_workstreams too: a workstream renamed in the portfolio above renames its milestones' chips.
+  useRealtimeTable(["initiatives", "initiative_milestones", "initiative_milestone_links", "initiative_goals", "goals", "todos", "event_tasks", "incident_log", "os_workstreams"], reload);
 
   // 0263 — link/unlink the goals a program serves (admin; the junction cascades on either delete).
   const linkGoal = async (initiativeId: string, goalId: string) => {
@@ -128,9 +156,13 @@ export default function CommandBoard() {
 
   // Mutations reload() from the server rather than patching local state — the fetched board now lives
   // inside useAsyncData, which has no setter of its own (by design: it's the one place status/error live).
+  // Every write below says when it fails (2026-10-05, the form audit): the milestone writes awaited
+  // and dropped their errors, so a refused check-off, tie or delete looked done until the reload put
+  // it back. The sheet's own save is components/MilestoneSheet's, and says so the same way.
   const toggleMile = async (m: Milestone) => {
     if (!supabase || !isAdmin) return;
-    await supabase.from("initiative_milestones").update({ done: !m.done, done_at: !m.done ? new Date().toISOString() : null }).eq("id", m.id);
+    const { error } = await supabase.from("initiative_milestones").update({ done: !m.done, done_at: !m.done ? new Date().toISOString() : null }).eq("id", m.id);
+    if (error) toast(`Couldn't ${m.done ? "reopen" : "check off"} “${m.title}” — ${error.message}`, "error");
     reload();
   };
   const createInit = async (title: string) => {
@@ -153,25 +185,25 @@ export default function CommandBoard() {
     const n = (milesByInit.get(initId) ?? []).length;
     const { data, error } = await supabase.from("initiative_milestones").insert({ initiative_id: initId, title, sort: n }).select("id").single();
     if (error || !data) { toast(`Couldn't add — ${error?.message ?? "error"}`, "error"); return; }
-    await supabase.from("initiative_milestone_links").insert({ initiative_id: initId, milestone_id: (data as { id: string }).id });
+    const { error: tie } = await supabase.from("initiative_milestone_links").insert({ initiative_id: initId, milestone_id: (data as { id: string }).id });
+    // It still shows under the initiative it was made in (milesByInit's created-under fallback).
+    if (tie) toast(`Added, but not tied to the initiative — ${tie.message}`, "error");
     reload();
   };
   // Tie/untie a milestone to an initiative — this is BOTH "move" and "tie to multiple" in one control.
   const toggleLink = async (mId: string, initId: string, on: boolean) => {
     if (!supabase) return;
-    if (on) await supabase.from("initiative_milestone_links").insert({ initiative_id: initId, milestone_id: mId });
-    else await supabase.from("initiative_milestone_links").delete().eq("initiative_id", initId).eq("milestone_id", mId);
-    reload();
-  };
-  const saveMile = async (m: Milestone, patch: Partial<Milestone>) => {
-    if (!supabase) return;
-    await supabase.from("initiative_milestones").update(patch).eq("id", m.id);
+    const { error } = on
+      ? await supabase.from("initiative_milestone_links").insert({ initiative_id: initId, milestone_id: mId })
+      : await supabase.from("initiative_milestone_links").delete().eq("initiative_id", initId).eq("milestone_id", mId);
+    if (error) toast(`Couldn't ${on ? "tie it to" : "untie it from"} that initiative — ${error.message}`, "error");
     reload();
   };
   const deleteMile = async (m: Milestone) => {
     if (!supabase) return;
     if (!(await confirm({ title: `Delete “${m.title}”?`, confirmLabel: "Delete", danger: true }))) return;
-    await supabase.from("initiative_milestones").delete().eq("id", m.id);   // cascades its links
+    const { error } = await supabase.from("initiative_milestones").delete().eq("id", m.id);   // cascades its links
+    if (error) { toast(`Couldn't delete “${m.title}” — ${error.message}`, "error"); return; }
     setManage(null); reload();
   };
 
@@ -233,10 +265,12 @@ export default function CommandBoard() {
                       {ms.map((m) => {
                         const mlate = !m.done && m.due_on && daysTo(m.due_on) < 0;
                         const ties = links.filter((l) => l.milestone_id === m.id).length;
-                        const trailing = (ties > 1 || m.workstream || m.due_on || isAdmin) ? (
+                        // The workstream by its portfolio name; words that link to nothing are marked so.
+                        const ws = milestoneStream(m, data.streams);
+                        const trailing = (ties > 1 || ws || m.due_on || isAdmin) ? (
                           <>
                             {ties > 1 && <span className="cmd-tie" title={`Tied to ${ties} initiatives`}>⧉{ties}</span>}
-                            {m.workstream && <span className="cmd-ws">{m.workstream}</span>}
+                            {ws && <span className={`cmd-ws${ws.linked ? "" : " loose"}`} title={ws.linked ? undefined : "Not linked to a workstream"}>{ws.text}</span>}
                             {m.due_on && <span className={`cmd-mile-due${mlate ? " late" : ""}`}>{dnice(m.due_on)}</span>}
                             {isAdmin && <button type="button" className="cmd-mile-mng" onClick={() => setManage(m)} aria-label="Manage milestone">⋯</button>}
                           </>
@@ -325,14 +359,17 @@ export default function CommandBoard() {
             {isAdmin && <button type="button" className="adm-golink" onClick={() => setSection("money")}>Money — the live glance · Money ›</button>}
 
             {manage && (
-              <MilestoneManage
+              <MilestoneSheet
                 key={manage.id}
                 m={manage}
+                streams={data.streams}
+                streamsErr={data.streamsErr}
+                linkable={data.linkable}
                 initiatives={data.inits}
                 linkedIds={links.filter((l) => l.milestone_id === manage.id).map((l) => l.initiative_id)}
                 onToggleLink={(initId, on) => toggleLink(manage.id, initId, on)}
-                onSave={(patch) => saveMile(manage, patch)}
                 onDelete={() => deleteMile(manage)}
+                onSaved={reload}
                 onClose={() => setManage(null)}
               />
             )}
@@ -341,40 +378,5 @@ export default function CommandBoard() {
         );
       }}
     </AsyncSection>
-  );
-}
-
-// Manage a milestone: rename / re-date / retag, then MOVE or TIE it across initiatives via checkboxes
-// (checking several = tied to several — one control for both), or delete it. Admins only.
-function MilestoneManage({ m, initiatives, linkedIds, onToggleLink, onSave, onDelete, onClose }: {
-  m: Milestone; initiatives: Initiative[]; linkedIds: string[];
-  onToggleLink: (initId: string, on: boolean) => void; onSave: (patch: Partial<Milestone>) => void; onDelete: () => void; onClose: () => void;
-}) {
-  const [title, setTitle] = useState(m.title);
-  const [due, setDue] = useState(m.due_on ?? "");
-  const [ws, setWs] = useState(m.workstream ?? "");
-  const linked = new Set(linkedIds);
-  const saveEdits = () => { const patch: Partial<Milestone> = {}; if (title.trim() && title !== m.title) patch.title = title.trim(); if ((due || null) !== m.due_on) patch.due_on = due || null; if ((ws.trim() || null) !== m.workstream) patch.workstream = ws.trim() || null; if (Object.keys(patch).length) onSave(patch); onClose(); };
-  return (
-    <Sheet open onClose={onClose} label="Manage milestone" header={<div className="oa-kicker">Milestone</div>}>
-      <label className="prod-f"><span>Title</span><input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={160} /></label>
-      <div className="prod-grid" style={{ marginTop: 8 }}>
-        <label className="prod-f"><span>Due</span><input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></label>
-        <label className="prod-f"><span>Workstream</span><input value={ws} onChange={(e) => setWs(e.target.value)} placeholder="content · events · delivery…" /></label>
-      </div>
-      <div className="cmd-mng-h">Tied to — check every initiative this belongs to</div>
-      <div className="cmd-mng-inits">
-        {initiatives.map((it) => (
-          <label key={it.id} className="cmd-mng-init">
-            <input type="checkbox" checked={linked.has(it.id)} onChange={(e) => onToggleLink(it.id, e.target.checked)} />
-            <span>{it.emoji ? `${it.emoji} ` : ""}{it.title}</span>
-          </label>
-        ))}
-      </div>
-      <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
-        <button type="button" className="note-arch" onClick={onDelete}>Delete</button>
-        <button type="button" className="note-save" onClick={saveEdits}>Save</button>
-      </div>
-    </Sheet>
   );
 }
