@@ -1,11 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { FLAVORS } from "@/lib/orderAhead";
-import { bottlesFor, gallonsForBottles, brewStartOverdue, sizingOptions, primarySizing, gallonsFromIngredient, ingredientForGallons, stepDownGal, stepUpGal, vesselFit, smallestBatch, pourable, scaleIngredients, vesselPlan, cookQuantity, SERVE_OZ, BREW_STEP_GAL, batchIsOver } from "@/lib/brewMath";
+import { bottlesFor, gallonsForBottles, brewStartOverdue, sizingOptions, primarySizing, gallonsFromIngredient, ingredientForGallons, stepDownGal, stepUpGal, vesselFit, smallestBatch, pourable, scaleIngredients, vesselPlan, cookQuantity, SERVE_OZ, BREW_STEP_GAL, batchIsOver, isCoffee } from "@/lib/brewMath";
 import { localToday } from "@/lib/dates";
+import { coffeeGrams, defaultLot, lotLabel, lotUse, type BrewLot, type LotUse, type LotValue } from "@/lib/brewLots";
+import { MARKET_LABEL, isMarket } from "@/lib/markets";
+import CoffeeLotPick from "@/components/CoffeeLotPick";
 import AssignTaskSheet from "@/components/AssignTaskSheet";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import BrewSteps from "@/components/BrewSteps";
@@ -32,11 +35,17 @@ import { errorMessage } from "@/lib/errorMessage";
 type Recipe = { id: string; name: string; style: string | null; ratio: string | null; target_spec: string | null; base_water_gal: number; extraction_hours: number; yield_factor: number | null; product_slug: string | null; ingredients: ScaledIng[] | null };
 type Vessel = { id: string; name: string; capacity_gal: number; filter_type: string | null; min_gal: number | null };
 type ScaledIng = { name: string; qty: number | string; unit?: string | null };
-type Batch = { id: string; recipe_id: string | null; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; stop_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null; extraction_hours: number | null; brew_started_at: string | null; vessel: string | null; coffee_lot: string | null; brewer: string | null; taste_notes: string | null; created_at?: string | null; needed_by: string | null; latest_start_at: string | null; drop_date: string | null; hold_hours: number | null; scaled: ScaledIng[] | null };
+type Batch = { id: string; recipe_id: string | null; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; stop_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null; extraction_hours: number | null; brew_started_at: string | null; vessel: string | null; coffee_lot: string | null; coffee_lot_id?: string | null; market?: string | null; consumption_logged_at?: string | null; brewer: string | null; taste_notes: string | null; created_at?: string | null; needed_by: string | null; latest_start_at: string | null; drop_date: string | null; hold_hours: number | null; scaled: ScaledIng[] | null };
 type InvItem = { name: string; qty: number | null; unit: string | null };
 type Ev = { id: string; title: string | null; day: string | null; day_label: string | null; expected_attendance: number | null; going_count: number | null };
 type St = { id: string; name: string; starts_at: string | null; status: string | null };
-type BrewBoard = { recipes: Recipe[]; vessels: Vessel[]; batches: Batch[]; events: Ev[]; stops: St[]; inv: InvItem[]; demand: Record<string, Record<string, number>> };
+// The coffee a batch was made from (0349): every city's deliveries on file, the read's own failure
+// (said in the pick, not passed off as "none"), and whether the database keeps a pick as a link yet.
+type LotBoard = { lots: BrewLot[]; lotsErr: string | null; linkable: boolean; use: ReadonlyMap<string, LotUse>; today: string; recipes: Recipe[]; batches: Batch[]; names: ReadonlySet<string> };
+type BrewBoard = { recipes: Recipe[]; vessels: Vessel[]; batches: Batch[]; events: Ev[]; stops: St[]; inv: InvItem[]; demand: Record<string, Record<string, number>>; lots: BrewLot[]; lotsErr: string | null; linkable: boolean };
+const cityOf = (m: string | null | undefined) => (isMarket(m) ? MARKET_LABEL[m] : m || "this city");
+/** What a batch says about its coffee, as the pick starts from it. */
+const lotOf = (b: Batch): LotValue => ({ id: b.coffee_lot_id ?? null, text: b.coffee_lot ?? "" });
 
 const STATUS: { key: string; label: string }[] = [
   { key: "planned", label: "Planned" }, { key: "brewing", label: "Brewing" }, { key: "ready", label: "Ready" },
@@ -119,11 +128,27 @@ export default function BrewPlanner() {
       .select("id, name, capacity_gal, filter_type").is("archived_at", null).order("sort");
   }, []);
 
+  // 0349 adds brew_batches.coffee_lot_id. Until it is pasted the batches are asked for again without
+  // it, and the board knows (linkable: false): the lot pick is still offered and the batch keeps the
+  // lot's name, and nothing promises a link or a draw the database cannot make yet. The same narrow
+  // forgiveness as vesselsRead — that one condition; every other error still throws.
+  const batchesRead = useCallback(async () => {
+    // arrives-with: 0349
+    const full = await supabase!.from("brew_batches")
+      .select("id, recipe_id, recipe_name, batch_gal, brew_date, ready_at, event_id, stop_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at, needed_by, latest_start_at, drop_date, hold_hours, scaled, market, consumption_logged_at, coffee_lot_id")
+      .order("created_at", { ascending: false });
+    if (!full.error || !isMissingColumn(full.error)) return { ...full, linkable: true };
+    const prior = await supabase!.from("brew_batches")
+      .select("id, recipe_id, recipe_name, batch_gal, brew_date, ready_at, event_id, stop_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at, needed_by, latest_start_at, drop_date, hold_hours, scaled, market, consumption_logged_at")
+      .order("created_at", { ascending: false });
+    return { ...prior, linkable: false };
+  }, []);
+
   const loader = useCallback(async (): Promise<BrewBoard> => {
-    if (!supabase) return { recipes: [], vessels: [], batches: [], events: [], stops: [], inv: [], demand: {} };
-    const [r, b, e, v, st, ii] = await Promise.all([
+    if (!supabase) return { recipes: [], vessels: [], batches: [], events: [], stops: [], inv: [], demand: {}, lots: [], lotsErr: null, linkable: false };
+    const [r, b, e, v, st, ii, lt] = await Promise.all([
       supabase.from("brew_recipes").select("id, name, style, ratio, target_spec, base_water_gal, extraction_hours, yield_factor, product_slug, ingredients").is("archived_at", null).order("sort"),
-      supabase.from("brew_batches").select("id, recipe_id, recipe_name, batch_gal, brew_date, ready_at, event_id, stop_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at, needed_by, latest_start_at, drop_date, hold_hours, scaled").order("created_at", { ascending: false }),
+      batchesRead(),
       supabase.from("events").select("id, title, day, day_label, expected_attendance, going_count").is("archived_at", null).order("day"),
       // Migrations here are pasted BY HAND after the push, so every deploy has a window running new
       // code against the previous schema. Without the fallback in vesselsRead, one column that does
@@ -132,9 +157,15 @@ export default function BrewPlanner() {
       vesselsRead(),
       supabase.from("stops").select("id, name, starts_at, status").is("archived_at", null).order("starts_at", { ascending: true, nullsFirst: false }),
       supabase.from("inventory_items").select("name, qty, unit"),
+      // The deliveries a batch can name (0347's lots, with their supplier). Not in the throwing set:
+      // a failed read here is said inside the coffee lot pick, and the rest of the board still loads.
+      supabase.from("inventory_lots").select("id, market, item_name, lot_code, received_on, qty_received, unit, created_at, vendors(name)")
+        .order("received_on", { ascending: false }).limit(500),
     ]);
     const firstErr = [r, b, e, v, st, ii].find((x) => x.error)?.error;
     if (firstErr) throw new Error(firstErr.message);
+    const lots: BrewLot[] = ((lt.data as (Omit<BrewLot, "vendor"> & { vendors: { name: string | null } | null })[] | null) ?? [])
+      .map(({ vendors, ...l }) => ({ ...l, qty_received: Number(l.qty_received), vendor: vendors?.name ?? null }));
     const bb = (b.data as Batch[]) ?? [];
     const inv = ((ii.data as InvItem[]) ?? []).filter((i) => i.name?.trim());
     // Demand for the drops these batches feed — per drop_date + flavor, same math as DropOps.
@@ -148,10 +179,11 @@ export default function BrewPlanner() {
         FLAVORS.forEach((f) => { d[f] += row.mix?.[f] || 0; });
       });
     }
-    return { recipes: (r.data as Recipe[]) ?? [], vessels: (v.data as Vessel[]) ?? [], batches: bb, events: (e.data as Ev[]) ?? [], stops: (st.data as St[]) ?? [], inv, demand };
-    // vesselsRead is itself useCallback([]) and so stable; naming it here keeps the dependency
-    // honest rather than relying on that from a distance.
-  }, [vesselsRead]);
+    return { recipes: (r.data as Recipe[]) ?? [], vessels: (v.data as Vessel[]) ?? [], batches: bb, events: (e.data as Ev[]) ?? [], stops: (st.data as St[]) ?? [], inv, demand,
+      lots, lotsErr: lt.error ? lt.error.message : null, linkable: b.linkable };
+    // vesselsRead and batchesRead are themselves useCallback([]) and so stable; naming them here
+    // keeps the dependency honest rather than relying on that from a distance.
+  }, [vesselsRead, batchesRead]);
   const board = useAsyncData(loader, []);
   const { reload } = board;
 
@@ -162,6 +194,14 @@ export default function BrewPlanner() {
   const stops = board.data?.stops ?? [];
   const inv = board.data?.inv ?? [];
   const demand = board.data?.demand ?? {};
+  // What each lot's brews took, by their recipes (lib/brewLots.lotUse) — for the pick's default and
+  // its line. Keyed on the load, so it is worked out once per board, not once per render.
+  const brd = board.data;
+  const use = useMemo(() => lotUse(brd?.batches ?? [], brd?.recipes ?? []), [brd]);
+  // Every lot's own words, so a batch that kept only a lot's name (saved before 0349 was pasted) is
+  // still printed as a lot on file, not as "lot Org Ethiopia Coffee (bulk), lot SPROUTS-840214".
+  const names = useMemo(() => new Set((brd?.lots ?? []).map(lotLabel)), [brd]);
+  const lotBoard: LotBoard = { lots: brd?.lots ?? [], lotsErr: brd?.lotsErr ?? null, linkable: brd?.linkable ?? false, use, today: localToday(), recipes, batches, names };
 
   // Pick up a jump-in target left by PrepDetail, once recipes are loaded (need one to open the
   // sheet — mirrors the manual "+ Plan a batch" button's own default of recipes[0]).
@@ -191,7 +231,7 @@ export default function BrewPlanner() {
   // one action that satisfies it, and any other failure is shown rather than swallowed.
   const [needsLog, setNeedsLog] = useState<string | null>(null);
   const [logging, setLogging] = useState(false);
-  const [logResult, setLogResult] = useState<{ id: string; drawn: number; gaps: any[] } | null>(null);
+  const [logResult, setLogResult] = useState<{ id: string; drawn: number; gaps: any[]; items: any[] } | null>(null);
   // useAsyncData owns the LOAD error; a mutation that fails needs somewhere of its own to be seen.
   const [mutErr, setMutErr] = useState<string | null>(null);
 
@@ -218,7 +258,7 @@ export default function BrewPlanner() {
     setLogging(false);
     if (error) { setMutErr(error.message); return; }
     const r: any = data ?? {};
-    setLogResult({ id, drawn: Number(r.drawn_count) || 0, gaps: Array.isArray(r.gaps) ? r.gaps : [] });
+    setLogResult({ id, drawn: Number(r.drawn_count) || 0, gaps: Array.isArray(r.gaps) ? r.gaps : [], items: Array.isArray(r.drawn) ? r.drawn : [] });
     setNeedsLog(null);
     reload();
   };
@@ -227,18 +267,23 @@ export default function BrewPlanner() {
   // alarms ring for brewer_id, and the name stays on `brewer` for the production log. Before 0344
   // is pasted the write goes in without brewer_id (lib/schemaSkew), and a write that fails says so
   // instead of starting a countdown nobody's database knows about.
-  const startBrew = async (b: Batch, extras?: { coffee_lot?: string; brewer?: PersonValue }): Promise<boolean> => {
+  //
+  // The coffee lot is a delivery on file now (0349): the sheet's pick is what the batch says — its
+  // link and its words together, or words alone for a bag that never came in through the app, or
+  // nothing. Before 0349 is pasted the link is dropped and the words kept (lib/schemaSkew).
+  const startBrew = async (b: Batch, extras?: { lot?: LotValue; brewer?: PersonValue }): Promise<boolean> => {
     if (!supabase) return false;
     const hrs = Number(b.extraction_hours) || 20;
     const startIso = new Date().toISOString();
     const readyIso = new Date(Date.now() + hrs * 3600000).toISOString();
-    const lot = extras?.coffee_lot?.trim() || b.coffee_lot || null;
+    const lot = extras?.lot ? { coffee_lot: extras.lot.text.trim() || null, coffee_lot_id: extras.lot.id } : {};
     const brewer = extras?.brewer?.name.trim() || b.brewer || null;
     setNow(Date.now());
     // arrives-with: 0344
+    // arrives-with: 0349
     const { error } = await writeAcrossSkew((row) => supabase!.from("brew_batches").update(row).eq("id", b.id),
-      { status: "brewing", brew_started_at: startIso, ready_at: readyIso, coffee_lot: lot, brewer, ...(extras?.brewer ? { brewer_id: extras.brewer.id } : {}), alerted_soon: false, alerted_ready: false, alerted_started: false, alerted_overextract: false, alerted_hold_soon: false, alerted_hold_expired: false } as Record<string, unknown>,
-      ["brewer_id"]);
+      { status: "brewing", brew_started_at: startIso, ready_at: readyIso, ...lot, brewer, ...(extras?.brewer ? { brewer_id: extras.brewer.id } : {}), alerted_soon: false, alerted_ready: false, alerted_started: false, alerted_overextract: false, alerted_hold_soon: false, alerted_hold_expired: false } as Record<string, unknown>,
+      ["brewer_id", "coffee_lot_id"]);
     if (error) { setMutErr(error.message); return false; }
     reload();
     return true;
@@ -330,7 +375,8 @@ export default function BrewPlanner() {
               <button key={b.id} type="button" className={`brew-logrow st-${b.status}`} onClick={() => setLogBatch(b)}>
                 <span className="brew-recipe-main">
                   <b>{b.recipe_name || "Batch"} · {b.batch_gal} gal{b.signal_score != null ? ` · Signal ${b.signal_score}/10` : ""}</b>
-                  <span>{fmtTs(b.brew_started_at || b.ready_at)}{b.vessel ? ` · ${b.vessel}` : ""}{b.coffee_lot ? ` · lot ${b.coffee_lot}` : ""} · {b.status}</span>
+                  {/* A lot on file is named by its own words ("…, lot SPROUTS-840214"); typed words get the "lot" they always had. */}
+                  <span>{fmtTs(b.brew_started_at || b.ready_at)}{b.vessel ? ` · ${b.vessel}` : ""}{b.coffee_lot ? (b.coffee_lot_id || lotBoard.names.has(b.coffee_lot) ? ` · ${b.coffee_lot}` : ` · lot ${b.coffee_lot}`) : ""} · {b.status}</span>
                 </span>
                 <span className="brew-recipe-go">Log ›</span>
               </button>
@@ -392,16 +438,28 @@ export default function BrewPlanner() {
                     </button>
                   </div>
                 )}
-                {logResult?.id === b.id && (
-                  <div className={`brew-oprow${logResult.gaps.length ? " warn" : " ok"}`}>
-                    {logResult.drawn > 0
-                      ? `Drew ${logResult.drawn} ingredient${logResult.drawn === 1 ? "" : "s"} off the shelf.`
-                      : "Nothing could be drawn off the shelf."}
-                    {logResult.gaps.length > 0 && (
-                      <> {logResult.gaps.length} not accounted: {logResult.gaps.map((g: any) => g.ingredient).join(", ")}. Link {logResult.gaps.length === 1 ? "it" : "them"} to a shelf in Inventory so the next batch draws down properly.</>
-                    )}
-                  </div>
-                )}
+                {logResult?.id === b.id && (() => {
+                  // What came off, and what could not — in the database's words for the coffee
+                  // (0349). This used to end "Link them to a shelf in Inventory": nothing in the app
+                  // can link an ingredient to a shelf, so it sent people looking for a screen that
+                  // does not exist. Naming the coffee lot is the one way a line comes off a shelf now.
+                  const cup = logResult.items.find((d: any) => d.lot_id && isCoffee(d.ingredient));
+                  const cupLot = cup ? lotBoard.lots.find((l) => l.id === cup.lot_id) : null;
+                  // Before 0349 the coffee is a gap like any other; after it, the gap says why.
+                  const gap = lotBoard.linkable ? logResult.gaps.find((g: any) => isCoffee(g.ingredient)) : undefined;
+                  const rest = logResult.gaps.filter((g: any) => g !== gap);
+                  const why = !gap ? "" : gap.lot_id ? String(gap.why)
+                    : `${b.coffee_lot ? "the lot on this batch is words, not a delivery on file" : "no lot is named on this batch"} — name the coffee lot when you start a brew and its coffee comes off it`;
+                  return (
+                    <div className={`brew-oprow${logResult.gaps.length ? " warn" : " ok"}`}>
+                      {logResult.drawn > 0
+                        ? `Drew ${logResult.drawn} ingredient${logResult.drawn === 1 ? "" : "s"} off the shelf${cup ? ` — the coffee off ${cupLot ? lotLabel(cupLot) : b.coffee_lot || "the lot it names"}` : ""}.`
+                        : "Nothing could be drawn off the shelf."}
+                      {gap && ` The coffee was not: ${why}.`}
+                      {rest.length > 0 && ` Not accounted: ${rest.map((g: any) => g.ingredient).join(", ")} — nothing links ${rest.length === 1 ? "it" : "them"} to a shelf yet.`}
+                    </div>
+                  );
+                })()}
 
                 {b.status === "planned" && (
                   <>
@@ -484,9 +542,9 @@ export default function BrewPlanner() {
 
       {plan && <BrewSheet recipe={plan} events={events} stops={stops} vessels={vessels} inv={inv} initialTarget={pendingTarget ?? undefined} onClose={() => { setPlan(null); setPendingTarget(null); }} onDone={() => { setPlan(null); setPendingTarget(null); reload(); }} />}
       {pack && <BottleLoadout batch={pack} onClose={() => setPack(null)} />}
-      {logBatch && <BatchLog batch={logBatch} events={events} stops={stops} onClose={() => setLogBatch(null)} onSaved={() => { setLogBatch(null); reload(); }} onRemove={removeBatch} />}
+      {logBatch && <BatchLog batch={logBatch} events={events} stops={stops} lotBoard={lotBoard} onClose={() => setLogBatch(null)} onSaved={() => { setLogBatch(null); reload(); }} onRemove={removeBatch} />}
       {stepsFor && <BrewSteps batch={stepsFor as any} onClose={() => setStepsFor(null)} onChanged={reload} />}
-      {starting && <StartBrewSheet batch={starting} onClose={() => setStarting(null)} onStart={async (extras) => { if (await startBrew(starting, extras)) setStarting(null); }} />}
+      {starting && <StartBrewSheet batch={starting} lotBoard={lotBoard} onClose={() => setStarting(null)} onStart={async (extras) => { if (await startBrew(starting, extras)) setStarting(null); }} />}
       {adjust && <BrewAdjust batch={adjust} onClose={() => setAdjust(null)} onSaveTime={saveBrewTime} onStop={stopBrew} onUndo={undoStart} onRemove={removeBatch} />}
     </div>
       )}
@@ -495,9 +553,16 @@ export default function BrewPlanner() {
 }
 
 // Start-brew sheet — captures the coffee lot + brewer at the moment of brewing (traceability), then
-// kicks off the countdown. Lot is the field a recall would hinge on, so prompt for it up front.
-function StartBrewSheet({ batch, onClose, onStart }: { batch: Batch; onClose: () => void; onStart: (extras: { coffee_lot: string; brewer: PersonValue }) => void | Promise<void> }) {
-  const [lot, setLot] = useState(batch.coffee_lot ?? "");
+// kicks off the countdown. Lot is the field a recall would hinge on, so it comes first — and it is a
+// delivery on file now (0349), opened on the bag this city's last brew named (lib/brewLots.defaultLot).
+function StartBrewSheet({ batch, lotBoard, onClose, onStart }: { batch: Batch; lotBoard: LotBoard; onClose: () => void; onStart: (extras: { lot: LotValue; brewer: PersonValue }) => void | Promise<void> }) {
+  // What the batch already says, else the bag the city's last brew named, else nothing — ask.
+  const [lot, setLot] = useState<LotValue>(() => {
+    if (batch.coffee_lot_id || batch.coffee_lot?.trim()) return lotOf(batch);
+    const id = defaultLot(lotBoard.lots, batch.market, lotBoard.use);
+    const l = id ? lotBoard.lots.find((x) => x.id === id) : null;
+    return l ? { id: l.id, text: lotLabel(l) } : { id: null, text: "" };
+  });
   // You, unless you say otherwise — the person starting the brew is almost always the one brewing.
   const me = usePersonMe();
   const [brewer, setBrewer] = useState<PersonValue>(batch.brewer ? { id: null, name: batch.brewer } : me);
@@ -506,11 +571,13 @@ function StartBrewSheet({ batch, onClose, onStart }: { batch: Batch; onClose: ()
   return (
     <Sheet open onClose={onClose} label="Start brew" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Start brew · {batch.recipe_name}</b><CloseButton onClick={onClose} /></div>}>
           <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""} · {hrs}h cold extraction → ready ~{new Date(Date.now() + hrs * 3600000).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}</div>
-          <label className="prod-f"><span>Coffee lot — origin · roast date (for traceability)</span><input value={lot} onChange={(e) => setLot(e.target.value)} placeholder="e.g. Colombia single-origin · roasted 6/20" autoFocus /></label>
+          <CoffeeLotPick label="Coffee lot — the bag this batch is made from" value={lot} onChange={setLot} lots={lotBoard.lots} failed={lotBoard.lotsErr}
+                         market={batch.market} cityName={cityOf(batch.market)} use={lotBoard.use} needGrams={coffeeGrams(batch, lotBoard.recipes)}
+                         today={lotBoard.today} linkable={lotBoard.linkable} logged={!!batch.consumption_logged_at} />
           <label className="prod-f" style={{ marginTop: 8 }}><span>Brewer — the brew alarms ring for them</span><PersonPick label="Brewer" value={brewer} onChange={setBrewer} /></label>
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
-            <button type="button" className="note-save" onClick={async () => { setBusy(true); await onStart({ coffee_lot: lot, brewer }); setBusy(false); }} disabled={busy}>{busy ? "Starting…" : `▶ Start the ${hrs}h brew`}</button>
+            <button type="button" className="note-save" onClick={async () => { setBusy(true); await onStart({ lot, brewer }); setBusy(false); }} disabled={busy}>{busy ? "Starting…" : `▶ Start the ${hrs}h brew`}</button>
           </div>
     </Sheet>
   );
@@ -554,8 +621,16 @@ function BrewAdjust({ batch, onClose, onSaveTime, onStop, onUndo, onRemove }: { 
   );
 }
 
-function BatchLog({ batch, events, stops, onClose, onSaved, onRemove }: { batch: Batch; events: Ev[]; stops: St[]; onClose: () => void; onSaved: () => void; onRemove: (b: Batch) => Promise<boolean> }) {
+function BatchLog({ batch, events, stops, lotBoard, onClose, onSaved, onRemove }: { batch: Batch; events: Ev[]; stops: St[]; lotBoard: LotBoard; onClose: () => void; onSaved: () => void; onRemove: (b: Batch) => Promise<boolean> }) {
   const [f, setF] = useState<Batch>(batch);
+  // The coffee lot, as the record has it — never filled in after the fact: a guess written into a
+  // permanent record is worse than a blank. The link moves only when the lot is changed here (as the
+  // brewer's id does): a board read before 0349 was pasted never saw the link, and must not clear it.
+  const [lot, setLot] = useState<LotValue>(() => lotOf(batch));
+  const [lotSet, setLotSet] = useState(false);
+  // What the OTHER brews took from each lot — this batch is not counted against itself in its own log.
+  const othersUse = useMemo(() => lotUse(lotBoard.batches.filter((x) => x.id !== batch.id), lotBoard.recipes), [lotBoard.batches, lotBoard.recipes, batch.id]);
+  const pickLot = useCallback((v: LotValue) => { setLot(v); setLotSet(true); }, []);
   // The board does not read brewer_id (it arrives with 0344, and a select naming it would fail the
   // whole board until then), so the log knows the brewer by name: a name that is a crew member's is
   // linked by PersonPick. Once the brewer is CHANGED here the id follows the pick — none, or someone
@@ -575,13 +650,15 @@ function BatchLog({ batch, events, stops, onClose, onSaved, onRemove }: { batch:
     if (!supabase || busy) return;
     setBusy(true); setErr(null);
     // arrives-with: 0344
+    // arrives-with: 0349
     const { error } = await writeAcrossSkew((row) => supabase!.from("brew_batches").update(row).eq("id", batch.id), {
       status: f.status, og: f.og?.trim() || null, signal_score: f.signal_score,
-      coffee_lot: f.coffee_lot?.trim() || null, brewer: brewer.name.trim() || null, taste_notes: f.taste_notes?.trim() || null,
+      coffee_lot: lot.text.trim() || null, brewer: brewer.name.trim() || null, taste_notes: f.taste_notes?.trim() || null,
       ...(brewerSet || brewer.id ? { brewer_id: brewer.id } : {}),
+      ...(lotSet || lot.id ? { coffee_lot_id: lot.id } : {}),
       event_id: targets[0]?.startsWith("e:") ? targets[0].slice(2) : null,  // first selection = primary (back-schedule)
       stop_id: targets[0]?.startsWith("s:") ? targets[0].slice(2) : null,
-    } as Record<string, unknown>, ["brewer_id"]);
+    } as Record<string, unknown>, ["brewer_id", "coffee_lot_id"]);
     if (error) { setErr(error.message); setBusy(false); return; }
     // Re-sync the links to the chosen set (clear + insert).
     await supabase.from("brew_batch_links").delete().eq("batch_id", batch.id);
@@ -607,8 +684,11 @@ function BatchLog({ batch, events, stops, onClose, onSaved, onRemove }: { batch:
               <select value={f.status} onChange={(e) => set("status", e.target.value)}>{STATUS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}</select>
             </label>
             <label className="prod-f"><span>OG / spec</span><input value={f.og ?? ""} onChange={(e) => set("og", e.target.value)} placeholder="e.g. on spec" /></label>
-            <label className="prod-f"><span>Coffee lot (origin · roast date)</span><input value={f.coffee_lot ?? ""} onChange={(e) => set("coffee_lot", e.target.value)} placeholder="e.g. Colombia · roasted 6/20" /></label>
-            <label className="prod-f"><span>Brewer</span><PersonPick label="Brewer" value={brewer} onChange={pickBrewer} allowNone noneLabel="Not recorded" /></label>
+            {/* Full width: a lot's name and the line under it do not fit half a phone. */}
+            <CoffeeLotPick label="Coffee lot" value={lot} onChange={pickLot} lots={lotBoard.lots} failed={lotBoard.lotsErr} allowNone noneLabel="Not recorded"
+                           market={batch.market} cityName={cityOf(batch.market)} use={othersUse} others needGrams={coffeeGrams(batch, lotBoard.recipes)}
+                           today={lotBoard.today} linkable={lotBoard.linkable} logged={!!batch.consumption_logged_at} style={{ gridColumn: "1 / -1" }} />
+            <label className="prod-f" style={{ gridColumn: "1 / -1" }}><span>Brewer</span><PersonPick label="Brewer" value={brewer} onChange={pickBrewer} allowNone noneLabel="Not recorded" /></label>
           </div>
           <div className="brew-score" style={{ marginTop: 10 }}>Signal Score
             {[6, 7, 8, 9, 10].map((n) => <button key={n} type="button" className={`brew-score-b${f.signal_score === n ? " on" : ""}`} onClick={() => set("signal_score", n)}>{n}</button>)}
