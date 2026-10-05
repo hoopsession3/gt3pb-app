@@ -6934,6 +6934,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("events list: the card leads with its date against today, its hours through the one formatter, its venue only when it adds something",
     /const tag = dateLine\(e\.day, today\);/.test(pg) && /const sub = \[evTime\(e\), placeBesideTitle\(e\.title, e\.location_text\)\]\.filter\(Boolean\)\.join\(" · "\);/.test(pg)
     && !/\[e\.start_time, e\.end_time\]\.filter\(Boolean\)\.join\("–"\)/.test(pg));
+  ok("events list: an event with no hours and a venue the title says shows no third line — not 'Tap to set up'",
+    /\{sub && <span className="ev-sub">\{sub\}<\/span>\}/.test(pg) && !/<span className="ev-sub">\{sub \|\| "Tap to set up"\}<\/span>/.test(pg.slice(pg.indexOf("function EventCard"), pg.indexOf("function EventsAdmin"))));
   ok("events list: three piles in reading order, on the business day — Needs sorting's",
     /const today = etToday\(\);/.test(pg) && /const piles = eventPiles\(active, today\);/.test(pg)
     && /const EVENT_PILES = \[\["next", "Coming up"\], \["unwrapped", "Past · not wrapped"\], \["done", "Done"\]\] as const;/.test(pg)
