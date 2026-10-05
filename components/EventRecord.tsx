@@ -15,6 +15,8 @@ import {
   gapFix, gapWaysOut, money, owedLine, placeLine, prepHandoffKey, prepHandoffValue,
   sortGaps, stageLabel, whenLabel, type WayOut,
 } from "@/lib/eventRecord";
+import { evDate, evTime } from "@/lib/dates";
+import { MARKET_LABEL, isMarket } from "@/lib/markets";
 
 // ONE EVENT, WHOLE (0314).
 //
@@ -59,11 +61,11 @@ type Rec = {
 type Gap = { gap: string; detail: string; severity: string };
 type Data = { ev: Rec | null; gaps: Gap[] };
 
-const dayLine = (e: Rec) => {
-  const d = e.day ? new Date(`${e.day}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : null;
-  const hours = [e.start_time, e.end_time].filter(Boolean).join("–");
-  return [d, hours || null, Number(e.plan_days ?? 1) > 1 ? `${e.plan_days} days` : null].filter(Boolean).join(" · ");
-};
+// The date and hours through lib/dates' one formatter (2026-10-05): the hours went out exactly as
+// stored — "18:00–21:00" for anything entered since the editor took type="time", "6:00PM" before —
+// on the sheet that the Events list and the calendar, both on fmt12, open into.
+const dayLine = (e: Rec) =>
+  [evDate(e), evTime(e) || null, Number(e.plan_days ?? 1) > 1 ? `${e.plan_days} days` : null].filter(Boolean).join(" · ");
 
 export default function EventRecord({ eventId, onClose }: { eventId: string; onClose: () => void }) {
   const { toast } = useApp();
@@ -235,7 +237,8 @@ export default function EventRecord({ eventId, onClose }: { eventId: string; onC
               <div className="cp-block">
                 <div className="cp-block-h">
                   <span>Where</span>
-                  <b>{e.market || e.rig || "—"}</b>
+                  {/* The city by its name ("Greenville"), not its key — lib/markets says it once. */}
+                  <b>{isMarket(e.market) ? MARKET_LABEL[e.market] : e.market || e.rig || "—"}</b>
                 </div>
                 <p className="cp-line">{place || <span className="dim">No location on this event.</span>}</p>
                 {e.vendor_name && <p className="cp-line">Host: <b>{e.vendor_name}</b></p>}

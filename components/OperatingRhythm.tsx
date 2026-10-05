@@ -12,6 +12,8 @@ import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { useOperatorSection } from "@/components/OperatorNav";
 import { scrollToAnchor } from "@/lib/anchors";
+import { localToday } from "@/lib/dates";
+import { agoWord, daysBetween } from "@/lib/dayWords";
 
 // OPERATING RHYTHM (2026-08-02 exec-rhythm P1–P3) — the review step of plan → execute → REVIEW →
 // adjust, installed as a surface. Two rituals, one ledger:
@@ -26,6 +28,13 @@ type Latest = { id: string; title: string; met_on: string } | null;
 type Pulse = { review: Latest; strategy: Latest; atRisk: number; quiet: number };
 
 const nice = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+// "Aug 2 · 9 weeks ago" (2026-10-05). The review card said "Latest: Aug 2" on Oct 5 — a weekly
+// ritual nine weeks stopped, said as a date, reads as one that just happened. Both cards say it the
+// same way now, from the meeting's own date: the review's used to be cut out of its title.
+const latestLine = (l: NonNullable<Latest>) => {
+  const ago = agoWord(daysBetween(l.met_on.slice(0, 10), localToday()));
+  return `Latest: ${nice(l.met_on)}${ago ? ` · ${ago}` : ""} — open in Notes`;
+};
 
 export default function OperatingRhythm({ isAdmin, onOpenNotes }: { isAdmin: boolean; onOpenNotes: () => void }) {
   const { setSection } = useOperatorSection();
@@ -97,13 +106,13 @@ export default function OperatingRhythm({ isAdmin, onOpenNotes }: { isAdmin: boo
         <div className="rhythm-card">
           <div className="rhythm-k">Weekly Operating Review</div>
           <p className="rhythm-sub">The week that was — revenue, goals moved or stalled, events run, incidents, decisions — plus the week ahead. Retro: keep · change · start.</p>
-          {p?.review && <button type="button" className="rhythm-last" onClick={onOpenNotes}>Latest: {p.review.title.replace("Weekly Operating Review · ", "")} — open in Notes <Icon name="arrowRight" /></button>}
+          {p?.review && <button type="button" className="rhythm-last" onClick={onOpenNotes}>{latestLine(p.review)} <Icon name="arrowRight" /></button>}
           {isAdmin && <button type="button" className="rhythm-go" onClick={() => assemble("review")} disabled={busy !== null}>{busy === "review" ? "Assembling…" : <><Icon name="sparkles" /> Assemble this week&rsquo;s review</>}</button>}
         </div>
         <div className="rhythm-card">
           <div className="rhythm-k">Strategy Session</div>
           <p className="rhythm-sub">The agenda nobody has to remember: open threads, goals needing a call, plays on the table, program hygiene, aging blockers. Close every call with ⚖ Log a decision.</p>
-          {p?.strategy && <button type="button" className="rhythm-last" onClick={onOpenNotes}>Latest: {nice(p.strategy.met_on)} — open in Notes <Icon name="arrowRight" /></button>}
+          {p?.strategy && <button type="button" className="rhythm-last" onClick={onOpenNotes}>{latestLine(p.strategy)} <Icon name="arrowRight" /></button>}
           {isAdmin && <button type="button" className="rhythm-go" onClick={() => assemble("session")} disabled={busy !== null}>{busy === "session" ? "Assembling…" : <><Icon name="sparkles" /> Start a strategy session</>}</button>}
           {isAdmin && <button type="button" className="rhythm-last" onClick={() => setExtractOpen(true)}>⇣ Had the session already? Paste the transcript — extract &amp; file</button>}
         </div>

@@ -16,7 +16,7 @@ import { useWorkStreams } from "@/lib/streams";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useRecord } from "./RecordSheet";
 import { useConfirm } from "./ConfirmSheet";
-import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
+import { prepHandoffKey, prepHandoffValue, stageLabel, placeBesideTitle } from "@/lib/eventRecord";
 import { useOperatorSection } from "./OperatorNav";
 import { clickable } from "@/lib/a11y";
 import { isBlank } from "@/lib/formGuard";
@@ -279,7 +279,8 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
       const span = Math.max(1, e.plan_days ?? 1);
       for (let di = 0; di < span; di++) {
         const base = e.title || e.day_label || "Event";
-        const stageMeta = e.is_live ? "Live" : (e.stage ? e.stage[0].toUpperCase() + e.stage.slice(1) : "");
+        // The stage in lib/eventRecord's words — the ones the record sheet and Needs sorting use ("In prep").
+        const stageMeta = e.is_live ? stageLabel("live") : (e.stage ? stageLabel(e.stage) : "");
         // Publish marker (0270): a real event category that isn't published reads "hidden" so a glance
         // at the month shows exactly what guests can't see. Ops/admin categories aren't guest-facing
         // at all, so they carry no marker.
@@ -288,7 +289,8 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
         // an agenda is actually after. Times go through fmt12 so an event's "6:00PM" and a stop's
         // "6:00pm" on the row beneath it cannot read differently; that has drifted three times.
         const evWhen = [fmt12(e.start_time), fmt12(e.end_time)].filter(Boolean).join("\u2013");
-        const meta = [evWhen, e.location_text?.trim(), stageMeta, guestFacing && !e.published_at ? "hidden" : ""]
+        // The venue only when the title does not already say it (lib/eventRecord.placeBesideTitle).
+        const meta = [evWhen, placeBesideTitle(e.title, e.location_text), stageMeta, guestFacing && !e.published_at ? "hidden" : ""]
           .filter(Boolean).join(" · ");
         push(addDaysKey(e.day, di), { id: e.id, title: span > 1 ? `${base} · D${di + 1}` : base, cat, kind: "event", meta, at: sortTime(e.start_time), go: () => openEventPrep(e.id) });
       }
@@ -641,8 +643,10 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
         </div>
       )}
 
+      {/* Owner only, and only once there is something to press (OutlookBar says when). A manager's
+          line here — "Outlook two-way sync is managed by the owner." — went with the owner's
+          not-configured card (2026-10-05): both described a sync that does not exist yet. */}
       {isOwner && <OutlookBar onSynced={reload} />}
-      {!isOwner && !readOnly && <div className="insp-foot" style={{ marginTop: 12 }}><Icon name="calendar" /> Outlook two-way sync is managed by the owner.</div>}
 
       {edit && (edit.kind === "event" || edit.kind === "stop"
         ? <FieldOpSheet kind={edit.kind} id={edit.id} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }}
@@ -1050,19 +1054,19 @@ function OutlookBar({ onSynced }: { onSynced: () => void }) {
     setBusy(null); setMsg("Outlook disconnected."); refresh();
   };
 
-  if (!st) return null;
-  // Not configured = nothing here an operator can act on, so it is a quiet line under the calendar
-  // rather than a card with a badge standing between the calendar and the rest of the screen
-  // (2026-10-01, one box per level). Same words; the card comes back when there is a button.
+  // NOT CONFIGURED SHOWS NOTHING HERE (2026-10-05). It was a card, then (2026-10-01) a quiet line
+  // with a NOT CONFIGURED badge, under every calendar the owner opened — and Ryan's screenshot of
+  // the agenda still ended on it: a status he cannot change, about a developer's task, between the
+  // calendar and the rest of the screen. Settings › Advanced › Integrations is that status's one home
+  // and still says it ("needs the one-time Microsoft app setup"). The bar comes back the moment it has a
+  // button: Connect, once the server is set up; Sync now, once connected.
+  if (!st || !st.configured) return null;
   return (
-    <div className={`ol-bar${st.configured ? "" : " quiet"}`}>
+    <div className="ol-bar">
       <div className="ol-top"><span className="ol-i"><Icon name="calendar" /></span><b>Outlook sync</b>
-        {st.connected ? <span className="ol-state on">Connected</span> : st.configured ? <span className="ol-state">Not connected</span> : <span className="ol-state off">Not configured</span>}
+        {st.connected ? <span className="ol-state on">Connected</span> : <span className="ol-state">Not connected</span>}
       </div>
-      {/* Owner language, not env vars (2026-08-01 audit): MS_CLIENT_ID/Azure jargon leaked onto an
-          owner surface. Say what it means and whose job it is. */}
-      {!st.configured && <div className="ol-note">Two-way Outlook sync needs a one-time Microsoft app setup on the server — a developer task. Once it&rsquo;s configured, a Connect button appears here.</div>}
-      {st.configured && !st.connected && <button type="button" className="ol-btn primary" onClick={connect} disabled={busy === "connect"}>{busy === "connect" ? "Opening Microsoft…" : "Connect Outlook"}</button>}
+      {!st.connected &&<button type="button" className="ol-btn primary" onClick={connect} disabled={busy === "connect"}>{busy === "connect" ? "Opening Microsoft…" : "Connect Outlook"}</button>}
       {st.connected && (
         <>
           <div className="ol-note">{st.account || "Connected"}{st.last_sync ? ` · last sync ${new Date(st.last_sync).toLocaleString()}` : ""}{st.last_note ? ` · ${st.last_note}` : ""}</div>

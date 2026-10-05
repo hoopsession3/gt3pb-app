@@ -126,10 +126,13 @@ export default function ScheduleGaps() {
                         // on the ROW rather than the rule, and the row carries both names.
                         const said = r.kind === "stop" && r.gap === "name_drift"
                           ? nameDriftAdvice(r.subject, r.canonical_name) : null;
+                        // What is wrong, then what to do about it — the second in the brighter ink,
+                        // and neither cut short (2026-10-05: a two-line clamp cut the advice off
+                        // every row on a phone, "Wrap it if…", because the diagnosis filled both).
                         return (
                           <i key={r.gap}>
                             {g.rows.length > 1 && <span className="sg-b" aria-hidden="true">· </span>}
-                            {said?.detail ?? r.detail} {said?.fix ?? v.fix(r.gap)}
+                            {said?.detail ?? r.detail} <span className="sg-fix">{said?.fix ?? v.fix(r.gap)}</span>
                           </i>
                         );
                       })}
