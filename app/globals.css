@@ -948,6 +948,12 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .vlink-row b{font-weight:650}
 .vlink-row a{color:var(--gold2);text-decoration:none;font-weight:600}
 .vlink-note{font-family:'Inter';font-size:10.5px;color:var(--cream-m);margin-top:2px}
+/* A venue's liaison and phone sit under the venue pick on the event card and on Route's stop card: on
+   paper the charcoal well read as a grey slab — the same ink wash the cost breakdown uses instead. */
+.app.crew-day .vlink{background:var(--ink-onLight-04)}
+/* The venue pick's place while it loads (components/VenuePickLazy): a label and a select, so the fields
+   under it do not jump when it arrives. */
+.venue-loading{min-height:72px}
 /* vendor binding + approval (0191) */
 .vpend{margin-top:7px;background:rgba(207,154,74,.12);border:1px solid rgba(207,154,74,.4);border-radius:var(--r-lg);padding:8px 11px;font-family:'Inter';font-size:12px;color:var(--warn);line-height:1.4}
 .vnew-btn{margin-top:8px;width:100%;background:none;border:1px dashed var(--line2);border-radius:var(--r-lg);padding:9px 12px;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
@@ -985,7 +991,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ec-typ{display:flex;gap:8px;margin-bottom:10px}
 .ec-typ-b{flex:1;background:var(--card);border:1px solid var(--line2);border-radius:11px;padding:9px 12px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:border-color .15s ease,background-color .15s ease}
 .ec-typ-b.on{border-color:var(--gold2);background:color-mix(in srgb, var(--brand-gold2) 10%, transparent);color:var(--cream)}
-.ec-note{margin:9px 0 0;font-family:'Inter';font-size:11.5px;color:var(--cream-d);line-height:1.4}
 /* guided-create CTA at the top of the section guide */
 .guide-create{display:flex;align-items:center;gap:12px;width:100%;text-align:left;margin-bottom:12px;background:linear-gradient(135deg,color-mix(in srgb, var(--brand-gold2) 14%, transparent),color-mix(in srgb, var(--brand-red) 8%, transparent));border:1px solid var(--gold2);border-radius:13px;padding:13px 15px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:transform .11s var(--ease)}
 .guide-create:active{transform:scale(.99)}
@@ -2646,7 +2651,7 @@ h5.pr-h{font-size:12.5px;color:var(--cream-d)}
 .qd-sheet{width:100%;max-width:560px;max-height:min(88vh,calc(100dvh - var(--kb,0px) - 32px));display:flex;flex-direction:column;background:var(--bg,#161310);border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.6);animation:qdup .18s ease;overflow:hidden}
 @keyframes qdup{from{transform:translateY(10px) scale(.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
 .qd-tabs{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
-.qd-tab{background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:var(--r-pill);padding:8px 14px;min-height:44px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}  /* 44: measured 34px when the purchase sheet's fixture first painted this row (2026-10-04) — the dock is a thumb control */
+.qd-tab{background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:var(--r-pill);padding:8px 14px;min-height:44px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;white-space:nowrap;cursor:pointer;-webkit-appearance:none;appearance:none}  /* 44: measured 34px when the purchase sheet's fixture first painted this row (2026-10-04) — the dock is a thumb control */
 .qd-tab.on{background:color-mix(in srgb, var(--brand-gold) 18%, transparent);border-color:var(--gold2);color:var(--gold2)}
 .qd-x{margin-left:auto;background:none;border:none;color:var(--cream-m);font-size:18px;cursor:pointer;padding:4px 8px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}  /* 44×44: the close on every sheet measured 30px (2026-10-03) */
 .qd-body{flex:1 1 auto;min-height:0;padding:14px 14px calc(18px + env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
@@ -5458,6 +5463,9 @@ button.mkpi-tile:active{transform:scale(.98)}
 .lp-date{max-width:220px}
 .lp-ask{margin:0;font-family:'Inter';font-size:13px;line-height:1.45;color:var(--warn)}
 .lp-note{margin:0;font-family:'Inter';font-size:12.5px;line-height:1.45;color:var(--cream-m)}
+/* The venue pick (components/VenuePick) inside the event card's field, whose label is set in capitals:
+   the lines under the pick are sentences, and read as them. */
+.ev-fld .lp-note,.ev-fld .lp-ask,.ev-fld .vlink,.ev-fld .vnew-row{text-transform:none;letter-spacing:normal;font-weight:400}
 .lp-recv{display:flex;align-items:center;gap:10px}
 .lp-qty{max-width:140px;font-variant-numeric:tabular-nums}
 .lp-unit{font-family:'Inter';font-size:14px;color:var(--cream-m)}

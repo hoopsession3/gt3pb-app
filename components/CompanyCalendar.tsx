@@ -10,7 +10,7 @@ import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import { CAL_CAT as CAT } from "@/lib/calendarTokens";
 import { brewStartOverdue, BATCH_OVER_IN } from "@/lib/brewMath";
-import { etToday, fmt12, timeRange, sortTime, byClock } from "@/lib/dates";
+import { etToday, fmt12, timeRange, sortTime, byClock, dayWithDate } from "@/lib/dates";
 import { goPlanTab, type PlanTab } from "@/lib/planNav";
 import { useWorkStreams } from "@/lib/streams";
 import { useAuth, roleOf } from "@/components/AuthProvider";
@@ -20,8 +20,8 @@ import { prepHandoffKey, prepHandoffValue, stageLabel, placeBesideTitle } from "
 import { useOperatorSection } from "./OperatorNav";
 import { clickable } from "@/lib/a11y";
 import { isBlank } from "@/lib/formGuard";
-import { resolveVendor, type ResolveDecision, type VendorMatch } from "@/lib/vendorLink";
-import VendorResolve from "./VendorResolve";
+import VenuePick from "./VenuePickLazy";
+import type { VenueFill } from "@/lib/venues";
 import { localDayBoundsISO } from "@/lib/calendarMath";
 import { createTodo, updateTask, deleteTask } from "@/lib/tasks";
 import FieldOpSheet from "./FieldOpSheet";
@@ -1084,36 +1084,59 @@ function OutlookBar({ onSynced }: { onSynced: () => void }) {
 function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[]; onClose: () => void; onDone: () => void; setSection: (s: any) => void }) {
   const [kind, setKind] = useState<"todo" | "event" | "stop">("todo");
   const [title, setTitle] = useState(""); const [cat, setCat] = useState("ops"); const [eventId, setEventId] = useState(""); const [where, setWhere] = useState("");
-  const [resolve, setResolve] = useState<{ name: string; candidates: VendorMatch[] } | null>(null);
-  const save = async (decision?: ResolveDecision | "skip") => {
-    if (!supabase || !title.trim()) return;
+  // THE PLACE IS PICKED (2026-10-05, the form audit, part 4 — components/VenuePick). A stop's
+  // "Where" was matched against the vendor book on Add: the same name linked, a look-alike asked, and
+  // anything else went into the book as a pending vendor — words became a vendor because Add was
+  // pressed. An event here had no place at all. Both pick the venue now, and the stop takes the
+  // venue's address and pin with it; a place not in the book is added from the pick, by name.
+  const [venueId, setVenueId] = useState<string | null>(null);
+  const [address, setAddress] = useState("");
+  const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const onVenue = (fill: VenueFill) => {
+    setVenueId(fill.text.vendor_id);
+    if (fill.text.name !== undefined) setTitle(fill.text.name);
+    if (fill.text.location_text !== undefined) setWhere(fill.text.location_text);
+    if (fill.text.address !== undefined) setAddress(fill.text.address);
+    if (fill.pin !== undefined) setPin(fill.pin);
+  };
+  const save = async () => {
+    if (!supabase || !title.trim() || busy) return;
+    setBusy(true); setErr(null);
     const { data: { user } } = await supabase.auth.getUser();
-    if (kind === "todo") await createTodo({ title: title.trim(), category: cat, dueOn: day, eventId: eventId || null, createdBy: user?.id ?? null });   // ONE write path (lib/tasks)
+    let error: string | null = null;
+    if (kind === "todo") error = (await createTodo({ title: title.trim(), category: cat, dueOn: day, eventId: eventId || null, createdBy: user?.id ?? null })).error ?? null;   // ONE write path (lib/tasks)
     // local wall-clock 11am — a fixed -04:00 offset lands at 10am all winter
     else if (kind === "stop") {
-      // A truck stop is always bound to the vendor book — through the ONE resolver (0226): the
-      // venue links exact, PAUSES on a look-alike (confirm sheet), or is created pending owner
-      // approval. Resolve FIRST so a canceled choice never leaves an orphan stop behind.
-      const venue = where.trim() || title.trim();
-      let vid: string | null = null;
-      if (venue && decision !== "skip") {
-        const r = await resolveVendor(venue, { source: "the calendar quick-add", decision });
-        if (r.kind === "similar") { setResolve({ name: venue, candidates: r.candidates }); return; }
-        if (r.kind !== "error") vid = r.id;
-      }
-      await supabase.from("stops").insert({ name: title.trim(), location_text: where.trim() || null, starts_at: new Date(`${day}T11:00:00`).toISOString(), status: "upcoming", sort: 0, vendor_id: vid });
+      const r = await supabase.from("stops").insert({ name: title.trim(), location_text: where.trim() || null, address: address.trim() || null, lat: pin?.lat ?? null, lng: pin?.lng ?? null,
+        starts_at: new Date(`${day}T11:00:00`).toISOString(), status: "upcoming", sort: 0, vendor_id: venueId });
+      error = r.error?.message ?? null;
     }
-    else await supabase.from("events").insert({ title: title.trim(), day, category: cat === "content" ? "event" : cat });
+    else {
+      const r = await supabase.from("events").insert({ title: title.trim(), day, category: cat === "content" ? "event" : cat, location_text: where.trim() || null, vendor_id: venueId });
+      error = r.error?.message ?? null;
+    }
+    setBusy(false);
+    // A refused add stays open with what was typed, and says why — it used to close as if it had worked.
+    if (error) { setErr(`Couldn't add it — ${error}`); return; }
     onDone();
   };
   return (
-    <Sheet open onClose={onClose} label="Add to the calendar" header={<div style={{ display: "flex", alignItems: "center" }}><button type="button" className={`qd-tab${kind === "todo" ? " on" : ""}`} onClick={() => setKind("todo")}>To-do</button><button type="button" className={`qd-tab${kind === "stop" ? " on" : ""}`} onClick={() => setKind("stop")}><Icon name="truck" /> Truck stop</button><button type="button" className={`qd-tab${kind === "event" ? " on" : ""}`} onClick={() => setKind("event")}>Event</button><span style={{ marginLeft: "auto", fontFamily: "Inter", fontSize: 13, color: "var(--cream-m)" }}>{day}</span><CloseButton onClick={onClose} /></div>}>
-          <input className="note-in" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === "todo" ? "What needs doing?" : kind === "stop" ? "Stop name — e.g. Saturday Market" : "Event name"} autoFocus />
-          {kind === "stop" ? (
+    // The day said in words under the kinds, not as "2026-09-27" squeezed beside them: at phone width
+    // the three tabs broke over two lines each ("To-" / "do") to make room for it.
+    <Sheet open onClose={onClose} label="Add to the calendar" header={<div style={{ display: "flex", alignItems: "center", gap: 6 }}><button type="button" className={`qd-tab${kind === "todo" ? " on" : ""}`} onClick={() => setKind("todo")}>To-do</button><button type="button" className={`qd-tab${kind === "stop" ? " on" : ""}`} onClick={() => setKind("stop")}><Icon name="truck" /> Truck stop</button><button type="button" className={`qd-tab${kind === "event" ? " on" : ""}`} onClick={() => setKind("event")}>Event</button><span style={{ marginLeft: "auto" }} /><CloseButton onClick={onClose} /></div>}>
+          <div className="dp-hint" style={{ marginTop: 0, marginBottom: 8 }}>{`For ${dayWithDate(day) || day}`}</div>
+          <input className="note-in" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === "todo" ? "What needs doing?" : kind === "stop" ? "Stop name — e.g. Saturday Market" : "Event name"} aria-label={kind === "todo" ? "What needs doing" : kind === "stop" ? "Stop name" : "Event name"} autoFocus />
+          {kind !== "todo" && (
             <>
-              <label className="prod-f" style={{ marginTop: 10 }}><span>Where (address or place)</span><input value={where} onChange={(e) => setWhere(e.target.value)} placeholder="123 Main St, City — or a place name" /></label>
-              <div className="dp-hint" style={{ marginTop: 8 }}>Lands on this day&apos;s route at 11am (edit the time later). Add the address in the stop&apos;s editor to pin it on the map.</div>
+              <VenuePick kind={kind} source="the calendar quick-add" onChange={onVenue} style={{ marginTop: 10 }}
+                rec={{ vendor_id: venueId, name: title, location_text: where, address, lat: pin?.lat ?? null, lng: pin?.lng ?? null }} />
+              <label className="prod-f" style={{ marginTop: 10 }}><span>Where</span><input value={where} onChange={(e) => setWhere(e.target.value)} placeholder="A place name — or an address" /></label>
             </>
+          )}
+          {kind === "stop" ? (
+            <div className="dp-hint" style={{ marginTop: 8 }}>Lands on this day&apos;s route at 11am (edit the time later).{venueId ? "" : " Add the address in the stop's editor to pin it on the map."}</div>
           ) : (
             <div className="prod-grid" style={{ marginTop: 10 }}>
               <label className="prod-f"><span>Category</span>
@@ -1128,18 +1151,11 @@ function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[];
               )}
             </div>
           )}
+          {err && <p className="lp-ask" role="alert" style={{ marginTop: 10 }}>{err}</p>}
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
-            <button type="button" className="note-save" onClick={() => save()} disabled={!title.trim()}>Add</button>
+            <button type="button" className="note-save" onClick={() => save()} disabled={!title.trim() || busy}>{busy ? "Adding…" : "Add"}</button>
           </div>
-      {resolve && (
-        <VendorResolve name={resolve.name} candidates={resolve.candidates}
-          onUse={(c) => { setResolve(null); save({ linkTo: c.id }); }}
-          onCreateDistinct={() => { setResolve(null); save({ createDistinct: true }); }}
-          onSkip={() => { setResolve(null); save("skip"); }}
-          onClose={() => setResolve(null)}
-        />
-      )}
     </Sheet>
   );
 }

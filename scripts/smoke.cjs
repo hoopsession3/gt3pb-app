@@ -6113,19 +6113,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /assetTag:\s*a\.assetTag/.test(toDraft) && /serialNo:\s*a\.serialNo/.test(toDraft) && !/assetTag:\s*""/.test(toDraft));
 
   // ── a stop and its venue ──
-  const bare = SR.stopPatchFromVendor({ id: "v1", name: "Wine Express", address: null, location_text: "", lat: null, lng: null });
-  ok("venue link: a venue with no address or pin leaves the stop's own alone",
-    JSON.stringify(bare) === JSON.stringify({ vendor_id: "v1", name: "Wine Express" }), bare);
-  const full = SR.stopPatchFromVendor({ id: "v1", name: "Wine Express", address: " 1 Main St ", location_text: "Five Forks", lat: 34.8, lng: -82.3 });
-  ok("venue link: a venue with a place gives the stop all of it",
-    full.address === "1 Main St" && full.location_text === "Five Forks" && full.lat === 34.8 && full.lng === -82.3);
-  const half = SR.stopPatchFromVendor({ id: "v1", name: "W", address: "1 Main St", lat: 34.8, lng: null });
-  ok("venue link: a pin is copied whole or not at all", !("lat" in half) && !("lng" in half));
-  const live = code(read("components/crew/LiveControl.tsx"));
-  const linkFn = live.slice(live.indexOf("const linkVendor"), live.indexOf("useEffect(() => { load(); }, [load]);"));
-  ok("venue link: Route's link asks stopPatchFromVendor and reads the write's answer",
-    /stopPatchFromVendor\(v\)/.test(linkFn) && /const \{ error \} = await supabase!\.from\("stops"\)\.update/.test(linkFn) && /if \(error\) \{ toast\(/.test(linkFn) && !/p\.address = v\.address/.test(linkFn));
-  ok("venue link: FieldOpSheet's auto-link asks the same rule", /stopPatchFromVendor\(v\)/.test(code(read("components/FieldOpSheet.tsx"))));
+  // What linking a stop to a venue writes is lib/venues.venueFill since the venue pick (2026-10-05,
+  // part 4) — its cases, the ones stopPatchFromVendor held here included, are in that block below.
+  ok("venue link: lib/stopRecord's stopPatchFromVendor is gone — one rule for what a venue pick fills",
+    !/stopPatchFromVendor/.test(code(read("lib/stopRecord.ts"))) && !/stopPatchFromVendor/.test(code(read("components/crew/LiveControl.tsx")) + code(read("components/FieldOpSheet.tsx"))));
 
   const OLD = { name: "Wine Express", address: "1 Main St, Greenville, SC", location_text: "1 Main St, Greenville, SC" };
   ok("venue move: a visit at the old address moves (case and spacing aside)", SR.wasAtVendorsPlace(OLD, { address: "1 main st,  Greenville, SC" }));
@@ -7276,6 +7267,229 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /select public\.record_migration\('0350_a_milestone_names_its_workstream'/.test(m350));
   ok("0350: compiled for the smoke run, and its database half runs in db:test",
     /lib\/portfolio\.ts lib\/milestonePick\.ts/.test(read("package.json")) && /node scripts\/db\.milestone\.test\.mjs/.test(read("package.json")));
+}
+
+// ── THE VENUE A STOP OR AN EVENT IS AT (2026-10-05, the form audit, part 4) ──────────────────────
+// A stop's or an event's place was asked for six ways: FieldOpSheet matched the stop's NAME against
+// the vendor book on save and minted a pending vendor from anything it did not know; the prep hub's
+// editor had no link at all; the event card had a vendor <select> above a "Location / venue" box and
+// ignored the database's answer when it linked; Route had the select again, with a "Which location?"
+// list that wrote nulls over a stop's address and pin; the calendar's quick-add and the copilot turned
+// typed words into vendors on save. lib/venues is the one rule — what the pick lists, where it starts,
+// what a pick fills, the line under it — and components/VenuePick the one control.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const VN = require("../.smoke/venues.js");
+  const PF = require("../.smoke/pickFill.js");
+  const J = (x) => JSON.stringify(x);
+
+  // ── a book to work with ──
+  const V = (id, name, extra = {}) => ({ id, name, status: "approved", kind: "venue", market: "greenville", address: null, location_text: null, lat: null, lng: null, archived_at: null, ...extra });
+  const book = [
+    V("wx", "WineXpress", { address: "1 Main St, Greenville, SC", location_text: "Five Forks Plaza", lat: 34.8, lng: -82.3, poc_name: "Ana" }),
+    V("sy", "Soul Yoga", { status: "pending", address: "12 Oak Ave, Greenville, SC" }),
+    V("sp", "Sprouts Farmers Market", { kind: "supplier" }),
+    V("rw", "Restore Wellness", { kind: "both", market: "atlanta", location_text: "Restore — Midtown" }),
+    V("old", "Old Venue", { archived_at: "2026-09-01T00:00:00Z" }),
+    V("nk", "Nameless Kind", { kind: null }),
+    V("ss", "Sassafras Flower Farm"),
+  ];
+  const sites = [
+    // 0226's backfill: WineXpress's own address copied in as its primary "Main" — and a second place.
+    { id: "m1", vendor_id: "wx", label: "Main", address: "1 Main St, Greenville, SC", location_text: "Five Forks Plaza", lat: 34.8, lng: -82.3, is_primary: true, sort: 0, archived_at: null },
+    { id: "dt", vendor_id: "wx", label: "Downtown", address: "9 River St, Greenville, SC", location_text: null, lat: 34.85, lng: -82.4, is_primary: false, sort: 1, archived_at: null },
+    { id: "x1", vendor_id: "sy", label: "Annex", address: "3 Elm St", lat: null, lng: null, is_primary: false, sort: 0, archived_at: "2026-09-02T00:00:00Z" },
+  ];
+  const ch = VN.venueChoices(book, sites);
+  const by = (v) => ch.find((c) => c.value === v);
+
+  // ── what the pick lists ──
+  ok("venues: the book's venues, by name — no supplier, nothing archived; 'both' and a row with no kind are venues",
+    J(ch.map((c) => c.label)) === J(["Nameless Kind", "Restore Wellness", "Sassafras Flower Farm", "Soul Yoga", "WineXpress — Downtown", "WineXpress — Main"]), ch.map((c) => c.label));
+  ok("venues: a venue with two places is listed once per place; its own address, repeated by 0226's Main, is not a third",
+    ch.filter((c) => c.vendorId === "wx").length === 2 && by("s:m1")?.primary === true && by("s:dt")?.primary === false && !by("v:wx"));
+  ok("venues: a place's own words, else its label; an event's line names the venue with the place",
+    by("s:dt").place.location_text === "Downtown" && by("s:dt").line === "WineXpress — Downtown" && by("s:m1").line === "Five Forks Plaza"
+    && by("s:dt").place.address === "9 River St, Greenville, SC" && by("s:dt").place.lat === 34.85);
+  ok("venues: one place is the venue itself — an archived place does not count, a pending venue says so",
+    by("v:sy")?.label === "Soul Yoga" && by("v:sy").pending === true && by("v:sy").place.address === "12 Oak Ave, Greenville, SC" && by("v:ss").line === "Sassafras Flower Farm");
+  ok("venues: a record filed to a supplier still shows its venue (kept); an archived one is never listed",
+    VN.venueChoices(book, sites, ["sp"]).some((c) => c.vendorId === "sp") && !VN.venueChoices(book, sites, ["old"]).some((c) => c.vendorId === "old"));
+  const twoBook = [V("ge", "Greenville Eats", { address: "5 A St" }), V("hq", "Hill Quarter"), V("hp", "Half Pin", { address: "6 D St", lat: 34.7, lng: null })];
+  const two = VN.venueChoices(twoBook, [{ id: "pt", vendor_id: "ge", label: "Patio", address: "7 B St" }, { id: "h1", vendor_id: "hq", label: "Main", address: "8 C St", lat: 34.9, lng: -82.1 }]);
+  ok("venues: an address added since 0226 is a second place beside the venue's own; a place alone stands for the venue",
+    J(two.map((c) => [c.value, c.label, c.place.address])) === J([["v:ge", "Greenville Eats", "5 A St"], ["s:pt", "Greenville Eats — Patio", "7 B St"], ["v:hp", "Half Pin", "6 D St"], ["v:hq", "Hill Quarter", "8 C St"]])
+    && two[3].place.lat === 34.9, two.map((c) => [c.value, c.label, c.place.address]));
+  ok("venues: half a pin is no pin — a venue with a latitude and no longitude is not pinned",
+    two[2].place.lat === null && two[2].place.lng === null);
+  ok("venues: a venue's name is its own place, not one of its other places'",
+    VN.currentVenue({ location_text: "greenville eats" }, two, twoBook).value === "v:ge");
+
+  // ── in what order ──
+  const g1 = VN.venueGroups(ch, "atlanta"), g2 = VN.venueGroups(ch, null);
+  ok("venues: grouped by city when the book holds two — the record's own city first, else the markets' order",
+    J(g1.map((g) => g.label)) === J(["Atlanta", "Greenville"]) && J(g2.map((g) => g.label)) === J(["Greenville", "Atlanta"]) && g1[0].choices[0].vendorId === "rw");
+  ok("venues: one city is one group with no heading; a row with no city files last",
+    J(VN.venueGroups(ch.filter((c) => c.market === "greenville"), "greenville").map((g) => g.label)) === J([null])
+    && J(VN.venueGroups([...ch, { ...by("v:ss"), value: "v:zz", market: null }], null).map((g) => g.label)) === J(["Greenville", "Atlanta", "No city on file"])
+    && VN.venueGroups([], null).length === 0);
+
+  // ── where it starts ──
+  const at = (rec) => VN.currentVenue(rec, ch, book);
+  ok("venues: linked — its venue; at two places, the one its address or its place says (an event's line too), else the primary",
+    at({ vendor_id: "sy" }).value === "v:sy" && at({ vendor_id: "sy" }).how === "linked"
+    && at({ vendor_id: "wx", address: "9 river st,  greenville, sc" }).value === "s:dt"
+    && at({ vendor_id: "wx", location_text: "downtown" }).value === "s:dt" && at({ vendor_id: "wx" }).value === "s:m1"
+    && at({ vendor_id: "wx", location_text: "WineXpress — Downtown" }).value === "s:dt");
+  const tri = VN.venueChoices([V("tp", "Tri Plaza")], [
+    { id: "ta", vendor_id: "tp", label: "A-Side", address: "1 A Way", is_primary: false },
+    { id: "tm", vendor_id: "tp", label: "Middle", address: "2 M Way", is_primary: true },
+    { id: "tz", vendor_id: "tp", label: "Zed", address: "3 Z Way", is_primary: false },
+  ]);
+  ok("venues: a link the record's own words do not place is at the venue's primary place — not its first or last",
+    VN.currentVenue({ vendor_id: "tp", address: "somewhere else" }, tri).value === "s:tm");
+  const plaza = VN.venueChoices([V("pc", "Plaza Coffee", { address: "100 Plaza Way" }), V("py", "Plaza Yoga", { address: "100 Plaza Way" })], []);
+  ok("venues: an address two venues share spells neither of them",
+    VN.currentVenue({ address: "100 plaza way" }, plaza).how === "none");
+  ok("venues: a link to a venue no longer listed is gone, and keeps its name",
+    J(at({ vendor_id: "old" })) === J({ how: "gone", value: "v:old", name: "Old Venue" }) && at({ vendor_id: "nope" }).name === null);
+  ok("venues: not linked — the one venue its words spell: its Where, a stop's name, its address (case and spacing aside)",
+    at({ location_text: " soul  yoga " }).value === "v:sy" && at({ location_text: " soul  yoga " }).how === "matched" && at({ location_text: " soul  yoga " }).typed === "soul  yoga"
+    && at({ name: "Sassafras Flower Farm" }).value === "v:ss" && at({ address: "12 OAK AVE, Greenville, SC" }).value === "v:sy"
+    && at({ location_text: "WineXpress — Downtown" }).value === "s:dt");
+  ok("venues: words that spell no ONE venue are not a match — a venue with two places, by name alone, is a guess",
+    at({ location_text: "WineXpress" }).how === "none" && at({ location_text: "Wine Express" }).how === "none" && at({}).how === "none" && at({ name: "  " }).how === "none");
+
+  // ── what a pick fills ──
+  const wxMain = by("s:m1"), soul = by("v:sy"), sass = by("v:ss");
+  const f1 = VN.venueFill("stop", { name: "Wine Express — Five Forks", location_text: "", address: "1 main st, Greenville, SC" }, null, wxMain);
+  ok("venues: linking a stop keeps its typed name, fills what is empty, and takes the venue's saved pin for the venue's address",
+    J(f1) === J({ text: { vendor_id: "wx", name: "Wine Express — Five Forks", location_text: "Five Forks Plaza", address: "1 main st, Greenville, SC" }, pin: { lat: 34.8, lng: -82.3 } }), f1);
+  const f2 = VN.venueFill("stop", { name: "", location_text: "the barn", address: "77 Farm Rd" }, null, sass);
+  ok("venues: a venue with no address or pin leaves the stop's own alone — the erase stopPatchFromVendor was written against",
+    J(f2) === J({ text: { vendor_id: "ss", name: "Sassafras Flower Farm", location_text: "the barn", address: "77 Farm Rd" } }), f2);
+  const f3 = VN.venueFill("stop", { name: "WineXpress", location_text: "Five Forks Plaza", address: "1 Main St, Greenville, SC" }, wxMain, soul);
+  ok("venues: moving a stop to another venue moves what was the old venue's — and the old pin goes with the old address",
+    J(f3) === J({ text: { vendor_id: "sy", name: "Soul Yoga", location_text: "", address: "12 Oak Ave, Greenville, SC" }, pin: null }), f3);
+  const f4 = VN.venueFill("stop", { name: "Wine Express Saturday", location_text: "back lot", address: "1 Main St, Greenville, SC" }, wxMain, by("s:dt"));
+  ok("venues: what was typed stays typed through a move (lib/pickFill); the new place's pin comes with its address",
+    J(f4) === J({ text: { vendor_id: "wx", name: "Wine Express Saturday", location_text: "back lot", address: "9 River St, Greenville, SC" }, pin: { lat: 34.85, lng: -82.4 } }), f4);
+  const f5 = VN.venueFill("stop", { name: "Pop-up", address: "77 Elm St" }, null, wxMain);
+  ok("venues: a stop that keeps its own address keeps its own pin — the venue's pin is for the venue's address",
+    !("pin" in f5) && f5.text.address === "77 Elm St", f5);
+  ok("venues: a pin is all or nothing — a place with half a pin gives none",
+    !("pin" in VN.venueFill("stop", { address: "" }, null, { ...sass, place: { ...sass.place, lat: 34.8, lng: null } })));
+  ok("venues: 'No venue linked' unlinks and changes nothing else",
+    J(VN.venueFill("stop", { name: "WineXpress", address: "1 Main St" }, wxMain, null)) === J({ text: { vendor_id: null } }));
+  ok("venues: an event takes the venue's place line — the name when it has no place words",
+    J(VN.venueFill("event", { name: "Spring Social", location_text: "" }, null, sass)) === J({ text: { vendor_id: "ss", location_text: "Sassafras Flower Farm" } })
+    && VN.venueFill("event", { location_text: "Duncan Town Square" }, null, soul).text.location_text === "Duncan Town Square");
+  ok("venues: an event at the old venue's address, place or name moves with it — the screens wrote each of those",
+    ["1 Main St, Greenville, SC", "Five Forks Plaza", "WineXpress — Main", "WineXpress"].every((w) => VN.venueFill("event", { location_text: w }, wxMain, sass).text.location_text === "Sassafras Flower Farm"));
+  ok("pickFill: `was` can be several values — any of them is still the pick's; one value works as it did",
+    PF.follow("Five Forks Plaza", ["x", " Five Forks Plaza "], "y") === "y" && PF.follow("typed", ["x", ""], "y") === "typed" && PF.follow("", [], "y") === "y"
+    && PF.follow("a", "a", "b") === "b" && PF.follow("a", "", "b") === "a" && PF.follow(null, null, null) === "");
+
+  // ── what a new venue starts with ──
+  ok("venues: a venue added from an unlinked stop takes its city, address, pin and place words",
+    J(VN.newVenueSeed("stop", { market: "atlanta", address: " 4 Pine St ", location_text: "Pine Lot", lat: 33.7, lng: -84.4 }, false, "Pine Market"))
+      === J({ kind: "venue", market: "atlanta", address: "4 Pine St", location_text: "Pine Lot", lat: 33.7, lng: -84.4 }));
+  ok("venues: …not another venue's address, not words that are its own name, and never a city that is not a market",
+    J(VN.newVenueSeed("stop", { market: "greenville", address: "1 Main St" }, true, "Somewhere")) === J({ kind: "venue", market: "greenville" })
+    && J(VN.newVenueSeed("stop", { market: "paris", location_text: "pine market", address: "" }, false, "Pine Market")) === J({ kind: "venue" })
+    && J(VN.newVenueSeed("event", { location_text: "Back garden", address: "9 Ignored St" }, false, "Hill House")) === J({ kind: "venue", location_text: "Back garden" }));
+  ok("venues: the words to add are the record's Where — or a stop's name; an event's title is not a place",
+    VN.typedPlace("stop", { name: "Saturday Market", location_text: " " }) === "Saturday Market" && VN.typedPlace("event", { name: "Spring Social" }) === ""
+    && VN.typedPlace("event", { name: "x", location_text: " Hill House " }) === "Hill House");
+
+  // ── the line under the pick ──
+  const N = (rec, o = {}) => { const now = at(rec); return VN.venueNote({ kind: "stop", now, shown: now.how === "matched" ? VN.NO_VENUE : now.value, rec, saved: rec.vendor_id, failed: null, count: ch.length, ...o }); };
+  ok("venues: a linked stop at its venue's address says where, and that it is pinned",
+    N({ vendor_id: "wx", address: "1 Main St, Greenville, SC" }) === "1 Main St, Greenville, SC · pinned.");
+  ok("venues: a stop that disagrees with its venue says both, before it is saved (v_stop_gaps' addr_drift)",
+    N({ vendor_id: "wx", address: "77 Elm St" }) === "The stop says 77 Elm St; WineXpress — Main is at 1 Main St, Greenville, SC. One of the two is out of date.");
+  ok("venues: a pick not yet saved says where saving files it, an unpinned venue says so, a pending one waits",
+    N({ vendor_id: "sy" }, { saved: null }) === "Saving files it to Soul Yoga. 12 Oak Ave, Greenville, SC · not pinned yet. Waiting on the owner's approval."
+    && N({ vendor_id: "ss" }) === "No address on file for Sassafras Flower Farm.");
+  ok("venues: words that spell a venue are offered by name — 'Soul Yoga is in the venue book', or what the words were",
+    N({ location_text: "soul yoga" }) === "Soul Yoga is in the venue book." && N({ address: "12 Oak Ave, Greenville, SC" }) === "“12 Oak Ave, Greenville, SC” is Soul Yoga in the venue book.");
+  ok("venues: not linked says what that costs; nothing typed says nothing; an empty book asks for the first",
+    N({ location_text: "Duncan Town Square" }) === "Not linked to a venue: the place below is typed, and the next visit here will be typed again."
+    && VN.venueNote({ kind: "event", now: { how: "none", value: "" }, shown: "", rec: { location_text: "Duncan Town Square" }, saved: null, failed: null, count: 3 }) === "Not linked to a venue: the place below is typed, and the next booking there will be typed again."
+    && N({}) === null && N({ location_text: "x" }, { count: 0 }) === "No venues in the book yet — add this one, and the next stop there starts from it.");
+  ok("venues: a gone venue is said by name; a failed read says the record keeps its venue; adding says nothing yet",
+    N({ vendor_id: "old" }) === "Old Venue is not in the venue book any more — pick where the stop is now."
+    && N({ vendor_id: "wx" }, { failed: "permission denied" }) === "Couldn't load the venue book — permission denied. The stop keeps the venue it has."
+    && N({ vendor_id: "wx" }, { shown: VN.NEW_VENUE }) === null);
+  ok("venues: an event's line is where the venue is — no pin talk, events have none",
+    VN.venueNote({ kind: "event", now: at({ vendor_id: "wx" }), shown: "s:m1", rec: { vendor_id: "wx" }, saved: "wx", failed: null, count: 6 }) === "1 Main St, Greenville, SC.");
+
+  // ── the control, and every screen that names a place ──
+  const vp = code(read("components/VenuePick.tsx")), uv = code(read("components/useVenues.ts"));
+  ok("venue pick: lists lib/venues' choices, grouped, with 'No venue linked' and '+ Add a venue to the book…'",
+    /venueChoices\(book\.venues, book\.sites, \[rec\.vendor_id\]\)/.test(vp) && /venueGroups\(choices, rec\.market \?\? null\)/.test(vp)
+    && /<option value=\{NO_VENUE\}>No venue linked<\/option>/.test(vp) && /<option value=\{NEW_VENUE\}>\+ Add a venue to the book…<\/option>/.test(vp)
+    && /\$\{c\.label\} · pending approval/.test(vp));
+  ok("venue pick: a venue is added only by its own tap — through the one resolver, in the record's city, with its address",
+    /resolveVendor\(name, \{ source, extra: await seedFor\(name\), decision \}\)/.test(vp) && /newVenueSeed\(kind, rec, !!rec\.vendor_id, name\)/.test(vp)
+    && /onCreateDistinct=\{\(\) => \{ setSimilar\(null\); add\(\{ createDistinct: true \}\); \}\}/.test(vp) && /addVendorLocation\(c\.id, \{/.test(vp));
+  ok("venue pick: the words' venue is taken once, when the book arrives, only where a form saves — and offered everywhere",
+    /if \(!book \|\| checked\.current\) return;\s+checked\.current = true;\s+if \(match && !disabled && now\.how === "matched"\)/.test(vp)
+    && /const shown = adding \? NEW_VENUE : now\.how === "matched" \? NO_VENUE : now\.value;/.test(vp) && />Link it<\/button>/.test(vp));
+  ok("venue pick: the door to approve a pending venue is offered only where leaving loses nothing — never from a form mid-edit",
+    /\{linked\?\.pending && !match && canOf\(profile\)\.admin && <> <button type="button" className="rec-link" onClick=\{\(\) => goPlanTab\("vendors", \{ setSection \}\)\}>Review it ›<\/button><\/>\}/.test(vp));
+  ok("venue pick: a venue added by hand is said to be added, not auto-added, in the owner's approval alert",
+    /body: `Added from \$\{opts\?\.source \?\? "a truck stop"\}\. Review the contact details & approve in Plan › Vendors\.`/.test(read("lib/vendorLink.ts")));
+  ok("venue pick: a look-alike is asked of the book's own rule (similar_vendors) and offered with one tap",
+    /similarVendors\(typed\)/.test(vp) && /looks like \$\{suggestion\.label\} in the venue book/.test(vp) && /onClick=\{\(\) => pick\(suggestion\)\}/.test(vp));
+  ok("venue pick: the book is read once for every pick on the screen, a failed read said, a write followed by a fresh read",
+    /useSyncExternalStore\(subscribe, snapshot, snapshot\)/.test(uv) && /if \(error\) return \{ book: state\.book, error, at: Date\.now\(\) \};/.test(uv)
+    && /useRealtimeTable\(\["vendors", "vendor_locations"\]/.test(uv) && /const fresh = await reload\(true\);/.test(vp)
+    && /inflight \? \(after \? inflight\.then\(\(\) => reloadVenues\(\)\) : inflight\)|if \(inflight\) return after \? inflight\.then\(\(\) => reloadVenues\(\)\) : inflight;/.test(uv));
+
+  const fo = code(read("components/FieldOpSheet.tsx")), od = code(read("components/crew/OwnerDetails.tsx")), le = code(read("components/crew/LocationEditor.tsx"));
+  const lc = code(read("components/crew/LiveControl.tsx")), cc = code(read("components/CompanyCalendar.tsx")), ec = code(read("components/EventCopilot.tsx"));
+  const pg = code(read("app/crew/page.tsx"));
+  const card = pg.slice(pg.indexOf("function EventCard("), pg.indexOf("function EventsAdmin("));
+  const admin = pg.slice(pg.indexOf("function EventsAdmin("), pg.indexOf("return (", pg.indexOf("function EventsAdmin(")));
+  ok("venue pick: the stop and event sheet picks the venue for both, writes the link for both, and no longer reads a name as a vendor",
+    /<VenuePick kind=\{kind\}/.test(fo)
+    && /\{ title: nm, day: f\.day \|\| null, location_text: f\.location_text\?\.trim\(\) \|\| null, market: toMarket\(f\.market\), vendor_id: f\.vendor_id \|\| null,/.test(fo)
+    && /address: f\.address\?\.trim\(\) \|\| null, market: toMarket\(f\.market\), vendor_id: f\.vendor_id \|\| null \}/.test(fo)
+    && /"title, day, location_text, stage, published_at, public_title, market, vendor_id"/.test(fo) && !/resolveVendor|VendorResolve|pullVendorFields|pendingPatch/.test(fo)
+    && /if \(pin !== undefined\) \{ patch\.lat = pin\?\.lat \?\? null; patch\.lng = pin\?\.lng \?\? null; \}/.test(fo));
+  ok("venue pick: the prep hub's editor picks the venue too, and pins with the venue's own pin when the stop is at it",
+    /<VenuePick kind=\{ownerType\}/.test(od)
+    && /\{ title: nm, day: f\.day \|\| null, location_text: f\.location_text\?\.trim\(\) \|\| null, vendor_id: f\.vendor_id \|\| null, default_buffer_min: buf \}/.test(od)
+    && /address: f\.address\?\.trim\(\) \|\| null, vendor_id: f\.vendor_id \|\| null, default_buffer_min: buf,/.test(od) && /if \(pin\) \{ patch\.lat = pin\.lat; patch\.lng = pin\.lng; \}/.test(od)
+    && /"title, day, location_text, vendor_id, market,/.test(od));
+  ok("venue pick: the event card has ONE place control — no vendor select above a location box — writing through its own update",
+    /<VenuePick kind="event" source="an event" match=\{false\} contact/.test(card) && /onChange=\{\(fill\) => onUpdate\(fill\.text\)\}/.test(card)
+    && !/VendorPicker|onLinkVendor|vendors=/.test(card) && !/linkVendor|from\("vendors"\)/.test(admin) && /<input key=\{e\.location_text \?\? ""\}/.test(card));
+  ok("venue pick: Route says the stop's venue and its liaison, and leaves the pick to the stop's sheet",
+    /venue=\{g\.vendor\}/.test(lc) && !/linkVendor/.test(lc) && /<VenueContact venue=\{venue\} \/>/.test(le) && !/VendorPicker|onPickLocation|onLinkVendor/.test(le)
+    && /Edit name, date, time, venue &amp; address ›/.test(le));
+  ok("venue pick: the calendar's quick-add and the copilot pick the venue, and add nothing to the book on Add or Create",
+    /<VenuePick kind=\{kind\} source="the calendar quick-add"/.test(cc) && /<VenuePick kind=\{draft\.kind\} source="the event copilot"/.test(ec)
+    && !/resolveVendor|VendorResolve/.test(cc + ec)
+    && /from\("stops"\)\.insert\(\{[^;]{0,400}?vendor_id: venueId \}\)/.test(cc) && /from\("events"\)\.insert\(\{[^;]{0,400}?vendor_id: venueId \}\)/.test(cc)
+    && /from\("stops"\)\.insert\(\{[^;]{0,400}?vendor_id: venueId,/.test(ec) && /from\("events"\)\.insert\(\{[^;]{0,400}?vendor_id: venueId \}\)/.test(ec)
+    && /if \(error\) \{ setErr\(`Couldn't add it — \$\{error\}`\); return; \}/.test(cc));
+  ok("venue pick: the old picker is gone, and no stop or event editor turns words into a vendor itself",
+    !fs.existsSync(path.join(__dirname, "..", "components/crew/VendorPicker.tsx"))
+    && [fo, od, le, lc, cc, ec, card].every((t) => !/resolveVendor\(/.test(t)));
+  ok("venue pick: loaded with the card or sheet that shows it — every screen imports it through VenuePickLazy; Route's card carries only the contact block",
+    /dynamic\(\(\) => import\("\.\/VenuePick"\), \{ ssr: false, loading: \(\) => <div className="venue-loading" aria-busy="true" \/> \}\)/.test(read("components/VenuePickLazy.tsx"))
+    && ["components/FieldOpSheet.tsx", "components/crew/OwnerDetails.tsx", "app/crew/page.tsx", "components/CompanyCalendar.tsx", "components/EventCopilot.tsx"]
+      .every((f) => /import VenuePick from "(@\/components|\.)\/VenuePickLazy";/.test(read(f)) && !/from "(@\/components|\.)\/VenuePick"/.test(read(f)))
+    && /import VenueContact from "@\/components\/VenueContact";/.test(read("components/crew/LocationEditor.tsx")) && !/VenuePick/.test(code(read("components/crew/LocationEditor.tsx")))
+    && /\.venue-loading\{min-height:72px\}/.test(read("app/globals.css")));
+  ok("quick-add: the three kinds stay on one line at phone width, and the day is said in words under them",
+    /\.qd-tab\{[^}]*white-space:nowrap/.test(read("app/globals.css")) && /\{`For \$\{dayWithDate\(day\) \|\| day\}`\}/.test(cc) && !/color: "var\(--cream-m\)" \}\}>\{day\}<\/span>/.test(cc));
+  ok("venue pick: compiled for the smoke run", /lib\/milestonePick\.ts lib\/venues\.ts/.test(read("package.json")));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

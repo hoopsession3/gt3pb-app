@@ -3,7 +3,8 @@
 // The tables are made by their own migrations — 0201 (initiatives and milestones, with the Aug-1
 // launch's seed and its six words), 0202 (the ties), 0264 (the portfolio, seeded with the ten
 // workstreams of the 8/2 audit) — then the two columns 0275 and 0307 added to the portfolio, and the
-// result is held to production's column list (supabase/schema.columns.json) before 0350 runs. Then:
+// result is held to production's column list (supabase/schema.columns.json, less the column 0350
+// adds — production has run it since) before 0350 runs here. Then:
 // the link, the words that follow it, what the backfill links and what it leaves, and the rule the
 // backfill and lib/portfolio.matchStream share, run over one list of cases
 // (scripts/fixtures/workstream-words.json) from the backfill's own text.
@@ -58,10 +59,14 @@ await db.exec(`
   alter table public.os_workstreams add column if not exists owner_user_id uuid references public.profiles(id) on delete set null;
 `);
 const snap = JSON.parse(readFileSync(join(ROOT, "supabase/schema.columns.json"), "utf8"));
+// Production's columns as they stood before 0350: the snapshot's, less the one column 0350 adds. The
+// snapshot was pulled again once 0350 was applied in production (2026-10-05), so it carries the link.
+const ADDS = { initiative_milestones: ["workstream_id"] };
+const before350 = (t) => (snap[t] ?? []).filter((c) => !(ADDS[t] ?? []).includes(c));
 const colsOf = async (t) => (await rows(`select attname from pg_attribute where attrelid = ('public.' || $1)::regclass and attnum > 0 and not attisdropped order by attnum`, [t])).map((r) => r.attname);
 for (const t of ["initiatives", "initiative_milestones", "initiative_milestone_links", "os_workstreams"]) {
   const have = await colsOf(t);
-  ok(`before 0350: ${t} has production's columns, in production's order`, JSON.stringify(have) === JSON.stringify(snap[t]), { have, prod: snap[t] });
+  ok(`before 0350: ${t} has production's columns, in production's order`, JSON.stringify(have) === JSON.stringify(before350(t)), { have, prod: before350(t) });
 }
 
 // Production's board as Ryan's screen shows it: the seed's words, plus two milestones with none.
@@ -82,7 +87,9 @@ ok("0350 runs", first === null, first);
 
 const col = await q1(`select data_type from information_schema.columns where table_name = 'initiative_milestones' and column_name = 'workstream_id'`);
 ok("the link: initiative_milestones.workstream_id is a uuid", col?.data_type === "uuid", col);
-ok("the link: it is the last column — production's order plus one", JSON.stringify(await colsOf("initiative_milestones")) === JSON.stringify([...snap.initiative_milestones, "workstream_id"]));
+ok("the link: it is the last column — production's order plus one", JSON.stringify(await colsOf("initiative_milestones")) === JSON.stringify([...before350("initiative_milestones"), "workstream_id"]));
+ok("the link: production has it where 0350 put it — the snapshot pulled after 0350 was applied",
+  JSON.stringify(snap.initiative_milestones) === JSON.stringify([...before350("initiative_milestones"), "workstream_id"]), snap.initiative_milestones);
 const fk = await q1(`select confdeltype, confrelid::regclass::text as ref from pg_constraint where conrelid = 'public.initiative_milestones'::regclass and contype = 'f'
   and conkey = array[(select attnum from pg_attribute where attrelid = 'public.initiative_milestones'::regclass and attname = 'workstream_id')]`);
 ok("the link: it points at the portfolio, and a workstream that goes leaves the milestone standing (on delete set null)", fk?.ref === "os_workstreams" && fk?.confdeltype === "n", fk);

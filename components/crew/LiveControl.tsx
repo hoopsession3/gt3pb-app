@@ -13,7 +13,6 @@ import type { Stop, LiveStatus, Vendor } from "@/lib/db";
 import { haptic, HAPTIC } from "@/lib/haptics";
 import { clockTime, dayWithDate, nextWeekdayAt } from "@/lib/dates";
 import { isStopAhead, isStopPast, roadAhead, stopIsDue } from "@/lib/road";
-import { stopPatchFromVendor } from "@/lib/stopRecord";
 import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { goPlanTab } from "@/lib/planNav";
 import { wrapOwner } from "@/lib/wrap";
@@ -53,17 +52,9 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
     if (l) setLive(l as LiveStatus);
     if (vs) setVendors((vs as Vendor[]).filter((v) => !v.archived_at));
   }, []);
-  // link a stop to a vendor → denormalize the public location onto the (public) stop row. What it
-  // takes is lib/stopRecord's stopPatchFromVendor: this copied the vendor's address and pin even
-  // when the vendor had none, so linking erased the stop's directions — and it never read the
-  // write's answer, so a refused link still toasted "Linked".
-  const linkVendor = async (stopId: string, v: Vendor | null) => {
-    const p = v ? stopPatchFromVendor(v) : { vendor_id: null };
-    const { error } = await supabase!.from("stops").update(p).eq("id", stopId);
-    if (error) { toast(`Couldn't ${v ? "link" : "unlink"} — ${error.message}`, "error"); return; }
-    toast(v ? `Linked to ${v.name}` : "Unlinked");
-    load();
-  };
+  // A stop's venue is picked in its sheet (FieldOpSheet → components/VenuePick), not on this card:
+  // the card's own vendor <select> was a second editor for it. Route still reads the book, to group
+  // the visits by venue and to say each one's venue and liaison.
 
   useEffect(() => { load(); }, [load]);
   useRealtimeTable(["live_status", "stops"], load);
@@ -396,8 +387,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
                   onGoOffline={pause}
                   onArchive={() => archiveStop(s.id)}
                   onChanged={load}
-                  vendors={vendors}
-                  onLinkVendor={(v) => linkVendor(s.id, v)}
+                  venue={g.vendor}
                   onOpenPrep={() => openPrep(s.id)}
                   nameOverride={g.vendor?.name ?? null}
                 />

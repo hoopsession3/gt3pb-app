@@ -7,9 +7,10 @@ import { supabase } from "@/lib/supabase";
 // "whenever you see opportunity for prefill"). The places this business goes repeat: the same
 // squares, breweries and venues come back every season, but the venue fields were plain free text
 // — every booking meant retyping "Duncan Town Square" from memory (typos then read as new places).
-// This feeds a <datalist> under the venue inputs (EventCard's "Location / venue", FieldOpSheet's
-// "Where") with every place already on record: recent events' and stops' location_text plus the
-// vendor book's saved locations/addresses. Native datalist = zero new UI to learn, works with the
+// This feeds a <datalist> under the place inputs (EventCard's "Where guests see it", FieldOpSheet's
+// "Where" and "Address") with every place already on record: recent events' and stops' location_text
+// plus the vendor book's saved locations/addresses — while the stop or event is linked to no venue
+// (components/VenuePick fills the place from the venue once it is). Native datalist = zero new UI to learn, works with the
 // existing type-and-blur save patterns, and screen readers treat it as a plain combobox.
 //
 // Module-level cache: one fetch per app session, shared by every mount (a crew member editing five

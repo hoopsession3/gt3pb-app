@@ -14,6 +14,8 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { NoteBox } from "@/components/RecordWays";
 import { archiveOwner, cleanRecap, saveRecap, wrapOwner } from "@/lib/wrap";
 import { localToday } from "@/lib/dates";
+import VenuePick from "@/components/VenuePickLazy";
+import type { VenueFill } from "@/lib/venues";
 
 // OWNER DETAILS — the edit sheet behind a truck stop or an event.
 //
@@ -42,6 +44,9 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
   const [wrapping, setWrapping] = useState(false); // capturing the after-action to complete an event
   const [recap, setRecap] = useState("");
   const [dupWarn, setDupWarn] = useState<string | null>(null);
+  // The pin the venue pick decided (lib/venues.venueFill): undefined leaves it to the geocode on
+  // save; null means the old pin went with the old address.
+  const [pin, setPin] = useState<{ lat: number; lng: number } | null | undefined>(undefined);
   // Per-stop order-ahead / pickup (0191) — kept out of `f` so the boolean/number types stay clean.
   const [oa, setOa] = useState(false);
   const [pk, setPk] = useState(false);
@@ -143,7 +148,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
     if (!supabase) throw new Error("Supabase client not configured");
     // recap moved to the staff-only ops sibling (event_ops / stop_ops, 0181); the per-stop order-ahead
     // columns stay on the public stop row. Fetch both in parallel and merge so the UI is unchanged.
-    const sel = isEvent ? "title, day, location_text, stage, default_buffer_min, completed_at" : "name, starts_at, ends_at, location_text, address, status, default_buffer_min, completed_at, order_ahead_enabled, pickup_enabled, order_ahead_lead_min";
+    const sel = isEvent ? "title, day, location_text, vendor_id, market, stage, default_buffer_min, completed_at" : "name, starts_at, ends_at, location_text, address, lat, lng, vendor_id, market, status, default_buffer_min, completed_at, order_ahead_enabled, pickup_enabled, order_ahead_lead_min";
     const [{ data }, { data: ops }] = await Promise.all([
       supabase.from(table).select(sel).eq("id", ownerId).maybeSingle(),
       supabase.from(opsTable).select("recap").eq(opsKey, ownerId).maybeSingle(),
@@ -157,10 +162,21 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
     if (!ownerState.data) return;
     const { d, recap } = ownerState.data;
     setF({ ...(d as Record<string, string | null>), recap });
+    setPin(undefined);
     if (!isEvent) { origStartsAt.current = (d.starts_at as string | null) ?? null; setOa(!!d.order_ahead_enabled); setPk(!!d.pickup_enabled); setLead(d.order_ahead_lead_min != null ? String(d.order_ahead_lead_min) : ""); }
   }, [ownerState.data, isEvent]);
 
   const set = (k: string, v: string | null) => setF((p) => ({ ...(p ?? {}), [k]: v }));
+  // A venue picked (components/VenuePick): its words into the draft, its pin aside until save.
+  const onVenue = (fill: VenueFill) => {
+    setF((p) => ({ ...(p ?? {}), ...fill.text }));
+    if (fill.pin !== undefined) setPin(fill.pin);
+  };
+  const pinOf = (k: "lat" | "lng"): number | null => {
+    if (pin !== undefined) return pin ? pin[k] : null;
+    const v = ownerState.data?.d[k];
+    return typeof v === "number" ? v : null;
+  };
   // date <-> column: events.day is a plain date; stops.starts_at is a timestamp (preserve time of day)
   const dateVal = !f ? "" : isEvent ? (f.day || "") : (f.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : "");
   const onDate = (v: string) => {
@@ -216,20 +232,26 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
     const nm = (f[nameCol] || "").trim() || (isEvent ? "Event" : "Stop");
     const buf = f.default_buffer_min != null && String(f.default_buffer_min).trim() !== "" ? Math.max(0, Number(f.default_buffer_min)) : null;
     const patch: Record<string, string | number | boolean | null> = isEvent
-      ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null, default_buffer_min: buf }
-      : { name: nm, starts_at: f.starts_at || null, ends_at: f.ends_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null, default_buffer_min: buf,
+      ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null, vendor_id: f.vendor_id || null, default_buffer_min: buf }
+      : { name: nm, starts_at: f.starts_at || null, ends_at: f.ends_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null, vendor_id: f.vendor_id || null, default_buffer_min: buf,
           order_ahead_enabled: oa, pickup_enabled: pk, order_ahead_lead_min: oa && lead.trim() !== "" ? Math.max(0, Number(lead)) : null };
     // stage/status: write ONLY a deliberate change from what the form opened with (same rule as
     // FieldOpSheet) — every save used to rewrite this unconditionally, which could clobber
     // lifecycle automation (or the seeded date-derived default) with a value nobody actually chose.
     const stageNow = (isEvent ? f.stage : f.status) ?? null;
     if (stageNow !== origStage.current) patch[isEvent ? "stage" : "status"] = stageNow;
-    // For stops, geocode the address (or location) so it pins on the map + customer directions work.
+    // For stops, pin the address (or location) so it shows on the map + customer directions work:
+    // the picked venue's own pin when the stop is at the venue's address (lib/venues.venueFill), else
+    // a geocode of what the stop says.
     if (!isEvent) {
       // schedule changed → derived values must beat stale hand-set labels on the guest page
       if ((f.starts_at || null) !== origStartsAt.current) { patch.when_label = null; patch.time_label = null; }
-      const q = (f.address?.trim() || f.location_text?.trim() || "");
-      if (q) { const g = await geocode(q).catch(() => null); if (g) { patch.lat = g.lat; patch.lng = g.lng; } }
+      if (pin) { patch.lat = pin.lat; patch.lng = pin.lng; }
+      else {
+        if (pin === null) { patch.lat = null; patch.lng = null; }
+        const q = (f.address?.trim() || f.location_text?.trim() || "");
+        if (q) { const g = await geocode(q).catch(() => null); if (g) { patch.lat = g.lat; patch.lng = g.lng; } }
+      }
     }
     const { error } = await supabase.from(table).update(patch).eq("id", ownerId);
     setSaving(false);
@@ -316,13 +338,16 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
       {dupWarn && <div className="ownerdet-warn" role="status"><Icon name="warning" /> {dupWarn}</div>}
       <div className="prod-grid" style={{ marginTop: 8 }}>
         <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
-        {isEvent
-          ? <label className="prod-f"><span>Location</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>
-          : <label className="prod-f"><span>Start time</span><input type="time" value={timeVal} onChange={(e) => onTime(e.target.value)} /></label>}
+        {!isEvent && <label className="prod-f"><span>Start time</span><input type="time" value={timeVal} onChange={(e) => onTime(e.target.value)} /></label>}
         {!isEvent && <label className="prod-f"><span>End time</span><input type="time" value={endTimeVal} onChange={(e) => onEndTime(e.target.value)} /></label>}
       </div>
-      {!isEvent && <label className="prod-f" style={{ marginTop: 8 }}><span>Where</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>}
-      {!isEvent && <label className="prod-f" style={{ marginTop: 8 }}><span>Address (tap-to-map)</span><input value={f.address ?? ""} onChange={(e) => set("address", e.target.value)} placeholder="123 Peach St, Atlanta GA" /></label>}
+      {/* The venue is picked (components/VenuePick — the same control as the stop sheet and the
+          event card), and what it fills stays editable below it. */}
+      <VenuePick kind={ownerType} source={isEvent ? "an event" : "a truck stop"} onChange={onVenue} style={{ marginTop: 8 }}
+        saved={(ownerState.data?.d.vendor_id as string | null | undefined) ?? null}
+        rec={{ vendor_id: f.vendor_id, name: f[nameCol], location_text: f.location_text, address: f.address, market: f.market, lat: pinOf("lat"), lng: pinOf("lng") }} />
+      <label className="prod-f" style={{ marginTop: 8 }}><span>Where</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>
+      {!isEvent && <label className="prod-f" style={{ marginTop: 8 }}><span>Address (tap-to-map)</span><input value={f.address ?? ""} onChange={(e) => { set("address", e.target.value); setPin(undefined); }} placeholder="123 Peach St, Atlanta GA" /></label>}
       <label className="prod-f" style={{ marginTop: 8 }}><span>Status</span>
         {isEvent ? (
           <select value={f.stage ?? "confirmed"} onChange={(e) => set("stage", e.target.value)}>
