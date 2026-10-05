@@ -47,6 +47,7 @@ export interface Vendor {
   status?: "approved" | "pending" | "archived"; // approval state (0191) — unknown-place stops → pending
   vendor_type?: string | null; // gym | corporate | cafe | venue … (0165)
   confirmed_distinct?: boolean; // 0226 — the explicit "yes, really a new vendor" flag the guard honors
+  kind?: string | null;         // venue | supplier | both (0298) — which side of the business it sits on
 }
 
 // A vendor's place (0226) — one partner, 1..N locations ("Five Forks", "Downtown"). The primary is
