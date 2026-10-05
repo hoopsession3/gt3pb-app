@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { SectionHeader } from "@/components/kit";
 import { fetchInventory, type InvItem, type InventoryResp } from "@/lib/inventory";
 import { supabase } from "@/lib/supabase";
@@ -14,6 +14,11 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { useAuth } from "./AuthProvider";
 import { MARKETS, MARKET_LABEL, FOUNDING_MARKET, marketsPresent, toMarket, type Market } from "@/lib/markets";
 import { homeMarket } from "@/lib/homeMarket";
+import { useAsyncData } from "@/lib/useAsyncData";
+import { rankSuppliers, readVendorBook, type VendorRow } from "@/lib/suppliers";
+import { resolveSupplier, type VendorMatch } from "@/lib/vendorLink";
+import { writeAcrossSkew } from "@/lib/schemaSkew";
+import VendorResolve from "./VendorResolve";
 
 // Inventory — the GT3 stock register, read from Postgres (system-of-record). Staff add / edit /
 // delete inline; writes go straight to `inventory_items` (RLS: staff-write). Lives next to the
@@ -36,21 +41,32 @@ import { homeMarket } from "@/lib/homeMarket";
 //     count is written as a correction through set_on_hand (0318) — the same path as a recount at an
 //     event, under its lock — so the number typed is the number every screen sees. The hand count is
 //     written with it, for the readers that still read `qty` (the brew planner, the agents).
+//
+// WHO A SHELF IS BOUGHT FROM IS A VENDOR (2026-10-05, 0347). The Vendor box saved a typed name, with a
+// suggest-list of every vendor row — the venues we pour at — and the real suppliers ('TricorBraun',
+// 'Amazon') were not vendors at all. It is the supplier pick now: the suppliers that supply the most
+// shelves first, "Someone else…" through the one supplier resolver (lib/vendorLink.resolveSupplier),
+// and a name typed before the link existed kept and offered as one tap — never resolved behind an
+// unrelated edit.
 
 type Draft = {
   name: string; qty: string; unit: string; status: string; category: string;
   vendor: string; reorderPoint: string; reorderLink: string; notes: string; critical: boolean;
   market: Market;
+  /** The supplier as a link (0347). With none, `vendor` is a name typed before links — or, while
+   *  `naming`, the name of a supplier not in the list yet, settled on Save. */
+  vendorId: string | null; naming: boolean;
 };
-const blankDraft = (market: Market): Draft => ({ name: "", qty: "", unit: "", status: "On Hand", category: "", vendor: "", reorderPoint: "", reorderLink: "", notes: "", critical: false, market });
+const blankDraft = (market: Market): Draft => ({ name: "", qty: "", unit: "", status: "On Hand", category: "", vendor: "", reorderPoint: "", reorderLink: "", notes: "", critical: false, market, vendorId: null, naming: false });
 /** What the shelf holds: the ledger's balance, else the hand count (inventory_status.effective_on_hand). */
 const onHandOf = (r: InvItem): number | null => r.onHand ?? r.qty;
 const toDraft = (r: InvItem): Draft => ({
   name: r.name, qty: onHandOf(r) != null ? String(onHandOf(r)) : "", unit: r.unit || "", status: r.status || "On Hand",
   category: r.category || "", vendor: r.vendor || "", reorderPoint: r.reorderPoint != null ? String(r.reorderPoint) : "",
   reorderLink: r.reorderLink || "", notes: r.notes || "", critical: !!r.critical,
-  market: toMarket(r.market),
+  market: toMarket(r.market), vendorId: r.vendorId ?? null, naming: false,
 });
+const NEW = "__new", TYPED = "__typed";
 
 export default function InventoryLibrary() {
   const confirm = useConfirm();
@@ -65,6 +81,18 @@ export default function InventoryLibrary() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [ai, setAi] = useState(false);
+  // A look-alike to ask about, and what was under way when it came up: a Save (which carries on with
+  // the answer) or a Link it (which only links).
+  const [asking, setAsking] = useState<{ name: string; candidates: VendorMatch[]; then: "save" | "link" } | null>(null);
+
+  // The vendor book, for the supplier pick. A failed read is said under the pick; the register still works.
+  const bookLoader = useCallback(async (): Promise<VendorRow[]> => {
+    if (!supabase) return [];
+    const { data, error } = await readVendorBook(supabase);
+    if (error) throw new Error(error.message);
+    return (data as VendorRow[]) ?? [];
+  }, []);
+  const book = useAsyncData(bookLoader, []);
 
   const load = () => fetchInventory().then(setResp);
   useEffect(() => { load(); }, []);
@@ -80,32 +108,64 @@ export default function InventoryLibrary() {
   }
 
   const items = [...resp.items].sort((a, b) => a.name.localeCompare(b.name));
+  // Suppliers ranked by how many shelves they supply, then by name (lib/suppliers): the register's
+  // own links are its history.
+  const suppliers = rankSuppliers(book.data ?? [], items.map((i) => ({ vendor_id: i.vendorId ?? null, category: null })));
+  const supplierName = (r: { vendorId?: string | null; vendor?: string | null }) =>
+    (r.vendorId ? (book.data ?? []).find((v) => v.id === r.vendorId)?.name : null) ?? r.vendor ?? null;
   const startNew = () => { setErr(null); setDraft(blankDraft(homeMarket(profile) ?? FOUNDING_MARKET)); setEditing("new"); setOpen(true); };
   const editingItem = editing && editing !== "new" ? items.find((i) => i.id === editing) ?? null : null;
   const manyCities = marketsPresent(items).length > 1;
   const startEdit = (r: InvItem) => { setErr(null); setDraft(toDraft(r)); setEditing(r.id); };
   const cancel = () => { setEditing(null); setErr(null); };
 
-  const save = async () => {
+  // A typed supplier becomes a link: an exact name links, a look-alike is asked about, a clean miss is
+  // added as an approved supplier in this shelf's city. Returns the link, or null when it must wait.
+  const settleSupplier = async (name: string, then: "save" | "link"): Promise<{ id: string; name: string } | null> => {
+    const r = await resolveSupplier(name, draft.market, "the inventory register");
+    if (r.kind === "similar") { setAsking({ name, candidates: r.candidates, then }); return null; }
+    if (r.kind === "error") { setErr(`Couldn't link ${name} — ${r.message}`); return null; }
+    if (r.created) book.reload();
+    return { id: r.id, name };
+  };
+  const linkTyped = async () => {
+    setBusy(true); setErr(null);
+    const linked = await settleSupplier(draft.vendor.trim(), "link");
+    setBusy(false);
+    if (linked) setDraft({ ...draft, vendorId: linked.id, vendor: linked.name, naming: false });
+  };
+
+  // `picked`: the supplier the look-alike sheet settled, when a Save stopped to ask — the save carries on
+  // with it instead of leaving an open form that looks saved.
+  const save = async (picked?: { id: string; name: string }) => {
     if (!supabase || !draft.name.trim()) { setErr("Name is required"); return; }
     setBusy(true); setErr(null);
+    let supplier: { id: string | null; name: string } = picked ?? { id: draft.vendorId, name: draft.vendor.trim() };
+    if (!picked && draft.naming && supplier.name) {
+      const linked = await settleSupplier(supplier.name, "save");
+      if (!linked) { setBusy(false); return; }
+      supplier = linked;
+    }
     const count = draft.qty.trim() === "" ? null : Number(draft.qty);
     const row = {
       name: draft.name.trim(),
       unit: draft.unit || null,
       status: draft.status || null,
       category: draft.category.trim() || null,
-      vendor: draft.vendor.trim() || null,
+      vendor: (supplier.id ? (book.data ?? []).find((v) => v.id === supplier.id)?.name : null) ?? (supplier.name || null),
+      vendor_id: supplier.id,
       reorder_point: draft.reorderPoint.trim() === "" ? null : Number(draft.reorderPoint),
       reorder_link: draft.reorderLink.trim() || null,
       notes: draft.notes.trim() || null,
       critical: draft.critical,
     };
+    // arrives-with: 0347 — until it is pasted there is no vendor_id to write, and the typed name is
+    // saved alone, as before (lib/schemaSkew: that one column, nothing else forgiven).
     const { error } = editing === "new"
-      ? await supabase.from("inventory_items").insert({ ...row, qty: count, market: draft.market })
+      ? await writeAcrossSkew((r) => supabase!.from("inventory_items").insert(r), { ...row, qty: count, market: draft.market } as Record<string, unknown>, ["vendor_id"])
       // The hand count follows too: the brew planner and the agents still read `qty`, and a recount
       // made here should not leave them a number behind the shelf.
-      : await supabase.from("inventory_items").update(count != null && Number.isFinite(count) ? { ...row, qty: count } : row).eq("id", editing);
+      : await writeAcrossSkew((r) => supabase!.from("inventory_items").update(r).eq("id", editing as string), (count != null && Number.isFinite(count) ? { ...row, qty: count } : row) as Record<string, unknown>, ["vendor_id"]);
     if (error) { setBusy(false); setErr(error.message); return; }
     // A changed count on an existing shelf is a correction to the shelf, not a new hand count.
     if (editingItem && count != null && Number.isFinite(count) && count !== onHandOf(editingItem)) {
@@ -162,9 +222,35 @@ export default function InventoryLibrary() {
             from a new vendor, you just stop creating a second spelling of an existing one. */}
         <label className="gl-f"><span>Category</span><input value={draft.category} list="gt3-inv-cats-lib" onChange={(e) => setDraft({ ...draft, category: e.target.value })} placeholder="Brewing Equipment" /></label>
         <datalist id="gt3-inv-cats-lib">{sugg.categories.map((c) => <option key={c} value={c} />)}</datalist>
-        <label className="gl-f"><span>Vendor</span><input value={draft.vendor} list="gt3-vendors" onChange={(e) => setDraft({ ...draft, vendor: e.target.value })} /></label>
-        <datalist id="gt3-vendors">{sugg.vendors.map((v) => <option key={v} value={v} />)}</datalist>
+        <label className="gl-f"><span>Supplier</span>
+          <select aria-label="Supplier" value={draft.naming ? NEW : draft.vendorId ?? (draft.vendor.trim() ? TYPED : "")}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === NEW) setDraft({ ...draft, vendorId: null, vendor: "", naming: true });
+              else if (v === TYPED) return;
+              else if (!v) setDraft({ ...draft, vendorId: null, vendor: "", naming: false });
+              else setDraft({ ...draft, vendorId: v, vendor: suppliers.find((x) => x.id === v)?.name ?? "", naming: false });
+            }}>
+            <option value="">No supplier</option>
+            {!draft.vendorId && !draft.naming && draft.vendor.trim() && <option value={TYPED}>{`${draft.vendor.trim()} (typed)`}</option>}
+            {suppliers.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            {draft.vendorId && !suppliers.some((v) => v.id === draft.vendorId) && <option value={draft.vendorId}>{draft.vendor || "A vendor no longer in the book"}</option>}
+            <option value={NEW}>Someone else…</option>
+          </select>
+        </label>
       </div>
+      {draft.naming && (
+        <label className="gl-f"><span>Their name</span>
+          <input value={draft.vendor} autoFocus placeholder="e.g. TricorBraun — matched to the vendor book on Save" onChange={(e) => setDraft({ ...draft, vendor: e.target.value })} />
+        </label>
+      )}
+      {!draft.vendorId && !draft.naming && draft.vendor.trim() !== "" && (
+        <div className="gl-hint">
+          {`“${draft.vendor.trim()}” was typed before suppliers were links. `}
+          <button type="button" className="gl-act" onClick={linkTyped} disabled={busy}>Link it</button>
+        </div>
+      )}
+      {book.status === "error" && <div className="gl-hint">{`Couldn't read the vendor book — ${book.error?.message ?? "no answer"}. The supplier can be typed and linked later.`}</div>}
       <div className="gl-frow">
         <label className="gl-f"><span>Reorder point</span><input type="number" inputMode="decimal" value={draft.reorderPoint} onChange={(e) => setDraft({ ...draft, reorderPoint: e.target.value })} /></label>
         <label className="gl-f gl-check"><input type="checkbox" checked={draft.critical} onChange={(e) => setDraft({ ...draft, critical: e.target.checked })} /><span>Event-critical</span></label>
@@ -173,9 +259,30 @@ export default function InventoryLibrary() {
       <label className="gl-f"><span>Notes</span><textarea rows={2} value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} /></label>
       {err && <div className="gl-err">{err}</div>}
       <div className="gl-form-actions">
-        <button className="adm-btn primary" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+        <button className="adm-btn primary" onClick={() => save()} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
         <button className="adm-btn ghost" onClick={cancel} disabled={busy}>Cancel</button>
       </div>
+      {asking && (
+        <VendorResolve name={asking.name} candidates={asking.candidates} busy={busy}
+          onUse={(c) => {
+            const then = asking.then;
+            setAsking(null);
+            setDraft({ ...draft, vendorId: c.id, vendor: c.name, naming: false });
+            if (then === "save") save({ id: c.id, name: c.name });
+          }}
+          onCreateDistinct={async () => {
+            const { name, then } = asking;
+            setAsking(null); setBusy(true);
+            const r = await resolveSupplier(name, draft.market, "the inventory register", { createDistinct: true });
+            setBusy(false);
+            if (r.kind === "linked" || r.kind === "created") {
+              if (r.created) book.reload();
+              setDraft({ ...draft, vendorId: r.id, vendor: name, naming: false });
+              if (then === "save") save({ id: r.id, name });
+            } else setErr(`Couldn't add ${name}${r.kind === "error" ? ` — ${r.message}` : ""}`);
+          }}
+          onClose={() => setAsking(null)} />
+      )}
     </div>
   );
 
@@ -196,6 +303,7 @@ export default function InventoryLibrary() {
           </div>
           {ai && <InventoryAI onClose={() => setAi(false)} onAdded={load} />}
           {editing === "new" && form}
+          {resp.linkError && <div className="gl-hint">{`Couldn't read which supplier each shelf is linked to — ${resp.linkError}. Their typed names show meanwhile.`}</div>}
           {resp.error ? (
             <div className="gl-hint">Couldn&apos;t reach inventory: {resp.error}</div>
           ) : items.length === 0 ? (
@@ -206,7 +314,7 @@ export default function InventoryLibrary() {
                 <div key={it.id} className={`gl-item${isLow(it) ? " low" : ""}`}>
                   <div className="gl-item-main">
                     <b>{it.name}{onHandOf(it) != null ? ` · ${onHandOf(it)}${it.unit ? " " + it.unit : ""}` : ""}</b>
-                    <span className="gl-uc">{[manyCities ? MARKET_LABEL[toMarket(it.market)] : null, it.status, it.category, it.vendor].filter(Boolean).join(" · ")}</span>
+                    <span className="gl-uc">{[manyCities ? MARKET_LABEL[toMarket(it.market)] : null, it.status, it.category, supplierName(it)].filter(Boolean).join(" · ")}</span>
                   </div>
                   <div className="gl-links">
                     {it.reorderLink && <a href={it.reorderLink} target="_blank" rel="noopener noreferrer">Reorder <Icon name="externalLink" /></a>}

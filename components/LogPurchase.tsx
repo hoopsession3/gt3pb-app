@@ -1,20 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import Icon from "@/components/Icon";
 import { parseDollars } from "@/lib/wrap";
-import { moneyPlain } from "@/lib/money";
+import { money, moneyPlain } from "@/lib/money";
 import { localToday, dayKey } from "@/lib/dates";
 import { MARKETS, MARKET_LABEL, FOUNDING_MARKET, toMarket, type Market } from "@/lib/markets";
 import { categoryOrder, categoryLabel, receiptAsk, purchaseDay, type SpendCategory } from "@/lib/spend";
 import { attachReceipt } from "@/lib/receipts";
 import { homeMarket } from "@/lib/homeMarket";
-import { rankSuppliers, supplierNamed, type Supplier, type VendorRow, type RecentPurchase } from "@/lib/suppliers";
-import { resolveVendor, type VendorMatch } from "@/lib/vendorLink";
+import { rankSuppliers, supplierNamed, readVendorBook, type Supplier, type VendorRow, type RecentPurchase } from "@/lib/suppliers";
+import { resolveSupplier, type VendorMatch } from "@/lib/vendorLink";
 import { follow } from "@/lib/pickFill";
+import { isStocked, orderShelves, unitCost, shelfQty, roundedLot, perUnitWords, qtyWords, type Shelf, type LotSeen } from "@/lib/receiving";
+import { isMissingFunction } from "@/lib/schemaSkew";
+import { useAsyncData } from "@/lib/useAsyncData";
 import VendorResolve from "./VendorResolve";
 
 // LOG A PURCHASE — the capture half of spend (2026-10-04).
@@ -45,6 +48,12 @@ import VendorResolve from "./VendorResolve";
 // A supplier whose purchases have only ever been one category starts the category there — said on
 // the sheet, changed with a tap, and never over a category somebody chose. A device that has never
 // logged a purchase starts in the city its person works from, not in Greenville.
+//
+// ONTO A SHELF (2026-10-05, 0347). A purchase of ingredients or supplies can go onto the shelf it
+// was bought for: receive_lot puts a costed lot there — what a unit cost, from whom — and the
+// restock on the shelf's ledger, in one act. Nothing in the app did that before: the shelf was counted
+// by hand, and a batch costed out at $0.00 wherever nobody had priced a receipt by hand (0298). The
+// shelves this supplier has filled come first (lib/receiving); nothing is chosen for you.
 
 type DayChoice = "today" | "yesterday" | "pick";
 const MARKET_KEY = "gt3-spend-market";
@@ -87,6 +96,9 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
   // and a later supplier pick moves it only while nobody has chosen one (lib/pickFill.follow).
   const [catFrom, setCatFrom] = useState<{ slug: string; who: string } | null>(null);
   const [asking, setAsking] = useState<{ name: string; candidates: VendorMatch[] } | null>(null);
+  // Onto a shelf: which one (by id, of this city's), and how much — in the shelf's own unit.
+  const [shelfId, setShelfId] = useState("");
+  const [qtyTyped, setQtyTyped] = useState("");
   // The clock is read once, when the sheet opens: "today" means the day you opened it.
   const [now] = useState(() => new Date());
 
@@ -98,7 +110,7 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
     Promise.all([
       supabase.from("spend_categories").select("slug, label, sort, active, receipt_required_over_cents").order("sort"),
       supabase.from("expenses").select("category, vendor_id").gte("spent_on", since).is("voided_at", null).limit(500),
-      supabase.from("vendors").select("id, name, kind").is("archived_at", null).neq("status", "archived").order("name"),
+      readVendorBook(supabase),
     ]).then(([c, e, v]) => {
       if (gone) return;
       // A FAILED READ IS NOT AN EMPTY LIST: with no categories there is nothing honest to offer.
@@ -119,7 +131,31 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
   const cents = "cents" in parsed && parsed.cents > 0 ? parsed.cents : 0;
   const spentOn = purchaseDay(day, picked, now);
   const ask = cats && cat ? receiptAsk(cents, cat, cats, !!file) : null;
-  const ready = cents > 0 && !!cat && !!spentOn && !busy;
+
+  // This city's shelves, read once a stocked category is chosen — and the lots on them, to put the
+  // shelves this supplier has filled first. A failed read is said; the purchase still logs.
+  const stocked = isStocked(cat);
+  const shelvesLoader = useCallback(async (): Promise<{ market: Market; shelves: Shelf[]; lots: LotSeen[] } | null> => {
+    if (!supabase || !stocked) return null;
+    const [sh, lo] = await Promise.all([
+      supabase.from("inventory_items").select("id, name, unit, kind").eq("market", market).order("name"),
+      supabase.from("inventory_lots").select("item_name, vendor_id").eq("market", market).not("vendor_id", "is", null).limit(500),
+    ]);
+    if (sh.error) throw new Error(sh.error.message);
+    return { market, shelves: (sh.data as Shelf[]) ?? [], lots: lo.error ? [] : ((lo.data as LotSeen[]) ?? []) };
+  }, [stocked, market]);
+  const shelfRead = useAsyncData(shelvesLoader, [shelvesLoader]);
+  // A shelf belongs to the city it was read for. useAsyncData keeps the last answer while the next one
+  // loads, so after a city change the old city's shelves are still in hand: they are not offered, and
+  // a shelf chosen among them is not carried over.
+  const shelvesHere = shelfRead.data && shelfRead.data.market === market ? shelfRead.data : null;
+  const shelvesFailed = !shelvesHere && !!shelfRead.error;
+  const shelfChoices = shelvesHere ? orderShelves(shelvesHere.shelves, shelvesHere.lots, from.id, cat) : [];
+  const shelf = stocked ? shelfChoices.find((x) => x.id === shelfId) ?? null : null;
+  const qty = shelf ? shelfQty(qtyTyped) : null;
+  const perUnit = qty ? unitCost(cents, qty) : null;
+  const costedAt = qty ? roundedLot(cents, qty) : null;
+  const ready = cents > 0 && !!cat && !!spentOn && !busy && (!shelf || qty !== null);
 
   // Pick a supplier from the list (or clear it). The category follows the supplier's usual one only
   // while it is empty or still holds what the previous supplier put there — a chosen one stays.
@@ -146,10 +182,10 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
       if (from.id || !typed) settled = { id: from.id, name: from.name };
       else if (known) settled = { id: known.id, name: known.name };
       else {
-        // A name not on the list goes through THE vendor resolver (lib/vendorLink): an exact match
-        // links, a look-alike is asked about, a clean miss becomes a supplier — approved, because a
-        // purchase that happened is not a booking waiting on the owner.
-        const r = await resolveVendor(typed, { status: "approved", source: "a purchase", extra: { kind: "supplier", market } });
+        // A name not on the list goes through THE vendor resolver, as a supplier (lib/vendorLink
+        // resolveSupplier): an exact match links, a look-alike is asked about, a clean miss becomes an
+        // approved supplier in this city.
+        const r = await resolveSupplier(typed, market, "a purchase");
         if (r.kind === "similar") { setBusy(false); setAsking({ name: typed, candidates: r.candidates }); return; }
         if (r.kind === "error") { setBusy(false); toast(`Not logged — couldn't add ${typed} as a supplier: ${r.message}`, "error"); return; }
         settled = { id: r.id, name: typed, added: r.created };
@@ -164,15 +200,33 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
     const label = categoryLabel(cat, cats ?? []);
     const at = settled.id && settled.name ? ` from ${settled.name}` : "";
     const added = settled.added ? ` ${settled.name} is in the vendor book now, as a supplier.` : "";
+    // Onto the shelf, as a lot of this purchase. The purchase is logged whatever happens here, and
+    // the toast says which half did not land.
+    let onShelf = "";
+    let shelfMissed = false;
+    if (shelf && qty) {
+      // arrives-with: 0347 — before it is pasted, PostgREST has no receive_lot in this shape, and the
+      // step says so instead of reaching for 0293's, which would replace a hand-counted shelf.
+      const { error: recvErr } = await supabase.rpc("receive_lot", {
+        p_market: market, p_item: shelf.name, p_qty: qty, p_unit: shelf.unit, p_unit_cost_cents: perUnit,
+        p_expense_id: (data as { id: string }).id, p_received_on: spentOn, p_vendor_id: settled.id,
+      });
+      shelfMissed = !!recvErr;
+      onShelf = recvErr
+        ? (isMissingFunction(recvErr)
+            ? ` It isn't on ${shelf.name} yet — receiving onto a shelf arrives with the next database update.`
+            : ` It isn't on ${shelf.name} — ${recvErr.message}.`)
+        : ` Added ${qtyWords(qty, shelf.unit)} to ${shelf.name}.`;
+    }
     if (file) {
       const why = await attachReceipt(supabase, data as { id: string; market: string }, file);
       setBusy(false);
       // The purchase IS logged either way — say exactly which half did not land, and where to fix it.
-      if (why) { toast(`Logged $${moneyPlain(cents)}${at} to ${label}, but the receipt did not upload — ${why}. Add it from Money › Spend.${added}`, "error"); onDone?.(); return; }
-      toast(`Logged $${moneyPlain(cents)}${at} to ${label}, with its receipt.${added}`);
+      if (why) { toast(`Logged $${moneyPlain(cents)}${at} to ${label}, but the receipt did not upload — ${why}. Add it from Money › Spend.${onShelf}${added}`, "error"); onDone?.(); return; }
+      toast(`Logged $${moneyPlain(cents)}${at} to ${label}, with its receipt.${onShelf}${added}`, shelfMissed ? "error" : undefined);
     } else {
       setBusy(false);
-      toast(`Logged $${moneyPlain(cents)}${at} to ${label}.${added}`);
+      toast(`Logged $${moneyPlain(cents)}${at} to ${label}.${onShelf}${added}`, shelfMissed ? "error" : undefined);
     }
     window.dispatchEvent(new Event("gt3-spend-logged"));
     onDone?.();
@@ -259,6 +313,41 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
         )}
       </div>
 
+      {/* 5b · onto a shelf — only for what is stock, and only when chosen */}
+      {stocked && (
+        <div className="lp-f" role="group" aria-label="Onto a shelf">
+          <span>Onto a shelf <i>optional</i></span>
+          {shelvesFailed ? (
+            <p className="lp-note">{`Couldn't read ${MARKET_LABEL[market]}'s shelves — ${shelfRead.error?.message ?? "no answer"}. The purchase still logs; count the shelf later.`}</p>
+          ) : (
+            <select className="note-in" value={shelf ? shelf.id : ""} aria-label="Which shelf it goes onto"
+              onChange={(e) => { setShelfId(e.target.value); setQtyTyped(""); }}>
+              <option value="">{shelvesHere ? "Not onto a shelf" : `Reading ${MARKET_LABEL[market]}'s shelves…`}</option>
+              {[
+                { label: from.id ? `${from.name} has filled these` : "", rows: shelfChoices.filter((x) => x.filledBy) },
+                { label: `${categoryLabel(cat, cats)} shelves`, rows: shelfChoices.filter((x) => !x.filledBy && x.fits) },
+                { label: "Other shelves", rows: shelfChoices.filter((x) => !x.filledBy && !x.fits) },
+              ].filter((g) => g.rows.length > 0).map((g) => (
+                <optgroup key={g.label} label={g.label || "Shelves"}>
+                  {g.rows.map((x) => <option key={x.id} value={x.id}>{x.unit ? `${x.name} (${x.unit})` : x.name}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          )}
+          {shelf && (
+            <div className="lp-recv">
+              <input className="note-in lp-qty" inputMode="decimal" value={qtyTyped} placeholder="How much"
+                aria-label={`How much went onto the shelf, in ${shelf.unit ?? "units"}`}
+                onChange={(e) => setQtyTyped(e.target.value.replace(/[^0-9.,]/g, ""))} />
+              <span className="lp-unit">{shelf.unit ?? "units"}</span>
+            </div>
+          )}
+          {shelf && qty !== null && (
+            <p className="lp-note">{`${perUnit !== null && cents > 0 ? `${money(perUnit)} ${perUnitWords(shelf.unit)} — ` : ""}onto ${MARKET_LABEL[market]}'s ${shelf.name} as a delivery${from.name.trim() ? ` from ${from.name.trim()}` : ""}, added to what the shelf already holds.${costedAt !== null ? ` Costs are kept in whole cents, so this delivery is costed at ${money(costedAt)}, not ${money(cents)}.` : ""}`}</p>
+          )}
+        </div>
+      )}
+
       {/* 6 · when, and for which city */}
       <div className="lp-f" role="group" aria-label="When">
         <span>When</span>
@@ -289,8 +378,8 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
       <button type="button" className="btn-pri lp-save" onClick={() => save()} disabled={!ready}>
         {busy ? "Logging…" : cents > 0 && cat ? `Log $${moneyPlain(cents)} · ${categoryLabel(cat, cats)}` : "Log it"}
       </button>
-      {!busy && (cents <= 0 || !cat) && (
-        <p className="lp-need">{cents <= 0 ? "Enter what it cost." : "Pick a category."}</p>
+      {!busy && (cents <= 0 || !cat || (shelf && qty === null)) && (
+        <p className="lp-need">{cents <= 0 ? "Enter what it cost." : !cat ? "Pick a category." : "Say how much went onto the shelf — or choose Not onto a shelf."}</p>
       )}
 
       {asking && (
@@ -300,7 +389,7 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
             const typed = asking.name;
             setAsking(null);
             setBusy(true);
-            const r = await resolveVendor(typed, { status: "approved", source: "a purchase", extra: { kind: "supplier", market }, decision: { createDistinct: true } });
+            const r = await resolveSupplier(typed, market, "a purchase", { createDistinct: true });
             setBusy(false);
             if (r.kind === "linked" || r.kind === "created") save({ id: r.id, name: typed, added: r.created });
             else toast(`Not logged — couldn't add ${typed} as a supplier${r.kind === "error" ? `: ${r.message}` : ""}`, "error");

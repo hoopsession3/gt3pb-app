@@ -124,3 +124,12 @@ export async function addVendorLocation(
   if (error || !data) return null;
   return data as { id: string };
 }
+
+// A SUPPLIER, NAMED WHERE SOMETHING WAS BOUGHT (2026-10-05, the form audit). The same resolver —
+// exact name links, a look-alike is asked about, a clean miss is created — with the two things that
+// make it a supplier: approved, because a purchase that happened (or a shelf already stocked) is not
+// a booking waiting on the owner; and kind 'supplier' (0298), filed in the city it was named in. The
+// purchase sheet and the inventory register both name suppliers through this, so they cannot drift.
+export function resolveSupplier(name: string, market: string, source: string, decision?: ResolveDecision): Promise<ResolveVendorOutcome> {
+  return resolveVendor(name, { status: "approved", source, extra: { kind: "supplier", market }, ...(decision ? { decision } : {}) });
+}

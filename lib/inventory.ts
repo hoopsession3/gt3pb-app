@@ -21,8 +21,9 @@ export interface InvItem {
   vendor: string | null;
   notes: string | null;
   market?: string | null;     // the city whose shelf this is (0288)
+  vendorId?: string | null;   // who it is bought from, as a vendor (0347); `vendor` keeps the typed name
 }
-export interface InventoryResp { enabled: boolean; items: InvItem[]; error?: string }
+export interface InventoryResp { enabled: boolean; items: InvItem[]; error?: string; linkError?: string }
 
 export async function fetchInventory(): Promise<InventoryResp> {
   try {
