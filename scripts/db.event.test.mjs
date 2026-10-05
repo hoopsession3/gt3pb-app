@@ -359,5 +359,71 @@ ok("0339 recorded itself by filename",
   (await q1(`select version as v from public.schema_migrations where seq=339`)).v === "0339_the_sentence_that_described_a_door");
 ok("and said what changed, once", Number((await q1(`select count(*) as c from public.changelog`)).c) === 3);
 
+// ── 10) 0348: TONIGHT IS NOT THE PAST ──────────────────────────────────────────────────────────
+// The views said where an event sits against current_date, the database's day — UTC, which turns
+// over at 8pm Eastern. The claim: they read the business day now, and nothing else moved.
+const colsOf = async (v) => (await all(`select column_name, data_type from information_schema.columns where table_name='${v}' order by ordinal_position`))
+  .map((r) => `${r.column_name}:${r.data_type}`).join(",");
+const before = { rec: await colsOf("v_event_record"), gaps: await colsOf("v_event_gaps") };
+const MIG_0348 = readFileSync(join(ROOT, "supabase/migrations/0348_tonight_is_not_the_past.sql"), "utf8");
+await db.exec(MIG_0348);
+console.log("0348 executed on top of it.");
+
+ok("0348: the business day is Eastern's",
+  (await q1(`select public.business_day() = (now() at time zone 'America/New_York')::date as same`)).same === true);
+ok("0348: neither view's columns moved — create or replace may not move one, and nothing reading them should notice",
+  (await colsOf("v_event_record")) === before.rec && (await colsOf("v_event_gaps")) === before.gaps);
+
+// THE EVENING, pinned: the business day one behind the database's, which is 9pm Eastern any night.
+// `create or replace` keeps the function's identity, so both views read the pinned day.
+const pinDay = (sql) => db.exec(`create or replace function public.business_day() returns date language sql stable set search_path = public as $$ select ${sql} $$`);
+await pinDay("current_date - 1");
+const tonight = await mk({ title: `'Evening Jazz'`, day: `current_date - 1`, stage: `'confirmed'` });
+const tonightRec = await q1(`select phase, days_away from public.v_event_record where id='${tonight}'`);
+ok("0348: at 9pm Eastern, tonight's event is TODAY — current_date had it a day past",
+  tonightRec.phase === "today" && Number(tonightRec.days_away) === 0, tonightRec);
+ok("0348: so it is not 'still being planned after its day'", !(await gapsFor(tonight)).includes("stale_stage"), await gapsFor(tonight));
+const tonightLive = await mk({ title: `'Evening Market'`, day: `current_date - 1`, stage: `'live'`, is_live: `true` });
+ok("0348: and its live flag, out on the one night it should be, is not a HIGH finding",
+  !(await gapsFor(tonightLive)).includes("live_past"), await gapsFor(tonightLive));
+const wrappedTonight = await mk({ title: `'Evening Wrapped'`, day: `current_date - 1`, stage: `'done'` });
+ok("0348: wrapped tonight is not 'dated in the future'", !(await gapsFor(wrappedTonight)).includes("done_early"), await gapsFor(wrappedTonight));
+// The one done_early changes: at 9pm Eastern current_date is already tomorrow, so a row dated tomorrow
+// and marked done read as not in the future. On the business day it is.
+const doneTomorrow = await mk({ title: `'Tomorrow Done'`, day: `current_date`, stage: `'done'` });
+ok("0348: done for TOMORROW is dated in the future — current_date, already on tomorrow, missed it",
+  (await gapsFor(doneTomorrow)).includes("done_early"), await gapsFor(doneTomorrow));
+const lastNight = await mk({ title: `'Last Night'`, day: `current_date - 2`, stage: `'prep'` });
+ok("0348: yesterday's is past, and caught", (await gapsFor(lastNight)).includes("stale_stage"), await gapsFor(lastNight));
+ok("0348: and the record says so the way the sheet reads it",
+  Number((await q1(`select days_away from public.v_event_record where id='${lastNight}'`)).days_away) === -1);
+
+// The file again — restoring the real day, and proving it can be pasted twice.
+await db.exec(MIG_0348);
+ok("0348: the file runs twice, and the day is Eastern's again",
+  (await q1(`select public.business_day() = (now() at time zone 'America/New_York')::date as same`)).same === true);
+ok("0348: recorded once, applied twice",
+  Number((await q1(`select applied_count from public.schema_migrations where seq=348`)).applied_count) === 2);
+const staleDetail = await q1(`select detail from public.v_event_gaps where event_id='${stale}' and gap='stale_stage'`);
+ok("0348: the diagnosis is a diagnosis — the fix sentence is lib/eventRecord's, said once",
+  staleDetail?.detail === "The day has passed and this is still in a planning stage.", staleDetail);
+ok("0348: no detail anywhere says 'drop it' any more",
+  Number((await q1(`select count(*) as c from public.v_event_gaps where detail ilike '%drop it%'`)).c) === 0);
+ok("0348: every rule in the restated view still fires at least once",
+  (await all(`select distinct gap from public.v_event_gaps order by gap`)).map((r) => r.gap).length === 9,
+  (await all(`select distinct gap from public.v_event_gaps order by gap`)).map((r) => r.gap));
+ok("0348: a clean upcoming event still has nothing to answer for", (await gapsFor(bare)).length === 0, await gapsFor(bare));
+ok("0348: a properly finished event is still quiet", (await gapsFor(donePast)).length === 0, await gapsFor(donePast));
+ok("0348: both views still honour the RLS beneath them",
+  (await all(`select c.relname, coalesce(array_to_string(c.reloptions,','),'') as opts from pg_class c join pg_namespace n on n.oid=c.relnamespace
+     where n.nspname='public' and c.relkind='v' and c.relname in ('v_event_record','v_event_gaps')`)).every((r) => /security_invoker=on/.test(r.opts)));
+ok("0348: and the same grants — signed in can read them, a guest cannot",
+  (await all(`select has_table_privilege('authenticated', 'public.v_event_record', 'select') as a, has_table_privilege('anon', 'public.v_event_record', 'select') as b,
+     has_table_privilege('authenticated', 'public.v_event_gaps', 'select') as c, has_table_privilege('anon', 'public.v_event_gaps', 'select') as d`))
+    .every((r) => r.a === true && r.b === false && r.c === true && r.d === false));
+ok("0348 recorded itself by filename",
+  (await q1(`select version as v from public.schema_migrations where seq=348`)).v === "0348_tonight_is_not_the_past");
+ok("and said what changed, once — the second paste did not say it again", Number((await q1(`select count(*) as c from public.changelog`)).c) === 4);
+
 console.log(`\nAN EVENT IS TEN SCREENS AND NO RECORD: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

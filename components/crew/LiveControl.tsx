@@ -382,16 +382,13 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
             const last = dated[dated.length - 1];
             return last ? dayWithDate(new Date(last.starts_at as string)) : "undated";
           };
-          let idx = -1;
           return groups.map((g) => {
             const editors = g.rows.map((s) => {
-              idx += 1;
               return (
                 <LocationEditor
                   key={s.id}
                   kind="stop"
                   row={s}
-                  index={idx}
                   isCur={Boolean(s.id === live?.current_stop_id && live?.is_live)}
                   open={openStopId === s.id}
                   onToggle={() => setOpenStopId(openStopId === s.id ? null : s.id)}

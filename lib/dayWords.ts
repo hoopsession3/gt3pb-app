@@ -7,8 +7,8 @@ import { dayFromKey } from "./dates";
 // there, these (with a greeting helper since retired, see below) cost every public route 151 bytes
 // gzipped (measured 2026-10-04, both builds, every route: /reserve 298 402 → 298 553) for words only
 // the crew console says. Here they ride in the console's own chunk. lib/dates stays the one answer
-// to "what day is it"; this is the one answer to "how late is it" on My Day — and it builds on
-// dayFromKey rather than copying it.
+// to "what day is it"; this is the one answer to "how late is it" on My Day, and "how long since" on
+// Plan — and it builds on dayFromKey rather than copying it.
 
 // ── HOW LATE, SAID ONE WAY (2026-10-04) ───────────────────────────────────────────────────────
 // Needs-you said "94 days late" with a private helper; My Day's top three said nothing at all, so
@@ -24,6 +24,19 @@ export function dueWord(daysOut: number): string {
   if (daysOut < 0) return `${n} day${n === 1 ? "" : "s"} late`;
   if (daysOut === 0) return "due today";
   return `in ${n} day${n === 1 ? "" : "s"}`;
+}
+
+// ── HOW LONG SINCE, FOR SOMETHING THAT SHOULD RECUR (2026-10-05) ─────────────────────────────
+// The weekly operating review read "Latest: Aug 2" on Oct 5 — nine weeks, said as a date, so a
+// weekly ritual that had stopped looked like one that had just happened. Weeks from two on, because
+// that is the unit the ritual is counted in; days below that. A day ahead of today has no "ago".
+/** "today" · "yesterday" · "5 days ago" · "9 weeks ago" · "" (not yet). `daysAgo` is today minus the day. */
+export function agoWord(daysAgo: number): string {
+  if (!Number.isFinite(daysAgo) || daysAgo < 0) return "";
+  if (daysAgo === 0) return "today";
+  if (daysAgo === 1) return "yesterday";
+  if (daysAgo < 14) return `${daysAgo} days ago`;
+  return `${Math.floor(daysAgo / 7)} weeks ago`;
 }
 
 // ── partOfDay, retired the same day ───────────────────────────────────────────────────────────

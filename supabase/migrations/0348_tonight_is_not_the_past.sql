@@ -1,23 +1,3 @@
--- ⚠️ NEVER include files from supabase/pending/ in this bundle — those are soak-gated (see
--- supabase/pending/0224_field_ops_contract.sql) and applying them early is irreversible.
---
--- ── GENERATED FILE — DO NOT EDIT BY HAND ─────────────────────────────────────────────────────
--- Regenerate with:  npm run migrations:pending -- --write
---
--- This file is the OUTPUT of comparing supabase/migrations/ against what production's ledger
--- (public.schema_migrations, via /api/migrations) says has actually been applied. Its previous
--- hand-maintained version said "apply all pending migrations" and stopped at 0035 while this
--- directory held 326 files — wrong by 291 migrations, referenced by nothing, checked by nothing.
---
--- The line below is what stops that happening again: scripts/drift.check.mjs fails the release
--- if supabase/migrations/ ever holds a migration numbered above it.
--- pending-from: 0348
--- generated-at: 2026-10-05
--- pending-count: 1
--- ledger-read-from: https://app.gt3pb.com/api/migrations
--- ============================================================
--- 0348_tonight_is_not_the_past.sql
--- ============================================================
 -- ── TONIGHT IS NOT THE PAST ───────────────────────────────────────────────────────────────────
 -- 2026-10-05. Two things in the views behind Plan › Needs sorting and the event record sheet, found
 -- reading them against the screenshots Ryan sent of Plan › Events.
@@ -41,7 +21,8 @@
 --    The day the business runs on is Eastern, and the app already says so (lib/dates.etToday; 0330,
 --    0340, 0341 and 0342 each write `(now() at time zone 'America/New_York')::date` inline). This
 --    gives that expression a name, public.business_day(), and puts the two event views on it.
---    `done_early` reads it too — a row marked done tonight is not "dated in the future".
+--    `done_early` reads it too: from 8pm, current_date had already reached tomorrow, so an event
+--    dated tomorrow and marked done passed as not dated in the future.
 --    The other views that still say current_date (0320's deadlines among them) are not changed
 --    here; each is its own question about which day it means, and this commit does not guess.
 --
@@ -127,7 +108,8 @@ select r.id as event_id,
        coalesce(btrim(r.title), '') = ''),
     ('no_day',     'No date, so it appears on no calendar and in no week.', 'high',
        r.day is null),
-    -- 0348: the business day, so a row wrapped tonight is not "dated in the future" after 8pm.
+    -- 0348: the business day. From 8pm current_date was already tomorrow, so a row dated tomorrow
+    -- and marked done did not read as dated in the future.
     ('done_early', 'Marked done, but dated in the future. One of the two is wrong.', 'high',
        r.stage = 'done' and r.day is not null and r.day > public.business_day()),
     ('twin',       'Another event shares this title and date. One of them is probably the real one.', 'high',

@@ -22,6 +22,10 @@
 // (the purchase sheet's, the inventory register's), so the two cannot offer different books.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isSupplierKind } from "./vendorKind";
+
+// The kind vocabulary (0298) lives in lib/vendorKind — re-exported, not copied.
+export { isSupplierKind };
 
 export type VendorRow = { id: string; name: string; kind: string | null };
 export type RecentPurchase = { vendor_id: string | null; category: string | null };
@@ -31,8 +35,6 @@ export type Supplier = VendorRow & {
   /** The category their purchases are filed under, when their history says so plainly — else null. */
   usual: string | null;
 };
-
-export const isSupplierKind = (kind: string | null | undefined): boolean => kind === "supplier" || kind === "both";
 
 /** A category is "usual" for a supplier at two purchases or more, and three in four of them. */
 export const USUAL_MIN = 2;

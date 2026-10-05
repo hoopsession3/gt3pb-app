@@ -12,7 +12,7 @@ import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, alertWhen, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
-import { localToday, etToday, dayKey, dayWithDate, relativeDay, ageLabel, fmt12 } from "@/lib/dates";
+import { localToday, etToday, dayKey, dayWithDate, relativeDay, ageLabel, fmt12, evDate, evTime } from "@/lib/dates";
 import { orderClockFrom, waitingToOpen, waitingLabel } from "@/lib/ordering";
 import { prepBucket } from "@/lib/readiness";
 import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
@@ -38,7 +38,7 @@ import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY
 import { useTaskSheet } from "@/components/TaskSheet";
 import { useRecord } from "@/components/RecordSheet";
 import { recordForAlert, TASK_ALERT_KINDS } from "@/lib/records";
-import { owedLine, prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
+import { owedLine, prepHandoffKey, prepHandoffValue, EVENT_STAGES, isEventStage, stageLabel, type EventStage, eventPiles, newestFirst, dateLine, placeBesideTitle } from "@/lib/eventRecord";
 import { WayButtons } from "@/components/RecordWays";
 import { goPlanTab, isPlanTab, planTabFromUrl, stampPlanTab, PLAN_TAB_KEY, PLAN_TAB_EVENT } from "@/lib/planNav";
 import GtmCard from "@/components/GtmCard";
@@ -4705,21 +4705,23 @@ function BriefPanel({ e, proj, inventory }: { e: EventRow; proj: Projection; inv
 }
 
 // One event as a collapsible card: clean header when closed, full editor when open.
-// Event lifecycle — Lead → Confirmed → Prep → Live → Done. Live/Done are driven by the green flag
+// Event lifecycle — Lead → Confirmed → In prep → Live → Done. Live/Done are driven by the green flag
 // and archive; the planning stages you set. The current stage is shown everywhere at a glance.
-const EVENT_STAGES = [
-  { key: "lead", label: "Lead", color: "#9aa0a6" },
-  { key: "confirmed", label: "Confirmed", color: "#6fa8dc" },
-  { key: "prep", label: "Prep", color: "#e0892b" },
-  { key: "live", label: "Live", color: "#2bb3a3" },
-  { key: "done", label: "Done", color: "#7bbf6a" },
-] as const;
-const stageOf = (e: { stage?: string | null; is_live?: boolean }) => (e.is_live ? "live" : (e.stage || "confirmed"));
-const stageMeta = (k: string) => EVENT_STAGES.find((s) => s.key === k) ?? EVENT_STAGES[1];
+// The stage's WORDS have one home, lib/eventRecord: the record sheet and Needs sorting read them
+// there, and this card was the third vocabulary — "Prep" on the card, "In prep" on the sheet, for
+// the same row (2026-10-05). The colour is this card's own; nothing else paints a stage.
+const STAGE_COLOR: Record<EventStage, string> = {
+  lead: "#9aa0a6", confirmed: "#6fa8dc", prep: "#e0892b", live: "#2bb3a3", done: "#7bbf6a",
+};
+// 0075's column default is 'confirmed', so a row without a known stage reads as the database would.
+const stageOf = (e: { stage?: string | null; is_live?: boolean }): EventStage =>
+  e.is_live ? "live" : isEventStage(e.stage) ? e.stage : "confirmed";
+// The list's three piles, in reading order, with the words each is headed by (lib/eventRecord.eventPiles).
+const EVENT_PILES = [["next", "Coming up"], ["unwrapped", "Past · not wrapped"], ["done", "Done"]] as const;
 
-function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, onArchive, econRow, catalog, inventory, vendors, onLinkVendor, onSaveEcon, onOpenPrep }: {
+function EventCard({ e, today, open, onToggle, onUpdate, onRemove, onSetLive, onArchive, econRow, catalog, inventory, vendors, onLinkVendor, onSaveEcon, onOpenPrep }: {
   e: EventRow;
-  index: number;
+  today: string;
   open: boolean;
   onToggle: () => void;
   onUpdate: (patch: Partial<EventRow>) => void;
@@ -4757,23 +4759,34 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
   const prep = cardState.data?.prep ?? null;
   const planCount = cardState.data?.planCount ?? null;
   const statusErr = cardState.status === "error";
-  const when = [e.day_label, [e.start_time, e.end_time].filter(Boolean).join("–")].filter(Boolean).join(" ");
-  const sub = [when, e.location_text].filter(Boolean).join("  ·  ");
-  const tag = `Event ${String(index + 1).padStart(2, "0")}${e.is_live ? " · Live" : ""}`;
+  // WHAT THE CLOSED CARD SAYS (2026-10-05, Ryan's screenshot of this list). The line above the
+  // title was "EVENT 01", "EVENT 02" — a number for where the row happened to fall, on a list that
+  // fell in the order the rows were created — and the date itself was never on the card: only the
+  // weekday, then the times exactly as typed ("6:00PM"), then the venue, which half the time is the
+  // title again ("SASSAFRAS FLOWER FARM" under Sassafras Flower Farm). Now the date leads, said
+  // against today; the hours go through lib/dates' one formatter, as the calendar's do; and the
+  // venue shows when it adds something the title does not already say.
+  const tag = dateLine(e.day, today);
+  const sub = [evTime(e), placeBesideTitle(e.title, e.location_text)].filter(Boolean).join(" · ");
+  const st = stageOf(e);
   // go/no-go ROI at a glance — from saved economics, no need to expand
   const proj = useMemo(() => projectEvent(e, econRow ?? DEFAULT_ECON, catalog), [e, econRow, catalog]);
   const showRoi = catalog.length > 0 && proj.revenueCents > 0;
   return (
     <div className={`ev-card${e.is_live ? " live" : ""}${open ? " open" : ""}`}>
       <button className="ev-head" onClick={onToggle} aria-expanded={open}>
-        <span className="ev-led" />
+        {/* The light is the live flag and nothing else. Off, it was an empty ring on every card —
+            which on a phone reads as a checkbox nobody can tick. */}
+        {e.is_live && <span className="ev-led" />}
         <span className="ev-head-main">
           <span className="ev-tag">{tag}</span>
           <span className="ev-title">{e.title || "Untitled event"}</span>
-          <span className="ev-sub">{sub || "Tap to set up"}</span>
+          {/* No hours and a venue the title already says — Soul Yoga, Sassafras on Ryan's list — is
+              an empty line, not "Tap to set up": those events are set up, and the date leads now. */}
+          {sub && <span className="ev-sub">{sub}</span>}
         </span>
         <span className="ev-head-badges">
-          {(() => { const st = stageMeta(stageOf(e)); return <span className="ev-badge stage" style={{ ["--c" as string]: st.color }}>{st.label}</span>; })()}
+          <span className="ev-badge stage" style={{ ["--c" as string]: STAGE_COLOR[st] }}>{stageLabel(st)}</span>
           {showRoi && <span className={`ev-badge roi${proj.netCents < 0 ? " neg" : ""}`}>ROI {pctInt(proj.roiPct)}%</span>}
           {e.member_only && <span className="ev-badge gold">Members</span>}
           <span className="ev-chev">›</span>
@@ -4784,13 +4797,13 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
         <div className="ev-body">
           {/* Lifecycle — where this event stands. Live is set by the green flag below; the rest you set. */}
           <div className="ev-stage" role="tablist" aria-label="Event stage">
-            {EVENT_STAGES.map((s) => {
-              const cur = stageOf(e) === s.key;
-              const settable = !e.is_live && s.key !== "live"; // Live is driven by the green flag, not a tap
+            {EVENT_STAGES.map((k) => {
+              const cur = st === k;
+              const settable = !e.is_live && k !== "live"; // Live is driven by the green flag, not a tap
               return (
-                <button key={s.key} type="button" role="tab" aria-selected={cur} disabled={!settable && !cur}
-                  className={`ev-stage-pill${cur ? " on" : ""}`} style={{ ["--c" as string]: s.color }}
-                  onClick={() => { if (settable && !cur) onUpdate({ stage: s.key }); }}>{s.label}</button>
+                <button key={k} type="button" role="tab" aria-selected={cur} disabled={!settable && !cur}
+                  className={`ev-stage-pill${cur ? " on" : ""}`} style={{ ["--c" as string]: STAGE_COLOR[k] }}
+                  onClick={() => { if (settable && !cur) onUpdate({ stage: k }); }}>{stageLabel(k)}</button>
               );
             })}
           </div>
@@ -4925,6 +4938,7 @@ function EventsAdmin() {
   const [openId, setOpenId] = useState<string | null>(null); // single-open accordion
   const [genOpen, setGenOpen] = useState(false); // "create from notes" agent
   const [showArch, setShowArch] = useState(false);
+  const today = etToday(); // the business day — the one v_event_record (0348) and Needs sorting use
   const [inventory, setInventory] = useState<InventoryResp>({ enabled: false, items: [] });
   useEffect(() => { fetchInventory().then(setInventory); }, []); // live stock from Notion (token-gated)
   const eventsState = useAsyncData<{ events: EventRow[]; catalog: ProductEcon[]; econMap: Record<string, EventEcon>; vendors: Vendor[] }>(async () => {
@@ -5030,35 +5044,45 @@ function EventsAdmin() {
         errorTitle="Couldn't load events"
       >
         {() => {
+          // THREE PILES, EACH IN DATE ORDER (2026-10-05). The list came back in `sort` order, which
+          // is creation order — Ryan's phone: Oct 24, Aug 15, Aug 23, Jul 31. What is coming up now
+          // leads; what has passed without being wrapped is next, under a heading that says so,
+          // rather than mixed in among the upcoming ones still saying "Confirmed"; what is done is
+          // last. The rule is lib/eventRecord.eventPiles, on the business day — Needs sorting's.
           const active = events.filter((e) => !e.archived_at);
-          const archived = events.filter((e) => e.archived_at);
+          const archived = events.filter((e) => e.archived_at).sort(newestFirst);
+          const piles = eventPiles(active, today);
+          const card = (e: EventRow) => (
+            <EventCard
+              key={e.id}
+              e={e}
+              today={today}
+              open={openId === e.id}
+              onToggle={() => setOpenId(openId === e.id ? null : e.id)}
+              onUpdate={(patch) => update(e.id, patch)}
+              onRemove={() => remove(e.id)}
+              onSetLive={(live) => setLive(e.id, live)}
+              onArchive={() => archive(e.id)}
+              econRow={econMap[e.id] ?? null}
+              catalog={catalog}
+              inventory={inventory}
+              vendors={vendors}
+              onLinkVendor={(v) => linkVendor(e.id, v)}
+              onSaveEcon={(econ) => saveEcon(e.id, econ)}
+              onOpenPrep={openPrep}
+            />
+          );
           return (
             <>
               {active.length === 0 && (
                 <EmptyState title="No active events" sub={archived.length ? "Tap + Add above to create one, or reopen one below." : "Tap + Add above to create one."} />
               )}
-              <div className="ev-list">
-                {active.map((e, i) => (
-                  <EventCard
-                    key={e.id}
-                    e={e}
-                    index={i}
-                    open={openId === e.id}
-                    onToggle={() => setOpenId(openId === e.id ? null : e.id)}
-                    onUpdate={(patch) => update(e.id, patch)}
-                    onRemove={() => remove(e.id)}
-                    onSetLive={(live) => setLive(e.id, live)}
-                    onArchive={() => archive(e.id)}
-                    econRow={econMap[e.id] ?? null}
-                    catalog={catalog}
-                    inventory={inventory}
-                    vendors={vendors}
-                    onLinkVendor={(v) => linkVendor(e.id, v)}
-                    onSaveEcon={(econ) => saveEcon(e.id, econ)}
-                    onOpenPrep={openPrep}
-                  />
-                ))}
-              </div>
+              {EVENT_PILES.map(([k, label]) => piles[k].length > 0 && (
+                <section key={k} aria-label={label}>
+                  <div className="dv-sub">{label} · {piles[k].length}</div>
+                  <div className="ev-list">{piles[k].map(card)}</div>
+                </section>
+              ))}
 
               {archived.length > 0 && (
                 <div className="ev-archived">
@@ -5068,6 +5092,8 @@ function EventsAdmin() {
                   {showArch && archived.map((e) => (
                     <div className="ev-arch-row" key={e.id}>
                       <span className="ev-arch-name">{e.title || "Untitled event"}</span>
+                      {/* Which one: two archived rows can share a title (0314's twins). */}
+                      <span className="ev-arch-when">{evDate(e) ?? "No date"}</span>
                       <button className="ev-arch-btn" onClick={() => restore(e.id)}>Restore</button>
                       <button className="ev-arch-btn del" onClick={() => remove(e.id)}>Delete</button>
                     </div>
@@ -5445,9 +5471,9 @@ function VendorsAdmin() {
               <EmptyState title="No vendors yet" sub="Tap + Add vendor above to create one." />
             )}
             <div className="ev-list">
-              {active.map((v, i) => (
+              {active.map((v) => (
                 <div key={v.id}>
-                  <LocationEditor kind="vendor" row={v} index={i} open={openId === v.id} onToggle={() => setOpenId(openId === v.id ? null : v.id)} onArchive={() => archive(v.id)} onChanged={load} />
+                  <LocationEditor kind="vendor" row={v} open={openId === v.id} onToggle={() => setOpenId(openId === v.id ? null : v.id)} onArchive={() => archive(v.id)} onChanged={load} />
                   {openId === v.id && <VendorLocationsEditor vendorId={v.id} vendorName={v.name} />}
                 </div>
               ))}

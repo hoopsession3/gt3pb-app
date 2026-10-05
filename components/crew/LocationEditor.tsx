@@ -12,7 +12,9 @@ import { VendorPicker } from "@/components/crew/VendorPicker";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { isStopAhead, wasAtVendorsPlace, type RoadStop } from "@/lib/stopRecord";
 import { eventIsPast } from "@/lib/readiness";
-import { localToday } from "@/lib/dates";
+import { localToday, etDayKey, etToday, timeRange } from "@/lib/dates";
+import { dateLine } from "@/lib/eventRecord";
+import { vendorKindLabel } from "@/lib/vendorKind";
 
 // LOCATION EDITOR — the address / pin / vendor-link row for a stop or a vendor place.
 //
@@ -45,8 +47,8 @@ async function moveUpcomingVisits(venue: Vendor | Stop, address: string, geo: { 
   return n ? ` — ${n} upcoming ${n === 1 ? "visit" : "visits"} moved with it` : " — no upcoming visits were at the old address";
 }
 
-export function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive, isCur, onGoLive, onGoOffline, vendors, onLinkVendor, onOpenPrep, nameOverride }: {
-  kind: "stop" | "vendor"; row: Stop | Vendor; index: number; isCur?: boolean; open: boolean; onToggle: () => void;
+export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive, isCur, onGoLive, onGoOffline, vendors, onLinkVendor, onOpenPrep, nameOverride }: {
+  kind: "stop" | "vendor"; row: Stop | Vendor; isCur?: boolean; open: boolean; onToggle: () => void;
   onArchive: () => void; onChanged: () => void;
   // onGoOffline is optional on top of onGoLive: without it the live banner below just stays a status
   // readout (today's Go-offline-only-from-elsewhere behavior); with it, the banner itself becomes the
@@ -106,17 +108,25 @@ export function LocationEditor({ kind, row, index, open, onToggle, onChanged, on
     if (!error) onChanged();
   };
   const showPoc = kind === "vendor";
-  const stopWhen = kind === "stop" && (row as { starts_at?: string | null }).starts_at
-    ? new Date((row as { starts_at?: string | null }).starts_at as string).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
-    : null;
-  const sub = [stopWhen, vendor?.poc_name, vendor?.service_dates, hasCoords ? "pinned" : "no pin"].filter(Boolean).join("  ·  ");
-  const tag = kind === "stop" ? `Location ${String(index + 1).padStart(2, "0")}${isCur ? " · Live" : ""}` : `Vendor ${String(index + 1).padStart(2, "0")}`;
+  // THE SAME HEADER AS AN EVENT'S (2026-10-05). "LOCATION 01", "VENDOR 02" were the row's place in
+  // the list — Plan › Events said "EVENT 01" the same way, and Ryan's screenshot of it is what
+  // retired all three. A visit leads with its date against today (lib/eventRecord.dateLine, keyed on
+  // the business day so it reads like the event beside it), its hours pinned to ET (lib/dates); a
+  // book entry says which side of the business it is on (0298's kind).
+  const startsAt = stop?.starts_at ?? null;
+  const tag = kind === "stop"
+    ? dateLine(startsAt ? etDayKey(new Date(startsAt)) : null, etToday())
+    : vendorKindLabel(vendor?.kind);
+  const hours = kind === "stop" ? timeRange(startsAt, stop?.ends_at) : "";
+  const sub = [hours, vendor?.poc_name, vendor?.service_dates, hasCoords ? "pinned" : "no pin"].filter(Boolean).join(" · ");
+  const stopWhen = startsAt ? [tag, hours].filter(Boolean).join(" · ") : null;
   return (
     <div className={`ev-card${isCur ? " live" : ""}${open ? " open" : ""}`}>
       <button className="ev-head" onClick={onToggle} aria-expanded={open}>
-        <span className="ev-led" />
+        {/* The light is the live flag and nothing else (an empty ring read as a checkbox). */}
+        {isCur && <span className="ev-led" />}
         <span className="ev-head-main">
-          <span className="ev-tag">{tag}</span>
+          {tag && <span className="ev-tag">{tag}</span>}
           <span className="ev-title">{displayName || (kind === "stop" ? "Untitled location" : "Untitled vendor")}</span>
           <span className="ev-sub">{sub || "Tap to set up"}</span>
         </span>
