@@ -5658,7 +5658,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("money: the database test runs in db:test", /node scripts\/db\.collect\.test\.mjs/.test(require("../package.json").scripts["db:test"]));
   ok("collect sheet: the pass and the sheet are painted and held by the design ratchet, day and dark",
     /scripts\/fixtures\/collect-sheet\.html/.test(read("scripts/design.ratchet.mjs"))
-    && /export const COLLECT_SHEET = \{ depth: 3, tap: 44, text: 11\.5 \};/.test(read("scripts/design.ratchet.mjs"))
+    // depth 2 since the gesture round: the scrim's dim is a layer of its own and no longer a painted box.
+    && /export const COLLECT_SHEET = \{ depth: 2, tap: 44, text: 11\.5 \};/.test(read("scripts/design.ratchet.mjs"))
     && !/class="screen/.test(read("scripts/fixtures/collect-sheet.html")));
   ok("money: the migration names its app half", /lib\/collect\.ts isSettled\(\)/.test(read("supabase/migrations/0341_the_window_says_what_it_took.sql"))
     && /components\/CollectSheet/.test(read("supabase/migrations/0341_the_window_says_what_it_took.sql")));
@@ -5730,7 +5731,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\/\/ vocab: compliance_checks\.outcome\nexport const CHECK_OUTCOMES/.test(read("lib/complianceCheck.ts")) && /\/\/ vocab: compliance_rules\.lead_basis\nexport const LEAD_BASES/.test(read("lib/complianceCheck.ts")));
   ok("permits: the database test runs in db:test", /node scripts\/db\.compliance\.test\.mjs/.test(require("../package.json").scripts["db:test"]));
   ok("permits: the rule sheet is painted and held by the design ratchet — its forms are sections, not boxes in a box",
-    /scripts\/fixtures\/rule-sheet\.html/.test(read("scripts/design.ratchet.mjs")) && /export const RULE_SHEET = \{ depth: 3, tap: 44, text: 10\.5 \};/.test(read("scripts/design.ratchet.mjs"))
+    /scripts\/fixtures\/rule-sheet\.html/.test(read("scripts/design.ratchet.mjs")) && /export const RULE_SHEET = \{ depth: 2, tap: 44, text: 10\.5 \};/.test(read("scripts/design.ratchet.mjs"))
     && /\.crr-fix \.ts-chip\{min-height:44px;/.test(read("app/globals.css")));
 }
 
@@ -7490,6 +7491,246 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("quick-add: the three kinds stay on one line at phone width, and the day is said in words under them",
     /\.qd-tab\{[^}]*white-space:nowrap/.test(read("app/globals.css")) && /\{`For \$\{dayWithDate\(day\) \|\| day\}`\}/.test(cc) && !/color: "var\(--cream-m\)" \}\}>\{day\}<\/span>/.test(cc));
   ok("venue pick: compiled for the smoke run", /lib\/milestonePick\.ts lib\/venues\.ts/.test(read("package.json")));
+}
+
+// ── THE GESTURE ROUND (2026-10-05) ──────────────────────────────────────────────────────────────
+// Ryan, with the Inbox open: "audit for 10 out of 10 … swipe down to close out a thing, swipe left to
+// move forward to the next tab … right now it feels 2 out of 10. Example, I have to hit the X button to
+// get out of here." lib/gesture is the one set of rules every swipe decides with; components/useGesture
+// the one engine; the sheet, the tab pages, the inbox rows, the edge back and the pull to refresh ride it.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const G = require("../.smoke/gesture.js");
+  const FG = require("../.smoke/formGuard.js");
+  const near = (a, b, e = 0.01) => Math.abs(a - b) < e;
+
+  // ── which way a touch is going ──
+  ok("gesture: under the slop a touch has no axis yet — a tap, or a scroll that has not shown its way",
+    G.axisOf(0, 0) === null && G.axisOf(5, -5) === null && G.SLOP === 6);
+  ok("gesture: past the slop it is the axis it moved further along; a tie is a scroll",
+    G.axisOf(6, 0) === "x" && G.axisOf(0, -6) === "y" && G.axisOf(6, 6) === "y" && G.axisOf(-9, 4) === "x");
+  ok("gesture: a sideways bias asks a sideways move to be clearly sideways — a thumb's arc down a list stays a scroll",
+    G.axisOf(7, 6, 6, 1.15) === "x" && G.axisOf(6.5, 6, 6, 1.15) === "y");
+
+  // ── how fast the finger was going ──
+  const path0 = [{ t: 0, x: 0, y: 0 }, { t: 16, x: 10, y: 0 }, { t: 32, x: 20, y: 5 }];
+  ok("gesture: velocity is px per ms over the last 100ms of the path", near(G.velocity(path0, 40).vx, 20 / 32) && near(G.velocity(path0, 40).vy, 5 / 32));
+  ok("gesture: a finger that stopped before lifting let go at rest", G.velocity(path0, 200).vx === 0 && G.velocity(path0, 200).vy === 0);
+  ok("gesture: only the last 100ms count — an early fast stretch does not make a slow let-go a flick",
+    near(G.velocity([{ t: 0, x: 0, y: 0 }, { t: 10, x: 300, y: 0 }, { t: 300, x: 310, y: 0 }, { t: 380, x: 318, y: 0 }], 390).vx, 8 / 80));
+  ok("gesture: one sample is no velocity", G.velocity([{ t: 0, x: 0, y: 0 }], 5).vx === 0);
+
+  // ── UIKit's numbers ──
+  ok("gesture: a flick projects the way an iPhone scroll decelerates (0.998 per ms)", near(G.project(1), 499, 0.5) && G.project(0) === 0 && near(G.project(-0.5), -249.5, 0.5));
+  ok("gesture: the rubber band gives less the further it is pulled, never reaches its span, and pulls both ways",
+    G.rubber(0, 100) === 0 && near(G.rubber(100, 100), 35.48, 0.05) && G.rubber(1000, 100) < 100 && G.rubber(200, 100) > G.rubber(100, 100) && near(G.rubber(-100, 100), -35.48, 0.05));
+
+  // ── a sheet pulled down ──
+  ok("sheet: a pull under 16px is the finger settling, not a pull", !G.sheetCloses(10, 2, 600));
+  ok("sheet: let go slowly past half the sheet — or a thumb's reach on a tall one (260px) — and it closes",
+    G.sheetCloses(300, 0, 600) && !G.sheetCloses(200, 0, 600) && G.sheetCloses(130, 0, 250) && !G.sheetCloses(120, 0, 250));
+  ok("sheet: a flick closes it from a short pull", G.sheetCloses(100, 0.5, 600) && G.sheetCloses(40, 1.2, 800));
+  ok("sheet: heading back up when let go keeps it", !G.sheetCloses(300, -0.2, 600));
+
+  // ── a viewer pulled down (a product's photos) ──
+  ok("viewer: a short pull or a flick closes it, as Photos does", G.viewerCloses(90, 0) && G.viewerCloses(20, 0.5) && !G.viewerCloses(60, 0.1) && !G.viewerCloses(10, 2));
+
+  // ── a page swiped sideways ──
+  ok("pages: a third of the width turns the page, finger left is the next one", G.pageTurn(-140, 0, 390) === 1 && G.pageTurn(140, 0, 390) === -1 && G.pageTurn(-120, 0, 390) === 0);
+  ok("pages: a flick the same way turns it from 24px; under 24px nothing does", G.pageTurn(-40, -0.5, 390) === 1 && G.pageTurn(10, 1, 390) === 0);
+  ok("pages: a flick back the other way keeps the page", G.pageTurn(-200, 0.5, 390) === 0 && G.pageTurn(-40, 0.5, 390) === 0);
+  const LV = [{ keys: ["plan", "prep"], current: "plan", depth: 0 }, { keys: ["calendar", "events", "route", "leads", "vendors"], current: "events", depth: 1 }];
+  ok("pages: the innermost row moves first — Plan's Events → Route", JSON.stringify(G.pageStep(LV, 1)) === JSON.stringify({ level: 1, to: "route" }));
+  ok("pages: at the end of the inner row the row around it moves — Plan's last tab → the lane's next section",
+    JSON.stringify(G.pageStep([LV[0], { ...LV[1], current: "vendors" }], 1)) === JSON.stringify({ level: 0, to: "prep" }));
+  ok("pages: nothing that way is nothing — the content bands back",
+    G.pageStep([{ keys: ["a", "b"], current: "b", depth: 0 }], 1) === null && G.pageStep([{ keys: ["a"], current: "zzz", depth: 0 }], 1) === null);
+
+  // ── a row swiped (Mail) ──
+  ok("rows: a short swipe let go closes; past half its buttons it stays open on them",
+    G.rowSettle(-30, 0, 360, 74, 148, true, true) === "close" && G.rowSettle(-80, 0, 360, 74, 148, true, true) === "trail" && G.rowSettle(50, 0, 360, 74, 148, true, true) === "lead");
+  ok("rows: past 55% of the row the main action is armed, and letting go does it",
+    G.rowArmed(-200, 360, true) && !G.rowArmed(-190, 360, true) && G.rowSettle(-250, 0, 360, 74, 148, true, true) === "trail-full");
+  ok("rows: no long-swipe action, no arming — it rests open", !G.rowArmed(-250, 360, false) && G.rowSettle(-250, 0, 360, 74, 148, true, false) === "trail");
+  ok("rows: a side with no buttons closes; a flick back closes; a flick on opens",
+    G.rowSettle(50, 0, 360, 0, 148, false, true) === "close" && G.rowSettle(-80, 0.5, 360, 74, 148, true, true) === "close" && G.rowSettle(-30, -0.5, 360, 74, 148, true, true) === "trail");
+
+  // ── the edge back, the pull to refresh ──
+  ok("back: 72px of travel goes back, or a flick right after 24px", G.backGoes(72, 0) && G.backGoes(30, 0.5) && !G.backGoes(30, 0.2) && !G.backGoes(20, 1) && G.BACK.edge === 28);
+  ok("refresh: the list follows the pull with the band's give, and arms at 64px shown",
+    G.pullShown(0) === 0 && G.pullShown(-10) === 0 && near(G.pullShown(100), 50.07, 0.1) && G.pullShown(200) > G.PULL.arm && G.pullShown(100) < G.PULL.arm);
+
+  // ── what a touch lands on (lib/gesture heldBy) ──
+  const el = (o) => ({ parentElement: null, getAttribute: (n) => (o.attrs ?? {})[n] ?? null, ...o });
+  const root = el({ tagName: "DIV" });
+  const kid = (o, parent) => { const n = el(o); n.parentElement = parent; return n; };
+  const ov = (b) => b.ov ?? {};
+  const strip = kid({ tagName: "DIV", scrollWidth: 600, clientWidth: 300, ov: { x: "auto" } }, root);
+  const chip = kid({ tagName: "BUTTON" }, strip);
+  const text = kid({ tagName: "INPUT", type: "text" }, root);
+  const scroller = kid({ tagName: "DIV", scrollTop: 40, scrollHeight: 900, clientHeight: 400, ov: { y: "auto" } }, root);
+  const deep = kid({ tagName: "P" }, scroller);
+  ok("held: a strip that scrolls sideways keeps a sideways swipe, not an up-and-down one",
+    G.heldBy(chip, root, "x", ov) === "scroller" && G.heldBy(chip, root, "y", ov) === null);
+  ok("held: a focused text box keeps its touches; one the finger only landed on does not",
+    G.heldBy(text, root, "x", ov, text) === "field" && G.heldBy(text, root, "x", ov, null) === null);
+  ok("held: a textarea, a select, a slider and editable text are always the field's",
+    ["TEXTAREA", "SELECT"].every((t) => G.heldBy(kid({ tagName: t }, root), root, "y", ov) === "field")
+    && G.heldBy(kid({ tagName: "INPUT", type: "range" }, root), root, "x", ov) === "field" && G.heldBy(kid({ tagName: "DIV", isContentEditable: true }, root), root, "y", ov) === "field"
+    && G.heldBy(kid({ tagName: "DIV", attrs: { role: "slider" } }, root), root, "x", ov) === "field");
+  ok("held: content scrolled away from its top scrolls before anything is pulled; at its top it may be pulled",
+    G.heldBy(deep, root, "y", ov) === "scrolled" && G.heldBy(kid({ tagName: "P" }, kid({ tagName: "DIV", scrollTop: 0, scrollHeight: 900, clientHeight: 400, ov: { y: "auto" } }, root)), root, "y", ov) === null);
+  ok("held: data-gesture says a part handles its own swipes — all of them, or one axis; an open dialog is its own",
+    G.heldBy(kid({ tagName: "DIV", attrs: { "data-gesture": "off" } }, root), root, "y", ov) === "own"
+    && G.heldBy(kid({ tagName: "DIV", attrs: { "data-gesture": "x" } }, root), root, "x", ov) === "own"
+    && G.heldBy(kid({ tagName: "DIV", attrs: { "data-gesture": "x" } }, root), root, "y", ov) === null
+    && G.heldBy(kid({ tagName: "DIV", attrs: { role: "dialog" } }, root), root, "x", ov) === "own");
+  ok("held: the walk stops at the gesture's own element — what is around it is not its business",
+    G.heldBy(kid({ tagName: "SPAN" }, root), root, "x", ov) === null
+    && (() => { const outer = el({ tagName: "DIV", attrs: { "data-gesture": "off" } }); const r2 = kid({ tagName: "DIV" }, outer); return G.heldBy(kid({ tagName: "SPAN" }, r2), r2, "x", ov) === null; })());
+
+  // ── unsaved changes (lib/formGuard edited) ──
+  ok("unsaved: spaces at the ends and blank-vs-missing are not a change; a typed word is",
+    !FG.edited({ a: " x " }, { a: "x" }, ["a"]) && !FG.edited({ a: null }, { a: "" }, ["a"]) && !FG.edited({ a: undefined }, { a: null }, ["a"]) && FG.edited({ a: "y" }, { a: "x" }, ["a"]));
+  ok("unsaved: a number typed as text matches the number loaded; only the keys a form saves count; nothing loaded is nothing to lose",
+    !FG.edited({ n: "5" }, { n: 5 }, ["n"]) && !FG.edited({ a: "x", other: 1 }, { a: "x", other: 2 }, ["a"]) && !FG.edited(null, { a: 1 }, ["a"]) && !FG.edited({ a: 1 }, null, ["a"]));
+
+  // ── the engine and the sheet ──
+  const ug = code(read("components/useGesture.ts")), sh = code(read("components/Sheet.tsx")), sm = code(read("components/SheetMotion.tsx"));
+  ok("engine: native listeners, the move not passive so a claimed swipe can stop the page scrolling under it",
+    /addEventListener\("touchmove", onMove, \{ passive: false, capture \}\)/.test(ug) && /if \(e\.cancelable\) e\.preventDefault\(\);/.test(ug));
+  ok("engine: one owner per touch — whoever takes it, everyone else stands down; a touch claimed too late to stop a scroll is left alone",
+    /if \(owner && owner !== me\) \{ reset\(\); return; \}/.test(ug) && /if \(axis !== want \|\| !e\.cancelable \|\| !take\(d\)\) \{ live = false; path = \[\]; return; \}/.test(ug)
+    && /window\.addEventListener\("touchstart", \(e\) => \{ if \(e\.touches\.length === 1\) owner = null; \}, \{ passive: true, capture: true \}\)/.test(ug));
+  ok("engine: the finger is followed a frame at a time, and a swipe's let-go never also taps what it ended on",
+    /if \(!frame\) frame = requestAnimationFrame\(flush\);/.test(ug) && /quietUntil = performance\.now\(\) \+ 150;/.test(ug) && /e\.stopPropagation\(\); e\.preventDefault\(\); quietUntil = 0;/.test(ug));
+  ok("engine: handlers read the latest props as Effect Events — no ref written while rendering",
+    /const move = useEffectEvent\(\(d: Pull\) => spec\.move\(d\)\);/.test(ug) && !/s\.current = spec/.test(ug));
+  ok("sheet: the whole panel pulls — the content only downward and only from its top",
+    /useGesture\(panelRef, \{\s+axis: "y",/.test(sm) && /if \(!panel \|\| asking \|\| held\(target, panel, "y"\)\) return false;/.test(sm)
+    && /take: \(d\) => !grab\.current\.fromBody \|\| d\.dy > 0,/.test(sm) && !/dragZone/.test(sh));
+  ok("sheet: it closes by lib/gesture's rule at the finger's speed, the dim lightening as it goes (not the panel)",
+    /if \(cancelled \|\| !sheetCloses\(d\.dy, d\.vy, h\) \|\| !dismissible\) \{ springBack\(\); return; \}/.test(sm) && /dimScrim\(scrimRef\.current, 1 - Math\.min\(1, Math\.max\(0, y\) \/ h\) \* 0\.85\);/.test(sm)
+    && /finish\(ms, true\);/.test(sm) && /\.sheet2-scrim::before\{[^}]*opacity:var\(--scrim,1\)/.test(read("app/globals.css")) && /\.sheet2\.gone,\.sheet2-scrim\.gone\{animation:none!important\}/.test(read("app/globals.css")));
+  ok("sheet: its motion loads with the first sheet that opens — the shell carries the door, not the engine",
+    /const SheetMotion = dynamic<SheetMotionProps>\(\(\) => import\("\.\/SheetMotion"\), \{ ssr: false \}\);/.test(sh) && !/from "\.\/useGesture"|from "@\/lib\/gesture"/.test(sh)
+    && /import type \{ SheetMotionProps \} from "\.\/SheetMotion";/.test(sh) && /\{live && <SheetMotion /.test(sh));
+  ok("sheet: one door out — a held sheet gives, typed changes ask, for the pull, a tap outside, Escape, the X and a form's Cancel",
+    /if \(!dismissible\) \{ nudge\(\); return; \}\s+if \(unsaved\(\)\) \{ setAsk\(\(\) => go\); return; \}/.test(sh) && /const attempt = useCallback\(\(\) => leave\(requestClose\)/.test(sh)
+    && /onClick=\{attempt\}/.test(sh) && /export function CloseButton[\s\S]*?leave \? leave\(onClick\) : onClick\(\)/.test(sh) && /export function LeaveButton[\s\S]*?onClick=\{\(\) => \(leave \? leave\(onClick\) : onClick\(\)\)\}>\{children\}<\/button>;/.test(sh)
+    && /if \(unsaved\(\)\) \{ springBack\(\); ask\(requestClose\); return; \}/.test(sm));
+  ok("sheet: the question is the phone's — Discard changes, Keep editing (focused)",
+    />Discard your changes\?</.test(sh) && /className="sheet2-ask-go" onClick=\{\(\) => \{ const go = ask; setAsk\(null\); go\(\); \}\}>Discard changes</.test(sh) && /className="sheet2-ask-no" autoFocus onClick=\{keep\}>Keep editing</.test(sh));
+  ok("sheet: Escape belongs to the top sheet, and a field that used it first (preventDefault) keeps it",
+    /if \(e\.key !== "Escape" \|\| e\.defaultPrevented \|\| stack\[stack\.length - 1\] !== me\) return;/.test(sh));
+  ok("sheet: a parent that declines a close gets its sheet back on screen, not a ghost",
+    /if \(!openNow\.current\) return;\s+selfClosing\.current = false;\s+setPhase\("open"\); setGone\(false\);/.test(sh));
+  ok("sheet: its phase follows the open prop in an effect — a render React drops cannot half-close it (the menu's Add to order)",
+    /useEffect\(\(\) => \{\s+if \(open\) \{ selfClosing\.current = false; setPhase\("open"\); setGone\(false\); return; \}\s+setPhase\(\(p\) => \(p === "closed" \? p : "closing"\)\);\s+\}, \[open\]\);/.test(sh) && !/if \(open !== seen\)/.test(sh));
+  ok("sheet: a form inside a sheet can say it is unsaved (useUnsaved), and the sheet asks for it",
+    /export function useUnsaved\(dirty: boolean\): void/.test(sh) && /const unsaved = useCallback\(\(\) => dirty \|\| \[\.\.\.inner\.current\.values\(\)\]\.some\(Boolean\), \[dirty\]\);/.test(sh));
+
+  // ── the forms that say what leaving does ──
+  const guarded = {
+    "components/FieldOpSheet.tsx": /dirty=\{dirty\} page=\{page\}/, "components/CompanyCalendar.tsx": /dirty=\{edited\(f, loaded, CAL_SAVES\)\}/,
+    "components/ProfileSheet.tsx": /dirty=\{edited\(\{ name, title, bio \}/, "components/MilestoneSheet.tsx": /dirty=\{title\.trim\(\) !== m\.title\.trim\(\)/,
+    "components/InitiativeSheet.tsx": /useUnsaved\(canEdit && changed\);/, "components/OsRegistry.tsx": /dirty=\{anyScored \|\| edited\(/,
+    "components/AssignTaskSheet.tsx": /dirty=\{!createdId && /, "components/AssetMaintenance.tsx": /dirty=\{summary\.trim\(\) !== \(from\?\.summary/,
+    "components/ComplianceRuleRecord.tsx": /useUnsaved\(!!against\.trim\(\)/, "components/BrandCalendar.tsx": /dirty=\{edited\(f, loaded, \["title", "scheduled_for", "status", "event_id"\]\)\}/,
+    "components/EventDayPlanner.tsx": /dirty=\{edited\(f, first,/, "components/BrewPlanner.tsx": /label="Batch log" dirty=\{dirty\}/,
+    "components/QuickDock.tsx": /useUnsaved\(!!text\.trim\(\)\);/, "components/LogPurchase.tsx": /useUnsaved\(!!amount\.trim\(\)/,
+    "components/EventCopilot.tsx": /dirty=\{!!draft && !creating\}/, "components/OfficeOrder.tsx": /dirty=\{typed\} dismissible=\{!busy\}/,
+    "app/crew/page.tsx": /dirty=\{!!item && \(caption !== \(item\.caption \?\? ""\) \|\| !!note\.trim\(\)\)\}/,
+  };
+  ok("unsaved: every form sheet that loses typed words on close says so (the gesture audit holds the rest)",
+    Object.entries(guarded).every(([f, re]) => re.test(read(f))), Object.entries(guarded).filter(([f, re]) => !re.test(read(f))).map(([f]) => f));
+  ok("unsaved: the quick-add's typed words ask; its Cancel and the editor's Cancel leave by the door",
+    /label="Add to the calendar" dirty=\{!!\(title\.trim\(\) \|\| where\.trim\(\) \|\| address\.trim\(\) \|\| venueId\)\}/.test(read("components/CompanyCalendar.tsx"))
+    && (read("components/CompanyCalendar.tsx").match(/<LeaveButton className="note-arch" onClick=\{onClose\}>Cancel<\/LeaveButton>/g) ?? []).length === 2
+    && /<LeaveButton className="note-arch" onClick=\{onClose\} disabled=\{saving\}>Cancel<\/LeaveButton>/.test(read("components/FieldOpSheet.tsx")));
+  ok("publish: the event's publish switch keeps the sheet open — it used to close it, and what was typed went with it",
+    /toast\(next \? "Published — live to guests" : "Hidden from guests"\);\s+onChanged\?\.\(\);/.test(code(read("components/FieldOpSheet.tsx"))));
+  ok("checkout: a payment holds the sheet (dismissible) — no do-nothing onClose that faded it out for good",
+    /<Sheet open=\{open\} onClose=\{onClose\} dismissible=\{!busy\}/.test(read("components/Checkout.tsx")) && !/busy \? \(\) => \{\} : onClose/.test(read("components/Checkout.tsx")));
+  ok("quick actions: Escape is the sheet's — the dock's own handler, which closed around the guard, is gone",
+    !/if \(e\.key === "Escape"\) setOpen\(false\)/.test(read("components/QuickDock.tsx")));
+
+  // ── the calendar's walk ──
+  const cc = code(read("components/CompanyCalendar.tsx"));
+  ok("walk: the sideways swipe is the editor sheet's own (page), the pill rides inside the sheet and leaves by its door; nothing listens to the whole screen",
+    /const walk = \{ prev: selIdx > 0 \? \(\) => moveSel\(-1\) : undefined, next: selIdx < spine\.length - 1 \? \(\) => moveSel\(1\) : undefined \};/.test(cc)
+    && /page=\{walk\} walker=\{walker\}/.test(cc) && /const door = useSheetDoor\(\);/.test(cc) && !/addEventListener\("touch/.test(cc));
+  ok("walk: a sideways swipe to the next item asks first when the edit is not saved, and turns by lib/gesture's page rule",
+    /if \(unsaved\(\)\) \{ back\(\); ask\(slide\); return; \}/.test(sm) && /const turn = cancelled \? 0 : pageTurn\(d\.dx, d\.vx, w\);/.test(sm) && /enabled: !!page,/.test(sm));
+
+  // ── tabs that page ──
+  const pg = code(read("app/crew/page.tsx"));
+  ok("pages: the section body is one pager — the lane's sections, and Plan's tabs on Plan — each turn the tap it stands for, in the lane",
+    /<SwipePager levels=\{\[\s+lane\.members\.length >= 2 && \{ keys: lane\.members, current: sec, go: \(k\) => inLane\(k as OpSection\), depth: 0 \},\s+sec === "plan" && canManage && \{ keys: PLAN_PAGES, current: planTab, go: \(k\) => setPlanTab\(k as PlanTab\), depth: 1 \},/.test(pg)
+    && /const inLane = \(m: OpSection\) => \{ if \(grp\) setGroupId\(grp\.id\); setSection\(m\); \};/.test(pg) && /onClick=\{\(\) => inLane\(m\)\}/.test(pg));
+  ok("pages: Plan's row is drawn from the same list the swipe turns through",
+    /const PLAN_PAGES: readonly PlanTab\[\] = \["calendar", "events", "route", "leads", "vendors"\];/.test(read("app/crew/page.tsx")) && /\{PLAN_PAGES\.map\(\(k\) => \{/.test(pg));
+  ok("pages: Studio's views and the shop's aisles page too, each from its one list",
+    /usePagerLevel\(\{ keys: STUDIO_VIEWS\.map\(\(x\) => x\.key\), current: view, go: \(k\) => pickView\(k as StudioView\), depth: 1 \}\);/.test(read("components/Studio.tsx"))
+    && /\{STUDIO_VIEWS\.map\(\(x\) => \(/.test(read("components/Studio.tsx"))
+    && /<SwipePager levels=\{\[\(section === "bottles" \|\| view === "grid"\) && \{ keys: SHOP_AISLES, current: section, go: \(k\) => setSection\(k as Aisle\), depth: 0 \}\]\}>/.test(read("components/Shop.tsx")));
+  const sp = code(read("components/SwipePager.tsx")), pm = code(read("components/PagerMotion.tsx"));
+  ok("pages: the whole screen turns the page — the finger is followed on the scroll container, the content moves",
+    /surface\.current = box\.current\?\.closest<HTMLElement>\("main"\) \?\? box\.current;/.test(sp) && /useGesture\(surface, \{/.test(pm) && /<PagerMotion box=\{box\} surface=\{surface\} levels=\{levels\} \/>/.test(sp));
+  ok("pages: the pager's motion loads right after the screen is up — the engine is not in a guest's first load",
+    /const PagerMotion = dynamic<PagerMotionProps>\(\(\) => import\("\.\/PagerMotion"\), \{ ssr: false \}\);/.test(sp)
+    && !/^import (?!type )[^;]*from "(\.\/useGesture|@\/lib\/gesture)";/m.test(sp) && /^import type \{ PageLevel \} from "@\/lib\/gesture";/m.test(sp));
+  ok("pages: a strip that scrolls sideways, a field or a map keeps its touches; a turn moves the row it stands for, by lib/gesture's rules",
+    /if \(!el \|\| !root \|\| !levels\(\)\.length \|\| held\(target, root, "x"\)\) return false;/.test(pm) && /const turn = cancelled \? 0 : pageTurn\(d\.dx, d\.vx, w\);/.test(pm)
+    && /const step = turn \? pageStep\(ls, turn\) : null;/.test(pm) && /ls\[step\.level\]\.go\(step\.to\);/.test(pm) && /bias: 1\.15,/.test(pm));
+
+  // ── inbox rows ──
+  ok("inbox: each flag swipes like a Mail row — left for Later and Got it (a long swipe clears), right to open",
+    /<SwipeRow key=\{a\.id\} className="alert-swipe"/.test(pg) && /lead=\{canOpen\(a\) \? \[\{ key: "open", label: "Open", icon: "arrowRight", tone: "info", run: \(\) => gotoAlert\(a\) \}\] : \[\]\}/.test(pg)
+    && /key: "clear", label: "Got it", icon: "check", tone: "ok", removes: true, run: \(\) => \{ void clear\(a\); \}/.test(pg));
+  ok("inbox: the ✓ and the clock go the same way as the swipes — with an Undo, and a refused write said",
+    /onClick=\{\(\) => \{ void later\(a\); \}\} aria-label="Snooze 1 hour"/.test(pg) && /onClick=\{\(\) => \{ void clear\(a\); \}\} aria-label="Got it"/.test(pg)
+    && /action: \{ label: "Undo", run: \(\) => \{ void restore\(\[a\]\)/.test(pg) && /if \(e\) toast\(`Couldn't clear it — \$\{e\}`, "error"\);/.test(pg));
+  const sr = code(read("components/SwipeRow.tsx"));
+  ok("rows: a row takes a sideways swipe only where nothing inside holds it, never on its own open buttons — and one row is open at a time",
+    /if \(!el \|\| \(!lead\.length && !trail\.length\) \|\| held\(target, el, "x"\)\) return false;/.test(sr) && /if \(\(target as Element\)\.closest\?\.\("\.swipe-acts"\)\) return false;/.test(sr)
+    && /closeOthers\(me\);\s+follow\(face\.current/.test(sr) && /claimOpen\(me, close\);/.test(sr));
+  ok("rows: a long swipe does its side's main action — the outermost, lead's first and trail's last, the one drawn wide",
+    /if \(r === "lead-full"\) perform\(L\[0\], 1\);/.test(sr) && /else if \(r === "trail-full"\) perform\(T\[T\.length - 1\], -1\);/.test(sr)
+    && /\(side === 1 \? i === 0 : i === shown\.length - 1\) \? " main" : ""/.test(sr) && /const on = has && rowArmed\(x, w\.current, true\);/.test(sr));
+  ok("rows: a row that leaves flies off and the list closes over it before the action runs; one still there a moment later is put back",
+    /const done = \(\) => \{\s+a\.run\(\);/.test(sr) && /if \(!el\.isConnected\) return;/.test(sr) && /if \(anim\) anim\.onfinish = done; else done\(\);/.test(sr));
+  const mya = code(read("lib/useMyAlerts.ts"));
+  ok("inbox: a dismissal the database refuses is said and read again — and undone ones come back (un-acked, read taken back, snooze lifted)",
+    /if \(error\) \{ await load\(\); return error\.message; \}/.test(mya) && /update\(\{ ack_at: null, ack_by: null \}\)/.test(mya)
+    && /from\("alert_reads"\)\.delete\(\)\.eq\("user_id", userId\)\.in\("alert_id", broadcast\)/.test(mya) && /from\("alert_snoozes"\)\.delete\(\)\.eq\("user_id", userId\)\.eq\("alert_id", f\.id\)/.test(mya));
+  ok("toast: it can carry one action (Undo), and it rides above sheets",
+    /toastAction && toastShown && \(/.test(read("components/Toast.tsx")) && /\.toast\{z-index:90\}/.test(read("app/globals.css")) && /\.toast\.has-act\.show\{pointer-events:auto\}/.test(read("app/globals.css")));
+
+  // ── the rest of the system ──
+  ok("back: the edge swipe listens first and stands down while a sheet is open",
+    /useGesture\("root", \{\s+axis: "x",\s+capture: true,\s+begin: \(_target, x\) => x <= BACK\.edge && canGoBack && !sheetOpen\(\),/.test(read("components/SwipeBack.tsx")));
+  ok("refresh: the pull reads every live screen again (lib/realtime's loaders), and so does coming back to the app after 30s away",
+    /export function refreshLive\(\): Promise<void>/.test(read("lib/realtime.ts")) && /loaders\.add\(cb\);/.test(read("lib/realtime.ts")) && /const RESUME_MS = 30_000;/.test(read("lib/realtime.ts"))
+    && /\{inAdmin && <PullToRefresh \/>\}/.test(read("components/AppShell.tsx")) && /refreshLive\(\)/.test(read("components/PullToRefresh.tsx")));
+  ok("haptics: the iPhone ticks (the switch's own haptic) where vibrate does not exist, and nothing buzzes before a tap",
+    /input\.setAttribute\("switch", ""\);/.test(read("lib/haptics.ts")) && /navigator\.userActivation && !navigator\.userActivation\.hasBeenActive/.test(read("lib/haptics.ts")));
+  ok("tab bar: the tab you are on, tapped again, goes back to the top", /scrollToTop\(\)/.test(read("components/OperatorNav.tsx")) && /if \(pathname === tab\.href\) \{ e\.preventDefault\(\); scrollToTop\(\); \}/.test(read("components/BottomNav.tsx")));
+  ok("scroll to top: one home (lib/appScroll) — the tab bars and the order form call it; no copy of it, and not in the crew's panel jumps every guest would carry",
+    /export function scrollToTop\(\): void/.test(read("lib/appScroll.ts")) && /document\.getElementById\("body"\)\?\.scrollTo\(\{ top: 0, behavior: "smooth" \}\);/.test(read("lib/appScroll.ts")) && !/scrollToTop/.test(read("lib/anchors.ts"))
+    && ["components/BottomNav.tsx", "components/OperatorNav.tsx", "components/OrderFunnel.tsx"].every((f) => /import \{ scrollToTop \} from "@\/lib\/appScroll";/.test(read(f)))
+    && !/getElementById\("body"\)\?\.scrollTo\(\{ top: 0/.test(read("components/OrderFunnel.tsx")));
+  ok("viewer: a product's photos follow the finger down, and a pull is neither a tap nor a hold (no \"Paused\" riding down with it)", /useGesture\(stageRef, \{/.test(read("components/StoryViewer.tsx")) && /if \(pulled\.current\) \{ pulled\.current = false; return; \}/.test(read("components/StoryViewer.tsx"))
+    && /if \(!pulled\.current\) \{ pulled\.current = true; clearHold\(\); setPaused\(false\); \}/.test(read("components/StoryViewer.tsx")));
+  ok("viewer: the shop fetches it once a product with photos to page through is open — not in a guest's first load",
+    /const StoryViewer = dynamic\(\(\) => import\("\.\/StoryViewer"\), \{ ssr: false \}\);/.test(read("components/Shop.tsx")) && !/^import StoryViewer/m.test(read("components/Shop.tsx"))
+    && /useEffect\(\(\) => \{ if \(storyable\) void import\("\.\/StoryViewer"\); \}, \[storyable\]\);/.test(read("components/Shop.tsx")));
+  ok("maps keep their own touches", /data-gesture="off"/.test(read("components/RouteMap.tsx")));
+  ok("gesture: compiled for the smoke run, and the audit runs with the others",
+    /lib\/venues\.ts lib\/gesture\.ts lib\/formGuard\.ts/.test(read("package.json")) && /node scripts\/gesture\.audit\.mjs/.test(read("package.json")));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

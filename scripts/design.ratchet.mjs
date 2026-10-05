@@ -40,18 +40,18 @@ const FIXTURE = join(ROOT, "scripts/fixtures/plan-screen.html");
 // bordered track, inside the sheet); 31 px is the house chip (.ts-chip) — every chip in the
 // console is that height, and raising it is a decision for all of them, not a side effect here.
 const BREW_FIXTURE = join(ROOT, "scripts/fixtures/brew-sheet.html");
-export const BREW_SHEET = { depth: 4, tap: 31, text: 10.5 };
+export const BREW_SHEET = { depth: 3, tap: 31, text: 10.5 };
 // The event record sheet with its ways out (2026-10-03). Depth 6 is the box inside the finding
 // inside the gaps block inside the sheet — an honest nesting, since the finding IS the form. The
 // floor that matters is the tap: 44, because the box these controls share with OwnerDetails
 // measured 31px before the sheets started drawing it.
 const RECORD_FIXTURE = join(ROOT, "scripts/fixtures/record-sheet.html");
-export const RECORD_SHEET = { depth: 6, tap: 44, text: 10.5 };
+export const RECORD_SHEET = { depth: 5, tap: 44, text: 10.5 };
 // The purchase sheet (2026-10-04) — Money › Spend's five-field form became a capture sheet in the
 // quick-actions dock, after Ryan asked whether an open form under the report was the right shape. It
 // is used one-handed at a register, so its tap floor is 44 like the record sheet's.
 const PURCHASE_FIXTURE = join(ROOT, "scripts/fixtures/purchase-sheet.html");
-export const PURCHASE_SHEET = { depth: 3, tap: 44, text: 10.5 };
+export const PURCHASE_SHEET = { depth: 2, tap: 44, text: 10.5 };
 // My Day (2026-10-04) — the screen the console opens on, after Ryan's 10:13 PM screenshot: the top
 // three painted as grey slabs in the day theme, the greeting a lowercase fragment wedged under them.
 // The section's own content, measured: depth 2 is the brief inside today's op card; 44 is every
@@ -73,12 +73,12 @@ export const PREP_TARGET = { depth: 2, tap: 44, text: 10 };
 // tickets alone, because the measurement roots at .screen when there is one and the fixture had
 // one, so the sheet was never read. Corrected with the rule sheet (0342), which is how it was found.
 const COLLECT_FIXTURE = join(ROOT, "scripts/fixtures/collect-sheet.html");
-export const COLLECT_SHEET = { depth: 3, tap: 44, text: 11.5 };
+export const COLLECT_SHEET = { depth: 2, tap: 44, text: 11.5 };
 // One permit rule, opened (2026-10-04, 0342): the SC event rule 0284 left unconfirmed, its re-check
 // form and the owner's correction form, the deadline's counts as chips. Filled in on a phone, often
 // on the call to the county; the limits are what it measured when it was built.
 const RULE_FIXTURE = join(ROOT, "scripts/fixtures/rule-sheet.html");
-export const RULE_SHEET = { depth: 3, tap: 44, text: 10.5 };
+export const RULE_SHEET = { depth: 2, tap: 44, text: 10.5 };
 // The checkout, for an order placed before the stop opens (2026-10-04, 0343): the pickup block —
 // where, then when it is made — above the money, and the confirmation the server's answer fills.
 // A guest at the window with a drink in the other hand. Measured when built: depth 4 is a quantity
@@ -87,7 +87,12 @@ export const RULE_SHEET = { depth: 3, tap: 44, text: 10.5 };
 // block this adds sits at 3. 44 is every control, once "Not now" stopped being a 15px line of text
 // (.sub-link, the same day). 10 is the receipt's labels, at the floor.
 const CHECKOUT_FIXTURE = join(ROOT, "scripts/fixtures/checkout-sheet.html");
-export const CHECKOUT_SHEET = { depth: 4, tap: 44, text: 10 };
+export const CHECKOUT_SHEET = { depth: 3, tap: 44, text: 10 };
+// EVERY SHEET ONE BOX SHALLOWER (2026-10-05, the gesture round). The depths above were measured with
+// the scrim as a painted box around every sheet ("inside the sheet, inside its scrim"). The scrim's dim
+// and blur are a layer of their own now (.sheet2-scrim::before — so a pull can lighten them without
+// fading the sheet, which is the scrim's child), and the measurement, which reads painted boxes, no
+// longer counts the scrim. Each sheet ceiling came down by that one box; nothing inside a sheet moved.
 const SHEETS = [
   { name: "brew sheet",     file: BREW_FIXTURE,     rel: "scripts/fixtures/brew-sheet.html",     limits: BREW_SHEET },
   { name: "record sheet",   file: RECORD_FIXTURE,   rel: "scripts/fixtures/record-sheet.html",   limits: RECORD_SHEET },
@@ -111,7 +116,7 @@ export const CHROME_CLEARANCE = 8;
 
 // ── THE CEILINGS — measured, not remembered (2026-10-01, after the one-box-per-level pass) ───────
 export const CEILING = {
-  cardRules: 809,        // rules that make a card: radius + (border | fill). 810 → 809: the quiet Outlook line, retired with the not-configured bar it styled (2026-10-05). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04)
+  cardRules: 810,        // rules that make a card: radius + (border | fill). 809 → 810 (2026-10-05, the gesture round): "Discard your changes?" — the card a sheet asks the question on, over the sheet, at the thumb (.sheet2-ask-card); it is a card by what it is. The toast's Undo is a text action, not a pill, so it adds none. 810 → 809: the quiet Outlook line, retired with the not-configured bar it styled (2026-10-05). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04)
   rawRadii: 27,          // distinct border-radius values that are not a --r-* token, 50% or 0
   dupSelectors: 53,      // single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02; 54 → 53: .myday-live, declared twice, retired with the card it lived on, 2026-10-04)
   rootBlocks: 1,         // separate `:root{` blocks — tokens have one home (6 → 1 on 2026-10-02: motion, spring, eyebrow tracking, color-scheme and the radius scale folded in)
@@ -362,30 +367,48 @@ export const PROD_ROUTE = {
 // components/CoffeeLotPick, crew-only) renumbered the bundler's modules — and gzips 42 bytes worse
 // (311 467 → 311 509 on /book), past its rounding line. Compression noise on an ordering, written
 // down so it is not mistaken for weight; every public route moved the same 42 and only /book crossed.
+// 2026-10-05 (the gesture round): every route +1 373 to +1 986 bytes of script, /shop +816, and every
+// stylesheet +878. Built b065536 and this commit and gzipped what each route's HTML references, route
+// by route (/privacy 299 663 → 301 036; /menu 311 469 → 313 404). What rides in every first load is
+// what a sheet must have before it can be pulled at all: its one door out — the X, a tap outside,
+// Escape, a form's Cancel and the pull all asking "Discard your changes?" over typed words, a held
+// checkout giving instead of leaving, Escape for the top sheet only (2 635 raw bytes in the sheet's
+// module); the tab bar's tap-again-for-the-top (lib/appScroll, its own 154-byte home, so the crew's
+// panel jumps in lib/anchors stay off guests' pages); lib/realtime's refresh and its read on coming
+// back to the app; the toast's Undo; and two lazy-chunk stubs. The customer pages carry the haptics'
+// iPhone tick on top (lib/haptics, +823 raw: they buzz on Android and, until now, were silent on every
+// iPhone) — that is the 0.5 KB between /menu and /privacy. The finger-following engine itself
+// (components/useGesture, lib/gesture: 5.6 KB raw) is in NO first load: it comes with the first sheet
+// that opens (components/SheetMotion) or right after a paged screen is up (components/PagerMotion).
+// The round's first build carried it in the shell and weighed 4.8 KB more on every route; /shop came
+// to +5.1 KB while its pager and its photo viewer imported it. /shop now fetches the full-screen
+// viewer once a product with photos is open, so it carries less of its own than it did. The stylesheet: the ask
+// card, the inbox's swipe rows, the pull-to-refresh ring, the edge-back's armed state and the toast's
+// action — one global sheet, as every route already shares.
 export const WEIGHT = {
-  "/truck":                    { js: 281, css: 103, chunks: 15 },
-  "/events":                   { js: 281, css: 103, chunks: 15 },
-  "/menu":                     { js: 266, css: 101, chunks: 15 },
-  "/reserve":                  { js: 290, css: 101, chunks: 16 },
-  "/delivery":                 { js: 289, css: 101, chunks: 16 },
-  "/3mpire":                   { js: 281, css: 101, chunks: 15 },
-  "/craft":                    { js: 265, css: 101, chunks: 15 },
-  "/book":                     { js: 266, css: 101, chunks: 15 },
-  "/academy":                  { js: 314, css: 101, chunks: 15 },
-  "/office":                   { js: 274, css: 101, chunks: 15 },
-  "/scan":                     { js: 256, css: 101, chunks: 14 },
-  "/architecture":             { js: 266, css: 101, chunks: 14 },
-  "/playbook":                 { js: 273, css: 101, chunks: 15 },
-  "/driver":                   { js: 277, css: 103, chunks: 15 },
-  "/agreement":                { js: 264, css: 101, chunks: 14 },
-  "/offer":                    { js: 273, css: 101, chunks: 14 },
-  "/built/gt3-built-k7m9x4q2": { js: 255, css: 101, chunks: 14 },
-  "/display":                  { js: 256, css: 101, chunks: 14 },
-  "/shop":                     { js: 296, css: 101, chunks: 16 },
-  "/primal":                   { js: 266, css: 101, chunks: 15 },
-  "/privacy":                  { js: 254, css: 101, chunks: 13 },
-  "/terms":                    { js: 254, css: 101, chunks: 13 },
-  "/":                         { js: 271, css: 101, chunks: 15 },
+  "/truck":                    { js: 283, css: 104, chunks: 15 },
+  "/events":                   { js: 283, css: 104, chunks: 15 },
+  "/menu":                     { js: 267, css: 102, chunks: 15 },
+  "/reserve":                  { js: 291, css: 102, chunks: 16 },
+  "/delivery":                 { js: 290, css: 102, chunks: 16 },
+  "/3mpire":                   { js: 283, css: 102, chunks: 15 },
+  "/craft":                    { js: 267, css: 102, chunks: 15 },
+  "/book":                     { js: 267, css: 102, chunks: 15 },
+  "/academy":                  { js: 315, css: 102, chunks: 15 },
+  "/office":                   { js: 276, css: 102, chunks: 15 },
+  "/scan":                     { js: 257, css: 102, chunks: 14 },
+  "/architecture":             { js: 267, css: 102, chunks: 14 },
+  "/playbook":                 { js: 275, css: 102, chunks: 15 },
+  "/driver":                   { js: 279, css: 104, chunks: 15 },
+  "/agreement":                { js: 265, css: 102, chunks: 14 },
+  "/offer":                    { js: 274, css: 102, chunks: 14 },
+  "/built/gt3-built-k7m9x4q2": { js: 256, css: 102, chunks: 14 },
+  "/display":                  { js: 258, css: 102, chunks: 14 },
+  "/shop":                     { js: 295, css: 102, chunks: 16 },
+  "/primal":                   { js: 268, css: 102, chunks: 15 },
+  "/privacy":                  { js: 255, css: 102, chunks: 13 },
+  "/terms":                    { js: 255, css: 102, chunks: 13 },
+  "/":                         { js: 273, css: 102, chunks: 15 },
 };
 
 export function weightVerdict(path, w, row = WEIGHT[path]) {
