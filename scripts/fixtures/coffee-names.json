@@ -1,0 +1,26 @@
+{
+  "_": "Which names are coffee — lib/brewMath.isCoffee and public.is_coffee (0349) must give every one of these the same answer. scripts/smoke.cjs runs the TypeScript rule over this list and scripts/db.brewlot.test.mjs runs the SQL one; neither keeps its own copy of the cases.",
+  "cases": [
+    ["Coarse-ground organic single-origin coffee", true],
+    ["Org Ethiopia Coffee (bulk)", true],
+    ["COFFEE", true],
+    ["Decaf coffee", true],
+    ["coffee-grounds", true],
+    ["Coffee beans", true],
+    ["Whole bean Colombia", true],
+    ["Beans, Ethiopia", true],
+    ["Bean-to-cup blend", true],
+    ["Café coffee", true],
+    ["Mountain Valley Spring Water", false],
+    ["Organic coconut water (add after filtration)", false],
+    ["Organic cacao nibs (mix with grounds)", false],
+    ["Yupik Organic Raw Cacao Nibs 2.2 lb", false],
+    ["Coffeecake mix", false],
+    ["Decoffee", false],
+    ["Jellybean", false],
+    ["coffee_lot", false],
+    ["Coffee2go", false],
+    ["Kaffee", false],
+    ["", false]
+  ]
+}

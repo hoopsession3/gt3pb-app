@@ -18,6 +18,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { pendingMigrations } from "./columns.audit.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DIR = join(ROOT, "supabase", "migrations");
@@ -246,6 +247,33 @@ for (const e of readdirSync(SUPA, { withFileTypes: true })) {
   }
 }
 
+// ── SEVENTH RULE, added at 0349: the paste file holds the migrations as they ARE ─────────────────
+// pending-from says WHICH migrations the file is current as of; nothing said the text inside was the
+// text in supabase/migrations/. 0349 was edited (the draw closed to anon) after the paste file was
+// generated, every gate passed, and the file still carried the earlier 0349 — so pasting it would
+// have run a migration nobody tested, with the test suite green over the one that was. Each section
+// must be its migration file, verbatim (trailing whitespace aside, as the generator writes it). The
+// sections are read by columns.audit.mjs's pendingMigrations, the one reader of this file's format.
+{
+  const PASTE = join(SUPA, "APPLY_ALL_PENDING.sql");
+  let text = null;
+  try { text = readFileSync(PASTE, "utf8"); } catch { /* no paste file: nothing to hold */ }
+  if (text !== null) {
+    const sections = pendingMigrations(text);
+    if (!sections) staleFiles.push("supabase/APPLY_ALL_PENDING.sql — its sections do not match its own pending-count header");
+    else {
+      const files = readdirSync(DIR).filter((f) => f.endsWith(".sql"));
+      for (const [num, body] of sections) {
+        const f = files.find((x) => Number(x.slice(0, 4)) === num);
+        if (!f) { staleFiles.push(`supabase/APPLY_ALL_PENDING.sql — carries ${String(num).padStart(4, "0")}, which supabase/migrations/ does not hold`); continue; }
+        if (body.replace(/\s*$/, "") !== readFileSync(join(DIR, f), "utf8").replace(/\s*$/, "")) {
+          staleFiles.push(`supabase/APPLY_ALL_PENDING.sql — its ${f} is not the file's text (edited since the paste file was generated)`);
+        }
+      }
+    }
+  }
+}
+
 if (staleFiles.length) {
   console.error(`PASTE-FILE GATE: ${staleFiles.length} loose SQL file(s) claim to be current and are not:`);
   for (const m of staleFiles) console.error(`  ✗ ${m}`);
@@ -334,3 +362,4 @@ console.log("RLS GATE: every table created from 0310 enables row level security 
 console.log("VIEW GATE: every view created from 0312 honours RLS, is closed to the app, or says why — clean.");
 console.log("WHOLE-TABLE GATE: every UPDATE/DELETE from 0315 names its rows, or declares it means all of them — clean.");
 console.log(`PASTE-FILE GATE: every loose .sql under supabase/ says what it is current as of, and none is behind ${String(highestMigration).padStart(4, "0")} — clean.`);
+console.log("PASTE-FILE GATE: every migration the paste file carries is its file, verbatim — clean.");

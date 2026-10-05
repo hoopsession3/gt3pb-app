@@ -39,6 +39,17 @@ export function agoWord(daysAgo: number): string {
   return `${Math.floor(daysAgo / 7)} weeks ago`;
 }
 
+// ── A DAY IN WORDS THAT ARE KEPT (2026-10-05) ─────────────────────────────────────────────────
+// A lot's name on a batch (lib/brewLots) is written into the record and read months later, so it
+// carries the year and does not move with the reader's device: en-US, calendar parts as evDate.
+// Here and not in lib/dates for the reason at the top — only the console says it.
+/** "Sep 6, 2026" from a YYYY-MM-DD key; null for a key that is not a date. */
+export function dateWithYear(key: string | null | undefined): string | null {
+  const [y, m, d] = String(key ?? "").slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 // ── partOfDay, retired the same day ───────────────────────────────────────────────────────────
 // It gave My Day's greeting its capital back ("Evening, Ryan."); hours later Ryan asked what on
 // the app was unnecessary, and a 30px greeting ahead of today's op was the first answer. It went,

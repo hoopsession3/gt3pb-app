@@ -7000,6 +7000,150 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("0348: is executed against a real Postgres, with the evening pinned", /0348_tonight_is_not_the_past\.sql/.test(read("scripts/db.event.test.mjs")) && /pinDay\("current_date - 1"\)/.test(read("scripts/db.event.test.mjs")));
 }
 
+// ── THE COFFEE A BREW WAS MADE FROM (2026-10-05, the form audit, part 3d · 0349) ───────────────────
+// Start brew's coffee lot was a text box, and a typed lot links to no delivery: no bag could be traced
+// to its batches, and no batch's coffee ever came off the shelf. lib/brewLots is the rule for naming a
+// delivery on a batch; components/CoffeeLotPick the one pick; 0349 the link, its guard, and the draw
+// that follows it. Which line is the coffee and what a gram is stay lib/brewMath's — the database
+// states the same two rules, and scripts/db.brewlot.test.mjs holds it to these answers.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const BM = require("../.smoke/brewMath.js");
+  const BL = require("../.smoke/brewLots.js");
+  const DW = require("../.smoke/dayWords.js");
+  const T = "2026-10-05";
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+
+  // ── the two rules the database restates ──
+  const names = JSON.parse(read("scripts/fixtures/coffee-names.json")).cases;
+  const wrong = names.filter(([n, want]) => BM.isCoffee(n) !== want);
+  ok("brew lots: which name is coffee — every case on the list both languages run", names.length >= 20 && wrong.length === 0, wrong);
+  ok("brew lots: a gram, an ounce, a pound — lib/brewMath's one table, case and spacing aside",
+    BM.gramsPerUnit("g") === 1 && BM.gramsPerUnit("kg") === 1000 && BM.gramsPerUnit("oz") === 28.349523125 && BM.gramsPerUnit(" LB ") === 453.59237
+    && BM.gramsPerUnit("gal") === null && BM.gramsPerUnit("bag") === null && BM.gramsPerUnit(null) === null);
+  const bmSrc = read("lib/brewMath.ts");
+  ok("brew lots: the coffee rule is written once — primarySizing asks isCoffee, and no other file keeps the pattern",
+    /byWeight\.find\(\(o\) => isCoffee\(o\.name\)\)/.test(code(bmSrc)) && (bmSrc.match(/\\bcoffee\\b\|\\bbean/g) || []).length === 1
+    && ["components/BrewPlanner.tsx", "components/CoffeeLotPick.tsx", "lib/brewLots.ts"].every((f) => !/\\bcoffee\\b\|\\bbean/.test(read(f))));
+
+  // ── a lot's name, and a batch's coffee ──
+  const lot = (o) => ({ id: "l", market: "atlanta", item_name: "Org Ethiopia Coffee (bulk)", lot_code: null, received_on: "2026-09-06", qty_received: 6, unit: "lb", vendor: "Sprouts Farmers Market", created_at: "2026-09-06T15:00:00Z", ...o });
+  ok("brew lots: a lot is named by its code — or the day it came, with the year, in words that do not move with the device",
+    BL.lotLabel(lot({ lot_code: "SPROUTS-840214" })) === "Org Ethiopia Coffee (bulk), lot SPROUTS-840214"
+    && BL.lotLabel(lot({})) === "Org Ethiopia Coffee (bulk), received Sep 6, 2026" && BL.lotLabel(lot({ lot_code: "  " })) === "Org Ethiopia Coffee (bulk), received Sep 6, 2026",
+    [BL.lotLabel(lot({ lot_code: "SPROUTS-840214" })), BL.lotLabel(lot({}))]);
+  ok("brew lots: the dated words are the console's (lib/dayWords), not lib/dates — which every public page loads",
+    DW.dateWithYear("2026-09-06") === "Sep 6, 2026" && DW.dateWithYear("") === null && DW.dateWithYear("not a day") === null && !/dateWithYear/.test(read("lib/dates.ts")));
+  const RISE = { id: "rise", base_water_gal: 2, ingredients: [{ name: "Mountain Valley Spring Water", qty: 2, unit: "gal" }, { name: "Coarse-ground organic single-origin coffee", qty: 560, unit: "g" }, { name: "Organic coconut water (add after filtration)", qty: 32, unit: "oz" }] };
+  ok("brew lots: a batch's coffee in grams — its own list, ounces by weight, else its recipe at its size",
+    BL.coffeeGrams({ scaled: RISE.ingredients, batch_gal: 2 }) === 560
+    && near(BL.coffeeGrams({ scaled: [{ name: "Coffee", qty: 16, unit: "oz" }], batch_gal: 2 }), 453.59237)
+    && BL.coffeeGrams({ scaled: null, batch_gal: 4, recipe_id: "rise" }, [RISE]) === 1120
+    && BL.coffeeGrams({ scaled: [{ name: "Spring water", qty: 2, unit: "gal" }], batch_gal: 2 }) === null
+    && BL.coffeeGrams({ scaled: [{ name: "Coffee concentrate", qty: 1, unit: "gal" }], batch_gal: 2 }) === null);
+
+  // ── what the brews that named a lot took ──
+  const b = (o) => ({ id: Math.random().toString(36), status: "served", batch_gal: 2, scaled: RISE.ingredients, coffee_lot_id: "l", brew_started_at: "2026-09-10T12:00:00Z", ...o });
+  const use = BL.lotUse([b({}), b({ brew_started_at: "2026-09-20T12:00:00Z" }), b({ status: "planned", brew_started_at: null }), b({ status: "discarded" }), b({ coffee_lot_id: null })]);
+  ok("brew lots: a lot's use counts the brews that took coffee from it — not a planned batch, not a discarded one",
+    use.get("l").brews === 2 && use.get("l").grams === 1120 && use.get("l").unknown === 0 && use.get("l").last === "2026-09-20T12:00:00Z" && use.size === 1, [...use]);
+  const five = BL.lotUse([1, 2, 3, 4, 5].map(() => b({})));
+  ok("brew lots: six pounds and five Rise brews — by their recipes, all of it; two brews — not",
+    BL.usedUp(lot({}), five.get("l")) === true && BL.usedUp(lot({}), use.get("l")) === false && BL.usedUp(lot({}), undefined) === false);
+  ok("brew lots: never 'all of it' for a bag counted in bags, or when a brew's coffee was not weighed",
+    BL.usedUp(lot({ unit: "bag", qty_received: 1 }), five.get("l")) === false
+    && BL.usedUp(lot({}), BL.lotUse([...[1, 2, 3, 4, 5].map(() => b({})), b({ scaled: [{ name: "Coffee", qty: 1, unit: "scoop" }] })]).get("l")) === false);
+
+  // ── which lots, in what order, and which one the sheet opens on ──
+  const L = [
+    lot({ id: "open", lot_code: "OPENING-2026-09-06", qty_received: 4, created_at: "2026-09-06T14:00:00Z" }),
+    lot({ id: "spr", lot_code: "SPROUTS-840214", created_at: "2026-09-06T15:00:00Z" }),
+    lot({ id: "new", received_on: "2026-10-01", qty_received: 5, created_at: "2026-10-01T15:00:00Z" }),
+    lot({ id: "wat", item_name: "Spring Water Case", unit: "case", qty_received: 2, received_on: "2026-10-02" }),
+    lot({ id: "gvl", market: "greenville", received_on: "2026-10-03" }),
+  ];
+  const ch = BL.lotChoices(L, "atlanta");
+  ok("brew lots: the city's coffee first, newest first (a tie by when it was logged), then the rest — never the other city's",
+    ch.coffee.map((x) => x.id).join() === "new,spr,open" && ch.other.map((x) => x.id).join() === "wat" && ![...ch.coffee, ...ch.other].some((x) => x.market !== "atlanta"),
+    [ch.coffee.map((x) => x.id), ch.other.map((x) => x.id)]);
+  const named = (id, at) => BL.lotUse([b({ coffee_lot_id: id, brew_started_at: at })]);
+  ok("brew lots: Start brew opens on the bag the city's last brew named",
+    BL.defaultLot(L, "atlanta", new Map([...named("open", "2026-09-30T12:00:00Z"), ...named("spr", "2026-09-12T12:00:00Z")])) === "open");
+  ok("brew lots: with no brew to go on and three coffee lots, it asks — it does not guess which bag is in the bin",
+    BL.defaultLot(L, "atlanta", new Map()) === null);
+  ok("brew lots: with no brew to go on and one coffee lot, that one",
+    BL.defaultLot(L.filter((x) => x.id !== "open" && x.id !== "spr"), "atlanta", new Map()) === "new");
+  const gone = BL.lotUse([1, 2, 3, 4].map(() => b({ coffee_lot_id: "open" })));
+  ok("brew lots: the last bag named, by its recipes used up, is passed over — for the one bag left",
+    BL.defaultLot(L.filter((x) => x.id !== "spr"), "atlanta", gone) === "new" && BL.defaultLot(L, "atlanta", gone) === null);
+  ok("brew lots: Greenville's sheet never opens on Atlanta's bag", BL.defaultLot(L, "greenville", named("spr", "2026-09-30T12:00:00Z")) === "gvl");
+
+  // ── what the pick says it will do ──
+  const n0 = BL.lotNote(lot({}), undefined, { needGrams: 560, today: T });
+  ok("brew lots: what naming the lot will do — what it is, and this batch's coffee off it",
+    n0 === "6 lb from Sprouts Farmers Market, received 4 weeks ago · no brew has named it yet. This batch's 1.23 lb comes off it when the batch logs what it used.", n0);
+  const n1 = BL.lotNote(lot({}), use.get("l"), { needGrams: 560, today: T });
+  ok("brew lots: and what the brews that named it took, by their recipes", n1.startsWith("6 lb from Sprouts Farmers Market, received 4 weeks ago · 2 brews so far, about 2.47 lb. This batch's"), n1);
+  ok("brew lots: a bag its brews have used up says so", BL.lotNote(lot({}), five.get("l"), { needGrams: 560, today: T }).includes("· 5 brews so far — by their recipes, all of it."));
+  ok("brew lots: not a coffee shelf — kept, and said that its coffee won't come off it",
+    BL.lotNote(lot({ item_name: "Yupik Organic Raw Cacao Nibs 2.2 lb", unit: "each", qty_received: 3 }), undefined, { needGrams: 560, today: T })
+      === "3 from Sprouts Farmers Market, received 4 weeks ago · no brew has named it yet. Not a coffee shelf by its name — the batch keeps the lot, but its coffee won't come off it.");
+  ok("brew lots: counted in bags — kept, and said that its coffee can't come off it by weight",
+    BL.lotNote(lot({ item_name: "Coffee 5 lb bag", unit: "bag", qty_received: 2 }), undefined, { needGrams: 560, today: T }).endsWith("Counted in bag, not by weight — the batch keeps the lot, but its coffee can't come off it."));
+  ok("brew lots: before 0349 the link is not promised — the name is kept and the line says what arrives",
+    BL.lotNote(lot({}), undefined, { needGrams: 560, today: T, linkable: false }).endsWith("The batch keeps its name; the link to the delivery arrives with the next database update."));
+  ok("brew lots: a batch that already logged what it used is not promised a second draw",
+    BL.lotNote(lot({}), undefined, { needGrams: 560, today: T, logged: true }).endsWith("This batch has already logged what it used — naming the lot now changes its record, not the shelf."));
+  ok("brew lots: a lot in words says it links to nothing", BL.TYPED_NOTE === "Not linked to a delivery — the batch keeps these words, and no coffee comes off a shelf.");
+  const unweighed = BL.lotUse([b({}), b({ scaled: [{ name: "Coffee", qty: 1, unit: "scoop" }] })]).get("l");
+  ok("brew lots: 'about N lb' is never said when one of the brews' coffee was not weighed",
+    BL.lotNote(lot({}), unweighed, { needGrams: 560, today: T }).includes("· 2 brews so far. This batch's"), BL.lotNote(lot({}), unweighed, { needGrams: 560, today: T }));
+
+  // ── the pick, on both sheets ──
+  const bp = code(read("components/BrewPlanner.tsx"));
+  const pick = code(read("components/CoffeeLotPick.tsx"));
+  ok("brew lots: Start brew names the lot with the pick, opened on the default — no free text box",
+    /<CoffeeLotPick label="Coffee lot — the bag this batch is made from" value=\{lot\} onChange=\{setLot\}/.test(bp) && /const id = defaultLot\(lotBoard\.lots, batch\.market, lotBoard\.use\);/.test(bp)
+    && !/placeholder="e\.g\. Colombia single-origin · roasted 6\/20"/.test(bp) && /await onStart\(\{ lot, brewer \}\)/.test(bp));
+  ok("brew lots: what the batch already says comes before any default", /if \(batch\.coffee_lot_id \|\| batch\.coffee_lot\?\.trim\(\)\) return lotOf\(batch\);/.test(bp));
+  ok("brew lots: a start writes the link and the words together, and before 0349 the link alone is dropped",
+    /const lot = extras\?\.lot \? \{ coffee_lot: extras\.lot\.text\.trim\(\) \|\| null, coffee_lot_id: extras\.lot\.id \} : \{\};/.test(bp)
+    && /\["brewer_id", "coffee_lot_id"\]\);\s+if \(error\) \{ setMutErr\(error\.message\); return false; \}/.test(bp) && /arrives-with: 0349/.test(read("components/BrewPlanner.tsx")));
+  ok("brew lots: the batch log keeps the record's lot — no default — and moves the link only when it is changed",
+    /<CoffeeLotPick label="Coffee lot" value=\{lot\} onChange=\{pickLot\}[^>]*allowNone noneLabel="Not recorded"/.test(bp) && /\.\.\.\(lotSet \|\| lot\.id \? \{ coffee_lot_id: lot\.id \} : \{\}\)/.test(bp)
+    && /coffee_lot: lot\.text\.trim\(\) \|\| null/.test(bp) && /useState<LotValue>\(\(\) => lotOf\(batch\)\)/.test(bp));
+  ok("brew lots: the board asks for the link and, before 0349, asks again without it and knows",
+    /coffee_lot_id"\)\s*\.order\("created_at", \{ ascending: false \}\);\s*if \(!full\.error \|\| !isMissingColumn\(full\.error\)\) return \{ \.\.\.full, linkable: true \};/.test(bp)
+    && /return \{ \.\.\.prior, linkable: false \};/.test(bp) && /linkable: b\.linkable/.test(bp));
+  ok("brew lots: the deliveries are read with their supplier, and a failed read is said in the pick — not thrown, not 'none'",
+    /\.from\("inventory_lots"\)\.select\("id, market, item_name, lot_code, received_on, qty_received, unit, created_at, vendors\(name\)"\)/.test(bp)
+    && /const firstErr = \[r, b, e, v, st, ii\]\.find/.test(bp) && /lotsErr: lt\.error \? lt\.error\.message : null/.test(bp)
+    && /Couldn't load the deliveries — \$\{failed\}/.test(pick));
+  ok("brew lots: the pick offers the city's coffee, then the rest, then 'A lot not on file…' — which says it links to nothing",
+    /<optgroup label=\{`Coffee in \$\{cityName\}`\}>/.test(pick) && /A lot not on file…/.test(pick) && /Origin · roast date — not linked to a delivery/.test(pick)
+    && /lotNote\(picked, use\.get\(picked\.id\), \{ needGrams, today, linkable, logged, others \}\)/.test(pick) && /<p className="lp-note">\{note\}<\/p>/.test(pick));
+  ok("brew lots: the pick's line says a failed read — only when it failed — and picking a lot writes that lot's words",
+    /const note = failed \? `Couldn't load the deliveries — \$\{failed\}/.test(pick) && /onChange\(\{ id: v, text: l \? lotLabel\(l\) : value\.text \}\);/.test(pick));
+  ok("brew lots: a log save, like a start, drops the link alone before 0349 — and says nothing about the coffee's gap until then",
+    /\} as Record<string, unknown>, \["brewer_id", "coffee_lot_id"\]\);\s+if \(error\) \{ setErr\(error\.message\)/.test(bp)
+    && /const gap = lotBoard\.linkable \? logResult\.gaps\.find\(\(g: any\) => isCoffee\(g\.ingredient\)\) : undefined;/.test(bp));
+  ok("brew lots: the production log names a lot on file by its own words — linked, or kept as its words before 0349 — and typed words as before",
+    /\(b\.coffee_lot_id \|\| lotBoard\.names\.has\(b\.coffee_lot\) \? ` · \$\{b\.coffee_lot\}` : ` · lot \$\{b\.coffee_lot\}`\)/.test(bp)
+    && /const names = useMemo\(\(\) => new Set\(\(brd\?\.lots \?\? \[\]\)\.map\(lotLabel\)\), \[brd\]\);/.test(bp));
+  ok("brew lots: a batch's own log counts the OTHER brews against its lot, and says so",
+    /lotUse\(lotBoard\.batches\.filter\(\(x\) => x\.id !== batch\.id\), lotBoard\.recipes\)/.test(bp) && /use=\{othersUse\} others /.test(bp)
+    && BL.lotNote(lot({}), undefined, { needGrams: 560, today: T, others: true }).includes("· no other brew has named it.")
+    && BL.lotNote(lot({}), use.get("l"), { needGrams: 560, today: T, others: true }).includes("· 2 other brews so far, about 2.47 lb."));
+  ok("brew lots: 'Log what it used' no longer sends anyone to link a shelf in Inventory — a screen that does not exist",
+    !/Link \{logResult\.gaps\.length === 1 \? "it" : "them"\} to a shelf in Inventory/.test(bp) && /nothing links \$\{rest\.length === 1 \? "it" : "them"\} to a shelf yet/.test(bp)
+    && /the coffee off \$\{cupLot \? lotLabel\(cupLot\)/.test(bp));
+  ok("brew lots: compiled for the smoke run, and its database half runs in db:test",
+    /lib\/brewLots\.ts/.test(read("package.json")) && /node scripts\/db\.brewlot\.test\.mjs/.test(read("package.json")));
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.
