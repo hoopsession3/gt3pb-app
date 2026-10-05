@@ -356,6 +356,12 @@ export const PROD_ROUTE = {
 // fewer on every page load that never reaches a cart. /menu then took back the half-kilobyte that
 // says its own state — the order line, the hint and the price that know the truck is closed, and the
 // price kept in its pill's box so the answer moves no row: 271 924 bytes, 268 → 266 over the pass.
+// 2026-10-05: /book 265 → 266, and not one new byte of code on it. Built 60c4332 and this commit and
+// diffed the chunks /book's HTML references: the one that differs is the same 58 487 raw bytes on
+// both sides with its modules in a different order — the brew lot pick (lib/brewLots,
+// components/CoffeeLotPick, crew-only) renumbered the bundler's modules — and gzips 42 bytes worse
+// (311 467 → 311 509 on /book), past its rounding line. Compression noise on an ordering, written
+// down so it is not mistaken for weight; every public route moved the same 42 and only /book crossed.
 export const WEIGHT = {
   "/truck":                    { js: 281, css: 103, chunks: 15 },
   "/events":                   { js: 281, css: 103, chunks: 15 },
@@ -364,7 +370,7 @@ export const WEIGHT = {
   "/delivery":                 { js: 289, css: 101, chunks: 16 },
   "/3mpire":                   { js: 281, css: 101, chunks: 15 },
   "/craft":                    { js: 265, css: 101, chunks: 15 },
-  "/book":                     { js: 265, css: 101, chunks: 15 },
+  "/book":                     { js: 266, css: 101, chunks: 15 },
   "/academy":                  { js: 314, css: 101, chunks: 15 },
   "/office":                   { js: 274, css: 101, chunks: 15 },
   "/scan":                     { js: 256, css: 101, chunks: 14 },
