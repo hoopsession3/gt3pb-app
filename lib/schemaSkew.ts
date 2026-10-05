@@ -61,3 +61,18 @@ export async function writeAcrossSkew<R extends Record<string, unknown>, E exten
   const second = await write(rest);
   return { error: second.error, dropped: second.error ? [] : present };
 }
+
+// THE FUNCTION THAT DOES NOT EXIST YET (2026-10-05). The same window, for an RPC: a push that calls a
+// function in the shape a pending migration gives it (0347 adds receive_lot's p_vendor_id) reaches
+// PostgREST before the paste, and PostgREST answers PGRST202, "Could not find the function
+// public.receive_lot(...) in the schema cache". Same narrowness as above: this one code, or this one
+// sentence. A caller that sees it says the step arrives with the next database update — it never
+// falls back to an older shape that would do something different.
+const MISSING_FUNCTION_TEXT = /Could not find the function [^\s(]+\(/i;
+
+/** Is this error ONLY "that function (in this shape) is not there yet"? */
+export function isMissingFunction(err: { code?: string | null; message?: string | null } | null | undefined): boolean {
+  if (!err) return false;
+  if (String(err.code ?? "") === "PGRST202") return true;
+  return MISSING_FUNCTION_TEXT.test(String(err.message ?? ""));
+}

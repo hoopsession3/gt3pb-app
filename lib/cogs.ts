@@ -6,7 +6,9 @@
 // Anything un-costed (no unit cost, or a recipe ingredient with no matching inventory item) is
 // surfaced so the owner knows the number is partial — never silently zeroed.
 
-export interface InvCost { id: string; name: string; unit_cost: number | null; unit: string | null }
+import { FOUNDING_MARKET, MARKET_LABEL, toMarket } from "./markets";
+
+export interface InvCost { id: string; name: string; unit_cost: number | null; unit: string | null; market?: string | null }
 export interface Component { product_id: string; inventory_item_id: string; qty_per_serving: number | null; unit: string | null }
 export interface ProductRow { id: string; slug: string; name: string; line: string | null; price_cents: number }
 export interface BrewIngredient { name: string; qty?: number; unit?: string; scales?: boolean }
@@ -70,4 +72,30 @@ export function batchCogs(recipe: BrewRecipeRow, invByName: Map<string, InvCost>
     servableGal: Math.round(servableGal * 100) / 100, bottles,
     perBottleCents: bottles > 0 ? Math.round(cents / bottles) : 0, lines, uncosted,
   };
+}
+
+// TWO CITIES, ONE NAME (2026-10-05, 0347). A shelf is a city's (0288), and since 0347 Atlanta and
+// Greenville can each stock an item of the same name. Where a shelf is found by NAME — a brew
+// recipe's ingredients — the name finds the one with a cost, the founding city's first: never
+// whichever row the database happened to return last. Where shelves are LISTED, a name that two
+// cities stock says whose each one is.
+const nameKey = (n: string) => n.trim().toLowerCase();
+
+/** Recipe ingredient name → the shelf that prices it. */
+export function costByName(inv: readonly InvCost[]): Map<string, InvCost> {
+  const rank = (x: InvCost) => (x.unit_cost != null ? 0 : 2) + (toMarket(x.market) === FOUNDING_MARKET ? 0 : 1);
+  const out = new Map<string, InvCost>();
+  for (const x of inv) {
+    const k = nameKey(x.name);
+    const had = out.get(k);
+    if (!had || rank(x) < rank(had) || (rank(x) === rank(had) && String(x.market ?? "") < String(had.market ?? ""))) out.set(k, x);
+  }
+  return out;
+}
+
+/** A shelf's name — with its city when another city stocks one of the same name. */
+export function shelfLabel(it: { name: string; market?: string | null }, all: readonly { name: string; market?: string | null }[]): string {
+  const k = nameKey(it.name);
+  const twin = all.some((o) => nameKey(o.name) === k && toMarket(o.market) !== toMarket(it.market));
+  return twin ? `${it.name} — ${MARKET_LABEL[toMarket(it.market)]}` : it.name;
 }

@@ -18,7 +18,10 @@
 // category at Ingredients when that is all Sprouts has ever been (the sheet says so, and a tap
 // changes it). A supplier with a mixed history suggests nothing: a guess is not knowledge.
 //
-// Pure, so scripts/smoke.cjs holds it to all of that.
+// Pure, so scripts/smoke.cjs holds it to all of that — and the one read both supplier picks draw from
+// (the purchase sheet's, the inventory register's), so the two cannot offer different books.
+
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type VendorRow = { id: string; name: string; kind: string | null };
 export type RecentPurchase = { vendor_id: string | null; category: string | null };
@@ -68,3 +71,7 @@ export function supplierNamed(list: readonly Supplier[], typed: string): Supplie
   if (!t) return null;
   return list.find((s) => s.name.trim().replace(/\s+/g, " ").toLowerCase() === t) ?? null;
 }
+
+/** The vendor book a supplier pick is drawn from: every vendor not archived, by name. */
+export const readVendorBook = (sb: SupabaseClient) =>
+  sb.from("vendors").select("id, name, kind").is("archived_at", null).neq("status", "archived").order("name");
