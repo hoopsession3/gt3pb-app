@@ -7144,6 +7144,140 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /lib\/brewLots\.ts/.test(read("package.json")) && /node scripts\/db\.brewlot\.test\.mjs/.test(read("package.json")));
 }
 
+// ── A MILESTONE'S WORKSTREAM (2026-10-05, the form audit, part 3e · 0350) ─────────────────────────
+// A milestone's Workstream on the Command board was a text box ("content · events · delivery…") while
+// the portfolio — the named workstreams, each with an owner — sat directly above it, and a typed word
+// linked to none of them. lib/portfolio is how the app reads a workstream — its owner, the words that
+// spell it, a milestone's chip; lib/milestonePick the sheet's pick (components/MilestoneSheet, loaded
+// when an admin opens a milestone); 0350 the link, the words that follow it, and the backfill.
+// scripts/db.milestone.test.mjs runs the backfill's own text over the same cases as matchStream here.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const PF = require("../.smoke/portfolio.js");
+  const MP = require("../.smoke/milestonePick.js");
+
+  // ── one rule in two languages ──
+  const fx = JSON.parse(read("scripts/fixtures/workstream-words.json"));
+  const cases = fx.groups.flatMap((g) => g.cases.map(([words, want]) => ({ words, want, streams: g.streams.map((name, i) => ({ id: `s${i}`, name })) })));
+  const wrong = cases.filter((c) => (PF.matchStream(c.words, c.streams)?.name ?? null) !== c.want);
+  ok("workstream: which words spell a workstream — every case on the list both languages run", cases.length >= 20 && wrong.length === 0, wrong);
+  ok("workstream: the TypeScript trims spaces only, as btrim does — a tab is part of the word",
+    PF.matchStream("events\t", [{ id: "e", name: "Events" }]) === null && PF.matchStream("  events  ", [{ id: "e", name: "Events" }])?.id === "e");
+
+  // ── a portfolio to work with ──
+  const S = (id, name, extra = {}) => ({ id, name, owner: "", owner_user_id: null, status: "active", blocker: null, sort: 0, ...extra });
+  const streams = [
+    S("ev", "Events", { owner: "Kayla", owner_user_id: "u-k", sort: 90, status: "blocked", blocker: "8/15 double-book" }),
+    S("pb", "Print & Brand Assets", { owner: "Ryan", sort: 80 }),
+    S("d2c", "D2C Delivery Ops", { owner: "Ryan", owner_user_id: "u-r", sort: 20 }),
+    S("fl", "Flagship / Investor", { owner: "", sort: 60, status: "parked" }),
+  ];
+  const crew = [{ id: "u-k", display_name: "Kayla M" }, { id: "u-r", display_name: "Ryan" }];
+  const owner = (s) => PF.streamOwner(s, crew);
+
+  ok("workstream: an owner is the crew member by their current name, else the name typed, else nobody",
+    owner(streams[0]) === "Kayla M" && owner(streams[1]) === "Ryan" && owner(streams[3]) === null
+    && PF.streamOwner({ owner: "Sam", owner_user_id: "gone" }, crew) === "Sam" && PF.streamOwner({ owner: "  ", owner_user_id: null }, crew) === null);
+  const ch = MP.streamChoices(streams);
+  ok("workstream: the pick lists the portfolio in its own order, the parked ones apart",
+    JSON.stringify(ch.open.map((s) => s.id)) === JSON.stringify(["d2c", "pb", "ev"]) && JSON.stringify(ch.parked.map((s) => s.id)) === JSON.stringify(["fl"]));
+
+  // ── the chip ──
+  ok("workstream: a linked milestone's chip is its workstream's CURRENT name — not the words it was filed under",
+    JSON.stringify(PF.milestoneStream({ workstream: "Events (old name)", workstream_id: "ev" }, streams)) === JSON.stringify({ text: "Events", linked: true }));
+  ok("workstream: linked, with the portfolio not loaded — the words, still as a link",
+    JSON.stringify(PF.milestoneStream({ workstream: "Events", workstream_id: "ev" }, [])) === JSON.stringify({ text: "Events", linked: true }));
+  ok("workstream: words that link to nothing are shown as such, and no words is no chip",
+    JSON.stringify(PF.milestoneStream({ workstream: " branding ", workstream_id: null }, streams)) === JSON.stringify({ text: "branding", linked: false })
+    && PF.milestoneStream({ workstream: "  ", workstream_id: null }, streams) === null && PF.milestoneStream({ workstream: null }, streams) === null);
+
+  // ── where the pick starts, and what saving writes ──
+  const K = MP.KEPT_WORDS;
+  ok("workstream: the pick starts on the link; else on the stream the words spell; else on the words; else on nothing",
+    MP.startingPick({ workstream: "Events", workstream_id: "ev" }, streams) === "ev" && MP.startingPick({ workstream: "events" }, streams) === "ev"
+    && MP.startingPick({ workstream: "branding" }, streams) === K && MP.startingPick({ workstream: null }, streams) === "" && MP.startingPick({ workstream: " " }, streams) === "");
+  const P = (pick, m, linkable = true) => JSON.stringify(MP.streamPatch(pick, m, streams, linkable));
+  ok("workstream: saving writes only what changed — the link with the stream's name, or nothing",
+    P("pb", { workstream: "branding", workstream_id: null }) === JSON.stringify({ workstream_id: "pb", workstream: "Print & Brand Assets" })
+    && P("ev", { workstream: "Events", workstream_id: "ev" }) === "{}" && P(K, { workstream: "branding" }) === "{}" && P("nope", { workstream: "x" }) === "{}");
+  ok("workstream: 'No workstream' clears the link and the words — and is nothing to write when there were none",
+    P("", { workstream: "Events", workstream_id: "ev" }) === JSON.stringify({ workstream_id: null, workstream: null })
+    && P("", { workstream: "branding", workstream_id: null }) === JSON.stringify({ workstream_id: null, workstream: null }) && P("", { workstream: null }) === "{}");
+  ok("workstream: without 0350, words that already spell the pick are left alone — 0350 links them; another pick writes its name",
+    P("ev", { workstream: "events" }, false) === "{}" && P("pb", { workstream: "events" }, false) === JSON.stringify({ workstream_id: "pb", workstream: "Print & Brand Assets" }));
+
+  // ── the line under the pick ──
+  const N = (pick, m, o = {}) => MP.streamNote({ pick, m, streams, failed: null, linkable: true, owner, ...o });
+  ok("workstream: a pick says who owns the stream, and its state when it is not simply in play",
+    N("d2c", { workstream: "D2C Delivery Ops", workstream_id: "d2c" }) === "Ryan owns D2C Delivery Ops."
+    && N("ev", { workstream: "Events", workstream_id: "ev" }) === "Kayla M owns Events. Blocked — 8/15 double-book."
+    && N("fl", { workstream: "Flagship / Investor", workstream_id: "fl" }) === "Nobody owns Flagship / Investor yet. Parked by decision.");
+  ok("workstream: old words the pick resolved say saving links them; a different pick says what it replaces",
+    N("ev", { workstream: "events", workstream_id: null }) === "“events” is Events in the portfolio — saving links it. Kayla M owns Events. Blocked — 8/15 double-book."
+    && N("pb", { workstream: "branding", workstream_id: null }) === "Saving files it to Print & Brand Assets in place of “branding”. Ryan owns Print & Brand Assets.");
+  ok("workstream: words kept say they link to nothing; 'No workstream' says nothing — unless the portfolio is empty",
+    N(K, { workstream: "branding" }) === "“branding” was typed before the portfolio and links to no workstream — pick the one it belongs to."
+    && N("", { workstream: null }) === null && MP.streamNote({ pick: "", m: { workstream: null }, streams: [], failed: null, linkable: true, owner }) === "Nothing in the portfolio yet — add a workstream above, then file this to it.");
+  ok("workstream: a failed read is said — and before 0350, that the link comes with the next database update",
+    N("ev", { workstream: "events" }, { failed: "permission denied" }) === "Couldn't load the portfolio — permission denied. The milestone keeps what it has."
+    && N("ev", { workstream: "events" }, { linkable: false }) === "Kayla M owns Events. Blocked — 8/15 double-book. The milestone keeps the name; the link arrives with the next database update.");
+  ok("workstream: a link to a stream no longer in the portfolio says so",
+    N("x", { workstream: "Trailer & Venue", workstream_id: "x" }) === "“Trailer & Venue” is not in the portfolio any more — pick where it belongs now.");
+
+  // ── the board ──
+  const cb = code(read("components/CommandBoard.tsx")), cbRaw = read("components/CommandBoard.tsx");
+  const ms = code(read("components/MilestoneSheet.tsx")), msRaw = read("components/MilestoneSheet.tsx");
+  ok("workstream: the milestones are read with the link, across the window before 0350 — that one condition, and the board knows",
+    /\/\/ arrives-with: 0350\n\s+const full = await supabase!\.from\("initiative_milestones"\)\.select\("id, initiative_id, title, due_on, done, workstream, workstream_id, sort"\)/.test(cbRaw)
+    && /if \(!full\.error \|\| !isMissingColumn\(full\.error\)\) return \{ \.\.\.full, linkable: true \};/.test(cb)
+    && /return \{ \.\.\.prior, linkable: false \};/.test(cb) && /linkable: mil\.linkable,/.test(cb) && /milesRead\(\),/.test(cb));
+  ok("workstream: the portfolio is read beside the goals, and a failed read is said in the pick — not thrown",
+    /supabase\.from\("os_workstreams"\)\.select\("id, name, owner, owner_user_id, status, blocker, sort"\)\.order\("sort"\)/.test(cb)
+    && /const firstErr = \[ini, mil, lnk, tThis, eThis, inc, tOver, eOver, tDone, eDone\]\.find/.test(cb)
+    && /streamsErr: pf\.error \? pf\.error\.message : null,/.test(cb) && /"incident_log", "os_workstreams"\], reload\)/.test(cb)
+    // …and the answer is used for exactly those two things — read, kept, said — and never thrown.
+    && (cb.match(/\bpf\b/g) || []).length === 5);
+  ok("workstream: the chip is the workstream by its portfolio name, and words that link to nothing are marked so",
+    /const ws = milestoneStream\(m, data\.streams\);/.test(cb) && /className=\{`cmd-ws\$\{ws\.linked \? "" : " loose"\}`\}/.test(cb)
+    && !/\{m\.workstream && <span className="cmd-ws">/.test(cb) && /\.cmd-ws\.loose,\.app\.crew-day \.cmd-ws\.loose\{/.test(read("app/globals.css")));
+  ok("workstream: the sheet picks from the portfolio — no box to type a workstream into",
+    /<select aria-labelledby=\{`ms-ws-\$\{m\.id\}`\} value=\{pick\} onChange=\{\(e\) => setPick\(e\.target\.value\)\}>/.test(ms)
+    && /<optgroup label="The portfolio">/.test(ms) && /<optgroup label="Parked by decision">/.test(ms) && /<option value="">No workstream<\/option>/.test(ms)
+    && /<option value=\{KEPT_WORDS\}>\{`“\$\{words\}” — links to nothing`\}<\/option>/.test(ms)
+    && !/content · events · delivery/.test(ms + cb) && !/setWs\(/.test(ms + cb) && /\{note && <p className="lp-note">\{note\}<\/p>\}/.test(ms)
+    && /useState\(\(\) => startingPick\(m, streams\)\)/.test(ms) && /streamPatch\(pick, m, streams, linkable\)/.test(ms));
+  ok("workstream: a save waits, says why it failed and keeps the sheet open; before 0350 it drops the link alone",
+    /if \(error\) \{ setErr\(`Couldn't save — \$\{error\.message\}`\); return; \}\s+onSaved\(\);\s+onClose\(\);/.test(ms)
+    && /writeAcrossSkew\(\(row\) => supabase!\.from\("initiative_milestones"\)\.update\(row\)\.eq\("id", m\.id\), patch, \["workstream_id"\]\)/.test(ms)
+    && /\/\/ arrives-with: 0350\n\s+const \{ error \} = await writeAcrossSkew/.test(msRaw)
+    && /\{busy \? "Saving…" : "Save"\}/.test(ms) && /role="alert">\{err\}/.test(ms));
+  ok("workstream: the sheet is loaded when a milestone is opened, not with the board — and saving reloads the board",
+    /const MilestoneSheet = dynamic\(\(\) => import\("\.\/MilestoneSheet"\), \{ ssr: false \}\);/.test(cb) && /onDelete=\{\(\) => deleteMile\(manage\)\}\s+onSaved=\{reload\}/.test(cb)
+    && !/from "\.\/useCrew"|writeAcrossSkew|lib\/milestonePick/.test(cb));
+  ok("workstream: a refused check-off, tie, untie or delete says so — none of them dropped its error any more",
+    /if \(error\) toast\(`Couldn't \$\{m\.done \? "reopen" : "check off"\}/.test(cb)
+    && /if \(error\) toast\(`Couldn't \$\{on \? "tie it to" : "untie it from"\} that initiative/.test(cb)
+    && /if \(error\) \{ toast\(`Couldn't delete “\$\{m\.title\}” — \$\{error\.message\}`, "error"\); return; \}/.test(cb)
+    && /if \(tie\) toast\(`Added, but not tied to the initiative/.test(cb)
+    && !/\n\s+await supabase\.from\("initiative_milestone(s|_links)"\)\.(update|insert|delete)\(/.test(cb));
+  ok("workstream: who owns a workstream is lib/portfolio's — the portfolio's rows and the pick's line say the same name",
+    /const ownerName = \(w: Ws\) => streamOwner\(w, crew\);/.test(code(read("components/OsRegistry.tsx"))) && /owner: \(s\) => streamOwner\(s, crew\)/.test(ms));
+
+  // ── the migration ──
+  const m350 = read("supabase/migrations/0350_a_milestone_names_its_workstream.sql");
+  ok("0350: the link, its words written by the database, the function the trigger's alone, and nothing guessed",
+    /add column if not exists workstream_id uuid references public\.os_workstreams\(id\) on delete set null/.test(m350)
+    && /before insert or update of workstream_id, workstream on public\.initiative_milestones/.test(m350)
+    && /revoke all on function public\.milestone_workstream_words\(\) from public, anon, authenticated;/.test(m350)
+    && /lower\(btrim\(s\.name\)\) = lower\(btrim\(m\.workstream\)\)/.test(m350) && /= 1;/.test(m350)
+    && /select public\.record_migration\('0350_a_milestone_names_its_workstream'/.test(m350));
+  ok("0350: compiled for the smoke run, and its database half runs in db:test",
+    /lib\/portfolio\.ts lib\/milestonePick\.ts/.test(read("package.json")) && /node scripts\/db\.milestone\.test\.mjs/.test(read("package.json")));
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.

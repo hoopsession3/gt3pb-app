@@ -5353,6 +5353,8 @@ button.mkpi-tile:active{transform:scale(.98)}
 .cmd-more{font-family:'Inter';font-size:11.5px;color:var(--cream-m);padding:3px 2px}
 .app.crew-day .cmd-init,.app.crew-day .cmd-row{background:var(--card);border-color:var(--ink2-onLight-10)}
 .app.crew-day .cmd-prog-bar,.app.crew-day .cmd-ws{background:var(--ink2-onLight-06)}
+/* 0350: a milestone's words that link to no workstream — the chip says so, dashed like any unset field. */
+.cmd-ws.loose,.app.crew-day .cmd-ws.loose{background:none;border:1px dashed var(--line2);padding:1px 5px}
 
 /* ── VIP verification — staff queue + customer submit ── */
 .vipq{display:flex;flex-direction:column;gap:9px}
