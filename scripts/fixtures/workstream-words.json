@@ -1,0 +1,45 @@
+{
+  "_": "Which words already spell a workstream — lib/portfolio.matchStream and 0350's backfill must give every one of these the same answer: the one stream whose name the words equal, ignoring case and the spaces around them, or nothing. scripts/smoke.cjs runs the TypeScript rule over this list and scripts/db.milestone.test.mjs runs the SQL one; neither keeps its own copy of the cases. ASCII only: Postgres lowers other letters by the database's locale, and the test database's is not production's.",
+  "groups": [
+    {
+      "streams": ["Pipeline & Corporate", "D2C Delivery Ops", "GT3PB App", "Webflow / Site", "Product & Compliance", "Flagship / Investor", "Partner / Cooler Program", "Print & Brand Assets", "Events", "Trailer & Venue"],
+      "cases": [
+        ["events", "Events"],
+        ["Events", "Events"],
+        ["  EVENTS  ", "Events"],
+        ["gt3pb app", "GT3PB App"],
+        ["webflow / site", "Webflow / Site"],
+        ["PRINT & BRAND ASSETS", "Print & Brand Assets"],
+        ["branding", null],
+        ["logistics", null],
+        ["content", null],
+        ["delivery", null],
+        ["vip", null],
+        ["event", null],
+        ["Events!", null],
+        ["Webflow/Site", null],
+        ["Print and Brand Assets", null],
+        ["events\t", null],
+        ["", null],
+        ["   ", null],
+        [null, null]
+      ]
+    },
+    {
+      "streams": ["Events", "events ", "Trailer & Venue"],
+      "cases": [
+        ["events", null],
+        ["EVENTS", null],
+        ["trailer & venue", "Trailer & Venue"]
+      ]
+    },
+    {
+      "streams": ["Events & Pop-ups", "Events"],
+      "cases": [
+        ["events", "Events"],
+        ["EVENTS & POP-UPS", "Events & Pop-ups"],
+        ["events &", null]
+      ]
+    }
+  ]
+}
