@@ -430,7 +430,15 @@ const invRow = (id) => q1(`select status, due_at::text, paid_at is not null as p
     values ('${acct}', '${o}', 13500, 'net15', 'open', '2026-10-05T02:00:00Z') returning id`)).id;
   ok("at insert: the due date comes from the terms, counted from the ET day (10 PM Oct 4 ET is Oct 4)", (await invRow(a)).due_at === "2026-10-19", await invRow(a));
   const b = (await q1(`insert into public.invoices (business_id, amount_cents, terms) values ('${acct}', 100, 'net30') returning id, issued_at, due_at::text`));
-  ok("at insert: net30 is thirty days", b.due_at === new Date(new Date(b.issued_at).getTime() + 30 * 864e5).toLocaleDateString("en-CA", { timeZone: "America/New_York" }), b);
+  // Thirty CALENDAR days from the ET issue date — what the trigger computes. The expectation used to
+  // add 30 × 24 hours to the instant and then read the ET date, which is a day short whenever the
+  // thirty days cross the November clock change and the invoice is issued in ET's first hour: CI ran
+  // this at 04:01 UTC on 2026-10-05 (00:01 EDT) and failed on a due date that was right (#589).
+  const etDay = (iso) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const plusDays = (ymd, n) => { const [y, m, d] = ymd.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
+  ok("at insert: net30 is thirty days", b.due_at === plusDays(etDay(b.issued_at), 30), b);
+  const dst = (await q1(`insert into public.invoices (business_id, amount_cents, terms, issued_at) values ('${acct}', 100, 'net30', '2026-10-05T04:01:31Z') returning due_at::text`));
+  ok("at insert: net30 across the clock change — issued 00:01 EDT on Oct 5, due Nov 4", dst.due_at === "2026-11-04", dst);
   const c = (await q1(`insert into public.invoices (business_id, amount_cents, terms, due_at) values ('${acct}', 100, 'net15', '2026-12-25') returning due_at::text`));
   ok("a due date somebody set on purpose is kept", c.due_at === "2026-12-25", c);
   ok("terms are the two the app writes", /invoices_terms_check/.test(await raises(`insert into public.invoices (business_id, amount_cents, terms) values ('${acct}', 100, 'net45')`) ?? ""));
