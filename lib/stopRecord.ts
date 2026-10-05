@@ -78,8 +78,9 @@ export const stopGapFix = (k: string | null | undefined): string =>
 //   recap    the note alone, for something already done                 (lib/wrap.saveRecap)
 //   resync   copy the venue's name and address onto this stop           (resync_stop_from_vendor)
 //   venue    Plan › Venues — the venue's own row
-//   route    Plan › Route — where a stop is linked to its venue and where the truck goes offline
-//            (LiveControl owns both; the sheet points there rather than growing a second switch)
+//   route    Plan › Route — where a stop's venue is picked (its card's sheet, components/VenuePick)
+//            and where the truck goes offline (LiveControl owns both; the sheet points there rather
+//            than growing a second switch)
 export const STOP_WAYS_OUT = ["edit", "archive", "wrap", "recap", "resync", "venue", "route"] as const;
 export type StopWayOut = (typeof STOP_WAYS_OUT)[number];
 
@@ -221,35 +222,22 @@ export function stopOwedLine(s: StopCounts | null | undefined): string {
 // LINKING. Route's linkVendor copied the vendor's name, address, place text and pin onto the stop
 // unconditionally, so linking a stop to a vendor whose own address was never filled in wrote null
 // over the stop's address and its pin — and Find Us lost the directions to a stop that had them.
-// FieldOpSheet's copy (a typed name that resolves to a vendor) took only what the vendor has. That
-// one was right; both ask stopPatchFromVendor now. A pin is copied whole or not at all.
+// That rule lived here as stopPatchFromVendor until the venue pick (2026-10-05, part 4) gave every
+// stop and event editor one control: what a pick fills is lib/venues.venueFill now — a typed place
+// stays, and a pin goes with the address it belongs to or not at all.
 //
 // MOVING. Saving a vendor's address pushed it to EVERY stop and event linked to it: a stop that had
 // already happened was rewritten to a place it never was, and a stop at the vendor's second
 // location was moved to its first. The new address goes to the visits still ahead that were at the
 // old one, or at none — wasAtVendorsPlace says which.
-export type VendorPlace = {
-  id: string; name: string; address?: string | null; location_text?: string | null;
-  lat?: number | null; lng?: number | null;
-};
-export type StopVendorPatch = { vendor_id: string; name: string; address?: string; location_text?: string; lat?: number; lng?: number };
-
-/** What a stop takes from the vendor it is linked to: the name, and whatever of its place the vendor has. */
-export function stopPatchFromVendor(v: VendorPlace): StopVendorPatch {
-  const p: StopVendorPatch = { vendor_id: v.id, name: v.name };
-  const address = String(v.address ?? "").trim(), place = String(v.location_text ?? "").trim();
-  if (address) p.address = address;
-  if (place) p.location_text = place;
-  if (v.lat != null && v.lng != null) { p.lat = v.lat; p.lng = v.lng; }
-  return p;
-}
 
 const placeKey = (s: string | null | undefined): string => String(s ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 
 /**
  * Was this visit at the venue's OLD place — its address or place text (either way round), or none
  * at all? The venue's NAME counts as its place too: linking an event to a venue with no place text
- * writes the venue's name there (crew/page linkVendor), and that event is at the venue, wherever it is.
+ * writes the venue's name there (lib/venues — a choice's `line`), and that event is at the venue,
+ * wherever it is.
  */
 export function wasAtVendorsPlace(
   old: { name?: string | null; address?: string | null; location_text?: string | null },

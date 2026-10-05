@@ -1,9 +1,10 @@
 import { supabase } from "./supabase";
 import { raiseAlertClient } from "./clientAlerts";
 
-// THE one vendor resolver (0226). Every surface that turns a typed name into a vendor — the stop
-// editor, the vendor book, booking promote, the pipeline composer, the note→ops agent, the event
-// copilot, the calendar quick-add — goes through resolveVendor, so the app has ONE matching rule:
+// THE one vendor resolver (0226). Every surface that turns a typed name into a vendor — the venue
+// pick (components/VenuePick: every stop and event editor, the calendar quick-add and the event
+// copilot), the vendor book, booking promote, the pipeline composer, the note→ops agent — goes
+// through resolveVendor, so the app has ONE matching rule:
 //   1. exact name (case-insensitive) → link the existing vendor;
 //   2. ≥40% trigram-similar name(s) → DON'T create; hand back the candidates so the human decides
 //      (link it · add it as a location of it · create distinct). The DB guard (0226) backstops
@@ -101,7 +102,7 @@ export async function resolveVendor(
       category: "booking",
       kind: "vendor_pending",
       title: `New venue needs approval — ${nm}`,
-      body: `Auto-added from ${opts?.source ?? "a truck stop"}. Review the contact details & approve in Plan › Vendors.`,
+      body: `Added from ${opts?.source ?? "a truck stop"}. Review the contact details & approve in Plan › Vendors.`,
       link: "/crew?s=plan",
       subjectId: id,
     });
