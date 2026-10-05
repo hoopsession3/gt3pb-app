@@ -111,7 +111,7 @@ export const CHROME_CLEARANCE = 8;
 
 // ── THE CEILINGS — measured, not remembered (2026-10-01, after the one-box-per-level pass) ───────
 export const CEILING = {
-  cardRules: 810,        // rules that make a card: radius + (border | fill). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04)
+  cardRules: 809,        // rules that make a card: radius + (border | fill). 810 → 809: the quiet Outlook line, retired with the not-configured bar it styled (2026-10-05). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04)
   rawRadii: 27,          // distinct border-radius values that are not a --r-* token, 50% or 0
   dupSelectors: 53,      // single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02; 54 → 53: .myday-live, declared twice, retired with the card it lived on, 2026-10-04)
   rootBlocks: 1,         // separate `:root{` blocks — tokens have one home (6 → 1 on 2026-10-02: motion, spring, eyebrow tracking, color-scheme and the radius scale folded in)

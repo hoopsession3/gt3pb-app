@@ -1886,7 +1886,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const migDirE = require("node:path").join(__dirname, "..", "supabase/migrations");
   const definesGaps = rdE(migDirE).filter((f) => f.endsWith(".sql")).sort()
     .filter((f) => /create or replace view public\.v_event_gaps\b/.test(rfE(require("node:path").join(migDirE, f), "utf8")));
-  ok("eventRecord: the view's latest definition is 0339's", definesGaps.at(-1) === "0339_the_sentence_that_described_a_door.sql", definesGaps);
+  ok("eventRecord: the view's latest definition is 0348's", definesGaps.at(-1) === "0348_tonight_is_not_the_past.sql", definesGaps);
   const sqlE = rfE(require("node:path").join(migDirE, definesGaps.at(-1)), "utf8");
   const inSql = [...sqlE.matchAll(/\(\s*'([a-z_]+)',\s*'[^']*',\s*'(high|medium|low)'/g)].map((m) => m[1]);
   ok("eventRecord: the migration's gap list was actually found in the file", inSql.length === 9, inSql);
@@ -1895,6 +1895,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("eventRecord: and the module invents none the database cannot emit",
     E.GAP_KEYS.every((k) => inSql.includes(k)), E.GAP_KEYS.filter((k) => !inSql.includes(k)));
   ok("eventRecord: an unknown gap gets no invented advice", E.gapFix("made_up") === "" && E.gapFix(null) === "");
+  // The view diagnoses; the fix sentence is this module's, and every reader prints one after the
+  // other. stale_stage's detail ended "Wrap it or drop it." before 0348 — the advice twice, and on a
+  // phone the clamp cut the second, better one. A detail that opens its own fix's words is that again.
+  const detailsE = Object.fromEntries([...sqlE.matchAll(/\(\s*'([a-z_]+)',\s*'([^']*)',\s*'(?:high|medium|low)'/g)].map((m) => [m[1], m[2]]));
+  ok("eventRecord: no detail in the view carries its own fix — said once, by the reader",
+    Object.keys(detailsE).length === 9 && Object.entries(detailsE).every(([k, d]) => !d.includes(E.gapFix(k).split(" ").slice(0, 2).join(" "))),
+    Object.entries(detailsE).filter(([k, d]) => d.includes(E.gapFix(k).split(" ").slice(0, 2).join(" "))));
 
   ok("eventRecord: worst first", E.sortGaps([{ gap: "no_recap", severity: "low" }, { gap: "twin", severity: "high" },
     { gap: "no_sales", severity: "medium" }]).map((r) => r.gap).join(",") === "twin,no_sales,no_recap");
@@ -6841,6 +6848,154 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("two cities, one name: the menu's ingredient picker and a drink's recipe rows say whose shelf a repeated name is",
     /select\("id, name, unit, unit_cost, market"\)/.test(mm2) && /<option key=\{i\.id\} value=\{i\.id\}>\{shelfLabel\(i, inv\)\}<\/option>/.test(mm2)
     && /· \{invLabel\(c\.inventory_item_id\)\}/.test(mm2) && /cogs\.lines\.find\(\(l\) => l\.name === invName\(c\.inventory_item_id\)\)/.test(mm2));
+}
+
+// ── THE PLAN LISTS, IN THE ORDER THEY ARE READ (2026-10-05) ─────────────────────────────────────
+// Ryan sent three phone screenshots of Plan, without a word: the Events list (each card headed
+// "EVENT 01", "EVENT 02"…, in creation order — Oct 24, Aug 15, Aug 23, Jul 31 — two of them still
+// "Confirmed" weeks after their date, a hollow ring on every card), Needs sorting above it (the
+// advice cut off at "Wrap it if…"), and the calendar's agenda ending on "Outlook sync · NOT
+// CONFIGURED … a developer task" over a weekly review last run Aug 2. These hold each answer.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const E = require("../.smoke/eventRecord.js");
+  const DW = require("../.smoke/dayWords.js");
+  const VK = require("../.smoke/vendorKind.js");
+  const T = "2026-10-05";
+
+  // ── the rules, in their one home ──
+  ok("plan lists: an event's phase from its row is v_event_record's rule — undated, ahead, today, past",
+    E.eventPhase("2026-10-24", T) === "upcoming" && E.eventPhase(T, T) === "today" && E.eventPhase("2026-08-15", T) === "past"
+    && E.eventPhase(null, T) === "undated" && E.eventPhase("", T) === "undated" && E.eventPhase("2026-10-05T23:30:00Z", T) === "today");
+  ok("plan lists: a dated row leads with its date, then which side of today it is on",
+    E.dateLine("2026-10-24", T) === "Sat, Oct 24 · in 19 days" && E.dateLine("2026-08-15", T) === "Sat, Aug 15 · 51 days ago"
+    && E.dateLine(T, T) === "Mon, Oct 5 · today" && E.dateLine("2026-10-06", T) === "Tue, Oct 6 · tomorrow" && E.dateLine("2026-10-04", T) === "Sun, Oct 4 · yesterday",
+    [E.dateLine("2026-10-24", T), E.dateLine("2026-08-15", T), E.dateLine(T, T)]);
+  ok("plan lists: no date says so — it is not today, and not a blank line",
+    E.dateLine(null, T) === "No date yet" && E.dateLine("", T) === "No date yet" && E.dateLine(undefined, T) === "No date yet");
+  ok("plan lists: across the clock change a day is still a day", E.dateLine("2026-11-02", "2026-10-31") === "Mon, Nov 2 · in 2 days");
+
+  const ROWS = [
+    { id: "dd", day: "2026-10-24", stage: "confirmed", start_time: "11:00" },
+    { id: "sy", day: "2026-08-15", stage: "confirmed" },
+    { id: "sf", day: "2026-08-23", stage: "done" },
+    { id: "gg", day: "2026-07-31", stage: "confirmed" },
+    { id: "nd", day: null, stage: "lead" },
+    { id: "t2", day: T, stage: "prep", start_time: "2:00 PM" },
+    { id: "t0", day: T, stage: "prep" },
+    { id: "lv", day: T, stage: "live", is_live: true, start_time: "18:00" },
+    { id: "t1", day: T, stage: "prep", start_time: "9:00" },
+    { id: "ld", day: "2026-09-12", stage: "lead" },
+    { id: "d2", day: null, stage: "done" },
+  ];
+  const ids = (xs) => xs.map((r) => r.id).join(",");
+  const P = E.eventPiles(ROWS, T), PR = E.eventPiles([...ROWS].reverse(), T);
+  ok("plan lists: coming up reads live first, then today by the clock (untimed after timed), then by date, undated last",
+    ids(P.next) === "lv,t1,t2,t0,dd,nd", ids(P.next));
+  ok("plan lists: past and still being planned is its own pile, most recent first", ids(P.unwrapped) === "ld,sy,gg", ids(P.unwrapped));
+  ok("plan lists: done comes last, most recent first, undated after", ids(P.done) === "sf,d2", ids(P.done));
+  ok("plan lists: the order the rows arrive in does not change the list — it came back in creation order before",
+    ids(PR.next) === ids(P.next) && ids(PR.unwrapped) === ids(P.unwrapped) && ids(PR.done) === ids(P.done));
+  ok("plan lists: a pile never rewrites a stage — a confirmed event in the past still says Confirmed, under a heading that says past",
+    P.unwrapped.filter((r) => r.id !== "ld").every((r) => r.stage === "confirmed") && P.unwrapped.length + P.next.length + P.done.length === ROWS.length);
+  ok("plan lists: a live flag left out after its day leads the list, where it cannot be missed",
+    ids(E.eventPiles([{ id: "n", day: "2026-10-10" }, { id: "old", day: "2026-09-01", stage: "live", is_live: true }], T).next) === "old,n");
+  ok("plan lists: what is behind us is listed newest first, undated last",
+    [{ day: "2026-01-01" }, { day: null }, { day: "2026-03-01" }].sort(E.newestFirst).map((r) => r.day).join() === "2026-03-01,2026-01-01,");
+
+  ok("plan lists: the venue shows when it adds something the title does not say — in whatever case it was typed",
+    E.placeBesideTitle("Dear Deandra Jazz Brunch", "Charlotte, NC") === "Charlotte, NC" && E.placeBesideTitle("Dear Deandra Jazz Brunch", "CHARLOTTE, NC") === "CHARLOTTE, NC");
+  ok("plan lists: and not when the title already says it — any case, any punctuation",
+    E.placeBesideTitle("Sassafras Flower Farm", "Sassafras Flower Farm") === "" && E.placeBesideTitle("Soul Yoga Workshop — serve window", "SOUL YOGA") === ""
+    && E.placeBesideTitle("Wine Express — Five Forks", "Wine-Express") === "");
+  ok("plan lists: whole words only — 'Main' is not inside 'Maine Fest', 'Park' is not inside 'Parker's'",
+    E.placeBesideTitle("Maine Fest", "Main") === "Main" && E.placeBesideTitle("Parker's Market", "Park") === "Park");
+  ok("plan lists: no venue is nothing, not a stray separator",
+    E.placeBesideTitle("X", null) === "" && E.placeBesideTitle("X", "   ") === "" && E.placeBesideTitle("X", "—") === "" && E.placeBesideTitle(null, "Unity Park") === "Unity Park");
+
+  ok("plan lists: how long since a ritual — days, then weeks from two on; nothing for a day ahead",
+    DW.agoWord(0) === "today" && DW.agoWord(1) === "yesterday" && DW.agoWord(5) === "5 days ago" && DW.agoWord(13) === "13 days ago"
+    && DW.agoWord(14) === "2 weeks ago" && DW.agoWord(20) === "2 weeks ago" && DW.agoWord(64) === "9 weeks ago" && DW.agoWord(-3) === "" && DW.agoWord(NaN) === "");
+  ok("plan lists: Aug 2 to Oct 5 is nine weeks — what the review card now says", DW.agoWord(DW.daysBetween("2026-08-02", T)) === "9 weeks ago");
+  ok("plan lists: a book entry says which side of the business it is on, and guesses nothing",
+    VK.vendorKindLabel("venue") === "Venue" && VK.vendorKindLabel("supplier") === "Supplier" && VK.vendorKindLabel("both") === "Venue & supplier"
+    && VK.vendorKindLabel(null) === "" && VK.vendorKindLabel("gym") === "");
+  ok("plan lists: the kind vocabulary has one home — lib/suppliers re-exports it, and the vendor card reads it without the ranking",
+    require("../.smoke/suppliers.js").isSupplierKind === VK.isSupplierKind && VK.isSupplierKind("both") && !VK.isSupplierKind("venue")
+    && !/export const isSupplierKind =/.test(read("lib/suppliers.ts")) && /from "@\/lib\/vendorKind"/.test(read("components/crew/LocationEditor.tsx"))
+    && !/from "@\/lib\/suppliers"/.test(read("components/crew/LocationEditor.tsx")));
+
+  // ── Plan › Events ──
+  const pg = code(read("app/crew/page.tsx"));
+  ok("events list: no row is headed by its position — 'EVENT 01' is gone", !/`Event \$\{String\(index/.test(pg) && !/index=\{i\}/.test(pg.slice(pg.indexOf("function EventsAdmin"), pg.indexOf("function SubInterest"))));
+  ok("events list: the card leads with its date against today, its hours through the one formatter, its venue only when it adds something",
+    /const tag = dateLine\(e\.day, today\);/.test(pg) && /const sub = \[evTime\(e\), placeBesideTitle\(e\.title, e\.location_text\)\]\.filter\(Boolean\)\.join\(" · "\);/.test(pg)
+    && !/\[e\.start_time, e\.end_time\]\.filter\(Boolean\)\.join\("–"\)/.test(pg));
+  ok("events list: three piles in reading order, on the business day — Needs sorting's",
+    /const today = etToday\(\);/.test(pg) && /const piles = eventPiles\(active, today\);/.test(pg)
+    && /const EVENT_PILES = \[\["next", "Coming up"\], \["unwrapped", "Past · not wrapped"\], \["done", "Done"\]\] as const;/.test(pg)
+    && /<div className="dv-sub">\{label\} · \{piles\[k\]\.length\}<\/div>/.test(pg));
+  ok("events list: archived rows say which one, newest first",
+    /events\.filter\(\(e\) => e\.archived_at\)\.sort\(newestFirst\)/.test(pg) && /<span className="ev-arch-when">\{evDate\(e\) \?\? "No date"\}<\/span>/.test(pg));
+  ok("events list: the light is the live flag and nothing else", /\{e\.is_live && <span className="ev-led" \/>\}/.test(pg) && !/^\s*<span className="ev-led" \/>/m.test(pg));
+  ok("events list: one stage vocabulary — lib/eventRecord's words on the badge and the pills, no local list",
+    !/const EVENT_STAGES = \[/.test(pg) && /\{stageLabel\(st\)\}<\/span>/.test(pg) && /\{stageLabel\(k\)\}<\/button>/.test(pg)
+    && /const STAGE_COLOR: Record<EventStage, string>/.test(pg));
+
+  // ── Route and Vendors share the card ──
+  const le = code(read("components/crew/LocationEditor.tsx"));
+  ok("route & vendors: no 'LOCATION 01' or 'VENDOR 02' either — the same header as an event's",
+    !/`Location \$\{String\(index/.test(le) && !/`Vendor \$\{String\(index/.test(le) && !/\bindex: number\b/.test(le)
+    && /dateLine\(startsAt \? etDayKey\(new Date\(startsAt\)\) : null, etToday\(\)\)/.test(le) && /vendorKindLabel\(vendor\?\.kind\)/.test(le)
+    && /\{isCur && <span className="ev-led" \/>\}/.test(le) && /timeRange\(startsAt, stop\?\.ends_at\)/.test(le));
+  ok("route & vendors: nobody passes a position any more", !/<LocationEditor[^>]*\bindex=/.test(read("components/crew/LiveControl.tsx") + read("app/crew/page.tsx")));
+
+  // ── Needs sorting ──
+  const sg = code(read("components/ScheduleGaps.tsx"));
+  const cssP = read("app/globals.css");
+  ok("needs sorting: what to do is set apart from what is wrong", /\{said\?\.detail \?\? r\.detail\} <span className="sg-fix">\{said\?\.fix \?\? v\.fix\(r\.gap\)\}<\/span>/.test(sg));
+  ok("needs sorting: and nothing on the row is cut short — the clamp that cut 'Wrap it if…' is gone",
+    /\.evg \.so-row-b i\{white-space:normal;overflow:visible;line-height:1\.45\}/.test(cssP) && !/\.evg \.so-row-b i\{[^}]*line-clamp/.test(cssP) && /\.sg-fix\{color:var\(--cream\)\}/.test(cssP));
+  ok("needs sorting: the subject wraps as a row — the 'guests see this' flag is never cut off with it",
+    /\.evg \.so-row-b b\{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;white-space:normal;overflow:visible/.test(cssP) && /\.evg \.so-row-b b \.str-guest\{margin-left:0\}/.test(cssP));
+  ok("record sheets: the header — the name and how long ago — wraps rather than trailing off",
+    /\.so-id \.cp-id-t b,\.so-id \.cp-id-t span\{white-space:normal;overflow:visible/.test(cssP));
+  ok("events list: a card's name wraps, and the five stages fit a 390px card (wrapping on a narrower one)",
+    !/\.ev-title\{[^}]*nowrap/.test(cssP) && /\.ev-stage\{display:flex;flex-wrap:wrap;gap:5px 4px;/.test(cssP) && /\.ev-stage-pill\{flex:0 0 auto;[^}]*padding:6px 9px;/.test(cssP));
+  ok("card css: the light is drawn only as the live dot, and the hours read in sentence case",
+    /\.ev-led\{flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:var\(--red\)/.test(cssP) && !/\.ev-card\.live \.ev-led\{/.test(cssP)
+    && /\.ev-sub\{font-family:'Inter';font-weight:500;font-size:12px;color:var\(--cream-m\)/.test(cssP) && !/\.ev-sub\{[^}]*uppercase/.test(cssP));
+
+  // ── the calendar ──
+  const cal = code(read("components/CompanyCalendar.tsx"));
+  ok("calendar: Outlook shows only when there is something to press — its status's home is Settings › Integrations",
+    /if \(!st \|\| !st\.configured\) return null;/.test(cal) && !/Not configured/.test(cal) && !/a developer task/.test(cal) && !/ol-bar\$\{/.test(cal)
+    && /needs the one-time Microsoft app setup/.test(read("components/IntegrationsPanel.tsx")));
+  ok("calendar: and no line for managers about a sync that does not exist", !/managed by the owner/.test(cal));
+  ok("calendar: a stage in the same words as the sheet, and the venue only when the title does not say it",
+    /stageLabel\(e\.stage\)/.test(cal) && /placeBesideTitle\(e\.title, e\.location_text\)/.test(cal) && !/e\.stage\[0\]\.toUpperCase\(\)/.test(cal));
+  ok("calendar: the not-configured styles left with it", !/\.ol-bar\.quiet/.test(cssP) && !/\.ol-state\.off/.test(cssP));
+  const rh = code(read("components/OperatingRhythm.tsx"));
+  ok("rhythm: both cards say when, and how long ago — from the meeting's own date, not cut out of a title",
+    /const ago = agoWord\(daysBetween\(l\.met_on\.slice\(0, 10\), localToday\(\)\)\);/.test(rh) && (rh.match(/\{latestLine\(p\.(review|strategy)\)\}/g) || []).length === 2
+    && !/title\.replace\("Weekly Operating Review · ", ""\)/.test(rh) && /`Latest: \$\{nice\(l\.met_on\)\}\$\{ago \? ` · \$\{ago\}` : ""\} — open in Notes`/.test(rh));
+
+  // ── the record sheet these rows open ──
+  const er = code(read("components/EventRecord.tsx"));
+  ok("record sheet: its hours go through the same formatter as the list that opens it",
+    /\[evDate\(e\), evTime\(e\) \|\| null,/.test(er) && !/\[e\.start_time, e\.end_time\]\.filter\(Boolean\)\.join\("–"\)/.test(er));
+  ok("record sheet: the city by its name, not its key", /\{isMarket\(e\.market\) \? MARKET_LABEL\[e\.market\] : e\.market \|\| e\.rig \|\| "—"\}/.test(er));
+
+  // ── 0348 ──
+  const m348 = read("supabase/migrations/0348_tonight_is_not_the_past.sql");
+  const views348 = m348.slice(m348.indexOf("create or replace view public.v_event_record"), m348.indexOf("-- ── what changed"));
+  ok("0348: the business day has one name, Eastern, and the event views read it — not the database's UTC day",
+    /create or replace function public\.business_day\(\) returns date\s+language sql stable set search_path = public as \$\$\s+select \(now\(\) at time zone 'America\/New_York'\)::date/.test(m348)
+    && (views348.match(/public\.business_day\(\)/g) || []).length === 4 && !/\bcurrent_date\b/.test(views348.replace(/--.*$/gm, "")));
+  ok("0348: is executed against a real Postgres, with the evening pinned", /0348_tonight_is_not_the_past\.sql/.test(read("scripts/db.event.test.mjs")) && /pinDay\("current_date - 1"\)/.test(read("scripts/db.event.test.mjs")));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
