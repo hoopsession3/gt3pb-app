@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-01T13:16:16.761Z",
+    "pulled_at": "2026-10-05T03:37:58.074Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
     "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
-    "relations": 202,
-    "columns": 2585
+    "relations": 203,
+    "columns": 2609
   },
   "academy_acknowledgements": [
     "user_id",
@@ -381,7 +381,8 @@
     "consumption_gaps",
     "discarded_at",
     "discarded_by",
-    "discard_reason"
+    "discard_reason",
+    "brewer_id"
   ],
   "brew_recipes": [
     "id",
@@ -465,7 +466,8 @@
     "notes",
     "created_at",
     "updated_at",
-    "market"
+    "market",
+    "access_instructions"
   ],
   "business_orders": [
     "id",
@@ -553,6 +555,18 @@
     "created_at",
     "strategy_key"
   ],
+  "compliance_checks": [
+    "id",
+    "tenant_id",
+    "rule_id",
+    "checked_on",
+    "checked_by",
+    "outcome",
+    "checked_against",
+    "note",
+    "before",
+    "created_at"
+  ],
   "compliance_rules": [
     "id",
     "state",
@@ -571,7 +585,8 @@
     "authority",
     "lead_days",
     "lead_basis",
-    "check_note"
+    "check_note",
+    "verified_by"
   ],
   "content_items": [
     "id",
@@ -765,7 +780,10 @@
     "status_changed_at",
     "idempotency_key",
     "batch_id",
-    "benefit_code"
+    "benefit_code",
+    "collected_via",
+    "collected_at",
+    "collected_by"
   ],
   "event_approvals": [
     "id",
@@ -806,7 +824,8 @@
     "dress_code",
     "recap",
     "updated_at",
-    "field_op_id"
+    "field_op_id",
+    "took_nothing_at"
   ],
   "event_sales": [
     "id",
@@ -1160,7 +1179,8 @@
     "unit_cost",
     "total_cost",
     "market",
-    "kind"
+    "kind",
+    "vendor_id"
   ],
   "inventory_ledger": [
     "id",
@@ -1577,7 +1597,8 @@
   "ops_heartbeat": [
     "id",
     "seen_at",
-    "source"
+    "source",
+    "counted_stamp"
   ],
   "option_sets": [
     "id",
@@ -1621,7 +1642,11 @@
     "payment_status",
     "stop_id",
     "field_op_id",
-    "benefit_code"
+    "benefit_code",
+    "collected_via",
+    "collected_at",
+    "collected_by",
+    "ready_from"
   ],
   "os_workstreams": [
     "id",
@@ -2503,7 +2528,8 @@
     "items_sold",
     "has_economics",
     "phase",
-    "days_away"
+    "days_away",
+    "took_nothing_at"
   ],
   "v_ingredient_cost": [
     "market",
