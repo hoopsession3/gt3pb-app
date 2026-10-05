@@ -129,6 +129,17 @@ const grams = (qty: number, unit: string): number | null => {
   return f === undefined ? null : qty * f;
 };
 
+/** Grams in one of this unit, or null when it is not a weight. The one table; 0349 states it for SQL
+ *  as public.grams_per, and scripts/db.brewlot.test.mjs reads TO_GRAMS out of this file to hold the
+ *  two to the same numbers. */
+export const gramsPerUnit = (unit: string | null | undefined): number | null =>
+  TO_GRAMS[String(unit ?? "").trim().toLowerCase()] ?? null;
+
+/** Which line of a recipe — or which shelf — is the coffee. The rule primarySizing has always sized a
+ *  batch by; 0349 states it for SQL as public.is_coffee so a batch's coffee comes off the lot it
+ *  names, and scripts/fixtures/coffee-names.json is the one list both languages must agree on. */
+export const isCoffee = (name: string | null | undefined): boolean => /\bcoffee\b|\bbean/i.test(name ?? "");
+
 // ── SAYING A QUANTITY TO SOMEBODY WHO IS COOKING IT (2026-10-01) ───────────────────────────────
 // A new operator is joining and will be cooking. BrewSteps rendered `{qty}{unit}` — whatever the
 // recipe happened to store — so "560 g" never showed ounces, "32 oz" never showed grams, and
@@ -233,7 +244,7 @@ export function primarySizing(opts: SizingOption[]): SizingOption | null {
   const weighed = opts.filter((o) => o.gramsPerGal !== null);
   if (!weighed.length) return null;
   const byWeight = weighed.slice().sort((a, b) => (b.gramsPerGal as number) - (a.gramsPerGal as number));
-  return byWeight.find((o) => /\bcoffee\b|\bbean/i.test(o.name)) ?? byWeight[0];
+  return byWeight.find((o) => isCoffee(o.name)) ?? byWeight[0];
 }
 
 /** Gallons of water that a given amount of one ingredient makes. */
