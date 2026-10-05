@@ -2208,6 +2208,10 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .ac-exp-grp li{font-family:'Inter';font-size:12.5px;line-height:1.55;color:var(--cream-m);margin-bottom:5px}
 .gl-edit{background:none;border:none;font-family:'Inter';font-size:11px;color:var(--cream-m);cursor:pointer;padding:0}
 .gl-edit:active{opacity:.6}
+.gl-act{background:none;border:none;padding:6px 2px;font-family:'Inter';font-size:12px;font-weight:600;color:var(--gold2);cursor:pointer}
+.gl-act:active{opacity:.6}
+.gl-act:disabled{opacity:.45;cursor:default}
+.gl-form .gl-hint{margin-bottom:8px}
 .gl-del{background:none;border:none;font-size:12px;color:var(--cream-d);cursor:pointer;padding:0;line-height:1}
 .gl-del:active{color:#B82420}
 .gl-item.low .gl-item-main b{color:var(--gold2)}
@@ -5438,6 +5442,9 @@ button.mkpi-tile:active{transform:scale(.98)}
 .lp-date{max-width:220px}
 .lp-ask{margin:0;font-family:'Inter';font-size:13px;line-height:1.45;color:var(--warn)}
 .lp-note{margin:0;font-family:'Inter';font-size:12.5px;line-height:1.45;color:var(--cream-m)}
+.lp-recv{display:flex;align-items:center;gap:10px}
+.lp-qty{max-width:140px;font-variant-numeric:tabular-nums}
+.lp-unit{font-family:'Inter';font-size:14px;color:var(--cream-m)}
 .lp-save:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
 .lp-need{margin:-6px 0 0;text-align:center;font-family:'Inter';font-size:12px;color:var(--cream-m)}
 .spb-amt{flex:0 0 80px!important}
