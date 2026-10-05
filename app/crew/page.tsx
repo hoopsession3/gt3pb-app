@@ -182,7 +182,7 @@ import { money, moneyPlain, moneyRound } from "@/lib/money";
 import { FOUNDING_MARKET, toMarket } from "@/lib/markets";
 import { setStock as planStock, setLeft as planLeft, goneOf, type StockChange } from "@/lib/reserveStock";
 import { OwnerDetails } from "@/components/crew/OwnerDetails";
-import { VendorPicker } from "@/components/crew/VendorPicker";
+import VenuePick from "@/components/VenuePickLazy";
 import { LocationEditor } from "@/components/crew/LocationEditor";
 import { LiveControl } from "@/components/crew/LiveControl";
 import { staffAccess } from "@/lib/access";
@@ -4719,7 +4719,7 @@ const stageOf = (e: { stage?: string | null; is_live?: boolean }): EventStage =>
 // The list's three piles, in reading order, with the words each is headed by (lib/eventRecord.eventPiles).
 const EVENT_PILES = [["next", "Coming up"], ["unwrapped", "Past · not wrapped"], ["done", "Done"]] as const;
 
-function EventCard({ e, today, open, onToggle, onUpdate, onRemove, onSetLive, onArchive, econRow, catalog, inventory, vendors, onLinkVendor, onSaveEcon, onOpenPrep }: {
+function EventCard({ e, today, open, onToggle, onUpdate, onRemove, onSetLive, onArchive, econRow, catalog, inventory, onSaveEcon, onOpenPrep }: {
   e: EventRow;
   today: string;
   open: boolean;
@@ -4731,8 +4731,6 @@ function EventCard({ e, today, open, onToggle, onUpdate, onRemove, onSetLive, on
   econRow: EventEcon | null;
   catalog: ProductEcon[];
   inventory: InventoryResp;
-  vendors: Vendor[];
-  onLinkVendor: (v: Vendor | null) => void;
   onSaveEcon: (econ: EventEcon) => void;
   onOpenPrep: (id: string) => void;
 }) {
@@ -4815,8 +4813,6 @@ function EventCard({ e, today, open, onToggle, onUpdate, onRemove, onSetLive, on
             <span className="ev-golive-state">{e.is_live ? "LIVE" : "OFF"}</span>
           </button>
 
-          <VendorPicker vendors={vendors} vendorId={e.vendor_id} onLink={onLinkVendor} />
-
           {/* Relational link to this event's pack/pick list (lives in Prep) */}
           <button type="button" className={`ev-prep${prep && prep.total > 0 && prep.done === prep.total ? " ok" : prep && prep.crit ? " miss" : ""}`} onClick={() => onOpenPrep(e.id)}>
             <span className="ev-prep-main">
@@ -4863,9 +4859,20 @@ function EventCard({ e, today, open, onToggle, onUpdate, onRemove, onSetLive, on
               onBlur={(ev) => ev.target.value !== e.title && onUpdate({ title: ev.target.value })} /></label>
             <label className="ev-fld">Details guests see<textarea className="ev-input ev-area" maxLength={300} rows={2} defaultValue={e.blurb ?? ""} placeholder="One line guests read when they tap this event" aria-label="Event details"
               onBlur={(ev) => (ev.target.value.trim() || null) !== e.blurb && onUpdate({ blurb: ev.target.value.trim() || null })} /></label>
-            <label className="ev-fld">Location / venue<input className="ev-input" maxLength={200} defaultValue={e.location_text ?? ""} placeholder="e.g. Duncan Town Square" aria-label="Location" list={`gt3-locs-${e.id}`}
+            {/* THE VENUE, ONCE (2026-10-05, the form audit, part 4). This card had a vendor <select>
+                in a group of its own above the prep buttons AND a "Location / venue" box down here —
+                two controls for one fact, and linking wrote the vendor's name into the box without
+                reading the database's answer. One pick now (components/VenuePick, the control every
+                stop and event editor uses), writing as it is picked through the card's own update,
+                which says when it is refused; what guests read stays editable under it, and follows
+                the venue until someone types over it. A venue the words already spell is offered,
+                not taken: opening a card does not change the event. */}
+            <VenuePick kind="event" source="an event" match={false} contact fieldClass="ev-fld" inputClass="ev-input"
+              rec={{ vendor_id: e.vendor_id, name: e.title, location_text: e.location_text, market: e.market }}
+              onChange={(fill) => onUpdate(fill.text)} />
+            <label className="ev-fld">Where guests see it<input key={e.location_text ?? ""} className="ev-input" maxLength={200} defaultValue={e.location_text ?? ""} placeholder="e.g. Duncan Town Square" aria-label="Where guests see it" list={e.vendor_id ? undefined : `gt3-locs-${e.id}`}
               onBlur={(ev) => (ev.target.value.trim() || null) !== e.location_text && onUpdate({ location_text: ev.target.value.trim() || null })} /></label>
-            {locSugs.length > 0 && <datalist id={`gt3-locs-${e.id}`}>{locSugs.map((s) => <option key={s} value={s} />)}</datalist>}
+            {!e.vendor_id && locSugs.length > 0 && <datalist id={`gt3-locs-${e.id}`}>{locSugs.map((s) => <option key={s} value={s} />)}</datalist>}
             <div className="ev-grid">
               <label className="ev-f full">Date<input type="date" defaultValue={e.day ?? ""} aria-label="Event date"
                 onBlur={(ev) => { const v = ev.target.value || null; if (v !== (e.day ?? null)) { const upd: { day: string | null; day_label?: string } = { day: v }; if (v) upd.day_label = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][new Date(`${v}T12:00:00`).getDay()]; onUpdate(upd); } }} /></label>
@@ -4941,15 +4948,14 @@ function EventsAdmin() {
   const today = etToday(); // the business day — the one v_event_record (0348) and Needs sorting use
   const [inventory, setInventory] = useState<InventoryResp>({ enabled: false, items: [] });
   useEffect(() => { fetchInventory().then(setInventory); }, []); // live stock from Notion (token-gated)
-  const eventsState = useAsyncData<{ events: EventRow[]; catalog: ProductEcon[]; econMap: Record<string, EventEcon>; vendors: Vendor[] }>(async () => {
+  const eventsState = useAsyncData<{ events: EventRow[]; catalog: ProductEcon[]; econMap: Record<string, EventEcon> }>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
-    // events + economics catalog + per-event econ + vendors in one round
-    // (catalog/econ/vendors tables may not exist pre-migration — fail soft).
-    const [evs, cat, ec, vs] = await Promise.all([
+    // events + economics catalog + per-event econ in one round (catalog/econ tables may not exist
+    // pre-migration — fail soft). The venue book is the card's VenuePick's own read (useVenues).
+    const [evs, cat, ec] = await Promise.all([
       supabase.from("events").select("*").order("sort"),
       supabase.from("product_economics_live").select("*").eq("active", true).order("sort"),
       supabase.from("event_economics").select("*"),
-      supabase.from("vendors").select("*").order("sort"),
     ]);
     const econMap: Record<string, EventEcon> = {};
     for (const r of (ec.data ?? []) as ({ event_id: string } & EventEcon)[]) econMap[r.event_id] = r;
@@ -4957,31 +4963,20 @@ function EventsAdmin() {
       events: (evs.data as EventRow[]) ?? [],
       catalog: (cat.data as ProductEcon[]) ?? [],
       econMap,
-      vendors: ((vs.data as Vendor[]) ?? []).filter((v) => !v.archived_at),
     };
   }, []);
   const load = eventsState.reload;
   // Local mirrors: econMap takes an optimistic patch in saveEcon() below (no flicker on the live
-  // gauge), and events/catalog/vendors ride along as the same editable-until-reload copy.
+  // gauge), and events/catalog ride along as the same editable-until-reload copy.
   const [events, setEvents] = useState<EventRow[]>([]);
   const [catalog, setCatalog] = useState<ProductEcon[]>([]);
   const [econMap, setEconMap] = useState<Record<string, EventEcon>>({});
-  const [vendors, setVendors] = useState<Vendor[]>([]);
   useEffect(() => {
     if (!eventsState.data) return;
     setEvents(eventsState.data.events);
     setCatalog(eventsState.data.catalog);
     setEconMap(eventsState.data.econMap);
-    setVendors(eventsState.data.vendors);
   }, [eventsState.data]);
-  // link an event to a vendor → denormalize the guest-visible location
-  const linkVendor = async (eventId: string, v: Vendor | null) => {
-    const p: Partial<EventRow> = { vendor_id: v?.id ?? null };
-    if (v) { p.location_text = v.location_text ?? v.name; }
-    await supabase!.from("events").update(p).eq("id", eventId);
-    toast(v ? `Linked to ${v.name}` : "Unlinked");
-    load();
-  };
 
   // upsert the full econ row (keeps DB authoritative copy in sync with the panel)
   const saveEcon = async (id: string, econ: EventEcon) => {
@@ -5066,8 +5061,6 @@ function EventsAdmin() {
               econRow={econMap[e.id] ?? null}
               catalog={catalog}
               inventory={inventory}
-              vendors={vendors}
-              onLinkVendor={(v) => linkVendor(e.id, v)}
               onSaveEcon={(econ) => saveEcon(e.id, econ)}
               onOpenPrep={openPrep}
             />
