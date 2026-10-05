@@ -9,7 +9,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { useOptions } from "./useOptions";
 import { withCurrent } from "@/lib/options";
-import { drinkCogs, margin, type InvCost } from "@/lib/cogs";
+import { drinkCogs, margin, shelfLabel, type InvCost } from "@/lib/cogs";
 import { money } from "@/lib/money";
 import { useConfirm } from "@/components/ConfirmSheet";
 
@@ -20,7 +20,7 @@ import { useConfirm } from "@/components/ConfirmSheet";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Product = { id: string; slug: string; name: string; line: string | null; price_cents: number; active: boolean; sold_out: boolean; sold_out_at: string | null; sort: number; what: string | null; why: string | null; ingredients: string[]; excludes: string[]; timing: string | null; square_item_id: string | null; bulk_orderable?: boolean; bulk_tier?: string | null };
-type Inv = { id: string; name: string; unit: string | null };
+type Inv = { id: string; name: string; unit: string | null; market?: string | null };
 type Comp = { id: string; inventory_item_id: string; qty_per_serving: number | null; unit: string | null };
 type Board = { products: Product[]; inv: Inv[] };
 
@@ -35,7 +35,7 @@ export default function MenuManager() {
       // unit_cost joins the existing select so the drink row can price its OWN recipe. It was the
       // only thing missing: lib/cogs already owns the math, the row already has the components,
       // and the cost still lived two panels away in the COGS calculator.
-      supabase.from("inventory_items").select("id, name, unit, unit_cost").order("name"),
+      supabase.from("inventory_items").select("id, name, unit, unit_cost, market").order("name"),
     ]);
     if (p.error) throw new Error(p.error.message);
     if (i.error) throw new Error(i.error.message);
@@ -123,6 +123,8 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
     setComps((c) => c.filter((x) => x.id !== id));
   };
   const invName = (id: string) => inv.find((x) => x.id === id)?.name ?? "item";
+  // What a person reads: the name, and its city when two cities stock one of that name (0347).
+  const invLabel = (id: string) => { const it = inv.find((x) => x.id === id); return it ? shelfLabel(it, inv) : "item"; };
 
   // WHAT THIS DRINK COSTS, computed where its recipe is edited. Same lib/cogs functions the COGS
   // calculator and Product economics use — not a second implementation, the same one. The point is
@@ -232,7 +234,7 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
             )}
             {comps.map((c) => (
               <div key={c.id} className="prod-comp">
-                <span>{c.qty_per_serving ?? ""}{c.unit ? ` ${c.unit}` : ""} · {invName(c.inventory_item_id)}
+                <span>{c.qty_per_serving ?? ""}{c.unit ? ` ${c.unit}` : ""} · {invLabel(c.inventory_item_id)}
                   {(() => { const ln = cogs.lines.find((l) => l.name === invName(c.inventory_item_id));
                     if (!ln) return null;
                     return ln.costed
@@ -243,7 +245,7 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
               </div>
             ))}
             <div className="prod-addc">
-              <select value={addInv} onChange={(e) => setAddInv(e.target.value)}><option value="">+ inventory item…</option>{inv.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}</select>
+              <select value={addInv} onChange={(e) => setAddInv(e.target.value)}><option value="">+ inventory item…</option>{inv.map((i) => <option key={i.id} value={i.id}>{shelfLabel(i, inv)}</option>)}</select>
               <input type="number" step="0.1" value={addQty} onChange={(e) => setAddQty(e.target.value)} placeholder="qty" style={{ maxWidth: 70 }} />
               <button type="button" className="insp-yes" onClick={addComponent} disabled={!addInv}>Add</button>
             </div>

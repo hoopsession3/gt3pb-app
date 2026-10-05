@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import {
-  drinkCogs, batchCogs, margin,
+  drinkCogs, batchCogs, margin, costByName,
   type InvCost, type Component, type ProductRow, type BrewRecipeRow,
 } from "@/lib/cogs";
 import { SectionHeader } from "@/components/kit";
@@ -21,6 +21,8 @@ import { money } from "@/lib/money";
 
 const marginCls = (pct: number) => (pct >= 60 ? "ok" : pct >= 30 ? "gold" : "red");
 type Board = { inv: InvCost[]; products: ProductRow[]; components: Component[]; recipes: BrewRecipeRow[] };
+// One empty board, not four fresh [] per render: the memos below key on these arrays.
+const NO_BOARD: Board = { inv: [], products: [], components: [], recipes: [] };
 
 export default function CogsCalculator() {
   const [tab, setTab] = useState<"drinks" | "batches">("drinks");
@@ -29,7 +31,7 @@ export default function CogsCalculator() {
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { inv: [], products: [], components: [], recipes: [] };
     const [i, p, comp, r] = await Promise.all([
-      supabase.from("inventory_items").select("id, name, unit_cost, unit"),
+      supabase.from("inventory_items").select("id, name, unit_cost, unit, market"),
       supabase.from("products").select("id, slug, name, line, price_cents").eq("active", true).order("sort"),
       supabase.from("product_components").select("product_id, inventory_item_id, qty_per_serving, unit"),
       supabase.from("brew_recipes").select("id, name, style, base_water_gal, ingredients, yield_factor").is("archived_at", null).order("sort"),
@@ -42,13 +44,11 @@ export default function CogsCalculator() {
     };
   }, []);
   const board = useAsyncData(loader, []);
-  const inv = board.data?.inv ?? [];
-  const products = board.data?.products ?? [];
-  const components = board.data?.components ?? [];
-  const recipes = board.data?.recipes ?? [];
+  const { inv, products, components, recipes } = board.data ?? NO_BOARD;
 
   const invById = useMemo(() => new Map(inv.map((x) => [x.id, x])), [inv]);
-  const invByName = useMemo(() => new Map(inv.map((x) => [x.name.trim().toLowerCase(), x])), [inv]);
+  // Two cities can stock one name (0347): the name finds the shelf with a cost, the founding city's first.
+  const invByName = useMemo(() => costByName(inv), [inv]);
 
   const drinks = useMemo(() => products.map((p) => {
     const cogs = drinkCogs(p.id, components, invById);
