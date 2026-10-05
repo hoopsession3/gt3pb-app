@@ -673,7 +673,7 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
 
   // directions
   const VENDOR = `<div className="vpend">Pending owner approval — review it in Plan › Vendors.</div>`;
-  ok("affordance: 'review it in Plan › Vendors' is a direction (components/crew/VendorPicker.tsx:89, production)", dir(VENDOR) === 1);
+  ok("affordance: 'review it in Plan › Vendors' is a direction (components/crew/VendorPicker.tsx:89, production until 2026-10-05)", dir(VENDOR) === 1);
   ok("affordance: 'check-ins live on Command › Goals' is one (components/OperatingRhythm.tsx:91, production)",
     dir(`<div className="rhythm-pulse"><span className="rhythm-pulse-hint">— check-ins live on Command › Goals</span></div>`) === 1);
   ok("affordance: 'the team note is in Plan → Notes' is one (components/EventGenerator.tsx:59, production)",
