@@ -9,6 +9,7 @@ import Sheet from "./Sheet";
 import BottomNav from "./BottomNav";
 import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
+import { scrollToTop } from "@/lib/appScroll";
 
 // Employee Mode — a dedicated operator console nav that replaces the customer
 // 5-tab nav while you're in /crew. Sections are role-scoped and the choice is
@@ -192,7 +193,8 @@ export default function OperatorNav() {
             // tab bar does.
             const waiting = g.id === "today" ? critCount : (laneCounts[g.id] ?? 0);
             if (waiting > 0) { window.dispatchEvent(new Event("gt3-open-inbox")); return; }
-            if (section !== g.members[0]) setSection(g.members[0]);
+            // On the lane's first screen already: tapped again, it goes back to the top (2026-10-05).
+            if (section !== g.members[0]) setSection(g.members[0]); else scrollToTop();
           }}>
             <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{g.id === "today" ? ICONS.day : streamIcon(g.icon)}</svg>{g.id === "today" && critCount > 0 && <span className="nav-badge" title={`${critCount} critical alert${critCount === 1 ? "" : "s"} — needs you now`} aria-label={`${critCount} critical alert${critCount === 1 ? "" : "s"} — needs you now`}>{critCount}</span>}{g.id !== "today" && (laneCounts[g.id] ?? 0) > 0 && <span className="nav-badge lane" title={`${laneCounts[g.id]} open item${laneCounts[g.id] === 1 ? "" : "s"} in ${g.label}`} aria-label={`${laneCounts[g.id]} open item${laneCounts[g.id] === 1 ? "" : "s"} in ${g.label}`}>{laneCounts[g.id]}</span>}</span>
             <span className="tl">{g.label}</span>

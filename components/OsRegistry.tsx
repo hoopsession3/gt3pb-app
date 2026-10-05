@@ -7,7 +7,8 @@ import { useApp } from "./AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
-import Sheet, { CloseButton } from "@/components/Sheet";
+import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
+import { edited } from "@/lib/formGuard";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { useCrew } from "./useCrew";
@@ -178,8 +179,12 @@ export default function OsRegistry() {
 
       {auditing && (
         <Sheet open onClose={() => setAuditing(null)} label={`Audit ${auditing.name}`}
+          dirty={anyScored || edited(
+            { name: draft.name, owner_id: draft.owner.id, owner: draft.owner.name, next_action: draft.next_action, due: draft.due, blocker: draft.blocker, status: draft.status, note: draft.note },
+            { name: auditing.name, owner_id: auditing.owner_user_id ?? null, owner: auditing.owner ?? "", next_action: auditing.next_action ?? "", due: auditing.due ?? "", blocker: auditing.blocker ?? "", status: auditing.status, note: "" },
+            ["name", "owner_id", "owner", "next_action", "due", "blocker", "status", "note"])}
           header={<div className="note-lux-head"><span className="note-lux-eyb">Monday audit · {auditing.name}</span><CloseButton onClick={() => setAuditing(null)} /></div>}
-          footer={<div className="note-actions"><span className="osr-total">{scored ? `${total} / 10` : anyScored ? "score all five" : "details only"}</span><button type="button" className="note-cancel" onClick={() => setAuditing(null)}>Cancel</button><button type="button" className="note-save" disabled={saving || (anyScored && !scored) || !draft.name.trim() || !hasOwner} onClick={save}>{saving ? "Saving…" : scored ? "Save audit" : "Save details"}</button></div>}>
+          footer={<div className="note-actions"><span className="osr-total">{scored ? `${total} / 10` : anyScored ? "score all five" : "details only"}</span><LeaveButton className="note-cancel" onClick={() => setAuditing(null)}>Cancel</LeaveButton><button type="button" className="note-save" disabled={saving || (anyScored && !scored) || !draft.name.trim() || !hasOwner} onClick={save}>{saving ? "Saving…" : scored ? "Save audit" : "Save details"}</button></div>}>
           <div className="osr-audit">
             <div className="osr-audit-row">
               <label className="prod-f"><span>Workstream</span>

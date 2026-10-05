@@ -569,6 +569,13 @@ html:not([data-viewer="guest"]) .tab[data-for="guest"]{display:none}
 .app:has(.cartbar) .toast{bottom:150px}
 .toast.show{transform:translateY(0);opacity:1}.toast svg{width:18px;height:18px;flex:0 0 auto}
 .toast.err{background:var(--red)}.toast.err svg{stroke:#fff}
+/* ABOVE THE SHEET (2026-10-05, the gesture round). The toast sat at z 60 and every sheet's scrim at 80,
+   so anything said while a sheet was open — "Saved", "Couldn't save" — was said under the blur. The
+   inbox lives in a sheet and now says "Cleared · Undo" there; the toast rides over sheets. */
+.toast{z-index:90}
+.toast.has-act.show{pointer-events:auto}
+.toast-act{margin-left:auto;flex:0 0 auto;min-height:40px;padding:8px 4px 8px 14px;background:none;border:none;color:#fff;font-family:'Inter';font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;text-decoration:underline;text-underline-offset:3px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.toast-act:focus-visible{outline:2px solid #fff;outline-offset:2px}
 
 /* ---- Type System v1 refinement (Inter + Apple discipline) ---- */
 body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
@@ -4278,7 +4285,11 @@ body:has(.conc-sheet) .rail{display:flex}
    this half — silently reintroducing the exact bug a14d091 fixed, across every sheet in the app at
    once (reported: the Business → Notes composer's "Save note" button "wasn't visible enough to
    press" with the keyboard open — same failure mode as the original Plan-a-batch report). */
-.sheet2-scrim{position:fixed;inset:0;z-index:80;background:radial-gradient(58% 44% at 50% 60%,color-mix(in srgb, var(--brand-gold2) 14%, transparent),transparent 68%),rgba(0,0,0,.55);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);display:flex;align-items:flex-end;justify-content:center;padding-bottom:var(--kb,0px);box-sizing:border-box;animation:sheet2fade .2s ease}
+.sheet2-scrim{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-end;justify-content:center;padding-bottom:var(--kb,0px);box-sizing:border-box;animation:sheet2fade .2s ease}
+/* The dim and the blur are the scrim's own layer (2026-10-05, the gesture round), so a pull can lighten
+   them as the sheet goes down (--scrim, set by components/Sheet) without fading the sheet itself —
+   the panel is the scrim's child, and the scrim's own opacity would take the panel with it. */
+.sheet2-scrim::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(58% 44% at 50% 60%,color-mix(in srgb, var(--brand-gold2) 14%, transparent),transparent 68%),rgba(0,0,0,.55);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);opacity:var(--scrim,1);transition:opacity var(--scrim-ms,0ms) ease}
 @keyframes sheet2fade{from{opacity:0}to{opacity:1}}
 .sheet2{width:100%;max-width:560px;max-height:calc(100dvh - var(--kb,0px) - env(safe-area-inset-top) - 10px);display:flex;flex-direction:column;background:var(--bg,#161310);border:1px solid var(--line);border-bottom:none;border-radius:22px 22px 0 0;box-shadow:0 -14px 50px rgba(0,0,0,.6),0 0 55px -6px color-mix(in srgb, var(--brand-gold2) 34%, transparent);overflow:hidden;animation:sheet2up .3s var(--ease);will-change:transform}
 @keyframes sheet2up{from{transform:translateY(30px);opacity:.4}to{transform:translateY(0);opacity:1}}
@@ -5149,11 +5160,44 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .cmdk-foot{padding:9px 14px;border-top:1px solid var(--line);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.06em;color:var(--cream-d)}
 /* Swipe-back affordance — a chevron pill that tracks a left-edge drag; brightens (armed) once past the trigger. */
 .swipeback{position:fixed;left:0;top:50%;margin-top:-24px;z-index:79;width:48px;height:48px;border-radius:0 26px 26px 0;background:rgba(21,18,13,.86);border:1px solid var(--line2);border-left:none;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.4);transition:background .12s ease,border-color .12s ease}
-.swipeback.armed{background:var(--gold);border-color:var(--gold2)}
+.swipeback:not(.on){visibility:hidden}
+.swipeback[data-armed="1"]{background:var(--gold);border-color:var(--gold2)}
 .swipeback-chev{font-size:26px;line-height:1;color:var(--cream);font-weight:400;transform:translateX(-1px)}
-.swipeback.armed .swipeback-chev{color:#15120d}
+.swipeback[data-armed="1"] .swipeback-chev{color:#15120d}
 .app.crew-day .swipeback{background:rgba(255,255,255,.92)}
 .app.crew-day .swipeback-chev{color:#15120d}
+/* A ROW YOU CAN SWIPE (components/SwipeRow, 2026-10-05) — Mail's swipe. The face slides; the actions
+   sit under it, as wide as the pull (--pull), and the side's main one takes the whole width once a
+   long swipe arms it. The row clips its own corners, so the face's card keeps its shape. */
+.swipe-row{position:relative;overflow:hidden;isolation:isolate}
+.swipe-face{position:relative;z-index:1}
+.swipe-acts{position:absolute;top:0;bottom:0;display:flex;width:var(--pull,0px);overflow:hidden}
+.swipe-acts.trail{right:0}
+.swipe-acts.lead{left:0}
+.swipe-act{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0 6px;border:none;font-family:'Inter';font-weight:700;font-size:12px;color:#fff;cursor:pointer;-webkit-appearance:none;appearance:none;white-space:nowrap;overflow:hidden;transition:flex-grow .16s var(--ease),padding .16s var(--ease)}
+.swipe-act svg{width:18px;height:18px}
+.swipe-act.ok{background:var(--ok)}
+.swipe-act.warn{background:#9a6a24}
+.swipe-act.info{background:var(--gold)}
+.swipe-act.danger{background:var(--red)}
+.swipe-row[data-armed="1"] .swipe-act:not(.main){flex-grow:0;padding:0}
+/* The inbox's flags are cards: the row takes the card's corners and its gap below. */
+.alert-swipe{border-radius:13px;margin-bottom:9px}
+.alert-swipe>.swipe-face>.alert{margin-bottom:0}
+/* SWIPE BETWEEN TABS (components/SwipePager): the content a tab row switches. A page that came in by a
+   swipe already slid in from the side; the section's own rise would play twice. */
+.swipe-pager[data-entering="1"] .op-trans{animation:none}
+/* PULL TO REFRESH (components/PullToRefresh): the screen follows the pull (--ptr) and a ring fills in
+   the gap it leaves; armed, the ring closes; refreshing, it turns. */
+.body[data-ptr="pull"]>:not(.ptr),.body[data-ptr="ease"]>:not(.ptr){transform:translate3d(0,var(--ptr,0px),0)}
+.body[data-ptr="ease"]>:not(.ptr){transition:transform .34s cubic-bezier(.32,.72,0,1)}
+.ptr{position:absolute;top:12px;left:50%;width:28px;height:28px;margin-left:-14px;pointer-events:none;opacity:0;color:var(--gold2)}
+.body:not([data-ptr="pull"]):not([data-ptr="ease"]) .ptr{opacity:0!important}
+.ptr svg{display:block;width:28px;height:28px;transform:rotate(-90deg)}
+.ptr circle{fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-dasharray:calc(var(--ptr-p,0) * 80) 100;transition:stroke-dasharray .08s linear}
+.ptr[data-armed="1"] circle,.ptr.spin circle{stroke-dasharray:80 100}
+.ptr.spin svg{animation:ptrSpin .8s linear infinite}
+@keyframes ptrSpin{to{transform:rotate(270deg)}}
 /* Section transition — a subtle shared-axis fade+rise as the crew body swaps between sections. */
 .op-trans{animation:opTrans .22s var(--ease)}
 @keyframes opTrans{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
@@ -6315,6 +6359,20 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .sheet2-scrim.out{animation:scrim-out .21s var(--ease) both;pointer-events:none}
 .sheet2.out{animation:sheet2-out .21s var(--ease) both}
 @media (min-width:520px){.sheet2.out{animation:sheet2pop-out .18s var(--ease) both}}
+/* PULLED OFF (2026-10-05, the gesture round): a sheet the finger carried away has already left — at the
+   finger's speed, from where it was let go (components/Sheet). The exit above would snap it back to the
+   top and play the slide again; `gone` keeps it where the pull put it. */
+.sheet2.gone,.sheet2-scrim.gone{animation:none!important}
+/* "Discard your changes?" — asked over the sheet, at the thumb, the way an iPhone form sheet asks. */
+.sheet2-ask-scrim{position:absolute;inset:0;z-index:2;display:flex;align-items:flex-end;justify-content:center;padding:0 10px calc(10px + env(safe-area-inset-bottom) + var(--kb,0px));background:rgba(0,0,0,.28);animation:sheet2fade .16s ease}
+.sheet2-ask-card{width:100%;max-width:420px;display:flex;flex-direction:column;gap:8px;padding:16px 14px 12px;border-radius:18px;background:var(--bg,#161310);color:var(--cream);border:1px solid var(--line2);box-shadow:0 18px 50px rgba(0,0,0,.5);animation:sheet2up .24s var(--ease)}
+.sheet2-ask-t{margin:0;text-align:center;font-family:'Inter';font-weight:700;font-size:15px}
+.sheet2-ask-s{margin:0 0 4px;text-align:center;font-size:13px;color:var(--cream-m)}
+.sheet2-ask-go,.sheet2-ask-no{min-height:48px;border-radius:13px;font-family:'Inter';font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.sheet2-ask-go{background:transparent;border:1px solid color-mix(in srgb, var(--brand-red) 55%, transparent);color:var(--red-onLight,var(--red-h));font-weight:600}
+.sheet2-ask-no{background:var(--cream);border:none;color:var(--bg,#161310);font-weight:700}
+.sheet2-ask-go:focus-visible,.sheet2-ask-no:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
+@media(min-width:520px){.sheet2-ask-scrim{align-items:center}}
 
 /* Spring physics on sheet arrivals — --spring lives with the other tokens at the top of this file:
    a real spring via linear() where the browser has it, the entrance curve everywhere else. */

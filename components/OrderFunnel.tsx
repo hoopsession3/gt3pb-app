@@ -20,6 +20,7 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { squareClientReady } from "@/lib/square";
 import { haptic, HAPTIC } from "@/lib/haptics";
+import { scrollToTop } from "@/lib/appScroll";
 import {
   PACK_SIZES, PACK_TAG, PACK_HINT, FLAVOR_DESC,
   packTotal, perBottle, saveAmount, dropForStop, nextDrop, dropDateKey, type GlassPath,
@@ -323,7 +324,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
     setMode("pickup"); setCount(p.size); glassTouched.current = true; setBringBack(p.glass === "return");
     const pm = packMix(p); setMix({ rise: pm.RISE || 0, flow: pm.FLOW || 0, dusk: pm.DUSK || 0 });
     setName(p.name); setPhone(p.phone ?? ""); setReplacing(p); setStep("size"); setErr("");
-    try { document.getElementById("body")?.scrollTo({ top: 0, behavior: "smooth" }); } catch { /* ignore */ }
+    scrollToTop();
   };
   const reorderUsual = () => {
     if (!usual) return; haptic(HAPTIC.tap);
@@ -331,7 +332,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
     const pm = packMix(usual); setMix({ rise: pm.RISE || 0, flow: pm.FLOW || 0, dusk: pm.DUSK || 0 });
     if (!name.trim()) setName(usual.name); if (!phone.trim()) setPhone(usual.phone || "");
     setReplacing(null); setErr(""); toast("Your usual — loaded");
-    try { document.getElementById("body")?.scrollTo({ top: 0, behavior: "smooth" }); } catch { /* ignore */ }
+    scrollToTop();
   };
 
   // ── submit ──

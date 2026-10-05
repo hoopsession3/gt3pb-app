@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import { createTodo, updateTask } from "@/lib/tasks";
-import Sheet, { CloseButton } from "@/components/Sheet";
+import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { useCrew, crewLabel } from "@/components/useCrew";
 
@@ -66,7 +66,7 @@ export default function AssignTaskSheet({
   );
 
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{createdId ? <>Task assigned <Icon name="check" /></> : "Create a task?"}</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Assign a task" dirty={!createdId && (title.trim() !== defaultTitle.trim() || !!assignee || due !== (dueOn || "") || visibility !== "team")} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{createdId ? <>Task assigned <Icon name="check" /></> : "Create a task?"}</b><CloseButton onClick={onClose} /></div>}>
           {!createdId ? (
             <>
               <label className="prod-f"><span>Task</span><input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={140} /></label>
@@ -80,7 +80,7 @@ export default function AssignTaskSheet({
                 </select>
               </label>
               <div className="prod-actions" style={{ marginTop: 14 }}>
-                <button type="button" className="note-arch" onClick={onClose}>Not now</button>
+                <LeaveButton className="note-arch" onClick={onClose}>Not now</LeaveButton>
                 <button type="button" className="note-save" disabled={busy || !title.trim()} onClick={create}>{busy ? "Creating…" : "Create & assign"}</button>
               </div>
             </>

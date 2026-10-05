@@ -10,7 +10,8 @@ import { coffeeGrams, defaultLot, lotLabel, lotUse, type BrewLot, type LotUse, t
 import { MARKET_LABEL, isMarket } from "@/lib/markets";
 import CoffeeLotPick from "@/components/CoffeeLotPick";
 import AssignTaskSheet from "@/components/AssignTaskSheet";
-import Sheet, { CloseButton } from "@/components/Sheet";
+import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
+import { edited } from "@/lib/formGuard";
 import BrewSteps from "@/components/BrewSteps";
 import CookNeedList, { type CookIngredient } from "@/components/CookNeedList";
 import ProgressRing from "@/components/ProgressRing";
@@ -595,16 +596,17 @@ function toLocalInput(iso: string | null): string {
 // or undo the start. Uses the qd-sheet popout (bulletproof scroll on all devices).
 function BrewAdjust({ batch, onClose, onSaveTime, onStop, onUndo, onRemove }: { batch: Batch; onClose: () => void; onSaveTime: (b: Batch, startLocal: string) => Promise<void>; onStop: (b: Batch) => Promise<void>; onUndo: (b: Batch) => Promise<void>; onRemove: (b: Batch) => Promise<boolean> }) {
   const [start, setStart] = useState(() => toLocalInput(batch.brew_started_at || batch.brew_date));
+  const [was] = useState(start);   // the time as it opened — a time moved and not saved asks first
   const [busy, setBusy] = useState(false);
   const hrs = Number(batch.extraction_hours) || 20;
   const readyPreview = start ? new Date(new Date(start).getTime() + hrs * 3600000) : null;
   const run = async (fn: () => Promise<void>) => { setBusy(true); await fn(); onClose(); };
   return (
-    <Sheet open onClose={onClose} label="Adjust brew" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Adjust brew · {batch.recipe_name}</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Adjust brew" dirty={start !== was && !busy} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Adjust brew · {batch.recipe_name}</b><CloseButton onClick={onClose} /></div>}>
           <label className="prod-f"><span>When it actually started brewing</span><input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} /></label>
           {readyPreview && <div className="brew-spec">Ready ~{readyPreview.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })} · {hrs}h extraction</div>}
           <div className="prod-actions" style={{ marginTop: 12 }}>
-            <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
+            <LeaveButton className="note-arch" onClick={onClose}>Cancel</LeaveButton>
             <button type="button" className="note-save" disabled={busy || !start} onClick={() => run(() => onSaveTime(batch, start))}>Save brew time</button>
           </div>
           <div className="brew-adjust-sep" />
@@ -641,11 +643,17 @@ function BatchLog({ batch, events, stops, lotBoard, onClose, onSaved, onRemove }
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [targets, setTargets] = useState<string[]>([]); // ["e:<id>"|"s:<id>"] this batch serves
+  const [firstTargets, setFirstTargets] = useState<string[] | null>(null); // as loaded — what "unsaved" compares
   const set = (k: keyof Batch, v: any) => setF((p) => ({ ...p, [k]: v }));
   useEffect(() => {
     supabase?.from("brew_batch_links").select("event_id, stop_id").eq("batch_id", batch.id)
-      .then(({ data }) => setTargets(((data as { event_id: string | null; stop_id: string | null }[]) ?? []).map((l) => l.stop_id ? `s:${l.stop_id}` : `e:${l.event_id}`)));
+      .then(({ data }) => {
+        const t = ((data as { event_id: string | null; stop_id: string | null }[]) ?? []).map((l) => l.stop_id ? `s:${l.stop_id}` : `e:${l.event_id}`);
+        setTargets(t); setFirstTargets(t);
+      });
   }, [batch.id]);
+  const dirty = edited(f, batch, ["status", "og", "signal_score", "taste_notes"]) || lotSet || brewerSet
+    || (firstTargets !== null && targets.join("|") !== firstTargets.join("|"));
   const save = async () => {
     if (!supabase || busy) return;
     setBusy(true); setErr(null);
@@ -677,7 +685,7 @@ function BatchLog({ batch, events, stops, lotBoard, onClose, onSaved, onRemove }
     if (removed) onSaved();
   };
   return (
-    <Sheet open onClose={onClose} label="Batch log" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Batch log · {batch.recipe_name}</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Batch log" dirty={dirty} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Batch log · {batch.recipe_name}</b><CloseButton onClick={onClose} /></div>}>
           <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""}{batch.target_spec ? ` · ${batch.target_spec}` : ""}<br />Brewed {fmtTs(batch.brew_started_at)} → ready {fmtTs(batch.ready_at)}</div>
           <div className="prod-grid">
             <label className="prod-f"><span>Status</span>
@@ -705,7 +713,7 @@ function BatchLog({ batch, events, stops, lotBoard, onClose, onSaved, onRemove }
           <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
             <button type="button" className="note-arch brew-del" onClick={del} disabled={busy}>Remove batch</button>
             <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
+            <LeaveButton className="note-arch" onClick={onClose}>Cancel</LeaveButton>
             <button type="button" className="note-save" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save log"}</button>
             </div>
           </div>

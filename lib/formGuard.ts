@@ -30,3 +30,16 @@ export function guard(fields: GuardField[]): GuardResult {
 
 // Identity shorthand — true when a title/name/label is blank (the most common required check).
 export const isBlank = (v: unknown): boolean => (typeof v === "string" ? v.trim().length === 0 : v == null);
+
+// UNSAVED CHANGES (2026-10-05, the gesture round) — the question a sheet's `dirty` asks before a
+// swipe, a tap outside, Escape or the X takes a form away: has anything the form SAVES moved off what
+// was loaded? Blank and missing are the same nothing, and spaces at the ends are not a change, so
+// opening a form and touching nothing never asks "Discard your changes?". Only the keys passed count
+// — a control that saves the moment it is flipped (an event's publish switch) is not unsaved.
+const asSaved = (v: unknown): string =>
+  v == null ? "" : typeof v === "string" ? v.trim() : typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(v);
+
+export function edited<T extends Record<string, unknown>>(now: T | null | undefined, was: T | null | undefined, keys: readonly (keyof T & string)[]): boolean {
+  if (!now || !was) return false;
+  return keys.some((k) => asSaved(now[k]) !== asSaved(was[k]));
+}

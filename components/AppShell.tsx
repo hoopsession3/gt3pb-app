@@ -37,6 +37,7 @@ const QuickDock = dynamic(() => import("./QuickDock"));
 const EventCopilot = dynamic(() => import("./EventCopilot"));
 const CommandPalette = dynamic(() => import("./CommandPalette"));
 const SwipeBack = dynamic(() => import("./SwipeBack"));
+const PullToRefresh = dynamic(() => import("./PullToRefresh"));
 // CHECKOUT, WHEN THERE IS SOMETHING TO CHECK OUT (2026-10-04). It rode in every route's first load
 // — the pay sheet, its card form, its receipt, and a fetch of /api/menu on mount — for every guest
 // reading the privacy policy or finding the truck, most of whom never open it. It mounts once the
@@ -196,6 +197,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {inAdmin && <EventCopilot />}
         {inAdmin && <CommandPalette />}
         {inAdmin && <SwipeBack />}
+        {inAdmin && <PullToRefresh />}
         {inAdmin && <ScrollRestore />}
         {/* Every floating tab lives on ONE movable, collapsible right-edge rail. */}
         {!isShare && (

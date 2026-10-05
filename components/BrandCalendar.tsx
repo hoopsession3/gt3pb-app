@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "@/components/AppProvider";
-import Sheet, { CloseButton } from "@/components/Sheet";
+import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import { useOperatorSection } from "./OperatorNav";
 import { CAL_CAT, CONTENT_STATUS as STC } from "@/lib/calendarTokens";
 import { localDayBoundsISO } from "@/lib/calendarMath";
-import { isBlank } from "@/lib/formGuard";
+import { edited, isBlank } from "@/lib/formGuard";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -291,6 +291,8 @@ function DayView({ dayKey, posts, evs, evTitle, onClose, onEdit, onOpenFull, onA
 // straight to content_items. "Open full editor" jumps to Studio for hook/caption/Canva.
 function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string; events: EvItem[]; onClose: () => void; onSaved: () => void; onOpenFull: (id: string) => void }) {
   const [f, setF] = useState<any | null>(null);
+  // The piece as loaded: what "unsaved" is measured against (lib/formGuard edited).
+  const [loaded, setLoaded] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
   // `data ?? {}` made f truthy on failure, so the `if (!f) return null` guard passed and the sheet
   // opened blank — and save() would then write scheduled_for/status/event_id as null over a real
@@ -299,7 +301,7 @@ function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string;
   useEffect(() => {
     if (!supabase) return;
     supabase.from("content_items").select("title, scheduled_for, status, event_id, channel").eq("id", id).maybeSingle()
-      .then(({ data, error }) => { if (error) { setLoadFailed(true); setF(null); return; } setLoadFailed(false); setF(data ?? {}); });
+      .then(({ data, error }) => { if (error) { setLoadFailed(true); setF(null); return; } setLoadFailed(false); setF(data ?? {}); setLoaded(data ?? {}); });
   }, [id]);
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
   const localDate = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
@@ -321,7 +323,7 @@ function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string;
   const timeVal = f.scheduled_for ? localTime(f.scheduled_for) : "09:00";
   const setDT = (date: string, time: string) => { if (!date) { set("scheduled_for", null); return; } set("scheduled_for", new Date(`${date}T${time || "09:00"}:00`).toISOString()); };
   return (
-    <Sheet open onClose={onClose} label="Edit content piece" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Edit piece</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Edit content piece" dirty={edited(f, loaded, ["title", "scheduled_for", "status", "event_id"])} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Edit piece</b><CloseButton onClick={onClose} /></div>}>
           <input className="note-in" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="Title" autoFocus />
           <div className="prod-grid" style={{ marginTop: 10 }}>
             <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => setDT(e.target.value, timeVal)} /></label>
@@ -338,11 +340,11 @@ function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string;
               </select>
             </label>
           </div>
-          <button type="button" className="cal-tolink" style={{ marginTop: 10, marginLeft: 0 }} onClick={() => onOpenFull(id)}>Open full editor (hook, caption, Canva) <Icon name="externalLink" /></button>
+          <LeaveButton className="cal-tolink" style={{ marginTop: 10, marginLeft: 0 }} onClick={() => onOpenFull(id)}>Open full editor (hook, caption, Canva) <Icon name="externalLink" /></LeaveButton>
           <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
             <button type="button" className="note-arch" onClick={unschedule} disabled={saving}>Unschedule</button>
             <div style={{ display: "flex", gap: 8 }}>
-              <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
+              <LeaveButton className="note-arch" onClick={onClose}>Cancel</LeaveButton>
               <button type="button" className="note-save" onClick={save} disabled={saving || isBlank(f?.title)}>{saving ? "Saving…" : "Save"}</button>
             </div>
           </div>

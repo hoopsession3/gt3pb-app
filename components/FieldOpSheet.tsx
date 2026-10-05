@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import Sheet, { CloseButton } from "@/components/Sheet";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
+import { edited } from "@/lib/formGuard";
 import { useApp } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
 import { geocode } from "@/lib/geocode";
@@ -57,11 +58,22 @@ async function geocodeIfNoCoords(patch: Record<string, string | number | null>):
   if (g) { patch.lat = g.lat; patch.lng = g.lng; }
 }
 
-export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }: {
+// What Save writes, per kind — the fields whose change is "unsaved" (lib/formGuard edited). The publish
+// switch is not among them: it writes the moment it is flipped.
+const EVENT_SAVES = ["title", "day", "location_text", "stage", "public_title", "market", "vendor_id"] as const;
+const STOP_SAVES = ["name", "starts_at", "ends_at", "location_text", "address", "status", "market", "vendor_id"] as const;
+
+export default function FieldOpSheet({ kind, id, onClose, onSaved, onChanged, onOpenPrep, page, walker }: {
   kind: Kind; id: string;
   onClose: () => void;
-  onSaved: () => void;           // fired after any successful write (save or archive)
+  onSaved: () => void;           // fired after a save or an archive — the caller closes the sheet
+  /** A write that keeps the sheet open (the publish switch): the caller refreshes what is behind it. */
+  onChanged?: () => void;
   onOpenPrep?: () => void;       // optional door to the full prep hub
+  /** The calendar's walk: a sideways swipe on the sheet goes to the item before or after. */
+  page?: { prev?: () => void; next?: () => void };
+  /** The walk's own controls (the calendar's ‹ › pill), rendered inside the sheet so they leave by its door. */
+  walker?: ReactNode;
 }) {
   const confirm = useConfirm();
   const { toast } = useApp();
@@ -69,6 +81,8 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
   const isEvent = kind === "event";
   const table = isEvent ? "events" : "stops";
   const [f, setF] = useState<Record<string, string | null> | null>(null);
+  // The row as loaded: what "unsaved" is measured against.
+  const [loaded, setLoaded] = useState<Record<string, string | null> | null>(null);
   const [saving, setSaving] = useState(false);
   const [touchedWhen, setTouchedWhen] = useState(false);
   // The pin the venue pick decided (lib/venues.venueFill): undefined leaves the geocode to save();
@@ -92,6 +106,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
         origStage.current = (isEvent ? row.stage : row.status) ?? null;
         setOrigVendor(row.vendor_id ?? null);
         setF(row);
+        setLoaded(row);
       });
   }, [table, isEvent, id]);
 
@@ -173,6 +188,8 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
   // Publish/hide toggle — persists IMMEDIATELY (like archive), not just local state. Before, flipping
   // it only updated the on-screen label and relied on the separate Save press; hiding an event from
   // guests silently didn't stick if you closed without saving. Optimistic flip + write, revert on error.
+  // It keeps the sheet open (2026-10-05): it called onSaved, and every caller closes the sheet on
+  // that — so publishing an event threw away whatever else had been typed and not saved yet.
   const togglePublish = async () => {
     if (!supabase || !f || !isEvent) return;
     const next = f.published_at ? null : new Date().toISOString();
@@ -180,17 +197,18 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
     const { error } = await supabase.from(table).update({ published_at: next }).eq("id", id);
     if (error) { set("published_at", f.published_at ?? null); toast(`Couldn't ${next ? "publish" : "hide"} — ${error.message}`, "error"); return; }
     toast(next ? "Published — live to guests" : "Hidden from guests");
-    onSaved();
+    onChanged?.();
   };
 
   if (!f) return null;
+  const dirty = edited(f, loaded, isEvent ? EVENT_SAVES : STOP_SAVES);
   return (
     <>
-    <Sheet open onClose={onClose} className="dp-form" label={`Edit ${isEvent ? "event" : "truck stop"}`}
+    <Sheet open onClose={onClose} className="dp-form" label={`Edit ${isEvent ? "event" : "truck stop"}`} dirty={dirty} page={page}
       header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{isEvent ? "Event" : "Truck stop"}</b><CloseButton onClick={onClose} /></div>}
       footer={
         <div className="prod-actions" style={{ marginTop: 0 }}>
-          <button type="button" className="note-arch" onClick={onClose} disabled={saving}>Cancel</button>
+          <LeaveButton className="note-arch" onClick={onClose} disabled={saving}>Cancel</LeaveButton>
           <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
         </div>
       }>
@@ -257,13 +275,14 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
         </div>
       )}
       {onOpenPrep && (
-        <button type="button" className="btn-ter" style={{ marginTop: 12 }} onClick={onOpenPrep}>
+        <LeaveButton className="btn-ter" style={{ marginTop: 12 }} onClick={onOpenPrep}>
           Full prep — menu, staffing, run-of-show <b><Icon name="arrowRight" /></b>
-        </button>
+        </LeaveButton>
       )}
       <div className="ownerdet-danger" style={{ marginTop: 12 }}>
         <button type="button" className="ownerdet-arch" onClick={archive} disabled={saving}>Archive</button>
       </div>
+      {walker}
     </Sheet>
     </>
   );

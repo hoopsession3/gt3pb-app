@@ -18,6 +18,7 @@ import { judge, staleBecause, expand } from "./security.audit.mjs";
 import { darkWellCounts, selectClassShorthands } from "./design.ratchet.mjs";
 import { promisesIn, PLACES, CHEVRON_CEILING, DIRECTION_CEILING } from "./affordance.audit.mjs";
 import { vocabularies, wordsIn, judge as judgeWords, listOf, REFUSED_CEILING } from "./vocab.audit.mjs";
+import { gesturesIn, judgeFile, staleEntries, OWN_OVERLAYS, NOT_PAGES, NO_UNSAVED, GESTURE_LAYER } from "./gesture.audit.mjs";
 import { PGlite } from "@electric-sql/pglite";
 import { join } from "node:path";
 
@@ -811,6 +812,44 @@ end $$;`;
     ok("vocab: a word only a pending migration allows is ARRIVING, not refused — the columns audit's rule", j.refused.length === 0 && j.arriving.length === 1);
   }
   ok("vocab: the ceiling is zero", REFUSED_CEILING === 0);
+}
+
+// ── gesture.audit: the four rules, on code shaped like the code they were written for ──────────────
+{
+  const G = (body, file = "components/X.tsx") => gesturesIn(`export default function X() { ${body} }`, file);
+  const J = (body, file = "components/X.tsx") => judgeFile(file, G(body, file)).map((b) => b.rule);
+  // 1. overlays
+  ok("gesture: a hand-drawn dialog is seen, and fails until it is a Sheet or named",
+    G(`return <div className="x" role="dialog" aria-modal="true" aria-label="Y">hi</div>;`).overlays.length === 1 && J(`return <div role="dialog" aria-label="Y" />;`).join() === "overlay");
+  ok("gesture: a dialog named with its reason passes (the Pass, full screen over Live Ops)",
+    J(`return <div className="svc-full" role="dialog" aria-modal="true" aria-label="The Pass" />;`, "app/crew/page.tsx").length === 0 && "app/crew/page.tsx#The Pass" in OWN_OVERLAYS);
+  ok("gesture: the Sheet's own dialogs are the system, not an exception", J(`return <div role="dialog" aria-label="Z" />;`, "components/Sheet.tsx").length === 0);
+  // 2. tab rows
+  ok("gesture: a tab row that switches nothing on a swipe fails until it pages or is named",
+    J(`return <div className="seg" role="tablist" aria-label="Views"><button role="tab" /></div>;`).join() === "tabs");
+  ok("gesture: a tab row named as not pages passes (the bottom tab bar is tapped, not swiped)",
+    J(`return <div className="opnav-tabs" role="tablist" aria-label="Crew console" />;`, "components/OperatorNav.tsx").length === 0 && "components/OperatorNav.tsx#Crew console" in NOT_PAGES);
+  ok("gesture: a row listed as paged must be paged in its file",
+    J(`return <div className="studio-views" role="tablist" aria-label="View" />;`, "components/Studio.tsx").join() === "tabs"
+    && J(`usePagerLevel({ keys: [], current: "", go: () => {}, depth: 1 }); return <div className="studio-views" role="tablist" aria-label="View" />;`, "components/Studio.tsx").length === 0);
+  ok("gesture: a label that is not a literal is keyed by the row's class (the lane toggle)",
+    G(`return <div className="grp-toggle" role="tablist" aria-label={lane.label} />;`, "app/crew/page.tsx").tabRows[0].key === "app/crew/page.tsx#grp-toggle");
+  // 3. touch
+  ok("gesture: a window touch listener outside the gesture layer fails — the calendar walker's old shape",
+    J(`useEffect(() => { window.addEventListener("touchstart", ts, { passive: true }); window.addEventListener("touchend", te, { passive: true }); }, []); return null;`).join() === "touch,touch");
+  ok("gesture: React touch props count as touch listeners too", J(`return <div onTouchStart={a} onTouchEnd={b} />;`).join() === "touch,touch");
+  ok("gesture: the engine itself is where touch listeners live", J(`el.addEventListener("touchmove", onMove, { passive: false }); return null;`, "components/useGesture.ts").length === 0 && "components/useGesture.ts" in GESTURE_LAYER);
+  // 4. forms in sheets
+  ok("gesture: a sheet with a text field and no word on what leaving does fails",
+    J(`return <Sheet open onClose={c} label="Edit thing"><input value={v} onChange={s} /></Sheet>;`).join() === "unsaved");
+  ok("gesture: `dirty` on the sheet answers it; so does useUnsaved anywhere in the file",
+    J(`return <Sheet open onClose={c} label="Edit thing" dirty={d}><input value={v} /></Sheet>;`).length === 0
+    && J(`useUnsaved(d); return <Sheet open onClose={c} label="Edit thing"><textarea value={v} /></Sheet>;`).length === 0);
+  ok("gesture: checkboxes, radios and files are not typed words; a field in a component the sheet renders is not seen",
+    J(`return <Sheet open onClose={c} label="P"><input type="checkbox" /><input type="radio" /><input type="file" /></Sheet>;`).length === 0
+    && J(`return <Sheet open onClose={c} label="P"><Form /></Sheet>;`).length === 0);
+  ok("gesture: a sheet named in NO_UNSAVED passes, with its reason", J(`return <Sheet open onClose={c} label="Q"><input /></Sheet>;`, "components/PromptSheet.tsx").length === 0 && !!NO_UNSAVED["components/PromptSheet.tsx"]);
+  ok("gesture: a list entry that answers nothing is stale", staleEntries(new Set()).length > 0 && staleEntries(new Set(Object.keys({ ...OWN_OVERLAYS, ...NOT_PAGES, ...NO_UNSAVED, ...GESTURE_LAYER }))).filter((k) => !/^PAGED/.test(k)).length === 0);
 }
 
 console.log(`AUDIT CLASSIFIERS: ${pass} passed, ${fail} failed`);

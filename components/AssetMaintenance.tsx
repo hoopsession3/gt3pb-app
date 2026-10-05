@@ -2,7 +2,7 @@
 
 import { useCallback, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
-import Sheet, { CloseButton } from "@/components/Sheet";
+import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
@@ -197,7 +197,9 @@ function LogSheet({ asset, from, onClose, onSaved }: { asset: Asset; from: Log |
     }
   };
   return (
-    <Sheet open onClose={onClose} label="Maintenance log" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Log · {asset.name}</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Maintenance log"
+      dirty={summary.trim() !== (from?.summary ?? "").trim() || howTo.trim() !== (from?.how_to ?? "").trim() || !!cost.trim() || nextTouched}
+      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Log · {asset.name}</b><CloseButton onClick={onClose} /></div>}>
           <div className="ts-chips">
             {KINDS.map((k) => <button key={k} type="button" className={`ts-chip${kind === k ? " on" : ""}`} onClick={() => onKind(k)}>{KIND_ICON[k]} {k}</button>)}
           </div>
@@ -211,7 +213,7 @@ function LogSheet({ asset, from, onClose, onSaved }: { asset: Asset; from: Log |
           <label className="prod-f" style={{ marginTop: 8 }}><span>How-to / steps (optional — one per line)</span><textarea className="note-in" rows={3} value={howTo} onChange={(e) => setHowTo(e.target.value)} placeholder="Steps to do this next time" /></label>
           {err && <p className="load-failed" role="alert">{err}</p>}
           <div className="prod-actions" style={{ marginTop: 14 }}>
-            <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
+            <LeaveButton className="note-arch" onClick={onClose}>Cancel</LeaveButton>
             <button type="button" className="note-save" onClick={save} disabled={busy || !summary.trim()}>{busy ? "Saving…" : "Log it"}</button>
           </div>
     </Sheet>

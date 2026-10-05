@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Sheet from "@/components/Sheet";
+import Sheet, { CloseButton } from "@/components/Sheet";
+import { edited } from "@/lib/formGuard";
 import Gt3Mark from "@/components/Gt3Mark";
 import Icon from "@/components/Icon";
 import { useAuth } from "@/components/AuthProvider";
@@ -91,9 +92,15 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
   const header = (
     <div className="office-head">
       <span className="office-head-t"><Gt3Mark tone="cream" /> Office delivery</span>
-      <button type="button" className="isheet-x" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+      <CloseButton className="isheet-x" onClick={onClose} />
     </div>
   );
+  // What the person typed over what we knew (useKnownField): leaving with it asks first — a pull on the
+  // sheet is one flick, and an office order is a lot to type twice.
+  const typed = edited(
+    { company, headcount, contact, phone, street, city, zip, access },
+    { company: o?.company, headcount: o?.headcount, contact: o?.contact || known?.fullName, phone: o?.phone || known?.phone, street: o?.street, city: o?.city, zip: o?.zip, access: o?.access },
+    ["company", "headcount", "contact", "phone", "street", "city", "zip", "access"]);
 
   if (done) {
     return (
@@ -109,7 +116,7 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Sheet open onClose={onClose} label="Office delivery order" header={header} className="office-sheet"
+    <Sheet open onClose={onClose} label="Office delivery order" header={header} className="office-sheet" dirty={typed} dismissible={!busy}
       footer={<button type="button" className="handle" onClick={submit} disabled={busy || !ready}><span>{busy ? "Booking…" : `Book ${q.gallons} gal · ${money(q.totalCents)}`}</span></button>}>
 
       <p className="office-lede">Fresh cold-extract for the whole team — <b>amber gallon jugs</b>, delivered <b>{OFFICE.windowLabel}</b>, empties swapped for full each week. 3-gallon minimum.</p>

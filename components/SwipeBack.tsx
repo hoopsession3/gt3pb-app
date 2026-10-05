@@ -1,64 +1,56 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useOperatorSection } from "./OperatorNav";
+import { useGesture } from "./useGesture";
+import { sheetOpen } from "./Sheet";
+import { BACK, backGoes } from "@/lib/gesture";
+import { haptic, HAPTIC } from "@/lib/haptics";
 
 // SWIPE-BACK — a left-edge drag that walks the crew section history (the same back() the console
 // button uses). Installed PWAs have no browser chrome, so the OS edge-swipe doesn't exist; this
 // restores the expected "swipe from the left to go back" on the crew console. Only fires when there's
 // section history to step through — it never accidentally drops you out of crew mode.
-const EDGE = 28; // px from the left where a drag counts as an edge-swipe
-const TRIGGER = 72; // px of horizontal travel to commit the back
-const MAX = 120; // px the affordance travels before it's pinned
-
+//
+// On the touch engine (2026-10-05, the gesture round): it listens first (the capture phase), so a swipe
+// from the edge is the way back even over a row or a tab page that swipes sideways itself; a flick
+// goes back as well as a long drag (lib/gesture BACK); the phone ticks when letting go would go back;
+// and it stands down while a sheet is open — it used to walk the screen BEHIND an open sheet, which
+// then sat over a section it no longer belonged to. The chevron moves by direct style writes, not by
+// re-rendering on every frame.
 export default function SwipeBack() {
   const { back, canGoBack } = useOperatorSection();
-  const [dx, setDx] = useState(0); // live drag distance (0 = hidden)
-  const active = useRef(false);
-  const startX = useRef(0);
-  const startY = useRef(0);
-  const canGoBackRef = useRef(canGoBack);
-  canGoBackRef.current = canGoBack;
+  const [shown, setShown] = useState(false);
+  const pill = useRef<HTMLDivElement>(null);
+  const armed = useRef(false);
 
-  useEffect(() => {
-    const onStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return;
-      const t = e.touches[0];
-      if (t.clientX > EDGE || !canGoBackRef.current) return;
-      active.current = true; startX.current = t.clientX; startY.current = t.clientY; setDx(0);
-    };
-    const onMove = (e: TouchEvent) => {
-      if (!active.current) return;
-      const t = e.touches[0];
-      const dX = t.clientX - startX.current;
-      const dY = t.clientY - startY.current;
-      // Abandon if the drag is clearly a vertical scroll, or heading the wrong way.
-      if (dX < 0 || Math.abs(dY) > Math.abs(dX) + 12) { active.current = false; setDx(0); return; }
-      if (e.cancelable) e.preventDefault(); // claim the gesture from horizontal scroll
-      setDx(Math.min(dX, MAX));
-    };
-    const onEnd = () => {
-      if (!active.current) return;
-      active.current = false;
-      setDx((d) => { if (d >= TRIGGER) back(); return 0; });
-    };
-    // passive:false on move so we can preventDefault once we've claimed a horizontal edge-drag.
-    window.addEventListener("touchstart", onStart, { passive: true });
-    window.addEventListener("touchmove", onMove, { passive: false });
-    window.addEventListener("touchend", onEnd, { passive: true });
-    window.addEventListener("touchcancel", onEnd, { passive: true });
-    return () => {
-      window.removeEventListener("touchstart", onStart);
-      window.removeEventListener("touchmove", onMove);
-      window.removeEventListener("touchend", onEnd);
-      window.removeEventListener("touchcancel", onEnd);
-    };
-  }, [back]);
+  useGesture("root", {
+    axis: "x",
+    capture: true,
+    begin: (_target, x) => x <= BACK.edge && canGoBack && !sheetOpen(),
+    take: (d) => d.dx > 0,
+    move: (d) => {
+      const dx = Math.min(Math.max(d.dx, 0), BACK.max);
+      const on = dx >= BACK.go;
+      const el = pill.current;
+      if (on !== armed.current) {
+        armed.current = on;
+        if (el) el.dataset.armed = on ? "1" : "";
+        if (on) haptic(HAPTIC.tick);
+      }
+      if (!shown) setShown(true);
+      if (el) { el.style.transform = `translateX(${dx - BACK.max}px)`; el.style.opacity = String(Math.min(1, dx / BACK.go)); }
+    },
+    end: (d, cancelled) => {
+      armed.current = false;
+      if (pill.current) pill.current.dataset.armed = "";
+      setShown(false);
+      if (!cancelled && backGoes(d.dx, d.vx)) back();
+    },
+  });
 
-  if (dx <= 0) return null;
-  const armed = dx >= TRIGGER;
   return (
-    <div className={`swipeback${armed ? " armed" : ""}`} style={{ transform: `translateX(${dx - MAX}px)`, opacity: Math.min(1, dx / TRIGGER) }} aria-hidden>
+    <div ref={pill} className={`swipeback${shown ? " on" : ""}`} style={{ transform: `translateX(${-BACK.max}px)`, opacity: 0 }} aria-hidden>
       <span className="swipeback-chev">‹</span>
     </div>
   );

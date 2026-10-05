@@ -326,6 +326,54 @@ try {
     await rp.close();
   }
 
+  // 6b) THE SWIPES (2026-10-05, the gesture round). Ryan: "I have to hit the X button to get out of
+  //     here." Driven with real touch events (CDP), so the browser's own scrolling and touch rules
+  //     decide alongside the app's: a drink's sheet pulls down from its content and goes; a short slow
+  //     pull settles back; the shop's two aisles turn with a sideways swipe — anywhere on the screen,
+  //     the empty space under a short aisle included.
+  {
+    const gp = await phone.newPage();
+    try {
+      const cdp = await phone.newCDPSession(gp);
+      const pt = (x, y) => [{ x, y, id: 1, radiusX: 3, radiusY: 3, force: 1 }];
+      const swipe = async (a, b, ms = 200, steps = 12, hold = 0) => {
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pt(a.x, a.y) });
+        for (let i = 1; i <= steps; i++) {
+          await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pt(a.x + (b.x - a.x) * i / steps, a.y + (b.y - a.y) * i / steps) });
+          await sleep(ms / steps);
+        }
+        if (hold) await sleep(hold);
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      };
+      const body = async () => gp.$eval(".sheet2-body", (el) => { const r = el.getBoundingClientRect(); return { y: r.y }; }).catch(() => null);
+      await gp.goto(BASE + "/menu", { waitUntil: "domcontentloaded", timeout: 20000 });
+      try { await gp.waitForLoadState("networkidle", { timeout: 4000 }); } catch { /* settled enough */ }
+      await sleep(500);
+      await gp.click(".entry"); await sleep(600);
+      let b = await body();
+      await swipe({ x: 200, y: b.y + 40 }, { x: 200, y: b.y + 120 }, 700, 10, 150);   // slow, 80px, held still
+      await sleep(600);
+      ok("swipe · a short, slow pull on a drink's sheet settles back", !!(await gp.$("#drink-sheet-title")));
+      b = await body();
+      await swipe({ x: 200, y: b.y + 40 }, { x: 200, y: b.y + 170 }, 110, 7);           // a flick from the content
+      try { await gp.waitForSelector(".sheet2-scrim", { state: "detached", timeout: 3000 }); } catch { /* judged below */ }
+      ok("swipe · a flick down from a drink's content closes its sheet — no X needed", !(await gp.$(".sheet2-scrim")));
+      await gp.goto(BASE + "/shop", { waitUntil: "domcontentloaded", timeout: 20000 });
+      try { await gp.waitForLoadState("networkidle", { timeout: 4000 }); } catch { /* settled enough */ }
+      await sleep(500);
+      const aisle = () => gp.$eval(".shop-sections .menu-chip.on", (e) => e.textContent.trim()).catch(() => null);
+      const a0 = await aisle();
+      await swipe({ x: 330, y: 640 }, { x: 80, y: 646 }, 200);
+      await sleep(900);
+      const a1 = await aisle();
+      await swipe({ x: 80, y: 600 }, { x: 330, y: 606 }, 200);
+      await sleep(900);
+      const a2 = await aisle();
+      ok("swipe · the shop's aisles turn with a sideways swipe, and back", !!a0 && !!a1 && a0 !== a1 && a2 === a0 && /\/shop/.test(gp.url()), `${a0} → ${a1} → ${a2} at ${gp.url()}`);
+    } catch (e) { ok("swipe · could be exercised on /menu and /shop", false, String(e.message).slice(0, 120)); }
+    await gp.close();
+  }
+
   // 7) THE NAV THAT MOVED UNDER YOUR THUMB (components/BottomNav.tsx, 2026-10-02). On production
   //    every guest watched the three shared tabs slide one slot left a quarter second after paint:
   //    the server painted the member shape, the client re-shaped it. Now both identity tabs are in

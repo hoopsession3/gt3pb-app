@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useApp } from "@/components/AppProvider";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
@@ -40,7 +40,9 @@ import { useRecord } from "@/components/RecordSheet";
 import { recordForAlert, TASK_ALERT_KINDS } from "@/lib/records";
 import { owedLine, prepHandoffKey, prepHandoffValue, EVENT_STAGES, isEventStage, stageLabel, type EventStage, eventPiles, newestFirst, dateLine, placeBesideTitle } from "@/lib/eventRecord";
 import { WayButtons } from "@/components/RecordWays";
-import { goPlanTab, isPlanTab, planTabFromUrl, stampPlanTab, PLAN_TAB_KEY, PLAN_TAB_EVENT } from "@/lib/planNav";
+import { goPlanTab, isPlanTab, planTabFromUrl, stampPlanTab, PLAN_TAB_KEY, PLAN_TAB_EVENT, type PlanTab } from "@/lib/planNav";
+import SwipePager from "@/components/SwipePager";
+import SwipeRow, { type RowAction } from "@/components/SwipeRow";
 import GtmCard from "@/components/GtmCard";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
@@ -127,7 +129,7 @@ const Reports = dynamic(() => import("@/components/Reports"), { loading: () => <
 const SnapshotReport = dynamic(() => import("@/components/SnapshotReport"), { loading: () => <PourFill label="Loading…" /> });
 const EventPnlReport = dynamic(() => import("@/components/EventPnlReport"), { loading: () => <PourFill label="Loading…" /> });
 import SignIn from "@/components/SignIn";
-import Sheet, { CloseButton } from "@/components/Sheet";
+import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import { NumberRoll } from "@/components/CountUp";
 import PourFill from "@/components/PourFill";
 import AlertAction, { alertHasInlineAction } from "@/components/AlertAction";
@@ -782,7 +784,8 @@ function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: 
   };
 
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span>Review post</span><button type="button" className="drop-sheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} label="Review post" dirty={!!item && (caption !== (item.caption ?? "") || !!note.trim())}
+      header={<div style={{ display: "flex", alignItems: "center" }}><span>Review post</span><span style={{ marginLeft: "auto" }} /><CloseButton className="drop-sheet-x" onClick={onClose} /></div>}>
         {!item ? <div className="dops-empty"><PourFill size={38} label="Pulling it up…" /></div> : (
           <div className="capprove">
             <div className="capprove-meta">{item.kind} · {item.channel}{item.status ? ` · ${item.status}` : ""}</div>
@@ -914,7 +917,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
   // One source of truth for "what needs me" — the same hook drives My Day's flags and the nav
   // badge, so the three counters that used to disagree now agree by construction. Ack semantics
   // live in the hook: row-ack for targeted alerts, per-user read for broadcasts (0157).
-  const { flags: mine, held, critCount: crit, error: readErr, reload, ack, clearAll, clearHeld, snooze } = useMyAlerts(userId);
+  const { flags: mine, held, critCount: crit, error: readErr, reload, ack, clearAll, clearHeld, snooze, restore, unsnooze } = useMyAlerts(userId);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [digestOpen, setDigestOpen] = useState(false);
   const streams = useWorkStreams();
@@ -963,6 +966,28 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
   const rank = (s: string) => (s === "critical" ? 0 : s === "important" ? 1 : 2);
   const sorted = [...mine].sort((a, b) => rank(a.severity) - rank(b.severity));
 
+  // GOT IT, LATER — AND UNDO (2026-10-05, the gesture round). The ✓ and the clock, and the swipes that
+  // stand for them, go through these: the flag goes at once, the toast says so with an Undo that
+  // brings it back, and a write the database refused is said instead of the flag quietly returning on
+  // the next read.
+  const said = (t: string) => (t.length > 34 ? `${t.slice(0, 33).trimEnd()}…` : t);
+  const clear = async (a: MyFlag) => {
+    toast(`Cleared: ${said(a.title)}`, "success", { action: { label: "Undo", run: () => { void restore([a]).then((e) => { if (e) toast(`Couldn't bring it back — ${e}`, "error"); }); } } });
+    const e = await ack(a);
+    if (e) toast(`Couldn't clear it — ${e}`, "error");
+  };
+  const later = async (a: MyFlag) => {
+    toast(`Snoozed for an hour: ${said(a.title)}`, "success", { action: { label: "Undo", run: () => { void unsnooze(a).then((e) => { if (e) toast(`Couldn't bring it back — ${e}`, "error"); }); } } });
+    const e = await snooze(a, 3600_000);
+    if (e) toast(`Couldn't snooze it — ${e}`, "error");
+  };
+  const clearEvery = async () => {
+    const all = [...mine];
+    toast(`Cleared ${all.length}`, "success", { action: { label: "Undo", run: () => { void restore(all).then((e) => { if (e) toast(`Couldn't bring them back — ${e}`, "error"); }); } } });
+    const e = await clearAll();
+    if (e) toast(`Couldn't clear them — ${e}`, "error");
+  };
+
   // Compact strip (used in Now) — alerts have ONE home, the inbox. Opens it RIGHT HERE via
   // gt3-open-inbox (any screen can summon it) instead of routing through My Day first — the exact
   // bounce the alerts round killed (2026-08-01 audit).
@@ -1007,7 +1032,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
       {reviewPost && <ContentApprovalSheet contentId={reviewPost.id} meName={meName} meId={userId} onClose={() => setReviewPost(null)} onActioned={() => { ack(reviewPost.alert); setReviewPost(null); }} />}
       <SectionHeader label={title} right={<>
         {mine.length > 0 && <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>}
-        {mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearAll()}>Clear all</button>}
+        {mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearEvery()}>Clear all</button>}
         {prefsDoor}
       </>} />
       {prefsSheet}
@@ -1038,8 +1063,17 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
         </div>
       )}
 
+      {/* Each flag swipes the way a Mail row does (components/SwipeRow): left for Later and Got it — a
+          long swipe clears it — right to open what it names. The buttons stay; the swipe is the fast
+          way to them. */}
       {sorted.map((a) => (
-        <div key={a.id} className={`alert sev-${a.severity}`}>
+        <SwipeRow key={a.id} className="alert-swipe"
+          lead={canOpen(a) ? [{ key: "open", label: "Open", icon: "arrowRight", tone: "info", run: () => gotoAlert(a) }] : []}
+          trail={[
+            ...(a.severity !== "critical" ? [{ key: "later", label: "1 hour", icon: "clock", tone: "warn", removes: true, run: () => { void later(a); } } satisfies RowAction] : []),
+            { key: "clear", label: "Got it", icon: "check", tone: "ok", removes: true, run: () => { void clear(a); } },
+          ]}>
+        <div className={`alert sev-${a.severity}`}>
           <div className="alert-row">
             {/* The words that name the thing open it (2026-10-04): only the small Open button used
                 to, and "New reservation · Jess reserved a 6-pack…" was dead text beside it. */}
@@ -1058,14 +1092,15 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
             {canOpen(a) && (
               <button type="button" className={alertHasInlineAction(a.kind) ? "alert-open ghost" : "alert-open"} onClick={() => gotoAlert(a)}>{alertHasInlineAction(a.kind) ? "Open" : <>Open <Icon name="arrowRight" /></>}</button>
             )}
-            {a.severity !== "critical" && <button type="button" className="alert-snz" onClick={() => snooze(a, new Date(Date.now() + 3600_000))} aria-label="Snooze 1 hour" title="Snooze 1 hour"><Icon name="clock" /></button>}
-            <button type="button" className="alert-ack" onClick={() => ack(a)} aria-label="Got it"><Icon name="check" /></button>
+            {a.severity !== "critical" && <button type="button" className="alert-snz" onClick={() => { void later(a); }} aria-label="Snooze 1 hour" title="Snooze 1 hour"><Icon name="clock" /></button>}
+            <button type="button" className="alert-ack" onClick={() => { void clear(a); }} aria-label="Got it"><Icon name="check" /></button>
           </div>
           {alertHasInlineAction(a.kind) && <AlertAction flag={a} meId={userId} onResolved={() => ack(a)} />}
           {openThread === a.id && (
             <CommentThread subject={{ col: "alert_id", id: a.id }} notifyIds={[a.target_user_id, a.created_by]} label={a.title} meId={userId} meName={meName} />
           )}
         </div>
+        </SwipeRow>
       ))}
     </div>
   );
@@ -3012,8 +3047,10 @@ function MeetingNotes() {
       <button type="button" className="note-new" onClick={() => setComposing(true)}>✎ New note</button>
       {composing && (
         <Sheet open onClose={() => { setComposing(false); setCActions([]); setCFiles([]); }} label="New note" className="note-lux"
+          // The words stay with the page when the composer closes; its follow-ups and files do not.
+          dirty={cActions.length > 0 || cFiles.length > 0}
           header={<div className="note-lux-head"><span className="note-lux-eyb">New note</span><CloseButton onClick={() => { setComposing(false); setCActions([]); setCFiles([]); }} /></div>}
-          footer={<div className="note-actions"><button type="button" className="note-cancel" onClick={() => { setComposing(false); setCActions([]); setCFiles([]); }}>Cancel</button><button type="button" className="note-save" disabled={!cTitle.trim() || saving} onClick={save}>{saving ? "Saving…" : "Save note"}</button></div>}>
+          footer={<div className="note-actions"><LeaveButton className="note-cancel" onClick={() => { setComposing(false); setCActions([]); setCFiles([]); }}>Cancel</LeaveButton><button type="button" className="note-save" disabled={!cTitle.trim() || saving} onClick={save}>{saving ? "Saving…" : "Save note"}</button></div>}>
           <div className="note-composer">
             <input className="note-in note-lux-title" placeholder="What&rsquo;s this note about?" value={cTitle} onChange={(e) => setCTitle(e.target.value)} autoFocus />
             <div className="note-row">
@@ -5601,9 +5638,13 @@ function Panel({ title, id, defaultOpen = false, children }: { title: string; id
   );
 }
 
+// Plan's tabs in the order its row shows them — and so the order a sideways swipe turns through them.
+const PLAN_PAGES: readonly PlanTab[] = ["calendar", "events", "route", "leads", "vendors"];
+const PLAN_LABEL: Record<PlanTab, string> = { calendar: "Calendar", events: "Events", route: "Route", leads: "Leads", vendors: "Vendors" };
+
 export default function AdminPage() {
   const { ready, enabled, user, profile, profileStatus, refreshProfile } = useAuth();
-  const { section, setSection, back, canGoBack, groupId: navGroupId } = useOperatorSection();
+  const { section, setSection, back, canGoBack, groupId: navGroupId, setGroupId } = useOperatorSection();
   const router = useRouter();
   const streams = useWorkStreams();
 
@@ -5619,7 +5660,7 @@ export default function AdminPage() {
   // a prep deep-link should land somewhere that explains itself, and the URL/localStorage must not
   // keep re-teleporting her on every cold open.
   const sec: OpSection = allowed.includes(section) ? section : "day";
-  const [planTab, setPlanTab] = useState<"calendar" | "events" | "vendors" | "route" | "leads">("calendar");
+  const [planTab, setPlanTab] = useState<PlanTab>("calendar");
   const [guideOpen, setGuideOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
   // The header 🔔 badge, for EVERY role (2026-10-04). It was gated on canManage — the leader-only rule
@@ -5767,6 +5808,17 @@ export default function AdminPage() {
     );
   }
 
+  // The lane the section is in (a section can live in two lanes — prep is Service's and Events' — so
+  // the tapped tab, tracked as groupId, wins the ambiguity): its sections are the toggle under the
+  // header, and the pages a sideways swipe turns through.
+  const lanes = [{ id: "today", label: "Today", members: TODAY_GROUP.members.filter((m) => allowed.includes(m)) }, ...streamGroups(streams, role)];
+  const grp = (navGroupId && lanes.find((g) => g.id === navGroupId && g.members.includes(sec))) || lanes.find((g) => g.members.includes(sec));
+  const lane = { label: grp?.label ?? "", members: grp ? grp.members.filter((m: OpSection) => allowed.includes(m)) : [] };
+  // A move along the lane stays in the lane. Readiness is in Service and in Events: reached from Plan
+  // (Events), it is Events' Readiness — the row under the header and the lane lit below keep saying
+  // Events, as they do when the lane's own tab was tapped to get there.
+  const inLane = (m: OpSection) => { if (grp) setGroupId(grp.id); setSection(m); };
+
   // Overview's jump links map onto the operator sections — and the Plan sub-tab when relevant,
   // so "Events" actually lands on Plan→Events instead of whatever tab was last open.
   const goSection = (t: string) => {
@@ -5826,20 +5878,22 @@ export default function AdminPage() {
 
       {/* Secondary toggle — the ACTIVE LANE's sections (a section can live in two lanes — prep is
           Service's and Events' — so the tapped tab, tracked as groupId, wins the ambiguity). */}
-      {(() => {
-        const lanes = [{ id: "today", label: "Today", members: TODAY_GROUP.members.filter((m) => allowed.includes(m)) }, ...streamGroups(streams, role)];
-        const grp = (navGroupId && lanes.find((g) => g.id === navGroupId && g.members.includes(sec))) || lanes.find((g) => g.members.includes(sec));
-        const members = grp ? grp.members.filter((m: OpSection) => allowed.includes(m)) : [];
-        if (members.length < 2) return null;
-        return (
-          <div className="grp-toggle" role="tablist" aria-label={grp!.label}>
-            {members.map((m: OpSection) => (
-              <button key={m} type="button" role="tab" aria-selected={sec === m} className={`grp-seg${sec === m ? " on" : ""}`} onClick={() => setSection(m)}>{SECTION_LABEL[m]}</button>
-            ))}
-          </div>
-        );
-      })()}
+      {lane.members.length >= 2 && (
+        <div className="grp-toggle" role="tablist" aria-label={lane.label}>
+          {lane.members.map((m: OpSection) => (
+            <button key={m} type="button" role="tab" aria-selected={sec === m} className={`grp-seg${sec === m ? " on" : ""}`} onClick={() => inLane(m)}>{SECTION_LABEL[m]}</button>
+          ))}
+        </div>
+      )}
 
+      {/* SWIPE BETWEEN TABS (components/SwipePager, 2026-10-05): a sideways swipe on the section turns
+          to the lane's next or previous section — and on Plan, to its next or previous tab first,
+          Calendar → Events → Route → Leads → Vendors, then on to the lane's next section. Each turn is
+          the tap it stands for (setSection / setPlanTab), so the address, history and focus agree. */}
+      <SwipePager levels={[
+        lane.members.length >= 2 && { keys: lane.members, current: sec, go: (k) => inLane(k as OpSection), depth: 0 },
+        sec === "plan" && canManage && { keys: PLAN_PAGES, current: planTab, go: (k) => setPlanTab(k as PlanTab), depth: 1 },
+      ]}>
       {/* Shared-axis transition: keying on `sec` remounts the body on each section change so it
           fades+slides in. planTab changes keep the same key, so sub-tabs don't re-animate.
           role=region + focus-on-change: keyboard/SR users land in the new section, not adrift. */}
@@ -5954,21 +6008,21 @@ export default function AdminPage() {
                 "pending bookings = money waiting — always loud" — and never applied to anything.
                 Wired here, plus the two gap badges when something on them is guest-visible. The
                 `what` word is the accessible name: a bare number tells a screen reader nothing. */}
-            {([
-              ["calendar", "Calendar", 0, false, ""],
-              ["events", "Events", 0, false, "needing attention"],
-              ["route", "Route", 0, false, "needing attention"],
-              ["leads", "Leads", planCounts.bookings, planCounts.bookings > 0, "new booking requests"],
-            ] as const).map(([k, label, n, hot, what]) => (
-              <button key={k} type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>
-                {label}{n > 0 && <span className={`subnav-badge${hot ? " hot" : ""}`} aria-label={`${n} ${what}`}>{n}</span>}
-              </button>
-            ))}
-            <span className="subnav-div" aria-hidden />
-            {/* Back office — rarely touched */}
-            {([["vendors", "Vendors"]] as const).map(([k, label]) => (
-              <button key={k} type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab back${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>{label}</button>
-            ))}
+            {/* The row is drawn from PLAN_PAGES, the order a swipe turns through — one list, so the
+                tab a swipe lands on is always the one beside the tab it left. */}
+            {PLAN_PAGES.map((k) => {
+              // Leads counts the booking requests waiting — money waiting, so always loud when there are any.
+              const n = k === "leads" ? planCounts.bookings : 0, hot = n > 0, what = "new booking requests";
+              return (
+                <Fragment key={k}>
+                  {/* Back office — rarely touched — sits after the divider. */}
+                  {k === "vendors" && <span className="subnav-div" aria-hidden />}
+                  <button type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab${k === "vendors" ? " back" : ""}${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>
+                    {PLAN_LABEL[k]}{n > 0 && <span className={`subnav-badge${hot ? " hot" : ""}`} aria-label={`${n} ${what}`}>{n}</span>}
+                  </button>
+                </Fragment>
+              );
+            })}
           </div>
           {/* ONE "needs sorting" list for the whole schedule (0324). It sits ABOVE the tabs, not
               inside one, because it covers both: the Events tab and the Route tab each used to open
@@ -6213,6 +6267,7 @@ export default function AdminPage() {
         </>
       )}
       </div>
+      </SwipePager>
     </section>
     </CrumbProvider>
   );

@@ -8,7 +8,8 @@ import { canOf } from "@/lib/roles";
 import { localToday } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
-import Sheet, { CloseButton } from "./Sheet";
+import Sheet, { CloseButton, useUnsaved } from "./Sheet";
+import { edited } from "@/lib/formGuard";
 import Icon from "./Icon";
 import {
   LEAD_BASES, correctRule, correctionProblem, deadlineWords, lastCheckedWords, recheckProblem, recheckRule,
@@ -90,6 +91,11 @@ function RuleBody({ d, admin, onDone }: { d: Data; admin: boolean; onDone: () =>
   const [authority, setAuthority] = useState(rule.authority ?? "");
   const [leadDays, setLeadDays] = useState(rule.lead_days == null ? "" : String(rule.lead_days));
   const [leadBasis, setLeadBasis] = useState<LeadBasis | "">((rule.lead_basis as LeadBasis | null) ?? "");
+  // A source typed for the re-check, or a correction under way: leaving the sheet asks first.
+  useUnsaved(!!against.trim() || !!note.trim() || (fixing && edited(
+    { label, link, authority, leadDays, leadBasis },
+    { label: rule.label, link: rule.link, authority: rule.authority, leadDays: rule.lead_days == null ? "" : String(rule.lead_days), leadBasis: rule.lead_basis },
+    ["label", "link", "authority", "leadDays", "leadBasis"])));
 
   const where = [rule.state ?? "Everywhere", rule.county ? `${rule.county} County` : rule.state ? "statewide" : null].filter(Boolean).join(" · ");
   const deadline = deadlineWords(rule.lead_days, rule.lead_basis);
