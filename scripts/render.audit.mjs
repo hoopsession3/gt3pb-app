@@ -59,7 +59,15 @@ import { readFileSync, existsSync } from "node:fs";
 // running this file at each: e99f460 112, 1c6389c 110 (the checkout and the order funnel stopped
 // seeding a name from an effect), d6ae1c9 110, 21535ba 108 (Find Us and the live chip draw their
 // first read), 5940093 107 (the shop editor's draft). Locked in with receiving (0347), which adds none.
-export const BASELINE = 107;
+//
+// 2026-10-06: 107 → 100 (the settings round). It measured 106 at 682e587, where the round started —
+// one had come out and the line stayed. Six more came out with the round, each a value now read while
+// rendering instead of copied into state by an effect: the theme in AppShell (lib/theme) and the
+// display prefs in DisplayToggle, through one small store (lib/devicePref); the pass's mute in the
+// Kitchen (lib/passSound); the phone's notification permission (components/DeviceAlerts, which
+// replaced the crew page's EnableAlerts); and the calendar's Outlook bar, whose status and returned
+// ?outlook= word were two effects (components/OutlookConnect's useOutlookStatus, lib/urlParam).
+export const BASELINE = 100;
 
 const RULE = "react-hooks/set-state-in-effect";
 

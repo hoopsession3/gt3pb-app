@@ -5110,9 +5110,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     const css = read("app/globals.css").replace(/\/\*[\s\S]*?\*\//g, "");
     ok("chrome: the crew nav's landmark IS the nav — the app column's child, the same shape as the customer nav",
       /<nav className="nav opnav" aria-label="Section navigation">/.test(read("components/OperatorNav.tsx")) && /<nav className="nav" aria-label="Primary">/.test(read("components/BottomNav.tsx")));
-    ok("chrome: the floating tier rides one dock — quick actions, the theme toggle, the offline chip, the update prompt",
-      /<div className="fab-dock">\s*\{inAdmin && <QuickDock \/>\}\s*\{inAdmin && <button type="button" className="theme-toggle"[\s\S]*?\{inAdmin && <OfflineChip \/>\}\s*<ServiceWorkerRegister \/>\s*<\/div>/.test(shell)
-        && (shell.match(/<QuickDock \/>/g) || []).length === 1 && (shell.match(/<ServiceWorkerRegister \/>/g) || []).length === 1);
+    ok("chrome: the floating tier rides one dock — quick actions (the console's one floating button), the offline chip, the update prompt",
+      /<div className="fab-dock">\s*\{inAdmin && <QuickDock \/>\}\s*\{inAdmin && <OfflineChip \/>\}\s*<ServiceWorkerRegister \/>\s*<\/div>/.test(shell)
+        && (shell.match(/<QuickDock \/>/g) || []).length === 1 && (shell.match(/<ServiceWorkerRegister \/>/g) || []).length === 1 && !/theme-toggle/.test(shell));
     ok("chrome: no guessed nav height left in the stylesheet", !/var\(--navh/.test(css) && !/76px \+ 78px/.test(css));
     ok("chrome: the dock sits after the page and before the docked rail and the nav",
       /\.fab-dock\{order:4;position:relative;flex:0 0 auto;height:0\}/.test(css) && /\.nav\{order:10;/.test(css) && /\.rail:not\(\.rail-folded\)\{position:static;order:5;/.test(css));
@@ -6136,10 +6136,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const cq = crewSrc.slice(crewSrc.indexOf("const confirmQty"), crewSrc.indexOf("const adjustOnHand"));
   ok("confirm actual: the ledger entry is filed on the event's own market", /from\("inventory_ledger"\)\.insert\(\{[^}]*\bmarket\b/.test(cq), cq.slice(0, 80));
   ok("confirm actual: the task write's answer is read, and a non-number refused", /const \{ error \} = await supabase\.from\("event_tasks"\)/.test(cq) && /Number\.isFinite\(n\)/.test(cq));
-  const np = crewSrc.slice(crewSrc.indexOf("function NotifPrefsSheet"), crewSrc.indexOf("function AlertsInbox"));
+  // The mutes and quiet hours left the crew page for their own component (2026-10-06, the settings
+  // round): Settings › You draws them in place and the inbox's gear opens them in a sheet. The rules
+  // below are the same rules, read where the controls live now.
+  const np = code(read("components/NotifPrefs.tsx"));
   ok("quiet hours: a pick of the 24 hours, not a number box read by parseInt",
     !/parseInt/.test(np) && /<select value=\{qs\}/.test(np) && /<select value=\{qe\}/.test(np) && /QUIET_HOURS\.map/.test(np));
-  ok("quiet hours: the hours read the app's way", crewSrc.includes("fmt12(`${h}:00`)") && DT3.fmt12("22:00") === "10:00pm" && DT3.fmt12("0:00") === "12:00am" && DT3.fmt12("12:00") === "12:00pm");
+  ok("quiet hours: the hours read the app's way", np.includes("fmt12(`${h}:00`)") && DT3.fmt12("22:00") === "10:00pm" && DT3.fmt12("0:00") === "12:00am" && DT3.fmt12("12:00") === "12:00pm");
   ok("quiet hours: a failed read locks the sheet — saving over prefs it could not read would unmute everything",
     /if \(error\) \{ setRead\("failed"\)/.test(np) && /read !== "ok"\) return false/.test(np));
   const inboxSrc = crewSrc.slice(crewSrc.indexOf("function AlertsInbox"), crewSrc.indexOf("if (mine.length === 0 && held.length === 0)", crewSrc.indexOf("function AlertsInbox")) + 400);
@@ -6147,6 +6150,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const prefsDoor = <button type="button" className="alert-prefs-btn" onClick=\{\(\) => setPrefsOpen\(true\)\} aria-label="Notification settings">/.test(inboxSrc)
     && /if \(mine\.length === 0 && held\.length === 0\) \{\s*return \(\s*<div className="adm-sec">\s*<SectionHeader label=\{title\} right=\{prefsDoor\} \/>\s*\{prefsSheet\}/.test(inboxSrc));
   ok("quiet hours: \"Saved\" is said only when it saved", !/onBlur=\{\(\) => \{ save\(/.test(np) && /if \(error\) \{ toast\(`Couldn't save/.test(np));
+  ok("quiet hours: the gear and Settings draw ONE component — the sheet wraps the same controls, and the crew page keeps no copy",
+    /export function NotifPrefsSheet\([\s\S]*?<NotifPrefs userId=\{userId\} \/>/.test(np)
+    && /const prefsSheet = prefsOpen && <NotifPrefsSheet userId=\{userId\}/.test(inboxSrc)
+    && !/const NOTIF_CATS|function NotifPrefsSheet|from\("notif_prefs"\)/.test(crewSrc));
+  ok("notifications: the controls carry no title of their own — each door titles them (Settings' row, the gear's sheet), so neither says it twice",
+    /export function NotifPrefs\(\{ userId \}: \{ userId: string \| null \}\)/.test(np) && !/pay-row-t|title\b/.test(np.slice(np.indexOf("export function NotifPrefs("), np.indexOf("export function NotifPrefsSheet("))));
+  ok("quiet hours: two copies on screen cannot disagree — a save tells the other copy, which takes the row it wrote",
+    /window\.dispatchEvent\(new CustomEvent<NotifPrefsSaved>\(NOTIF_PREFS_EVENT/.test(np) && /window\.addEventListener\(NOTIF_PREFS_EVENT, onSaved\)/.test(np)
+    && /if \(!s \|\| s\.userId !== userId\) return;/.test(np));
 
   // ── a workstream's owner is the person ──
   const osr = code(read("components/OsRegistry.tsx"));
@@ -6430,7 +6442,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /supabase\.from\("v_promotable"\)\.select\("id, display_name, email, customer_name, market"\)/.test(pg) && /\[pickedRow\?\.market, profile\?\.market, FOUNDING_MARKET\]/.test(pg) && !/setMarket\(\(prev\) => prev \|\| /.test(pg));
   ok("bring someone on: their offer and their Academy path open for them",
     pg.includes("href={`/crew?s=money&a=offers&offer_for=${justHired.id}`}") && pg.includes("href={`/academy?assign=${justHired.id}`}"));
-  ok("crew page: a link's one-time instruction has one home", /const a = takeParam\("a"\);/.test(pg) && /readParam\("promote"\)/.test(pg) && !/searchParams\.delete\("promote"\)/.test(pg) && !/searchParams\.delete\("a"\)/.test(pg));
+  // 2026-10-06 (the settings round): the ?a= consumer reads and drops in two steps — a link to the
+  // Pass waits for ?s=now to land before it is taken — still through lib/urlParam, its one home.
+  ok("crew page: a link's one-time instruction has one home", /const a = readParam\("a"\);/.test(pg) && /dropParam\("a"\);/.test(pg) && /readParam\("promote"\)/.test(pg) && !/searchParams\.delete\("promote"\)/.test(pg) && !/searchParams\.delete\("a"\)/.test(pg));
 
   // ── the follow-ups reach someone ──
   ok("notes: a new follow-up starts as the author's, and a summary never orphans one",
@@ -7870,7 +7884,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && (sp.match(/haptic\(/g) || []).length === 1 && !/haptic\(/.test(read("components/PagerMotion.tsx")));
   ok("tabs: a tab bar ticks when the tab changes — not when the tab you are on is tapped again (that goes back to the top)",
     /onClick=\{\(e\) => \{ if \(pathname === tab\.href\) \{ e\.preventDefault\(\); scrollToTop\(\); \} else if \(!on\) haptic\("selection"\); \}\}/.test(read("components/BottomNav.tsx"))
-    && /const openGroup = \(g: NavGroup\) => \{\s+if \(g\.id !== activeGroup\.id\) haptic\("selection"\);/.test(code(read("components/OperatorNav.tsx"))));
+    // currentId, not activeGroup.id (2026-10-06, the settings round): in Settings no lane is current,
+    // so a lane tapped from there is a change and ticks.
+    && /const openGroup = \(g: NavGroup\) => \{\s+if \(g\.id !== currentId\) haptic\("selection"\);/.test(code(read("components/OperatorNav.tsx"))));
 
   // ── steppers and switches ──
   ok("steppers: up is increase, down is decrease, and \"−\" at zero is the boundary — read from what is on screen, before the update (the order form, the porch run's empties)",
@@ -7937,6 +7953,397 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /className="k-row tap od-row"/.test(od) && /<span className="k-rsub">\{isUntouchedDraft\(row\)/.test(od) && !/<span className="k-sub">/.test(od)
     && /\.k-row\.od-row\{padding:13px 15px;align-items:flex-start\}/.test(css) && /\.od-row \.k-lead\{width:auto;min-width:64px;padding-top:3px\}/.test(css)
     && /\.od-row \.k-rsub\{display:block;white-space:normal\}/.test(css));
+}
+
+// ── SETTINGS HAS A HOME (2026-10-06, the settings round) ─────────────────────────────────────────
+// Ryan: "Anything that changes a feature should be inside of the settings tab … it feels 2/10,
+// scattered." Settings existed and nothing in the nav opened it; the switches were in Money,
+// Customers, Team, the calendar, Route, the inbox's gear, the foot of Live Ops, a floating moon and
+// the rail. These hold the new shape: the door, the page and its gates, the line each old spot keeps,
+// the links that still land, and the one home of each thing a phone keeps for itself.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const root = path.join(__dirname, "..");
+  const read = (f) => fs.readFileSync(path.join(root, f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const walkSrc = (d) => fs.readdirSync(path.join(root, d), { withFileTypes: true })
+    .flatMap((e) => (e.isDirectory() ? walkSrc(path.join(d, e.name)) : /\.(ts|tsx)$/.test(e.name) ? [path.join(d, e.name)] : []));
+  const appFiles = ["app", "components", "lib"].flatMap(walkSrc);
+  const nav = code(read("components/OperatorNav.tsx"));
+  const pg = code(read("app/crew/page.tsx"));
+  const LAY = require("../.smoke/settingsLayout.js");
+  const PH = require("../.smoke/panelHome.js");
+  const O = require("../.smoke/obligations.js");
+
+  // ── the door: a Settings row in More, for every role ──
+  const roleLine = (r) => (new RegExp(`\\n\\s*${r}: \\[([^\\]]*)\\]`).exec(nav)?.[1] ?? "").match(/"([a-z]+)"/g)?.map((x) => x.slice(1, -1)) ?? [];
+  const ROLES = ["server", "contractor", "operator", "event_manager", "admin", "owner"];
+  ok("settings door: every role's sections include Settings — its first section, You, is everyone's",
+    ROLES.every((r) => roleLine(r).includes("settings")), ROLES.filter((r) => !roleLine(r).includes("settings")));
+  const more = nav.slice(nav.indexOf("function MoreSheet("));
+  ok("settings door: More's first row opens Settings, for anyone signed in — above the lanes, not a lane (no pin)",
+    /\{user && \(\s*<div className=\{`lane-row\$\{activeId === "settings" \? " on" : ""\}`\}>\s*<button type="button" className="lane-open" onClick=\{onSettings\}/.test(more)
+    && more.indexOf("onClick={onSettings}") < more.indexOf("{lanes.map(") && !/onSettings[\s\S]{0,400}lane-pin/.test(more.slice(0, more.indexOf("{lanes.map("))));
+  ok("settings door: the row opens the section and closes the sheet — and the bar hands it the opener",
+    /const openSettings = \(\) => \{\s*if \(!inSettings\) haptic\("selection"\);\s*setSection\("settings"\);\s*setMoreOpen\(false\);\s*\};/.test(nav)
+    && /<MoreSheet [^\n]*onSettings=\{openSettings\}/.test(nav));
+  ok("settings door: More is drawn for every staff role — only a member gets the customer bar instead",
+    /if \(role === "member"\) return <BottomNav \/>;/.test(nav) && (nav.match(/return <BottomNav \/>/g) || []).length === 1);
+
+  // ── More is lit while in Settings ──
+  ok("settings door: in Settings, More is the lit tab — no lane is current, and Today no longer lights by default",
+    /const inSettings = section === "settings";/.test(nav) && /const currentId = inSettings \? "settings" : activeGroup\.id;/.test(nav)
+    && /const moreOn = inSettings \|\| overflow\.some\(\(g\) => g\.id === activeGroup\.id\);/.test(nav)
+    && /<button role="tab" aria-selected=\{moreOn\} className=\{`tab\$\{moreOn \? " on" : ""\}`\} onClick=\{\(\) => setMoreOpen\(true\)\}>/.test(nav)
+    && /const on = currentId === g\.id;/.test(nav) && !/const on = activeGroup\.id === g\.id;/.test(nav));
+  ok("settings door: no default lane holds Settings — which is why the lane lookup fell through to Today",
+    !/sections: \[[^\]]*"settings"/.test(code(read("lib/streams.ts"))));
+  ok("settings door: More's copy counts the bar it has — MAX_PINS (5), not the 4 it said",
+    !/bar is full \(4\)/.test(nav) && !/Pin up to 4/.test(nav) && /`Your bar is full \(\$\{MAX_PINS\}\)/.test(nav) && /Pin up to \$\{MAX_PINS\} to your bar/.test(nav)
+    && /const MAX_PINS = 5;/.test(nav));
+
+  // ── the page: every section, every panel, every gate — held to lib/settingsLayout ──
+  const sh = pg.slice(pg.indexOf("function SettingsHome("), pg.indexOf("\n}\n", pg.indexOf("function SettingsHome(")));
+  ok("settings page: the page opens for every role — no section gate, the panels carry their own",
+    /\{sec === "settings" && <SettingsHome userId=\{user\?\.id \?\? null\} isAdmin=\{isAdmin\} isOwner=\{isOwner\} \/>\}/.test(pg)
+    && !/sec === "settings" && canManage/.test(pg) && /const isOwner = role === "owner";\s*const isAdmin = role === "admin" \|\| isOwner;/.test(pg));
+  const gateOf = { everyone: null, admin: "isAdmin", owner: "isOwner" };
+  const at = (needle) => sh.indexOf(needle);
+  const badGates = [], badOrder = [], missing = [];
+  let last = -1;
+  for (const s of LAY.SETTINGS_LAYOUT) {
+    const sg = LAY.sectionGate(s);
+    const head = sg === "everyone" ? `<SectionHeader label="${s.label}"` : `{${gateOf[sg]} && <SectionHeader label="${s.label}" />}`;
+    const hAt = at(head);
+    if (hAt < 0) { missing.push(`header ${s.label} (${sg})`); continue; }
+    if (sg === "everyone" && /\{is(Admin|Owner) && $/.test(sh.slice(Math.max(0, hAt - 14), hAt))) badGates.push(`header ${s.label} is gated`);
+    if (hAt < last) badOrder.push(`header ${s.label}`);
+    last = hAt;
+    for (const p of s.panels) {
+      const pAt = at(`id="${p.id}"`);
+      if (pAt < 0) { missing.push(p.id); continue; }
+      if (pAt < last) badOrder.push(p.id);
+      last = pAt;
+      const lead = sh.slice(Math.max(0, pAt - 40), pAt);
+      const gated = /\{(isAdmin|isOwner) && \(?\s*<(Panel|div) $/.exec(lead);
+      const want = gateOf[p.gate];
+      if (want === null ? gated : !gated || gated[1] !== want) badGates.push(`${p.id}: wants ${p.gate}, drawn ${gated ? gated[1] : "ungated"}`);
+    }
+  }
+  ok("settings page: every section and panel of lib/settingsLayout is drawn, in its order", missing.length === 0 && badOrder.length === 0, { missing, badOrder });
+  ok("settings page: and each behind its gate — You for everyone, an owner's panel behind isOwner, the rest behind isAdmin", badGates.length === 0, badGates);
+  ok("settings page: nothing is drawn there that the layout does not list",
+    [...sh.matchAll(/<Panel id="([a-z0-9-]+)"/g)].map((m) => m[1]).every((id) => LAY.settingsGate(id) !== null)
+    && [...sh.matchAll(/<SectionHeader label="([^"]+)"/g)].map((m) => m[1]).every((l) => LAY.SETTINGS_LAYOUT.some((s) => s.label === l)));
+  ok("settings page: the layout's gates are the ones each panel had — You for everyone, the digest an admin's, invites, Outlook and Train the AI the owner's",
+    ["set-notify", "set-alerts", "set-sound", "set-theme", "set-display"].every((id) => LAY.settingsGate(id) === "everyone")
+    && LAY.settingsGate("set-digest") === "admin" && ["set-invite", "set-outlook", "set-train"].every((id) => LAY.settingsGate(id) === "owner")
+    && ["set-pay", "set-dial", "menu", "plans", "cust-codes", "cust-perks", "set-lanes", "set-copy", "set-errors"].every((id) => LAY.settingsGate(id) === "admin")
+    && LAY.settingsGate("pay") === null && LAY.settingsGate(undefined) === null);
+  const DRAWS = {
+    "set-notify": "<NotifPrefs userId={userId} />", "set-alerts": "<DeviceAlerts userId={userId} />", "set-sound": "<PassSound />", "set-theme": "<Appearance />",
+    "set-display": "<DisplayControls />", "set-digest": "<FounderDigest />", "set-pay": "<PaymentSettings />", "set-dial": "<CupOrderingDial />",
+    "set-office": "<OfficeSettings />", menu: "<MenuManager />", plans: "<PlanEditor />", "cust-codes": "<CodesPanel />", "cust-perks": "<PerksPanel />",
+    "set-lists": "<ListsPanel />", "set-invite": "<InviteTeammate />", "set-lanes": '<OrgChart part="lanes" />', "set-markets": "<MarketsPanel />",
+    "set-integrations": "<IntegrationsPanel />", "set-outlook": "<OutlookConnect />", "set-train": "<AiTraining />", "set-ai": "<CopilotDirectory />",
+    "set-spend": "<AiSpend />", "set-copy": "<SiteCopyEditor />", splash: "<PromoEditor />", "set-broadcast": "<BroadcastEditor />",
+    "set-admintrail": "<AuditTrail />", "set-errors": "<ErrorLog />", "set-changelog": "<Changelog />", "set-audit": "<MaintenanceLog />",
+  };
+  const ids = LAY.SETTINGS_LAYOUT.flatMap((s) => s.panels.map((p) => p.id));
+  const wrongBody = ids.filter((id, i) => {
+    const from = at(`id="${id}"`), to = i + 1 < ids.length ? at(`id="${ids[i + 1]}"`) : sh.length;
+    return !DRAWS[id] || !sh.slice(from, to).includes(DRAWS[id]);
+  });
+  ok("settings page: each panel draws the component that was moved into it", wrongBody.length === 0 && Object.keys(DRAWS).length === ids.length, wrongBody);
+  const elsewhere = Object.entries(DRAWS).filter(([, c]) => (pg.match(new RegExp(c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length !== 1).map(([id]) => id);
+  ok("settings page: and draws it once — the payment switches, the menu, the plans, codes, perks, invites and Train the AI left their old screens",
+    elsewhere.length === 0, elsewhere);
+  const idCount = (id) => appFiles.reduce((n, f) => n + (read(f).match(new RegExp(`\\bid="${id}"`, "g")) || []).length, 0);
+  ok("settings page: every panel id in it is one element in the whole app — an anchor names exactly one place",
+    ids.every((id) => idCount(id) === 1), ids.filter((id) => idCount(id) !== 1));
+  ok("settings page: You — Notifications and Text size are rows that open; alerts on this phone, the pass's sound and the look are flipped where they are",
+    /<Panel id="set-notify" title="Notifications" sub="[^"]+" value=\{v\(g\.notify\)\} remember=\{false\}><NotifPrefs userId=\{userId\} \/><\/Panel>/.test(sh)
+    && /<Panel id="set-display" title="Text size & display" sub="[^"]+" value=\{v\(g\.display\)\} remember=\{false\}><DisplayControls \/><\/Panel>/.test(sh)
+    && ["set-alerts", "set-sound", "set-theme"].every((id) => new RegExp(`<div id="${id}" className="set-row">`).test(sh)));
+  const setPanels = [...sh.matchAll(/<Panel id="([a-z0-9-]+)"([^>]*)>/g)];
+  ok("settings page: a list of rows — every panel in it closed at rest, each saying what it holds, none reopening what was open last",
+    setPanels.length === ids.length - 3 && setPanels.every(([, , a]) => !/defaultOpen/.test(a) && /\bsub="[^"]{8,}"/.test(a) && /remember=\{false\}/.test(a)),
+    setPanels.filter(([, , a]) => /defaultOpen/.test(a) || !/\bsub="[^"]{8,}"/.test(a) || !/remember=\{false\}/.test(a)).map(([, id]) => id));
+  ok("settings page: each section is one grouped list (SetList), drawn only when it has a row the person can see",
+    /function SetList\(\{ children \}: \{ children: ReactNode \}\) \{\s*return Children\.toArray\(children\)\.length \? <div className="set-list">\{children\}<\/div> : null;\s*\}/.test(pg)
+    && (sh.match(/<SetList>/g) || []).length === LAY.SETTINGS_LAYOUT.length && (sh.match(/<\/SetList>/g) || []).length === LAY.SETTINGS_LAYOUT.length);
+  ok("settings page: a row that is one fact says what it is set to — the values come from components/SettingsGlance",
+    ["notify", "display", "digest", "pay", "dial", "office", "lanes"].every((k) => new RegExp(`value=\\{v\\(g\\.${k}\\)\\}`).test(sh))
+    && /<Panel id="set-outlook" [^>]*value=\{outlook\}/.test(sh) && /const outlook = isOwner \? <OutlookGlance \/> : null;/.test(sh)
+    && /const g = useSettingsGlance\(userId, isAdmin\);/.test(sh) && /const v = \(x: Glance\) => <GlanceText g=\{x\} \/>;/.test(sh));
+  ok("panel: a line under the title and a value on the right; remember={false} keeps nothing; the toggle writes beside its state change, never in an updater",
+    /\{sub\s*\? <span className="mpanel-tt"><span className="mpanel-t">\{title\}<\/span><span className="mpanel-s">\{sub\}<\/span><\/span>\s*: <span className="mpanel-t">\{title\}<\/span>\}/.test(pg)
+    && /\{value != null && <span className="mpanel-v">\{value\}<\/span>\}/.test(pg)
+    && /const toggle = \(\) => \{ const n = !open; setOpen\(n\); keep\(n\); \};/.test(pg)
+    && /const keep = useCallback\(\(n: boolean\) => \{\s*if \(!remember\) return;/.test(pg) && /useEffect\(\(\) => \{\s*if \(!remember\) return;\s*try \{ const v = localStorage\.getItem\(storeKey\)/.test(pg)
+    && !/setOpen\(\(o\) => \{/.test(pg));
+  {
+    const css0 = read("app/globals.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    ok("settings page: the list is the card — a panel in it gives up its own border, radius and gap but keeps the hairline above it; an empty value takes no room",
+      /\.set-list\{border:1px solid var\(--line\);border-radius:var\(--r-2xl\);background:var\(--card\);overflow:hidden;/.test(css0)
+      && /\.set-list > \.mpanel\{border:0;border-radius:0;margin:0;background:transparent\}\s*\.set-list > :not\(:first-child\)\{border-top:1px solid var\(--line\)\}/.test(css0)
+      && /\.mpanel-v:empty\{display:none\}/.test(css0) && /\.mpanel-v\{[^}]*max-width:50%/.test(css0));
+  }
+  ok("settings page: the \"More controls\" card map is gone, and its card CSS with it",
+    !/set-map|set-card|More controls|Owner control room/.test(pg) && !/\.set-card|\.set-map/.test(read("app/globals.css").replace(/\/\*[\s\S]*?\*\//g, "")));
+
+  // ── the line each old spot keeps ──
+  const gl = code(read("components/GoLine.tsx"));
+  ok("old spots: one line, one way — GoLine is a tertiary button that opens the section and its panel through lib/anchors",
+    /<button type="button" className="btn-ter" onClick=\{\(\) => \{ setSection\(to\); scrollToAnchor\(anchor\); \}\}>\{children\} ›<\/button>/.test(gl)
+    && /import \{ scrollToAnchor \} from "@\/lib\/anchors";/.test(gl));
+  const navSrc = read("components/OperatorSection.tsx");
+  const SECTIONS = new Set(((/export const VALID = new Set<OpSection>\(\[([^\]]*)\]\)/.exec(navSrc) || [])[1] || "").match(/"([a-z]+)"/g)?.map((x) => x.slice(1, -1)) ?? []);
+  const allIds = new Set();
+  for (const f of appFiles) {
+    const t = read(f);
+    for (const m of t.matchAll(/\bid="([a-zA-Z0-9_-]+)"/g)) allIds.add(m[1]);
+    for (const m of t.matchAll(/\bid=\{([^}]*)\}/g)) for (const x of m[1].matchAll(/"([a-zA-Z0-9_-]+)"/g)) allIds.add(x[1]);
+  }
+  const lines = [];
+  for (const f of appFiles.filter((x) => x.endsWith(".tsx"))) for (const m of code(read(f)).matchAll(/<GoLine to="([a-z]+)" anchor="([a-zA-Z0-9_-]+)">/g)) lines.push({ f, to: m[1], anchor: m[2] });
+  const deadLines = lines.filter((l) => !SECTIONS.has(l.to) || !allIds.has(l.anchor)).map((l) => `${l.f}: ${l.to}#${l.anchor}`);
+  ok("old spots: every GoLine goes to a real section and an element that exists", lines.length >= 10 && deadLines.length === 0, { n: lines.length, deadLines });
+  ok("old spots: a GoLine never names its place by a variable the check above cannot read", !appFiles.some((f) => /<GoLine to=\{|<GoLine [^>]*anchor=\{/.test(read(f))));
+  const block = (start) => { const i = pg.indexOf(start); return pg.slice(i, pg.indexOf("\n      )}\n", i)); };
+  const money = block('{sec === "money" && isAdmin && ('), cust = block('{sec === "customers" && isAdmin && ('), team = block('{sec === "team" && isAdmin && (');
+  ok("old spots: Money keeps its pay panel — the refunds door and \"Payment settings ›\" — and the switches left it",
+    /<Panel id="pay" title="Refunds & payment settings" defaultOpen>[\s\S]*?Refunds &amp; disputes — Square Dashboard[\s\S]*?<GoLine to="settings" anchor="set-pay">Payment settings<\/GoLine>\s*<\/Panel>/.test(money)
+    && !/<PaymentSettings \/>/.test(money) && !/<MenuManager \/>|<PlanEditor \/>/.test(money)
+    && /<GoLine to="settings" anchor="menu">Menu &amp; products<\/GoLine>/.test(money) && /<GoLine to="settings" anchor="plans">Membership plans<\/GoLine>/.test(money));
+  ok("old spots: Customers keeps \"Codes & perks ›\", and no code or perk panel", /<GoLine to="settings" anchor="cust-codes">Codes &amp; perks<\/GoLine>/.test(cust) && !/<CodesPanel|<PerksPanel|id="cust-codes"|id="cust-perks"/.test(cust));
+  ok("old spots: Team keeps \"Invites & roles ›\" and \"Train the AI ›\" for the owner (an admin's line goes to the lane owners), the roster keeps roles, the org chart keeps the people",
+    /\{isOwner && <GoLine to="settings" anchor="set-invite">Invites &amp; roles<\/GoLine>\}/.test(team) && /\{isOwner && <GoLine to="settings" anchor="set-train">Train the AI<\/GoLine>\}/.test(team)
+    && /\{!isOwner && <GoLine to="settings" anchor="set-lanes">Lane owners<\/GoLine>\}/.test(team)
+    && !/<InviteTeammate|<AiTraining/.test(team) && /<OrgChart part="people" \/>/.test(team)
+    && /\{isOwner && <div id="team-members" style=\{\{ scrollMarginTop: 16 \}\}><Members \/><\/div>\}/.test(team)
+    && /\{isOwner && <GoLine to="team" anchor="team-members">Change someone&rsquo;s role<\/GoLine>\}/.test(sh));
+  const oc = code(read("components/OrgChart.tsx"));
+  ok("old spots: OrgChart draws its two parts in two homes — the people on Team, the lane owners in Settings — and a refused owner pick is said",
+    /export default function OrgChart\(\{ part = "people" \}/.test(oc) && /\{\(\) => part === "people" \? \(/.test(oc)
+    && /\.update\(\{ owner_user_id: uid \|\| null \}\)\.eq\("id", id\)\.select\("id"\);/.test(oc) && /if \(error \|\| !data\?\.length\) toast\([\s\S]*?, "error"\);/.test(oc));
+  const st = code(read("components/Studio.tsx"));
+  ok("old spots: Studio › Brand keeps \"Copy ›\" through lib/anchors — no timer of its own — for those Settings shows the editor to",
+    /\{canCopy && <GoLine to="settings" anchor="set-copy">Copy<\/GoLine>\}/.test(st) && /const canCopy = canOf\(profile\)\.admin;/.test(st)
+    && !/gt3-mpanel-set-copy/.test(st) && !/getElementById\("set-copy"\)/.test(st) && !/goCopy/.test(st) && /<BrandKit canEdit \/>/.test(st));
+  const cal = code(read("components/CompanyCalendar.tsx"));
+  ok("old spots: the calendar keeps Sync now and gains \"Outlook ›\" — connecting moved to Settings, and nothing here drops the address any more",
+    /<GoLine to="settings" anchor="set-outlook">Outlook<\/GoLine>/.test(cal) && /"Sync now"/.test(cal) && /\{isOwner && <OutlookBar onSynced=\{reload\} \/>\}/.test(cal)
+    && !/\/api\/outlook\/connect|\/api\/outlook\/disconnect|Connect Outlook|Disconnect/.test(cal) && !/replaceState\(\{\}, "", window\.location\.pathname\)/.test(cal));
+  const lc = code(read("components/crew/LiveControl.tsx"));
+  ok("old spots: Route and the Live truck instrument keep \"Cup-ordering dial ›\" — for an owner or an admin, the ones who can save it",
+    /\{admin && <GoLine to="settings" anchor="set-dial">Cup-ordering dial<\/GoLine>\}/.test(lc)
+    && /\{admin && <button type="button" className="adm-golink" onClick=\{goDial\}>Cup-ordering dial ›<\/button>\}/.test(lc)
+    && /const goDial = \(\) => \{ setSection\("settings"\); scrollToAnchor\("set-dial"\); \};/.test(lc) && /const admin = canOf\(profile\)\.admin;/.test(lc));
+  ok("old spots: Live ops keeps one line while order alerts are off on this phone — the card that asked is Settings › You now",
+    /<AlertsOffLine \/>/.test(block('{sec === "now" && (')) && !/EnableAlerts|Turn on order alerts/.test(pg)
+    && /if \(!alertsOff\(perm\)\) return null;\s*return <GoLine to="settings" anchor="set-alerts">/.test(code(read("components/DeviceAlerts.tsx"))));
+  const DA = code(read("components/DeviceAlerts.tsx"));
+  ok("alerts on this device: the phone's answer is read as it draws (no effect), asked for with one tap, and every answer is said",
+    /useSyncExternalStore\(subscribe, readPermission, \(\) => "unknown" as const\)/.test(DA) && /window\.dispatchEvent\(new Event\(ASKED\)\);/.test(DA)
+    && /if \(p === "granted"\) \{ subscribePush\(userId, true\);/.test(DA) && ["unknown", "granted", "default", "denied", "unsupported"].every((k) => new RegExp(`\\b${k}: "`).test(DA))
+    && /export const alertsOff = \(p: AlertPermission \| "unknown"\): boolean => p === "default" \|\| p === "denied";/.test(DA));
+
+  // ── links still land: the pay anchor, the aliases, the Pass ──
+  ok("links land: Money's pay anchor stays where refund alerts point (/crew?s=money&a=pay), and the alias table leaves it alone",
+    /link: "\/crew\?s=money&a=pay",/.test(pg) && idCount("pay") === 1 && !("money#pay" in PH.PANEL_MOVES)
+    && JSON.stringify(PH.panelHome("money", "pay")) === JSON.stringify({ section: "money", anchor: "pay" }));
+  ok("links land: a link to a panel that moved goes to its new home — the menu, the plans, codes, perks and Train the AI",
+    JSON.stringify(PH.panelHome("money", "menu")) === JSON.stringify({ section: "settings", anchor: "menu" })
+    && JSON.stringify(PH.panelHome("money", "plans")) === JSON.stringify({ section: "settings", anchor: "plans" })
+    && JSON.stringify(PH.panelHome("customers", "cust-codes")) === JSON.stringify({ section: "settings", anchor: "cust-codes" })
+    && JSON.stringify(PH.panelHome("customers", "cust-perks")) === JSON.stringify({ section: "settings", anchor: "cust-perks" })
+    && JSON.stringify(PH.panelHome("team", "ai-training")) === JSON.stringify({ section: "settings", anchor: "set-train" })
+    && JSON.stringify(PH.panelHome("plan")) === JSON.stringify({ section: "plan" }) && JSON.stringify(PH.panelHome("money", "offers")) === JSON.stringify({ section: "money", anchor: "offers" }));
+  const moves = Object.entries(PH.PANEL_MOVES);
+  ok("links land: every alias goes to a panel Settings draws, from a section that no longer has it",
+    moves.every(([from, to]) => SECTIONS.has(from.split("#")[0]) && SECTIONS.has(to.section) && LAY.settingsGate(to.anchor) !== null)
+    && !/id="menu"|id="plans"/.test(money) && !/id="cust-codes"|id="cust-perks"/.test(cust), moves);
+  ok("links land: the alert router passes an alert's own link through the alias table",
+    /const home = panelHome\(s\[1\], a\?\.\[1\]\);\s*return \{ section: home\.section as OpSection, \.\.\.\(home\.anchor \? \{ anchor: home\.anchor \} : \{\}\) \};/.test(pg));
+  ok("links land: a Needs-you row that names a moved panel goes to its new home",
+    JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: "/crew?s=money&a=menu" })) === JSON.stringify({ kind: "section", section: "settings", anchor: "menu" })
+    && JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: "/crew?s=customers&a=cust-codes" })) === JSON.stringify({ kind: "section", section: "settings", anchor: "cust-codes" })
+    && JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: "/crew?s=money&a=pay" })) === JSON.stringify({ kind: "section", section: "money", anchor: "pay" }));
+  const V = (r) => ({ id: "me", sections: roleLine(r), manage: ["event_manager", "admin", "owner"].includes(r) });
+  const forR = (r, route) => O.obligationFor({ source: "brand_new", subject_id: "x", route, owner_user_id: null }, V(r));
+  ok("links land: Settings opens for every role, but a row on one of its admin panels is still the admins' — a server is not sent to a menu she cannot see",
+    !forR("server", "/crew?s=money&a=menu") && !forR("event_manager", "/crew?s=customers&a=cust-codes") && forR("owner", "/crew?s=money&a=menu") && forR("admin", "/crew?s=settings&a=set-dial")
+    && forR("server", "/crew?s=settings&a=set-alerts") && !forR("operator", "/crew?s=settings"));
+  ok("links land: an order alert opens the Pass — #kitchen-pass is drawn only while the Pass is open, so the jump opens it instead of hunting for it",
+    /if \(cat === "order"\) return \{ section: "now", anchor: "kitchen-pass" \};/.test(pg) && /const PASS_ANCHOR = "kitchen-pass";/.test(pg)
+    && /function jumpTo\(anchor\?: string\): void \{\s*if \(anchor === PASS_ANCHOR\) \{ window\.dispatchEvent\(new Event\(OPEN_PASS_EVENT\)\); return; \}\s*scrollToAnchor\(anchor\);\s*\}/.test(pg)
+    && /jumpTo\(d\.anchor\);/.test(pg) && !/scrollToAnchor\(d\.anchor\)/.test(pg) && /<div className="adm-sec" id="kitchen-pass">/.test(pg));
+  ok("links land: the page answers by going to Live Ops and opening the Pass — and a link waits for ?s=now to land before it is taken",
+    /const open = \(\) => \{ setSection\("now"\); setSvc\(true\); \};\s*window\.addEventListener\(OPEN_PASS_EVENT, open\);/.test(pg)
+    && /if \(a === PASS_ANCHOR && sec !== "now" && readParam\("s"\) === "now"\) return;\s*consumedAnchorRef\.current = true;\s*dropParam\("a"\);\s*jumpTo\(a\);/.test(pg)
+    && pg.indexOf("const [svc, setSvc] = useState(false);") < pg.indexOf("window.addEventListener(OPEN_PASS_EVENT, open)"));
+  ok("links land: Outlook's consent screen comes back to the panel that sent it, which reads the word and takes it off the address",
+    /Location: `\$\{origin\}\/crew\?s=settings&a=set-outlook&outlook=\$\{note\}`/.test(read("app/api/outlook/callback/route.ts"))
+    && /useState<string \| null>\(\(\) => RETURNED\[readParam\("outlook"\) \?\? ""\] \?\? null\)/.test(code(read("components/OutlookConnect.tsx")))
+    && /useEffect\(\(\) => \{ dropParam\("outlook"\); \}, \[\]\);/.test(code(read("components/OutlookConnect.tsx"))));
+
+  // ── what a phone keeps for itself has one home each ──
+  const keyHomes = (lit) => appFiles.filter((f) => code(read(f)).includes(lit)).map((f) => f.split(path.sep).join("/"));
+  ok("one home: the theme is read and written in lib/theme only — Settings › You › Appearance is the one place to change it, and the moon is gone",
+    JSON.stringify(keyHomes('"gt3-theme"')) === JSON.stringify(["lib/theme.ts"])
+    && /import \{ useTheme \} from "@\/lib\/theme";/.test(read("components/AppShell.tsx"))
+    && /const theme = useTheme\(\);/.test(code(read("components/AppShell.tsx"))) && !/setTheme|toggleTheme|theme-toggle/.test(code(read("components/AppShell.tsx")))
+    && !/useState<"day" \| "dark">/.test(read("components/AppShell.tsx"))
+    && /const choice = useThemeChoice\(\);/.test(code(read("components/YouPrefs.tsx"))) && /setTheme\(t\);/.test(code(read("components/YouPrefs.tsx")))
+    && /\[\{ v: "day", label: "Day" \}, \{ v: "dark", label: "Dark" \}, \{ v: "auto", label: "Auto" \}\]/.test(read("components/YouPrefs.tsx"))
+    && /<div className="set-seg" role="radiogroup" aria-label="Appearance">/.test(read("components/YouPrefs.tsx"))
+    && !appFiles.some((f) => /className="theme-toggle"/.test(read(f))) && !/\.theme-toggle/.test(read("app/globals.css").replace(/\/\*[\s\S]*?\*\//g, "")));
+  ok("one home: Auto follows the phone as it changes — the console reads the media query as a store, light on the server",
+    /const phoneDark = useSyncExternalStore\(subscribePhone, readPhoneDark, \(\) => false\);\s*return themeFrom\(raw, phoneDark\);/.test(code(read("lib/theme.ts")))
+    && /m\?\.addEventListener\?\.\("change", onChange\);/.test(read("lib/theme.ts")) && /const PHONE_DARK = "\(prefers-color-scheme: dark\)";/.test(read("lib/theme.ts")));
+  ok("one home: the pass's sound is read and written in lib/passSound only — the Pass's bell and Settings both go through it",
+    JSON.stringify(keyHomes('"kds_muted"')) === JSON.stringify(["lib/passSound.ts"])
+    && /const muted = usePassMuted\(\);/.test(pg) && /const toggleMute = \(\) => \{ setPassMuted\(!muted\); unlockAudio\(\); \};/.test(pg)
+    && /if \(muted\) haptic\("toggleOn"\); else haptic\("toggleOff"\);\s*setPassMuted\(!muted\);/.test(code(read("components/YouPrefs.tsx"))));
+  const dt = code(read("components/DisplayToggle.tsx"));
+  ok("one home: Display & text size is one set of controls — the rail's panel and Settings draw DisplayControls, and both read the one store",
+    /<div className="rdg-panel"[^>]*>\s*<DisplayControls \/>\s*<\/div>/.test(dt) && /<DisplayControls \/>/.test(sh)
+    && /return displayFrom\(useDevicePref\(DISPLAY\)\);/.test(dt) && !/useState<Display>/.test(dt)
+    && /const disp = displayClass\(useDisplay\(\)\);/.test(code(read("components/AppShell.tsx"))));
+  const T = require("../.smoke/theme.js"), P = require("../.smoke/passSound.js"), D = require("../.smoke/devicePref.js");
+  ok("one home: a stored look is itself — \"dark\" is dark, \"auto\" is the phone's, anything else day — and only \"1\" is muted",
+    T.themeFrom("dark") === "dark" && T.themeFrom("day") === "day" && T.themeFrom(null) === "day" && T.themeFrom("Dark") === "day" && T.THEME.key === "gt3-theme"
+    && T.themeFrom("auto", true) === "dark" && T.themeFrom("auto", false) === "day" && T.themeFrom("auto") === "day"
+    && T.themeFrom("dark", false) === "dark" && T.themeFrom("day", true) === "day" && T.themeFrom("AUTO", true) === "day"
+    && T.choiceFrom("auto") === "auto" && T.choiceFrom("dark") === "dark" && T.choiceFrom("light") === "day" && T.choiceFrom(undefined) === "day"
+    && P.passMutedFrom("1") === true && P.passMutedFrom("0") === false && P.passMutedFrom(null) === false && P.PASS_SOUND.key === "kds_muted");
+  {
+    // A phone pref, driven the way a browser drives it: a write tells every copy, a refusing storage
+    // still moves the switch in this tab, another tab's write wins, and an unsubscribed copy hears nothing.
+    const hadWindow = "window" in global, hadLs = "localStorage" in global;
+    const store = new Map();
+    global.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => { store.set(k, String(v)); } };
+    // A window of our own: an earlier block (planNav) leaves a stand-in Event class on global, which
+    // Node's real EventTarget refuses. This one dispatches by type, as a browser does.
+    const listeners = new Map();
+    global.window = {
+      addEventListener: (t, f) => { if (!listeners.has(t)) listeners.set(t, new Set()); listeners.get(t).add(f); },
+      removeEventListener: (t, f) => { listeners.get(t)?.delete(f); },
+      dispatchEvent: (e) => { for (const f of [...(listeners.get(e.type) || [])]) f(e); return true; },
+    };
+    try {
+      const pref = D.devicePref("gt3-smoke-pref");
+      let heard = 0;
+      const off = pref.subscribe(() => { heard++; });
+      pref.write("a");
+      const wrote = pref.read() === "a" && store.get("gt3-smoke-pref") === "a" && heard === 1;
+      global.localStorage.setItem = () => { throw new Error("QuotaExceededError"); };
+      pref.write("b");
+      const refused = pref.read() === "b" && store.get("gt3-smoke-pref") === "a" && heard === 2;
+      global.window.dispatchEvent({ type: "storage", key: "gt3-smoke-pref" });
+      const otherTab = pref.read() === "a" && heard === 3;
+      global.window.dispatchEvent({ type: "storage", key: "something-else" });
+      off();
+      global.localStorage.setItem = (k, v) => { store.set(k, String(v)); };
+      pref.write("c");
+      ok("one home: a pref tells every copy, still moves when storage refuses, takes another tab's write, and stops telling a copy that left",
+        wrote && refused && otherTab && heard === 3 && pref.read() === "c", { wrote, refused, otherTab, heard });
+    } finally {
+      if (!hadWindow) delete global.window;
+      if (!hadLs) delete global.localStorage;
+    }
+  }
+
+  // ── the dial: only for those who can save it, and a refusal is said ──
+  const dial = code(read("components/crew/CupOrderingDial.tsx"));
+  ok("cup-ordering dial: LiveControl no longer reads or writes it — every manager could tap it there, and only an owner or an admin could save",
+    !/preorder_lead_h/.test(lc) && !/adm-lead-opts/.test(lc));
+  const writers = appFiles.filter((f) => /\.update\(\{ preorder_lead_h/.test(read(f))).map((f) => f.split(path.sep).join("/"));
+  ok("cup-ordering dial: one component writes it, drawn once, in Settings behind isAdmin",
+    JSON.stringify(writers) === JSON.stringify(["components/crew/CupOrderingDial.tsx"])
+    && /\{isAdmin && <Panel id="set-dial" [^>]*><CupOrderingDial \/><\/Panel>\}/.test(sh)
+    && appFiles.filter((f) => /<CupOrderingDial \/>/.test(read(f))).length === 1);
+  ok("cup-ordering dial: a save asks for the row back — no row is a refusal, said as an error, and the dial goes back to what the database holds",
+    /\.update\(\{ preorder_lead_h: h \}\)\.eq\("id", 1\)\.select\("preorder_lead_h"\);/.test(dial) && /const refused = !error && !\(data && data\.length\);/.test(dial)
+    && /if \(error \|\| refused\) \{\s*setPicked\(null\);\s*toast\(error \? `Couldn't save — \$\{error\.message\}` : "Couldn't save — only an owner or an admin can set when cup orders open\. Nothing changed\.", "error"\);/.test(dial)
+    && /await state\.reload\(\);/.test(dial) && /useRealtimeTable\("live_status", state\.reload\);/.test(dial) && /<AsyncSection state=\{state\}/.test(dial));
+
+  // ── the values on Settings' rows: the words have one home, and nothing unread is said ──
+  {
+    const SG = require("../.smoke/settingsGlance.js"), M = require("../.smoke/money.js"), OF = require("../.smoke/office.js");
+    ok("settings values: a read that failed says so, in the warning colour — never nothing, never a guess",
+      SG.UNREAD.text === "Couldn’t read" && SG.UNREAD.warn === true);
+    ok("settings values: how a guest can pay, said once — and a switch nobody read says nothing",
+      SG.payGlance(true, true).text === "Card + pay at pickup" && SG.payGlance(true, false).text === "Card only" && SG.payGlance(false, true).text === "Pay at pickup only"
+      && SG.payGlance(false, false).text === "No way to pay" && SG.payGlance(false, false).warn === true && !SG.payGlance(true, true).warn
+      && SG.payGlance(true, null) === null && SG.payGlance(false, undefined) === null);
+    ok("settings values: the dial, the office price, the digest — each panel's own default, the dial's own words, a price's cents kept",
+      SG.dialGlance(0, true).text === "Live only" && SG.dialGlance(8, true).text === "8h before" && SG.dialGlance(null, true).text === "4h before" && SG.dialGlance(8, false) === null
+      && SG.leadLabel(0) === "Live only" && SG.leadLabel(2) === "2h before"
+      && SG.officeGlance(4250, 3, true).text === "$42.50/gal · min 3" && SG.officeGlance(6000, 2, true).text === "$60/gal · min 2"
+      && SG.officeGlance(null, null, true).text === `${M.money(OF.OFFICE.pricePerGallonCents)}/gal · min ${OF.OFFICE.minGallons}` && SG.officeGlance(4250, 3, false) === null
+      && SG.digestGlance("off", true).text === "Off" && SG.digestGlance("weekly", true).text === "Weekly" && SG.digestGlance(null, true).text === "Daily"
+      && SG.digestGlance("nonsense", true).text === "Daily" && SG.digestGlance("daily", false) === null);
+    ok("settings values: notifications say what is muted and the quiet window, by the inbox's own rule (both ends, not the same hour)",
+      SG.notifyGlance([], null, null).text === "All on" && SG.notifyGlance(["order", "money"], null, null).text === "2 muted"
+      && SG.notifyGlance([], 22, 7).text === "Quiet 10pm–7am" && SG.notifyGlance(["brew"], 22, 7).text === "1 muted · quiet 10pm–7am"
+      && SG.notifyGlance([], 9, 9).text === "All on" && SG.notifyGlance([], 22, null).text === "All on" && SG.notifyGlance([], 0, 6).text === "Quiet 12am–6am"
+      && SG.notifyGlance(null, 22, 7) === null && SG.hourShort(0) === "12am" && SG.hourShort(12) === "12pm" && SG.hourShort(13) === "1pm" && SG.hourShort(23) === "11pm");
+    ok("settings values: text size in words, the lanes counted, and Outlook never \"not connected\" on a read that failed",
+      SG.displayGlance({ scale: 0, bold: false, roomy: false }).text === "Standard" && SG.displayGlance({ scale: 2, bold: true, roomy: true }).text === "Larger · bold · roomy"
+      && SG.displayGlance({ scale: 9, bold: false, roomy: false }).text === "Standard" && require("../.smoke/textSize.js").TEXT_SIZE_WORDS.join() === "Standard,Large,Larger,Largest"
+      && SG.lanesGlance(5, 5).text === "All owned" && SG.lanesGlance(2, 5).text === "2 of 5 owned" && SG.lanesGlance(0, 5).warn === true && !SG.lanesGlance(2, 5).warn && SG.lanesGlance(0, 0) === null
+      && SG.outlookGlance(null) === null && SG.outlookGlance({ configured: true, connected: true }).text === "Connected"
+      && SG.outlookGlance({ configured: true, connected: false }).text === "Not connected" && SG.outlookGlance({ configured: false, connected: false }).text === "Not set up");
+    const fd = code(read("components/FounderDigest.tsx")), dtg = code(read("components/DisplayToggle.tsx"));
+    ok("settings values: one home for the words — the dial's buttons and the digest's say lib/settingsGlance's; the size buttons lib/textSize's, so the rail on every page carries none of Settings' words",
+      /const LEADS = \[0, 2, 4, 8\]\.map\(\(h\) => \[h, leadLabel\(h\)\] as const\);/.test(dial) && !/"2h before"|"Live only"/.test(dial)
+      && /import \{ DIGEST_LABELS, type DigestCadence \} from "@\/lib\/settingsGlance";/.test(fd) && !/const LABELS|"Weekly"/.test(fd) && /\{DIGEST_LABELS\[c\]\}/.test(fd)
+      && /aria-label=\{`Text size: \$\{TEXT_SIZE_WORDS\[v\]\}`\}/.test(dtg) && !/Text size \$\{i \+ 1\}/.test(dtg)
+      && /import \{ TEXT_SIZE_WORDS \} from "@\/lib\/textSize";/.test(dtg) && !/settingsGlance/.test(dtg)
+      && /import \{ TEXT_SIZE_WORDS \} from "\.\/textSize";/.test(read("lib/settingsGlance.ts")));
+    const gl = code(read("components/SettingsGlance.tsx"));
+    ok("settings values: one read of live_status for its four rows, following its changes — and only for an owner or an admin, the ones drawn those rows",
+      (gl.match(/\.from\("live_status"\)/g) || []).length === 1 && /if \(!supabase \|\| !isAdmin\) return null;/.test(gl)
+      && /useRealtimeTable\("live_status", live\.reload, \{ enabled: isAdmin \}\);/.test(gl)
+      && /pay: biz\(read \? payGlance\(squareClientReady, row\?\.pay_at_pickup !== false\) : null\),/.test(gl)
+      && /const failed = live\.status === "error";/.test(gl) && /const biz = \(g: Glance\): Glance => \(failed \? UNREAD : g\);/.test(gl)
+      && ["digest", "pay", "dial", "office"].every((k) => new RegExp(`${k}: biz\\(`).test(gl)));
+    ok("settings values: notifications follow every save (a save that lands before the read wins; a failed read says so), and the lanes count only once the table answered",
+      /if \(gone \|\| saved\) return;[^\n]*\n\s*if \(error\) \{ setNotifFailed\(true\); return; \}/.test(gl) && /saved = true;/.test(gl) && /window\.addEventListener\(NOTIF_PREFS_EVENT, onSaved\);/.test(gl)
+      && /notify: notif \? notifyGlance\(notif\.muted, notif\.qs, notif\.qe\) : notifFailed \? UNREAD : null,/.test(gl)
+      && /const lanesRead = streams\.some\(\(s\) => !!s\.id\);/.test(gl) && /lanes: lanesRead \? lanesGlance\(/.test(gl)
+      && /export function OutlookGlance\(\) \{\s*const st = useOutlookStatus\(\);\s*return <GlanceText g=\{st\.status === "error" \? UNREAD : st\.status === "ready" \? outlookGlance\(st\.data\) : null\} \/>;/.test(gl));
+    const olc = code(read("components/OutlookConnect.tsx"));
+    ok("outlook: a disconnect tells every status on screen — the row's value and its panel both read again",
+      /window\.dispatchEvent\(new Event\(OUTLOOK_CHANGED_EVENT\)\);/.test(olc) && /window\.addEventListener\(OUTLOOK_CHANGED_EVENT, reload\);/.test(olc)
+      && !/state\.reload\(\);\s*\};/.test(olc));
+    const ofs = code(read("components/OfficeSettings.tsx"));
+    ok("office delivery: the price keeps its cents ($42.50 read \"43\" and saved back as $43), and a failed read offers nothing to save",
+      /setPrice\(moneyPlain\(d\?\.office_price_cents \?\? OFFICE\.pricePerGallonCents\)\);/.test(ofs) && !/toFixed\(0\)/.test(ofs)
+      && /if \(error\) \{ setFailed\(true\); return; \}/.test(ofs) && /if \(failed\) return <div className="dp-err" role="alert">/.test(ofs));
+    const ocx = code(read("components/OrgChart.tsx")), cssx = read("app/globals.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    ok("lane owners: one lane per row — its colour, its name, what it covers, the owner pick a column wide (two to a row it read \"Unassignec\")",
+      /<div className="ws-list">/.test(ocx) && /<div key=\{s\.key\} className="ws-row">/.test(ocx) && /Covers \{s\.categories\.join\(" · "\)\}/.test(ocx)
+      && /<span className="ws-dot" style=\{\{ background: s\.color \}\} aria-hidden="true" \/>/.test(ocx)
+      && /\.ws-row\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(0,46%\);/.test(cssx) && !/\.ws-grid|\.ws-card/.test(cssx) && !/ws-grid|ws-card/.test(ocx));
+  }
+
+  // ── the words: the Guide and the old homes say where things are ──
+  const inside = (/\n  settings: \[(.*)\],\n/.exec(pg) || [])[1] || "";
+  const entries = [...inside.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]);
+  ok("guide: Settings' list names each of its sections, in the page's order",
+    entries.length === LAY.SETTINGS_LAYOUT.length && LAY.SETTINGS_LAYOUT.every((s, i) => entries[i].startsWith(`${s.label} `)), entries.map((e) => e.slice(0, 24)));
+  ok("guide: pay at pickup is said to cover pickups only — delivery is always prepaid, as the switch itself says — and codes are where Settings is",
+    !/governs cup, reserve & delivery/.test(pg) && /pay at pickup \(pickup orders only: delivery is always prepaid on the card\)/.test(inside)
+    && /delivery is always prepaid/.test(read("components/PaymentSettings.tsx")) && /discount codes & perks/.test(inside)
+    && !/promos & codes|owner control room/.test((/\n  settings: "[^"]*",\n/.exec(pg) || [""])[0]));
+  ok("words: no screen sends anyone to an old home — Route's dial, Now ▸ Live truck, \"connect from Plan › Calendar\", Team → Train the AI, the roster \"below\"",
+    !/Locations &amp; ordering dial/.test(lc) && !/Now ▸ Live truck|the global window|global setting applies/.test(code(read("components/crew/OwnerDetails.tsx")))
+    && !/connect from Plan › Calendar/.test(code(read("components/IntegrationsPanel.tsx"))) && !/Team → Train the AI/.test(code(read("components/AiTraining.tsx")))
+    && !/roster below/.test(code(read("components/InviteTeammate.tsx"))) && !/Business → Studio/.test(pg));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
