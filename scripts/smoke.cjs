@@ -8573,6 +8573,51 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("iphone: the TestFlight upload refuses the smoke build, and an app built without its backend", /gt3-smoke-build\.json/.test(wf) && /NEXT_PUBLIC_SUPABASE_URL/.test(wf));
 }
 
+// ── DELETE MY ACCOUNT (2026-10-06, the iPhone round, part 2) ──────────────────────────────────────
+// App Store Review Guideline 5.1.1(v): an app that lets people make an account must let them delete it,
+// in the app, without an email or a phone call. Before this no account could be deleted at all — 0141's
+// guard on profiles fired in the cascade from auth.users, so even the Supabase dashboard's "Delete user"
+// failed. 0353 makes deleting the account the erasure (scripts/db.erasure.test.mjs proves the data side
+// against every migration); these hold the door, the screen and the route's order.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const root = path.join(__dirname, "..");
+  const read = (f) => fs.readFileSync(path.join(root, f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const acs = code(read("components/AccountSheet.tsx"));
+  const del = code(read("components/DeleteAccount.tsx"));
+  const rt = code(read("app/api/account/erase/route.ts"));
+  const mig = read("supabase/migrations/0353_account_erasure.sql");
+  const pkg = JSON.parse(read("package.json"));
+
+  const acctGroup = acs.slice(acs.indexOf('<div className="acs-group">Account</div>'), acs.indexOf('className="acs-signout"'));
+  ok("delete: \"Delete account\" is a row in the account menu's Account group — one tap from the avatar, on the web and in the app",
+    /<b>Delete account<\/b>/.test(acctGroup) && /onClick=\{\(\) => setDeleting\(true\)\}/.test(acctGroup)
+    && /if \(deleting\) \{[\s\S]*?<DeleteAccount staff=\{staff\} onKeep=\{\(\) => setDeleting\(false\)\}/.test(acs)
+    // the screen loads when the row is tapped, not with every page that carries the menu (design.ratchet WEIGHT)
+    && /const DeleteAccount = dynamic\(\(\) => import\("@\/components\/DeleteAccount"\), \{ ssr: false \}\);/.test(acs) && !/import DeleteAccount/.test(acs));
+  ok("delete: after it, this device is signed out and lands home, told so",
+    /onDeleted=\{\(\) => \{ onClose\(\); signOut\(\); toast\("Your account is deleted\."\); router\.push\("\/"\); \}\}/.test(acs)
+    && /supabase\?\.auth\.signOut\(\{ scope: "local" \}\)/.test(del));
+  ok("delete: the screen asks the server first, says what goes and what stays, and only then offers the red button",
+    /authedFetch\("\/api\/account\/erase"\)\s*\.then/.test(del) && />Deleted<\/div>/.test(del) && />Kept, without your name<\/div>/.test(del)
+    && /className="note-save" onClick=\{\(\) => erase\(phase\.membership\)\}/.test(del) && /body: JSON\.stringify\(\{ confirm: true \}\)/.test(del)
+    && /phase\.at === "blocked"/.test(del) && !/window\.location\.reload/.test(del));
+  const at = (re) => { const m = re.exec(rt); return m ? m.index : -1; };
+  const order = [at(/body\.confirm !== true/), at(/const first = await blockersFor\(user\.id\)/), at(/\/v2\/subscriptions\/\$\{encodeURIComponent\(id\)\}\/cancel/),
+    at(/supabaseAdmin\.storage\.from\(bucket\)/), at(/supabaseAdmin\.auth\.admin\.deleteUser\(user\.id\)/), at(/\/v2\/customers\/\$\{encodeURIComponent\(squareCustomer\)\}/)];
+  ok("delete: the route's order — confirmed, asked, the membership cancelled at Square, the photos removed, the account deleted, the saved card last",
+    order.every((i, k) => i > 0 && (k === 0 || i > order[k - 1])), order);
+  ok("delete: a membership Square cannot confirm cancelled stops it, with nothing deleted",
+    /if \(!ended\) return NextResponse\.json\(\{ error: "We couldn't cancel your membership with our payment processor, so nothing was deleted\./.test(rt));
+  ok("delete: 0353 — deleting the account runs the erasure, in its transaction, and nothing else may call it",
+    /create trigger on_auth_user_deleted before delete on auth\.users/.test(mig)
+    && /revoke all on function public\.erase_account_data\(uuid\) from public, anon, authenticated, service_role;/.test(mig)
+    && /grant execute on function public\.account_erasure_blockers\(uuid\) to service_role;/.test(mig));
+  ok("delete: the erasure's proof runs with the database suites", /node scripts\/db\.erasure\.test\.mjs/.test(pkg.scripts["db:test"]));
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.

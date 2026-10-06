@@ -445,15 +445,23 @@ export const PROD_ROUTE = {
 // the web's own fixes: the menu's category chips stick again, the skip link lost its smudge, the
 // booking masthead, offline banner and service mode keep below a status bar, a chip's jump lands below
 // the chips. Five routes crossed their rounding line by 1 KB.
+// 2026-10-06 (the iPhone round, part 2 — delete your account): /3mpire 283 → 284, /menu 268 → 269,
+// /book 268 → 269. Built 59d9900 and this commit and gzipped what each route's HTML references, route by
+// route: the fourteen routes that carry the account menu +179 to +224 bytes (/3mpire 290 300 → 290 524,
+// /menu 274 787 → 275 004, /book 274 865 → 275 046); the eight that do not, 0. What rides there is the
+// menu's "Delete account" row and the switch that shows its screen — App Store Review Guideline
+// 5.1.1(v) puts it one tap from the account — while the screen itself (components/DeleteAccount: what
+// goes, what stays, the one red button) loads only when the row is tapped. Three routes sat within
+// 0.22 KB of a rounding line.
 export const WEIGHT = {
   "/truck":                    { js: 284, css: 105, chunks: 15 },
   "/events":                   { js: 284, css: 105, chunks: 15 },
-  "/menu":                     { js: 268, css: 102, chunks: 15 },
+  "/menu":                     { js: 269, css: 102, chunks: 15 },
   "/reserve":                  { js: 292, css: 102, chunks: 16 },
   "/delivery":                 { js: 291, css: 102, chunks: 16 },
-  "/3mpire":                   { js: 283, css: 102, chunks: 15 },
+  "/3mpire":                   { js: 284, css: 102, chunks: 15 },
   "/craft":                    { js: 268, css: 102, chunks: 15 },
-  "/book":                     { js: 268, css: 102, chunks: 15 },
+  "/book":                     { js: 269, css: 102, chunks: 15 },
   "/academy":                  { js: 317, css: 102, chunks: 15 },
   "/office":                   { js: 277, css: 102, chunks: 15 },
   "/scan":                     { js: 259, css: 102, chunks: 14 },
