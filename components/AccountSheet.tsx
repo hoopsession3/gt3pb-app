@@ -7,6 +7,7 @@ import { useApp } from "./AppProvider";
 import Sheet from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import Gt3Mark from "@/components/Gt3Mark";
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
@@ -26,6 +27,10 @@ import type { Order } from "@/lib/db";
 // For staff, Crew Mode is the FIRST row and the reason they opened this. lib/mode.ts remembers
 // the side they are on, so most days the owner never needs it: the app opens where he left it.
 const GOAL = 10;
+
+// Loaded when someone taps "Delete account", not with every page: the account sheet rides in every
+// route's bundle, and the design ratchet weighs each one (scripts/design.ratchet.mjs).
+const DeleteAccount = dynamic(() => import("@/components/DeleteAccount"), { ssr: false });
 
 function Coconut() {
   return (
@@ -69,6 +74,9 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
 
   const go = (href: string) => { onClose(); router.push(href); };
 
+  // "Delete account" swaps the menu for its own body under this same header (components/DeleteAccount).
+  const [deleting, setDeleting] = useState(false);
+
   const head = (title: string) => (
     <div className="acs-head">
       <span className="acs-head-t"><Gt3Mark tone="cream" /> {title}</span>
@@ -90,6 +98,15 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
 
   const usualNames = last ? last.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ") : "";
   const stamps = inCard === 0 && pts > 0 ? "a free pour is ready" : `${toGo} to your free pour`;
+
+  if (deleting) {
+    return (
+      <Sheet open onClose={onClose} header={head("Delete your account")} className="acs-sheet">
+        <DeleteAccount staff={staff} onKeep={() => setDeleting(false)}
+          onDeleted={() => { onClose(); signOut(); toast("Your account is deleted."); router.push("/"); }} />
+      </Sheet>
+    );
+  }
 
   return (
     <Sheet open onClose={onClose} header={head("Your account")} className="acs-sheet">
@@ -156,6 +173,12 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
             <span className="acs-row-c" aria-hidden>›</span>
           </button>
         )}
+        {/* App Store Review Guideline 5.1.1(v): deleting the account is in the account, one tap from
+            the menu, on the web and in the app alike. */}
+        <button type="button" className="acs-row" onClick={() => setDeleting(true)}>
+          <span className="acs-row-x"><b>Delete account</b><span>Your profile and details, for good</span></span>
+          <span className="acs-row-c" aria-hidden>›</span>
+        </button>
       </div>
 
       <button type="button" className="acs-signout" onClick={() => { onClose(); signOut(); toast("Signed out"); }}>Sign out</button>

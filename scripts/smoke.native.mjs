@@ -830,6 +830,46 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await ctx.close();
   }
 
+  // ── 6 · deleting your account, in the app (App Store Review Guideline 5.1.1(v)) ──
+  // Signed in, from the avatar's menu: the row, its screen (loaded when tapped — so it must be in the
+  // export), what it asks the web's API, and after the red button a phone that is signed out and home.
+  // The stand-in API answers {} — nothing stands in the way — so this walks the whole way through.
+  {
+    const ctx = await phoneContext(MAIN, { owner: true });
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    const from = apiCalls.length;
+    const asked = (method) => apiCalls.slice(from).some((c) => c.method === method && new URL(c.url).pathname === "/api/account/erase");
+    await page.goto(`${BASE}/book`, { waitUntil: "load" });
+    await page.waitForTimeout(400); await page.evaluate(SETTLE);
+    const pill = page.locator('button.acct-av[aria-label="Your account"]').first();
+    const hasPill = (await pill.count()) > 0;
+    if (hasPill) await pill.click();
+    const row = page.getByRole("button", { name: /^Delete account/ }).first();
+    const hasRow = await row.waitFor({ timeout: 5000 }).then(() => true, () => false);
+    if (hasRow) await row.click();
+    const said = await page.waitForSelector("text=This deletes your GT3 account for good", { timeout: 8000 }).then(() => true, () => false);
+    await page.waitForTimeout(300);
+    const under = await page.evaluate(underTheBars, { top: MAIN.top, bottom: MAIN.bottom });
+    if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "account--delete") });
+    ok("delete account: the avatar's menu has the row, in the app", hasPill && hasRow, `pill ${hasPill}, row ${hasRow}`);
+    ok("delete account: its screen opens from the export and says what goes and what stays", said);
+    ok("delete account: it asks the web's API first", asked("GET"));
+    ok("delete account: nothing on its screen is under the system's bars", under.length === 0, findings(under));
+    const red = page.getByRole("button", { name: "Delete my account" });
+    if (said) await red.click();
+    await page.waitForURL((u) => ["/", "/truck"].includes(new URL(u).pathname), { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(500);
+    const after = await page.evaluate((key) => ({ path: location.pathname, session: localStorage.getItem(key), told: document.body.innerText.includes("Your account is deleted.") }),
+      `sb-${BACKEND_HOST.split(".")[0]}-auth-token`);
+    // home sends a guest on to Find Us (app/page.tsx, the front door), so either is home
+    ok("delete account: the red button asks the web's API, then this phone is signed out and home, and told",
+      asked("POST") && ["/", "/truck"].includes(after.path) && after.session === null && after.told, JSON.stringify({ posted: asked("POST"), ...after, session: after.session ? "still here" : null }));
+    ok("delete account: no errors", errors.length === 0, errors.join(" | "));
+    await ctx.close();
+  }
+
   await browser.close();
   srv.server.close();
 
