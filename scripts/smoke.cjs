@@ -4010,6 +4010,18 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && periodOf("5,20,50 * * * *") === 30 && periodOf("10 6 * * *") === null);
   ok("uptime pair: */30 is a top-of-the-hour schedule, 7,37 is not",
     startsAtTopOfHour("*/30 * * * *") && startsAtTopOfHour("0,30 * * * *") && !startsAtTopOfHour("7,37 * * * *"));
+  // 2026-10-06: the painted pass went red on every push for days, on a different route each time —
+  // axe had read the sign-in form while it was still fading in (.auth-form waits 1.45s, then rises
+  // for .7s), where cream on charcoal is nearly invisible. Reproduced by running axe just as the
+  // fade starts: #auth-name, #auth-email and the member button fail; after SETTLE, none do. Held
+  // here: the page is measured after every animation that ends has ended, and the wait is capped.
+  {
+    const vp = read("scripts/verify.prod.mjs");
+    ok("production gate: a page is measured once it has stopped moving — every animation that ends is let finish (3s at most), loops keep running",
+      /const SETTLE = async \(\) => \{\s*const ending = document\.getAnimations\(\)\.filter\(\(a\) => Number\.isFinite\(a\.effect\?\.getComputedTiming\?\.\(\)\.endTime\)\);\s*await Promise\.race\(\[Promise\.all\(ending\.map\(\(a\) => a\.finished\.catch\(\(\) => \{\}\)\)\), new Promise\(\(r\) => setTimeout\(r, 3000\)\)\]\);/.test(vp)
+      && /await page\.waitForTimeout\(900\);\s*await page\.evaluate\(SETTLE\);\s*m = await page\.evaluate\(MEASURE\);/.test(vp)
+      && vp.indexOf("await page.evaluate(SETTLE);") < vp.indexOf("window.axe.run(document"));
+  }
 
   // ── 2 · A PRODUCER RE-EMITTED MUST RESTATE WHAT IT ALREADY WROTE ──────────────────────────────
   // 0333's header says this gate exists: "a migration that re-emits an alert producer must either
