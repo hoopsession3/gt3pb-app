@@ -146,6 +146,15 @@ const { existsSync } = require("node:fs");
 const exe = CHROME.find((p) => existsSync(p));
 const browser = await chromium.launch(exe ? { executablePath: exe } : {});
 const AXE = require("node:fs").readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
+// A PAGE IS MEASURED ONCE IT HAS STOPPED MOVING (2026-10-06). The sign-in form fades in, and axe
+// read it part-way: cream on charcoal at a fraction of its opacity is a contrast failure nobody
+// ever sees, and it moved from route to route with the runner's speed — /office and /academy in
+// one run, /3mpire and /driver in the next. Every animation that ends is let finish first (3s at
+// most); the ones that loop (a live dot, a spinner) keep running, as a person would see them.
+const SETTLE = async () => {
+  const ending = document.getAnimations().filter((a) => Number.isFinite(a.effect?.getComputedTiming?.().endTime));
+  await Promise.race([Promise.all(ending.map((a) => a.finished.catch(() => {}))), new Promise((r) => setTimeout(r, 3000))]);
+};
 try {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
   // The splash is a finding of its own, not the page (scripts/design.ratchet.mjs says the same).
@@ -161,6 +170,7 @@ try {
         const res = await page.goto(APP + path, { waitUntil: "networkidle", timeout: 45000 });
         if (!res || res.status() >= 500) throw new Error(`HTTP ${res ? res.status() : "none"}`);
         await page.waitForTimeout(900);
+        await page.evaluate(SETTLE);
         m = await page.evaluate(MEASURE);
         await page.addScriptTag({ content: AXE });
         const ax = await page.evaluate(() => window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] }, resultTypes: ["violations"] }));
