@@ -101,23 +101,25 @@ export default function InviteTeammate() {
         <select className="note-in" value={role} onChange={(e) => setRole(e.target.value)} aria-label="Role">
           {INVITABLE.map((r) => <option key={r.v} value={r.v}>{roleLabel(r.v)} — {r.hint}</option>)}
         </select>
-        {/* The one true .btn-pri on the Team screen: inviting is the actual commit action (the write
-            that lets a future sign-up auto-claim its role) — WorkloadBoard/OrgChart/Members/AiTraining
-            below have no primary action of their own. Was .note-save (the legacy crew-console primary
-            look, copy-pasted from .adm-btn.primary — see globals.css ~653) — now the documented kit
-            tier. .tinv-form is already flex-wrap, so the full-width button drops to its own line under
-            the email/role inputs, same as Studio's .studio-pub-row full-width-primary pattern. */}
+        {/* The .btn-pri of its panel: inviting is the actual commit action (the write that lets a
+            future sign-up auto-claim its role). It lived on Team, where nothing else had a primary
+            action; since 2026-10-06 (the settings round) it is Settings › Team & access › Invite a
+            teammate, and the roster — where a role is changed — stayed on Team. Was .note-save (the
+            legacy crew-console primary look, copy-pasted from .adm-btn.primary — see globals.css
+            ~653) — now the documented kit tier. .tinv-form is already flex-wrap, so the full-width
+            button drops to its own line under the email/role inputs, same as Studio's
+            .studio-pub-row full-width-primary pattern. */}
         <button type="button" className="btn-pri" onClick={invite} disabled={busy}>{busy ? "…" : "Invite"}</button>
       </div>
       {hasAccount && (
         <p className="tinv-hint" role="status">
           {hasAccount.crewRole
-            ? <>{hasAccount.email} is already on the crew as {roleLabel(hasAccount.crewRole)} — change their role from the roster below.</>
+            ? <>{hasAccount.email} is already on the crew as {roleLabel(hasAccount.crewRole)} — change their role on Team&rsquo;s roster.</>
             : <>{hasAccount.email} already has an account, and an invite only reaches someone when they sign up — so it would never arrive.{" "}
                 <a href={`/crew?s=team&promote=${hasAccount.id}`}>Bring them onto the crew now ›</a></>}
         </p>
       )}
-      <p className="tinv-hint">They sign up at app.gt3pb.com with this email — any sign-in method — and land in their role instantly. If they already have an account, promote them in the roster below instead.</p>
+      <p className="tinv-hint">They sign up at app.gt3pb.com with this email — any sign-in method — and land in their role instantly. If they already have an account, bring them on from Team&rsquo;s roster instead.</p>
       {/* Each invite is a kit InfoRow: email → name, role (already a small pill — unchanged
           .tinv-role) → nameExtra, waiting/joined status (already plain text — unchanged .tinv-wait/
           .tinv-ok) → meta, revoke → trailing. .tinv-list keeps its own flex/gap + dim classes

@@ -43,7 +43,9 @@ export default function IntegrationsPanel() {
           <Row name="Square payments" ok={squareClientReady} sub={squareClientReady ? `${SQUARE_ENV} · app ${SQUARE_APP_ID.slice(0, 10)}…` : "app ID / location not set"} note="one environment, app + token from the same Square application" />
           <Row name="App & database" ok={p.health} sub={p.health === false ? "health check failing — see alerts" : "health check live · outage watchdog on"} />
           <Row name="Web push" ok={PUSH_READY} sub={PUSH_READY ? "keys set — go-live pings & alerts deliver" : "VAPID keys not set"} />
-          <Row name="Outlook calendar" ok={p.outlook ? (p.outlook.connected ? true : p.outlook.configured ? null : false) : null} sub={p.outlook?.connected ? "connected — two-way sync" : p.outlook?.configured ? "configured — connect from Plan › Calendar" : "needs the one-time Microsoft app setup (developer)"} />
+          {/* Connecting is the Outlook panel's job, just below in Settings › Integrations (2026-10-06,
+              the settings round) — it was a button under the calendar. */}
+          <Row name="Outlook calendar" ok={p.outlook ? (p.outlook.connected ? true : p.outlook.configured ? null : false) : null} sub={p.outlook?.connected ? "connected — two-way sync" : p.outlook?.configured ? "configured — the owner connects it in the Outlook panel below" : "needs the one-time Microsoft app setup (developer)"} />
           {/* These two were a permanent grey dot and a sentence saying they work "when the key is
               set in Vercel". On 2026-09-29 the first cap order sent no receipt and no screen in the
               app could say whether email was off or broken — this panel included, which is the one

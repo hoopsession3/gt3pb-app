@@ -28,10 +28,13 @@ import FieldOpSheet from "./FieldOpSheet";
 import Sheet, { CloseButton, LeaveButton, useSheetDoor } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { SectionHeader } from "@/components/kit";
+import { useOutlookStatus, outlookLine } from "./OutlookConnect";
+import GoLine from "./GoLine";
 
 // COMPANY CALENDAR — one pane for everything dated: truck events, admin/ops work, scheduled content
 // (from Studio), and free-standing to-dos. Category-colored, filterable, click-through to source.
-// Views: List · Week · Month · Quarter · Year. Owner can connect Outlook for two-way sync.
+// Views: List · Week · Month · Quarter · Year. Owner can sync with Outlook here once it is connected
+// (connecting is in Settings › Integrations since 2026-10-06, the settings round).
 // Fetch state via useAsyncData — a failed load is a real error now, not a silently stale calendar.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -1021,70 +1024,50 @@ function MiniMonth({ mDate, byDay, todayKey, onOpen }: { mDate: Date; byDay: Rec
   );
 }
 
-// Owner-only Outlook connect / sync control.
+// Owner-only Outlook sync control.
+// SYNC STAYS, CONNECTING MOVED (2026-10-06, the settings round). Connect and Disconnect change how
+// the calendar works, so they live in Settings › Integrations › Outlook (components/OutlookConnect),
+// which reads the same status. What stays here is what you do to this calendar — Sync now — and one
+// line to where Outlook is connected. Microsoft's consent screen sends the browser back to that panel.
 function OutlookBar({ onSynced }: { onSynced: () => void }) {
-  const confirm = useConfirm();
-  const [st, setSt] = useState<{ configured: boolean; connected: boolean; account: string | null; last_sync: string | null; last_note: string | null } | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  const status = useOutlookStatus();
+  const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    if (!supabase) return;
-    const r = await authedFetch("/api/outlook/status");
-    const j = await r.json(); if (j.ok) setSt(j);
-  }, []);
-  useEffect(() => { refresh(); }, [refresh]);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const p = new URLSearchParams(window.location.search).get("outlook");
-    if (p === "connected") { setMsg("Outlook connected."); refresh(); }
-    else if (p === "error") setMsg("Couldn't connect Outlook — try again.");
-    if (p) window.history.replaceState({}, "", window.location.pathname);
-  }, [refresh]);
-
-  const connect = async () => {
-    setBusy("connect"); setMsg(null);
-    const r = await authedFetch("/api/outlook/connect");
-    const j = await r.json();
-    if (j.ok && j.url) window.location.href = j.url; else { setMsg(j.error || "Couldn't start Outlook connect."); setBusy(null); }
-  };
   const sync = async () => {
-    setBusy("sync"); setMsg(null);
-    const r = await authedFetch("/api/outlook/sync", { method: "POST" });
-    const j = await r.json();
-    setMsg(j.ok ? `Synced — ${j.note}.` : (j.error || "Sync failed."));
-    setBusy(null); if (j.ok) { onSynced(); refresh(); }
-  };
-  const disconnect = async () => {
-    if (!(await confirm({ title: "Disconnect Outlook?", body: "Two-way sync stops. Nothing already on the calendar is removed.", confirmLabel: "Disconnect" }))) return;
-    setBusy("dc");
-    await authedFetch("/api/outlook/disconnect", { method: "POST" });
-    setBusy(null); setMsg("Outlook disconnected."); refresh();
+    setBusy(true); setMsg(null);
+    try {
+      const r = await authedFetch("/api/outlook/sync", { method: "POST" });
+      const j = await r.json();
+      setMsg(j.ok ? `Synced — ${j.note}.` : (j.error || "Sync failed."));
+      if (j.ok) { onSynced(); status.reload(); }
+    } catch { setMsg("Couldn't reach the server — try again."); }
+    setBusy(false);
   };
 
   // NOT CONFIGURED SHOWS NOTHING HERE (2026-10-05). It was a card, then (2026-10-01) a quiet line
   // with a NOT CONFIGURED badge, under every calendar the owner opened — and Ryan's screenshot of
   // the agenda still ended on it: a status he cannot change, about a developer's task, between the
-  // calendar and the rest of the screen. Settings › Advanced › Integrations is that status's one home
-  // and still says it ("needs the one-time Microsoft app setup"). The bar comes back the moment it has a
-  // button: Connect, once the server is set up; Sync now, once connected.
+  // calendar and the rest of the screen. Settings › Integrations is that status's one home and still
+  // says it ("needs the one-time Microsoft app setup"). The bar comes back the moment it has
+  // something to press: the line to Connect, once the server is set up; Sync now, once connected.
+  const st = status.data;
   if (!st || !st.configured) return null;
   return (
     <div className="ol-bar">
       <div className="ol-top"><span className="ol-i"><Icon name="calendar" /></span><b>Outlook sync</b>
         {st.connected ? <span className="ol-state on">Connected</span> : <span className="ol-state">Not connected</span>}
       </div>
-      {!st.connected &&<button type="button" className="ol-btn primary" onClick={connect} disabled={busy === "connect"}>{busy === "connect" ? "Opening Microsoft…" : "Connect Outlook"}</button>}
       {st.connected && (
         <>
-          <div className="ol-note">{st.account || "Connected"}{st.last_sync ? ` · last sync ${new Date(st.last_sync).toLocaleString()}` : ""}{st.last_note ? ` · ${st.last_note}` : ""}</div>
+          <div className="ol-note">{outlookLine(st)}</div>
           <div className="ol-acts">
-            <button type="button" className="ol-btn primary" onClick={sync} disabled={busy === "sync"}>{busy === "sync" ? "Syncing…" : "Sync now"}</button>
-            <button type="button" className="ol-btn" onClick={disconnect} disabled={busy === "dc"}>Disconnect</button>
+            <button type="button" className="ol-btn primary" onClick={sync} disabled={busy}>{busy ? "Syncing…" : "Sync now"}</button>
           </div>
         </>
       )}
       {msg && <div className="ol-msg">{msg}</div>}
+      <GoLine to="settings" anchor="set-outlook">Outlook</GoLine>
     </div>
   );
 }

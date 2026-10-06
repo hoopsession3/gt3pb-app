@@ -7,6 +7,7 @@ import { useRecord } from "./RecordSheet";
 import { useWorkStreams } from "@/lib/streams";
 import { SectionHeader } from "@/components/kit";
 import { useAuth, roleOf } from "./AuthProvider";
+import { useApp } from "./AppProvider";
 import { ALL_ROLES, roleLabel, type Role } from "@/lib/roles";
 import { crewLabel } from "./useCrew";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -33,13 +34,20 @@ const TIERS: { roles: string[]; label: string }[] = [
 // everywhere except here, where the query has already excluded members.
 const orgTitle = (p: P) => p.title || (ALL_ROLES.includes(p.role as Role) ? roleLabel(p.role) : "Crew");
 
-export default function OrgChart() {
+// TWO PARTS, TWO HOMES (2026-10-06, the settings round). This drew two things on Team: the org chart
+// (who reports where — a picture of the people) and the lane owners (who owns each work stream, and
+// so whose pings, whose calendar rail, whose call). Choosing a lane's owner changes how the app routes
+// work, so it is a setting: Settings › Team & access draws part="lanes", and Team keeps the picture.
+// A pick the database refuses is said, as an error; the pick goes back to the owner it still has.
+export default function OrgChart({ part = "people" }: { part?: "people" | "lanes" } = {}) {
   const streams = useWorkStreams();
   const { profile } = useAuth();
+  const { toast } = useApp();
   const canAssign = ["admin", "owner"].includes(roleOf(profile)); // mirrors the table's write policy
   const assign = async (id: string | undefined, uid: string) => {
     if (!supabase || !id) return;
-    await supabase.from("work_streams").update({ owner_user_id: uid || null }).eq("id", id);
+    const { data, error } = await supabase.from("work_streams").update({ owner_user_id: uid || null }).eq("id", id).select("id");
+    if (error || !data?.length) toast(error ? `Couldn't change the lane's owner — ${error.message}` : "Couldn't change the lane's owner — the database refused it.", "error");
   };
   const loader = useCallback(async (): Promise<P[]> => {
     if (!supabase) return [];
@@ -67,13 +75,11 @@ export default function OrgChart() {
 
   return (
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the team" emptyTitle="Nothing here yet">
-      {() => (
+      {() => part === "people" ? (
         <div className="adm-sec">
-          {/* Org chart leads, Work streams follows: this component renders directly under the
-              page's "Roster" crew-group divider (app/crew/page.tsx), and the tiered reporting
-              view below is what that label actually describes. Work-stream ownership is a
-              related but distinct concern — ownership assignment, not headcount/reporting — so
-              it's ordered second rather than leading with an unrelated module. */}
+          {/* The tiered reporting view — what Team's "Team structure" divider describes. Work-stream
+              ownership (part="lanes") is ownership assignment, not headcount or reporting, and is
+              drawn in Settings › Team & access. */}
           <SectionHeader label="Org chart" annotation="who reports where" />
           <div className="org">
             {TIERS.map((t) => {
@@ -88,14 +94,23 @@ export default function OrgChart() {
             })}
             {people.length === 0 && <EmptyState title="No crew yet" sub="Team members appear here once they have a role and a profile." />}
           </div>
+        </div>
+      ) : (
+        <div className="adm-sec">
           <SectionHeader label="Work streams" annotation="one owner per lane" />
-          <div className="ws-grid">
+          {/* A LANE IS A ROW (2026-10-06, the settings round). The lanes were cards two to a row, and at
+              390px each card's owner pick was 133px wide — "Unassigned" read "Unassignec", and a name
+              read less. One lane per row: its colour, its name, what it covers, and the pick the
+              width of the right-hand column. */}
+          <div className="ws-list">
             {streams.map((s) => {
               const owner = people.find((p) => p.id === s.owner_user_id) ?? null;
               return (
-                <div key={s.key} className="ws-card" style={{ borderTopColor: s.color }}>
-                  <div className="ws-name">{s.label}</div>
-                  <div className="ws-cats">{s.categories.join(" · ")}</div>
+                <div key={s.key} className="ws-row">
+                  <div className="ws-l">
+                    <div className="ws-name"><span className="ws-dot" style={{ background: s.color }} aria-hidden="true" />{s.label}</div>
+                    {s.categories.length > 0 && <div className="ws-cats">Covers {s.categories.join(" · ")}</div>}
+                  </div>
                   {canAssign ? (
                     <select className="ws-owner" value={s.owner_user_id ?? ""} onChange={(e) => assign(s.id, e.target.value)} aria-label={`Owner of ${s.label}`}>
                       <option value="">Unassigned</option>

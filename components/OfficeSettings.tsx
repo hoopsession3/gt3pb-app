@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { OFFICE } from "@/lib/office";
+import { moneyPlain } from "@/lib/money";
 
 // Owner editor for office delivery pricing (0189) — the two knobs that used to be hardcoded. Writes
 // the live_status singleton (id=1); the office order flow reads them live via useOfficeSettings.
@@ -12,13 +13,19 @@ export default function OfficeSettings() {
   const [price, setPrice] = useState("");   // dollars/gal
   const [min, setMin] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // THE PRICE KEEPS ITS CENTS, AND A FAILED READ SAVES NOTHING (2026-10-06, the settings round). The box
+  // was filled with toFixed(0): a price of $42.50 read "43", and Save wrote $43.00 back. moneyPlain is
+  // the amount as an input holds it (lib/money). And a refused read filled the boxes with the defaults,
+  // so one Save put them over the real prices: now it says so and offers nothing to save.
   useEffect(() => {
     if (!supabase) return;
-    supabase.from("live_status").select("office_price_cents, office_min_gallons").eq("id", 1).maybeSingle().then(({ data }) => {
+    supabase.from("live_status").select("office_price_cents, office_min_gallons").eq("id", 1).maybeSingle().then(({ data, error }) => {
+      if (error) { setFailed(true); return; }
       const d = data as { office_price_cents?: number; office_min_gallons?: number } | null;
-      setPrice((((d?.office_price_cents ?? OFFICE.pricePerGallonCents) / 100)).toFixed(0));
+      setPrice(moneyPlain(d?.office_price_cents ?? OFFICE.pricePerGallonCents));
       setMin(String(d?.office_min_gallons ?? OFFICE.minGallons));
       setLoaded(true);
     });
@@ -35,6 +42,7 @@ export default function OfficeSettings() {
     toast(error ? "Couldn't save — try again" : "Office pricing updated", error ? "error" : undefined);
   };
 
+  if (failed) return <div className="dp-err" role="alert">Couldn&rsquo;t read the office prices, so they can&rsquo;t be changed right now. Close this and open it again to retry.</div>;
   if (!loaded) return null;
   return (
     <div className="ofset">

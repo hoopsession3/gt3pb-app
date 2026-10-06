@@ -101,7 +101,12 @@ export default function BroadcastEditor() {
         <label className="prod-f"><span>Hide after (optional)</span><input type="datetime-local" value={d.ends_at ? d.ends_at.slice(0, 16) : ""} onChange={(e) => set("ends_at", e.target.value ? new Date(e.target.value).toISOString() : null)} /></label>
       </div>
 
-      {/* The one true .btn-pri on the Settings screen (app/crew/page.tsx, sec==="settings"): going
+      {/* ONE PRIMARY PER SECTION NOW (2026-10-06, the settings round). Settings holds every switch
+          since then, and with them the primaries of the panels that moved in — CodesPanel's mint,
+          InviteTeammate's invite, the menu's — each in its own section, as MarketsPanel's already
+          was. This is the one in Copy & brand. What follows is the reasoning as first written,
+          when this was the only one on the screen.
+          The one true .btn-pri on the Settings screen (app/crew/page.tsx, sec==="settings"): going
           live ships the broadcast app-wide — the most externally-consequential write of any
           Panel on this screen, same "outward-facing commit" reasoning as Studio's Publish to
           site / CodesPanel's mint / InviteTeammate's invite. Checked every sibling Panel:

@@ -39,11 +39,14 @@ import { VALID, useOperatorSection, type OpSection } from "./OperatorSection";
 // Every role gets "plan" (2026-08-01, the one-calendar round): the company calendar is the shared
 // schedule the whole team anchors on — crew open it READ-ONLY (the page gates the manage tabs and
 // all editing), so a server can always answer "what's coming this week?" without asking a manager.
+// Every role gets "settings" too (2026-10-06, the settings round): its first section, You — your
+// notifications, this phone's alerts, the pass's sound, day or dark, text size — is everyone's. The
+// page gates each panel below that the way it was gated where it came from, so crew see only You.
 const ROLE_SECTIONS: Record<string, OpSection[]> = {
-  server: ["day", "now", "plan", "notes", "driver"],
-  contractor: ["day", "now", "prep", "plan", "garage", "notes", "driver"],
-  operator: ["day", "now", "prep", "plan", "brew", "garage", "notes", "driver"],
-  event_manager: ["day", "now", "command", "prep", "plan", "studio", "brew", "notes", "driver"],
+  server: ["day", "now", "plan", "notes", "driver", "settings"],
+  contractor: ["day", "now", "prep", "plan", "garage", "notes", "driver", "settings"],
+  operator: ["day", "now", "prep", "plan", "brew", "garage", "notes", "driver", "settings"],
+  event_manager: ["day", "now", "command", "prep", "plan", "studio", "brew", "notes", "driver", "settings"],
   admin: ["day", "now", "command", "prep", "plan", "studio", "brew", "garage", "notes", "driver", "money", "customers", "team", "settings"],
   owner: ["day", "now", "command", "prep", "plan", "studio", "brew", "garage", "notes", "driver", "money", "customers", "team", "settings"],
 };
@@ -145,16 +148,29 @@ export default function OperatorNav() {
   const todayGroup: NavGroup = { ...TODAY_GROUP, members: TODAY_GROUP.members.filter((m) => allowed.includes(m)) };
   const allGroups = [todayGroup, ...streamGroups(streams, role)].filter((g) => g.members.length > 0);
   const { pinned: groups, overflow } = orderByPins(allGroups, profile?.nav_pins, role);
+  // SETTINGS IS REACHED THROUGH MORE, SO MORE IS LIT (2026-10-06, the settings round). No lane holds
+  // Settings, and the lookup below fell through to the first lane — the bar lit Today while you were
+  // in Settings, a tab that was not where you were. While the section is Settings, no lane is
+  // current and More is: the door it was opened from.
+  const inSettings = section === "settings";
   const activeGroup = (groupId && allGroups.find((g) => g.id === groupId && g.members.includes(section)))
     || allGroups.find((g) => g.members.includes(section))
     || allGroups[0];
+  const currentId = inSettings ? "settings" : activeGroup.id;
+  const moreOn = inSettings || overflow.some((g) => g.id === activeGroup.id);
   // Another lane — from the bar or from Your lanes — is a choice changed: the selection tick, as the
   // customer tab bar gives (2026-10-05, the haptics round). The lane's own row of sections is new
   // there, so its pager (components/SwipePager) leaves this tap to the bar.
   const openGroup = (g: NavGroup) => {
-    if (g.id !== activeGroup.id) haptic("selection");
+    if (g.id !== currentId) haptic("selection");
     setGroupId(g.id);
     setSection(g.members[0]);
+    setMoreOpen(false);
+  };
+  // The Settings row at the top of More: the same tick when it is a change, and the sheet closes.
+  const openSettings = () => {
+    if (!inSettings) haptic("selection");
+    setSection("settings");
     setMoreOpen(false);
   };
   // Lane badges — the same unacked flags My Day shows, rolled up category → lane.
@@ -188,7 +204,7 @@ export default function OperatorNav() {
     <nav className="nav opnav" aria-label="Section navigation">
     <div className="opnav-tabs" role="tablist" aria-label="Crew console" onKeyDown={onNavKey}>
       {groups.map((g) => {
-        const on = activeGroup.id === g.id;
+        const on = currentId === g.id;
         return (
           <button key={g.id} role="tab" aria-selected={on} className={`tab${on ? " on" : ""}`} onClick={() => {
             if (!on) { openGroup(g); return; }
@@ -206,20 +222,24 @@ export default function OperatorNav() {
           </button>
         );
       })}
-      <button role="tab" aria-selected={overflow.some((g) => g.id === activeGroup.id)} className={`tab${overflow.some((g) => g.id === activeGroup.id) ? " on" : ""}`} onClick={() => setMoreOpen(true)}>
+      <button role="tab" aria-selected={moreOn} className={`tab${moreOn ? " on" : ""}`} onClick={() => setMoreOpen(true)}>
         <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{STREAM_ICONS.more}</svg></span>
         <span className="tl">More</span>
       </button>
     </div>
     </nav>
-    {moreOpen && <MoreSheet lanes={allGroups} pins={groups.map((g) => g.id)} activeId={activeGroup.id} onOpen={openGroup} onClose={() => setMoreOpen(false)} canPin={Boolean(user)} />}
+    {moreOpen && <MoreSheet lanes={allGroups} pins={groups.map((g) => g.id)} activeId={currentId} onOpen={openGroup} onSettings={openSettings} onClose={() => setMoreOpen(false)} canPin={Boolean(user)} />}
     </>
   );
 }
 
 // The rest of the lanes + "your bar" customization. Pins are per-user over tenant-defined lanes:
 // tap a lane to open it; tap the pin to put it on (or take it off) your bar. Today is always first.
-function MoreSheet({ lanes, pins, activeId, onOpen, onClose, canPin }: { lanes: NavGroup[]; pins: string[]; activeId: string; onOpen: (g: NavGroup) => void; onClose: () => void; canPin: boolean }) {
+// SETTINGS SITS ABOVE THE LANES (2026-10-06, the settings round). Settings had a section and no door:
+// nothing in the bar or here opened it, only ⌘K and the Guide. It is the first row of More now, for
+// everyone signed in, and it is not a lane — no pin, no dot for open items. It opens Settings and the
+// sheet closes behind it.
+function MoreSheet({ lanes, pins, activeId, onOpen, onSettings, onClose, canPin }: { lanes: NavGroup[]; pins: string[]; activeId: string; onOpen: (g: NavGroup) => void; onSettings: () => void; onClose: () => void; canPin: boolean }) {
   const { user, refreshProfile } = useAuth();
   const [local, setLocal] = useState<string[]>(pins);
   const [full, setFull] = useState(false);
@@ -234,8 +254,19 @@ function MoreSheet({ lanes, pins, activeId, onOpen, onClose, canPin }: { lanes: 
   };
   return (
     <Sheet open onClose={onClose} label="Your lanes" header={<div style={{ display: "flex", alignItems: "center" }}><span className="isheet-title">Your lanes</span><button type="button" className="isheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
+      {user && (
+        <div className={`lane-row${activeId === "settings" ? " on" : ""}`}>
+          <button type="button" className="lane-open" onClick={onSettings} aria-current={activeId === "settings" ? "page" : undefined}>
+            <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>{ICONS.settings}</svg>
+            <b>{SECTION_LABEL.settings}</b>
+            <span className="lane-secs">Notifications · this phone · how the app works</span>
+          </button>
+        </div>
+      )}
       <div className="lane-legend"><span className="lane-key"><span className="cc-dot" style={{ background: "var(--red-h)" }} />needs you now</span><span className="lane-key"><span className="cc-dot" style={{ background: "var(--gold2)" }} />open items in a lane</span></div>
-      <div className="lane-hint">{full ? "Your bar is full (4) — unpin one first." : local.length === 0 ? "Nothing pinned — your bar shows the standard set for your role. Pin lanes to make it yours." : "Tap a lane to open it. Pin up to 4 to your bar — unpin anything, it stays here."}</div>
+      {/* The bar holds MAX_PINS tabs — 5 since the 2026-07-29 audit. This line said 4 until the
+          settings round (2026-10-06), so "Your bar is full (4)" appeared with five pinned. */}
+      <div className="lane-hint">{full ? `Your bar is full (${MAX_PINS}) — unpin one first.` : local.length === 0 ? "Nothing pinned — your bar shows the standard set for your role. Pin lanes to make it yours." : `Tap a lane to open it. Pin up to ${MAX_PINS} to your bar — unpin anything, it stays here.`}</div>
       {lanes.map((g) => (
         <div key={g.id} className={`lane-row${activeId === g.id ? " on" : ""}`}>
           <button type="button" className="lane-open" onClick={() => onOpen(g)}>
