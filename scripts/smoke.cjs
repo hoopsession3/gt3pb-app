@@ -8242,13 +8242,29 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && forR("server", "/crew?s=settings&a=set-alerts") && !forR("operator", "/crew?s=settings") && !forR("server", "/crew?s=settings&a=set-office")
     && forR("admin", "/crew?s=catalog&a=plans") && !forR("operator", "/crew?s=catalog&a=plans"));
   const anc = code(read("lib/anchors.ts"));
-  ok("links land: a jump to a part opens the row that holds it first — the copy editor's groups too — and only once",
+  ok("links land: a jump to a part opens the row that holds it first — the copy editor's groups too",
     /import \{ settingsHolder \} from "\.\/settingsLayout";/.test(anc) && /const holder = settingsHolder\(anchor\);/.test(anc)
-    && /if \(holder && !askedHolder && document\.getElementById\(holder\)\) \{\s*askedHolder = true;\s*window\.dispatchEvent\(new CustomEvent\(OPEN_PANEL_EVENT, \{ detail: holder \}\)\);/.test(anc)
+    && /const row = holder \? document\.getElementById\(holder\) : null;\s*if \(holder && row && !row\.classList\.contains\("open"\)\) askOpen\(holder\);/.test(anc)
     && /const go = \(\) => \{ window\.location\.href = `\/crew\?s=settings&a=\$\{copyGroupAnchor\(group\)\}`; \};/.test(read("components/EditCopyPill.tsx"))
     && !appFiles.some((f) => /gt3-mpanel-set-/.test(code(read(f))))
     && CA.copyGroupAnchor("Craft page") === "sc-craft-page" && CA.copyGroupAnchor("Menu · Matcha!") === "sc-menu-matcha" && CA.COPY_ANCHOR_PREFIX === "sc-"
     && /export \{ copyGroupAnchor \} from "\.\/copyAnchor";/.test(read("lib/copy.ts")) && !/function copyGroupAnchor/.test(read("lib/copy.ts")));
+  // 2026-10-06, live: the Edit pill's link opened Brand & customer app and stopped short of its copy
+  // group — on a cold load the group was drawn after the jump's 5s were up. Held here: a part waits
+  // longer than a panel; a request to open is asked again while the panel stays shut (one sent before
+  // the row was listening was lost for good); the "open" the jump reads is the class Panel writes;
+  // and a jump that waits that long stands down the moment the person scrolls, swipes or types.
+  ok("links land: a part waits 12s, a panel 5s; an unanswered request to open is asked again; and the jump stands down when the person takes the page back",
+    /const WAIT_MS = 5000;/.test(anc) && /const PART_WAIT_MS = 12000;/.test(anc) && /const REASK_MS = 500;/.test(anc)
+    && /const deadline = Date\.now\(\) \+ \(holder \? PART_WAIT_MS : WAIT_MS\);/.test(anc)
+    && /if \(now - \(asked\.get\(id\) \?\? -Infinity\) < REASK_MS\) return;\s*asked\.set\(id, now\);\s*window\.dispatchEvent\(new CustomEvent\(OPEN_PANEL_EVENT, \{ detail: id \}\)\);/.test(anc)
+    && /if \(!asked\.has\(anchor\) \|\| \(el\.classList\.contains\("mpanel"\) && !el\.classList\.contains\("open"\)\)\) askOpen\(anchor\);/.test(anc)
+    && /<section id=\{id\} className=\{`mpanel\$\{open \? " open" : ""\}`\}/.test(read("app/crew/page.tsx"))
+    && /const TAKEN_BACK = \["wheel", "touchmove", "keydown"\] as const;/.test(anc)
+    && /const tick = \(\) => \{\s*if \(takenBack\) \{ watch\(false\); return; \}/.test(anc)
+    && /setTimeout\(\(\) => \{\s*watch\(false\);\s*if \(takenBack\) return;/.test(anc)
+    && /if \(Date\.now\(\) < deadline\) setTimeout\(tick, 80\); else watch\(false\);/.test(anc)
+    && !/askedHolder/.test(anc));
   ok("links land: an order alert opens the Pass — #kitchen-pass is drawn only while the Pass is open, so the jump opens it instead of hunting for it",
     /if \(cat === "order"\) return \{ section: "now", anchor: "kitchen-pass" \};/.test(pg) && /const PASS_ANCHOR = "kitchen-pass";/.test(pg)
     && /function jumpTo\(anchor\?: string\): void \{\s*if \(anchor === PASS_ANCHOR\) \{ window\.dispatchEvent\(new Event\(OPEN_PASS_EVENT\)\); return; \}\s*scrollToAnchor\(anchor\);\s*\}/.test(pg)
