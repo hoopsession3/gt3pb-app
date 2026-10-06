@@ -15,9 +15,11 @@ function reqOrigin(req: Request): string {
 // Microsoft redirects the browser here with ?code&state. We validate state (CSRF) against what
 // /connect issued, exchange the code for tokens, store them (service role), then bounce to /crew.
 // Top-level redirect, so we return a plain 302 — no bearer is available here; state is the guard.
+// BACK TO WHERE IT WAS PRESSED (2026-10-06, the settings round): Connect lives in Settings ›
+// Integrations now (components/OutlookConnect), so the bounce opens that panel, which reads the note.
 async function get(req: Request) {
   const origin = reqOrigin(req);
-  const back = (note: string) => new Response(null, { status: 302, headers: { Location: `${origin}/crew?outlook=${note}` } });
+  const back = (note: string) => new Response(null, { status: 302, headers: { Location: `${origin}/crew?s=settings&a=set-outlook&outlook=${note}` } });
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
