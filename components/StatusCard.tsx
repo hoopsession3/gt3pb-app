@@ -360,7 +360,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
       footer={<button type="button" className="status-share" onClick={share} disabled={!ready}>Share your status <Icon name="externalLink" /></button>}>
 
       {/* Member card group is just this one key — 100% inline coverage — so the Edit pill that used
-          to sit in this header (jump to Settings → Front-end copy → Member card) came off, 2026-07-17,
+          to sit in this header (jump to the copy editor's Member card group) came off, 2026-07-17,
           same reasoning as Menu: a working inline field right here made the jump-away redundant. */}
       {founding && <EditableCopy k="card.founding_thanks" value={t("card.founding_thanks")} as="div" className="fc-founding" role="status" />}
 

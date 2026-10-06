@@ -69,7 +69,7 @@ export default function SiteCopyEditor() {
     <AsyncSection state={board} isEmpty={() => false} emptyTitle="No copy overrides yet" errorTitle="Couldn't load the copy overrides">
       {() => (
         <div className="adm-sec sitecopy">
-          <SectionHeader label="Front-end copy" />
+          <SectionHeader label="Copy & wording" />
           <div className="h-sub" style={{ margin: "0 2px 12px" }}>Edit the words on the storefront. Saves go live immediately; Reset returns a line to its default.</div>
           {Object.entries(groups).map(([group, items]) => (
             <div key={group} id={copyGroupAnchor(group)} className="sc-group">

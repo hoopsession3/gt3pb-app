@@ -18,12 +18,11 @@ export default function EditCopyPill({ group, label }: { group: string; label?: 
   const { profile } = useAuth();
   if (roleOf(profile) !== "owner") return null;
 
-  const go = () => {
-    // Force the "Copy & wording" panel open even if it was previously collapsed — otherwise the
-    // anchor we're jumping to isn't in the DOM yet and the scroll silently lands nowhere.
-    try { localStorage.setItem("gt3-mpanel-set-copy", "1"); } catch { /* ignore */ }
-    window.location.href = `/crew?s=settings&a=${copyGroupAnchor(group)}`;
-  };
+  // The group's editor is drawn only while its Settings row is open. This used to force that open by
+  // writing the row's remembered state before leaving — and since the settings round (2026-10-06)
+  // Settings' rows remember nothing, so the jump landed on a closed list and found no group. The
+  // jump opens the row itself now: lib/anchors asks lib/settingsLayout which row holds a copy group.
+  const go = () => { window.location.href = `/crew?s=settings&a=${copyGroupAnchor(group)}`; };
 
   return (
     <button type="button" className="edit-copy-pill" onClick={go} aria-label={`Edit ${label ?? group.toLowerCase()} copy`}>

@@ -10,6 +10,12 @@ import StatusCard from "./StatusCard";
 // The coconut mark (GT3's whole-coconut hydration) shows until they save a photo, then it's their
 // portrait everywhere; the bronze caret signals "there's more here." One tap opens the things that
 // matter to them — rewards, reorder, their member card — reachable from any page.
+//
+// TWO DOORS, ONE MENU (2026-10-06, the settings-by-category round). Settings' first row is the
+// person's account, the way a phone's Settings opens on its owner, and the crew console has no
+// avatar in its header. components/AccountRow draws that row with useAccountDoor and AccountFace
+// from here — the same menu and sheets — and lives in its own file so the customer pages that carry
+// this avatar do not carry the row.
 
 function Coconut() {
   return (
@@ -23,20 +29,20 @@ function Coconut() {
   );
 }
 
-export default function AccountPill() {
+/** The person's face: their photo once they have saved one, the coconut until then. */
+export function AccountFace() {
   const { profile } = useAuth();
+  return profile?.avatar_url ? <span className="acct-photo" style={{ backgroundImage: `url(${profile.avatar_url})` }} /> : <Coconut />;
+}
+
+/** The account menu and the two sheets it leads to — one wiring for every door into it (the avatar
+ *  here, and Settings' Account row, components/AccountRow). */
+export function useAccountDoor() {
   const [open, setOpen] = useState(false);
   const [editProfile, setEditProfile] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
-
-  return (
-    <div className="acct">
-      <button className="acct-av" aria-label="Your account" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
-        {profile?.avatar_url ? <span className="acct-photo" style={{ backgroundImage: `url(${profile.avatar_url})` }} /> : <Coconut />}
-        <span className="acct-caret" aria-hidden="true">
-          <svg viewBox="0 0 10 10" width="8" height="8"><path d="M2 4l3 3 3-3" fill="none" stroke="#1a1310" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        </span>
-      </button>
+  const sheets = (
+    <>
       {open && (
         <AccountSheet
           onClose={() => setOpen(false)}
@@ -46,6 +52,22 @@ export default function AccountPill() {
       )}
       {editProfile && <ProfileSheet onClose={() => setEditProfile(false)} />}
       <StatusCard open={cardOpen} onClose={() => setCardOpen(false)} />
+    </>
+  );
+  return { open, openAccount: () => setOpen(true), sheets };
+}
+
+export default function AccountPill() {
+  const door = useAccountDoor();
+  return (
+    <div className="acct">
+      <button className="acct-av" aria-label="Your account" aria-haspopup="dialog" aria-expanded={door.open} onClick={door.openAccount}>
+        <AccountFace />
+        <span className="acct-caret" aria-hidden="true">
+          <svg viewBox="0 0 10 10" width="8" height="8"><path d="M2 4l3 3 3-3" fill="none" stroke="#1a1310" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </span>
+      </button>
+      {door.sheets}
     </div>
   );
 }

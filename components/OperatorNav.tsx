@@ -39,16 +39,19 @@ import { VALID, useOperatorSection, type OpSection } from "./OperatorSection";
 // Every role gets "plan" (2026-08-01, the one-calendar round): the company calendar is the shared
 // schedule the whole team anchors on — crew open it READ-ONLY (the page gates the manage tabs and
 // all editing), so a server can always answer "what's coming this week?" without asking a manager.
-// Every role gets "settings" too (2026-10-06, the settings round): its first section, You — your
-// notifications, this phone's alerts, the pass's sound, day or dark, text size — is everyone's. The
-// page gates each panel below that the way it was gated where it came from, so crew see only You.
+// Every role gets "settings" too (2026-10-06, the settings round): its first group, You — your
+// account, notifications and display — is everyone's. The page gates each row below that the way it
+// was gated where it came from, so crew see only You.
+// Owners and admins get "catalog" (2026-10-06, the settings-by-category round): what the business
+// sells — the menu, merch, lessons, membership plans, codes and perks — out of Settings, where a store's
+// admin never keeps it, into a section of its own beside Money.
 const ROLE_SECTIONS: Record<string, OpSection[]> = {
   server: ["day", "now", "plan", "notes", "driver", "settings"],
   contractor: ["day", "now", "prep", "plan", "garage", "notes", "driver", "settings"],
   operator: ["day", "now", "prep", "plan", "brew", "garage", "notes", "driver", "settings"],
   event_manager: ["day", "now", "command", "prep", "plan", "studio", "brew", "notes", "driver", "settings"],
-  admin: ["day", "now", "command", "prep", "plan", "studio", "brew", "garage", "notes", "driver", "money", "customers", "team", "settings"],
-  owner: ["day", "now", "command", "prep", "plan", "studio", "brew", "garage", "notes", "driver", "money", "customers", "team", "settings"],
+  admin: ["day", "now", "command", "prep", "plan", "studio", "brew", "garage", "notes", "driver", "money", "catalog", "customers", "team", "settings"],
+  owner: ["day", "now", "command", "prep", "plan", "studio", "brew", "garage", "notes", "driver", "money", "catalog", "customers", "team", "settings"],
 };
 export const sectionsForRole = (role: string): OpSection[] => ROLE_SECTIONS[role] ?? ["now"];
 
@@ -120,11 +123,12 @@ const ICONS: Record<OpSection, React.ReactNode> = {
   driver: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="2.4" /><path d="M12 3v6.6M4.2 16.5l6-3M19.8 16.5l-6-3" /></>,
   notes: <><rect x="5" y="3.5" width="14" height="17" rx="2" /><path d="M9 8h6M9 12h6M9 16h4" /></>,
   money: <><circle cx="12" cy="12" r="9" /><path d="M12 7v10M9.5 9.5c0-1 1-1.6 2.5-1.6s2.5.6 2.5 1.6-1 1.5-2.5 1.5-2.5.5-2.5 1.5 1 1.6 2.5 1.6 2.5-.6 2.5-1.6" /></>,
+  catalog: <><path d="M3.5 12.6V4.5a1 1 0 0 1 1-1h8.1a1 1 0 0 1 .7.3l7.2 7.2a1 1 0 0 1 0 1.4l-8.1 8.1a1 1 0 0 1-1.4 0l-7.2-7.2a1 1 0 0 1-.3-.7z" /><circle cx="8.2" cy="8.2" r="1.6" /></>,
   customers: <><rect x="3" y="5" width="18" height="15" rx="2" /><circle cx="9" cy="11" r="2.2" /><path d="M5.8 17c.5-1.7 1.7-2.6 3.2-2.6s2.7.9 3.2 2.6M15 9.5h4M15 13h4" /></>,
   team: <><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 3-5 6-5s6 2 6 5" /><path d="M16 5.2a3 3 0 0 1 0 5.6M21 20c0-2.4-1.8-4-4-4.6" /></>,
   settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 13.5a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></>,
 };
-const LABELS: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask", command: "Command", prep: "Readiness", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Assets", driver: "Delivery", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings" };
+const LABELS: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask", command: "Command", prep: "Readiness", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Assets", driver: "Delivery", notes: "Notes", money: "Money", catalog: "Catalog", customers: "Customers", team: "Team", settings: "Settings" };
 export const SECTION_LABEL = LABELS;
 
 

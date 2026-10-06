@@ -7,25 +7,27 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { squareClientReady } from "@/lib/square";
 import { useWorkStreams } from "@/lib/streams";
 import { useDisplay } from "@/components/DisplayToggle";
+import { useThemeChoice } from "@/lib/theme";
 import { NOTIF_PREFS_EVENT, type NotifPrefsSaved } from "@/components/NotifPrefs";
 import { useOutlookStatus } from "@/components/OutlookConnect";
-import { payGlance, dialGlance, officeGlance, digestGlance, displayGlance, notifyGlance, lanesGlance, outlookGlance, UNREAD, type Glance } from "@/lib/settingsGlance";
+import { payGlance, orderingGlance, digestGlance, displayGlance, notifyGlance, lanesGlance, outlookGlance, UNREAD, type Glance } from "@/lib/settingsGlance";
 
 // THE VALUES ON SETTINGS' ROWS (2026-10-06, the settings round). lib/settingsGlance has the words;
 // this reads what they describe:
-//   · live_status, once, for the four business rows it sets — and its changes, so a switch flipped in
-//     a row's own panel, or on another phone, is the row's value at once;
+//   · live_status, once, for the three business rows it sets (payments, ordering & delivery, the
+//     digest) — and its changes, so a switch flipped in a row's own panel, or on another phone, is the
+//     row's value at once;
 //   · the person's own notification row, and every save of it (NOTIF_PREFS_EVENT);
 //   · the lanes (lib/streams), counted only once the table has answered — its stand-in rows own nothing;
-//   · this phone's display preference.
+//   · this phone's look and display preference.
 // The business reads run for an owner or an admin only: nobody else is drawn the rows they sit on.
 // A read that failed says "Couldn’t read" on its rows (lib/settingsGlance UNREAD), never nothing and
 // never a guess.
 // Outlook's value is its own component (OutlookGlance) because only the owner's row draws it.
 
-type LiveRow = { pay_at_pickup?: boolean | null; preorder_lead_h?: number | null; office_price_cents?: number | null; office_min_gallons?: number | null; digest_cadence?: string | null };
+type LiveRow = { pay_at_pickup?: boolean | null; preorder_lead_h?: number | null; office_price_cents?: number | null; digest_cadence?: string | null };
 
-export type SettingsGlances = { notify: Glance; display: Glance; digest: Glance; pay: Glance; dial: Glance; office: Glance; lanes: Glance };
+export type SettingsGlances = { notify: Glance; display: Glance; digest: Glance; pay: Glance; ordering: Glance; lanes: Glance };
 
 export function useSettingsGlance(userId: string | null, isAdmin: boolean): SettingsGlances {
   // select("*"), as PaymentSettings reads it: a column a database has not been given yet reads as unset
@@ -68,15 +70,15 @@ export function useSettingsGlance(userId: string | null, isAdmin: boolean): Sett
   const streams = useWorkStreams();
   const lanesRead = streams.some((s) => !!s.id);
   const display = useDisplay();
+  const look = useThemeChoice();
 
   const biz = (g: Glance): Glance => (failed ? UNREAD : g);
   return {
     notify: notif ? notifyGlance(notif.muted, notif.qs, notif.qe) : notifFailed ? UNREAD : null,
-    display: displayGlance(display),
+    display: displayGlance(display, look),
     digest: biz(digestGlance(row?.digest_cadence, read)),
     pay: biz(read ? payGlance(squareClientReady, row?.pay_at_pickup !== false) : null),
-    dial: biz(dialGlance(row?.preorder_lead_h, read)),
-    office: biz(officeGlance(row?.office_price_cents, row?.office_min_gallons, read)),
+    ordering: biz(orderingGlance(row?.preorder_lead_h, row?.office_price_cents, read)),
     lanes: lanesRead ? lanesGlance(streams.filter((s) => !!s.owner_user_id).length, streams.length) : null,
   };
 }

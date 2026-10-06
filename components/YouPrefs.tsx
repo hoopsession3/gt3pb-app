@@ -2,10 +2,13 @@
 
 import { usePassMuted, setPassMuted } from "@/lib/passSound";
 import { useThemeChoice, setTheme, type ThemeChoice } from "@/lib/theme";
+import { THEME_LABELS } from "@/lib/settingsGlance";
 import { unlockAudio } from "@/lib/chime";
 import { haptic } from "@/lib/haptics";
 
-// SETTINGS › YOU — two of this phone's own settings, each one row (2026-10-06, the settings round).
+// SETTINGS › YOU — two of this phone's own settings (2026-10-06, the settings round). Since Settings
+// went by category the same day they are parts of their topic's row: Pass sound inside Notifications,
+// Appearance inside Display.
 // The pass's sound was changeable only from the bell on the Pass, and day or dark only from a floating
 // moon. The bell stays on the Pass, where a muted chime is noticed; both read and write the one home
 // each has (lib/passSound, lib/theme), so a change made here is the one the Pass shows. The moon went
@@ -36,7 +39,7 @@ export function PassSound() {
   );
 }
 
-const LOOKS: readonly { v: ThemeChoice; label: string }[] = [{ v: "day", label: "Day" }, { v: "dark", label: "Dark" }, { v: "auto", label: "Auto" }];
+const LOOKS: readonly ThemeChoice[] = ["day", "dark", "auto"];
 const SAYS: Record<ThemeChoice, string> = {
   day: "Reads best outdoors, in the sun.",
   dark: "Easier on the eyes at night.",
@@ -58,7 +61,7 @@ export function Appearance() {
       <div className="pay-row-s">{SAYS[choice]}</div>
       <div className="set-seg" role="radiogroup" aria-label="Appearance">
         {LOOKS.map((l) => (
-          <button key={l.v} type="button" role="radio" aria-checked={choice === l.v} className={choice === l.v ? "on" : undefined} onClick={() => pick(l.v)}>{l.label}</button>
+          <button key={l} type="button" role="radio" aria-checked={choice === l} className={choice === l ? "on" : undefined} onClick={() => pick(l)}>{THEME_LABELS[l]}</button>
         ))}
       </div>
     </div>

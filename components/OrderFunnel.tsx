@@ -869,7 +869,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
           // discovery). Not wrapped in EditableCopy for click-to-edit like everywhere else this
           // round: this is the post-purchase confirmation screen, only reachable after finishing a
           // real order, which makes it a much less practical spot to inline-edit from than a page
-          // you can just browse to. Still fully owner-editable through Settings → Front-end copy.
+          // you can just browse to. Still fully owner-editable through Settings › Business › Brand & customer app.
           note={mode === "pickup" ? (bringBack ? fillCopy(t("reserve.confirm_return"), { size: String(count) }) : t("reserve.confirm_new")) : undefined}
           rows={[
             { label: "Pack", value: `${count} bottles` },

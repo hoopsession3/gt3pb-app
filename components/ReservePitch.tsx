@@ -7,7 +7,7 @@ import EditableCopy from "@/components/EditableCopy";
 
 // Order-ahead, surfaced on the front door — reserve a Saturday drop. One-off pre-order: no
 // subscription, no plan, no recurring billing. Replaces the old subscription pitch (dormant).
-// Copy is owner-editable (Studio → Brand → Front-end copy).
+// Copy is owner-editable (Settings › Business › Brand & customer app).
 export default function ReservePitch() {
   const router = useRouter();
   const t = useSiteCopy();
@@ -28,7 +28,7 @@ export default function ReservePitch() {
       {/* CTA text stays plain — it's inside a real <button>, and EditableCopy's edit affordance is
           itself a role="button" element; nesting the two is both an interaction conflict (which
           click wins?) and invalid/ARIA-unfriendly markup. Same call already made for the menu
-          category chips and the per-drink list rows. Still editable via Settings → Front-end copy. */}
+          category chips and the per-drink list rows. Still editable via Settings › Business › Brand & customer app. */}
       <button type="button" className="subpitch-cta" onClick={go}>{t("pitch.cta")}</button>
       <EditableCopy k="pitch.fine" value={t("pitch.fine")} as="div" className="subpitch-fine" multiline />
     </section>

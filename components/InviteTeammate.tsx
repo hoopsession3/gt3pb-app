@@ -103,7 +103,7 @@ export default function InviteTeammate() {
         </select>
         {/* The .btn-pri of its panel: inviting is the actual commit action (the write that lets a
             future sign-up auto-claim its role). It lived on Team, where nothing else had a primary
-            action; since 2026-10-06 (the settings round) it is Settings › Team & access › Invite a
+            action; since 2026-10-06 (the settings round) it is Settings › Business › Team & permissions › Invite a
             teammate, and the roster — where a role is changed — stayed on Team. Was .note-save (the
             legacy crew-console primary look, copy-pasted from .adm-btn.primary — see globals.css
             ~653) — now the documented kit tier. .tinv-form is already flex-wrap, so the full-width

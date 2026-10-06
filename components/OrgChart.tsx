@@ -37,7 +37,7 @@ const orgTitle = (p: P) => p.title || (ALL_ROLES.includes(p.role as Role) ? role
 // TWO PARTS, TWO HOMES (2026-10-06, the settings round). This drew two things on Team: the org chart
 // (who reports where — a picture of the people) and the lane owners (who owns each work stream, and
 // so whose pings, whose calendar rail, whose call). Choosing a lane's owner changes how the app routes
-// work, so it is a setting: Settings › Team & access draws part="lanes", and Team keeps the picture.
+// work, so it is a setting: Settings › Business › Team & permissions draws part="lanes", and Team keeps the picture.
 // A pick the database refuses is said, as an error; the pick goes back to the owner it still has.
 export default function OrgChart({ part = "people" }: { part?: "people" | "lanes" } = {}) {
   const streams = useWorkStreams();
@@ -79,7 +79,7 @@ export default function OrgChart({ part = "people" }: { part?: "people" | "lanes
         <div className="adm-sec">
           {/* The tiered reporting view — what Team's "Team structure" divider describes. Work-stream
               ownership (part="lanes") is ownership assignment, not headcount or reporting, and is
-              drawn in Settings › Team & access. */}
+              drawn in Settings › Business › Team & permissions. */}
           <SectionHeader label="Org chart" annotation="who reports where" />
           <div className="org">
             {TIERS.map((t) => {
