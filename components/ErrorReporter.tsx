@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { APP_BUILD, apiUrl } from "@/lib/native";
 
 // ERROR REPORTER — the sending end of /api/errors/report. Catches what the console used to eat
 // (window errors + unhandled promise rejections) and what the error boundary catches (fatal), and
@@ -31,8 +32,11 @@ export function reportClientError(input: { message?: string; stack?: string; fat
       skew: input.skew === true,
     });
     // Beacon survives page unloads (the exact moment fatal errors happen); fetch is the fallback.
-    if (navigator.sendBeacon?.("/api/errors/report", new Blob([body], { type: "application/json" }))) return;
-    fetch("/api/errors/report", { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
+    // Not in the iPhone app (2026-10-06): its report goes to the web, another origin, and a JSON
+    // beacon there is a request the browser may drop rather than ask about — keepalive fetch, which
+    // the route's CORS answers, carries it instead (lib/native).
+    if (!APP_BUILD && navigator.sendBeacon?.("/api/errors/report", new Blob([body], { type: "application/json" }))) return;
+    fetch(apiUrl("/api/errors/report"), { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
   } catch { /* never throw from the reporter */ }
 }
 

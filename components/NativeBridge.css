@@ -1,0 +1,27 @@
+/* THE IPHONE APP'S OWN STYLES (2026-10-06, the iPhone round). Loaded with components/NativeBridge, so
+   in the app build only: the web never downloads a rule of this file. The shared screens' safe-area
+   padding lives in app/globals.css as it always has (env(safe-area-inset-*) reads 0 on the web). */
+
+/* THE STATUS BAR'S OWN GROUND. The app draws edge to edge, and a screen scrolls inside <main id="body">,
+   so its words would pass under the clock and the Dynamic Island. This band, the status bar's height, is
+   painted in the ground of the screen beneath it (NativeBridge reads that colour from the screen and
+   sets --native-bar), and once the screen has scrolled a short fade below it softens the edge — iOS's
+   own scroll-edge treatment. Above the page and its tab bar, below every sheet and scrim, which dim it
+   with the rest of the screen. Sticky bars inside the page stick under it: their top is
+   env(safe-area-inset-top) (.menu-chips, .cal-sticky in app/globals.css). */
+.native-bar{position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);z-index:50;pointer-events:none;background:var(--native-bar,#15140f)}
+.native-bar::after{content:"";position:absolute;left:0;right:0;top:100%;height:12px;background:linear-gradient(var(--native-bar,#15140f),transparent);opacity:0;transition:opacity .2s ease}
+html[data-scrolled] .native-bar::after{opacity:1}
+
+/* THE KEYBOARD. The web view itself shrinks above it (capacitor.config.ts, resize "native"), so a tab bar
+   kept for its height would sit over the keyboard as an empty band. It leaves the layout instead, as a
+   native tab bar does under a keyboard; the floating buttons step aside. NativeBridge sets html[data-kb]
+   from the keyboard plugin's own events. (On the web, AppShell's html.kb-open does the same job its way.) */
+html[data-kb="up"] .nav{display:none}
+html[data-kb="up"] :is(.rail,.fab-dock){visibility:hidden}
+
+/* A LONG PRESS does what it does in a native app: nothing, rather than raising Safari's Open / Copy /
+   Share menu over a link or a picture; and the app's own chrome is not text to select. Words on a screen
+   stay selectable. */
+html[data-native] :is(a,img){-webkit-touch-callout:none}
+html[data-native] :is(.nav,button,[role="tab"],[role="button"]){-webkit-user-select:none;user-select:none}

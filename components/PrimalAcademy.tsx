@@ -12,6 +12,7 @@ import Watermark from "@/components/Watermark";
 import Icon from "@/components/Icon";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
+import { lessonHref } from "@/lib/native";
 
 // RETURN TO PRIMAL — the native nutrition academy index (round 0273). Reads the published primal_*
 // tree through RLS (rookie lessons open to all, pro only to entitled/staff), lays it out systematically
@@ -140,7 +141,7 @@ export default function PrimalAcademy() {
                     {lessons.map((l) => {
                       const isDone = t.done.has(l.id);
                       return (
-                        <Link href={`/primal/l/${l.slug}`} key={l.id} className={`pr-card${isDone ? " done" : ""}`} style={{ "--accent": accent } as React.CSSProperties}>
+                        <Link href={lessonHref(l.slug)} key={l.id} className={`pr-card${isDone ? " done" : ""}`} style={{ "--accent": accent } as React.CSSProperties}>
                           <div className="pr-card-top">
                             <span className="pr-card-t">{l.title}</span>
                             {l.tier === "pro" ? <span className="pr-tier pro"><Icon name="lock" size={11} /> Pro</span> : <span className="pr-tier">Free</span>}

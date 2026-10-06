@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { useAvailability } from "@/lib/availability";
 import { haptic } from "@/lib/haptics";
+import { apiUrl } from "@/lib/native";
 
 type ToastVariant = "success" | "error" | "info";
 /** One thing the toast can do — "Undo" after a swipe cleared a flag (2026-10-05, the gesture round). */
@@ -91,7 +92,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const [prices, setPrices] = useState<Record<string, number>>({});
   useEffect(() => {
     let on = true;
-    fetch("/api/menu").then((r) => (r.ok ? r.json() : null)).then((d) => { if (on && d) setPrices(d.prices || {}); }).catch(() => {});
+    fetch(apiUrl("/api/menu")).then((r) => (r.ok ? r.json() : null)).then((d) => { if (on && d) setPrices(d.prices || {}); }).catch(() => {});
     return () => { on = false; };
   }, []);
   const priceCents = useCallback((id: DrinkId) => prices[id] ?? fallbackCents(id), [prices]);

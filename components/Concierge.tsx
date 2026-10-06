@@ -5,6 +5,7 @@ import Sheet from "./Sheet";
 import Prose from "./Prose";
 import Gt3Mark from "./Gt3Mark";
 import Icon from "./Icon";
+import { apiUrl } from "@/lib/native";
 
 
 // GUEST CONCIERGE — a friendly floating host on the customer app. Answers menu/visit/booking/
@@ -31,7 +32,7 @@ export default function Concierge() {
     const next = [...msgs, { role: "user" as const, content: q }];
     setMsgs(next); setInput(""); setBusy(true);
     try {
-      const r = await fetch("/api/concierge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: next.map((m) => ({ role: m.role, content: m.content })) }) });
+      const r = await fetch(apiUrl("/api/concierge"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: next.map((m) => ({ role: m.role, content: m.content })) }) });
       const j = await r.json();
       setMsgs((p) => [...p, { role: "assistant", content: j.ok ? j.reply : (j.error || "Sorry — I couldn't answer that just now. Try the menu or booking page.") }]);
     } catch {

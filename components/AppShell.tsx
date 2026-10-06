@@ -49,6 +49,14 @@ const Checkout = dynamic(() => import("./Checkout"));
 const ScrollRestore = dynamic(() => import("./ScrollRestore"));
 const OfflineChip = dynamic(() => import("./OfflineChip"));
 const Concierge = dynamic(() => import("./Concierge"));
+// THE IPHONE APP'S SIDE OF THE PAGE (2026-10-06): the launch screen, the status bar, links out,
+// haptics, the keyboard, the session across the background — components/NativeBridge, with its own
+// stylesheet. In the app build only. The test is lib/native's APP_BUILD spelled out here on purpose:
+// the bundler drops a lazy import only when the condition that guards it is decided in the same file,
+// and with the imported constant the web build still emitted NativeBridge and the Capacitor plugins as
+// chunks (never loaded, but there) — measured, not assumed. scripts/smoke.cjs holds the two spellings
+// to the same words.
+const NativeBridge = process.env.NEXT_PUBLIC_GT3_TARGET === "app" ? dynamic(() => import("./NativeBridge"), { ssr: false }) : null;
 
 // Routes whose page already renders its own visible <h1> — don't add a second one.
 // "/crew" joined this list 2026-07-29: the console's op-head-t now renders as a real per-section
@@ -213,6 +221,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         )}
         {customerSurface && <MarketingSplash />}
         <ErrorReporter />
+        {NativeBridge && <NativeBridge />}
       </div>
       </RecordProvider>
      </TaskSheetProvider>

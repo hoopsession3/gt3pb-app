@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { APP_BUILD } from "@/lib/native";
 
 // Registers the offline-shell service worker AND surfaces a controlled "update ready"
 // prompt: when a new build deploys, the new worker installs and waits; we show a
@@ -11,6 +12,9 @@ export default function ServiceWorkerRegister() {
 
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") return;
+    // Not in the iPhone app (2026-10-06): its screens are bundled in the app, a new version arrives
+    // as an app update, and a page served from capacitor://localhost cannot register a worker.
+    if (APP_BUILD) return;
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
 
     let reg: ServiceWorkerRegistration | undefined;

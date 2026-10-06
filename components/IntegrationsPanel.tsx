@@ -6,6 +6,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { SQUARE_APP_ID, SQUARE_ENV, squareClientReady } from "@/lib/square";
 import { errorMessage } from "@/lib/errorMessage";
+import { apiUrl } from "@/lib/native";
 
 // INTEGRATIONS & SECURITY — one card per connected service with an honest status (2026-08-01
 // enterprise round P4). Everything here was already real but scattered across env vars, the
@@ -19,7 +20,7 @@ const PUSH_READY = Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
 export default function IntegrationsPanel() {
   const loader = useCallback(async (): Promise<Probe> => {
     const out: Probe = { health: null, outlook: null, notify: null };
-    try { const r = await fetch("/api/health", { cache: "no-store" }); out.health = r.ok; } catch { out.health = false; }
+    try { const r = await fetch(apiUrl("/api/health"), { cache: "no-store" }); out.health = r.ok; } catch { out.health = false; }
     try { const r = await authedFetch("/api/outlook/status"); const j = await r.json(); if (j.ok) out.outlook = { configured: !!j.configured, connected: !!j.connected }; } catch { /* leave null */ }
     try { const r = await authedFetch("/api/notify"); const j = await r.json(); if (j.ok && j.providers) out.notify = { email: !!j.providers.email, sms: !!j.providers.sms }; } catch { /* leave null */ }
     return out;

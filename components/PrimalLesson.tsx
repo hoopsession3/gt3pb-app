@@ -12,6 +12,7 @@ import Icon from "@/components/Icon";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
 import { money } from "@/lib/money";
+import { lessonHref } from "@/lib/native";
 
 // A single Return to Primal lesson (round 0273). Systematic + referenceable: the key points sit up top
 // as scannable chips, the body reads clean, and the MEAL-STACK rail turns the teaching into an order —
@@ -216,8 +217,8 @@ export default function PrimalLesson({ slug }: { slug: string }) {
       </div>
 
       <nav className="pr-nav" aria-label="Lesson navigation">
-        {prev ? <Link href={`/primal/l/${prev.slug}`} className="pr-nav-b prev"><Icon name="arrowRight" size={14} /><span><em>Previous</em>{prev.title}</span></Link> : <span />}
-        {next ? <Link href={`/primal/l/${next.slug}`} className="pr-nav-b next"><span><em>Next</em>{next.title}</span><Icon name="arrowRight" size={14} /></Link> : <span />}
+        {prev ? <Link href={lessonHref(prev.slug)} className="pr-nav-b prev"><Icon name="arrowRight" size={14} /><span><em>Previous</em>{prev.title}</span></Link> : <span />}
+        {next ? <Link href={lessonHref(next.slug)} className="pr-nav-b next"><span><em>Next</em>{next.title}</span><Icon name="arrowRight" size={14} /></Link> : <span />}
       </nav>
 
       <ClosingBeat />

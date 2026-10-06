@@ -11,6 +11,7 @@ import AsyncSection from "./AsyncSection";
 import { InfoRow } from "@/components/kit";
 import { money, moneyPlain } from "@/lib/money";
 import { haptic } from "@/lib/haptics";
+import { publicOrigin } from "@/lib/native";
 
 // DISCOUNT CODES — the owner mints redeemable codes as data (member_benefits, scope='code'). A code
 // is a rule: kind (percent_off | price_override | free_refill) × target (whole order, the straight-
@@ -120,7 +121,7 @@ export default function CodesPanel() {
   // Every code has a printable QR target (/c/CODE, 0268) — scans count themselves in the coupon
   // funnel, and the landing routes by what the code is TODAY, so printed cards never go stale.
   const copyQr = async (r: CodeRow) => {
-    const url = `${typeof window !== "undefined" ? window.location.origin : "https://app.gt3pb.com"}/c/${encodeURIComponent(r.code ?? "")}`;
+    const url = `${publicOrigin()}/c/${encodeURIComponent(r.code ?? "")}`;
     try { await navigator.clipboard.writeText(url); toast("QR link copied — point the printed QR here"); }
     catch { toast(url); }
   };

@@ -6,6 +6,7 @@ import { trackFunnel } from "@/lib/funnel";
 import EditableCopy from "@/components/EditableCopy";
 import Watermark from "@/components/Watermark";
 import { useSiteCopy } from "@/lib/copy";
+import { apiUrl } from "@/lib/native";
 
 // COUPON LANDING (0268) — where a printed QR points. The scan COUNTS ITSELF (funnel_events, the
 // same zero-PII spine every storefront funnel uses), then the page routes by what the code IS in
@@ -21,7 +22,7 @@ export default function CouponLanding({ code }: { code: string }) {
   const [cpn, setCpn] = useState<Cpn | null>(null);
   useEffect(() => {
     trackFunnel("coupon", code.toUpperCase().slice(0, 40));   // the scan counter — fire once per landing
-    fetch(`/api/coupon/${encodeURIComponent(code)}`)
+    fetch(apiUrl(`/api/coupon/${encodeURIComponent(code)}`))
       .then((r) => r.json()).then(setCpn)
       .catch(() => setCpn({ ok: false }));
   }, [code]);

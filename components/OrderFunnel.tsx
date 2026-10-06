@@ -32,6 +32,7 @@ import {
 import { money } from "@/lib/money";
 import { useIdemKey } from "./useIdemKey";
 import { isSettled } from "@/lib/settled";
+import { apiUrl } from "@/lib/native";
 
 // ORDER FUNNEL — one screen, two fulfillment modes. Pickup (Saturday truck-stop reserve →
 // /api/reserve) and Delivery (Sunday prepaid → /api/delivery/checkout) were separate screens with
@@ -308,7 +309,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
 
   const checkZone = () => { if (zipInZone(zip)) { setZone("in"); setStep("size"); } else setZone("out"); };
   const joinWaitlist = async () => {
-    const r = await fetch("/api/delivery/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ zip, email: wlEmail }) });
+    const r = await fetch(apiUrl("/api/delivery/waitlist"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ zip, email: wlEmail }) });
     if (r.ok) { setWlSent(true); toast("You're on the list"); } else toast("Enter a ZIP and a real email", "error");
   };
   // AND BACK OFF IT AGAIN (0310). Joining was one tap and leaving was impossible: staff-only RLS,
