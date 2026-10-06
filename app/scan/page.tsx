@@ -8,6 +8,7 @@ import Gt3Mark from "@/components/Gt3Mark";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { staffAccess } from "@/lib/access";
+import { haptic } from "@/lib/haptics";
 
 // OPERATOR SCAN — the receiving end of a member's card QR. Staff-only: look up the member by their
 // card code and add a stamp for a walk-up (cash) purchase. RPCs (0132) are SECURITY DEFINER + staff-
@@ -47,8 +48,10 @@ function ScanInner() {
     if (!supabase || !code || busy) return; // guard the double-tap → double point
     setBusy(true);
     const { data, error } = await supabase.rpc("award_manual_point", { p_code: code });
-    if (!error && typeof data === "number") { setMember((m) => (m ? { ...m, points: data } : m)); setState("added"); }
-    else setState("error"); // don't leave a failed award looking successful
+    // The stamp is felt either way (2026-10-05, the haptics round): the crew is looking at the guest,
+    // not the screen. The failure is said inline below the card, so it buzzes here, not from a toast.
+    if (!error && typeof data === "number") { setMember((m) => (m ? { ...m, points: data } : m)); setState("added"); haptic("success"); }
+    else { setState("error"); haptic("error"); } // don't leave a failed award looking successful
     setBusy(false);
   };
 
