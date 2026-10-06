@@ -1,4 +1,6 @@
 import { isUuid } from "./uuid";
+import { panelHome } from "./panelHome";
+import { settingsGate } from "./settingsLayout";
 
 // WHERE A "NEEDS YOU" ROW GOES — one rule, for the twelve kinds of deadline v_obligations carries.
 //
@@ -41,6 +43,11 @@ import { isUuid } from "./uuid";
 // a jump that would land on nothing about it.
 //
 // Kept apart from the component so the smoke can hold every source to its destination.
+//
+// ── A ROW THAT NAMES A PANEL THAT MOVED (2026-10-06, the settings round) ────────────────────────
+// Settings gathered the menu, the plans, the codes and the perks out of Money and Customers, each
+// panel keeping its id. A route written before that names the old section, and the jump used to give
+// up at the top of it. The answer goes through lib/panelHome now, so it lands on the panel's new home.
 
 export type ObligationRow = { source: string; subject_id: string; route: string | null; owner_user_id?: string | null };
 
@@ -90,7 +97,7 @@ export function obligationGo(r: ObligationRow, viewer?: Viewer): ObligationGo {
   }
   const s = /[?&]s=([a-z-]+)/.exec(r.route || "")?.[1];
   const a = /[?&]a=([a-z0-9-]+)/.exec(r.route || "")?.[1];
-  return { kind: "section", section: s || "day", ...(a ? { anchor: a } : {}) };
+  return { kind: "section", ...panelHome(s || "day", a) };
 }
 
 /** Sources with a one-tap answer on the row itself, and who may give it (the database's own rule). */
@@ -120,6 +127,11 @@ export function obligationFor(r: ObligationRow, v: Viewer): boolean {
   }
   const to = obligationGo(r, v);
   if (to.kind === "initiative") return v.sections.includes("command");
+  // Settings opens for every role since the settings round (2026-10-06), but only its first section,
+  // You, is everyone's: a row that lands on any other panel there — a moved menu, code or plan — is
+  // for the people who see that panel. Owner and admin open the same sections, so "an owner's or an
+  // admin's" is read the way invoices read it above: whoever Money opens for.
+  if (to.kind === "section" && to.section === "settings") return settingsGate(to.anchor) === "everyone" || v.sections.includes("money");
   if (to.kind === "section") return v.sections.includes(to.section);
   return true;
 }
