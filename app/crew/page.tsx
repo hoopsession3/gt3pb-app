@@ -107,6 +107,9 @@ import { TeamKpis, PrepKpis, GarageKpis } from "@/components/CrewKpis";
 import PrepBoard from "@/components/PrepBoard";
 import InlineCreate from "@/components/InlineCreate";
 const Changelog = dynamic(() => import("@/components/Changelog"), { loading: () => <PourFill label="Loading…" /> });
+// Settings › You › Account (2026-10-06, the settings-by-category round): the account menu's door, as a
+// row — the avatar's own menu and sheets (components/AccountPill useAccountDoor), so it has one home.
+const AccountRow = dynamic(() => import("@/components/AccountRow"), { loading: () => <PourFill label="Loading…" /> });
 import CommandBoard from "@/components/CommandBoard";
 // Free-text times from before the field became type="time" still have to render. Anything the
 // input can accept is handed through; anything it cannot (a bare "9", "9am", "2 pm") is normalised
@@ -200,10 +203,10 @@ import { LiveControl } from "@/components/crew/LiveControl";
 import { staffAccess } from "@/lib/access";
 import { useConfirm } from "@/components/ConfirmSheet";
 
-const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", command: "Command", prep: "Readiness", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Assets", driver: "Delivery", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings" };
+const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", command: "Command", prep: "Readiness", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Assets", driver: "Delivery", notes: "Notes", money: "Money", catalog: "Catalog", customers: "Customers", team: "Team", settings: "Settings" };
 const SEC_WHEN: Record<OpSection, string> = {
   day: "Start of shift", now: "During service", ask: "When you're stuck", command: "Are we on track?", prep: "Before the event",
-  plan: "Booking ahead", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", driver: "Delivery days", notes: "Any time", money: "The books", customers: "Your regulars", team: "People & roles", settings: "Changing how it works",
+  plan: "Booking ahead", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", driver: "Delivery days", notes: "Any time", money: "The books", catalog: "Changing what we sell", customers: "Your regulars", team: "People & roles", settings: "Changing how it works",
 };
 const SEC_SUB: Record<OpSection, string> = {
   day: "Your tasks, flags, needs-you & what's on today.",
@@ -218,9 +221,10 @@ const SEC_SUB: Record<OpSection, string> = {
   garage: "Load-out & tow, gear, maintenance & inventory.",
   driver: "The delivery run — map, list & one big go button.",
   money: "Sales, costs, reserves & order history.",
-  customers: "Every customer — orders, loyalty & contact info.",
+  catalog: "The menu, merch, lessons, membership plans, codes & perks.",
+  customers: "Every customer — orders, loyalty, contact info & messages.",
   team: "People, roles & training.",
-  settings: "Your notifications, this phone & every switch that changes how the app works.",
+  settings: "Your account, notifications & display — and how the business runs.",
 };
 const SEC_MORE: Record<OpSection, string> = {
   day: "Your personal launchpad — the console's one glance screen. Everything assigned to you, everything flagged for your attention, and (for leadership) the needs-you list: booking replies, past-due team tasks and restock lows.",
@@ -233,15 +237,16 @@ const SEC_MORE: Record<OpSection, string> = {
   brew: "Production's home. Schedule brews sized to demand, hit start-by deadlines, log every batch — with coverage, serve-by and stock checks right on the card.",
   garage: "The physical operation: trailer load-out & tow plan, the gear library, asset maintenance, and inventory with pars.",
   driver: "Run day, from the wheel: how many porches, where, and one tap into driver mode with the map and run list.",
-  money: "The books. Watch sales and reserve revenue, work out costs and margins, and review order history — the numbers behind the operation. How people pay, the menu and the membership plans are set in Settings.",
-  customers: "Your customer book. Every person who's ordered — cup, pickup or delivery, with or without an account — with their history, loyalty and contact info in one place.",
+  money: "The books. Watch sales and reserve revenue, work out costs and margins, and review order history — the numbers behind the operation. How people pay is set in Settings; what we sell — the menu, merch, lessons and plans — is the Catalog.",
+  catalog: "What the business sells, in one place: the menu and its products, the merch in the Shop, the Return to Primal lessons, and what members get — membership plans, discount codes and founding perks. What each costs and earns stays in Money.",
+  customers: "Your customer book. Every person who's ordered — cup, pickup or delivery, with or without an account — with their history, loyalty and contact info in one place. Messages is here too: a live broadcast to everyone in the app.",
   team: "Your people. The roster — change someone's role and access right on their row — who's on what, the org chart, and training. Inviting someone new, who owns each lane and training the AI are in Settings.",
   ask: "Your pocket brain. Ask anything about recipes, the why, gear, stock or how-to and get an answer from the GT3 playbook — from any screen.",
-  // THE GUIDE SAYS WHAT SETTINGS HOLDS (2026-10-06, the settings round). It used to call Settings "the
-  // owner control room" holding "promos & codes" — the codes were in Customers — and Money's list said
-  // the pay-at-pickup switch governed delivery, which PaymentSettings itself says it does not: delivery
-  // is always prepaid. Both lists say the new layout now, section by section.
-  settings: "Every switch in one place. It opens on You — your notifications and quiet hours, order alerts on this phone, the pass's sound, day or dark, and text size — which every role has. Owners and admins see the business under it: ordering & payments (card checkout, pay at pickup, the cup-ordering dial, office delivery pricing), the menu and membership plans, discount codes and perks, inviting the team and who owns each lane, markets, integrations like Outlook, the AI, the words guests read, and the logs — what changed, what broke, what we've built. Each thing's old spot keeps a line that brings you here. Edits go live instantly, no deploy.",
+  // THE GUIDE SAYS WHAT SETTINGS HOLDS (2026-10-06, the settings round; by category the same day). It
+  // used to call Settings "the owner control room" holding "promos & codes" — the codes were in
+  // Customers — and Money's list said the pay-at-pickup switch governed delivery, which PaymentSettings
+  // itself says it does not: delivery is always prepaid. Both lists say the layout now, group by group.
+  settings: "How the app and the business behave, by category — the way a phone's Settings reads. You — your account, notifications and display — is everyone's. Owners and admins see Business under it: payments & checkout, ordering & delivery, locations & markets, team & permissions, reports, integrations like Outlook, the AI, and the brand guests see. Advanced is about the software itself: the activity log, app health and the lists every picker offers. What the business sells is the Catalog, and a broadcast is Customers › Messages. Each thing's old spot keeps a line that brings you to it. Edits go live instantly, no deploy.",
 };
 const SEC_INSIDE: Record<OpSection, string[]> = {
   day: ["Your open tasks & due dates", "Alerts flagged for you — with discussion threads", "Needs you (leadership): booking replies, past-due tasks, restock", "What's on the calendar today", "Day-of brief — dress code & call time"],
@@ -254,11 +259,12 @@ const SEC_INSIDE: Record<OpSection, string[]> = {
   brew: ["Brew schedule with start-by deadlines", "Coverage — makes vs reserved", "Serve-by freshness windows", "Batch log & recipes"],
   garage: ["Load-out & tow plan", "Gear library — manuals & specs", "Asset maintenance & what's due", "Inventory — stock, costs & pars"],
   driver: ["Next run — porches & zips", "Driver mode — map & run list", "The ONE place outcomes are logged (swap · fresh · hold · not home)"],
-  customers: ["Customer list — guests & members", "Cross-channel order history (cup · pickup · delivery)", "Loyalty — points & credit", "Contact info for outreach"],
-  money: ["Refunds & disputes — the door to Square (the payment switches are in Settings)", "Sales · snapshot · per-event P&L", "Product economics & COGS", "Subscribers & subscription interest (the plans are in Settings)", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here", "Reserve drops — configure the limited drops"],
+  customers: ["Customer list — guests & members", "Cross-channel order history (cup · pickup · delivery)", "Loyalty — points & credit", "Contact info for outreach", "Messages — a live message or ad, to everyone in the app"],
+  money: ["Refunds & disputes — the door to Square (the payment switches are in Settings)", "Sales · snapshot · per-event P&L", "Pricing & margins — product economics & COGS (the menu itself is in the Catalog)", "Subscribers & subscription interest (the plans are in the Catalog)", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here", "Reserve drops — configure the limited drops"],
+  catalog: ["Menu & products — every drink and product, its price, and whether it's on", "The Shop · merch", "Return to Primal · lessons", "Membership plans — what members pay, and what they get", "Discount codes — mint one, see who used it, turn one off", "Founding perks — what a founding member gets, and what a VIP gets"],
   team: ["Staff roster — change a role on the person's row", "Who's on what & the org chart", "Training & academy", "Manager approvals", "Invites, lane owners & Train the AI — in Settings"],
   ask: ["Recipes & the why", "Gear & stock how-to", "The GT3 playbook"],
-  settings: ["You — notifications & quiet hours, order alerts on this phone, the pass's sound, day or dark, text size (everyone)", "Ordering & payments — card checkout, pay at pickup (pickup orders only: delivery is always prepaid on the card), subscriptions, the cup-ordering dial, office delivery pricing", "Menu & availability — the menu, membership plans, discount codes & perks, dropdown lists", "Team & access — invites & lane owners (a role is changed on Team's roster)", "Markets & legal — can a city open, and why not", "Integrations — what's connected, and Outlook's two-way sync", "AI — Train the AI, the copilots & what they cost", "Copy & brand — every line guests read, the app splash, broadcasts", "Advanced — the change log, errors, what we've built & every audit run"],
+  settings: ["You — your account; notifications: order alerts and the pass's sound on this phone, what pings you & quiet hours; display: day, dark or auto, text size (everyone)", "Business — payments & checkout: card, pay at pickup (pickup orders only: delivery is always prepaid on the card), subscriptions; ordering & delivery: the cup-ordering dial, office delivery pricing; locations & markets; team & permissions: invites & lane owners (a role is changed on Team's roster); reports: the founder digest; integrations & Outlook's two-way sync; the AI; brand & customer app: every line guests read, the app splash", "Advanced — the activity log, app health (errors & every audit run), and the dropdown lists every picker offers"],
 };
 
 // The interactive "when to use what" guide — every section the role can reach, each expandable to a
@@ -329,7 +335,7 @@ function Kitchen() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [flash, setFlash] = useState<Set<string>>(new Set());
   // The pass's sound is this phone's setting, kept in one home (lib/passSound) — the bell below and
-  // Settings › You › Pass sound both change it, and the Pass reads it as it draws (2026-10-06).
+  // Settings › You › Notifications › Pass sound both change it, and the Pass reads it as it draws (2026-10-06).
   const muted = usePassMuted();
   const [doneOpen, setDoneOpen] = useState(false);
   const [, setTick] = useState(0);
@@ -5185,7 +5191,7 @@ function OrdersHistory() {
 
 // "Turn on order alerts" lived here (EnableAlerts) until 2026-10-06 (the settings round). Ryan, the
 // 2026-07-29 audit: "Turn on order alerts out of place, WTF." It was given a heading then, and stayed
-// at the bottom of Live Ops. It is a setting of this phone, so it is Settings › You › Alerts on this
+// at the bottom of Live Ops. It is a setting of this phone, so it is Settings › You › Notifications › Alerts on this
 // device now (components/DeviceAlerts), and Live Ops keeps one line while alerts are off here.
 
 // ───────────────────────── back office ─────────────────────────
@@ -5486,6 +5492,11 @@ function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[
     return () => { b.style.overflow = prev; };
   }, []);
   const [open, setOpen] = useState<OpSection>(current);
+  // WHAT'S NEW (2026-10-06, the settings-by-category round). The changelog sat in Settings › Advanced,
+  // where only an owner or an admin ever saw it; release notes are help, not a setting. The Guide is
+  // the console's help, and every role opens it — and every staff role can read the changelog (0260:
+  // "changelog staff read").
+  const [news, setNews] = useState(false);
   return (
     <Sheet open onClose={onClose} labelledBy="section-guide-title" header={<div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><div><div className="guide-t" id="section-guide-title">When to use what</div><div className="guide-lede">Each section is one job at one moment. Tap to learn more, then jump straight there.</div></div><button type="button" className="guide-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
         {(allowed.includes("plan") || allowed.includes("prep")) && (
@@ -5522,6 +5533,16 @@ function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[
               </div>
             );
           })}
+          <div className={`guide-row${news ? " open" : ""}`}>
+            <button type="button" className="guide-row-h" aria-expanded={news} onClick={() => setNews(!news)}>
+              <span className="guide-row-tt">
+                <span className="guide-row-t">What&rsquo;s new</span>
+                <span className="guide-row-sub">Everything we&rsquo;ve shipped, newest first.</span>
+              </span>
+              <span className={`guide-chev ev-chev${news ? " open" : ""}`} aria-hidden>›</span>
+            </button>
+            {news && <div className="guide-body"><Changelog /></div>}
+          </div>
         </div>
     </Sheet>
   );
@@ -5598,12 +5619,29 @@ function Panel({ title, sub, value, id, defaultOpen = false, remember = true, ch
 //
 // A LIST, LIKE A PHONE'S SETTINGS. The first draw opened the big panels at rest — the copy editor,
 // Train the AI, invites — and the page ran to fourteen screens, a form wall between the rows. Now each
-// section is one grouped list (SetList) of rows, all closed: a title, a line saying what is inside,
+// group is one grouped list (SetList) of rows, all closed: a title, a line saying what is inside,
 // and, where it is one fact, what it is set to now (components/SettingsGlance). Tap a row to change
-// it; Settings comes back to its list next time (remember={false}). A switch you flip without reading
-// anything first — alerts on this phone, the pass's sound, day or dark — is a row you flip in place.
+// it; Settings comes back to its list next time (remember={false}).
+//
+// BY CATEGORY (2026-10-06, the settings-by-category round). Ryan: "Are the settings even organized?
+// … based on categories … industry standard". Three groups — You, Business, Advanced — of one row per
+// topic (lib/settingsLayout says why, and holds the order and the gates). A topic's pieces are PARTS
+// of its row (SetPart): each keeps the id it had as a row of its own, so every link to it still lands
+// — lib/anchors opens the row that holds it first. What the business sells moved to the Catalog;
+// a broadcast to Customers › Messages; the changelog to the Guide's What's new.
 function SetList({ children }: { children: ReactNode }) {
   return Children.toArray(children).length ? <div className="set-list">{children}</div> : null;
+}
+
+/** One piece of a Settings row: its own id (the anchor links name), and a small heading when the
+ *  component inside does not carry one of its own. */
+function SetPart({ id, label, children }: { id?: string; label?: string; children: ReactNode }) {
+  return (
+    <div id={id} className="set-part">
+      {label && <div className="rdg-row-h set-part-h">{label}</div>}
+      {children}
+    </div>
+  );
 }
 
 function SettingsHome({ userId, isAdmin, isOwner }: { userId: string | null; isAdmin: boolean; isOwner: boolean }) {
@@ -5614,94 +5652,88 @@ function SettingsHome({ userId, isAdmin, isOwner }: { userId: string | null; isA
     <>
       <p className="set-lead">{isAdmin
         ? "Yours first, then the business’s. Tap a row to change it — a change goes live at once, no deploy."
-        : "Your notifications, and how the app looks and sounds on this phone."}</p>
-      <SectionHeader label="You" annotation="your pings · this phone" />
+        : "Your account, your notifications, and how the app looks on this phone."}</p>
+      <SectionHeader label="You" annotation="you · this phone" />
       <SetList>
-        <Panel id="set-notify" title="Notifications" sub="What pings you, and your quiet hours" value={v(g.notify)} remember={false}><NotifPrefs userId={userId} /></Panel>
-        <div id="set-alerts" className="set-row"><DeviceAlerts userId={userId} /></div>
-        <div id="set-sound" className="set-row"><PassSound /></div>
-        <div id="set-theme" className="set-row"><Appearance /></div>
-        <Panel id="set-display" title="Text size & display" sub="Bigger text, bold, roomier spacing — this phone" value={v(g.display)} remember={false}><DisplayControls /></Panel>
-        {isAdmin && <Panel id="set-digest" title="Founder digest" sub="The business roll-up, sent to the founders" value={v(g.digest)} remember={false}><FounderDigest /></Panel>}
+        <div id="set-account" className="set-row set-acct"><AccountRow /></div>
+        <Panel id="set-notify" title="Notifications" sub="Order alerts and sound on this phone, what pings you, quiet hours" value={v(g.notify)} remember={false}>
+          <SetPart id="set-alerts"><DeviceAlerts userId={userId} /></SetPart>
+          <SetPart id="set-sound"><PassSound /></SetPart>
+          <SetPart label="What pings you"><NotifPrefs userId={userId} /></SetPart>
+        </Panel>
+        <Panel id="set-display" title="Display" sub="Day, dark or auto; text size, bold, spacing — this phone" value={v(g.display)} remember={false}>
+          <SetPart id="set-theme"><Appearance /></SetPart>
+          <SetPart><DisplayControls /></SetPart>
+        </Panel>
       </SetList>
 
-      {isAdmin && <SectionHeader label="Ordering & payments" />}
+      {isAdmin && <SectionHeader label="Business" annotation="owners & admins" />}
       <SetList>
-        {isAdmin && <Panel id="set-pay" title="Checkout & payments" sub="Card checkout, pay at pickup, subscriptions" value={v(g.pay)} remember={false}><PaymentSettings /></Panel>}
-        {isAdmin && <Panel id="set-dial" title="Cup-ordering dial" sub="When cup pre-orders open before a stop" value={v(g.dial)} remember={false}><CupOrderingDial /></Panel>}
-        {isAdmin && <Panel id="set-office" title="Office delivery" sub="The price a gallon, and the smallest order" value={v(g.office)} remember={false}><OfficeSettings /></Panel>}
-      </SetList>
-
-      {isAdmin && <SectionHeader label="Menu & availability" />}
-      <SetList>
-        {isAdmin && <Panel id="menu" title="Menu & products" sub="Every drink and product, its price, and whether it’s on" remember={false}><MenuManager /></Panel>}
-        {isAdmin && <Panel id="plans" title="Membership plans" sub="What members pay, and what they get" remember={false}><PlanEditor /></Panel>}
-        {isAdmin && <Panel id="cust-codes" title="Discount codes" sub="Mint a code, see who used it, turn one off" remember={false}><CodesPanel /></Panel>}
-        {isAdmin && <Panel id="cust-perks" title="Founding perks" sub="What a founding member gets, and what a VIP gets" remember={false}><PerksPanel /></Panel>}
-        {/* 0306 moved every dropdown's list into the database so the same column stopped being a
-            picker on one screen and a text box on another. This is the other half of that: the
-            lists have to be editable from in here, or adding a unit means opening the SQL editor,
-            which is not something to hand a market lead. */}
-        {isAdmin && <Panel id="set-lists" title="Dropdown lists" sub="The choices every picker in the app offers" remember={false}><ListsPanel /></Panel>}
-      </SetList>
-
-      {isAdmin && <SectionHeader label="Team & access" />}
-      <SetList>
-        {isOwner && <Panel id="set-invite" title="Invite a teammate" sub="They land in their role the moment they sign up" remember={false}><InviteTeammate /></Panel>}
-        {isAdmin && <Panel id="set-lanes" title="Lane owners" sub="One accountable owner for each work stream" value={v(g.lanes)} remember={false}><OrgChart part="lanes" /></Panel>}
-      </SetList>
-      {/* A role is changed on the person's row in Team's roster — the roster stays where the people are. */}
-      {isOwner && <GoLine to="team" anchor="team-members">Change someone&rsquo;s role</GoLine>}
-
-      {isAdmin && <SectionHeader label="Markets & legal" />}
-      <SetList>
-        {/* 0296/0297 built the readiness engine — eight named checks per city, rolled up into
-            can_open — and nothing in the app read it. Five market RPCs were in the same state.
-            Opening Atlanta was a SQL-editor operation until this panel. Admins see it; the panel
-            leaves the decisions (opening a city, its terms) to the owner, as before. */}
-        {isAdmin && <Panel id="set-markets" title="Markets" sub="Can a city open — and if not, why not" remember={false}><MarketsPanel /></Panel>}
-      </SetList>
-
-      {isAdmin && <SectionHeader label="Integrations" />}
-      <SetList>
-        {/* Enterprise round (2026-08-01): one honest pane of what's connected, admin-only, read-only. */}
-        {isAdmin && <Panel id="set-integrations" title="Integrations & security" sub="What the app is connected to" remember={false}><IntegrationsPanel /></Panel>}
-        {isOwner && <Panel id="set-outlook" title="Outlook calendar" sub="Two-way sync with the company calendar" value={outlook} remember={false}><OutlookConnect /></Panel>}
-      </SetList>
-
-      {isAdmin && <SectionHeader label="AI" />}
-      <SetList>
-        {isOwner && <Panel id="set-train" title="Train the AI" sub="Corrections every agent obeys" remember={false}><AiTraining /></Panel>}
-        {isAdmin && <Panel id="set-ai" title="AI copilots" sub="Every copilot, and what each one does" remember={false}><CopilotDirectory /></Panel>}
-        {isAdmin && <Panel id="set-spend" title="AI spend" sub="What your copilots cost" remember={false}><AiSpend /></Panel>}
-      </SetList>
-
-      {isAdmin && <SectionHeader label="Copy & brand" />}
-      <SetList>
-        {/* The words guests read, the splash and the broadcast. An event manager keeps the brand kit
-            in Studio › Brand; Studio's line to this editor is drawn for an owner or an admin. */}
-        {isAdmin && <Panel id="set-copy" title="Copy & wording" sub="Every line guests read, page by page" remember={false}><SiteCopyEditor /></Panel>}
-        {isAdmin && <Panel id="splash" title="App splash" sub="The pop-up guests see when they open the app" remember={false}><PromoEditor /></Panel>}
-        {isAdmin && <Panel id="set-broadcast" title="Broadcast" sub="A live message or ad, to everyone" remember={false}><BroadcastEditor /></Panel>}
-      </SetList>
-
-      {/* 2026-07-16 scope assessment: the change log, errors, the changelog and the audit log are
-          tools ABOUT the software itself rather than tools for running the business, so they sit
-          last, behind their own divider. Enterprise round (2026-08-01): the change log (0260).
-          The reading end of the error intake (0133, lib/errorIntake): every alert that says "App
-          error" or "Server error" points at a row that, until that panel, only the SQL editor
-          could show. */}
-      {isAdmin && <SectionHeader label="Advanced" />}
-      <SetList>
-        {isAdmin && <Panel id="set-admintrail" title="Change log" sub="Who changed what, and when" remember={false}><AuditTrail /></Panel>}
-        {isAdmin && <Panel id="set-errors" title="Errors" sub="What broke, how often, and where" remember={false}><ErrorLog /></Panel>}
-        {isAdmin && <Panel id="set-changelog" title="What we’ve built" sub="The changelog" remember={false}><Changelog /></Panel>}
+        {isAdmin && <Panel id="set-pay" title="Payments & checkout" sub="Card checkout, pay at pickup, subscriptions" value={v(g.pay)} remember={false}><PaymentSettings /></Panel>}
         {isAdmin && (
-          <Panel id="set-audit" title="Audit & maintenance" sub="Every review run on the app, scored and dated" remember={false}>
-            <p className="set-lead">Every review run on the app — security, privacy, performance, accessibility, UI cohesion, data — with a score, the date, the prompt used, and when it&apos;s due to run again. Log a new one any time you run a check.</p>
-            <MaintenanceLog />
+          <Panel id="set-ordering" title="Ordering & delivery" sub="When cup pre-orders open; office delivery’s price and minimum" value={v(g.ordering)} remember={false}>
+            <SetPart id="set-dial"><CupOrderingDial /></SetPart>
+            <SetPart id="set-office" label="Office delivery"><OfficeSettings /></SetPart>
           </Panel>
         )}
+        {/* 0296/0297 built the readiness engine — eight named checks per city, rolled up into
+            can_open — and nothing in the app read it. Opening Atlanta was a SQL-editor operation
+            until this panel. Admins see it; opening a city, and its terms, stay the owner's. */}
+        {isAdmin && <Panel id="set-markets" title="Locations & markets" sub="Which cities can open — and if not, why not" remember={false}><MarketsPanel /></Panel>}
+        {isAdmin && (
+          <Panel id="set-team" title="Team & permissions" sub={isOwner ? "Invite someone, who owns each lane, roles" : "Who owns each lane"} value={v(g.lanes)} remember={false}>
+            {isOwner && <SetPart id="set-invite" label="Invite a teammate"><InviteTeammate /></SetPart>}
+            <SetPart id="set-lanes"><OrgChart part="lanes" /></SetPart>
+            {/* A role is changed on the person's row in Team's roster — the roster stays where the people are. */}
+            {isOwner && <GoLine to="team" anchor="team-members">Change someone&rsquo;s role</GoLine>}
+          </Panel>
+        )}
+        {isAdmin && <Panel id="set-digest" title="Reports" sub="The founder digest — the business roll-up, and how often" value={v(g.digest)} remember={false}><FounderDigest /></Panel>}
+        {/* Enterprise round (2026-08-01): one honest pane of what's connected, admin-only, read-only —
+            and, for the owner, connecting Outlook under it. */}
+        {isAdmin && (
+          <Panel id="set-integrations" title="Integrations" sub={isOwner ? "What the app is connected to, and Outlook" : "What the app is connected to"} value={outlook} remember={false}>
+            <IntegrationsPanel />
+            {isOwner && <SetPart id="set-outlook" label="Outlook calendar"><OutlookConnect /></SetPart>}
+          </Panel>
+        )}
+        {isAdmin && (
+          <Panel id="set-ai" title="AI" sub={isOwner ? "Train the AI, the copilots, and what they cost" : "The copilots, and what they cost"} remember={false}>
+            {isOwner && <SetPart id="set-train"><AiTraining /></SetPart>}
+            <SetPart label="Copilots"><CopilotDirectory /></SetPart>
+            <SetPart id="set-spend" label="What they cost"><AiSpend /></SetPart>
+          </Panel>
+        )}
+        {/* The words guests read and the splash. An event manager keeps the brand kit in Studio ›
+            Brand; Studio's line to this editor is drawn for an owner or an admin. */}
+        {isAdmin && (
+          <Panel id="set-brand" title="Brand & customer app" sub="Every line guests read, and the app’s splash" remember={false}>
+            <SetPart id="set-copy"><SiteCopyEditor /></SetPart>
+            <SetPart id="splash"><PromoEditor /></SetPart>
+          </Panel>
+        )}
+      </SetList>
+
+      {/* 2026-07-16 scope assessment: the change log, errors and the audit log are tools ABOUT the
+          software itself rather than tools for running the business, so they sit last, behind their
+          own divider. The reading end of the error intake (0133, lib/errorIntake): every alert that
+          says "App error" or "Server error" points at a row that, until that panel, only the SQL
+          editor could show. 0306 moved every dropdown's list into the database so the same column
+          stopped being a picker on one screen and a text box on another; the lists are edited here,
+          or adding a unit means opening the SQL editor. */}
+      {isAdmin && <SectionHeader label="Advanced" annotation="about the software" />}
+      <SetList>
+        {isAdmin && <Panel id="set-admintrail" title="Activity log" sub="Who changed what, and when" remember={false}><AuditTrail /></Panel>}
+        {isAdmin && (
+          <Panel id="set-errors" title="App health" sub="What broke, and every review run on the app" remember={false}>
+            <ErrorLog />
+            <SetPart id="set-audit" label="Audits & maintenance">
+              <p className="set-lead">Every review run on the app — security, privacy, performance, accessibility, UI cohesion, data — with a score, the date, the prompt used, and when it&apos;s due to run again. Log a new one any time you run a check.</p>
+              <MaintenanceLog />
+            </SetPart>
+          </Panel>
+        )}
+        {isAdmin && <Panel id="set-lists" title="Data & lists" sub="The choices every picker in the app offers" remember={false}><ListsPanel /></Panel>}
       </SetList>
     </>
   );
@@ -6027,7 +6059,7 @@ export default function AdminPage() {
           )}
           {canManage && <Panel id="hud" title="Event heads-up"><EventHUD onGoEvents={() => goSection("events")} /></Panel>}
           <MyTasks userId={user?.id ?? null} chip />
-          {/* Turning order alerts on is Settings › You › Alerts on this device now (2026-10-06, the
+          {/* Turning order alerts on is Settings › You › Notifications › Alerts on this device now (2026-10-06, the
               settings round); here, one line, and only while they are off on this phone. */}
           <AlertsOffLine />
         </>
@@ -6188,7 +6220,7 @@ export default function AdminPage() {
           <Panel id="spend" title="Spend & budget · what the business spends" defaultOpen><SpendBudget /></Panel>
           <SectionHeader label="Get paid" />
           {/* THE PAY PANEL STAYS (2026-10-06, the settings round). The switches it held — card
-              checkout, pay at pickup, subscriptions — are Settings › Ordering & payments now. The
+              checkout, pay at pickup, subscriptions — are Settings › Business › Payments & checkout now. The
               panel keeps its id: a voided paid order raises a refund alert that links
               /crew?s=money&a=pay, and a refund is still Money's — so it keeps the door to them, and
               one line to the switches. */}
@@ -6206,13 +6238,11 @@ export default function AdminPage() {
           <Panel id="snapshot" title="Business snapshot"><SnapshotReport /></Panel>
           <Panel id="pnl" title="Per-event P&L"><EventPnlReport /></Panel>
           <Panel id="funnels" title="Funnels · where people drop off"><FunnelReport /></Panel>
-          <SectionHeader label="Catalog & pricing" />
-          {/* Menu & products (id "menu") is Settings › Menu & availability now (2026-10-06): what
-              is on the menu changes the feature; what it costs and earns stays here. */}
-          <GoLine to="settings" anchor="menu">Menu &amp; products</GoLine>
+          <SectionHeader label="Pricing & margins" />
+          {/* What the business sells — the menu, the merch, the lessons — is the Catalog (2026-10-06,
+              the settings-by-category round); what each costs and earns stays here. */}
+          <GoLine to="catalog" anchor="menu">Menu, merch &amp; lessons</GoLine>
           <Panel id="econ" title="Product economics"><ProductCatalog /></Panel>
-          <Panel id="lessons" title="Return to Primal · lessons"><LessonsManager /></Panel>
-          <Panel id="merch" title="The Shop · merch"><MerchManager /></Panel>
           <Panel id="cogs" title="COGS calculator"><CogsCalculator /></Panel>
           <SectionHeader label="Operators" />
           {/* The deal itself: what an operator gets, what they fund, what they earn, and what comes
@@ -6221,9 +6251,9 @@ export default function AdminPage() {
           <Panel id="operators" title="Operator agreements · deals, levels &amp; royalties"><OperatorDeal /></Panel>
           <Panel id="offers" title="Offer letters · hire someone"><OfferLetters /></Panel>
           <SectionHeader label="Members & subscriptions" />
-          {/* The plans themselves (id "plans") are Settings › Menu & availability now (2026-10-06);
-              who subscribed, and who asked to, stay with the money. */}
-          <GoLine to="settings" anchor="plans">Membership plans</GoLine>
+          {/* The plans themselves (id "plans") are the Catalog's (2026-10-06); who subscribed, and who
+              asked to, stay with the money. */}
+          <GoLine to="catalog" anchor="plans">Membership plans</GoLine>
           <Panel id="subs" title="Subscribers"><Subscribers /></Panel>
           <Panel id="subint" title="Subscription interest"><SubInterest /></Panel>
           <SectionHeader label="Records" />
@@ -6250,18 +6280,40 @@ export default function AdminPage() {
       )}
       {sec === "driver" && <DriverDash isLead={canManage} />}
 
+      {/* THE CATALOG (2026-10-06, the settings-by-category round). What the business sells, in one
+          section beside Money: the menu, the merch, the lessons, and what members get. They were in
+          Settings since the settings round (and Money and Customers before it); Ryan chose the
+          store-admin shape — "Move them out" — so Settings holds only how things behave. Every panel
+          kept its id; an old link lands here through lib/panelHome. */}
+      {sec === "catalog" && isAdmin && (
+        <>
+          <SectionHeader label="What we sell" />
+          <Panel id="menu" title="Menu & products" sub="Every drink and product, its price, and whether it’s on" defaultOpen><MenuManager /></Panel>
+          <Panel id="merch" title="The Shop · merch" sub="Shirts and gear in the online shop"><MerchManager /></Panel>
+          <Panel id="lessons" title="Return to Primal · lessons" sub="The lessons members can take"><LessonsManager /></Panel>
+          <SectionHeader label="Memberships & offers" />
+          <Panel id="plans" title="Membership plans" sub="What members pay, and what they get"><PlanEditor /></Panel>
+          <Panel id="cust-codes" title="Discount codes" sub="Mint a code, see who used it, turn one off"><CodesPanel /></Panel>
+          <Panel id="cust-perks" title="Founding perks" sub="What a founding member gets, and what a VIP gets"><PerksPanel /></Panel>
+        </>
+      )}
+
       {sec === "customers" && isAdmin && (
         <>
           {/* Money's 10/10 template: glance-first KPIs → crew-group dividers → uniform Panels. */}
           <CustomerKpis />
           <SectionHeader label="The people" />
           <Panel id="cust-book" title="Customer book · every guest &amp; member" defaultOpen><CrmPanel /></Panel>
-          {/* Discount codes and the founding perks (ids "cust-codes", "cust-perks") are Settings ›
-              Menu & availability now (2026-10-06, the settings round): minting a code changes what
-              a customer pays. One line where they were. */}
-          <GoLine to="settings" anchor="cust-codes">Codes &amp; perks</GoLine>
+          {/* Discount codes and the founding perks (ids "cust-codes", "cust-perks") are the Catalog's
+              (2026-10-06): what a member gets is part of what the business sells. One line where they
+              were. */}
+          <GoLine to="catalog" anchor="cust-codes">Codes &amp; perks</GoLine>
           <SectionHeader label="VIP verification" />
           <Panel id="cust-vip" title="Bottle-owner proofs · verify → Founding" defaultOpen><VipQueue /></Panel>
+          {/* MESSAGES (2026-10-06, the settings-by-category round): a broadcast is something the business
+              says to its customers, not a setting — so it left Settings for the customer book. */}
+          <SectionHeader label="Messages" />
+          <Panel id="cust-broadcast" title="Broadcast" sub="A live message or ad, to everyone in the app"><BroadcastEditor /></Panel>
         </>
       )}
 
@@ -6272,7 +6324,7 @@ export default function AdminPage() {
               IN the system: active days, sign-ins, actions, last-seen per person, plus the
               anonymous guest pulse. Admin-only data by RLS. */}
           <UtilizationPanel />
-          {/* Inviting someone, and who owns each lane, are Settings › Team & access now (2026-10-06,
+          {/* Inviting someone, and who owns each lane, are Settings › Business › Team & permissions (2026-10-06,
               the settings round). Changing a role stays here, on the person's row in the roster.
               Inviting is the owner's, so an admin's line goes to the lane owners, which are theirs. */}
           {isOwner && <GoLine to="settings" anchor="set-invite">Invites &amp; roles</GoLine>}
@@ -6282,7 +6334,7 @@ export default function AdminPage() {
           {/* Was "Roster" (2026-07-16, ground-up redesign): OrgChart rendered two labeled concerns
               (the org chart's reporting tiers, then work streams' ownership grid), and Members below
               adds a third ("Team", the actual member list) — "Roster" only described the last.
-              Since 2026-10-06 the lane owners are Settings › Team & access (OrgChart part="lanes");
+              Since 2026-10-06 the lane owners are Settings › Business › Team & permissions (OrgChart part="lanes");
               the picture of the people stays here. The roster has an id so Settings' "Change
               someone's role" lands on it. */}
           <SectionHeader label="Team structure" />
@@ -6293,7 +6345,7 @@ export default function AdminPage() {
               was the one block the eye skipped, and the Academy had zero progress rows for anybody.
               The card now carries the reader's own role path, which lib/academy could already derive. */}
           <AcademyCard />
-          {/* Train the AI is Settings › AI now (2026-10-06, the settings round). */}
+          {/* Train the AI is Settings › Business › AI now (2026-10-06, the settings round). */}
           {isOwner && <GoLine to="settings" anchor="set-train">Train the AI</GoLine>}
         </>
       )}

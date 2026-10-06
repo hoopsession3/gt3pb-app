@@ -108,9 +108,13 @@ const SUPA_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 // check, which is the same mistake wearing a different hat. So the literal is verified against
 // OperatorNav's own text at startup: add a section to the app and this fails until it is added
 // here, which is the only way the count above stays true.
+//
+// 2026-10-06, the settings-by-category round: the Catalog (what the business sells, beside Money)
+// joined the owner's sections, and this check stopped CI until it joined this list too — the check
+// doing its job. 15 sections now; the 2026-09-11 sweep above walked the 14 there were.
 const SECTIONS = [
   "day", "now", "command", "prep", "plan", "studio", "brew",
-  "garage", "notes", "driver", "money", "customers", "team", "settings",
+  "garage", "notes", "driver", "money", "catalog", "customers", "team", "settings",
 ];
 
 export function ownerSectionsIn(src) {

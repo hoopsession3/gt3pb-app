@@ -1,4 +1,4 @@
-// WHAT A SETTINGS ROW SAYS IT IS SET TO (2026-10-06, the settings round).
+// WHAT A SETTINGS ROW SAYS IT IS SET TO (2026-10-06, the settings round; by category the same day).
 //
 // Settings is a list of rows, closed at rest, the way a phone's Settings is. Each row says what it
 // holds (the line under its title) and, where that is one fact, what it is set to right now — on the
@@ -13,6 +13,7 @@
 import { money } from "./money";
 import { OFFICE } from "./office";
 import { TEXT_SIZE_WORDS } from "./textSize";
+import type { ThemeChoice } from "./theme";
 
 export type Glance = { text: string; warn?: boolean } | null;
 
@@ -33,16 +34,12 @@ export function payGlance(card: boolean, pickup: boolean | null | undefined): Gl
 /** The cup-ordering dial's words for a lead, in hours — the dial's buttons and its row both say these. */
 export const leadLabel = (h: number): string => (h === 0 ? "Live only" : `${h}h before`);
 
-/** The cup-ordering dial — live_status.preorder_lead_h (0: cups sell only while the truck is live). */
-export function dialGlance(hours: number | null | undefined, read: boolean): Glance {
+/** Ordering & delivery: when cup pre-orders open (live_status.preorder_lead_h; 0 is live only) and
+ *  office delivery's price a gallon — the row's two facts, the dial's first. An unset lead reads as 4,
+ *  as the ordering rule does (lib/ordering); an unset price as the form's default (lib/office). */
+export function orderingGlance(hours: number | null | undefined, priceCents: number | null | undefined, read: boolean): Glance {
   if (!read) return null;
-  return { text: leadLabel(hours ?? 4) }; // the dial reads an unset lead as 4, as the ordering rule does (lib/ordering)
-}
-
-/** Office delivery — the price a gallon and the smallest order, or the defaults the form shows. */
-export function officeGlance(priceCents: number | null | undefined, minGallons: number | null | undefined, read: boolean): Glance {
-  if (!read) return null;
-  return { text: `${money(priceCents ?? OFFICE.pricePerGallonCents)}/gal · min ${minGallons ?? OFFICE.minGallons}` };
+  return { text: `${leadLabel(hours ?? 4)} · ${money(priceCents ?? OFFICE.pricePerGallonCents)}/gal` };
 }
 
 /** The founder digest's cadences, in the words its buttons and its row both use. */
@@ -55,9 +52,13 @@ export function digestGlance(cadence: string | null | undefined, read: boolean):
   return { text: DIGEST_LABELS[cadence === "off" || cadence === "weekly" ? cadence : "daily"] };
 }
 
-/** Text size & display on this phone (components/DisplayToggle's preference). */
-export function displayGlance(d: { scale: number; bold: boolean; roomy: boolean }): Glance {
-  return { text: [TEXT_SIZE_WORDS[d.scale] ?? TEXT_SIZE_WORDS[0], d.bold ? "bold" : "", d.roomy ? "roomy" : ""].filter(Boolean).join(" · ") };
+/** The three looks in words — Appearance's buttons (components/YouPrefs) and the Display row's value
+ *  both say these. Here, with Settings' other words, not in lib/theme: every page loads lib/theme. */
+export const THEME_LABELS: Readonly<Record<ThemeChoice, string>> = { day: "Day", dark: "Dark", auto: "Auto" };
+
+/** Display on this phone: the look (lib/theme) and the text size (components/DisplayToggle's preference). */
+export function displayGlance(d: { scale: number; bold: boolean; roomy: boolean }, look: ThemeChoice): Glance {
+  return { text: [THEME_LABELS[look] ?? THEME_LABELS.day, TEXT_SIZE_WORDS[d.scale] ?? TEXT_SIZE_WORDS[0], d.bold ? "bold" : "", d.roomy ? "roomy" : ""].filter(Boolean).join(" · ") };
 }
 
 /** "10pm", "7am" — the hour alone, for a value that has to fit beside a title. */

@@ -1950,7 +1950,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 /* after the rule above, at its weight — so a panel row keeps the hairline that rule's border:0 took */
 .set-list > :not(:first-child){border-top:1px solid var(--line)}
 .set-row{padding:14px 16px}
-.set-row .btn-sec{flex:0 0 auto;width:auto;white-space:nowrap}
+.set-row .btn-sec,.set-part .btn-sec{flex:0 0 auto;width:auto;white-space:nowrap}
 .set-list .mpanel-t{font-size:14px;letter-spacing:0}
 .mpanel-tt{display:flex;flex-direction:column;gap:3px;flex:1 1 auto;min-width:0}
 .mpanel-s{font-family:'Inter';font-weight:400;font-size:12.5px;line-height:1.35;color:var(--cream-m)}
@@ -1966,6 +1966,18 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .set-seg > button{flex:1 1 0;min-height:40px;border:0;border-radius:var(--r-md);background:transparent;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .set-seg > button.on{background:var(--ink-onLight-16);color:var(--cream)}
 .app.crew-day .set-seg > button.on{background:var(--card);box-shadow:0 1px 3px var(--ink-onLight-16)}
+/* A ROW'S PARTS (2026-10-06, the settings-by-category round). One topic per Settings row; what used to
+   be a row of its own is a part inside it (app/crew/page.tsx SetPart), stacked under a hairline. A
+   part's small heading is the house eyebrow (.rdg-row-h, the one Display's "Text size" wears) — no
+   third label style. The account row is the account menu's door (components/AccountPill
+   variant="row"): the row's own padding is the button's, and the avatar is the avatar's. */
+.mpanel-body > .set-part + *,.mpanel-body > * + .set-part{border-top:1px solid var(--line);margin-top:14px;padding-top:14px}
+.set-part{scroll-margin-top:16px}
+.set-part-h{margin:0 0 8px}
+.set-row.set-acct{padding:0}
+.acct.acct-rowwrap{display:block;width:100%}
+.acct-row{gap:12px}
+.acct-row > .acct-av{flex:0 0 auto;cursor:inherit}
 .ofset{display:flex;flex-direction:column;gap:11px}
 .ofset-f{display:flex;flex-direction:column;gap:5px}
 .ofset-f span{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2)}

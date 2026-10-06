@@ -37,7 +37,7 @@ export default function CraftScreen() {
           a styled bullet list, and EditableCopy can only show a flat string at rest — its non-edit
           render is exactly what a bare {t(...)} would show, so wrapping this would replace the
           formatted list with raw "Name — fact\nName — fact" text for EVERY visitor, not just owners.
-          Still editable, as one block, via Settings → Front-end copy. */}
+          Still editable, as one block, via Settings › Business › Brand & customer app. */}
       <ul className="craft-ings">
         {ings(t(`craft.${k}_items`)).map((it, i) => (
           <li key={i} className="craft-ing">
@@ -88,7 +88,7 @@ export default function CraftScreen() {
         <div className="craft-cta">
           {/* CTA text stays plain — inside real <button>s, same nested-interactive rule as the menu
               chips, ReservePitch's CTA, and StorefrontStory's "Order from the bar" button. Still
-              editable via Settings → Front-end copy. */}
+              editable via Settings › Business › Brand & customer app. */}
           <button className="craft-cta-b" onClick={() => router.push("/menu")}>{t("craft.cta_menu")}</button>
           <button className="craft-cta-b ghost" onClick={() => router.push("/reserve")}>{t("craft.cta_reserve")}</button>
         </div>

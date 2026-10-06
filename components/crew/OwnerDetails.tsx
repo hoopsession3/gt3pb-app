@@ -369,7 +369,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
             <button type="button" role="switch" aria-checked={pk} className={`oa-toggle${pk ? " on" : ""}`} onClick={() => { if (pk) haptic("toggleOff"); else haptic("toggleOn"); setPk((v) => !v); }}><Icon name="package" /> Pickup<span>{pk ? "On" : "Off"}</span></button>
           </div>
           {/* NAMED WHERE IT LIVES (2026-10-06, the settings round): "the global window" is the
-              cup-ordering dial, an owner's or admin's setting in Settings › Ordering & payments now —
+              cup-ordering dial, an owner's or admin's setting in Settings › Business › Ordering & delivery now —
               no longer on Route. And "Now" has been called Live Ops for months. */}
           {oa && <label className="prod-f" style={{ marginTop: 8 }}><span>Order-ahead lead time (min) — blank uses the truck&rsquo;s cup-ordering dial (Settings)</span><input type="number" min={0} step={15} value={lead} onChange={(e) => setLead(e.target.value)} placeholder="e.g. 240" /></label>}
           <div className="ownerdet-hint">When on, guests can order ahead{pk ? " and choose pickup" : ""} for this stop. Off = the truck’s cup-ordering dial applies.</div>

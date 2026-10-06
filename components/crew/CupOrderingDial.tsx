@@ -18,7 +18,7 @@ import AsyncSection from "@/components/AsyncSection";
 // live_status takes writes from an owner or an admin only (0003, is_admin()), and Postgres does not
 // call a refused UPDATE an error — it updates no rows and says nothing. So an event manager tapped
 // "2h before", read "Cup orders open 2h before a stop", and nothing had changed. The dial lives in
-// Settings › Ordering & payments now, drawn for an owner or an admin only; Route keeps a line to it.
+// Settings › Business › Ordering & delivery now, drawn for an owner or an admin only; Route keeps a line to it.
 // And a save asks for the row back: no row means the database refused it, and that is said as an
 // error, with the dial put back where the database has it.
 

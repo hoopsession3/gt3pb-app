@@ -490,11 +490,10 @@ export function fillCopy(template: string, vars: Record<string, string>): string
 // each other — only one has to independently track where a group actually renders.
 
 // group → a stable DOM id, used as BOTH the SiteCopyEditor group's anchor id AND the "a=" deep-link
-// param the crew console scrolls to. Derived from the group name so a new group never needs a
-// second place to register its slug.
-export function copyGroupAnchor(group: string): string {
-  return "sc-" + group.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-}
+// param the crew console scrolls to. Its home is lib/copyAnchor (2026-10-06): Settings has to know a
+// copy group's anchor to open the row that holds the editor, and lib/settingsLayout, which every
+// jump reads, must not pull this file's whole copy table into the bundle to learn a prefix.
+export { copyGroupAnchor } from "./copyAnchor";
 
 // group → the live page that actually renders it. Explicit per group (unlike the anchor, a route
 // can't be derived from the name); the per-drink "Menu · <name>" groups all fall through to /menu.

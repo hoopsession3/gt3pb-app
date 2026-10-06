@@ -11,6 +11,16 @@
 //
 // Now there is one way to point at a panel, and it is this file: the event name every <Panel>
 // listens for, and the jump that dispatches it.
+//
+// A PART INSIDE A ROW (2026-10-06, the settings-by-category round). Settings folded rows into one
+// row per topic — the pass's sound and this phone's order alerts are parts of Notifications now — and
+// each part kept its id, so every link to it still names it. But a part is drawn only while its row
+// is open, so there is nothing to find until the row opens. The jump asks lib/settingsLayout which
+// row holds the anchor, opens that row first, then looks for the part. (The copy editor's groups
+// were the first case of this: the live page's Edit pill links to one, and since Settings' rows
+// close at rest the link found nothing.)
+
+import { settingsHolder } from "./settingsLayout";
 
 /** window event: `detail` is the panel's id. Every <Panel> opens itself on hearing its own id. */
 export const OPEN_PANEL_EVENT = "gt3-open-panel";
@@ -24,11 +34,17 @@ export const OPEN_PANEL_EVENT = "gt3-open-panel";
 export function scrollToAnchor(anchor?: string): void {
   if (!anchor || typeof window === "undefined") return;
   const deadline = Date.now() + 5000;
-  let lastTop = -1, stable = 0, asked = false;
+  const holder = settingsHolder(anchor);
+  let lastTop = -1, stable = 0, asked = false, askedHolder = false;
 
   const tick = () => {
     const el = document.getElementById(anchor);
     if (!el) {
+      // A part inside a closed row: open the row that holds it, once it is on the page.
+      if (holder && !askedHolder && document.getElementById(holder)) {
+        askedHolder = true;
+        window.dispatchEvent(new CustomEvent(OPEN_PANEL_EVENT, { detail: holder }));
+      }
       // The section may not have mounted yet — ?s= hydration and this effect race. Keep looking.
       if (Date.now() < deadline) setTimeout(tick, 80);
       return;

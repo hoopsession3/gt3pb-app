@@ -9,7 +9,7 @@ import { TEXT_SIZE_WORDS } from "@/lib/textSize";
 // size, make text bolder, and open up the spacing so info is easier to scan. Persisted to
 // localStorage and applied app-wide via classes on `.app` (see AppShell). Zero backend.
 //
-// TWO PLACES, ONE SET OF CONTROLS (2026-10-06, the settings round). Settings › You › Display & text
+// TWO PLACES, ONE SET OF CONTROLS (2026-10-06, the settings round). Settings › You › Display
 // size draws the same controls as the rail's panel (DisplayControls, below), and the rail stays.
 // Both read the one stored value through lib/devicePref, so a size picked in Settings is the size
 // the rail shows when it opens. Before, the rail read its copy once when it mounted, and its next
