@@ -7961,6 +7961,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 // Customers, Team, the calendar, Route, the inbox's gear, the foot of Live Ops, a floating moon and
 // the rail. These hold the new shape: the door, the page and its gates, the line each old spot keeps,
 // the links that still land, and the one home of each thing a phone keeps for itself.
+//
+// BY CATEGORY (2026-10-06, the settings-by-category round). Ryan: "Are the settings even organized?
+// … based on categories … industry standard". Three groups — You, Business, Advanced — of one row
+// per topic; a topic's pieces are parts of its row and keep their ids (lib/anchors opens the row that
+// holds a part); what the business sells is the Catalog section, a broadcast is Customers › Messages,
+// the changelog is the Guide's What's new. These hold that shape too.
 {
   const fs = require("node:fs");
   const path = require("node:path");
@@ -7975,6 +7981,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const LAY = require("../.smoke/settingsLayout.js");
   const PH = require("../.smoke/panelHome.js");
   const O = require("../.smoke/obligations.js");
+  const CA = require("../.smoke/copyAnchor.js");
 
   // ── the door: a Settings row in More, for every role ──
   const roleLine = (r) => (new RegExp(`\\n\\s*${r}: \\[([^\\]]*)\\]`).exec(nav)?.[1] ?? "").match(/"([a-z]+)"/g)?.map((x) => x.slice(1, -1)) ?? [];
@@ -8014,7 +8021,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   let last = -1;
   for (const s of LAY.SETTINGS_LAYOUT) {
     const sg = LAY.sectionGate(s);
-    const head = sg === "everyone" ? `<SectionHeader label="${s.label}"` : `{${gateOf[sg]} && <SectionHeader label="${s.label}" />}`;
+    const head = sg === "everyone" ? `<SectionHeader label="${s.label}"` : `{${gateOf[sg]} && <SectionHeader label="${s.label}"`;
     const hAt = at(head);
     if (hAt < 0) { missing.push(`header ${s.label} (${sg})`); continue; }
     if (sg === "everyone" && /\{is(Admin|Owner) && $/.test(sh.slice(Math.max(0, hAt - 14), hAt))) badGates.push(`header ${s.label} is gated`);
@@ -8029,53 +8036,78 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       const gated = /\{(isAdmin|isOwner) && \(?\s*<(Panel|div) $/.exec(lead);
       const want = gateOf[p.gate];
       if (want === null ? gated : !gated || gated[1] !== want) badGates.push(`${p.id}: wants ${p.gate}, drawn ${gated ? gated[1] : "ungated"}`);
+      // Its parts: inside it, in order, an owner's part behind isOwner and no other part gated again.
+      for (const q of p.parts ?? []) {
+        const qAt = at(`<SetPart id="${q.id}"`);
+        if (qAt < 0) { missing.push(`part ${q.id}`); continue; }
+        if (qAt < last) badOrder.push(`part ${q.id}`);
+        last = qAt;
+        const ownerGated = /\{isOwner && $/.test(sh.slice(Math.max(0, qAt - 12), qAt));
+        if ((q.gate === "owner") !== ownerGated) badGates.push(`part ${q.id}: wants ${q.gate}, drawn ${ownerGated ? "isOwner" : "with its row"}`);
+      }
     }
   }
   ok("settings page: every section and panel of lib/settingsLayout is drawn, in its order", missing.length === 0 && badOrder.length === 0, { missing, badOrder });
   ok("settings page: and each behind its gate — You for everyone, an owner's panel behind isOwner, the rest behind isAdmin", badGates.length === 0, badGates);
   ok("settings page: nothing is drawn there that the layout does not list",
-    [...sh.matchAll(/<Panel id="([a-z0-9-]+)"/g)].map((m) => m[1]).every((id) => LAY.settingsGate(id) !== null)
+    [...sh.matchAll(/<(?:Panel|SetPart) id="([a-z0-9-]+)"/g)].map((m) => m[1]).every((id) => LAY.settingsGate(id) !== null)
     && [...sh.matchAll(/<SectionHeader label="([^"]+)"/g)].map((m) => m[1]).every((l) => LAY.SETTINGS_LAYOUT.some((s) => s.label === l)));
   ok("settings page: the layout's gates are the ones each panel had — You for everyone, the digest an admin's, invites, Outlook and Train the AI the owner's",
-    ["set-notify", "set-alerts", "set-sound", "set-theme", "set-display"].every((id) => LAY.settingsGate(id) === "everyone")
+    ["set-account", "set-notify", "set-alerts", "set-sound", "set-theme", "set-display"].every((id) => LAY.settingsGate(id) === "everyone")
     && LAY.settingsGate("set-digest") === "admin" && ["set-invite", "set-outlook", "set-train"].every((id) => LAY.settingsGate(id) === "owner")
-    && ["set-pay", "set-dial", "menu", "plans", "cust-codes", "cust-perks", "set-lanes", "set-copy", "set-errors"].every((id) => LAY.settingsGate(id) === "admin")
+    && ["set-pay", "set-ordering", "set-dial", "set-office", "set-team", "set-lanes", "set-ai", "set-spend", "set-brand", "set-copy", "splash", "set-errors", "set-audit", "set-lists"].every((id) => LAY.settingsGate(id) === "admin")
     && LAY.settingsGate("pay") === null && LAY.settingsGate(undefined) === null);
+  ok("settings page: by category — You, Business, Advanced, one row per topic; what the business sells or says is not a setting",
+    JSON.stringify(LAY.SETTINGS_LAYOUT.map((s) => s.label)) === JSON.stringify(["You", "Business", "Advanced"])
+    && LAY.SETTINGS_LAYOUT.reduce((n, s) => n + s.panels.length, 0) === 14
+    && ["menu", "plans", "cust-codes", "cust-perks", "set-broadcast", "set-changelog", "merch", "lessons"].every((id) => LAY.settingsGate(id) === null));
+  ok("settings page: a part names the row that holds it, and so does a copy group — a row itself, or anything outside Settings, has no holder",
+    LAY.settingsHolder("set-alerts") === "set-notify" && LAY.settingsHolder("set-sound") === "set-notify" && LAY.settingsHolder("set-theme") === "set-display"
+    && LAY.settingsHolder("set-dial") === "set-ordering" && LAY.settingsHolder("set-office") === "set-ordering" && LAY.settingsHolder("set-invite") === "set-team"
+    && LAY.settingsHolder("set-outlook") === "set-integrations" && LAY.settingsHolder("set-train") === "set-ai" && LAY.settingsHolder("splash") === "set-brand"
+    && LAY.settingsHolder(CA.copyGroupAnchor("Craft page")) === "set-brand" && LAY.settingsGate("sc-craft-page") === "admin"
+    && LAY.settingsHolder("set-notify") === null && LAY.settingsHolder("menu") === null && LAY.settingsHolder(undefined) === null);
   const DRAWS = {
-    "set-notify": "<NotifPrefs userId={userId} />", "set-alerts": "<DeviceAlerts userId={userId} />", "set-sound": "<PassSound />", "set-theme": "<Appearance />",
-    "set-display": "<DisplayControls />", "set-digest": "<FounderDigest />", "set-pay": "<PaymentSettings />", "set-dial": "<CupOrderingDial />",
-    "set-office": "<OfficeSettings />", menu: "<MenuManager />", plans: "<PlanEditor />", "cust-codes": "<CodesPanel />", "cust-perks": "<PerksPanel />",
-    "set-lists": "<ListsPanel />", "set-invite": "<InviteTeammate />", "set-lanes": '<OrgChart part="lanes" />', "set-markets": "<MarketsPanel />",
-    "set-integrations": "<IntegrationsPanel />", "set-outlook": "<OutlookConnect />", "set-train": "<AiTraining />", "set-ai": "<CopilotDirectory />",
-    "set-spend": "<AiSpend />", "set-copy": "<SiteCopyEditor />", splash: "<PromoEditor />", "set-broadcast": "<BroadcastEditor />",
-    "set-admintrail": "<AuditTrail />", "set-errors": "<ErrorLog />", "set-changelog": "<Changelog />", "set-audit": "<MaintenanceLog />",
+    "set-account": ["<AccountRow />"],
+    "set-notify": ["<DeviceAlerts userId={userId} />", "<PassSound />", "<NotifPrefs userId={userId} />"],
+    "set-display": ["<Appearance />", "<DisplayControls />"],
+    "set-pay": ["<PaymentSettings />"], "set-ordering": ["<CupOrderingDial />", "<OfficeSettings />"], "set-markets": ["<MarketsPanel />"],
+    "set-team": ["<InviteTeammate />", '<OrgChart part="lanes" />'], "set-digest": ["<FounderDigest />"],
+    "set-integrations": ["<IntegrationsPanel />", "<OutlookConnect />"], "set-ai": ["<AiTraining />", "<CopilotDirectory />", "<AiSpend />"],
+    "set-brand": ["<SiteCopyEditor />", "<PromoEditor />"],
+    "set-admintrail": ["<AuditTrail />"], "set-errors": ["<ErrorLog />", "<MaintenanceLog />"], "set-lists": ["<ListsPanel />"],
   };
   const ids = LAY.SETTINGS_LAYOUT.flatMap((s) => s.panels.map((p) => p.id));
+  const partIds = LAY.SETTINGS_LAYOUT.flatMap((s) => s.panels.flatMap((p) => (p.parts ?? []).map((q) => q.id)));
   const wrongBody = ids.filter((id, i) => {
     const from = at(`id="${id}"`), to = i + 1 < ids.length ? at(`id="${ids[i + 1]}"`) : sh.length;
-    return !DRAWS[id] || !sh.slice(from, to).includes(DRAWS[id]);
+    const body = sh.slice(from, to);
+    return !DRAWS[id] || !DRAWS[id].every((c) => body.includes(c));
   });
-  ok("settings page: each panel draws the component that was moved into it", wrongBody.length === 0 && Object.keys(DRAWS).length === ids.length, wrongBody);
-  const elsewhere = Object.entries(DRAWS).filter(([, c]) => (pg.match(new RegExp(c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length !== 1).map(([id]) => id);
-  ok("settings page: and draws it once — the payment switches, the menu, the plans, codes, perks, invites and Train the AI left their old screens",
-    elsewhere.length === 0, elsewhere);
+  ok("settings page: each row draws the components that make its topic — and only those", wrongBody.length === 0 && Object.keys(DRAWS).length === ids.length, wrongBody);
+  const elsewhere = Object.values(DRAWS).flat().filter((c) => (pg.match(new RegExp(c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length !== 1);
+  ok("settings page: and draws each once — none of them is drawn on a second screen of the console", elsewhere.length === 0, elsewhere);
   const idCount = (id) => appFiles.reduce((n, f) => n + (read(f).match(new RegExp(`\\bid="${id}"`, "g")) || []).length, 0);
-  ok("settings page: every panel id in it is one element in the whole app — an anchor names exactly one place",
-    ids.every((id) => idCount(id) === 1), ids.filter((id) => idCount(id) !== 1));
-  ok("settings page: You — Notifications and Text size are rows that open; alerts on this phone, the pass's sound and the look are flipped where they are",
-    /<Panel id="set-notify" title="Notifications" sub="[^"]+" value=\{v\(g\.notify\)\} remember=\{false\}><NotifPrefs userId=\{userId\} \/><\/Panel>/.test(sh)
-    && /<Panel id="set-display" title="Text size & display" sub="[^"]+" value=\{v\(g\.display\)\} remember=\{false\}><DisplayControls \/><\/Panel>/.test(sh)
-    && ["set-alerts", "set-sound", "set-theme"].every((id) => new RegExp(`<div id="${id}" className="set-row">`).test(sh)));
+  ok("settings page: every row and part id in it is one element in the whole app — an anchor names exactly one place",
+    [...ids, ...partIds].every((id) => idCount(id) === 1), [...ids, ...partIds].filter((id) => idCount(id) !== 1));
+  ok("settings page: You — the account row, then Notifications (this phone's alerts and sound, then what pings you) and Display (the look, then text size)",
+    /<div id="set-account" className="set-row set-acct"><AccountRow \/><\/div>/.test(sh)
+    && /<Panel id="set-notify" title="Notifications" sub="[^"]+" value=\{v\(g\.notify\)\} remember=\{false\}>\s*<SetPart id="set-alerts"><DeviceAlerts userId=\{userId\} \/><\/SetPart>\s*<SetPart id="set-sound"><PassSound \/><\/SetPart>\s*<SetPart label="What pings you"><NotifPrefs userId=\{userId\} \/><\/SetPart>\s*<\/Panel>/.test(sh)
+    && /<Panel id="set-display" title="Display" sub="[^"]+" value=\{v\(g\.display\)\} remember=\{false\}>\s*<SetPart id="set-theme"><Appearance \/><\/SetPart>\s*<SetPart><DisplayControls \/><\/SetPart>\s*<\/Panel>/.test(sh)
+    && !/<div id="set-(alerts|sound|theme)" className="set-row">/.test(sh));
+  ok("settings page: a part is one piece of a row — its id where links name it, and the house eyebrow when the piece has no heading of its own",
+    /function SetPart\(\{ id, label, children \}: \{ id\?: string; label\?: string; children: ReactNode \}\) \{\s*return \(\s*<div id=\{id\} className="set-part">\s*\{label && <div className="rdg-row-h set-part-h">\{label\}<\/div>\}/.test(pg));
   const setPanels = [...sh.matchAll(/<Panel id="([a-z0-9-]+)"([^>]*)>/g)];
+  const saysWhat = (a) => /\bsub="[^"]{8,}"/.test(a) || /\bsub=\{isOwner \? "[^"]{8,}" : "[^"]{8,}"\}/.test(a);
   ok("settings page: a list of rows — every panel in it closed at rest, each saying what it holds, none reopening what was open last",
-    setPanels.length === ids.length - 3 && setPanels.every(([, , a]) => !/defaultOpen/.test(a) && /\bsub="[^"]{8,}"/.test(a) && /remember=\{false\}/.test(a)),
-    setPanels.filter(([, , a]) => /defaultOpen/.test(a) || !/\bsub="[^"]{8,}"/.test(a) || !/remember=\{false\}/.test(a)).map(([, id]) => id));
+    setPanels.length === ids.length - 1 && setPanels.every(([, , a]) => !/defaultOpen/.test(a) && saysWhat(a) && /remember=\{false\}/.test(a)),
+    setPanels.filter(([, , a]) => /defaultOpen/.test(a) || !saysWhat(a) || !/remember=\{false\}/.test(a)).map(([, id]) => id));
   ok("settings page: each section is one grouped list (SetList), drawn only when it has a row the person can see",
     /function SetList\(\{ children \}: \{ children: ReactNode \}\) \{\s*return Children\.toArray\(children\)\.length \? <div className="set-list">\{children\}<\/div> : null;\s*\}/.test(pg)
     && (sh.match(/<SetList>/g) || []).length === LAY.SETTINGS_LAYOUT.length && (sh.match(/<\/SetList>/g) || []).length === LAY.SETTINGS_LAYOUT.length);
   ok("settings page: a row that is one fact says what it is set to — the values come from components/SettingsGlance",
-    ["notify", "display", "digest", "pay", "dial", "office", "lanes"].every((k) => new RegExp(`value=\\{v\\(g\\.${k}\\)\\}`).test(sh))
-    && /<Panel id="set-outlook" [^>]*value=\{outlook\}/.test(sh) && /const outlook = isOwner \? <OutlookGlance \/> : null;/.test(sh)
+    ["notify", "display", "digest", "pay", "ordering", "lanes"].every((k) => new RegExp(`value=\\{v\\(g\\.${k}\\)\\}`).test(sh))
+    && /<Panel id="set-integrations" [^>]*value=\{outlook\}/.test(sh) && /const outlook = isOwner \? <OutlookGlance \/> : null;/.test(sh)
     && /const g = useSettingsGlance\(userId, isAdmin\);/.test(sh) && /const v = \(x: Glance\) => <GlanceText g=\{x\} \/>;/.test(sh));
   ok("panel: a line under the title and a value on the right; remember={false} keeps nothing; the toggle writes beside its state change, never in an updater",
     /\{sub\s*\? <span className="mpanel-tt"><span className="mpanel-t">\{title\}<\/span><span className="mpanel-s">\{sub\}<\/span><\/span>\s*: <span className="mpanel-t">\{title\}<\/span>\}/.test(pg)
@@ -8088,7 +8120,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("settings page: the list is the card — a panel in it gives up its own border, radius and gap but keeps the hairline above it; an empty value takes no room",
       /\.set-list\{border:1px solid var\(--line\);border-radius:var\(--r-2xl\);background:var\(--card\);overflow:hidden;/.test(css0)
       && /\.set-list > \.mpanel\{border:0;border-radius:0;margin:0;background:transparent\}\s*\.set-list > :not\(:first-child\)\{border-top:1px solid var\(--line\)\}/.test(css0)
-      && /\.mpanel-v:empty\{display:none\}/.test(css0) && /\.mpanel-v\{[^}]*max-width:50%/.test(css0));
+      && /\.mpanel-v:empty\{display:none\}/.test(css0) && /\.mpanel-v\{[^}]*max-width:50%/.test(css0)
+      && /\.mpanel-body > \.set-part \+ \*,\.mpanel-body > \* \+ \.set-part\{border-top:1px solid var\(--line\);margin-top:14px;padding-top:14px\}/.test(css0)
+      && /\.set-row\.set-acct\{padding:0\}/.test(css0)
+      && /\.set-row \.btn-sec,\.set-part \.btn-sec\{flex:0 0 auto;width:auto;white-space:nowrap\}/.test(css0));
   }
   ok("settings page: the \"More controls\" card map is gone, and its card CSS with it",
     !/set-map|set-card|More controls|Owner control room/.test(pg) && !/\.set-card|\.set-map/.test(read("app/globals.css").replace(/\/\*[\s\S]*?\*\//g, "")));
@@ -8113,11 +8148,31 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("old spots: a GoLine never names its place by a variable the check above cannot read", !appFiles.some((f) => /<GoLine to=\{|<GoLine [^>]*anchor=\{/.test(read(f))));
   const block = (start) => { const i = pg.indexOf(start); return pg.slice(i, pg.indexOf("\n      )}\n", i)); };
   const money = block('{sec === "money" && isAdmin && ('), cust = block('{sec === "customers" && isAdmin && ('), team = block('{sec === "team" && isAdmin && (');
+  const cat = block('{sec === "catalog" && isAdmin && (');
   ok("old spots: Money keeps its pay panel — the refunds door and \"Payment settings ›\" — and the switches left it",
     /<Panel id="pay" title="Refunds & payment settings" defaultOpen>[\s\S]*?Refunds &amp; disputes — Square Dashboard[\s\S]*?<GoLine to="settings" anchor="set-pay">Payment settings<\/GoLine>\s*<\/Panel>/.test(money)
-    && !/<PaymentSettings \/>/.test(money) && !/<MenuManager \/>|<PlanEditor \/>/.test(money)
-    && /<GoLine to="settings" anchor="menu">Menu &amp; products<\/GoLine>/.test(money) && /<GoLine to="settings" anchor="plans">Membership plans<\/GoLine>/.test(money));
-  ok("old spots: Customers keeps \"Codes & perks ›\", and no code or perk panel", /<GoLine to="settings" anchor="cust-codes">Codes &amp; perks<\/GoLine>/.test(cust) && !/<CodesPanel|<PerksPanel|id="cust-codes"|id="cust-perks"/.test(cust));
+    && !/<PaymentSettings \/>/.test(money) && !/<MenuManager \/>|<PlanEditor \/>|<MerchManager \/>|<LessonsManager \/>/.test(money)
+    && /<SectionHeader label="Pricing & margins" \/>\s*(?:\{\}\s*)?<GoLine to="catalog" anchor="menu">Menu, merch &amp; lessons<\/GoLine>\s*<Panel id="econ" title="Product economics"><ProductCatalog \/><\/Panel>\s*<Panel id="cogs" title="COGS calculator"><CogsCalculator \/><\/Panel>/.test(money)
+    && /<GoLine to="catalog" anchor="plans">Membership plans<\/GoLine>/.test(money) && !/Catalog & pricing/.test(money));
+  ok("old spots: Customers keeps \"Codes & perks ›\" (to the Catalog), no code or perk panel — and gains Messages, where the broadcast is",
+    /<GoLine to="catalog" anchor="cust-codes">Codes &amp; perks<\/GoLine>/.test(cust) && !/<CodesPanel|<PerksPanel|id="cust-codes"|id="cust-perks"/.test(cust)
+    && /<SectionHeader label="Messages" \/>\s*<Panel id="cust-broadcast" title="Broadcast" sub="[^"]{8,}"><BroadcastEditor \/><\/Panel>/.test(cust));
+  ok("catalog: what the business sells, in one section — the menu open at rest, then merch and lessons; then plans, codes and perks — every row saying what it holds",
+    /<SectionHeader label="What we sell" \/>\s*<Panel id="menu" title="Menu & products" sub="[^"]{8,}" defaultOpen><MenuManager \/><\/Panel>\s*<Panel id="merch" title="The Shop · merch" sub="[^"]{8,}"><MerchManager \/><\/Panel>\s*<Panel id="lessons" title="Return to Primal · lessons" sub="[^"]{8,}"><LessonsManager \/><\/Panel>\s*<SectionHeader label="Memberships & offers" \/>\s*<Panel id="plans" title="Membership plans" sub="[^"]{8,}"><PlanEditor \/><\/Panel>\s*<Panel id="cust-codes" title="Discount codes" sub="[^"]{8,}"><CodesPanel \/><\/Panel>\s*<Panel id="cust-perks" title="Founding perks" sub="[^"]{8,}"><PerksPanel \/><\/Panel>/.test(cat)
+    && ["<MenuManager />", "<MerchManager />", "<LessonsManager />", "<PlanEditor />", "<CodesPanel />", "<PerksPanel />", "<BroadcastEditor />"].every((c) => pg.split(c).length === 2));
+  ok("catalog: a section of the console — owners and admins open it, it sits right after Money in their sections and in the Business lane, and the Guide explains it",
+    ["admin", "owner"].every((r) => { const l = roleLine(r); return l.indexOf("catalog") === l.indexOf("money") + 1; })
+    && ["server", "contractor", "operator", "event_manager"].every((r) => !roleLine(r).includes("catalog"))
+    && SECTIONS.has("catalog") && /catalog: "Catalog"/.test(nav) && /\n  catalog: <>/.test(nav)
+    && /sections: \["plan", "notes", "money", "catalog", "customers", "team"\]/.test(code(read("lib/streams.ts")))
+    && /catalog: "Catalog"/.test(pg) && /\n  catalog: "[^"]{20,}",/.test(pg) && /\n  catalog: \["Menu & products/.test(pg));
+  {
+    const mig = read("supabase/migrations/0352_catalog_lane.sql");
+    ok("catalog: 0352 puts it in the live Business lanes right after Money — once, by key — and records itself",
+      /where key = 'business' and not \('catalog' = any\(sections\)\)/.test(mig)
+      && /sections\[1:array_position\(sections, 'money'\)\] \|\| array\['catalog'\]::text\[\] \|\| sections\[array_position\(sections, 'money'\) \+ 1:\]/.test(mig)
+      && /else array_append\(sections, 'catalog'\)/.test(mig) && /select public\.record_migration\('0352_catalog_lane'\);\s*$/.test(mig));
+  }
   ok("old spots: Team keeps \"Invites & roles ›\" and \"Train the AI ›\" for the owner (an admin's line goes to the lane owners), the roster keeps roles, the org chart keeps the people",
     /\{isOwner && <GoLine to="settings" anchor="set-invite">Invites &amp; roles<\/GoLine>\}/.test(team) && /\{isOwner && <GoLine to="settings" anchor="set-train">Train the AI<\/GoLine>\}/.test(team)
     && /\{!isOwner && <GoLine to="settings" anchor="set-lanes">Lane owners<\/GoLine>\}/.test(team)
@@ -8154,28 +8209,46 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("links land: Money's pay anchor stays where refund alerts point (/crew?s=money&a=pay), and the alias table leaves it alone",
     /link: "\/crew\?s=money&a=pay",/.test(pg) && idCount("pay") === 1 && !("money#pay" in PH.PANEL_MOVES)
     && JSON.stringify(PH.panelHome("money", "pay")) === JSON.stringify({ section: "money", anchor: "pay" }));
-  ok("links land: a link to a panel that moved goes to its new home — the menu, the plans, codes, perks and Train the AI",
-    JSON.stringify(PH.panelHome("money", "menu")) === JSON.stringify({ section: "settings", anchor: "menu" })
-    && JSON.stringify(PH.panelHome("money", "plans")) === JSON.stringify({ section: "settings", anchor: "plans" })
-    && JSON.stringify(PH.panelHome("customers", "cust-codes")) === JSON.stringify({ section: "settings", anchor: "cust-codes" })
-    && JSON.stringify(PH.panelHome("customers", "cust-perks")) === JSON.stringify({ section: "settings", anchor: "cust-perks" })
+  const J = (x) => JSON.stringify(x);
+  ok("links land: a link to a panel that moved goes to its new home in one step — the Catalog's six, the broadcast, and Train the AI",
+    J(PH.panelHome("money", "menu")) === J({ section: "catalog", anchor: "menu" }) && J(PH.panelHome("settings", "menu")) === J({ section: "catalog", anchor: "menu" })
+    && J(PH.panelHome("money", "plans")) === J({ section: "catalog", anchor: "plans" }) && J(PH.panelHome("settings", "plans")) === J({ section: "catalog", anchor: "plans" })
+    && J(PH.panelHome("money", "merch")) === J({ section: "catalog", anchor: "merch" }) && J(PH.panelHome("money", "lessons")) === J({ section: "catalog", anchor: "lessons" })
+    && J(PH.panelHome("customers", "cust-codes")) === J({ section: "catalog", anchor: "cust-codes" }) && J(PH.panelHome("settings", "cust-codes")) === J({ section: "catalog", anchor: "cust-codes" })
+    && J(PH.panelHome("customers", "cust-perks")) === J({ section: "catalog", anchor: "cust-perks" }) && J(PH.panelHome("settings", "cust-perks")) === J({ section: "catalog", anchor: "cust-perks" })
+    && J(PH.panelHome("settings", "set-broadcast")) === J({ section: "customers", anchor: "cust-broadcast" })
+    && J(PH.panelHome("settings", "set-dial")) === J({ section: "settings", anchor: "set-dial" })
     && JSON.stringify(PH.panelHome("team", "ai-training")) === JSON.stringify({ section: "settings", anchor: "set-train" })
     && JSON.stringify(PH.panelHome("plan")) === JSON.stringify({ section: "plan" }) && JSON.stringify(PH.panelHome("money", "offers")) === JSON.stringify({ section: "money", anchor: "offers" }));
   const moves = Object.entries(PH.PANEL_MOVES);
-  ok("links land: every alias goes to a panel Settings draws, from a section that no longer has it",
-    moves.every(([from, to]) => SECTIONS.has(from.split("#")[0]) && SECTIONS.has(to.section) && LAY.settingsGate(to.anchor) !== null)
-    && !/id="menu"|id="plans"/.test(money) && !/id="cust-codes"|id="cust-perks"/.test(cust), moves);
+  const blockOf = { settings: sh, catalog: cat, customers: cust, money, team };
+  ok("links land: every alias goes to a panel its new section draws, from a section that no longer has it",
+    moves.every(([from, to]) => {
+      const [fs, fa] = from.split("#");
+      const there = to.section === "settings" ? LAY.settingsGate(to.anchor) !== null : new RegExp(`\\bid="${to.anchor}"`).test(blockOf[to.section] || "");
+      const gone = !new RegExp(`\\bid="${fa}"`).test(blockOf[fs] || "");
+      return SECTIONS.has(fs) && SECTIONS.has(to.section) && there && gone;
+    }), moves);
   ok("links land: the alert router passes an alert's own link through the alias table",
     /const home = panelHome\(s\[1\], a\?\.\[1\]\);\s*return \{ section: home\.section as OpSection, \.\.\.\(home\.anchor \? \{ anchor: home\.anchor \} : \{\}\) \};/.test(pg));
   ok("links land: a Needs-you row that names a moved panel goes to its new home",
-    JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: "/crew?s=money&a=menu" })) === JSON.stringify({ kind: "section", section: "settings", anchor: "menu" })
-    && JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: "/crew?s=customers&a=cust-codes" })) === JSON.stringify({ kind: "section", section: "settings", anchor: "cust-codes" })
+    JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: "/crew?s=money&a=menu" })) === JSON.stringify({ kind: "section", section: "catalog", anchor: "menu" })
+    && JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: "/crew?s=settings&a=cust-codes" })) === JSON.stringify({ kind: "section", section: "catalog", anchor: "cust-codes" })
     && JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: "/crew?s=money&a=pay" })) === JSON.stringify({ kind: "section", section: "money", anchor: "pay" }));
   const V = (r) => ({ id: "me", sections: roleLine(r), manage: ["event_manager", "admin", "owner"].includes(r) });
   const forR = (r, route) => O.obligationFor({ source: "brand_new", subject_id: "x", route, owner_user_id: null }, V(r));
-  ok("links land: Settings opens for every role, but a row on one of its admin panels is still the admins' — a server is not sent to a menu she cannot see",
+  ok("links land: Settings opens for every role, but a row on one of its admin parts is still the admins' — a server is not sent to a menu she cannot see",
     !forR("server", "/crew?s=money&a=menu") && !forR("event_manager", "/crew?s=customers&a=cust-codes") && forR("owner", "/crew?s=money&a=menu") && forR("admin", "/crew?s=settings&a=set-dial")
-    && forR("server", "/crew?s=settings&a=set-alerts") && !forR("operator", "/crew?s=settings"));
+    && forR("server", "/crew?s=settings&a=set-alerts") && !forR("operator", "/crew?s=settings") && !forR("server", "/crew?s=settings&a=set-office")
+    && forR("admin", "/crew?s=catalog&a=plans") && !forR("operator", "/crew?s=catalog&a=plans"));
+  const anc = code(read("lib/anchors.ts"));
+  ok("links land: a jump to a part opens the row that holds it first — the copy editor's groups too — and only once",
+    /import \{ settingsHolder \} from "\.\/settingsLayout";/.test(anc) && /const holder = settingsHolder\(anchor\);/.test(anc)
+    && /if \(holder && !askedHolder && document\.getElementById\(holder\)\) \{\s*askedHolder = true;\s*window\.dispatchEvent\(new CustomEvent\(OPEN_PANEL_EVENT, \{ detail: holder \}\)\);/.test(anc)
+    && /const go = \(\) => \{ window\.location\.href = `\/crew\?s=settings&a=\$\{copyGroupAnchor\(group\)\}`; \};/.test(read("components/EditCopyPill.tsx"))
+    && !appFiles.some((f) => /gt3-mpanel-set-/.test(code(read(f))))
+    && CA.copyGroupAnchor("Craft page") === "sc-craft-page" && CA.copyGroupAnchor("Menu · Matcha!") === "sc-menu-matcha" && CA.COPY_ANCHOR_PREFIX === "sc-"
+    && /export \{ copyGroupAnchor \} from "\.\/copyAnchor";/.test(read("lib/copy.ts")) && !/function copyGroupAnchor/.test(read("lib/copy.ts")));
   ok("links land: an order alert opens the Pass — #kitchen-pass is drawn only while the Pass is open, so the jump opens it instead of hunting for it",
     /if \(cat === "order"\) return \{ section: "now", anchor: "kitchen-pass" \};/.test(pg) && /const PASS_ANCHOR = "kitchen-pass";/.test(pg)
     && /function jumpTo\(anchor\?: string\): void \{\s*if \(anchor === PASS_ANCHOR\) \{ window\.dispatchEvent\(new Event\(OPEN_PASS_EVENT\)\); return; \}\s*scrollToAnchor\(anchor\);\s*\}/.test(pg)
@@ -8197,7 +8270,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /const theme = useTheme\(\);/.test(code(read("components/AppShell.tsx"))) && !/setTheme|toggleTheme|theme-toggle/.test(code(read("components/AppShell.tsx")))
     && !/useState<"day" \| "dark">/.test(read("components/AppShell.tsx"))
     && /const choice = useThemeChoice\(\);/.test(code(read("components/YouPrefs.tsx"))) && /setTheme\(t\);/.test(code(read("components/YouPrefs.tsx")))
-    && /\[\{ v: "day", label: "Day" \}, \{ v: "dark", label: "Dark" \}, \{ v: "auto", label: "Auto" \}\]/.test(read("components/YouPrefs.tsx"))
+    && /const LOOKS: readonly ThemeChoice\[\] = \["day", "dark", "auto"\];/.test(read("components/YouPrefs.tsx")) && /\{THEME_LABELS\[l\]\}/.test(read("components/YouPrefs.tsx"))
+    && /export const THEME_LABELS: Readonly<Record<ThemeChoice, string>> = \{ day: "Day", dark: "Dark", auto: "Auto" \};/.test(read("lib/settingsGlance.ts"))
+    && !/THEME_LABELS/.test(read("lib/theme.ts")) && /import \{ THEME_LABELS \} from "@\/lib\/settingsGlance";/.test(read("components/YouPrefs.tsx"))
     && /<div className="set-seg" role="radiogroup" aria-label="Appearance">/.test(read("components/YouPrefs.tsx"))
     && !appFiles.some((f) => /className="theme-toggle"/.test(read(f))) && !/\.theme-toggle/.test(read("app/globals.css").replace(/\/\*[\s\S]*?\*\//g, "")));
   ok("one home: Auto follows the phone as it changes — the console reads the media query as a store, light on the server",
@@ -8263,7 +8338,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const writers = appFiles.filter((f) => /\.update\(\{ preorder_lead_h/.test(read(f))).map((f) => f.split(path.sep).join("/"));
   ok("cup-ordering dial: one component writes it, drawn once, in Settings behind isAdmin",
     JSON.stringify(writers) === JSON.stringify(["components/crew/CupOrderingDial.tsx"])
-    && /\{isAdmin && <Panel id="set-dial" [^>]*><CupOrderingDial \/><\/Panel>\}/.test(sh)
+    && /\{isAdmin && \(\s*<Panel id="set-ordering" [^>]*>\s*<SetPart id="set-dial"><CupOrderingDial \/><\/SetPart>/.test(sh)
     && appFiles.filter((f) => /<CupOrderingDial \/>/.test(read(f))).length === 1);
   ok("cup-ordering dial: a save asks for the row back — no row is a refusal, said as an error, and the dial goes back to what the database holds",
     /\.update\(\{ preorder_lead_h: h \}\)\.eq\("id", 1\)\.select\("preorder_lead_h"\);/.test(dial) && /const refused = !error && !\(data && data\.length\);/.test(dial)
@@ -8279,11 +8354,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       SG.payGlance(true, true).text === "Card + pay at pickup" && SG.payGlance(true, false).text === "Card only" && SG.payGlance(false, true).text === "Pay at pickup only"
       && SG.payGlance(false, false).text === "No way to pay" && SG.payGlance(false, false).warn === true && !SG.payGlance(true, true).warn
       && SG.payGlance(true, null) === null && SG.payGlance(false, undefined) === null);
-    ok("settings values: the dial, the office price, the digest — each panel's own default, the dial's own words, a price's cents kept",
-      SG.dialGlance(0, true).text === "Live only" && SG.dialGlance(8, true).text === "8h before" && SG.dialGlance(null, true).text === "4h before" && SG.dialGlance(8, false) === null
-      && SG.leadLabel(0) === "Live only" && SG.leadLabel(2) === "2h before"
-      && SG.officeGlance(4250, 3, true).text === "$42.50/gal · min 3" && SG.officeGlance(6000, 2, true).text === "$60/gal · min 2"
-      && SG.officeGlance(null, null, true).text === `${M.money(OF.OFFICE.pricePerGallonCents)}/gal · min ${OF.OFFICE.minGallons}` && SG.officeGlance(4250, 3, false) === null
+    ok("settings values: ordering & delivery, the digest — each part's own default, the dial's own words, a price's cents kept",
+      SG.orderingGlance(0, 4250, true).text === "Live only · $42.50/gal" && SG.orderingGlance(8, 6000, true).text === "8h before · $60/gal"
+      && SG.orderingGlance(null, null, true).text === `4h before · ${M.money(OF.OFFICE.pricePerGallonCents)}/gal` && SG.orderingGlance(8, 4250, false) === null
+      && SG.leadLabel(0) === "Live only" && SG.leadLabel(2) === "2h before" && !("dialGlance" in SG) && !("officeGlance" in SG)
       && SG.digestGlance("off", true).text === "Off" && SG.digestGlance("weekly", true).text === "Weekly" && SG.digestGlance(null, true).text === "Daily"
       && SG.digestGlance("nonsense", true).text === "Daily" && SG.digestGlance("daily", false) === null);
     ok("settings values: notifications say what is muted and the quiet window, by the inbox's own rule (both ends, not the same hour)",
@@ -8292,8 +8366,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && SG.notifyGlance([], 9, 9).text === "All on" && SG.notifyGlance([], 22, null).text === "All on" && SG.notifyGlance([], 0, 6).text === "Quiet 12am–6am"
       && SG.notifyGlance(null, 22, 7) === null && SG.hourShort(0) === "12am" && SG.hourShort(12) === "12pm" && SG.hourShort(13) === "1pm" && SG.hourShort(23) === "11pm");
     ok("settings values: text size in words, the lanes counted, and Outlook never \"not connected\" on a read that failed",
-      SG.displayGlance({ scale: 0, bold: false, roomy: false }).text === "Standard" && SG.displayGlance({ scale: 2, bold: true, roomy: true }).text === "Larger · bold · roomy"
-      && SG.displayGlance({ scale: 9, bold: false, roomy: false }).text === "Standard" && require("../.smoke/textSize.js").TEXT_SIZE_WORDS.join() === "Standard,Large,Larger,Largest"
+      SG.displayGlance({ scale: 0, bold: false, roomy: false }, "day").text === "Day · Standard" && SG.displayGlance({ scale: 2, bold: true, roomy: true }, "dark").text === "Dark · Larger · bold · roomy"
+      && SG.displayGlance({ scale: 9, bold: false, roomy: false }, "auto").text === "Auto · Standard" && require("../.smoke/textSize.js").TEXT_SIZE_WORDS.join() === "Standard,Large,Larger,Largest"
       && SG.lanesGlance(5, 5).text === "All owned" && SG.lanesGlance(2, 5).text === "2 of 5 owned" && SG.lanesGlance(0, 5).warn === true && !SG.lanesGlance(2, 5).warn && SG.lanesGlance(0, 0) === null
       && SG.outlookGlance(null) === null && SG.outlookGlance({ configured: true, connected: true }).text === "Connected"
       && SG.outlookGlance({ configured: true, connected: false }).text === "Not connected" && SG.outlookGlance({ configured: false, connected: false }).text === "Not set up");
@@ -8305,12 +8379,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /import \{ TEXT_SIZE_WORDS \} from "@\/lib\/textSize";/.test(dtg) && !/settingsGlance/.test(dtg)
       && /import \{ TEXT_SIZE_WORDS \} from "\.\/textSize";/.test(read("lib/settingsGlance.ts")));
     const gl = code(read("components/SettingsGlance.tsx"));
-    ok("settings values: one read of live_status for its four rows, following its changes — and only for an owner or an admin, the ones drawn those rows",
+    ok("settings values: one read of live_status for its three rows, following its changes — and only for an owner or an admin, the ones drawn those rows",
       (gl.match(/\.from\("live_status"\)/g) || []).length === 1 && /if \(!supabase \|\| !isAdmin\) return null;/.test(gl)
       && /useRealtimeTable\("live_status", live\.reload, \{ enabled: isAdmin \}\);/.test(gl)
       && /pay: biz\(read \? payGlance\(squareClientReady, row\?\.pay_at_pickup !== false\) : null\),/.test(gl)
       && /const failed = live\.status === "error";/.test(gl) && /const biz = \(g: Glance\): Glance => \(failed \? UNREAD : g\);/.test(gl)
-      && ["digest", "pay", "dial", "office"].every((k) => new RegExp(`${k}: biz\\(`).test(gl)));
+      && ["digest", "pay", "ordering"].every((k) => new RegExp(`${k}: biz\\(`).test(gl))
+      && /ordering: biz\(orderingGlance\(row\?\.preorder_lead_h, row\?\.office_price_cents, read\)\),/.test(gl)
+      && /const look = useThemeChoice\(\);/.test(gl) && /display: displayGlance\(display, look\),/.test(gl));
     ok("settings values: notifications follow every save (a save that lands before the read wins; a failed read says so), and the lanes count only once the table answered",
       /if \(gone \|\| saved\) return;[^\n]*\n\s*if \(error\) \{ setNotifFailed\(true\); return; \}/.test(gl) && /saved = true;/.test(gl) && /window\.addEventListener\(NOTIF_PREFS_EVENT, onSaved\);/.test(gl)
       && /notify: notif \? notifyGlance\(notif\.muted, notif\.qs, notif\.qe\) : notifFailed \? UNREAD : null,/.test(gl)
@@ -8336,14 +8412,29 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const entries = [...inside.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]);
   ok("guide: Settings' list names each of its sections, in the page's order",
     entries.length === LAY.SETTINGS_LAYOUT.length && LAY.SETTINGS_LAYOUT.every((s, i) => entries[i].startsWith(`${s.label} `)), entries.map((e) => e.slice(0, 24)));
-  ok("guide: pay at pickup is said to cover pickups only — delivery is always prepaid, as the switch itself says — and codes are where Settings is",
+  const catInside = (/\n  catalog: \[(.*)\],\n/.exec(pg) || [])[1] || "";
+  ok("guide: pay at pickup is said to cover pickups only — delivery is always prepaid, as the switch itself says — and codes are where the Catalog is",
     !/governs cup, reserve & delivery/.test(pg) && /pay at pickup \(pickup orders only: delivery is always prepaid on the card\)/.test(inside)
-    && /delivery is always prepaid/.test(read("components/PaymentSettings.tsx")) && /discount codes & perks/.test(inside)
+    && /delivery is always prepaid/.test(read("components/PaymentSettings.tsx")) && /Discount codes/.test(catInside) && /Membership plans/.test(catInside)
+    && !/discount codes|membership plans|broadcast/i.test(inside)
     && !/promos & codes|owner control room/.test((/\n  settings: "[^"]*",\n/.exec(pg) || [""])[0]));
+  const guide = pg.slice(pg.indexOf("function SectionGuide("), pg.indexOf("\n}\n", pg.indexOf("function SectionGuide(")));
+  ok("guide: What's new — the changelog, for every role that opens the Guide, and nowhere else",
+    /const \[news, setNews\] = useState\(false\);/.test(guide) && /\{news && <div className="guide-body"><Changelog \/><\/div>\}/.test(guide)
+    && pg.split("<Changelog />").length === 2 && !appFiles.some((f) => /id="set-changelog"/.test(read(f))));
+  const ap = code(read("components/AccountPill.tsx")), ar = code(read("components/AccountRow.tsx"));
+  ok("account: Settings' first row is the account menu's door — the avatar's own menu and sheets, its name, email and role on the row, in a file the customer pages do not load",
+    /export function useAccountDoor\(\)/.test(ap) && (ap.match(/<AccountSheet/g) || []).length === 1 && /\{door\.sheets\}/.test(ap)
+    && /import \{ AccountFace, useAccountDoor \} from "\.\/AccountPill";/.test(ar) && !/<AccountSheet|useState/.test(ar)
+    && /<button type="button" className="mpanel-h acct-row" aria-haspopup="dialog" aria-expanded=\{door\.open\} onClick=\{door\.openAccount\}>/.test(ar)
+    && /<span className="mpanel-v">\{roleLabel\(roleOf\(profile\)\)\}<\/span>/.test(ar) && /\{door\.sheets\}/.test(ar)
+    && /const AccountRow = dynamic\(\(\) => import\("@\/components\/AccountRow"\)/.test(pg)
+    && !appFiles.some((f) => !f.endsWith("page.tsx") && /AccountRow/.test(code(read(f))) && !/components[\\/]AccountRow\.tsx$/.test(f)));
   ok("words: no screen sends anyone to an old home — Route's dial, Now ▸ Live truck, \"connect from Plan › Calendar\", Team → Train the AI, the roster \"below\"",
     !/Locations &amp; ordering dial/.test(lc) && !/Now ▸ Live truck|the global window|global setting applies/.test(code(read("components/crew/OwnerDetails.tsx")))
     && !/connect from Plan › Calendar/.test(code(read("components/IntegrationsPanel.tsx"))) && !/Team → Train the AI/.test(code(read("components/AiTraining.tsx")))
-    && !/roster below/.test(code(read("components/InviteTeammate.tsx"))) && !/Business → Studio/.test(pg));
+    && !/roster below/.test(code(read("components/InviteTeammate.tsx"))) && !/Business → Studio/.test(pg)
+    && !appFiles.some((f) => /Menu & availability|Ordering & payments|Copy & brand|Markets & legal|Team & access|Front-end copy/.test(code(read(f)))));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

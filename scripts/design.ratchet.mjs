@@ -150,7 +150,7 @@ export const CEILING = {
 export const FRICTION = {
   nativeDialogs: 0,
   crewGroupTitles: 0,
-  collapsedPanels: 17,   // 34 → 17 on 2026-10-06 (the settings round): the count is of BLIND closed panels now — Settings' rows each say what they hold (a sub line), and every panel it drew was one; 17 blind headers are left, in Money, Customers, Team and the rest. 33 → 34 on 2026-10-02: Settings › Advanced › Errors — the reading end of the error intake, closed at rest like its neighbours
+  collapsedPanels: 15,   // 17 → 15 on 2026-10-06 (the settings-by-category round): the merch and the lessons left Money for the Catalog, where every row says what it holds — and a sub written as an expression (a row that reads one way to an owner, another to an admin) counts as the sub line it is. 34 → 17 on 2026-10-06 (the settings round): the count is of BLIND closed panels now — Settings' rows each say what they hold (a sub line), and every panel it drew was one; 17 blind headers are left, in Money, Customers, Team and the rest. 33 → 34 on 2026-10-02: Settings › Advanced › Errors — the reading end of the error intake, closed at rest like its neighbours
 };
 
 // ── A TOKEN NOBODY DEFINED (2026-10-06, the settings round) ─────────────────────────────────────
@@ -186,7 +186,9 @@ export function frictionCounts(read = (p) => readFileSync(join(ROOT, p), "utf8")
     // The house hook is also called `confirm`, and is always awaited; a native confirm() never is.
     nativeDialogs += (code.match(/(?<![\w.])(?<!await\s+)(window\.)?(confirm|prompt)\(/g) || []).length;
     crewGroupTitles += (code.match(/className="crew-group/g) || []).length;
-    for (const m of code.matchAll(/<Panel\b([^>]*)>/g)) if (!/defaultOpen/.test(m[1]) && !/\bsub="/.test(m[1])) collapsedPanels++;
+    // A sub line given as words or as an expression (a row that says one thing to an owner and another
+    // to an admin, 2026-10-06) is a sub line all the same.
+    for (const m of code.matchAll(/<Panel\b([^>]*)>/g)) if (!/defaultOpen/.test(m[1]) && !/\bsub=["{]/.test(m[1])) collapsedPanels++;
   }
   return { nativeDialogs, crewGroupTitles, collapsedPanels };
 }
