@@ -26,6 +26,8 @@ import { isBlank } from "@/lib/formGuard";
 import { clickable } from "@/lib/a11y";
 import { goPlanTab } from "@/lib/planNav";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { canOf } from "@/lib/roles";
+import GoLine from "@/components/GoLine";
 
 // STUDIO — the collaborative marketing studio. Her money-maker, his taste → built around
 // collaboration: real-time co-editing (Supabase Realtime presence + broadcast), real version
@@ -83,14 +85,10 @@ function VideoThumb({ src }: { src: string }) {
 export default function Studio() {
   const { setSection } = useOperatorSection();
   const goCompanyCal = () => goPlanTab("calendar", { setSection });
-  // Door to the one copy editor (Settings › set-copy) — force the panel open + scroll to it, the
-  // same mpanel/anchor bridge the KPI tiles and alert jumps use.
-  const goCopy = () => {
-    try { localStorage.setItem("gt3-mpanel-set-copy", "1"); } catch { /* ignore */ }
-    setSection("settings");
-    setTimeout(() => document.getElementById("set-copy")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
-  };
   const { user, profile } = useAuth();
+  // The door to the one copy editor is drawn only for those Settings shows it to: an owner or an
+  // admin. An event manager keeps the brand kit here (2026-10-06, the settings round).
+  const canCopy = canOf(profile).admin;
   const me = useMemo(() => ({ id: user?.id ?? "anon", name: profile?.display_name || user?.email?.split("@")[0] || "Crew" }), [user?.id, profile?.display_name, user?.email]);
   const [filter, setFilter] = useState<string>("all");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -186,11 +184,14 @@ export default function Studio() {
           {/* SiteCopyEditor no longer mounts here (2026-07-30 audit): Settings › "Copy & wording"
               declares itself the one home for every guest-facing line ("so nothing is duplicated
               or piecemeal") — yet this tab mounted the identical full editor. One editor, one
-              home; this is the door, on the same bridge the calendar link above already uses. */}
-          <div className="cal-xlink">
-            <span className="cal-xlink-t">Every line guests read is edited in <b>Settings › Copy &amp; wording</b>.</span>
-            <button type="button" className="cal-xlink-go" onClick={goCopy}>Open the copy editor <Icon name="arrowRight" /></button>
-          </div>
+              home; this is the door.
+              ONE LINE, ONE JUMP (2026-10-06, the settings round). The door was a sentence and a
+              button that wrote the panel's open flag and scrolled on its own 120ms timer — the third
+              copy of the jump that lib/anchors exists to be the only one of. It is the same one-line
+              link every old spot keeps now (components/GoLine), and it opens the panel the same way
+              every other jump does. Settings shows the copy editor to an owner or an admin, so they
+              are the ones who get the line. */}
+          {canCopy && <GoLine to="settings" anchor="set-copy">Copy</GoLine>}
         </>
       ) : view === "calendar" ? (
         <>

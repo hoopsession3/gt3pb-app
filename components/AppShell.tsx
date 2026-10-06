@@ -15,7 +15,8 @@ import DrinkSheet from "./DrinkSheet";
 import Toast from "./Toast";
 import Notifications from "./Notifications";
 import ServiceWorkerRegister from "./ServiceWorkerRegister";
-import DisplayToggle, { readDisplay, displayClass, DISPLAY_KEY } from "./DisplayToggle";
+import DisplayToggle, { useDisplay, displayClass } from "./DisplayToggle";
+import { useTheme } from "@/lib/theme";
 import EditModeToggle from "./EditModeToggle";
 import ConnectHub from "./ConnectHub";
 import FloatRail from "./FloatRail";
@@ -131,22 +132,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Commerce chrome (cart bar, order status, concierge, splash) on the pages people order from only.
   const customerSurface = showsCommerce(surface);
 
-  // Day mode: the crew console defaults to a light theme for daylight/outdoor use. Persisted;
-  // toggle back to dark anytime. Customer-facing pages are unaffected.
-  const [theme, setTheme] = useState<"day" | "dark">("day");
-  useEffect(() => { const t = typeof window !== "undefined" ? localStorage.getItem("gt3-theme") : null; if (t === "dark" || t === "day") setTheme(t); }, []);
-  const toggleTheme = () => { const t = theme === "day" ? "dark" : "day"; setTheme(t); if (typeof window !== "undefined") localStorage.setItem("gt3-theme", t); };
+  // Day mode: the crew console defaults to a light theme for daylight/outdoor use. Persisted.
+  // Customer-facing pages are unaffected.
+  // ONE HOME (2026-10-06, the settings round): the read and the write live in lib/theme, and the one
+  // place to change it is Settings › You › Appearance — Day, Dark, or Auto, which follows the phone.
+  // The floating moon that toggled it went with Auto (lib/theme says why).
+  const theme = useTheme();
 
-  // Readability prefs (text size / bold / spacing) — applied app-wide as classes on `.app`,
-  // re-read live whenever the DisplayToggle writes them. Initialized on first client render.
-  const [disp, setDisp] = useState("");
-  useEffect(() => {
-    const apply = () => setDisp(displayClass(readDisplay()));
-    apply();
-    window.addEventListener(DISPLAY_KEY, apply);
-    window.addEventListener("storage", apply); // cross-tab
-    return () => { window.removeEventListener(DISPLAY_KEY, apply); window.removeEventListener("storage", apply); };
-  }, []);
+  // Readability prefs (text size / bold / spacing) — applied app-wide as classes on `.app`, redrawn
+  // whenever the rail's panel or Settings › You writes them (and from another tab).
+  const disp = displayClass(useDisplay());
 
   return (
     <OperatorSectionProvider>
@@ -194,10 +189,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             2026-10-04: 1,242–2,646 px² of each tab covered in three of four phone states.
             Now they ride a zero-height row of the app column, ordered after the page and before
             the rail and the nav (app/globals.css .fab-dock), and float 16px above whatever chrome
-            is there — nav, inset, docked rail — because the column knows how tall it is. */}
+            is there — nav, inset, docked rail — because the column knows how tall it is.
+            ONE FLOATING BUTTON (2026-10-06, the settings round): the moon left the dock — day, dark
+            and Auto are chosen in Settings › You › Appearance — so quick actions is the console's one. */}
         <div className="fab-dock">
           {inAdmin && <QuickDock />}
-          {inAdmin && <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={theme === "day" ? "Switch to dark" : "Switch to day"}>{theme === "day" ? "🌙" : "☀️"}</button>}
           {inAdmin && <OfflineChip />}
           <ServiceWorkerRegister />
         </div>

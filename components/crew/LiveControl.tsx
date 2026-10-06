@@ -19,17 +19,27 @@ import { wrapOwner } from "@/lib/wrap";
 import { LocationEditor } from "@/components/crew/LocationEditor";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { RecordLink } from "@/components/RecordSheet";
+import { useAuth } from "@/components/AuthProvider";
+import { canOf } from "@/lib/roles";
+import { scrollToAnchor } from "@/lib/anchors";
+import GoLine from "@/components/GoLine";
 
 // LIVE CONTROL — the truck's live status board: where it is, whether it is open, what is next.
 //
 // The largest single component in app/crew/page.tsx and the last of the three lifted here. Rendered
-// twice from that page (compact on the dashboard, full under Live Ops) with a props flag deciding
-// which — so the page keeps both call sites and this file keeps the behaviour.
+// twice from that page (compact on Live Ops, `manage` on Plan › Route) with a props flag deciding
+// which — so the page keeps both call sites and this file keeps the behaviour. The cup-ordering dial
+// it used to hold is its own component in Settings since 2026-10-06 (components/crew/CupOrderingDial).
 
 export function LiveControl({ compact = false, manage = false }: { compact?: boolean; manage?: boolean }) {
   const confirm = useConfirm();
   const { toast } = useApp();
   const { setSection } = useOperatorSection();
+  // Who can save the cup-ordering dial — the database's own rule (is_admin(): an owner or an admin).
+  // Only they get the line to it; a manager who could not save it is not sent to it.
+  const { profile } = useAuth();
+  const admin = canOf(profile).admin;
+  const goDial = () => { setSection("settings"); scrollToAnchor("set-dial"); };
   const openPrep = (id: string) => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue("stop", id)); } catch { /* ignore */ } setSection("prep"); };
   const [stops, setStops] = useState<Stop[]>([]);
   const [live, setLive] = useState<LiveStatus | null>(null);
@@ -294,39 +304,31 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
                 : <span style={{ display: "flex", gap: 8 }}><button className="adm-btn ghost" onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</button><button className="adm-btn primary" onClick={startBroadcast}>Broadcast</button></span>}
             </div>
           ) : null}
-          <button type="button" className="adm-golink" onClick={() => goPlanTab("route", { setSection })}>{road.length > 1 ? `${road.length - 1} more stop${road.length > 2 ? "s" : ""} ahead · ` : ""}Locations &amp; ordering dial · Plan › Route</button>
+          <button type="button" className="adm-golink" onClick={() => goPlanTab("route", { setSection })}>{road.length > 1 ? `${road.length - 1} more stop${road.length > 2 ? "s" : ""} ahead · ` : ""}Locations · Plan › Route</button>
+          {/* The dial's line, where this row used to name it (2026-10-06, the settings round). */}
+          {admin && <button type="button" className="adm-golink" onClick={goDial}>Cup-ordering dial ›</button>}
         </div>
       ) : (
       <>
-      <div className="adm-live">
+      {/* The card holds the status (outside Route) and Go offline (while live). With the dial gone
+          it would be an empty box on Route whenever the truck is offline, so it is drawn only when
+          it has something in it. */}
+      {(!manage || live?.is_live) && <div className="adm-live">
         {!manage && <div className="adm-live-status">
           <span className={`adm-dot${live?.is_live ? " on" : ""}`} />
           <span><b>{live?.is_live ? "Live now" : "Offline"}</b>{live?.is_live && curStop ? <span className="adm-live-at"> · <RecordLink kind="stop" id={curStop.id}>{curStop.name}</RecordLink></span> : null}</span>
-        </div>}
-        {/* The ordering dial (0137): when cup pre-orders open. Same rule everywhere — menu sheet,
-            checkout, and the charge API. Pack reserves are always open regardless. Prep-day work,
-            so it lives in Plan › Truck stops; the Now panel stays go-live/offline/broadcast only. */}
-        {!compact && <div className="adm-lead">
-          <span className="adm-lead-k">Cup orders open</span>
-          <div className="adm-lead-opts" role="radiogroup" aria-label="When cup pre-orders open">
-            {([[0, "Live only"], [2, "2h before"], [4, "4h before"], [8, "8h before"]] as const).map(([h, label]) => (
-              <button key={h} type="button" role="radio" aria-checked={(live?.preorder_lead_h ?? 4) === h}
-                className={`adm-lead-opt${(live?.preorder_lead_h ?? 4) === h ? " on" : ""}`}
-                onClick={async () => {
-                  setLive((l) => (l ? { ...l, preorder_lead_h: h } : l));
-                  const { error } = await supabase!.from("live_status").update({ preorder_lead_h: h }).eq("id", 1);
-                  if (error) { toast(`Couldn't save — ${error.message}`, "error"); load(); }
-                  else toast(h === 0 ? "Cups sell only while you're live" : `Cup orders open ${h}h before a stop`);
-                }}>{label}</button>
-            ))}
-          </div>
         </div>}
         {/* Status readout above stays manage-only (redundant with the LIVE pill already on the stop
             card below), but the action can't be — this was the only "Go offline" button reachable
             anywhere outside the Now tab's compact instrument, and that one disappears once you're
             past the pulse screen. Hiding it here left no way to end service from Stops at all. */}
         {live?.is_live && <button className="adm-btn ghost" onClick={pause}>Go offline</button>}
-      </div>
+      </div>}
+      {/* The cup-ordering dial (0137) sat in that card until 2026-10-06 (the settings round). It lives
+          in Settings › Ordering & payments now (components/crew/CupOrderingDial): only an owner or an
+          admin can save it, and every manager could see it here — an event manager's tap read
+          "saved" while the database changed nothing. Route keeps one line to it, for those who can. */}
+      {admin && <GoLine to="settings" anchor="set-dial">Cup-ordering dial</GoLine>}
       {!manage && live?.is_live && (
         <>
           {!broadcasting && !live?.pos_updated_at && (

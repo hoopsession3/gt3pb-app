@@ -368,11 +368,14 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
             <button type="button" role="switch" aria-checked={oa} className={`oa-toggle${oa ? " on" : ""}`} onClick={() => { if (oa) haptic("toggleOff"); else haptic("toggleOn"); setOa((v) => !v); }}><Icon name="clock" /> Order ahead<span>{oa ? "On" : "Off"}</span></button>
             <button type="button" role="switch" aria-checked={pk} className={`oa-toggle${pk ? " on" : ""}`} onClick={() => { if (pk) haptic("toggleOff"); else haptic("toggleOn"); setPk((v) => !v); }}><Icon name="package" /> Pickup<span>{pk ? "On" : "Off"}</span></button>
           </div>
-          {oa && <label className="prod-f" style={{ marginTop: 8 }}><span>Order-ahead lead time (min) — blank uses the global window</span><input type="number" min={0} step={15} value={lead} onChange={(e) => setLead(e.target.value)} placeholder="e.g. 240" /></label>}
-          <div className="ownerdet-hint">When on, guests can order ahead{pk ? " and choose pickup" : ""} for this stop. Off = the truck’s global setting applies.</div>
+          {/* NAMED WHERE IT LIVES (2026-10-06, the settings round): "the global window" is the
+              cup-ordering dial, an owner's or admin's setting in Settings › Ordering & payments now —
+              no longer on Route. And "Now" has been called Live Ops for months. */}
+          {oa && <label className="prod-f" style={{ marginTop: 8 }}><span>Order-ahead lead time (min) — blank uses the truck&rsquo;s cup-ordering dial (Settings)</span><input type="number" min={0} step={15} value={lead} onChange={(e) => setLead(e.target.value)} placeholder="e.g. 240" /></label>}
+          <div className="ownerdet-hint">When on, guests can order ahead{pk ? " and choose pickup" : ""} for this stop. Off = the truck’s cup-ordering dial applies.</div>
         </div>
       )}
-      {!isEvent && <div className="ownerdet-hint">Go live &amp; broadcast GPS in Now ▸ Live truck.</div>}
+      {!isEvent && <div className="ownerdet-hint">Go live &amp; broadcast GPS from the Live truck card on Live Ops.</div>}
       <div className="ownerdet-convert">
         <span className="ownerdet-convert-l">Wrong type?</span>
         <button type="button" className="ownerdet-convert-b" onClick={convertType} disabled={saving}>Change to {isEvent ? "truck stop" : "event"} ⇄</button>

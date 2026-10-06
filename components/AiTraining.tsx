@@ -10,7 +10,8 @@ import Icon from "@/components/Icon";
 import Prose from "@/components/Prose";
 import { useConfirm } from "@/components/ConfirmSheet";
 
-// TRAIN THE AI (Team → Train the AI, owner/crew) — the correction loop for the freeform agents.
+// TRAIN THE AI (Settings › AI › Train the AI, owner — it was on Team until 2026-10-06, the settings
+// round; Team keeps a line to it) — the correction loop for the freeform agents.
 // The owner writes the truth once (with an optional photo of the recipe card / receipt as proof),
 // it's injected as an AUTHORITATIVE override into that agent's prompt (lib/agentKnowledge), and
 // the agent obeys it forever. Every agent answer is logged below, so a wrong one — like the Brew

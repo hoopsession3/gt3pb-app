@@ -4,16 +4,16 @@ import { useEffect, useState } from "react";
 import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
+import { DIGEST_LABELS, type DigestCadence } from "@/lib/settingsGlance";
 
 // Owner control for the founder digest (0208). Sets the cadence on the live_status singleton (the
 // pg_cron job honors it) and offers a "Send digest now" button that emails/texts the founders on
 // demand via /api/cron/digest. Mirrors OfficeSettings' live_status read/write pattern.
-type Cadence = "off" | "daily" | "weekly";
-const LABELS: Record<Cadence, string> = { off: "Off", daily: "Daily", weekly: "Weekly" };
+// The cadences and their words have one home (lib/settingsGlance) — Settings' Founder digest row says them too.
 
 export default function FounderDigest() {
   const { toast } = useApp();
-  const [cadence, setCadence] = useState<Cadence>("daily");
+  const [cadence, setCadence] = useState<DigestCadence>("daily");
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sending, setSending] = useState(false);
@@ -21,17 +21,17 @@ export default function FounderDigest() {
   useEffect(() => {
     if (!supabase) return;
     supabase.from("live_status").select("digest_cadence").eq("id", 1).maybeSingle().then(({ data }) => {
-      setCadence((data as { digest_cadence?: Cadence } | null)?.digest_cadence ?? "daily");
+      setCadence((data as { digest_cadence?: DigestCadence } | null)?.digest_cadence ?? "daily");
       setLoaded(true);
     });
   }, []);
 
-  const change = async (c: Cadence) => {
+  const change = async (c: DigestCadence) => {
     if (!supabase || busy) return;
     setCadence(c); setBusy(true);
     const { error } = await supabase.from("live_status").update({ digest_cadence: c }).eq("id", 1);
     setBusy(false);
-    toast(error ? "Couldn't save — try again" : `Digest ${LABELS[c].toLowerCase()}`, error ? "error" : undefined);
+    toast(error ? "Couldn't save — try again" : `Digest ${DIGEST_LABELS[c].toLowerCase()}`, error ? "error" : undefined);
   };
 
   const sendNow = async () => {
@@ -53,8 +53,8 @@ export default function FounderDigest() {
     <div className="fdig">
       <p className="fdig-note">A once-a-day roll-up — all-channel revenue, launch readiness, open blockers, reorders, and what needs you — for the founders. Daily/weekly also land in the Inbox automatically; use Send now for an email + text right away.</p>
       <div className="fdig-cad" role="group" aria-label="Digest cadence">
-        {(["off", "daily", "weekly"] as Cadence[]).map((c) => (
-          <button key={c} type="button" className={`fdig-opt${cadence === c ? " on" : ""}`} onClick={() => change(c)} disabled={busy} aria-pressed={cadence === c}>{LABELS[c]}</button>
+        {(["off", "daily", "weekly"] as DigestCadence[]).map((c) => (
+          <button key={c} type="button" className={`fdig-opt${cadence === c ? " on" : ""}`} onClick={() => change(c)} disabled={busy} aria-pressed={cadence === c}>{DIGEST_LABELS[c]}</button>
         ))}
       </div>
       {/* .btn-sec, not .btn-pri: on its own this is the only action on the form, but this Panel is

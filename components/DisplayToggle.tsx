@@ -2,45 +2,79 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { devicePref, useDevicePref } from "@/lib/devicePref";
+import { TEXT_SIZE_WORDS } from "@/lib/textSize";
 
 // READABILITY CONTROLS — a global "Aa" toggle (every surface, users + operators): bump the text
 // size, make text bolder, and open up the spacing so info is easier to scan. Persisted to
 // localStorage and applied app-wide via classes on `.app` (see AppShell). Zero backend.
+//
+// TWO PLACES, ONE SET OF CONTROLS (2026-10-06, the settings round). Settings › You › Display & text
+// size draws the same controls as the rail's panel (DisplayControls, below), and the rail stays.
+// Both read the one stored value through lib/devicePref, so a size picked in Settings is the size
+// the rail shows when it opens. Before, the rail read its copy once when it mounted, and its next
+// tap would have written the old size back over the new one.
 
 export type Display = { scale: 0 | 1 | 2 | 3; bold: boolean; roomy: boolean };
 export const DISPLAY_KEY = "gt3-display";
+const DISPLAY = devicePref(DISPLAY_KEY);
 const DEFAULT: Display = { scale: 0, bold: false, roomy: false };
 
-export function readDisplay(): Display {
-  if (typeof window === "undefined") return DEFAULT;
+/** What a stored value means. Anything unreadable is the default. */
+export function displayFrom(raw: string | null | undefined): Display {
   try {
-    const raw = JSON.parse(localStorage.getItem(DISPLAY_KEY) || "{}");
+    const v = JSON.parse(raw || "{}");
     return {
-      scale: [0, 1, 2, 3].includes(raw.scale) ? raw.scale : 0,
-      bold: !!raw.bold, roomy: !!raw.roomy,
+      scale: [0, 1, 2, 3].includes(v.scale) ? v.scale : 0,
+      bold: !!v.bold, roomy: !!v.roomy,
     };
   } catch { return DEFAULT; }
+}
+/** The display preferences this render should draw. The default on the server and while hydrating. */
+export function useDisplay(): Display {
+  return displayFrom(useDevicePref(DISPLAY));
 }
 // the classes AppShell adds to `.app` for a given preference set
 export function displayClass(d: Display): string {
   return [d.scale ? `rd-t${d.scale}` : "", d.bold ? "rd-bold" : "", d.roomy ? "rd-roomy" : ""].filter(Boolean).join(" ");
 }
 function write(d: Display) {
-  try { localStorage.setItem(DISPLAY_KEY, JSON.stringify(d)); } catch { /* ignore */ }
-  window.dispatchEvent(new Event(DISPLAY_KEY)); // live-apply in AppShell
+  DISPLAY.write(JSON.stringify(d)); // live-apply in AppShell and in every copy of the controls
 }
 
-const SIZES: { v: Display["scale"]; label: string }[] = [
-  { v: 0, label: "A" }, { v: 1, label: "A" }, { v: 2, label: "A" }, { v: 3, label: "A" },
-];
+const SIZES: readonly Display["scale"][] = [0, 1, 2, 3];
+
+/** Text size, bold and spacing. Drawn in the rail's panel and in Settings › You. */
+export function DisplayControls() {
+  const d = useDisplay();
+  const set = (patch: Partial<Display>) => write({ ...d, ...patch });
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div className="rdg-row-h">Text size</div>
+      <div className="rdg-sizes">
+        {/* Each "A" is named for what it does (lib/textSize's words — Settings' row says the one picked). */}
+        {SIZES.map((v) => (
+          <button key={v} type="button" className={`rdg-size${d.scale === v ? " on" : ""}`} style={{ fontSize: 12 + v * 3 }} onClick={() => set({ scale: v })} aria-pressed={d.scale === v} aria-label={`Text size: ${TEXT_SIZE_WORDS[v]}`}>A</button>
+        ))}
+      </div>
+      <button type="button" className={`rdg-opt${d.bold ? " on" : ""}`} onClick={() => set({ bold: !d.bold })} aria-pressed={d.bold}>
+        <b>Bold text</b><span>{d.bold ? "On" : "Off"}</span>
+      </button>
+      <button type="button" className={`rdg-opt${d.roomy ? " on" : ""}`} onClick={() => set({ roomy: !d.roomy })} aria-pressed={d.roomy}>
+        <span>Roomy spacing</span><span>{d.roomy ? "On" : "Off"}</span>
+      </button>
+      {(d.scale || d.bold || d.roomy) ? (
+        <button type="button" className="rdg-reset" onClick={() => set({ scale: 0, bold: false, roomy: false })}>Reset</button>
+      ) : null}
+    </div>
+  );
+}
 
 export default function DisplayToggle() {
-  const [d, setD] = useState<Display>(DEFAULT);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   useFocusTrap(open, panelRef);
-  useEffect(() => { setD(readDisplay()); }, []);
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
@@ -53,27 +87,12 @@ export default function DisplayToggle() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
-  const set = (patch: Partial<Display>) => { const next = { ...d, ...patch }; setD(next); write(next); };
 
   return (
     <div className="rdg" ref={ref}>
       {open && (
         <div className="rdg-panel" ref={panelRef} tabIndex={-1} role="dialog" aria-label="Display & text">
-          <div className="rdg-row-h">Text size</div>
-          <div className="rdg-sizes">
-            {SIZES.map((s, i) => (
-              <button key={s.v} type="button" className={`rdg-size${d.scale === s.v ? " on" : ""}`} style={{ fontSize: 12 + i * 3 }} onClick={() => set({ scale: s.v })} aria-pressed={d.scale === s.v} aria-label={`Text size ${i + 1}`}>{s.label}</button>
-            ))}
-          </div>
-          <button type="button" className={`rdg-opt${d.bold ? " on" : ""}`} onClick={() => set({ bold: !d.bold })} aria-pressed={d.bold}>
-            <b>Bold text</b><span>{d.bold ? "On" : "Off"}</span>
-          </button>
-          <button type="button" className={`rdg-opt${d.roomy ? " on" : ""}`} onClick={() => set({ roomy: !d.roomy })} aria-pressed={d.roomy}>
-            <span>Roomy spacing</span><span>{d.roomy ? "On" : "Off"}</span>
-          </button>
-          {(d.scale || d.bold || d.roomy) ? (
-            <button type="button" className="rdg-reset" onClick={() => set({ scale: 0, bold: false, roomy: false })}>Reset</button>
-          ) : null}
+          <DisplayControls />
         </div>
       )}
       <button type="button" className="rdg-fab" onClick={() => setOpen((o) => !o)} aria-haspopup="dialog" aria-expanded={open} aria-label="Display & text size">

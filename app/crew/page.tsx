@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { Children, Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useApp } from "@/components/AppProvider";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
@@ -12,11 +12,20 @@ import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, alertWhen, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
-import { localToday, etToday, dayKey, dayWithDate, relativeDay, ageLabel, fmt12, evDate, evTime } from "@/lib/dates";
+import { localToday, etToday, dayKey, dayWithDate, relativeDay, ageLabel, evDate, evTime } from "@/lib/dates";
 import { orderClockFrom, waitingToOpen, waitingLabel } from "@/lib/ordering";
 import { prepBucket } from "@/lib/readiness";
 import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
-import { takeParam, readParam, dropParam } from "@/lib/urlParam";
+import { readParam, dropParam } from "@/lib/urlParam";
+import { panelHome } from "@/lib/panelHome";
+import { usePassMuted, setPassMuted } from "@/lib/passSound";
+import { NotifPrefs, NotifPrefsSheet } from "@/components/NotifPrefs";
+import { DeviceAlerts, AlertsOffLine } from "@/components/DeviceAlerts";
+import { PassSound, Appearance } from "@/components/YouPrefs";
+import { DisplayControls } from "@/components/DisplayToggle";
+import { useSettingsGlance, GlanceText, OutlookGlance } from "@/components/SettingsGlance";
+import type { Glance } from "@/lib/settingsGlance";
+import GoLine from "@/components/GoLine";
 import { mentionDraft, mentionChoices, insertMention, resolveMentions } from "@/lib/mentions";
 import PersonPick from "@/components/PersonPick";
 import { crewLabel } from "@/components/useCrew";
@@ -159,11 +168,12 @@ const ChiefOfStaff = dynamic(() => import("@/components/ChiefOfStaff"), { loadin
 const ChiefOfSales = dynamic(() => import("@/components/ChiefOfSales"), { loading: () => <PourFill label="Loading…" /> });
 const AuditTrail = dynamic(() => import("@/components/AuditTrail"), { loading: () => <PourFill label="Loading…" /> });
 const IntegrationsPanel = dynamic(() => import("@/components/IntegrationsPanel"), { loading: () => <PourFill label="Loading…" /> });
+const OutlookConnect = dynamic(() => import("@/components/OutlookConnect"), { loading: () => <PourFill label="Loading…" /> });
+const CupOrderingDial = dynamic(() => import("@/components/crew/CupOrderingDial"), { loading: () => <PourFill label="Loading…" /> });
 const ErrorLog = dynamic(() => import("@/components/ErrorLog"), { loading: () => <PourFill label="Loading…" /> });
 const SmartIntake = dynamic(() => import("@/components/SmartIntake"), { loading: () => <PourFill label="Loading…" /> });
 const DocsFiled = dynamic(() => import("@/components/DocsFiled"), { loading: () => <PourFill label="Loading…" /> });
 import Prose from "@/components/Prose";
-import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
 import { haptic } from "@/lib/haptics";
 import { DRINKS, type DrinkId } from "@/lib/menu";
@@ -193,7 +203,7 @@ import { useConfirm } from "@/components/ConfirmSheet";
 const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", command: "Command", prep: "Readiness", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Assets", driver: "Delivery", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings" };
 const SEC_WHEN: Record<OpSection, string> = {
   day: "Start of shift", now: "During service", ask: "When you're stuck", command: "Are we on track?", prep: "Before the event",
-  plan: "Booking ahead", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", driver: "Delivery days", notes: "Any time", money: "The books", customers: "Your regulars", team: "People & roles", settings: "Managing the app",
+  plan: "Booking ahead", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", driver: "Delivery days", notes: "Any time", money: "The books", customers: "Your regulars", team: "People & roles", settings: "Changing how it works",
 };
 const SEC_SUB: Record<OpSection, string> = {
   day: "Your tasks, flags, needs-you & what's on today.",
@@ -207,44 +217,48 @@ const SEC_SUB: Record<OpSection, string> = {
   brew: "Schedule, start & log brews — sized to what's reserved.",
   garage: "Load-out & tow, gear, maintenance & inventory.",
   driver: "The delivery run — map, list & one big go button.",
-  money: "Pricing, reserves & order history.",
+  money: "Sales, costs, reserves & order history.",
   customers: "Every customer — orders, loyalty & contact info.",
-  team: "People, roles, access & training.",
-  settings: "Copy, pricing, promos & codes — the owner control room.",
+  team: "People, roles & training.",
+  settings: "Your notifications, this phone & every switch that changes how the app works.",
 };
 const SEC_MORE: Record<OpSection, string> = {
   day: "Your personal launchpad — the console's one glance screen. Everything assigned to you, everything flagged for your attention, and (for leadership) the needs-you list: booking replies, past-due team tasks and restock lows.",
   command: "The shared war room both founders see — the digital version of the magnetic board. Your initiatives (a dated program like the Aug-1 launch) with a countdown and milestone progress, then This Week, Blockers, Done and Money in one glance. This is where you answer “are we on track?” together, instead of over text. Company goals live here too — owners, progress and check-ins — so the scoreboard and the steering wheel share one screen.",
   now: "The glance before the work. Alerts land here, the service pulse shows what's waiting (orders on the pass, items 86'd), and one tap opens The Pass — the working screen with the pass board, pickup checklist and 86 board. Prep lives here too: the drop's brew sheet and Sunday delivery.",
   prep: "Get ready before you roll. Build the pack list, check stock and readiness, and sign off that the truck's loaded for the next event or stop.",
-  plan: "The forward calendar. Book events, plan the truck's route (locations, dates, the ordering dial), work the leads — incoming booking requests and the sales board — and manage vendors and venues, weeks and months out. The whole arc lives here: a lead becomes an event becomes a stop on the route, without changing sections.",
+  plan: "The forward calendar. Book events, plan the truck's route (locations and dates), work the leads — incoming booking requests and the sales board — and manage vendors and venues, weeks and months out. The whole arc lives here: a lead becomes an event becomes a stop on the route, without changing sections.",
   notes: "Every note, yours and the team's. Jot one for yourself (🔒 just me), share one with the crew, or file a meeting recap — tag follow-ups and they land in people's tasks with a ping. The ✦ button jots one from any screen.",
   studio: "Your marketing studio. Draft posts and flyers, keep them on-brand, plan the feed, schedule around your drops, and moderate the guest reviews that feed the truck display.",
   brew: "Production's home. Schedule brews sized to demand, hit start-by deadlines, log every batch — with coverage, serve-by and stock checks right on the card.",
   garage: "The physical operation: trailer load-out & tow plan, the gear library, asset maintenance, and inventory with pars.",
   driver: "Run day, from the wheel: how many porches, where, and one tap into driver mode with the map and run list.",
-  money: "The books. Set pricing, watch reserve revenue, and review order history — the numbers behind the operation.",
+  money: "The books. Watch sales and reserve revenue, work out costs and margins, and review order history — the numbers behind the operation. How people pay, the menu and the membership plans are set in Settings.",
   customers: "Your customer book. Every person who's ordered — cup, pickup or delivery, with or without an account — with their history, loyalty and contact info in one place.",
-  team: "Your people. Add crew, set roles and access, and manage training — who can see and do what.",
+  team: "Your people. The roster — change someone's role and access right on their row — who's on what, the org chart, and training. Inviting someone new, who owns each lane and training the AI are in Settings.",
   ask: "Your pocket brain. Ask anything about recipes, the why, gear, stock or how-to and get an answer from the GT3 playbook — from any screen.",
-  settings: "The owner control room — everything you can change without a developer. The wording guests read (copy) lives here, plus office-delivery pricing, and a map straight to brand, payments, menu, discount codes and roles. It also holds “What we've built” — the running changelog of every improvement shipped, categorized so anyone can see the whole story of how GT3 got built — and the app's audit trail: every review run on it (security, privacy, performance, accessibility, UI cohesion, data), scored, dated and tracked for its next re-run. Edits go live instantly, no deploy.",
+  // THE GUIDE SAYS WHAT SETTINGS HOLDS (2026-10-06, the settings round). It used to call Settings "the
+  // owner control room" holding "promos & codes" — the codes were in Customers — and Money's list said
+  // the pay-at-pickup switch governed delivery, which PaymentSettings itself says it does not: delivery
+  // is always prepaid. Both lists say the new layout now, section by section.
+  settings: "Every switch in one place. It opens on You — your notifications and quiet hours, order alerts on this phone, the pass's sound, day or dark, and text size — which every role has. Owners and admins see the business under it: ordering & payments (card checkout, pay at pickup, the cup-ordering dial, office delivery pricing), the menu and membership plans, discount codes and perks, inviting the team and who owns each lane, markets, integrations like Outlook, the AI, the words guests read, and the logs — what changed, what broke, what we've built. Each thing's old spot keeps a line that brings you here. Edits go live instantly, no deploy.",
 };
 const SEC_INSIDE: Record<OpSection, string[]> = {
   day: ["Your open tasks & due dates", "Alerts flagged for you — with discussion threads", "Needs you (leadership): booking replies, past-due tasks, restock", "What's on the calendar today", "Day-of brief — dress code & call time"],
   command: ["The portfolio — ten workstreams, one owner each, audited every Monday /10", "Initiatives — a dated program with countdown & milestone progress + the goals it serves", "This week — everything due across both task lists", "Blockers — incidents, overdue work & at-risk goals", "Done this week — momentum at a glance", "Goals — owners, live numbers, one-tap check-ins", "The twelve — the Playbook's KPI board, Monday entry"],
-  now: ["Service pulse — live counts, one tap into the working screen", "The Pass — the pass board (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Delivery run — run sheet, brew totals & packout (outcomes are logged in driver mode)", "Live truck: go live, GPS broadcast (locations & the ordering dial live in Plan › Route)", "Alerts & your tasks — pointers into My Day"],
+  now: ["Service pulse — live counts, one tap into the working screen", "The Pass — the pass board (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Delivery run — run sheet, brew totals & packout (outcomes are logged in driver mode)", "Live truck: go live, GPS broadcast (locations live in Plan › Route; the cup-ordering dial in Settings)", "Alerts & your tasks — pointers into My Day"],
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Crew assignments & sign-off", "Load-out & gear moved to Production › Assets"],
-  plan: ["Company calendar", "Events", "Route — locations, go live & the cup-ordering dial", "Leads — booking requests & the sales board (lead → live → expand)", "Vendors & venues"],
+  plan: ["Company calendar", "Events", "Route — locations & go live (the cup-ordering dial is in Settings)", "Leads — booking requests & the sales board (lead → live → expand)", "Vendors & venues"],
   notes: ["Private notes — 🔒 just for you", "Team notes & meeting recaps", "Follow-ups → assigned tasks", "✨ Transcript → summary"],
-  studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
+  studio: ["Post & flyer drafting", "Brand kit — logo, palette, fonts & voice (the words guests read are edited in Settings)", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
   brew: ["Brew schedule with start-by deadlines", "Coverage — makes vs reserved", "Serve-by freshness windows", "Batch log & recipes"],
   garage: ["Load-out & tow plan", "Gear library — manuals & specs", "Asset maintenance & what's due", "Inventory — stock, costs & pars"],
   driver: ["Next run — porches & zips", "Driver mode — map & run list", "The ONE place outcomes are logged (swap · fresh · hold · not home)"],
   customers: ["Customer list — guests & members", "Cross-channel order history (cup · pickup · delivery)", "Loyalty — points & credit", "Contact info for outreach"],
-  money: ["Checkout & payments — card status + the pay-at-pickup toggle (governs cup, reserve & delivery)", "Sales · snapshot · per-event P&L", "Product economics & COGS", "Membership plans & subscribers", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here", "Reserve drops — configure the limited drops"],
-  team: ["Staff roster", "Roles & permissions", "Training & academy", "Manager approvals"],
+  money: ["Refunds & disputes — the door to Square (the payment switches are in Settings)", "Sales · snapshot · per-event P&L", "Product economics & COGS", "Subscribers & subscription interest (the plans are in Settings)", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here", "Reserve drops — configure the limited drops"],
+  team: ["Staff roster — change a role on the person's row", "Who's on what & the org chart", "Training & academy", "Manager approvals", "Invites, lane owners & Train the AI — in Settings"],
   ask: ["Recipes & the why", "Gear & stock how-to", "The GT3 playbook"],
-  settings: ["Copy & wording — every line guests read", "Office delivery pricing & minimum", "What we've built — the categorized changelog of every improvement shipped", "Audit & maintenance — every review run, scored, dated & tracked for re-run", "A map to brand, payments, menu, codes & roles"],
+  settings: ["You — notifications & quiet hours, order alerts on this phone, the pass's sound, day or dark, text size (everyone)", "Ordering & payments — card checkout, pay at pickup (pickup orders only: delivery is always prepaid on the card), subscriptions, the cup-ordering dial, office delivery pricing", "Menu & availability — the menu, membership plans, discount codes & perks, dropdown lists", "Team & access — invites & lane owners (a role is changed on Team's roster)", "Markets & legal — can a city open, and why not", "Integrations — what's connected, and Outlook's two-way sync", "AI — Train the AI, the copilots & what they cost", "Copy & brand — every line guests read, the app splash, broadcasts", "Advanced — the change log, errors, what we've built & every audit run"],
 };
 
 // The interactive "when to use what" guide — every section the role can reach, each expandable to a
@@ -314,7 +328,9 @@ function Kitchen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [flash, setFlash] = useState<Set<string>>(new Set());
-  const [muted, setMuted] = useState(false);
+  // The pass's sound is this phone's setting, kept in one home (lib/passSound) — the bell below and
+  // Settings › You › Pass sound both change it, and the Pass reads it as it draws (2026-10-06).
+  const muted = usePassMuted();
   const [doneOpen, setDoneOpen] = useState(false);
   const [, setTick] = useState(0);
   const [err, setErr] = useState("");
@@ -322,7 +338,6 @@ function Kitchen() {
   const seeded = useRef(false);
   const mutedRef = useRef(false);
   useEffect(() => { mutedRef.current = muted; }, [muted]);
-  useEffect(() => { try { setMuted(localStorage.getItem("kds_muted") === "1"); } catch { /* */ } }, []);
 
   // Active board + recently-completed (last 30 min) so picked-up orders linger for
   // review / recall instead of vanishing instantly.
@@ -501,7 +516,7 @@ function Kitchen() {
   };
 
   const toggle = (k: string) => setCollapsed((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
-  const toggleMute = () => setMuted((m) => { const v = !m; try { localStorage.setItem("kds_muted", v ? "1" : "0"); } catch { /* */ } unlockAudio(); return v; });
+  const toggleMute = () => { setPassMuted(!muted); unlockAudio(); };
   const active = orders.filter((o) => o.status !== "done");
   const done = orders.filter((o) => o.status === "done").sort((a, b) => (a.status_changed_at < b.status_changed_at ? 1 : -1));
   // A ticket's clock starts when its order can be made (lib/ordering, 0343): placed ahead of a stop,
@@ -693,16 +708,22 @@ function alertDest(category: string | null | undefined, title?: string | null, l
   //  2) The category map below.
   //  3) null — this alert has NO home beyond its own card, so the card doesn't render Open at
   //     all. Teleporting somewhere unrelated and closing the inbox was the no-flow.
+  //
+  // A LINK TO A PANEL THAT MOVED (2026-10-06, the settings round). An alert keeps the link it was
+  // raised with, so one raised before Settings gathered the menu, the plans, the codes and the perks
+  // still says ?s=money&a=menu or ?s=customers&a=cust-codes. The panels kept their ids; lib/panelHome
+  // says which section each one is in now, and the jump goes there.
   const s = /[?&]s=([a-z-]+)/.exec(link || "");
   if (s && VALID_SECTIONS.has(s[1] as OpSection)) {
     const a = /[?&]a=([a-z0-9-]+)/.exec(link || "");
-    return { section: s[1] as OpSection, ...(a ? { anchor: a[1] } : {}) };
+    const home = panelHome(s[1], a?.[1]);
+    return { section: home.section as OpSection, ...(home.anchor ? { anchor: home.anchor } : {}) };
   }
   // normalizeCategory folds the legacy vocabulary (orders/billing/assignment/note/…) into the
   // closed set, so historic rows route correctly too. The audit found the old router matched
   // "order" (which nothing emitted) while every real order ping fell through to My Day.
   const cat = normalizeCategory(category);
-  if (cat === "order") return { section: "now", anchor: "kitchen-pass" };  // land ON the pass, even from the pass screen
+  if (cat === "order") return { section: "now", anchor: "kitchen-pass" };  // land ON the pass, even from the pass screen — jumpTo opens it
   if (cat === "money") return { section: "money" };
   if (cat === "brew") return { section: "brew" };
   if (cat === "booking") return { section: "plan", planTab: "leads" }; // leads live on Plan now (2026-07-30 merge)
@@ -711,6 +732,17 @@ function alertDest(category: string | null | undefined, title?: string | null, l
   if (cat === "strategy") return { section: "command", anchor: "goals" }; // goals live ON Command now (2026-07-29 merge)
   if (cat === "task") return { section: "day", anchor: "my-day-tasks" }; // your tasks DO live on My Day
   return null; // system & anything homeless: the card is the content
+}
+// THE PASS IS A SCREEN, NOT A PANEL (2026-10-06, the settings round). Order alerts were sent to
+// #kitchen-pass to "land ON the pass" — but that id is drawn only while the Pass is open (service
+// mode, AdminPage below), so the jump looked for it for five seconds and stopped at the top of Live
+// Ops. A jump to the Pass opens it instead: OPEN_PASS_EVENT, which the page answers by going to Live
+// Ops and opening service mode. Every other anchor is a panel, and goes to lib/anchors as before.
+const PASS_ANCHOR = "kitchen-pass";
+const OPEN_PASS_EVENT = "gt3-open-pass";
+function jumpTo(anchor?: string): void {
+  if (anchor === PASS_ANCHOR) { window.dispatchEvent(new Event(OPEN_PASS_EVENT)); return; }
+  scrollToAnchor(anchor);
 }
 // After a section switch React needs a beat to mount the destination before we can scroll to it.
 // JUMP TO A PANEL — the third round of the same bug, so this time it is written down.
@@ -819,95 +851,9 @@ function DropSheet({ onClose }: { onClose: () => void }) {
 
 // The "don't-miss" inbox — unacknowledged alerts for me (or all-leadership), critical first.
 // Realtime, so a new alert lands at the top of the Now screen the instant it's raised.
-// Notification management (0177) — mute a category's non-critical pings, set a quiet window. Own-row
-// prefs, realtime. Criticals always come through; this only quiets the rest.
-const NOTIF_CATS: { key: string; label: string }[] = [
-  { key: "order", label: "Orders & the pass" },
-  { key: "money", label: "Money & refunds" },
-  { key: "brew", label: "Brew ladder" },
-  { key: "prep", label: "Prep & tasks" },
-  { key: "content", label: "Studio / content" },
-  { key: "strategy", label: "Pipeline & strategy" },
-];
-// QUIET HOURS ARE A PICK, NOT A NUMBER (2026-10-04, the form audit). They were two text boxes read
-// with parseInt: "10pm" saved as 10 — ten in the MORNING — "7pm" as 7am, and "10:30" as 10, with
-// "Saved" toasted on every blur whatever happened. notif_prefs.quiet_start/_end are hours 0–23 on
-// the phone's own clock (lib/useMyAlerts.inQuietHours), so the pick is those 24 hours, written the
-// way every other time in the app is (lib/dates.fmt12: "10:00pm").
-const QUIET_HOURS = Array.from({ length: 24 }, (_, h) => h);
-const quietHourLabel = (h: number): string => fmt12(`${h}:00`) ?? String(h);
-function NotifPrefsSheet({ userId, onClose }: { userId: string | null; onClose: () => void }) {
-  const { toast } = useApp();
-  const [muted, setMuted] = useState<string[]>([]);
-  const [qs, setQs] = useState<string>("");
-  const [qe, setQe] = useState<string>("");
-  // Picking one end of an unset window fills the other with the usual night (10:00pm–7:00am, the
-  // boxes' old placeholders); setting either end to Off turns the window off.
-  //
-  // A FAILED READ IS NOT AN EMPTY LIST. Every save writes the whole row, so saving over prefs this
-  // sheet could not read would unmute everything the person had muted. Until the read answers,
-  // nothing here can be changed; if it fails, the sheet says so and stays read-only.
-  const [read, setRead] = useState<"loading" | "ok" | "failed">("loading");
-  useEffect(() => {
-    if (!supabase || !userId) return;
-    supabase.from("notif_prefs").select("muted_categories, quiet_start, quiet_end").eq("user_id", userId).maybeSingle()
-      .then(({ data, error }) => {
-        if (error) { setRead("failed"); return; }
-        const p = data as { muted_categories?: string[]; quiet_start?: number | null; quiet_end?: number | null } | null;
-        if (p) { setMuted(p.muted_categories ?? []); setQs(p.quiet_start != null ? String(p.quiet_start) : ""); setQe(p.quiet_end != null ? String(p.quiet_end) : ""); }
-        setRead("ok");
-      });
-  }, [userId]);
-  const save = async (nextMuted: string[], nqs: string, nqe: string): Promise<boolean> => {
-    if (!supabase || !userId || read !== "ok") return false;
-    const { error } = await supabase.from("notif_prefs").upsert({ user_id: userId, muted_categories: nextMuted,
-      quiet_start: nqs === "" ? null : Number(nqs), quiet_end: nqe === "" ? null : Number(nqe), updated_at: new Date().toISOString() });
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return false; }
-    return true;
-  };
-  const toggle = async (k: string) => {
-    const before = muted;
-    const next = muted.includes(k) ? muted.filter((x) => x !== k) : [...muted, k];
-    setMuted(next);
-    if (!(await save(next, qs, qe))) setMuted(before);
-  };
-  const setQuiet = async (nqs: string, nqe: string) => {
-    const before = [qs, qe];
-    setQs(nqs); setQe(nqe);
-    if (await save(muted, nqs, nqe)) toast(nqs !== "" && nqe !== "" && nqs !== nqe ? `Quiet ${quietHourLabel(Number(nqs))}–${quietHourLabel(Number(nqe))}` : "Quiet hours off");
-    else { setQs(before[0]); setQe(before[1]); }
-  };
-  const locked = read !== "ok";
-  const halfSet = (qs === "") !== (qe === "");
-  return (
-    <Sheet open onClose={onClose} label="Notifications" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Notifications</b><CloseButton onClick={onClose} /></div>}>
-      <p className="h-sub" style={{ marginTop: 0 }}>Quiet the categories you don&rsquo;t need. Critical alerts always come through.</p>
-      {read === "failed" && <div className="dp-err" role="alert">Couldn&rsquo;t read your notification settings, so nothing here can be changed right now. Close this and try again.</div>}
-      <div className="notif-cats">
-        {NOTIF_CATS.map((c) => (
-          <button key={c.key} type="button" className={`notif-cat${muted.includes(c.key) ? " muted" : ""}`} onClick={() => toggle(c.key)} aria-pressed={muted.includes(c.key)} disabled={locked}>
-            <span>{c.label}</span><span className="notif-cat-s">{muted.includes(c.key) ? "🔕 Muted" : <><Icon name="bell" /> On</>}</span>
-          </button>
-        ))}
-      </div>
-      <div className="notif-quiet">
-        <span className="adm-prep-label">Quiet hours (optional)</span>
-        <p className="h-sub" style={{ margin: "0 0 8px" }}>During these hours, non-critical alerts are held into a morning digest instead of pinging you — they surface on their own when quiet hours end. Critical alerts always come through.</p>
-        <div className="notif-quiet-r">
-          <label>From<select value={qs} disabled={locked} onChange={(e) => (e.target.value === "" ? setQuiet("", "") : setQuiet(e.target.value, qe === "" ? "7" : qe))}>
-            <option value="">Off</option>
-            {QUIET_HOURS.map((h) => <option key={h} value={String(h)}>{quietHourLabel(h)}</option>)}
-          </select></label>
-          <label>to<select value={qe} disabled={locked} onChange={(e) => (e.target.value === "" ? setQuiet("", "") : setQuiet(qs === "" ? "22" : qs, e.target.value))}>
-            <option value="">Off</option>
-            {QUIET_HOURS.map((h) => <option key={h} value={String(h)}>{quietHourLabel(h)}</option>)}
-          </select></label>
-          <span className="notif-quiet-h">{halfSet ? "set both ends to turn it on" : qs !== "" && qs === qe ? "the same hour at both ends is off" : "on this phone\u2019s clock"}</span>
-        </div>
-      </div>
-    </Sheet>
-  );
-}
+// Its gear opens the notification settings (0177) — mutes and quiet hours — which live in
+// components/NotifPrefs since 2026-10-06 (the settings round): Settings › You draws the same controls
+// in place, and the gear still opens them in a sheet (NotifPrefsSheet).
 
 function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: { userId: string | null; compact?: boolean; title?: string; onNavigate?: () => void }) {
   const { profile } = useAuth();
@@ -953,14 +899,14 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
       // No post id on the link (an older alert raised before the link format was fixed, or a
       // malformed one) — don't silently fall through to the generic My Day route below, which
       // reads as "Open" teleporting you somewhere unrelated instead of doing nothing useful.
-      toast("Couldn't find that post — it may have been removed. Check Business → Studio.", "error");
+      toast("Couldn't find that post — it may have been removed. Check Brand → Studio.", "error");
       return;
     }
     const d = alertDest(a.category, a.title, a.link);
     if (!d) return;              // homeless alert — the card is the content; Open isn't rendered for these
     onNavigate?.();              // close the inbox sheet FIRST — else the destination renders behind it
     if (d.planTab && isPlanTab(d.planTab)) { goPlanTab(d.planTab, { setSection }); } else { setSection(d.section); }
-    scrollToAnchor(d.anchor);
+    jumpTo(d.anchor);            // a panel is scrolled to and opened; the Pass is opened (jumpTo)
   };
 
   const rank = (s: string) => (s === "critical" ? 0 : s === "important" ? 1 : 2);
@@ -5237,33 +5183,10 @@ function OrdersHistory() {
   );
 }
 
-function EnableAlerts({ userId }: { userId: string | null }) {
-  const [perm, setPerm] = useState<NotificationPermission | "unknown">("unknown");
-  useEffect(() => { if (typeof Notification !== "undefined") setPerm(Notification.permission); }, []);
-  if (perm === "unknown" || perm === "granted") return null;
-  // 2026-07-29 audit: this used to render as a bare, unlabeled full-width button dropped right
-  // after My Tasks, with no heading and no context — the one thing on the Live Ops screen that
-  // didn't get a crew-group divider or a Panel. Ryan: "Turn on order alerts out of place, WTF."
-  // Same content, same single tap — just given the label + one-line "why" every other block here
-  // already has, so it reads as a real feature instead of a leftover.
-  return (
-    <div className="adm-sec">
-      <SectionHeader label="Notifications" />
-      <div className="h-sub" style={{ marginTop: 0, marginBottom: 10 }}>Get a push alert the moment a new order lands on the pass — even with the app in your pocket.</div>
-      <button
-        className="btn2"
-        style={{ marginTop: 0, marginBottom: 4 }}
-        onClick={async () => {
-          const p = await Notification.requestPermission();
-          setPerm(p);
-          if (p === "granted") subscribePush(userId, true); // background push for the kitchen
-        }}
-      >
-        Turn on order alerts
-      </button>
-    </div>
-  );
-}
+// "Turn on order alerts" lived here (EnableAlerts) until 2026-10-06 (the settings round). Ryan, the
+// 2026-07-29 audit: "Turn on order alerts out of place, WTF." It was given a heading then, and stayed
+// at the bottom of Live Ops. It is a setting of this phone, so it is Settings › You › Alerts on this
+// device now (components/DeviceAlerts), and Live Ops keeps one line while alerts are off here.
 
 // ───────────────────────── back office ─────────────────────────
 // The "Overview / At a glance" component that lived here died 2026-07-30 (Ryan's screenshot:
@@ -5610,31 +5533,177 @@ function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[
 // scrollToAnchor("pay")-style deep link into a Panel was silently a no-op, getElementById found
 // nothing. Found while wiring up the settings-card anchors and the live-copy edit bridge (7/16);
 // fixed here since both depend on it.
-function Panel({ title, id, defaultOpen = false, children }: { title: string; id: string; defaultOpen?: boolean; children: ReactNode }) {
+//
+// A ROW THAT SAYS WHAT IT HOLDS (2026-10-06, the settings round). `sub` is a line under the title
+// saying what is inside; `value` is what it is set to now, on the right — the way a phone's Settings
+// reads ("Wi-Fi … Home ›"). A closed panel with a `sub` is a list row, not a blind header, and the
+// accordion-wall gate (scripts/design.ratchet.mjs, collapsedPanels) counts only the blind ones.
+// `remember={false}` is Settings' choice: it comes back to its list every time, as a phone's Settings
+// does, rather than reopening whatever was open last (a deep link still opens its panel).
+function Panel({ title, sub, value, id, defaultOpen = false, remember = true, children }: {
+  title: string; sub?: string; value?: ReactNode; id: string; defaultOpen?: boolean; remember?: boolean; children: ReactNode;
+}) {
   const storeKey = `gt3-mpanel-${id}`;
   const [open, setOpen] = useState(defaultOpen);
-  useEffect(() => { try { const v = localStorage.getItem(storeKey); if (v !== null) setOpen(v === "1"); } catch { /* ignore */ } }, [storeKey]);
+  useEffect(() => {
+    if (!remember) return;
+    try { const v = localStorage.getItem(storeKey); if (v !== null) setOpen(v === "1"); } catch { /* ignore */ }
+  }, [storeKey, remember]);
+  const keep = useCallback((n: boolean) => {
+    if (!remember) return;
+    try { localStorage.setItem(storeKey, n ? "1" : "0"); } catch { /* ignore */ }
+  }, [storeKey, remember]);
   // A deep link asks for this panel by id. Without this, ?a=<id> scrolled to a CLOSED accordion
   // header — it only ever appeared to work for someone whose localStorage remembered opening it by
-  // hand. Persisted too: having been sent here, you should still find it open next time.
+  // hand. Persisted too (where the panel remembers): having been sent here, you should still find it
+  // open next time.
   useEffect(() => {
     const onOpen = (e: Event) => {
       if ((e as CustomEvent<string>).detail !== id) return;
       setOpen(true);
-      try { localStorage.setItem(storeKey, "1"); } catch { /* ignore */ }
+      keep(true);
     };
     window.addEventListener(OPEN_PANEL_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_PANEL_EVENT, onOpen);
-  }, [id, storeKey]);
-  const toggle = () => setOpen((o) => { const n = !o; try { localStorage.setItem(storeKey, n ? "1" : "0"); } catch { /* ignore */ } return n; });
+  }, [id, keep]);
+  // The write happens beside the state change, not inside its updater (an updater runs twice under
+  // StrictMode, and is no place for work).
+  const toggle = () => { const n = !open; setOpen(n); keep(n); };
   return (
     <section id={id} className={`mpanel${open ? " open" : ""}`} style={{ scrollMarginTop: 16 }}>
       <button type="button" className="mpanel-h" onClick={toggle} aria-expanded={open}>
-        <span className="mpanel-t">{title}</span>
+        {sub
+          ? <span className="mpanel-tt"><span className="mpanel-t">{title}</span><span className="mpanel-s">{sub}</span></span>
+          : <span className="mpanel-t">{title}</span>}
+        {value != null && <span className="mpanel-v">{value}</span>}
         <span className="mpanel-chev" aria-hidden="true">›</span>
       </button>
       {open && <div className="mpanel-body">{children}</div>}
     </section>
+  );
+}
+
+// ───────────────────────── settings: every switch, one home ─────────────────────────
+// SETTINGS HAS A HOME (2026-10-06, the settings round). Ryan: "Anything that changes a feature should
+// be inside of the settings tab … it feels 2/10, scattered." The switches were spread over six
+// sections and three floating icons: the payment switches in Money › Get paid, the menu and the plans
+// in Money, codes and perks in Customers, invites and Train the AI on Team, Outlook under the
+// calendar, the cup-ordering dial on Plan › Route, the mutes behind the inbox's gear, order alerts at
+// the bottom of Live Ops, the theme as a floating moon, text size on the rail.
+//
+// They are here now, in the order a person reaches for them: what is yours, then the business. Every
+// panel keeps the gate it had where it came from, and the page is open to every role — so crew see
+// only You. Each old spot keeps one line that leads here (components/GoLine). Panels that moved kept
+// their ids, so old links still land (lib/panelHome); the new ones are set-*.
+//
+// A LIST, LIKE A PHONE'S SETTINGS. The first draw opened the big panels at rest — the copy editor,
+// Train the AI, invites — and the page ran to fourteen screens, a form wall between the rows. Now each
+// section is one grouped list (SetList) of rows, all closed: a title, a line saying what is inside,
+// and, where it is one fact, what it is set to now (components/SettingsGlance). Tap a row to change
+// it; Settings comes back to its list next time (remember={false}). A switch you flip without reading
+// anything first — alerts on this phone, the pass's sound, day or dark — is a row you flip in place.
+function SetList({ children }: { children: ReactNode }) {
+  return Children.toArray(children).length ? <div className="set-list">{children}</div> : null;
+}
+
+function SettingsHome({ userId, isAdmin, isOwner }: { userId: string | null; isAdmin: boolean; isOwner: boolean }) {
+  const g = useSettingsGlance(userId, isAdmin);
+  const v = (x: Glance) => <GlanceText g={x} />;
+  const outlook = isOwner ? <OutlookGlance /> : null;
+  return (
+    <>
+      <p className="set-lead">{isAdmin
+        ? "Yours first, then the business’s. Tap a row to change it — a change goes live at once, no deploy."
+        : "Your notifications, and how the app looks and sounds on this phone."}</p>
+      <SectionHeader label="You" annotation="your pings · this phone" />
+      <SetList>
+        <Panel id="set-notify" title="Notifications" sub="What pings you, and your quiet hours" value={v(g.notify)} remember={false}><NotifPrefs userId={userId} /></Panel>
+        <div id="set-alerts" className="set-row"><DeviceAlerts userId={userId} /></div>
+        <div id="set-sound" className="set-row"><PassSound /></div>
+        <div id="set-theme" className="set-row"><Appearance /></div>
+        <Panel id="set-display" title="Text size & display" sub="Bigger text, bold, roomier spacing — this phone" value={v(g.display)} remember={false}><DisplayControls /></Panel>
+        {isAdmin && <Panel id="set-digest" title="Founder digest" sub="The business roll-up, sent to the founders" value={v(g.digest)} remember={false}><FounderDigest /></Panel>}
+      </SetList>
+
+      {isAdmin && <SectionHeader label="Ordering & payments" />}
+      <SetList>
+        {isAdmin && <Panel id="set-pay" title="Checkout & payments" sub="Card checkout, pay at pickup, subscriptions" value={v(g.pay)} remember={false}><PaymentSettings /></Panel>}
+        {isAdmin && <Panel id="set-dial" title="Cup-ordering dial" sub="When cup pre-orders open before a stop" value={v(g.dial)} remember={false}><CupOrderingDial /></Panel>}
+        {isAdmin && <Panel id="set-office" title="Office delivery" sub="The price a gallon, and the smallest order" value={v(g.office)} remember={false}><OfficeSettings /></Panel>}
+      </SetList>
+
+      {isAdmin && <SectionHeader label="Menu & availability" />}
+      <SetList>
+        {isAdmin && <Panel id="menu" title="Menu & products" sub="Every drink and product, its price, and whether it’s on" remember={false}><MenuManager /></Panel>}
+        {isAdmin && <Panel id="plans" title="Membership plans" sub="What members pay, and what they get" remember={false}><PlanEditor /></Panel>}
+        {isAdmin && <Panel id="cust-codes" title="Discount codes" sub="Mint a code, see who used it, turn one off" remember={false}><CodesPanel /></Panel>}
+        {isAdmin && <Panel id="cust-perks" title="Founding perks" sub="What a founding member gets, and what a VIP gets" remember={false}><PerksPanel /></Panel>}
+        {/* 0306 moved every dropdown's list into the database so the same column stopped being a
+            picker on one screen and a text box on another. This is the other half of that: the
+            lists have to be editable from in here, or adding a unit means opening the SQL editor,
+            which is not something to hand a market lead. */}
+        {isAdmin && <Panel id="set-lists" title="Dropdown lists" sub="The choices every picker in the app offers" remember={false}><ListsPanel /></Panel>}
+      </SetList>
+
+      {isAdmin && <SectionHeader label="Team & access" />}
+      <SetList>
+        {isOwner && <Panel id="set-invite" title="Invite a teammate" sub="They land in their role the moment they sign up" remember={false}><InviteTeammate /></Panel>}
+        {isAdmin && <Panel id="set-lanes" title="Lane owners" sub="One accountable owner for each work stream" value={v(g.lanes)} remember={false}><OrgChart part="lanes" /></Panel>}
+      </SetList>
+      {/* A role is changed on the person's row in Team's roster — the roster stays where the people are. */}
+      {isOwner && <GoLine to="team" anchor="team-members">Change someone&rsquo;s role</GoLine>}
+
+      {isAdmin && <SectionHeader label="Markets & legal" />}
+      <SetList>
+        {/* 0296/0297 built the readiness engine — eight named checks per city, rolled up into
+            can_open — and nothing in the app read it. Five market RPCs were in the same state.
+            Opening Atlanta was a SQL-editor operation until this panel. Admins see it; the panel
+            leaves the decisions (opening a city, its terms) to the owner, as before. */}
+        {isAdmin && <Panel id="set-markets" title="Markets" sub="Can a city open — and if not, why not" remember={false}><MarketsPanel /></Panel>}
+      </SetList>
+
+      {isAdmin && <SectionHeader label="Integrations" />}
+      <SetList>
+        {/* Enterprise round (2026-08-01): one honest pane of what's connected, admin-only, read-only. */}
+        {isAdmin && <Panel id="set-integrations" title="Integrations & security" sub="What the app is connected to" remember={false}><IntegrationsPanel /></Panel>}
+        {isOwner && <Panel id="set-outlook" title="Outlook calendar" sub="Two-way sync with the company calendar" value={outlook} remember={false}><OutlookConnect /></Panel>}
+      </SetList>
+
+      {isAdmin && <SectionHeader label="AI" />}
+      <SetList>
+        {isOwner && <Panel id="set-train" title="Train the AI" sub="Corrections every agent obeys" remember={false}><AiTraining /></Panel>}
+        {isAdmin && <Panel id="set-ai" title="AI copilots" sub="Every copilot, and what each one does" remember={false}><CopilotDirectory /></Panel>}
+        {isAdmin && <Panel id="set-spend" title="AI spend" sub="What your copilots cost" remember={false}><AiSpend /></Panel>}
+      </SetList>
+
+      {isAdmin && <SectionHeader label="Copy & brand" />}
+      <SetList>
+        {/* The words guests read, the splash and the broadcast. An event manager keeps the brand kit
+            in Studio › Brand; Studio's line to this editor is drawn for an owner or an admin. */}
+        {isAdmin && <Panel id="set-copy" title="Copy & wording" sub="Every line guests read, page by page" remember={false}><SiteCopyEditor /></Panel>}
+        {isAdmin && <Panel id="splash" title="App splash" sub="The pop-up guests see when they open the app" remember={false}><PromoEditor /></Panel>}
+        {isAdmin && <Panel id="set-broadcast" title="Broadcast" sub="A live message or ad, to everyone" remember={false}><BroadcastEditor /></Panel>}
+      </SetList>
+
+      {/* 2026-07-16 scope assessment: the change log, errors, the changelog and the audit log are
+          tools ABOUT the software itself rather than tools for running the business, so they sit
+          last, behind their own divider. Enterprise round (2026-08-01): the change log (0260).
+          The reading end of the error intake (0133, lib/errorIntake): every alert that says "App
+          error" or "Server error" points at a row that, until that panel, only the SQL editor
+          could show. */}
+      {isAdmin && <SectionHeader label="Advanced" />}
+      <SetList>
+        {isAdmin && <Panel id="set-admintrail" title="Change log" sub="Who changed what, and when" remember={false}><AuditTrail /></Panel>}
+        {isAdmin && <Panel id="set-errors" title="Errors" sub="What broke, how often, and where" remember={false}><ErrorLog /></Panel>}
+        {isAdmin && <Panel id="set-changelog" title="What we’ve built" sub="The changelog" remember={false}><Changelog /></Panel>}
+        {isAdmin && (
+          <Panel id="set-audit" title="Audit & maintenance" sub="Every review run on the app, scored and dated" remember={false}>
+            <p className="set-lead">Every review run on the app — security, privacy, performance, accessibility, UI cohesion, data — with a score, the date, the prompt used, and when it&apos;s due to run again. Log a new one any time you run a check.</p>
+            <MaintenanceLog />
+          </Panel>
+        )}
+      </SetList>
+    </>
   );
 }
 
@@ -5679,13 +5748,18 @@ export default function AdminPage() {
   // OperatorSectionProvider's own ?s= hydration; this consumes the matching ?a= once that section has
   // actually mounted, via the same scrollToAnchor alert links already use. Own ref (not state) so it
   // fires once per page load and never re-triggers on an in-app section change afterward.
+  // A link to the Pass (&a=kitchen-pass, 2026-10-06) opens it (jumpTo) — and waits until the
+  // address's ?s=now has landed, because "leaving Live Ops closes the Pass" (below) would otherwise
+  // close it again on the way in, while the section is still the one this page started on.
   const consumedAnchorRef = useRef(false);
   useEffect(() => {
     if (consumedAnchorRef.current) return;
-    const a = takeParam("a");
+    const a = readParam("a");
     if (!a) return;
+    if (a === PASS_ANCHOR && sec !== "now" && readParam("s") === "now") return;
     consumedAnchorRef.current = true;
-    scrollToAnchor(a);
+    dropParam("a");
+    jumpTo(a);
   }, [sec]);
   // The header 🔔 opens the ONE inbox (your flags + the needs-you queue). Any screen can summon it
   // (a badged nav tab, the Now strip) via the gt3-open-inbox event; navigating a section closes it.
@@ -5711,6 +5785,14 @@ export default function AdminPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [svc]);
   useEffect(() => { if (section !== "now") setSvc(false); }, [section]);
+  // THE PASS OPENS FROM A JUMP (2026-10-06, the settings round) — an order alert's Open, or a link
+  // that ends &a=kitchen-pass (jumpTo, near alertDest). The Pass is a screen on Live Ops, so the jump
+  // goes to Live Ops and opens it, instead of hunting for an id that exists only once it is open.
+  useEffect(() => {
+    const open = () => { setSection("now"); setSvc(true); };
+    window.addEventListener(OPEN_PASS_EVENT, open);
+    return () => window.removeEventListener(OPEN_PASS_EVENT, open);
+  }, [setSection]);
   // Focus the section region when you switch sections (skip the first render so we don't yank focus
   // on initial load). This USED to say "programmatic focus won't trigger :focus-visible, so there's
   // no stray ring" — and it did, a 2px frame around the whole screen on iPhone, because WebKit never
@@ -5945,7 +6027,9 @@ export default function AdminPage() {
           )}
           {canManage && <Panel id="hud" title="Event heads-up"><EventHUD onGoEvents={() => goSection("events")} /></Panel>}
           <MyTasks userId={user?.id ?? null} chip />
-          <EnableAlerts userId={user?.id ?? null} />
+          {/* Turning order alerts on is Settings › You › Alerts on this device now (2026-10-06, the
+              settings round); here, one line, and only while they are off on this phone. */}
+          <AlertsOffLine />
         </>
       )}
       {/* SERVICE MODE — the KDS as ONE working surface: the pass is the board (tickets flow 2-up
@@ -6091,79 +6175,10 @@ export default function AdminPage() {
         </>
       )}
 
-      {sec === "settings" && canManage && (
-        <>
-          {/* The owner control room — one front door for everything you can change without a
-              developer. Copy lives HERE (the thing owners hunt for); the rest is a labeled map to
-              the surfaces that already own each editor, so nothing is duplicated or piecemeal. */}
-          <SectionHeader label="Owner control room" />
-          <p className="set-lead">Everything you can change without a developer. Edits go live instantly — no deploy.</p>
-          <Panel id="set-copy" title="Copy & wording · every line guests read" defaultOpen><SiteCopyEditor /></Panel>
-          <Panel id="set-broadcast" title="Broadcast · a live message or ad to everyone"><BroadcastEditor /></Panel>
-          <Panel id="splash" title="App splash · the pop-up guests see"><PromoEditor /></Panel>
-          {isAdmin && <Panel id="set-office" title="Office delivery · price & minimum"><OfficeSettings /></Panel>}
-          {/* 0296/0297 built the readiness engine — eight named checks per city, rolled up into
-              can_open — and nothing in the app read it. Five market RPCs were in the same state.
-              Opening Atlanta was a SQL-editor operation until this panel. */}
-          {isAdmin && <Panel id="set-markets" title="Markets · can this city open, and why not"><MarketsPanel /></Panel>}
-          <Panel id="set-ai" title="AI copilots · the full catalog"><CopilotDirectory /></Panel>
-          {isAdmin && <Panel id="set-spend" title="AI spend · what your copilots cost"><AiSpend /></Panel>}
-          {isAdmin && <Panel id="set-digest" title="Founder digest · the daily business roll-up"><FounderDigest /></Panel>}
-          {/* 0306 moved every dropdown's list into the database so the same column stopped being a
-              picker on one screen and a text box on another. This is the other half of that: the
-              lists have to be editable from in here, or adding a unit means opening the SQL editor,
-              which is not something to hand a market lead. */}
-          {isAdmin && <Panel id="set-lists" title="Dropdown lists · what every picker offers"><ListsPanel /></Panel>}
-
-          {/* 2026-07-16 scope assessment: changelog + the audit log are tools ABOUT the software
-              itself (what shipped, what got reviewed) rather than tools for running the business —
-              they don't need equal billing with Copy/Broadcast/Office, which get touched daily. Same
-              access, same panels, just moved behind their own divider instead of interleaved. */}
-          <SectionHeader label="Advanced" />
-          {/* Enterprise round (2026-08-01): the two capabilities the control room lacked — an
-              admin change log (who changed what, when — 0260) and one honest pane of what's
-              connected. Both admin-only, both read-only. */}
-          {isAdmin && <Panel id="set-admintrail" title="Change log · who changed what, when"><AuditTrail /></Panel>}
-          {isAdmin && <Panel id="set-integrations" title="Integrations & security · what's connected"><IntegrationsPanel /></Panel>}
-          {/* The reading end of the error intake (0133, lib/errorIntake). Every alert that says
-              "App error" or "Server error" points at a row that, until this panel, only the SQL
-              editor could show. */}
-          {isAdmin && <Panel id="set-errors" title="Errors · what broke, how often, where"><ErrorLog /></Panel>}
-          <Panel id="set-changelog" title="What we've built · changelog"><Changelog /></Panel>
-          {isAdmin && (
-            <Panel id="set-audit" title="Audit & maintenance · every review run, scored &amp; dated">
-              <p className="set-lead">Every review run on the app — security, privacy, performance, accessibility, UI cohesion, data — with a score, the date, the prompt used, and when it's due to run again. Log a new one any time you run a check.</p>
-              <MaintenanceLog />
-            </Panel>
-          )}
-          <SectionHeader label="More controls" />
-          <div className="set-map">
-            {([
-              { t: "Brand, splash & reviews", s: "Logo, kit, the pop-up, testimonials", to: "studio" },
-              // These two used to both just say to: "money" with no anchor — landing on the top of
-              // Money (KPIs) either way, so "Menu, products & pricing" silently took you to the same
-              // place as "Checkout, payments & flags" and you scrolled to find what you actually
-              // wanted. Same jump-to-anchor mechanism AlertsInbox already uses (scrollToAnchor).
-              { t: "Checkout, payments & flags", s: "Pay-at-pickup · subscriptions · lead time", to: "money", anchor: "pay" },
-              { t: "Menu, products & pricing", s: "Drinks, packs, COGS, plans", to: "money", anchor: "menu" },
-              { t: "Discount codes", s: "Mint & manage codes", to: "customers" },
-              { t: "Team & roles", s: "Who can do what", to: "team" },
-            ] as { t: string; s: string; to: OpSection; anchor?: string }[]).map((r) => (
-              <button key={r.t} type="button" className="set-card" onClick={() => {
-                // Force the target panel open too, not just scrolled-to — "menu" has no defaultOpen,
-                // so without this you'd land on its (correct, but collapsed) header and still need an
-                // extra tap. Same storeKey Panel itself writes on a manual toggle.
-                if (r.anchor) { try { localStorage.setItem(`gt3-mpanel-${r.anchor}`, "1"); } catch { /* ignore */ } }
-                setSection(r.to);
-                scrollToAnchor(r.anchor);
-              }}>
-                <span className="set-card-x"><b>{r.t}</b><span>{r.s}</span></span>
-                <span className="set-card-c" aria-hidden>›</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+      {/* SETTINGS HAS A HOME (2026-10-06, the settings round). It was an owner/admin "control room"
+          nothing in the nav opened — only Jump and the Guide reached it. Every role opens it now
+          (More › Settings), and each panel inside keeps the gate it had where it came from. */}
+      {sec === "settings" && <SettingsHome userId={user?.id ?? null} isAdmin={isAdmin} isOwner={isOwner} />}
 
       {sec === "money" && isAdmin && (
         <>
@@ -6172,11 +6187,16 @@ export default function AdminPage() {
           <SectionHeader label="Spend & budget" />
           <Panel id="spend" title="Spend & budget · what the business spends" defaultOpen><SpendBudget /></Panel>
           <SectionHeader label="Get paid" />
-          <Panel id="pay" title="Checkout & payments" defaultOpen>
-            <PaymentSettings />
+          {/* THE PAY PANEL STAYS (2026-10-06, the settings round). The switches it held — card
+              checkout, pay at pickup, subscriptions — are Settings › Ordering & payments now. The
+              panel keeps its id: a voided paid order raises a refund alert that links
+              /crew?s=money&a=pay, and a refund is still Money's — so it keeps the door to them, and
+              one line to the switches. */}
+          <Panel id="pay" title="Refunds & payment settings" defaultOpen>
             {/* Refunds live in Square by design (the card data never touches this app) — but the
                 DOOR to them belongs here (enterprise round P3). */}
             <a className="adm-golink" style={{ display: "inline-block", marginTop: 10 }} href="https://squareup.com/dashboard/sales/transactions" target="_blank" rel="noreferrer">Refunds &amp; disputes — Square Dashboard <Icon name="externalLink" /></a>
+            <GoLine to="settings" anchor="set-pay">Payment settings</GoLine>
           </Panel>
           <SectionHeader label="The numbers" />
           {/* Open at rest (2026-10-02, Ryan: "do all 6"): Money used to open on MoneyKpis and then
@@ -6187,7 +6207,9 @@ export default function AdminPage() {
           <Panel id="pnl" title="Per-event P&L"><EventPnlReport /></Panel>
           <Panel id="funnels" title="Funnels · where people drop off"><FunnelReport /></Panel>
           <SectionHeader label="Catalog & pricing" />
-          <Panel id="menu" title="Menu & products"><MenuManager /></Panel>
+          {/* Menu & products (id "menu") is Settings › Menu & availability now (2026-10-06): what
+              is on the menu changes the feature; what it costs and earns stays here. */}
+          <GoLine to="settings" anchor="menu">Menu &amp; products</GoLine>
           <Panel id="econ" title="Product economics"><ProductCatalog /></Panel>
           <Panel id="lessons" title="Return to Primal · lessons"><LessonsManager /></Panel>
           <Panel id="merch" title="The Shop · merch"><MerchManager /></Panel>
@@ -6199,7 +6221,9 @@ export default function AdminPage() {
           <Panel id="operators" title="Operator agreements · deals, levels &amp; royalties"><OperatorDeal /></Panel>
           <Panel id="offers" title="Offer letters · hire someone"><OfferLetters /></Panel>
           <SectionHeader label="Members & subscriptions" />
-          <Panel id="plans" title="Membership plans"><PlanEditor /></Panel>
+          {/* The plans themselves (id "plans") are Settings › Menu & availability now (2026-10-06);
+              who subscribed, and who asked to, stay with the money. */}
+          <GoLine to="settings" anchor="plans">Membership plans</GoLine>
           <Panel id="subs" title="Subscribers"><Subscribers /></Panel>
           <Panel id="subint" title="Subscription interest"><SubInterest /></Panel>
           <SectionHeader label="Records" />
@@ -6232,9 +6256,10 @@ export default function AdminPage() {
           <CustomerKpis />
           <SectionHeader label="The people" />
           <Panel id="cust-book" title="Customer book · every guest &amp; member" defaultOpen><CrmPanel /></Panel>
-          <SectionHeader label="Loyalty & codes" />
-          <Panel id="cust-perks" title="Founding perks · member vs. VIP"><PerksPanel /></Panel>
-          <Panel id="cust-codes" title="Discount codes · mint &amp; manage"><CodesPanel /></Panel>
+          {/* Discount codes and the founding perks (ids "cust-codes", "cust-perks") are Settings ›
+              Menu & availability now (2026-10-06, the settings round): minting a code changes what
+              a customer pays. One line where they were. */}
+          <GoLine to="settings" anchor="cust-codes">Codes &amp; perks</GoLine>
           <SectionHeader label="VIP verification" />
           <Panel id="cust-vip" title="Bottle-owner proofs · verify → Founding" defaultOpen><VipQueue /></Panel>
         </>
@@ -6247,23 +6272,29 @@ export default function AdminPage() {
               IN the system: active days, sign-ins, actions, last-seen per person, plus the
               anonymous guest pulse. Admin-only data by RLS. */}
           <UtilizationPanel />
-          {isOwner && <SectionHeader label="Invite a teammate" />}
-          {isOwner && <InviteTeammate />}
+          {/* Inviting someone, and who owns each lane, are Settings › Team & access now (2026-10-06,
+              the settings round). Changing a role stays here, on the person's row in the roster.
+              Inviting is the owner's, so an admin's line goes to the lane owners, which are theirs. */}
+          {isOwner && <GoLine to="settings" anchor="set-invite">Invites &amp; roles</GoLine>}
+          {!isOwner && <GoLine to="settings" anchor="set-lanes">Lane owners</GoLine>}
           <SectionHeader label="Who's on what" />
           <WorkloadBoard />
-          {/* Was "Roster" (2026-07-16, ground-up redesign): OrgChart alone renders two labeled
-              concerns (Org chart's reporting tiers, then Work streams' ownership grid), and
-              Members below adds a third ("Team", the actual member list) — "Roster" only
-              accurately described the last of the three. Broadened to cover all of them. */}
+          {/* Was "Roster" (2026-07-16, ground-up redesign): OrgChart rendered two labeled concerns
+              (the org chart's reporting tiers, then work streams' ownership grid), and Members below
+              adds a third ("Team", the actual member list) — "Roster" only described the last.
+              Since 2026-10-06 the lane owners are Settings › Team & access (OrgChart part="lanes");
+              the picture of the people stays here. The roster has an id so Settings' "Change
+              someone's role" lands on it. */}
           <SectionHeader label="Team structure" />
-          <OrgChart />
-          {isOwner && <Members />}
+          <OrgChart part="people" />
+          {isOwner && <div id="team-members" style={{ scrollMarginTop: 16 }}><Members /></div>}
           <SectionHeader label="Growth & training" />
           {/* Was a flat link with no state, on a page where everything else shows live numbers — so it
               was the one block the eye skipped, and the Academy had zero progress rows for anybody.
               The card now carries the reader's own role path, which lib/academy could already derive. */}
           <AcademyCard />
-          {isOwner && <AiTraining />}
+          {/* Train the AI is Settings › AI now (2026-10-06, the settings round). */}
+          {isOwner && <GoLine to="settings" anchor="set-train">Train the AI</GoLine>}
         </>
       )}
       </div>

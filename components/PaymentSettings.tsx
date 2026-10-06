@@ -8,7 +8,8 @@ import { authedFetch } from "@/lib/authedFetch";
 import Icon from "@/components/Icon";
 import { haptic } from "@/lib/haptics";
 
-// PAYMENTS — the owner's checkout controls, in the Money section. Two facts, one switch:
+// PAYMENTS — the owner's checkout controls, in Settings › Ordering & payments (Money › Get paid until
+// 2026-10-06, the settings round; Money keeps the refunds door and a line here). Two facts, one switch:
 //   • Card checkout is on when the Square keys are set in the host env (read-only status here).
 //   • Pay-at-pickup is the owner's dial (live_status.pay_at_pickup, 0145) — offer a pay-in-person
 //     path for PICKUP orders (a cup at the truck, or a pack picked up at a stop), with or without

@@ -15,7 +15,7 @@ import { definitionsToSchema, refuseReason, projectRef } from "./schema.snapshot
 import { classify as classifyRoute, unwrapped, boundOf } from "./api.audit.mjs";
 import { reassemble } from "./security.snapshot.mjs";
 import { judge, staleBecause, expand } from "./security.audit.mjs";
-import { darkWellCounts, selectClassShorthands } from "./design.ratchet.mjs";
+import { darkWellCounts, selectClassShorthands, undefinedTokens } from "./design.ratchet.mjs";
 import { promisesIn, PLACES, CHEVRON_CEILING, DIRECTION_CEILING } from "./affordance.audit.mjs";
 import { vocabularies, wordsIn, judge as judgeWords, listOf, REFUSED_CEILING } from "./vocab.audit.mjs";
 import { gesturesIn, judgeFile, staleEntries, OWN_OVERLAYS, NOT_PAGES, NO_UNSAVED, GESTURE_LAYER } from "./gesture.audit.mjs";
@@ -638,6 +638,23 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
     n2(".auth-input{width:100%;background:var(--field)}.app.crew-day .auth-input{background:var(--card)}") === 2);
   ok("select class: an element compound is still not a select's — textarea.auth-input, input.auth-input",
     n2("textarea.auth-input{background:#fff}input.auth-input{background:#fff}") === 0);
+}
+
+// ── undefinedTokens (scripts/design.ratchet.mjs) ────────────────────────────────────────────────
+// The rule is the Academy's progress track as it was (2026-10-06), copied from app/globals.css with
+// the token scale beside it; the component line is EventPrepAI's, which sets --c inline.
+{
+  const SRC = { "components/EventPrepAI.tsx": `<button className="eg-row" style={{ ["--c" as string]: SECTION_COLOR[t.section] }}>` };
+  const read = (p) => { if (!(p in SRC)) throw new Error("no file"); return SRC[p]; };
+  const list = (d) => (d === "components" ? ["EventPrepAI.tsx"] : []);
+  const n = (css) => undefinedTokens(css, read, list).undefinedTokens;
+  const SCALE = ":root{--ink-onLight-05:rgba(34,31,24,.05);--ink-onLight-16:rgba(34,31,24,.16)}";
+  const TRACK = ".pr-bar{flex:1;height:6px;background:var(--ink-onLight-08);overflow:hidden}";
+  ok("tokens: the Academy's track read a step the scale never had — one", n(SCALE + TRACK) === 1);
+  ok("tokens: a step the scale has is defined", n(SCALE + TRACK.replace("-08", "-16")) === 0);
+  ok("tokens: a fallback is a decision, not a hole", n(SCALE + ".a{color:var(--bad,#d66)}.b{color:var( --good , green)}") === 0);
+  ok("tokens: a component that sets it inline defines it", n(".eg-row{border-color:var(--c)}") === 0 && n(".eg-row{border-color:var(--d)}") === 1);
+  ok("tokens: a token named only in a comment is not defined", n("/* --x: red */.a{color:var(--x)}") === 1);
 }
 
 // ── promisesIn (scripts/affordance.audit.mjs) ───────────────────────────────────────────────────

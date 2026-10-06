@@ -116,13 +116,14 @@ export const CHROME_CLEARANCE = 8;
 
 // ── THE CEILINGS — measured, not remembered (2026-10-01, after the one-box-per-level pass) ───────
 export const CEILING = {
-  cardRules: 810,        // rules that make a card: radius + (border | fill). 809 → 810 (2026-10-05, the gesture round): "Discard your changes?" — the card a sheet asks the question on, over the sheet, at the thumb (.sheet2-ask-card); it is a card by what it is. The toast's Undo is a text action, not a pill, so it adds none. 810 → 809: the quiet Outlook line, retired with the not-configured bar it styled (2026-10-05). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04)
+  cardRules: 810,        // rules that make a card: radius + (border | fill). 809 → 810 (2026-10-06, the settings round, Settings as a list): + .set-list, the grouped list each Settings section's rows sit on (a card by what it is); + the segmented control's track and segment (.set-seg, .set-seg > button — Appearance's Day · Dark · Auto, 40px tall where 27px pills were); − the lane cards (.ws-card: one lane per row now); − the floating moon (.theme-toggle: Appearance lives in Settings). 810 → 809 (2026-10-06, the settings round): the "More controls" card (.set-card), five cards pointing out of Settings at controls that are in Settings now — retired with its map; Settings draws with .mpanel, SectionHeader and .pay-row and adds no card CSS. 809 → 810 (2026-10-05, the gesture round): "Discard your changes?" — the card a sheet asks the question on, over the sheet, at the thumb (.sheet2-ask-card); it is a card by what it is. The toast's Undo is a text action, not a pill, so it adds none. 810 → 809: the quiet Outlook line, retired with the not-configured bar it styled (2026-10-05). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04)
   rawRadii: 27,          // distinct border-radius values that are not a --r-* token, 50% or 0
   dupSelectors: 53,      // single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02; 54 → 53: .myday-live, declared twice, retired with the card it lived on, 2026-10-04)
   rootBlocks: 1,         // separate `:root{` blocks — tokens have one home (6 → 1 on 2026-10-02: motion, spring, eyebrow tracking, color-scheme and the radius scale folded in)
   subFloorFontRules: 0,  // px font-sizes under THE TYPE FLOOR (10px, see the note in globals.css). 184 → 0 on 2026-10-02
   darkWells: 34,         // fills of literal black at 10–44% with no rule for a light surface — see darkWellCounts. Measured 37 the day it was written (2026-10-04); 37 → 35 that day: the task checkbox and My Day's top three; 35 → 34 on 2026-10-05: a venue's contact block (.vlink), now under the venue pick on the event card and on Route
   selectClassShorthands: 0, // rules that paint a class some <select> carries with the `background` shorthand (selectClassShorthands). Measured 25 the day it was written (2026-10-04) and 25 → 0 that day: background-color, the way the rest of the selects are painted — the stripes under OsRegistry's Status pick (.note-in), and the arrow the day theme erased from the brew board's status, the goal and shoot owner picks, the assignee picks and the rest
+  undefinedTokens: 0,    // var(--x) reads with no fallback of a custom property nothing defines — see undefinedTokens(). 1 → 0 the day it was written (2026-10-06): the Academy's progress track, var(--ink-onLight-08), a step the scale never had
   selectShorthands: 0,   // rules on a <select> that paint with the `background` SHORTHAND. It resets background-repeat, and the chevron the app draws on every select then tiles across it — stripes, in the day theme, on every select whose container had one (Ryan's brew sheet, 2026-10-03). 19 → 0: colour is background-color.
   maxLeafDepth: 2,       // boxes around the innermost box on the Plan screen (was 4)
   railAreaFraction: 0.066, // expanded rail as a share of a 390×844 viewport — a 48px row plus 8px of air above the nav, in the layout flow (2026-10-02). Width used to be the number (0.46 → 0.27 → a bar); area is what a toolbar can be held to
@@ -140,11 +141,39 @@ export const CEILING = {
 //   collapsedPanels — <Panel> without defaultOpen: 34 accordions closed at rest, the "accordion
 //                     wall" the Money section opens on. Whether to open some is Ryan's call; that
 //                     no new ones appear without a decision is this gate's.
+//                     A BLIND HEADER IS THE WALL, NOT A CLOSED ROW (2026-10-06, the settings round).
+//                     A closed panel that says what is inside — a `sub` line under its title, and its
+//                     value where it has one — is a list row, the way a phone's Settings is a list of
+//                     closed rows. Opening the big ones at rest to satisfy this gate made Settings a
+//                     fourteen-screen form wall (the copy editor, Train the AI, invites, all open). So
+//                     the count is of closed panels with nothing under their title.
 export const FRICTION = {
   nativeDialogs: 0,
   crewGroupTitles: 0,
-  collapsedPanels: 34,   // 33 → 34 on 2026-10-02: Settings › Advanced › Errors — the reading end of the error intake, closed at rest like its neighbours
+  collapsedPanels: 17,   // 34 → 17 on 2026-10-06 (the settings round): the count is of BLIND closed panels now — Settings' rows each say what they hold (a sub line), and every panel it drew was one; 17 blind headers are left, in Money, Customers, Team and the rest. 33 → 34 on 2026-10-02: Settings › Advanced › Errors — the reading end of the error intake, closed at rest like its neighbours
 };
+
+// ── A TOKEN NOBODY DEFINED (2026-10-06, the settings round) ─────────────────────────────────────
+// var(--ink-onLight-08) painted the Academy's progress track, and --ink-onLight-08 was never defined
+// (the scale has 03, 04, 05, 16, 18 and 24), so the track drew nothing, in either theme, from the day
+// it was written. Found reaching for the same step for Settings' segmented control. A custom property
+// read with no fallback that nothing defines — not the stylesheet, not a component's style prop — is a
+// declaration that silently does nothing. A string literal naming the token in a component counts as
+// defining it (style={{ ["--c" as string]: … }}, setProperty("--x", …)).
+export function undefinedTokens(css, read = (p) => readFileSync(join(ROOT, p), "utf8"), list = (d) => readdirSync(join(ROOT, d), { recursive: true })) {
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const defined = new Set([...bare.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]));
+  for (const dir of ["components", "app", "lib"]) {
+    for (const f of list(dir)) {
+      if (!/\.tsx?$/.test(String(f))) continue;
+      let src; try { src = read(`${dir}/${f}`); } catch { continue; }
+      for (const m of src.matchAll(/["'`](--[\w-]+)["'`]/g)) defined.add(m[1]);
+    }
+  }
+  const missing = new Map();
+  for (const m of bare.matchAll(/var\(\s*(--[\w-]+)\s*\)/g)) if (!defined.has(m[1])) missing.set(m[1], (missing.get(m[1]) || 0) + 1);
+  return { undefinedTokens: [...missing.values()].reduce((a, b) => a + b, 0), undefinedTokenList: [...missing.entries()] };
+}
 
 export function frictionCounts(read = (p) => readFileSync(join(ROOT, p), "utf8"), list = (d) => readdirSync(join(ROOT, d), { recursive: true })) {
   const files = [];
@@ -157,7 +186,7 @@ export function frictionCounts(read = (p) => readFileSync(join(ROOT, p), "utf8")
     // The house hook is also called `confirm`, and is always awaited; a native confirm() never is.
     nativeDialogs += (code.match(/(?<![\w.])(?<!await\s+)(window\.)?(confirm|prompt)\(/g) || []).length;
     crewGroupTitles += (code.match(/className="crew-group/g) || []).length;
-    for (const m of code.matchAll(/<Panel\b([^>]*)>/g)) if (!/defaultOpen/.test(m[1])) collapsedPanels++;
+    for (const m of code.matchAll(/<Panel\b([^>]*)>/g)) if (!/defaultOpen/.test(m[1]) && !/\bsub="/.test(m[1])) collapsedPanels++;
   }
   return { nativeDialogs, crewGroupTitles, collapsedPanels };
 }
@@ -393,29 +422,38 @@ export const PROD_ROUTE = {
 // /agreement pay its ~0.4 KB for the first time), and lib/ios: the one iPhone check and the focus-zoom
 // hold every screen runs, because an iPhone zoomed into every 15px field and stayed zoomed. Eleven
 // routes crossed their rounding line by 1 KB; the rest moved inside it.
+// 2026-10-06 (the settings round): every public route +424 to +463 bytes of script, every stylesheet
+// +138; /crew +5 742. Built 682e587 and this commit, route by route. What rides in the shell: the
+// theme's one home (lib/theme — with Auto, the phone's own light or dark, read as it changes) and a
+// device preference's (lib/devicePref), so the rail and Settings › You read and write one value and
+// stay in step; the floating moon left it. The stylesheet gained Settings' grouped list and its
+// segmented control, and lost the card map. /crew carries Settings' row values (components/
+// SettingsGlance, lib/settingsGlance). Sixteen routes crossed their rounding line by 1 KB. The size
+// buttons' names were moved into lib/textSize so the rail on every page does not carry Settings' words
+// (and lib/money and lib/office with them): that was +1 KB on eleven more routes.
 export const WEIGHT = {
-  "/truck":                    { js: 283, css: 104, chunks: 15 },
-  "/events":                   { js: 283, css: 104, chunks: 15 },
+  "/truck":                    { js: 284, css: 104, chunks: 15 },
+  "/events":                   { js: 284, css: 104, chunks: 15 },
   "/menu":                     { js: 268, css: 102, chunks: 15 },
-  "/reserve":                  { js: 291, css: 102, chunks: 16 },
-  "/delivery":                 { js: 290, css: 102, chunks: 16 },
+  "/reserve":                  { js: 292, css: 102, chunks: 16 },
+  "/delivery":                 { js: 291, css: 102, chunks: 16 },
   "/3mpire":                   { js: 283, css: 102, chunks: 15 },
   "/craft":                    { js: 267, css: 102, chunks: 15 },
   "/book":                     { js: 268, css: 102, chunks: 15 },
-  "/academy":                  { js: 316, css: 102, chunks: 15 },
-  "/office":                   { js: 276, css: 102, chunks: 15 },
-  "/scan":                     { js: 258, css: 102, chunks: 14 },
+  "/academy":                  { js: 317, css: 102, chunks: 15 },
+  "/office":                   { js: 277, css: 102, chunks: 15 },
+  "/scan":                     { js: 259, css: 102, chunks: 14 },
   "/architecture":             { js: 268, css: 102, chunks: 14 },
-  "/playbook":                 { js: 275, css: 102, chunks: 15 },
-  "/driver":                   { js: 279, css: 104, chunks: 15 },
+  "/playbook":                 { js: 276, css: 102, chunks: 15 },
+  "/driver":                   { js: 280, css: 104, chunks: 15 },
   "/agreement":                { js: 266, css: 102, chunks: 14 },
-  "/offer":                    { js: 275, css: 102, chunks: 14 },
-  "/built/gt3-built-k7m9x4q2": { js: 257, css: 102, chunks: 14 },
-  "/display":                  { js: 258, css: 102, chunks: 14 },
-  "/shop":                     { js: 295, css: 102, chunks: 16 },
-  "/primal":                   { js: 268, css: 102, chunks: 15 },
-  "/privacy":                  { js: 256, css: 102, chunks: 13 },
-  "/terms":                    { js: 256, css: 102, chunks: 13 },
+  "/offer":                    { js: 276, css: 102, chunks: 14 },
+  "/built/gt3-built-k7m9x4q2": { js: 258, css: 102, chunks: 14 },
+  "/display":                  { js: 259, css: 102, chunks: 14 },
+  "/shop":                     { js: 296, css: 102, chunks: 16 },
+  "/primal":                   { js: 269, css: 102, chunks: 15 },
+  "/privacy":                  { js: 257, css: 102, chunks: 13 },
+  "/terms":                    { js: 257, css: 102, chunks: 13 },
   "/":                         { js: 274, css: 102, chunks: 15 },
 };
 
@@ -586,7 +624,7 @@ export function chromeReport() {
   const handleEl = document.querySelector(".rail-open");
   const handle = handleEl && visible(handleEl) ? box(handleEl) : null;
   const tabs = [...document.querySelectorAll(".nav .tab")].filter(visible).map((el) => ({ name: label(el), ...box(el) }));
-  const fabs = [...document.querySelectorAll(".qd-fab,.theme-toggle")].filter(visible).map((el) => ({ name: el.className.split(" ")[0], ...box(el) }));
+  const fabs = [...document.querySelectorAll(".qd-fab")].filter(visible).map((el) => ({ name: el.className.split(" ")[0], ...box(el) }));
   const prompts = [...document.querySelectorAll(".sw-update,.offchip")].filter(visible).map((el) => ({ name: el.className.split(" ")[0], ...box(el) }));
   const hits = [];
   for (const f of [...fabs, ...prompts]) {
@@ -707,11 +745,14 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   const sc = selectClassShorthands(css);
   ratchet("rules painting a class a <select> carries with the background shorthand", sc.selectClassShorthands, CEILING.selectClassShorthands);
   ratchet("dark wells with no light-surface rule (a grey slab on paper)", s.darkWells, CEILING.darkWells);
+  const ut = undefinedTokens(css);
+  ratchet("custom properties read with no fallback that nothing defines", ut.undefinedTokens, CEILING.undefinedTokens);
+  if (ut.undefinedTokens) console.log(`    ${ut.undefinedTokenList.map(([k, n]) => `${k} ×${n}`).join(" · ")}`);
   const f = frictionCounts();
   console.log("DESIGN RATCHET — friction in the source:");
   ratchet("native confirm()/prompt() dialogs still to migrate to the house sheets", f.nativeDialogs, FRICTION.nativeDialogs);
   ratchet("\"crew-group\" section titles beside <SectionHeader>", f.crewGroupTitles, FRICTION.crewGroupTitles);
-  ratchet("<Panel> accordions closed by default", f.collapsedPanels, FRICTION.collapsedPanels);
+  ratchet("<Panel> accordions closed at rest with nothing under their title (a blind header)", f.collapsedPanels, FRICTION.collapsedPanels);
   if (list) {
     console.log("  raw radii, most used first:"); for (const [v, n] of s.rawRadiiList.slice(0, 12)) console.log(`    ${String(n).padStart(4)}  ${v}`);
     console.log("  duplicate selectors, most repeated first:"); for (const [v, n] of s.dupList.slice(0, 12)) console.log(`    ${String(n).padStart(4)}  ${v}`);
