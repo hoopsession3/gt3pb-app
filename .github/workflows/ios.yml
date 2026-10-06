@@ -1,0 +1,258 @@
+# THE IPHONE APP — built with Xcode, launched on a simulator, and sent to TestFlight when asked.
+#
+# ── WHAT THE OTHER GATE ALREADY COVERS ──────────────────────────────────────────────────────────────
+# ci.yml runs `npm run verify`, which ends by building the app's copy of the screens and opening it on
+# three iPhones in Chromium (scripts/smoke.native.mjs): every screen, every crew section, the safe
+# areas, the status bar, the keyboard, the router, the native calls. What only a Mac can check is here.
+#
+#   simulator   The project compiles with Xcode 26 and the iOS 26 SDK (what App Store uploads need
+#               since 2026-04-28), installs on an iPhone simulator and launches; then the app's own
+#               log is read for what Capacitor prints as it starts — the bundled pages loaded, the page
+#               spoke to the native side (the launch screen let go, the status bar set), no JavaScript
+#               error — and a picture of the first screen is kept with the run.
+#   testflight  Run by hand only: Actions → "iPhone app" → Run workflow → tick "Upload to TestFlight".
+#               Archives a signed Release build of main and uploads it to App Store Connect, which
+#               hands it to TestFlight. It checks first that everything it needs is set, and stops with
+#               the names of what is not; it never uploads the stand-in smoke build, or an app built
+#               without its backend.
+#
+# ── WHAT TESTFLIGHT NEEDS, SET ONCE ON THE REPOSITORY (Settings → Secrets and variables → Actions) ─
+#   Secrets     APPLE_TEAM_ID    the 10-character Team ID (developer.apple.com → Account → Membership)
+#               ASC_KEY_ID       an App Store Connect API key — App Store Connect → Users and Access →
+#               ASC_ISSUER_ID      Integrations → App Store Connect API, role Admin (Xcode makes the
+#               ASC_KEY_P8         signing certificate and profile with it) — its Key ID, the Issuer
+#                                  ID above the list, and the downloaded .p8 file's text
+#   Variables   the public values the web build already has in Vercel, under the same names:
+#               NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY (required), and as the web has
+#               them NEXT_PUBLIC_SQUARE_APP_ID, NEXT_PUBLIC_SQUARE_LOCATION_ID, NEXT_PUBLIC_SQUARE_ENV,
+#               NEXT_PUBLIC_VAPID_PUBLIC_KEY, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_SUBSCRIPTIONS_ON,
+#               NEXT_PUBLIC_SUB_NAME, NEXT_PUBLIC_SUB_CADENCE, NEXT_PUBLIC_SUB_PRICE_6/_12/_18,
+#               NEXT_PUBLIC_APPLE_WALLET, NEXT_PUBLIC_GOOGLE_WALLET
+#   And in App Store Connect, an app record for bundle id com.gt3pb.app ("GT3 Performance Bar").
+#
+# ── WHEN THE SIMULATOR RUN HAPPENS ───────────────────────────────────────────────────────────────────
+# On a pull request or a push to main that touches the native side (the paths below) — a Mac minute
+# costs ten Linux ones on a private repository, and the screens themselves are checked on every change
+# by ci.yml — and whenever this workflow is run by hand.
+name: iPhone app
+
+on:
+  pull_request:
+    paths:
+      - "ios/**"
+      - "native/**"
+      - "capacitor.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.ts"
+      - "components/NativeBridge.tsx"
+      - "lib/native.ts"
+      - "scripts/build.app.mjs"
+      - "scripts/ios.configure.mjs"
+      - "scripts/ios.assets.mjs"
+      - ".github/workflows/ios.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "ios/**"
+      - "native/**"
+      - "capacitor.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.ts"
+      - "components/NativeBridge.tsx"
+      - "lib/native.ts"
+      - "scripts/build.app.mjs"
+      - "scripts/ios.configure.mjs"
+      - "scripts/ios.assets.mjs"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+    inputs:
+      testflight:
+        description: "Upload to TestFlight (a signed Release build of this branch)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulator:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # A guest's app: no backend address, so it asks the network for nothing and its log says only
+      # what the app itself did.
+      - name: The app's copy of the screens
+        run: npm run build:app
+      - name: Copy it into the iOS project
+        run: npx cap sync ios
+      - name: The project is what scripts/ios.configure.mjs makes it
+        run: node scripts/ios.configure.mjs --check
+
+      - name: Build for the simulator (Xcode 26, iOS 26 SDK)
+        run: |
+          set -o pipefail
+          xcodebuild -version
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath ios/App/build CODE_SIGNING_ALLOWED=NO build 2>&1 | tee xcodebuild.log | grep -E "error:|warning: .*GT3|BUILD (SUCCEEDED|FAILED)" || true
+          test -d ios/App/build/Build/Products/Debug-iphonesimulator/App.app
+
+      - name: Launch it on an iPhone and read what it says
+        run: |
+          set -euo pipefail
+          # An iPhone 17 if this Xcode has one, otherwise the first iPhone it does have.
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          phones = [d for runtime, ds in json.load(sys.stdin)["devices"].items() if "iOS" in runtime for d in ds if d["name"].startswith("iPhone")]
+          phones.sort(key=lambda d: (d["name"] != "iPhone 17", d["name"]))
+          print(phones[0]["udid"] if phones else "")')
+          test -n "$UDID" || { echo "::error::no iPhone simulator on this runner"; exit 1; }
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" ios/App/build/Build/Products/Debug-iphonesimulator/App.app
+          # Through a terminal, so the app writes each line as it says it (to a plain file its output
+          # would sit in a buffer); the launch runs until the app is stopped below.
+          xcrun simctl launch --console-pty --terminate-running-process "$UDID" com.gt3pb.app > app.log 2>&1 &
+          sleep 25
+          xcrun simctl io "$UDID" screenshot first-screen.png
+          RUNNING=$(xcrun simctl spawn "$UDID" launchctl list | grep -c "UIKitApplication:com.gt3pb.app" || true)
+          xcrun simctl terminate "$UDID" com.gt3pb.app || true
+          sleep 2
+          cat app.log
+          fail=0
+          [ "$RUNNING" -ge 1 ] || { echo "::error::the app is not running 25s after launch (crashed?)"; fail=1; }
+          grep -q "Loading app at capacitor://localhost" app.log || { echo "::error::Capacitor never started loading the bundled pages"; fail=1; }
+          grep -q "WebView loaded" app.log || { echo "::error::the web view never finished loading the first page"; fail=1; }
+          grep -q "To Native ->  SplashScreen hide" app.log || { echo "::error::the page never let the launch screen go — its scripts did not run, or never reached the native side"; fail=1; }
+          grep -q "To Native ->  SystemBars setStyle" app.log || { echo "::error::the page never set the status bar"; fail=1; }
+          if grep -q "STARTUP JS ERROR" app.log; then echo "::error::a JavaScript error as the app started (above)"; fail=1; fi
+          if grep -F "[error]" app.log; then echo "::error::the page logged an error (above)"; fail=1; fi
+          exit $fail
+
+      - name: Keep the first screen and the logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iphone-simulator
+          path: |
+            first-screen.png
+            app.log
+            xcodebuild.log
+          if-no-files-found: ignore
+
+  testflight:
+    needs: simulator
+    if: github.event_name == 'workflow_dispatch' && inputs.testflight
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      NEXT_PUBLIC_SQUARE_APP_ID: ${{ vars.NEXT_PUBLIC_SQUARE_APP_ID }}
+      NEXT_PUBLIC_SQUARE_LOCATION_ID: ${{ vars.NEXT_PUBLIC_SQUARE_LOCATION_ID }}
+      NEXT_PUBLIC_SQUARE_ENV: ${{ vars.NEXT_PUBLIC_SQUARE_ENV }}
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ vars.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+      NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+      NEXT_PUBLIC_SUBSCRIPTIONS_ON: ${{ vars.NEXT_PUBLIC_SUBSCRIPTIONS_ON }}
+      NEXT_PUBLIC_SUB_NAME: ${{ vars.NEXT_PUBLIC_SUB_NAME }}
+      NEXT_PUBLIC_SUB_CADENCE: ${{ vars.NEXT_PUBLIC_SUB_CADENCE }}
+      NEXT_PUBLIC_SUB_PRICE_6: ${{ vars.NEXT_PUBLIC_SUB_PRICE_6 }}
+      NEXT_PUBLIC_SUB_PRICE_12: ${{ vars.NEXT_PUBLIC_SUB_PRICE_12 }}
+      NEXT_PUBLIC_SUB_PRICE_18: ${{ vars.NEXT_PUBLIC_SUB_PRICE_18 }}
+      NEXT_PUBLIC_APPLE_WALLET: ${{ vars.NEXT_PUBLIC_APPLE_WALLET }}
+      NEXT_PUBLIC_GOOGLE_WALLET: ${{ vars.NEXT_PUBLIC_GOOGLE_WALLET }}
+    steps:
+      - name: Everything an upload needs is set
+        run: |
+          missing=""
+          for v in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Not set on the repository yet:$missing — the top of .github/workflows/ios.yml says where each comes from."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: The app's copy of the screens, with its backend
+        run: npm run build:app
+      - name: Never the smoke build, never an app without its backend
+        run: |
+          test ! -e out/gt3-smoke-build.json || { echo "::error::out/ is the smoke build (stand-in backend)"; exit 1; }
+          grep -rqF "$NEXT_PUBLIC_SUPABASE_URL" out/_next/static || { echo "::error::the build does not carry the backend address"; exit 1; }
+      - name: Copy it into the iOS project
+        run: npx cap sync ios
+      - name: The project is what scripts/ios.configure.mjs makes it
+        run: node scripts/ios.configure.mjs --check
+
+      - name: The App Store Connect key, for this run only
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/asc/AuthKey_$ASC_KEY_ID.p8"
+
+      # Build number = this workflow's run number, so every upload is newer than the last.
+      - name: Archive a signed Release build
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/asc/AuthKey_$ASC_KEY_ID.p8" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            archive 2>&1 | tee archive.log | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)" || true
+          test -d "$RUNNER_TEMP/App.xcarchive"
+
+      - name: Upload to App Store Connect (TestFlight)
+        run: |
+          set -o pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/asc/AuthKey_$ASC_KEY_ID.p8" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            2>&1 | tee export.log | grep -E "error:|EXPORT (SUCCEEDED|FAILED)|Upload succeeded" || true
+          grep -q "EXPORT SUCCEEDED" export.log
+
+      - name: Forget the key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/asc"
+
+      - name: Keep the logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testflight-logs
+          path: |
+            archive.log
+            export.log
+          if-no-files-found: ignore
