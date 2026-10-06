@@ -433,21 +433,33 @@ export const PROD_ROUTE = {
 // SettingsGlance, lib/settingsGlance). Sixteen routes crossed their rounding line by 1 KB. The size
 // buttons' names were moved into lib/textSize so the rail on every page does not carry Settings' words
 // (and lib/money and lib/office with them): that was +1 KB on eleven more routes.
+// 2026-10-06 (the iPhone round): every route +184 to +202 bytes of script, every stylesheet +80. Built
+// 84fffec and this commit and gzipped what each route's HTML references, route by route (/privacy
+// 262 611 → 262 795, /menu 274 587 → 274 789, /truck's stylesheet 106 952 → 107 032). What rides in the
+// shell: lib/native's address helpers — apiUrl, through which every /api call goes, and publicOrigin,
+// which every shared link, QR and sign-in email asks — so the iPhone app reaches the web's API and hands
+// out the web's address; on the web both fold to what they were (apiUrl is the identity). The app's own
+// code is in no web build at all: NativeBridge and the Capacitor plugins are not emitted (guarded in
+// AppShell's own file so the bundler drops them; with an imported flag they were emitted, and every
+// route weighed ~1 KB more), and the app's styles ride with NativeBridge. The stylesheet's 80 bytes are
+// the web's own fixes: the menu's category chips stick again, the skip link lost its smudge, the
+// booking masthead, offline banner and service mode keep below a status bar, a chip's jump lands below
+// the chips. Five routes crossed their rounding line by 1 KB.
 export const WEIGHT = {
-  "/truck":                    { js: 284, css: 104, chunks: 15 },
-  "/events":                   { js: 284, css: 104, chunks: 15 },
+  "/truck":                    { js: 284, css: 105, chunks: 15 },
+  "/events":                   { js: 284, css: 105, chunks: 15 },
   "/menu":                     { js: 268, css: 102, chunks: 15 },
   "/reserve":                  { js: 292, css: 102, chunks: 16 },
   "/delivery":                 { js: 291, css: 102, chunks: 16 },
   "/3mpire":                   { js: 283, css: 102, chunks: 15 },
-  "/craft":                    { js: 267, css: 102, chunks: 15 },
+  "/craft":                    { js: 268, css: 102, chunks: 15 },
   "/book":                     { js: 268, css: 102, chunks: 15 },
   "/academy":                  { js: 317, css: 102, chunks: 15 },
   "/office":                   { js: 277, css: 102, chunks: 15 },
   "/scan":                     { js: 259, css: 102, chunks: 14 },
-  "/architecture":             { js: 268, css: 102, chunks: 14 },
+  "/architecture":             { js: 269, css: 102, chunks: 14 },
   "/playbook":                 { js: 276, css: 102, chunks: 15 },
-  "/driver":                   { js: 280, css: 104, chunks: 15 },
+  "/driver":                   { js: 280, css: 105, chunks: 15 },
   "/agreement":                { js: 266, css: 102, chunks: 14 },
   "/offer":                    { js: 276, css: 102, chunks: 14 },
   "/built/gt3-built-k7m9x4q2": { js: 258, css: 102, chunks: 14 },

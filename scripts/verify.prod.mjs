@@ -20,8 +20,9 @@
 //   2. CURRENT   — /api/migrations holds every file in supabase/migrations (nothing pending, no gap)
 //   2b. POSTURE  — the committed security snapshot (RLS, grants, policies) judged by security.audit
 //   3. ANSWERS   — a handful of routes, with and without a session, answer JSON — never Next's HTML
-//                  500 page (lib/apiRoute.ts is what makes this true; this is what checks it); and
-//                  the front door (proxy.ts) sends a known guest from "/" to /truck
+//                  500 page (lib/apiRoute.ts is what makes this true; this is what checks it); the
+//                  front door (proxy.ts) sends a known guest from "/" to /truck; and the API lets the
+//                  iPhone app's origin in, and no other site (next.config.ts appCors)
 //   4. PAINTED   — every public route at phone width, with real data: box depth, tap, text, what
 //                  moved after paint, axe — against PROD_ROUTE and SHIFT in scripts/design.ratchet.mjs
 //
@@ -48,7 +49,7 @@ const json = async (path, init) => {
   const res = await fetch(APP + path, { ...init, headers: { "cache-control": "no-cache", ...(init?.headers || {}) }, signal: AbortSignal.timeout(20000) });
   const type = res.headers.get("content-type") || "";
   let body = null; try { body = type.includes("json") ? await res.json() : await res.text(); } catch { /* keep null */ }
-  return { status: res.status, type, body, location: res.headers.get("location") || "" };
+  return { status: res.status, type, body, location: res.headers.get("location") || "", allow: res.headers.get("access-control-allow-origin") || "" };
 };
 
 // ── 1. LIVE ─────────────────────────────────────────────────────────────────────────────────────
@@ -133,6 +134,20 @@ for (const pr of PROBES) {
   ok(`door: GET / as a known guest → ${guest.status} to ${guest.location || "?"}`, guest.status === 307 && /\/truck$/.test(guest.location), `got ${guest.status} ${guest.location}`);
   ok(`door: GET / as a member → ${member.status}, the page`, member.status === 200, `got ${member.status}`);
   ok(`door: GET / with no cookie → ${nobody.status}, the page`, nobody.status === 200, `got ${nobody.status}`);
+}
+// THE IPHONE APP'S DOOR (2026-10-06, the iPhone round): the app's pages come from the phone itself
+// (capacitor://localhost), so every API call it makes is cross-origin, and production must say that
+// origin may read the answer (next.config.ts appCors) — the app's two origins and no other site. A
+// deploy that lost the rule would leave every iPhone with a menu that never loads and a checkout that
+// never answers, while the web looked perfect.
+{
+  const ask = (method, origin) => json("/api/health", { method, headers: { origin, ...(method === "OPTIONS" ? { "access-control-request-method": "GET", "access-control-request-headers": "authorization, content-type" } : {}) } });
+  const pre = await ask("OPTIONS", "capacitor://localhost"), got = await ask("GET", "capacitor://localhost"), android = await ask("GET", "https://localhost");
+  const stranger = await ask("GET", "https://example.com"), lookalike = await ask("GET", "capacitor://localhost.example.com");
+  ok(`app door: the iPhone app may call the API — preflight ${pre.status} and the answer both allow capacitor://localhost`,
+    pre.status < 300 && pre.allow === "capacitor://localhost" && got.allow === "capacitor://localhost" && android.allow === "https://localhost",
+    `preflight ${pre.status} allows "${pre.allow}", GET allows "${got.allow}", https://localhost allows "${android.allow}"`);
+  ok("app door: no other site may — not another origin, not one that starts the same", !stranger.allow && !lookalike.allow, `example.com allowed "${stranger.allow}", the lookalike "${lookalike.allow}"`);
 }
 
 // ── 4. PAINTED ──────────────────────────────────────────────────────────────────────────────────

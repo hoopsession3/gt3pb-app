@@ -7819,9 +7819,21 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("haptics: an older iPhone (no vibrate) gets the switch's tick after a tap — a hidden switch made, its label clicked once, then taken away; nothing before a tap, and no switch where vibrate works",
       ticks.beforeTap === 0 && ticks.iphone === true && ticks.android === 0, ticks);
   }
-  ok("haptics: the header says what a phone feels — Android every feel; an iPhone before iOS 26.5 the switch's tick, since then nothing from code (WebKit bug 309082); the native wrapper is the seam",
-    /Android \(Chrome\) vibrates every feel/.test(hl) && /before iOS 26\.5/.test(hl) && /WebKit \(bug 309082\)/.test(hl) && /native adapter maps each feel to UIKit's impact, selection or/.test(hl)
+  ok("haptics: the header says what a phone feels — Android every feel; an iPhone before iOS 26.5 the switch's tick, since then nothing from code (WebKit bug 309082); inside the iPhone app every feel, through UIKit",
+    /Android \(Chrome\) vibrates every feel/.test(hl) && /before iOS 26\.5/.test(hl) && /WebKit \(bug 309082\)/.test(hl)
+    && /THE IPHONE APP FEELS THEM ALL/.test(hl) && /every feel plays as UIKit's impact, selection or notification feedback/.test(hl)
     && !/THE IPHONE TICKS TOO/.test(hl));
+  {
+    // The seam, used (2026-10-06, the iPhone round): every feel has its UIKit form, and with the app's
+    // player handed over (components/NativeBridge) haptic() plays through it — and only through it.
+    const HN = require("../.smoke/haptics.js");
+    const missing = Object.keys(HN.HAPTIC_PATTERNS).filter((f) => !HN.HAPTIC_UIKIT[f] || !HN.HAPTIC_UIKIT[f].length);
+    const played = [];
+    HN.setNativeHaptics((step) => played.push(step));
+    try { HN.haptic("selection"); HN.haptic("success"); } finally { HN.setNativeHaptics(null); }
+    ok("haptics: inside the iPhone app every feel has its UIKit form, and haptic() plays it through the player the app hands over",
+      missing.length === 0 && played.length === 2 && played[0].kind === "selection" && played[1].kind === "notification" && played[1].type === "SUCCESS", { missing, played });
+  }
 
   // ── an error, felt ──
   const ap = code(read("components/AppProvider.tsx"));
@@ -8202,7 +8214,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const DA = code(read("components/DeviceAlerts.tsx"));
   ok("alerts on this device: the phone's answer is read as it draws (no effect), asked for with one tap, and every answer is said",
     /useSyncExternalStore\(subscribe, readPermission, \(\) => "unknown" as const\)/.test(DA) && /window\.dispatchEvent\(new Event\(ASKED\)\);/.test(DA)
-    && /if \(p === "granted"\) \{ subscribePush\(userId, true\);/.test(DA) && ["unknown", "granted", "default", "denied", "unsupported"].every((k) => new RegExp(`\\b${k}: "`).test(DA))
+    && /if \(p === "granted"\) \{ subscribePush\(userId, true\);/.test(DA) && ["unknown", "granted", "default", "denied", "unsupported"].every((k) => new RegExp(`\\b${k}: (APP_BUILD\\s*\\?\\s*)?"`).test(DA))
     && /export const alertsOff = \(p: AlertPermission \| "unknown"\): boolean => p === "default" \|\| p === "denied";/.test(DA));
 
   // ── links still land: the pay anchor, the aliases, the Pass ──
@@ -8435,6 +8447,102 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && !/connect from Plan › Calendar/.test(code(read("components/IntegrationsPanel.tsx"))) && !/Team → Train the AI/.test(code(read("components/AiTraining.tsx")))
     && !/roster below/.test(code(read("components/InviteTeammate.tsx"))) && !/Business → Studio/.test(pg)
     && !appFiles.some((f) => /Menu & availability|Ordering & payments|Copy & brand|Markets & legal|Team & access|Front-end copy/.test(code(read(f)))));
+}
+
+// ── THE IPHONE APP (2026-10-06): what a static check can hold of it ──────────────────────────────
+// The app is the same screens as a static export inside a Capacitor shell (lib/native says how; the
+// shell is capacitor.config.ts and ios/). scripts/smoke.native.mjs opens the export on three iPhones;
+// this holds the source to the rules that keep the web untouched and the app whole.
+{
+  const fs = require("node:fs"), path = require("node:path"), { spawnSync } = require("node:child_process"), { pathToFileURL } = require("node:url");
+  const root = path.join(__dirname, "..");
+  const read = (f) => fs.readFileSync(path.join(root, f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const walkSrc = (d) => fs.readdirSync(path.join(root, d), { withFileTypes: true })
+    .flatMap((e) => (e.isDirectory() ? walkSrc(path.join(d, e.name)) : /\.(ts|tsx)$/.test(e.name) ? [path.join(d, e.name)] : []));
+  const appFiles = ["app", "components", "lib"].flatMap(walkSrc);
+  const client = appFiles.filter((f) => !f.startsWith(path.join("app", "api") + path.sep));
+
+  // ── the web never carries the native side ──
+  const capacitor = appFiles.filter((f) => /from ["']@capacitor\/|import\(["']@capacitor\//.test(code(read(f))));
+  ok("iphone: only components/NativeBridge speaks to Capacitor — no other file the web loads imports it",
+    capacitor.length === 1 && /components[\\/]NativeBridge\.tsx$/.test(capacitor[0]), capacitor);
+  const shell = code(read("components/AppShell.tsx")), nb = code(read("components/NativeBridge.tsx"));
+  // The test is spelled out in AppShell, in lib/native's own words: the bundler drops a lazy import only
+  // when its guard is decided in the same file (with the imported constant the web build still emitted
+  // NativeBridge and the plugins as chunks — measured 2026-10-06).
+  ok("iphone: AppShell loads NativeBridge in the app build only, lazily, guarded in its own file in APP_BUILD's own words — so the web build never emits it",
+    /const NativeBridge = process\.env\.NEXT_PUBLIC_GT3_TARGET === "app" \? dynamic\(\(\) => import\("\.\/NativeBridge"\), \{ ssr: false \}\) : null;/.test(shell)
+    && /\{NativeBridge && <NativeBridge \/>\}/.test(shell) && /export const APP_BUILD = process\.env\.NEXT_PUBLIC_GT3_TARGET === "app";/.test(read("lib/native.ts")));
+  ok("iphone: the app's own styles ride with NativeBridge, so the web never downloads them",
+    /import "\.\/NativeBridge\.css";/.test(read("components/NativeBridge.tsx")) && /\.native-bar\{/.test(read("components/NativeBridge.css"))
+    && !/native-bar|data-kb|data-native/.test(read("app/globals.css")));
+  ok("iphone: NativeBridge does nothing unless a native shell is running the page",
+    /useEffect\(\(\) => \{\n\s*if \(!isNativeApp\(\)\) return;/.test(nb) && /useState\(\(\) => isNativeApp\(\)\)/.test(nb));
+  ok("iphone: the web build knows it is the web, so every APP_BUILD branch is decided when it is built",
+    /env: \{ NEXT_PUBLIC_GT3_TARGET: "web" \}/.test(read("next.config.ts")) && /export const APP_BUILD = process\.env\.NEXT_PUBLIC_GT3_TARGET === "app";/.test(read("lib/native.ts")));
+
+  // ── the app's addresses ──
+  const relative = client.filter((f) => /fetch\(\s*["'`]\/api/.test(code(read(f))));
+  ok("iphone: no screen fetches /api by a relative address — apiUrl() or authedFetch() makes it absolute in the app, where the page's own origin is the phone", relative.length === 0, relative);
+  ok("iphone: authedFetch goes through apiUrl", /return fetch\(apiUrl\(url\), \{ \.\.\.init, headers \}\);/.test(code(read("lib/authedFetch.ts"))));
+  const beacons = client.filter((f) => /sendBeacon/.test(code(read(f))));
+  ok("iphone: the one beacon (the error reporter's) is skipped in the app, where its relative address reaches nothing",
+    beacons.length === 1 && /if \(!APP_BUILD && navigator\.sendBeacon\?\.\(/.test(code(read("components/ErrorReporter.tsx"))), beacons);
+  const own = client.filter((f) => /location\.origin/.test(code(read(f))) && !/lib[\\/]native\.ts$|components[\\/]NativeBridge\.tsx$/.test(f));
+  ok("iphone: a shared link, a QR or a sign-in email takes its address from publicOrigin() — window.location.origin is capacitor://localhost in the app", own.length === 0, own);
+  const ba = read("scripts/build.app.mjs");
+  ok("iphone: the app is told which pages only the web serves, from the build's own list of what it leaves out",
+    /const WEB_ONLY = LEAVE_OUT\./.test(ba) && /NEXT_PUBLIC_GT3_WEB_ONLY: WEB_ONLY\.join\(","\)/.test(ba) && /process\.env\.NEXT_PUBLIC_GT3_WEB_ONLY/.test(nb));
+  ok("iphone: a lesson link goes to the app's own lesson page in the app, the web's in the web",
+    !client.some((f) => !/lib[\\/]native\.ts$/.test(f) && /href=\{?`\/primal\/l\//.test(code(read(f)))) && fs.existsSync(path.join(root, "native", "routes", "primal", "lesson", "page.tsx")));
+
+  // ── the API lets exactly the app's two origins in ──
+  const nc = read("next.config.ts");
+  const listed = /const APP_ORIGINS = \[([^\]]*)\] as const;/.exec(nc);
+  const appOrigins = listed ? [...listed[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]) : [];
+  // Next matches a `has` value whole: new RegExp(`^${value}$`) (next/dist/shared/lib/router/utils/prepare-destination.js).
+  const whole = new RegExp(`^(?<origin>${appOrigins.join("|")})$`);
+  ok("iphone: the API answers exactly capacitor://localhost and https://localhost — matched whole, echoed back, never a wildcard",
+    JSON.stringify(appOrigins) === '["capacitor://localhost","https://localhost"]'
+    && /value: `\(\?<origin>\$\{APP_ORIGINS\.join\("\|"\)\}\)`/.test(nc) && /\{ key: "Access-Control-Allow-Origin", value: ":origin" \}/.test(nc) && !/Access-Control-Allow-Origin", value: "\*"/.test(nc)
+    && /appCors,\n\s*\];/.test(nc) && whole.test("capacitor://localhost") && whole.test("https://localhost")
+    && !["capacitor://localhost.evil.com", "https://localhost.evil.com", "https://localhost:3000", "http://localhost", "https://evil.com", "xcapacitor://localhost", "capacitor://localhostx"].some((o) => whole.test(o)));
+
+  // ── the app's router, and the smoke's mirror of it ──
+  const swift = read("ios/App/App/GT3ViewController.swift");
+  ok("iphone: the app's router — a file as itself, the root as index.html, a page as page.html or page/index.html, anything else the root",
+    /if !URL\(fileURLWithPath: path\)\.pathExtension\.isEmpty \{\s*return basePath \+ path\s*\}/.test(swift)
+    && /if page\.isEmpty \{\s*return basePath \+ "\/index\.html"\s*\}/.test(swift)
+    && /for candidate in \[page \+ "\.html", page \+ "\/index\.html"\] where FileManager\.default\.fileExists\(atPath: basePath \+ candidate\) \{\s*return basePath \+ candidate\s*\}\s*return basePath \+ "\/index\.html"/.test(swift)
+    && /override func router\(\) -> Router \{\s*return ExportRouter\(\)/.test(swift));
+  PENDING.push(import(pathToFileURL(path.join(root, "scripts", "smoke.native.mjs")).href).then(({ routeFor, nativePlugins }) => {
+    const files = new Set(["/index.html", "/crew.html", "/crew.txt", "/primal.html", "/primal/lesson.html", "/hub/index.html"]);
+    const exists = (p) => files.has(p);
+    const cases = [["/", "/index.html"], ["/crew", "/crew.html"], ["/crew/", "/crew.html"], ["/primal", "/primal.html"], ["/primal/lesson", "/primal/lesson.html"],
+      ["/hub", "/hub/index.html"], ["/nowhere", "/index.html"], ["/crew.txt", "/crew.txt"], ["/_next/static/chunks/a.js", "/_next/static/chunks/a.js"]];
+    const wrong = cases.filter(([p, want]) => routeFor(p, exists) !== want).map(([p, want]) => `${p} → ${routeFor(p, exists)} (want ${want})`);
+    ok("iphone: the smoke's server answers as the app's router does", wrong.length === 0, wrong);
+    const plugins = nativePlugins(root).map((p) => p.name);
+    ok("iphone: the smoke's stand-in phone declares every plugin the app calls, read from their native sources",
+      ["App", "Browser", "Haptics", "Keyboard", "SplashScreen", "StatusBar", "SystemBars"].every((n) => plugins.includes(n)), plugins);
+  }));
+
+  // ── the iOS project ──
+  const check = spawnSync(process.execPath, [path.join(root, "scripts", "ios.configure.mjs"), "--check"], { encoding: "utf8" });
+  ok("iphone: the committed iOS project is exactly what scripts/ios.configure.mjs makes it (router, Info.plist, privacy manifest, iPhone only)", check.status === 0, `${check.stdout}${check.stderr}`.trim());
+  const icon = fs.readFileSync(path.join(root, "ios", "App", "App", "Assets.xcassets", "AppIcon.appiconset", "AppIcon-512@2x.png"));
+  ok("iphone: the App Store icon is 1024 × 1024 with no alpha channel (Apple refuses one with it)", icon.readUInt32BE(16) === 1024 && icon.readUInt32BE(20) === 1024 && icon[24] === 8 && icon[25] === 2);
+  const cc = read("capacitor.config.ts");
+  ok("iphone: the shell — com.gt3pb.app, the export as its pages, drawn edge to edge, the keyboard shrinking the view, the status bar light from the first frame",
+    /appId: "com\.gt3pb\.app"/.test(cc) && /webDir: "out"/.test(cc) && /contentInset: "never"/.test(cc) && /resize: "native"/.test(cc)
+    && /SystemBars: \{\s*style: "DARK",?\s*\}/.test(cc) && /StatusBar: \{\s*style: "DARK",\s*overlaysWebView: true,?\s*\}/.test(cc));
+
+  // ── the gates ──
+  const pkg = JSON.parse(read("package.json"));
+  ok("iphone: npm run verify ends by building the app's smoke build and opening it on three iPhones", /&& npm run build:app -- --smoke && npm run smoke:native$/.test(pkg.scripts.verify));
+  const wf = read(".github/workflows/ios.yml");
+  ok("iphone: the TestFlight upload refuses the smoke build, and an app built without its backend", /gt3-smoke-build\.json/.test(wf) && /NEXT_PUBLIC_SUPABASE_URL/.test(wf));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
