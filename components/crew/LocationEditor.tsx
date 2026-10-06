@@ -85,7 +85,7 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
   // every update carries a WHERE (id) — safe with the safeupdate guard
   const patch = async (p: Record<string, unknown>, msg = "Saved") => {
     const { error } = await supabase!.from(table).update(p).eq("id", row.id);
-    toast(error ? `Error: ${error.message}` : msg);
+    toast(error ? `Error: ${error.message}` : msg, error ? "error" : undefined);
     if (!error) onChanged();
   };
   const saveName = () => { const nm = name.trim(); if (nm && nm !== row.name) patch({ name: nm }, "Name saved"); };
@@ -93,7 +93,7 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
     const q = address.trim(); if (!q) return false;
     setBusy(true);
     const geo = await geocode(q);
-    if (!geo) { setBusy(false); toast("Couldn't find that address — add city & state, then retry."); return false; }
+    if (!geo) { setBusy(false); toast("Couldn't find that address — add city & state, then retry.", "error"); return false; }
     const { error } = await supabase!.from(table).update({ address: q, location_text: q, lat: geo.lat, lng: geo.lng }).eq("id", row.id);
     // A vendor's location is the source of truth — push it to the linked stops and events so
     // directions stay accurate everywhere the venue is used (audit P1·7: the "edit once, updates
@@ -106,14 +106,14 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
     // and the calendar (eventIsPast) say which are still to come.
     const moved = !error && kind === "vendor" ? await moveUpcomingVisits(row, q, geo) : "";
     setBusy(false);
-    toast(error ? `Error: ${error.message}` : kind === "vendor" ? `Location saved${moved}` : "Location pinned — directions are now accurate");
+    toast(error ? `Error: ${error.message}` : kind === "vendor" ? `Location saved${moved}` : "Location pinned — directions are now accurate", error ? "error" : undefined);
     if (!error) onChanged();
     return !error;
   };
   const remove = async () => {
     if (!(await confirm({ title: `Delete ${row.name}?`, body: kind === "stop" ? "This removes the record." : "Linked stops and events will unlink.", confirmLabel: "Delete", danger: true }))) return;
     const { error } = await supabase!.from(table).delete().eq("id", row.id);
-    toast(error ? `Error: ${error.message}` : kind === "stop" ? "Location deleted" : "Vendor deleted");
+    toast(error ? `Error: ${error.message}` : kind === "stop" ? "Location deleted" : "Vendor deleted", error ? "error" : undefined);
     if (!error) onChanged();
   };
   const showPoc = kind === "vendor";

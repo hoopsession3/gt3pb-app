@@ -16,6 +16,7 @@ import { archiveOwner, cleanRecap, saveRecap, wrapOwner } from "@/lib/wrap";
 import { localToday } from "@/lib/dates";
 import VenuePick from "@/components/VenuePickLazy";
 import type { VenueFill } from "@/lib/venues";
+import { haptic } from "@/lib/haptics";
 
 // OWNER DETAILS — the edit sheet behind a truck stop or an event.
 //
@@ -364,8 +365,8 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
         <div className="oa-set">
           <div className="oa-set-h">Ordering at this stop</div>
           <div className="oa-toggles">
-            <button type="button" role="switch" aria-checked={oa} className={`oa-toggle${oa ? " on" : ""}`} onClick={() => setOa((v) => !v)}><Icon name="clock" /> Order ahead<span>{oa ? "On" : "Off"}</span></button>
-            <button type="button" role="switch" aria-checked={pk} className={`oa-toggle${pk ? " on" : ""}`} onClick={() => setPk((v) => !v)}><Icon name="package" /> Pickup<span>{pk ? "On" : "Off"}</span></button>
+            <button type="button" role="switch" aria-checked={oa} className={`oa-toggle${oa ? " on" : ""}`} onClick={() => { if (oa) haptic("toggleOff"); else haptic("toggleOn"); setOa((v) => !v); }}><Icon name="clock" /> Order ahead<span>{oa ? "On" : "Off"}</span></button>
+            <button type="button" role="switch" aria-checked={pk} className={`oa-toggle${pk ? " on" : ""}`} onClick={() => { if (pk) haptic("toggleOff"); else haptic("toggleOn"); setPk((v) => !v); }}><Icon name="package" /> Pickup<span>{pk ? "On" : "Off"}</span></button>
           </div>
           {oa && <label className="prod-f" style={{ marginTop: 8 }}><span>Order-ahead lead time (min) — blank uses the global window</span><input type="number" min={0} step={15} value={lead} onChange={(e) => setLead(e.target.value)} placeholder="e.g. 240" /></label>}
           <div className="ownerdet-hint">When on, guests can order ahead{pk ? " and choose pickup" : ""} for this stop. Off = the truck’s global setting applies.</div>
