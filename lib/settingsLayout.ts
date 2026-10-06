@@ -1,76 +1,107 @@
-// SETTINGS, AS A LIST (2026-10-06, the settings round).
+// SETTINGS, BY CATEGORY (2026-10-06, the settings-by-category round).
 //
-// The order of Settings and who sees each panel in it, written once. app/crew/page.tsx (SettingsHome)
-// draws the page by hand — every panel is a different component — and scripts/smoke.cjs holds that
-// page to this list: each panel under its section, in this order, behind this gate. A panel moved,
-// added or re-gated in one place and not the other fails the smoke, by name.
+// The order of Settings and who sees each row in it, written once. app/crew/page.tsx (SettingsHome)
+// draws the page by hand — every row is a different component — and scripts/smoke.cjs holds that
+// page to this list: each row under its group, in this order, behind this gate, and each part inside
+// the row that holds it. A row moved, added or re-gated in one place and not the other fails the
+// smoke, by name.
+//
+// WHY THIS SHAPE. Ryan, on the first Settings: "Are the settings even organized? … are the settings
+// organized based on categories … industry standard, which makes it less friction?" They were nine
+// groups of 29 rows, and a third of them were not settings at all. The shape now is the one a
+// phone's Settings and a store's admin share:
+//   · YOU — this person and this phone: the account, notifications, display. Every role has it.
+//   · BUSINESS — how the business behaves: payments, ordering, locations, the team, reports, what is
+//     connected, the AI, the brand guests see. Owners and admins.
+//   · ADVANCED — about the software itself: what changed, what broke, the lists every picker reads.
+// What a business SELLS or SAYS is not a setting, so it is not here: the menu, merch, lessons,
+// membership plans, codes and perks are the Catalog section; a broadcast is Customers › Messages;
+// the changelog is the Guide's What's new. (Shopify keeps Products, Customers and Discounts out of
+// its Settings page the same way — help.shopify.com, "Accessing administration options on the
+// Settings page".) Ryan chose this over keeping them here (2026-10-06: "Move them out").
+//
+// ONE TOPIC, ONE ROW. Notifications, this phone's order alerts and the pass's sound were three rows;
+// the look and the text size were two. Each topic is one row now, and what used to be a row of its
+// own is a PART inside it — it keeps its id, so every link to it still lands: lib/anchors opens the
+// row that holds a part before it scrolls to the part (settingsHolder below).
 //
 // The gates are the ones each panel had where it came from. The page itself opens for every role,
 // so a server, a contractor or an operator sees You and nothing else. lib/obligations reads the
 // gates too: a Needs-you row that lands in Settings is only for someone who will see where it lands.
 
+import { COPY_ANCHOR_PREFIX } from "./copyAnchor";
+
 export type SettingsGate = "everyone" | "admin" | "owner";
-export type SettingsPanel = { id: string; gate: SettingsGate };
+export type SettingsPart = { id: string; gate: SettingsGate };
+export type SettingsPanel = { id: string; gate: SettingsGate; parts?: readonly SettingsPart[] };
 export type SettingsSection = { label: string; panels: readonly SettingsPanel[] };
 
 export const SETTINGS_LAYOUT: readonly SettingsSection[] = [
   { label: "You", panels: [
-    { id: "set-notify", gate: "everyone" },      // the mutes & quiet hours (the inbox's gear opens the same)
-    { id: "set-alerts", gate: "everyone" },      // order alerts on this phone (was the foot of Live Ops)
-    { id: "set-sound", gate: "everyone" },       // the pass's chime (the Pass keeps its bell)
-    { id: "set-theme", gate: "everyone" },       // day, dark or Auto (the floating moon went: lib/theme)
-    { id: "set-display", gate: "everyone" },     // text size, bold, spacing (the rail keeps a copy — customers have no Settings)
-    { id: "set-digest", gate: "admin" },         // the founder digest
+    { id: "set-account", gate: "everyone" },                                 // name, photo, sign-in: the account menu's door
+    { id: "set-notify", gate: "everyone", parts: [
+      { id: "set-alerts", gate: "everyone" },                                // order alerts on this phone
+      { id: "set-sound", gate: "everyone" },                                 // the pass's chime (the Pass keeps its bell)
+    ] },                                                                     // then what pings you & quiet hours
+    { id: "set-display", gate: "everyone", parts: [
+      { id: "set-theme", gate: "everyone" },                                 // day, dark or auto
+    ] },                                                                     // then text size, bold, spacing
   ] },
-  { label: "Ordering & payments", panels: [
-    { id: "set-pay", gate: "admin" },            // card checkout, pay at pickup, subscriptions (was Money › Get paid)
-    { id: "set-dial", gate: "admin" },           // the cup-ordering dial (was Plan › Route, shown to every manager)
-    { id: "set-office", gate: "admin" },         // office delivery price & minimum
-  ] },
-  { label: "Menu & availability", panels: [
-    { id: "menu", gate: "admin" },               // the menu (was Money › Catalog & pricing)
-    { id: "plans", gate: "admin" },              // membership plans (was Money)
-    { id: "cust-codes", gate: "admin" },         // discount codes (was Customers)
-    { id: "cust-perks", gate: "admin" },         // founding perks (was Customers)
-    { id: "set-lists", gate: "admin" },          // every dropdown's list
-  ] },
-  { label: "Team & access", panels: [
-    { id: "set-invite", gate: "owner" },         // inviting someone in a role (was Team)
-    { id: "set-lanes", gate: "admin" },          // who owns each lane (was Team's org chart)
-  ] },
-  { label: "Markets & legal", panels: [
-    { id: "set-markets", gate: "admin" },        // admins see it; opening a city stays the owner's call
-  ] },
-  { label: "Integrations", panels: [
-    { id: "set-integrations", gate: "admin" },   // what is connected
-    { id: "set-outlook", gate: "owner" },        // connect Outlook (was under the calendar)
-  ] },
-  { label: "AI", panels: [
-    { id: "set-train", gate: "owner" },          // Train the AI (was Team)
-    { id: "set-ai", gate: "admin" },             // the copilots
-    { id: "set-spend", gate: "admin" },          // what they cost
-  ] },
-  { label: "Copy & brand", panels: [
-    { id: "set-copy", gate: "admin" },           // every line guests read
-    { id: "splash", gate: "admin" },             // the app splash
-    { id: "set-broadcast", gate: "admin" },      // a live message to everyone
+  { label: "Business", panels: [
+    { id: "set-pay", gate: "admin" },                                        // card checkout, pay at pickup, subscriptions
+    { id: "set-ordering", gate: "admin", parts: [
+      { id: "set-dial", gate: "admin" },                                     // when cup pre-orders open
+      { id: "set-office", gate: "admin" },                                   // office delivery price & minimum
+    ] },
+    { id: "set-markets", gate: "admin" },                                    // which cities can open (opening one is the owner's)
+    { id: "set-team", gate: "admin", parts: [
+      { id: "set-invite", gate: "owner" },                                   // inviting someone in a role
+      { id: "set-lanes", gate: "admin" },                                    // who owns each lane
+    ] },
+    { id: "set-digest", gate: "admin" },                                     // reports: the founder digest
+    { id: "set-integrations", gate: "admin", parts: [
+      { id: "set-outlook", gate: "owner" },                                  // connect Outlook
+    ] },
+    { id: "set-ai", gate: "admin", parts: [
+      { id: "set-train", gate: "owner" },                                    // Train the AI
+      { id: "set-spend", gate: "admin" },                                    // what the copilots cost
+    ] },
+    { id: "set-brand", gate: "admin", parts: [
+      { id: "set-copy", gate: "admin" },                                     // every line guests read
+      { id: "splash", gate: "admin" },                                       // the app splash
+    ] },
   ] },
   { label: "Advanced", panels: [
-    { id: "set-admintrail", gate: "admin" },
-    { id: "set-errors", gate: "admin" },
-    { id: "set-changelog", gate: "admin" },
-    { id: "set-audit", gate: "admin" },
+    { id: "set-admintrail", gate: "admin" },                                 // the activity log: who changed what
+    { id: "set-errors", gate: "admin", parts: [
+      { id: "set-audit", gate: "admin" },                                    // every review run on the app
+    ] },                                                                     // app health: errors, then audits
+    { id: "set-lists", gate: "admin" },                                      // every dropdown's list
   ] },
 ];
 
-/** Who sees the Settings panel with this id — null when no panel in Settings has that id. */
-export function settingsGate(id?: string | null): SettingsGate | null {
+/** The row that holds this part (or this copy group) — null for a row itself, or an id not in Settings. */
+export function settingsHolder(id?: string | null): string | null {
   if (!id) return null;
-  for (const s of SETTINGS_LAYOUT) for (const p of s.panels) if (p.id === id) return p.gate;
+  // A copy group's anchor (lib/copy copyGroupAnchor) sits inside the copy editor, inside Brand.
+  if (id.startsWith(COPY_ANCHOR_PREFIX)) return "set-brand";
+  for (const s of SETTINGS_LAYOUT) for (const p of s.panels) if (p.parts?.some((x) => x.id === id)) return p.id;
   return null;
 }
 
-/** A section's own gate: the widest gate of anything in it (a header is drawn when any panel is). */
+/** Who sees the Settings row or part with this id — null when nothing in Settings has that id. */
+export function settingsGate(id?: string | null): SettingsGate | null {
+  if (!id) return null;
+  if (id.startsWith(COPY_ANCHOR_PREFIX)) return "admin";
+  for (const s of SETTINGS_LAYOUT) for (const p of s.panels) {
+    if (p.id === id) return p.gate;
+    const part = p.parts?.find((x) => x.id === id);
+    if (part) return part.gate;
+  }
+  return null;
+}
+
+/** A section's own gate: the widest gate of anything in it (a header is drawn when any row is). */
 export function sectionGate(s: SettingsSection): SettingsGate {
   return s.panels.some((p) => p.gate === "everyone") ? "everyone" : s.panels.some((p) => p.gate === "admin") ? "admin" : "owner";
 }

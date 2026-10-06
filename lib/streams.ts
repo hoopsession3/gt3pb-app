@@ -33,7 +33,9 @@ const DEFAULT_STREAMS: WorkStream[] = [
   // it not focus on what we're doing to make the money?" — operations before money). "plan" first
   // makes the company calendar the lane's landing; pipe/meeting put the sales rhythm under the
   // lane filter. 0259 reshapes the live work_streams rows the same way.
-  { key: "business", icon: "business",   label: "Business",   color: "#8b5cf6", categories: ["money", "admin", "strategy", "task", "system", "pipe", "meeting"], sections: ["plan", "notes", "money", "customers", "team"], owner_role: "owner",       owner_user_id: null, sort: 5 },
+  // Catalog sits beside Money (2026-10-06, the settings-by-category round; 0352 adds it to the live
+  // business rows): what the business sells, next to what it earns.
+  { key: "business", icon: "business",   label: "Business",   color: "#8b5cf6", categories: ["money", "admin", "strategy", "task", "system", "pipe", "meeting"], sections: ["plan", "notes", "money", "catalog", "customers", "team"], owner_role: "owner",       owner_user_id: null, sort: 5 },
 ];
 
 export const streamOfCategory = (cat: string | null | undefined, streams: WorkStream[]): WorkStream | null =>
