@@ -11,6 +11,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import { InfoRow } from "@/components/kit";
+import { haptic } from "@/lib/haptics";
 
 // FOUNDING PERKS — the tier side of member_benefits (0176), CodesPanel's sibling for the other
 // scope. A perk is the same kind of rule a code is (kind × target × value), just keyed to a tier
@@ -109,6 +110,7 @@ export default function PerksPanel() {
   };
 
   const toggle = async (r: PerkRow) => {
+    if (r.active) haptic("toggleOff"); else haptic("toggleOn");
     if (!supabase) return;
     const { error } = await supabase.from("member_benefits").update({ active: !r.active }).eq("id", r.id);
     if (error) { toast(`Couldn't update — ${error.message}`, "error"); return; }

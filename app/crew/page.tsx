@@ -165,7 +165,7 @@ const DocsFiled = dynamic(() => import("@/components/DocsFiled"), { loading: () 
 import Prose from "@/components/Prose";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
-import { haptic, HAPTIC } from "@/lib/haptics";
+import { haptic } from "@/lib/haptics";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { packListFor } from "@/lib/packlist";
 import { complianceFor } from "@/lib/compliance";
@@ -362,7 +362,7 @@ function Kitchen() {
   // Ring + buzz + flash when a genuinely new order lands (not on initial seed / own taps).
   const announceNew = useCallback((row: Order) => {
     if (!seeded.current) return;
-    if (!mutedRef.current) { chime(); haptic(HAPTIC.alert); }
+    if (!mutedRef.current) { chime(); haptic("alert"); }
     setFlash((p) => new Set(p).add(row.id));
     setTimeout(() => setFlash((p) => { const n = new Set(p); n.delete(row.id); return n; }), 6000);
   }, []);
@@ -371,7 +371,7 @@ function Kitchen() {
   const announceOutside = useCallback((row: Order) => {
     if (!seeded.current || !row.eta_status || row.eta_status !== "outside" || rungOutside.current.has(row.id)) return;
     rungOutside.current.add(row.id);
-    if (!mutedRef.current) { chime(); haptic(HAPTIC.alert); }
+    if (!mutedRef.current) { chime(); haptic("alert"); }
     setFlash((p) => new Set(p).add(row.id));
     setTimeout(() => setFlash((p) => { const n = new Set(p); n.delete(row.id); return n; }), 6000);
   }, []);
@@ -401,7 +401,7 @@ function Kitchen() {
   const move = async (o: Order, to: Order["status"] | null) => {
     if (!to || !supabase) return;
     apply({ ...o, status: to, status_changed_at: new Date().toISOString() } as Order, false);
-    haptic(HAPTIC.tap);
+    haptic("medium");
     // Ready = tell the customer off-app too (SMS/email, env-gated server-side). Fire-and-forget:
     // the board never waits on a notification provider.
     if (to === "ready") {
@@ -429,7 +429,7 @@ function Kitchen() {
     if (!supabase) return null;
     const paidRow = { ...o, ...collectedPatch(o, via, new Date().toISOString(), me) } as Order;
     apply(paidRow, false);
-    haptic(HAPTIC.paid);
+    haptic("paid");
     const res = await collectPayment(supabase, "cup", o.id, via);
     if (res.error) {
       if (isNetworkError(res.error)) { queueCollectCup(o.id, via); toast(`No signal — ${VIA_LABEL[via].toLowerCase()} saved, will sync`, "info"); return paidRow; }
@@ -2244,7 +2244,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       // First generation — straight insert.
       const { error } = await createEventTasks(rows);
       setGenerating(false);
-      toast(error ? `Error: ${error}` : `Generated ${pack.length} pack${comp.length ? ` + ${comp.length} compliance` : ""} items`);
+      toast(error ? `Error: ${error}` : `Generated ${pack.length} pack${comp.length ? ` + ${comp.length} compliance` : ""} items`, error ? "error" : undefined);
       if (!error) load();
       return;
     }
@@ -2390,7 +2390,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       .map((i, idx) => ({ parent: ownerParent, label: i.label.trim(), section: "Supplies", kind: "pack", critical: i.critical, sort: 40 + idx }));
     if (rows.length === 0) { toast("Those are already on the list"); return; }
     const { error } = await createEventTasks(rows);
-    toast(error ? `Error: ${error}` : `Added ${rows.length} suppl${rows.length === 1 ? "y" : "ies"}`);
+    toast(error ? `Error: ${error}` : `Added ${rows.length} suppl${rows.length === 1 ? "y" : "ies"}`, error ? "error" : undefined);
     if (!error) load();
   };
   // Tag/untag a crew member as a manager — managers must approve the prep too.
@@ -2406,7 +2406,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       toast("Approval withdrawn");
     } else {
       const { error } = await supabase.from("event_approvals").insert({ [ownerCol]: target.id, approver_id: user.id });
-      toast(error ? `Error: ${error.message}` : "Prep approved");
+      toast(error ? `Error: ${error.message}` : "Prep approved", error ? "error" : undefined);
     }
     load();
   };
@@ -3190,7 +3190,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     const v = titleDraft.trim().slice(0, 120);
     if (v === note.title) { setRenaming(false); return; }
     const { error } = await supabase.from("meeting_notes").update({ title: v }).eq("id", note.id);
-    toast(error ? `Couldn't rename — ${error.message}` : "Renamed");
+    toast(error ? `Couldn't rename — ${error.message}` : "Renamed", error ? "error" : undefined);
     if (!error) { setRenaming(false); onRenamed?.(v); }
   };
   const [openThread, setOpenThread] = useState<string | null>(null);
@@ -3441,7 +3441,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
                 if (!supabase) return;
                 const v = e.target.value as "private" | "team" | "collab";
                 const { error } = await supabase.from("meeting_notes").update({ visibility: v }).eq("id", note.id);
-                toast(error ? `Couldn't change — ${error.message}` : v === "private" ? "Now just for you" : v === "team" ? "Team can read it now" : "Team can read & comment now");
+                toast(error ? `Couldn't change — ${error.message}` : v === "private" ? "Now just for you" : v === "team" ? "Team can read it now" : "Team can read & comment now", error ? "error" : undefined);
                 if (!error) onVisibility?.(v);
               }} aria-label="Who can see this note">
                 <option value="private">🔒 Just me</option>
@@ -3610,7 +3610,7 @@ function Bookings() {
 
   const setStatus = async (id: string, status: BookingRequest["status"]) => {
     const { error } = await supabase!.from("booking_requests").update({ status }).eq("id", id);
-    toast(error ? `Error: ${error.message}` : `Marked ${status}`);
+    toast(error ? `Error: ${error.message}` : `Marked ${status}`, error ? "error" : undefined);
     if (!error) load();
   };
   // One tap: the request becomes a lead on the calendar/prep/economics rails — no retyping.
@@ -3792,14 +3792,14 @@ function ReservesAdmin() {
 
   const update = async (id: string, patch: Partial<Reserve>) => {
     const { error } = await supabase!.from("reserves").update(patch).eq("id", id);
-    toast(error ? `Error: ${error.message}` : "Reserve updated");
+    toast(error ? `Error: ${error.message}` : "Reserve updated", error ? "error" : undefined);
     if (!error) load();
   };
   const add = async () => {
     const { error } = await supabase!.from("reserves").insert({
       name: "", price_cents: 1200, stock_total: 12, stock_remaining: 12, status: "draft", sort: reservesState.data?.length ?? 0,
     });
-    toast(error ? `Error: ${error.message}` : "Reserve created — set details, then set it Live");
+    toast(error ? `Error: ${error.message}` : "Reserve created — set details, then set it Live", error ? "error" : undefined);
     if (!error) load();
   };
   const archive = async (id: string) => {
@@ -3809,7 +3809,7 @@ function ReservesAdmin() {
   const remove = async (id: string, nm: string) => {
     if (!(await confirm({ title: `Delete “${nm}” for good?`, body: "This permanently removes the reserve and any claims on it. It can't be undone. Archive instead if you just want it hidden.", confirmLabel: "Delete for good", cancelLabel: "Keep it", danger: true }))) return;
     const { error } = await supabase!.from("reserves").delete().eq("id", id);
-    toast(error ? `Couldn't delete — ${error.message}` : "Reserve deleted");
+    toast(error ? `Couldn't delete — ${error.message}` : "Reserve deleted", error ? "error" : undefined);
     if (!error) load();
   };
 
@@ -3994,7 +3994,7 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
   const toggleDriver = async () => {
     const next = !isDriver; setIsDriver(next);
     const { error } = await supabase!.rpc("admin_set_driver", { member: m.id, val: next });
-    if (error) { setIsDriver(!next); toast(`Error: ${error.message}`); }
+    if (error) { setIsDriver(!next); toast(`Error: ${error.message}`, "error"); }
     else toast(next ? `${m.display_name ?? "Member"} tagged as driver 🚗` : "Driver tag removed");
   };
   const [busy, setBusy] = useState(false);
@@ -4014,19 +4014,19 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
       new_founding: founding,
     });
     setBusy(false);
-    toast(error ? `Error: ${error.message}` : `Saved ${m.display_name ?? "member"}`);
+    toast(error ? `Error: ${error.message}` : `Saved ${m.display_name ?? "member"}`, error ? "error" : undefined);
     if (!error) onSaved();
   };
   const setRole = async (next: string) => {
     if (next === role) return;
     const name = m.display_name ?? "this person";
     // Safety rails: never strand the business without an owner; double-check elevations + demotions.
-    if (role === "owner" && next !== "owner" && ownerCount <= 1) { toast("Can't remove the last owner — promote someone else first."); return; }
+    if (role === "owner" && next !== "owner" && ownerCount <= 1) { toast("Can't remove the last owner — promote someone else first.", "error"); return; }
     if (isSelf && role === "owner" && next !== "owner") { if (!(await confirm({ title: "Demote yourself from Owner?", body: "You'll lose full access immediately.", confirmLabel: "Demote me", danger: true }))) return; }
     else if (next === "owner" || next === "admin" || role === "owner") { if (!(await confirm({ title: `Set ${name} to ${roleLabel(next)}?`, confirmLabel: "Set role" }))) return; }
     onPatch(m.id, next); // optimistic — reflect the pick instantly
     const { error } = await supabase!.rpc("admin_set_role", { member: m.id, new_role: next });
-    if (error) { onPatch(m.id, role); toast(`Error: ${error.message}`); }
+    if (error) { onPatch(m.id, role); toast(`Error: ${error.message}`, "error"); }
     else { toast(`${m.display_name ?? "Member"} → ${roleLabel(next)}`); onSaved(); }
   };
 
@@ -4193,7 +4193,7 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
       p_member: pick, p_role: role, p_market: market || null, p_lead: lead,
     });
     setBusy(false);
-    if (error) { toast(`Error: ${error.message}`); return; }
+    if (error) { toast(`Error: ${error.message}`, "error"); return; }
     toast(`${name} → ${roleLabel(role)}${lead ? ` · leads ${market}` : ""}`);
     setJustHired({ id: pick, name, role: roleLabel(role), market, lead });
     setPick(null); setLead(false);
@@ -4637,7 +4637,7 @@ function ProductCatalog() {
   }, []);
   const save = async (key: string, patch: Partial<ProductEcon>) => {
     const { error } = await supabase!.from("product_economics").update(patch).eq("product_key", key);
-    if (error) toast(`Error: ${error.message}`); else catalogState.reload();
+    if (error) toast(`Error: ${error.message}`, "error"); else catalogState.reload();
   };
   return (
     <AsyncSection
@@ -5023,7 +5023,7 @@ function EventsAdmin() {
 
   const update = async (id: string, patch: Partial<EventRow>) => {
     const { error } = await supabase!.from("events").update(patch).eq("id", id);
-    toast(error ? `Error: ${error.message}` : "Event updated");
+    toast(error ? `Error: ${error.message}` : "Event updated", error ? "error" : undefined);
     if (!error) load();
   };
   const addEvent = async (title: string) => {
@@ -5033,31 +5033,31 @@ function EventsAdmin() {
     // AddSheet, CalEdit's defTime all default here); a blank Start field was the one place an event
     // didn't match. Still just a starting point — fully editable on the card.
     const { data, error } = await supabase!.from("events").insert({ title, day_label: "SAT", day: nextSat, start_time: "11:00", sort: events.length }).select("id").single();
-    toast(error ? `Error: ${error.message}` : "Event added");
+    toast(error ? `Error: ${error.message}` : "Event added", error ? "error" : undefined);
     if (!error) { if (data) setOpenId((data as { id: string }).id); load(); } // open the new one for editing
   };
   const remove = async (id: string) => {
     if (!(await confirm({ title: "Remove this event?", confirmLabel: "Remove", danger: true }))) return;
     const { error } = await supabase!.from("events").delete().eq("id", id);
-    toast(error ? `Error: ${error.message}` : "Event removed");
+    toast(error ? `Error: ${error.message}` : "Event removed", error ? "error" : undefined);
     if (!error) load();
   };
   // Mark an event live — sales (POS + app) start tracking to it; only one live at a time.
   const setLive = async (id: string, live: boolean) => {
     const { error } = await setEventLive(supabase!, id, live);
-    toast(error ? `Error: ${error.message}` : live ? "Event is live — sales now track to it" : "Event closed");
+    toast(error ? `Error: ${error.message}` : live ? "Event is live — sales now track to it" : "Event closed", error ? "error" : undefined);
     if (!error) load();
   };
   // Archive — closes the event (clears live) and files it out of the active workspace.
   // It stays in the DB for records/AAR; restore brings it back.
   const archive = async (id: string) => {
     const { error } = await archiveOwner(supabase!, { kind: "event", id });
-    toast(error ? `Error: ${error.message}` : "Event archived");
+    toast(error ? `Error: ${error.message}` : "Event archived", error ? "error" : undefined);
     if (!error) { setOpenId(null); load(); }
   };
   const restore = async (id: string) => {
     const { error } = await supabase!.from("events").update({ archived_at: null }).eq("id", id);
-    toast(error ? `Error: ${error.message}` : "Event restored");
+    toast(error ? `Error: ${error.message}` : "Event restored", error ? "error" : undefined);
     if (!error) load();
   };
 
@@ -5296,13 +5296,13 @@ function VendorLocationsEditor({ vendorId, vendorName }: { vendorId: string; ven
     // Clear the old primary first — the partial unique index enforces ONE.
     await supabase.from("vendor_locations").update({ is_primary: false }).eq("vendor_id", vendorId).eq("is_primary", true);
     const { error } = await supabase.from("vendor_locations").update({ is_primary: true }).eq("id", id);
-    toast(error ? `Couldn't set primary — ${error.message}` : "Primary location set");
+    toast(error ? `Couldn't set primary — ${error.message}` : "Primary location set", error ? "error" : undefined);
     load();
   };
   const archiveLoc = async (id: string, label: string) => {
     if (!supabase) return;
     const { error } = await supabase.from("vendor_locations").update({ is_primary: false, archived_at: new Date().toISOString() }).eq("id", id);
-    toast(error ? `Couldn't remove — ${error.message}` : `${label} removed`);
+    toast(error ? `Couldn't remove — ${error.message}` : `${label} removed`, error ? "error" : undefined);
     load();
   };
   return (

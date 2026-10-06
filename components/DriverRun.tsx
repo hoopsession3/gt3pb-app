@@ -8,7 +8,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { useApp } from "./AppProvider";
 import RouteMap, { type RoutePoint } from "./RouteMap";
 import { openAddress, fullRouteUrl, geocode } from "@/lib/maps";
-import { haptic, HAPTIC } from "@/lib/haptics";
+import { haptic } from "@/lib/haptics";
 import { type PerfMix } from "@/lib/delivery";
 import { etToday } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -106,24 +106,24 @@ export default function DriverRun() {
   })(); };
 
   const swapDone = async (o: DOrder) => {
-    if (!supabase || busyId) return; setBusyId(o.id); haptic(HAPTIC.success); notifyDelivered(o);
+    if (!supabase || busyId) return; setBusyId(o.id); haptic("success"); notifyDelivered(o);
     const { error } = await supabase.from("delivery_orders").update({ driver_outcome: "swap_completed", status: "delivered", empties_collected: Math.max(0, empties[o.id] ?? o.empties_expected) }).eq("id", o.id);
     if (error) toast("Didn't save — check the porch", "error");
     setBusyId(null); setOpenId(null); reload();
   };
   const deliveredFresh = async (o: DOrder) => {
-    if (!supabase || busyId) return; setBusyId(o.id); haptic(HAPTIC.success); notifyDelivered(o);
+    if (!supabase || busyId) return; setBusyId(o.id); haptic("success"); notifyDelivered(o);
     const { error } = await supabase.from("delivery_orders").update({ driver_outcome: o.refill_count > 0 ? "delivered_fresh_no_empties" : null, status: "delivered", empties_collected: 0 }).eq("id", o.id);
     setBusyId(null); setOpenId(null); toast(error ? "Didn't save — check the porch" : "Delivered — logged", error ? "error" : undefined); reload();
   };
   const hold = async (o: DOrder) => {
-    if (!supabase || busyId) return; setBusyId(o.id); haptic(HAPTIC.alert);
+    if (!supabase || busyId) return; setBusyId(o.id); haptic("warning");
     await supabase.from("delivery_orders").update({ driver_outcome: "held_no_empties", status: "held_for_pickup", empties_collected: 0 }).eq("id", o.id);
     await raiseAlertClient({ severity: "important", category: "order", kind: "delivery_held", subjectId: o.id, title: "Delivery held — pickup queue", body: `${o.name} — no empties out. ${o.pack_size} bottles held at GT3PB for pickup 10 AM – 2 PM. ${o.phone ?? ""}`.trim(), link: "/crew?s=now" });
     setBusyId(null); setOpenId(null); toast("Held for pickup — crew alerted"); reload();
   };
   const notHome = async (o: DOrder) => {
-    if (!supabase || busyId) return; setBusyId(o.id); haptic(HAPTIC.alert);
+    if (!supabase || busyId) return; setBusyId(o.id); haptic("warning");
     const at = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     await supabase.from("delivery_orders").update({ status: "issue", driver_outcome: null, empties_collected: 0, driver_note: `Not home — ${at}` }).eq("id", o.id);
     await raiseAlertClient({ severity: "important", category: "order", kind: "delivery_not_home", subjectId: o.id, title: "Delivery — customer not home", body: `${o.name} wasn't home for the ${o.pack_size}-bottle drop${o.refill_count > 0 ? " (swap not completed)" : ""}. ${o.address_street}, ${o.address_city}. ${o.phone ?? ""}`.trim(), link: "/crew?s=now" });
@@ -131,7 +131,7 @@ export default function DriverRun() {
   };
   // Roll a stop back to open — undo a mis-tap. Ties to the order: clears the outcome + reopens it.
   const rollback = async (o: DOrder) => {
-    if (!supabase) return; haptic(HAPTIC.tap);
+    if (!supabase) return; haptic("light");
     await supabase.from("delivery_orders").update({ status: "out_for_delivery", driver_outcome: null, empties_collected: null, driver_note: null }).eq("id", o.id);
     reload();
   };
@@ -183,9 +183,9 @@ export default function DriverRun() {
                     {!done && (
                       <>
                         <div className="driver-acts">
-                          <button type="button" className="driver-nav" onClick={() => { haptic(HAPTIC.tap); openAddress(addr); }}><Icon name="compass" /> Navigate</button>
+                          <button type="button" className="driver-nav" onClick={() => { haptic("light"); openAddress(addr); }}><Icon name="compass" /> Navigate</button>
                           {o.phone && <a className="driver-call" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>Call</a>}
-                          <button type="button" className="driver-log" onClick={() => { haptic(HAPTIC.tap); setOpenId(open ? null : o.id); setEmpties((e) => ({ ...e, [o.id]: e[o.id] ?? o.empties_expected })); }}>{open ? "Close" : <>Log <Icon name="check" /></>}</button>
+                          <button type="button" className="driver-log" onClick={() => { haptic("light"); setOpenId(open ? null : o.id); setEmpties((e) => ({ ...e, [o.id]: e[o.id] ?? o.empties_expected })); }}>{open ? "Close" : <>Log <Icon name="check" /></>}</button>
                         </div>
                         {open && (
                           <div className="driver-outcome">
@@ -194,9 +194,10 @@ export default function DriverRun() {
                                 <div className="driver-emp">
                                   <span>Empties picked up <em>(expected {o.empties_expected})</em></span>
                                   <div className="driver-emp-step">
-                                    <button type="button" onClick={() => { haptic(HAPTIC.tap); setEmpties((e) => ({ ...e, [o.id]: Math.max(0, (e[o.id] ?? o.empties_expected) - 1) })); }} aria-label="Fewer">−</button>
+                                    {/* At zero, "−" has nowhere to go: the boundary, read from what is on screen. */}
+                                    <button type="button" onClick={() => { if ((empties[o.id] ?? o.empties_expected) > 0) haptic("decrease"); else haptic("boundary"); setEmpties((e) => ({ ...e, [o.id]: Math.max(0, (e[o.id] ?? o.empties_expected) - 1) })); }} aria-label="Fewer">−</button>
                                     <b>{empties[o.id] ?? o.empties_expected}</b>
-                                    <button type="button" onClick={() => { haptic(HAPTIC.tap); setEmpties((e) => ({ ...e, [o.id]: (e[o.id] ?? o.empties_expected) + 1 })); }} aria-label="More">+</button>
+                                    <button type="button" onClick={() => { haptic("increase"); setEmpties((e) => ({ ...e, [o.id]: (e[o.id] ?? o.empties_expected) + 1 })); }} aria-label="More">+</button>
                                   </div>
                                 </div>
                                 <button type="button" className="driver-out-ok" onClick={() => swapDone(o)} disabled={busyId === o.id}><Icon name="check" /> Swapped &amp; delivered</button>

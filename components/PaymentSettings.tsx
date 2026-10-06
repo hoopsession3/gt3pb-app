@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import { squareClientReady } from "@/lib/square";
 import { authedFetch } from "@/lib/authedFetch";
 import Icon from "@/components/Icon";
+import { haptic } from "@/lib/haptics";
 
 // PAYMENTS — the owner's checkout controls, in the Money section. Two facts, one switch:
 //   • Card checkout is on when the Square keys are set in the host env (read-only status here).
@@ -47,6 +48,7 @@ export default function PaymentSettings() {
   const toggle = async () => {
     if (!supabase || busy || payAtPickup === null) return;
     const next = !payAtPickup;
+    if (next) haptic("toggleOn"); else haptic("toggleOff");
     setBusy(true);
     setPayAtPickup(next); // optimistic
     const { error } = await supabase.from("live_status").update({ pay_at_pickup: next }).eq("id", 1);
@@ -58,6 +60,7 @@ export default function PaymentSettings() {
   const toggleSubs = async () => {
     if (!supabase || busy || subsOn === null) return;
     const next = !subsOn;
+    if (next) haptic("toggleOn"); else haptic("toggleOff");
     setBusy(true);
     setSubsOn(next); // optimistic
     const { error } = await supabase.from("live_status").update({ subscriptions_enabled: next }).eq("id", 1);

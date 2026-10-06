@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import Icon, { type IconName } from "./Icon";
 import { follow, held, settle, useGesture } from "./useGesture";
 import { rowArmed, rowSettle, rubber } from "@/lib/gesture";
-import { haptic, HAPTIC } from "@/lib/haptics";
+import { haptic } from "@/lib/haptics";
 
 // A ROW YOU CAN SWIPE (2026-10-05, the gesture round) — Mail's swipe, for a list whose rows have
 // actions. Swipe a row left and its trailing actions slide out from under it (an inbox flag: Snooze,
@@ -65,7 +65,9 @@ export default function SwipeRow({ lead = [], trail = [], children, className = 
     el.style.setProperty("--pull", `${Math.abs(x)}px`);
     const has = x > 0 ? lead.length > 0 : trail.length > 0;
     const on = has && rowArmed(x, w.current, true);
-    if (on !== armed.current) { armed.current = on; el.dataset.armed = on ? "1" : ""; if (on) haptic(HAPTIC.tick); }
+    // Over the line, a tick; back off it while still swiping, the lighter release. A swipe that ends
+    // or is reset says nothing here — close() and the let-go clear `armed` themselves.
+    if (on !== armed.current) { armed.current = on; el.dataset.armed = on ? "1" : ""; if (on) haptic("threshold"); else haptic("release"); }
   };
   const close = useCallback(() => {
     rest.current = 0;
@@ -78,6 +80,10 @@ export default function SwipeRow({ lead = [], trail = [], children, className = 
   }, [me, showSide]);
   const openTo = (x: number) => {
     rest.current = x;
+    // Resting open is not armed: cleared here without a word, so the next swipe cannot start on a
+    // stale line and "release" what it never crossed.
+    armed.current = false;
+    if (box.current) box.current.dataset.armed = "";
     box.current?.style.setProperty("--pull", `${Math.abs(x)}px`);
     setOpen(true);
     claimOpen(me, close);

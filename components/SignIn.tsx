@@ -5,14 +5,16 @@ import { trackFunnel } from "@/lib/funnel";
 import Image from "next/image";
 import Mpire from "./Mpire";
 import { useAuth } from "./AuthProvider";
+import { isIPhoneLike } from "@/lib/ios";
 
 type Mode = "passwordless" | "password";
 type Intent = "join" | "signin";
 
 export default function SignIn() {
   const { sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword } = useAuth();
-  // iPadOS reports itself as MacIntel — the touch-points check catches it (see the paste-URL block).
-  const isIOS = typeof navigator !== "undefined" && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+  // iPadOS reports itself as a Mac — lib/ios, the one home for the iPhone check, catches it by its
+  // touch points (see the paste-URL block).
+  const isIOS = isIPhoneLike();
 
   // The first question is WHO you are (new vs returning) — the auth method comes second.
   const [intent, setIntent] = useState<Intent>("join");

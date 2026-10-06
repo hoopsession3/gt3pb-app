@@ -6,7 +6,7 @@ import { held, useGesture } from "./useGesture";
 import { sheetOpen } from "./Sheet";
 import { PULL, pullShown } from "@/lib/gesture";
 import { refreshLive } from "@/lib/realtime";
-import { haptic, HAPTIC } from "@/lib/haptics";
+import { haptic } from "@/lib/haptics";
 
 // PULL TO REFRESH (2026-10-05, the gesture round) — the iPhone's "is this current?". At the top of the
 // crew console, pull the screen down: it follows with the rubber band's give, a ring fills under it,
@@ -64,7 +64,9 @@ export default function PullToRefresh() {
       el.dataset.ptr = "pull";
       const shown = pullShown(d.dy);
       const on = shown >= PULL.arm;
-      if (on !== armed.current) { armed.current = on; if (ring.current) ring.current.dataset.armed = on ? "1" : ""; if (on) haptic(HAPTIC.tick); }
+      // Past the line, a tick; pulled back above it before letting go, the lighter release. The
+      // let-go (end) clears `armed` itself and says nothing.
+      if (on !== armed.current) { armed.current = on; if (ring.current) ring.current.dataset.armed = on ? "1" : ""; if (on) haptic("threshold"); else haptic("release"); }
       paint(shown);
     },
     end: (_d, cancelled) => {

@@ -23,6 +23,7 @@ import ErrorReporter from "./ErrorReporter";
 import MarketingSplash from "./MarketingSplash";
 import BroadcastBanner from "./BroadcastBanner";
 import { surfaceOf, showsCommerce } from "@/lib/surfaces";
+import { holdFocusZoom } from "@/lib/ios";
 import dynamic from "next/dynamic";
 
 // CODE-SPLIT WHAT A GUEST NEVER SEES (2026-10-02). Measured on the built /menu at phone width: the
@@ -78,6 +79,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (bodyRef.current) bodyRef.current.scrollTop = 0;
     closeDrink();
   }, [pathname, closeDrink]);
+
+  // NO ZOOM ON A TAPPED FIELD (2026-10-06): an iPhone zoomed into every form's 15px fields and stayed
+  // zoomed, cutting the screen off on the right. lib/ios says why and how; this applies it on every
+  // screen, again after each navigation in case the head is rewritten. Anywhere but an iPhone it is a
+  // no-op.
+  useEffect(() => { holdFocusZoom(); }, [pathname]);
 
   // Mobile keyboard: iOS Safari/standalone PWA doesn't shrink the layout viewport when the soft
   // keyboard opens, so bottom-anchored sheets sit behind it (the Plan-a-batch batch-size input was

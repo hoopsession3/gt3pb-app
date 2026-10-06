@@ -14,6 +14,7 @@ import { MARKETS, MARKET_LABEL, toMarket, FOUNDING_MARKET } from "@/lib/markets"
 import { derivedStopStatus } from "@/lib/stopRecord";
 import { archiveOwner } from "@/lib/wrap";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { haptic } from "@/lib/haptics";
 
 // FIELD-OP SHEET — the ONE quick editor for a field op's core facts (name · date · time ·
 // place · status), reachable in two taps from anywhere a stop or event shows (calendar,
@@ -193,6 +194,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onChanged, on
   const togglePublish = async () => {
     if (!supabase || !f || !isEvent) return;
     const next = f.published_at ? null : new Date().toISOString();
+    if (next) haptic("toggleOn"); else haptic("toggleOff");
     set("published_at", next);
     const { error } = await supabase.from(table).update({ published_at: next }).eq("id", id);
     if (error) { set("published_at", f.published_at ?? null); toast(`Couldn't ${next ? "publish" : "hide"} — ${error.message}`, "error"); return; }

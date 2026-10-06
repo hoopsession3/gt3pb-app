@@ -8,6 +8,7 @@ import { createTodo, updateTask } from "@/lib/tasks";
 import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { useCrew, crewLabel } from "@/components/useCrew";
+import { haptic } from "@/lib/haptics";
 
 // REUSABLE buildout → task. Drop this after any buildout (bottle loadout, delivery loadout, event
 // prep) to offer "Create a task? Assign to…" without leaving the flow. It writes to the existing
@@ -55,6 +56,7 @@ export default function AssignTaskSheet({
   const toggleDone = async () => {
     if (!supabase || !createdId) return;
     const nd = !done; setDone(nd);
+    if (nd) haptic("toggleOn"); else haptic("toggleOff");
     await updateTask("todo", createdId, { done: nd });   // ONE write path (lib/tasks)
   };
 

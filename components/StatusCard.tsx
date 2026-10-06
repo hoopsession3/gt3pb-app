@@ -9,7 +9,7 @@ import EditableCopy from "@/components/EditableCopy";
 import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
 import { useSiteCopy } from "@/lib/copy";
-import { haptic, HAPTIC } from "@/lib/haptics";
+import { haptic } from "@/lib/haptics";
 
 // SHOW OFF YOUR STATUS — the member's card, made into an object they own. It's DUAL-SIDED: the front
 // is their portrait held in the frame, the back is their GT3 member card (tier, name, code). Tap it
@@ -106,7 +106,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
       if (f && FINISHES.some((x) => x.key === f)) setFinish(f);
     } catch { /* private mode / SSR */ }
   }, []);
-  const pickFinish = (f: Finish) => { setFinish(f); haptic(HAPTIC.tap); try { localStorage.setItem("gt3-card-finish", f); } catch { /* ignore */ } };
+  const pickFinish = (f: Finish) => { setFinish(f); haptic("selection"); try { localStorage.setItem("gt3-card-finish", f); } catch { /* ignore */ } };
   const saveMotto = async (v: string) => {
     const m = v.trim().slice(0, 30) || MOTTO_DEFAULT;
     setMotto(m); setEditMotto(false);
@@ -264,7 +264,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
     dirtyPhoto.current = true;
     const url = URL.createObjectURL(f);
     const img = new Image();
-    img.onload = () => { photoRef.current = img; setHasPhoto(true); setPhotoUrl(url); haptic(HAPTIC.tap); draw(); if (showingBack) flip(); };
+    img.onload = () => { photoRef.current = img; setHasPhoto(true); setPhotoUrl(url); haptic("light"); draw(); if (showingBack) flip(); };
     img.onerror = () => toast("Couldn't read that photo — try another", "error");
     img.src = url;
     // Persist to the canonical avatar_url so it survives reload and shows everywhere (profile, card).
@@ -295,7 +295,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   // ── the flip — a turn-and-a-half spin to the other face, with a steel glint sweep ──
   const flip = () => {
     setTurns((t) => t + 3);
-    setSpinning(true); haptic(HAPTIC.tap);
+    setSpinning(true); haptic("light");
     if (spinTimer.current) clearTimeout(spinTimer.current);
     spinTimer.current = setTimeout(() => setSpinning(false), 1200);
   };
@@ -333,7 +333,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   //    toast that doesn't say what to do with it.
   const share = async () => {
     const cv = canvasRef.current; if (!cv) return;
-    haptic(HAPTIC.success);
+    haptic("success");
     const blob: Blob | null = await new Promise((res) => cv.toBlob((b) => res(b), "image/png"));
     if (!blob) { toast("Couldn't make the image — try again", "error"); return; }
     const file = new File([blob], "gt3-status.png", { type: "image/png" });

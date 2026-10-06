@@ -331,7 +331,7 @@ export default function LetterFlyer() {
     const caption = `${f.headline}${f.body ? ` — ${f.body.split("\n")[0]}` : ""}`.slice(0, 300);
     const { error } = await supabase.from("content_items").insert({ title: f.headline || "Announcement", kind: "post", caption, media: [{ url: mediaUrl, type: "image" }], media_url: mediaUrl, media_type: "image", created_by: user?.id ?? null, updated_by: user?.id ?? null });
     setBusy(false);
-    toast(error ? `Save failed — ${error.message}` : "Saved to the feed — schedule it in Board/Grid");
+    toast(error ? `Save failed — ${error.message}` : "Saved to the feed — schedule it in Board/Grid", error ? "error" : undefined);
   };
 
   const field = (k: keyof Fields, label: string, ph: string) => (

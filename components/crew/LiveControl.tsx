@@ -10,7 +10,7 @@ import EmptyState from "@/components/EmptyState";
 import InlineCreate from "@/components/InlineCreate";
 import Icon from "@/components/Icon";
 import type { Stop, LiveStatus, Vendor } from "@/lib/db";
-import { haptic, HAPTIC } from "@/lib/haptics";
+import { haptic } from "@/lib/haptics";
 import { clockTime, dayWithDate, nextWeekdayAt } from "@/lib/dates";
 import { isStopAhead, isStopPast, roadAhead, stopIsDue } from "@/lib/road";
 import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
@@ -63,7 +63,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
   // carries an explicit filter so Supabase's "no UPDATE without WHERE" guard is happy,
   // and it doesn't depend on the admin_set_live RPC (which ran a bare UPDATE).
   const goLive = async (stopId: string) => {
-    haptic(HAPTIC.arm);
+    haptic("live");
     setLive((l) => ({ id: 1, current_stop_id: stopId, is_live: true, next_eta: l?.next_eta ?? null }));
     // Authoritative + atomic via the SECURITY-DEFINER RPC (demotes other stops, promotes this
     // one, upserts live_status) — same robustness path as go-offline, not piecemeal client writes.

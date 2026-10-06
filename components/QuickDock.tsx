@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth, roleOf } from "./AuthProvider";
 import { useOperatorSection } from "./OperatorNav";
 import { supabase } from "@/lib/supabase";
-import { haptic, HAPTIC } from "@/lib/haptics";
+import { haptic } from "@/lib/haptics";
 import AskGT3 from "./AskGT3";
 import LogPurchase from "./LogPurchase";
 import CopilotLauncher from "./CopilotLauncher";
@@ -99,7 +99,7 @@ function QuickNote({ userId, onSaved }: { userId: string | null; onSaved: () => 
     const { error } = await supabase.from("meeting_notes").insert({ title, body, source: "manual", created_by: userId, visibility: vis });
     setSaving(false);
     if (error) { setMsg("Couldn't save — try again."); return; }
-    haptic(HAPTIC.add);
+    haptic("success");
     setText(""); setMsg(vis === "private" ? "Saved — just for you, under Business › Notes" : "Saved to Business › Notes");
     setTimeout(onSaved, 700);
   };

@@ -26,6 +26,9 @@ export const viewport: Viewport = {
   // float rail, Reserve CTA); if that resurfaces, fix it in CSS (the layout should tolerate zoom) rather
   // than by disabling scaling. The in-app Display controls (rail → AA: text size, bold, spacing) remain
   // as a complementary reflow path, not a substitute for browser zoom.
+  // On an iPhone only, lib/ios (holdFocusZoom) swaps this for maximum-scale=1 once the page is up: iOS
+  // keeps the pinch whatever the limit says and drops only its zoom into a tapped field under 16px,
+  // which never zoomed back out (2026-10-06). Everywhere else this 5 stands.
   maximumScale: 5,
   // resizes-content: when the on-screen keyboard opens, the layout viewport shrinks to the visible
   // area, so bottom sheets (qd-sheet) sit ABOVE the keyboard instead of behind it (the "can't reach

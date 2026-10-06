@@ -5,7 +5,7 @@ import { useOperatorSection } from "./OperatorNav";
 import { useGesture } from "./useGesture";
 import { sheetOpen } from "./Sheet";
 import { BACK, backGoes } from "@/lib/gesture";
-import { haptic, HAPTIC } from "@/lib/haptics";
+import { haptic } from "@/lib/haptics";
 
 // SWIPE-BACK — a left-edge drag that walks the crew section history (the same back() the console
 // button uses). Installed PWAs have no browser chrome, so the OS edge-swipe doesn't exist; this
@@ -36,7 +36,9 @@ export default function SwipeBack() {
       if (on !== armed.current) {
         armed.current = on;
         if (el) el.dataset.armed = on ? "1" : "";
-        if (on) haptic(HAPTIC.tick);
+        // Far enough to go back, a tick; drawn back short of it mid-swipe, the lighter release. The
+        // let-go (end) clears `armed` itself and says nothing.
+        if (on) haptic("threshold"); else haptic("release");
       }
       if (!shown) setShown(true);
       if (el) { el.style.transform = `translateX(${dx - BACK.max}px)`; el.style.opacity = String(Math.min(1, dx / BACK.go)); }

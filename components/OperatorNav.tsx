@@ -10,6 +10,7 @@ import BottomNav from "./BottomNav";
 import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
 import { scrollToTop } from "@/lib/appScroll";
+import { haptic } from "@/lib/haptics";
 
 // Employee Mode — a dedicated operator console nav that replaces the customer
 // 5-tab nav while you're in /crew. Sections are role-scoped and the choice is
@@ -147,7 +148,11 @@ export default function OperatorNav() {
   const activeGroup = (groupId && allGroups.find((g) => g.id === groupId && g.members.includes(section)))
     || allGroups.find((g) => g.members.includes(section))
     || allGroups[0];
+  // Another lane — from the bar or from Your lanes — is a choice changed: the selection tick, as the
+  // customer tab bar gives (2026-10-05, the haptics round). The lane's own row of sections is new
+  // there, so its pager (components/SwipePager) leaves this tap to the bar.
   const openGroup = (g: NavGroup) => {
+    if (g.id !== activeGroup.id) haptic("selection");
     setGroupId(g.id);
     setSection(g.members[0]);
     setMoreOpen(false);

@@ -19,7 +19,7 @@ import Icon from "@/components/Icon";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { squareClientReady } from "@/lib/square";
-import { haptic, HAPTIC } from "@/lib/haptics";
+import { haptic } from "@/lib/haptics";
 import { scrollToTop } from "@/lib/appScroll";
 import {
   PACK_SIZES, PACK_TAG, PACK_HINT, FLAVOR_DESC,
@@ -129,6 +129,10 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
   const [phone, setPhone] = useKnownField(known?.phone);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // The order's errors — the card, the charge, a missing name — are said inline, under the form, and
+  // felt from here once each time one appears, as the drinks checkout does (2026-10-05, the haptics
+  // round). What this screen says with toast() already buzzes from AppProvider.
+  useEffect(() => { if (err) haptic("error"); }, [err]);
   const [done, setDone] = useState<{ total: number; label?: string; warn?: string; paid: boolean; ref?: string } | null>(null);
 
   // ── discount code (0176 member_benefits, scope='code'). The server reprices authoritatively; this
@@ -158,8 +162,8 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
     const { data } = await supabase.from("member_benefits")
       .select("kind, target, percent, value_cents, label")
       .eq("active", true).eq("scope", "code").ilike("code", codeClean.replace(/[%_\\]/g, (c) => `\\${c}`)).maybeSingle();
-    if (!data) { setCodeState("bad"); setCodeBenefit(null); return; }
-    setCodeBenefit(data as CodeBenefit); setCodeState("ok"); haptic(HAPTIC.tap);
+    if (!data) { setCodeState("bad"); setCodeBenefit(null); haptic("error"); return; }
+    setCodeBenefit(data as CodeBenefit); setCodeState("ok"); haptic("success");
   }, [codeClean]);
   const clearCode = () => { setCode(""); setCodeBenefit(null); setCodeState("idle"); };
 
@@ -252,7 +256,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
   // ── the toggle: preserve the cart, snap count, route sanely ──
   const switchMode = (next: Mode) => {
     if (next === mode) return;
-    haptic(HAPTIC.tap);
+    haptic("selection");
     const tiers = next === "pickup" ? PICKUP_TIERS : DELIVERY_PACKS;
     const need = mix.rise + mix.flow + mix.dusk + (next === "delivery" ? perf : 0);
     // Keep the count if it's already a valid tier; otherwise snap up to the smallest tier that still
@@ -274,10 +278,18 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
   };
 
   // ── cart handlers ──
-  const bump = (k: Flav, d: number) => { haptic(HAPTIC.tap); setMix((m) => ({ ...m, [k]: Math.max(0, m[k] + d) })); };
-  const bumpPremium = (slug: string, d: number) => { haptic(HAPTIC.tap); setPremiums((m) => { const v = Math.max(0, (m[slug] || 0) + d); const n = { ...m, [slug]: v }; if (!v) delete n[slug]; return n; }); };
+  // A STEPPER SAYS WHICH WAY IT WENT (2026-10-05, the haptics round): up, down, and at zero a "−" with
+  // nowhere to go is the boundary. The count is read from what is on screen, before the update.
+  const bump = (k: Flav, d: number) => {
+    if (d > 0) haptic("increase"); else if (mix[k] > 0) haptic("decrease"); else haptic("boundary");
+    setMix((m) => ({ ...m, [k]: Math.max(0, m[k] + d) }));
+  };
+  const bumpPremium = (slug: string, d: number) => {
+    if (d > 0) haptic("increase"); else if ((premiums[slug] || 0) > 0) haptic("decrease"); else haptic("boundary");
+    setPremiums((m) => { const v = Math.max(0, (m[slug] || 0) + d); const n = { ...m, [slug]: v }; if (!v) delete n[slug]; return n; });
+  };
   const pickCount = (s: number) => {
-    haptic(HAPTIC.tap);
+    haptic("selection");
     setCount(s);
     // an overfull mix resets when the pack shrinks below it (reference behavior)
     const overfull = mix.rise + mix.flow + mix.dusk + (mode === "delivery" ? perf : 0) > s;
@@ -327,7 +339,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
     scrollToTop();
   };
   const reorderUsual = () => {
-    if (!usual) return; haptic(HAPTIC.tap);
+    if (!usual) return; haptic("medium");
     setCount(usual.size); glassTouched.current = true; setBringBack(usual.glass === "return");
     const pm = packMix(usual); setMix({ rise: pm.RISE || 0, flow: pm.FLOW || 0, dusk: pm.DUSK || 0 });
     if (!name.trim()) setName(usual.name); if (!phone.trim()) setPhone(usual.phone || "");
@@ -350,7 +362,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
       });
       const data = await res.json(); setBusy(false);
       if (!res.ok) { setErr(data.error || "Something went wrong — try again."); return; }
-      haptic(HAPTIC.success);
+      haptic("success");
       setDone({ total: totalCents, paid: !!data.paid, ref: (data.id || data.ref || "").toString(), label: dayName(drop.sat) });
       invalidateCustomerKnown();   // the next form starts from this order
       trackFunnel("reserve", "done");
@@ -391,7 +403,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
       });
       const data = await res.json(); setBusy(false);
       if (!res.ok) { setErr(data.error || "Payment failed"); return; }
-      haptic(HAPTIC.success);
+      haptic("success");
       setDone({ total: data.totalCents ?? deliveryQuote.totalCents, label: data.deliveryLabel, warn: data.warn, paid: true });
       invalidateCustomerKnown();
       trackFunnel("delivery", "done");
@@ -682,9 +694,9 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
                 <div className="dl-loop">
                   <label className="dl-sub" htmlFor="of-ref">{t("funnel.empties_q")} <em>(up to {refillCap})</em></label>
                   <div className="dl-ctr-b lone">
-                    <button type="button" onClick={() => setRefills((r) => Math.max(0, r - 1))} aria-label="Fewer">−</button>
+                    <button type="button" onClick={() => { if (refills > 0) haptic("decrease"); else haptic("boundary"); setRefills((r) => Math.max(0, r - 1)); }} aria-label="Fewer">−</button>
                     <b id="of-ref">{refills}</b>
-                    <button type="button" onClick={() => setRefills((r) => Math.min(refillCap, r + 1))} aria-label="More">+</button>
+                    <button type="button" onClick={() => { if (refills < refillCap) haptic("increase"); else haptic("boundary"); setRefills((r) => Math.min(refillCap, r + 1)); }} aria-label="More">+</button>
                   </div>
                   {refills > 0 && (
                     <>

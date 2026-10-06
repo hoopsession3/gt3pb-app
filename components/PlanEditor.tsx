@@ -10,6 +10,7 @@ import AsyncSection from "./AsyncSection";
 import { money } from "@/lib/money";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { usePrompt } from "@/components/PromptSheet";
+import { haptic } from "@/lib/haptics";
 
 // MEMBERSHIP PLAN editor — manage subscription tiers in-app (was SQL-only). CRUD on subscription_plans.
 // Fetch state via useAsyncData — a failed load is a real error now, not a silent "No plans yet".
@@ -108,7 +109,7 @@ function PlanRow({ p, onSaved, toast }: { p: Plan; onSaved: () => void; toast: (
           <label className="prod-f"><span>Name</span><input value={d.label} onChange={(e) => setD({ ...d, label: e.target.value })} /></label>
           <label className="prod-f"><span>Price ($)</span><input type="number" step="0.50" value={(d.price_cents / 100).toString()} onChange={(e) => setD({ ...d, price_cents: Math.round((Number(e.target.value) || 0) * 100) })} /></label>
           <label className="prod-f"><span>Billing period (days)</span><input type="number" value={d.period_days} onChange={(e) => setD({ ...d, period_days: Number(e.target.value) || 1 })} /></label>
-          <label className="prod-toggle" style={{ marginTop: 22 }}><input type="checkbox" checked={d.active} onChange={(e) => setD({ ...d, active: e.target.checked })} /> Active</label>
+          <label className="prod-toggle" style={{ marginTop: 22 }}><input type="checkbox" checked={d.active} onChange={(e) => { if (e.target.checked) haptic("toggleOn"); else haptic("toggleOff"); setD({ ...d, active: e.target.checked }); }} /> Active</label>
         </div>
         {/* Save stays .btn-sec here, NOT .btn-pri — unlike MenuManager, PlanEditor has no per-row
             open/closed gate: every plan's Save button is rendered and enabled-when-dirty

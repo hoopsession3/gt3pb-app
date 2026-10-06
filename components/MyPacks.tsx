@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { mixSummary, dollars, emptyMix, dropForStop, nextDrop, dropDateKey, type Mix, type GlassPath } from "@/lib/orderAhead";
 import { authedFetch } from "@/lib/authedFetch";
-import { haptic, HAPTIC } from "@/lib/haptics";
+import { haptic } from "@/lib/haptics";
 import { nearDay } from "@/lib/dates";
 import Icon from "@/components/Icon";
 import { useConfirm } from "./ConfirmSheet";
@@ -90,7 +90,7 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
       const res = await authedFetch("/api/reserve/move", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, toDate }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { toast(data.error || "Couldn't move it — try again.", "error"); return; }
-      haptic(HAPTIC.success);
+      haptic("success");
       toast(`Moved to ${packDayLabel({ drop_date: toDate })} — see you then.`);
       setMoving(null); load();
     } finally { setBusy(null); }
@@ -106,7 +106,7 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
     const next = (data as MyPack[]) ?? [];
     // The realtime money moment: a pack flipping to PAID while you watch gets the settle buzz.
     // Paid at the window counts: the crew's tap is the moment the money settled (0341).
-    if (rowsRef.current.some((prev) => { const cur = next.find((n) => n.id === prev.id); return cur && !isSettled(prev) && isSettled(cur); })) haptic(HAPTIC.paid);
+    if (rowsRef.current.some((prev) => { const cur = next.find((n) => n.id === prev.id); return cur && !isSettled(prev) && isSettled(cur); })) haptic("paid");
     rowsRef.current = next;
     setRows(next);
   }, [user]);

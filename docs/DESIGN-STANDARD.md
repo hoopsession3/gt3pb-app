@@ -82,8 +82,9 @@ copies of an idea.
     the way they entered (the canonical Sheet owns gesture exits), state that matters settles
     (paid flag) or breathes (LIVE dot) — nothing else moves uninvited. Reduced-motion always wins.
 22. **Brand moments are locked assets.** The pour-fill "3" (mask over /public/brand/3-outline.svg,
-    never redrawn), the green checkered flag under paid confirmations, HAPTIC.arm on go-live,
-    HAPTIC.paid on a live paid-flip. New moments come from the brand kit, not from invention.
+    never redrawn), the green checkered flag under paid confirmations, haptic("live") on go-live,
+    haptic("paid") on a live paid-flip (lib/haptics owns the feels). New moments come from the brand
+    kit, not from invention.
 23. **Money state is a flag, not a whisper**: stripe + solid chip (green paid / gold due / dim
     done) with `data-`driven copy — never hardcoded "paid". Customer-facing prices show the number
     the CUSTOMER will actually pay first (bring-back vs new-glass defaults by session).
