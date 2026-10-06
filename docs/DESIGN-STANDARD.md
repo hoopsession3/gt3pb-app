@@ -91,3 +91,16 @@ copies of an idea.
 24. **Co-work protocol.** Concurrent sessions each own disjoint files; migration numbers are
     claimed against MAIN AND open branches before writing; branches merge main INTO themselves and
     re-gate before landing; every session's tree must be committed-or-clean before handoff.
+
+## Locked 2026-10-06 — the settings round
+
+25. **A switch has one home: Settings.** Anything that changes how a feature works — a payment
+    switch, a dial, a picker's list, a connection, a phone's own preference — lives in Settings
+    (`lib/settingsLayout` lists it, behind the gate it had), and the screen it used to sit on keeps
+    one `GoLine` to it. No floating button for a setting (the moon went; Appearance has Auto).
+26. **Settings reads like a phone's.** Each section is one grouped list of closed rows: a title, a
+    line saying what is inside, and the value where it is one fact (`lib/settingsGlance`) — a value
+    nobody could read says "Couldn't read", never a guess. A switch you flip without reading first
+    is a row you flip in place. Settings returns to its list; a deep link still opens its row.
+27. **A closed panel says what it holds.** Anywhere a `<Panel>` is closed at rest it carries a `sub`
+    line; a blind header is the accordion wall (the design ratchet counts them, and may only fall).
