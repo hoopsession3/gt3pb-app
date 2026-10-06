@@ -19,6 +19,7 @@ import { darkWellCounts, selectClassShorthands } from "./design.ratchet.mjs";
 import { promisesIn, PLACES, CHEVRON_CEILING, DIRECTION_CEILING } from "./affordance.audit.mjs";
 import { vocabularies, wordsIn, judge as judgeWords, listOf, REFUSED_CEILING } from "./vocab.audit.mjs";
 import { gesturesIn, judgeFile, staleEntries, OWN_OVERLAYS, NOT_PAGES, NO_UNSAVED, GESTURE_LAYER } from "./gesture.audit.mjs";
+import { hapticsIn, judgeFile as judgeHaptics, vocabularyOf, judgeVocabulary, HOME as HAPTICS_HOME } from "./haptics.audit.mjs";
 import { PGlite } from "@electric-sql/pglite";
 import { join } from "node:path";
 
@@ -850,6 +851,64 @@ end $$;`;
     && J(`return <Sheet open onClose={c} label="P"><Form /></Sheet>;`).length === 0);
   ok("gesture: a sheet named in NO_UNSAVED passes, with its reason", J(`return <Sheet open onClose={c} label="Q"><input /></Sheet>;`, "components/PromptSheet.tsx").length === 0 && !!NO_UNSAVED["components/PromptSheet.tsx"]);
   ok("gesture: a list entry that answers nothing is stale", staleEntries(new Set()).length > 0 && staleEntries(new Set(Object.keys({ ...OWN_OVERLAYS, ...NOT_PAGES, ...NO_UNSAVED, ...GESTURE_LAYER }))).filter((k) => !/^PAGED/.test(k)).length === 0);
+}
+
+// ── haptics.audit: the three rules, on the calls this repo made before the round and makes now ──────
+// The failing shapes are the ones production carried until 2026-10-05, copied from the files named.
+{
+  const FEELS = ["selection", "light", "medium", "heavy", "success", "warning", "error", "threshold", "release", "boundary", "toggleOn", "toggleOff", "increase", "decrease", "start", "live", "paid", "alert"];
+  const J = (src, file = "components/X.tsx") => judgeHaptics(file, hapticsIn(src, file), FEELS).map((b) => b.rule);
+  const IMP = `import { haptic } from "@/lib/haptics";\n`;
+  // 1. one home
+  ok("haptics: navigator.vibrate outside lib/haptics fails — a raw buzz no feel names",
+    J(`export function ring() { navigator.vibrate([200, 100, 200]); }`).join() === "home");
+  ok("haptics: …and so does a vibrate reached another way — a copy of navigator, a bracket, a destructure",
+    J(`const nav = navigator; nav.vibrate(8); navigator["vibrate"](8); const { vibrate } = navigator;`).join() === "home,home,home");
+  ok("haptics: lib/haptics.ts is the home — its own vibrate passes (the line as it stands there)",
+    J(`if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function" && navigator.vibrate(typeof p === "number" ? p : [...p])) return;`, HAPTICS_HOME).length === 0);
+  ok("haptics: the word in a comment or a string is not a vibrate",
+    J(`// This was \`navigator.vibrate\` alone, and Safari has never had it\nconst s = "navigator.vibrate";`).length === 0);
+  // 2. say what
+  ok("haptics: a feel named as one literal passes (components/crew/LiveControl.tsx goLive, now)",
+    J(`${IMP}const goLive = async (stopId: string) => { haptic("live"); };`).length === 0);
+  ok("haptics: the old table fails (components/crew/LiveControl.tsx goLive, production until 2026-10-05)",
+    J(`import { haptic, HAPTIC } from "@/lib/haptics";\nconst goLive = async (stopId: string) => { haptic(HAPTIC.arm); };`).join() === "feel");
+  ok("haptics: a number, an array, a variable and a template all fail — the feel is not readable at the call",
+    J(`${IMP}haptic(12); haptic([14, 40, 14]); haptic(feel); haptic(\`light\`);`).join() === "feel,feel,feel,feel");
+  ok("haptics: a word that is not a feel fails — 'tick' and 'tap' were the old table's names",
+    J(`${IMP}haptic("tick"); haptic("tap");`).join() === "feel,feel");
+  ok("haptics: one literal per call — a ternary between two feels fails; two calls pass (components/SwipeRow.tsx)",
+    J(`${IMP}haptic(on ? "threshold" : "release");`).join() === "feel"
+    && J(`${IMP}if (on !== armed.current) { armed.current = on; if (on) haptic("threshold"); else haptic("release"); }`).length === 0);
+  ok("haptics: no feel, or a feel and something more, is not one feel", J(`${IMP}haptic(); haptic("light", 2);`).join() === "feel,feel");
+  ok("haptics: imported under another name, or through a namespace, it is still held to the list",
+    J(`import { haptic as buzz } from "@/lib/haptics";\nbuzz(8); buzz("light");`).join() === "feel"
+    && J(`import * as H from "../lib/haptics";\nH.haptic("buzz"); H.haptic("paid");`).join() === "feel");
+  // 3. all felt
+  const V = (union, table) => judgeVocabulary(vocabularyOf(`export type Feel = ${union};\nconst PATTERN: Record<Feel, number | readonly number[]> = { ${table} };`)).map((b) => b.what);
+  ok("haptics: every feel with a pattern, and no pattern without a feel, passes", V(`"light" | "paid"`, `light: 8, paid: [10, 30, 18]`).length === 0);
+  ok("haptics: a feel with no pattern fails", V(`"light" | "paid"`, `light: 8`).join() === `"paid" is a feel with no pattern — give it one in PATTERN`);
+  ok("haptics: a pattern no feel names fails — the old table's 'tick' kept beside the feels",
+    V(`"light"`, `light: 8, tick: 6`).join() === "PATTERN.tick is a pattern no feel names — add it to Feel, or take it out");
+  ok("haptics: a member that is not a word, or a key spread in, cannot be read — and fails rather than passing",
+    V(`"light" | string`, `light: 8`).length === 1 && V(`"light"`, `light: 8, ...MORE`).length === 1);
+  ok("haptics: a file with no union or no table is not a vocabulary", judgeVocabulary(vocabularyOf(`export const HAPTIC = { tick: 6 };`)).length === 2);
+  {
+    const v = vocabularyOf(readFileSync(new URL("../lib/haptics.ts", import.meta.url), "utf8"));
+    ok("haptics: lib/haptics.ts as it stands reads as the eighteen feels, each with its pattern",
+      v.feels?.map((f) => f.name).join() === FEELS.join() && v.table?.length === 18 && judgeVocabulary(v).length === 0, v.feels?.map((f) => f.name));
+  }
+  // 4. an error says so — the shapes production carried until 2026-10-06 (app/crew/page.tsx), and now
+  ok("haptics: an error toast on the default variant fails — the event card's refused write (app/crew/page.tsx update, until 2026-10-06)",
+    J(`const update = async () => { toast(error ? \`Error: \${error.message}\` : "Event updated"); };`).join() === "error-toast");
+  ok("haptics: a variant that chooses, but never chooses error, fails too",
+    J(`toast(error ? \`Error: \${error.message}\` : "Saved", error ? "info" : undefined);`).join() === "error-toast");
+  ok("haptics: …and so does a plain one — the last owner's refusal, a role change's error",
+    J(`toast("Can't remove the last owner — promote someone else first."); toast(\`Error: \${error.message}\`); toast("Couldn't save");`).join() === "error-toast,error-toast,error-toast");
+  ok("haptics: an error toast that says so passes — \"error\", or error ? \"error\" : undefined",
+    J(`toast(error ? \`Error: \${error.message}\` : "Event updated", error ? "error" : undefined); toast(\`Couldn't rename — \${e}\`, "error");`).length === 0);
+  ok("haptics: a success, a neutral word, or a message held in a variable is not judged",
+    J(`toast("Saved"); toast(\`Marked \${status}\`); toast(msg); toast(ok ? "Saved" : "Couldn't save", ok ? undefined : "error");`).length === 0);
 }
 
 console.log(`AUDIT CLASSIFIERS: ${pass} passed, ${fail} failed`);

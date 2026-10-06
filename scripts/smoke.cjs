@@ -5608,7 +5608,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const packs = code(read("components/MyPacks.tsx")), status = code(read("components/OrderStatus.tsx")), funnel = code(read("components/OrderFunnel.tsx"));
   const inbox = code(read("components/MemberInbox.tsx")), mpire = code(read("app/3mpire/page.tsx")), move = code(read("app/api/reserve/move/route.ts"));
   ok("customer: a pack paid at the window reads paid, buzzes paid, and is not '$ at pickup'",
-    /: isSettled\(p\) \? <><Icon name="check" \/> paid<\/> : "\$ at pickup"\}/.test(packs) && /return cur && !isSettled\(prev\) && isSettled\(cur\); \}\)\) haptic\(HAPTIC\.paid\);/.test(packs)
+    /: isSettled\(p\) \? <><Icon name="check" \/> paid<\/> : "\$ at pickup"\}/.test(packs) && /return cur && !isSettled\(prev\) && isSettled\(cur\); \}\)\) haptic\("paid"\);/.test(packs)
     && /const atPickup = rows\.filter\(\(x\) => !isSettled\(x\)\)\.length;/.test(packs) && !/p\.paid \? <>|p\.paid \? "paid"|: p\.paid \? "paid"/.test(packs));
   ok("customer: paid at the window, the pack and the cup are the crew's to cancel — no button that the database will refuse",
     /\{!p\.collected_at && <button type="button" className="danger" onClick=\{\(\) => cancel\(p\)\}/.test(packs) && /\{onChange && !p\.collected_at && /.test(packs)
@@ -7619,7 +7619,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const SheetMotion = dynamic<SheetMotionProps>\(\(\) => import\("\.\/SheetMotion"\), \{ ssr: false \}\);/.test(sh) && !/from "\.\/useGesture"|from "@\/lib\/gesture"/.test(sh)
     && /import type \{ SheetMotionProps \} from "\.\/SheetMotion";/.test(sh) && /\{live && <SheetMotion /.test(sh));
   ok("sheet: one door out — a held sheet gives, typed changes ask, for the pull, a tap outside, Escape, the X and a form's Cancel",
-    /if \(!dismissible\) \{ nudge\(\); return; \}\s+if \(unsaved\(\)\) \{ setAsk\(\(\) => go\); return; \}/.test(sh) && /const attempt = useCallback\(\(\) => leave\(requestClose\)/.test(sh)
+    /if \(!dismissible\) \{ nudge\(\); return; \}\s+if \(unsaved\(\)\) \{ askFor\(go\); return; \}/.test(sh) && /const attempt = useCallback\(\(\) => leave\(requestClose\)/.test(sh)
     && /onClick=\{attempt\}/.test(sh) && /export function CloseButton[\s\S]*?leave \? leave\(onClick\) : onClick\(\)/.test(sh) && /export function LeaveButton[\s\S]*?onClick=\{\(\) => \(leave \? leave\(onClick\) : onClick\(\)\)\}>\{children\}<\/button>;/.test(sh)
     && /if \(unsaved\(\)\) \{ springBack\(\); ask\(requestClose\); return; \}/.test(sm));
   ok("sheet: the question is the phone's — Discard changes, Keep editing (focused)",
@@ -7716,7 +7716,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("refresh: the pull reads every live screen again (lib/realtime's loaders), and so does coming back to the app after 30s away",
     /export function refreshLive\(\): Promise<void>/.test(read("lib/realtime.ts")) && /loaders\.add\(cb\);/.test(read("lib/realtime.ts")) && /const RESUME_MS = 30_000;/.test(read("lib/realtime.ts"))
     && /\{inAdmin && <PullToRefresh \/>\}/.test(read("components/AppShell.tsx")) && /refreshLive\(\)/.test(read("components/PullToRefresh.tsx")));
-  ok("haptics: the iPhone ticks (the switch's own haptic) where vibrate does not exist, and nothing buzzes before a tap",
+  ok("haptics: an iPhone before iOS 26.5 ticks (the switch's own haptic) where vibrate does not exist, and nothing buzzes before a tap",
     /input\.setAttribute\("switch", ""\);/.test(read("lib/haptics.ts")) && /navigator\.userActivation && !navigator\.userActivation\.hasBeenActive/.test(read("lib/haptics.ts")));
   ok("tab bar: the tab you are on, tapped again, goes back to the top", /scrollToTop\(\)/.test(read("components/OperatorNav.tsx")) && /if \(pathname === tab\.href\) \{ e\.preventDefault\(\); scrollToTop\(\); \}/.test(read("components/BottomNav.tsx")));
   ok("scroll to top: one home (lib/appScroll) — the tab bars and the order form call it; no copy of it, and not in the crew's panel jumps every guest would carry",
@@ -7731,6 +7731,212 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("maps keep their own touches", /data-gesture="off"/.test(read("components/RouteMap.tsx")));
   ok("gesture: compiled for the smoke run, and the audit runs with the others",
     /lib\/venues\.ts lib\/gesture\.ts lib\/formGuard\.ts/.test(read("package.json")) && /node scripts\/gesture\.audit\.mjs/.test(read("package.json")));
+}
+
+// ── THE HAPTICS ROUND (2026-10-05) ──────────────────────────────────────────────────────────────
+// One vocabulary for every buzz. lib/haptics names a feel for each kind of moment and holds the one
+// table of patterns; a call site says what happened, and scripts/haptics.audit.mjs holds every
+// haptic() in the app to a literal feel. These hold the table's rules, run, and the moments the round
+// wired that had no feel before: errors, payments, a sheet that holds or asks, a swipe backing off its
+// line, a page or tab changing, a stepper at its end, a switch.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const H = require("../.smoke/haptics.js");
+  const hl = read("lib/haptics.ts");
+
+  // ── the vocabulary, run ──
+  const FEELS = ["selection", "light", "medium", "heavy", "success", "warning", "error", "threshold", "release", "boundary", "toggleOn", "toggleOff", "increase", "decrease", "start", "live", "paid", "alert"];
+  const P = H.HAPTIC_PATTERNS;
+  ok("haptics: eighteen feels, each with its pattern — a tap is one number, a signature a few beats that ends on a beat, not a pause",
+    JSON.stringify(Object.keys(P)) === JSON.stringify(FEELS)
+    && Object.values(P).every((p) => (typeof p === "number" ? p > 0 && p <= 200 : Array.isArray(p) && p.length % 2 === 1 && p.every((n) => Number.isInteger(n) && n > 0))), Object.keys(P));
+  ok("haptics: the pairs say themselves by weight — a release under its threshold, down under up, off under on, light under medium under heavy",
+    P.release < P.threshold && P.decrease < P.increase && P.toggleOff < P.toggleOn && P.light < P.medium && P.medium < P.heavy);
+  ok("haptics: one table, read-only from outside — the old HAPTIC object is gone",
+    !("HAPTIC" in H) && !/\bHAPTIC\s*=/.test(hl) && /export const HAPTIC_PATTERNS: Readonly<Record<Feel, number \| readonly number\[\]>> = PATTERN;/.test(hl)
+    && /export function haptic\(feel: Feel\): void \{/.test(hl));
+  {
+    const was = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+    const as = (active, vibrate) => Object.defineProperty(globalThis, "navigator", { value: { userActivation: { hasBeenActive: active }, vibrate, userAgent: "Android", maxTouchPoints: 5, platform: "Linux" }, configurable: true, writable: true });
+    const got = [];
+    let threw = false;
+    try {
+      as(false, (p) => { got.push(p); return true; });
+      H.haptic("success");
+      const early = got.length;
+      as(true, (p) => { got.push(p); return true; });
+      H.haptic("success"); H.haptic("selection");
+      ok("haptics: nothing buzzes before the page has been touched; after, each feel plays its own pattern",
+        early === 0 && JSON.stringify(got) === JSON.stringify([[14, 40, 14], 6]), got);
+      ok("haptics: vibrate is handed a copy — a browser that keeps or changes the array cannot change the table",
+        Array.isArray(got[0]) && got[0] !== P.success && (got[0].push(999), P.success.length === 3));
+      as(true, () => { throw new Error("blocked"); });
+      try { H.haptic("error"); } catch { threw = true; }
+      as(true, undefined);
+      try { H.haptic("paid"); } catch { threw = true; }
+    } finally {
+      if (was) Object.defineProperty(globalThis, "navigator", was); else delete globalThis.navigator;
+    }
+    ok("haptics: a vibrate that throws, or none at all (an iPhone), is quiet — a haptic never breaks the tap it rides on", !threw);
+  }
+  {
+    // The older iPhones' tick, run: no vibrate, an iPhone, a tap seen → a hidden switch is made, its label
+    // clicked once and taken away. Before any tap, and where vibrate works (Android), no switch is made.
+    const wasNav = Object.getOwnPropertyDescriptor(globalThis, "navigator"), wasDoc = Object.getOwnPropertyDescriptor(globalThis, "document");
+    const made = [];
+    const el = (tag) => { const e = { tag, style: {}, attrs: {}, kids: [], clicked: 0, removed: 0, setAttribute(k, v) { this.attrs[k] = v; }, appendChild(c) { this.kids.push(c); }, addEventListener() {}, click() { this.clicked++; }, remove() { this.removed++; } }; made.push(e); return e; };
+    const body = { kids: [], appendChild(c) { this.kids.push(c); } };
+    const nav = (ua, active, vibrate) => Object.defineProperty(globalThis, "navigator", { value: { userActivation: { hasBeenActive: active }, vibrate, userAgent: ua, maxTouchPoints: 5, platform: "iPhone" }, configurable: true, writable: true });
+    const ticks = {};
+    try {
+      Object.defineProperty(globalThis, "document", { value: { createElement: el, body }, configurable: true, writable: true });
+      nav("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)", false, undefined); H.haptic("success"); ticks.beforeTap = made.length;
+      nav("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)", true, undefined); H.haptic("success");
+      const label = made.find((e) => e.tag === "label"), input = made.find((e) => e.tag === "input");
+      ticks.iphone = !!label && !!input && input.attrs.switch === "" && label.kids.includes(input) && label.clicked === 1 && label.removed === 1 && body.kids.includes(label);
+      made.length = 0; nav("Mozilla/5.0 (Linux; Android 15)", true, () => true); H.haptic("success"); ticks.android = made.length;
+    } finally {
+      if (wasNav) Object.defineProperty(globalThis, "navigator", wasNav); else delete globalThis.navigator;
+      if (wasDoc) Object.defineProperty(globalThis, "document", wasDoc); else delete globalThis.document;
+    }
+    ok("haptics: an older iPhone (no vibrate) gets the switch's tick after a tap — a hidden switch made, its label clicked once, then taken away; nothing before a tap, and no switch where vibrate works",
+      ticks.beforeTap === 0 && ticks.iphone === true && ticks.android === 0, ticks);
+  }
+  ok("haptics: the header says what a phone feels — Android every feel; an iPhone before iOS 26.5 the switch's tick, since then nothing from code (WebKit bug 309082); the native wrapper is the seam",
+    /Android \(Chrome\) vibrates every feel/.test(hl) && /before iOS 26\.5/.test(hl) && /WebKit \(bug 309082\)/.test(hl) && /native adapter maps each feel to UIKit's impact, selection or/.test(hl)
+    && !/THE IPHONE TICKS TOO/.test(hl));
+
+  // ── an error, felt ──
+  const ap = code(read("components/AppProvider.tsx"));
+  ok("toast: every error toast is felt, from the one place they all come through — AppProvider's toast()",
+    /const toast = useCallback\(\(msg: string, variant: ToastVariant = "success", opts\?: \{ action\?: ToastAction \}\) => \{\s+if \(variant === "error"\) haptic\("error"\);/.test(ap));
+
+  // ── the cart ──
+  ok("cart: a drink in is firmer than a drink out, read from a mirror of the cart kept in an effect — not inside the updater, and no ref written while rendering",
+    /const cartNow = useRef\(cart\);\s+useEffect\(\(\) => \{ cartNow\.current = cart; \}, \[cart\]\);/.test(ap)
+    && /const bump = useCallback\(\(id: DrinkId\) => \{\s+if \(cartNow\.current\[id\]\) haptic\("light"\); else haptic\("medium"\);\s+setCart\(/.test(ap));
+  ok("cart: + is increase and − is decrease, said before the update is asked for",
+    /const inc = useCallback\(\(id: DrinkId\) => \{ haptic\("increase"\); setCart\(/.test(ap) && /const dec = useCallback\(\(id: DrinkId\) => \{ haptic\("decrease"\); setCart\(/.test(ap));
+  const shop = code(read("components/Shop.tsx"));
+  ok("shop: into the cart is medium; a line's quantity says which way it went, read from the cart on screen",
+    /const addToCart = \(product: Product, variant: Variant \| null, qty: number\) => \{\s+haptic\("medium"\);/.test(shop)
+    && /if \(qty > \(cart\[idx\]\?\.qty \?\? 0\)\) haptic\("increase"\); else haptic\("decrease"\);\s+setCart\(/.test(shop));
+
+  // ── money ──
+  const co = code(read("components/Checkout.tsx")), sc = code(read("components/ShopCheckout.tsx"));
+  ok("checkout: Pay is felt (heavy) once the tap is going to charge — after the name and card guards, so a tap they turn away is not felt as a charge — the charge through as paid, a pre-order sent as success, an inline payment error as error",
+    /if \(!customer\) \{ setErr\("Add a name for pickup"\); return; \}\s+if \(!ready\) return;\s+haptic\("heavy"\);\s+setBusy\(true\);/.test(co)
+    && !/if \(busy\) return;[^\n]*\n\s+haptic\("heavy"\);/.test(co) && /trackFunnel\("order", "paid"\);\s+haptic\("paid"\);/.test(co)
+    && /trackFunnel\("order", "pickup"\);\s+haptic\("success"\);/.test(co) && /useEffect\(\(\) => \{ if \(err\) haptic\("error"\); \}, \[err\]\);/.test(co));
+  ok("checkout: an error said with toast() is not buzzed again here — AppProvider already felt it",
+    (co.match(/haptic\("error"\)/g) || []).length === 1 && (sc.match(/haptic\("error"\)/g) || []).length === 1);
+  ok("shop checkout: a payment through is paid, and the error under the card is felt where it is set",
+    /if \(!r\.ok\) \{ setErr\(payErrorText\(data\.error\)\); setBusy\(false\); return; \}\s+haptic\("paid"\);/.test(sc) && /useEffect\(\(\) => \{ if \(err\) haptic\("error"\); \}, \[err\]\);/.test(sc));
+  const of = code(read("components/OrderFunnel.tsx")), dr = code(read("components/DriverRun.tsx"));
+  ok("order form: its inline errors are felt where they are set, and a code is success when it lands, error when it does not",
+    /useEffect\(\(\) => \{ if \(err\) haptic\("error"\); \}, \[err\]\);/.test(of) && (of.match(/haptic\("error"\)/g) || []).length === 2
+    && /setCodeState\("bad"\); setCodeBenefit\(null\); haptic\("error"\); return;/.test(of) && /setCodeState\("ok"\); haptic\("success"\);/.test(of));
+  const scan = code(read("app/scan/page.tsx"));
+  ok("scan: a stamp added is success, one that did not record is error — said inline, so felt there",
+    /setState\("added"\); haptic\("success"\); \}/.test(scan) && /else \{ setState\("error"\); haptic\("error"\); \}/.test(scan));
+
+  // ── the sheet ──
+  const sh = code(read("components/Sheet.tsx")), sm = code(read("components/SheetMotion.tsx"));
+  ok("sheet: \"Discard your changes?\" arrives with the warning feel, from one place whichever door asked — the pull and the walk ask through it too",
+    /const askFor = useCallback\(\(go: \(\) => void\) => \{ haptic\("warning"\); setAsk\(\(\) => go\); \}, \[\]\);/.test(sh)
+    && (sh.match(/setAsk\(\(\) => go\)/g) || []).length === 1 && /ask=\{askFor\}/.test(sh));
+  ok("sheet: a held sheet refusing to leave gives with the boundary feel — a tap outside, Escape or the X (nudge), and a pull let go past the line",
+    /const nudge = useCallback\(\(\) => \{\s+haptic\("boundary"\);/.test(sh)
+    && /if \(!cancelled && !dismissible && sheetCloses\(d\.dy, d\.vy, h\)\) haptic\("boundary"\);\s+if \(cancelled \|\| !sheetCloses\(d\.dy, d\.vy, h\) \|\| !dismissible\) \{ springBack\(\); return; \}/.test(sm));
+
+  // ── a swipe's line ──
+  ok("swipes: crossing the line ticks (threshold), backing off it mid-swipe is felt too (release) — the row, the pull to refresh, the edge back",
+    /if \(on !== armed\.current\) \{ armed\.current = on; el\.dataset\.armed = on \? "1" : ""; if \(on\) haptic\("threshold"\); else haptic\("release"\); \}/.test(read("components/SwipeRow.tsx"))
+    && /if \(on !== armed\.current\) \{ armed\.current = on; if \(ring\.current\) ring\.current\.dataset\.armed = on \? "1" : ""; if \(on\) haptic\("threshold"\); else haptic\("release"\); \}/.test(read("components/PullToRefresh.tsx"))
+    && /if \(on !== armed\.current\) \{\s+armed\.current = on;\s+if \(el\) el\.dataset\.armed = on \? "1" : "";\s+if \(on\) haptic\("threshold"\); else haptic\("release"\);\s+\}/.test(code(read("components/SwipeBack.tsx"))));
+  ok("swipes: the let-go and a reset clear the line without a word — a release is only ever mid-swipe, and a row resting open is not armed",
+    ["components/SwipeRow.tsx", "components/PullToRefresh.tsx", "components/SwipeBack.tsx"].every((f) => (read(f).match(/haptic\("release"\)/g) || []).length === 1)
+    && /const openTo = \(x: number\) => \{\s+rest\.current = x;\s+armed\.current = false;/.test(code(read("components/SwipeRow.tsx"))));
+
+  // ── tabs and pages ──
+  const sp = code(read("components/SwipePager.tsx"));
+  ok("pages: a row's page turning ticks once, from the pager — a tap and a swipe both end in its go; the first render, a row coming back and another row in its place do not",
+    /if \(row !== null && row === was\.row && current !== was\.current\) haptic\("selection"\);/.test(sp)
+    && /export function usePagerLevel\(level: Level \| null\): void \{[\s\S]*?usePageTick\(level\);\s+\}/.test(sp)
+    && /\{own\.map\(\(l, i\) => <PageTick key=\{i\} level=\{l \|\| null\} \/>\)\}/.test(sp)
+    && (sp.match(/haptic\(/g) || []).length === 1 && !/haptic\(/.test(read("components/PagerMotion.tsx")));
+  ok("tabs: a tab bar ticks when the tab changes — not when the tab you are on is tapped again (that goes back to the top)",
+    /onClick=\{\(e\) => \{ if \(pathname === tab\.href\) \{ e\.preventDefault\(\); scrollToTop\(\); \} else if \(!on\) haptic\("selection"\); \}\}/.test(read("components/BottomNav.tsx"))
+    && /const openGroup = \(g: NavGroup\) => \{\s+if \(g\.id !== activeGroup\.id\) haptic\("selection"\);/.test(code(read("components/OperatorNav.tsx"))));
+
+  // ── steppers and switches ──
+  ok("steppers: up is increase, down is decrease, and \"−\" at zero is the boundary — read from what is on screen, before the update (the order form, the porch run's empties)",
+    /const bump = \(k: Flav, d: number\) => \{\s+if \(d > 0\) haptic\("increase"\); else if \(mix\[k\] > 0\) haptic\("decrease"\); else haptic\("boundary"\);\s+setMix\(/.test(of)
+    && /const bumpPremium = \(slug: string, d: number\) => \{\s+if \(d > 0\) haptic\("increase"\); else if \(\(premiums\[slug\] \|\| 0\) > 0\) haptic\("decrease"\); else haptic\("boundary"\);\s+setPremiums\(/.test(of)
+    && /onClick=\{\(\) => \{ if \(\(empties\[o\.id\] \?\? o\.empties_expected\) > 0\) haptic\("decrease"\); else haptic\("boundary"\); setEmpties\(/.test(dr)
+    && /onClick=\{\(\) => \{ haptic\("increase"\); setEmpties\(/.test(dr));
+  ok("steppers: one with a ceiling meets it as a boundary too — the delivery's empties (up to the pack's refills), a product's quantity (1 to 20)",
+    /onClick=\{\(\) => \{ if \(refills > 0\) haptic\("decrease"\); else haptic\("boundary"\); setRefills\(/.test(of) && /onClick=\{\(\) => \{ if \(refills < refillCap\) haptic\("increase"\); else haptic\("boundary"\); setRefills\(/.test(of)
+    && /onClick=\{\(\) => \{ if \(qty > 1\) haptic\("decrease"\); else haptic\("boundary"\); setQty\(/.test(shop) && /onClick=\{\(\) => \{ if \(qty < 20\) haptic\("increase"\); else haptic\("boundary"\); setQty\(/.test(shop));
+  ok("switches: each says which way it went — on, off (stop ordering, codes, perks, the splash, a plan, a task done, the payment switches, an event's publish, the 86 board, the event copilot)",
+    ["components/crew/OwnerDetails.tsx", "components/CodesPanel.tsx", "components/PerksPanel.tsx", "components/PromoEditor.tsx", "components/PlanEditor.tsx", "components/AssignTaskSheet.tsx", "components/PaymentSettings.tsx", "components/FieldOpSheet.tsx", "components/EightySix.tsx", "components/EventCopilot.tsx"]
+      .every((f) => {
+        // Every on is paired with its off in one if/else, switch by switch: a file with two switches
+        // (the payment screen) cannot pass on one switch's pair while the other says "on" both ways.
+        const t = code(read(f));
+        const feels = (t.match(/haptic\("toggle(On|Off)"\)/g) || []).length;
+        const pairs = (t.match(/if \([^;]*?\) haptic\("toggle(On|Off)"\); else haptic\("toggle(On|Off)"\);/g) || [])
+          .filter((p) => /toggleOn/.test(p) && /toggleOff/.test(p)).length;
+        return feels > 0 && feels === pairs * 2;
+      }));
+  // The signatures, each where its moment is: a new order on the pass, an order paid in the crew's hand,
+  // going live, a brew started. A ritual swapped for a plain feel is a moment that no longer says itself.
+  const crewPg = code(read("app/crew/page.tsx"));
+  ok("haptics: the signatures stay on their moments — alert with the chime (twice), paid on the crew's paid order, live on going live, start on a brew, paid on a pack settling",
+    (crewPg.match(/chime\(\); haptic\("alert"\);/g) || []).length === 2 && (crewPg.match(/haptic\("paid"\)/g) || []).length === 1
+    && /haptic\("live"\)/.test(code(read("components/crew/LiveControl.tsx"))) && /haptic\("start"\)/.test(code(read("components/AlertAction.tsx")))
+    && /isSettled\(cur\); \}\)\) haptic\("paid"\);/.test(code(read("components/MyPacks.tsx"))));
+
+  ok("haptics: compiled for the smoke run, and the audit runs with the others, right after the gesture audit",
+    /lib\/formGuard\.ts lib\/haptics\.ts --outDir \.smoke/.test(read("package.json")) && /node scripts\/gesture\.audit\.mjs && node scripts\/haptics\.audit\.mjs && /.test(read("package.json")));
+
+  // ── what only an iPhone needs (lib/ios, 2026-10-06) ──
+  // One home for "is this an iPhone" — the haptics fallback asks it rather than re-deriving it — and the
+  // fix for the focus zoom: an iPhone zoomed into every 15px field and stayed zoomed, cutting each
+  // screen off on the right (the offer letter's preview looked broken because of it).
+  const IOS = require("../.smoke/ios.js");
+  const iosSrc = code(read("lib/ios.ts")), shell = code(read("components/AppShell.tsx")), lay = read("app/layout.tsx");
+  const walkSrc = (d) => fs.readdirSync(path.join(__dirname, "..", d), { withFileTypes: true })
+    .flatMap((e) => (e.isDirectory() ? walkSrc(path.join(d, e.name)) : /\.(ts|tsx)$/.test(e.name) ? [path.join(d, e.name)] : []));
+  const uaHome = ["app", "components", "lib"].flatMap(walkSrc).filter((f) => /iP\(hone\|ad\|od\)/.test(read(f)));
+  ok("ios: one home for the iPhone check — haptics imports it, and no other file matches the user agent itself",
+    /import \{ isIPhoneLike \} from "\.\/ios";/.test(hl) && uaHome.length === 1 && uaHome[0] === path.join("lib", "ios.ts"));
+  ok("ios: the viewport's limit is swapped, not stacked — any maximum-scale goes, maximum-scale=1 is added once, the rest is kept in order",
+    IOS.withoutFocusZoom("width=device-width, initial-scale=1, maximum-scale=5, interactive-widget=resizes-content")
+      === "width=device-width, initial-scale=1, interactive-widget=resizes-content, maximum-scale=1"
+    && IOS.withoutFocusZoom(IOS.withoutFocusZoom("width=device-width, maximum-scale=5")) === "width=device-width, maximum-scale=1"
+    && IOS.withoutFocusZoom("width=device-width") === "width=device-width, maximum-scale=1");
+  ok("ios: the limit is set only on an iPhone, only when it differs, and off a browser it is a no-op",
+    /if \(typeof document === "undefined" \|\| !isIPhoneLike\(\)\) return;/.test(iosSrc) && /if \(meta\.content !== next\) meta\.content = next;/.test(iosSrc)
+    && (() => { try { IOS.holdFocusZoom(); return true; } catch { return false; } })());
+  ok("ios: every screen applies it, again after each navigation — and the layout still allows a pinch everywhere (maximum-scale 5)",
+    /import \{ holdFocusZoom \} from "@\/lib\/ios";/.test(read("components/AppShell.tsx")) && /useEffect\(\(\) => \{ holdFocusZoom\(\); \}, \[pathname\]\);/.test(shell)
+    && /maximumScale: 5,/.test(lay));
+
+  // ── the offer letter and the agreement rows on a phone (2026-10-06) ──
+  const css = read("app/globals.css"), od = read("components/OperatorDeal.tsx");
+  ok("offer letter: the toolbar wraps, its Print button sizes to its words, and on a phone the note takes its own line — not one word a line beside a full-width button",
+    /\.ofl-bar\{position:sticky;top:0;z-index:2;width:100%;display:flex;flex-wrap:wrap;[^}]*padding-top:max\(11px, env\(safe-area-inset-top\)\);/.test(css) && (css.match(/^\.ofl-bar\{/gm) || []).length === 1 && /\.ofl-bar \.btn-pri\{width:auto;flex:none;padding:10px 16px\}/.test(css)
+    && /@media \(max-width:560px\)\{ \.ofl-bar-note\{order:3;flex:1 0 100%;text-align:left\} \}/.test(css));
+  ok("offer: a note with an unbreakable word breaks anywhere rather than run past its card",
+    /\.ofr-tr-note\{[^}]*overflow-wrap:anywhere;min-width:0\}/.test(css) && /\.ofr-ap-note\{[^}]*overflow-wrap:anywhere;min-width:0\}/.test(css));
+  ok("agreements: a row is inset like its card, the city as wide as its word, the line under the name a wrapping row-subtitle (k-rsub), not the page-subtitle class",
+    /className="k-row tap od-row"/.test(od) && /<span className="k-rsub">\{isUntouchedDraft\(row\)/.test(od) && !/<span className="k-sub">/.test(od)
+    && /\.k-row\.od-row\{padding:13px 15px;align-items:flex-start\}/.test(css) && /\.od-row \.k-lead\{width:auto;min-width:64px;padding-top:3px\}/.test(css)
+    && /\.od-row \.k-rsub\{display:block;white-space:normal\}/.test(css));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

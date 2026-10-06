@@ -385,30 +385,38 @@ export const PROD_ROUTE = {
 // viewer once a product with photos is open, so it carries less of its own than it did. The stylesheet: the ask
 // card, the inbox's swipe rows, the pull-to-refresh ring, the edge-back's armed state and the toast's
 // action — one global sheet, as every route already shares.
+// 2026-10-06 (the haptics round): every route +305 to +822 bytes of script, every stylesheet +96.
+// Built 276ddf8 and this commit and gzipped what each route's HTML references (/privacy +795, /menu
+// +368, /shop +563, /crew +584). What rides in the shell now: the error feel on every error toast and
+// the cart's add, remove, up and down (components/AppProvider imports lib/haptics — the customer pages
+// already carried it, so /privacy, /terms, /scan, /architecture, /display, /academy, /offer and
+// /agreement pay its ~0.4 KB for the first time), and lib/ios: the one iPhone check and the focus-zoom
+// hold every screen runs, because an iPhone zoomed into every 15px field and stayed zoomed. Eleven
+// routes crossed their rounding line by 1 KB; the rest moved inside it.
 export const WEIGHT = {
   "/truck":                    { js: 283, css: 104, chunks: 15 },
   "/events":                   { js: 283, css: 104, chunks: 15 },
-  "/menu":                     { js: 267, css: 102, chunks: 15 },
+  "/menu":                     { js: 268, css: 102, chunks: 15 },
   "/reserve":                  { js: 291, css: 102, chunks: 16 },
   "/delivery":                 { js: 290, css: 102, chunks: 16 },
   "/3mpire":                   { js: 283, css: 102, chunks: 15 },
   "/craft":                    { js: 267, css: 102, chunks: 15 },
-  "/book":                     { js: 267, css: 102, chunks: 15 },
-  "/academy":                  { js: 315, css: 102, chunks: 15 },
+  "/book":                     { js: 268, css: 102, chunks: 15 },
+  "/academy":                  { js: 316, css: 102, chunks: 15 },
   "/office":                   { js: 276, css: 102, chunks: 15 },
-  "/scan":                     { js: 257, css: 102, chunks: 14 },
-  "/architecture":             { js: 267, css: 102, chunks: 14 },
+  "/scan":                     { js: 258, css: 102, chunks: 14 },
+  "/architecture":             { js: 268, css: 102, chunks: 14 },
   "/playbook":                 { js: 275, css: 102, chunks: 15 },
   "/driver":                   { js: 279, css: 104, chunks: 15 },
-  "/agreement":                { js: 265, css: 102, chunks: 14 },
-  "/offer":                    { js: 274, css: 102, chunks: 14 },
-  "/built/gt3-built-k7m9x4q2": { js: 256, css: 102, chunks: 14 },
+  "/agreement":                { js: 266, css: 102, chunks: 14 },
+  "/offer":                    { js: 275, css: 102, chunks: 14 },
+  "/built/gt3-built-k7m9x4q2": { js: 257, css: 102, chunks: 14 },
   "/display":                  { js: 258, css: 102, chunks: 14 },
   "/shop":                     { js: 295, css: 102, chunks: 16 },
   "/primal":                   { js: 268, css: 102, chunks: 15 },
-  "/privacy":                  { js: 255, css: 102, chunks: 13 },
-  "/terms":                    { js: 255, css: 102, chunks: 13 },
-  "/":                         { js: 273, css: 102, chunks: 15 },
+  "/privacy":                  { js: 256, css: 102, chunks: 13 },
+  "/terms":                    { js: 256, css: 102, chunks: 13 },
+  "/":                         { js: 274, css: 102, chunks: 15 },
 };
 
 export function weightVerdict(path, w, row = WEIGHT[path]) {
