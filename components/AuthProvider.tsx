@@ -6,6 +6,7 @@ import { supabase, supabaseEnabled } from "@/lib/supabase";
 import { writeViewerHint } from "@/lib/viewerHint";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import type { Role } from "@/lib/roles";
+import { publicOrigin } from "@/lib/native";
 
 export interface Profile {
   id: string;
@@ -165,11 +166,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     // Free-tier Supabase email sends a magic LINK (templates are locked without custom
     // SMTP). emailRedirectTo brings the user back to the app signed in; detectSessionInUrl
     // (set in lib/supabase) completes it. When Resend SMTP lands we can switch to a 6-digit code.
+    // publicOrigin (lib/native): the web's own address on the web, app.gt3pb.com in the iPhone app,
+    // whose own address (capacitor://localhost) means nothing to a mail app.
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: true,
-        emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+        emailRedirectTo: typeof window !== "undefined" ? publicOrigin() : undefined,
         data: displayName ? { display_name: displayName } : undefined,
       },
     });
@@ -216,7 +219,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       password,
       options: {
         data: displayName ? { display_name: displayName } : undefined,
-        emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+        emailRedirectTo: typeof window !== "undefined" ? publicOrigin() : undefined,
       },
     });
     if (error) return { error: error.message };
@@ -229,7 +232,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const resetPassword = useCallback<AuthCtx["resetPassword"]>(async (email) => {
     if (!supabase) return { error: "Sign-in isn't configured yet." };
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+      redirectTo: typeof window !== "undefined" ? publicOrigin() : undefined,
     });
     return error ? { error: error.message } : {};
   }, []);

@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import Gt3Mark from "@/components/Gt3Mark";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
+import { apiUrl } from "@/lib/native";
 
 // TRUCK DISPLAY — a full-screen, auto-rotating loop for a tablet or TV at the bar. Five scenes: the
 // live menu, the craft/chemistry teaser, a cleaned + anonymized guest review, the brand line, and a
@@ -43,7 +44,7 @@ export default function DisplayPage() {
 
   useEffect(() => {
     let live = true;
-    const load = () => fetch("/api/menu").then((r) => r.json()).then((d) => { if (live) setPrices(d.prices || {}); }).catch(() => {});
+    const load = () => fetch(apiUrl("/api/menu")).then((r) => r.json()).then((d) => { if (live) setPrices(d.prices || {}); }).catch(() => {});
     load();
     const t = setInterval(load, 5 * 60 * 1000); // this screen never reloads — keep the board fresh across a shift
     return () => { live = false; clearInterval(t); };

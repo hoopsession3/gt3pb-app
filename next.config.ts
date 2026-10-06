@@ -38,7 +38,32 @@ const securityHeaders = [
   { key: "Content-Security-Policy", value: csp },
 ];
 
+// THE IPHONE APP CALLS THE API FROM ANOTHER ORIGIN (2026-10-06, the iPhone round). The app's pages
+// are served by the phone itself — capacitor://localhost on iOS, https://localhost on Android — so
+// every /api call it makes is cross-origin, and the page may read the answer only if the route says
+// that origin may. This rule says so for exactly those two origins: matched whole (Next anchors the
+// pattern, so capacitor://localhost.evil.com is not it), echoed back, never a wildcard. A preflight
+// gets the same headers — Next answers OPTIONS for every route by itself. Nothing changes for the
+// web: its requests are same-origin and carry neither Origin. The routes keep checking the session
+// token as before; there are no cookies for another origin to ride on.
+const APP_ORIGINS = ["capacitor://localhost", "https://localhost"] as const;
+const appCors = {
+  source: "/api/:path*",
+  has: [{ type: "header" as const, key: "origin", value: `(?<origin>${APP_ORIGINS.join("|")})` }],
+  headers: [
+    { key: "Access-Control-Allow-Origin", value: ":origin" },
+    { key: "Access-Control-Allow-Methods", value: "GET, POST, OPTIONS" },
+    { key: "Access-Control-Allow-Headers", value: "Content-Type, Authorization" },
+    { key: "Access-Control-Max-Age", value: "600" },
+    { key: "Vary", value: "Origin" },
+  ],
+};
+
 const nextConfig: NextConfig = {
+  // The web build says it is the web (2026-10-06, the iPhone round), so lib/native APP_BUILD is decided
+  // when the bundle is made and every app-only branch — components/NativeBridge and the Capacitor
+  // plugins behind it — is dropped from the web's bundle rather than shipped and skipped.
+  env: { NEXT_PUBLIC_GT3_TARGET: "web" },
   // The crew console moved from /admin to /crew (it was never "admin" — it's where the crew
   // works). Permanent redirect keeps every old link alive: PWA shortcuts, bookmarks, and the
   // /admin?s=… links stored inside historical alerts (query strings are preserved).
@@ -55,8 +80,24 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
         ],
       },
+      appCors,
     ];
   },
 };
 
-export default nextConfig;
+// THE APP BUILD (2026-10-06, the iPhone round). `npm run build:app` (scripts/build.app.mjs) builds the
+// same screens as a static export for the iPhone app, with NEXT_PUBLIC_GT3_TARGET=app (lib/native
+// APP_BUILD). An export has no server, so headers() and redirects() do not exist in it: its CSP rides
+// in a <meta> tag instead (app/layout.tsx) — the same policy, plus the web's own address, where the
+// app's API calls go, and without frame-ancestors, which a <meta> tag cannot carry. Images are served
+// as they are (there is no image server either; the one next/image is already unoptimized).
+const appCsp = csp
+  .replace("connect-src 'self'", "connect-src 'self' https://app.gt3pb.com")
+  .split("; ").filter((d) => !d.startsWith("frame-ancestors")).join("; ");
+const appConfig: NextConfig = {
+  output: "export",
+  images: { unoptimized: true },
+  env: { NEXT_PUBLIC_GT3_APP_CSP: appCsp },
+};
+
+export default process.env.NEXT_PUBLIC_GT3_TARGET === "app" ? appConfig : nextConfig;

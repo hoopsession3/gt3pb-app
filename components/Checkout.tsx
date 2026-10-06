@@ -25,6 +25,7 @@ import Icon from "@/components/Icon";
 import { useIdemKey } from "./useIdemKey";
 import { payErrorText } from "@/lib/idempotency";
 import { haptic } from "@/lib/haptics";
+import { apiUrl } from "@/lib/native";
 
 export default function Checkout() {
   const { cart, inc, dec, toast, checkout, coOpen: open, closeCheckout: onClose } = useApp();
@@ -40,7 +41,7 @@ export default function Checkout() {
   const [prices, setPrices] = useState<Record<string, number>>({});
   // Prices for the displayed total (the actual charge is computed server-side).
   useEffect(() => {
-    fetch("/api/menu").then((r) => r.json()).then((d) => setPrices(d.prices || {})).catch(() => {});
+    fetch(apiUrl("/api/menu")).then((r) => r.json()).then((d) => setPrices(d.prices || {})).catch(() => {});
   }, []);
   const paymentRef = useRef<PaymentCardHandle>(null);
   // A Square idempotency key that stays stable across "Try again" taps for the SAME order, so an

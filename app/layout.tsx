@@ -4,6 +4,7 @@ import AuthProvider from "@/components/AuthProvider";
 import AppProvider from "@/components/AppProvider";
 import AppShell from "@/components/AppShell";
 import OfflineBanner from "@/components/OfflineBanner";
+import { APP_BUILD } from "@/lib/native";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://app.gt3pb.com"),
@@ -11,7 +12,8 @@ export const metadata: Metadata = {
   description: "Whole-food functional beverages — cold-extracted coffee, whole-coconut hydration, and slow-simmered broth, made to order. Order ahead, reserve a drop, and manage your membership.",
   applicationName: "GT3PB",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "GT3PB" },
-  manifest: "/manifest.webmanifest",
+  // The web app's install manifest; the iPhone app is installed from the App Store and has none.
+  ...(APP_BUILD ? {} : { manifest: "/manifest.webmanifest" }),
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
     apple: [{ url: "/apple-icon.png", sizes: "180x180" }],
@@ -35,6 +37,11 @@ export const viewport: Viewport = {
   // the Build button" bug).
   interactiveWidget: "resizes-content",
   themeColor: "#15140f",
+  // THE APP DRAWS EDGE TO EDGE (2026-10-06, the iPhone round). In the iPhone app the page runs under
+  // the status bar and the home indicator, as a native app does, and pads itself clear of them with
+  // the env(safe-area-inset-*) values app/globals.css already uses (31 places) — which a page only
+  // receives when it says viewport-fit=cover. The web's viewport is unchanged.
+  ...(APP_BUILD ? { viewportFit: "cover" as const } : {}),
 };
 
 export default function RootLayout({
@@ -43,6 +50,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* The iPhone app's security policy (next.config.ts: an export has no server to send one). */}
+        {APP_BUILD && process.env.NEXT_PUBLIC_GT3_APP_CSP ? <meta httpEquiv="Content-Security-Policy" content={process.env.NEXT_PUBLIC_GT3_APP_CSP} /> : null}
         {/* Stop iOS Safari from auto-inflating text (some calendar rows rendered huge on iPhone).
             This MUST live in a raw <style> — the CSS-module minifier strips `text-size-adjust`
             from globals.css, so the rule never reaches the browser from there. Inline it survives. */}

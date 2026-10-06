@@ -18,6 +18,7 @@ import { DRINKS, MENU, type DrinkId } from "@/lib/menu";
 import { PACK_SIZES, PACK_TAG, packTotal, dollars } from "@/lib/orderAhead";
 import { clickable } from "@/lib/a11y";
 import Icon from "@/components/Icon";
+import { apiUrl } from "@/lib/native";
 
 export default function MenuScreen() {
   const router = useRouter();
@@ -36,7 +37,7 @@ export default function MenuScreen() {
   const [prices, setPrices] = useState<Record<string, number>>({});
   // Prices come from Square Catalog (one source of truth across truck + app).
   useEffect(() => {
-    fetch("/api/menu").then((r) => r.json()).then((d) => setPrices(d.prices || {})).catch(() => {});
+    fetch(apiUrl("/api/menu")).then((r) => r.json()).then((d) => setPrices(d.prices || {})).catch(() => {});
   }, []);
   // This line used to re-derive money()'s exact rule by hand — trim the cents when they are .00,
   // show them when they are not — in a ternary with a modulo, and its own comment said it "matches

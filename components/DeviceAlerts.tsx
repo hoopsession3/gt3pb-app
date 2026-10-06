@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import { subscribePush } from "@/lib/push";
 import { useApp } from "./AppProvider";
 import GoLine from "./GoLine";
+import { APP_BUILD } from "@/lib/native";
 
 // ALERTS ON THIS DEVICE (2026-10-06, the settings round). "Turn on order alerts" was a full card at
 // the bottom of Live Ops, under the tasks, on every phone that had not said yes yet. It is a setting
@@ -45,7 +46,11 @@ const SAYS: Record<AlertPermission | "unknown", string> = {
   granted: "On. A push lands the moment a new order reaches the pass — even with the app in your pocket.",
   default: "Off. Get a push the moment a new order lands on the pass — even with the app in your pocket.",
   denied: "Blocked by this browser. Allow notifications for this site in the browser's settings, then come back here.",
-  unsupported: "This browser can't show notifications. On an iPhone, add the app to your Home Screen first.",
+  // The iPhone app (2026-10-06) has no web notifications to ask for; its own, native alerts are the
+  // next part of the app round. Until then it says so, rather than sending anyone to the Home Screen.
+  unsupported: APP_BUILD
+    ? "Alerts come to the app in its next update. Until then, the web app on this phone's Home Screen can ring."
+    : "This browser can't show notifications. On an iPhone, add the app to your Home Screen first.",
 };
 
 /** Settings › You: what this phone says, and the one tap that asks it. */

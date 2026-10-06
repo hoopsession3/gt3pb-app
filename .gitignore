@@ -43,3 +43,7 @@ next-env.d.ts
 
 # delivery artifacts (never commit)
 *.bundle
+
+# the iPhone app: the static export (npm run build:app) and its scratch copy of the tree
+/out/
+/.app-build/

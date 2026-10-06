@@ -13,9 +13,9 @@ import { isIPhoneLike } from "./ios";
 // That tick still plays on iPhones before iOS 26.5. Since iOS 26.5, WebKit (bug 309082) plays a
 // switch's haptic only when a finger flips it, so a switch flipped from code is silent there.
 // switchTick stays for the older phones — one tick for any feel, and nothing else depends on it.
-// Full iPhone haptics need the app wrapped as a native app, a decision pending with the owner. The
-// vocabulary is the seam: a native adapter maps each feel to UIKit's impact, selection or
-// notification feedback, and no call site changes. Which phone is an iPhone: lib/ios, its one home.
+// Full iPhone haptics need the app wrapped as a native app. The iPhone app (2026-10-06) is that: the
+// vocabulary was the seam, each feel's UIKit form is in the table below its pattern (THE IPHONE APP
+// FEELS THEM ALL), and no call site changed. Which phone is an iPhone: lib/ios, its one home.
 
 function switchTick() {
   if (typeof document === "undefined" || !document.body || !isIPhoneLike()) return;
@@ -66,7 +66,64 @@ const PATTERN: Record<Feel, number | readonly number[]> = {
 /** The table, read-only, for the tests and the audit. Nothing in the app plays a pattern itself. */
 export const HAPTIC_PATTERNS: Readonly<Record<Feel, number | readonly number[]>> = PATTERN;
 
+// THE IPHONE APP FEELS THEM ALL (2026-10-06, the iPhone round). Inside the app the phone's own haptic
+// engine is a call away, so every feel plays as UIKit's impact, selection or notification feedback —
+// the seam this file was written to leave. Each feel's iPhone form is in the one table below, beside
+// its vibration pattern above; components/NativeBridge (in the app build only) hands this file the
+// player for one step when the app starts. The web never has a player, and nothing changes for it.
+
+/** One step of a feel on an iPhone, `after` ms after the step before it. */
+export type UIKitStep =
+  | { kind: "selection"; after?: number }
+  | { kind: "impact"; style: "LIGHT" | "MEDIUM" | "HEAVY"; after?: number }
+  | { kind: "notification"; type: "SUCCESS" | "WARNING" | "ERROR"; after?: number };
+
+const UIKIT_STEPS: Record<Feel, readonly UIKitStep[]> = {
+  selection: [{ kind: "selection" }],
+  light: [{ kind: "impact", style: "LIGHT" }],
+  medium: [{ kind: "impact", style: "MEDIUM" }],
+  heavy: [{ kind: "impact", style: "HEAVY" }],
+  success: [{ kind: "notification", type: "SUCCESS" }],
+  warning: [{ kind: "notification", type: "WARNING" }],
+  error: [{ kind: "notification", type: "ERROR" }],
+  threshold: [{ kind: "selection" }],
+  release: [{ kind: "selection" }],
+  boundary: [{ kind: "impact", style: "MEDIUM" }],
+  toggleOn: [{ kind: "impact", style: "LIGHT" }],
+  toggleOff: [{ kind: "selection" }],
+  increase: [{ kind: "impact", style: "LIGHT" }],
+  decrease: [{ kind: "selection" }],
+  start: [{ kind: "impact", style: "MEDIUM" }, { kind: "impact", style: "LIGHT", after: 90 }],
+  live: [{ kind: "impact", style: "MEDIUM" }, { kind: "impact", style: "MEDIUM", after: 110 }, { kind: "impact", style: "HEAVY", after: 110 }],
+  paid: [{ kind: "notification", type: "SUCCESS" }],
+  alert: [{ kind: "notification", type: "WARNING" }, { kind: "notification", type: "WARNING", after: 300 }],
+};
+
+/** The iPhone table, read-only, for the tests. */
+export const HAPTIC_UIKIT: Readonly<Record<Feel, readonly UIKitStep[]>> = UIKIT_STEPS;
+
+type StepPlayer = (step: UIKitStep) => void;
+let nativePlayer: StepPlayer | null = null;
+
+/** The app's own haptic engine, one step at a time (components/NativeBridge). Null: the web path. */
+export function setNativeHaptics(play: StepPlayer | null): void {
+  nativePlayer = play;
+}
+
+function playNative(play: StepPlayer, feel: Feel): void {
+  let at = 0;
+  for (const step of UIKIT_STEPS[feel]) {
+    at += step.after ?? 0;
+    if (at === 0) play(step);
+    else setTimeout(() => { try { play(step); } catch { /* never worth an error */ } }, at);
+  }
+}
+
 export function haptic(feel: Feel): void {
+  if (nativePlayer) {
+    try { playNative(nativePlayer, feel); } catch { /* a feel is never worth an error */ }
+    return;
+  }
   // Not before the person has touched the page: a browser refuses a buzz it did not see a tap for
   // (Chrome logs the refusal as an error), and a swipe's first move is not yet a tap.
   if (typeof navigator !== "undefined" && navigator.userActivation && !navigator.userActivation.hasBeenActive) return;

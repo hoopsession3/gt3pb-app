@@ -67,5 +67,8 @@ jobs:
       # THE WHOLE GATE, BY ITS OWN NAME. Do not expand this into separate steps: a copied list is a
       # second definition of "verified" and it will drift from package.json the first time either
       # one changes. The log names whichever link failed.
-      - name: verify (test && audit && build && smoke:ui && smoke:authed)
+      # The last two links (2026-10-06, the iPhone round) build the iPhone app's copy of the screens
+      # and open it on three iPhones in Chromium (scripts/smoke.native.mjs); what needs a Mac is in
+      # ios.yml.
+      - name: verify (test && audit && build && smoke:ui && smoke:authed && build:app && smoke:native)
         run: npm run verify

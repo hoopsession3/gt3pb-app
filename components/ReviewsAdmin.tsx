@@ -9,6 +9,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
+import { apiUrl } from "@/lib/native";
 
 // STAFF REVIEW DESK — approve member feedback and add reviews pulled from Google / Instagram / the
 // feedback album. "Add" inserts pre-approved. Every row shows a live preview of exactly how it'll read
@@ -33,7 +34,7 @@ export default function ReviewsAdmin() {
     if (!r.body?.trim()) return;
     setBusyId(r.id);
     try {
-      const res = await fetch("/api/reviews/simplify", {
+      const res = await fetch(apiUrl("/api/reviews/simplify"), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: r.body }),
       });

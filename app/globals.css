@@ -146,8 +146,11 @@ p,.entry-why,.gl-uc,.k-sub{text-wrap:pretty}
 /* Skip link — off-screen until focused, then a pill at top-left that jumps to #body. */
 /* Visually hidden but available to screen readers (a11y: per-route h1 in AppShell). */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.skip-link{position:fixed;top:8px;left:8px;z-index:200;transform:translateY(-150%);background:var(--gold);color:#15120d;font-family:'Inter';font-weight:700;font-size:13px;padding:9px 14px;border-radius:var(--r-lg);box-shadow:0 8px 24px rgba(0,0,0,.4);transition:transform .16s ease}
-.skip-link:focus{transform:none;outline:2px solid var(--cream);outline-offset:2px}
+.skip-link{/* Hidden wholly above the screen, and without its shadow until it is wanted: the shadow
+   used to reach 23px down into every page from up there, a faint smudge at the top left
+   (scripts/smoke.native.mjs found it under the iPhone app's status bar). Focused, it sits below the
+   status bar on a phone that draws under one. */position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:8px;z-index:200;transform:translateY(calc(-100% - 8px - env(safe-area-inset-top,0px)));background:var(--gold);color:#15120d;font-family:'Inter';font-weight:700;font-size:13px;padding:9px 14px;border-radius:var(--r-lg);transition:transform .16s ease}
+.skip-link:focus{transform:none;box-shadow:0 8px 24px rgba(0,0,0,.4);outline:2px solid var(--cream);outline-offset:2px}
 /* The scroll region is keyboard-focusable (tabIndex 0, see AppShell) so a keyboard user can scroll a
    page with nothing else to focus. Its ring is INSET and quiet: visible to a keyboard user, and not
    a frame around the whole phone if a browser ever counts a tap on text as visible focus. */
@@ -476,7 +479,9 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .tag-soft{text-align:center;font-family:'Fraunces';font-style:italic;font-size:13px;color:color-mix(in srgb, var(--brand-cream) 46%, transparent);margin-top:8px}
 
 /* ===== BOOK (B2B hand-off CTA) ===== */
-.bookwrap{padding-top:6px}
+/* The screen's own padding with the top trimmed to 6px — the status bar's height kept in it (it was
+   dropped, and in the iPhone app the masthead sat under the clock: scripts/smoke.native.mjs). */
+.bookwrap{padding-top:calc(6px + env(safe-area-inset-top))}
 .bookcard{margin-top:22px;border-radius:var(--r-4xl);padding:24px;position:relative;overflow:hidden;
   background:#15120d;border:1px solid var(--line2);box-shadow:0 8px 22px rgba(0,0,0,.3)}
 .bookcard .eyb{font-family:'Inter';font-weight:600;letter-spacing:2px;text-transform:uppercase;font-size:10px;color:var(--gold2)}
@@ -1359,8 +1364,11 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 /* The same line when it is the truck's state (lib/ordering, 2026-10-04): it replaces the order prompt
    after the read lands, and holds the prompt's two phone lines so the menu below does not move. */
 .mast-state{min-height:2.42em}
-.menu-chips{position:sticky;top:0;z-index:6;display:flex;gap:8px;overflow-x:auto;padding:11px 0;margin-top:12px;background:#F4EFE3;border-bottom:1px solid rgba(34,31,24,.1)}
+.menu-chips{position:sticky;top:env(safe-area-inset-top,0px);z-index:6;display:flex;gap:8px;overflow-x:auto;padding:11px 0;margin-top:12px;background:#F4EFE3;border-bottom:1px solid rgba(34,31,24,.1)}
 .menu-chips::-webkit-scrollbar{display:none}
+/* A chip's jump lands its section below the chips, which stay stuck at the top (and below the status
+   bar of a phone that draws under one). */
+.menu [data-cat]{scroll-margin-top:calc(env(safe-area-inset-top,0px) + 60px)}
 .menu-chip{flex:0 0 auto;font-family:'Inter';font-weight:650;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:#7a5a1e;background:transparent;border:1px solid rgba(34,31,24,.18);border-radius:var(--r-4xl);padding:9px 15px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,border-color .15s,transform .1s}
 .menu-chip:not(.on):hover{border-color:rgba(34,31,24,.5);color:#221F18;background:rgba(34,31,24,.05)}
 .menu-chip:active{transform:scale(.96)}
@@ -2934,7 +2942,7 @@ h5.pr-h{font-size:12.5px;color:var(--cream-d)}
 /* Painted only while stuck: the page behind is a gradient (and grain, in the dark theme), so an
    always-opaque var(--bg) block showed as a lighter RECTANGLE with hard edges even at rest — one
    more box, and the first thing under the CALENDAR heading. */
-.cal-sticky{position:sticky;top:0;z-index:6;background:transparent;padding-top:4px}
+.cal-sticky{position:sticky;top:env(safe-area-inset-top,0px);z-index:6;background:transparent;padding-top:4px}
 /* Stuck = painted, full-bleed to the screen's edges so it reads as a toolbar, not a floating box.
    The component toggles .is-stuck from a 1px sentinel above the bar. A frosted backdrop-filter was
    tried first and dropped: it could not be verified here (headless Chromium paints no backdrop
@@ -3649,7 +3657,11 @@ body:has(.conc-sheet) .rail{display:flex}
    Curated surfaces give themselves a stacking context (position:relative+z-index:0) so the z-index:-1
    mark sits above the surface background but below all content. One mark per screen; opacity lives in
    the app's --line hairline register (you feel it before you see it). NOT global — opt-in per screen. */
-.screen.arrival,.screen.menu,.screen.arch,.screen#s-today{position:relative;z-index:0;overflow:hidden}
+/* clip, not hidden (2026-10-06): hidden made each of these screens a scroll container of its own, so
+   nothing inside could stick to the page's scroll — the menu's category chips (.menu-chips, sticky by
+   design) scrolled away with the page. clip crops the mark the same and leaves sticky alone; hidden
+   stays first for an engine without clip. */
+.screen.arrival,.screen.menu,.screen.arch,.screen#s-today{position:relative;z-index:0;overflow:hidden;overflow:clip}
 .wm{position:absolute;z-index:-1;pointer-events:none;background-repeat:no-repeat;background-position:center;background-size:contain;aspect-ratio:1184/1730}
 /* arrival (dark) — cream mark bleeding off the top-right, behind the hero statement */
 .wm--landing{top:-46px;right:-21%;width:74%;max-width:420px;opacity:.05;background-image:url(/brand/3_outline_cream.svg)}
@@ -5258,7 +5270,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .svc-enter-s{font-family:'Inter';font-size:11.5px;color:var(--cream-m)}
 .svc-full{position:fixed;inset:0;z-index:85;background:#0f0e0b;overflow-y:auto;padding:14px 16px calc(24px + env(safe-area-inset-bottom));overscroll-behavior:contain}
 .app.crew-day .svc-full{background:#f3efe6}
-.svc-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;background:inherit;padding:6px 0 10px;border-bottom:1px solid var(--line)}
+.svc-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;background:inherit;padding:calc(6px + env(safe-area-inset-top)) 0 10px;border-bottom:1px solid var(--line)}
 .svc-bar b{font-family:'Inter';font-weight:800;letter-spacing:2px;text-transform:uppercase;font-size:12px;color:var(--gold)}
 .svc-exit{background:transparent;border:1px solid var(--line2);border-radius:var(--r-pill);color:var(--cream);font-family:'Inter';font-weight:700;font-size:12.5px;padding:8px 14px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .app.crew-day .svc-bar b{color:#7a5a1e}
@@ -5956,7 +5968,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .legal-fine{font-size:11.5px;font-style:italic;color:var(--cream-d)}
 /* ── Blind-spot round (2026-08-01): consent microcopy, offline state, batch picker ── */
 .tel-consent{font-family:'Inter';font-size:10px;line-height:1.5;color:var(--cream-d);margin:4px 2px 0}
-.offline-bar{position:fixed;top:0;left:0;right:0;z-index:95;background:#3a2f16;color:#e8ddc2;border-bottom:1px solid color-mix(in srgb, var(--brand-gold2) 40%, transparent);font-family:'Inter';font-weight:600;font-size:12px;text-align:center;padding:8px 14px calc(8px + env(safe-area-inset-top) * 0)}
+.offline-bar{position:fixed;top:0;left:0;right:0;z-index:95;background:#3a2f16;color:#e8ddc2;border-bottom:1px solid color-mix(in srgb, var(--brand-gold2) 40%, transparent);font-family:'Inter';font-weight:600;font-size:12px;text-align:center;padding:calc(8px + env(safe-area-inset-top)) 14px 8px}
 .dops-batchsel{font-family:'DM Mono';font-size:11px;padding:6px 8px;border-radius:9px;border:1px solid var(--line2);background-color:transparent;color:var(--cream-m);max-width:150px}
 .dops-batchsel.set{border-color:rgba(184,144,47,.45);color:var(--gold2)}
 /* note rename (2026-08-01) — the quiet edit affordance the title never had */
