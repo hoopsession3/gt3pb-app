@@ -16,6 +16,11 @@ const eslintConfig = defineConfig([
     // in `npm test` fails, the folder stays — and the lint ratchet then counted 28 "new" problems
     // in compiled output (2026-10-02). A build artifact must not move the lint count.
     ".smoke/**",
+    // THE IPHONE APP (2026-10-06): its native project, which holds a copy of the export after
+    // `npx cap sync ios` (ios/App/App/public — git ignores it, the linter did not, and counted 6,157
+    // problems in minified output), and the build's own working copy while it builds.
+    "ios/**",
+    ".app-build/**",
   ]),
 
   // COMMONJS FILES ARE COMMONJS.
