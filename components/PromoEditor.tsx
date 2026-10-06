@@ -7,6 +7,7 @@ import { useAuth } from "./AuthProvider";
 import { SectionHeader } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import { haptic } from "@/lib/haptics";
 
 // SPLASH EDITOR (Studio) — the owner controls the marketing card the app opens to (promos, 0144).
 // Edit the copy + CTA, flip it live/off. The guest app shows the most recent active one, once a
@@ -60,7 +61,7 @@ export default function PromoEditor() {
               <input className="auth-input" value={d.cta_label ?? ""} onChange={(e) => setD({ ...d, cta_label: e.target.value })} placeholder="Button label" maxLength={40} />
               <input className="auth-input" value={d.cta_href ?? ""} onChange={(e) => setD({ ...d, cta_href: e.target.value })} placeholder="Button link — /delivery" maxLength={80} />
             </div>
-            <label className="prod-toggle"><input type="checkbox" checked={d.active} onChange={(e) => setD({ ...d, active: e.target.checked })} /> Show it to guests (live)</label>
+            <label className="prod-toggle"><input type="checkbox" checked={d.active} onChange={(e) => { if (e.target.checked) haptic("toggleOn"); else haptic("toggleOff"); setD({ ...d, active: e.target.checked }); }} /> Show it to guests (live)</label>
             <div className="st-log-btns">
               <button type="button" className="dops-mini" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save splash"}</button>
             </div>

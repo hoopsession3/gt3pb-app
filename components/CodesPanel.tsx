@@ -10,6 +10,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { InfoRow } from "@/components/kit";
 import { money, moneyPlain } from "@/lib/money";
+import { haptic } from "@/lib/haptics";
 
 // DISCOUNT CODES — the owner mints redeemable codes as data (member_benefits, scope='code'). A code
 // is a rule: kind (percent_off | price_override | free_refill) × target (whole order, the straight-
@@ -108,6 +109,7 @@ export default function CodesPanel() {
   };
 
   const toggle = async (r: CodeRow) => {
+    if (r.active) haptic("toggleOff"); else haptic("toggleOn");
     if (!supabase) return;
     const { error } = await supabase.from("member_benefits").update({ active: !r.active }).eq("id", r.id);
     if (error) { toast(`Couldn't update — ${error.message}`, "error"); return; }

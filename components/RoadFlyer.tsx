@@ -461,7 +461,7 @@ export default function RoadFlyer() {
       : f.place ? `Find us on the road — ${f.place}${f.date ? ` · ${f.date}` : ""}${f.time ? ` · ${f.time}` : ""}.` : "Find us on the road.";
     const { error } = await supabase.from("content_items").insert({ title: `${f.place || "Road"} — ${tile}`, kind: "post", caption, media: [{ url: mediaUrl, type: "image" }], media_url: mediaUrl, media_type: "image", created_by: user?.id ?? null, updated_by: user?.id ?? null });
     setBusy(false);
-    toast(error ? `Save failed — ${error.message}` : "Saved to the feed — schedule it in Board/Grid");
+    toast(error ? `Save failed — ${error.message}` : "Saved to the feed — schedule it in Board/Grid", error ? "error" : undefined);
   };
 
   const field = (k: keyof typeof f, label: string, ph: string) => (

@@ -5,7 +5,7 @@ import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
-import { haptic, HAPTIC } from "@/lib/haptics";
+import { haptic } from "@/lib/haptics";
 import { resolveVendor, type ResolveDecision, type VendorMatch } from "@/lib/vendorLink";
 import { createEventTask } from "@/lib/tasks";
 import VendorResolve from "./VendorResolve";
@@ -111,7 +111,7 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
           if (opp) await supabase.from("meeting_notes").update({ opportunity_id: (opp as { id: string }).id, vendor_id: vid }).eq("id", noteId);
         }
       }
-      setDone((s) => ({ ...s, [i]: true })); haptic(HAPTIC.success); toast(`${TYPE_LABEL[op.type] ?? "Op"} created`);
+      setDone((s) => ({ ...s, [i]: true })); haptic("success"); toast(`${TYPE_LABEL[op.type] ?? "Op"} created`);
     } catch { toast("Couldn't create that one", "error"); }
   };
 
@@ -164,7 +164,7 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
                   <button type="button" className="ops-cancel" onClick={() => setPending((p) => ({ ...p, [i]: false }))} aria-label="Cancel"><Icon name="close" /></button>
                 </>
               ) : (
-                <button type="button" className="ops-create" onClick={() => { haptic(HAPTIC.tap); setPending((p) => ({ ...p, [i]: true })); }}>Create</button>
+                <button type="button" className="ops-create" onClick={() => { haptic("medium"); setPending((p) => ({ ...p, [i]: true })); }}>Create</button>
               )}
             </div>
           </div>

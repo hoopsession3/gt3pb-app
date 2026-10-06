@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
-import { haptic, HAPTIC } from "@/lib/haptics";
+import { haptic } from "@/lib/haptics";
 import type { MyFlag } from "@/lib/useMyAlerts";
 import Icon from "@/components/Icon";
 
@@ -69,7 +69,7 @@ export default function AlertAction({ flag, meId, onResolved }: {
       if (kind === "task_assigned" || kind === "task_due") {
         const { error } = await supabase.from("event_tasks").update({ done: true, done_by: meId, done_at: new Date().toISOString() }).eq("id", flag.subject_id);
         if (error) throw error;
-        haptic(HAPTIC.success);
+        haptic("success");
       } else if (kind === "brew_start_window" || kind === "brew_start_now" || kind === "brew_at_risk") {
         const startIso = new Date().toISOString();
         // Mirror BrewPlanner.startBrew's status + alert-flag reset so the ladder re-arms cleanly.
@@ -79,7 +79,7 @@ export default function AlertAction({ flag, meId, onResolved }: {
           alerted_overextract: false, alerted_hold_soon: false, alerted_hold_expired: false,
         }).eq("id", flag.subject_id);
         if (error) throw error;
-        haptic(HAPTIC.arm);
+        haptic("start");
       } else if (kind === "delivery_held") {
         // Collected at GT3PB is the order fulfilled: "delivered". This wrote "picked_up" until
         // 2026-10-04 — a word delivery_orders.status has never had (0139's check: received · brewed
@@ -95,7 +95,7 @@ export default function AlertAction({ flag, meId, onResolved }: {
           if (now.error) throw now.error;
           if ((now.data as { status: string } | null)?.status !== "delivered") throw new Error("It isn't held for pickup any more.");
         }
-        haptic(HAPTIC.success);
+        haptic("success");
       }
       // refund_needed / pack_moved / reservation_new / content_approved / ops_incident are
       // acknowledge-only from here (the money/other-system move happens outside the app); the ack

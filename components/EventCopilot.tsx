@@ -10,7 +10,7 @@ import { useAuth, roleOf } from "./AuthProvider";
 import { useOperatorSection } from "./OperatorNav";
 import VenuePick from "./VenuePickLazy";
 import type { VenueFill } from "@/lib/venues";
-import { haptic, HAPTIC } from "@/lib/haptics";
+import { haptic } from "@/lib/haptics";
 
 // EVENT COPILOT (chief-of-staff, guided) — say it in plain words, the agent reads it into a draft, you
 // review/complete the card, and it creates the event OR truck stop at the venue picked from the book
@@ -86,7 +86,7 @@ export default function EventCopilot() {
         const { error } = await supabase.from("events").insert({ title: draft.title.trim().slice(0, 160), day: draft.date || null, category: "event", location_text: venue || null, vendor_id: venueId });
         if (error) throw error;
       }
-      haptic(HAPTIC.success);
+      haptic("success");
       toast(`${draft.kind === "stop" ? "Truck stop" : "Event"} created`);
       setOpen(false);
       setSection(draft.kind === "stop" ? "prep" : "plan");
@@ -117,8 +117,8 @@ export default function EventCopilot() {
           <label className="prod-f" style={{ marginTop: 8 }}><span>Where</span><input value={draft.venue ?? ""} onChange={(e) => set("venue", e.target.value || null)} placeholder="Host / place" /></label>
           {draft.kind === "stop" && (
             <div className="oa-toggles" style={{ marginTop: 10 }}>
-              <button type="button" role="switch" aria-checked={draft.order_ahead} className={`oa-toggle${draft.order_ahead ? " on" : ""}`} onClick={() => set("order_ahead", !draft.order_ahead)}><Icon name="clock" /> Order ahead<span>{draft.order_ahead ? "On" : "Off"}</span></button>
-              <button type="button" role="switch" aria-checked={draft.pickup} className={`oa-toggle${draft.pickup ? " on" : ""}`} onClick={() => set("pickup", !draft.pickup)}><Icon name="package" /> Pickup<span>{draft.pickup ? "On" : "Off"}</span></button>
+              <button type="button" role="switch" aria-checked={draft.order_ahead} className={`oa-toggle${draft.order_ahead ? " on" : ""}`} onClick={() => { if (draft.order_ahead) haptic("toggleOff"); else haptic("toggleOn"); set("order_ahead", !draft.order_ahead); }}><Icon name="clock" /> Order ahead<span>{draft.order_ahead ? "On" : "Off"}</span></button>
+              <button type="button" role="switch" aria-checked={draft.pickup} className={`oa-toggle${draft.pickup ? " on" : ""}`} onClick={() => { if (draft.pickup) haptic("toggleOff"); else haptic("toggleOn"); set("pickup", !draft.pickup); }}><Icon name="package" /> Pickup<span>{draft.pickup ? "On" : "Off"}</span></button>
             </div>
           )}
           <div className="prod-actions" style={{ marginTop: 12 }}>

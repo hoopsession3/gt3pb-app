@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { useAuth } from "./AuthProvider";
 import { useSiteCopy } from "@/lib/copy";
 import { scrollToTop } from "@/lib/appScroll";
+import { haptic } from "@/lib/haptics";
 
 // The nav tells the truth about who you are. Members: Today first — their home. Guests: the truck
 // IS home (first tab), and the last slot is the door ("Join") instead of a Today tab that would
@@ -65,9 +66,10 @@ export default function BottomNav() {
       {TABS.map((tab) => {
         const on = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
         return (
-          // The tab for the screen you are on, tapped again, goes back to its top (lib/appScroll).
+          // The tab for the screen you are on, tapped again, goes back to its top (lib/appScroll). Another
+          // tab is a choice changed: the selection tick (2026-10-05, the haptics round).
           <Link key={tab.key} href={tab.href} className={`tab${on ? " on" : ""}`} aria-current={on ? "page" : undefined} data-for={tab.for}
-            onClick={(e) => { if (pathname === tab.href) { e.preventDefault(); scrollToTop(); } }}>
+            onClick={(e) => { if (pathname === tab.href) { e.preventDefault(); scrollToTop(); } else if (!on) haptic("selection"); }}>
             <span className="ti">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 {tab.icon}

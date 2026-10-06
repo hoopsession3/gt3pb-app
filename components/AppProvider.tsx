@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { useAvailability } from "@/lib/availability";
+import { haptic } from "@/lib/haptics";
 
 type ToastVariant = "success" | "error" | "info";
 /** One thing the toast can do — "Undo" after a swipe cleared a flag (2026-10-05, the gesture round). */
@@ -70,7 +71,12 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     setToastAction(null);
   }, []);
   // A toast with something to do stays long enough to reach for it.
+  //
+  // AN ERROR IS FELT (2026-10-05, the haptics round). Every error toast in the app comes through here,
+  // so this is the one home for the error feel: a screen that says it with toast() is not to buzz it
+  // again. An error shown inline, in the screen's own words, buzzes where it is set.
   const toast = useCallback((msg: string, variant: ToastVariant = "success", opts?: { action?: ToastAction }) => {
+    if (variant === "error") haptic("error");
     setToastMsg(msg);
     setToastVariant(variant);
     setToastAction(opts?.action ?? null);
@@ -116,7 +122,15 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const qtyOf = useCallback((id: DrinkId) => cart[id] ?? 0, [cart]);
 
   // bump = toggle in/out (menu tap); inc/dec adjust quantity (checkout / detail).
+  //
+  // WHAT THE TAP DID, IN THE HAND (2026-10-05, the haptics round). Adding a drink is a firmer tap than
+  // taking one out, so bump has to know which it is before it asks for the update — and an updater
+  // must stay pure (React may run it twice). It reads the cart as last rendered from this mirror, kept
+  // in an effect: a ref is never written while rendering.
+  const cartNow = useRef(cart);
+  useEffect(() => { cartNow.current = cart; }, [cart]);
   const bump = useCallback((id: DrinkId) => {
+    if (cartNow.current[id]) haptic("light"); else haptic("medium");
     setCart((prev) => {
       const next = { ...prev };
       if (next[id]) delete next[id];
@@ -124,14 +138,14 @@ export default function AppProvider({ children }: { children: React.ReactNode })
       return next;
     });
   }, []);
-  const inc = useCallback((id: DrinkId) => setCart((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 })), []);
-  const dec = useCallback((id: DrinkId) => setCart((prev) => {
+  const inc = useCallback((id: DrinkId) => { haptic("increase"); setCart((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 })); }, []);
+  const dec = useCallback((id: DrinkId) => { haptic("decrease"); setCart((prev) => {
     const next = { ...prev };
     const q = (next[id] ?? 0) - 1;
     if (q <= 0) delete next[id];
     else next[id] = q;
     return next;
-  }), []);
+  }); }, []);
 
   const checkout = useCallback((opts?: { silentToast?: boolean }) => {
     const count = Object.values(cart).reduce((s, n) => s + n, 0);

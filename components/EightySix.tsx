@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useApp } from "./AppProvider";
-import { haptic, HAPTIC } from "@/lib/haptics";
+import { haptic } from "@/lib/haptics";
 import { SectionHeader } from "@/components/kit";
 
 // THE 86 BOARD — sell out of an item from where the rush actually happens (the Now screen, right
@@ -24,9 +24,10 @@ export default function EightySix() {
   useRealtimeTable("products", load);
 
   const flip = async (p: Prod) => {
-    haptic(HAPTIC.tap);
-    if (!supabase) return;
     const next = !p.sold_out;
+    // A chip is a switch (aria-pressed): 86'ing an item turns it on, bringing it back turns it off.
+    if (next) haptic("toggleOn"); else haptic("toggleOff");
+    if (!supabase) return;
     setRows((r) => r.map((x) => (x.id === p.id ? { ...x, sold_out: next } : x))); // optimistic
     const { error } = await supabase.from("products").update({ sold_out: next }).eq("id", p.id);
     if (error) { toast(`Couldn't flip ${p.name} — ${error.message}`, "error"); load(); return; }

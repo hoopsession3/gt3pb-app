@@ -24,6 +24,7 @@ import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import Icon from "@/components/Icon";
 import { useIdemKey } from "./useIdemKey";
 import { payErrorText } from "@/lib/idempotency";
+import { haptic } from "@/lib/haptics";
 
 export default function Checkout() {
   const { cart, inc, dec, toast, checkout, coOpen: open, closeCheckout: onClose } = useApp();
@@ -53,6 +54,10 @@ export default function Checkout() {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // A PAYMENT THAT DID NOT GO THROUGH IS FELT (2026-10-05, the haptics round). The card's own errors
+  // and the charge's are said here, inline, not in a toast — so they buzz from here, once each time
+  // one appears. What this sheet says with toast() already buzzes from AppProvider.
+  useEffect(() => { if (err) haptic("error"); }, [err]);
 
   // "Ready in ~8 min" is only true when there's a truck to make it. One shared rule (useOrderingOpen
   // → lib/ordering, on the read /api/checkout makes too): outside the window the sheet offers the
@@ -158,6 +163,7 @@ export default function Checkout() {
     const capturedLines = [...lines], capturedName = customer, capturedTotal = totalCents;
     const p = promised(data ?? null);
     trackFunnel("order", "pickup");
+    haptic("success");
     toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ${p.readyFrom ? "made when we open" : "ready in ~8 min"}`);
     checkout({ silentToast: true }); // clears cart — this toast already fired above
     setDone({ paid: false, total: capturedTotal, lines: capturedLines, name: capturedName, ...p });
@@ -170,6 +176,9 @@ export default function Checkout() {
     setErr("");
     if (!customer) { setErr("Add a name for pickup"); return; }
     if (!ready) return;
+    // The weight of committing money — felt once the tap is going to charge, not on a tap the guards
+    // turned away (a missing name buzzes as the error it is).
+    haptic("heavy");
     setBusy(true);
     try {
       await enableAlerts();
@@ -189,6 +198,7 @@ export default function Checkout() {
       setBusy(false);
       if (!res.ok) { setErr(payErrorText(data.error)); return; }
       trackFunnel("order", "paid");
+      haptic("paid");
       const capturedLines = [...lines], capturedName = customer;
       const p = promised(data);
       toast(data.warn || `Paid ${total} — order in. ${p.readyFrom ? readyWords({ state: "ahead", readyFrom: p.readyFrom }) : "Ready in ~8 min."}`);

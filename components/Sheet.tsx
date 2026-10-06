@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import Icon from "./Icon";
 import type { SheetMotionProps } from "./SheetMotion";
+import { haptic } from "@/lib/haptics";
 
 // The pull and the sideways walk load with the first sheet that opens (components/SheetMotion's header).
 const SheetMotion = dynamic<SheetMotionProps>(() => import("./SheetMotion"), { ssr: false });
@@ -162,18 +163,24 @@ export default function Sheet({
   useEffect(() => () => { if (closeT.current) clearTimeout(closeT.current); if (keptT.current) clearTimeout(keptT.current); }, []);
 
   // A sheet that cannot be left right now says so with a small give, the way a held iPhone sheet does.
+  // FELT AS WELL AS SEEN (2026-10-05, the haptics round): the give is the boundary feel — nothing
+  // further that way. The pull's own refusal (components/SheetMotion) says the same.
   const nudge = useCallback(() => {
+    haptic("boundary");
     panelRef.current?.animate?.([{ transform: "translateY(0)" }, { transform: "translateY(7px)" }, { transform: "translateY(0)" }], { duration: 260, easing: "ease-out" });
   }, []);
   // Forms inside the sheet that say they hold unsaved changes (useUnsaved) — read when someone leaves.
   const inner = useRef(new Map<symbol, boolean>());
   const unsaved = useCallback(() => dirty || [...inner.current.values()].some(Boolean), [dirty]);
+  // "Discard your changes?" is asked from here, whichever door asked it — a tap outside, Escape, the X,
+  // the pull, the sideways walk — and it arrives with the warning feel: stop, something would be lost.
+  const askFor = useCallback((go: () => void) => { haptic("warning"); setAsk(() => go); }, []);
   /** THE ONE DOOR OUT — see the header. `go` is how this particular way out leaves. */
   const leave = useCallback((go: () => void) => {
     if (!dismissible) { nudge(); return; }
-    if (unsaved()) { setAsk(() => go); return; }
+    if (unsaved()) { askFor(go); return; }
     go();
-  }, [dismissible, unsaved, nudge]);
+  }, [dismissible, unsaved, nudge, askFor]);
   const attempt = useCallback(() => leave(requestClose), [leave, requestClose]);
   const door = useMemo(() => ({
     leave,
@@ -237,7 +244,6 @@ export default function Sheet({
 
   // ── the pull (components/SheetMotion) ──
   const live = !!host && phase === "open";
-  const askFor = useCallback((go: () => void) => setAsk(() => go), []);
 
   if (phase === "closed" || !host) return null;
   const out = phase === "closing" ? (gone ? " out gone" : " out") : "";

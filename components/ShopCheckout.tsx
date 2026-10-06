@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { authedFetch } from "@/lib/authedFetch";
 import { squareClientReady } from "@/lib/square";
 import PaymentCard, { type PaymentCardHandle } from "@/components/PaymentCard";
@@ -13,6 +13,7 @@ import { payErrorText } from "@/lib/idempotency";
 import { US_STATES } from "@/lib/usAddress";
 import { variantLabel, type CartLine } from "@/lib/shopCart";
 import { useCustomerKnown, useKnownField, invalidateCustomerKnown } from "./useCustomerKnown";
+import { haptic } from "@/lib/haptics";
 
 // THE MERCH CHECKOUT — the cart, where it ships, and the card (0273). Moved out of components/Shop.tsx
 // on 2026-10-04 and loaded only when a shopper opens it (Shop warms it as soon as the cart has
@@ -27,6 +28,9 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The card's errors and the charge's are said inline, under the card — and felt from here, once
+  // each time one appears (2026-10-05, the haptics round). Nothing on this screen toasts.
+  useEffect(() => { if (err) haptic("error"); }, [err]);
   // WHERE IT SHIPS STARTS FROM WHAT WE KNOW (lib/customerKnown, 2026-10-04): a member's last shipping
   // label, else the door their last delivery went to — the full name a parcel needs, not the first
   // name they signed up with. Each field is theirs the moment they type in it. A guest types it, and
@@ -61,6 +65,7 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
       });
       const data = await r.json();
       if (!r.ok) { setErr(payErrorText(data.error)); setBusy(false); return; }
+      haptic("paid");
       invalidateCustomerKnown();   // the next form starts from this order
       onDone(data.warn, data.emailed === true);
     } catch { setErr("Something went wrong — you were not charged twice; check your email or try again."); setBusy(false); }

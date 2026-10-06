@@ -370,14 +370,16 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra, people
   return (
     <div className={`prod${open ? " open" : ""}`}>
       <div className="k-rows">
-        <button type="button" className="k-row tap" onClick={onToggle} aria-expanded={open} style={{ width: "100%" }}>
+        {/* The row is laid out as a card's first line (`od-row`, 2026-10-06): inset like the card's
+            body, the city as wide as its word, the line under the name wrapping instead of squeezing. */}
+        <button type="button" className="k-row tap od-row" onClick={onToggle} aria-expanded={open} style={{ width: "100%" }}>
           <span className="k-lead">{MARKET_LABEL[d.market]}</span>
           <span className="k-bd">
             <span className="k-nm">{row.operator_name}</span>
             {/* Which share is which, in words (lib/operatorDeal splitWords) — and a draft nobody has
                 touched says so, with the day it was started, so two of them are never two
                 identical rows again. */}
-            <span className="k-sub">{isUntouchedDraft(row)
+            <span className="k-rsub">{isUntouchedDraft(row)
               ? <>Blank — never filled in · started {dayWithDate(row.created_at)}</>
               : <>{TIER[toTier(row.tier)].label} · {splitWords({ operatorPct: row.operator_pct, royaltyPct: row.royalty_pct, marketPct: row.market_pct })}</>}</span>
           </span>

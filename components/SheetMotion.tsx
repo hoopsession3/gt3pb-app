@@ -3,6 +3,7 @@
 import { useRef, type RefObject } from "react";
 import { follow, held, settle, useGesture } from "./useGesture";
 import { pageTurn, rubber, sheetCloses } from "@/lib/gesture";
+import { haptic } from "@/lib/haptics";
 
 // THE SHEET'S PULL — components/Sheet's motion, loaded with the first sheet that opens (2026-10-05, the
 // gesture round). Every page carries the sheet; not every visit opens one, and the finger-following
@@ -75,6 +76,10 @@ export default function SheetMotion({ panel: panelRef, scrim: scrimRef, body, as
     end: (d, cancelled) => {
       const h = grab.current.h || panelRef.current?.getBoundingClientRect().height || 1;
       grab.current.h = 0;
+      // A held sheet let go past the line refuses to leave: it gives back with the boundary feel, as
+      // Sheet's nudge does for a tap outside (2026-10-05, the haptics round). Short of the line it was
+      // not asked to leave, and says nothing.
+      if (!cancelled && !dismissible && sheetCloses(d.dy, d.vy, h)) haptic("boundary");
       if (cancelled || !sheetCloses(d.dy, d.vy, h) || !dismissible) { springBack(); return; }
       if (unsaved()) { springBack(); ask(requestClose); return; }
       // Leave at the finger's speed: the faster the flick, the shorter the rest of the trip.
