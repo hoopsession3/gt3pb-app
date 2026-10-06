@@ -325,7 +325,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
         {live?.is_live && <button className="adm-btn ghost" onClick={pause}>Go offline</button>}
       </div>}
       {/* The cup-ordering dial (0137) sat in that card until 2026-10-06 (the settings round). It lives
-          in Settings › Ordering & payments now (components/crew/CupOrderingDial): only an owner or an
+          in Settings › Business › Ordering & delivery now (components/crew/CupOrderingDial): only an owner or an
           admin can save it, and every manager could see it here — an event manager's tap read
           "saved" while the database changed nothing. Route keeps one line to it, for those who can. */}
       {admin && <GoLine to="settings" anchor="set-dial">Cup-ordering dial</GoLine>}
