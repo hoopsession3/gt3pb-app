@@ -22,6 +22,7 @@ import { clickable } from "@/lib/a11y";
 import { useSiteCopy } from "@/lib/copy";
 import { money, moneyPlain, moneyRound } from "@/lib/money";
 import { isSettled } from "@/lib/settled";
+import { publicOrigin } from "@/lib/native";
 
 const RING = 232; // 2πr for r=37, matches prototype stroke-dasharray
 
@@ -101,7 +102,7 @@ function ReferralCard({ code }: { code: string }) {
       });
   }, [user]);
 
-  const link = typeof window !== "undefined" ? `${window.location.origin}/?ref=${encodeURIComponent(code)}` : "";
+  const link = typeof window !== "undefined" ? `${publicOrigin()}/?ref=${encodeURIComponent(code)}` : "";
 
   const share = async () => {
     const payload = { title: "GT3 Performance Bar", text: `Join me on GT3 — use code ${code} and we both get $5.`, url: link };
