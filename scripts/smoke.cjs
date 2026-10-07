@@ -5659,6 +5659,45 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("office: the customer sees when an invoice is due, and 'paid' once it is — it said the database's 'open' for ever",
     /\.select\("id, amount_cents, status, issued_at, terms, due_at"\)/.test(office) && /`due \$\{new Date\(`\$\{v\.due_at\}T12:00:00`\)/.test(office));
 
+  // ── a client sees their account and cannot rewrite it (2026-10-07, 0354) ──
+  // A signed-in client could write any column of their own office account from the browser — net 30
+  // terms, any jug count — and create a net-30 account the weekly run billed; an Atlanta client could
+  // not read theirs at all. scripts/db.officeaccess.test.mjs proves the database side as each person.
+  {
+    const m354 = read("supabase/migrations/0354_a_client_reads_its_account_and_cannot_rewrite_it.sql");
+    const gen354 = (m354.match(/create or replace function public\.generate_office_route[\s\S]*?end \$\$;/) || [""])[0];
+    ok("office access: /office changes the weekly order through set_office_standing, and makes the old write only while that function is not there yet",
+      /supabase\.rpc\("set_office_standing", \{ p_account: acct\.id, p_active: p\.standing_active \?\? null, p_gallons: p\.standing_gallons \?\? null \}\)/.test(office)
+      && /if \(error && \(await import\("@\/lib\/schemaSkew"\)\)\.isMissingFunction\(error\)\) \{\s*const old = await supabase\.from\("business_accounts"\)\.update\(p\)\.eq\("id", acct\.id\)\.select\("id"\);\s*error = old\.error \?\? \(old\.data\?\.length \? null : error\);/.test(office));
+    ok("office access: under the minimum the toast is the database's own sentence — /office shows it for the code 0354 refuses with",
+      /toast\(error\.code === "22023" \? error\.message : "Couldn't save — try again", "error"\)/.test(office)
+      && /raise exception 'The minimum is % gallons a week\.', floor_gal using errcode = '22023';/.test(m354));
+    // Who still writes an office account: the server's booking route (service role), the crew's jug
+    // count on the office route, and /office's write while 0354 is unpasted. Nothing else.
+    const writers = [];
+    const walkWriters = (d) => {
+      for (const e of fs.readdirSync(path.join(__dirname, "..", d), { withFileTypes: true })) {
+        const rel = d + "/" + e.name;
+        if (e.isDirectory()) { walkWriters(rel); continue; }
+        if (/\.tsx?$/.test(e.name) && /from\("business_accounts"\)\s*\.(?:update|insert|upsert)\(/.test(read(rel))) writers.push(rel);
+      }
+    };
+    walkWriters("app"); walkWriters("components"); walkWriters("lib");
+    ok("office access: only the booking route, the crew's jug count and /office's pre-0354 write touch an office account",
+      writers.sort().join(",") === "app/api/office/route.ts,app/office/page.tsx,components/OfficeOrders.tsx", writers);
+    ok("office access: 0354 swaps the client's FOR ALL for a read, passes clients through the city filter, and ends an erased person's weekly order",
+      /drop policy if exists "biz acct own" on public\.business_accounts;/.test(m354)
+      && /create policy "biz acct own read" on public\.business_accounts\s+for select using \(user_id = \(select auth\.uid\(\)\)\);/.test(m354)
+      && /or not public\.is_staff\(\)/.test(m354)
+      && /before update of user_id on public\.business_accounts/.test(m354)
+      && /revoke all on function public\.set_office_standing\(uuid, boolean, numeric\) from public, anon;/.test(m354));
+    ok("office access: the weekly run prices from Settings — the price /office quotes — not the per-city copy nothing writes",
+      /from public\.live_status where id = 1/.test(gen354) && !/m\.office_price_cents/.test(gen354));
+    ok("office settings: a minimum under 3 gallons is refused here and by the database — every booking failed on it",
+      /const mn = Math\.max\(3, parseInt\(min, 10\) \|\| OFFICE\.minGallons\);/.test(code(read("components/OfficeSettings.tsx")))
+      && /check \(office_min_gallons >= 3\) not valid/.test(m354));
+  }
+
   // ── the report, the sheet, the wiring ──
   const rep = read("components/Reports.tsx");
   ok("sales: the cash taken at the window is said on its own — the part of revenue that is in a till — and only once the column exists",
