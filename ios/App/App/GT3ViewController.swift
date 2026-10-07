@@ -12,6 +12,13 @@ final class GT3ViewController: CAPBridgeViewController {
     override func router() -> Router {
         return ExportRouter()
     }
+
+    /// The app's own plugin (GT3Device.swift): what the phone does for a page — save a file, print, add
+    /// an event to the calendar or a pass to Wallet. Capacitor finds the plugins it installs from
+    /// node_modules by itself; one that lives in the app is registered here, before the first page loads.
+    override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(GT3DevicePlugin())
+    }
 }
 
 struct ExportRouter: Router {

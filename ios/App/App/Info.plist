@@ -71,5 +71,9 @@
     <string>GT3 shares the truck's location with customers while you run Live, and only while the app is open.</string>
     <key>UIStatusBarStyle</key>
     <string>UIStatusBarStyleLightContent</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>GT3 saves an image to your photos only when you choose Save Image.</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>GT3 adds an event or a stop to your calendar only when you tap Add to calendar.</string>
   </dict>
 </plist>
