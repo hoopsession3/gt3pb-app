@@ -165,7 +165,8 @@ export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string
     // AN INVITE TO SOMEONE WHO ALREADY HAS AN ACCOUNT NEVER ARRIVES (2026-10-04, the form audit):
     // invites are claimed at sign-up only. customers.email_norm finds an account by its email —
     // a customer's is brought on instead; someone already on the crew is said so.
-    const { data: acct } = await supabase.from("customers").select("user_id").eq("email_norm", inviting).not("user_id", "is", null).limit(1);
+    // A failed lookup is not "no account": the invite goes ahead, and says it could not check.
+    const { data: acct, error: lookErr } = await supabase.from("customers").select("user_id").eq("email_norm", inviting).not("user_id", "is", null).limit(1);
     const uid = ((acct as { user_id: string | null }[] | null) ?? [])[0]?.user_id ?? null;
     if (uid) {
       setBusy(false);
@@ -178,6 +179,7 @@ export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string
     const letter = await sendLetter({ kind: "invite", email: inviting });
     setBusy(false);
     setDone({ kind: "invite", email: inviting, role: roleLabel(role), letter });
+    if (lookErr) toast("Couldn't check whether that email already has an account — if it does, bring them on from this box instead.", "error");
     setInviting(null); setQ("");
     load();
   };
