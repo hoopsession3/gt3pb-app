@@ -152,7 +152,8 @@ await stage(db);
   ok("3 · …their own orders", orders.rows.length === 1 && orders.rows[0].id === ATL_ORDER, orders);
   const inv = await as(db, ATL_CLIENT, `select amount_cents from public.invoices`);
   ok("3 · …and their own invoices", inv.rows.length === 1 && inv.rows[0].amount_cents === 22500, inv);
-  const gv = await as(db, GV_CLIENT, `select count(*)::int n from public.business_orders`);
+  // (their own may exist: resuming in section 2 makes their next delivery, 0356)
+  const gv = await as(db, GV_CLIENT, `select count(*)::int n from public.business_orders where business_id is distinct from $1`, [GV_ACCT]);
   ok("3 · a client still sees no one else's orders", gv.rows[0]?.n === 0, gv);
   const op = await as(db, GV_OPERATOR, `select market from public.business_accounts`);
   ok("3 · a Greenville operator still cannot read Atlanta's accounts (0291 stands for staff)",
@@ -167,13 +168,13 @@ await stage(db);
 {
   await db.query(`update public.live_status set office_price_cents = 5200 where id = 1`);
   await db.query(`update public.markets set office_price_cents = 4500 where slug in ('greenville', 'atlanta')`);
-  const made = await as(db, OWNER, `select public.generate_office_route('2026-10-19') n`);
+  const made = await as(db, OWNER, `select public.generate_office_route('2031-03-03') n`);
   ok("4 · the weekly run makes the standing orders", made.rows[0]?.n === 2, made);
-  const prices = (await db.query(`select distinct price_per_gallon_cents p from public.business_orders where delivery_date = '2026-10-19'`)).rows.map((r) => r.p);
+  const prices = (await db.query(`select distinct price_per_gallon_cents p from public.business_orders where delivery_date = '2031-03-03'`)).rows.map((r) => r.p);
   ok("4 · priced from Settings (52.00), not the per-city copy (45.00)", prices.length === 1 && prices[0] === 5200, prices);
-  const again = await as(db, OWNER, `select public.generate_office_route('2026-10-19') n`);
+  const again = await as(db, OWNER, `select public.generate_office_route('2031-03-03') n`);
   ok("4 · a second run adds nothing", again.rows[0]?.n === 0, again);
-  const notStaff = await as(db, GV_CLIENT, `select public.generate_office_route('2026-10-26') n`);
+  const notStaff = await as(db, GV_CLIENT, `select public.generate_office_route('2031-03-10') n`);
   ok("4 · a client cannot run it", notStaff.error !== null, notStaff);
 }
 
@@ -185,7 +186,7 @@ await stage(db);
   ok("5 · …the company's record stays", row.company === "Gwen Co", row);
   const alert = await val(db, `select count(*)::int n, max(category) c from public.alerts where kind = 'office_standing_orphaned' and subject_id = $1`, [GV_ACCT]);
   ok("5 · …and the crew is told, once", alert.n === 1 && alert.c === "order", alert);
-  const made = await as(db, OWNER, `select public.generate_office_route('2026-10-26') n`);
+  const made = await as(db, OWNER, `select public.generate_office_route('2031-03-10') n`);
   ok("5 · the next weekly run makes nothing for it", made.rows[0]?.n === 1, made);
   // By any path — a staff member's own edit too, run as PostgREST runs them (role authenticated). The
   // trigger function is closed to callers, and Postgres asks no EXECUTE of a trigger when it fires.
