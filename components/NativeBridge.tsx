@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { isNativeApp, lessonHref, nativePlatform, WEB_ORIGIN } from "@/lib/native";
 import { setNativeHaptics, type UIKitStep } from "@/lib/haptics";
+import { saveFromUrl, setNativeDevice, type GT3DevicePlugin } from "@/lib/deviceActions";
 import { scrollToTop } from "@/lib/appScroll";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./AuthProvider";
@@ -32,6 +33,10 @@ import "./NativeBridge.css";
 //     does a link to a page only the web serves; a maps, phone, mail or text link goes to the phone's
 //     own app, as it always would.
 //   · HAPTICS: every feel plays through the phone's haptic engine (lib/haptics UIKIT table).
+//   · SAVE, SHARE, PRINT, ADD TO THE CALENDAR OR TO WALLET use the phone's own sheets (lib/deviceActions
+//     says which, and why the web's ways do nothing here): the share sheet, and the app's own plugin,
+//     GT3Device (native/ios/GT3Device.swift). A link that saves a file — <a download>, a post's photo —
+//     hands the file to the share sheet.
 //   · SIGNED IN STAYS SIGNED IN: Supabase refreshes the session on a timer, and a phone freezes
 //     timers in the background, so the timer stops when the app goes away and starts when it comes
 //     back — Supabase's own advice for apps.
@@ -113,11 +118,12 @@ export default function NativeBridge() {
     document.documentElement.dataset.native = nativePlatform();
 
     (async () => {
-      const [{ SplashScreen }, { Browser }, { App }, { Haptics, ImpactStyle, NotificationType }, { SystemBars, SystemBarsStyle }] = await Promise.all([
+      const [{ SplashScreen }, { Browser }, { App }, { Haptics, ImpactStyle, NotificationType }, { Share }, { SystemBars, SystemBarsStyle, registerPlugin }] = await Promise.all([
         import("@capacitor/splash-screen"),
         import("@capacitor/browser"),
         import("@capacitor/app"),
         import("@capacitor/haptics"),
+        import("@capacitor/share"),
         import("@capacitor/core"),
       ]);
       if (cancelled) return;
@@ -131,6 +137,17 @@ export default function NativeBridge() {
         else void Haptics.selectionStart().then(() => Haptics.selectionChanged()).then(() => Haptics.selectionEnd());
       });
       undo.push(() => setNativeHaptics(null));
+
+      // Save, share, print, add to the calendar or to Wallet: the phone's own sheets (lib/deviceActions).
+      const device = registerPlugin<GT3DevicePlugin>("GT3Device");
+      setNativeDevice({
+        keepFile: (o) => device.keepFile(o),
+        printPage: (o) => device.printPage(o),
+        addEvent: (o) => device.addEvent(o),
+        addPass: (o) => device.addPass(o),
+        share: (o) => Share.share(o),
+      });
+      undo.push(() => setNativeDevice(null));
 
       // The status bar's text follows the page under it: looked at once the new screen has painted,
       // and again when its entrance has settled.
@@ -195,11 +212,18 @@ export default function NativeBridge() {
       window.addEventListener("statusTap", onStatusTap);
       undo.push(() => window.removeEventListener("statusTap", onStatusTap));
 
-      // Links out — and links to a page only the web serves: an in-app browser sheet.
+      // Links out — and links to a page only the web serves: an in-app browser sheet. A link that saves a
+      // file (<a download>: a post's photo) would go nowhere in a web view; its file goes to the share sheet.
       const onClick = (e: MouseEvent) => {
         if (e.defaultPrevented || e.button !== 0) return;
         const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
-        if (!a || a.hasAttribute("download")) return;
+        if (!a) return;
+        if (a.hasAttribute("download")) {
+          if (!/^https:\/\//i.test(a.href)) return;
+          e.preventDefault();
+          void saveFromUrl(a.href, a.getAttribute("download") || undefined);
+          return;
+        }
         const to = opensOutside(a.href);
         if (!to) return;
         e.preventDefault();

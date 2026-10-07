@@ -8,6 +8,8 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { localToday } from "@/lib/dates";
 import Icon from "@/components/Icon";
+import { saveFile } from "@/lib/deviceActions";
+import { APP_BUILD } from "@/lib/native";
 
 // ROAD FLYER — the locked GT3 house graphics, drawn on a canvas so they're pixel-identical every
 // time. A five-slide set (Announce · Menu · Sub-menu · Details · Photo) that reads as ONE luxury
@@ -442,12 +444,12 @@ export default function RoadFlyer() {
   useEffect(() => { draw(); }, [draw]);
 
   const toBlob = () => new Promise<Blob | null>((res) => canvasRef.current?.toBlob(res, "image/png"));
+  // A download on the web; the share sheet in the iPhone app — Save Image, Instagram, AirDrop (lib/deviceActions).
   const download = async () => {
     await draw(); const blob = await toBlob();
     if (!blob) { toast("Export failed — try a different photo.", "error"); return; }
-    const url = URL.createObjectURL(blob); const a = document.createElement("a");
-    a.href = url; a.download = `gt3-${THEMES[tpl].id}-${tile}-${(f.place || "stop").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`;
-    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
+    const how = await saveFile(`gt3-${THEMES[tpl].id}-${tile}-${(f.place || "stop").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`, blob);
+    if (how === "failed") toast("Export failed — try again.", "error");
   };
   const saveToFeed = async () => {
     if (!supabase) return; setBusy(true);
@@ -506,7 +508,7 @@ export default function RoadFlyer() {
       )}
       <canvas ref={canvasRef} width={W} height={H} className="rf-canvas" />
       <div className="rf-actions">
-        <button type="button" className="rf-dl ghost" onClick={download}>Download</button>
+        <button type="button" className="rf-dl ghost" onClick={download}>{APP_BUILD ? "Save or share" : "Download"}</button>
         <button type="button" className="rf-dl" onClick={saveToFeed} disabled={busy}>{busy ? "Saving…" : <><Icon name="star" /> Save to feed</>}</button>
       </div>
     </div>

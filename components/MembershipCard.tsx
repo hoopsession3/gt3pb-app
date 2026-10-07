@@ -5,9 +5,11 @@ import QRCode from "qrcode";
 import { useAuth } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import Gt3Mark from "@/components/Gt3Mark";
-import StatusCard from "@/components/StatusCard";
+import MemberCard from "@/components/MemberCard";
 import Icon from "@/components/Icon";
-import { apiUrl, publicOrigin } from "@/lib/native";
+import { APP_BUILD, publicOrigin } from "@/lib/native";
+import { authedFetch } from "@/lib/authedFetch";
+import { addToWallet } from "@/lib/deviceActions";
 
 // GT3 MEMBERSHIP CARD — a premium, scannable member card. The QR encodes a link to the operator
 // scan page keyed to this member (referral_code, or user id as fallback), so at the truck a crew
@@ -23,7 +25,9 @@ export default function MembershipCard() {
   const [flexOpen, setFlexOpen] = useState(false);
   const code = profile?.referral_code || user?.id || "";
   const appleReady = process.env.NEXT_PUBLIC_APPLE_WALLET === "1";
-  const googleReady = process.env.NEXT_PUBLIC_GOOGLE_WALLET === "1";
+  // Not in the iPhone app: Google Wallet does not exist on an iPhone, and Apple refuses an app that
+  // points to another phone platform's (App Review Guideline 2.3.10).
+  const googleReady = process.env.NEXT_PUBLIC_GOOGLE_WALLET === "1" && !APP_BUILD;
 
   useEffect(() => {
     if (!code || typeof window === "undefined") return;
@@ -37,22 +41,21 @@ export default function MembershipCard() {
   const pts = Math.max(0, profile.points || 0);
   const inCard = pts % GOAL;
 
+  // Safari opens the downloaded pass in Wallet; the iPhone app hands it to Wallet's own Add sheet
+  // (lib/deviceActions addToWallet), where a download would go nowhere.
   const addApple = async () => {
     setBusy("apple");
     try {
-      const res = await fetch(apiUrl("/api/wallet/pass"));
+      const res = await authedFetch("/api/wallet/pass");
       if (!res.ok) throw new Error();
-      const blob = await res.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob); a.download = "gt3-membership.pkpass"; a.click();
-      URL.revokeObjectURL(a.href);
-    } catch { /* surfaced by the button */ }
+      if ((await addToWallet(await res.blob())) === "failed") throw new Error();
+    } catch { toast("Couldn't add your card to Apple Wallet — try again", "error"); }
     setBusy("");
   };
   const addGoogle = async () => {
     setBusy("google");
     try {
-      const res = await fetch(apiUrl("/api/wallet/google"));
+      const res = await authedFetch("/api/wallet/google");
       const data = res.ok ? await res.json() : null;
       if (data?.saveUrl) window.location.href = data.saveUrl;
       else toast("Couldn't open Google Wallet — try again", "error");
@@ -77,7 +80,7 @@ export default function MembershipCard() {
       </div>
       <div className="mp-foot">Scan at the truck to earn your stamp · 10th is on us</div>
       <button type="button" className="mp-flex" onClick={() => setFlexOpen(true)}><Icon name="star" /> Show off your status <Icon name="externalLink" /></button>
-      <StatusCard open={flexOpen} onClose={() => setFlexOpen(false)} />
+      <MemberCard open={flexOpen} onClose={() => setFlexOpen(false)} />
       {(appleReady || googleReady) && (
         <div className="mp-wallets">
           {appleReady && <button type="button" className="mp-wallet" onClick={addApple} disabled={!!busy}>{busy === "apple" ? "Preparing…" : "Add to Apple Wallet"}</button>}
