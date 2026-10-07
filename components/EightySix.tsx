@@ -39,7 +39,7 @@ export default function EightySix() {
   return (
     <div className="adm-sec">
       <SectionHeader label="86 board" />
-      {outCount > 0 && <span className="adm-pill due">{outCount} out</span>}
+      {outCount > 0 && <span className="k-count due">{outCount} out</span>}
       <div className="es-note">Tap what you&rsquo;ve run out of — the live menu updates instantly, orders for it are refused, and everything resets at 4am.</div>
       <div className="es-row">
         {rows.map((p) => (

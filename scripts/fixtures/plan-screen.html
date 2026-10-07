@@ -47,12 +47,19 @@
       <h1 class="op-head-t">Plan</h1>
     </div>
   </div>
-  <div class="grp-toggle" role="tablist">
-    <button type="button" role="tab" class="grp-seg on">Plan</button>
-    <button type="button" role="tab" class="grp-seg">Money</button>
-    <button type="button" role="tab" class="grp-seg">Customers</button>
-    <button type="button" role="tab" class="grp-seg">Team</button>
-    <button type="button" role="tab" class="grp-seg">Notes</button>
+  <!-- The lane's sections on the kit's segmented control (2026-10-07), as it paints before
+       components/controls.tsx has measured its thumb: the chosen option fills itself. -->
+  <div class="k-seg-wrap fill lane-tabs mb-3.5" data-from="components/controls.tsx app/crew/page.tsx">
+    <div class="k-seg-scroll">
+      <div class="k-seg fill" role="tablist" aria-label="Business">
+        <span class="k-seg-thumb" aria-hidden="true"></span>
+        <button type="button" role="tab" aria-selected="true" class="k-seg-opt on">Plan</button>
+        <button type="button" role="tab" aria-selected="false" class="k-seg-opt">Money</button>
+        <button type="button" role="tab" aria-selected="false" class="k-seg-opt">Customers</button>
+        <button type="button" role="tab" aria-selected="false" class="k-seg-opt">Team</button>
+        <button type="button" role="tab" aria-selected="false" class="k-seg-opt">Notes</button>
+      </div>
+    </div>
   </div>
 
   <!-- The section body is script-focused on every section switch (opBodyRef.focus()). The

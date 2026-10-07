@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { Children, Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useApp } from "@/components/AppProvider";
 import { SectionHeader, InfoRow } from "@/components/kit";
+import { Segmented, IconButton } from "@/components/controls";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
 import { SENIORITY, roleLabel, tierOf, toRole, canOf, type Role, type Tier } from "@/lib/roles";
 import { raiseAlertClient } from "@/lib/clientAlerts";
@@ -536,12 +537,12 @@ function Kitchen() {
           same precedent as ReadinessAgent's redundant "Readiness" header being cut where a
           crew-group divider directly above already said it. The mute toggle + active count are
           real controls (not a title), so they're kept, right-aligned in a bare wrapper. Unlike
-          .adm-prep-view (which has its own margin-left:auto), neither .adm-pill nor .kds-mute
+          .adm-prep-view (which has its own margin-left:auto), neither .k-count nor .kds-mute
           does, so the wrapper reproduces the rest of .k-sec-r's own layout too (align-items:center,
           gap:8px) rather than just justifyContent, so this doesn't lose the vertical centering or
           the pill↔button spacing the two had inside the old SectionHeader's right slot. */}
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-        {active.length > 0 && <span className="adm-pill">{active.length} active</span>}
+        {active.length > 0 && <span className="k-count">{active.length} active</span>}
         <button type="button" className="kds-mute" onClick={toggleMute} aria-pressed={muted}>{muted ? "🔇 Muted" : <><Icon name="bell" /> Sound</>}</button>
       </div>
 
@@ -983,7 +984,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
       {dropSheet && <DropSheet onClose={() => setDropSheet(false)} />}
       {reviewPost && <ContentApprovalSheet contentId={reviewPost.id} meName={meName} meId={userId} onClose={() => setReviewPost(null)} onActioned={() => { ack(reviewPost.alert); setReviewPost(null); }} />}
       <SectionHeader label={title} right={<>
-        {mine.length > 0 && <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>}
+        {mine.length > 0 && <span className={`k-count${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>}
         {mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearEvery()}>Clear all</button>}
         {prefsDoor}
       </>} />
@@ -1596,7 +1597,7 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
 
   return (
     <div className="adm-sec" id="my-day-tasks">
-      <SectionHeader label="My tasks" right={<span className={`adm-pill${crit || over ? " due" : ""}`}>{tasks.length}{over ? ` · ${over} overdue` : crit ? ` · ${crit} critical` : ""}</span>} />
+      <SectionHeader label="My tasks" right={<span className={`k-count${crit || over ? " due" : ""}`}>{tasks.length}{over ? ` · ${over} overdue` : crit ? ` · ${crit} critical` : ""}</span>} />
       {sorted.map((t) => (
         <div key={t.id} className={`mytask${t.critical ? " crit" : isOver(t) ? " crit" : t.warn ? " warn" : ""}`}>
           <button type="button" className="task-check" onClick={() => complete(t)} aria-label={`Mark done: ${t.label}`}>
@@ -2420,8 +2421,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     <div className="adm-sec adm-prep">
       <button className="adm-prep-back" onClick={onBack}>‹ All prep</button>
       <SectionHeader label={name ?? "…"} annotation="prep" right={<>
-        {isEvent && ev?.is_live && <span className="adm-pill due">LIVE</span>}
-        {!isEvent && <span className="adm-pill">Location</span>}
+        {isEvent && ev?.is_live && <span className="k-count due">LIVE</span>}
+        {!isEvent && <span className="k-count">Location</span>}
       </>} />
       {/* Identity / date / place / status — managed right here, so a stop or event is one screen
           end to end. The wrapper id is the scoped "Days to go" KPI tile's drill target. */}
@@ -2993,7 +2994,7 @@ function MeetingNotes() {
 
   return (
     <div className="adm-sec">
-      <SectionHeader label="Notes" right={<span className="adm-pill">{notes.length}</span>} />
+      <SectionHeader label="Notes" right={<span className="k-count">{notes.length}</span>} />
       <div className="h-sub note-intro">Pick who sees each one (<Icon name="lock" /> me · <Icon name="team" /> team · <Icon name="partners" /> team&nbsp;+&nbsp;comments). Follow-ups land in My&nbsp;Tasks; <Icon name="sparkles" /> summarize turns a transcript into the note. Notes grow — <b>＋&nbsp;add</b> anytime; nothing is ever overwritten.</div>
 
       <button type="button" className="note-new" onClick={() => setComposing(true)}>✎ New note</button>
@@ -3649,11 +3650,11 @@ function Bookings() {
       >
         {() => (
           <>
-      <SectionHeader label="Inbox · booking requests" annotation="each one becomes an event, a pipeline account, or a decline" right={open > 0 ? <span className="adm-pill">{open} new</span> : undefined} />
+      <SectionHeader label="Inbox · booking requests" annotation="each one becomes an event, a pipeline account, or a decline" right={open > 0 ? <span className="k-count">{open} new</span> : undefined} />
       {reqs.map((r) => (
         <div className={`adm-req${r.status === "new" ? " new" : ""}`} key={r.id}>
           <div className="adm-member-top">
-            <b>{r.name ?? "—"}{r.event_date && <span className="adm-pill" title={`Requested event date: ${r.event_date}`}>Event {relativeDay(r.event_date)}</span>}</b>
+            <b>{r.name ?? "—"}{r.event_date && <span className="k-count ml-2" title={`Requested event date: ${r.event_date}`}>Event {relativeDay(r.event_date)}</span>}</b>
             <span className="adm-ref">{[r.headcount ? `${r.headcount} ppl` : null, `submitted ${relativeDay(r.created_at)}`].filter(Boolean).join(" · ")}</span>
           </div>
           <div className="meta">
@@ -3880,8 +3881,8 @@ function Subscribers() {
         return (
           <div className="adm-sec">
             <SectionHeader label="Subscribers" right={<>
-              {active.length > 0 && <span className="adm-pill">{active.length} active</span>}
-              {dueSoon > 0 && <span className="adm-pill due">{dueSoon} due soon</span>}
+              {active.length > 0 && <span className="k-count">{active.length} active</span>}
+              {dueSoon > 0 && <span className="k-count due">{dueSoon} due soon</span>}
             </>} />
             <div className="k-rows">
               {ordered.map((s) => {
@@ -4479,7 +4480,7 @@ function EventHUD({ onGoEvents }: { onGoEvents?: () => void }) {
   const netUp = recon.actualNetCents >= 0;
   return (
     <div className="adm-sec adm-hud">
-      <SectionHeader label={ev.title} right={<span className="adm-pill due">LIVE</span>} />
+      <SectionHeader label={ev.title} right={<span className="k-count due">LIVE</span>} />
       {/* One hero mid-service — sales — and one quiet line. The full plan-vs-actual story
           (ROI, break-even, plan totals) lives in Money → Per-event P&L, not on the Now screen. */}
       <div className="adm-hud-hero"><b>{moneyRound(stats.cents)}</b><span>in sales</span></div>
@@ -5110,7 +5111,7 @@ function SubInterest() {
         const byPack = (k: string) => rows.filter((r) => r.pack_size === k).length;
         return (
           <div className="adm-sec">
-            <SectionHeader label="Subscription interest" right={<span className="adm-pill">{rows.length}</span>} />
+            <SectionHeader label="Subscription interest" right={<span className="k-count">{rows.length}</span>} />
             <div className="meta" style={{ marginBottom: 10 }}>6-pack · {byPack("6")} &nbsp;|&nbsp; 12-pack · {byPack("12")} &nbsp;|&nbsp; 18-pack · {byPack("18")}</div>
             <div className="k-rows">
               {rows.map((r, i) => (
@@ -5167,7 +5168,7 @@ function OrdersHistory() {
               items: o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · "),
               total: moneyPlain(o.total_cents), status: o.status, paid: ledgerWord(o),
             })))}>Export CSV</button>
-            <SectionHeader label="Order history" right={done > 0 ? <span className="adm-pill">{done} completed</span> : undefined} />
+            <SectionHeader label="Order history" right={done > 0 ? <span className="k-count">{done} completed</span> : undefined} />
             <input className="adm-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name · order # · item · amount" aria-label="Search order history" />
             {term && <div className="h-sub" style={{ margin: "2px 2px 10px" }}>{shown.length} match{shown.length === 1 ? "" : "es"}</div>}
             <div className="k-rows">
@@ -5945,28 +5946,32 @@ export default function AdminPage() {
   return (
     <CrumbProvider>
     <section className="screen admin">
+      {/* THE HEADER, ONE KIT (2026-10-07, the pill round). Ryan's My Day at 9:17: five controls, five
+          recipes — the mode switch as 10px mono words, a 32px outlined bell, Jump and Guide as 26px
+          outlined pills in two colours, Back as a 38px red circle on the right, the loudest thing on
+          the screen. Now the way back leads the row, quiet; the mode is a switch that looks like one;
+          search, the guide and the inbox are three equal round buttons, the inbox's count ringed on it.
+          Every one is 44px to the thumb (components/kit.tsx, app/globals.css "PILLS, ONE KIT"). */}
       <div className="toprow">
-        {/* Mode switch — you're in Crew; tap Customer view to drop to the customer app ("/").
-            Leaving is remembered (lib/mode.ts), so the app opens on the customer side next time;
-            arriving here is remembered below, so it opens here until you leave again. */}
-        <div className="modesw" role="group" aria-label="View mode">
-          <span className="modesw-seg on" aria-current="true">Crew</span>
-          <button type="button" className="modesw-seg" onClick={() => { rememberMode("customer"); router.push("/"); }}>Customer view</button>
-        </div>
-        <div className="toprow-actions">
-          {/* Inbox — the one place everything that needs you rolls up (flags + needs-you), from any screen. */}
-          <button type="button" className="crew-bell" onClick={() => setInboxOpen(true)} aria-label={hdrFlags.length ? `Inbox — ${hdrFlags.length} for you` : "Inbox"}>
-            <span aria-hidden><Icon name="bell" /></span>{hdrFlags.length > 0 && <span className={`crew-bell-b${hdrCrit ? " crit" : ""}`}>{hdrFlags.length}</span>}
-          </button>
-          {/* Jump — touch entry to the command palette (⌘K on desktop; a tap target on mobile). */}
-          <button type="button" className="crew-jump" onClick={() => window.dispatchEvent(new Event("gt3-open-cmdk"))} aria-label="Jump to a section, recent, or action"><span aria-hidden><Icon name="search" /></span> Jump<kbd className="crew-jump-k" aria-hidden>⌘K</kbd></button>
-          {/* Section guide — what each section is for + jump there. */}
-          <button type="button" className="crew-guide" onClick={() => setGuideOpen(true)} aria-haspopup="dialog"><span aria-hidden><Icon name="info" /></span> Guide</button>
+        <div className="toprow-lead">
           {/* Back = the previous section within crew mode, shown only when there is one (2026-10-04).
               With no history it used to become "Exit Crew Mode" — a back arrow that flipped the
-              device into the customer app — beside the "Customer view" switch that already does
-              that, and labelled as what it is. */}
-          {canGoBack && <button type="button" className="pf" aria-label="Back" onClick={() => back()}>‹</button>}
+              device into the customer app — beside the Customer switch that already does that. */}
+          {canGoBack && <IconButton icon="chevronLeft" label="Back" onClick={() => back()} />}
+          {/* Mode switch — you're in Crew; Customer drops to the customer app ("/"). Leaving is
+              remembered (lib/mode.ts), so the app opens on the customer side next time; arriving here
+              is remembered below, so it opens here until you leave again. */}
+          <Segmented kind="choice" size="sm" label="View mode" value="crew"
+            options={[{ key: "crew", label: "Crew" }, { key: "customer", label: "Customer", title: "Customer view — the app as a customer sees it" }]}
+            onChange={() => { rememberMode("customer"); router.push("/"); }} />
+        </div>
+        <div className="toprow-actions">
+          {/* Jump — touch entry to the command palette (⌘K on a keyboard). */}
+          <IconButton icon="search" label="Jump to a section, recent, or action" hint="⌘K" onClick={() => window.dispatchEvent(new Event("gt3-open-cmdk"))} />
+          {/* Section guide — what each section is for + jump there. */}
+          <IconButton icon="info" label="Section guide" aria-haspopup="dialog" onClick={() => setGuideOpen(true)} />
+          {/* Inbox — the one place everything that needs you rolls up (flags + needs-you), from any screen. */}
+          <IconButton icon="bell" label={hdrFlags.length ? `Inbox — ${hdrFlags.length} for you` : "Inbox"} badge={hdrFlags.length} crit={hdrCrit > 0} onClick={() => setInboxOpen(true)} />
         </div>
       </div>
       {guideOpen && <SectionGuide allowed={allowed} current={sec} onGo={setSection} onClose={() => setGuideOpen(false)} />}
@@ -5992,12 +5997,12 @@ export default function AdminPage() {
 
       {/* Secondary toggle — the ACTIVE LANE's sections (a section can live in two lanes — prep is
           Service's and Events' — so the tapped tab, tracked as groupId, wins the ambiguity). */}
+      {/* One track, the section you are in on a thumb that slides to the one you tap (2026-10-07, the
+          pill round) — three outlined pills before, the chosen one filled. The row shares its width
+          equally and scrolls when a lane's names will not fit (the larger text sizes). */}
       {lane.members.length >= 2 && (
-        <div className="grp-toggle" role="tablist" aria-label={lane.label}>
-          {lane.members.map((m: OpSection) => (
-            <button key={m} type="button" role="tab" aria-selected={sec === m} className={`grp-seg${sec === m ? " on" : ""}`} onClick={() => inLane(m)}>{SECTION_LABEL[m]}</button>
-          ))}
-        </div>
+        <Segmented fill className="lane-tabs mb-3.5" label={lane.label} value={sec}
+          options={lane.members.map((m: OpSection) => ({ key: m, label: SECTION_LABEL[m] }))} onChange={(m) => inLane(m)} />
       )}
 
       {/* SWIPE BETWEEN TABS (components/SwipePager, 2026-10-05): a sideways swipe on the section turns

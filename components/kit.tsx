@@ -12,6 +12,11 @@ import Gt3Mark from "@/components/Gt3Mark";
 //   InfoRow       lead · body · trailing — a stop and an event
 //                 are the same row; only the trailing changes
 //   ClosingBeat   every page ends on purpose (mark + sig)
+//   Segmented, IconButton — the kit's controls, in
+//                 components/controls.tsx (a file of their own so
+//                 a page that shows none carries none of their code)
+// Pills are the kit's too (2026-10-07): .k-count beside words,
+// .k-badge on an icon — app/globals.css "PILLS, ONE KIT".
 // Buttons are CSS-only tiers: btn-pri (max ONE per screen),
 // btn-sec, btn-ter. EmptyState stays its own component: use it
 // for a screen's primary "nothing to do" moment (My Day, Team,

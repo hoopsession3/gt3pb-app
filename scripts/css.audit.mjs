@@ -34,12 +34,17 @@
 //                       'P1'…'P4' in the database and .pipe-pri.p1 on the screen. What a selector puts
 //                       inside :not(), :is(), :where() or [attr] is not a class it needs. 316 rules,
 //                       parts of 13 more and 4 keyframes styled nothing on 2026-10-07.
+//   9. ONE PILL         a control rounded to a pill, or a round button, is the kit's — .k-seg, .k-icon-btn,
+//                       .k-badge, .k-count (app/globals.css "PILLS, ONE KIT", components/controls.tsx). Ryan's My
+//                       Day header was five controls in five recipes; the house held 162 pill rules in 156
+//                       recipes (17 font sizes, 25 heights, 49 paddings, 5 faces) beside a kit two screens
+//                       used. The pill rules outside the kit are counted, and the count only falls (8).
 //   8. ONLY DOWN        what the utilities are for can only shrink from what is recorded in CEILING:
 //                       inline style objects, the distinct raw colours written in app/globals.css, its
 //                       size, and class names taken whole from a variable (`${status}`) — a value from
-//                       the data that happens to be "hidden" or "fixed" would be a utility. Lower a
-//                       ceiling in the same commit that earns it; raising one needs a reason written
-//                       beside it.
+//                       the data that happens to be "hidden" or "fixed" would be a utility. A ceiling
+//                       above its count fails too — lower it in the commit that earns it; raising one
+//                       needs a reason written beside it.
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -47,10 +52,12 @@ import ts from "typescript";
 import postcss from "postcss";
 
 export const CEILING = {
-  inlineStyles: 621,          // style={{…}} objects in app/, components/, native/ (2026-10-07)
+  inlineStyles: 620,          // style={{…}} objects in app/, components/, native/ (621 on 2026-10-07; 620 the same day — the overdue count's margin is a utility)
   rawColours: 504,            // distinct hex / rgb() / rgba() literals in app/globals.css (2026-10-07, after the dead rules went)
-  globalsBytes: 769_578,      // app/globals.css, source bytes (2026-10-07: 804 KB before 316 dead rules and 4 keyframes went)
+  globalsBytes: 769_527,      // app/globals.css, source bytes (2026-10-07: 804 KB before 316 dead rules and 4 keyframes went; the pill kit fits in what its seven recipes left)
   wholeVariableClasses: 46,   // className tokens that are a ${value} and nothing else (2026-10-07)
+  pillRules: 118,             // pills and round buttons outside the kit (2026-10-07: 124 before the pill round moved the
+                              // crew header, the lane's sections, the counts and the tab badges onto it)
 };
 
 const THIRD_PARTY = /^(leaflet-|sq-|onesignal|slide-|swiper-)/;
@@ -162,6 +169,35 @@ export function deadSelectorsIn(ast, named) {
   return dead;
 }
 
+/** The rules that round a control to a pill — or a button to a circle — and are not the kit's.
+ *  A pill: border-radius var(--r-pill), or 50px and over, with words in it (a font or a padding). A
+ *  round button: 50% on a square of 20px and over that is pressed (cursor: pointer) — an avatar or a
+ *  switch's knob is round and is not one. Not a bar or a track (under 14px tall), not a keyframe.
+ *  The kit's own (.k-*) are the answer, not the count. */
+export function pillRulesIn(ast) {
+  const PILL = /^(var\(--r-pill\)|\d{3,}px|[5-9]\dpx)$/;
+  const out = [];
+  ast.walkRules((r) => {
+    if (r.parent?.type === "atrule" && /keyframes/i.test(r.parent.name)) return;
+    const d = {};
+    r.each((n) => { if (n.type === "decl") d[n.prop] = n.value.trim(); });
+    const rad = d["border-radius"];
+    if (!rad) return;
+    const circle = rad === "50%";
+    if (!circle && !PILL.test(rad)) return;
+    const h = d.height || d["min-height"], w = d.width;
+    const words = d["font-size"] || d["font-family"] || d.padding || d["padding-inline"];
+    // a round BUTTON — a circle that is pressed (an avatar or a knob is round and is not one)
+    if (circle && !(w && h && w === h && parseFloat(w) >= 20 && d.cursor === "pointer")) return;
+    // a bar, a track or a fill is not a pill: under 14px tall, or a shape with no words in it
+    if (h && /px$/.test(h) && parseFloat(h) < 14) return;
+    if (!circle && !words) return;
+    if (r.selectors.every((x) => /\.k-[\w-]/.test(x))) return;
+    out.push(r.selector.replace(/\s+/g, " ").slice(0, 60));
+  });
+  return out;
+}
+
 /** The :hover rules that apply on a phone too — outside @media (hover:hover). */
 export function looseHoversIn(ast) {
   const loose = [];
@@ -232,19 +268,25 @@ export async function audit(root) {
   if (dead.length) fail("no dead CSS", `${dead.length} selector(s) style a class nothing names: ${dead.slice(0, 6).join(" | ")}`);
 
   // 8 · only down
-  const counts = { inlineStyles: m.inlineStyles, rawColours: rawColours(globals).size, globalsBytes: Buffer.byteLength(globals), wholeVariableClasses: m.wholeVariable.length };
+  // 9 · one pill (counted with the ratchets below)
+  const pills = pillRulesIn(ast);
+
+  const counts = { inlineStyles: m.inlineStyles, rawColours: rawColours(globals).size, globalsBytes: Buffer.byteLength(globals), wholeVariableClasses: m.wholeVariable.length, pillRules: pills.length };
   for (const [k, v] of Object.entries(counts)) {
     if (v > CEILING[k]) fail("only down", `${k} ${v} — ceiling ${CEILING[k]}. Up: new one-off layout goes in utilities (app/tailwind.css), not here.`);
+    // Slack is room for new debt: a ceiling above the count is lowered in the commit that earned it.
+    else if (v < CEILING[k]) fail("only down", `${k} ${v} — ceiling ${CEILING[k]} sits above it. Good; now lower the ceiling to ${v}.`);
   }
-  return { bad, counts, markup: m, dead, loose, twice };
+  return { bad, counts, markup: m, dead, loose, twice, pills };
 }
 
 if (import.meta.url === (await import("node:url")).pathToFileURL(process.argv[1] || "").href) {
   const root = join(dirname(new URL(import.meta.url).pathname), "..");
-  const { bad, counts, markup: m } = await audit(root);
+  const { bad, counts, markup: m, pills } = await audit(root);
   if (process.argv.includes("--list")) {
     console.log(`  counts: ${JSON.stringify(counts)}`);
     console.log(`  class names taken whole from a variable:\n    ${m.wholeVariable.join("\n    ")}`);
+    console.log(`  pill rules outside the kit:\n    ${pills.join("\n    ")}`);
   }
   const slack = Object.entries(counts).filter(([k, v]) => v < CEILING[k]).map(([k, v]) => `${k} ${v} < ${CEILING[k]}`);
   console.log(`CSS AUDIT: ${m.files.length} screen file(s) · ${m.classes.size} class name(s) · ${counts.inlineStyles} inline style object(s) · ${counts.rawColours} raw colour(s) in app/globals.css — ${bad.length} unanswered${slack.length ? ` (room to lower: ${slack.join(", ")})` : ""}`);
