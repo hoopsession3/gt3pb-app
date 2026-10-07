@@ -8,6 +8,7 @@ import { mondayLabel, nextMondayKey, windowHours } from "@/lib/office";
 import { isMissingFunction } from "@/lib/schemaSkew";
 import { addDays, etToday } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
+import { useRealtimeTable } from "@/lib/realtime";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import { SectionHeader, InfoRow } from "@/components/kit";
@@ -66,6 +67,9 @@ export default function OfficeOrders() {
   }, []);
   const board = useAsyncData(loader, []);
   const { reload } = board;
+  // The driver logs from the run (components/OfficeRun); this route hears it live (business_orders joins
+  // the realtime publication in 0357 — before that the subscription simply receives nothing).
+  useRealtimeTable("business_orders", reload);
 
   // THE WEEK AHEAD, FROM THE PROGRAMS (2026-10-07, 0356). generate_office_deliveries makes every
   // active program's deliveries for the week ahead, each in its market's own time, once each, and logs
@@ -114,15 +118,23 @@ export default function OfficeOrders() {
     reload();
   };
 
+  // ONE WRITE (2026-10-07, 0357). office_log_delivery records the outcome, the jugs, the ledger row and
+  // the balance together with the order locked — the driver's run (components/OfficeRun) uses the same
+  // door, so two phones cannot count one swap twice; these were three writes from the browser. Until
+  // 0357 is pasted the function isn't there and the old writes below stand.
   const deliver = async (o: BOrder, swapped: boolean) => {
     if (!supabase || busyId) return; setBusyId(o.id);
     const jugsIn = swapped ? Math.max(0, empties[o.id] ?? Math.round(o.gallons)) : 0;
-    const { error } = await supabase.from("business_orders").update({
-      status: "delivered", driver_outcome: swapped ? "delivered_swapped" : "delivered_no_swap",
-      jugs_out: Math.round(o.gallons), jugs_in: jugsIn,
-    }).eq("id", o.id);
-    if (error) { toast("Didn't save — try again", "error"); setBusyId(null); return; }
-    await bumpJugs(o, jugsIn);
+    const one = await supabase.rpc("office_log_delivery", { p_order: o.id, p_outcome: swapped ? "delivered_swapped" : "delivered_no_swap", p_jugs_in: swapped ? jugsIn : null });
+    if (one.error && !isMissingFunction(one.error)) { toast(one.error.message, "error"); setBusyId(null); reload(); return; }
+    if (one.error) {
+      const { error } = await supabase.from("business_orders").update({
+        status: "delivered", driver_outcome: swapped ? "delivered_swapped" : "delivered_no_swap",
+        jugs_out: Math.round(o.gallons), jugs_in: jugsIn,
+      }).eq("id", o.id);
+      if (error) { toast("Didn't save — try again", "error"); setBusyId(null); return; }
+      await bumpJugs(o, jugsIn);
+    }
     setBusyId(null); setOpenId(null); toast(`${o.company} — delivered`); reload();
   };
 
