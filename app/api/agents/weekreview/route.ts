@@ -28,13 +28,17 @@ async function sum(table: string, filter: (q: any) => any): Promise<number> {
     return (data ?? []).reduce((s: number, r: any) => s + (Number(r.total_cents) || 0), 0);
   } catch { return 0; }
 }
-// The 0208 founder-digest revenue formula, windowed.
-async function revenue(fromISO: string, toISO: string): Promise<number> {
-  const win = (q: any) => q.gte("created_at", fromISO).lt("created_at", toISO);
+// The 0208 founder-digest revenue formula, windowed — for one tenant: R-002's rule (the service role
+// bypasses RLS, so every read names its tenant) had missed this function. An office order counts on
+// its delivery day (0358): deliveries are scheduled six weeks ahead, so the night one was made says
+// nothing about the week it was earned in.
+async function revenue(tenant: string, fromISO: string, toISO: string): Promise<number> {
+  const win = (q: any) => q.eq("tenant_id", tenant).gte("created_at", fromISO).lt("created_at", toISO);
+  const onDay = (q: any) => q.eq("tenant_id", tenant).gte("delivery_date", fromISO.slice(0, 10)).lt("delivery_date", toISO.slice(0, 10));
   return (await sum("orders", (q) => win(q.eq("paid", true).neq("status", "void"))))
        + (await sum("drop_orders", (q) => win(q.eq("paid", true).is("canceled_at", null))))
        + (await sum("delivery_orders", (q) => win(q.eq("payment_status", "paid").is("canceled_at", null))))
-       + (await sum("business_orders", (q) => win(q.eq("payment_status", "paid").is("canceled_at", null))));
+       + (await sum("business_orders", (q) => onDay(q.eq("payment_status", "paid").is("canceled_at", null))));
 }
 
 async function post(req: Request) {
@@ -58,8 +62,8 @@ async function post(req: Request) {
   if (existing) return NextResponse.json({ ok: true, note_id: existing.id, title: existing.title, existing: true });
 
   const [revThis, revPrior, goalsQ, initsQ, milesQ, eventsQ, incOpenQ, incFixedQ, decQ, overdueQ, next7Q, doneQ, portQ, actsQ] = await Promise.all([
-    revenue(d7.toISOString(), now.toISOString()),
-    revenue(d14.toISOString(), d7.toISOString()),
+    revenue(tenant, d7.toISOString(), now.toISOString()),
+    revenue(tenant, d14.toISOString(), d7.toISOString()),
     supabaseAdmin.from("goals").select("title, unit, target_value, current_value, updated_at, checkin_status").eq("tenant_id", tenant).eq("status", "active"),
     supabaseAdmin.from("initiatives").select("id, title, emoji, target_date").eq("tenant_id", tenant).neq("status", "done"),
     supabaseAdmin.from("initiative_milestones").select("initiative_id, title, due_on, done, done_at").eq("tenant_id", tenant),
