@@ -11,150 +11,180 @@
 --
 -- The line below is what stops that happening again: scripts/drift.check.mjs fails the release
 -- if supabase/migrations/ ever holds a migration numbered above it.
--- pending-from: 0357
+-- pending-from: 0358
 -- generated-at: 2026-10-07
 -- pending-count: 1
 -- ledger-read-from: https://app.gt3pb.com/api/migrations
 -- ============================================================
--- 0357_an_office_delivery_is_a_stop_on_the_run.sql
+-- 0358_office_revenue_is_counted_on_the_day_it_is_delivered.sql
 -- ============================================================
--- 0357 — AN OFFICE DELIVERY IS A STOP ON THE RUN. Paste into Supabase → SQL Editor → Run. Idempotent.
+-- 0358 — OFFICE REVENUE IS COUNTED ON THE DAY IT IS DELIVERED. Paste into Supabase → SQL Editor → Run.
+-- Idempotent.
 --
--- Phase 1, part 3 of the B2B challenge report (2026-10-07; defect 11). The driver's screen read home
--- deliveries only — the office route lived in a crew panel, so whoever drove Monday morning worked
--- from a list on someone else's phone — and logging an office delivery was three separate writes from
--- the browser: the order, then a read of the jug balance, then the ledger row, then the balance. Two
--- phones logging at once (the driver and the crew) could each read the same balance and write their
--- own, and a failed second write left the order delivered with its jugs uncounted.
+-- Phase 2, part 1 of the B2B challenge report (2026-10-07, "GT3 Challenge Report — B2B and Adaptive
+-- Layout": Scheduling — "a nightly job turns the rule into real deliveries six weeks ahead"). 0356
+-- made office deliveries a week ahead, on purpose: every reader of office revenue dated an order by
+-- created_at — for a generated delivery, the night the generator made it — and the crew's route
+-- listed every open order. Six weeks of rows would have counted a prepaid client's revenue six weeks
+-- early, dropped a pay-on-delivery client's out of every 7- and 30-day window (made 42 days before it
+-- is paid), and buried next Monday under five more. So the readers move first, here, and the
+-- horizon grows with them:
 --
---   office_log_delivery(order, outcome, empties) — one write, staff only, the order locked: delivered
---   with the jug swap (full out, empties back — the ledger row and the account's balance in the same
---   transaction, the balance never under zero), delivered with no swap, or not delivered (the crew is
---   told, once). A delivery already logged is refused rather than counted twice; undo it first. A
---   delivery is logged on its day, not before (in its market's time), and only by crew who can see
---   it: the caller's own company (tenant isolation) and city (0291's market scope), as their screen
---   reads it — the function runs as its owner, so it asks the same question the policies ask.
+--   report_sales (Reports, and the money headline on the console) and founder_digest_alert count an
+--   office order on its delivery day. Nothing else in either function changes.
 --
---   office_reopen_delivery(order, reason) — the driver's mis-tap: the open jug entry is voided (the
---   same reversal void_jug_entry makes, kept as the record, with the reason), a "not delivered"
---   alert it raised is answered, and the stop is open again. Only a logged delivery reopens.
+--   all_orders (the KPI board, the month's goal, a customer's history in the CRM) shows an office
+--   order once its day has come, dated that day: a delivery three weeks out is a plan, not an order
+--   that happened. Every other channel reads as it did.
 --
--- Orders with no account (a one-off) log the same way; they have no balance to move today, as before.
--- business_orders joins the realtime publication, so the driver's run and the crew's route see each
--- other's taps without a refresh.
+--   office_horizon() is 42 — the nightly run keeps six weeks of each program's deliveries, which is
+--   what the client's agenda shows and changes (Phase 2, part 2).
+--
+-- The app's own readers (the console's office tile, the daily digest, the week review, the crew's
+-- route and the client's page) move in the same change. Past office revenue moves only where an
+-- order was made in one window and delivered in the next — at most a week, at 0356's horizon — and
+-- production had no office orders when this was written.
 --
 -- changelog: below.
 
-create or replace function public.office_log_delivery(p_order uuid, p_outcome text, p_jugs_in int default null)
-returns public.business_orders
-language plpgsql security definer set search_path = public as $$
+-- ── 1 · report_sales: the office line counts the delivery day ───────────────────────────────────
+-- 0220's function verbatim but two lines: the office total and the office part of each day.
+create or replace function public.report_sales(p_days int default 30)
+returns jsonb language plpgsql security definer set search_path = public as $$
 declare
-  o public.business_orders; v_out int; v_in int; v_bal int;
+  since timestamptz := (current_date - (greatest(p_days, 1) - 1))::timestamptz;
+  tid uuid := public.effective_tenant();
+  sq bigint; cup bigint; packs bigint; deliv bigint; office bigint;
 begin
-  if not public.is_staff() then raise exception 'Only crew can log a delivery.' using errcode = '42501'; end if;
-  if coalesce(p_outcome, '') not in ('delivered_swapped', 'delivered_no_swap', 'not_available') then
-    raise exception 'Unknown outcome: %', coalesce(p_outcome, 'none') using errcode = '22023';
-  end if;
-  -- the caller's own company and city — what their screen shows them (0239's tenant isolation, 0291's
-  -- market scope); anything else reads as not there, exactly as it does on the screen
-  select * into o from public.business_orders
-   where id = p_order and tenant_id = public.effective_tenant() and public.market_visible(market)
-   for update;
-  if not found then raise exception 'That delivery no longer exists.' using errcode = 'P0002'; end if;
-  if o.canceled_at is not null then raise exception 'That delivery was canceled.' using errcode = '22023'; end if;
-  if o.status in ('delivered', 'issue') or o.driver_outcome is not null then
-    raise exception 'That delivery is already logged — undo it first.' using errcode = '22023';
-  end if;
-  if o.delivery_date > public.office_local_today(o.market) then
-    raise exception 'That delivery is for % — log it on the day.', to_char(o.delivery_date, 'FMDay, Mon FMDD')
-      using errcode = '22023';
-  end if;
+  if not public.is_staff() then return jsonb_build_object('error', 'unauthorized'); end if;
+  sq     := coalesce((select sum(es.amount_cents) from event_sales es
+              where es.created_at >= since and es.tenant_id = tid
+                and not exists (select 1 from orders o where o.payment_id = es.square_payment_id)
+                and not exists (select 1 from drop_orders d where d.payment_id = es.square_payment_id)
+                and not exists (select 1 from delivery_orders dv where dv.payment_id = es.square_payment_id)
+                and not exists (select 1 from business_orders b where b.payment_id = es.square_payment_id)), 0);
+  cup    := coalesce((select sum(total_cents) from orders where paid and status <> 'void' and created_at >= since and tenant_id = tid), 0);
+  packs  := coalesce((select sum(total_cents) from drop_orders where paid and canceled_at is null and created_at >= since and tenant_id = tid), 0);
+  deliv  := coalesce((select sum(total_cents) from delivery_orders where payment_status = 'paid' and canceled_at is null and created_at >= since and tenant_id = tid), 0);
+  office := coalesce((select sum(total_cents) from business_orders where payment_status = 'paid' and canceled_at is null and delivery_date between since::date and current_date and tenant_id = tid), 0);
+  return jsonb_build_object(
+    'days', p_days,
+    'revenue_basis', 'reconciled',
+    'revenue_cents', sq + cup + packs + deliv + office,
+    'by_channel', jsonb_build_object('square_walkup', sq, 'cup', cup, 'packs', packs, 'delivery', deliv, 'office', office),
+    'order_count', (select count(*) from orders where paid and status <> 'void' and created_at >= since and tenant_id = tid),
+    'cogs_pct', public.catalog_cogs_pct(),
+    'by_product', coalesce((select jsonb_agg(jsonb_build_object('key', item, 'n', n, 'cents', cents) order by n desc) from (
+        select unnest(items) item, count(*) n,
+               sum(total_cents / greatest(coalesce(array_length(items, 1), 1), 1)) cents
+        from orders where paid and status <> 'void' and created_at >= since and tenant_id = tid group by 1
+      ) p), '[]'::jsonb),
+    'by_event', coalesce((select jsonb_agg(jsonb_build_object('event', coalesce(e.title, '(unlinked)'), 'cents', s.cents, 'orders', s.n) order by s.cents desc) from (
+        select event_id, sum(amount_cents) cents, sum(item_count) n from event_sales where created_at >= since and tenant_id = tid group by 1
+      ) s left join events e on e.id = s.event_id), '[]'::jsonb),
+    'by_day', coalesce((select jsonb_agg(jsonb_build_object('day', to_char(d, 'MM-DD'), 'cents', coalesce(c, 0)) order by d) from (
+        select g::date d,
+          (select coalesce(sum(es.amount_cents), 0) from event_sales es where es.created_at::date = g::date and es.tenant_id = tid
+             and not exists (select 1 from orders o where o.payment_id = es.square_payment_id)
+             and not exists (select 1 from drop_orders dd2 where dd2.payment_id = es.square_payment_id)
+             and not exists (select 1 from delivery_orders dv where dv.payment_id = es.square_payment_id)
+             and not exists (select 1 from business_orders b where b.payment_id = es.square_payment_id))
+          + (select coalesce(sum(total_cents), 0) from orders o where o.paid and o.status <> 'void' and o.created_at::date = g::date and o.tenant_id = tid)
+          + (select coalesce(sum(total_cents), 0) from drop_orders where paid and canceled_at is null and created_at::date = g::date and tenant_id = tid)
+          + (select coalesce(sum(total_cents), 0) from delivery_orders where payment_status = 'paid' and canceled_at is null and created_at::date = g::date and tenant_id = tid)
+          + (select coalesce(sum(total_cents), 0) from business_orders where payment_status = 'paid' and canceled_at is null and delivery_date = g::date and tenant_id = tid) c
+        from generate_series(since::date, current_date, interval '1 day') g
+      ) dd), '[]'::jsonb)
+  );
+end; $$;
+grant execute on function public.report_sales(int) to authenticated;
 
-  if p_outcome = 'not_available' then
-    update public.business_orders
-       set status = 'issue', driver_outcome = 'not_available',
-           driver_note = left('Not delivered — ' || to_char(now() at time zone public.office_tz(o.market), 'HH12:MI AM'), 200)
-     where id = p_order returning * into o;
-    perform public.alert_open_once(
-      'office_not_delivered', o.id, 'important', 'order',
-      left('Office delivery not made — ' || o.company, 180),
-      o.company || ' (' || o.address_street || ', ' || o.address_city || ') wasn''t delivered this morning. '
-        || round(o.gallons)::text || ' gal. ' || coalesce(o.contact_phone, ''),
-      '/crew?s=now');
-    return o;
-  end if;
-
-  v_out := round(o.gallons)::int;
-  v_in  := case when p_outcome = 'delivered_swapped' then greatest(0, coalesce(p_jugs_in, v_out)) else 0 end;
-  update public.business_orders
-     set status = 'delivered', driver_outcome = p_outcome, jugs_out = v_out, jugs_in = v_in
-   where id = p_order returning * into o;
-
-  if o.business_id is not null then
-    select greatest(0, coalesce(jug_balance, 0) + v_out - v_in) into v_bal
-      from public.business_accounts where id = o.business_id for update;
-    insert into public.jug_ledger (tenant_id, business_id, business_order_id, jugs_out, jugs_in, balance_after)
-    values (o.tenant_id, o.business_id, o.id, v_out, v_in, v_bal);
-    update public.business_accounts set jug_balance = v_bal, updated_at = now() where id = o.business_id;
-  end if;
-  return o;
-end $$;
--- existing rows: office_log_delivery — a new producer; it has never written an alert.
-revoke all on function public.office_log_delivery(uuid, text, int) from public, anon;
-grant execute on function public.office_log_delivery(uuid, text, int) to authenticated;
-
-create or replace function public.office_reopen_delivery(p_order uuid, p_reason text)
-returns public.business_orders
-language plpgsql security definer set search_path = public as $$
-declare o public.business_orders; j record;
+-- ── 2 · the founder digest: the same, for its seven days ────────────────────────────────────────
+-- 0220's function verbatim but one line.
+create or replace function public.founder_digest_alert() returns void
+  language plpgsql security definer set search_path = public as $$
+declare
+  cadence text; t record; rev bigint; blockers int; reorders int; crit int;
+  rdy_blocked int; rdy_total int; verdict text; msg text;
 begin
-  if not public.is_staff() then raise exception 'Only crew can reopen a delivery.' using errcode = '42501'; end if;
-  if coalesce(btrim(p_reason), '') = '' then raise exception 'Say why it is being reopened.' using errcode = '22023'; end if;
-  select * into o from public.business_orders
-   where id = p_order and tenant_id = public.effective_tenant() and public.market_visible(market)
-   for update;
-  if not found then raise exception 'That delivery no longer exists.' using errcode = 'P0002'; end if;
-  if o.canceled_at is not null then raise exception 'That delivery was canceled.' using errcode = '22023'; end if;
-  if o.status not in ('delivered', 'issue') and o.driver_outcome is null then
-    raise exception 'That delivery isn''t logged — there is nothing to undo.' using errcode = '22023';
-  end if;
-  -- the open jug entry for this delivery, reversed the way void_jug_entry reverses one (0310)
-  for j in select id from public.v_jug_open where business_order_id = p_order loop
-    perform public.void_jug_entry(j.id, btrim(p_reason));
+  select digest_cadence into cadence from public.live_status where id = 1;
+  if cadence is null or cadence = 'off' then return; end if;
+  if cadence = 'weekly' and extract(dow from now()) <> 1 then return; end if;
+
+  for t in select id from public.tenants loop
+    select coalesce((select sum(es.amount_cents) from event_sales es
+             where es.created_at >= (current_date - 6)::timestamptz and es.tenant_id = t.id
+               and not exists (select 1 from orders o where o.payment_id = es.square_payment_id)
+               and not exists (select 1 from drop_orders d where d.payment_id = es.square_payment_id)
+               and not exists (select 1 from delivery_orders dv where dv.payment_id = es.square_payment_id)
+               and not exists (select 1 from business_orders b where b.payment_id = es.square_payment_id)), 0)
+         + coalesce((select sum(total_cents) from orders           where paid and status <> 'void' and created_at >= (current_date - 6)::timestamptz and tenant_id = t.id), 0)
+         + coalesce((select sum(total_cents) from drop_orders      where paid and canceled_at is null and created_at >= (current_date - 6)::timestamptz and tenant_id = t.id), 0)
+         + coalesce((select sum(total_cents) from delivery_orders  where payment_status = 'paid' and canceled_at is null and created_at >= (current_date - 6)::timestamptz and tenant_id = t.id), 0)
+         + coalesce((select sum(total_cents) from business_orders  where payment_status = 'paid' and canceled_at is null and delivery_date between current_date - 6 and current_date and tenant_id = t.id), 0)
+      into rev;
+
+    select count(*) into blockers from public.incident_log where resolved = false and severity = 'blocker' and tenant_id = t.id;
+    select count(*) into reorders from public.alerts where ack_at is null and category = 'prep' and title like '📦 Reorder%' and tenant_id = t.id;
+    select count(*) into crit     from public.alerts where ack_at is null and severity = 'critical' and tenant_id = t.id;
+    select count(*) filter (where critical and status = 'blocked'), count(*) filter (where critical)
+      into rdy_blocked, rdy_total from public.readiness_checks where tenant_id = t.id;
+    verdict := case when rdy_total = 0 then 'no criteria yet' when rdy_blocked > 0 then 'NO-GO' else 'on track' end;
+
+    msg := 'Revenue 7d: $' || to_char(rev / 100.0, 'FM999,999,990.00')
+        || '  ·  Launch: ' || verdict || case when rdy_blocked > 0 then ' (' || rdy_blocked::text || ' blocked)' else '' end
+        || '  ·  Blockers: ' || blockers::text
+        || '  ·  Reorders: ' || reorders::text
+        || '  ·  Needs you: ' || crit::text;
+
+    insert into public.alerts (severity, category, title, body, link, target_user_id, tenant_id)
+    values ('fyi', 'money', '📊 Daily founder digest', msg, '/admin', null, t.id);
   end loop;
-  -- a "not delivered" that was a mis-tap: the crew's alert about it is answered, not left to chase
-  update public.alerts set ack_at = now(), ack_by = auth.uid()
-   where kind = 'office_not_delivered' and subject_id = p_order and ack_at is null;
-  update public.business_orders
-     set status = 'out_for_delivery', driver_outcome = null, jugs_in = null,
-         driver_note = left('Reopened — ' || btrim(p_reason), 200)
-   where id = p_order returning * into o;
-  return o;
 end $$;
-revoke all on function public.office_reopen_delivery(uuid, text) from public, anon;
-grant execute on function public.office_reopen_delivery(uuid, text) to authenticated;
+-- existing rows: founder_digest_alert — each digest is that day's snapshot ('fyi', never open work); the past ones stay as they were said.
 
--- The driver's run and the crew's route hear each other.
-do $$
-begin
-  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
-     and not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'business_orders') then
-    alter publication supabase_realtime add table public.business_orders;
-  end if;
-end $$;
+-- ── 3 · all_orders: an office order is an order once its day comes, dated that day ──────────────
+-- 0341's view verbatim but the office branch's date and its one condition. Same columns, same order,
+-- same types, so `create or replace` keeps every grant and every reader.
+create or replace view public.all_orders with (security_invoker = on) as
+  select 'cup'::text as channel, id, customer_id, user_id, tenant_id,
+    fulfillment_status, payment_status, total_cents, created_at
+  from public.orders
+  union all
+  select 'pickup', id, customer_id, user_id, tenant_id,
+    fulfillment_status, payment_status, total_cents, created_at
+  from public.drop_orders
+  union all
+  select 'delivery', id, customer_id, user_id, tenant_id,
+    fulfillment_status, payment_status, total_cents, created_at
+  from public.delivery_orders
+  union all
+  select 'office', id, customer_id, user_id, tenant_id,
+    case when canceled_at is not null then 'canceled' when status = 'delivered' then 'fulfilled' when status in ('received','brewed') then 'placed' else 'in_prep' end,
+    case payment_status when 'paid' then 'paid' when 'refunded' then 'refunded' when 'failed' then 'failed' else 'pending' end,
+    total_cents, (delivery_date + time '12:00') at time zone 'UTC'
+  from public.business_orders
+  where delivery_date <= current_date;
+
+-- ── 4 · six weeks ahead ──────────────────────────────────────────────────────────────────────────
+create or replace function public.office_horizon() returns int
+language sql immutable as $$ select 42 $$;
+comment on function public.office_horizon() is 'How many days ahead office deliveries are generated: 42, six weeks (0358; 7 in 0356, until every reader counted office revenue by delivery day). One home: the nightly job, the crew''s button and a booking all read it.';
 
 -- ── what changed ───────────────────────────────────────────────────────────────────────────────
 insert into public.changelog (title, category, area, summary, shipped_on, highlight)
 select v.title, v.category, v.area, v.summary, v.shipped_on::date, v.highlight
 from (values
-  ('Office deliveries are on the driver''s run','improvement','Delivery',
-   'Whoever drives Monday morning now sees the office route on their own phone: each office, its door notes, its window and how many gallons to bring, with Navigate and Call. One tap logs it — delivered with the jug swap (empties counted on the spot), delivered with no swap, or not delivered (the crew is told) — and the jug count moves in the same write, so two phones can no longer count the same swap twice. A mis-tap undoes cleanly, and the crew''s route and the driver''s run update each other live.',
+  ('Office revenue counts on the day it''s delivered','improvement','Money',
+   'Office deliveries are now scheduled six weeks ahead, so every revenue figure counts an office order on the day it is delivered, not the night the schedule made it: Reports, the console''s revenue, the daily digest, the KPI board and the month''s goal. A delivery still weeks away is a plan — it shows on the office route and the client''s schedule, never as money already made.',
    '2026-10-07', false)
 ) as v(title, category, area, summary, shipped_on, highlight)
 where not exists (select 1 from public.changelog c where c.title = v.title);
 
 -- verify:
---   select has_function_privilege('anon', 'public.office_log_delivery(uuid, text, int)', 'execute');      -- false
---   select exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'business_orders');   -- t
-select public.record_migration('0357_an_office_delivery_is_a_stop_on_the_run',
-  'office_log_delivery(uuid, text, int) — one locked write on the delivery''s day, in the caller''s tenant and market: outcome, jugs, ledger row, balance; not delivered raises office_not_delivered; office_reopen_delivery(uuid, text) voids the open jug entry, answers that alert and reopens; business_orders joins supabase_realtime.');
+--   select public.office_horizon();                                                                    -- 42
+--   select prosrc like '%delivery_date between since::date and current_date%' from pg_proc where proname = 'report_sales';   -- t
+--   select prosrc like '%delivery_date between current_date - 6 and current_date%' from pg_proc where proname = 'founder_digest_alert';   -- t
+--   select count(*) from public.all_orders where channel = 'office' and created_at > now() + interval '1 day';   -- 0
+select public.record_migration('0358_office_revenue_is_counted_on_the_day_it_is_delivered',
+  'report_sales and founder_digest_alert count office revenue by delivery_date; all_orders shows office orders once delivery_date <= current_date, dated noon UTC that day; office_horizon() 42.');
