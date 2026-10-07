@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
-import { OFFICE, officeQuote, nextMondayKey, mondayLabel } from "@/lib/office";
+import { OFFICE, officeQuote, nextMondayKey, mondayLabel, windowHours } from "@/lib/office";
 import { zipMarket } from "@/lib/delivery";
 import { marketServes } from "@/lib/markets";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
-import { writeAcrossSkew } from "@/lib/schemaSkew";
+import { writeAcrossSkew, isMissingFunction } from "@/lib/schemaSkew";
 
 export const runtime = "nodejs";
 
@@ -71,8 +71,19 @@ async function post(req: Request) {
   if (!market || !marketServes(market, "corporate")) return NextResponse.json({ error: "That ZIP looks outside our delivery route — text us and we'll see what we can do." }, { status: 400 });
   if (billing === "prepaid" && !phone) return NextResponse.json({ error: "Add a phone — prepaid sends the payment link by text." }, { status: 400 });
 
-  // Delivery day is server-derived (next Monday) — never trust a client clock.
-  const dateKey = nextMondayKey();
+  // THE DATE IS THE DATABASE'S, IN THE MARKET'S TIME (2026-10-07, 0356). This was nextMondayKey() in
+  // the server's own zone — UTC on Vercel — so from a Sunday evening in Greenville it booked the Monday
+  // after next, and nothing closed changes before a delivery. office_next_delivery answers in the
+  // market's time zone: the next day the market's window falls on whose cutoff (6 PM the weekday
+  // before) is still ahead, with the market's own window. Until 0356 is pasted it isn't there
+  // (PGRST202) and the old answer stands.
+  let dateKey = nextMondayKey();
+  let windowCode: string = OFFICE.window;
+  let cutoffAt: string | null = null;
+  const next = await supabaseAdmin.rpc("office_next_delivery", { p_market: market });
+  if (next.error && !isMissingFunction(next.error)) return NextResponse.json({ error: `Couldn't work out the delivery date — ${next.error.message}` }, { status: 500 });
+  const slot = (next.data as { delivery_date: string; cutoff_at: string; delivery_window: string }[] | null)?.[0];
+  if (slot) { dateKey = slot.delivery_date; windowCode = slot.delivery_window; cutoffAt = slot.cutoff_at; }
 
   // Standing account create/update (service role, scoped to this user) — the same reuse-not-duplicate
   // logic the client had, now un-forgeable. The DB unique index on (user_id, lower(company)) (0242)
@@ -112,29 +123,45 @@ async function post(req: Request) {
     }
   }
 
-  const { data: order, error } = await supabaseAdmin.from("business_orders").insert({
-    business_id: businessId, user_id: userId, company,
-    contact_name: contact || null, contact_phone: phone || null,
-    address_street: street, address_city: city, address_zip: zip,
-    access_instructions: access || null, delivery_date: dateKey, delivery_window: OFFICE.window,
-    gallons: q.gallons, price_per_gallon_cents: priceCents,
-    subtotal_cents: q.subtotalCents, delivery_fee_cents: q.deliveryFeeCents, tax_cents: q.taxCents, total_cents: q.totalCents,
-    billing_terms: billing, standing, market,
-  }).select("id").single();
-  if (error) return NextResponse.json({ error: `Couldn't book it — ${error.message}` }, { status: 500 });
-
-  const orderId = (order as { id: string } | null)?.id;
+  // A WEEKLY ORDER'S DELIVERIES COME FROM ITS PROGRAM (2026-10-07, 0356). The account above is the
+  // program (0355); book_office_standing makes its deliveries and hands back the first one this booking
+  // can still change — the same one if the account was already booked for that day, so booking twice
+  // never sends two deliveries for one Monday (the old insert here did). A one-off has no program, and
+  // is written here as before, with the database's date, window and cutoff.
+  let orderId: string | undefined;
+  let totalCents = q.totalCents;
+  if (standing && businessId) {
+    const booked = await supabaseAdmin.rpc("book_office_standing", { p_account: businessId });
+    if (booked.error && !isMissingFunction(booked.error)) return NextResponse.json({ error: `Couldn't schedule your first delivery — ${booked.error.message}` }, { status: 500 });
+    const first = (booked.data as { order_id: string; delivery_date: string; total_cents: number; cutoff_at: string; delivery_window: string }[] | null)?.[0];
+    if (!booked.error && !first) return NextResponse.json({ error: "Couldn't schedule your first delivery — text us and we'll set it up." }, { status: 500 });
+    if (first) { orderId = first.order_id; dateKey = first.delivery_date; windowCode = first.delivery_window; totalCents = first.total_cents; cutoffAt = first.cutoff_at; }
+  }
+  if (!orderId) {
+    const { data: order, error } = await supabaseAdmin.from("business_orders").insert({
+      business_id: businessId, user_id: userId, company,
+      contact_name: contact || null, contact_phone: phone || null,
+      address_street: street, address_city: city, address_zip: zip,
+      access_instructions: access || null, delivery_date: dateKey, delivery_window: windowCode,
+      gallons: q.gallons, price_per_gallon_cents: priceCents,
+      subtotal_cents: q.subtotalCents, delivery_fee_cents: q.deliveryFeeCents, tax_cents: q.taxCents, total_cents: q.totalCents,
+      billing_terms: billing, standing, market,
+      ...(cutoffAt ? { cutoff_at: cutoffAt } : {}),   // arrives-with: 0356
+    }).select("id").single();
+    if (error) return NextResponse.json({ error: `Couldn't book it — ${error.message}` }, { status: 500 });
+    orderId = (order as { id: string } | null)?.id;
+  }
 
   // Tell the crew a new office order landed (same alerts spine as every other order). Best-effort by
   // contract — an order write must never fail because alerting did.
   await raiseAlert({
     severity: "important", category: "order", kind: "office_order_new", subjectId: orderId,
     title: `New office order — ${company}`,
-    body: `${q.gallons} gal · ${mondayLabel(dateKey)} 5–8 AM · ${billing === "prepaid" ? "prepaid" : "invoice"}${standing ? " · standing weekly" : ""}. ${money(q.totalCents)}. ${phone}`.trim(),
+    body: `${q.gallons} gal · ${mondayLabel(dateKey)} ${windowHours(windowCode)} · ${billing === "prepaid" ? "prepaid" : "invoice"}${standing ? " · standing weekly" : ""}. ${money(totalCents)}. ${phone}`.trim(),
     link: "/crew?s=now",
   });
 
-  return NextResponse.json({ ok: true, id: orderId, gallons: q.gallons, date: dateKey, totalCents: q.totalCents });
+  return NextResponse.json({ ok: true, id: orderId, gallons: q.gallons, date: dateKey, totalCents });
 }
 
 export const POST = route("office", post);

@@ -4,7 +4,8 @@ import { useCallback, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
-import { mondayLabel, nextMondayKey } from "@/lib/office";
+import { mondayLabel, nextMondayKey, windowHours } from "@/lib/office";
+import { isMissingFunction } from "@/lib/schemaSkew";
 import { addDays, etToday } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -34,7 +35,7 @@ import { usePrompt } from "@/components/PromptSheet";
 type BOrder = {
   id: string; business_id: string | null; company: string; contact_phone: string | null;
   address_street: string; address_city: string; address_zip: string; access_instructions: string | null;
-  delivery_date: string; gallons: number; total_cents: number; billing_terms: string;
+  delivery_date: string; delivery_window: string | null; gallons: number; total_cents: number; billing_terms: string;
   payment_status: string; status: string; jugs_out: number; jugs_in: number | null; standing: boolean;
 };
 type Board = { rows: BOrder[]; standingN: number };
@@ -66,13 +67,22 @@ export default function OfficeOrders() {
   const board = useAsyncData(loader, []);
   const { reload } = board;
 
-  // Generate the next Monday's route from every standing account (idempotent RPC, 0188).
+  // THE WEEK AHEAD, FROM THE PROGRAMS (2026-10-07, 0356). generate_office_deliveries makes every
+  // active program's deliveries for the week ahead, each in its market's own time, once each, and logs
+  // the run — what the schedule now does by itself every night. This made one Monday, picked by the
+  // phone's clock, so on a Sunday evening the phone and the server could pick different weeks. Until
+  // 0356 is pasted the function isn't there and the old one-Monday call stands.
   const gen = async () => {
     if (!supabase || busyId) return; setBusyId("gen");
-    const dk = nextMondayKey();
-    const { data, error } = await supabase.rpc("generate_office_route", { p_date: dk });
+    let res = await supabase.rpc("generate_office_deliveries");
+    let made = "for the week ahead";
+    if (res.error && isMissingFunction(res.error)) {
+      const dk = nextMondayKey(); made = `for ${mondayLabel(dk)}`;
+      res = await supabase.rpc("generate_office_route", { p_date: dk });
+    }
     setBusyId(null);
-    toast(error ? "Couldn't generate the route" : `${data ?? 0} standing order${(data ?? 0) === 1 ? "" : "s"} added for ${mondayLabel(dk)}`, error ? "error" : undefined);
+    const n = (res.data as number | null) ?? 0;
+    toast(res.error ? "Couldn't generate the route" : n ? `${n} office deliver${n === 1 ? "y" : "ies"} made ${made}` : `Nothing new — every delivery ${made} is already on the route`, res.error ? "error" : undefined);
     reload();
   };
 
@@ -184,7 +194,7 @@ export default function OfficeOrders() {
             <SectionHeader
               label="Office route"
               right={<>
-                {standingN > 0 && <button type="button" className="oo-gen" onClick={gen} disabled={!!busyId}>{busyId === "gen" ? "…" : `↻ Generate · ${mondayLabel(nextMondayKey())}`}</button>}
+                {standingN > 0 && <button type="button" className="oo-gen" onClick={gen} disabled={!!busyId}>{busyId === "gen" ? "…" : "↻ Generate the week"}</button>}
                 <span className="oo-n">{rows.length} order{rows.length === 1 ? "" : "s"}</span>
               </>}
             />
@@ -200,7 +210,7 @@ export default function OfficeOrders() {
                       trailing={<span className="oo-gal">{Math.round(o.gallons)} gal</span>}
                       meta={<>
                         <div className="oo-meta">
-                          <span>{mondayLabel(o.delivery_date)} · 5–8 AM</span>
+                          <span>{mondayLabel(o.delivery_date)} · {windowHours(o.delivery_window)}</span>
                           <span className="oo-dot">·</span>
                           <span className={`oo-pay p-${o.payment_status}`}>{o.payment_status === "paid" ? "paid" : o.payment_status === "invoiced" ? "invoiced" : o.billing_terms === "prepaid" ? "awaiting prepay" : "to invoice"}</span>
                           <span className="oo-dot">·</span>

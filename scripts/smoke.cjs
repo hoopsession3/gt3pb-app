@@ -5698,6 +5698,43 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /check \(office_min_gallons >= 3\) not valid/.test(m354));
   }
 
+  // ── the weekly run comes from the program (2026-10-07, 0356) ──
+  // The booking route picked "next Monday" in the server's zone (UTC) with no cutoff and inserted a
+  // standing order by hand, so a re-booking made a second delivery for the same Monday; the crew's
+  // button picked its Monday by the phone's clock; three screens hard-coded "5–8 AM" over Atlanta's
+  // 6–9. scripts/db.generator.test.mjs proves the database side; these hold the app to it.
+  {
+    const m356 = read("supabase/migrations/0356_the_weekly_run_comes_from_the_program.sql");
+    const officeRoute = code(read("app/api/office/route.ts")), crewOffice = code(read("components/OfficeOrders.tsx"));
+    ok("office run: the booking asks the database for the date, window and cutoff in the market's time, and keeps the old answer only while 0356 is unpasted",
+      /await supabaseAdmin\.rpc\("office_next_delivery", \{ p_market: market \}\);/.test(officeRoute)
+      && /if \(next\.error && !isMissingFunction\(next\.error\)\) return NextResponse\.json/.test(officeRoute));
+    ok("office run: a weekly booking's deliveries come from its program (book_office_standing), never a second hand-made order for the same day",
+      /await supabaseAdmin\.rpc\("book_office_standing", \{ p_account: businessId \}\);/.test(officeRoute)
+      && /if \(!orderId\) \{\s*const \{ data: order, error \} = await supabaseAdmin\.from\("business_orders"\)\.insert\(/.test(officeRoute));
+    ok("office run: the crew's button makes the week ahead from the programs (generate_office_deliveries), the one-Monday call only as the pre-0356 fallback",
+      /let res = await supabase\.rpc\("generate_office_deliveries"\);/.test(crewOffice)
+      && /if \(res\.error && isMissingFunction\(res\.error\)\) \{/.test(crewOffice));
+    ok("office run: no screen or alert of the office route hard-codes the window — it is the order's, read by windowHours",
+      ![officeRoute, crewOffice].some((s) => /5–8 AM/.test(s)) && /\{windowHours\(o\.delivery_window\)\}/.test(crewOffice) && /windowHours\(windowCode\)/.test(officeRoute));
+    ok("office run: one delivery per program date by construction, cutoffs in the market's time, a schedule that logs and alerts",
+      /create unique index if not exists business_orders_program_date on public\.business_orders \(program_id, scheduled_for\);/.test(m356)
+      && /return \(d \+ time '18:00'\) at time zone public\.office_tz\(p_market\);/.test(m356)
+      && /cron\.schedule\('office-generation', '7 \* \* \* \*', 'select public\.run_office_generation\(\)'\)/.test(m356)
+      && /-- existing rows: run_office_generation — /.test(m356)
+      && /create or replace function public\.office_horizon\(\) returns int\s+language sql immutable as \$\$ select 7 \$\$;/.test(m356));
+    // A Monday program moved to Thursdays once kept its Mondays and gained Thursdays — both delivered —
+    // because only a status change was followed. Every input of a delivery is followed now, through
+    // one definition of "untouched" (scripts/db.generator.test.mjs, section 7b, proves each).
+    ok("office run: an untouched delivery follows its program's rule, window and price, Settings' price and the city's window — through one definition of untouched",
+      /create trigger office_program_follow_tg\s+after update of status, every_n_weeks, weekdays, anchor_date, monthly_nth, starts_on, ends_on, delivery_window, price_per_gallon_cents\s+on public\.company_programs/.test(m356)
+      && /create trigger office_price_follow_tg after update of office_price_cents on public\.live_status/.test(m356)
+      && /create trigger office_market_window_follow_tg after update of office_window on public\.markets/.test(m356)
+      && /canceled_reason = 'schedule changed'\s+where o\.program_id = new\.id and public\.office_untouched\(o\) and not public\.office_rule_matches\(new, o\.scheduled_for\);/.test(m356)
+      && (m356.match(/public\.office_untouched\(o\)/g) || []).length === 7
+      && !/and status = 'received' and payment_status = 'pending'\s+and paylink_url is null/.test(m356));
+  }
+
   // ── the report, the sheet, the wiring ──
   const rep = read("components/Reports.tsx");
   ok("sales: the cash taken at the window is said on its own — the part of revenue that is in a till — and only once the column exists",
