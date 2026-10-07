@@ -17,7 +17,9 @@
 import { supabaseAdmin } from "./supabaseAdmin";
 import { notifyCustomer, type SendResult } from "./notify";
 
-export type MessageKind = "receipt" | "receipt_resend" | "shipped" | "test" | "order_ready" | "delivered";
+// crew_welcome / crew_invite (2026-10-07): the GT3 welcome letter and the invite letter
+// (app/api/team/welcome). The log is the app's record of what it told anyone, crew included.
+export type MessageKind = "receipt" | "receipt_resend" | "shipped" | "test" | "order_ready" | "delivered" | "crew_welcome" | "crew_invite";
 
 export type Told = {
   email: SendResult;
