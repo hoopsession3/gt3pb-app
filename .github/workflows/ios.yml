@@ -120,14 +120,28 @@ jobs:
           running() { xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -c "UIKitApplication:com.gt3pb.app" || true; }
           # A BOOT THAT FAILS IS A RUNNER'S, NOT THE APP'S (2026-10-07). The runner's simulator sometimes
           # never finishes its first boot — PR #89 on 2026-10-06; PRs #93 and #94 on 2026-10-07: six
-          # minutes "Waiting on System App", then bootstatus gives up (Status=4294967295) — and restarting
-          # the same device, below, brought back the same broken boot, so the job blamed the app for a
-          # device that never ran anything. bootstatus's answer is read now: a boot that fails is erased
-          # and booted fresh, three tries, and a device that never boots is named as the runner's problem.
+          # minutes of data migration and "Waiting on System App", then bootstatus gives up
+          # (Status=4294967295) — and restarting the same device, below, brought back the same broken
+          # boot, so the job blamed the app for a device that never ran anything. A device counts as
+          # booted only when bootstatus says so in its exit code AND in its words (its give-up line is
+          # read whatever the exit code) AND Apple's own Settings opens on it and stays up: a device that
+          # cannot run Settings cannot judge our app. Otherwise it is erased and booted fresh, three
+          # tries, and a device that never boots is named as the runner's problem. bootstatus's
+          # second-by-second progress goes to boot.log (it was a thousand lines of this job's log); its
+          # last lines are printed when a try fails, and the file is kept with the screenshot.
+          ready() {
+            xcrun simctl launch "$UDID" com.apple.Preferences > /dev/null 2>&1 || return 1
+            sleep 5
+            local up
+            up=$(xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -c "UIKitApplication:com.apple.Preferences" || true)
+            xcrun simctl terminate "$UDID" com.apple.Preferences > /dev/null 2>&1 || true
+            [ "$up" -ge 1 ]
+          }
           booted=0
           for boot in 1 2 3; do
-            if xcrun simctl bootstatus "$UDID" -b; then booted=1; break; fi
-            echo "::warning::the simulator did not finish booting (try $boot of 3) — erasing it and booting it fresh"
+            if xcrun simctl bootstatus "$UDID" -b > boot.log 2>&1 && ! grep -q "Status=4294967295" boot.log && ready; then booted=1; break; fi
+            echo "::warning::the simulator did not finish booting (try $boot of 3) — erasing it and booting it fresh. Its last words:"
+            tail -n 6 boot.log || true
             xcrun simctl shutdown "$UDID" || true
             xcrun simctl erase "$UDID" || true
           done
@@ -173,6 +187,7 @@ jobs:
           path: |
             first-screen.png
             app.log
+            boot.log
             xcodebuild.log
           if-no-files-found: ignore
 
