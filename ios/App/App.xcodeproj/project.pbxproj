@@ -18,6 +18,7 @@
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
 		1D94C16A5DF48C40FC173BC4 /* GT3ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B56175FA39D7ADEF3C16B52 /* GT3ViewController.swift */; };
 		0DFBE03946581628E2224133 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 71331D8E2F2609CC41A5C142 /* PrivacyInfo.xcprivacy */; };
+		ACD1FC77F48FBB2A86222FED /* GT3Device.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40ECCAEC75C881F5437D3DBB /* GT3Device.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +35,7 @@
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		7B56175FA39D7ADEF3C16B52 /* GT3ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GT3ViewController.swift; sourceTree = "<group>"; };
 		71331D8E2F2609CC41A5C142 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		40ECCAEC75C881F5437D3DBB /* GT3Device.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GT3Device.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -68,6 +70,7 @@
 		504EC3061FED79650016851F /* App */ = {
 			isa = PBXGroup;
 			children = (
+				40ECCAEC75C881F5437D3DBB /* GT3Device.swift */,
 				71331D8E2F2609CC41A5C142 /* PrivacyInfo.xcprivacy */,
 				7B56175FA39D7ADEF3C16B52 /* GT3ViewController.swift */,
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
@@ -165,6 +168,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				ACD1FC77F48FBB2A86222FED /* GT3Device.swift in Sources */,
 				1D94C16A5DF48C40FC173BC4 /* GT3ViewController.swift in Sources */,
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
