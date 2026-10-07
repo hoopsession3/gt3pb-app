@@ -977,7 +977,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 /* Aligned to .chg-chip's treatment (2026-07-16, CSS consolidation pass): same filter-chip pattern,
    independently defined with a translucent-white base and a soft gold-tint "on" state instead of
    the solid-card base + filled-gold "on" state used everywhere else this app marks a selected
-   filter/tab (.chg-chip, .grp-seg.on, .rpt-r.on). Aligned so both read as the same control. */
+   filter/tab (.chg-chip, .rpt-r.on — and the kit's .k-seg-opt.on). Aligned so both read as the same control. */
 .mnt-chip{background:var(--card);border:1px solid var(--line2);border-radius:var(--r-pill);padding:5px 12px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:11.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .mnt-chip.on{background:var(--gold);border-color:var(--gold);color:#1a1610}
 .mnt-list{display:flex;flex-direction:column;gap:8px}
@@ -1138,8 +1138,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .adm-status button{font-family:'Inter';font-weight:600;font-size:10.5px;padding:6px 10px;border-radius:9px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer}
 .adm-status button.on{background:rgba(184,144,47,.18);border-color:var(--gold2);color:var(--gold2)}
 .adm-status .adm-req-del{margin-left:auto;color:var(--red);border-color:color-mix(in srgb, var(--brand-red) 35%, transparent);font-weight:700}
-.adm-pill{font-family:'Inter';font-weight:650;font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border-radius:5px;background:rgba(184,144,47,.16);color:var(--gold2);margin-left:7px;vertical-align:middle}
-.adm-pill.due{background:color-mix(in srgb, var(--brand-red) 13%, transparent);color:var(--red-h)}
 .sub-renew.soon{color:var(--gold2)}
 .sub-renew.due{color:var(--red);font-weight:600}
 /* kitchen orders */
@@ -1381,29 +1379,12 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .op-head-t{font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;font-size:26px;color:var(--cream);line-height:1}
 /* (The WHEN pill's three rules lived here; the pill left the header 2026-10-04 — see app/crew/page.tsx.) */
 /* crew eyebrow → section guide */
-/* Mode switch (Crew ⇄ Customer) — de-emphasized (2026-07-16, ground-up redesign). This was a
-   bordered, filled-pill control carrying the same visual weight as the real section-tab nav
-   below (.grp-seg), which made the header read as a stack of competing bands. It's a rare
-   escape hatch, not frequent navigation, so it's now plain text + a quiet link: no box, no fill. */
+/* The crew header (2026-10-07): Back and the mode switch lead the row, search · guide · inbox close it —
+   all the kit's ("PILLS, ONE KIT"). The mode switch is the small segmented control: a switch that looks like one. */
 .toprow-actions{display:inline-flex;align-items:center;gap:8px}
-.modesw{display:inline-flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
-.modesw-seg{font-family:'DM Mono',ui-monospace,monospace;font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-d);background:transparent;border:none;border-radius:var(--r-sm);padding:6px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none;white-space:nowrap}
-.modesw-seg.on{color:var(--gold2);cursor:default}
-@media (hover:hover){.modesw-seg:not(.on):hover{color:var(--cream-m)}}
-.crew-guide{display:inline-flex;align-items:center;gap:5px;font-family:'Inter';font-weight:700;font-size:11.5px;letter-spacing:.02em;color:var(--gold2);background:transparent;border:1px solid var(--gold2);border-radius:var(--r-pill);padding:6px 12px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}
-.crew-guide:active{background:color-mix(in srgb, var(--brand-gold2) 10%, transparent)}
-@media (hover:hover){.crew-guide:hover{background:color-mix(in srgb, var(--brand-gold2) 10%, transparent)}}
-.crew-jump{display:inline-flex;align-items:center;gap:5px;font-family:'Inter';font-weight:700;font-size:11.5px;letter-spacing:.02em;color:var(--cream-m);background:transparent;border:1px solid var(--line2);border-radius:var(--r-pill);padding:6px 10px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}
-/* Header inbox bell — the one place everything that needs you rolls up, from any screen */
-.crew-bell{position:relative;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:1px solid var(--line2);border-radius:var(--r-pill);width:32px;height:32px;font-size:15px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none;flex:0 0 auto}
-.crew-bell-b{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;border-radius:var(--r-pill);background:var(--gold);color:#1a1610;font-family:'Inter';font-weight:800;font-size:10px;display:flex;align-items:center;justify-content:center;box-sizing:border-box}
-.crew-bell-b.crit{background:#c4453c;color:#fff}
+.toprow-lead{display:inline-flex;align-items:center;gap:8px;min-width:0}
 /* My Day inbox pointer — a compact link into the bell inbox (My Day stays a glance) */
-.crew-jump:active{background:color-mix(in srgb, var(--brand-cream) 6%, transparent);color:var(--cream)}
-@media (hover:hover){.crew-jump:hover{background:color-mix(in srgb, var(--brand-cream) 6%, transparent);color:var(--cream)}}
-.crew-jump .crew-jump-k{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.04em;color:var(--cream-d);border:1px solid var(--line);border-radius:var(--r-xs);padding:1px 4px;margin-left:1px}
 /* No physical keyboard → hide the ⌘K hint; the chip is still the tap target. */
-@media (pointer:coarse){.crew-jump .crew-jump-k{display:none}}
 /* ── Section guide sheet ── */
 .guide-t{font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;font-size:22px;color:var(--cream);line-height:1}
 .guide-lede{font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:5px;line-height:1.4}
@@ -1638,7 +1619,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .admin .ev-toggle-knob{width:20px;height:20px}
 .admin .ev-toggle.on .ev-toggle-knob{left:22px}
 .admin .ev-group-h{font-size:10px;letter-spacing:1.8px}
-.admin .adm-pill{padding:3px 8px}
 .admin .adm-ref{font-size:12px}
 
 /* Masthead right slot holding more than one control (the edit-copy pill + the account avatar) —
@@ -2342,7 +2322,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .alert-clearall{margin-left:auto;background:none;border:1px solid var(--line2);border-radius:var(--r-pill);padding:4px 12px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:11.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .app.crew-day .alert-clearall{color:var(--muted2-onLight)}
 .opnav .tab .ti{position:relative}
-.nav-badge{position:absolute;top:-5px;left:calc(50% + 4px);min-width:16px;height:16px;padding:0 4px;background:var(--red-h);color:#fff;border-radius:var(--r-pill);font-family:'Inter';font-weight:800;font-size:10px;line-height:16px;text-align:center;box-sizing:border-box}
+/* the tab's count is the kit's .k-badge (2026-10-07); only where it sits on a tab is the tab's */
+.nav-badge.k-badge{top:-5px;left:calc(50% + 4px);right:auto}
 .alert-ack:active{opacity:.7}
 .note-fu-flag{flex:0 0 auto;background:none;border:none;color:var(--cream-m);font-size:15px;line-height:1;padding:6px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .note-fu-flag:active{color:#d2554a}
@@ -2952,11 +2933,7 @@ h5.pr-h{font-size:12.5px;color:var(--cream-d)}
    (2026-07-09). Two failure families: gold pills whose day background darkened past what ink text
    can sit on (→ white labels), and classes that hardcode dark-theme colors (pink crit text, cream
    chip text, light-blue link, light-red pills) that never flipped for the cream ground. */
-.app.crew-day :is(.grp-seg.on,.subnav-tab.on,.studio-view.on,.cos-tg.on,.rdy-run,.skip-link,.cal-nudge button,.alert-open,.note-tab.on,.oa-msg.user,.oa-send,.insp-yes,.note-fu-addbtn,.guide-go,.qd-fab,.inline-create-go,.crew-bell-b,.cmt-av,.cmt-count,.studio-peer,.cal-vt.on,.calw-today,.prof-av,.org-av,.fn-day.on,.fn-conv,.cmd-cd,.vipq-yes,.vipv-btn,.fdig-opt.on,.pbd-filter.on,.k-seg-opt.on,.rhythm-go,.cfm-ok){color:var(--card)}
-/* .modesw-seg.on dropped from the list above (2026-07-16, ground-up redesign): it's no longer a
-   filled gold pill (see .modesw-seg, ~line 1263) — it's plain gold2 text, and --gold2 is already
-   the deepened, WCAG-safe text-on-cream token in this theme block. Forcing it to var(--card)
-   (white) here would render it invisible against the light cream ground. */
+.app.crew-day :is(.subnav-tab.on,.studio-view.on,.cos-tg.on,.rdy-run,.skip-link,.cal-nudge button,.alert-open,.note-tab.on,.oa-msg.user,.oa-send,.insp-yes,.note-fu-addbtn,.guide-go,.qd-fab,.inline-create-go,.cmt-av,.cmt-count,.studio-peer,.cal-vt.on,.calw-today,.prof-av,.org-av,.fn-day.on,.fn-conv,.cmd-cd,.vipq-yes,.vipv-btn,.fdig-opt.on,.pbd-filter.on,.rhythm-go,.cfm-ok){color:var(--card)}
 /* contrast fix (2026-07-15 crew-day audit): .subnav-tab.on and .studio-view.on are translucent-tint
    pills (not solid gold like the rest of the list above) whose OWN dark-theme rule already sets
    color:var(--gold2) — that's correct in both themes and shouldn't have been swept into the white-text
@@ -2966,7 +2943,7 @@ h5.pr-h{font-size:12.5px;color:var(--cream-d)}
 .app.crew-day .subnav-tab.on,.app.crew-day .studio-view.on{color:var(--gold2)}
 .app.crew-day .subnav-tab.on .subnav-badge{background:rgba(255,255,255,.2);color:var(--gold2)}
 .app.crew-day :is(.mytask.crit .mytask-label,.adm-task.crit .task-label,.alert.sev-critical .alert-title,.note-del){color:var(--red-onLight)}
-.app.crew-day :is(.adm-pill.due,.mytask-pri.crit){color:var(--red-onLight)}
+.app.crew-day :is(.mytask-pri.crit){color:var(--red-onLight)}
 .app.crew-day .tm-badge.tone-red{background:color-mix(in srgb, var(--brand-red) 10%, transparent);color:var(--red-onLight)}
 .app.crew-day .ai-agent{color:var(--cream)}
 .app.crew-day .ai-agent.sel{color:var(--red-onLight)}
@@ -3509,11 +3486,6 @@ body:has(.conc-sheet) .rail{display:flex}
    language) instead of sitting inside a second box. The gold-filled .on state is kept as-is: this
    IS real section navigation, and it's now the one clear anchor in the header instead of one of
    three competing ones. */
-.grp-toggle{display:flex;gap:8px;margin-bottom:14px;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-.grp-toggle::-webkit-scrollbar{display:none}
-.grp-toggle .grp-seg{flex:0 0 auto}
-.grp-seg{flex:0 0 auto;background:transparent;border:1px solid var(--line2);border-radius:var(--r-pill);padding:7px 16px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .12s,color .12s,border-color .12s}
-.grp-seg.on{background:var(--gold);color:#1a1610;border-color:var(--gold)}
 
 /* ── Company calendar: tap-a-day detail view ── */
 .cal-cell{cursor:pointer}
@@ -4523,7 +4495,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .calcard-m b{display:block;font-family:'Inter';font-weight:650;font-size:13.5px}
 .calcard-m span{display:block;font-size:11px;color:var(--cream-m);margin-top:2px}
 /* lane badges — unacked flags rolled up category → lane (Today keeps the red critical count) */
-.nav-badge.lane{background:var(--gold2);color:#fff}
 
 /* driver dash — the wheel view: next run + one big go */
 .drv-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-2xl);padding:14px;margin-bottom:4px}
@@ -6031,7 +6002,7 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 
 /* Numbers that line up: money and telemetry set in Inter get tabular figures. (DM Mono is
    inherently tabular — this covers the proportional-face numbers.) */
-.oa-p,.dl-quote-t,.dl-done-total,.mypack-flag,.adm-pill,.subnav-badge,.nav-badge,.pipe-head,.gauge .gv,.mypack-dayh span,.cogs-row,.cogs-head{font-variant-numeric:tabular-nums}
+.oa-p,.dl-quote-t,.dl-done-total,.mypack-flag,.subnav-badge,.pipe-head,.gauge .gv,.mypack-dayh span,.cogs-row,.cogs-head{font-variant-numeric:tabular-nums}
 
 /* THE living element: when the truck is live, the dot breathes. Slow, quiet, unmistakable. */
 @keyframes breathe{0%,100%{box-shadow:0 0 0 3px rgba(70,193,74,.2)}50%{box-shadow:0 0 0 7px rgba(70,193,74,.07)}}
@@ -6663,12 +6634,53 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 /* 08 · Kit extensions (Wave 2, 2026-07-15) — the button/card audit found real gaps, not just
    duplication: segmented toggles (~52 bespoke instances), icon-only circular buttons (~9), and a
    dashed "add new" affordance (~17) had no kit equivalent, so every screen reinvented its own. */
-.k-seg{display:flex;gap:2px;padding:3px;background:color-mix(in srgb, var(--brand-cream) 6%, transparent);border:1px solid var(--line);border-radius:var(--r-xl)}
-.k-seg-opt{flex:1;padding:8px 12px;background:none;border:none;border-radius:calc(var(--r-xl) - 3px);cursor:pointer;font-family:'Inter';font-weight:600;font-size:12.5px;color:var(--cream-d);text-align:center;transition:background .15s,color .15s}
-.k-seg-opt.on{background:var(--gold2);color:#15120d}
-.k-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:var(--r-pill);background:color-mix(in srgb, var(--brand-cream) 6%, transparent);border:1px solid var(--line);color:var(--cream);cursor:pointer;flex:none}
-.k-icon-btn:active{background:color-mix(in srgb, var(--brand-cream) 12%, transparent)}
-.k-icon-btn.sm{width:30px;height:30px}
+/* ── PILLS, ONE KIT (2026-10-07, the pill round) ──────────────────────────────────────────────
+   Ryan's My Day header was five controls in five recipes (10px mono words for a switch, a 32px
+   outlined bell, 26px outlined pills in two colours, Back as a 38px red circle); the house held 124
+   pills outside this kit, which two screens used. scripts/css.audit.mjs (ONE PILL) counts them, and
+   the count only falls. One height per size (28 · 36), 44px to the thumb on every one (the ::after
+   reaches past the paint); a tonal wash of the surface's own ink, not a hairline, and the chosen one
+   filled; tokens the crew's light look restates; numbers tabular. */
+/* segmented control (controls.tsx): the chosen one fills itself until its thumb has measured */
+/* .k-seg-scroll scrolls; its padding keeps each option's 44px reach (a scroll clips). .k-seg-wrap takes the margins */
+.k-seg-wrap{display:inline-flex;max-width:100%;vertical-align:middle}
+.k-seg-wrap.fill{display:flex;width:100%}
+.k-seg-scroll{display:flex;flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none;padding-block:8px;margin-block:-8px}
+.k-seg-scroll::-webkit-scrollbar{display:none}
+.k-seg-wrap.fill .k-seg-scroll{flex:1 1 auto}
+.k-seg{position:relative;display:inline-flex;align-items:stretch;flex:none;padding:3px;border-radius:var(--r-pill);background:var(--ink2-onLight-08);isolation:isolate}
+.k-seg-opt{position:relative;z-index:1;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:0;height:30px;padding:0 14px;border:0;border-radius:var(--r-pill);background:none;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13.5px;line-height:1;white-space:nowrap;cursor:pointer;-webkit-appearance:none;appearance:none;-webkit-tap-highlight-color:transparent;transition:color .2s var(--ease),background-color .2s var(--ease)}
+.k-seg-opt::after{content:"";position:absolute;inset:-7px 0}
+.k-seg-opt.on{background:var(--gold2);color:var(--char)}
+.k-seg[data-thumb] .k-seg-opt.on{background:transparent}
+.k-seg-opt:focus-visible{outline:2px solid var(--gold2);outline-offset:1px}
+@media (hover:hover){.k-seg-opt:not(.on):hover{color:var(--cream)}}
+.k-seg-thumb{position:absolute;z-index:0;top:3px;bottom:3px;left:0;width:var(--w,0);border-radius:var(--r-pill);background:var(--gold2);box-shadow:var(--shadow-1);transform:translateX(var(--x,0));transition:transform .34s var(--spring),width .34s var(--spring);pointer-events:none}
+.k-seg:not([data-thumb]) .k-seg-thumb{display:none}
+.k-seg-n{font-weight:700;font-variant-numeric:tabular-nums;opacity:.72}
+.k-seg.sm .k-seg-opt{height:22px;padding:0 10px;font-size:12px}
+.k-seg.sm .k-seg-opt::after{inset:-11px 0}
+.k-seg.fill{display:flex;flex:1 0 auto;min-width:100%}
+.k-seg.fill .k-seg-opt{flex:1 1 0;min-width:max-content}
+@media (prefers-reduced-motion:reduce){.k-seg-thumb,.k-seg-opt{transition:none}}
+/* icon button: no words on it, its name is its aria-label */
+.k-icon-btn{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:none;width:36px;height:36px;padding:0;border:0;border-radius:var(--r-pill);background:var(--ink2-onLight-08);color:var(--cream);font-family:'Inter';font-weight:600;font-size:15px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none;-webkit-tap-highlight-color:transparent;transition:background-color .15s var(--ease),transform .12s var(--ease)}
+.k-icon-btn::after{content:"";position:absolute;inset:-4px}
+.k-icon-btn .k-ic,.k-icon-btn>svg{width:18px;height:18px}
+.k-icon-btn:active{transform:scale(.94);background:var(--ink-onLight-16)}
+.k-icon-btn:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
+@media (hover:hover){.k-icon-btn:hover{background:var(--ink2-onLight-10)}}
+.k-icon-btn.sm{width:28px;height:28px}
+.k-icon-btn.sm::after{inset:-8px}
+.k-icon-btn.sm .k-ic,.k-icon-btn.sm>svg{width:15px;height:15px}
+/* a count on an icon, ringed in the ground behind it */
+.k-badge{position:absolute;top:-4px;right:-4px;display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:var(--r-pill);background:var(--gold2);color:var(--char);font-family:'Inter';font-weight:700;font-size:11px;line-height:1;font-variant-numeric:tabular-nums;box-shadow:0 0 0 2px var(--bg,var(--char));pointer-events:none}
+.k-badge.crit{background:var(--red);color:#fff}
+/* a count beside words */
+.k-count{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-width:22px;height:22px;padding:0 8px;border-radius:var(--r-pill);background:var(--ink2-onLight-08);color:var(--cream);font-family:'Inter';font-weight:700;font-size:12px;line-height:1;letter-spacing:0;font-variant-numeric:tabular-nums;white-space:nowrap;vertical-align:middle}
+.k-count.due{background:color-mix(in srgb, var(--brand-red) 13%, transparent);color:var(--red-onLight)}
+.k-count.soon{background:color-mix(in srgb, var(--brand-gold) 16%, transparent);color:var(--amber-onLight)}
+.k-count.ok{background:color-mix(in srgb, var(--ok) 16%, transparent);color:var(--green-onLight)}
 /* 09 · Card primitives (Wave 2) — one base + a stripe accent (--k-stripe) + two semantic families.
    The audit found ~238 bespoke box classes; ~90% collapse to these four shapes with different
    numbers plugged in. Not a retrofit-everything mandate — new work should reach for these first. */
@@ -6677,7 +6689,6 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 /* 10 · Icon (Wave 2) — semantic line icons replacing emoji-as-icon; see components/Icon.tsx */
 .k-ic{display:inline-flex;align-items:center;justify-content:center;flex:none;width:1em;height:1em}
 .k-ic svg{width:100%;height:100%}
-.app.crew-day .k-icon-btn{background:var(--ink-onLight-05);border-color:var(--line)}
 
 /* KIT retrofit · crew-only legacy header grammars → the Design System v1 section look.
    These classes render ONLY on crew/admin surfaces (verified: no customer-page usage), so
@@ -6750,10 +6761,10 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .rhythm-sub{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m);margin:0}
 .rhythm-last{display:inline-flex;align-items:center;gap:6px;background:none;border:none;padding:0;font-family:'Inter';font-weight:600;font-size:11.5px;color:var(--gold2);cursor:pointer;text-align:left;-webkit-appearance:none;appearance:none}
 .rhythm-last svg{width:11px;height:11px}
-/* THE GOLD PRIMARY — filled, like .grp-seg.on: an action is a button, not another outlined box
-   inside the box. One rule for the rhythm cards' action and the confirm sheet's quiet "yes"
-   (components/ConfirmSheet.tsx), rather than a fourth local gold button beside .ol-btn.primary
-   and .grp-seg.on. Day-theme white label comes from the solid-gold-pill list near line 2965. */
+/* THE GOLD PRIMARY — filled, like the kit's chosen segment: an action is a button, not another
+   outlined box inside the box. One rule for the rhythm cards' action and the confirm sheet's quiet
+   "yes" (components/ConfirmSheet.tsx), rather than a fourth local gold button beside
+   .ol-btn.primary. Day-theme white label comes from the solid-gold-pill list near line 2940. */
 :is(.rhythm-go,.cfm-ok){display:inline-flex;align-items:center;justify-content:center;gap:7px;margin-top:auto;background:var(--gold);border:1px solid var(--gold);border-radius:var(--r-pill);padding:9px 14px;min-height:40px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:12.5px;color:#1a1610;-webkit-appearance:none;appearance:none}
 .cfm-ok{min-height:44px;padding:11px 18px;font-size:13.5px;margin-top:0}
 .rhythm-go:disabled{opacity:.55;cursor:default}
@@ -6940,12 +6951,11 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
    touch floor as every other tappable row, the same gold accent, the same Inter/DM Mono pairing.
    No new colour, no new radius — a new feature should make the system stronger, not wider. */
 .owed{display:flex;flex-direction:column;gap:2px;margin-top:12px}
-.owed-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:0 2px 6px}
+.owed-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 2px 6px}
 .owed-head.sub{padding-top:12px}
+.owed-n{display:inline-flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px}
 .owed-k{font-family:'DM Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.07em;
   text-transform:uppercase;color:var(--gold2)}
-.owed-head b{font-family:'Inter';font-size:13px;font-weight:700;color:var(--cream)}
-.owed-head .dim{font-weight:500;color:var(--cream-m)}
 
 .owed-row{display:flex;align-items:center;gap:10px;min-height:44px;padding:9px 12px;
   border:1px solid var(--line);border-radius:var(--r-lg);background:var(--card);
