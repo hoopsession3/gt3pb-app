@@ -118,6 +118,47 @@ jobs:
           print(phones[0]["udid"] if phones else "")')
           test -n "$UDID" || { echo "::error::no iPhone simulator on this runner"; exit 1; }
           running() { xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -c "UIKitApplication:com.gt3pb.app" || true; }
+          # A BOOT THAT FAILS IS A RUNNER'S, NOT THE APP'S (2026-10-07). The runner's simulator sometimes
+          # never finishes its first boot — PR #89 on 2026-10-06; PRs #93, #94 and #95 on 2026-10-07:
+          # minutes of data migration, then "Waiting on System App", then bootstatus gives up
+          # (Status=4294967295) — and the job used to launch the app anyway and blame it. A device counts
+          # as booted when bootstatus says so cleanly (its exit code and its words: the give-up line is
+          # read whatever the exit code), or, when it gives up, once Apple's own Settings opens on it and
+          # stays up — bootstatus often gives up while the device is still coming up, so Settings is
+          # asked for three more minutes. A device that cannot run Settings cannot judge our app: it is
+          # restarted (keeping what its first boot migrated), erased only before the last try, and after
+          # three tries named as the runner's problem. bootstatus's second-by-second progress goes to
+          # boot.log, not this log (it was a thousand lines of it); a failed try prints its last lines,
+          # and the file is kept with the screenshot. NOT booted alongside the build: tried on #95
+          # (2026-10-07, 17:31 UTC), the first boot's data migration slowed everything else on the runner
+          # four to eight times (npm ci 16 s → 2 min 6 s, the web build 51 s → 3 min 17 s) and the app
+          # still did not run — the boot gets the runner to itself, after the build.
+          ready() {
+            xcrun simctl launch "$UDID" com.apple.Preferences > /dev/null 2>&1 || return 1
+            sleep 5
+            local up
+            up=$(xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -c "UIKitApplication:com.apple.Preferences" || true)
+            xcrun simctl terminate "$UDID" com.apple.Preferences > /dev/null 2>&1 || true
+            [ "$up" -ge 1 ]
+          }
+          settled() {
+            if xcrun simctl bootstatus "$UDID" -b > boot.log 2>&1 && ! grep -q "Status=4294967295" boot.log; then return 0; fi
+            for i in $(seq 1 12); do
+              if ready; then echo "::notice::bootstatus gave up, but Apple's Settings opened on the device — booted (try $boot)"; sleep 20; return 0; fi
+              sleep 15
+            done
+            return 1
+          }
+          booted=0
+          for boot in 1 2 3; do
+            if settled; then booted=1; break; fi
+            echo "::warning::the simulator could not run Apple's own Settings (try $boot of 3) — restarting it. bootstatus's last words:"
+            tail -n 6 boot.log || true
+            xcrun simctl shutdown "$UDID" || true
+            if [ "$boot" = 2 ]; then xcrun simctl erase "$UDID" || true; fi
+            xcrun simctl boot "$UDID" || true
+          done
+          [ "$booted" = 1 ] || { echo "::error::the runner's iPhone simulator never finished booting, three times — a runner problem, not the app: re-run the job"; exit 1; }
           # A runner's simulator sometimes never finishes its first boot (PR #89, 2026-10-06: seven
           # minutes of data migration, then a device that ran nothing). So one more go, from a
           # restarted simulator, before anything is put down to the app.
@@ -159,6 +200,7 @@ jobs:
           path: |
             first-screen.png
             app.log
+            boot.log
             xcodebuild.log
           if-no-files-found: ignore
 
