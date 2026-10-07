@@ -5302,8 +5302,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const \{ flags: hdrFlags, critCount: hdrCrit \} = useMyAlerts\(user\?\.id \?\? null\);/.test(crew));
   ok("chrome: no WHEN pill styled as a status, and its rules left with it",
     !/op-head-when/.test(crew) && !/\.op-head-when\{/.test(css));
-  ok("chrome: ‹ is Back only — it no longer turns into 'Exit Crew Mode' beside the Customer view switch",
-    /\{canGoBack && <button type="button" className="pf" aria-label="Back" onClick=\{\(\) => back\(\)\}>‹<\/button>\}/.test(crew) && !/Exit Crew Mode/.test(crew));
+  ok("chrome: ‹ is Back only — it no longer turns into 'Exit Crew Mode' beside the Customer switch — and it leads the row, quiet (2026-10-07: it was a 38px red circle at the far right)",
+    /\{canGoBack && <IconButton icon="chevronLeft" label="Back" onClick=\{\(\) => back\(\)\} \/>\}/.test(crew) && !/Exit Crew Mode/.test(crew)
+    && crew.indexOf('<div className="toprow-lead">') < crew.indexOf('icon="chevronLeft"') && crew.indexOf('icon="chevronLeft"') < crew.indexOf('<div className="toprow-actions">'));
   const nav = code(read("components/OperatorNav.tsx"));
   ok("chrome: tapping the lane you are on does something — the inbox when it is badged, the lane's first screen otherwise",
     /if \(!on\) \{ openGroup\(g\); return; \}/.test(nav) && /if \(waiting > 0\) \{ window\.dispatchEvent\(new Event\("gt3-open-inbox"\)\); return; \}/.test(nav)
@@ -5320,7 +5321,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   // ── Needs you ──
   ok("needs you: one number for late — '11 overdue · 7 tasks past due' read as if the seven were among the eleven",
-    /const lateCount = late\.length \+ tasks\.length;/.test(owed) && /`\$\{lateCount\} late`/.test(owed) && !/tasks past due/.test(owed)
+    /const lateCount = late\.length \+ tasks\.length;/.test(owed) && /<span className="k-count due">\{lateCount\} late<\/span>/.test(owed) && !/tasks past due/.test(owed)
     && /from "@\/lib\/dayWords"/.test(owed) && !/const ageWord =/.test(owed) && !/const localYMD =/.test(owed));
   ok("needs you: every row is a button to what it names — no <a href> full reloads; '+N more' expands instead of being text",
     /onClick=\{\(\) => go\(r\)\}/.test(owed) && !/href=\{r\.route\}/.test(owed) && /owner_user_id"\)/.test(owed)
@@ -7696,7 +7697,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const pg = code(read("app/crew/page.tsx"));
   ok("pages: the section body is one pager — the lane's sections, and Plan's tabs on Plan — each turn the tap it stands for, in the lane",
     /<SwipePager levels=\{\[\s+lane\.members\.length >= 2 && \{ keys: lane\.members, current: sec, go: \(k\) => inLane\(k as OpSection\), depth: 0 \},\s+sec === "plan" && canManage && \{ keys: PLAN_PAGES, current: planTab, go: \(k\) => setPlanTab\(k as PlanTab\), depth: 1 \},/.test(pg)
-    && /const inLane = \(m: OpSection\) => \{ if \(grp\) setGroupId\(grp\.id\); setSection\(m\); \};/.test(pg) && /onClick=\{\(\) => inLane\(m\)\}/.test(pg));
+    && /const inLane = \(m: OpSection\) => \{ if \(grp\) setGroupId\(grp\.id\); setSection\(m\); \};/.test(pg) && /onChange=\{\(m\) => inLane\(m\)\}/.test(pg));
   ok("pages: Plan's row is drawn from the same list the swipe turns through",
     /const PLAN_PAGES: readonly PlanTab\[\] = \["calendar", "events", "route", "leads", "vendors"\];/.test(read("app/crew/page.tsx")) && /\{PLAN_PAGES\.map\(\(k\) => \{/.test(pg));
   ok("pages: Studio's views and the shop's aisles page too, each from its one list",
@@ -8721,6 +8722,25 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /"@tailwindcss\/postcss": \{\}/.test(read("postcss.config.mjs")));
   ok("tailwind: a P1 lead keeps its gold — .pipe-pri.p1 is in the house stylesheet (the pipeline lowercases the database's 'P1')",
     /\.pipe-pri\.p1\{background:var\(--gold2\)\}/.test(css) && /pipe-pri \$\{o\.priority\.toLowerCase\(\)\}/.test(read("components/PipelinePanel.tsx")));
+
+  // ── PILLS, ONE KIT (2026-10-07, the pill round) — Ryan's My Day header, five controls in five recipes ──
+  const crew = read("app/crew/page.tsx"), kit = read("components/controls.tsx"), audit = read("scripts/css.audit.mjs");
+  const header = crew.slice(crew.indexOf("THE HEADER, ONE KIT"), crew.indexOf("{guideOpen && <SectionGuide"));
+  ok("pills: the crew header is the kit's — Back, the mode switch, search, the guide and the inbox, and nothing hand-made beside them",
+    /<Segmented kind="choice" size="sm" label="View mode" value="crew"/.test(header)
+    && (header.match(/<IconButton icon="(search|info|bell)"/g) || []).length === 3 && /<IconButton icon="chevronLeft" label="Back"/.test(header)
+    && !/<button\b/.test(header) && /badge=\{hdrFlags\.length\} crit=\{hdrCrit > 0\}/.test(header));
+  ok("pills: the lane's sections are the kit's segmented control, the whole row wide",
+    /<Segmented fill className="lane-tabs mb-3\.5" label=\{lane\.label\} value=\{sec\}/.test(crew));
+  const retired = ["crew-bell", "crew-jump", "crew-guide", "modesw", "grp-seg", "grp-toggle", "adm-pill"];
+  const stillWritten = retired.filter((c) => new RegExp(`["'\`\\s]${c}(["'\`\\s$]|-)`).test(crew + read("components/Owed.tsx") + read("components/ReviewsAdmin.tsx") + read("components/OperatorNav.tsx")));
+  ok("pills: no screen writes a retired pill (crew-bell, crew-jump, crew-guide, modesw, grp-seg, grp-toggle, adm-pill), and the stylesheet styles none",
+    stillWritten.length === 0 && !retired.some((c) => new RegExp(`\\.${c}(?![\\w-])`).test(css)), stillWritten);
+  ok("pills: the kit's segmented control measures its thumb from the chosen option, and scrolls in a wrapper that keeps the 44px reach",
+    /const on = el\.querySelector<HTMLElement>\("\.k-seg-opt\.on"\)/.test(kit) && /"k-seg-wrap"/.test(kit) && /<div className="k-seg-scroll">/.test(kit)
+    && /\.k-seg-scroll\{[^}]*overflow-x:auto[^}]*padding-block:8px;margin-block:-8px\}/.test(css));
+  ok("pills: the CSS audit counts the pills outside the kit, and the count only falls (ONE PILL)",
+    /export function pillRulesIn\(ast\)/.test(audit) && /pillRules: \d+,/.test(audit) && /9\. ONE PILL/.test(audit));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

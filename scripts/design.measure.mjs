@@ -45,7 +45,10 @@ export const OBSERVE = `(() => {
 })()`;
 
 export const MEASURE = `(() => {
-  const alpha = (c) => { const m = c && c.match(/rgba?\\(([^)]+)\\)/); if (!m) return c && c !== "transparent" ? 1 : 0; const p = m[1].split(",").map(Number); return p.length === 4 ? p[3] : 1; };
+  // A colour's alpha, however the browser writes it: rgba(r, g, b, a), rgb(r g b / a), or the
+  // color(srgb r g b / a) a color-mix() computes to (2026-10-07: the last read as opaque, so a 5% wash
+  // made by color-mix counted as a box where the same wash as rgba() did not).
+  const alpha = (c) => { if (!c || c === "transparent") return 0; const m = c.match(/^(?:rgba?|color)\\(([^)]*)\\)$/); if (!m) return 1; const slash = m[1].split("/"); if (slash.length === 2) return parseFloat(slash[1]); const p = m[1].split(",").map(Number); return p.length === 4 ? p[3] : 1; };
   const vis = (el) => { const cs = getComputedStyle(el); return cs.display !== "none" && cs.visibility !== "hidden" && Number(cs.opacity) > 0.05; };
   const onScreenish = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.bottom > -4000 && r.top < innerHeight + 4000; };
   const fillBehind = (el) => { let p = el.parentElement; while (p) { const c = getComputedStyle(p).backgroundColor; if (alpha(c) > 0.05) return c; p = p.parentElement; } return null; };
@@ -103,11 +106,36 @@ export const MEASURE = `(() => {
     if (!/(auto|scroll|visible)/.test(cs.overflowX)) continue;
     if (el.scrollWidth > el.clientWidth + 2 && el.clientWidth >= innerWidth - 2) overflowX = Math.max(overflowX, el.scrollWidth - el.clientWidth);
   }
+  // reach (2026-10-07, the pill round): a target is what a thumb can land on — the element's box,
+  // grown by an ::after or ::before that reaches past it (the kit's pills paint 28–36px and take 44px
+  // to the thumb that way), and cut back to the nearest ancestor that clips (a scroll clips both ways).
+  const reach = (el) => {
+    const b = el.getBoundingClientRect();
+    let x0 = b.left, y0 = b.top, x1 = b.right, y1 = b.bottom;
+    for (const which of ["::after", "::before"]) {
+      const ps = getComputedStyle(el, which);
+      if (!ps.content || ps.content === "none" || ps.content === "normal" || ps.position !== "absolute" || ps.pointerEvents === "none" || ps.display === "none") continue;
+      const px = (v) => (/px$/.test(v) ? parseFloat(v) : null);
+      const t = px(ps.top), l = px(ps.left), bt = px(ps.bottom), rt = px(ps.right);
+      if (t === null || l === null || bt === null || rt === null) continue;
+      x0 = Math.min(x0, b.left + l); y0 = Math.min(y0, b.top + t); x1 = Math.max(x1, b.right - rt); y1 = Math.max(y1, b.bottom - bt);
+    }
+    // what reaches past the element is cut back by an ancestor that clips; the element itself is not
+    // (a row scrolled half out of view is not a smaller target — it is one you scroll to)
+    for (let p = el.parentElement; p && p !== document.documentElement && (x0 < b.left || y0 < b.top || x1 > b.right || y1 > b.bottom); p = p.parentElement) {
+      const cs = getComputedStyle(p);
+      if (cs.overflowX === "visible" && cs.overflowY === "visible") continue;
+      const c = p.getBoundingClientRect();
+      x0 = Math.min(b.left, Math.max(x0, c.left)); y0 = Math.min(b.top, Math.max(y0, c.top));
+      x1 = Math.max(b.right, Math.min(x1, c.right)); y1 = Math.max(b.bottom, Math.min(y1, c.bottom));
+    }
+    return { left: x0, top: y0, right: x1, bottom: y1, width: x1 - x0, height: y1 - y0 };
+  };
   let smallestTap = 999, smallestTapWhat = "";
   for (const el of document.querySelectorAll("a[href],button,[role=button],input:not([type=hidden]):not([type=checkbox]):not([type=radio]),select,textarea,[tabindex]:not([tabindex='-1'])")) {
     // a checkbox/radio is styled by its label's hit area, which this cannot see; measured elsewhere
     if (!vis(el) || !onScreenish(el)) continue;
-    const r = el.getBoundingClientRect(); const s = Math.min(r.width, r.height);
+    const r = reach(el); const s = Math.min(r.width, r.height);
     if (r.bottom <= 0 || r.right <= 0) continue; // parked off-screen on purpose (the skip link) — not a target until focused
     if (s > 0 && s < smallestTap) { smallestTap = +s.toFixed(1); smallestTapWhat = (el.getAttribute("aria-label") || el.innerText || el.className || el.tagName).toString().trim().replace(/\\s+/g, " ").slice(0, 36); }
   }

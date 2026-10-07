@@ -20,7 +20,7 @@ import { promisesIn, PLACES, CHEVRON_CEILING, DIRECTION_CEILING } from "./afford
 import { vocabularies, wordsIn, judge as judgeWords, listOf, REFUSED_CEILING } from "./vocab.audit.mjs";
 import { gesturesIn, judgeFile, staleEntries, OWN_OVERLAYS, NOT_PAGES, NO_UNSAVED, GESTURE_LAYER } from "./gesture.audit.mjs";
 import { hapticsIn, judgeFile as judgeHaptics, vocabularyOf, judgeVocabulary, HOME as HAPTICS_HOME } from "./haptics.audit.mjs";
-import { markupOf, namedBy, deadSelectorsIn, looseHoversIn, demanded, houseClasses, rawColours } from "./css.audit.mjs";
+import { markupOf, namedBy, deadSelectorsIn, looseHoversIn, demanded, houseClasses, rawColours, pillRulesIn } from "./css.audit.mjs";
 import { createRequire } from "node:module";
 import { PGlite } from "@electric-sql/pglite";
 import { join } from "node:path";
@@ -852,8 +852,16 @@ end $$;`;
   ok("gesture: a row listed as paged must be paged in its file",
     J(`return <div className="studio-views" role="tablist" aria-label="View" />;`, "components/Studio.tsx").join() === "tabs"
     && J(`usePagerLevel({ keys: [], current: "", go: () => {}, depth: 1 }); return <div className="studio-views" role="tablist" aria-label="View" />;`, "components/Studio.tsx").length === 0);
-  ok("gesture: a label that is not a literal is keyed by the row's class (the lane toggle)",
-    G(`return <div className="grp-toggle" role="tablist" aria-label={lane.label} />;`, "app/crew/page.tsx").tabRows[0].key === "app/crew/page.tsx#grp-toggle");
+  ok("gesture: a label that is not a literal is keyed by the row's class (a plain tab list)",
+    G(`return <div className="opnav-tabs" role="tablist" aria-label={lane.label} />;`, "app/crew/page.tsx").tabRows[0].key === "app/crew/page.tsx#opnav-tabs");
+  // the kit's segmented control draws its own tab list (2026-10-07): a tab row where it is used
+  ok("gesture: the kit's Segmented is a tab row where it is used — keyed by its class when its label is not a literal (the lane's sections)",
+    G(`return <Segmented fill className="lane-tabs mb-3.5" label={lane.label} value={sec} options={o} onChange={go} />;`, "app/crew/page.tsx").tabRows[0].key === "app/crew/page.tsx#lane-tabs"
+    && J(`return <Segmented fill className="lane-tabs mb-3.5" label={lane.label} value={sec} options={o} onChange={go} />;`, "app/crew/page.tsx").join() === "tabs"
+    && J(`return <SwipePager><Segmented fill className="lane-tabs mb-3.5" label={lane.label} value={sec} options={o} onChange={go} /></SwipePager>;`, "app/crew/page.tsx").length === 0);
+  ok("gesture: …and by its label when that is a literal; a choice (kind=\"choice\") is not a tab row",
+    G(`return <Segmented className="mb-3.5" label="Reviews" value={tab} onChange={setTab} options={o} />;`, "components/ReviewsAdmin.tsx").tabRows[0].key === "components/ReviewsAdmin.tsx#Reviews"
+    && G(`return <Segmented kind="choice" size="sm" label="View mode" value="crew" options={o} onChange={go} />;`, "app/crew/page.tsx").tabRows.length === 0);
   // 3. touch
   ok("gesture: a window touch listener outside the gesture layer fails — the calendar walker's old shape",
     J(`useEffect(() => { window.addEventListener("touchstart", ts, { passive: true }); window.addEventListener("touchend", te, { passive: true }); }, []); return null;`).join() === "touch,touch");
@@ -968,6 +976,19 @@ end $$;`;
 
   ok("css house: the classes a stylesheet styles, not the ones its comments name", [...houseClasses("/* .gone */ .mp-ring svg{} .rc small{}")].sort().join(" ") === "mp-ring rc");
   ok("css colours: a colour written two ways is one", rawColours(".a{color:rgba(0, 0, 0, .5)} .b{color:rgba(0,0,0,.5)} .c{color:#FFF} .d{color:#fff}").size === 2);
+
+  // ONE PILL (2026-10-07) — the shapes the crew header carried before the pill round, as written then
+  const P = (css) => pillRulesIn(postcss.parse(css));
+  ok("css pills: an outlined pill with words is a pill — Jump, as it was",
+    P(".crew-jump{display:inline-flex;font-size:11.5px;border:1px solid var(--line2);border-radius:var(--r-pill);padding:6px 10px}").length === 1);
+  ok("css pills: a round button is one — the bell — but an avatar or a switch's knob is not (nothing presses it)",
+    P(".crew-bell{width:32px;height:32px;border-radius:50%;cursor:pointer}").length === 1
+    && P(".tm-av{width:28px;height:28px;border-radius:50%;font-size:11px}").length === 0 && P(".office-toggle-knob{width:20px;height:20px;border-radius:50%}").length === 0);
+  ok("css pills: a bar or a fill is not a pill — under 14px tall, or no words in it",
+    P(".acad-bar>i{height:6px;border-radius:var(--r-pill);background:var(--gold2)}").length === 0 && P(".fill{height:100%;border-radius:999px;background:red}").length === 0);
+  ok("css pills: the kit's own are the answer, not the count — and a list that mixes in one that is not still counts",
+    P(".k-count{border-radius:var(--r-pill);padding:0 8px;font-size:12px}").length === 0
+    && P(".k-count,.owed-chip{border-radius:var(--r-pill);padding:0 8px;font-size:12px}").length === 1);
 }
 
 console.log(`AUDIT CLASSIFIERS: ${pass} passed, ${fail} failed`);

@@ -47,7 +47,7 @@ export const OWN_OVERLAYS = {
 // ── 2. tab rows that are not pages, and why ───────────────────────────────────────────────────
 // Keyed file#aria-label (or #class when the label is not a literal).
 export const PAGED = {
-  "app/crew/page.tsx#grp-toggle": "the lane's sections — the section body's <SwipePager>",
+  "app/crew/page.tsx#lane-tabs": "the lane's sections — the section body's <SwipePager>",
   "app/crew/page.tsx#Plan": "Plan's tabs — the section body's <SwipePager>",
   "components/Studio.tsx#View": "Studio's views — usePagerLevel",
   "components/Shop.tsx#Shop": "the shop's two aisles — the aisles' <SwipePager>",
@@ -57,7 +57,7 @@ export const NOT_PAGES = {
   "app/crew/page.tsx#Event stage": "an event's stage is a fact being set, not a page to turn to",
   "app/menu/page.tsx#Menu categories": "jumps within one long menu — the categories are places on one page, scrolled to",
   "components/OrderFunnel.tsx#Fulfillment": "pickup or delivery — a choice in the order form",
-  "components/ReviewsAdmin.tsx#grp-toggle": "pending or live — two halves of one list, a filter",
+  "components/ReviewsAdmin.tsx#Reviews": "pending or live — two halves of one list, a filter",
   "components/LetterFlyer.tsx#Letter style": "an option of the letter being made",
   "components/LetterFlyer.tsx#Format": "an option of the letter being made",
   "components/RoadFlyer.tsx#Template": "an option of the flyer being made",
@@ -146,6 +146,9 @@ export function gesturesIn(src, file = "x.tsx") {
       overlays.push({ line: lineOf(sf, el), key: label ? `${file}#${label}` : file, sheetItself: file === "components/Sheet.tsx" });
     }
     if (role === "tablist") tabRows.push({ line: lineOf(sf, el), key: `${file}#${literal(attrOf(el, "aria-label")) ?? firstClass(el) ?? "?"}` });
+    // The kit's segmented control (components/controls.tsx, 2026-10-07) draws its own tab list — a tab row
+    // at the place that uses it, named by its label, unless it is a choice (kind="choice", a radio group).
+    if (name === "Segmented" && attrOf(el, "kind") !== "choice") tabRows.push({ line: lineOf(sf, el), key: `${file}#${literal(attrOf(el, "label")) ?? firstClass(el) ?? "?"}` });
     for (const p of el.attributes.properties) {
       if (ts.isJsxAttribute(p) && /^onTouch(Start|Move|End|Cancel)$/.test(p.name.getText())) touches.push({ line: lineOf(sf, p), what: `${name} ${p.name.getText()}` });
     }

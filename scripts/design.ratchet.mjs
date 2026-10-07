@@ -116,9 +116,9 @@ export const CHROME_CLEARANCE = 8;
 
 // ── THE CEILINGS — measured, not remembered (2026-10-01, after the one-box-per-level pass) ───────
 export const CEILING = {
-  cardRules: 766,        // rules that make a card: radius + (border | fill). 810 → 766 (2026-10-07, the Tailwind round): 44 of them styled classes no screen names any more — the old account menu, the pre-kit display, the strategy board, the old craft steps, the isheet — and went with the 320 dead rules scripts/css.audit.mjs now keeps at zero. 809 → 810 (2026-10-06, the settings round, Settings as a list): + .set-list, the grouped list each Settings section's rows sit on (a card by what it is); + the segmented control's track and segment (.set-seg, .set-seg > button — Appearance's Day · Dark · Auto, 40px tall where 27px pills were); − the lane cards (.ws-card: one lane per row now); − the floating moon (.theme-toggle: Appearance lives in Settings). 810 → 809 (2026-10-06, the settings round): the "More controls" card (.set-card), five cards pointing out of Settings at controls that are in Settings now — retired with its map; Settings draws with .mpanel, SectionHeader and .pay-row and adds no card CSS. 809 → 810 (2026-10-05, the gesture round): "Discard your changes?" — the card a sheet asks the question on, over the sheet, at the thumb (.sheet2-ask-card); it is a card by what it is. The toast's Undo is a text action, not a pill, so it adds none. 810 → 809: the quiet Outlook line, retired with the not-configured bar it styled (2026-10-05). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04)
-  rawRadii: 26,          // distinct border-radius values that are not a --r-* token, 50% or 0. 27 → 26 (2026-10-07): the only rule with its value was a dead one (scripts/css.audit.mjs)
-  dupSelectors: 53,      // single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02; 54 → 53: .myday-live, declared twice, retired with the card it lived on, 2026-10-04)
+  cardRules: 759,        // rules that make a card: radius + (border | fill). 810 → 766 (2026-10-07, the Tailwind round): 44 of them styled classes no screen names any more — the old account menu, the pre-kit display, the strategy board, the old craft steps, the isheet — and went with the 320 dead rules scripts/css.audit.mjs now keeps at zero. 809 → 810 (2026-10-06, the settings round, Settings as a list): + .set-list, the grouped list each Settings section's rows sit on (a card by what it is); + the segmented control's track and segment (.set-seg, .set-seg > button — Appearance's Day · Dark · Auto, 40px tall where 27px pills were); − the lane cards (.ws-card: one lane per row now); − the floating moon (.theme-toggle: Appearance lives in Settings). 810 → 809 (2026-10-06, the settings round): the "More controls" card (.set-card), five cards pointing out of Settings at controls that are in Settings now — retired with its map; Settings draws with .mpanel, SectionHeader and .pay-row and adds no card CSS. 809 → 810 (2026-10-05, the gesture round): "Discard your changes?" — the card a sheet asks the question on, over the sheet, at the thumb (.sheet2-ask-card); it is a card by what it is. The toast's Undo is a text action, not a pill, so it adds none. 810 → 809: the quiet Outlook line, retired with the not-configured bar it styled (2026-10-05). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04) 766 → 759 (2026-10-07, the pill round): the crew header's bell, Jump and Guide, the section pills and the count pill were each a card-making rule of their own; the kit's pills make one per primitive.
+  rawRadii: 25,          // distinct border-radius values that are not a --r-* token, 50% or 0. 27 → 26 (2026-10-07): the only rule with its value was a dead one (scripts/css.audit.mjs); 26 → 25 (the pill round): calc(var(--r-xl) - 3px) was the old segmented control's option
+  dupSelectors: 52,      // single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02; 54 → 53: .myday-live, declared twice, retired with the card it lived on, 2026-10-04; 53 → 52: .crew-jump .crew-jump-k, retired with Jump's pill, 2026-10-07)
   rootBlocks: 1,         // separate `:root{` blocks — tokens have one home (6 → 1 on 2026-10-02: motion, spring, eyebrow tracking, color-scheme and the radius scale folded in)
   subFloorFontRules: 0,  // px font-sizes under THE TYPE FLOOR (10px, see the note in globals.css). 184 → 0 on 2026-10-02
   darkWells: 31,         // fills of literal black at 10–44% with no rule for a light surface — see darkWellCounts. 34 → 31 on 2026-10-07: three were in rules that styled nothing (the dead CSS, scripts/css.audit.mjs). Measured 37 the day it was written (2026-10-04); 37 → 35 that day: the task checkbox and My Day's top three; 35 → 34 on 2026-10-05: a venue's contact block (.vlink), now under the venue pick on the event card and on Route
@@ -711,6 +711,7 @@ async function paintedChrome(fixture = CHROME_FIXTURE) {
         await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: st.inset ? 47 : 0, bottom: st.inset, left: 0, right: 0 } });
       } catch (e) { await page.close(); return { error: `this Chromium cannot emulate a safe-area inset — ${String(e.message || e).split("\n")[0]}` }; }
       await page.goto(pathToFileURL(fixture).href);
+      await page.addStyleTag({ content: await utilitiesFor(readFileSync(fixture, "utf8")) });
       if (st.rail === "folded") {
         // FloatRail's folded branch, verbatim: the class, and the one handle button.
         await page.evaluate(() => {
@@ -736,6 +737,18 @@ async function paintedChrome(fixture = CHROME_FIXTURE) {
   finally { await browser.close(); }
 }
 
+// ── THE UTILITIES, TOO (2026-10-07, the pill round) ────────────────────────────────────────────
+// A fixture links the house stylesheet, and the utilities a screen writes (mb-3.5) are built by
+// Tailwind at build time — so a fixture painted without them is not the screen. Built here from the
+// fixture's own class names against app/tailwind.css, and added after the house stylesheet, where
+// app/layout.tsx puts them.
+export async function utilitiesFor(html) {
+  const { compile } = await import("@tailwindcss/node");
+  const file = join(ROOT, "app/tailwind.css");
+  const compiled = await compile(readFileSync(file, "utf8"), { base: join(ROOT, "app"), from: file, onDependency() {} });
+  return compiled.build([...new Set([...html.matchAll(/class="([^"]+)"/g)].flatMap((m) => m[1].split(/\s+/)).filter(Boolean))]);
+}
+
 // ── PAINTED ──────────────────────────────────────────────────────────────────────────────────────
 async function painted(fixture = FIXTURE) {
   const require = createRequire(import.meta.url);
@@ -750,6 +763,7 @@ async function painted(fixture = FIXTURE) {
     const { measurePage } = await import(pathToFileURL(join(ROOT, "scripts/design.measure.mjs")).href);
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await page.goto(pathToFileURL(fixture).href);
+    await page.addStyleTag({ content: await utilitiesFor(readFileSync(fixture, "utf8")) });
     await page.waitForTimeout(500);
     const day = await measurePage(page);
     // The same DOM in the dark theme (the console's default; `.crew-day` is the day switch). A theme

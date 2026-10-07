@@ -325,6 +325,55 @@ export function bandStats(png, rows = Infinity) {
 
 // A page is measured once it has stopped moving (scripts/verify.prod.mjs SETTLE, the same reason: a
 // fade caught halfway is not the page).
+// ── THE CREW HEADER, ONE KIT (2026-10-07, the pill round) ─────────────────────────────────────
+// Runs IN THE PAGE. Ryan's My Day header at 9:17 was five controls in five recipes; what a thumb and an
+// eye make of it now: every control the kit's, the row's controls on one line of centres, 44px to the
+// thumb on each (the point 21.5px above and below each centre still lands on it), the words in the
+// middle of each segment, and the lane's thumb under the section you are in.
+function headerReport() {
+  const R = (el) => el.getBoundingClientRect();
+  const row = document.querySelector(".toprow");
+  const lane = document.querySelector(".lane-tabs .k-seg");
+  if (!row) return { missing: true };
+  const btns = [...row.querySelectorAll("button, a")];
+  const foreign = btns.filter((b) => !b.matches(".k-icon-btn, .k-seg-opt")).map((b) => `${b.tagName.toLowerCase()}.${b.className}`);
+  // the row's controls, grouped by line (the largest text size may wrap the row)
+  const items = [...row.querySelectorAll(".k-icon-btn, .k-seg")].map((el) => ({ el, r: R(el) }));
+  const lines = [];
+  for (const it of items) { const c = it.r.top + it.r.height / 2; const l = lines.find((x) => Math.abs(x.c - c) < 12); if (l) l.items.push(it); else lines.push({ c, items: [it] }); }
+  const offCentre = lines.flatMap((l) => { const cs = l.items.map((i) => i.r.top + i.r.height / 2); const m = cs.reduce((a, b) => a + b, 0) / cs.length; return l.items.filter((i, k) => Math.abs(cs[k] - m) > 1).map((i) => `${i.el.className} ${Math.round(cs[0] - m)}px`); });
+  const heights = items.map((i) => Math.round(i.r.height));
+  // 44px to the thumb: the points 21.5px above and below the centre land on the control
+  const targets = [...btns, ...(lane ? lane.querySelectorAll(".k-seg-opt") : [])];
+  const small = targets.filter((b) => {
+    const r = R(b); const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    return [y - 21.5, y + 21.5].some((yy) => { const t = document.elementFromPoint(x, yy); return !(t && (t === b || b.contains(t))); });
+  }).map((b) => (b.getAttribute("aria-label") || b.textContent || "").trim().slice(0, 24));
+  // the words in the middle of each segment
+  const segOpts = [...document.querySelectorAll(".k-seg-opt")];
+  const offText = segOpts.filter((o) => {
+    const range = document.createRange(); range.selectNodeContents(o); const t = range.getBoundingClientRect(); const r = R(o);
+    return t.height > 0 && Math.abs((t.top + t.height / 2) - (r.top + r.height / 2)) > 1.5;
+  }).map((o) => o.textContent.trim());
+  // the lane's thumb under the section you are in
+  let thumb = { ok: false, why: "no lane" };
+  if (lane) {
+    const th = lane.querySelector(".k-seg-thumb"), on = lane.querySelector(".k-seg-opt.on");
+    if (!lane.hasAttribute("data-thumb") || !th || !on) thumb = { ok: false, why: `data-thumb ${lane.hasAttribute("data-thumb")}, on ${!!on}` };
+    else { const a = R(th), b = R(on); thumb = { ok: Math.abs(a.left - b.left) <= 1 && Math.abs(a.width - b.width) <= 1, why: `thumb ${Math.round(a.left)}+${Math.round(a.width)}, ${on.textContent.trim()} ${Math.round(b.left)}+${Math.round(b.width)}`, on: on.textContent.trim() }; }
+  }
+  const wide = [...row.querySelectorAll("*"), ...(lane ? [lane] : [])].filter((el) => { const r = R(el); return r.width > 0 && (r.left < -0.5 || r.right > innerWidth + 0.5); }).map((el) => `${el.tagName.toLowerCase()}.${el.getAttribute("class") || ""} ${Math.round(R(el).width)}px`).slice(0, 4);
+  // an icon is the size the kit gives it — 18px in a 36px button, half its button at any text size —
+  // never the page's width (an icon sized by its own box, not the kit's, draws as wide as it can)
+  const icons = [...row.querySelectorAll(".k-icon-btn")].map((b) => { const s = b.querySelector("svg"); return s ? R(s).width / R(b).width : 0; }).filter((x) => x > 0.55).map((x) => `${Math.round(x * 100)}%`);
+  const mode = row.querySelector('[role="radiogroup"][aria-label="View mode"]');
+  return {
+    foreign, offCentre, heights, small, offText, thumb, wide, icons, lines: lines.length,
+    mode: mode ? [...mode.querySelectorAll('[role="radio"]')].map((b) => `${b.textContent.trim()}:${b.getAttribute("aria-checked")}`).join(" ") : null,
+    badge: (() => { const b = row.querySelector(".k-badge"); if (!b) return null; const r = R(b); return { h: Math.round(r.height), ring: getComputedStyle(b).boxShadow !== "none" }; })(),
+  };
+}
+
 const SETTLE = async () => {
   await document.fonts?.ready;
   const ending = document.getAnimations().filter((a) => Number.isFinite(a.effect?.getComputedTiming?.().endTime));
@@ -1074,6 +1123,45 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       ok("device, no phone: no errors", errors.length === 0, errors.join(" | "));
       await ctx.close();
     }
+  }
+
+  // ── 8 · the crew header and the lane's sections, one kit (2026-10-07, the pill round) ──
+  // Signed in as the owner on My Day, at the standard text size and the largest (lib/textSize: Largest
+  // is a 1.26 zoom of the page, and the row may wrap there — each line must still be one line of centres).
+  for (const scale of [0, 3]) {
+    const ctx = await phoneContext(MAIN, { owner: true });
+    if (scale) await ctx.addInitScript((v) => { try { localStorage.setItem("gt3-display", JSON.stringify({ scale: v, bold: false, roomy: false })); } catch { /* refused */ } }, scale);
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    const at = scale ? "at the largest text size" : "at the standard text size";
+    await page.goto(`${BASE}/crew?s=day`, { waitUntil: "load" });
+    await page.waitForSelector(".toprow .k-icon-btn", { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(500); await page.evaluate(SETTLE);
+    const r = await page.evaluate(headerReport);
+    if (SHOTS) await page.screenshot({ path: shotPath(MAIN, `crew-header${scale ? "--largest" : ""}`), clip: { x: 0, y: 0, width: MAIN.width, height: 260 } });
+    ok(`header ${at}: it is there`, !r.missing);
+    ok(`header ${at}: every control in the row is the kit's — round buttons and a segmented switch, nothing else`, !r.missing && r.foreign.length === 0, r.foreign?.join(", "));
+    ok(`header ${at}: the mode is a switch — Crew chosen, Customer beside it`, r.mode === "Crew:true Customer:false", r.mode);
+    ok(`header ${at}: the row's controls share one line of centres (within 1px)${scale ? " — on each line, if the row wraps" : ", on one line"}`,
+      !r.missing && r.offCentre.length === 0 && (scale || r.lines === 1), JSON.stringify({ offCentre: r.offCentre, lines: r.lines }));
+    ok(`header ${at}: two heights in the row and no others — the round buttons and the switch's track`, !r.missing && new Set(r.heights).size <= 2, r.heights?.join(" "));
+    ok(`header ${at}: 44px to the thumb on every control in it and every section in the lane`, !r.missing && r.small.length === 0, r.small?.join(" | "));
+    ok(`header ${at}: the words sit in the middle of every segment (within 1.5px)`, !r.missing && r.offText.length === 0, r.offText?.join(", "));
+    ok(`header ${at}: the lane's thumb is under the section you are in`, r.thumb?.ok && r.thumb.on === "My Day", r.thumb?.why);
+    ok(`header ${at}: the inbox's count rides on it, ringed`, r.badge === null || (r.badge.h === 18 && r.badge.ring), JSON.stringify(r.badge));
+    ok(`header ${at}: nothing in it reaches past the phone's edges`, !r.missing && r.wide.length === 0, r.wide?.join(", "));
+    ok(`header ${at}: every icon is the kit's size — half its round button`, !r.missing && r.icons.length === 0, r.icons?.join(" "));
+    if (!scale) {
+      // a tap on another section: the thumb follows, and the section is the one tapped
+      await page.locator(".lane-tabs .k-seg-opt", { hasText: "Live Ops" }).first().click().catch(() => {});
+      await page.waitForTimeout(700); await page.evaluate(SETTLE);
+      const moved = await page.evaluate(headerReport);
+      const where = await page.evaluate(() => new URL(location.href).searchParams.get("s"));
+      ok("header: a tap on Live Ops takes you there, and the thumb slides under it", moved.thumb?.ok && moved.thumb.on === "Live Ops" && where === "now", JSON.stringify({ thumb: moved.thumb, s: where }));
+    }
+    ok(`header ${at}: no errors`, errors.length === 0, errors.join(" | "));
+    await ctx.close();
   }
 
   await browser.close();
