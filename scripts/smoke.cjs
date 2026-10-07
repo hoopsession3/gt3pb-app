@@ -8907,12 +8907,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("command: the portfolio's rows sit on the page — a hairline between them, no card fill, no colour that only the night theme can carry",
     /\.osr-row\{[^}]*background:none;[^}]*border-bottom:1px solid var\(--line\)/.test(css2) && !/\.osr-row\{[^}]*rgba\(0,0,0/.test(css2) && !/\.osr-(dot|when|owner)\b/.test(css2));
   ok("command: the audit being overdue is said once, above the rows — not as a day count on every row",
-    /const overdue = active\.filter\(\(r\) => \(daysSince\(r\.last_audited\) \?\? 99\) >= 7\)\.length;/.test(osr2) && /<p className="osr-due" role="status">/.test(osr2) && !/osr-when|stale \? " stale"/.test(osr2));
+    /const overdue = active\.filter\(\(r\) => \(daysSince\(r\.last_audited\) \?\? 99\) >= 7\)\.length;/.test(osr2) && /<p className="osr-due [^"]*" role="status">/.test(osr2) && !/osr-when|stale \? " stale"/.test(osr2));
   ok("command: a workstream's name leads its row and its score closes it, with its band's dot",
     osr2.indexOf('<span className="osr-main">') > 0 && osr2.indexOf('<span className="osr-main">') < osr2.indexOf("className={`osr-score ${dotClass(w.health, w.status)}`}"));
   ok("command: the team's week is one line of counts that opens on a tap — the tasks My Day lists are not listed a second time",
     /className=\{`cmd-week\$\{weekOpen \? " open" : ""\}`\} onClick=\{\(\) => setWeekOpen\(\(o\) => !o\)\} aria-expanded=\{weekOpen\}/.test(cbd)
-    && !/label="This week"|label="Done this week"/.test(cbd) && /<b>\{data\.overdue\.length\}<\/b> overdue/.test(cbd));
+    && !/label="This week"|label="Done this week"/.test(cbd) && /<b className="text-cream font-bold tabular-nums">\{data\.overdue\.length\}<\/b> overdue/.test(cbd));
   ok("command: an initiative two weeks past its date folds to its line, its progress and the question it raises — its milestones a tap away, nothing removed",
     /const folded = !!it\.target_date && daysTo\(it\.target_date\) < -14 && !unfolded\.has\(it\.id\);/.test(cbd) && /Show the milestones/.test(cbd) && /Fold it back/.test(cbd)
     && /onClick=\{\(\) => finishInit\(it\)\}/.test(cbd));

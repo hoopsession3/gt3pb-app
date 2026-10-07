@@ -116,7 +116,7 @@ export const CHROME_CLEARANCE = 8;
 
 // ── THE CEILINGS — measured, not remembered (2026-10-01, after the one-box-per-level pass) ───────
 export const CEILING = {
-  cardRules: 759,        // rules that make a card: radius + (border | fill). 810 → 766 (2026-10-07, the Tailwind round): 44 of them styled classes no screen names any more — the old account menu, the pre-kit display, the strategy board, the old craft steps, the isheet — and went with the 320 dead rules scripts/css.audit.mjs now keeps at zero. 809 → 810 (2026-10-06, the settings round, Settings as a list): + .set-list, the grouped list each Settings section's rows sit on (a card by what it is); + the segmented control's track and segment (.set-seg, .set-seg > button — Appearance's Day · Dark · Auto, 40px tall where 27px pills were); − the lane cards (.ws-card: one lane per row now); − the floating moon (.theme-toggle: Appearance lives in Settings). 810 → 809 (2026-10-06, the settings round): the "More controls" card (.set-card), five cards pointing out of Settings at controls that are in Settings now — retired with its map; Settings draws with .mpanel, SectionHeader and .pay-row and adds no card CSS. 809 → 810 (2026-10-05, the gesture round): "Discard your changes?" — the card a sheet asks the question on, over the sheet, at the thumb (.sheet2-ask-card); it is a card by what it is. The toast's Undo is a text action, not a pill, so it adds none. 810 → 809: the quiet Outlook line, retired with the not-configured bar it styled (2026-10-05). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04) 766 → 759 (2026-10-07, the pill round): the crew header's bell, Jump and Guide, the section pills and the count pill were each a card-making rule of their own; the kit's pills make one per primitive.
+  cardRules: 756,        // rules that make a card: radius + (border | fill). 759 → 756 (2026-10-07, Ryan's "Ewww" on Command and Team): the portfolio's rows sit on the page (.osr-row, .osr-dot, .osr-owner were cards), the role badge and the invite pills went with the second door (.tm-badge, .tinv-role), the overdue line's box is utilities; + the team's week line (.cmd-week) and the score's dot. 810 → 766 (2026-10-07, the Tailwind round): 44 of them styled classes no screen names any more — the old account menu, the pre-kit display, the strategy board, the old craft steps, the isheet — and went with the 320 dead rules scripts/css.audit.mjs now keeps at zero. 809 → 810 (2026-10-06, the settings round, Settings as a list): + .set-list, the grouped list each Settings section's rows sit on (a card by what it is); + the segmented control's track and segment (.set-seg, .set-seg > button — Appearance's Day · Dark · Auto, 40px tall where 27px pills were); − the lane cards (.ws-card: one lane per row now); − the floating moon (.theme-toggle: Appearance lives in Settings). 810 → 809 (2026-10-06, the settings round): the "More controls" card (.set-card), five cards pointing out of Settings at controls that are in Settings now — retired with its map; Settings draws with .mpanel, SectionHeader and .pay-row and adds no card CSS. 809 → 810 (2026-10-05, the gesture round): "Discard your changes?" — the card a sheet asks the question on, over the sheet, at the thumb (.sheet2-ask-card); it is a card by what it is. The toast's Undo is a text action, not a pill, so it adds none. 810 → 809: the quiet Outlook line, retired with the not-configured bar it styled (2026-10-05). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04) 766 → 759 (2026-10-07, the pill round): the crew header's bell, Jump and Guide, the section pills and the count pill were each a card-making rule of their own; the kit's pills make one per primitive.
   rawRadii: 25,          // distinct border-radius values that are not a --r-* token, 50% or 0. 27 → 26 (2026-10-07): the only rule with its value was a dead one (scripts/css.audit.mjs); 26 → 25 (the pill round): calc(var(--r-xl) - 3px) was the old segmented control's option
   dupSelectors: 52,      // single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02; 54 → 53: .myday-live, declared twice, retired with the card it lived on, 2026-10-04; 53 → 52: .crew-jump .crew-jump-k, retired with Jump's pill, 2026-10-07)
   rootBlocks: 1,         // separate `:root{` blocks — tokens have one home (6 → 1 on 2026-10-02: motion, spring, eyebrow tracking, color-scheme and the radius scale folded in)
@@ -479,30 +479,38 @@ export const PROD_ROUTE = {
 // way through until 0354 is pasted (and says "couldn't save" when it matches no row), and a refusal
 // under the minimum shows the database's sentence. lib/schemaSkew's "not pasted yet" test loads only
 // when a save fails: imported up front, /office weighed 279 404 (+439), so the lazy import is lighter.
+// 2026-10-07 (Command and Team, Ryan's "Ewww"): every stylesheet +478 bytes gzipped, and the twenty
+// routes on the one shared sheet 98 → 99. Built 1cb3e82 and this commit and gzipped what /menu's HTML
+// references: 100 611 → 101 089 (the house sheet 98 972 → 98 988, the utilities 1 639 → 2 101). What
+// rides: the portfolio's rows, the audit-overdue line, the team's week, the folded initiative and Team's
+// actions, net of the rules they replaced (app/globals.css −48 raw bytes); their one-off layout went into
+// utilities as the house sheet's gate asks — the first screens to use flex-col, the gap and margin steps
+// and the type sizes, so they pay for classes the next screens get free. /truck, /events and /driver
+// moved the same and stayed at 101. Script unchanged.
 export const WEIGHT = {
   "/truck":                    { js: 280, css: 101, chunks: 15 },
   "/events":                   { js: 280, css: 101, chunks: 15 },
-  "/menu":                     { js: 264, css:  98, chunks: 15 },
-  "/reserve":                  { js: 288, css:  98, chunks: 16 },
-  "/delivery":                 { js: 286, css:  98, chunks: 16 },
-  "/3mpire":                   { js: 280, css:  98, chunks: 15 },
-  "/craft":                    { js: 264, css:  98, chunks: 15 },
-  "/book":                     { js: 264, css:  98, chunks: 15 },
-  "/academy":                  { js: 317, css:  98, chunks: 16 },
-  "/office":                   { js: 273, css:  98, chunks: 15 },
-  "/scan":                     { js: 259, css:  98, chunks: 15 },
-  "/architecture":             { js: 269, css:  98, chunks: 15 },
-  "/playbook":                 { js: 272, css:  98, chunks: 15 },
+  "/menu":                     { js: 264, css:  99, chunks: 15 },
+  "/reserve":                  { js: 288, css:  99, chunks: 16 },
+  "/delivery":                 { js: 286, css:  99, chunks: 16 },
+  "/3mpire":                   { js: 280, css:  99, chunks: 15 },
+  "/craft":                    { js: 264, css:  99, chunks: 15 },
+  "/book":                     { js: 264, css:  99, chunks: 15 },
+  "/academy":                  { js: 317, css:  99, chunks: 16 },
+  "/office":                   { js: 273, css:  99, chunks: 15 },
+  "/scan":                     { js: 259, css:  99, chunks: 15 },
+  "/architecture":             { js: 269, css:  99, chunks: 15 },
+  "/playbook":                 { js: 272, css:  99, chunks: 15 },
   "/driver":                   { js: 276, css: 101, chunks: 15 },
-  "/agreement":                { js: 267, css:  98, chunks: 15 },
-  "/offer":                    { js: 277, css:  98, chunks: 15 },
-  "/built/gt3-built-k7m9x4q2": { js: 258, css:  98, chunks: 15 },
-  "/display":                  { js: 259, css:  98, chunks: 15 },
-  "/shop":                     { js: 292, css:  98, chunks: 16 },
-  "/primal":                   { js: 265, css:  98, chunks: 15 },
-  "/privacy":                  { js: 257, css:  98, chunks: 14 },
-  "/terms":                    { js: 257, css:  98, chunks: 14 },
-  "/":                         { js: 270, css:  98, chunks: 15 },
+  "/agreement":                { js: 267, css:  99, chunks: 15 },
+  "/offer":                    { js: 277, css:  99, chunks: 15 },
+  "/built/gt3-built-k7m9x4q2": { js: 258, css:  99, chunks: 15 },
+  "/display":                  { js: 259, css:  99, chunks: 15 },
+  "/shop":                     { js: 292, css:  99, chunks: 16 },
+  "/primal":                   { js: 265, css:  99, chunks: 15 },
+  "/privacy":                  { js: 257, css:  99, chunks: 14 },
+  "/terms":                    { js: 257, css:  99, chunks: 14 },
+  "/":                         { js: 270, css:  99, chunks: 15 },
 };
 
 export function weightVerdict(path, w, row = WEIGHT[path]) {
