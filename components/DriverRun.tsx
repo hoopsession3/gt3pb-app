@@ -14,6 +14,7 @@ import { etToday } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
+import RunBar from "@/components/RunBar";
 
 // DRIVER RUN — the Sunday porch run, built for one hand at the wheel. Porches ordered by ZIP → street
 // (a compact-zone route), pinned on the map, each a big card with Navigate / Call / one-tap outcome.
@@ -157,7 +158,7 @@ export default function DriverRun() {
               <div><div className="driver-kick"><Icon name="truck" /> Sunday porch run</div><b>{dLabel}</b></div>
               <div className="driver-prog"><b>{doneCount}</b>/{rows.length}</div>
             </div>
-            <div className="driver-bar"><span style={{ width: `${rows.length ? (doneCount / rows.length) * 100 : 0}%` }} /></div>
+            <RunBar done={doneCount} of={rows.length} />
 
             {points.length > 0 && <RouteMap points={points} />}
             {remaining > 0 && routeHref && (

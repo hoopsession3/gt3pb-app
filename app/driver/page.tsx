@@ -1,11 +1,16 @@
 "use client";
 
 import { useAuth } from "@/components/AuthProvider";
+import dynamic from "next/dynamic";
 import DriverRun from "@/components/DriverRun";
 import SignIn from "@/components/SignIn";
 import AccountPill from "@/components/AccountPill";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import { staffAccess } from "@/lib/access";
+
+// The office route rides above the porch run, loaded only for the crew who can see it (2026-10-07,
+// 0357): a guest on /driver downloads none of it.
+const OfficeRun = dynamic(() => import("@/components/OfficeRun"), { ssr: false });
 
 // The driver's screen — one-handed, at the wheel. Crew-only (any non-member role, since a driver is
 // tagged crew); guests and members get a friendly bounce. The run itself lives in <DriverRun/>.
@@ -26,6 +31,7 @@ export default function DriverPage() {
         <div className="driver-empty">This is a crew screen — ask an owner to add you to the team as a driver.</div>
       ) : (
         <>
+          <OfficeRun />
           <DriverRun />
           <ClosingBeat />
         </>
