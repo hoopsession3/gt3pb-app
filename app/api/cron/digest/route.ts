@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { accountEmail, sendEmail, sendSMS, emailEnabled } from "@/lib/notify";
 import { moneyRound } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
+import { addDays, etToday } from "@/lib/dates";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -16,6 +17,7 @@ export const maxDuration = 60;
 
 const since7d = () => new Date(Date.now() - 7 * 864e5).toISOString();
 const since60d = () => new Date(Date.now() - 60 * 864e5).toISOString();   // payment-id lookback for the walk-up dedupe
+const day6 = () => addDays(etToday(), -6);   // an office order counts on its delivery day: the last seven business days
 
 async function sum(table: string, filter: (q: any) => any, col = "total_cents"): Promise<number> {
   try {
@@ -42,7 +44,9 @@ async function post(req: Request) {
     sum("orders", (q) => q.eq("paid", true).neq("status", "void").gte("created_at", week)),
     sum("drop_orders", (q) => q.eq("paid", true).is("canceled_at", null).gte("created_at", week)),
     sum("delivery_orders", (q) => q.eq("payment_status", "paid").is("canceled_at", null).gte("created_at", week)),
-    sum("business_orders", (q) => q.eq("payment_status", "paid").is("canceled_at", null).gte("created_at", week)),
+    // An office order counts on its delivery day (0358): it is scheduled six weeks ahead, so its
+    // created_at is the night the schedule made it, not the week it was earned in.
+    sum("business_orders", (q) => q.eq("payment_status", "paid").is("canceled_at", null).gte("delivery_date", day6()).lte("delivery_date", etToday())),
   ]);
   let sq = 0;
   try {
@@ -51,7 +55,9 @@ async function post(req: Request) {
       supabaseAdmin.from("orders").select("payment_id").not("payment_id", "is", null).gte("created_at", since60d()),
       supabaseAdmin.from("drop_orders").select("payment_id").not("payment_id", "is", null).gte("created_at", since60d()),
       supabaseAdmin.from("delivery_orders").select("payment_id").not("payment_id", "is", null).gte("created_at", since60d()),
-      supabaseAdmin.from("business_orders").select("payment_id").not("payment_id", "is", null).gte("created_at", since60d()),
+      // No created_at window: an office order is made up to six weeks before it is paid, so a 60-day
+      // window from its creation lets its payment through as a walk-up (report_sales has no window here).
+      supabaseAdmin.from("business_orders").select("payment_id").not("payment_id", "is", null),
     ]);
     const appIds = new Set(idSets.flatMap((r) => (r.data ?? []).map((x: any) => x.payment_id)));
     sq = (es ?? []).reduce((s: number, r: any) => s + (appIds.has(r.square_payment_id) ? 0 : Number(r.amount_cents) || 0), 0);
