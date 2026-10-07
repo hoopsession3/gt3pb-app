@@ -769,18 +769,13 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .tm-id b{font-family:'Inter';font-weight:650;font-size:14.5px;display:flex;align-items:center;gap:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tm-you{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-d);background:color-mix(in srgb, var(--brand-cream) 8%, transparent);padding:2px 6px;border-radius:5px;flex:0 0 auto}
 .tm-driver{flex:0 0 auto;font-size:12px;line-height:1;background:color-mix(in srgb, var(--brand-gold2) 14%, transparent);border:1px solid var(--gold2);border-radius:var(--r-sm);padding:3px 6px}
-
-
-
 .tm-rolepick{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
 .tm-rolepick .adm-role{width:auto;min-width:160px;max-width:100%}
-/* One line of actions under a person (2026-10-07): their profile, and their name, driver tag and loyalty. */
 .tm-acts{display:flex;flex-wrap:wrap;align-items:center;gap:0 20px;margin-top:6px}
 .tm-act{display:inline-flex;align-items:center;gap:6px;min-height:44px;background:none;border:0;padding:0 2px;color:var(--gold2);font-family:'Inter';font-weight:650;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .tm-act svg{width:15px;height:15px}
 .tm-act .ev-chev{font-size:14px}
 .tm-scope{font-style:normal;font-family:'Inter';font-size:11px;color:var(--cream-d);padding-left:2px}
-
 .tm-loyalty{margin-top:11px;padding-top:12px;border-top:1px solid var(--line)}
 .adm-fields{display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap}
 .adm-fields label{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-m);display:flex;flex-direction:column;gap:4px}
@@ -2949,7 +2944,6 @@ h5.pr-h{font-size:12.5px;color:var(--cream-d)}
 .app.crew-day .subnav-tab.on .subnav-badge{background:rgba(255,255,255,.2);color:var(--gold2)}
 .app.crew-day :is(.mytask.crit .mytask-label,.adm-task.crit .task-label,.alert.sev-critical .alert-title,.note-del){color:var(--red-onLight)}
 .app.crew-day :is(.mytask-pri.crit){color:var(--red-onLight)}
-
 .app.crew-day .ai-agent{color:var(--cream)}
 .app.crew-day .ai-agent.sel{color:var(--red-onLight)}
 .app.crew-day .pay-note{color:#3f7a30}
@@ -4545,7 +4539,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .garage-chev{font-size:16px}
 .task-discuss-l{font-family:'Inter';font-weight:600;font-size:10.5px;color:var(--cream-m);margin-left:3px}
 
-
 /* bookings → event: the convert action reads as the row's forward path */
 .adm-req-mk{background:none;border:1px solid var(--line2);border-radius:18px;padding:6px 12px;color:var(--gold2);font-family:'Inter';font-weight:650;font-size:11px;cursor:pointer;-webkit-appearance:none;appearance:none}
 
@@ -5204,20 +5197,10 @@ button.mkpi-tile:active{transform:scale(.98)}
 .app.crew-day .cmd-prog-bar,.app.crew-day .cmd-ws{background:var(--ink2-onLight-06)}
 /* 0350: a milestone's words that link to no workstream — the chip says so, dashed like any unset field. */
 .cmd-ws.loose,.app.crew-day .cmd-ws.loose{background:none;border:1px dashed var(--line2);padding:1px 5px}
-/* A past-date initiative, folded; the team's week in one line (2026-10-07). Theme tokens only. */
-.cmd-fold{display:flex;flex-direction:column;gap:10px;margin-top:2px}
-.cmd-fold p{margin:0;font-family:'Inter';font-size:13.5px;line-height:1.5;color:var(--cream-m)}
-.cmd-fold-acts{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px}
-.cmd-fold-acts .btn-sec{padding:9px 16px;font-size:13.5px}
-.cmd-refold{display:flex;margin-top:4px}
+/* Command: the team's week in one line (2026-10-07). */
 .cmd-week{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;width:100%;text-align:left;background:none;border:1px solid var(--line2);border-radius:var(--r-lg);padding:12px 14px;margin:4px 0 10px;cursor:pointer;color:var(--cream-m);font-family:'Inter';font-size:13.5px;-webkit-appearance:none;appearance:none}
-.cmd-week b{color:var(--cream);font-weight:700;font-variant-numeric:tabular-nums}
 .cmd-week .late b{color:var(--warn)}
-.cmd-week .ev-chev{margin-left:auto}
 .cmd-week:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
-.cmd-week-lists{display:flex;flex-direction:column;gap:14px;margin-bottom:10px}
-.cmd-week-h{font-family:'Inter';font-weight:700;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-m);padding:2px 2px 6px}
-.cmd-done-t{text-decoration:line-through;color:var(--cream-d)}
 .app.crew-day .cmd-mile-due.late,.app.crew-day .cmd-row-due.late{color:var(--red)}
 
 /* ── VIP verification — staff queue + customer submit ── */
@@ -5354,16 +5337,7 @@ button.mkpi-tile:active{transform:scale(.98)}
 .goal-tier.tier-operational{background:rgba(106,160,92,.16);color:#8fae86}
 
 /* ── Planning board · the plan at altitude (understated-luxury kanban by horizon) ── */
-/* a hairline gold rule crowns each column — brightest at the apex tier{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
-
-
-
-
-
-
-
-
-
+/* a hairline gold rule crowns each column — brightest at the apex tier, quieting down the horizons */
 
 /* ── Calendar cross-link (Studio content cal → company cal) ── */
 .cal-xlink{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;margin-bottom:13px;border:1px solid var(--gold2);border-radius:var(--r-xl);background:linear-gradient(180deg,color-mix(in srgb, var(--brand-gold2) 6%, transparent),transparent)}
@@ -6826,9 +6800,7 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
    KPIs, pipeline priority badges. The registry leads Command: health dot = the audit total. */
 .osr-mean{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;padding:3px 10px;border-radius:var(--r-pill);border:1px solid var(--line2)}
 .osr-mean.ok{color:var(--good,#4a8)}.osr-mean.warn{color:var(--warn)}
-/* The rows are the page's (2026-10-07): no card fill — the old one was a see-through black that
-   only the night console could carry, and turned every row muddy grey on the cream day theme. A
-   hairline between rows, the name first, the score last. Every colour here is a theme token. */
+/* Rows on the page, not cards: no fill only the night theme can carry (2026-10-07). */
 .osr-rows{display:flex;flex-direction:column;margin-top:6px}
 .osr-row{display:flex;align-items:flex-start;gap:12px;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:13px 4px;cursor:pointer;color:var(--cream);-webkit-appearance:none;appearance:none}
 .osr-row:last-child{border-bottom:0}
@@ -6850,7 +6822,6 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .osr-score small{font-size:11px;color:var(--cream-d)}
 .osr-score.green i{background:var(--ok)}.osr-score.amber i{background:var(--gold2)}.osr-score.red i{background:var(--red)}
 .osr-score.park{font-family:'Inter';font-size:11.5px;color:var(--cream-m)}
-.osr-due{display:flex;align-items:flex-start;gap:8px;margin:10px 0 2px;padding:10px 12px;border:1px solid var(--line2);border-radius:var(--r-lg);font-family:'Inter';font-size:13px;line-height:1.45;color:var(--cream)}
 .osr-due svg{width:14px;height:14px;flex:0 0 auto;margin-top:2px;color:var(--warn)}
 .osr-audit{display:flex;flex-direction:column;gap:13px}
 .osr-crit{display:flex;flex-direction:column;gap:6px}
@@ -6874,8 +6845,7 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .kpib-in input{width:76px;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:6px 9px;color:var(--cream);font-family:'DM Mono',ui-monospace,monospace;font-size:12px;outline:none}
 .kpib-in button{background:color-mix(in srgb, var(--brand-gold2) 10%, transparent);border:1px solid var(--gold2);border-radius:9px;padding:6px 11px;color:var(--gold2);font-family:'Inter';font-weight:700;font-size:11px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .kpib-in button:disabled{opacity:.45;cursor:default}
-/* The day theme's surface for Team's activity rows and Command's KPI rows (2026-10-07, Ryan's "Ewww"):
-   their night fill is a see-through black, which turned muddy grey on cream. */
+/* Day surfaces for rows whose night fill is see-through black (2026-10-07). */
 .app.crew-day .util-row,.app.crew-day .kpib-row{background:var(--ink-onLight-03)}
 .app.crew-day .kpib-in input{background:var(--card)}
 .pipe-pri{font-style:normal;font-family:'Archivo Black';font-size:10px;letter-spacing:.05em;border-radius:var(--r-sm);padding:2px 6px;color:#1c1712;background:var(--cream-m)}
