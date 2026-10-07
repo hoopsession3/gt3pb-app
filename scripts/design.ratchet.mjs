@@ -116,12 +116,12 @@ export const CHROME_CLEARANCE = 8;
 
 // ── THE CEILINGS — measured, not remembered (2026-10-01, after the one-box-per-level pass) ───────
 export const CEILING = {
-  cardRules: 810,        // rules that make a card: radius + (border | fill). 809 → 810 (2026-10-06, the settings round, Settings as a list): + .set-list, the grouped list each Settings section's rows sit on (a card by what it is); + the segmented control's track and segment (.set-seg, .set-seg > button — Appearance's Day · Dark · Auto, 40px tall where 27px pills were); − the lane cards (.ws-card: one lane per row now); − the floating moon (.theme-toggle: Appearance lives in Settings). 810 → 809 (2026-10-06, the settings round): the "More controls" card (.set-card), five cards pointing out of Settings at controls that are in Settings now — retired with its map; Settings draws with .mpanel, SectionHeader and .pay-row and adds no card CSS. 809 → 810 (2026-10-05, the gesture round): "Discard your changes?" — the card a sheet asks the question on, over the sheet, at the thumb (.sheet2-ask-card); it is a card by what it is. The toast's Undo is a text action, not a pill, so it adds none. 810 → 809: the quiet Outlook line, retired with the not-configured bar it styled (2026-10-05). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04)
-  rawRadii: 27,          // distinct border-radius values that are not a --r-* token, 50% or 0
+  cardRules: 766,        // rules that make a card: radius + (border | fill). 810 → 766 (2026-10-07, the Tailwind round): 44 of them styled classes no screen names any more — the old account menu, the pre-kit display, the strategy board, the old craft steps, the isheet — and went with the 320 dead rules scripts/css.audit.mjs now keeps at zero. 809 → 810 (2026-10-06, the settings round, Settings as a list): + .set-list, the grouped list each Settings section's rows sit on (a card by what it is); + the segmented control's track and segment (.set-seg, .set-seg > button — Appearance's Day · Dark · Auto, 40px tall where 27px pills were); − the lane cards (.ws-card: one lane per row now); − the floating moon (.theme-toggle: Appearance lives in Settings). 810 → 809 (2026-10-06, the settings round): the "More controls" card (.set-card), five cards pointing out of Settings at controls that are in Settings now — retired with its map; Settings draws with .mpanel, SectionHeader and .pay-row and adds no card CSS. 809 → 810 (2026-10-05, the gesture round): "Discard your changes?" — the card a sheet asks the question on, over the sheet, at the thumb (.sheet2-ask-card); it is a card by what it is. The toast's Undo is a text action, not a pill, so it adds none. 810 → 809: the quiet Outlook line, retired with the not-configured bar it styled (2026-10-05). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04)
+  rawRadii: 26,          // distinct border-radius values that are not a --r-* token, 50% or 0. 27 → 26 (2026-10-07): the only rule with its value was a dead one (scripts/css.audit.mjs)
   dupSelectors: 53,      // single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02; 54 → 53: .myday-live, declared twice, retired with the card it lived on, 2026-10-04)
   rootBlocks: 1,         // separate `:root{` blocks — tokens have one home (6 → 1 on 2026-10-02: motion, spring, eyebrow tracking, color-scheme and the radius scale folded in)
   subFloorFontRules: 0,  // px font-sizes under THE TYPE FLOOR (10px, see the note in globals.css). 184 → 0 on 2026-10-02
-  darkWells: 34,         // fills of literal black at 10–44% with no rule for a light surface — see darkWellCounts. Measured 37 the day it was written (2026-10-04); 37 → 35 that day: the task checkbox and My Day's top three; 35 → 34 on 2026-10-05: a venue's contact block (.vlink), now under the venue pick on the event card and on Route
+  darkWells: 31,         // fills of literal black at 10–44% with no rule for a light surface — see darkWellCounts. 34 → 31 on 2026-10-07: three were in rules that styled nothing (the dead CSS, scripts/css.audit.mjs). Measured 37 the day it was written (2026-10-04); 37 → 35 that day: the task checkbox and My Day's top three; 35 → 34 on 2026-10-05: a venue's contact block (.vlink), now under the venue pick on the event card and on Route
   selectClassShorthands: 0, // rules that paint a class some <select> carries with the `background` shorthand (selectClassShorthands). Measured 25 the day it was written (2026-10-04) and 25 → 0 that day: background-color, the way the rest of the selects are painted — the stripes under OsRegistry's Status pick (.note-in), and the arrow the day theme erased from the brew board's status, the goal and shoot owner picks, the assignee picks and the rest
   undefinedTokens: 0,    // var(--x) reads with no fallback of a custom property nothing defines — see undefinedTokens(). 1 → 0 the day it was written (2026-10-06): the Academy's progress track, var(--ink-onLight-08), a step the scale never had
   selectShorthands: 0,   // rules on a <select> that paint with the `background` SHORTHAND. It resets background-repeat, and the chevron the app draws on every select then tiles across it — stripes, in the day theme, on every select whose container had one (Ryan's brew sheet, 2026-10-03). 19 → 0: colour is background-color.
@@ -465,30 +465,37 @@ export const PROD_ROUTE = {
 // with that card's chunk into a chunk of their own: +498 bytes and one more request on the eight pages
 // that carry no account menu (/privacy 262 793 → 263 291), +942 on /offer, which also carries the offer
 // letter's print through lib/deviceActions, and +856 on /crew.
+// 2026-10-07 (Tailwind, on GT3's tokens): every route's stylesheet 3.7 KB lighter — css 102 → 98, and
+// 105 → 101 where the map rides. Built the commit before and this one and gzipped the stylesheets each
+// route's HTML references: 104 383 → 100 636 bytes (107 032 → 103 285 with the map). app/globals.css
+// lost 316 rules, parts of 13 more and 4 keyframes that styled nothing (−33 KB before gzip, −5.3 KB
+// after); the utilities ride in a stylesheet of their own, 1.6 KB, fetched beside it — built only from
+// names the screens' code holds (app/tailwind.css). Script unchanged, bar 1 byte on /3mpire (.ring is
+// .mp-ring).
 export const WEIGHT = {
-  "/truck":                    { js: 280, css: 105, chunks: 15 },
-  "/events":                   { js: 280, css: 105, chunks: 15 },
-  "/menu":                     { js: 264, css: 102, chunks: 15 },
-  "/reserve":                  { js: 288, css: 102, chunks: 16 },
-  "/delivery":                 { js: 286, css: 102, chunks: 16 },
-  "/3mpire":                   { js: 280, css: 102, chunks: 15 },
-  "/craft":                    { js: 264, css: 102, chunks: 15 },
-  "/book":                     { js: 264, css: 102, chunks: 15 },
-  "/academy":                  { js: 317, css: 102, chunks: 16 },
-  "/office":                   { js: 272, css: 102, chunks: 15 },
-  "/scan":                     { js: 259, css: 102, chunks: 15 },
-  "/architecture":             { js: 269, css: 102, chunks: 15 },
-  "/playbook":                 { js: 272, css: 102, chunks: 15 },
-  "/driver":                   { js: 276, css: 105, chunks: 15 },
-  "/agreement":                { js: 267, css: 102, chunks: 15 },
-  "/offer":                    { js: 277, css: 102, chunks: 15 },
-  "/built/gt3-built-k7m9x4q2": { js: 258, css: 102, chunks: 15 },
-  "/display":                  { js: 259, css: 102, chunks: 15 },
-  "/shop":                     { js: 292, css: 102, chunks: 16 },
-  "/primal":                   { js: 265, css: 102, chunks: 15 },
-  "/privacy":                  { js: 257, css: 102, chunks: 14 },
-  "/terms":                    { js: 257, css: 102, chunks: 14 },
-  "/":                         { js: 270, css: 102, chunks: 15 },
+  "/truck":                    { js: 280, css: 101, chunks: 15 },
+  "/events":                   { js: 280, css: 101, chunks: 15 },
+  "/menu":                     { js: 264, css:  98, chunks: 15 },
+  "/reserve":                  { js: 288, css:  98, chunks: 16 },
+  "/delivery":                 { js: 286, css:  98, chunks: 16 },
+  "/3mpire":                   { js: 280, css:  98, chunks: 15 },
+  "/craft":                    { js: 264, css:  98, chunks: 15 },
+  "/book":                     { js: 264, css:  98, chunks: 15 },
+  "/academy":                  { js: 317, css:  98, chunks: 16 },
+  "/office":                   { js: 272, css:  98, chunks: 15 },
+  "/scan":                     { js: 259, css:  98, chunks: 15 },
+  "/architecture":             { js: 269, css:  98, chunks: 15 },
+  "/playbook":                 { js: 272, css:  98, chunks: 15 },
+  "/driver":                   { js: 276, css: 101, chunks: 15 },
+  "/agreement":                { js: 267, css:  98, chunks: 15 },
+  "/offer":                    { js: 277, css:  98, chunks: 15 },
+  "/built/gt3-built-k7m9x4q2": { js: 258, css:  98, chunks: 15 },
+  "/display":                  { js: 259, css:  98, chunks: 15 },
+  "/shop":                     { js: 292, css:  98, chunks: 16 },
+  "/primal":                   { js: 265, css:  98, chunks: 15 },
+  "/privacy":                  { js: 257, css:  98, chunks: 14 },
+  "/terms":                    { js: 257, css:  98, chunks: 14 },
+  "/":                         { js: 270, css:  98, chunks: 15 },
 };
 
 export function weightVerdict(path, w, row = WEIGHT[path]) {
