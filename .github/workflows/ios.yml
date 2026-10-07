@@ -83,23 +83,6 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      # THE FIRST BOOT IS THE SLOW PART (2026-10-07). On these runners an iPhone's first boot spends four
-      # to seven minutes migrating data and then "Waiting on System App" — the passing run's launch step
-      # took 5 min 47 s, and seven boots that day gave up there. It starts here, before npm ci and both
-      # builds (about three and a half minutes), so that wait runs alongside the build, not after it.
-      - name: Start an iPhone booting while the app builds
-        run: |
-          set -euo pipefail
-          # An iPhone 17 if this Xcode has one, otherwise the first iPhone it does have.
-          UDID=$(xcrun simctl list devices available -j | python3 -c '
-          import json, sys
-          phones = [d for runtime, ds in json.load(sys.stdin)["devices"].items() if "iOS" in runtime for d in ds if d["name"].startswith("iPhone")]
-          phones.sort(key=lambda d: (d["name"] != "iPhone 17", d["name"]))
-          print(phones[0]["udid"] if phones else "")')
-          test -n "$UDID" || { echo "::error::no iPhone simulator on this runner"; exit 1; }
-          echo "UDID=$UDID" >> "$GITHUB_ENV"
-          xcrun simctl boot "$UDID" || true
-          echo "booting $UDID since $(date -u +%H:%M:%S)"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -127,7 +110,13 @@ jobs:
       - name: Launch it on an iPhone and read what it says
         run: |
           set -euo pipefail
-          test -n "${UDID:-}" || { echo "::error::no iPhone simulator was started"; exit 1; }
+          # An iPhone 17 if this Xcode has one, otherwise the first iPhone it does have.
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          phones = [d for runtime, ds in json.load(sys.stdin)["devices"].items() if "iOS" in runtime for d in ds if d["name"].startswith("iPhone")]
+          phones.sort(key=lambda d: (d["name"] != "iPhone 17", d["name"]))
+          print(phones[0]["udid"] if phones else "")')
+          test -n "$UDID" || { echo "::error::no iPhone simulator on this runner"; exit 1; }
           running() { xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -c "UIKitApplication:com.gt3pb.app" || true; }
           # A BOOT THAT FAILS IS A RUNNER'S, NOT THE APP'S (2026-10-07). The runner's simulator sometimes
           # never finishes its first boot — PR #89 on 2026-10-06; PRs #93, #94 and #95 on 2026-10-07:
@@ -140,7 +129,10 @@ jobs:
           # restarted (keeping what its first boot migrated), erased only before the last try, and after
           # three tries named as the runner's problem. bootstatus's second-by-second progress goes to
           # boot.log, not this log (it was a thousand lines of it); a failed try prints its last lines,
-          # and the file is kept with the screenshot.
+          # and the file is kept with the screenshot. NOT booted alongside the build: tried on #95
+          # (2026-10-07, 17:31 UTC), the first boot's data migration slowed everything else on the runner
+          # four to eight times (npm ci 16 s → 2 min 6 s, the web build 51 s → 3 min 17 s) and the app
+          # still did not run — the boot gets the runner to itself, after the build.
           ready() {
             xcrun simctl launch "$UDID" com.apple.Preferences > /dev/null 2>&1 || return 1
             sleep 5
