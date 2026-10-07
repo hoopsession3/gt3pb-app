@@ -118,6 +118,20 @@ jobs:
           print(phones[0]["udid"] if phones else "")')
           test -n "$UDID" || { echo "::error::no iPhone simulator on this runner"; exit 1; }
           running() { xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -c "UIKitApplication:com.gt3pb.app" || true; }
+          # A BOOT THAT FAILS IS A RUNNER'S, NOT THE APP'S (2026-10-07). The runner's simulator sometimes
+          # never finishes its first boot — PR #89 on 2026-10-06; PRs #93 and #94 on 2026-10-07: six
+          # minutes "Waiting on System App", then bootstatus gives up (Status=4294967295) — and restarting
+          # the same device, below, brought back the same broken boot, so the job blamed the app for a
+          # device that never ran anything. bootstatus's answer is read now: a boot that fails is erased
+          # and booted fresh, three tries, and a device that never boots is named as the runner's problem.
+          booted=0
+          for boot in 1 2 3; do
+            if xcrun simctl bootstatus "$UDID" -b; then booted=1; break; fi
+            echo "::warning::the simulator did not finish booting (try $boot of 3) — erasing it and booting it fresh"
+            xcrun simctl shutdown "$UDID" || true
+            xcrun simctl erase "$UDID" || true
+          done
+          [ "$booted" = 1 ] || { echo "::error::the runner's iPhone simulator never finished booting, three times — a runner problem, not the app: re-run the job"; exit 1; }
           # A runner's simulator sometimes never finishes its first boot (PR #89, 2026-10-06: seven
           # minutes of data migration, then a device that ran nothing). So one more go, from a
           # restarted simulator, before anything is put down to the app.
