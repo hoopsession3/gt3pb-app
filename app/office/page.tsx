@@ -17,7 +17,8 @@ import { money } from "@/lib/money";
 
 // OFFICE PORTAL — the B2B self-serve surface (Phase 3). A business account holder manages their
 // standing weekly order (pause / resume / adjust gallons), sees upcoming Monday deliveries, their
-// amber-jug balance, and invoices. Everything reads their own rows (RLS, 0187).
+// amber-jug balance, and invoices. Everything reads their own rows (RLS, 0187); the two changes go
+// through set_office_standing (0354), the only write a client has on their account.
 type Acct = { id: string; company: string; standing_active: boolean; standing_gallons: number | null; jug_balance: number; billing_terms: string };
 type Ord = { id: string; delivery_date: string; gallons: number; total_cents: number; status: string; payment_status: string };
 type Inv = { id: string; amount_cents: number; status: string; issued_at: string; terms: string; due_at: string | null };
@@ -58,12 +59,30 @@ export default function OfficeScreen() {
   }, [user, toast]);
   useEffect(() => { if (ready && user) load(); }, [ready, user, load]);
 
-  const patch = async (p: Partial<Acct>) => {
+  // TWO CHANGES, ONE CHECKED DOOR (2026-10-07, 0354). This wrote the account row directly — and so
+  // could anyone signed in, any column of it: billing terms, jug count, the delivery window. 0354
+  // takes the client's write away and gives back exactly what this page offers, the weekly order on
+  // or off and its gallons, as set_office_standing(): their own account, never under the minimum.
+  // It answers with the row as saved, and that — not the optimistic guess — is what the page shows.
+  // Until 0354 is pasted the function isn't there (PGRST202) and the old write is still allowed, so
+  // the page makes the old write: the same two columns and the same values, through the old door.
+  const patch = async (p: { standing_active?: boolean; standing_gallons?: number }) => {
     if (!supabase || !acct || busy) return; setBusy(true);
-    setAcct((a) => (a ? { ...a, ...p } : a)); // optimistic
-    const { error } = await supabase.from("business_accounts").update(p).eq("id", acct.id);
+    setAcct((a) => (a ? { ...a, ...p } : a)); // optimistic, until the server's row lands
+    const via = await supabase.rpc("set_office_standing", { p_account: acct.id, p_active: p.standing_active ?? null, p_gallons: p.standing_gallons ?? null });
+    let error = via.error;
+    // Loaded only when a save fails: the helper is the house's one test for "not pasted yet", and
+    // imported up front it weighed 282 bytes more on every visit to this page (scripts/design.ratchet.mjs).
+    if (error && (await import("@/lib/schemaSkew")).isMissingFunction(error)) {
+      // A write that matched no row saved nothing: in the seconds after 0354 lands, before the API has
+      // seen the new function, the old door is already shut — so that says "couldn't save", not saved.
+      const old = await supabase.from("business_accounts").update(p).eq("id", acct.id).select("id");
+      error = old.error ?? (old.data?.length ? null : error);
+    } else if (!error && via.data) setAcct((a) => (a ? { ...a, ...(via.data as Partial<Acct>) } : a));
     setBusy(false);
-    if (error) { toast("Couldn't save — try again", "error"); load(); }
+    // Under the minimum, set_office_standing refuses with 22023 and a sentence a person can act on
+    // ("The minimum is 4 gallons a week."), and that is what the toast says.
+    if (error) { toast(error.code === "22023" ? error.message : "Couldn't save — try again", "error"); load(); }
   };
   const adjustGallons = (d: number) => { if (!acct) return; const g = Math.max(settings.minGallons, (acct.standing_gallons ?? settings.minGallons) + d); patch({ standing_gallons: g }); };
 

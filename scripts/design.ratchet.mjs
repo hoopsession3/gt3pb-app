@@ -472,6 +472,13 @@ export const PROD_ROUTE = {
 // after); the utilities ride in a stylesheet of their own, 1.6 KB, fetched beside it — built only from
 // names the screens' code holds (app/tailwind.css). Script unchanged, bar 1 byte on /3mpire (.ring is
 // .mp-ring).
+// 2026-10-07 (office clients, 0354): /office 272 → 273. Built 8049ab6 and this commit and gzipped what
+// /office's HTML references: 278 965 → 279 122 bytes (+157), over the rounding line it sat 75 bytes
+// under; every other public route byte-identical. What rides: the weekly order's two changes go
+// through set_office_standing and the page shows the row the server saved, the old write stays as the
+// way through until 0354 is pasted (and says "couldn't save" when it matches no row), and a refusal
+// under the minimum shows the database's sentence. lib/schemaSkew's "not pasted yet" test loads only
+// when a save fails: imported up front, /office weighed 279 404 (+439), so the lazy import is lighter.
 export const WEIGHT = {
   "/truck":                    { js: 280, css: 101, chunks: 15 },
   "/events":                   { js: 280, css: 101, chunks: 15 },
@@ -482,7 +489,7 @@ export const WEIGHT = {
   "/craft":                    { js: 264, css:  98, chunks: 15 },
   "/book":                     { js: 264, css:  98, chunks: 15 },
   "/academy":                  { js: 317, css:  98, chunks: 16 },
-  "/office":                   { js: 272, css:  98, chunks: 15 },
+  "/office":                   { js: 273, css:  98, chunks: 15 },
   "/scan":                     { js: 259, css:  98, chunks: 15 },
   "/architecture":             { js: 269, css:  98, chunks: 15 },
   "/playbook":                 { js: 272, css:  98, chunks: 15 },
