@@ -23,6 +23,7 @@ import { useSiteCopy } from "@/lib/copy";
 import { money, moneyPlain, moneyRound } from "@/lib/money";
 import { isSettled } from "@/lib/settled";
 import { publicOrigin } from "@/lib/native";
+import { shareLink } from "@/lib/deviceActions";
 
 const RING = 232; // 2πr for r=37, matches prototype stroke-dasharray
 
@@ -104,11 +105,11 @@ function ReferralCard({ code }: { code: string }) {
 
   const link = typeof window !== "undefined" ? `${publicOrigin()}/?ref=${encodeURIComponent(code)}` : "";
 
+  // The share sheet — the browser's on the web, the phone's in the app (lib/deviceActions). Closing it is
+  // an answer; with no share sheet at all, or one that fails, the link is copied instead.
   const share = async () => {
-    const payload = { title: "GT3 Performance Bar", text: `Join me on GT3 — use code ${code} and we both get $5.`, url: link };
-    try {
-      if (typeof navigator !== "undefined" && navigator.share) { await navigator.share(payload); return; }
-    } catch { return; } // user dismissed the share sheet
+    const how = await shareLink({ title: "GT3 Performance Bar", text: `Join me on GT3 — use code ${code} and we both get $5.`, url: link });
+    if (how === "done" || how === "cancelled") return;
     try { await navigator.clipboard.writeText(link); toast("Invite link copied"); } catch { toast(link); }
   };
   const copyCode = async () => {
