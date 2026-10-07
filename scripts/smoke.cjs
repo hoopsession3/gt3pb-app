@@ -8611,6 +8611,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("iphone: npm run verify ends by building the app's smoke build and opening it on three iPhones", /&& npm run build:app -- --smoke && npm run smoke:native$/.test(pkg.scripts.verify));
   const wf = read(".github/workflows/ios.yml");
   ok("iphone: the TestFlight upload refuses the smoke build, and an app built without its backend", /gt3-smoke-build\.json/.test(wf) && /NEXT_PUBLIC_SUPABASE_URL/.test(wf));
+  ok("iphone: a simulator that never finishes booting is erased and booted fresh, and named as the runner's problem, not the app's",
+    /if xcrun simctl bootstatus "\$UDID" -b; then booted=1; break; fi/.test(wf) && /xcrun simctl erase "\$UDID" \|\| true/.test(wf)
+    && /\[ "\$booted" = 1 \] \|\| \{ echo "::error::the runner's iPhone simulator never finished booting/.test(wf));
 }
 
 // ── DELETE MY ACCOUNT (2026-10-06, the iPhone round, part 2) ──────────────────────────────────────
