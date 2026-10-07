@@ -69,6 +69,18 @@ export default function CommandBoard() {
   // The initiative itself, opened (2026-10-04): its date, status and name had no editor anywhere —
   // only Finish, which completes every task under it. components/InitiativeSheet is that editor.
   const [openInit, setOpenInit] = useState<string | null>(null);
+  // A PAST-DATE INITIATIVE FOLDS (2026-10-07, Ryan: "Ewww"). The July launch sat open at the top of
+  // Command 65 days after its date — nine milestones in red, a goal picker, the Finish button — and
+  // pushed the company's state below the fold. Past its date by two weeks, an initiative shows its
+  // line and its progress and asks the one question it now raises (finish it, move the date, or look
+  // at what's left); its milestones open on a tap. Nothing is taken away.
+  const [unfolded, setUnfolded] = useState<Set<string>>(() => new Set());
+  const unfold = (id: string) => setUnfolded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  // THE TEAM'S WEEK IS ONE LINE (2026-10-07). This Week, the overdue half of Blockers and Done this
+  // week listed the same tasks My Day lists — for a two-founder crew, Command and My Day read as the
+  // same screen twice. Command says the counts in one line and opens the lists on a tap; My Day stays
+  // where you do them.
+  const [weekOpen, setWeekOpen] = useState(false);
 
   // 0350 adds initiative_milestones.workstream_id. Until it is pasted the milestones are asked for
   // again without it, and the board knows (linkable: false): the pick is still offered and a
@@ -223,8 +235,9 @@ export default function CommandBoard() {
               const pct = ms.length ? Math.round((doneN / ms.length) * 100) : 0;
               const cd = it.target_date ? countdown(it.target_date) : "";
               const late = it.target_date ? daysTo(it.target_date) < 0 : false;
+              const folded = !!it.target_date && daysTo(it.target_date) < -14 && !unfolded.has(it.id);
               return (
-                <div className="cmd-init" key={it.id}>
+                <div className={`cmd-init${folded ? " folded" : ""}`} key={it.id}>
                   <div className="k-rows">
                     <InfoRow
                       name={<>{it.emoji ? `${it.emoji} ` : ""}{it.title}</>}
@@ -235,6 +248,16 @@ export default function CommandBoard() {
                     />
                   </div>
                   <div className="cmd-prog"><span className="cmd-prog-bar"><span style={{ width: `${pct}%` }} /></span><span className="cmd-prog-n">{doneN}/{ms.length} · {pct}%</span></div>
+                  {folded && (
+                    <div className="cmd-fold">
+                      <p>{-daysTo(it.target_date!)} days past its date with {ms.length - doneN} of {ms.length} milestone{ms.length === 1 ? "" : "s"} open. Finish it, give it a new date, or look at what&rsquo;s left.</p>
+                      <div className="cmd-fold-acts">
+                        <button type="button" className="btn-sec" onClick={() => unfold(it.id)}>Show the milestones</button>
+                        {isAdmin && <button type="button" className="btn-ter" onClick={() => setOpenInit(it.id)}>New date</button>}
+                      </div>
+                    </div>
+                  )}
+                  {!folded && <>
                   {/* 0263 — the goals this program serves: one story, program → numbers. */}
                   {(() => {
                     const served = data.goalLinks.filter((l) => l.initiative_id === it.id)
@@ -293,6 +316,8 @@ export default function CommandBoard() {
                     </div>
                   )}
                   {isAdmin && <InlineCreate label="+ Milestone" placeholder="Milestone" className="cmd-add" onCreate={(t) => addMilestone(it.id, t)} />}
+                  {late && unfolded.has(it.id) && <button type="button" className="btn-ter cmd-refold" onClick={() => unfold(it.id)}>Fold it back</button>}
+                  </>}
                   {isAdmin && <button type="button" className="cmd-finish" onClick={() => finishInit(it)}><Icon name="check" /> Finish initiative — completes every task under it</button>}
                 </div>
               );
@@ -302,51 +327,63 @@ export default function CommandBoard() {
             {/* ── Launch readiness · go/no-go ── */}
             <LaunchReadiness />
 
-            {/* ── This Week ── */}
-            <SectionHeader label="This week" annotation="due next 7 days" />
-            {wk.shown.length === 0 ? <EmptyState title="Nothing due in the next 7 days" /> : (
-              <div className="k-rows">
-                {wk.shown.map((w) => (
-                  <InfoRow
-                    key={`${w.src}-${w.id}`}
-                    name={w.title}
-                    trailing={<span className="cmd-row-due">{dnice(w.due)}</span>}
-                    onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")}
-                    ariaLabel={`Open task: ${w.title}`}
-                  />
-                ))}
-                {wk.more > 0 && <div className="cmd-more">+{wk.more} more</div>}
-              </div>
-            )}
-
-            {/* ── Blockers ── */}
+            {/* ── Blockers — the company's: an incident, a goal flagged at risk ── */}
             <SectionHeader label="Blockers" annotation="clear these first" />
-            {data.incidents.length === 0 && ov.shown.length === 0 && data.goals.filter((g) => g.checkin_status === "at_risk").length === 0 ? <EmptyState title="Nothing blocked" /> : (
+            {data.incidents.length === 0 && data.goals.filter((g) => g.checkin_status === "at_risk").length === 0 ? <EmptyState title="Nothing blocked" /> : (
               <div className="k-rows">
                 {/* 0263 — a goal its owner flagged at risk IS a blocker; it sits with the rest. */}
                 {data.goals.filter((g) => g.checkin_status === "at_risk").map((g) => (
                   <InfoRow key={`risk-${g.id}`} name={<>🎯 {g.title} — <span className="cmd-risklab">at risk</span></>} trailing={<span className="cmd-row-due late">check-in</span>} onClick={() => document.getElementById("goals")?.scrollIntoView({ behavior: "smooth" })} ariaLabel={`At-risk goal: ${g.title}`} />
                 ))}
                 {data.incidents.map((i) => <InfoRow key={i.id} name={<><Icon name="warning" /> {i.problem}</>} />)}
-                {ov.shown.map((w) => (
-                  <InfoRow
-                    key={`ov-${w.src}-${w.id}`}
-                    name={w.title}
-                    trailing={<span className="cmd-row-due late">{dnice(w.due)} · overdue</span>}
-                    onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")}
-                    ariaLabel={`Open task: ${w.title}`}
-                  />
-                ))}
-                {ov.more > 0 && <div className="cmd-more">+{ov.more} more overdue</div>}
               </div>
             )}
 
-            {/* ── Done this week ── */}
-            <SectionHeader label="Done this week" annotation="wrapped" />
-            {dn.shown.length === 0 ? <EmptyState title="Nothing wrapped yet this week" /> : (
-              <div className="k-rows">
-                {dn.shown.map((w) => <InfoRow key={`dn-${w.src}-${w.id}`} name={<span style={{ textDecoration: "line-through", color: "var(--cream-d)" }}>{w.title}</span>} />)}
-                {dn.more > 0 && <div className="cmd-more">+{dn.more} more done</div>}
+            {/* ── The team's week — one line; the lists open on a tap ── */}
+            <SectionHeader label="The team's week" annotation="across the crew" />
+            <button type="button" className={`cmd-week${weekOpen ? " open" : ""}`} onClick={() => setWeekOpen((o) => !o)} aria-expanded={weekOpen}>
+              <span><b>{data.week.length}</b> due in the next 7 days</span>
+              <span className={data.overdue.length ? "late" : undefined}><b>{data.overdue.length}</b> overdue</span>
+              <span><b>{data.done.length}</b> done this week</span>
+              <span className={`ev-chev${weekOpen ? " open" : ""}`} aria-hidden="true">›</span>
+            </button>
+            {weekOpen && (
+              <div className="cmd-week-lists">
+                {ov.shown.length > 0 && (
+                  <div className="k-rows">
+                    <div className="cmd-week-h">Overdue</div>
+                    {ov.shown.map((w) => (
+                      <InfoRow
+                        key={`ov-${w.src}-${w.id}`}
+                        name={w.title}
+                        trailing={<span className="cmd-row-due late">{dnice(w.due)} · overdue</span>}
+                        onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")}
+                        ariaLabel={`Open task: ${w.title}`}
+                      />
+                    ))}
+                    {ov.more > 0 && <div className="cmd-more">+{ov.more} more overdue</div>}
+                  </div>
+                )}
+                <div className="k-rows">
+                  <div className="cmd-week-h">Due in the next 7 days</div>
+                  {wk.shown.length === 0 ? <div className="cmd-more">Nothing due in the next 7 days</div> : wk.shown.map((w) => (
+                    <InfoRow
+                      key={`${w.src}-${w.id}`}
+                      name={w.title}
+                      trailing={<span className="cmd-row-due">{dnice(w.due)}</span>}
+                      onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")}
+                      ariaLabel={`Open task: ${w.title}`}
+                    />
+                  ))}
+                  {wk.more > 0 && <div className="cmd-more">+{wk.more} more</div>}
+                </div>
+                {dn.shown.length > 0 && (
+                  <div className="k-rows">
+                    <div className="cmd-week-h">Done this week</div>
+                    {dn.shown.map((w) => <InfoRow key={`dn-${w.src}-${w.id}`} name={<span className="cmd-done-t">{w.title}</span>} />)}
+                    {dn.more > 0 && <div className="cmd-more">+{dn.more} more done</div>}
+                  </div>
+                )}
               </div>
             )}
 
