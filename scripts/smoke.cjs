@@ -8703,6 +8703,26 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("iphone: every Capacitor plugin the app installs is in the iOS project's packages (npx cap sync ios was run)", nativeDeps.includes("@capacitor/share") && unsynced.length === 0, unsynced);
 }
 
+// ── TAILWIND, ON GT3'S TOKENS (2026-10-07) ──────────────────────────────────────────────────────────
+// Tailwind CSS sat in package.json and in none of the CSS. It is wired now — the utilities, on the house
+// tokens, beside the house stylesheet (app/tailwind.css says how) — and scripts/css.audit.mjs holds the
+// two to one system. What a static check can add: that the audit runs, and the one rule the dead-CSS
+// pass nearly took (a P1 lead's gold on the pipeline is .pipe-pri.p1, built from the database's 'P1').
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const root = path.join(__dirname, "..");
+  const read = (f) => fs.readFileSync(path.join(root, f), "utf8");
+  const pkg = read("package.json"), layout = read("app/layout.tsx"), css = read("app/globals.css");
+  ok("tailwind: the CSS audit runs with the others, right after the haptics audit, and its rules are tested",
+    /node scripts\/haptics\.audit\.mjs && node scripts\/css\.audit\.mjs && /.test(pkg)
+    && /from "\.\/css\.audit\.mjs"/.test(read("scripts/audits.test.mjs")));
+  ok("tailwind: the utilities load after the house stylesheet, from app/layout.tsx, and PostCSS runs Tailwind alone",
+    layout.indexOf('import "./globals.css";') >= 0 && layout.indexOf('import "./tailwind.css";') > layout.indexOf('import "./globals.css";')
+    && /"@tailwindcss\/postcss": \{\}/.test(read("postcss.config.mjs")));
+  ok("tailwind: a P1 lead keeps its gold — .pipe-pri.p1 is in the house stylesheet (the pipeline lowercases the database's 'P1')",
+    /\.pipe-pri\.p1\{background:var\(--gold2\)\}/.test(css) && /pipe-pri \$\{o\.priority\.toLowerCase\(\)\}/.test(read("components/PipelinePanel.tsx")));
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.

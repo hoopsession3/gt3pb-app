@@ -20,6 +20,8 @@ import { promisesIn, PLACES, CHEVRON_CEILING, DIRECTION_CEILING } from "./afford
 import { vocabularies, wordsIn, judge as judgeWords, listOf, REFUSED_CEILING } from "./vocab.audit.mjs";
 import { gesturesIn, judgeFile, staleEntries, OWN_OVERLAYS, NOT_PAGES, NO_UNSAVED, GESTURE_LAYER } from "./gesture.audit.mjs";
 import { hapticsIn, judgeFile as judgeHaptics, vocabularyOf, judgeVocabulary, HOME as HAPTICS_HOME } from "./haptics.audit.mjs";
+import { markupOf, namedBy, deadSelectorsIn, looseHoversIn, demanded, houseClasses, rawColours } from "./css.audit.mjs";
+import { createRequire } from "node:module";
 import { PGlite } from "@electric-sql/pglite";
 import { join } from "node:path";
 
@@ -926,6 +928,46 @@ end $$;`;
     J(`toast(error ? \`Error: \${error.message}\` : "Event updated", error ? "error" : undefined); toast(\`Couldn't rename — \${e}\`, "error");`).length === 0);
   ok("haptics: a success, a neutral word, or a message held in a variable is not judged",
     J(`toast("Saved"); toast(\`Marked \${status}\`); toast(msg); toast(ok ? "Saved" : "Couldn't save", ok ? undefined : "error");`).length === 0);
+}
+
+// ── css.audit: the house stylesheet and the utilities (the Tailwind round, 2026-10-07) ────────────
+// Real lines: the pipeline's priority chip (components/PipelinePanel.tsx) and the check 0265 puts on
+// its column, the order-age chip (app/crew/page.tsx), the calendar card (components/CompanyCalendar.tsx),
+// the splash's button (components/MarketingSplash). The first pass at dead CSS judged words by their
+// case and would have taken .pipe-pri.p1 — a P1 lead's gold — off the pipeline; these hold the rule.
+{
+  const postcss = createRequire(import.meta.url)("postcss");
+  const PIPE = "<i className={`pipe-pri ${o.priority.toLowerCase()}`}>{o.priority}</i>";
+  const CHECK = "check (priority is null or priority in ('P1','P2','P3','P4'))";
+  const named = namedBy(`${PIPE}\n${CHECK}`);
+  const dead = (css) => deadSelectorsIn(postcss.parse(css), named);
+  ok("css dead: a class built from data cased on the way is named — the pipeline's 'P1' is .pipe-pri.p1",
+    dead(".pipe-pri{font-style:normal}.pipe-pri.p1{background:var(--gold2)}").length === 0);
+  ok("css dead: a class nothing names is dead (.pipe-pri.p9)", JSON.stringify(dead(".pipe-pri.p9{color:var(--red)}")) === '[".pipe-pri.p9"]', dead(".pipe-pri.p9{color:var(--red)}"));
+  ok("css dead: a class nothing names inside :not() leaves the rule alive — :not() of nothing matches everything",
+    dead(".pipe-pri:not(.zz-never){opacity:.9}").length === 0);
+  ok("css dead: what sits in an attribute selector is not a class", dead('.pipe-pri a[href$=".zzpdf"]{color:var(--red)}').length === 0);
+  ok("css dead: keyframe steps are not selectors", dead("@keyframes zzspin{from{opacity:0}to{opacity:1}}").length === 0);
+  {
+    const n = namedBy('<div className={`rd-t${n}`} />\nconst c = "tone-" + t;');
+    ok("css dead: a prefix the code builds on names its classes (`rd-t${n}`, \"tone-\" + t) — and only those", n("rd-t3") && n("tone-red") && !n("tonal") && !n("rd-x"));
+  }
+  ok("css demanded: one alternative of :is() or :where() is not what a rule needs", demanded(".a:is(.b, .c) .d:where(.e)") === ".a .d");
+
+  const loose = (css) => looseHoversIn(postcss.parse(css));
+  ok("css hover: a bare :hover stays lit on a phone after a tap", loose(".spl-cta:hover{background:var(--red-h)}").length === 1);
+  ok("css hover: behind @media (hover:hover) it does not", loose("@media (hover:hover){.spl-cta:hover{background:var(--red-h)}}").length === 0);
+  ok("css hover: inside another media query, still guarded", loose("@media (min-width:700px){@media (hover:hover){.spl-cta:hover{opacity:1}}}").length === 0);
+
+  const M = (src) => markupOf("x.tsx", src);
+  ok("css markup: a class taken whole from data is counted (the order-age chip)", M("<span className={`adm-age ${sev}`}>{x}</span>").wholeVariable.length === 1);
+  ok("css markup: a class glued to a word is not whole (the calendar card)", M('<div className={`calcard${it.done ? " done" : ""}`} />').wholeVariable.length === 0);
+  ok("css markup: a choice between written words is safe", M('<i className={`x ${on ? "on" : "off"}`} />').wholeVariable.length === 0);
+  ok("css markup: a style object counts, a style from a variable does not", M("<div style={{ margin: 0 }} /><div style={s} />").inlineStyles === 1);
+  ok("css markup: every class a className writes", [...M('<b className="k-chip k-chip-sec" />').classes].join(" ") === "k-chip k-chip-sec");
+
+  ok("css house: the classes a stylesheet styles, not the ones its comments name", [...houseClasses("/* .gone */ .mp-ring svg{} .rc small{}")].sort().join(" ") === "mp-ring rc");
+  ok("css colours: a colour written two ways is one", rawColours(".a{color:rgba(0, 0, 0, .5)} .b{color:rgba(0,0,0,.5)} .c{color:#FFF} .d{color:#fff}").size === 2);
 }
 
 console.log(`AUDIT CLASSIFIERS: ${pass} passed, ${fail} failed`);

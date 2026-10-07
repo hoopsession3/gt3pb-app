@@ -1,0 +1,128 @@
+/* ============================================================
+   TAILWIND, ON GT3'S TOKENS (2026-10-07)
+   ============================================================
+
+   WHAT THIS IS. The utility layer: `flex items-center gap-2`, `mt-3`, `text-cream`, `pb-safe` — the
+   one-off layout a screen needs, written on the element, so it never has to become an inline style
+   (621 of those on 2026-10-07, in 118 files: no tokens, no variants, no media queries) or another rule
+   in the 8,000-line house stylesheet that every route downloads before it can paint.
+
+   WHAT IT IS NOT. Not a second design system. The house stylesheet (app/globals.css) keeps every
+   component it styles, and every token stays declared there, in its one :root. This file only
+   points Tailwind's names at those tokens, so a utility can only say what GT3 already says:
+     · the colours are GT3's and nothing else — Tailwind's own palette is switched off, so
+       `bg-blue-500` builds nothing, and the light crew look restates the tokens the utilities read;
+     · the spacing step is the house grid's 4px (`p-4` = --sp-4 = 16px), the radii are --r-xs…4xl,
+       the shadows the depth ladder, the fonts the type system's three.
+   No preflight: Tailwind's reset would restyle every heading, list, button and image the house
+   stylesheet already styles. The utilities are not in a cascade layer, and app/layout.tsx loads this
+   file after app/globals.css: a utility sits after the house rules, as Tailwind's own classes did
+   before cascade layers — it wins over a component class of the same weight and loses to a more
+   specific one. A class name the house stylesheet defines may never also be a utility
+   (scripts/css.audit.mjs checks every one), and no screen wrote a utility's name before this file
+   existed (bar .sr-only, which is the same box), so nothing already on a screen changes by being here.
+
+   WHAT ONLY THE APP NEEDS. Variants for the iPhone app's own states — `native:` inside the app
+   (components/NativeBridge sets html[data-native]), `kb:` while the keyboard is up (the app's
+   html[data-kb], the web's .kb-open) — the crew's light look as `day:`, and safe-area padding that
+   adds to the grid: `pb-safe` is the home indicator, `pb-safe-4` is the home indicator and 16px.
+   `dark:` is switched off: the look is set by lib/theme, never by the phone's own setting alone, so a
+   class that followed prefers-color-scheme would disagree with the screen it sits on.
+
+   And a hover is a hover: Tailwind's `hover:` only applies where a pointer can hover, so a tapped
+   button on a phone never stays lit — the rule the house stylesheet now keeps too.
+*/
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" source(none);
+
+/* What Tailwind reads for class names: the screens and their code. Not the server routes, not the
+   scripts, not the docs — a word in a paragraph is not a class. */
+@source "../app";
+@source "../components";
+@source "../lib";
+@source "../native";
+@source not "../app/api";
+
+@theme inline {
+  /* colours: GT3's, read from the house tokens (so the crew's light look follows), and nothing else */
+  --color-*: initial;
+  --color-red: var(--red);
+  --color-red-deep: var(--red-d);
+  --color-red-hover: var(--red-h);
+  --color-cream: var(--cream);
+  --color-cream-muted: var(--cream-m);
+  --color-cream-dim: var(--cream-d);
+  --color-cream2: var(--cream2);
+  --color-gold: var(--gold);
+  --color-gold2: var(--gold2);
+  --color-char: var(--char);
+  --color-char2: var(--char2);
+  --color-char3: var(--char3);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-line: var(--line);
+  --color-line2: var(--line2);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-muted: var(--muted);
+  --color-link: var(--color-info);      /* the house --color-info: links and info, one blue */
+  --color-whisper: var(--ink-whisper);
+  --color-field: var(--field);
+  --color-well: var(--well);
+  --color-white: #fff;
+  --color-black: #000;
+
+  /* the house grid: --sp-1 … --sp-9 are 4 · 8 · 12 · 16 · 20 · 24 · 32 · 40 · 48 px = p-1 … p-12 */
+  --spacing: 4px;
+
+  /* radii: the house scale, by the house names */
+  --radius-*: initial;
+  --radius-xs: var(--r-xs);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+  --radius-2xl: var(--r-2xl);
+  --radius-3xl: var(--r-3xl);
+  --radius-4xl: var(--r-4xl);
+  --radius-pill: var(--r-pill);
+
+  /* depth: the house ladder — rest, raised, overlay */
+  --shadow-*: initial;
+  --shadow-rest: var(--shadow-1);
+  --shadow-raised: var(--shadow-2);
+  --shadow-overlay: var(--shadow-3);
+
+  /* type: the type system's three faces */
+  --font-*: initial;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Archivo Black", "Inter", system-ui, sans-serif;
+  --font-mono: var(--mono);
+
+  /* motion: the house voice beside Tailwind's own curves */
+  --ease-house: var(--ease);
+  --ease-arrive: var(--ease-enter);
+  --ease-spring: var(--spring);
+  --tracking-eyebrow: var(--track-eyebrow);
+}
+
+/* The iPhone app, the keyboard, the crew's light look. */
+@custom-variant native (&:where(html[data-native], html[data-native] *));
+@custom-variant kb (&:where(html[data-kb], html[data-kb] *, html.kb-open, html.kb-open *));
+@custom-variant day (&:where(.crew-day, .crew-day *));
+/* Off: the look is lib/theme's, and the phone's setting alone is not it. */
+@custom-variant dark (&:not(*));
+
+/* Safe areas: the inset alone, or the inset and a step of the grid (pb-safe-4 = inset + 16px). */
+@utility pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+@utility pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+@utility pl-safe { padding-left: env(safe-area-inset-left, 0px); }
+@utility pr-safe { padding-right: env(safe-area-inset-right, 0px); }
+@utility px-safe { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+@utility pt-safe-* { padding-top: calc(env(safe-area-inset-top, 0px) + --spacing(--value(number))); }
+@utility pb-safe-* { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + --spacing(--value(number))); }
+@utility mb-safe { margin-bottom: env(safe-area-inset-bottom, 0px); }
+@utility top-safe { top: env(safe-area-inset-top, 0px); }
+@utility bottom-safe { bottom: env(safe-area-inset-bottom, 0px); }
+@utility scroll-pt-safe { scroll-padding-top: env(safe-area-inset-top, 0px); }

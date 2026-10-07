@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+// After the house stylesheet, so a utility outranks a component class of the same weight (app/tailwind.css).
+import "./tailwind.css";
 import AuthProvider from "@/components/AuthProvider";
 import AppProvider from "@/components/AppProvider";
 import AppShell from "@/components/AppShell";
