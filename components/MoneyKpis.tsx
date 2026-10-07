@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { moneyRound } from "@/lib/money";
+import { dayKey, localToday } from "@/lib/dates";
 import { useOperatorSection } from "@/components/OperatorNav";
 import { goToDest, type KpiDest } from "@/components/CrewKpis";
 
@@ -61,7 +62,8 @@ export default function MoneyKpis() {
         safe(() => supabase!.from("orders").select("total_cents").eq("paid", true).neq("status", "void").gte("created_at", week)),
         safe(() => supabase!.from("drop_orders").select("total_cents").eq("paid", true).is("canceled_at", null).gte("created_at", week)),
         safe(() => supabase!.from("delivery_orders").select("total_cents").eq("payment_status", "paid").is("canceled_at", null).gte("created_at", week)),
-        safe(() => supabase!.from("business_orders").select("total_cents").eq("payment_status", "paid").is("canceled_at", null).gte("created_at", week)),
+        // By delivery day (0358): an office order is made weeks before it is earned.
+        safe(() => supabase!.from("business_orders").select("total_cents").eq("payment_status", "paid").is("canceled_at", null).gte("delivery_date", dayKey(new Date(week))).lte("delivery_date", localToday())),
         safe(() => supabase!.from("orders").select("id", { count: "exact", head: true }).neq("status", "void").gte("created_at", today)),
         safe(() => supabase!.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active")),
         safe(() => supabase!.from("drop_orders").select("id", { count: "exact", head: true }).is("canceled_at", null).gte("drop_date", today.slice(0, 10))),
