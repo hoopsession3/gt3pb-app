@@ -231,7 +231,7 @@ function MpireDemo() {
 
       <MembershipCard />
       <div className="memcard"><div className="min">
-        <div className="ring">
+        <div className="mp-ring">
           <svg width="88" height="88">
             <circle cx="44" cy="44" r="37" fill="none" stroke="rgba(245,241,232,.1)" strokeWidth="8" />
             <circle ref={ringRef} cx="44" cy="44" r="37" fill="none" stroke="#B82420" strokeWidth="8" strokeLinecap="round" strokeDasharray={RING} strokeDashoffset={RING} />
