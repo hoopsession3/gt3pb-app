@@ -15,7 +15,7 @@ import CookEnforcement from "@/components/CookEnforcement";
 import {
   PRODUCTS, CERTS, ROLES, READINESS, PASS_DEFAULT, ACKS, ackByKey, certExpiryDays,
   moduleBySlug, certByKey, pathForRole, certEarned, requiredModules, sectionMeta, expectationsFor,
-  readinessGap, renewalLeft, assignmentDone, teamMemberRow,
+  readinessGap, renewalLeft, assignmentDone, teamMemberRow, toAcademyRole,
   type Module, type Product, type QuizQ, type Role, type Ack, type AssignmentLike,
 } from "@/lib/academy";
 import { staffAccess } from "@/lib/access";
@@ -57,13 +57,8 @@ type Assignment = AssignmentLike; // one shape, in lib/academy, shared with the 
 const DAY = 86400000;
 
 
-// The app's account roles (member/server/admin/owner) map onto Academy roles.
-// Event-manager and contractor are Academy-only paths until profiles carry them.
-const APP_TO_ACADEMY: Record<string, Role> = {
-  owner: "founder", admin: "admin", event_manager: "event_manager",
-  operator: "operator", server: "operator", contractor: "contractor", member: "staff",
-};
-const toAcademyRole = (appRole: string): Role => APP_TO_ACADEMY[appRole] ?? "staff";
+// The app's account roles map onto Academy roles — lib/academy (toAcademyRole), its one home since
+// the crew welcome letter (2026-10-07) names a new teammate's path from the server too.
 
 export default function AcademyPage() {
   const { ready, enabled, user, profile, profileStatus } = useAuth();
