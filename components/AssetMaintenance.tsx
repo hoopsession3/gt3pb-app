@@ -104,7 +104,7 @@ export default function AssetMaintenance() {
         return (
           <div className="adm-sec">
             <SectionHeader label="Asset maintenance" />
-            {overdueCount > 0 && <span className="subnav-badge hot" style={{ marginLeft: 8 }}>{overdueCount} due</span>}
+            {overdueCount > 0 && <span className="k-count due ml-2">{overdueCount} due</span>}
             <div className="pnl-note" style={{ marginBottom: 8 }}>Upkeep log for the gear — last service, what&apos;s due next, full history. Tap an asset to log a service or see its record.</div>
             <div className="brew-list">
               {sorted.map((a) => {

@@ -24,7 +24,7 @@ export type IconName =
   | "compass" | "lock" | "target" | "bell" | "mic" | "clock" | "team" | "partners" | "event" | "link"
   | "coffee" | "jar"
   // dingbat replacements (✓ → ✕ ↗ ★ ▸ ○●) — highest-frequency typographic icon-substitutes
-  | "check" | "arrowRight" | "close" | "chevronRight" | "externalLink" | "star" | "dot" | "dotOutline"
+  | "check" | "arrowRight" | "close" | "chevronRight" | "chevronLeft" | "externalLink" | "star" | "dot" | "dotOutline"
   // small utility set, cheap to include, comes up constantly in retrofit work
   | "plus" | "info" | "search" | "more"
   // owner-only "edit this" affordance (2026-07-16, the live-copy edit bridge)
@@ -73,6 +73,8 @@ const PATHS: Record<IconName, React.ReactNode> = {
   arrowRight: <path d="M4 12h16M14 6l6 6-6 6" />,
   close: <path d="M5 5l14 14M19 5L5 19" />,
   chevronRight: <path d="M9 5l7 7-7 7" />,
+  // the way back (2026-10-07, the pill round): chevronRight, mirrored — the crew header's Back was a "‹" in Archivo Black
+  chevronLeft: <path d="M15 5l-7 7 7 7" />,
   externalLink: <><path d="M14 4h6v6" /><path d="M20 4L10 14" /><path d="M18 14v6H4V6h6" /></>,
   star: <path d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.2-5.4 3.2 1.3-6-4.6-4.1 6.1-.6z" />,
   dot: <circle cx="12" cy="12" r="6" fill="currentColor" stroke="none" />,

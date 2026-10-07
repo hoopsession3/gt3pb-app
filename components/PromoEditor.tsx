@@ -51,7 +51,7 @@ export default function PromoEditor() {
       {() => (
         <div className="adm-sec" id="promo-editor">
           <SectionHeader label="App splash" />
-          {d.active && <span className="adm-pill">live</span>}
+          {d.active && <span className="k-count">live</span>}
           <p className="h-sub" style={{ marginBottom: 10 }}>The <b>pop-up guests see when they open the app</b> — shown once per open, closeable. Set one here to override the built-in splash; leave it off and guests see the default.</p>
           <div className="promo-now">Showing now: <b>{row?.active ? `“${row.headline}”` : "the built-in “Own your week.” splash"}</b></div>
           <div className="goal-new">

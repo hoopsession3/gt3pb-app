@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { cleanReview, isDisplayable } from "@/lib/reviews";
 import { SectionHeader } from "@/components/kit";
+import { Segmented } from "@/components/controls";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
@@ -114,10 +115,10 @@ export default function ReviewsAdmin() {
             </div>
           )}
 
-          <div className="grp-toggle" role="tablist">
-            <button className={`grp-seg${tab === "pending" ? " on" : ""}`} onClick={() => setTab("pending")}>Pending {pending.length > 0 && <span>{pending.length}</span>}</button>
-            <button className={`grp-seg${tab === "live" ? " on" : ""}`} onClick={() => setTab("live")}>Live {live.length > 0 && <span>{live.length}</span>}</button>
-          </div>
+          <Segmented className="mb-3.5" label="Reviews" value={tab} onChange={setTab} options={[
+            { key: "pending", label: <>Pending{pending.length > 0 && <span className="k-seg-n">{pending.length}</span>}</> },
+            { key: "live", label: <>Live{live.length > 0 && <span className="k-seg-n">{live.length}</span>}</> },
+          ]} />
 
           {shown.length === 0 && (
             <EmptyState title={tab === "pending" ? "No reviews waiting" : "Nothing live yet"} sub={tab === "pending" ? undefined : "Approve or add some."} />

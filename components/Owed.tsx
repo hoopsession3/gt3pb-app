@@ -276,18 +276,18 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
         // the seven were among the eleven — two words for late, and a sum left to the reader. The
         // split is still one glance down: the rows, then "7 team tasks late".
         const lateCount = late.length + tasks.length;
-        const bits = [
-          lateCount > 0 ? `${lateCount} late` : "",
-          soon.length > 0 ? `${soon.length} due soon` : "",
-        ].filter(Boolean);
 
         return (
           <div className="owed">
+            {/* The counts as the kit's count chips (2026-10-07, the pill round): late in red, due soon
+                in amber — the same chip as every section count, so a number reads as a number. */}
             <div className="owed-head">
               <span className="owed-k">Needs you</span>
-              <b>{bits.length ? bits[0] : "Nothing late"}
-                {bits.length > 1 && <span className="dim"> · {bits.slice(1).join(" · ")}</span>}
-              </b>
+              <span className="owed-n">
+                {lateCount > 0 && <span className="k-count due">{lateCount} late</span>}
+                {soon.length > 0 && <span className="k-count soon">{soon.length} due soon</span>}
+                {lateCount === 0 && soon.length === 0 && <span className="k-count ok">Nothing late</span>}
+              </span>
             </div>
 
             {shown.map((r) => {
@@ -343,7 +343,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
               <>
                 <div className="owed-head sub">
                   <span className="owed-k">Team tasks late</span>
-                  <b>{tasks.length}</b>
+                  <span className="k-count due">{tasks.length}</span>
                 </div>
                 {(openTasks ? (allTasks ? tasks : tasks.slice(0, 8)) : tasks.slice(0, TEAM_LEAD)).map((t) => (
                   // The task itself opens (2026-10-04) — it is what is late, and its sheet completes,

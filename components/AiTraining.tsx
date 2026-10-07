@@ -109,7 +109,7 @@ export default function AiTraining() {
   return (
     <div className="adm-sec" id="ai-training">
       <SectionHeader label="Train the AI" />
-      {shown.length > 0 && <span className="adm-pill">{shown.filter((r) => r.active).length} live</span>}
+      {shown.length > 0 && <span className="k-count">{shown.filter((r) => r.active).length} live</span>}
       <p className="h-sub" style={{ marginBottom: 12 }}>
         Correct a wrong answer once and it sticks. What you write here overrides the agent&rsquo;s built-in knowledge — it can&rsquo;t contradict you.
       </p>
