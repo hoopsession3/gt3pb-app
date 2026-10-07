@@ -9,7 +9,8 @@ import Watermark from "@/components/Watermark";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import Skeleton from "@/components/Skeleton";
 import { supabase } from "@/lib/supabase";
-import { officeQuote, mondayLabel } from "@/lib/office";
+import { officeQuote, mondayLabel, windowHours } from "@/lib/office";
+import { etToday } from "@/lib/dates";
 import { useOfficeSettings } from "@/components/useOfficeSettings";
 import Icon from "@/components/Icon";
 import SignIn from "@/components/SignIn";
@@ -20,7 +21,7 @@ import { money } from "@/lib/money";
 // amber-jug balance, and invoices. Everything reads their own rows (RLS, 0187); the two changes go
 // through set_office_standing (0354), the only write a client has on their account.
 type Acct = { id: string; company: string; standing_active: boolean; standing_gallons: number | null; jug_balance: number; billing_terms: string };
-type Ord = { id: string; delivery_date: string; gallons: number; total_cents: number; status: string; payment_status: string };
+type Ord = { id: string; delivery_date: string; delivery_window: string | null; gallons: number; total_cents: number; status: string; payment_status: string };
 type Inv = { id: string; amount_cents: number; status: string; issued_at: string; terms: string; due_at: string | null };
 
 export default function OfficeScreen() {
@@ -28,7 +29,8 @@ export default function OfficeScreen() {
   const { toast } = useApp();
   const router = useRouter();
   const [acct, setAcct] = useState<Acct | null>(null);
-  const [orders, setOrders] = useState<Ord[]>([]);
+  const [upcoming, setUpcoming] = useState<Ord[]>([]);
+  const [recent, setRecent] = useState<Ord[]>([]);
   const [invoices, setInvoices] = useState<Inv[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -48,12 +50,18 @@ export default function OfficeScreen() {
     setLoadError(false);
     const ac = (a as Acct) ?? null; setAcct(ac);
     if (ac) {
-      const [o, i] = await Promise.all([
-        supabase.from("business_orders").select("id, delivery_date, gallons, total_cents, status, payment_status").is("canceled_at", null).order("delivery_date", { ascending: false }).limit(12),
+      // COMING UP, THEN RECENT (2026-10-07, 0358). The schedule keeps six weeks of deliveries, so one
+      // list newest-first put next Monday sixth, under five later ones. The next ones, soonest first;
+      // then the last ones made, newest first.
+      const cols = "id, delivery_date, delivery_window, gallons, total_cents, status, payment_status";
+      const today = etToday();
+      const [up, past, i] = await Promise.all([
+        supabase.from("business_orders").select(cols).is("canceled_at", null).gte("delivery_date", today).order("delivery_date").limit(6),
+        supabase.from("business_orders").select(cols).is("canceled_at", null).lt("delivery_date", today).order("delivery_date", { ascending: false }).limit(6),
         supabase.from("invoices").select("id, amount_cents, status, issued_at, terms, due_at").eq("business_id", ac.id).order("issued_at", { ascending: false }).limit(8),
       ]);
-      if (o.error || i.error) toast("Some account details didn't load — try refreshing", "error");
-      setOrders((o.data as Ord[]) ?? []); setInvoices((i.data as Inv[]) ?? []);
+      if (up.error || past.error || i.error) toast("Some account details didn't load — try refreshing", "error");
+      setUpcoming((up.data as Ord[]) ?? []); setRecent((past.data as Ord[]) ?? []); setInvoices((i.data as Inv[]) ?? []);
     }
     setLoaded(true);
   }, [user, toast]);
@@ -136,13 +144,26 @@ export default function OfficeScreen() {
           <div className="op-jugs-v">{acct.jug_balance}</div>
         </div>
 
-        {/* upcoming + recent orders */}
-        {orders.length > 0 && (
+        {/* coming up, soonest first: the day, its window, the gallons — not yet a bill */}
+        {upcoming.length > 0 && (
           <div className="op-list">
-            <SectionHeader label="Deliveries" />
-            {orders.map((o) => (
+            <SectionHeader label="Coming up" />
+            {upcoming.map((o) => (
               <div key={o.id} className="op-row">
-                <div className="op-row-x"><b>{mondayLabel(o.delivery_date)}</b><span>{Math.round(o.gallons)} gal · {o.status === "delivered" ? "delivered" : "scheduled"}</span></div>
+                <div className="op-row-x"><b>{mondayLabel(o.delivery_date)}</b><span>{Math.round(o.gallons)} gal · {windowHours(o.delivery_window)}</span></div>
+                <div className={`op-row-pay p-${o.payment_status}`}>{o.payment_status === "paid" ? "paid" : "scheduled"}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* recent deliveries, newest first, with what each one owes */}
+        {recent.length > 0 && (
+          <div className="op-list">
+            <SectionHeader label="Recent" />
+            {recent.map((o) => (
+              <div key={o.id} className="op-row">
+                <div className="op-row-x"><b>{mondayLabel(o.delivery_date)}</b><span>{Math.round(o.gallons)} gal · {o.status === "delivered" ? "delivered" : o.status === "issue" ? "not delivered" : "scheduled"}</span></div>
                 <div className={`op-row-pay p-${o.payment_status}`}>{o.payment_status === "paid" ? "paid" : o.payment_status === "invoiced" ? "invoiced" : money(o.total_cents)}</div>
               </div>
             ))}

@@ -3907,9 +3907,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     .filter((n) => n.endsWith(".sql") && Number(n.slice(0, 4)) >= FLOOR).sort() : [];
   ok("alert guards: the floor still names migrations to check", files.length >= 1, files.length);
 
+  // A TALLY IS NOT A GUARD (2026-10-07, 0358). The founder digest re-emitted verbatim but for its
+  // office line carries 0220's `select count(*) into reorders from public.alerts … title like '📦
+  // Reorder%'` — a number it reports (reorder alerts have no kind to count by), not a check that
+  // decides whether to insert. A statement that counts alerts INTO a variable is set aside; anything
+  // that reads an alert's wording to decide whether one exists is still found (the plants below).
+  const noTallies = (t) => t.replace(/\bselect\s+count\(\*\)\s+into\s+[a-z_][a-z_0-9]*\s+from\s+public\.alerts\b[^;]*;/gi, " ");
   const offenders = [];
   for (const n of files) {
-    const sql = stripSql(fs.readFileSync(path.join(migDir, n), "utf8"));
+    const sql = noTallies(stripSql(fs.readFileSync(path.join(migDir, n), "utf8")));
     if (!/insert\s+into\s+public\.alerts/i.test(sql)) continue;
     // A guard that reads the alert's own prose to decide whether it already exists.
     for (const m of sql.matchAll(/\btitle\s+(?:i?like|=)\s*''/gi)) {
@@ -3935,9 +3941,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       "-- a comment quoting title like '%not a real guard%' must not count\n" +
       "select 'a note that says title like ''%nor this one%'' while explaining it' as note;\n" +
       "select 1 from public.alerts where category = 'order' and title like '%waiting on the pass%';");
-    const found = [...planted.matchAll(/\btitle\s+(?:i?like|=)\s*''/gi)].map((m) => m[0]);
+    const found = [...noTallies(planted).matchAll(/\btitle\s+(?:i?like|=)\s*''/gi)].map((m) => m[0]);
     ok("alert guards: fed 0174's own guard alongside a comment and a note that both quote it, the rule finds exactly one",
       found.length === 1, found);
+    const tally = noTallies(stripSql("insert into public.alerts (kind) values ('x');\n" +
+      "select count(*) into reorders from public.alerts where ack_at is null and title like '📦 Reorder%';\n" +
+      "if not exists (select 1 from public.alerts where title like '%stalled%') then insert into public.alerts (kind) values ('y'); end if;"));
+    ok("alert guards: …a tally counted into a variable is not a guard, and a guard beside it is still found",
+      [...tally.matchAll(/\btitle\s+(?:i?like|=)\s*''/gi)].length === 1);
   }
 }
 
@@ -5765,6 +5776,35 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("office stops: before its day the driver sees one line — the date, the stops, the gallons to load — and nothing to log",
       /if \(date > etToday\(\)\) \{[\s\S]{0,700}?Next office route[\s\S]{0,400}?gal<\/div>[\s\S]{0,120}?\);\s*\}/.test(run)
       && !/if \(date > etToday\(\)\) \{[^}]*office_log_delivery/.test(run));
+  }
+
+  // ── office revenue is counted on the day it is delivered (2026-10-07, 0358) ──
+  // The schedule keeps six weeks of deliveries; every reader that dated an office order by created_at
+  // (the night the schedule made it) would have counted a prepaid client's money weeks early and lost a
+  // pay-on-delivery client's. scripts/db.officerevenue.test.mjs proves the database half; these hold the
+  // app's readers and screens to it.
+  {
+    const m358 = read("supabase/migrations/0358_office_revenue_is_counted_on_the_day_it_is_delivered.sql");
+    const digestRoute = code(read("app/api/cron/digest/route.ts")), review = code(read("app/api/agents/weekreview/route.ts")), moneyTiles = code(read("components/MoneyKpis.tsx"));
+    const crewOffice3 = code(read("components/OfficeOrders.tsx")), officePage = code(read("app/office/page.tsx"));
+    ok("office revenue: report_sales, the founder digest and all_orders date an office order by its delivery day, and the schedule keeps six weeks",
+      /office := coalesce\(\(select sum\(total_cents\) from business_orders where payment_status = 'paid' and canceled_at is null and delivery_date between since::date and current_date and tenant_id = tid\), 0\);/.test(m358)
+      && /from business_orders where payment_status = 'paid' and canceled_at is null and delivery_date = g::date and tenant_id = tid\) c/.test(m358)
+      && /from business_orders  where payment_status = 'paid' and canceled_at is null and delivery_date between current_date - 6 and current_date and tenant_id = t\.id\), 0\)/.test(m358)
+      && /total_cents, \(delivery_date \+ time '12:00'\) at time zone 'UTC'\s+from public\.business_orders\s+where delivery_date <= current_date;/.test(m358)
+      && /create or replace function public\.office_horizon\(\) returns int\s+language sql immutable as \$\$ select 42 \$\$;/.test(m358)
+      && /-- existing rows: founder_digest_alert — /.test(m358));
+    ok("office revenue: the app's own readers count an office order on its delivery day — the console tile, the daily digest, the week review (for its own tenant)",
+      /from\("business_orders"\)\.select\("total_cents"\)\.eq\("payment_status", "paid"\)\.is\("canceled_at", null\)\.gte\("delivery_date", dayKey\(new Date\(week\)\)\)\.lte\("delivery_date", localToday\(\)\)/.test(moneyTiles)
+      && /sum\("business_orders", \(q\) => q\.eq\("payment_status", "paid"\)\.is\("canceled_at", null\)\.gte\("delivery_date", day6\(\)\)\.lte\("delivery_date", etToday\(\)\)\)/.test(digestRoute)
+      && /supabaseAdmin\.from\("business_orders"\)\.select\("payment_id"\)\.not\("payment_id", "is", null\),/.test(digestRoute)
+      && /const onDay = \(q: any\) => q\.eq\("tenant_id", tenant\)\.gte\("delivery_date", fromISO\.slice\(0, 10\)\)\.lt\("delivery_date", toISO\.slice\(0, 10\)\);/.test(review)
+      && /revenue\(tenant, d7\.toISOString\(\), now\.toISOString\(\)\)/.test(review) && /revenue\(tenant, d14\.toISOString\(\), d7\.toISOString\(\)\)/.test(review)
+      && !/business_orders[^\n]*gte\("created_at"/.test(moneyTiles + digestRoute));
+    ok("office revenue: the crew's route is the next delivery day with later weeks folded under it, no pay link or invoice before a delivery's cutoff, and the client sees what's coming up soonest first",
+      /const nextDay = open\.map\(\(o\) => o\.delivery_date\)\.filter\(\(d\) => d >= today\)\.sort\(\)\[0\] \?\? null;/.test(crewOffice3)
+      && /\(o\.status === "delivered" \|\| !o\.cutoff_at \|\| new Date\(o\.cutoff_at\)\.getTime\(\) <= Date\.now\(\)\)/.test(crewOffice3)
+      && /\.gte\("delivery_date", today\)\.order\("delivery_date"\)\.limit\(6\)/.test(officePage) && /<SectionHeader label="Coming up" \/>/.test(officePage));
   }
 
   // ── the report, the sheet, the wiring ──

@@ -38,8 +38,9 @@ type BOrder = {
   address_street: string; address_city: string; address_zip: string; access_instructions: string | null;
   delivery_date: string; delivery_window: string | null; gallons: number; total_cents: number; billing_terms: string;
   payment_status: string; status: string; jugs_out: number; jugs_in: number | null; standing: boolean;
+  cutoff_at: string | null;
 };
-type Board = { rows: BOrder[]; standingN: number };
+type Board = { rows: BOrder[]; later: BOrder[]; standingN: number };
 
 export default function OfficeOrders() {
   const prompt = usePrompt();
@@ -47,23 +48,32 @@ export default function OfficeOrders() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [empties, setEmpties] = useState<Record<string, number>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [showLater, setShowLater] = useState(false);
 
   const loader = useCallback(async (): Promise<Board> => {
-    if (!supabase) return { rows: [], standingN: 0 };
+    if (!supabase) return { rows: [], later: [], standingN: 0 };
     const weekAgo = addDays(etToday(), -7);
     const [ord, acct] = await Promise.all([
       supabase.from("business_orders").select("*").is("canceled_at", null)
         .or(`status.neq.delivered,payment_status.in.(pending,failed),delivery_date.gte.${weekAgo}`)
-        .order("delivery_date").limit(100),
+        .order("delivery_date").limit(400),
       supabase.from("business_accounts").select("id", { count: "exact", head: true }).eq("standing_active", true),
     ]);
     if (ord.error) throw new Error(ord.error.message);
     if (acct.error) throw new Error(acct.error.message);
-    // The route first, in date order; what is already delivered after it, newest first.
+    // SIX WEEKS AHEAD (2026-10-07, 0358). The schedule now keeps six weeks of each program's
+    // deliveries, so "every undelivered order" is the next route plus five more weeks of the same
+    // offices. The route is the next delivery day (and anything overdue before it), in date order;
+    // later weeks are counted under it and open on a tap; what is already delivered follows, newest
+    // first. The query is the same one — still owed or recent stays — with room for six weeks.
     const all = (ord.data as BOrder[]) ?? [];
-    const route = all.filter((o) => o.status !== "delivered");
+    const today = etToday();
+    const open = all.filter((o) => o.status !== "delivered");
+    const nextDay = open.map((o) => o.delivery_date).filter((d) => d >= today).sort()[0] ?? null;
+    const route = open.filter((o) => nextDay === null || o.delivery_date <= nextDay);
+    const later = open.filter((o) => nextDay !== null && o.delivery_date > nextDay);
     const done = all.filter((o) => o.status === "delivered").sort((a, b) => b.delivery_date.localeCompare(a.delivery_date));
-    return { rows: [...route, ...done], standingN: acct.count ?? 0 };
+    return { rows: [...route, ...done], later, standingN: acct.count ?? 0 };
   }, []);
   const board = useAsyncData(loader, []);
   const { reload } = board;
@@ -71,15 +81,15 @@ export default function OfficeOrders() {
   // the realtime publication in 0357 — before that the subscription simply receives nothing).
   useRealtimeTable("business_orders", reload);
 
-  // THE WEEK AHEAD, FROM THE PROGRAMS (2026-10-07, 0356). generate_office_deliveries makes every
-  // active program's deliveries for the week ahead, each in its market's own time, once each, and logs
-  // the run — what the schedule now does by itself every night. This made one Monday, picked by the
+  // THE SCHEDULE, FROM THE PROGRAMS (2026-10-07, 0356; six weeks from 0358). generate_office_deliveries
+  // makes every active program's deliveries for the next six weeks, each in its market's own time, once
+  // each, and logs the run — what the schedule now does by itself every night. This made one Monday, picked by the
   // phone's clock, so on a Sunday evening the phone and the server could pick different weeks. Until
   // 0356 is pasted the function isn't there and the old one-Monday call stands.
   const gen = async () => {
     if (!supabase || busyId) return; setBusyId("gen");
     let res = await supabase.rpc("generate_office_deliveries");
-    let made = "for the week ahead";
+    let made = "for the next six weeks";
     if (res.error && isMissingFunction(res.error)) {
       const dk = nextMondayKey(); made = `for ${mondayLabel(dk)}`;
       res = await supabase.rpc("generate_office_route", { p_date: dk });
@@ -190,7 +200,9 @@ export default function OfficeOrders() {
   return (
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the office route" emptyTitle="No office activity yet">
       {(data) => {
-        const { rows, standingN } = data;
+        const { standingN, later } = data;
+        const route = data.rows.filter((o) => o.status !== "delivered");
+        const rows = showLater ? [...route, ...later, ...data.rows.filter((o) => o.status === "delivered")] : data.rows;
         return (
           // Kit SectionHeader replaces the ad-hoc .oo-h/.oo-k title row; each order is now a kit
           // InfoRow (company → name, "standing" → nameExtra, gallons → trailing, date/pay-status/
@@ -206,11 +218,16 @@ export default function OfficeOrders() {
             <SectionHeader
               label="Office route"
               right={<>
-                {standingN > 0 && <button type="button" className="oo-gen" onClick={gen} disabled={!!busyId}>{busyId === "gen" ? "…" : "↻ Generate the week"}</button>}
-                <span className="oo-n">{rows.length} order{rows.length === 1 ? "" : "s"}</span>
+                {standingN > 0 && <button type="button" className="oo-gen" onClick={gen} disabled={!!busyId}>{busyId === "gen" ? "…" : "↻ Generate the schedule"}</button>}
+                <span className="oo-n">{route.length} on the route</span>
               </>}
             />
-            {rows.length === 0 && <EmptyState title="No orders booked yet" sub="Generate this week's standing route above." />}
+            {rows.length === 0 && later.length === 0 && <EmptyState title="No orders booked yet" sub="Generate the schedule above." />}
+            {later.length > 0 && (
+              <button type="button" className="btn-ter" onClick={() => setShowLater((v) => !v)} aria-expanded={showLater}>
+                {showLater ? "Hide" : "Show"} the next weeks — {later.length} more deliver{later.length === 1 ? "y" : "ies"}, through {mondayLabel(later[later.length - 1].delivery_date)}
+              </button>
+            )}
             <div className="k-rows">
               {rows.map((o) => {
                 const open = openId === o.id;
@@ -233,7 +250,11 @@ export default function OfficeOrders() {
                         {!open ? (
                           <div className="oo-acts">
                             {o.status !== "delivered" && <button type="button" className="btn-sec" onClick={() => { setOpenId(o.id); setEmpties((e) => ({ ...e, [o.id]: Math.round(o.gallons) })); }}>Log delivery</button>}
-                            {(o.payment_status === "pending" || o.payment_status === "failed") && (
+                            {/* MONEY AFTER THE CUTOFF (0358). With six weeks on the route, a pay link or a net
+                                invoice could be made weeks early: the invoice fell due before the delivery, and a
+                                delivery with a link or an invoice stops following its program (a pause, new
+                                gallons). So they wait until the delivery is decided — its cutoff, or delivered. */}
+                            {(o.payment_status === "pending" || o.payment_status === "failed") && (o.status === "delivered" || !o.cutoff_at || new Date(o.cutoff_at).getTime() <= Date.now()) && (
                               o.billing_terms === "prepaid"
                                 ? <>
                                     <button type="button" className="btn-sec" onClick={() => payLink(o)} disabled={busyId === o.id}>Payment link</button>
