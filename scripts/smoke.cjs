@@ -5735,6 +5735,38 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && !/and status = 'received' and payment_status = 'pending'\s+and paylink_url is null/.test(m356));
   }
 
+  // ── an office delivery is a stop on the run (2026-10-07, 0357) ──
+  // The driver's screen read home deliveries only, and the crew logged an office delivery in three
+  // browser writes (order, balance read, ledger row, balance). scripts/db.officerun.test.mjs proves the
+  // one-write function; these hold the screens to it.
+  {
+    const m357 = read("supabase/migrations/0357_an_office_delivery_is_a_stop_on_the_run.sql");
+    const run = code(read("components/OfficeRun.tsx")), drv = code(read("app/driver/page.tsx")), crewOffice2 = code(read("components/OfficeOrders.tsx"));
+    ok("office stops: the driver's page carries the office route for the crew, loaded only when it is shown",
+      /const OfficeRun = dynamic\(\(\) => import\("@\/components\/OfficeRun"\), \{ ssr: false \}\);/.test(drv) && /<OfficeRun \/>\s*<DriverRun \/>/.test(drv));
+    ok("office stops: the driver logs and undoes through the one-write functions, each stop showing its own window",
+      /supabase\.rpc\("office_log_delivery", \{/.test(run) && /supabase\.rpc\("office_reopen_delivery", \{ p_order: o\.id, p_reason: "Mis-tap on the driver's run" \}\)/.test(run)
+      && /\{windowHours\(o\.delivery_window\)\}/.test(run) && !/5–8 AM/.test(run));
+    ok("office stops: the crew's route logs through the same function (the three browser writes only before 0357), and hears the driver live",
+      /const one = await supabase\.rpc\("office_log_delivery", \{ p_order: o\.id,/.test(crewOffice2) && /if \(one\.error\) \{\s*const \{ error \} = await supabase\.from\("business_orders"\)\.update\(/.test(crewOffice2)
+      && /useRealtimeTable\("business_orders", reload\);/.test(crewOffice2));
+    ok("office stops: one locked write, the balance never under zero, a second log refused, the crew told once",
+      /select greatest\(0, coalesce\(jug_balance, 0\) \+ v_out - v_in\) into v_bal/.test(m357)
+      && /already logged — undo it first/.test(m357) && /-- existing rows: office_log_delivery — /.test(m357));
+    // Both functions run as their owner, so each asks what the policies ask (0239's tenant, 0291's city)
+    // and locks the order it found; no outcome at all is refused (it once marked a delivery delivered
+    // with none); a delivery is logged on its day; a reopen answers the "not delivered" alert it undoes.
+    ok("office stops: log and reopen find the order only in the caller's own company and city, locked; no outcome refused; logged on the day; a reopen answers its alert",
+      (m357.match(/select \* into o from public\.business_orders\s+where id = p_order and tenant_id = public\.effective_tenant\(\) and public\.market_visible\(market\)\s+for update;/g) || []).length === 2
+      && !/select \* into o from public\.business_orders where id = p_order for update;/.test(m357)
+      && /if coalesce\(p_outcome, ''\) not in \('delivered_swapped', 'delivered_no_swap', 'not_available'\) then/.test(m357)
+      && /if o\.delivery_date > public\.office_local_today\(o\.market\) then/.test(m357)
+      && /update public\.alerts set ack_at = now\(\), ack_by = auth\.uid\(\)\s+where kind = 'office_not_delivered' and subject_id = p_order and ack_at is null;/.test(m357));
+    ok("office stops: before its day the driver sees one line — the date, the stops, the gallons to load — and nothing to log",
+      /if \(date > etToday\(\)\) \{[\s\S]{0,700}?Next office route[\s\S]{0,400}?gal<\/div>[\s\S]{0,120}?\);\s*\}/.test(run)
+      && !/if \(date > etToday\(\)\) \{[^}]*office_log_delivery/.test(run));
+  }
+
   // ── the report, the sheet, the wiring ──
   const rep = read("components/Reports.tsx");
   ok("sales: the cash taken at the window is said on its own — the part of revenue that is in a till — and only once the column exists",
