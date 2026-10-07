@@ -8611,11 +8611,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("iphone: npm run verify ends by building the app's smoke build and opening it on three iPhones", /&& npm run build:app -- --smoke && npm run smoke:native$/.test(pkg.scripts.verify));
   const wf = read(".github/workflows/ios.yml");
   ok("iphone: the TestFlight upload refuses the smoke build, and an app built without its backend", /gt3-smoke-build\.json/.test(wf) && /NEXT_PUBLIC_SUPABASE_URL/.test(wf));
-  ok("iphone: a simulator counts as booted only when bootstatus says so in its exit code and its words and Settings opens on it — otherwise it is erased and booted fresh, and named as the runner's problem, not the app's",
-    /if xcrun simctl bootstatus "\$UDID" -b > boot\.log 2>&1 && ! grep -q "Status=4294967295" boot\.log && ready; then booted=1; break; fi/.test(wf)
+  ok("iphone: the simulator starts booting before the build, counts as booted when bootstatus says so cleanly or Apple's Settings opens on it, is otherwise restarted (erased only before the last try), and is named as the runner's problem, not the app's",
+    /- name: Start an iPhone booting while the app builds[\s\S]{0,1400}?echo "UDID=\$UDID" >> "\$GITHUB_ENV"\s+xcrun simctl boot "\$UDID" \|\| true/.test(wf)
+    && wf.indexOf("- name: Start an iPhone booting while the app builds") < wf.indexOf("- run: npm ci")
+    && /if xcrun simctl bootstatus "\$UDID" -b > boot\.log 2>&1 && ! grep -q "Status=4294967295" boot\.log; then return 0; fi/.test(wf)
+    && /for i in \$\(seq 1 12\); do\s+if ready; then/.test(wf)
     && /ready\(\) \{\s*xcrun simctl launch "\$UDID" com\.apple\.Preferences > \/dev\/null 2>&1 \|\| return 1/.test(wf)
-    && /grep -c "UIKitApplication:com\.apple\.Preferences" \|\| true\)/.test(wf)
-    && /xcrun simctl erase "\$UDID" \|\| true/.test(wf)
+    && /if \[ "\$boot" = 2 \]; then xcrun simctl erase "\$UDID" \|\| true; fi/.test(wf)
     && /\[ "\$booted" = 1 \] \|\| \{ echo "::error::the runner's iPhone simulator never finished booting/.test(wf)
     && /^\s+boot\.log$/m.test(wf));
 }
