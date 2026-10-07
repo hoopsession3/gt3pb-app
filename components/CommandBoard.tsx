@@ -249,10 +249,10 @@ export default function CommandBoard() {
                   </div>
                   <div className="cmd-prog"><span className="cmd-prog-bar"><span style={{ width: `${pct}%` }} /></span><span className="cmd-prog-n">{doneN}/{ms.length} · {pct}%</span></div>
                   {folded && (
-                    <div className="cmd-fold">
-                      <p>{-daysTo(it.target_date!)} days past its date with {ms.length - doneN} of {ms.length} milestone{ms.length === 1 ? "" : "s"} open. Finish it, give it a new date, or look at what&rsquo;s left.</p>
-                      <div className="cmd-fold-acts">
-                        <button type="button" className="btn-sec" onClick={() => unfold(it.id)}>Show the milestones</button>
+                    <div className="flex flex-col gap-2.5 mt-0.5">
+                      <p className="m-0 font-sans text-[13.5px] leading-normal text-cream-muted">{-daysTo(it.target_date!)} days past its date with {ms.length - doneN} of {ms.length} milestone{ms.length === 1 ? "" : "s"} open. Finish it, give it a new date, or look at what&rsquo;s left.</p>
+                      <div className="flex flex-wrap items-center gap-x-[18px] gap-y-2">
+                        <button type="button" className="btn-sec px-4 py-[9px] text-[13.5px]" onClick={() => unfold(it.id)}>Show the milestones</button>
                         {isAdmin && <button type="button" className="btn-ter" onClick={() => setOpenInit(it.id)}>New date</button>}
                       </div>
                     </div>
@@ -316,7 +316,7 @@ export default function CommandBoard() {
                     </div>
                   )}
                   {isAdmin && <InlineCreate label="+ Milestone" placeholder="Milestone" className="cmd-add" onCreate={(t) => addMilestone(it.id, t)} />}
-                  {late && unfolded.has(it.id) && <button type="button" className="btn-ter cmd-refold" onClick={() => unfold(it.id)}>Fold it back</button>}
+                  {late && unfolded.has(it.id) && <button type="button" className="btn-ter flex mt-1" onClick={() => unfold(it.id)}>Fold it back</button>}
                   </>}
                   {isAdmin && <button type="button" className="cmd-finish" onClick={() => finishInit(it)}><Icon name="check" /> Finish initiative — completes every task under it</button>}
                 </div>
@@ -342,16 +342,16 @@ export default function CommandBoard() {
             {/* ── The team's week — one line; the lists open on a tap ── */}
             <SectionHeader label="The team's week" annotation="across the crew" />
             <button type="button" className={`cmd-week${weekOpen ? " open" : ""}`} onClick={() => setWeekOpen((o) => !o)} aria-expanded={weekOpen}>
-              <span><b>{data.week.length}</b> due in the next 7 days</span>
-              <span className={data.overdue.length ? "late" : undefined}><b>{data.overdue.length}</b> overdue</span>
-              <span><b>{data.done.length}</b> done this week</span>
-              <span className={`ev-chev${weekOpen ? " open" : ""}`} aria-hidden="true">›</span>
+              <span><b className="text-cream font-bold tabular-nums">{data.week.length}</b> due in the next 7 days</span>
+              <span className={data.overdue.length ? "late" : undefined}><b className="text-cream font-bold tabular-nums">{data.overdue.length}</b> overdue</span>
+              <span><b className="text-cream font-bold tabular-nums">{data.done.length}</b> done this week</span>
+              <span className={`ml-auto ev-chev${weekOpen ? " open" : ""}`} aria-hidden="true">›</span>
             </button>
             {weekOpen && (
-              <div className="cmd-week-lists">
+              <div className="flex flex-col gap-3.5 mb-2.5">
                 {ov.shown.length > 0 && (
                   <div className="k-rows">
-                    <div className="cmd-week-h">Overdue</div>
+                    <div className="font-sans font-bold text-[11.5px] tracking-[.06em] uppercase text-cream-muted px-0.5 pt-0.5 pb-1.5">Overdue</div>
                     {ov.shown.map((w) => (
                       <InfoRow
                         key={`ov-${w.src}-${w.id}`}
@@ -365,7 +365,7 @@ export default function CommandBoard() {
                   </div>
                 )}
                 <div className="k-rows">
-                  <div className="cmd-week-h">Due in the next 7 days</div>
+                  <div className="font-sans font-bold text-[11.5px] tracking-[.06em] uppercase text-cream-muted px-0.5 pt-0.5 pb-1.5">Due in the next 7 days</div>
                   {wk.shown.length === 0 ? <div className="cmd-more">Nothing due in the next 7 days</div> : wk.shown.map((w) => (
                     <InfoRow
                       key={`${w.src}-${w.id}`}
@@ -379,8 +379,8 @@ export default function CommandBoard() {
                 </div>
                 {dn.shown.length > 0 && (
                   <div className="k-rows">
-                    <div className="cmd-week-h">Done this week</div>
-                    {dn.shown.map((w) => <InfoRow key={`dn-${w.src}-${w.id}`} name={<span className="cmd-done-t">{w.title}</span>} />)}
+                    <div className="font-sans font-bold text-[11.5px] tracking-[.06em] uppercase text-cream-muted px-0.5 pt-0.5 pb-1.5">Done this week</div>
+                    {dn.shown.map((w) => <InfoRow key={`dn-${w.src}-${w.id}`} name={<span className="line-through text-cream-dim">{w.title}</span>} />)}
                     {dn.more > 0 && <div className="cmd-more">+{dn.more} more done</div>}
                   </div>
                 )}
