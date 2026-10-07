@@ -22,6 +22,11 @@
 //      iPhone app as it is, and no iPad screenshots are owed to the store.
 //   5. A shared scheme (App.xcodeproj/xcshareddata/xcschemes/App.xcscheme) — what xcodebuild builds,
 //      runs and archives by name on a machine that has never opened the project in Xcode: CI's Mac.
+//   6. GT3Device (App/GT3Device.swift, copied from native/ios/GT3Device.swift — edit it there) — the
+//      app's own plugin: what the phone does for a page that the web view cannot (save a file to the
+//      share sheet, print, add an event to the calendar, a pass to Wallet; lib/deviceActions is its
+//      page side). GT3ViewController registers it, and Info.plist says why it may save to Photos (the
+//      share sheet's Save Image) and, on iOS 15 and 16, use the calendar.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -56,6 +61,13 @@ final class GT3ViewController: CAPBridgeViewController {
     override func router() -> Router {
         return ExportRouter()
     }
+
+    /// The app's own plugin (GT3Device.swift): what the phone does for a page — save a file, print, add
+    /// an event to the calendar or a pass to Wallet. Capacitor finds the plugins it installs from
+    /// node_modules by itself; one that lives in the app is registered here, before the first page loads.
+    override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(GT3DevicePlugin())
+    }
 }
 
 struct ExportRouter: Router {
@@ -77,6 +89,9 @@ struct ExportRouter: Router {
     }
 }
 `);
+
+// The app's own plugin — one source, native/ios/GT3Device.swift, copied into the target here.
+put("GT3Device.swift", readFileSync(join(ROOT, "native", "ios", "GT3Device.swift"), "utf8"));
 
 const scene = join(APP, "SceneDelegate.swift");
 const sceneText = readFileSync(scene, "utf8");
@@ -105,6 +120,12 @@ const want = {
   NSMicrophoneUsageDescription: "GT3 uses the microphone when you record a video for the studio or dictate a note.",
   NSSpeechRecognitionUsageDescription: "GT3 turns what you say into text when you dictate a note or a message.",
   NSPhotoLibraryUsageDescription: "GT3 opens your photos only to attach the one you choose.",
+  // The share sheet's Save Image (a flyer, your status card, a post's photo): without this the app
+  // crashes the moment someone taps it.
+  NSPhotoLibraryAddUsageDescription: "GT3 saves an image to your photos only when you choose Save Image.",
+  // Add to calendar on iOS 15 and 16, where the phone asks before the New Event sheet opens. From
+  // iOS 17 the sheet needs no permission and this is never shown (native/ios/GT3Device.swift).
+  NSCalendarsUsageDescription: "GT3 adds an event or a stop to your calendar only when you tap Add to calendar.",
   // Live Ops shares the truck's position with customers while the crew is running Live.
   NSLocationWhenInUseUsageDescription: "GT3 shares the truck's location with customers while you run Live, and only while the app is open.",
   UIViewControllerBasedStatusBarAppearance: true,
@@ -151,7 +172,7 @@ const manifest = {
 };
 put("PrivacyInfo.xcprivacy", plist.build(manifest) + "\n");
 
-// ── 4 · the project file: the two new files, iPhone only ───────────────────────────────────────
+// ── 4 · the project file: the new files, iPhone only ───────────────────────────────────────────
 // Written as Xcode itself writes these lines (compare SceneDelegate's), with ids made from the file's
 // name, so running this again finds them and changes nothing.
 const id = (s) => createHash("sha1").update(`gt3:${s}`).digest("hex").slice(0, 24).toUpperCase();
@@ -175,6 +196,7 @@ const addFile = (name, type, phase) => {
   pbx = pbx.slice(0, files) + `\t\t\t\t${build} /* ${name} in ${phase} */,\n` + pbx.slice(files);
 };
 addFile("GT3ViewController.swift", "sourcecode.swift", "Sources");
+addFile("GT3Device.swift", "sourcecode.swift", "Sources");
 addFile("PrivacyInfo.xcprivacy", "text.xml", "Resources");
 pbx = pbx.replace(/TARGETED_DEVICE_FAMILY = "1,2";/g, 'TARGETED_DEVICE_FAMILY = 1;');
 if (pbx !== before) stage(PBX, pbx, "App.xcodeproj/project.pbxproj");

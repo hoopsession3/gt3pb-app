@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useAuth } from "./AuthProvider";
 import AccountSheet from "./AccountSheet";
 import ProfileSheet from "./ProfileSheet";
-import StatusCard from "./StatusCard";
+import MemberCard from "./MemberCard";
 
 // Top-right account avatar → the customer account popout (AccountSheet, the canonical LV Sheet).
 // The coconut mark (GT3's whole-coconut hydration) shows until they save a photo, then it's their
@@ -51,7 +51,7 @@ export function useAccountDoor() {
         />
       )}
       {editProfile && <ProfileSheet onClose={() => setEditProfile(false)} />}
-      <StatusCard open={cardOpen} onClose={() => setCardOpen(false)} />
+      <MemberCard open={cardOpen} onClose={() => setCardOpen(false)} />
     </>
   );
   return { open, openAccount: () => setOpen(true), sheets };

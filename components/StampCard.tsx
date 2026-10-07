@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import Gt3Mark from "@/components/Gt3Mark";
-import StatusCard from "@/components/StatusCard";
+import MemberCard from "@/components/MemberCard";
 import { clickable } from "@/lib/a11y";
 import { fillCopy, useSiteCopy } from "@/lib/copy";
 import Icon from "@/components/Icon";
@@ -71,7 +71,7 @@ export default function StampCard() {
           <span className="stamp-open" aria-hidden="true">{t("stamp.open_cta")}</span>
         </div>
       </section>
-      <StatusCard open={cardOpen} onClose={() => setCardOpen(false)} />
+      <MemberCard open={cardOpen} onClose={() => setCardOpen(false)} />
     </>
   );
 }

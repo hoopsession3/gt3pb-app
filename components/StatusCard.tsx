@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
+import { saveFile, shareImage } from "@/lib/deviceActions";
 import Sheet, { CloseButton } from "./Sheet";
 import Icon from "@/components/Icon";
 import EditableCopy from "@/components/EditableCopy";
@@ -323,12 +324,12 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   // second attempt at the same trick for Facebook or TikTok would just risk the same failure mode
   // again. Back to one button, now with a better fallback than a silent download.
   //
-  // 1) navigator.share() with the image file — the actual multi-platform picker. On a real phone
-  //    this opens the OS share sheet, which lists Instagram, Facebook, TikTok, Messages, Mail,
-  //    WhatsApp — literally "whatever media outlet" is installed. This was always the mechanism;
-  //    it's unchanged here.
+  // 1) The share sheet with the image — the actual multi-platform picker: Instagram, Facebook,
+  //    TikTok, Messages, Mail, WhatsApp, literally "whatever media outlet" is installed. The browser's
+  //    own on the web, the phone's in the iPhone app (lib/deviceActions shareImage). Closing it is an
+  //    answer: nothing more happens (it used to fall through and download the image anyway).
   // 2) No share sheet available (desktop browser, or canShare says no) — copy the image to the
-  //    clipboard AND download it, so however the person gets into Instagram/Facebook/TikTok/wherever,
+  //    clipboard AND save it, so however the person gets into Instagram/Facebook/TikTok/wherever,
   //    the image is one paste or one upload away, instead of just a file sitting in Downloads with a
   //    toast that doesn't say what to do with it.
   const share = async () => {
@@ -336,20 +337,19 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
     haptic("success");
     const blob: Blob | null = await new Promise((res) => cv.toBlob((b) => res(b), "image/png"));
     if (!blob) { toast("Couldn't make the image — try again", "error"); return; }
-    const file = new File([blob], "gt3-status.png", { type: "image/png" });
     const shareText = `I'm a GT3 ${founding ? "Founding Member" : "Member"}. ${motto}.${code ? ` Join with ${code} → app.gt3pb.com` : " app.gt3pb.com"}`;
-    const nav = navigator as Navigator & { canShare?: (d: unknown) => boolean };
-    if (nav.share && nav.canShare?.({ files: [file] })) {
-      try { await nav.share({ files: [file], text: shareText }); return; } catch { /* cancelled → fall through to the fallback below */ }
-    }
+    const shared = await shareImage("gt3-status.png", blob, shareText);
+    if (shared === "done" || shared === "cancelled") return;
     let copied = false;
     try {
       if (typeof window !== "undefined" && "ClipboardItem" in window && navigator.clipboard?.write) {
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
         copied = true;
       }
-    } catch { /* clipboard blocked (permissions / non-secure context) — the download below still covers it */ }
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "gt3-status.png"; a.click();
+    } catch { /* clipboard blocked (permissions / non-secure context) — saving below still covers it */ }
+    const saved = await saveFile("gt3-status.png", blob);
+    if (saved === "cancelled") return;
+    if (saved !== "done") { toast("Couldn't save the image — try again", "error"); return; }
     toast(copied ? "Copied and saved — paste it into Instagram, Facebook, TikTok, wherever, and tag @gt3pb" : "Saved — post it and tag @gt3pb");
   };
 

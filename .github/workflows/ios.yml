@@ -117,14 +117,27 @@ jobs:
           phones.sort(key=lambda d: (d["name"] != "iPhone 17", d["name"]))
           print(phones[0]["udid"] if phones else "")')
           test -n "$UDID" || { echo "::error::no iPhone simulator on this runner"; exit 1; }
-          xcrun simctl bootstatus "$UDID" -b
-          xcrun simctl install "$UDID" ios/App/build/Build/Products/Debug-iphonesimulator/App.app
-          # Through a terminal, so the app writes each line as it says it (to a plain file its output
-          # would sit in a buffer); the launch runs until the app is stopped below.
-          xcrun simctl launch --console-pty --terminate-running-process "$UDID" com.gt3pb.app > app.log 2>&1 &
-          sleep 25
-          xcrun simctl io "$UDID" screenshot first-screen.png
-          RUNNING=$(xcrun simctl spawn "$UDID" launchctl list | grep -c "UIKitApplication:com.gt3pb.app" || true)
+          running() { xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -c "UIKitApplication:com.gt3pb.app" || true; }
+          # A runner's simulator sometimes never finishes its first boot (PR #89, 2026-10-06: seven
+          # minutes of data migration, then a device that ran nothing). So one more go, from a
+          # restarted simulator, before anything is put down to the app.
+          for attempt in 1 2; do
+            xcrun simctl bootstatus "$UDID" -b || true
+            xcrun simctl install "$UDID" ios/App/build/Build/Products/Debug-iphonesimulator/App.app || echo "::warning::the install did not take (attempt $attempt)"
+            # Through a terminal, so the app writes each line as it says it (to a plain file its output
+            # would sit in a buffer); the launch runs until the app is stopped below.
+            xcrun simctl launch --console-pty --terminate-running-process "$UDID" com.gt3pb.app > app.log 2>&1 &
+            sleep 25
+            RUNNING=$(running)
+            [ "$RUNNING" -ge 1 ] && break
+            if [ "$attempt" = 1 ]; then
+              echo "::warning::the app was not running 25s after the first launch — restarting the simulator for one more try. What it said:"
+              cat app.log || true
+              xcrun simctl shutdown "$UDID" || true
+              xcrun simctl boot "$UDID" || true
+            fi
+          done
+          xcrun simctl io "$UDID" screenshot first-screen.png || true
           xcrun simctl terminate "$UDID" com.gt3pb.app || true
           sleep 2
           cat app.log

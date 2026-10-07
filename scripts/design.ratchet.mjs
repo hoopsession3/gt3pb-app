@@ -453,30 +453,42 @@ export const PROD_ROUTE = {
 // 5.1.1(v) puts it one tap from the account — while the screen itself (components/DeleteAccount: what
 // goes, what stays, the one red button) loads only when the row is tapped. Three routes sat within
 // 0.22 KB of a rounding line.
+// 2026-10-07 (the iPhone round, part 3 — save, share, print and Add to calendar in the app): fourteen
+// routes 4.2–4.8 KB lighter, nine 0.5–0.9 KB heavier with one chunk more. Built 47e762e and this commit
+// and gzipped what each route's HTML references, route by route. What rides now is lib/deviceActions'
+// web half — a download, the browser's share, window.print(), the .ics and the .pkpass, the same tricks
+// the buttons did inline before; the app's half is guarded in its own file and the web build drops it —
+// and what left is the member card: components/StatusCard (the spinning card, its photo, its drawing and
+// its share) rode in every page that carries the account menu, the stamp card or the membership card,
+// and now loads when it is opened (components/MemberCard, its one door): /menu 275 004 → 270 599,
+// /shop 303 427 → 298 609, / 280 915 → 276 144. The bundler then splits the modules every page shares
+// with that card's chunk into a chunk of their own: +498 bytes and one more request on the eight pages
+// that carry no account menu (/privacy 262 793 → 263 291), +942 on /offer, which also carries the offer
+// letter's print through lib/deviceActions, and +856 on /crew.
 export const WEIGHT = {
-  "/truck":                    { js: 284, css: 105, chunks: 15 },
-  "/events":                   { js: 284, css: 105, chunks: 15 },
-  "/menu":                     { js: 269, css: 102, chunks: 15 },
-  "/reserve":                  { js: 292, css: 102, chunks: 16 },
-  "/delivery":                 { js: 291, css: 102, chunks: 16 },
-  "/3mpire":                   { js: 284, css: 102, chunks: 15 },
-  "/craft":                    { js: 268, css: 102, chunks: 15 },
-  "/book":                     { js: 269, css: 102, chunks: 15 },
-  "/academy":                  { js: 317, css: 102, chunks: 15 },
-  "/office":                   { js: 277, css: 102, chunks: 15 },
-  "/scan":                     { js: 259, css: 102, chunks: 14 },
-  "/architecture":             { js: 269, css: 102, chunks: 14 },
-  "/playbook":                 { js: 276, css: 102, chunks: 15 },
-  "/driver":                   { js: 280, css: 105, chunks: 15 },
-  "/agreement":                { js: 266, css: 102, chunks: 14 },
-  "/offer":                    { js: 276, css: 102, chunks: 14 },
-  "/built/gt3-built-k7m9x4q2": { js: 258, css: 102, chunks: 14 },
-  "/display":                  { js: 259, css: 102, chunks: 14 },
-  "/shop":                     { js: 296, css: 102, chunks: 16 },
-  "/primal":                   { js: 269, css: 102, chunks: 15 },
-  "/privacy":                  { js: 257, css: 102, chunks: 13 },
-  "/terms":                    { js: 257, css: 102, chunks: 13 },
-  "/":                         { js: 274, css: 102, chunks: 15 },
+  "/truck":                    { js: 280, css: 105, chunks: 15 },
+  "/events":                   { js: 280, css: 105, chunks: 15 },
+  "/menu":                     { js: 264, css: 102, chunks: 15 },
+  "/reserve":                  { js: 288, css: 102, chunks: 16 },
+  "/delivery":                 { js: 286, css: 102, chunks: 16 },
+  "/3mpire":                   { js: 280, css: 102, chunks: 15 },
+  "/craft":                    { js: 264, css: 102, chunks: 15 },
+  "/book":                     { js: 264, css: 102, chunks: 15 },
+  "/academy":                  { js: 317, css: 102, chunks: 16 },
+  "/office":                   { js: 272, css: 102, chunks: 15 },
+  "/scan":                     { js: 259, css: 102, chunks: 15 },
+  "/architecture":             { js: 269, css: 102, chunks: 15 },
+  "/playbook":                 { js: 272, css: 102, chunks: 15 },
+  "/driver":                   { js: 276, css: 105, chunks: 15 },
+  "/agreement":                { js: 267, css: 102, chunks: 15 },
+  "/offer":                    { js: 277, css: 102, chunks: 15 },
+  "/built/gt3-built-k7m9x4q2": { js: 258, css: 102, chunks: 15 },
+  "/display":                  { js: 259, css: 102, chunks: 15 },
+  "/shop":                     { js: 292, css: 102, chunks: 16 },
+  "/primal":                   { js: 265, css: 102, chunks: 15 },
+  "/privacy":                  { js: 257, css: 102, chunks: 14 },
+  "/terms":                    { js: 257, css: 102, chunks: 14 },
+  "/":                         { js: 270, css: 102, chunks: 15 },
 };
 
 export function weightVerdict(path, w, row = WEIGHT[path]) {

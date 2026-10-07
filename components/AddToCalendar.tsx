@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { buildIcs, googleCalUrl, withBuffer, type CalEvent } from "@/lib/ics";
+import { addToCalendar } from "@/lib/deviceActions";
+import { APP_BUILD } from "@/lib/native";
+import { useApp } from "@/components/AppProvider";
 import Icon from "@/components/Icon";
 
 const BUFFERS: { v: number; label: string }[] = [
@@ -10,9 +13,12 @@ const BUFFERS: { v: number; label: string }[] = [
 
 // Self-serve "Add to calendar" — no shared mailbox, no login. The assignee taps it and the
 // event/stop drops into THEIR own calendar: .ics for Apple/Outlook (and any app), a one-tap
-// Google link. Stable UID per event/stop so re-adding updates rather than duplicates.
+// Google link. Stable UID per event/stop so re-adding updates rather than duplicates. In the iPhone
+// app the first choice is the phone's own New Event sheet instead of a file it could not open
+// (lib/deviceActions addToCalendar), and it saves to any calendar on the phone.
 
 export default function AddToCalendar({ ev, label = "Add to calendar", defaultBuffer = 0 }: { ev: CalEvent | null; label?: string; defaultBuffer?: number }) {
+  const { toast } = useApp();
   const [open, setOpen] = useState(false);
   const [buffer, setBuffer] = useState(defaultBuffer);
   const ref = useRef<HTMLDivElement>(null);
@@ -32,15 +38,14 @@ export default function AddToCalendar({ ev, label = "Add to calendar", defaultBu
   if (!ev) return null;
   const out = withBuffer(ev, buffer);
 
-  const downloadIcs = () => {
-    const blob = new Blob([buildIcs(out, new Date())], { type: "text/calendar;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${(ev.title || "gt3-event").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.ics`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  const add = async () => {
     setOpen(false);
+    const how = await addToCalendar(out, {
+      name: `${(ev.title || "gt3-event").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.ics`,
+      text: buildIcs(out, new Date()),
+    });
+    if (how === "denied") toast("Calendar access is off for GT3 — turn it on in Settings › GT3, or use Google Calendar.", "error");
+    else if (how === "failed") toast("Couldn't add it to your calendar — try Google Calendar.", "error");
   };
 
   return (
@@ -58,7 +63,7 @@ export default function AddToCalendar({ ev, label = "Add to calendar", defaultBu
               </div>
             </div>
           )}
-          <button type="button" className="atc-item" role="menuitem" onClick={downloadIcs}>Apple / Outlook <span>.ics file</span></button>
+          <button type="button" className="atc-item" role="menuitem" onClick={add}>{APP_BUILD ? <>Calendar <span>on this iPhone</span></> : <>Apple / Outlook <span>.ics file</span></>}</button>
           <a className="atc-item" role="menuitem" href={googleCalUrl(out)} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}>Google Calendar <span>opens Google</span></a>
         </div>
       )}

@@ -8553,7 +8553,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("iphone: the smoke's server answers as the app's router does", wrong.length === 0, wrong);
     const plugins = nativePlugins(root).map((p) => p.name);
     ok("iphone: the smoke's stand-in phone declares every plugin the app calls, read from their native sources",
-      ["App", "Browser", "Haptics", "Keyboard", "SplashScreen", "StatusBar", "SystemBars"].every((n) => plugins.includes(n)), plugins);
+      ["App", "Browser", "Haptics", "Keyboard", "Share", "SplashScreen", "StatusBar", "SystemBars", "GT3Device"].every((n) => plugins.includes(n)), plugins);
   }));
 
   // ── the iOS project ──
@@ -8616,6 +8616,91 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /revoke all on function public\.erase_account_data\(uuid\) from public, anon, authenticated, service_role;/.test(mig)
     && /grant execute on function public\.account_erasure_blockers\(uuid\) to service_role;/.test(mig));
   ok("delete: the erasure's proof runs with the database suites", /node scripts\/db\.erasure\.test\.mjs/.test(pkg.scripts["db:test"]));
+}
+
+// ── WHAT THE PHONE DOES FOR A PAGE (2026-10-06, the iPhone round, part 3) ───────────────────────────
+// Saving a file, sharing, printing, an event to the calendar and a pass to Wallet have one home,
+// lib/deviceActions: the web's ways, and in the app the phone's own sheets — the share sheet and the
+// app's own plugin, GT3Device (native/ios/GT3Device.swift). A button that does one of these anywhere
+// else does nothing in the app. scripts/smoke.native.mjs presses each on a stand-in iPhone.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const root = path.join(__dirname, "..");
+  const read = (f) => fs.readFileSync(path.join(root, f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const walkSrc = (d) => fs.readdirSync(path.join(root, d), { withFileTypes: true })
+    .flatMap((e) => (e.isDirectory() ? walkSrc(path.join(d, e.name)) : /\.(ts|tsx)$/.test(e.name) ? [path.join(d, e.name)] : []));
+  const client = ["app", "components", "lib"].flatMap(walkSrc).filter((f) => !f.startsWith(path.join("app", "api") + path.sep));
+  const da = code(read("lib/deviceActions.ts")), nb = code(read("components/NativeBridge.tsx"));
+  const DA = require("../.smoke/deviceActions.js");
+
+  // ── one home ──
+  const TRICKS = [/\b(?:navigator|nav)\.share\b/, /\.canShare\b/, /window\.print\(/, /\.download\s*=/, /setAttribute\(\s*["']download/, /text\/calendar/, /\.pkpass\b/];
+  const elsewhere = client.filter((f) => !/lib[\\/]deviceActions\.ts$/.test(f) && TRICKS.some((re) => re.test(code(read(f)))));
+  ok("device: downloading a file, the browser's share, window.print(), an .ics and a .pkpass live in lib/deviceActions alone — anywhere else they do nothing in the app",
+    elsewhere.length === 0, elsewhere);
+  const users = { "lib/csv.ts": /return saveFile\(filename, blob\);/, "components/AddToCalendar.tsx": /await addToCalendar\(out, \{/, "components/StatusCard.tsx": /await shareImage\("gt3-status\.png", blob, shareText\)/,
+    "components/LetterFlyer.tsx": /await saveFile\(`gt3-letter-/, "components/RoadFlyer.tsx": /await saveFile\(`gt3-\$\{THEMES/, "components/OfferLetterPrint.tsx": /void printPage\(`Offer letter — /,
+    "app/3mpire/page.tsx": /await shareLink\(\{ title: "GT3 Performance Bar"/, "components/MembershipCard.tsx": /await addToWallet\(await res\.blob\(\)\)/ };
+  const unrouted = Object.entries(users).filter(([f, re]) => !re.test(code(read(f)))).map(([f]) => f);
+  ok("device: every button that saves, shares, prints or adds asks lib/deviceActions — the CSV exports, the flyers, the status card, the invite link, the offer letter, Add to calendar, Apple Wallet",
+    unrouted.length === 0, unrouted);
+  ok("device: closing a share sheet is an answer — the status card and the invite link stop there, and fall back (copy, save) only when there is no sheet or it failed",
+    /if \(shared === "done" \|\| shared === "cancelled"\) return;/.test(code(read("components/StatusCard.tsx"))) && /if \(how === "done" \|\| how === "cancelled"\) return;/.test(code(read("app/3mpire/page.tsx"))));
+
+  // ── the app's half: NativeBridge, the one file that speaks to Capacitor ──
+  ok("device: NativeBridge gives lib/deviceActions the phone's sheets — GT3Device and the share sheet — and takes them back when it goes",
+    /import\("@capacitor\/share"\)/.test(nb) && /const device = registerPlugin<GT3DevicePlugin>\("GT3Device"\);/.test(nb)
+    && ["keepFile", "printPage", "addEvent", "addPass"].every((m) => nb.includes(`${m}: (o) => device.${m}(o),`)) && /share: \(o\) => Share\.share\(o\),/.test(nb)
+    && /undo\.push\(\(\) => setNativeDevice\(null\)\);/.test(nb) && !/@capacitor/.test(da));
+  const dl = nb.indexOf('if (a.hasAttribute("download")) {'), pd = nb.indexOf("e.preventDefault();", dl), sf = nb.indexOf('void saveFromUrl(a.href, a.getAttribute("download") || undefined);', dl);
+  ok("device: in the app a link that saves a file (<a download>, a post's photo) hands an https file to the share sheet instead of going nowhere",
+    dl > 0 && pd > dl && sf > pd && nb.slice(dl, sf).includes("if (!/^https:\\/\\//i.test(a.href)) return;"));
+
+  // ── the page and the phone agree ──
+  const swift = read("native/ios/GT3Device.swift");
+  const swiftMethods = [...swift.matchAll(/CAPPluginMethod\(name: "(\w+)", returnType: CAPPluginReturnPromise\)/g)].map((m) => m[1]).sort();
+  const contract = /export type GT3DevicePlugin = \{([\s\S]*?)\n\};/.exec(da)?.[1] ?? "";
+  const tsMethods = [...contract.matchAll(/^\s*(\w+)\(/gm)].map((m) => m[1]).sort();
+  ok("device: the page and the phone agree on GT3Device — the same methods in lib/deviceActions and native/ios/GT3Device.swift, under the name the page asks for, registered by the app's view controller",
+    swiftMethods.length === 4 && JSON.stringify(swiftMethods) === JSON.stringify(tsMethods) && /public let jsName = "GT3Device"/.test(swift)
+    && /override func capacitorDidLoad\(\) \{\s*bridge\?\.registerPluginInstance\(GT3DevicePlugin\(\)\)/.test(read("ios/App/App/GT3ViewController.swift"))
+    && read("ios/App/App/GT3Device.swift") === swift, { swift: swiftMethods, ts: tsMethods });
+  ok("device: on iOS 17 and later the New Event sheet opens with no calendar permission; on iOS 15 and 16 the phone asks first, and a refusal says so",
+    /if #available\(iOS 17\.0, \*\) \{\s*show\(\)\s*\} else \{\s*store\.requestAccess\(to: \.event\)/.test(swift) && /call\.reject\("Calendar access is off for GT3", "DENIED"\)/.test(swift)
+    && /if \(err\.code === "DENIED"\) return "denied";/.test(da) && /how === "denied"/.test(code(read("components/AddToCalendar.tsx"))));
+  const plistText = read("ios/App/App/Info.plist");
+  ok("device: Info.plist says why the app saves to Photos (without it the share sheet's Save Image crashes the app) and, on iOS 15 and 16, uses the calendar",
+    /<key>NSPhotoLibraryAddUsageDescription<\/key>/.test(plistText) && /<key>NSCalendarsUsageDescription<\/key>/.test(plistText));
+
+  // ── what the page sends the phone ──
+  ok("device: a file's name is kept as the phone keeps it — letters, digits, dot, dash, underscore and space",
+    DA.fileName("gt3 errors/2026:10.csv") === "gt3 errors-2026-10.csv" && DA.fileName("../..") === "gt3-file" && DA.fileName("") === "gt3-file" && DA.fileName("x".repeat(200)).length === 120);
+  ok("device: a saved link's file is named from its address",
+    DA.nameFromUrl("https://media.example.com/post/IMG%200042.jpg?v=2") === "IMG 0042.jpg" && DA.nameFromUrl("https://media.example.com/") === "gt3-file" && DA.nameFromUrl("not an address") === "gt3-file");
+  const I2 = require("../.smoke/ics.js");
+  const timed = DA.nativeEvent(I2.calFromEvent({ id: "e1", title: "Night Run", day: "2026-10-09", start_time: "6:30pm", end_time: "8pm", location_text: "Falls Park", blurb: "A 5k loop." }, "https://app.gt3pb.com/events"));
+  const open = DA.nativeEvent(I2.calFromEvent({ id: "e2", title: "Pop-up", day: "2026-10-09", start_time: "6:30pm" }));
+  const allDay = DA.nativeEvent(I2.calFromEvent({ id: "e3", title: "Festival", day: "2026-10-09" }));
+  ok("device: an event reaches the phone as the .ics says it — 6:30 to 8; two hours when it says no end; a single day when it has no time — and lib/deviceActions carries none of the calendar's code (every screen with the account menu loads it)",
+    timed.title === "Night Run" && !timed.allDay && new Date(timed.start).getHours() === 18 && timed.end - timed.start === 90 * 60000 && timed.location === "Falls Park" && timed.notes === "A 5k loop." && timed.url === "https://app.gt3pb.com/events"
+    && open.end - open.start === 2 * 3600000 && open.location === undefined && allDay.allDay === true && allDay.end === allDay.start
+    && !/require\("\.\/ics"\)/.test(fs.readFileSync(path.join(root, ".smoke", "deviceActions.js"), "utf8")), { timed, open, allDay });
+
+  ok("device: compiled for the smoke run, beside the calendar file it reads", /lib\/ics\.ts lib\/deviceActions\.ts/.test(read("package.json")));
+
+  // ── the member card loads when it is opened ──
+  const statusImports = client.filter((f) => /(?:^|\n)\s*import\s+StatusCard\b|import\(["'][^"']*\/StatusCard["']\)/.test(code(read(f))));
+  ok("member card: StatusCard is opened through components/MemberCard alone, which loads it when it opens — no screen downloads it before anyone asks to see it",
+    statusImports.length === 1 && /components[\\/]MemberCard\.tsx$/.test(statusImports[0])
+    && /const StatusCard = dynamic\(\(\) => import\("\.\/StatusCard"\), \{ ssr: false \}\);/.test(read("components/MemberCard.tsx"))
+    && /return open \? <StatusCard open onClose=\{onClose\} \/> : null;/.test(read("components/MemberCard.tsx")), statusImports);
+
+  // ── the iOS project carries every plugin the app installs ──
+  const pkg = JSON.parse(read("package.json")), spm = read("ios/App/CapApp-SPM/Package.swift");
+  const nativeDeps = Object.keys(pkg.dependencies).filter((d) => d.startsWith("@capacitor/") && !["@capacitor/core", "@capacitor/ios", "@capacitor/android", "@capacitor/cli"].includes(d));
+  const unsynced = nativeDeps.filter((d) => !spm.includes(`path: "../../../node_modules/${d}"`));
+  ok("iphone: every Capacitor plugin the app installs is in the iOS project's packages (npx cap sync ios was run)", nativeDeps.includes("@capacitor/share") && unsynced.length === 0, unsynced);
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

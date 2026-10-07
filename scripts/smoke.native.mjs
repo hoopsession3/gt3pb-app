@@ -99,7 +99,9 @@ const TYPES = {
 // Capacitor's bridge tells the page which plugins exist and what each can do (JSExport.swift
 // createPluginHeader): five methods every plugin has, then the plugin's own CAPPluginMethod list. The
 // same, read from the same sources: every @capacitor plugin in package.json with an iOS half (what
-// `cap sync` registers), and the bridge's own plugins (SystemBars, Console, WebView, the HTTP pair).
+// `cap sync` registers), the bridge's own plugins (SystemBars, Console, WebView, the HTTP pair), and
+// the app's own, in its target (GT3Device: ios/App/App/GT3Device.swift, which GT3ViewController
+// registers).
 export function nativePlugins(root = ROOT) {
   const files = [];
   const walk = (d) => { for (const e of readdirSync(d, { withFileTypes: true })) { const p = join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.(swift|m)$/.test(e.name)) files.push(p); } };
@@ -110,6 +112,7 @@ export function nativePlugins(root = ROOT) {
     if (existsSync(ios)) walk(ios);
   }
   walk(join(root, "node_modules", "@capacitor", "ios", "Capacitor", "Capacitor", "Plugins"));
+  if (existsSync(join(root, "ios", "App", "App"))) walk(join(root, "ios", "App", "App"));
   const BASE_METHODS = [
     { name: "addListener", rtype: null }, { name: "removeListener", rtype: null },
     { name: "removeAllListeners", rtype: "promise" }, { name: "checkPermissions", rtype: "promise" }, { name: "requestPermissions", rtype: "promise" },
@@ -137,6 +140,12 @@ const ANSWERS = {
   "App.getLaunchUrl": {},
   "Keyboard.getResizeMode": { mode: "native" },
   "StatusBar.getInfo": { visible: true, style: "DARK", overlays: true },
+  // The app's own plugin (native/ios/GT3Device.swift) and the share sheet: a file kept, a print sent, an
+  // event saved, a share made.
+  "GT3Device.keepFile": { uri: "file:///private/var/mobile/Containers/Data/Application/SMOKE/tmp/gt3-files/SMOKE/kept" },
+  "GT3Device.printPage": { printed: true },
+  "GT3Device.addEvent": { added: true },
+  "Share.share": { activityType: "com.apple.UIKit.activity.SaveToCameraRoll" },
 };
 
 // The phone's side of the bridge, in the page: window.webkit.messageHandlers.bridge is where
@@ -362,7 +371,9 @@ function ownerSession() {
 }
 const SESSION = ownerSession();
 
-function standIn(writes) {
+// `seed` gives a table rows of its own (block 7 needs an event, an error and an offer letter on screen);
+// every other table stays empty.
+function standIn(writes, seed = {}) {
   return (route) => {
     const req = route.request();
     const url = new URL(req.url());
@@ -381,7 +392,7 @@ function standIn(writes) {
     if ((m = path.match(/^\/rest\/v1\/rpc\/(\w+)$/))) return answer(200, asOwner ? OWNER_RPC[m[1]] ?? null : m[1] in OWNER_RPC && m[1] !== "current_tenant" ? false : null);
     if ((m = path.match(/^\/rest\/v1\/(\w+)$/))) {
       if (req.method() !== "GET" && req.method() !== "HEAD") { writes.push(`${req.method()} ${m[1]}`); return answer(req.method() === "POST" ? 201 : 204); }
-      const rows = m[1] === "profiles" && asOwner ? [PROFILE] : [];
+      const rows = seed[m[1]] ?? (m[1] === "profiles" && asOwner ? [PROFILE] : []);
       if (req.method() === "HEAD") return answer(200, undefined, { "content-range": `*/${rows.length}` });
       if (/vnd\.pgrst\.object/.test(req.headers().accept ?? "")) {
         return rows.length ? answer(200, rows[0]) : answer(406, { code: "PGRST116", message: "JSON object requested, multiple (or no) rows returned", details: "The result contains 0 rows", hint: null });
@@ -466,17 +477,21 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   // A phone, as the app finds it: WKWebView's user agent, Capacitor's bridge and plugins injected before
   // the page's first script, the API and the backend answered, the rest of the internet held back.
   // `owner` signs the made-up owner in; `theme` sets the crew's look; `guide` leaves the first-run guide
-  // unseen.
-  async function phoneContext(phone, { owner = false, theme = null, guide = false } = {}) {
+  // unseen; `seed` puts rows in the stand-in's tables; `shell: false` opens the app's pages in a plain
+  // browser — no native side at all, the test run lib/native's isNativeApp() tells apart.
+  async function phoneContext(phone, { owner = false, theme = null, guide = false, seed = {}, shell = true } = {}) {
     const ctx = await browser.newContext({
       viewport: { width: phone.width, height: phone.height },
       deviceScaleFactor: 3, isMobile: true, hasTouch: true,
       userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
       serviceWorkers: "block",
+      acceptDownloads: !shell,
     });
-    await ctx.addInitScript(phoneSide, { headers, answers: ANSWERS });
-    await ctx.addInitScript({ content: bridgeJs });
-    await ctx.addInitScript(pluginScripts, headers);
+    if (shell) {
+      await ctx.addInitScript(phoneSide, { headers, answers: ANSWERS });
+      await ctx.addInitScript({ content: bridgeJs });
+      await ctx.addInitScript(pluginScripts, headers);
+    }
     if (owner) {
       await ctx.addInitScript(([key, session, look, seenGuide]) => {
         try {
@@ -493,7 +508,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
       return route.fulfill({ status: 200, headers: { ...cors, "content-type": "application/json" }, body: "{}" });
     });
-    await ctx.route((url) => url.host === BACKEND_HOST, standIn(writes));
+    await ctx.route((url) => url.host === BACKEND_HOST, standIn(writes, seed));
     await ctx.routeWebSocket((url) => url.host === BACKEND_HOST, realtimeStandIn);
     await ctx.route((url) => url.origin === BASE && url.pathname.startsWith("/api/"), (route) => { strayApi.push(route.request().url()); return route.fulfill({ status: 404, body: "" }); });
     await ctx.route((url) => url.origin !== BASE && url.origin !== API_ORIGIN && url.host !== BACKEND_HOST && /^https?:$/.test(url.protocol), (route) => { outside.add(new URL(route.request().url()).host); return route.abort("blockedbyclient"); });
@@ -868,6 +883,197 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       asked("POST") && ["/", "/truck"].includes(after.path) && after.session === null && after.told, JSON.stringify({ posted: asked("POST"), ...after, session: after.session ? "still here" : null }));
     ok("delete account: no errors", errors.length === 0, errors.join(" | "));
     await ctx.close();
+  }
+
+  // ── 7 · what the phone does for a page: save, share, print, add to the calendar ──
+  // The buttons the web answers with a browser trick (lib/deviceActions says which, and why a web view
+  // performs none of them), pressed in the app: the phone's own sheet must be asked for, with the right
+  // things in it, and the page must stay where it is. Then the same buttons in a plain browser, where
+  // there is no phone: the web's own ways, as the web build has them.
+  {
+    const soon = new Date(Date.now() + 3 * 86400000);
+    const day = `${soon.getFullYear()}-${String(soon.getMonth() + 1).padStart(2, "0")}-${String(soon.getDate()).padStart(2, "0")}`;
+    const seed = {
+      field_ops: [{
+        id: "5a10e000-0000-4000-8000-0000000000e1", kind: "event", name: "Night Run", public_title: null, day, starts_at: null, ends_at: null,
+        start_time: "6:30pm", end_time: "8pm", day_label: null, when_label: null, time_label: null, location_text: "Falls Park, Greenville SC",
+        address: null, lat: null, lng: null, member_only: false, going_count: 0, capacity: null, blurb: "A 5k loop, then cold brew.", menu_tier: null,
+        notes: null, note: null, status: "scheduled", completed_at: null, archived_at: null, is_public: true, published_at: "2026-10-01T12:00:00Z", market: "greenville",
+      }],
+      client_errors: [{
+        id: "5a10e000-0000-4000-8000-0000000000e2", message: "TypeError: the smoke's own error", stack: "at smoke (smoke.js:1:1)", url: "https://app.gt3pb.com/menu",
+        ua: "Mozilla/5.0", fatal: false, skew: false, count: 3, first_seen: "2026-10-01T12:00:00Z", last_seen: "2026-10-05T12:00:00Z",
+      }],
+      v_offer_letter: [{
+        id: "5a10e000-0000-4000-8000-0000000000e3", status: "sent", market: "greenville", market_label: "Greenville", candidate_name: "Riley Smoke",
+        candidate_email: "riley@smoke.test", title: "Bar lead", role: "server", employment_type: "employee", base_cents: 1800, rate_per: "hour",
+        commission_pct: null, starts_on: "2026-11-02", reports_to: null, package: [], notes: null, normal_hours: "20 to 30 hours a week",
+        pay_schedule: "Every two weeks", pay_method: "Direct deposit", deductions: "Taxes, as the law requires",
+        offer_disclaimer: "THIS IS THE SMOKE'S OWN DISCLAIMER, NOT A REAL ONE.", disclaimer_missing: false,
+        expires_on: "2026-12-01", sent_at: "2026-10-05T12:00:00Z", responded_at: null, created_at: "2026-10-05T12:00:00Z",
+      }],
+    };
+    const KEPT = ANSWERS["GT3Device.keepFile"].uri;
+    const decoded = (b64) => Buffer.from(b64 ?? "", "base64");
+    const sameDay = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+
+    // In the app.
+    {
+      const ctx = await phoneContext(MAIN, { owner: true, seed });
+      const page = await ctx.newPage();
+      await insetsOn(page, MAIN.top, MAIN.bottom);
+      const errors = watch(page);
+      const settle = async () => { await page.waitForTimeout(400); await page.evaluate(SETTLE); };
+      // What the page asked of the phone while `fn` ran (the haptic engine aside).
+      const asked = async (fn, wait = 1200) => {
+        const n = (await nativeCalls(page)).length;
+        await fn();
+        await page.waitForTimeout(wait);
+        return (await nativeCalls(page)).slice(n).filter((c) => c.plugin !== "Haptics" && c.plugin !== "SystemBars");
+      };
+      const said = (got) => JSON.stringify(got.map((c) => `${c.plugin}.${c.method}`));
+
+      // a CSV export (the error log's, in Settings)
+      await page.goto(`${BASE}/crew?s=settings`, { waitUntil: "load" }); await settle();
+      const health = page.locator("#set-errors .mpanel-h");
+      if (!(await health.count())) ok("device: Settings › App health is there to export from", false, "no #set-errors on /crew?s=settings");
+      else {
+        await health.click();
+        const exportCsv = page.locator("#set-errors button", { hasText: "Export CSV" });
+        await exportCsv.waitFor({ timeout: 8000 }).catch(() => {});
+        const here = page.url();
+        const got = await asked(() => exportCsv.click());
+        const keep = got.find((c) => c.plugin === "GT3Device" && c.method === "keepFile");
+        const sheet = got.find((c) => c.plugin === "Share" && c.method === "share");
+        const csv = decoded(keep?.options.data).toString("utf8");
+        ok("device: Export CSV keeps the very file the screen shows", keep?.options.name === "gt3-errors.csv"
+          && csv.startsWith("﻿kind,message,where,count,first_seen,last_seen,frame,ua\r\n") && csv.includes("Error,TypeError: the smoke's own error,/menu,3,"),
+          `${JSON.stringify(keep?.options.name)} ${JSON.stringify(csv.slice(0, 120))}`);
+        ok("device: …and hands it to the share sheet (Save to Files, Mail, AirDrop), the page staying put",
+          sheet?.options.files?.[0] === KEPT && got.indexOf(keep) < got.indexOf(sheet) && page.url() === here, `${said(got)}; page now ${page.url()}`);
+      }
+
+      // the invite link
+      await page.goto(`${BASE}/3mpire`, { waitUntil: "load" }); await settle();
+      const invite = page.locator("button.ref-share");
+      await invite.waitFor({ timeout: 8000 }).catch(() => {});
+      if (!(await invite.count())) ok("device: /3mpire has the invite link's Share", false, "no button.ref-share");
+      else {
+        const got = await asked(() => invite.click());
+        const sheet = got.find((c) => c.plugin === "Share" && c.method === "share");
+        ok("device: Share (the invite link) opens the share sheet with the web's address — never the phone's own",
+          got.length === 1 && sheet?.options.url === `${API_ORIGIN}/?ref=GT3PB-3MP` && /use code GT3PB-3MP/.test(sheet.options.text ?? ""), JSON.stringify(got));
+      }
+
+      // the status card
+      const avatar = page.locator('button.acct-av[aria-label="Your account"]').first();
+      if (!(await avatar.count())) ok("device: the account menu is there to open the member card from", false, "no account avatar on /3mpire");
+      else {
+        await avatar.click();
+        const cardRow = page.locator("button", { hasText: "Your member card" }).first();
+        await cardRow.waitFor({ timeout: 5000 }).catch(() => {});
+        await cardRow.click().catch(() => {});
+        const shareCard = page.locator("button.status-share");
+        const ready = await page.waitForFunction(() => { const b = document.querySelector("button.status-share"); return !!b && !b.disabled; }, null, { timeout: 15000 }).then(() => true, () => false);
+        ok("device: the member card draws, and its Share is ready", ready);
+        if (ready) {
+          const got = await asked(() => shareCard.click(), 2500);
+          const keep = got.find((c) => c.plugin === "GT3Device" && c.method === "keepFile");
+          const sheet = got.find((c) => c.plugin === "Share" && c.method === "share");
+          const png = decoded(keep?.options.data);
+          ok("device: Share your status hands the card's picture to the share sheet, with its words beside it",
+            keep?.options.name === "gt3-status.png" && png.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) && png.length > 10000
+            && sheet?.options.files?.[0] === KEPT && /^I'm a GT3 /.test(sheet.options.text ?? "") && got.filter((c) => c.plugin === "Share").length === 1,
+            `${said(got)}; ${png.length} bytes`);
+        }
+        await page.keyboard.press("Escape").catch(() => {});
+      }
+
+      // Add to calendar, on an event on Find Us
+      await page.goto(`${BASE}/truck`, { waitUntil: "load" }); await settle();
+      const eventRow = page.locator('[aria-label="Night Run — details"]').first();
+      await eventRow.waitFor({ timeout: 8000 }).catch(() => {});
+      if (!(await eventRow.count())) ok("device: Find Us shows the seeded event", false, "no Night Run row on /truck");
+      else {
+        await eventRow.click();
+        await page.locator(".atc-btn").first().click();
+        const item = page.locator(".atc-menu .atc-item").first();
+        const label = (await item.textContent())?.trim() ?? "";
+        const got = await asked(() => item.click());
+        const ev = got.find((c) => c.plugin === "GT3Device" && c.method === "addEvent")?.options;
+        ok("device: Add to calendar offers the phone's own calendar first", label === "Calendar on this iPhone", label);
+        ok("device: …and opens its New Event sheet, filled in — the day, 6:30 to 8, the place and the words",
+          ev?.title === "Night Run" && ev.allDay === false && sameDay(ev.start) === day && new Date(ev.start).getHours() === 18 && new Date(ev.start).getMinutes() === 30
+          && ev.end - ev.start === 90 * 60000 && ev.location === "Falls Park, Greenville SC" && ev.notes === "A 5k loop, then cold brew.", JSON.stringify(ev ?? null));
+        ok("device: …with no file made instead", got.length === 1, said(got));
+      }
+
+      // Print, on an offer letter
+      await page.goto(`${BASE}/offer`, { waitUntil: "load" }); await settle();
+      const letter = page.locator("button.cp-go").first();
+      await letter.waitFor({ timeout: 8000 }).catch(() => {});
+      if (!(await letter.count())) ok("device: /offer shows the seeded offer", false, "no button.cp-go on /offer");
+      else {
+        await letter.click();
+        const print = page.locator(".ofl-bar button", { hasText: "Print / Save PDF" });
+        await print.waitFor({ timeout: 5000 }).catch(() => {});
+        const got = await asked(() => print.click());
+        const printing = await page.evaluate(() => document.body.classList.contains("printing-offer"));
+        ok("device: Print opens the phone's print panel, on the letter alone (its print styles on)",
+          got.length === 1 && got[0].plugin === "GT3Device" && got[0].method === "printPage" && got[0].options.name === "Offer letter — Riley Smoke" && printing, said(got));
+        await page.locator(".ofl-bar button", { hasText: "Close" }).click().catch(() => {});
+      }
+
+      // a link that saves a file: a post's photo
+      await page.goto(`${BASE}/menu`, { waitUntil: "load" }); await settle();
+      const here = page.url();
+      const photo = "https://media.example.com/post/IMG_0042.jpg";
+      const got = await asked(() => page.evaluate((href) => {
+        const a = Object.assign(document.createElement("a"), { href, textContent: "Photo 1" });
+        a.setAttribute("download", "");
+        document.querySelector("main").appendChild(a); a.click(); a.remove();
+      }, photo));
+      const keep = got.find((c) => c.plugin === "GT3Device" && c.method === "keepFile");
+      const sheet = got.find((c) => c.plugin === "Share" && c.method === "share");
+      ok("device: a link that saves a file has the phone fetch it and hands it to the share sheet — not the in-app browser, not nowhere",
+        keep?.options.url === photo && keep.options.name === "IMG_0042.jpg" && !("data" in keep.options) && sheet?.options.files?.[0] === KEPT
+        && !got.some((c) => c.plugin === "Browser") && page.url() === here, `${said(got)}; page now ${page.url()}`);
+
+      ok("device: no errors", errors.length === 0, errors.join(" | "));
+      await ctx.close();
+    }
+
+    // In a plain browser: no phone, so the web's own ways — the files download, as on the web.
+    {
+      const ctx = await phoneContext(MAIN, { owner: true, seed, shell: false });
+      const page = await ctx.newPage();
+      const errors = watch(page);
+      const settle = async () => { await page.waitForTimeout(400); await page.evaluate(SETTLE); };
+      const download = async (fn) => {
+        const got = page.waitForEvent("download", { timeout: 8000 }).catch(() => null);
+        await fn();
+        const d = await got;
+        if (!d) return null;
+        const path = await d.path().catch(() => null);
+        return { name: d.suggestedFilename(), text: path ? readFileSync(path, "utf8") : "" };
+      };
+      await page.goto(`${BASE}/crew?s=settings`, { waitUntil: "load" }); await settle();
+      await page.locator("#set-errors .mpanel-h").click().catch(() => {});
+      const exportCsv = page.locator("#set-errors button", { hasText: "Export CSV" });
+      await exportCsv.waitFor({ timeout: 8000 }).catch(() => {});
+      const csv = await download(() => exportCsv.click());
+      ok("device, no phone: Export CSV downloads the file, as on the web",
+        csv?.name === "gt3-errors.csv" && csv.text.startsWith("﻿kind,message,where,count,first_seen,last_seen,frame,ua\r\n"), JSON.stringify(csv && { name: csv.name, text: csv.text.slice(0, 60) }));
+      await page.goto(`${BASE}/truck`, { waitUntil: "load" }); await settle();
+      await page.locator('[aria-label="Night Run — details"]').first().click().catch(() => {});
+      await page.locator(".atc-btn").first().click().catch(() => {});
+      const ics = await download(() => page.locator(".atc-menu .atc-item").first().click());
+      ok("device, no phone: Add to calendar downloads the .ics, as on the web",
+        ics?.name === "night-run.ics" && /^BEGIN:VCALENDAR\r\n/.test(ics.text) && /SUMMARY:Night Run\r\n/.test(ics.text) && /LOCATION:Falls Park\\, Greenville SC\r\n/.test(ics.text),
+        JSON.stringify(ics && { name: ics.name, text: ics.text.slice(0, 80) }));
+      ok("device, no phone: no errors", errors.length === 0, errors.join(" | "));
+      await ctx.close();
+    }
   }
 
   await browser.close();
