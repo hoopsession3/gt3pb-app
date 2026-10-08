@@ -9,6 +9,7 @@ import { haptic } from "@/lib/haptics";
 import { money } from "@/lib/money";
 import { windowHours } from "@/lib/office";
 import { nextIdem, type IdemState } from "@/lib/idempotency";
+import { isClosed, isGone, refusalText } from "@/lib/refusal";
 import { changeable, cutoffLabel, dayLabel, deliveryState, type OfficeDelivery } from "@/lib/officeStatus";
 import { OFFICE_REASONS, askOf, changePlan, draftOf, stepWords, type ChangeDraft, type ChangeStep, type OfficeReason } from "@/lib/officeChange";
 
@@ -55,7 +56,8 @@ export default function OfficeChangeSheet({ delivery: d, place, canChange, canRe
   const [draft, setDraft] = useState<ChangeDraft>(() => ({ ...draftOf(d), skip: draftOf(d).skip || (startSkip && !d.canceled) }));
   const [extra, setExtra] = useState("");
   const [busy, setBusy] = useState(false);
-  // The database said the changes closed while the sheet was open (55000): everything left is a request.
+  // The database said the changes closed while the sheet was open (lib/refusal isClosed): everything
+  // left is a request.
   const [closedNow, setClosedNow] = useState(false);
   const [dates, setDates] = useState<string[] | null>(null);
   const [datesErr, setDatesErr] = useState(false);
@@ -122,16 +124,16 @@ export default function OfficeChangeSheet({ delivery: d, place, canChange, canRe
       if (!error) { saved++; continue; }
       setBusy(false);
       onChanged();
-      if (error.code === "55000") {
+      if (isClosed(error)) {
         // Closed while the sheet was open (or the driver left): the rest goes to GT3 from here.
         setClosedNow(true);
         toast(error.message, "error");
-      } else if (error.code === "P0002") {
+      } else if (isGone(error)) {
         toast("That delivery isn't on the schedule any more.", "error");
         onClose();
       } else {
-        // 22023 / 42501 are sentences a person can act on ("The minimum is 3 gallons.")
-        toast(error.code === "22023" || error.code === "42501" ? error.message : "Couldn't save — try again", "error");
+        // A refusal is a sentence a person can act on ("The minimum is 3 gallons."); a failure is not.
+        toast(refusalText(error) ?? "Couldn't save — try again", "error");
       }
       return;
     }
@@ -143,7 +145,7 @@ export default function OfficeChangeSheet({ delivery: d, place, canChange, canRe
       });
       setBusy(false);
       onChanged();
-      if (error) { toast(error.code === "22023" || error.code === "42501" ? error.message : "Couldn't send it — try again", "error"); return; }
+      if (error) { toast(refusalText(error) ?? "Couldn't send it — try again", "error"); return; }
       delete keys.current.request;
       haptic("success");
       toast(saved ? "Saved — and the rest is with GT3" : "Sent — GT3 has it and will reply here");
