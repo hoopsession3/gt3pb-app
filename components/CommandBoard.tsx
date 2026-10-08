@@ -315,14 +315,14 @@ export default function CommandBoard() {
                       })}
                     </div>
                   )}
-                  {isAdmin && <InlineCreate label="+ Milestone" placeholder="Milestone" className="cmd-add" onCreate={(t) => addMilestone(it.id, t)} />}
+                  {isAdmin && <InlineCreate label="+ Milestone" placeholder="Milestone" className="cmd-add hit-y-44" onCreate={(t) => addMilestone(it.id, t)} />}
                   {late && unfolded.has(it.id) && <button type="button" className="btn-ter flex mt-1" onClick={() => unfold(it.id)}>Fold it back</button>}
                   </>}
                   {isAdmin && <button type="button" className="cmd-finish" onClick={() => finishInit(it)}><Icon name="check" /> Finish initiative — completes every task under it</button>}
                 </div>
               );
             })}
-            {isAdmin && <InlineCreate label="+ New initiative" placeholder="Initiative name" className="cmd-add big" onCreate={createInit} />}
+            {isAdmin && <InlineCreate label="+ New initiative" placeholder="Initiative name" className="cmd-add big hit-y-44" onCreate={createInit} />}
 
             {/* ── Launch readiness · go/no-go ── */}
             <LaunchReadiness />
@@ -393,7 +393,7 @@ export default function CommandBoard() {
                 admin-gated) they rendered as a block of dead "—"s. One strip, one home.
                 And the pointer itself is an admin's (2026-10-04): Money is not a section an event
                 manager can open, so for them it was a link to the screen they are already on. */}
-            {isAdmin && <button type="button" className="adm-golink" onClick={() => setSection("money")}>Money — the live glance · Money ›</button>}
+            {isAdmin && <button type="button" className="adm-golink hit-y-44" onClick={() => setSection("money")}>Money — the live glance · Money ›</button>}
 
             {manage && (
               <MilestoneSheet

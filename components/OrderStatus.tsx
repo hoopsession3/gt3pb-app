@@ -127,7 +127,7 @@ export default function OrderStatus() {
         {/* Paid at the window, the order is the crew's to cancel: the database refuses it from a
             phone (0341), so the button that can only fail is not here. */}
         {o.status === "new" && !o.collected_at && (
-          <button type="button" className="orderbar-cancel" onClick={cancel} disabled={canceling}>
+          <button type="button" className="orderbar-cancel hit-44" onClick={cancel} disabled={canceling}>
             {canceling ? "Canceling…" : "Cancel"}
           </button>
         )}

@@ -164,11 +164,15 @@ export default function SignIn() {
           <p className="auth-paste-hint" style={{ marginTop: 8 }}>Don&apos;t see it? Check spam / promotions. Open the link in <b>this same browser</b> (Safari or Chrome) — not from inside another app.</p>
           {err && <div className="auth-err">{err}</div>}
 
-          <div className="auth-label" style={{ marginTop: 22 }}>Got a code instead? Enter it here</div>
+          <label className="auth-label" htmlFor="auth-code" style={{ marginTop: 22 }}>Got a code instead? Enter it here</label>
           <input
+            id="auth-code"
             className="auth-input auth-code"
             type="text"
             inputMode="numeric"
+            autoComplete="one-time-code"
+            enterKeyHint="go"
+            onKeyDown={(e) => { if (e.key === "Enter" && otp.length >= 6 && !busy) handleVerifyCode(); }}
             pattern="[0-9]{6,8}"
             maxLength={8}
             placeholder="••••••"
@@ -183,7 +187,7 @@ export default function SignIn() {
           <button className="handle ghost" disabled={busy || cooldown > 0} onClick={handleResend}>
             <span>{busy ? "Sending…" : cooldown > 0 ? `Resend in ${cooldown}s` : "Resend"}</span>
           </button>
-          <button className="auth-link" onClick={reset}>← Different email</button>
+          <button className="auth-link hit-44" onClick={reset}>← Different email</button>
 
           {/* iOS-only escape hatch (2026-07-30, Ryan signing in on desktop Chrome: "this iOS url
               thing doesn't need to be done here, code works fine"). The paste-the-link workaround
@@ -225,13 +229,13 @@ export default function SignIn() {
           </p>
 
           <div className="auth-tabs auth-intent">
-            <button className={`auth-tab${intent === "join" ? " on" : ""}`} onClick={() => { setIntent("join"); setErr(""); }}>Become a member</button>
-            <button className={`auth-tab${intent === "signin" ? " on" : ""}`} onClick={() => { setIntent("signin"); setErr(""); }}>Member sign in</button>
+            <button className={`auth-tab hit-y-44${intent === "join" ? " on" : ""}`} onClick={() => { setIntent("join"); setErr(""); }}>Become a member</button>
+            <button className={`auth-tab hit-y-44${intent === "signin" ? " on" : ""}`} onClick={() => { setIntent("signin"); setErr(""); }}>Member sign in</button>
           </div>
 
           <div className="auth-tabs auth-tabs-mini">
-            <button className={`auth-tab${mode === "passwordless" ? " on" : ""}`} onClick={() => { setMode("passwordless"); setErr(""); }}>Link / code</button>
-            <button className={`auth-tab${mode === "password" ? " on" : ""}`} onClick={() => { setMode("password"); setErr(""); }}>Password</button>
+            <button className={`auth-tab hit-y-44${mode === "passwordless" ? " on" : ""}`} onClick={() => { setMode("passwordless"); setErr(""); }}>Link / code</button>
+            <button className={`auth-tab hit-y-44${mode === "password" ? " on" : ""}`} onClick={() => { setMode("password"); setErr(""); }}>Password</button>
           </div>
 
           {mode === "passwordless" && (
@@ -297,7 +301,7 @@ export default function SignIn() {
                 <span>{busy ? (isNew ? "Creating…" : "Signing in…") : (isNew ? "Become a member" : "Sign in")}</span>
               </button>
               {!isNew && (
-                <button type="button" className="auth-link" onClick={handleReset} disabled={busy} style={{ marginTop: 12 }}>
+                <button type="button" className="auth-link hit-44" onClick={handleReset} disabled={busy} style={{ marginTop: 12 }}>
                   Forgot your password? Email me a reset link
                 </button>
               )}

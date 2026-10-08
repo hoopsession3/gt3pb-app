@@ -53,7 +53,7 @@ export default function ReviewPrompt() {
     <section className="rvp" aria-label="Leave feedback">
       <div className="rvp-top">
         <span className="rvp-k">How was your last order?</span>
-        <button type="button" className="rvp-x" aria-label="Dismiss" onClick={() => { close(); setOrderId(null); }}><Icon name="close" /></button>
+        <button type="button" className="rvp-x hit-44" aria-label="Dismiss" onClick={() => { close(); setOrderId(null); }}><Icon name="close" /></button>
       </div>
       <div className="rvp-stars" role="radiogroup" aria-label="Rating">
         {[1, 2, 3, 4, 5].map((n) => (

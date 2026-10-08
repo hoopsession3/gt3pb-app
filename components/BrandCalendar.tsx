@@ -167,16 +167,16 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
       <div className="cal-sticky">
         <div className="cal-bar">
           <div className="cal-nav">
-            <button type="button" className="cal-arrow" onClick={goPrev} aria-label={view === "week" ? "Previous week" : "Previous month"}>‹</button>
+            <button type="button" className="cal-arrow hit-44" onClick={goPrev} aria-label={view === "week" ? "Previous week" : "Previous month"}>‹</button>
             <span className="cal-month">{view === "week" ? weekLabel : monthName}</span>
-            <button type="button" className="cal-arrow" onClick={goNext} aria-label={view === "week" ? "Next week" : "Next month"}>›</button>
+            <button type="button" className="cal-arrow hit-44" onClick={goNext} aria-label={view === "week" ? "Next week" : "Next month"}>›</button>
           </div>
           <div className="cal-barx">
             <div className="cal-viewtog" role="tablist" aria-label="Calendar view">
               <button type="button" role="tab" aria-selected={view === "week"} className={`cal-vt${view === "week" ? " on" : ""}`} onClick={() => setCalView("week")}>Week</button>
               <button type="button" role="tab" aria-selected={view === "month"} className={`cal-vt${view === "month" ? " on" : ""}`} onClick={() => setCalView("month")}>Month</button>
             </div>
-            <button type="button" className="cal-today" onClick={goToday}>Today</button>
+            <button type="button" className="cal-today hit-44" onClick={goToday}>Today</button>
           </div>
         </div>
         {view === "month" && <div className="cal-dow">{DOW.map((d) => <div key={d} className="cal-dow-c">{d}</div>)}</div>}
@@ -204,7 +204,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
                   <span className="calw-dow">{DOW[d.getDay()]}</span>
                   <span className="calw-date">{d.getDate()}</span>
                   {isToday && <span className="calw-today">Today</span>}
-                  <button type="button" className="calw-add" onClick={() => onCreate(iso9(), dayEv)} aria-label={`New piece ${DOW[d.getDay()]}`}>+ Add</button>
+                  <button type="button" className="calw-add hit-44" onClick={() => onCreate(iso9(), dayEv)} aria-label={`New piece ${DOW[d.getDay()]}`}>+ Add</button>
                 </div>
                 <div className="calw-items">
                   {cell.evs.map((e) => (
@@ -229,7 +229,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
               onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => (o === k ? null : o))} onDrop={() => drop(k)}>
               <div className="cal-cell-h">
                 <span className="cal-date">{d.getDate()}</span>
-                <button type="button" className="cal-add" onClick={(e) => { e.stopPropagation(); onCreate(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9, 0).toISOString(), dayEv); }} aria-label="New piece this day">+</button>
+                <button type="button" className="cal-add hit-44" onClick={(e) => { e.stopPropagation(); onCreate(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9, 0).toISOString(), dayEv); }} aria-label="New piece this day">+</button>
               </div>
               <div className="cal-items">
                 {cell.evs.map((e) => (

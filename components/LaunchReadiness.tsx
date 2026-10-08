@@ -89,7 +89,7 @@ export default function LaunchReadiness() {
           </button>
         ))}
       </div>
-      {isAdmin && <InlineCreate label="+ Readiness check" placeholder="What has to be true to launch?" className="cmd-add" onCreate={addCheck} />}
+      {isAdmin && <InlineCreate label="+ Readiness check" placeholder="What has to be true to launch?" className="cmd-add hit-y-44" onCreate={addCheck} />}
     </div>
   );
 }

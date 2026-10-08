@@ -65,7 +65,7 @@ export default function Reports() {
       <SectionHeader label="Sales" annotation="the number" right={
         <div className="rpt-range">
           {RANGES.map((d) => (
-            <button key={d} className={`rpt-r${days === d ? " on" : ""}`} onClick={() => setDays(d)}>{d}d</button>
+            <button key={d} className={`rpt-r hit-y-44${days === d ? " on" : ""}`} onClick={() => setDays(d)}>{d}d</button>
           ))}
         </div>
       } />

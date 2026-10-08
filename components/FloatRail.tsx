@@ -64,7 +64,7 @@ export default function FloatRail({ children }: { children: React.ReactNode }) {
   return (
     <div className={`rail${min ? " rail-folded" : ""}${dragging ? " dragging" : ""}`} style={{ bottom: `calc(${bottom}px + env(safe-area-inset-bottom, 0px))` }}>
       {min ? (
-        <button type="button" className="rail-open" onClick={toggle} aria-expanded={false} aria-label="Open quick actions — ask us, connect, display">‹</button>
+        <button type="button" className="rail-open hit-44" onClick={toggle} aria-expanded={false} aria-label="Open quick actions — ask us, connect, display">‹</button>
       ) : (
         <>
           <div className="rail-head">
