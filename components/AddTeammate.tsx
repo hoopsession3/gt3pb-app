@@ -34,7 +34,7 @@ import Icon from "@/components/Icon";
 
 type Person = { id: string; display_name: string | null; email: string | null; customer_name: string | null; market: string | null };
 type Invite = { id: string; email: string; role: string; created_at: string; claimed_at: string | null };
-type Letter = { sent: boolean; to?: string; detail?: string | null };
+export type Letter = { sent: boolean; to?: string; detail?: string | null };
 
 // What an owner can make someone, with this door's one-line hint. Owner is absent — making another
 // owner is done on the roster, deliberately — and member, because nobody is brought on as a customer.
@@ -66,7 +66,8 @@ function keepInView(ref: { current: HTMLElement | null }, tries = 12) {
   requestAnimationFrame(tick);
 }
 
-async function sendLetter(body: { kind: "bring_on"; user_id: string } | { kind: "invite"; email: string }): Promise<Letter> {
+/** The letter's one sender: this door, and the person's record when an owner sends it again (components/CrewPerson). */
+export async function sendLetter(body: { kind: "bring_on"; user_id: string } | { kind: "invite"; email: string }): Promise<Letter> {
   try {
     const r = await authedFetch("/api/team/welcome", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const j = await r.json().catch(() => null) as { ok?: boolean; sent?: boolean; to?: string; detail?: string | null; error?: string } | null;

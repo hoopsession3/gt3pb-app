@@ -12,6 +12,12 @@ import Sheet, { CloseButton, useUnsaved } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { useDictation } from "./useDictation";
 
+/** The page was opened with ?ask=1 — a link that means "open Ask GT3". False on the server. */
+function askOnLoadParam(): boolean {
+  if (typeof window === "undefined") return false;
+  try { return new URL(window.location.href).searchParams.get("ask") === "1"; } catch { return false; }
+}
+
 // QuickDock — a floating, always-accessible launcher for the crew's two most-used quick actions:
 // Ask GT3 (the pocket-brain chat) and a fast Note capture (jot/speak → a real note, private by
 // default). Lives in the app shell so it's reachable from any crew page without hunting tabs.
@@ -22,8 +28,12 @@ export default function QuickDock() {
   const isStaff = role !== "member";
   const { setSection } = useOperatorSection();
 
-  const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"do" | "ask" | "note" | "spend">("do");
+  // A page loaded with ?ask=1 starts with Ask GT3 open (see "ASK GT3, IN ONE TAP" below). Read in the
+  // initializer, not an effect: on the server there is no address and the dock renders nothing (no
+  // profile there, so no staff), so the first client render cannot disagree with the server's HTML.
+  const [askOnLoad] = useState(askOnLoadParam);
+  const [open, setOpen] = useState(askOnLoad);
+  const [mode, setMode] = useState<"do" | "ask" | "note" | "spend">(askOnLoad ? "ask" : "do");
 
   // My Day's "✎ Note to self" chip (and anything else) can summon the note pane directly.
   useEffect(() => {
@@ -43,6 +53,26 @@ export default function QuickDock() {
     const onDo = () => { setMode("do"); setOpen(true); };
     window.addEventListener("gt3-quick-do", onDo);
     return () => window.removeEventListener("gt3-quick-do", onDo);
+  }, []);
+  // ASK GT3, IN ONE TAP (2026-10-08). Ryan had to text a new teammate "click the star on bottom right
+  // corner, click ask gt3 in top menu" — the dock opens on its copilots, and Ask was the second tab.
+  // The first-day guide's "Ask GT3 now" sends gt3-quick-ask. A link carries ?ask=1 (one Ryan can text:
+  // app.gt3pb.com/crew?ask=1): the dock STARTS open on Ask when the page loads with it (askOnLoad,
+  // above — state that starts right, rather than state set by an effect), and this takes it off the
+  // address so a reload or Back does not open it again. Staff only, like the dock: a member's ?ask=1
+  // renders nothing, because the dock does not render for a member at all.
+  useEffect(() => {
+    const onAsk = () => { setMode("ask"); setOpen(true); };
+    window.addEventListener("gt3-quick-ask", onAsk);
+    return () => window.removeEventListener("gt3-quick-ask", onAsk);
+  }, []);
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("ask") !== "1") return;
+      url.searchParams.delete("ask");
+      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    } catch { /* an address that will not parse is left as it is */ }
   }, []);
 
   // Escape is the sheet's (components/Sheet): it closes the top sheet only, and asks first when a
