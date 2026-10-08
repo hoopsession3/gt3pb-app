@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { ownerFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { ownerFromRequest, staffFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { accountEmail } from "@/lib/notify";
 import { tellCustomer } from "@/lib/customerMessage";
 import { crewWelcome, crewInvite } from "@/lib/crewWelcome";
@@ -21,6 +21,33 @@ export const runtime = "nodejs";
 // customer_messages through lib/customerMessage (the send and the record are one call), and the
 // provider's verdict comes back to the screen, which says it instead of claiming a letter went.
 // A second press inside two minutes is the same press: it answers "sent" without sending twice.
+//
+// WHO THIS PERSON IS TO THE CREW — read once, for the letter and for the guide (2026-10-08). The
+// letter names a teammate's city, who leads it and their Academy path; the first-day guide in the app
+// (components/CrewStart, lib/crewStart) says the same "who to ask" to the person themselves, and a
+// crew member cannot read anyone else's profile (0001 "own profile read"; only admins read the
+// roster). So GET answers it for the CALLER and nobody else — their city, its lead, the owners — and
+// POST's letter reads the same function for the person just brought on. One read, two readers.
+type Person = { id: string; display_name: string | null; role: string; market: string | null; leads_market: string | null };
+async function crewFacts(tenant: string, person: Person) {
+  if (!supabaseAdmin) return { city: null as string | null, leadsCity: false, cityLead: null as string | null, owners: [] as string[] };
+  // scoped-by: markets are shared reference rows; the lead is read inside this tenant
+  const { data: m } = person.market
+    ? await supabaseAdmin.from("markets").select("name").eq("slug", person.market).maybeSingle()
+    : { data: null };
+  const { data: lead } = person.market && person.leads_market !== person.market
+    ? await supabaseAdmin.from("profiles").select("display_name").eq("tenant_id", tenant).eq("leads_market", person.market).neq("id", person.id).maybeSingle()
+    : { data: null };
+  // scoped-by: tenant_id — the owners of this company, by name only
+  const { data: own } = await supabaseAdmin.from("profiles").select("display_name").eq("tenant_id", tenant).eq("role", "owner").neq("id", person.id);
+  return {
+    city: (m as { name?: string } | null)?.name ?? null,
+    leadsCity: !!person.market && person.leads_market === person.market,
+    cityLead: (lead as { display_name?: string | null } | null)?.display_name ?? null,
+    owners: ((own ?? []) as { display_name: string | null }[]).map((o) => o.display_name ?? "").filter(Boolean),
+  };
+}
+
 async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
   if (!(await ownerFromRequest(req))) return NextResponse.json({ ok: false, error: "only an owner brings people onto the crew" }, { status: 401 });
@@ -41,22 +68,14 @@ async function post(req: Request) {
     if (!userId) return NextResponse.json({ ok: false, error: "user_id required" }, { status: 400 });
     const { data: p } = await supabaseAdmin.from("profiles")
       .select("id, display_name, role, market, leads_market").eq("tenant_id", tenant).eq("id", userId).maybeSingle();
-    const person = p as { id: string; display_name: string | null; role: string; market: string | null; leads_market: string | null } | null;
+    const person = p as Person | null;
     if (!person) return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
     if (person.role === "member") return NextResponse.json({ ok: false, error: "they are not on the crew yet" }, { status: 409 });
     to = (await accountEmail(person.id)) ?? "";
-    // scoped-by: markets are shared reference rows; the lead is read inside this tenant
-    const { data: m } = person.market
-      ? await supabaseAdmin.from("markets").select("name").eq("slug", person.market).maybeSingle()
-      : { data: null };
-    const { data: lead } = person.market && person.leads_market !== person.market
-      ? await supabaseAdmin.from("profiles").select("display_name").eq("tenant_id", tenant).eq("leads_market", person.market).neq("id", person.id).maybeSingle()
-      : { data: null };
+    const f = await crewFacts(tenant, person);
     letter = crewWelcome({
       name: person.display_name, role: person.role,
-      city: (m as { name?: string } | null)?.name ?? null,
-      leadsCity: !!person.market && person.leads_market === person.market,
-      cityLead: (lead as { display_name?: string | null } | null)?.display_name ?? null,
+      city: f.city, leadsCity: f.leadsCity, cityLead: f.cityLead,
       track: trackFor(person.role), from,
     });
   } else {
@@ -82,4 +101,21 @@ async function post(req: Request) {
   return NextResponse.json({ ok: true, sent: sent.ok, to, detail: sent.ok ? null : (sent.detail ?? (sent.email === "off" ? "email isn't switched on yet" : null)) });
 }
 
+// The guide's "who to ask", for the person reading it: any crew member, about themselves only.
+async function get(req: Request) {
+  if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
+  if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "the crew's guide is for the crew" }, { status: 401 });
+  const tenant = await tenantFromRequest(req);
+  const me = await userFromRequest(req);
+  if (!tenant || !me) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
+  // scoped-by: the caller's own profile, read by their verified id inside their tenant
+  const { data: p } = await supabaseAdmin.from("profiles")
+    .select("id, display_name, role, market, leads_market").eq("tenant_id", tenant).eq("id", me.id).maybeSingle();
+  if (!p) return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
+  const person = p as Person;
+  const f = await crewFacts(tenant, person);
+  return NextResponse.json({ ok: true, ...f, track: trackFor(person.role)?.label ?? null });
+}
+
 export const POST = route("team/welcome", post);
+export const GET = route("team/welcome", get);
