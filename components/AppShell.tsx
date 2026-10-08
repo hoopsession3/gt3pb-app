@@ -218,7 +218,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             privacy policy — -1 left them with no way to read past the first screen, which axe
             reports as scrollable-region-focusable the moment that route was scanned. The skip
             link still lands here. */}
-        <main className="body" ref={bodyRef} id="body" tabIndex={0}>
+        {/* THE PAGE STEPS BACK behind a tall sheet, on a phone (lib/sheetStage, 2026-10-08): page-stage (app/tailwind.css). */}
+        <main className="body page-stage" ref={bodyRef} id="body" tabIndex={0}>
           {/* The title bar: the screen's name once its own title has scrolled away, and Back in one place. */}
           {!isShare && <TitleBar />}
           {!isShare && !H1_SKIP.has(pathname) && !pathname.startsWith("/primal/") && <h1 className="sr-only">{routeTitle(pathname)}</h1>}

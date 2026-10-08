@@ -116,7 +116,7 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Sheet open onClose={onClose} label="Office delivery order" header={header} className="office-sheet" dirty={typed} dismissible={!busy}
+    <Sheet open onClose={onClose} label="Office delivery order" header={header} className="office-sheet" dirty={typed} dismissible={!busy} detents={false}
       footer={<button type="button" className="handle" onClick={submit} disabled={busy || !ready}><span>{busy ? "Booking…" : `Book ${q.gallons} gal · ${money(q.totalCents)}`}</span></button>}>
 
       <p className="office-lede">Fresh cold-extract for the whole team — <b>amber gallon jugs</b>, delivered <b>{OFFICE.windowLabel}</b>, empties swapped for full each week. 3-gallon minimum.</p>

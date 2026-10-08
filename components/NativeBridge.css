@@ -9,12 +9,15 @@
    own scroll-edge treatment. Above the page and its tab bar, below every sheet and scrim, which dim it
    with the rest of the screen. Sticky bars inside the page stick under it: their top is
    env(safe-area-inset-top) (.menu-chips, .cal-sticky in app/globals.css). */
-.native-bar{position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);z-index:50;pointer-events:none;background:var(--native-bar,#15140f)}
+.native-bar{position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);z-index:50;pointer-events:none;background:var(--native-bar,#15140f);transition:opacity .3s ease}
 .native-bar::after{content:"";position:absolute;left:0;right:0;top:100%;height:12px;background:linear-gradient(var(--native-bar,#15140f),transparent);opacity:0;transition:opacity .2s ease}
 html[data-scrolled] .native-bar::after{opacity:1}
 /* While the title bar shows (components/TitleBar), it is the scroll edge: its own ground and hairline sit right
    under this band, and the fade would lie across its top (2026-10-08). */
 html:has([data-tbar][data-compact]) .native-bar::after{opacity:0}
+/* Behind a tall sheet the page steps back (lib/sheetStage): its card's own top shows below the status bar, on the
+   dark around it, so the band that paints the screen's ground there steps aside with it. */
+html:has(.app.receded) .native-bar{opacity:0}
 
 /* THE KEYBOARD. The web view itself shrinks above it (capacitor.config.ts, resize "native"), so a tab bar
    kept for its height would sit over the keyboard as an empty band. It leaves the layout instead, as a

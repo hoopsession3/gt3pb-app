@@ -62,6 +62,20 @@ function install() {
 /** Is a touch in progress already someone's? (The pull to refresh asks before it shows anything.) */
 export const touchTaken = (): boolean => owner !== null;
 
+/** A long press raised a row's menu (components/LongPress): the touch is the press's now, and every
+ *  gesture stands down until the last finger lifts. */
+export function claimTouch(): void {
+  install();
+  owner = Symbol("press");
+}
+
+/** That finger lifted: the click a browser may send for it lands on whatever rose under the finger (the
+ *  menu), and it is nobody's — swallowed as a swipe's is. */
+export function hushClick(): void {
+  install();
+  quietUntil = performance.now() + 150;
+}
+
 /** lib/gesture's walk with the browser's answers: the computed overflow, and what has focus. */
 export function held(target: Element, root: Element, axis: Axis): ReturnType<typeof heldBy> {
   return heldBy(target as unknown as Box, root as unknown as Box, axis, (b) => {

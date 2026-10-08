@@ -4,6 +4,7 @@ import { useRef, type RefObject } from "react";
 import { follow, held, settle, useGesture } from "./useGesture";
 import { pageTurn, rubber, sheetCloses } from "@/lib/gesture";
 import { haptic } from "@/lib/haptics";
+import { stepBackBy } from "@/lib/sheetStage";
 
 // THE SHEET'S PULL — components/Sheet's motion, loaded with the first sheet that opens (2026-10-05, the
 // gesture round). Every page carries the sheet; not every visit opens one, and the finger-following
@@ -31,6 +32,10 @@ export type SheetMotionProps = {
   /** The sheet already left (`ms` from now, by the pull): unmount without playing the exit again. */
   finish: (ms: number, played: boolean) => void;
   page?: { prev?: () => void; next?: () => void };
+  /** A half-height sheet rises to full (pulled up). */
+  expand: () => void;
+  /** No other sheet is open under this one: the page behind follows this one's pull. */
+  alone: () => boolean;
 };
 
 /** The scrim's dim, through --scrim (globals.css .sheet2-scrim::before) — the scrim's own opacity
@@ -41,11 +46,14 @@ export function dimScrim(el: HTMLElement | null, v: number | null, ms = 0): void
   if (v == null) el.style.removeProperty("--scrim"); else el.style.setProperty("--scrim", String(v));
 }
 
-export default function SheetMotion({ panel: panelRef, scrim: scrimRef, body, asking, dismissible, unsaved, ask, requestClose, finish, page }: SheetMotionProps) {
+export default function SheetMotion({ panel: panelRef, scrim: scrimRef, body, asking, dismissible, unsaved, ask, requestClose, finish, page, expand, alone }: SheetMotionProps) {
   const grab = useRef({ h: 0, fromBody: false, w: 0 });
+  // The page stepped back behind the sheet (lib/sheetStage) is the sheet's shell: the scrim's parent.
+  const shell = () => scrimRef.current?.parentElement;
   const springBack = () => {
     settle(panelRef.current, "translate3d(0,0,0)", 420, { clear: true });
     dimScrim(scrimRef.current, null, 320);
+    stepBackBy(shell(), null);
   };
   useGesture(panelRef, {
     axis: "y",
@@ -72,6 +80,8 @@ export default function SheetMotion({ panel: panelRef, scrim: scrimRef, body, as
       const y = d.dy > 0 ? (holds ? rubber(d.dy, h * 0.6) : d.dy) : rubber(d.dy, h);
       follow(panel, `translate3d(0,${y}px,0)`);
       dimScrim(scrimRef.current, 1 - Math.min(1, Math.max(0, y) / h) * 0.85);
+      // The page behind comes forward as the sheet goes down, under the finger.
+      if (alone() && shell()?.classList.contains("receded")) stepBackBy(shell(), 1 - Math.max(0, y) / h);
     },
     end: (d, cancelled) => {
       const h = grab.current.h || panelRef.current?.getBoundingClientRect().height || 1;
@@ -79,6 +89,8 @@ export default function SheetMotion({ panel: panelRef, scrim: scrimRef, body, as
       // A held sheet let go past the line refuses to leave: it gives back with the boundary feel, as
       // Sheet's nudge does for a tap outside (2026-10-05, the haptics round). Short of the line it was
       // not asked to leave, and says nothing.
+      // A half-height sheet pulled up rises to full (iOS's detents); it does not leave by going up.
+      if (!cancelled && d.dy < -24 && panelRef.current?.dataset.detent === "half") { springBack(); expand(); return; }
       if (!cancelled && !dismissible && sheetCloses(d.dy, d.vy, h)) haptic("boundary");
       if (cancelled || !sheetCloses(d.dy, d.vy, h) || !dismissible) { springBack(); return; }
       if (unsaved()) { springBack(); ask(requestClose); return; }
@@ -87,6 +99,7 @@ export default function SheetMotion({ panel: panelRef, scrim: scrimRef, body, as
       const ms = Math.round(Math.min(280, Math.max(140, rest / Math.max(d.vy, 1.1))));
       settle(panelRef.current, `translate3d(0,${h + 40}px,0)`, ms, { ease: "cubic-bezier(.2,.75,.3,1)" });
       dimScrim(scrimRef.current, 0, ms);
+      stepBackBy(shell(), "let go");
       finish(ms, true);
     },
   });

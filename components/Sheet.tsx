@@ -7,6 +7,7 @@ import Icon from "./Icon";
 import type { SheetMotionProps } from "./SheetMotion";
 import { haptic } from "@/lib/haptics";
 import { appHistory } from "@/lib/appHistory";
+import { FRAME_QUERY, fieldsIn, opensHalf, recedes, stepBack } from "@/lib/sheetStage";
 
 // The pull and the sideways walk load with the first sheet that opens (components/SheetMotion's header).
 const SheetMotion = dynamic<SheetMotionProps>(() => import("./SheetMotion"), { ssr: false });
@@ -37,7 +38,7 @@ const FOCUSABLE = 'a[href],button:not([disabled]),textarea:not([disabled]),input
 // pull makes leaving one flick away, so the second promise is what keeps it from costing anyone a form.
 export default function Sheet({
   open, onClose, header, footer, children, className = "", labelledBy, label, bodyRef,
-  dirty = false, dismissible = true, page,
+  dirty = false, dismissible = true, page, detents = true,
 }: {
   open: boolean;
   onClose: () => void;
@@ -62,6 +63,8 @@ export default function Sheet({
   /** A sheet that walks a list (the calendar's editor): a sideways swipe goes to the item before or
    *  after. Leave a side out at that end of the list. */
   page?: { prev?: () => void; next?: () => void };
+  /** False: never opens half-height, however long its form (the checkout, an order — the total stays in sight). */
+  detents?: boolean;
 }) {
   // Portal the sheet out of wherever it was rendered (2026-07-30). Most callers live inside
   // <main class="body">, and .body is a stacking-context trap on iOS (-webkit-overflow-scrolling:
@@ -275,6 +278,36 @@ export default function Sheet({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [phase]);
 
+  // THE PAGE STEPS BACK, AND A LONG FORM OPENS HALF-HEIGHT (2026-10-08, the navigation round: redesign 3,
+  // approved — lib/sheetStage says when). Decided once the sheet has drawn, before it paints: half-height is the
+  // panel's data-detent, read by the stylesheet and by the pull; stepping back is the shell's .receded, kept
+  // true while this sheet stands tall enough — its content can grow after it opens (a record arriving).
+  const measured = useRef(false);
+  useEffect(() => { if (phase === "closed") measured.current = false; }, [phase]);   // an always-mounted sheet, opened again
+  useLayoutEffect(() => {
+    if (phase !== "open" || !host) return;
+    const panel = panelRef.current, body = ownBody.current;
+    if (!panel || !body) return;
+    const phone = !window.matchMedia(FRAME_QUERY).matches;
+    if (!measured.current) {
+      measured.current = true;
+      const natural = panel.offsetHeight - body.clientHeight + body.scrollHeight;
+      // A form that put its cursor in a field as it opened (autoFocus) is being typed in: full height, at once.
+      const typing = !!(document.activeElement as HTMLElement | null)?.matches?.("input, select, textarea") && panel.contains(document.activeElement);
+      if (!typing && opensHalf({ natural, viewport: window.innerHeight, fields: fieldsIn(panel), phone, allowed: detents && dismissible })) panel.dataset.detent = "half";
+    }
+    const look = () => stepBack(host, me, recedes({ height: panel.offsetHeight, viewport: window.innerHeight, phone, half: panel.dataset.detent === "half" }));
+    look();
+    const ro = new ResizeObserver(look);
+    ro.observe(panel);
+    return () => { ro.disconnect(); stepBack(host, me, false); };
+  }, [phase, host, me, detents, dismissible]);
+  /** A half-height sheet rises to full: scrolled, a field tapped, its top pulled up. */
+  const expand = useCallback(() => {
+    const panel = panelRef.current;
+    if (panel?.dataset.detent === "half") panel.dataset.detent = "full";
+  }, []);
+
   // ── the pull (components/SheetMotion) ──
   const live = !!host && phase === "open";
 
@@ -283,15 +316,15 @@ export default function Sheet({
   const keep = () => { setAsk(null); requestAnimationFrame(() => panelRef.current?.focus()); };
   return createPortal(
     <div className={`sheet2-scrim${out}`} ref={scrimRef} onClick={attempt}>
-      <div className={`sheet2 ${className}${out}`} ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={labelledBy}
+      <div className={`sheet2 sheet-detent ${className}${out}`} ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={labelledBy}
         aria-label={labelledBy ? undefined : (label ?? "Dialog")} inert={ask ? true : undefined}
-        onClick={(e) => e.stopPropagation()}>
+        onClick={(e) => e.stopPropagation()} onFocus={(e) => { if (e.target.matches?.("input, select, textarea")) expand(); }}>
         {live && <SheetMotion panel={panelRef} scrim={scrimRef} body={ownBody} asking={!!ask} dismissible={dismissible} unsaved={unsaved}
-          ask={askFor} requestClose={requestClose} finish={finish} page={page} />}
+          ask={askFor} requestClose={requestClose} finish={finish} page={page} expand={expand} alone={() => stack.length <= 1} />}
         <SheetCtx.Provider value={door}>
           <div className="sheet2-grab" aria-hidden />
           {header && <div className="sheet2-head">{header}</div>}
-          <div className="sheet2-body" ref={bodyHandle}>{children}</div>
+          <div className="sheet2-body" ref={bodyHandle} onScroll={(e) => { if (e.currentTarget.scrollTop > 0) expand(); }}>{children}</div>
           {footer && <div className="sheet2-foot">{footer}</div>}
         </SheetCtx.Provider>
       </div>

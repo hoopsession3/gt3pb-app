@@ -45,7 +45,7 @@ export type Feel = "selection" | "light" | "medium" | "heavy" | "success" | "war
 const PATTERN: Record<Feel, number | readonly number[]> = {
   selection: 6,                  // a choice changed — a tab, a page, a size, a mode
   light: 8,                      // a small tap that does something — flip a card, open a log, navigate
-  medium: 12,                    // something added or moved — into the cart, an order's status
+  medium: 12,                    // something added or moved — into the cart, an order's status; a row's menu risen under a long press
   heavy: 20,                     // a tap that commits money — Pay
   success: [14, 40, 14],         // it worked — saved, created, delivered, a code accepted
   warning: [24, 60, 24],         // stop and look — "Discard your changes?", a delivery held

@@ -1072,6 +1072,147 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await ctx.close();
   }
 
+  // ── 5e · SHEETS LIKE IOS, AND A ROW'S MENU (2026-10-08, the navigation round — Ryan approved proposal 3) ──
+  // A long form opens half-height and rises to full once it is used; the page behind a tall sheet steps back,
+  // smaller, and comes home when it closes. A flag in the Inbox answers a long press with its actions by name:
+  // a finger that drifts does not raise them, the lift does not also tap the flag, the phone ticks, Escape puts
+  // the menu away with the Inbox still open, a right-click raises it too, and its Got it clears the flag.
+  {
+    const ctx = await phoneContext(MAIN, { owner: true });
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    await page.goto(`${BASE}/book`, { waitUntil: "load" });
+    await page.waitForTimeout(900); await page.evaluate(SETTLE);
+    const stage = () => page.evaluate(() => {
+      const p = [...document.querySelectorAll(".sheet2")].pop(), main = document.getElementById("body"), t = main ? getComputedStyle(main).transform : "none";
+      return { detent: p?.dataset.detent ?? null, h: p ? p.offsetHeight : 0, vh: innerHeight, receded: !!document.querySelector(".app")?.classList.contains("receded"), scale: t === "none" ? 1 : new DOMMatrixReadOnly(t).a };
+    });
+    await page.locator('button.acct-av[aria-label="Your account"]').first().click().catch(() => {});
+    await page.waitForTimeout(800);
+    await page.locator(".acs-row", { hasText: /profile/i }).filter({ hasNotText: /Delete/ }).first().click().catch(() => {});
+    await page.waitForTimeout(1200);
+    const h0 = await stage();
+    ok("sheets: a long form (the profile) opens half-height on a phone — the page still in sight above it, not stepped back",
+      h0.detent === "half" && h0.h > 0 && h0.h <= Math.ceil(h0.vh * 0.53) && !h0.receded && h0.scale === 1, JSON.stringify(h0));
+    await page.evaluate(() => { [...document.querySelectorAll(".sheet2-body")].pop().scrollTop = 60; });
+    await page.waitForTimeout(900);
+    const h1 = await stage();
+    ok("sheets: used (scrolled), it rises to full, and the page behind it steps back, smaller, as behind an iPhone's sheet",
+      h1.detent === "full" && h1.h > h0.h && h1.receded && h1.scale > 0.9 && h1.scale < 0.95, JSON.stringify(h1));
+    await page.keyboard.press("Escape"); await page.waitForTimeout(900);
+    const h2 = await stage();
+    ok("sheets: closed, the page comes home", !h2.receded && h2.scale === 1, JSON.stringify(h2));
+    ok("sheets: no errors", errors.length === 0, errors.join(" | "));
+    await ctx.close();
+  }
+  {
+    const flag = { id: "5a10e000-0000-4000-8000-0000000000f1", severity: "important", title: "Ice is low at the truck", body: "Two bags left before the 3 o'clock run", category: "ops", link: null, target_user_id: OWNER_ID, created_by: null, kind: null, subject_id: null, created_at: new Date(Date.now() - 600_000).toISOString(), occurrences: 1, last_seen_at: null };
+    const ctx = await phoneContext(MAIN, { owner: true, seed: { alerts: [flag] } });
+    const page = await ctx.newPage();
+    const cdp = await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    await page.goto(`${BASE}/crew?s=money`, { waitUntil: "load" });
+    await page.waitForSelector(".op-head-t", { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(600); await page.evaluate(SETTLE);
+    await page.locator('.toprow-actions button[aria-label^="Inbox"]').first().click().catch(() => {});
+    await page.waitForTimeout(800);
+    const row = page.locator(".sheet2 .alert-row.pressable", { hasText: "Ice is low" }).first();
+    const box = await row.boundingBox().catch(() => null);
+    const pt = (x, y) => [{ x, y, id: 1, radiusX: 3, radiusY: 3, force: 1 }];
+    const hold = async (ms, drift = 0) => {
+      const x = box.x + 60, y = box.y + box.height / 2;
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pt(x, y) });
+      for (let i = 1; i <= 6; i++) { await page.waitForTimeout(ms / 6); if (drift) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pt(x, y + (i * drift) / 6) }); }
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await page.waitForTimeout(700);
+    };
+    const now = () => page.evaluate(() => ({
+      menu: [...document.querySelectorAll("[data-row-menu] .acs-row")].map((b) => b.textContent.trim()),
+      sheets: document.querySelectorAll(".sheet2").length, at: location.pathname + location.search,
+      flag: !!document.querySelector(".sheet2 .alert-row"),
+    }));
+    if (!box) ok("long press: the seeded flag is in the Inbox", false, "no .alert-row in the Inbox sheet");
+    else {
+      await hold(700, 30);
+      const d = await now();
+      ok("long press: a finger that drifts while it rests (a scroll beginning) raises nothing", d.menu.length === 0 && d.sheets === 1, JSON.stringify(d));
+      const n0 = (await nativeCalls(page)).length;
+      await hold(700);
+      const m = await now();
+      const felt = (await nativeCalls(page)).slice(n0).filter((c) => c.plugin === "Haptics").map((c) => `${c.method}:${c.options?.style ?? ""}`);
+      ok("long press: held still on a flag, its menu rises over the Inbox — Snooze for an hour, Got it — and the lift taps nothing",
+        m.menu.join("|").includes("Snooze for an hour") && m.menu.at(-1) === "Got it" && m.sheets === 2 && m.at === "/crew?s=money", JSON.stringify(m));
+      ok("long press: the phone ticks as the menu rises", felt.includes("impact:MEDIUM"), felt.join(",") || "no Haptics call");
+      await page.keyboard.press("Escape"); await page.waitForTimeout(700);
+      const e = await now();
+      ok("long press: Escape puts the menu away, and the Inbox stays", e.menu.length === 0 && e.sheets === 1 && e.flag, JSON.stringify(e));
+      await row.click({ button: "right" }).catch(() => {}); await page.waitForTimeout(700);
+      const r = await now();
+      ok("long press: a right-click raises the same menu", r.menu.at(-1) === "Got it", JSON.stringify(r));
+      const w0 = writes.length;
+      await page.locator("[data-row-menu] .acs-row", { hasText: "Got it" }).first().click().catch(() => {});
+      await page.waitForTimeout(900);
+      const g = await now();
+      ok("long press: the menu's Got it clears the flag — the menu goes, the flag goes, and the write is sent",
+        g.menu.length === 0 && !g.flag && writes.slice(w0).includes("PATCH alerts"), JSON.stringify({ g, wrote: writes.slice(w0) }));
+    }
+    ok("long press: no errors", errors.length === 0, errors.join(" | "));
+    await ctx.close();
+  }
+
+  {
+    // The Pass (service mode) is a full-screen layer over the console. A sheet opened from it — Collect, the void's
+    // question, a ticket's menu — stands above it: before, each opened BEHIND the Pass, where nobody could see it.
+    const at = (m) => new Date(Date.now() - m * 60_000).toISOString();
+    const order = { id: "5a10e000-0000-4000-8000-0000000000c1", user_id: null, customer: "Jess", customer_id: null, items: ["rise", "rise", "flow"], total_cents: 1800, paid: false, payment_id: null, status: "new", created_at: at(3), status_changed_at: at(3), eta_status: null, eta_at: null, payment_status: null, collected_via: null, collected_at: null, collected_by: null, ready_from: null };
+    const ctx = await phoneContext(MAIN, { owner: true, seed: { orders: [order] } });
+    const page = await ctx.newPage();
+    const cdp = await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    await page.goto(`${BASE}/crew?s=now&a=kitchen-pass`, { waitUntil: "load" });
+    await page.waitForSelector(".svc-full .adm-order", { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(700); await page.evaluate(SETTLE);
+    const ticket = await page.evaluate(() => {
+      const o = document.querySelector(".svc-full .adm-order"); if (!o) return null;
+      const name = o.querySelector(".adm-order-top b"), age = o.querySelector(".adm-age")?.getBoundingClientRect(), more = o.querySelector(".adm-act-more")?.getBoundingClientRect();
+      const [r, g, b] = getComputedStyle(name).color.match(/\d+/g).map(Number);
+      return { day: document.querySelector(".app").classList.contains("crew-day"), light: (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255, apart: !!age && !!more && (age.right <= more.left || age.bottom <= more.top) };
+    });
+    ok("the Pass: a ticket's name is legible in the crew's Day look, and its age clears the ••• button",
+      !!ticket && ticket.day && ticket.light < 0.35 && ticket.apart, JSON.stringify(ticket));
+    const onTop = () => page.evaluate(() => {
+      const s = [...document.querySelectorAll(".sheet2")].pop(); if (!s) return { label: null, top: false };
+      const r = s.getBoundingClientRect();
+      return { label: s.getAttribute("aria-label") || document.getElementById(s.getAttribute("aria-labelledby") || "")?.textContent || null, top: s.contains(document.elementFromPoint(r.x + r.width / 2, r.y + Math.min(r.height / 2, 120))), rows: [...s.querySelectorAll("[data-row-menu] .acs-row")].map((b) => b.textContent.trim()) };
+    });
+    const box = await page.locator(".svc-full .adm-order").first().boundingBox().catch(() => null);
+    if (box) {
+      const pt = (x, y) => [{ x, y, id: 1, radiusX: 3, radiusY: 3, force: 1 }];
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pt(box.x + 90, box.y + 50) });
+      await page.waitForTimeout(700);
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await page.waitForTimeout(800);
+    }
+    const m = await onTop();
+    ok("the Pass: a long press on a ticket raises its menu above the Pass — Start, Collect, Void in red last",
+      m.top && m.rows.join("|") === "Start|Collect $18|Void order", JSON.stringify(m));
+    await page.keyboard.press("Escape"); await page.waitForTimeout(700);
+    ok("the Pass: Escape puts the menu away, and the Pass stays", !(await page.$("[data-row-menu]")) && !!(await page.$(".svc-full .adm-order")));
+    await page.locator(".svc-full .adm-order .adm-act-more").first().click().catch(() => {});
+    await page.waitForTimeout(800);
+    const v = await onTop();
+    ok("the Pass: the void's question stands above the Pass, where it can be answered", v.top && /Void Jess/.test(v.label ?? ""), JSON.stringify(v));
+    await page.keyboard.press("Escape"); await page.waitForTimeout(700);
+    await page.locator(".svc-full .adm-order .adm-collect").first().click().catch(() => {});
+    await page.waitForTimeout(800);
+    const c = await onTop();
+    ok("the Pass: Collect's sheet stands above the Pass", c.top && /Collect \$18/.test(c.label ?? ""), JSON.stringify(c));
+    await page.keyboard.press("Escape"); await page.waitForTimeout(500);
+    ok("the Pass: no errors", errors.length === 0, errors.join(" | "));
+    await ctx.close();
+  }
+
   // ── 6 · deleting your account, in the app (App Store Review Guideline 5.1.1(v)) ──
   // Signed in, from the avatar's menu: the row, its screen (loaded when tapped — so it must be in the
   // export), what it asks the web's API, and after the red button a phone that is signed out and home.
