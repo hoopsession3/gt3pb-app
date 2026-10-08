@@ -8877,7 +8877,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   // ── PILLS, ONE KIT (2026-10-07, the pill round) — Ryan's My Day header, five controls in five recipes ──
   const crew = read("app/crew/page.tsx"), kit = read("components/controls.tsx"), audit = read("scripts/css.audit.mjs");
-  const header = crew.slice(crew.indexOf("THE HEADER, ONE KIT"), crew.indexOf("{guideOpen && <SectionGuide"));
+  const header = crew.slice(crew.indexOf("THE HEADER, ONE KIT"), crew.indexOf("{guide && <SectionGuide"));
   ok("pills: the crew header is the kit's — Back, the mode switch, search, the guide and the inbox, and nothing hand-made beside them",
     /<Segmented kind="choice" size="sm" label="View mode" value="crew"/.test(header)
     && (header.match(/<IconButton icon="(search|info|bell)"/g) || []).length === 3 && /<IconButton icon="chevronLeft" label="Back"/.test(header)
@@ -8949,10 +8949,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /\.gte\("created_at", new Date\(Date\.now\(\) - 120_000\)\.toISOString\(\)\)/.test(wr)
     && /"crew_welcome" \| "crew_invite"/.test(code(read("lib/customerMessage.ts"))));
   const w1 = WL.crewWelcome({ name: "Niño Reyes", role: "operator", city: "Atlanta", cityLead: "Kayla", track: { label: "Operator", blurb: "Runs the cart and the line. Serves with confidence." }, from: "Ryan" });
-  ok("welcome letter: their first name, their role, their city by name, who leads it, the first three steps and their Academy path",
+  ok("welcome letter: their first name, their role, their city by name, who leads it, the first day's steps, their Academy path and the guide's link",
     w1.subject === "Welcome to the GT3 crew, Niño" && /^Niño,\n/.test(w1.message) && /You're on the crew as Operator in Atlanta\./.test(w1.message)
-    && /Runs the cart and the line\./.test(w1.message) && /1\. Sign in at https:\/\/app\.gt3pb\.com with this email address\./.test(w1.message)
-    && /3\. Start your training in the Academy — the Operator path\./.test(w1.message) && /Kayla leads Atlanta — they're your first call\./.test(w1.message) && /Ryan, GT3 Performance Bar$/.test(w1.message), w1);
+    && /Runs the cart and the line\./.test(w1.message) && /1\. Open GT3 at https:\/\/app\.gt3pb\.com, signed in with this email address\./.test(w1.message)
+    && /4\. Start your training in the Academy — the Operator path\./.test(w1.message) && /\nhttps:\/\/app\.gt3pb\.com\/crew\?guide=start\n/.test(w1.message)
+    && /Kayla leads Atlanta — they're your first call\./.test(w1.message) && /Ryan, GT3 Performance Bar$/.test(w1.message), w1);
   const w2 = WL.crewWelcome({ name: null, role: "server", city: null, from: null });
   ok("welcome letter: a part with nothing to say is left out — no city, no lead, no invented name",
     w2.subject === "Welcome to the GT3 crew" && /^Hello,\n/.test(w2.message) && /You're on the crew as Server\./.test(w2.message) && !/ in |leads|undefined|null/.test(w2.message.split("\n")[2]) && !/undefined|null/.test(w2.message), w2);
@@ -8961,10 +8962,107 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const inv = WL.crewInvite({ email: "kim@example.com", role: "event_manager", from: "Ryan Thompkins" });
   ok("invite letter: who invited them, the role waiting, and the email to sign up with",
     inv.subject === "Ryan invited you to the GT3 crew" && /Ryan Thompkins added you to the GT3 Performance Bar crew as Event Manager\./.test(inv.message)
-    && /sign up with this email address \(kim@example\.com\)/.test(inv.message), inv);
+    && /sign up with this email address \(kim@example\.com\)/.test(inv.message) && /first-day guide[^\n]*\nhttps:\/\/app\.gt3pb\.com\/crew\?guide=start\n/.test(inv.message), inv);
   const acad = read("lib/academy.ts"), acPage = code(read("app/academy/page.tsx"));
   ok("academy: a role's path has one home — lib/academy maps it, the Academy page and the letter both read it",
     /export const APP_TO_ACADEMY: Record<string, Role> = \{/.test(acad) && /export const trackFor = /.test(acad) && !/const APP_TO_ACADEMY/.test(acPage) && /toAcademyRole\(roleOf\(profile\)\)/.test(acPage));
+}
+
+// ── THE CREW'S FIRST DAY (2026-10-08) — Ryan, with the steps he texted Niño ("Sign out and sign out of
+//    the app… Profile drop down — Crew mode — click the star on bottom right corner — click ask gt3 in
+//    top menu"): "Welcome letter plus onboarding doc that helps with stuff like this." lib/crewStart is
+//    the one home of the first day; the Guide's Start here, the letter and Ask GT3 read it; and the two
+//    steps that were workarounds (sign out and back in; two taps to Ask GT3) are gone. ──
+{
+  const CS = require("../.smoke/crewStart.js"), WL = require("../.smoke/crewWelcome.js");
+  const nfs = require("node:fs"), npath = require("node:path");
+  const read = (p) => nfs.readFileSync(npath.join(__dirname, "..", p), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  const keys = (st) => st.map((x) => x.key).join(",");
+  const on = CS.startSteps({ onCrewSide: true, city: "Atlanta", cityLead: "Kayla Moss", owners: ["Ryan Thompkins"], track: "Operator" });
+  ok("first day: six steps, in the order a first day needs them — the crew side, Ask GT3, training, alerts, the Home Screen, who to ask",
+    keys(on) === "crew,ask,training,alerts,home,who", keys(on));
+  ok("first day: read on the crew side, the first step is done and says where things are, not how to get there",
+    on[0].done === true && /^You're on it\. It opens on Today/.test(on[0].how) && !/Tap your picture/.test(on[0].how), on[0]);
+  const off = CS.startSteps({});
+  ok("first day: read anywhere else (the letter's words), the first step is the way over — the picture, then Crew Mode",
+    off[0].done === false && /Tap your picture at the top right, then Crew Mode\./.test(off[0].how), off[0]);
+  ok("first day: each step that can be done carries the tap that does it — Today, Ask GT3, the Academy, Notifications",
+    on[0].go.kind === "section" && on[0].go.section === "day" && on[1].go.kind === "ask" && on[2].go.kind === "href" && on[2].go.href === "/academy"
+    && on[3].go.kind === "section" && on[3].go.section === "settings" && on[3].go.anchor === "set-notify" && !on[4].go && !on[5].go, on.map((x) => x.go));
+  ok("first day: the training step names their path, and leaves it out when there is none",
+    / — the Operator path\./.test(on[2].how) && !/path/.test(CS.startSteps({}).find((x) => x.key === "training").how.replace("progress", "")), on[2].how);
+  ok("first day: who to ask — the city's lead by first name; a lead is told they lead it, with the owners; else the owners; else the general line",
+    CS.whoToAsk({ city: "Atlanta", cityLead: "Kayla Moss" }) === "Kayla leads Atlanta — your first call for anything."
+    && CS.whoToAsk({ city: "Atlanta", leadsCity: true, cityLead: "Dana", owners: ["Ryan Thompkins"] }) === "You lead Atlanta. Ryan owns GT3 — ask them anything."
+    && CS.whoToAsk({ owners: ["Ryan Thompkins", "Ana Ruiz"] }) === "Ask Ryan or Ana — anything at all."
+    && CS.whoToAsk({}) === null && /Ask the owner who brought you on/.test(CS.startSteps({}).find((x) => x.key === "who").how),
+    [CS.whoToAsk({ city: "Atlanta", cityLead: "Kayla Moss" }), CS.whoToAsk({ owners: ["Ryan Thompkins", "Ana Ruiz"] })]);
+  ok("first day: on the Home Screen already, the step says so and asks nothing",
+    CS.startSteps({ installed: true }).find((x) => x.key === "home").done === true && /It's there already/.test(CS.startSteps({ installed: true }).find((x) => x.key === "home").how));
+  const lines = CS.startLetterLines({ track: "Operator" }, "https://app.gt3pb.com/").join("\n");
+  ok("first day, in the letter: no signing out, the picture then Crew Mode, the ✦ then Ask GT3, the path, and the guide's whole link",
+    /no need to sign out/.test(lines) && /tap your picture at the top right, then Crew Mode/.test(lines) && /tap the ✦ at the bottom right, then Ask GT3/.test(lines)
+    && /4\. Start your training in the Academy — the Operator path\./.test(lines) && /\nhttps:\/\/app\.gt3pb\.com\/crew\?guide=start$/.test(lines), lines);
+  const kb = CS.startKnowledge();
+  ok("first day, for Ask GT3: the same steps with in-app links, and nobody's name in a prompt the whole crew shares",
+    /Crew Mode/.test(kb) && /the ✦ at the bottom right, then Ask GT3/.test(kb) && /\[Start here\]\(\/crew\?guide=start\)/.test(kb)
+    && /\[Notifications\]\(\/crew\?s=settings&a=set-notify\)/.test(kb) && /nobody needs to sign out/.test(kb) && !/Kayla|Ryan|Niño|Atlanta|Greenville/.test(kb), kb);
+  const w = WL.crewWelcome({ name: "Niño Reyes", role: "operator", city: "Atlanta", cityLead: "Kayla", track: { label: "Operator", blurb: "x" }, from: "Ryan" });
+  ok("first day: the letter's steps ARE lib/crewStart's — one set of words, not two",
+    w.message.includes(CS.startLetterLines({ track: "Operator" }, "https://app.gt3pb.com").join("\n")) && /from "\.\/crewStart"/.test(read("lib/crewWelcome.ts")));
+  // ── the two workarounds, gone ──
+  const ap = code(read("components/AuthProvider.tsx"));
+  ok("no signing out to become crew: the profile is read again when the app comes back to the screen — at most every 30 seconds, quietly, and a failed read changes nothing",
+    /document\.addEventListener\("visibilitychange", onBack\)/.test(ap) && /window\.addEventListener\("focus", onBack\)/.test(ap)
+    && /Date\.now\(\) - lastProfileRead\.current < 30_000/.test(ap) && /if \(error \|\| !data\) return;/.test(ap)
+    && /JSON\.stringify\(prev\) === JSON\.stringify\(data\) \? prev :/.test(ap) && !/onBack[\s\S]{0,400}setProfileStatus\("loading"\)/.test(ap));
+  const qd = code(read("components/QuickDock.tsx"));
+  ok("Ask GT3 in one tap: the guide sends gt3-quick-ask, a link carries ?ask=1 — the dock starts open on Ask and the address forgets it",
+    /window\.addEventListener\("gt3-quick-ask", onAsk\)/.test(qd) && /const onAsk = \(\) => \{ setMode\("ask"\); setOpen\(true\); \};/.test(qd)
+    && /const \[open, setOpen\] = useState\(askOnLoad\);/.test(qd) && /useState<"do" \| "ask" \| "note" \| "spend">\(askOnLoad \? "ask" : "do"\)/.test(qd)
+    && /url\.searchParams\.delete\("ask"\);\s*window\.history\.replaceState/.test(qd));
+  // ── the doc, in the app ──
+  const cp = code(read("app/crew/page.tsx")), cst = code(read("components/CrewStart.tsx"));
+  ok("the guide: ?guide=start (the letter's link) opens it on Start here — read once and taken off the address; a first visit opens there too; the ⓘ opens the sections, as it did",
+    /const \[guideAsked\] = useState<string \| null>\(\(\) => readParam\("guide"\)\);/.test(cp) && /if \(guideAsked\) dropParam\("guide"\);/.test(cp)
+    && /setGuide\(\(g\) => g \?\? "start"\)/.test(cp) && /onClick=\{\(\) => setGuide\("sections"\)\}/.test(cp)
+    && /\{guide && <SectionGuide allowed=\{allowed\} current=\{sec\} start=\{guide === "start"\}/.test(cp));
+  ok("the guide: two pages of one guide — Start here and Every section — and Start here loads with the Guide, not with the console",
+    /options=\{\[\{ key: "start", label: "Start here" \}, \{ key: "sections", label: "Every section" \}\]\}/.test(cp)
+    && /\{page === "start" \? \(\s*<CrewStart onSection=\{\(s, anchor\) => \{ onGo\(s\); if \(anchor\) scrollToAnchor\(anchor\); \}\} onClose=\{onClose\} \/>/.test(cp)
+    && /const CrewStart = dynamic\(\(\) => import\("@\/components\/CrewStart"\)/.test(cp) && !/import CrewStart from/.test(cp));
+  ok("the guide: every step's tap does the thing — Ask GT3 opens after the Guide closes, the Academy is a page, a section is a section",
+    /if \(g\.kind === "ask"\) \{ onClose\(\); window\.dispatchEvent\(new Event\("gt3-quick-ask"\)\); return; \}/.test(cst)
+    && /if \(g\.kind === "href"\) \{ onClose\(\); router\.push\(g\.href\); return; \}/.test(cst) && /onSection\(g\.section, g\.anchor\);/.test(cst));
+  ok("the guide: who to ask comes from the letter's route for the reader alone, and a failed read says it failed — never \"nobody\"",
+    /useAsyncData<Facts>\(async \(\) => \{\s*const r = await authedFetch\("\/api\/team\/welcome"\);/.test(cst) && /if \(!r\.ok \|\| !j\?\.ok\) throw new Error/.test(cst)
+    && /Couldn't load who leads your city just now/.test(cst));
+  ok("the guide: Alerts lands on Settings' Notifications row — the anchor it names is the one the panel carries",
+    /<Panel id="set-notify" title="Notifications"/.test(read("app/crew/page.tsx")));
+  const nav = read("components/OperatorNav.tsx");
+  const roleBlk = nav.slice(nav.indexOf("const ROLE_SECTIONS"), nav.indexOf("export const sectionsForRole"));
+  const roleLists = [...roleBlk.matchAll(/^\s+(server|contractor|operator|event_manager|admin|owner): \[([^\]]*)\],/gm)];
+  ok("the guide: every crew role can open the two sections its steps go to (day, settings)",
+    roleLists.length === 6 && roleLists.every((m) => /"day"/.test(m[2]) && /"settings"/.test(m[2])), roleLists.map((m) => m[1]));
+  const wr = code(read("app/api/team/welcome/route.ts"));
+  ok("the guide's facts: any crew member, about themselves only — their profile by their verified id, in their tenant; the letter reads the same function",
+    /if \(!\(await staffFromRequest\(req\)\)\) return NextResponse\.json/.test(wr) && /\.eq\("tenant_id", tenant\)\.eq\("id", me\.id\)\.maybeSingle\(\)/.test(wr)
+    && (wr.match(/await crewFacts\(tenant, person\)/g) || []).length === 2 && /export const GET = route\("team\/welcome", get\);/.test(wr)
+    && /\.eq\("tenant_id", tenant\)\.eq\("role", "owner"\)/.test(wr));
+  const home = code(read("app/page.tsx")), row = code(read("components/CrewWelcomeRow.tsx"));
+  ok("the way over: a staff member who has never picked a side on this phone sees one row on the home that opens the crew side and the guide — loaded only for them",
+    /\{isStaff\(profile\) && !sideChosen && <CrewWelcomeRow \/>\}/.test(home) && /const \[sideChosen\] = useState\(\(\) => readMode\(\) !== null\);/.test(home)
+    && /const CrewWelcomeRow = dynamic\(\(\) => import\("@\/components\/CrewWelcomeRow"\)\);/.test(home) && !/lib\/crewStart/.test(home)
+    && /onClick=\{\(\) => window\.location\.assign\(START_PATH\)\}/.test(row) && !/router\.push/.test(row) && CS.START_PATH === "/crew?guide=start");
+  const cpn = code(read("components/CrewPerson.tsx")), addt = code(read("components/AddTeammate.tsx"));
+  ok("the letter again: an owner sends it from the person's record, through the letter's one sender, and the line says what the provider said",
+    /import \{ sendLetter \} from "\.\/AddTeammate";/.test(cpn) && /export async function sendLetter\(/.test(addt)
+    && /const l = await sendLetter\(\{ kind: "bring_on", user_id: id \}\);/.test(cpn) && /\}\)\}\s*\{iAmOwner && \(\s*<div className="cp-step">/.test(cpn)
+    && /setLetter\(l\.sent \? `Sent to \$\{l\.to\}\.` : `Couldn't send/.test(cpn) && (cpn.match(/authedFetch\("\/api\/team\/welcome"/g) || []).length === 0);
+  const op = code(read("app/api/agents/operator/route.ts"));
+  ok("Ask GT3 knows the app itself — the first day's words, beside the craft",
+    /import \{ startKnowledge \} from "@\/lib\/crewStart";/.test(op) && /=== THE APP ITSELF ===\\n\$\{startKnowledge\(\)\}/.test(op));
 }
 
 // ── YOUR GT3 (2026-10-07, Phase 2A-2 of the B2B report) — the office client's home, the change sheet,

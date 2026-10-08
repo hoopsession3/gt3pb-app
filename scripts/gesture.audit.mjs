@@ -51,6 +51,7 @@ export const PAGED = {
   "app/crew/page.tsx#Plan": "Plan's tabs — the section body's <SwipePager>",
   "components/Studio.tsx#View": "Studio's views — usePagerLevel",
   "components/Shop.tsx#Shop": "the shop's two aisles — the aisles' <SwipePager>",
+  "app/crew/page.tsx#Guide": "the Guide's two pages, Start here and Every section — the Guide sheet's <SwipePager>",
 };
 export const NOT_PAGES = {
   "components/OperatorNav.tsx#Crew console": "the bottom tab bar — on a phone a tab bar is tapped, not swiped; the lane's sections above it swipe",
