@@ -530,30 +530,38 @@ export const PROD_ROUTE = {
 // (lib/appHistory, which has to be loaded before the router to hear Back first); the title bar that keeps a screen's
 // name and carries Back in one place (components/TitleBar, useBack), and the screens' short names (lib/routeTitles).
 // The stylesheet: the bar's own utilities (a blurred ground, its two buttons, the calendars' rows stepping under it).
+// 2026-10-08 (the navigation round, part two): every route +673 bytes of script and +284 bytes of stylesheet. Built
+// 868ffdf and this commit and gzipped what each route's HTML references (/menu 272 617 → 273 290, /privacy 268 769 →
+// 269 442; the stylesheet 102 066 → 102 350, and 104 715 → 104 999 on the three with the second one), which crossed the
+// rounding line upward on fifteen routes' script and on /truck, /events and /driver's stylesheet. What rides in the
+// shell, for everyone: how a sheet stands on a phone (lib/sheetStage) — a long form opens half-height and rises when it
+// is used, and the page behind a tall sheet steps back and follows the sheet's pull — as two utilities (page-stage,
+// sheet-detent), and the touch engine's two words for a long press (a touch taken, its lift's click hushed). The long
+// press itself (components/LongPress) loads with the crew's console only.
 export const WEIGHT = {
-  "/truck":                    { js: 282, css: 102, chunks: 15 },
-  "/events":                   { js: 282, css: 102, chunks: 15 },
-  "/menu":                     { js: 266, css: 100, chunks: 15 },
-  "/reserve":                  { js: 290, css: 100, chunks: 16 },
+  "/truck":                    { js: 283, css: 103, chunks: 15 },
+  "/events":                   { js: 283, css: 103, chunks: 15 },
+  "/menu":                     { js: 267, css: 100, chunks: 15 },
+  "/reserve":                  { js: 291, css: 100, chunks: 16 },
   "/delivery":                 { js: 289, css: 100, chunks: 16 },
-  "/3mpire":                   { js: 282, css: 100, chunks: 15 },
+  "/3mpire":                   { js: 283, css: 100, chunks: 15 },
   "/craft":                    { js: 266, css: 100, chunks: 15 },
-  "/book":                     { js: 266, css: 100, chunks: 15 },
+  "/book":                     { js: 267, css: 100, chunks: 15 },
   "/academy":                  { js: 323, css: 100, chunks: 16 },
   "/office":                   { js: 280, css: 100, chunks: 15 },
   "/scan":                     { js: 265, css: 100, chunks: 15 },
-  "/architecture":             { js: 274, css: 100, chunks: 15 },
-  "/playbook":                 { js: 274, css: 100, chunks: 15 },
-  "/driver":                   { js: 278, css: 102, chunks: 15 },
-  "/agreement":                { js: 272, css: 100, chunks: 15 },
-  "/offer":                    { js: 282, css: 100, chunks: 15 },
+  "/architecture":             { js: 275, css: 100, chunks: 15 },
+  "/playbook":                 { js: 275, css: 100, chunks: 15 },
+  "/driver":                   { js: 279, css: 103, chunks: 15 },
+  "/agreement":                { js: 273, css: 100, chunks: 15 },
+  "/offer":                    { js: 283, css: 100, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 264, css: 100, chunks: 15 },
   "/display":                  { js: 265, css: 100, chunks: 15 },
-  "/shop":                     { js: 294, css: 100, chunks: 16 },
+  "/shop":                     { js: 295, css: 100, chunks: 16 },
   "/primal":                   { js: 267, css: 100, chunks: 15 },
-  "/privacy":                  { js: 262, css: 100, chunks: 14 },
-  "/terms":                    { js: 262, css: 100, chunks: 14 },
-  "/":                         { js: 272, css: 100, chunks: 15 },
+  "/privacy":                  { js: 263, css: 100, chunks: 14 },
+  "/terms":                    { js: 263, css: 100, chunks: 14 },
+  "/":                         { js: 273, css: 100, chunks: 15 },
 };
 
 export function weightVerdict(path, w, row = WEIGHT[path]) {

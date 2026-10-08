@@ -9412,6 +9412,103 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /html:has\(\[data-tbar\]\[data-compact\]\) \.native-bar::after\{opacity:0\}/.test(read("components/NativeBridge.css")));
 }
 
+// ── SHEETS LIKE IOS, AND A ROW'S MENU (2026-10-08, the navigation round: redesign 3, approved) ────────────────
+// lib/sheetStage decides how a sheet stands on a phone (the page steps back behind a tall one; a long form opens
+// half-height); components/Sheet and SheetMotion apply it; components/LongPress raises a row's menu.
+{
+  const read = (f) => require("node:fs").readFileSync(require("node:path").join(__dirname, "..", f), "utf8");
+  const SS = require("../.smoke/sheetStage.js");
+  const V = 844;
+  ok("sheets: a tall sheet steps the page back on a phone (three-fifths of the screen: a drink's is 581 of 844) — a short one, a half-height one and any sheet in the frame do not",
+    SS.recedes({ height: 581, viewport: V, phone: true, half: false }) && SS.recedes({ height: 0.6 * V, viewport: V, phone: true, half: false }) && SS.recedes({ height: V, viewport: V, phone: true, half: false })
+    && !SS.recedes({ height: 0.59 * V, viewport: V, phone: true, half: false }) && !SS.recedes({ height: V, viewport: V, phone: true, half: true })
+    && !SS.recedes({ height: V, viewport: V, phone: false, half: false }) && !SS.recedes({ height: 10, viewport: 0, phone: true, half: false }));
+  ok("sheets: a long form, once risen to full, always steps the page back (it opens half only when longer than a sheet that steps back)", SS.RECEDE_AT < SS.HALF_AT);
+  ok("sheets: a long form opens half-height on a phone (three fields or more, most of the screen long) — never a short one, a held one, one that opens full, or in the frame",
+    SS.opensHalf({ natural: 0.62 * V, viewport: V, fields: 3, phone: true, allowed: true })
+    && !SS.opensHalf({ natural: 0.61 * V, viewport: V, fields: 9, phone: true, allowed: true }) && !SS.opensHalf({ natural: V, viewport: V, fields: 2, phone: true, allowed: true })
+    && !SS.opensHalf({ natural: V, viewport: V, fields: 5, phone: true, allowed: false }) && !SS.opensHalf({ natural: V, viewport: V, fields: 5, phone: false, allowed: true }));
+  const shellOf = () => {
+    const cls = new Set(), props = new Map();
+    return { cls, props, classList: { toggle: (c, on) => { if (on) cls.add(c); else cls.delete(c); }, add: (c) => cls.add(c), remove: (c) => cls.delete(c), contains: (c) => cls.has(c) },
+      style: { setProperty: (k, v) => props.set(k, v), removeProperty: (k) => props.delete(k) } };
+  };
+  {
+    const sh = shellOf(), a = Symbol("a"), b = Symbol("b");
+    SS.stepBack(sh, a, true); SS.stepBack(sh, b, true); SS.stepBack(sh, a, false);
+    const stillBack = sh.cls.has("receded");
+    SS.stepBackBy(sh, 1.7); const clamped = sh.props.get("--recede") === "1" && sh.cls.has("pulling");
+    SS.stepBackBy(sh, -2); const floor = sh.props.get("--recede") === "0";
+    SS.stepBackBy(sh, 0.4); SS.stepBackBy(sh, "let go"); const letGo = !sh.cls.has("pulling") && sh.props.get("--recede") === "0.4";
+    SS.stepBackBy(sh, 0.4); SS.stepBackBy(sh, null); const sprung = !sh.cls.has("pulling") && !sh.props.has("--recede");
+    SS.stepBackBy(sh, 0.3); SS.stepBack(sh, b, false);
+    ok("sheets: the page stays stepped back while any tall sheet is open, follows a pull 1 to 0, and is wholly back when the last one goes",
+      stillBack && clamped && floor && letGo && sprung && !sh.cls.has("receded") && !sh.cls.has("pulling") && !sh.props.has("--recede"));
+    let quiet = true; try { SS.stepBackBy(null, 0.5); SS.stepBackBy(undefined, "let go"); } catch { quiet = false; }
+    ok("sheets: a pull with no shell to step back is quiet", quiet);
+  }
+  ok("sheets: the fields counted for half-height are the ones a person fills — not a box to tick, a hidden value or a slider",
+    /input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\):not\(\[type="hidden"\]\):not\(\[type="range"\]\), select, textarea/.test(read("lib/sheetStage.ts"))
+    && SS.FRAME_QUERY === "(min-width: 520px) and (min-height: 640px)" && /@custom-variant frame \(@media \(min-width: 520px\) and \(min-height: 640px\)\);/.test(read("app/tailwind.css")));
+  const sh2 = read("components/Sheet.tsx"), sm = read("components/SheetMotion.tsx"), shell2 = read("components/AppShell.tsx");
+  ok("sheets: Sheet measures what it holds and opens a long form half (52dvh), rising to full when it is used — scrolled, a field tapped, pulled up",
+    /opensHalf\(\{/.test(sh2) && /panel\.dataset\.detent = "half"/.test(sh2) && /className=\{`sheet2 sheet-detent \$\{className\}\$\{out\}`\}/.test(sh2)
+    && /@utility sheet-detent \{\s*@media not all and \(min-width: 520px\) and \(min-height: 640px\) \{\s*transition: max-height 300ms var\(--ease-enter\);\s*&\[data-detent="half"\] \{ max-height: 52dvh !important; \}/.test(read("app/tailwind.css"))
+    && /onFocus=/.test(sh2) && /scrollTop > 0/.test(sh2) && /expand=\{expand\}/.test(sh2) && /if \(!cancelled && d\.dy < -24 && panelRef\.current\?\.dataset\.detent === "half"\) \{ springBack\(\); expand\(\); return; \}/.test(sm));
+  ok("sheets: a form that opens with a field already being typed in opens full, and the checkout and an office order never open half",
+    /detents = true/.test(sh2) && /<Sheet[^>]*detents=\{false\}/.test(read("components/Checkout.tsx")) && /<Sheet[^>]*detents=\{false\}/.test(read("components/OfficeOrder.tsx")));
+  ok("sheets: the page behind a tall sheet shrinks and rounds as on an iPhone, and follows the sheet's pull",
+    /<main className="body page-stage" ref=\{bodyRef\} id="body"/.test(shell2)
+    && /@utility page-stage \{\s*@media not all and \(min-width: 520px\) and \(min-height: 640px\) \{\s*transition: transform 420ms var\(--ease-enter\), border-radius 420ms var\(--ease-enter\);\s*:where\(\.app\.receded\) > & \{\s*transform-origin: top;\s*transform: translate3d\(0, calc\(env\(safe-area-inset-top, 0px\) \* var\(--recede, 1\)\), 0\) scale\(calc\(1 - 0\.07 \* var\(--recede, 1\)\)\);\s*border-radius: calc\(14px \* var\(--recede, 1\)\);\s*\}\s*:where\(\.app\.pulling\) > & \{ transition: none; \}/.test(read("app/tailwind.css"))
+    && /recedes\(\{ height: panel\.offsetHeight/.test(sh2) && /stepBackBy\(shell\(\), 1 - Math\.max\(0, y\) \/ h\)/.test(sm) && /stepBackBy\(shell\(\), "let go"\)/.test(sm)
+    && /html:has\(\.app\.receded\) \.native-bar\{opacity:0\}/.test(read("components/NativeBridge.css")));
+
+  const lp = read("components/LongPress.tsx"), ug = read("components/useGesture.ts"), crew = read("app/crew/page.tsx"), le = read("components/crew/LocationEditor.tsx");
+  ok("long press: a row's menu rises after a still half-second, and a finger that drifts (scrolling, swiping) stands it down",
+    /export const HOLD = 450;/.test(lp) && /export const DRIFT = 8;/.test(lp) && /Math\.hypot\(e\.clientX - a\.x, e\.clientY - a\.y\) > DRIFT\) stop\(\);/.test(lp)
+    && /onPointerCancel: stop,/.test(lp) && /onPointerLeave: stop,/.test(lp));
+  ok("long press: from the moment it rises the touch is the press's — no row swipe, sheet pull or edge swipe takes it — and a gesture that already has it keeps it",
+    /if \(touch\) claimTouch\(\);/.test(lp) && /if \(!f \|\| \(f\.touch && touchTaken\(\)\)\) return;/.test(lp) && /export function claimTouch\(\): void \{\s*install\(\);\s*owner = Symbol\("press"\);\s*\}/.test(ug));
+  ok("long press: the lift that ends it taps nothing — not the row, and not the menu that rose under the finger (its click is hushed, as a swipe's is)",
+    /if \(held\.current\) \{ held\.current = false; hushClick\(\); \}/.test(lp) && /export function hushClick\(\): void \{\s*install\(\);\s*quietUntil = performance\.now\(\) \+ 150;\s*\}/.test(ug)
+    && /if \(held\.current && e\.target instanceof Node && e\.currentTarget\.contains\(e\.target\)\) \{ e\.preventDefault\(\); e\.stopPropagation\(\); \}/.test(lp));
+  ok("long press: a press in a field is the field's (select, paste), a row inside the row is its own, and the menu's taps (a sheet drawn elsewhere) are never the row's",
+    /const FIELD = 'input, textarea, select, \[contenteditable=""\], \[contenteditable="true"\]';/.test(lp)
+    && /e\.currentTarget\.contains\(t\) && t\.closest\("\[data-long-press\]"\) === e\.currentTarget && !t\.closest\(FIELD\)/.test(lp));
+  ok("long press: a right-click, the keyboard's menu key and Android's long press raise the same menu; a mouse held down does not (it is selecting); the browser's own menu stays down while ours is up",
+    /onContextMenu: \(e\) => \{\s*if \(!ours\(e\)\) return;\s*e\.preventDefault\(\);/.test(lp) && /if \(e\.pointerType === "mouse" \|\| e\.button !== 0 \|\| !ours\(e\)\) return;/.test(lp)
+    && /window\.addEventListener\("contextmenu", hush, true\);\s*return \(\) => window\.removeEventListener\("contextmenu", hush, true\);/.test(lp));
+  ok("long press: the menu is a sheet of the row's actions by name — 44pt rows, the sign on the right, the one that cannot be taken back in red — and the phone ticks as it rises",
+    /<Sheet open onClose=\{onClose\} label=\{`\$\{title\} — actions`\}/.test(lp) && /className="acs-row min-h-11"/.test(lp) && /it\.danger \? "text-red!"/.test(lp)
+    && /onClick=\{\(\) => \{ onClose\(\); it\.run\(\); \}\}/.test(lp) && /haptic\("medium"\);/.test(lp));
+  ok("long press: on a touch screen the row's words start no selection and iOS shows no callout, its fields still select, and a mouse still selects",
+    /@utility pressable \{\s*-webkit-touch-callout: none;\s*@media \(pointer: coarse\) \{\s*-webkit-user-select: none;\s*user-select: none;\s*& :is\(input, textarea, \[contenteditable\]\) \{ -webkit-user-select: text; user-select: text; \}/.test(read("app/tailwind.css")));
+  ok("long press: on a Pass ticket — its next stage, back a stage, the money, and Void in red — on the ticket's own element",
+    /<LongPress key=\{o\.id\} title=\{`\$\{o\.customer \?\? "Guest"\} · #\$\{o\.id\.slice\(0, 4\)\.toUpperCase\(\)\}`\} items=\{items\}>\{\(press\) => \(\s*<div \{\.\.\.press\.bind\} className=\{`adm-order pressable/.test(crew)
+    && /\{ key: "next", label: st\.action, icon: "arrowRight", run: \(\) => \{ void advance\(o\); \} \}/.test(crew) && /run: \(\) => \{ void recall\(o\); \}/.test(crew)
+    && /run: \(\) => \{ void collect\(o\); \}/.test(crew) && /run: \(\) => \{ void undoTake\(o\); \}/.test(crew) && /\{ key: "void", label: "Void order", icon: "close", danger: true, run: \(\) => \{ void voidOrder\(o\); \} \}/.test(crew));
+  ok("the Pass: a sheet opened from it (Collect, the void's question, a ticket's menu) stands above it — it opened behind the Pass before",
+    /\.sheet2-scrim\{position:fixed;inset:0;z-index:87;/.test(read("app/globals.css")) && /\.svc-full\{position:fixed;inset:0;z-index:85;/.test(read("app/globals.css")));
+  ok("the Pass: its words take the look's ink (a ticket's name was the dark look's cream on the Day look's white), and a ticket's age clears its ••• button",
+    /<div className="svc-full text-cream" role="dialog"/.test(crew) && /<div className="adm-order-top pr-10">/.test(crew));
+  ok("the Pass: Escape in a sheet over it closes the sheet, and the Pass stays",
+    /const onKey = \(e: KeyboardEvent\) => \{ if \(e\.key === "Escape" && !e\.defaultPrevented && !sheetOpen\(\)\) setSvc\(false\); \};/.test(crew));
+  ok("long press: a just-completed ticket — bring it back to ready, the money — as on the tray's own buttons",
+    /\{ key: "recall", label: "Bring it back to ready", icon: "chevronLeft", run: \(\) => \{ void recall\(o\); \} \}/.test(crew) && /<div \{\.\.\.press\.bind\} className="adm-order pressable st-done">/.test(crew));
+  ok("long press: on an Inbox flag — Open, Discuss, Snooze for an hour (never a critical), Got it — on its row line, inside the swipe",
+    /<div \{\.\.\.press\.bind\} className="alert-row pressable">/.test(crew) && /\{ key: "open", label: "Open", icon: "arrowRight", run: \(\) => gotoAlert\(a\) \}/.test(crew)
+    && /\.\.\.\(a\.severity !== "critical" \? \[\{ key: "later", label: "Snooze for an hour", icon: "clock", run: \(\) => \{ void later\(a\); \} \}/.test(crew)
+    && /\{ key: "clear", label: "Got it", icon: "check", run: \(\) => \{ void clear\(a\); \} \}/.test(crew));
+  ok("long press: on a stop's head — show it, go live here or take the truck offline, edit its facts (from a closed card too), its full prep",
+    /const press = useLongPress\(displayName \|\| "Untitled location", menu\);/.test(le) && /<button \{\.\.\.press\.bind\} className=\{`ev-head\$\{kind === "stop" \? " pressable" : ""\}`\}/.test(le)
+    && /run: \(\) => onGoLive\(row\.id\)/.test(le) && /run: onGoOffline/.test(le) && /run: \(\) => setEditFacts\(true\)/.test(le) && /run: onOpenPrep/.test(le)
+    && le.indexOf("{editFacts && (") < le.indexOf("{open && ("));
+  ok("long press: on a note's head — open it, rename, add to it, discuss it (each opening the note), archive or restore, and Delete for an admin, in red",
+    /<button \{\.\.\.press\.bind\} type="button" className="note-head pressable"/.test(crew) && /run: inside\(\(\) => \{ setTitleDraft\(note\.title\); setRenaming\(true\); \}\)/.test(crew)
+    && /run: inside\(\(\) => setAdding\(true\)\)/.test(crew) && /run: inside\(\(\) => setNoteThread\(true\)\)/.test(crew) && /\{ key: "archive", label: note\.archived_at \? "Restore" : "Archive", run: onArchive \}/.test(crew)
+    && /\.\.\.\(isAdmin \? \[\{ key: "delete", label: "Delete note", icon: "close", danger: true, run: onDelete \}/.test(crew));
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.

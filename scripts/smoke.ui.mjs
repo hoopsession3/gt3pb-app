@@ -471,6 +471,53 @@ try {
       /data-tbar=""[^>]*class="sticky top-0 z-20 h-11"/.test(academy) && /aria-label="Back to 3MPIRE"/.test(academy));
   }
 
+  // 6d) THE PAGE STEPS BACK (2026-10-08, the navigation round: redesign 3, approved). Behind a tall sheet on a
+  //     phone the page shrinks a little and rounds its corners, as behind every iPhone sheet, and comes home when
+  //     the sheet closes; the checkout opens full, never half-height; in the frame (a desktop, an iPad) a sheet is
+  //     a centred card and nothing steps back.
+  {
+    const look = (pg) => pg.evaluate(() => {
+      const main = document.getElementById("body"), t = main ? getComputedStyle(main).transform : "none";
+      return { receded: !!document.querySelector(".app")?.classList.contains("receded"), scale: t === "none" ? 1 : new DOMMatrixReadOnly(t).a,
+        radius: main ? parseFloat(getComputedStyle(main).borderTopLeftRadius) || 0 : 0, detent: [...document.querySelectorAll(".sheet2")].pop()?.dataset.detent ?? null,
+        sheets: document.querySelectorAll(".sheet2").length };
+    });
+    const sp = await phone.newPage();
+    try {
+      await sp.goto(BASE + "/menu", { waitUntil: "domcontentloaded", timeout: 20000 });
+      try { await sp.waitForLoadState("networkidle", { timeout: 4000 }); } catch { /* settled enough */ }
+      await sleep(500);
+      await sp.click(".entry"); await sleep(900);
+      const a = await look(sp);
+      ok("sheet · behind a drink's sheet on a phone the page steps back — smaller, its corners rounded", a.receded && a.scale > 0.9 && a.scale < 0.95 && a.radius >= 10, JSON.stringify(a));
+      await sp.keyboard.press("Escape"); await sleep(900);
+      const b = await look(sp);
+      ok("sheet · closed, the page comes home", !b.receded && b.scale === 1 && b.radius === 0 && b.sheets === 0, JSON.stringify(b));
+      await sp.click(".entry"); await sleep(700);
+      const offer = (await sp.$eval(".order-bar", (e) => e.textContent).catch(() => "")) || "";
+      if (/remove/i.test(offer)) await sp.keyboard.press("Escape"); else await sp.click(".order-bar");
+      await sleep(800);
+      await sp.waitForSelector(".cartbar", { timeout: 8000 });
+      await sp.click(".cartbar"); await sleep(900);
+      const c = await look(sp);
+      ok("sheet · the checkout opens full on a phone, never half-height", c.sheets === 1 && c.detent !== "half", JSON.stringify(c));
+      await sp.keyboard.press("Escape"); await sleep(600);
+    } catch (e) { ok("sheet · could be exercised on /menu at phone width", false, String(e.message).slice(0, 160)); }
+    await sp.close();
+    const frame = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+    const fp = await frame.newPage();
+    try {
+      await fp.goto(BASE + "/menu", { waitUntil: "domcontentloaded", timeout: 20000 });
+      try { await fp.waitForLoadState("networkidle", { timeout: 4000 }); } catch { /* settled enough */ }
+      await sleep(500);
+      await fp.click(".entry"); await sleep(900);
+      const f = await look(fp);
+      ok("sheet · in the frame a sheet is a card, and nothing steps back", f.sheets === 1 && !f.receded && f.scale === 1 && f.detent !== "half", JSON.stringify(f));
+    } catch (e) { ok("sheet · could be exercised on /menu in the frame", false, String(e.message).slice(0, 160)); }
+    await fp.close();
+    await frame.close();
+  }
+
   // 7) THE NAV THAT MOVED UNDER YOUR THUMB (components/BottomNav.tsx, 2026-10-02). On production
   //    every guest watched the three shared tabs slide one slot left a quarter second after paint:
   //    the server painted the member shape, the client re-shaped it. Now both identity tabs are in
