@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import Gt3Mark from "@/components/Gt3Mark";
@@ -23,7 +23,6 @@ export default function ScanPage() {
 function ScanInner() {
   const { profile, ready, user, profileStatus } = useAuth();
   const params = useSearchParams();
-  const router = useRouter();
   const code = params.get("m") ?? "";
   // One policy, in lib/access: an unloaded or failed profile reads as "member" via roleOf and would
   // turn a staff member away from their own scanner.
@@ -79,7 +78,7 @@ function ScanInner() {
 
   return (
     <section className="screen scanpg">
-      <Masthead eyebrow="Scan card" right={<button type="button" className="pf hit-44" aria-label="Back to crew" onClick={() => router.push("/crew")}>‹</button>} />
+      <Masthead eyebrow="Scan card" />
       <div className="h-title">Member card</div>
       {!code && <div className="h-sub">No card code — scan a member&apos;s QR from their account.</div>}
       {state === "loading" && <div className="h-sub">Looking up…</div>}
