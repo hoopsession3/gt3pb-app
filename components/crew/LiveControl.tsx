@@ -304,9 +304,9 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
                 : <span style={{ display: "flex", gap: 8 }}><button className="adm-btn ghost" onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</button><button className="adm-btn primary" onClick={startBroadcast}>Broadcast</button></span>}
             </div>
           ) : null}
-          <button type="button" className="adm-golink" onClick={() => goPlanTab("route", { setSection })}>{road.length > 1 ? `${road.length - 1} more stop${road.length > 2 ? "s" : ""} ahead · ` : ""}Locations · Plan › Route</button>
+          <button type="button" className="adm-golink hit-y-44" onClick={() => goPlanTab("route", { setSection })}>{road.length > 1 ? `${road.length - 1} more stop${road.length > 2 ? "s" : ""} ahead · ` : ""}Locations · Plan › Route</button>
           {/* The dial's line, where this row used to name it (2026-10-06, the settings round). */}
-          {admin && <button type="button" className="adm-golink" onClick={goDial}>Cup-ordering dial ›</button>}
+          {admin && <button type="button" className="adm-golink hit-y-44" onClick={goDial}>Cup-ordering dial ›</button>}
         </div>
       ) : (
       <>
