@@ -27,7 +27,7 @@ function ExpectationsCard({ role, roleLabel }: { role: Role; roleLabel: string }
   const [open, setOpen] = useState(false);
   return (
     <div className="ac-exp">
-      <button type="button" className="ac-exp-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+      <button type="button" className="ac-exp-head hit-44" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <span className="ac-exp-k">What a {roleLabel} is held to</span>
         <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
       </button>
@@ -203,7 +203,7 @@ export default function AcademyPage() {
   // used to be "0/N modules · 0%" for everyone, done or not, until the read came back.
   if (!loaded) return (
     <section className="screen academy">
-      <Masthead eyebrow="GT3 Academy" right={<Link className="pf" href="/3mpire" aria-label="Exit">‹</Link>} />
+      <Masthead eyebrow="GT3 Academy" right={<Link className="pf hit-44" href="/3mpire" aria-label="Exit">‹</Link>} />
       {loadErr ? (
         <EmptyState role="alert" title="Your training record did not load"
           sub={`${loadErr}. Nothing you have done is lost — this was a read that did not answer.`}
@@ -249,7 +249,7 @@ export default function AcademyPage() {
 
   return (
     <section className="screen academy">
-      <Masthead eyebrow="GT3 Academy" right={<Link className="pf" href="/3mpire" aria-label="Exit">‹</Link>} />
+      <Masthead eyebrow="GT3 Academy" right={<Link className="pf hit-44" href="/3mpire" aria-label="Exit">‹</Link>} />
       <h1 className="h-title">Your <em className="it">path.</em></h1>
       <div className="subm" style={{ marginTop: 10 }}>{roleLabel} track · {reqDone}/{required.length} modules</div>
       {loadErr && <p className="subm" role="status">Could not refresh your record — {loadErr}. This is what was last read.</p>}
