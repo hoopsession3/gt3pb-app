@@ -17,8 +17,9 @@ type Msg = { role: "user" | "assistant"; content: string };
 const GREETING = "Hey — I'm the GT3 concierge. Ask me what's good to order, where the truck is, or how to book us for an event.";
 const CHIPS = ["What should I get before a workout?", "Where's the truck right now?", "Book the truck for my event", "How does membership work?"];
 
-export default function Concierge() {
-  const [open, setOpen] = useState(false);
+/** The concierge's conversation, in the house sheet. Its own state: the rail's tab (in the frame) and the
+ *  header's Ask us (on a phone, components/HelpSheets) each hold one, and only one of them is ever on screen. */
+export function ConciergeChat({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [msgs, setMsgs] = useState<Msg[]>([{ role: "assistant", content: GREETING }]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -42,43 +43,50 @@ export default function Concierge() {
   };
 
   return (
+    <Sheet open={open} onClose={onClose} labelledBy="concierge-title" bodyRef={bodyRef} className="conc-sheet"
+      header={
+        <div className="conc-head">
+          <div className="conc-head-l"><span className="conc-badge"><Gt3Mark tone="cream" /></span><div><div className="conc-title" id="concierge-title">Concierge</div></div></div>
+          <button type="button" className="conc-x hit-44" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+        </div>
+      }
+      footer={
+        <>
+          <form className="conc-inbar" onSubmit={(e) => { e.preventDefault(); send(input); }}>
+            <input className="conc-in" enterKeyHint="send" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a question…" aria-label="Message" maxLength={500} />
+            <button type="submit" className="conc-send" disabled={busy || !input.trim()} aria-label="Send">↑</button>
+          </form>
+          <div className="conc-foot">Answers come from our menu &amp; schedule. For allergies or medical questions, ask the crew at the window.</div>
+        </>
+      }>
+      {/* The assistant's markdown goes through the ONE renderer (lib/prose + components/Prose).
+          This file used to carry its own rich(): bold and internal links, no lists, no steps —
+          the same job as the crew side's, implemented once here and not at all there. Its link
+          rule was the good part and moved into lib/prose as isInternalHref, tested. */}
+      {msgs.map((m, i) => m.role === "assistant"
+        ? <Prose key={i} text={m.content} className={`conc-msg ${m.role}`} />
+        : <div key={i} className={`conc-msg ${m.role}`}>{m.content}</div>)}
+      {busy && <div className="conc-msg assistant conc-typing"><span /><span /><span /></div>}
+      {msgs.length === 1 && (
+        <div className="conc-chips">
+          {CHIPS.map((c) => <button key={c} type="button" className="conc-chip" onClick={() => send(c)}>{c}</button>)}
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
+/** The rail's tab, in the frame (desktop, iPad). */
+export default function Concierge() {
+  const [open, setOpen] = useState(false);
+  return (
     <>
       <button type="button" className={`conc-fab${open ? " hide" : ""}`} onClick={() => setOpen(true)} aria-label="Ask the GT3 concierge">
         {/* The real brand "3" (public/brand/gt3-3.png, the same pixel-exact glyph Gt3Mark uses) — not
             an emoji standing in for it. */}
         <img className="conc-fab-i" src="/brand/gt3-3.png" alt="" aria-hidden="true" /><span className="rail-txt"><b>Ask us</b><i>menu · hours · booking</i></span>
       </button>
-
-      <Sheet open={open} onClose={() => setOpen(false)} labelledBy="concierge-title" bodyRef={bodyRef} className="conc-sheet"
-        header={
-          <div className="conc-head">
-            <div className="conc-head-l"><span className="conc-badge"><Gt3Mark tone="cream" /></span><div><div className="conc-title" id="concierge-title">Concierge</div></div></div>
-            <button type="button" className="conc-x hit-44" onClick={() => setOpen(false)} aria-label="Close"><Icon name="close" /></button>
-          </div>
-        }
-        footer={
-          <>
-            <form className="conc-inbar" onSubmit={(e) => { e.preventDefault(); send(input); }}>
-              <input className="conc-in" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a question…" aria-label="Message" maxLength={500} />
-              <button type="submit" className="conc-send" disabled={busy || !input.trim()} aria-label="Send">↑</button>
-            </form>
-            <div className="conc-foot">Answers come from our menu &amp; schedule. For allergies or medical questions, ask the crew at the window.</div>
-          </>
-        }>
-        {/* The assistant's markdown goes through the ONE renderer (lib/prose + components/Prose).
-            This file used to carry its own rich(): bold and internal links, no lists, no steps —
-            the same job as the crew side's, implemented once here and not at all there. Its link
-            rule was the good part and moved into lib/prose as isInternalHref, tested. */}
-        {msgs.map((m, i) => m.role === "assistant"
-          ? <Prose key={i} text={m.content} className={`conc-msg ${m.role}`} />
-          : <div key={i} className={`conc-msg ${m.role}`}>{m.content}</div>)}
-        {busy && <div className="conc-msg assistant conc-typing"><span /><span /><span /></div>}
-        {msgs.length === 1 && (
-          <div className="conc-chips">
-            {CHIPS.map((c) => <button key={c} type="button" className="conc-chip" onClick={() => send(c)}>{c}</button>)}
-          </div>
-        )}
-      </Sheet>
+      <ConciergeChat open={open} onClose={() => setOpen(false)} />
     </>
   );
 }

@@ -6,6 +6,7 @@ import Image from "next/image";
 import Mpire from "./Mpire";
 import { useAuth } from "./AuthProvider";
 import { isIPhoneLike } from "@/lib/ios";
+import { nextOnEnter } from "@/lib/formKeys";
 
 type Mode = "passwordless" | "password";
 type Intent = "join" | "signin";
@@ -243,11 +244,11 @@ export default function SignIn() {
               {intent === "join" && (
                 <>
                   <label className="auth-label" htmlFor="auth-name">First name <span>(so we can greet you)</span></label>
-                  <input id="auth-name" className="auth-input" type="text" autoComplete="given-name" placeholder="Maverick" value={name} onChange={(e) => setName(e.target.value)} />
+                  <input id="auth-name" className="auth-input" enterKeyHint="next" onKeyDown={nextOnEnter} type="text" autoComplete="given-name" placeholder="Maverick" value={name} onChange={(e) => setName(e.target.value)} />
                 </>
               )}
               <label className="auth-label" htmlFor="auth-email">Email</label>
-              <input id="auth-email" className="auth-input" type="email" inputMode="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <input id="auth-email" className="auth-input" enterKeyHint="send" type="email" inputMode="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
               <label className="auth-check-row">
                 <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
                 <span>Keep me signed in</span>
@@ -264,16 +265,18 @@ export default function SignIn() {
               {isNew && (
                 <>
                   <label className="auth-label" htmlFor="pw-name">First name <span>(optional)</span></label>
-                  <input id="pw-name" className="auth-input" type="text" autoComplete="given-name" placeholder="Maverick" value={name} onChange={(e) => setName(e.target.value)} />
+                  <input id="pw-name" className="auth-input" enterKeyHint="next" onKeyDown={nextOnEnter} type="text" autoComplete="given-name" placeholder="Maverick" value={name} onChange={(e) => setName(e.target.value)} />
                 </>
               )}
               <label className="auth-label" htmlFor="pw-email">Email</label>
-              <input id="pw-email" className="auth-input" type="email" inputMode="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <input id="pw-email" className="auth-input" enterKeyHint="next" onKeyDown={nextOnEnter} type="email" inputMode="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
               <label className="auth-label" htmlFor="pw-pass">Password</label>
               <div className="auth-pass-wrap">
                 <input
                   id="pw-pass"
                   className="auth-input"
+                  enterKeyHint={isNew ? "next" : "go"}
+                  onKeyDown={isNew ? nextOnEnter : undefined}
                   type={showPass ? "text" : "password"}
                   autoComplete={isNew ? "new-password" : "current-password"}
                   placeholder={isNew ? "Create a password" : "Your password"}
@@ -289,7 +292,7 @@ export default function SignIn() {
               {isNew && (
                 <>
                   <label className="auth-label" htmlFor="pw-confirm">Confirm password</label>
-                  <input id="pw-confirm" className="auth-input" type={showPass ? "text" : "password"} autoComplete="new-password" placeholder="Repeat password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+                  <input id="pw-confirm" className="auth-input" enterKeyHint="go" type={showPass ? "text" : "password"} autoComplete="new-password" placeholder="Repeat password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
                 </>
               )}
               <label className="auth-check-row" style={{ marginTop: 14 }}>

@@ -63,10 +63,11 @@ export type NavGroup = { id: string; label: string; icon: string; members: OpSec
 // toggle (crew page), so a section added to it can never again go missing from one of them.
 export const TODAY_GROUP: NavGroup = { id: "today", label: "Today", icon: "day", members: ["day", "now", "command"] };
 // total tabs on the bar (Today counts — it's pinnable like any lane). Was 4; bumped to 5 (2026-07-29
-// audit) so Events can sit on the owner/admin default bar instead of hiding behind More — see
-// DEFAULT_PINS below. .tab uses flex:1 (globals.css), so a 5th tab just makes each one a hair
-// narrower; nothing breaks at 6 total (5 pins + More) on a normal phone width.
-const MAX_PINS = 5;
+// audit) so Events could sit on the owner/admin default bar. BACK TO 4 (2026-10-08, the iPhone chrome
+// round, approved): with More that made 6 tabs, and an iPhone tab bar holds 5 — More is the fifth. At
+// 402pt each tab is 78pt wide instead of 65, and a lane that steps off the bar is one tap away in More.
+// Pins a person already saved stay saved; the bar shows the first 4 and More lists the rest.
+const MAX_PINS = 4;
 const isSection = (x: string): x is OpSection => (VALID as Set<string>).has(x) || x === "ask";
 export function streamGroups(streams: WorkStream[], role: string): NavGroup[] {
   const allowed = sectionsForRole(role);
@@ -82,10 +83,12 @@ export function streamGroups(streams: WorkStream[], role: string): NavGroup[] {
 // events" + a screenshot of the Service tab, not Events, was the tell. Added, not swapped in over
 // something else — this only touches users who haven't customized their own bar yet (nav_pins is
 // per-user and always wins over this once set), so nobody who already pinned their own 4 loses one.
+// Four each since 2026-10-08 (MAX_PINS): Brand steps back into More for an owner and an admin (Ryan
+// approved the mock that moved it), Production for an event manager.
 const DEFAULT_PINS: Record<string, string[]> = {
-  owner: ["today", "service", "events", "brand", "business"],
-  admin: ["today", "service", "events", "brand", "business"],
-  event_manager: ["today", "events", "service", "brand", "production"],
+  owner: ["today", "service", "events", "business"],
+  admin: ["today", "service", "events", "business"],
+  event_manager: ["today", "events", "service", "brand"],
   operator: ["today", "service", "production", "events"],
   contractor: ["today", "service", "production"],
   server: ["today", "service"],
@@ -267,9 +270,19 @@ function MoreSheet({ lanes, pins, activeId, onOpen, onSettings, onClose, canPin 
           </button>
         </div>
       )}
+      {/* Connect — the rail's links, socials and scan code (2026-10-08, the iPhone chrome round): on a phone
+          the rail is gone, and this row opens them as a sheet (components/HelpSheets). Display and text size
+          are in Settings › You. */}
+      <div className="lane-row">
+        <button type="button" className="lane-open" onClick={() => { onClose(); window.dispatchEvent(new Event("gt3-open-connect")); }}>
+          <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} aria-hidden><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg>
+          <b>Connect with GT3</b>
+          <span className="lane-secs">Links · socials · a code to scan</span>
+        </button>
+      </div>
       <div className="lane-legend"><span className="lane-key"><span className="cc-dot" style={{ background: "var(--red-h)" }} />needs you now</span><span className="lane-key"><span className="cc-dot" style={{ background: "var(--gold2)" }} />open items in a lane</span></div>
-      {/* The bar holds MAX_PINS tabs — 5 since the 2026-07-29 audit. This line said 4 until the
-          settings round (2026-10-06), so "Your bar is full (4)" appeared with five pinned. */}
+      {/* The bar holds MAX_PINS tabs (Today counts) — 4 since 2026-10-08, so with More the bar is an
+          iPhone's 5. The words read the number, never a copy of it. */}
       <div className="lane-hint">{full ? `Your bar is full (${MAX_PINS}) — unpin one first.` : local.length === 0 ? "Nothing pinned — your bar shows the standard set for your role. Pin lanes to make it yours." : `Tap a lane to open it. Pin up to ${MAX_PINS} to your bar — unpin anything, it stays here.`}</div>
       {lanes.map((g) => (
         <div key={g.id} className={`lane-row${activeId === g.id ? " on" : ""}`}>

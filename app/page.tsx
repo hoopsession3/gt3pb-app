@@ -7,6 +7,7 @@ import AccountPill from "@/components/AccountPill";
 import { readMode } from "@/lib/mode";
 import dynamic from "next/dynamic";
 import { markFrontDoor } from "@/lib/viewerHint";
+import { isNativeApp } from "@/lib/native";
 import { useApp } from "@/components/AppProvider";
 import { Masthead, SectionHeader, InfoRow, ClosingBeat } from "@/components/kit";
 import GenerateDay from "@/components/GenerateDay";
@@ -146,7 +147,12 @@ export default function TodayScreen() {
   useEffect(() => {
     // The front door, said on the way out: the welcome splash shows on /truck only for an arrival
     // marked here or by proxy.ts (lib/viewerHint markFrontDoor) — not for a QR or a tab tap.
-    if (!enabled || (ready && !user)) { markFrontDoor(); router.replace("/truck"); }
+    // THE IPHONE APP OPENS ON THE MENU (2026-10-08, the iPhone chrome round, approved): someone who installed
+    // the app came to order, and the app has no front-door ad (components/MarketingSplash).
+    if (!enabled || (ready && !user)) {
+      if (isNativeApp()) { router.replace("/menu"); return; }
+      markFrontDoor(); router.replace("/truck");
+    }
   }, [enabled, ready, user, router]);
   // A staff member opens the app where they left it (lib/mode.ts). Only once the profile has
   // actually loaded: roleOf(null) is "member", so deciding on a loading profile would always say

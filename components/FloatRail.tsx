@@ -62,7 +62,12 @@ export default function FloatRail({ children }: { children: React.ReactNode }) {
   });
 
   return (
-    <div className={`rail${min ? " rail-folded" : ""}${dragging ? " dragging" : ""}`} style={{ bottom: `calc(${bottom}px + env(safe-area-inset-bottom, 0px))` }}>
+    // NOT ON A PHONE (2026-10-08, the iPhone chrome round, approved): on a phone the rail's handle sat on
+    // the content of every screen. There its tabs have homes of their own — Ask us beside the account
+    // button, Connect and Display in the account menu and the crew's More, Display in Settings too — and
+    // the rail stays in the frame (desktop, iPad), where there is room beside the page. Those homes open
+    // their own sheets (components/HelpSheets, Concierge's ConciergeDoor): a folded rail draws no tabs at all.
+    <div className={`rail${min ? " rail-folded" : ""}${dragging ? " dragging" : ""} phone:hidden!`} style={{ bottom: `calc(${bottom}px + env(safe-area-inset-bottom, 0px))` }}>
       {min ? (
         <button type="button" className="rail-open hit-44" onClick={toggle} aria-expanded={false} aria-label="Open quick actions — ask us, connect, display">‹</button>
       ) : (

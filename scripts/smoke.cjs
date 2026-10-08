@@ -6140,7 +6140,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /localStorage\.setItem\(SEEN_KEY, String\(Date\.now\(\)\)\);[^\n]*\n\s*clearFrontDoor\(\);\n\s*setShow\(true\);/.test(splash) && !/takeFrontDoor/.test(splash + hint));
   ok("splash: both hops mark it — proxy.ts on its redirect, app/page.tsx before its own",
     /res\.cookies\.set\(DOOR_COOKIE, "1", \{ path: "\/", maxAge: DOOR_MAX_AGE_S, sameSite: "lax" \}\);/.test(proxy)
-    && /\{ markFrontDoor\(\); router\.replace\("\/truck"\); \}/.test(home));
+    && /markFrontDoor\(\); router\.replace\("\/truck"\);/.test(home));
   const swr = code(read("components/ServiceWorkerRegister.tsx"));
   ok("first visit: the service worker's first claim does not reload the page — only a worker replacing a worker does",
     /let hadController = !!navigator\.serviceWorker\.controller;/.test(swr) && /if \(!hadController\) \{ hadController = true; return; \}/.test(swr)
@@ -7897,10 +7897,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /\{inAdmin && <PullToRefresh \/>\}/.test(read("components/AppShell.tsx")) && /refreshLive\(\)/.test(read("components/PullToRefresh.tsx")));
   ok("haptics: an iPhone before iOS 26.5 ticks (the switch's own haptic) where vibrate does not exist, and nothing buzzes before a tap",
     /input\.setAttribute\("switch", ""\);/.test(read("lib/haptics.ts")) && /navigator\.userActivation && !navigator\.userActivation\.hasBeenActive/.test(read("lib/haptics.ts")));
-  ok("tab bar: the tab you are on, tapped again, goes back to the top", /scrollToTop\(\)/.test(read("components/OperatorNav.tsx")) && /if \(pathname === tab\.href\) \{ e\.preventDefault\(\); scrollToTop\(\); \}/.test(read("components/BottomNav.tsx")));
+  ok("tab bar: the tab you are on, tapped again, goes back to the top", /scrollToTop\(\)/.test(read("components/OperatorNav.tsx")) && /if \(pathname === tab\.href\) \{ e\.preventDefault\(\); scrollToTop\(\); return; \}/.test(read("components/BottomNav.tsx")));
   ok("scroll to top: one home (lib/appScroll) — the tab bars and the order form call it; no copy of it, and not in the crew's panel jumps every guest would carry",
     /export function scrollToTop\(\): void/.test(read("lib/appScroll.ts")) && /document\.getElementById\("body"\)\?\.scrollTo\(\{ top: 0, behavior: "smooth" \}\);/.test(read("lib/appScroll.ts")) && !/scrollToTop/.test(read("lib/anchors.ts"))
-    && ["components/BottomNav.tsx", "components/OperatorNav.tsx", "components/OrderFunnel.tsx"].every((f) => /import \{ scrollToTop \} from "@\/lib\/appScroll";/.test(read(f)))
+    && ["components/BottomNav.tsx", "components/OperatorNav.tsx", "components/OrderFunnel.tsx"].every((f) => /import \{ (?:returnToPlace, )?scrollToTop \} from "@\/lib\/appScroll";/.test(read(f)))
     && !/getElementById\("body"\)\?\.scrollTo\(\{ top: 0/.test(read("components/OrderFunnel.tsx")));
   ok("viewer: a product's photos follow the finger down, and a pull is neither a tap nor a hold (no \"Paused\" riding down with it)", /useGesture\(stageRef, \{/.test(read("components/StoryViewer.tsx")) && /if \(pulled\.current\) \{ pulled\.current = false; return; \}/.test(read("components/StoryViewer.tsx"))
     && /if \(!pulled\.current\) \{ pulled\.current = true; clearHold\(\); setPaused\(false\); \}/.test(read("components/StoryViewer.tsx")));
@@ -8060,7 +8060,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /\{own\.map\(\(l, i\) => <PageTick key=\{i\} level=\{l \|\| null\} \/>\)\}/.test(sp)
     && (sp.match(/haptic\(/g) || []).length === 1 && !/haptic\(/.test(read("components/PagerMotion.tsx")));
   ok("tabs: a tab bar ticks when the tab changes — not when the tab you are on is tapped again (that goes back to the top)",
-    /onClick=\{\(e\) => \{ if \(pathname === tab\.href\) \{ e\.preventDefault\(\); scrollToTop\(\); \} else if \(!on\) haptic\("selection"\); \}\}/.test(read("components/BottomNav.tsx"))
+    /onClick=\{\(e\) => \{ if \(pathname === tab\.href\) \{ e\.preventDefault\(\); scrollToTop\(\); return; \} returnToPlace\(\); if \(!on\) haptic\("selection"\); \}\}/.test(read("components/BottomNav.tsx"))
     // currentId, not activeGroup.id (2026-10-06, the settings round): in Settings no lane is current,
     // so a lane tapped from there is a change and ticks.
     && /const openGroup = \(g: NavGroup\) => \{\s+if \(g\.id !== currentId\) haptic\("selection"\);/.test(code(read("components/OperatorNav.tsx"))));
@@ -8183,9 +8183,16 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /const on = currentId === g\.id;/.test(nav) && !/const on = activeGroup\.id === g\.id;/.test(nav));
   ok("settings door: no default lane holds Settings — which is why the lane lookup fell through to Today",
     !/sections: \[[^\]]*"settings"/.test(code(read("lib/streams.ts"))));
-  ok("settings door: More's copy counts the bar it has — MAX_PINS (5), not the 4 it said",
-    !/bar is full \(4\)/.test(nav) && !/Pin up to 4/.test(nav) && /`Your bar is full \(\$\{MAX_PINS\}\)/.test(nav) && /Pin up to \$\{MAX_PINS\} to your bar/.test(nav)
-    && /const MAX_PINS = 5;/.test(nav));
+  ok("settings door: More's copy counts the bar it has — it reads MAX_PINS, never a number typed beside it",
+    !/bar is full \(\d\)/.test(nav) && !/Pin up to \d/.test(nav) && /`Your bar is full \(\$\{MAX_PINS\}\)/.test(nav) && /Pin up to \$\{MAX_PINS\} to your bar/.test(nav));
+  // AN IPHONE TAB BAR HOLDS FIVE (2026-10-08, the iPhone chrome round, approved): Today + 3 lanes + More.
+  // Every role's default bar fits the cap, so nobody's bar is cut short on the first open.
+  {
+    const cap = Number((nav.match(/const MAX_PINS = (\d+);/) || [])[1]);
+    const defs = [...((nav.match(/const DEFAULT_PINS[^=]*= \{([\s\S]*?)\n\};/) || [])[1] || "").matchAll(/(\w+): \[([^\]]*)\]/g)].map((m) => ({ role: m[1], n: (m[2].match(/"/g) || []).length / 2 }));
+    ok("crew bar: at most 5 tabs with More — MAX_PINS is 4 (Today counts)", cap === 4, `MAX_PINS ${cap}`);
+    ok("crew bar: every role's default bar fits the cap", defs.length >= 6 && defs.every((d) => d.n <= cap), JSON.stringify(defs));
+  }
 
   // ── the page: every section, every panel, every gate — held to lib/settingsLayout ──
   const sh = pg.slice(pg.indexOf("function SettingsHome("), pg.indexOf("\n}\n", pg.indexOf("function SettingsHome(")));
@@ -9226,6 +9233,43 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /if \(status === "declined" && !resolution\) \{ toast\("Say why — the client reads it", "error"\); return; \}/.test(crew3)
     && /if \(reqs\.error && !isMissingTable\(reqs\.error\)\) throw new Error\(reqs\.error\.message\);/.test(crew3) && /useRealtimeTable\("company_requests", reload\);/.test(crew3)
     && /\{clientChanges\(o\)\.length > 0 && <div className="oo-addr text-gold2">Client: \{clientChanges\(o\)\.join\(" · "\)\}<\/div>\}/.test(crew3));
+}
+
+// ── THE IPHONE CHROME (2026-10-08, approved: proposals 1, 4, 8 and 9 of the UX round) ──────────────────
+{
+  const read = (f) => require("node:fs").readFileSync(require("node:path").join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  const shell = code(read("components/AppShell.tsx")), bottom = read("components/BottomNav.tsx"), scroll = read("lib/appScroll.ts");
+  ok("each tab keeps its place: the shell records each screen's scroll under its path and restores it on a return",
+    /export function returnToPlace\(\): void/.test(scroll) && /export function placeFor\(key: string\): number/.test(scroll) && /export function restorePlace\(body: HTMLElement, top: number\)/.test(scroll)
+    && /useLayoutEffect\(\(\) => \{\s+placeKey\.current = pathname;/.test(shell) && /return restorePlace\(body, placeFor\(pathname\)\);/.test(shell)
+    && /keepPlace\(placeKey\.current, body\.scrollTop\)/.test(shell));
+  ok("each tab keeps its place: a tab tap and a step through history are returns; a same-path history step (a crew section) is not",
+    /returnToPlace\(\); if \(!on\) haptic\("selection"\);/.test(bottom) && /if \(window\.location\.pathname !== placeKey\.current\) returnToPlace\(\);/.test(shell));
+  ok("no floating chrome on a phone: the rail and the quick-actions button are hidden there, not unmounted",
+    /phone:hidden!/.test(read("components/FloatRail.tsx")) && /className=\{`qd-fab\$\{open \? " open" : ""\} phone:hidden!`\}/.test(read("components/QuickDock.tsx"))
+    && /@custom-variant phone \(@media not all and \(min-width: 520px\) and \(min-height: 640px\)\);/.test(read("app/tailwind.css"))
+    && /@custom-variant frame \(@media \(min-width: 520px\) and \(min-height: 640px\)\);/.test(read("app/tailwind.css")));
+  ok("no floating chrome on a phone: each of their doors exists — ✦ in the crew header, Ask us beside the avatar, Connect and Display in the menus",
+    /<IconButton icon="sparkles"[^>]*className="frame:hidden!"[^>]*onClick=\{\(\) => window\.dispatchEvent\(new Event\("gt3-quick-do"\)\)\}/.test(read("app/crew/page.tsx"))
+    && /className="acct-av hit-44 text-gold2 frame:hidden!"/.test(read("components/AccountPill.tsx")) && /new Event\("gt3-open-concierge"\)/.test(read("components/AccountPill.tsx"))
+    && /export const HELP_EVENTS = \["gt3-open-concierge", "gt3-open-connect", "gt3-open-display"\] as const;/.test(read("lib/helpSheets.ts"))
+    && /for \(const t of HELP_EVENTS\) window\.addEventListener\(t, onAsk\);/.test(shell) && /\{asked && !isShare && <HelpSheets asked=\{asked\} \/>\}/.test(shell)
+    && /<ConciergeChat open=\{open === "gt3-open-concierge"\} onClose=\{close\} \/>/.test(read("components/HelpSheets.tsx"))
+    && (read("components/AccountSheet.tsx").match(/<HelpRows onClose=\{onClose\}/g) || []).length === 2
+    && /new Event\("gt3-open-connect"\)/.test(read("components/OperatorNav.tsx")));
+  ok("one body, two doors: the rail's Connect popout and the sheet draw the same ConnectBody (and the concierge, ConciergeChat)",
+    /export function ConnectBody\(\{ onGo \}/.test(read("components/ConnectHub.tsx")) && /<ConnectBody onGo=\{\(\) => setOpen\(false\)\} \/>/.test(read("components/ConnectHub.tsx")) && /<ConnectBody onGo=\{close\} \/>/.test(read("components/HelpSheets.tsx"))
+    && /export function ConciergeChat\(\{ open, onClose \}/.test(read("components/Concierge.tsx")) && /<ConciergeChat open=\{open\} onClose=\{\(\) => setOpen\(false\)\} \/>/.test(read("components/Concierge.tsx")));
+  ok("the keyboard's bar: the app turns the ‹ › Done bar back on (the plugin hides it)",
+    /registerPlugin<\{ setAccessoryBarVisible\(o: \{ isVisible: boolean \}\): Promise<void> \}>\("Keyboard"\)/.test(read("components/NativeBridge.tsx")) && /Keyboard\.setAccessoryBarVisible\(\{ isVisible: true \}\)/.test(read("components/NativeBridge.tsx")));
+  const hinted = (f) => (read(f).match(/enterKeyHint=/g) || []).length;
+  ok("Return says what it does: next moves to the next field; the last field sends",
+    /export function nextOnEnter\(e: KeyboardEvent<HTMLInputElement>\): void/.test(read("lib/formKeys.ts"))
+    && hinted("app/book/page.tsx") >= 5 && hinted("components/SignIn.tsx") >= 6 && hinted("components/AuthProvider.tsx") >= 2 && /enterKeyHint="send"/.test(read("components/Concierge.tsx")));
+  ok("the KPI board's fields are 16px — an iPhone zooms into anything smaller", /\.kpib-in input\{width:104px;[^}]*font-size:16px;/.test(read("app/globals.css")));
+  ok("the iPhone app opens on the menu, with no front-door ad",
+    /if \(isNativeApp\(\)\) \{ router\.replace\("\/menu"\); return; \}/.test(read("app/page.tsx")) && /if \(isNativeApp\(\)\) return;/.test(read("components/MarketingSplash.tsx")));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

@@ -267,31 +267,34 @@ export const SHIFT = {
 // under 10 now, /display included — its text is in vmin for a TV, and on a phone its smallest tier
 // used to resolve to 6.63px; max(10px, …) on those tiers is what brought it to 10. 26 is the folded
 // rail handle, 26 wide by 56 tall. /playbook's null: owner-only, and a guest's body paints no text to measure.
+// 2026-10-08 (the iPhone chrome round): every tap floor up from 26 — the rail's handle is not on a phone any more
+// (components/FloatRail), so the smallest target is the page's own: the footer's Privacy link (43.6), a 44pt field,
+// the tab bar's 49pt tabs, /3mpire's Share invite (42). Measured on this commit's build.
 // Floors say "not smaller than this", not "this is fine".
 export const ROUTE = {
-  "/":              { depth: 2, tap: 26, text: 10 },
-  "/truck":         { depth: 2, tap: 26, text: 10 },
-  "/events":        { depth: 2, tap: 26, text: 10 },
-  "/menu":          { depth: 2, tap: 26, text: 10 },
-  "/reserve":       { depth: 2, tap: 26, text: 10 },
-  "/delivery":      { depth: 1, tap: 26, text: 10 },
-  "/3mpire":        { depth: 2, tap: 26, text: 10 },
-  "/craft":         { depth: 2, tap: 26, text: 10 },
-  "/book":          { depth: 1, tap: 26, text: 10 },
-  "/shop":          { depth: 2, tap: 26, text: 10 },
-  "/primal":        { depth: 1, tap: 26, text: 10 },
-  "/office":        { depth: 1, tap: 26, text: 10 },
-  "/academy":       { depth: 0, tap: 26, text: 11 },
-  "/scan":          { depth: 0, tap: 26, text: 10 },
-  "/architecture":  { depth: 0, tap: 26, text: 10 },
-  "/playbook":      { depth: 0, tap: 26, text: null },
-  "/driver":        { depth: 0, tap: 26, text: 32 },
-  "/agreement":     { depth: 1, tap: 26, text: 11 },
-  "/offer":         { depth: 1, tap: 26, text: 11 },
+  "/":              { depth: 2, tap: 43.6, text: 10 },
+  "/truck":         { depth: 2, tap: 43.6, text: 10 },
+  "/events":        { depth: 2, tap: 43.6, text: 10 },
+  "/menu":          { depth: 2, tap: 43.6, text: 10 },
+  "/reserve":       { depth: 2, tap: 43.6, text: 10 },
+  "/delivery":      { depth: 1, tap: 43.6, text: 10 },
+  "/3mpire":        { depth: 2, tap: 42, text: 10 },
+  "/craft":         { depth: 2, tap: 43.6, text: 10 },
+  "/book":          { depth: 1, tap: 43.6, text: 10 },
+  "/shop":          { depth: 2, tap: 43.6, text: 10 },
+  "/primal":        { depth: 1, tap: 43.6, text: 10 },
+  "/office":        { depth: 1, tap: 43.6, text: 10 },
+  "/academy":       { depth: 0, tap: 49, text: 11 },
+  "/scan":          { depth: 0, tap: 43.6, text: 10 },
+  "/architecture":  { depth: 0, tap: 43.6, text: 10 },
+  "/playbook":      { depth: 0, tap: 49, text: null },
+  "/driver":        { depth: 0, tap: 49, text: 32 },
+  "/agreement":     { depth: 1, tap: 44, text: 11 },
+  "/offer":         { depth: 1, tap: 44, text: 11 },
   "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 34, text: 10 },
-  "/display":       { depth: 1, tap: 26, text: 10 },
-  "/privacy":       { depth: 0, tap: 26, text: 14 },
-  "/terms":         { depth: 0, tap: 26, text: 14 },
+  "/display":       { depth: 1, tap: 49, text: 10 },
+  "/privacy":       { depth: 0, tap: 49, text: 14 },
+  "/terms":         { depth: 0, tap: 49, text: 14 },
 };
 
 // ── THE SAME ROUTES, ON PRODUCTION, WITH DATA — read by scripts/verify.prod.mjs ─────────────────
@@ -302,30 +305,33 @@ export const ROUTE = {
 // the sign-in wall on /academy, /playbook and /driver is a box the guest build renders as nothing.
 // /3mpire measures SHALLOWER with data (1, not 2): the empty state's placeholder card is gone.
 // Two tables, two subjects — the same reason the fixture is measured in two themes.
+// 2026-10-08 (the iPhone chrome round): tap floors re-measured on app.gt3pb.com at 390px with the rail hidden, as
+// this commit hides it on a phone, and the tab bar's tabs at their new 49pt: Find Us's map zoom buttons (30) on
+// /, /truck and /events, the footer's Privacy link (43.6), a 44pt field on the sign-in walls, a tab (49).
 export const PROD_ROUTE = {
-  "/":              { depth: 2, tap: 26, text: 10 },
-  "/truck":         { depth: 2, tap: 26, text: 10 },
-  "/events":        { depth: 2, tap: 26, text: 10 },
-  "/menu":          { depth: 2, tap: 26, text: 10 },
-  "/reserve":       { depth: 2, tap: 26, text: 10 },
-  "/delivery":      { depth: 2, tap: 26, text: 10 },
-  "/3mpire":        { depth: 1, tap: 26, text: 11 },
-  "/craft":         { depth: 2, tap: 26, text: 10 },
-  "/book":          { depth: 1, tap: 26, text: 10 },
-  "/shop":          { depth: 2, tap: 26, text: 10 },
-  "/primal":        { depth: 2, tap: 26, text: 10 },
-  "/office":        { depth: 1, tap: 26, text: 11 },
-  "/academy":       { depth: 1, tap: 26, text: 11 },
-  "/scan":          { depth: 0, tap: 26, text: 10 },
-  "/architecture":  { depth: 0, tap: 26, text: 10 },
-  "/playbook":      { depth: 1, tap: 26, text: 11 },
-  "/driver":        { depth: 1, tap: 26, text: 11 },
-  "/agreement":     { depth: 1, tap: 26, text: 11 },
-  "/offer":         { depth: 1, tap: 26, text: 11 },
+  "/":              { depth: 2, tap: 30, text: 10 },
+  "/truck":         { depth: 2, tap: 30, text: 10 },
+  "/events":        { depth: 2, tap: 30, text: 10 },
+  "/menu":          { depth: 2, tap: 43.6, text: 10 },
+  "/reserve":       { depth: 2, tap: 43.6, text: 10 },
+  "/delivery":      { depth: 2, tap: 43.6, text: 10 },
+  "/3mpire":        { depth: 1, tap: 44, text: 11 },
+  "/craft":         { depth: 2, tap: 43.6, text: 10 },
+  "/book":          { depth: 1, tap: 43.6, text: 10 },
+  "/shop":          { depth: 2, tap: 43.6, text: 10 },
+  "/primal":        { depth: 2, tap: 43.6, text: 10 },
+  "/office":        { depth: 1, tap: 44, text: 11 },
+  "/academy":       { depth: 1, tap: 44, text: 11 },
+  "/scan":          { depth: 0, tap: 43.6, text: 10 },
+  "/architecture":  { depth: 0, tap: 43.6, text: 10 },
+  "/playbook":      { depth: 1, tap: 49, text: 11 },
+  "/driver":        { depth: 1, tap: 44, text: 11 },
+  "/agreement":     { depth: 1, tap: 44, text: 11 },
+  "/offer":         { depth: 1, tap: 44, text: 11 },
   "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 34, text: 10 },
-  "/display":       { depth: 1, tap: 26, text: 10 },
-  "/privacy":       { depth: 0, tap: 26, text: 14 },
-  "/terms":         { depth: 0, tap: 26, text: 14 },
+  "/display":       { depth: 1, tap: 49, text: 10 },
+  "/privacy":       { depth: 0, tap: 49, text: 14 },
+  "/terms":         { depth: 0, tap: 49, text: 14 },
 };
 
 // ── WEIGHT — what a phone downloads for each route, cold, from the local build (KB on the wire) ──
@@ -510,30 +516,36 @@ export const PROD_ROUTE = {
 // /academy 324 987 → 325 174, /craft 270 099 → 270 221), which crossed the rounding line on these two. What rides
 // in the shell, for everyone: a sheet gives focus back to the button that opened it when it closes (the opener is
 // read before a field inside autofocuses), and the 44pt tap areas are class names on the controls that need them.
+// 2026-10-08 (the iPhone chrome round): fourteen routes 2–3 KB lighter, nine under 1 KB heavier. Built 571dbec and this
+// commit and gzipped what each route's HTML references: the account menu and the profile sheet load on the tap that
+// opens them now (components/AccountPill) — -1 877 to -2 664 bytes on every route that shows the avatar; and the shell,
+// for everyone, +855 to +922 bytes: each tab keeps its place (lib/appScroll), the ear for the menus' sheets (which
+// load on the first ask — lib/helpSheets), and Return's next-field move (lib/formKeys). Crossed the rounding line
+// upward on /architecture, /agreement, /offer, /display, /privacy, /terms and /built.
 export const WEIGHT = {
-  "/truck":                    { js: 280, css: 102, chunks: 15 },
-  "/events":                   { js: 280, css: 102, chunks: 15 },
-  "/menu":                     { js: 265, css:  99, chunks: 15 },
-  "/reserve":                  { js: 288, css:  99, chunks: 16 },
-  "/delivery":                 { js: 287, css:  99, chunks: 16 },
-  "/3mpire":                   { js: 280, css:  99, chunks: 15 },
-  "/craft":                    { js: 264, css:  99, chunks: 15 },
-  "/book":                     { js: 264, css:  99, chunks: 15 },
+  "/truck":                    { js: 278, css: 102, chunks: 15 },
+  "/events":                   { js: 278, css: 102, chunks: 15 },
+  "/menu":                     { js: 262, css:  99, chunks: 15 },
+  "/reserve":                  { js: 286, css:  99, chunks: 16 },
+  "/delivery":                 { js: 285, css:  99, chunks: 16 },
+  "/3mpire":                   { js: 278, css:  99, chunks: 15 },
+  "/craft":                    { js: 261, css:  99, chunks: 15 },
+  "/book":                     { js: 262, css:  99, chunks: 15 },
   "/academy":                  { js: 318, css:  99, chunks: 16 },
-  "/office":                   { js: 278, css:  99, chunks: 15 },
+  "/office":                   { js: 276, css:  99, chunks: 15 },
   "/scan":                     { js: 260, css:  99, chunks: 15 },
-  "/architecture":             { js: 269, css:  99, chunks: 15 },
-  "/playbook":                 { js: 272, css:  99, chunks: 15 },
-  "/driver":                   { js: 276, css: 102, chunks: 15 },
-  "/agreement":                { js: 267, css:  99, chunks: 15 },
-  "/offer":                    { js: 277, css:  99, chunks: 15 },
-  "/built/gt3-built-k7m9x4q2": { js: 258, css:  99, chunks: 15 },
-  "/display":                  { js: 260, css:  99, chunks: 15 },
-  "/shop":                     { js: 292, css:  99, chunks: 16 },
-  "/primal":                   { js: 265, css:  99, chunks: 15 },
-  "/privacy":                  { js: 257, css:  99, chunks: 14 },
-  "/terms":                    { js: 257, css:  99, chunks: 14 },
-  "/":                         { js: 270, css:  99, chunks: 15 },
+  "/architecture":             { js: 270, css:  99, chunks: 15 },
+  "/playbook":                 { js: 270, css:  99, chunks: 15 },
+  "/driver":                   { js: 274, css: 102, chunks: 15 },
+  "/agreement":                { js: 268, css:  99, chunks: 15 },
+  "/offer":                    { js: 278, css:  99, chunks: 15 },
+  "/built/gt3-built-k7m9x4q2": { js: 259, css:  99, chunks: 15 },
+  "/display":                  { js: 261, css:  99, chunks: 15 },
+  "/shop":                     { js: 290, css:  99, chunks: 16 },
+  "/primal":                   { js: 263, css:  99, chunks: 15 },
+  "/privacy":                  { js: 258, css:  99, chunks: 14 },
+  "/terms":                    { js: 258, css:  99, chunks: 14 },
+  "/":                         { js: 268, css:  99, chunks: 15 },
 };
 
 export function weightVerdict(path, w, row = WEIGHT[path]) {

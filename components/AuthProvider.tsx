@@ -7,6 +7,7 @@ import { writeViewerHint } from "@/lib/viewerHint";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import type { Role } from "@/lib/roles";
 import { publicOrigin } from "@/lib/native";
+import { nextOnEnter } from "@/lib/formKeys";
 
 export interface Profile {
   id: string;
@@ -346,11 +347,11 @@ function PasswordRecovery({ updatePassword, onCancel }: { updatePassword: AuthCt
               <p className="auth-sub">Pick a new password for your account. At least 8 characters.</p>
               <label className="auth-label" htmlFor="rec-pass">New password</label>
               <div className="auth-pass-wrap">
-                <input id="rec-pass" className="auth-input" type={show ? "text" : "password"} autoComplete="new-password" placeholder="New password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoFocus />
+                <input id="rec-pass" className="auth-input" enterKeyHint="next" onKeyDown={nextOnEnter} type={show ? "text" : "password"} autoComplete="new-password" placeholder="New password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoFocus />
                 <button type="button" className="auth-show-pass" onClick={() => setShow((v) => !v)} tabIndex={-1}>{show ? "Hide" : "Show"}</button>
               </div>
               <label className="auth-label" htmlFor="rec-confirm">Confirm password</label>
-              <input id="rec-confirm" className="auth-input" type={show ? "text" : "password"} autoComplete="new-password" placeholder="Repeat password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+              <input id="rec-confirm" className="auth-input" enterKeyHint="go" type={show ? "text" : "password"} autoComplete="new-password" placeholder="Repeat password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
               {err && <div className="auth-err">{err}</div>}
               <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}><span>{busy ? "Saving…" : "Save new password"}</span></button>
               <button type="button" className="auth-link hit-44" onClick={close} style={{ marginTop: 10 }}>Cancel</button>

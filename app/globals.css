@@ -472,7 +472,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 /* bottom lifts above the FAB tier so fixed chrome never collides (CSS audit pack 2 2026-07) */
 .sw-update{position:absolute;left:44px;right:44px;bottom:82px;display:flex;align-items:center;justify-content:center;gap:9px;padding:12px 16px;border:none;border-radius:13px;background:#15110d;border:1px solid var(--gold2);color:var(--gold2);font-family:'Inter';font-weight:650;font-size:13px;cursor:pointer;z-index:70;box-shadow:0 10px 30px rgba(0,0,0,.5);-webkit-appearance:none;appearance:none}
 .sw-update-dot{width:8px;height:8px;border-radius:50%;background:var(--gold2);box-shadow:0 0 0 4px rgba(184,144,47,.2)}
-.nav{order:10;/* last in the column even when the expanded rail joins the flow on a phone (see THE RAIL ON A PHONE) */flex:0 0 auto;display:flex;background:rgba(15,14,11,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:9px 6px calc(10px + env(safe-area-inset-bottom));z-index:30}
+.nav{order:10;/* last in the column even when the expanded rail joins the flow on a phone (see THE RAIL ON A PHONE) */flex:0 0 auto;display:flex;background:rgba(15,14,11,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:0 6px env(safe-area-inset-bottom);z-index:30}
 /* Keyboard up (iOS): Safari pans the page so its input-accessory bar lands where the nav sits —
    tabs + float rail ghost through the OS chrome. Both are untappable mid-typing; visibility (not
    display) keeps the flex column's height stable under the pan. AppShell toggles html.kb-open. */
@@ -482,7 +482,7 @@ html.kb-open .nav,html.kb-open .rail,html.kb-open .fab-dock{visibility:hidden}
    by app/layout.tsx, picks one. No attribute (no Supabase, or no script) is the member shape. */
 html[data-viewer="guest"] .tab[data-for="member"]{display:none}
 html:not([data-viewer="guest"]) .tab[data-for="guest"]{display:none}
-.tab{position:relative;flex:1;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 2px;color:var(--cream);opacity:.6;cursor:pointer;text-decoration:none;transition:opacity .15s,transform .1s;-webkit-appearance:none;appearance:none;background:none;border:none;font:inherit}
+.tab{position:relative;flex:1;min-height:49px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:4px 2px 3px;color:var(--cream);opacity:.6;cursor:pointer;text-decoration:none;transition:opacity .15s,transform .1s;-webkit-appearance:none;appearance:none;background:none;border:none;font:inherit}
 .tab.on{opacity:1}.tab.on .ti{color:var(--red)}
 /* active-tab marker — a short bar at the top edge (the highest-frequency element gets a real state) */
 .tab.on::after{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);width:18px;height:2px;border-radius:0 0 2px 2px;background:var(--red)}
@@ -6808,7 +6808,7 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .kpib-v{font-family:'DM Mono',ui-monospace,monospace;font-size:13px;color:var(--cream);display:flex;align-items:center;gap:5px}
 .kpib-t{font-style:normal;color:var(--ok)}.kpib-t.down{color:var(--warn)}
 .kpib-in{display:flex;gap:6px}
-.kpib-in input{width:76px;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:6px 9px;color:var(--cream);font-family:'DM Mono',ui-monospace,monospace;font-size:12px;outline:none}
+.kpib-in input{width:104px;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:7px 10px;color:var(--cream);font-family:'DM Mono',ui-monospace,monospace;font-size:16px;outline:none}
 .kpib-in button{background:color-mix(in srgb, var(--brand-gold2) 10%, transparent);border:1px solid var(--gold2);border-radius:9px;padding:6px 11px;color:var(--gold2);font-family:'Inter';font-weight:700;font-size:11px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .kpib-in button:disabled{opacity:.45;cursor:default}
 /* Day surfaces for rows whose night fill is see-through black (2026-10-07). */

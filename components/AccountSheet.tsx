@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth, roleOf } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import Sheet from "@/components/Sheet";
@@ -10,6 +10,8 @@ import Gt3Mark from "@/components/Gt3Mark";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
+import { readEditMode, writeEditMode } from "@/lib/editModeToggle";
+import { showsCommerce, surfaceOf } from "@/lib/surfaces";
 import type { Order } from "@/lib/db";
 
 // THE account popout — a MENU, reachable from the avatar on every page.
@@ -41,6 +43,45 @@ function Coconut() {
       <circle cx="14.7" cy="10.4" r="1.3" fill="#2a1810" />
       <circle cx="12" cy="14.3" r="1.3" fill="#2a1810" />
     </svg>
+  );
+}
+
+// HELP AND DISPLAY (2026-10-08, the iPhone chrome round, approved). The floating rail held these on every
+// page; on a phone it is gone, and they are rows here — for a guest too. Each opens its own sheet
+// (Ask us: components/Concierge; Connect and Display: components/HelpSheets) as this menu closes. In the
+// frame the rail still has them as well: a menu that lists its help is never wrong.
+function HelpRows({ onClose, owner }: { onClose: () => void; owner: boolean }) {
+  const ask = showsCommerce(surfaceOf(usePathname()));
+  const open = (event: string) => { onClose(); window.dispatchEvent(new Event(event)); };
+  // Read when the menu opens (it is drawn in the browser only, after a tap), so no effect is needed.
+  const [editing, setEditing] = useState(readEditMode);
+  return (
+    <>
+      <div className="acs-group">Help &amp; display</div>
+      <div className="acs-rows">
+        {ask && (
+          <button type="button" className="acs-row" onClick={() => open("gt3-open-concierge")}>
+            <span className="acs-row-x"><b>Ask us</b><span>The menu, the truck&rsquo;s hours, booking</span></span>
+            <span className="acs-row-c" aria-hidden>›</span>
+          </button>
+        )}
+        <button type="button" className="acs-row" onClick={() => open("gt3-open-connect")}>
+          <span className="acs-row-x"><b>Connect with GT3</b><span>Links, socials &amp; a code to scan</span></span>
+          <span className="acs-row-c" aria-hidden>›</span>
+        </button>
+        <button type="button" className="acs-row" onClick={() => open("gt3-open-display")}>
+          <span className="acs-row-x"><b>Display &amp; text size</b><span>Bigger text, bold, roomier spacing</span></span>
+          <span className="acs-row-c" aria-hidden>›</span>
+        </button>
+        {/* The owner's on-page copy editing (components/EditableCopy), the rail's Edit copy switch. */}
+        {owner && (
+          <button type="button" className="acs-row" aria-pressed={editing} onClick={() => { const next = !editing; setEditing(next); writeEditMode(next); }}>
+            <span className="acs-row-x"><b>Edit copy on pages</b><span>{editing ? "On — tap any text to change it" : "Off — turn on to change words on a page"}</span></span>
+            <span className="acs-row-c" aria-hidden>{editing ? "On" : "Off"}</span>
+          </button>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -92,6 +133,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
           <p>Sign in to earn stamps, track your orders, and carry your GT3 member card.</p>
           <button type="button" className="acs-cta" onClick={() => go("/3mpire")}>Sign in</button>
         </div>
+        <HelpRows onClose={onClose} owner={false} />
       </Sheet>
     );
   }
@@ -180,6 +222,8 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
           <span className="acs-row-c" aria-hidden>›</span>
         </button>
       </div>
+
+      <HelpRows onClose={onClose} owner={role === "owner"} />
 
       <button type="button" className="acs-signout" onClick={() => { onClose(); signOut(); toast("Signed out"); }}>Sign out</button>
     </Sheet>

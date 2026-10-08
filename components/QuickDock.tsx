@@ -82,7 +82,9 @@ export default function QuickDock() {
 
   return (
     <>
-      <button type="button" className={`qd-fab${open ? " open" : ""}`} onClick={() => setOpen((o) => !o)} aria-label={open ? "Close quick actions" : "Quick actions — run a copilot, ask GT3, take a note, or log a purchase"}>
+      {/* On a phone the button is the crew header's ✦, beside search (2026-10-08, the iPhone chrome round):
+          floating, it sat over the content of every crew screen. The frame keeps it. */}
+      <button type="button" className={`qd-fab${open ? " open" : ""} phone:hidden!`} onClick={() => setOpen((o) => !o)} aria-label={open ? "Close quick actions" : "Quick actions — run a copilot, ask GT3, take a note, or log a purchase"}>
         {open ? <Icon name="close" /> : <Icon name="sparkles" />}
       </button>
 

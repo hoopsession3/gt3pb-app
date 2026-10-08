@@ -128,6 +128,14 @@ export default function NativeBridge() {
       ]);
       if (cancelled) return;
 
+      // THE KEYBOARD'S BAR (2026-10-08, the iPhone chrome round, approved): the keyboard plugin hides the
+      // ‹ › Done bar above the keyboard unless told otherwise, so a number pad had no way to close but a tap
+      // somewhere else, and a long form had no Next. An iPhone keyboard on a web form has that bar. The one
+      // call is made through registerPlugin, not the plugin's package: importing that would bring its types,
+      // which say capacitor.config.ts's resize: "native" in an enum's words instead.
+      const Keyboard = registerPlugin<{ setAccessoryBarVisible(o: { isVisible: boolean }): Promise<void> }>("Keyboard");
+      void Keyboard.setAccessoryBarVisible({ isVisible: true }).catch(() => {});
+
       // Haptics: one step of a feel at a time (lib/haptics owns the table).
       const IMPACT = { LIGHT: ImpactStyle.Light, MEDIUM: ImpactStyle.Medium, HEAVY: ImpactStyle.Heavy } as const;
       const NOTE = { SUCCESS: NotificationType.Success, WARNING: NotificationType.Warning, ERROR: NotificationType.Error } as const;

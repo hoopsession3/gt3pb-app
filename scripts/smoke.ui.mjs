@@ -264,14 +264,16 @@ try {
     } catch (e) { weightErrors.push(`${route.path}: ${String(e.message).slice(0, 120)}`); }
   }
 
-  // 6) THE RAIL, EXPANDED, ON A PHONE — WITH A DRINK IN THE CART (2026-10-02). Every route above is
-  //    measured with the rail folded, its resting state. Expanded, it is a toolbar in the layout
-  //    between the cart bar and the nav: this walks the one path that makes money — tap a drink,
-  //    add it, open the rail — and holds the stylesheet to what it promises. Measured, because the
-  //    first docked version opened the Display panel 117px off the left of the screen (the tab's
-  //    rise animation was the popout's containing block for 900ms) and the second sat exactly on
-  //    the cart bar, so "Review 1 drink" could not be tapped with the rail open. Nothing but a
-  //    measurement sees either.
+  // 6) THE ORDER PATH ON A PHONE, AND THE RAIL IN THE FRAME (2026-10-02; reworked 2026-10-08, the iPhone
+  //    chrome round). This walks the one path that makes money — tap a drink, add it, open the checkout.
+  //    ON A PHONE there is no rail and no floating button (components/FloatRail, QuickDock): Ask us is the
+  //    button beside the account avatar, and Connect and Display are rows in the account menu, each opening
+  //    its own sheet — measured: each opens, on screen, and the checkout still opens from the cart bar.
+  //    IN THE FRAME the rail stays. At 600×900, the narrowest frame, the expanded rail is still the toolbar
+  //    it became on 2026-10-02 (app/globals.css, THE RAIL ON A PHONE IS A TOOLBAR), so it is measured there
+  //    as it was: the first docked version opened the Display panel 117px off the left of the screen, and
+  //    the second sat exactly on the cart bar, so "Review 1 drink" could not be tapped with the rail open.
+  //    Nothing but a measurement sees either.
   {
     const rp = await phone.newPage();
     try {
@@ -279,51 +281,85 @@ try {
       try { await rp.waitForLoadState("networkidle", { timeout: 4000 }); } catch { /* settled enough */ }
       await sleep(500);
       const box = async (sel) => rp.$eval(sel, (el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right, bottom: r.bottom }; }).catch(() => null);
+      const shown = async (sel) => rp.$eval(sel, (el) => { const cs = getComputedStyle(el); const r = el.getBoundingClientRect(); return cs.display !== "none" && cs.visibility !== "hidden" && r.width > 0 && r.height > 0; }).catch(() => false);
+      const closeSheet = async () => { await rp.keyboard.press("Escape"); try { await rp.waitForSelector(".sheet2-scrim", { state: "detached", timeout: 3000 }); } catch { /* judged by the next check */ } await sleep(200); };
       // the order path: a drink opens its sheet, "Add to order" puts it in the cart bar
       await rp.click(".entry"); await sleep(500);
       ok("order · tapping a drink opens its sheet", !!(await rp.$("#drink-sheet-title")));
       // THE SHEET THAT NEVER LEFT (components/Sheet.tsx, 2026-10-02): closing a sheet by tapping
-      // outside it left the scrim mounted for ever and `body:has(.sheet2-scrim)` hid the rail for the
-      // rest of the visit. Measured on production before the fix: the ‹ handle gone after one drink.
+      // outside it left the scrim mounted for ever. Measured on production before the fix.
       await rp.mouse.click(200, 40);
       try { await rp.waitForSelector(".sheet2-scrim", { state: "detached", timeout: 3000 }); } catch { /* judged below */ }
       ok("sheet · tapping outside a drink's sheet removes it — scrim and all", !(await rp.$(".sheet2-scrim")));
-      const handle = await box(".rail-open");
-      ok("sheet · …and the rail handle is still painted afterwards", !!handle && handle.h > 0, handle ? "the rail is in the DOM but hidden — a stale scrim" : "no rail handle");
+      ok("phone · no floating rail and no floating button on a phone", !(await shown(".rail")) && !(await shown(".qd-fab")) && !(await shown(".conc-fab")));
       await rp.click(".entry"); await sleep(500);
       await rp.click(".order-bar"); await sleep(600);
       const cartText = await rp.$eval(".cartbar", (e) => e.textContent).catch(() => "");
       ok("order · adding it shows the cart bar with one drink and its price", /1 drink/.test(cartText) && /\$\d/.test(cartText), cartText);
-      await rp.click(".rail-open");
-      await sleep(120);   // on purpose: inside the old animation window
-      const rail = await box(".rail"), nav = await box(".nav"), cart = await box(".cartbar");
-      ok("rail · expanded on a phone, it is a full-width toolbar", !!rail && rail.x <= 1 && rail.w >= 388, JSON.stringify(rail));
-      ok("rail · …between the cart bar and the nav, touching neither", !!rail && !!nav && !!cart && rail.bottom <= nav.y && rail.y >= cart.bottom, `cart bottom ${cart?.bottom}, rail ${rail?.y}–${rail?.bottom}, nav top ${nav?.y}`);
-      const tabs = await rp.$$eval(".rail > *", (els) => els.map((e) => Math.round(e.getBoundingClientRect().y)));
-      ok("rail · every tab sits on the same line", tabs.length >= 3 && new Set(tabs).size === 1, tabs.join(","));
-      await rp.click(".rdg-fab"); await sleep(150);
-      const panel = await box(".rdg-panel");
-      ok("rail · the Display panel opens on screen", !!panel && panel.x >= 0 && panel.right <= 390 && panel.y >= 0, JSON.stringify(panel));
-      await rp.click(".rdg-fab"); await sleep(150);
-      await rp.click(".chub-tab"); await sleep(300);
-      const hub = await box(".chub-panel");
-      ok("rail · the Connect panel opens on screen", !!hub && hub.x >= 0 && hub.right <= 390 && hub.y >= 0, JSON.stringify(hub));
-      await rp.click(".chub-tab"); await sleep(150);
-      // the tap that matters: with the rail open, the cart bar still opens the checkout
+      // Ask us, beside the avatar
+      await rp.click('button[aria-label^="Ask us"]'); await sleep(500);
+      ok("phone · Ask us, beside the account avatar, opens the concierge", !!(await rp.$("#concierge-title")));
+      await closeSheet();
+      // the account menu's Help & display rows
+      for (const [row, sel, what] of [["Display & text size", ".rdg-sizes", "Display"], ["Connect with GT3", ".chub-groups", "Connect"]]) {
+        await rp.click('button.acct-av[aria-label="Your account"]'); await sleep(500);
+        await rp.locator(".acs-row", { hasText: row }).first().click(); await sleep(500);
+        const panel = await box(sel);
+        ok(`phone · the account menu's ${what} row opens it as a sheet, on screen`, !!panel && panel.x >= 0 && panel.right <= 390 && panel.y >= 0 && panel.bottom <= 844, JSON.stringify(panel));
+        await closeSheet();
+      }
+      // the tap that matters: the cart bar still opens the checkout
       let opened = false;
       try { await rp.click(".cartbar", { timeout: 3000 }); await sleep(600); opened = !!(await rp.$("#checkout-title")); } catch { opened = false; }
-      ok("order · with the rail open, the cart bar still opens the checkout", opened);
+      ok("order · the cart bar opens the checkout", opened);
       const lines = await rp.$$eval(".co-line", (els) => els.map((e) => e.textContent.replace(/\s+/g, " ").trim())).catch(() => []);
       ok("order · the checkout lists the drink and a total", lines.length >= 2 && /Total/.test(lines[lines.length - 1]), lines.join(" | "));
-      await rp.keyboard.press("Escape");
-      try { await rp.waitForSelector(".sheet2-scrim", { state: "detached", timeout: 3000 }); } catch { /* judged below */ }
+      await closeSheet();
+      ok("order · Escape closes the checkout", !(await rp.$(".sheet2-scrim")));
+    } catch (e) { ok("order · could be exercised on /menu on a phone", false, String(e.message).slice(0, 120)); }
+    await rp.close();
+  }
+  {
+    const frame = await browser.newContext({ viewport: { width: 600, height: 900 } });
+    await frame.addInitScript(() => { try { sessionStorage.setItem("gt3-splash-shown", "1"); } catch { /* */ } });
+    const fp = await frame.newPage();
+    try {
+      await fp.goto(BASE + "/menu", { waitUntil: "domcontentloaded", timeout: 20000 });
+      try { await fp.waitForLoadState("networkidle", { timeout: 4000 }); } catch { /* settled enough */ }
+      await sleep(500);
+      const box = async (sel) => fp.$eval(sel, (el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right, bottom: r.bottom }; }).catch(() => null);
+      const handle = await box(".rail-open");
+      ok("rail · in the frame, its handle is painted", !!handle && handle.h > 0, handle ? "" : "no rail handle at 600×900");
+      await fp.click(".entry"); await sleep(500);
+      await fp.click(".order-bar"); await sleep(600);
+      await fp.click(".rail-open");
+      await sleep(120);   // on purpose: inside the old animation window
+      const app = await box(".app"), rail = await box(".rail"), nav = await box(".nav"), cart = await box(".cartbar");
+      ok("rail · expanded in the narrowest frame, it is a toolbar as wide as the app", !!rail && !!app && rail.x <= app.x + 1 && rail.w >= app.w - 2, JSON.stringify({ rail, app }));
+      ok("rail · …between the cart bar and the nav, touching neither", !!rail && !!nav && !!cart && rail.bottom <= nav.y && rail.y >= cart.bottom, `cart bottom ${cart?.bottom}, rail ${rail?.y}–${rail?.bottom}, nav top ${nav?.y}`);
+      const tabs = await fp.$$eval(".rail > *", (els) => els.map((e) => Math.round(e.getBoundingClientRect().y)));
+      ok("rail · every tab sits on the same line", tabs.length >= 3 && new Set(tabs).size === 1, tabs.join(","));
+      await fp.click(".rdg-fab"); await sleep(150);
+      const panel = await box(".rdg-panel");
+      ok("rail · the Display panel opens inside the app", !!panel && !!app && panel.x >= app.x && panel.right <= app.right && panel.y >= 0, JSON.stringify(panel));
+      await fp.click(".rdg-fab"); await sleep(150);
+      await fp.click(".chub-tab"); await sleep(300);
+      const hub = await box(".chub-panel");
+      ok("rail · the Connect panel opens inside the app", !!hub && !!app && hub.x >= app.x && hub.right <= app.right && hub.y >= 0, JSON.stringify(hub));
+      await fp.click(".chub-tab"); await sleep(150);
+      let opened = false;
+      try { await fp.click(".cartbar", { timeout: 3000 }); await sleep(600); opened = !!(await fp.$("#checkout-title")); } catch { opened = false; }
+      ok("order · with the rail open, the cart bar still opens the checkout", opened);
+      await fp.keyboard.press("Escape");
+      try { await fp.waitForSelector(".sheet2-scrim", { state: "detached", timeout: 3000 }); } catch { /* judged below */ }
       await sleep(200);
-      ok("order · Escape closes the checkout and the rail comes back", !(await rp.$(".sheet2-scrim")) && !!(await box(".rail")));
-      await rp.click(".rail-fold", { timeout: 3000 }).catch(() => {}); await sleep(200);
+      ok("order · Escape closes the checkout and the rail comes back", !(await fp.$(".sheet2-scrim")) && !!(await box(".rail")));
+      await fp.click(".rail-fold", { timeout: 3000 }).catch(() => {}); await sleep(200);
       const folded = await box(".rail-open");
       ok("rail · it folds back to the handle", !!folded && folded.h > 0);
-    } catch (e) { ok("rail · could be exercised on /menu", false, String(e.message).slice(0, 120)); }
-    await rp.close();
+    } catch (e) { ok("rail · could be exercised on /menu in the frame", false, String(e.message).slice(0, 120)); }
+    await fp.close();
+    await frame.close();
   }
 
   // 6b) THE SWIPES (2026-10-05, the gesture round). Ryan: "I have to hit the X button to get out of

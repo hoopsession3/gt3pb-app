@@ -1,9 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { useAuth } from "./AuthProvider";
-import AccountSheet from "./AccountSheet";
-import ProfileSheet from "./ProfileSheet";
+import Icon from "./Icon";
+import { showsCommerce, surfaceOf } from "@/lib/surfaces";
+import dynamic from "next/dynamic";
+// Loaded by the tap that opens them, not with every page that shows the avatar (2026-10-08, the iPhone chrome
+// round): the account menu gained its Help & display rows, and it rode in every customer route's first load.
+const AccountSheet = dynamic(() => import("./AccountSheet"), { ssr: false });
+const ProfileSheet = dynamic(() => import("./ProfileSheet"), { ssr: false });
 import MemberCard from "./MemberCard";
 
 // Top-right account avatar → the customer account popout (AccountSheet, the canonical LV Sheet).
@@ -59,8 +65,18 @@ export function useAccountDoor() {
 
 export default function AccountPill() {
   const door = useAccountDoor();
+  // ASK US, BESIDE YOU (2026-10-08, the iPhone chrome round, approved). On a phone the concierge's tab rode
+  // the floating rail over the page; it is this button now, on the screens it answers for (the ones that
+  // sell — lib/surfaces). The frame keeps the rail's tab and does not draw this one.
+  const ask = showsCommerce(surfaceOf(usePathname()));
   return (
-    <div className="acct">
+    <div className="acct flex items-center gap-2">
+      {ask && (
+        <button type="button" className="acct-av hit-44 text-gold2 frame:hidden!"
+          aria-label="Ask us — the menu, the truck's hours, booking" aria-haspopup="dialog" onClick={() => window.dispatchEvent(new Event("gt3-open-concierge"))}>
+          <Icon name="chat" size={18} />
+        </button>
+      )}
       <button className="acct-av hit-44" aria-label="Your account" aria-haspopup="dialog" aria-expanded={door.open} onClick={door.openAccount}>
         <AccountFace />
         <span className="acct-caret" aria-hidden="true">
