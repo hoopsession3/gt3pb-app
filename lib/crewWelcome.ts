@@ -13,9 +13,15 @@
 // Plain text, short, every line a fact — the house voice for anything sent (lib/notify). Nothing
 // here is invented about the person: every name and place comes from the caller, and a part with
 // nothing to say is left out rather than filled with a guess.
+//
+// THE FIRST DAY IS lib/crewStart's (2026-10-08). The letter's steps were three lines of its own, and
+// Ryan still had to text Niño the rest — sign out and back in, the profile picture, Crew Mode, the ✦,
+// Ask GT3. The steps are written once there now; the letter carries them and the link to the guide
+// that walks through them in the app, and the invite carries the link for after they sign up.
 
 import { roleLabel } from "./roles";
 import { CONNECT_APP } from "./connect";
+import { startLetterLines, START_PATH } from "./crewStart";
 
 /** The Academy path a role starts on — its label and one line about it (lib/academy's ROLES). */
 export type Track = { label: string; blurb: string };
@@ -47,13 +53,7 @@ export function crewWelcome(f: WelcomeFacts): { subject: string; message: string
     `Welcome to GT3 Performance Bar. You're on the crew as ${role}${where}.${f.leadsCity && f.city ? ` You lead ${f.city}.` : ""}`,
   ];
   if (f.track?.blurb) lines.push("", f.track.blurb);
-  lines.push(
-    "",
-    "Your first three steps:",
-    `1. Sign in at ${CONNECT_APP} with this email address. Your crew tools are already switched on.`,
-    "2. Open Today — your day, your tasks and the run are all there.",
-    `3. Start your training in the Academy${f.track?.label ? ` — the ${f.track.label} path` : ""}.`,
-  );
+  lines.push("", ...startLetterLines({ track: f.track?.label ?? null }, CONNECT_APP));
   if (f.cityLead && !f.leadsCity && f.city) lines.push("", `${f.cityLead} leads ${f.city} — they're your first call.`);
   else if (f.from) lines.push("", `Questions? Ask ${first(f.from) || f.from}.`);
   lines.push("", "Glad you're here.", f.from ? `${f.from}, GT3 Performance Bar` : "GT3 Performance Bar");
@@ -73,6 +73,9 @@ export function crewInvite(f: { email: string; role: string; from?: string | nul
       "To join:",
       `1. Go to ${CONNECT_APP} and sign up with this email address (${f.email}) — any sign-in method works.`,
       "2. You'll land in your role straight away: Today, your tasks and your training path will be waiting.",
+      "",
+      "Once you're in, your first-day guide walks you through the app, one tap at a time:",
+      `${CONNECT_APP.replace(/\/+$/, "")}${START_PATH}`,
       "",
       "See you on the crew.",
       "GT3 Performance Bar",
