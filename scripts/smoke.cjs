@@ -5681,9 +5681,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("office access: /office changes the weekly order through set_office_standing, and makes the old write only while that function is not there yet",
       /supabase\.rpc\("set_office_standing", \{ p_account: acct\.id, p_active: p\.standing_active \?\? null, p_gallons: p\.standing_gallons \?\? null \}\)/.test(office)
       && /if \(error && \(await import\("@\/lib\/schemaSkew"\)\)\.isMissingFunction\(error\)\) \{\s*const old = await supabase\.from\("business_accounts"\)\.update\(p\)\.eq\("id", acct\.id\)\.select\("id"\);\s*error = old\.error \?\? \(old\.data\?\.length \? null : error\);/.test(office));
-    ok("office access: under the minimum the toast is the database's own sentence — /office shows it for the code 0354 refuses with",
-      /toast\(error\.code === "22023" \? error\.message : "Couldn't save — try again", "error"\)/.test(office)
-      && /raise exception 'The minimum is % gallons a week\.', floor_gal using errcode = '22023';/.test(m354));
+    ok("office access: under the minimum the toast is the database's own sentence — /office shows it through lib/refusal, which reads 0354's code as a refusal",
+      /toast\(refusalText\(error\) \?\? "Couldn't save — try again", "error"\)/.test(office)
+      && /raise exception 'The minimum is % gallons a week\.', floor_gal using errcode = '22023';/.test(m354)
+      && /c === "22023"/.test(read("lib/refusal.ts")));
     // Who still writes an office account: the server's booking route (service role), the crew's jug
     // count on the office route, and /office's write while 0354 is unpasted. Nothing else.
     const writers = [];
@@ -9065,6 +9066,53 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /import \{ startKnowledge \} from "@\/lib\/crewStart";/.test(op) && /=== THE APP ITSELF ===\\n\$\{startKnowledge\(\)\}/.test(op));
 }
 
+// ── A REFUSAL IS A 4xx (2026-10-08, 0360) — found on the way in the crew's first-day round. The office
+//    functions refused with 55000 and P0002, which PostgREST answers with HTTP 500, so every late change
+//    and every stale tap was logged as a server error. 0360 moves them to PT409 and PT404 (0226's rule),
+//    lib/refusal reads both while the paste is pending, and scripts/db.refusals.test.mjs holds every
+//    function in public to a 4xx. These hold the screens to lib/refusal. ──
+{
+  const RF = require("../.smoke/refusal.js");
+  const nfs = require("node:fs"), npath = require("node:path");
+  const read = (p) => nfs.readFileSync(npath.join(__dirname, "..", p), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  ok("refusal: closed is PT409, and 55000 while 0360 is unpasted; nothing else is",
+    RF.isClosed({ code: "PT409" }) && RF.isClosed({ code: "55000" }) && !RF.isClosed({ code: "PT404" }) && !RF.isClosed({ code: "22023" }) && !RF.isClosed(null) && !RF.isClosed({}));
+  ok("refusal: gone is PT404, and P0002 while 0360 is unpasted; nothing else is",
+    RF.isGone({ code: "PT404" }) && RF.isGone({ code: "P0002" }) && !RF.isGone({ code: "PT409" }) && !RF.isGone({ code: "PGRST202" }) && !RF.isGone(undefined));
+  const say = (c, m) => RF.refusalText({ code: c, message: m });
+  ok("refusal: a refusal is said in the database's words — a bad value, a 'you may not', closed or gone, by either code",
+    say("22023", "The minimum is 4 gallons a week.") === "The minimum is 4 gallons a week." && say("42501", "That is not your office account.") === "That is not your office account."
+    && say("28000", "Sign in to change your office order.") === "Sign in to change your office order."
+    && say("PT409", "Changes to this delivery closed Sunday at 6:00 PM.") === "Changes to this delivery closed Sunday at 6:00 PM." && say("55000", "x") === "x"
+    && say("PT404", "That delivery no longer exists.") === "That delivery no longer exists." && say("P0002", "y") === "y");
+  ok("refusal: a failure is not a refusal — no words, so the screen says try again",
+    say("PGRST301", "JWT expired") === null && say("XX000", "internal error") === null && say(null, "TypeError: Failed to fetch") === null && say("", "") === null
+    && say("22023", "   ") === null && RF.refusalText(null) === null);
+  // One home: no screen compares an error with the refusal codes itself.
+  const walk = (d) => nfs.readdirSync(npath.join(__dirname, "..", d), { withFileTypes: true })
+    .flatMap((e) => (e.isDirectory() ? walk(npath.join(d, e.name)) : /\.(ts|tsx)$/.test(e.name) ? [npath.join(d, e.name)] : []));
+  const strays = ["app", "components", "lib"].flatMap(walk).filter((f) => f !== npath.join("lib", "refusal.ts"))
+    .filter((f) => /["'](55000|P0002|PT409|PT404)["']/.test(code(read(f))));
+  ok("refusal: the codes are read in lib/refusal and nowhere else in the app", strays.length === 0, strays);
+  const office = read("app/office/page.tsx"), sheet = read("components/OfficeChangeSheet.tsx"), ask = read("components/OfficeAskSheet.tsx");
+  ok("refusal: the office screens say the database's words through lib/refusal — the weekly order, a change, its request, the ask",
+    /toast\(refusalText\(error\) \?\? "Couldn't save — try again", "error"\)/.test(office)
+    && /toast\(refusalText\(error\) \?\? "Couldn't save — try again", "error"\)/.test(sheet) && /toast\(refusalText\(error\) \?\? "Couldn't send it — try again", "error"\)/.test(sheet)
+    && /toast\(refusalText\(error\) \?\? "Couldn't send it — try again", "error"\)/.test(ask)
+    && /\} else if \(isGone\(error\)\) \{\s*toast\("That delivery isn't on the schedule any more\.", "error"\);\s*onClose\(\);/.test(sheet)
+    && !/error\.code === "22023"/.test(code(office + sheet + ask)));
+  const m360 = read("supabase/migrations/0360_a_refusal_is_a_4xx_not_a_server_error.sql");
+  ok("refusal: 0360 says why, restates the seven functions with their grants, verifies and records itself",
+    /PostgREST answers a 'PTxyz' SQLSTATE with HTTP xyz/.test(m360) && (m360.match(/^create or replace function public\.office_/gm) || []).length === 7
+    && (m360.match(/^revoke all on function public\.office_/gm) || []).length === 7
+    && (m360.match(/^grant execute on function public\.office_\w+\([^)]*\) to authenticated;$/gm) || []).length === 7
+    && !/errcode = '(55000|P0002)'/.test(m360) && /^-- verify:$/m.test(m360)
+    && /select public\.record_migration\('0360_a_refusal_is_a_4xx_not_a_server_error',/.test(m360));
+  ok("refusal: db:test runs the gate that holds every function in public to a 4xx",
+    /node scripts\/db\.refusals\.test\.mjs/.test(read("package.json")));
+}
+
 // ── YOUR GT3 (2026-10-07, Phase 2A-2 of the B2B report) — the office client's home, the change sheet,
 // requests, and the crew's side of them. Ryan: "They should be able in real time see their GT3 calendar
 // where they can manage their order super easy." scripts/db.officechange.test.mjs proves the database
@@ -9160,8 +9208,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const keyFor = \(kind: string, details: unknown\) => \(keys\.current\[kind\] = nextIdem\(keys\.current\[kind\], d\.id, details\)\)\.key;/.test(sheet)
     && /supabase!\.rpc\("office_change_delivery", \{/.test(sheet) && /p_key: key,/.test(sheet) && /if \(!res\.error\) delete keys\.current\[s\.change\];/.test(sheet)
     && /const plan = changePlan\(seen, draft, now\);/.test(sheet));
-  ok("your gt3: when the database says the changes closed (55000) the sheet turns what's left into a request — never a dead button",
-    /if \(error\.code === "55000"\) \{\s*setClosedNow\(true\);/.test(sheet) && /const open = canChange && !closedNow && changeable\(d, now\);/.test(sheet)
+  ok("your gt3: when the database says the changes closed (PT409; 55000 before 0360) the sheet turns what's left into a request — never a dead button",
+    /if \(isClosed\(error\)\) \{\s*setClosedNow\(true\);/.test(sheet) && /const open = canChange && !closedNow && changeable\(d, now\);/.test(sheet)
     && /supabase\.rpc\("office_request", \{\s*p_kind: ask\.kind, p_body: ask\.body, p_order: d\.id,/.test(sheet));
   ok("your gt3: the mornings it can move to are the database's (office_open_dates), and a failed read says so",
     /supabase\.rpc\("office_open_dates", \{ p_order: d\.id \}\)/.test(sheet) && /if \(error\) \{ setDatesErr\(true\); return; \}/.test(sheet) && /Couldn&rsquo;t load the other mornings/.test(sheet));
