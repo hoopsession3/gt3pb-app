@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-05T16:41:14.437Z",
+    "pulled_at": "2026-10-08T11:55:10.081Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
     "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
-    "relations": 203,
-    "columns": 2611
+    "relations": 213,
+    "columns": 2748
   },
   "academy_acknowledgements": [
     "user_id",
@@ -59,6 +59,14 @@
     "created_at",
     "updated_at",
     "market"
+  ],
+  "account_erasures": [
+    "id",
+    "tenant_id",
+    "erased_at",
+    "role",
+    "orders_kept",
+    "rows_deleted"
   ],
   "admin_audit": [
     "id",
@@ -468,7 +476,10 @@
     "created_at",
     "updated_at",
     "market",
-    "access_instructions"
+    "access_instructions",
+    "company_id",
+    "location_id",
+    "program_id"
   ],
   "business_orders": [
     "id",
@@ -506,7 +517,20 @@
     "square_order_id",
     "paylink_url",
     "status_changed_at",
-    "market"
+    "market",
+    "company_id",
+    "location_id",
+    "program_id",
+    "scheduled_for",
+    "cutoff_at",
+    "canceled_reason",
+    "changed_at",
+    "changed_by",
+    "change_reason",
+    "gallons_changed_at",
+    "moved_from",
+    "moved_at",
+    "client_note"
   ],
   "changelog": [
     "id",
@@ -555,6 +579,94 @@
     "tenant_id",
     "created_at",
     "strategy_key"
+  ],
+  "companies": [
+    "id",
+    "tenant_id",
+    "name",
+    "status",
+    "market",
+    "billing_terms",
+    "created_at",
+    "updated_at"
+  ],
+  "company_locations": [
+    "id",
+    "tenant_id",
+    "company_id",
+    "label",
+    "address_street",
+    "address_city",
+    "address_zip",
+    "access_instructions",
+    "delivery_window",
+    "market",
+    "contact_name",
+    "contact_phone",
+    "contact_email",
+    "created_at",
+    "updated_at"
+  ],
+  "company_members": [
+    "id",
+    "tenant_id",
+    "company_id",
+    "user_id",
+    "role",
+    "active",
+    "created_at",
+    "updated_at",
+    "location_ids"
+  ],
+  "company_program_lines": [
+    "id",
+    "tenant_id",
+    "program_id",
+    "product",
+    "quantity",
+    "unit",
+    "created_at",
+    "updated_at"
+  ],
+  "company_programs": [
+    "id",
+    "tenant_id",
+    "company_id",
+    "location_id",
+    "service",
+    "status",
+    "market",
+    "created_at",
+    "updated_at",
+    "every_n_weeks",
+    "weekdays",
+    "anchor_date",
+    "monthly_nth",
+    "delivery_window",
+    "starts_on",
+    "ends_on",
+    "price_per_gallon_cents",
+    "active_since"
+  ],
+  "company_requests": [
+    "id",
+    "tenant_id",
+    "company_id",
+    "location_id",
+    "order_id",
+    "market",
+    "kind",
+    "body",
+    "wants",
+    "status",
+    "owner",
+    "resolution",
+    "resolved_at",
+    "resolved_by",
+    "created_by",
+    "idem_key",
+    "created_at",
+    "updated_at"
   ],
   "compliance_checks": [
     "id",
@@ -1270,7 +1382,22 @@
     "due_at",
     "paid_at",
     "note",
-    "created_at"
+    "created_at",
+    "company_id",
+    "location_id"
+  ],
+  "job_runs": [
+    "id",
+    "tenant_id",
+    "job",
+    "market",
+    "run_on",
+    "started_at",
+    "finished_at",
+    "ok",
+    "made",
+    "error",
+    "run_by"
   ],
   "jug_ledger": [
     "id",
@@ -1284,7 +1411,9 @@
     "created_at",
     "voided_at",
     "voided_by",
-    "void_reason"
+    "void_reason",
+    "company_id",
+    "location_id"
   ],
   "kegs": [
     "id",
@@ -1511,6 +1640,33 @@
     "pay_method",
     "deductions"
   ],
+  "office_closed_dates": [
+    "id",
+    "tenant_id",
+    "company_id",
+    "market",
+    "starts_on",
+    "ends_on",
+    "policy",
+    "note",
+    "created_at"
+  ],
+  "office_order_changes": [
+    "id",
+    "tenant_id",
+    "company_id",
+    "location_id",
+    "order_id",
+    "market",
+    "change",
+    "was",
+    "became",
+    "reason",
+    "changed_by",
+    "by_crew",
+    "idem_key",
+    "created_at"
+  ],
   "operator_agreement_events": [
     "id",
     "agreement_id",
@@ -1594,7 +1750,8 @@
     "priority",
     "category",
     "business_account_id",
-    "market"
+    "market",
+    "company_id"
   ],
   "ops_heartbeat": [
     "id",

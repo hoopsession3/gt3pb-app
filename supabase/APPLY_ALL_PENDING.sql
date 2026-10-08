@@ -11,246 +11,134 @@
 --
 -- The line below is what stops that happening again: scripts/drift.check.mjs fails the release
 -- if supabase/migrations/ ever holds a migration numbered above it.
--- pending-from: 0359
+-- pending-from: 0360
 -- generated-at: 2026-10-08
 -- pending-count: 1
 -- ledger-read-from: https://app.gt3pb.com/api/migrations
 -- ============================================================
--- 0359_a_client_changes_a_delivery_until_its_cutoff.sql
+-- 0360_a_refusal_is_a_4xx_not_a_server_error.sql
 -- ============================================================
--- 0359 — A CLIENT CHANGES A DELIVERY UNTIL ITS CUTOFF. Paste into Supabase → SQL Editor → Run. Idempotent.
+-- 0360 — A REFUSAL IS A 4xx, NOT A SERVER ERROR. Paste into Supabase → SQL Editor → Run. Idempotent.
 --
--- Phase 2, part 2 of the B2B challenge report (2026-10-07, "GT3 Challenge Report — B2B and Adaptive
--- Layout": Client experience — "Self-service until the cutoff, then a graceful handoff"; Scheduling —
--- "Exceptions live on the delivery itself"; Data and state — "Cutoffs are enforced in the database",
--- "Every client action carries an idempotency key", "A change locks its delivery row"; Performance —
--- "The client home is one server call"). Until now a client could turn the weekly order on or off and
--- set its gallons (0354), and nothing else: one Monday's change was a text to GT3. This gives the
--- client the change sheet's four actions on one delivery, each kept by the database:
+-- Found on the way (2026-10-08, the crew's first-day round). PostgREST answers SQLSTATE 55000
+-- (object_not_in_prerequisite_state) and P0002 (no_data_found) with HTTP 500, the status it keeps
+-- for a server that failed. The office functions (0357, 0359) use those two codes for the two
+-- refusals a person causes:
 --
---   office_change_delivery(order, action, …, key) — this delivery's quantity, skip it (kept as
---   skipped, never deleted), bring a skip back, move it to another morning (its program date kept,
---   the date it left recorded), or a note for the driver. Until the delivery's cutoff (6 PM market
---   time the weekday before, stored on the delivery by 0356); after it the database refuses with
---   55000 and the screen turns the same sheet into a request — never a dead button. The note runs
---   until the driver leaves. A delivery that is paid, invoiced or has a pay link keeps its money: its
---   quantity and skip go through a request. The row is locked while it is written; the same key
---   twice changes nothing twice; the same answer twice (5 gallons, then 5 again) is no change at all.
---   Who: the crew, or a member of the delivery's company whose role changes deliveries (admin,
---   location manager, orderer) at that location. A viewer or billing person is told so; anyone
---   else is told the delivery is not there, exactly as their screen would.
+--   "changes to this delivery closed" — 55000, eight places in office_change_delivery: the cutoff
+--     passed, the driver left, it is brewing, it is paid, the program is paused, the morning is taken;
+--   "that delivery isn't there" — P0002, eleven places in seven functions: a delivery the crew took
+--     off, a stale tap, another company's id (which reads the same on purpose).
 --
---   office_open_dates(order) — the mornings it can move to: weekdays within two weeks of its day and
---   inside the schedule's six weeks, open (no closed date), cutoff still ahead, and not a morning that
---   location already has a delivery on (or will: one of its program's own dates).
+-- So every late change and every wrong id was logged as a server error: in Supabase's API logs, in
+-- the browser's console, in any count of 5xx. 0226 named that noise when it gave the vendor
+-- look-alike refusal PT409 ("a routine refusal reads as a true 409 Conflict, never a 5xx").
+-- PostgREST answers a 'PTxyz' SQLSTATE with HTTP xyz, so these follow 0226's rule:
 --
---   office_request(kind, body, …, key) — a change after the cutoff, an extra delivery, a new
---   location, an event, equipment, billing, a service issue: a real record with a status and an
---   owner, so it becomes work for GT3 (the crew's inbox is told, once). office_request_set — the
---   crew moves it along, and answering it answers the alert.
+--   55000 → PT409   Conflict: the delivery's state refuses the change.
+--   P0002 → PT404   Not Found: not there, or not theirs.
 --
---   office_home(company) — the client's home in one call: the company, its locations and programs,
---   the next delivery, six weeks of agenda (skips and pauses included, so they can be undone), the
---   recent ones, invoices with their pay link, requests, the jug count, and what the caller may do.
+-- The functions keep their checks, in the same order, and their words. The bodies below are 0357's and
+-- 0359's, copied with only the two codes swapped, and the grants are restated as they were.
 --
--- THE GENERATOR NEVER OVERWRITES A CLIENT. A delivery the client changed is a decision (0356 left the
--- word for this part): a new weekly quantity no longer reaches a delivery whose quantity the client
--- set for that day, and a new rule no longer takes off a delivery the client moved to a morning of
--- their own. A pause still takes off every open delivery (changed or not — paused means none), a
--- resume brings them back as the client left them, and the program's window, price and door still
--- reach them all (those are GT3's, not the client's). Skipped stays skipped: the generator never
--- makes a decided date again (0356's unique program date), and a resume brings back only what the
--- pause took off.
+-- The screens read both codes (lib/refusal.ts), so the paste and the deploy can go in either order. A
+-- database test now fails any function that raises a code PostgREST answers with a 5xx
+-- (scripts/db.refusals.test.mjs), so a new refusal cannot repeat this.
 --
--- LOCATIONS. company_members.location_ids (null = every location of the company) is the "which
--- locations" the report gives each person. Every function here asks it; a one-location client never
--- sees it.
---
--- Nothing here changes a value anyone reads today; production has no office accounts yet.
---
--- changelog: below.
+-- changelog: none — the same refusals in the same words; only the HTTP status under them changes.
 
--- ── 1 · the delivery remembers a client's change ─────────────────────────────────────────────────
-alter table public.business_orders add column if not exists changed_at timestamptz;
-alter table public.business_orders add column if not exists changed_by uuid references auth.users(id) on delete set null;
-alter table public.business_orders add column if not exists change_reason text;
-alter table public.business_orders add column if not exists gallons_changed_at timestamptz;
-alter table public.business_orders add column if not exists moved_from date;
-alter table public.business_orders add column if not exists moved_at timestamptz;
-alter table public.business_orders add column if not exists client_note text;
-do $$
+-- ── 1 · office_log_delivery — the driver logs a delivery (0357; 1 refusal) ───────────────────────
+-- existing rows: office_log_delivery — its alerts are written as before, word for word; only a refusal's code changes.
+create or replace function public.office_log_delivery(p_order uuid, p_outcome text, p_jugs_in int default null)
+returns public.business_orders
+language plpgsql security definer set search_path = public as $$
+declare
+  o public.business_orders; v_out int; v_in int; v_bal int;
 begin
-  if not exists (select 1 from pg_constraint where conname = 'business_orders_client_change_ok') then
-    alter table public.business_orders add constraint business_orders_client_change_ok check (
-      (change_reason is null or change_reason in ('fewer_people', 'ran_out', 'office_closed', 'other'))
-      and (client_note is null or char_length(client_note) <= 300));
+  if not public.is_staff() then raise exception 'Only crew can log a delivery.' using errcode = '42501'; end if;
+  if coalesce(p_outcome, '') not in ('delivered_swapped', 'delivered_no_swap', 'not_available') then
+    raise exception 'Unknown outcome: %', coalesce(p_outcome, 'none') using errcode = '22023';
   end if;
+  -- the caller's own company and city — what their screen shows them (0239's tenant isolation, 0291's
+  -- market scope); anything else reads as not there, exactly as it does on the screen
+  select * into o from public.business_orders
+   where id = p_order and tenant_id = public.effective_tenant() and public.market_visible(market)
+   for update;
+  if not found then raise exception 'That delivery no longer exists.' using errcode = 'PT404'; end if;
+  if o.canceled_at is not null then raise exception 'That delivery was canceled.' using errcode = '22023'; end if;
+  if o.status in ('delivered', 'issue') or o.driver_outcome is not null then
+    raise exception 'That delivery is already logged — undo it first.' using errcode = '22023';
+  end if;
+  if o.delivery_date > public.office_local_today(o.market) then
+    raise exception 'That delivery is for % — log it on the day.', to_char(o.delivery_date, 'FMDay, Mon FMDD')
+      using errcode = '22023';
+  end if;
+
+  if p_outcome = 'not_available' then
+    update public.business_orders
+       set status = 'issue', driver_outcome = 'not_available',
+           driver_note = left('Not delivered — ' || to_char(now() at time zone public.office_tz(o.market), 'HH12:MI AM'), 200)
+     where id = p_order returning * into o;
+    perform public.alert_open_once(
+      'office_not_delivered', o.id, 'important', 'order',
+      left('Office delivery not made — ' || o.company, 180),
+      o.company || ' (' || o.address_street || ', ' || o.address_city || ') wasn''t delivered this morning. '
+        || round(o.gallons)::text || ' gal. ' || coalesce(o.contact_phone, ''),
+      '/crew?s=now');
+    return o;
+  end if;
+
+  v_out := round(o.gallons)::int;
+  v_in  := case when p_outcome = 'delivered_swapped' then greatest(0, coalesce(p_jugs_in, v_out)) else 0 end;
+  update public.business_orders
+     set status = 'delivered', driver_outcome = p_outcome, jugs_out = v_out, jugs_in = v_in
+   where id = p_order returning * into o;
+
+  if o.business_id is not null then
+    select greatest(0, coalesce(jug_balance, 0) + v_out - v_in) into v_bal
+      from public.business_accounts where id = o.business_id for update;
+    insert into public.jug_ledger (tenant_id, business_id, business_order_id, jugs_out, jugs_in, balance_after)
+    values (o.tenant_id, o.business_id, o.id, v_out, v_in, v_bal);
+    update public.business_accounts set jug_balance = v_bal, updated_at = now() where id = o.business_id;
+  end if;
+  return o;
 end $$;
-comment on column public.business_orders.changed_at is 'When someone last changed this delivery through office_change_delivery (0359): its quantity, a skip, a move or the note.';
-comment on column public.business_orders.gallons_changed_at is 'When this delivery''s quantity was set for this day (0359). The program''s weekly quantity no longer reaches it.';
-comment on column public.business_orders.moved_from is 'The morning this delivery was on before it was first moved (0359). scheduled_for keeps the program date.';
-comment on column public.business_orders.moved_at is 'When it was moved to another morning (0359). A new program rule no longer takes it off.';
-comment on column public.business_orders.client_note is 'The client''s note for this delivery, shown on the driver''s stop (0359). Up to 300 characters.';
+revoke all on function public.office_log_delivery(uuid, text, int) from public, anon;
+grant execute on function public.office_log_delivery(uuid, text, int) to authenticated;
 
--- ── 2 · which locations a person is for ──────────────────────────────────────────────────────────
-alter table public.company_members add column if not exists location_ids uuid[];
-comment on column public.company_members.location_ids is 'The locations this person is for (0359); null = every location of the company.';
-
--- May the caller act for this company at this location? read: any active member · change (a
--- delivery's quantity, skip, move, note): admin, location manager, orderer · request: those and
--- billing. A null location is the company as a whole (a billing question). The crew is asked separately.
-create or replace function public.office_member_can(p_company uuid, p_location uuid, p_action text) returns boolean
-language sql stable security definer set search_path = public as $$
-  select exists (
-    select 1 from public.company_members m
-     where m.company_id = p_company and m.user_id = (select auth.uid()) and m.active
-       and (m.location_ids is null or p_location is null or p_location = any (m.location_ids))
-       and case p_action
-             when 'read'    then true
-             when 'change'  then m.role in ('admin', 'location_manager', 'orderer')
-             when 'request' then m.role in ('admin', 'location_manager', 'orderer', 'billing')
-             else false
-           end)
-$$;
-revoke all on function public.office_member_can(uuid, uuid, text) from public, anon;
-grant execute on function public.office_member_can(uuid, uuid, text) to authenticated;
-
--- ── 3 · every change is on record: who, what it was, what it became, why ───────────────────────
-create table if not exists public.office_order_changes (
-  id          uuid primary key default gen_random_uuid(),
-  tenant_id   uuid not null references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
-  company_id  uuid not null references public.companies(id),
-  location_id uuid references public.company_locations(id),
-  order_id    uuid not null references public.business_orders(id),
-  market      text not null default 'greenville',
-  change      text not null check (change in ('quantity', 'skip', 'unskip', 'move', 'note')),
-  was         jsonb not null default '{}'::jsonb,      -- the delivery before: date, gallons, total, skipped, note
-  became      jsonb not null default '{}'::jsonb,      -- and after
-  reason      text check (reason is null or reason in ('fewer_people', 'ran_out', 'office_closed', 'other')),
-  -- the company's record: a person who deletes their GT3 account leaves it, unsigned (0353's rule)
-  changed_by  uuid references auth.users(id) on delete set null,
-  by_crew     boolean not null default false,
-  idem_key    uuid,
-  created_at  timestamptz not null default now()
-);
-create unique index if not exists office_order_changes_key on public.office_order_changes (order_id, idem_key) where idem_key is not null;
-create index if not exists office_order_changes_company on public.office_order_changes (company_id, created_at desc);
-comment on table public.office_order_changes is
-  'Every change to an office delivery made through office_change_delivery (0359): the change, the delivery before and after, the reason, who. Written only by that function; nobody edits it.';
-
--- ── 4 · a request is a record with a status and an owner ─────────────────────────────────────────
-create table if not exists public.company_requests (
-  id          uuid primary key default gen_random_uuid(),
-  tenant_id   uuid not null references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
-  company_id  uuid not null references public.companies(id),
-  location_id uuid references public.company_locations(id),
-  order_id    uuid references public.business_orders(id),
-  market      text not null default 'greenville',
-  kind        text not null check (kind in ('change_after_cutoff', 'extra_delivery', 'new_location', 'event', 'equipment', 'billing', 'service_issue', 'other')),
-  body        text not null check (btrim(body) <> '' and char_length(body) <= 1000),
-  -- what a change after the cutoff asked for, as the sheet had it: {"change":"quantity","gallons":6}
-  wants       jsonb,
-  status      text not null default 'open' check (status in ('open', 'in_progress', 'done', 'declined')),
-  owner       uuid references auth.users(id) on delete set null,     -- who at GT3 has it; null = the crew's
-  resolution  text check (resolution is null or char_length(resolution) <= 1000),
-  resolved_at timestamptz,
-  resolved_by uuid references auth.users(id) on delete set null,
-  -- the company's record: a person who deletes their GT3 account leaves it, unsigned (0353's rule)
-  created_by  uuid references auth.users(id) on delete set null,
-  idem_key    uuid,
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now()
-);
-create unique index if not exists company_requests_key on public.company_requests (company_id, idem_key) where idem_key is not null;
-create index if not exists company_requests_open on public.company_requests (tenant_id, status, created_at desc);
-create index if not exists company_requests_company on public.company_requests (company_id, created_at desc);
-comment on table public.company_requests is
-  'What a client asked GT3 for (0359): a change after the cutoff, an extra delivery, a new location, an event, equipment, billing, a service issue. Made by office_request, moved along by office_request_set; each one tells the crew once.';
-
--- ── 5 · who reads them, and that only the functions write them ───────────────────────────────────
-alter table public.office_order_changes enable row level security;
-alter table public.company_requests enable row level security;
-
-drop policy if exists "office changes staff read" on public.office_order_changes;
-create policy "office changes staff read" on public.office_order_changes for select using ((select public.is_staff()));
-drop policy if exists "office changes member read" on public.office_order_changes;
-create policy "office changes member read" on public.office_order_changes for select
-  using (public.office_member_can(company_id, location_id, 'read'));
-
-drop policy if exists "company requests staff read" on public.company_requests;
-create policy "company requests staff read" on public.company_requests for select using ((select public.is_staff()));
-drop policy if exists "company requests member read" on public.company_requests;
-create policy "company requests member read" on public.company_requests for select
-  using (public.office_member_can(company_id, location_id, 'read'));
-
-do $$
-declare t text;
+-- ── 2 · office_reopen_delivery — the driver undoes a mis-tap (0357; 1 refusal) ───────────────────
+create or replace function public.office_reopen_delivery(p_order uuid, p_reason text)
+returns public.business_orders
+language plpgsql security definer set search_path = public as $$
+declare o public.business_orders; j record;
 begin
-  foreach t in array array['office_order_changes', 'company_requests'] loop
-    execute format('drop trigger if exists stamp_tenant_tg on public.%I', t);
-    execute format('create trigger stamp_tenant_tg before insert on public.%I for each row execute function public.stamp_tenant()', t);
-    execute format('drop policy if exists "tenant isolation" on public.%I', t);
-    execute format('create policy "tenant isolation" on public.%I as restrictive for all using (tenant_id = public.effective_tenant()) with check (tenant_id = public.effective_tenant())', t);
-    -- the crew's city filter (0291), as on the company records
-    execute format('drop policy if exists "market scope" on public.%I', t);
-    execute format('create policy "market scope" on public.%I as restrictive for select using (public.market_visible(market))', t);
-    -- read for the signed-in (the policies decide which rows), nothing for anyone else, and no
-    -- writes from the app: office_change_delivery, office_request and office_request_set write them
-    execute format('revoke all on public.%I from public, anon', t);
-    execute format('revoke insert, update, delete, truncate on public.%I from authenticated', t);
-    execute format('grant select on public.%I to authenticated', t);
+  if not public.is_staff() then raise exception 'Only crew can reopen a delivery.' using errcode = '42501'; end if;
+  if coalesce(btrim(p_reason), '') = '' then raise exception 'Say why it is being reopened.' using errcode = '22023'; end if;
+  select * into o from public.business_orders
+   where id = p_order and tenant_id = public.effective_tenant() and public.market_visible(market)
+   for update;
+  if not found then raise exception 'That delivery no longer exists.' using errcode = 'PT404'; end if;
+  if o.canceled_at is not null then raise exception 'That delivery was canceled.' using errcode = '22023'; end if;
+  if o.status not in ('delivered', 'issue') and o.driver_outcome is null then
+    raise exception 'That delivery isn''t logged — there is nothing to undo.' using errcode = '22023';
+  end if;
+  -- the open jug entry for this delivery, reversed the way void_jug_entry reverses one (0310)
+  for j in select id from public.v_jug_open where business_order_id = p_order loop
+    perform public.void_jug_entry(j.id, btrim(p_reason));
   end loop;
+  -- a "not delivered" that was a mis-tap: the crew's alert about it is answered, not left to chase
+  update public.alerts set ack_at = now(), ack_by = auth.uid()
+   where kind = 'office_not_delivered' and subject_id = p_order and ack_at is null;
+  update public.business_orders
+     set status = 'out_for_delivery', driver_outcome = null, jugs_in = null,
+         driver_note = left('Reopened — ' || btrim(p_reason), 200)
+   where id = p_order returning * into o;
+  return o;
 end $$;
+revoke all on function public.office_reopen_delivery(uuid, text) from public, anon;
+grant execute on function public.office_reopen_delivery(uuid, text) to authenticated;
 
--- ── 5b · the company's people read its deliveries, live ──────────────────────────────────────────
--- 0187 let a client read the deliveries they booked (user_id is theirs) and nothing else — the whole
--- of it when one person was the account. A company has people now (0355): the office manager who did
--- not book still has to see Monday's delivery, and the client's home follows the crew as it works
--- (brewed, on the way, delivered) only if the database lets realtime show them the row. Read only, at
--- their locations; every client write goes through office_change_delivery.
-drop policy if exists "biz order member read" on public.business_orders;
-create policy "biz order member read" on public.business_orders for select
-  using (company_id is not null and public.office_member_can(company_id, location_id, 'read'));
-
--- A change and a request reach every screen that has the company open the moment they are saved
--- (business_orders joined supabase_realtime in 0357).
-do $$
-declare t text;
-begin
-  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
-    foreach t in array array['office_order_changes', 'company_requests'] loop
-      if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
-        execute format('alter publication supabase_realtime add table public.%I', t);
-      end if;
-    end loop;
-  end if;
-end $$;
-
--- ── 6 · one delivery as the client's screen reads it ─────────────────────────────────────────────
--- One shape for the home's agenda and every change's answer. `open`: changes are still open (before
--- the cutoff, not under way) — a skipped delivery too, so it can come back. `money_locked`: paid,
--- invoiced or linked to a payment — its quantity and skip go through a request.
-create or replace function public.office_delivery_json(o public.business_orders) returns jsonb
-language sql stable security definer set search_path = public as $$
-  select jsonb_build_object(
-    'id', o.id, 'date', o.delivery_date, 'scheduled_for', o.scheduled_for, 'window', o.delivery_window,
-    'gallons', o.gallons, 'price_per_gallon_cents', o.price_per_gallon_cents, 'total_cents', o.total_cents,
-    'status', o.status, 'payment_status', o.payment_status, 'driver_outcome', o.driver_outcome,
-    'jugs_out', o.jugs_out, 'jugs_in', o.jugs_in,
-    'canceled', o.canceled_at is not null, 'canceled_reason', o.canceled_reason,
-    'cutoff_at', coalesce(o.cutoff_at, public.office_cutoff(o.delivery_date, o.market)),
-    'open', (o.canceled_at is null or o.canceled_reason = 'skipped') and o.status = 'received'
-            and now() < coalesce(o.cutoff_at, public.office_cutoff(o.delivery_date, o.market)),
-    'money_locked', o.payment_status in ('paid', 'invoiced', 'refunded') or o.paylink_url is not null or o.square_order_id is not null,
-    'note_open', o.canceled_at is null and o.status in ('received', 'brewed') and o.delivery_date >= public.office_local_today(o.market),
-    'moved_from', o.moved_from, 'client_note', o.client_note, 'change_reason', o.change_reason,
-    'changed_at', o.changed_at, 'gallons_changed', o.gallons_changed_at is not null,
-    'location_id', o.location_id, 'program_id', o.program_id, 'market', o.market,
-    'paylink_url', case when o.payment_status in ('pending', 'failed') and o.canceled_at is null then o.paylink_url end)
-$$;
-revoke all on function public.office_delivery_json(public.business_orders) from public, anon, authenticated;
-
--- ── 7 · the change ───────────────────────────────────────────────────────────────────────────────
+-- ── 3 · office_change_delivery — a client's change to one delivery (0359; 9 refusals) ────────────
 create or replace function public.office_change_delivery(
   p_order   uuid,
   p_change  text,
@@ -283,7 +171,7 @@ begin
      and (not v_crew or public.market_visible(market))
    for update;
   if not found or (not v_crew and (o.company_id is null or not public.office_member_can(o.company_id, o.location_id, 'read'))) then
-    raise exception 'That delivery no longer exists.' using errcode = 'P0002';
+    raise exception 'That delivery no longer exists.' using errcode = 'PT404';
   end if;
   if not v_crew and not public.office_member_can(o.company_id, o.location_id, 'change') then
     raise exception 'Your role can read deliveries but not change them — ask your office admin.' using errcode = '42501';
@@ -301,7 +189,7 @@ begin
 
   if p_change = 'note' then
     if o.canceled_at is not null or o.status not in ('received', 'brewed') or o.delivery_date < v_today then
-      raise exception 'The driver has left for this delivery — send a message instead.' using errcode = '55000';
+      raise exception 'The driver has left for this delivery — send a message instead.' using errcode = 'PT409';
     end if;
     if char_length(coalesce(v_note, '')) > 300 then raise exception 'Keep the note to 300 characters.' using errcode = '22023'; end if;
     if o.client_note is not distinct from v_note then return public.office_delivery_json(o); end if;
@@ -312,24 +200,24 @@ begin
     if p_change = 'unskip' then
       if o.canceled_at is null then return public.office_delivery_json(o); end if;     -- already on
       if o.canceled_reason is distinct from 'skipped' then
-        raise exception 'That delivery was taken off the schedule, not skipped — send a request to bring it back.' using errcode = '55000';
+        raise exception 'That delivery was taken off the schedule, not skipped — send a request to bring it back.' using errcode = 'PT409';
       end if;
     elsif o.canceled_at is not null then
       if p_change = 'skip' and o.canceled_reason = 'skipped' then return public.office_delivery_json(o); end if;   -- already skipped
       raise exception 'That delivery is off the schedule%.', case when o.canceled_reason = 'paused' then ' while the program is paused' else '' end
-        using errcode = '55000';
+        using errcode = 'PT409';
     end if;
     if o.status <> 'received' then
-      raise exception 'That delivery is already under way — send a request instead.' using errcode = '55000';
+      raise exception 'That delivery is already under way — send a request instead.' using errcode = 'PT409';
     end if;
     if not v_crew and now() >= v_cut then
-      raise exception 'Changes to this delivery closed %. Send it as a request and we''ll do what we can.', v_closes using errcode = '55000';
+      raise exception 'Changes to this delivery closed %. Send it as a request and we''ll do what we can.', v_closes using errcode = 'PT409';
     end if;
     if p_change in ('quantity', 'skip')
        and (o.payment_status in ('paid', 'invoiced', 'refunded') or o.paylink_url is not null or o.square_order_id is not null) then
       raise exception 'That delivery is %. Send the change as a request and we''ll settle the difference.',
         case when o.payment_status = 'paid' then 'paid' when o.payment_status = 'invoiced' then 'invoiced' else 'already billed' end
-        using errcode = '55000';
+        using errcode = 'PT409';
     end if;
 
     if p_change = 'quantity' then
@@ -356,11 +244,11 @@ begin
 
     elsif p_change = 'unskip' then
       if o.program_id is not null and not exists (select 1 from public.company_programs cp where cp.id = o.program_id and cp.status = 'active') then
-        raise exception 'The weekly program is paused — turn it back on first.' using errcode = '55000';
+        raise exception 'The weekly program is paused — turn it back on first.' using errcode = 'PT409';
       end if;
       if exists (select 1 from public.business_orders x where x.location_id is not distinct from o.location_id and x.delivery_date = o.delivery_date
                     and x.canceled_at is null and x.id <> o.id) then
-        raise exception 'That morning already has a delivery.' using errcode = '55000';
+        raise exception 'That morning already has a delivery.' using errcode = 'PT409';
       end if;
       update public.business_orders
          set canceled_at = null, canceled_reason = null, changed_at = now(), changed_by = auth.uid(), change_reason = null
@@ -410,7 +298,7 @@ end $$;
 revoke all on function public.office_change_delivery(uuid, text, numeric, date, text, text, uuid) from public, anon;
 grant execute on function public.office_change_delivery(uuid, text, numeric, date, text, text, uuid) to authenticated;
 
--- ── 8 · the mornings a delivery can move to ──────────────────────────────────────────────────────
+-- ── 4 · office_open_dates — the mornings a delivery can move to (0359; 1 refusal) ────────────────
 create or replace function public.office_open_dates(p_order uuid)
 returns table (delivery_date date, cutoff_at timestamptz)
 language plpgsql stable security definer set search_path = public as $$
@@ -419,7 +307,7 @@ begin
   select * into o from public.business_orders
    where id = p_order and tenant_id = public.effective_tenant() and (not v_crew or public.market_visible(market));
   if not found or (not v_crew and (o.company_id is null or not public.office_member_can(o.company_id, o.location_id, 'read'))) then
-    raise exception 'That delivery no longer exists.' using errcode = 'P0002';
+    raise exception 'That delivery no longer exists.' using errcode = 'PT404';
   end if;
   if o.program_id is not null then select * into p from public.company_programs where id = o.program_id; end if;
   v_today := public.office_local_today(o.market);
@@ -438,15 +326,8 @@ end $$;
 revoke all on function public.office_open_dates(uuid) from public, anon;
 grant execute on function public.office_open_dates(uuid) to authenticated;
 
--- ── 9 · a request ────────────────────────────────────────────────────────────────────────────────
-create or replace function public.office_request_label(p_kind text) returns text
-language sql immutable as $$
-  select case p_kind
-    when 'change_after_cutoff' then 'Change after the cutoff' when 'extra_delivery' then 'Extra delivery'
-    when 'new_location' then 'New location' when 'event' then 'Event' when 'equipment' then 'Equipment'
-    when 'billing' then 'Billing question' when 'service_issue' then 'Service issue' else 'Request' end
-$$;
-
+-- ── 5 · office_request — a request to GT3 (0359; 4 refusals) ─────────────────────────────────────
+-- existing rows: office_request — its alerts are written as before, word for word; only a refusal's code changes.
 create or replace function public.office_request(
   p_kind    text,
   p_body    text,
@@ -470,8 +351,8 @@ begin
   if p_order is not null then
     select * into o from public.business_orders
      where id = p_order and tenant_id = public.effective_tenant() and (not v_crew or public.market_visible(market));
-    if not found or o.company_id is null then raise exception 'That delivery no longer exists.' using errcode = 'P0002'; end if;
-    if v_company is not null and v_company <> o.company_id then raise exception 'That delivery no longer exists.' using errcode = 'P0002'; end if;
+    if not found or o.company_id is null then raise exception 'That delivery no longer exists.' using errcode = 'PT404'; end if;
+    if v_company is not null and v_company <> o.company_id then raise exception 'That delivery no longer exists.' using errcode = 'PT404'; end if;
     v_company := o.company_id; v_location := o.location_id; v_market := o.market;
   elsif v_company is null and not v_crew then
     -- the caller's own company, when they have one
@@ -481,8 +362,8 @@ begin
   select c.name, coalesce(v_market, c.market) into v_name, v_market from public.companies c
    where c.id = v_company and c.tenant_id = public.effective_tenant() and (not v_crew or public.market_visible(c.market));
   if v_name is null or (not v_crew and not public.office_member_can(v_company, v_location, 'read')) then
-    if p_order is not null then raise exception 'That delivery no longer exists.' using errcode = 'P0002'; end if;
-    raise exception 'That company isn''t yours.' using errcode = 'P0002';
+    if p_order is not null then raise exception 'That delivery no longer exists.' using errcode = 'PT404'; end if;
+    raise exception 'That company isn''t yours.' using errcode = 'PT404';
   end if;
   if not v_crew and not public.office_member_can(v_company, v_location, 'request') then
     raise exception 'Your role can read this account but not send requests — ask your office admin.' using errcode = '42501';
@@ -504,11 +385,10 @@ begin
     '/crew?s=now');
   return r;
 end $$;
--- existing rows: office_request — a new producer; it has never written an alert.
 revoke all on function public.office_request(text, text, uuid, uuid, jsonb, uuid) from public, anon;
 grant execute on function public.office_request(text, text, uuid, uuid, jsonb, uuid) to authenticated;
 
--- The crew moves a request along. Done or declined answers the crew's alert about it.
+-- ── 6 · office_request_set — the crew answers a request (0359; 1 refusal) ────────────────────────
 create or replace function public.office_request_set(p_request uuid, p_status text, p_resolution text default null)
 returns public.company_requests
 language plpgsql security definer set search_path = public as $$
@@ -521,7 +401,7 @@ begin
   select * into r from public.company_requests
    where id = p_request and tenant_id = public.effective_tenant() and public.market_visible(market)
    for update;
-  if not found then raise exception 'That request no longer exists.' using errcode = 'P0002'; end if;
+  if not found then raise exception 'That request no longer exists.' using errcode = 'PT404'; end if;
   update public.company_requests
      set status = p_status,
          owner = case when p_status = 'in_progress' then coalesce(owner, auth.uid()) else owner end,
@@ -539,9 +419,7 @@ end $$;
 revoke all on function public.office_request_set(uuid, text, text) from public, anon;
 grant execute on function public.office_request_set(uuid, text, text) to authenticated;
 
--- ── 10 · the client's home, in one call ──────────────────────────────────────────────────────────
--- p_company: the company to read; null = the caller's own (their first active membership). The crew
--- may read any company in its tenant and city (what the client sees, for the AM).
+-- ── 7 · office_home — the client's home in one call (0359; 2 refusals) ───────────────────────────
 create or replace function public.office_home(p_company uuid default null) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare
@@ -556,10 +434,10 @@ begin
   end if;
   select * into c from public.companies
    where id = v_company and tenant_id = public.effective_tenant() and (not v_crew or public.market_visible(market));
-  if not found then raise exception 'That company isn''t yours.' using errcode = 'P0002'; end if;
+  if not found then raise exception 'That company isn''t yours.' using errcode = 'PT404'; end if;
   select * into m from public.company_members cm
    where cm.company_id = c.id and cm.user_id = auth.uid() and cm.active;
-  if m.id is null and not v_crew then raise exception 'That company isn''t yours.' using errcode = 'P0002'; end if;
+  if m.id is null and not v_crew then raise exception 'That company isn''t yours.' using errcode = 'PT404'; end if;
   v_role := case when m.id is not null then m.role else 'crew' end;
   v_locs := case when m.id is not null then m.location_ids end;     -- null = every location
   v_today := public.office_local_today(c.market);
@@ -617,104 +495,14 @@ end $$;
 revoke all on function public.office_home(uuid) from public, anon;
 grant execute on function public.office_home(uuid) to authenticated;
 
--- ── 11 · the program's followers leave a client's change alone ───────────────────────────────────
--- 0356's office_program_follow verbatim but two lines: a new rule no longer takes off a delivery the
--- client moved (`and o.moved_at is null`), and a new weekly quantity no longer reaches a delivery
--- whose quantity the client set for that day (`and o.gallons_changed_at is null`). A pause, a
--- resume, the window, the price and the door reach every open delivery, as before.
-create or replace function public.office_program_follow() returns trigger
-language plpgsql security definer set search_path = public as $$
-declare v_from date;
-begin
-  if tg_table_name = 'company_programs' then
-    if old.status = 'active' and new.status <> 'active' then
-      update public.business_orders o
-         set canceled_at = now(), canceled_reason = case when new.status = 'paused' then 'paused' else 'program ended' end
-       where o.program_id = new.id and public.office_untouched(o);
-    elsif new.status = 'active' and old.status is distinct from 'active' then
-      update public.business_orders set canceled_at = null, canceled_reason = null
-       where program_id = new.id and canceled_reason = 'paused' and canceled_at is not null and cutoff_at > now();
-      perform public.office_generate(new.tenant_id, new.market, public.office_local_today(new.market) + public.office_horizon(), new.id);
-    elsif new.status = 'active' then
-      -- THE RULE, THE WINDOW OR THE PRICE CHANGED while the program stayed on. An untouched delivery
-      -- the new rule no longer makes is taken off ('schedule changed', kept as the record); one a
-      -- change took off that the rule makes again comes back; the rest take the program's window and
-      -- price; then the new rule's dates whose cutoff is still ahead are made. Without this, a Monday
-      -- program moved to Thursdays kept its Monday and gained a Thursday — both delivered.
-      update public.business_orders o set canceled_at = now(), canceled_reason = 'schedule changed'
-       where o.program_id = new.id and public.office_untouched(o) and o.moved_at is null and not public.office_rule_matches(new, o.scheduled_for);
-      update public.business_orders o set canceled_at = null, canceled_reason = null
-       where o.program_id = new.id and o.canceled_reason = 'schedule changed' and o.canceled_at is not null
-         and o.status = 'received' and o.payment_status = 'pending' and o.paylink_url is null and o.square_order_id is null
-         and o.cutoff_at > now() and public.office_rule_matches(new, o.scheduled_for);
-      update public.business_orders o
-         set delivery_window = public.office_window(new), price_per_gallon_cents = public.office_price(new),
-             subtotal_cents = (o.gallons * public.office_price(new))::int,
-             total_cents = (o.gallons * public.office_price(new))::int + o.delivery_fee_cents + o.tax_cents
-       where o.program_id = new.id and public.office_untouched(o)
-         and (o.delivery_window, o.price_per_gallon_cents) is distinct from (public.office_window(new), public.office_price(new));
-      v_from := public.office_local_today(new.market) + 1;
-      while public.office_cutoff(v_from, new.market) <= now() loop v_from := v_from + 1; end loop;
-      perform public.office_generate(new.tenant_id, new.market, public.office_local_today(new.market) + public.office_horizon(), new.id, v_from);
-    end if;
-  elsif tg_table_name = 'company_program_lines' then
-    if new.product = 'cold_brew_gallon' and new.quantity is distinct from old.quantity then
-      update public.business_orders o
-         set gallons = new.quantity,
-             subtotal_cents = (new.quantity * o.price_per_gallon_cents)::int,
-             total_cents = (new.quantity * o.price_per_gallon_cents)::int + o.delivery_fee_cents + o.tax_cents
-       where o.program_id = new.program_id and public.office_untouched(o) and o.gallons_changed_at is null;
-    end if;
-  elsif tg_table_name = 'company_locations' then
-    update public.business_orders o
-       set address_street = coalesce(new.address_street, ''), address_city = coalesce(new.address_city, ''),
-           address_zip = coalesce(new.address_zip, ''), access_instructions = new.access_instructions,
-           delivery_window = public.office_window(p)
-      from public.company_programs p
-     where p.id = o.program_id and o.location_id = new.id and public.office_untouched(o);
-  elsif tg_table_name = 'live_status' then
-    -- Settings' price. The programs without a price of their own bill it, so their untouched
-    -- deliveries do too: /office quotes Settings' price, and the delivery it quotes must bill the same.
-    if new.office_price_cents is distinct from old.office_price_cents then
-      update public.business_orders o
-         set price_per_gallon_cents = coalesce(new.office_price_cents, 4500),
-             subtotal_cents = (o.gallons * coalesce(new.office_price_cents, 4500))::int,
-             total_cents = (o.gallons * coalesce(new.office_price_cents, 4500))::int + o.delivery_fee_cents + o.tax_cents
-        from public.company_programs p
-       where p.id = o.program_id and p.price_per_gallon_cents is null and public.office_untouched(o);
-    end if;
-  elsif tg_table_name = 'markets' then
-    -- A city's office window: the programs with no window of their own, or on their door, take it.
-    if new.office_window is distinct from old.office_window then
-      update public.business_orders o set delivery_window = public.office_window(p)
-        from public.company_programs p
-       where p.id = o.program_id and p.market = new.slug and public.office_untouched(o)
-         and o.delivery_window is distinct from public.office_window(p);
-    end if;
-  end if;
-  return null;
-end $$;
-revoke all on function public.office_program_follow() from public, anon, authenticated;
-
-comment on function public.office_untouched(public.business_orders) is
-  'Open: generated, not canceled, still received and unpaid, no Square link, before its cutoff (0356). A pause, a resume, the window, the price and the door reach every open delivery; a new rule skips one the client moved, and a new weekly quantity one whose quantity the client set (0359).';
-
--- ── what changed ───────────────────────────────────────────────────────────────────────────────
-insert into public.changelog (title, category, area, summary, shipped_on, highlight)
-select v.title, v.category, v.area, v.summary, v.shipped_on::date, v.highlight
-from (values
-  ('Office clients change their own deliveries until the cutoff','feature','Delivery',
-   'An office client can now change one delivery themselves — its gallons, skip it, move it to another morning within two weeks, or leave the driver a note — right up to that delivery''s cutoff, shown in their own time. After the cutoff the same sheet becomes a request to GT3, never a dead button. Requests (a change after the cutoff, an extra delivery, an event, a billing question, an issue) are real records the crew sees and answers. A client''s change is never overwritten by the weekly schedule, and a double tap changes nothing twice.',
-   '2026-10-07', true)
-) as v(title, category, area, summary, shipped_on, highlight)
-where not exists (select 1 from public.changelog c where c.title = v.title);
-
 -- verify:
---   select count(*) from information_schema.columns where table_name = 'business_orders' and column_name in ('changed_at','changed_by','change_reason','gallons_changed_at','moved_from','moved_at','client_note');   -- 7
---   select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname in ('office_order_changes','company_requests') and c.relrowsecurity;   -- 2
+--   select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--    where n.nspname = 'public' and p.prosrc ~* 'errcode\s*=\s*''(55000|P0002)''';   -- 0
+--   select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--    where n.nspname = 'public' and p.prosrc ~ 'errcode = ''PT40[49]'''
+--      and p.proname in ('office_log_delivery', 'office_reopen_delivery', 'office_change_delivery', 'office_open_dates',
+--                        'office_request', 'office_request_set', 'office_home');   -- 7
 --   select has_function_privilege('anon', 'public.office_change_delivery(uuid, text, numeric, date, text, text, uuid)', 'execute');   -- false
---   select has_function_privilege('anon', 'public.office_home(uuid)', 'execute');   -- false
---   select count(*) from pg_policies where tablename = 'business_orders' and policyname = 'biz order member read';   -- 1
---   select count(*) from pg_publication_tables where pubname = 'supabase_realtime' and tablename in ('office_order_changes','company_requests');   -- 2
-select public.record_migration('0359_a_client_changes_a_delivery_until_its_cutoff',
-  'business_orders changed_at, changed_by, change_reason, gallons_changed_at, moved_from, moved_at, client_note; company_members.location_ids; office_member_can; office_order_changes; company_requests; office_delivery_json; office_change_delivery (quantity, skip, unskip, move, note — until the cutoff, keyed); office_open_dates; office_request (+ office_request alert), office_request_set; office_home; business_orders member read (the company''s people, at their locations); office_order_changes and company_requests join supabase_realtime; office_program_follow: a new rule skips moved deliveries, a new weekly quantity skips ones the client set.');
+--   select has_function_privilege('authenticated', 'public.office_home(uuid)', 'execute');   -- true
+select public.record_migration('0360_a_refusal_is_a_4xx_not_a_server_error',
+  'office_log_delivery, office_reopen_delivery, office_change_delivery, office_open_dates, office_request, office_request_set, office_home: their refusals raise PT409 (was 55000) and PT404 (was P0002), so PostgREST answers 409 and 404, not 500. Checks, order and words unchanged; grants restated.');
