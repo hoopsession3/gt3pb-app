@@ -96,7 +96,7 @@ export default function MenuScreen() {
 
       <div className="menu-chips" role="tablist" aria-label="Menu categories">
         {MENU.map((cat, ci) => (
-          <button key={cat.name} type="button" role="tab" aria-selected={active === cat.name} className={`menu-chip${active === cat.name ? " on" : ""}`} onClick={() => jumpTo(cat.name)}>{t(`menu.sec.${ci}.name`)}</button>
+          <button key={cat.name} type="button" role="tab" aria-selected={active === cat.name} className={`menu-chip hit-y-44${active === cat.name ? " on" : ""}`} onClick={() => jumpTo(cat.name)}>{t(`menu.sec.${ci}.name`)}</button>
         ))}
       </div>
       {closed
