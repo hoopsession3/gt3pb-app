@@ -6,7 +6,7 @@ export default function TermsPage() {
   return (
     <section className="screen legal">
       <div className="legal-wrap">
-        <h1>Terms</h1>
+        <h1 data-large-title>Terms</h1>
         <p className="legal-date">GT3 Performance Bar · effective August 2026</p>
         <p>Ordering through this app is an offer to buy; we confirm it when the order shows as accepted. Pre-orders are made fresh for your pickup window — if we can&rsquo;t fill something (a sold-out batch, a truck problem), we&rsquo;ll refund it in full through Square.</p>
         <p>Pack reservations with bring-back pricing assume the empties come back — bottles stay yours otherwise at the new-glass price shown at checkout. Delivery orders are prepaid; if a porch delivery fails because the address given was wrong, we&rsquo;ll work it out with you like humans, but we can&rsquo;t guarantee a re-run that day.</p>
