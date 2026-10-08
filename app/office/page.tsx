@@ -21,8 +21,9 @@ import { haptic } from "@/lib/haptics";
 import { useRealtimeTable } from "@/lib/realtime";
 import {
   STAGES, changeable, cutoffLabel, dayLabel, deliveryState, invoiceState, legacyHome, nextDelivery, programLine, relDay, requestState, stageOf,
-  type LegacyAccount, type LegacyInvoice, type LegacyOrder, type OfficeAccount, type OfficeDelivery, type OfficeHome, type RequestKind,
+  type LegacyAccount, type LegacyInvoice, type LegacyOrder, type OfficeAccount, type OfficeDelivery, type OfficeHome,
 } from "@/lib/officeStatus";
+import type { RequestKind } from "@/lib/officeChange";
 
 // The sheets load with the first tap that opens one (a client reads this page far more than they change it).
 const OfficeChangeSheet = dynamic(() => import("@/components/OfficeChangeSheet"), { ssr: false });
