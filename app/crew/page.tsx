@@ -53,6 +53,7 @@ import { WayButtons } from "@/components/RecordWays";
 import { goPlanTab, isPlanTab, planTabFromUrl, stampPlanTab, PLAN_TAB_KEY, PLAN_TAB_EVENT, type PlanTab } from "@/lib/planNav";
 import SwipePager from "@/components/SwipePager";
 import SwipeRow, { type RowAction } from "@/components/SwipeRow";
+import LongPress, { useLongPress, type MenuItem } from "@/components/LongPress";
 import GtmCard from "@/components/GtmCard";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
@@ -145,7 +146,7 @@ const Reports = dynamic(() => import("@/components/Reports"), { loading: () => <
 const SnapshotReport = dynamic(() => import("@/components/SnapshotReport"), { loading: () => <PourFill label="Loading…" /> });
 const EventPnlReport = dynamic(() => import("@/components/EventPnlReport"), { loading: () => <PourFill label="Loading…" /> });
 import SignIn from "@/components/SignIn";
-import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
+import Sheet, { CloseButton, LeaveButton, sheetOpen } from "@/components/Sheet";
 import { NumberRoll } from "@/components/CountUp";
 import PourFill from "@/components/PourFill";
 import AlertAction, { alertHasInlineAction } from "@/components/AlertAction";
@@ -579,10 +580,20 @@ function Kitchen() {
               {!isCol && list.map((o) => {
                 const waiting = waitingToOpen(o);
                 const sev = waiting ? "calm" : ageSev(ageMin(orderClockFrom(o)));
+                // A LONG PRESS ON A TICKET (2026-10-08, the navigation round, approved): its next step, back a stage,
+                // the money, and Void — the ticket's own buttons, by name, without aiming at a 44pt corner mid-rush.
+                const items: MenuItem[] = [
+                  { key: "next", label: st.action, icon: "arrowRight", run: () => { void advance(o); } },
+                  ...(PREV[o.status] ? [{ key: "back", label: "Move back a stage", icon: "chevronLeft", run: () => { void recall(o); } } satisfies MenuItem] : []),
+                  ...(canCollect(o) ? [{ key: "collect", label: `Collect ${money(o.total_cents)}`, run: () => { void collect(o); } }] : []),
+                  ...(canUndo(o, me, admin) ? [{ key: "undo", label: `Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment`, run: () => { void undoTake(o); } }] : []),
+                  { key: "void", label: "Void order", icon: "close", danger: true, run: () => { void voidOrder(o); } },
+                ];
                 return (
-                  <div className={`adm-order st-${o.status}${flash.has(o.id) ? " flash" : ""}`} key={o.id}>
+                  <LongPress key={o.id} title={`${o.customer ?? "Guest"} · #${o.id.slice(0, 4).toUpperCase()}`} items={items}>{(press) => (
+                  <div {...press.bind} className={`adm-order pressable st-${o.status}${flash.has(o.id) ? " flash" : ""}`}>
                     <button className="adm-act-more" onClick={() => voidOrder(o)} aria-label={`Void ${o.customer ?? "order"}`}><Icon name="more" /></button>
-                    <div className="adm-order-top">
+                    <div className="adm-order-top pr-10">
                       <b>{o.customer ?? "Guest"}</b>
                       <span className={`adm-age ${sev}`}>{waiting && o.ready_from ? waitingLabel(o.ready_from) : ago(orderClockFrom(o))}</span>
                     </div>
@@ -604,6 +615,7 @@ function Kitchen() {
                       <button className={`adm-act ${ACT_CLASS[o.status]}`} onClick={() => advance(o)}>{st.action}</button>
                     </div>
                   </div>
+                  )}</LongPress>
                 );
               })}
             </div>
@@ -618,7 +630,12 @@ function Kitchen() {
               <span className="kds-stage-n">{done.length}</span>
             </button>
             {doneOpen && done.map((o) => (
-              <div className="adm-order st-done" key={o.id}>
+              <LongPress key={o.id} title={`${o.customer ?? "Guest"} · #${o.id.slice(0, 4).toUpperCase()}`} items={[
+                { key: "recall", label: "Bring it back to ready", icon: "chevronLeft", run: () => { void recall(o); } },
+                ...(canCollect(o) ? [{ key: "collect", label: `Collect ${money(o.total_cents)}`, run: () => { void collect(o); } } satisfies MenuItem] : []),
+                ...(canUndo(o, me, admin) ? [{ key: "undo", label: `Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment`, run: () => { void undoTake(o); } } satisfies MenuItem] : []),
+              ]}>{(press) => (
+              <div {...press.bind} className="adm-order pressable st-done">
                 <div className="adm-order-top">
                   <b>{o.customer ?? "Guest"}</b>
                   <span className="adm-age calm">picked up {ago(o.status_changed_at)} ago</span>
@@ -637,6 +654,7 @@ function Kitchen() {
                   )}
                 </div>
               </div>
+              )}</LongPress>
             ))}
           </div>
         )}
@@ -1023,8 +1041,8 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
       )}
 
       {/* Each flag swipes the way a Mail row does (components/SwipeRow): left for Later and Got it — a
-          long swipe clears it — right to open what it names. The buttons stay; the swipe is the fast
-          way to them. */}
+          long swipe clears it — right to open what it names. A long press raises the same, by name
+          (components/LongPress). The buttons stay; the swipe and the press are the fast ways to them. */}
       {sorted.map((a) => (
         <SwipeRow key={a.id} className="alert-swipe"
           lead={canOpen(a) ? [{ key: "open", label: "Open", icon: "arrowRight", tone: "info", run: () => gotoAlert(a) }] : []}
@@ -1032,8 +1050,14 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
             ...(a.severity !== "critical" ? [{ key: "later", label: "1 hour", icon: "clock", tone: "warn", removes: true, run: () => { void later(a); } } satisfies RowAction] : []),
             { key: "clear", label: "Got it", icon: "check", tone: "ok", removes: true, run: () => { void clear(a); } },
           ]}>
+        <LongPress title={a.title} items={[
+          ...(canOpen(a) ? [{ key: "open", label: "Open", icon: "arrowRight", run: () => gotoAlert(a) } satisfies MenuItem] : []),
+          ...(counts[a.id] ? [{ key: "discuss", label: openThread === a.id ? "Hide the discussion" : "Discuss", icon: "chat", run: () => setOpenThread(openThread === a.id ? null : a.id) } satisfies MenuItem] : []),
+          ...(a.severity !== "critical" ? [{ key: "later", label: "Snooze for an hour", icon: "clock", run: () => { void later(a); } } satisfies MenuItem] : []),
+          { key: "clear", label: "Got it", icon: "check", run: () => { void clear(a); } },
+        ]}>{(press) => (
         <div className={`alert sev-${a.severity}`}>
-          <div className="alert-row">
+          <div {...press.bind} className="alert-row pressable">
             {/* The words that name the thing open it (2026-10-04): only the small Open button used
                 to, and "New reservation · Jess reserved a 6-pack…" was dead text beside it. */}
             {(() => {
@@ -1059,6 +1083,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
             <CommentThread subject={{ col: "alert_id", id: a.id }} notifyIds={[a.target_user_id, a.created_by]} label={a.title} meId={userId} meName={meName} />
           )}
         </div>
+        )}</LongPress>
         </SwipeRow>
       ))}
     </div>
@@ -3369,9 +3394,23 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   };
 
   const openCount = items.filter((i) => !i.done).length;
+  // A LONG PRESS ON A NOTE (2026-10-08, the navigation round, approved): on its head, the note's own buttons
+  // by name — open it, rename it, add to it, discuss it, archive or restore it, delete it. One that works
+  // inside the note opens the note too. The note's words still select: the press is the head's.
+  const canEdit = note.created_by === meId || isAdmin;
+  const inside = (f: () => void) => () => { f(); if (!open) onToggle(); };
+  const press = useLongPress(note.title, [
+    { key: "open", label: open ? "Close the note" : "Open the note", icon: open ? "close" : "info", run: onToggle },
+    ...(canEdit ? [{ key: "rename", label: "Rename this note", icon: "edit", run: inside(() => { setTitleDraft(note.title); setRenaming(true); }) } satisfies MenuItem] : []),
+    ...(canEdit ? [{ key: "add", label: "Add to this note", icon: "plus", run: inside(() => setAdding(true)) } satisfies MenuItem] : []),
+    ...(note.visibility === "collab" || note.created_by === meId ? [{ key: "discuss", label: "Discuss this note", icon: "chat", run: inside(() => setNoteThread(true)) } satisfies MenuItem] : []),
+    { key: "archive", label: note.archived_at ? "Restore" : "Archive", run: onArchive },
+    ...(isAdmin ? [{ key: "delete", label: "Delete note", icon: "close", danger: true, run: onDelete } satisfies MenuItem] : []),
+  ]);
   return (
     <div className={`note-card${open ? " open" : ""}`}>
-      <button type="button" className="note-head" onClick={onToggle} aria-expanded={open}>
+      {press.menu}
+      <button {...press.bind} type="button" className="note-head pressable" onClick={onToggle} aria-expanded={open}>
         <div className="note-head-main">
           <span className="note-title">{note.title}{note.source === "email" && <span className="note-src">email</span>}{note.source === "review" && <span className="note-src rite">weekly review</span>}{note.source === "strategy" && <span className="note-src rite">strategy session</span>}</span>
           <span className="note-meta">{fmtNoteDate(note.met_on)}{authorName ? ` · ${authorName}` : ""}{eventTitle ? <> · {eventTitle}</> : ""}{note.visibility === "private" ? <> · <Icon name="lock" /> private</> : note.visibility === "team" ? <> · <Icon name="team" /> team</> : ""}{items.length ? ` · ${openCount}/${items.length} follow-ups` : ""}</span>
@@ -5606,11 +5645,12 @@ export default function AdminPage() {
   // one selection, two readers. Living here (not inside EventPrep) also means stepping out to
   // another section and back no longer loses your place mid-prep.
   const [prepSel, setPrepSel] = useState<PrepTarget | null>(null);
-  // Service mode — full-screen KDS (pass + pickups). Esc exits; leaving Now exits.
+  // Service mode — full-screen KDS (pass + pickups). Esc exits; leaving Now exits. A sheet open over the Pass
+  // (Collect, the void's question, a ticket's menu) takes Escape for itself, and the Pass stays (2026-10-08).
   const [svc, setSvc] = useState(false);
   useEffect(() => {
     if (!svc) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSvc(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented && !sheetOpen()) setSvc(false); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [svc]);
@@ -5876,7 +5916,7 @@ export default function AdminPage() {
           in reach without ever leaving the screen — 86ing a flavor mid-rush is a tap, not an exit.
           Exit with the button or Esc; leaving the Now section exits too. */}
       {svc && sec === "now" && (
-        <div className="svc-full" role="dialog" aria-modal="true" aria-label="The Pass">
+        <div className="svc-full text-cream" role="dialog" aria-modal="true" aria-label="The Pass">
           <div className="svc-bar">
             <b>The Pass</b>
             <button type="button" className="svc-exit" onClick={() => setSvc(false)}><Icon name="close" /> Exit</button>
