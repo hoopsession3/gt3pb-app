@@ -5760,6 +5760,10 @@ export default function AdminPage() {
             onChange={() => { rememberMode("customer"); router.push("/"); }} />
         </div>
         <div className="toprow-actions">
+          {/* Quick actions on a phone — run a copilot, ask GT3, a note, a purchase (2026-10-08, the iPhone
+              chrome round, approved): the ✦ that floated over every crew screen lives here, beside search.
+              The frame (desktop, iPad) keeps the floating button and does not draw this one. */}
+          <IconButton icon="sparkles" label="Quick actions — run a copilot, ask GT3, take a note, or log a purchase" className="frame:hidden!" aria-haspopup="dialog" onClick={() => window.dispatchEvent(new Event("gt3-quick-do"))} />
           {/* Jump — touch entry to the command palette (⌘K on a keyboard). */}
           <IconButton icon="search" label="Jump to a section, recent, or action" hint="⌘K" onClick={() => window.dispatchEvent(new Event("gt3-open-cmdk"))} />
           {/* Section guide — what each section is for + jump there. */}
