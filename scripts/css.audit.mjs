@@ -52,7 +52,7 @@ import ts from "typescript";
 import postcss from "postcss";
 
 export const CEILING = {
-  inlineStyles: 616,          // style={{…}} objects in app/, components/, native/ (621 on 2026-10-07; 620 the same day — the overdue count's margin is a utility; 616 when Team's door became one)
+  inlineStyles: 614,          // style={{…}} objects in app/, components/, native/ (621 on 2026-10-07; 620 the same day — the overdue count's margin is a utility; 616 when Team's door became one; 614 on 2026-10-08 — the Guide's header is utilities, with its two pages)
   rawColours: 498,            // distinct hex / rgb() / rgba() literals in app/globals.css (2026-10-07, after the dead rules went; 499 when Command and Team took theme tokens; 498 when the office route's card did)
   globalsBytes: 769_476,      // app/globals.css, source bytes (2026-10-07: 804 KB before 316 dead rules and 4 keyframes went; the pill kit fits in what its seven recipes left;
                               // Command's and Team's clean-up added rows and actions and put their one-off layout in utilities; the office route on theme tokens)

@@ -74,6 +74,8 @@ const SiteCopyEditor = dynamic(() => import("@/components/SiteCopyEditor"), { lo
 const OfficeSettings = dynamic(() => import("@/components/OfficeSettings"), { loading: () => <PourFill label="Loading…" /> });
 const MarketsPanel = dynamic(() => import("@/components/MarketsPanel"), { loading: () => <PourFill label="Loading…" /> });
 const CopilotDirectory = dynamic(() => import("@/components/CopilotDirectory"), { loading: () => <PourFill label="Loading…" /> });
+// The Guide's Start here page (2026-10-08) — loaded when the Guide opens on it, not with the console.
+const CrewStart = dynamic(() => import("@/components/CrewStart"), { loading: () => <PourFill label="Loading…" /> });
 const AiSpend = dynamic(() => import("@/components/AiSpend"), { loading: () => <PourFill label="Loading…" /> });
 const BroadcastEditor = dynamic(() => import("@/components/BroadcastEditor"), { loading: () => <PourFill label="Loading…" /> });
 const MaintenanceLog = dynamic(() => import("@/components/MaintenanceLog"), { loading: () => <PourFill label="Loading…" /> });
@@ -5244,7 +5246,8 @@ function VendorsAdmin() {
 // vendor book. A truck stop should always name a known venue; if it's a new place, you add it here and
 // it's created PENDING with an owner-approval alert (0191) — never a silent orphan. Shows the linked
 // vendor's POC live (relational), edit-once-updates-everywhere.
-function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[]; current: OpSection; onGo: (s: OpSection) => void; onClose: () => void }) {
+const GUIDE_PAGES = ["start", "sections"];
+function SectionGuide({ allowed, current, start, onGo, onClose }: { allowed: OpSection[]; current: OpSection; start: boolean; onGo: (s: OpSection) => void; onClose: () => void }) {
   // The sheet owns the scroll — the page behind must not move under a finger on the overlay.
   useEffect(() => {
     const b = document.getElementById("body") ?? document.body;
@@ -5258,8 +5261,29 @@ function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[
   // the console's help, and every role opens it — and every staff role can read the changelog (0260:
   // "changelog staff read").
   const [news, setNews] = useState(false);
+  // START HERE (2026-10-08) — the first day, lib/crewStart's steps with the tap that does each. The
+  // Guide was only "when to use what"; the first day lived in Ryan's texts. Two pages of one guide,
+  // not a second guide: the ⓘ still opens on the sections, the letter's link and a first visit on
+  // Start here.
+  const [page, setPage] = useState<"start" | "sections">(start ? "start" : "sections");
   return (
-    <Sheet open onClose={onClose} labelledBy="section-guide-title" header={<div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><div><div className="guide-t" id="section-guide-title">When to use what</div><div className="guide-lede">Each section is one job at one moment. Tap to learn more, then jump straight there.</div></div><button type="button" className="guide-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} labelledBy="section-guide-title" header={
+      <div className="flex flex-col gap-3">
+        <div className="flex items-start gap-2.5">
+          <div>
+            <div className="guide-t" id="section-guide-title">{page === "start" ? "Start here" : "When to use what"}</div>
+            <div className="guide-lede">{page === "start" ? "Your first day on the crew — each step, and one tap that does it." : "Each section is one job at one moment. Tap to learn more, then jump straight there."}</div>
+          </div>
+          <button type="button" className="guide-x ml-auto" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+        </div>
+        <Segmented label="Guide" size="sm" value={page} onChange={setPage}
+          options={[{ key: "start", label: "Start here" }, { key: "sections", label: "Every section" }]} />
+      </div>}>
+      {/* The two pages turn with a sideways swipe too, like every row of tabs (the gesture round). */}
+      <SwipePager levels={[{ keys: GUIDE_PAGES, current: page, go: (k) => setPage(k as "start" | "sections"), depth: 0 }]}>
+      {page === "start" ? (
+        <CrewStart onSection={(s, anchor) => { onGo(s); if (anchor) scrollToAnchor(anchor); }} onClose={onClose} />
+      ) : (<>
         {(allowed.includes("plan") || allowed.includes("prep")) && (
           <button type="button" className="guide-create" onClick={() => { window.dispatchEvent(new CustomEvent("gt3-copilot", { detail: "event-build" })); onClose(); }}>
             <span className="guide-create-x"><b><Icon name="sparkles" /> Create an event or truck stop</b><span>Say it in plain words — the chief of staff drafts it, you confirm.</span></span>
@@ -5305,6 +5329,8 @@ function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[
             {news && <div className="guide-body"><Changelog /></div>}
           </div>
         </div>
+      </>)}
+      </SwipePager>
     </Sheet>
   );
 }
@@ -5523,17 +5549,25 @@ export default function AdminPage() {
   // keep re-teleporting her on every cold open.
   const sec: OpSection = allowed.includes(section) ? section : "day";
   const [planTab, setPlanTab] = useState<PlanTab>("calendar");
-  const [guideOpen, setGuideOpen] = useState(false);
+  // THE GUIDE OPENS ON A PAGE (2026-10-08): "start" — the first day (components/CrewStart) — or
+  // "sections", what each section is for. ?guide=start is the welcome letter's link (lib/crewStart
+  // START_PATH): read once, in the initializer (the console renders nothing until the session is
+  // known, so the first paint cannot disagree with the server's), and taken off the address.
+  const [guideAsked] = useState<string | null>(() => readParam("guide"));
+  useEffect(() => { if (guideAsked) dropParam("guide"); }, [guideAsked]);
+  const [guide, setGuide] = useState<null | "start" | "sections">(() => (guideAsked ? (guideAsked === "sections" ? "sections" : "start") : null));
   const [inboxOpen, setInboxOpen] = useState(false);
   // The header 🔔 badge, for EVERY role (2026-10-04). It was gated on canManage — the leader-only rule
   // 0157 retired for alerts — so a server's bell never loaded while My Day and the nav badge counted
   // her pings from the same hook. The bell is the inbox's one door now; it has to open for everyone.
   const { flags: hdrFlags, critCount: hdrCrit } = useMyAlerts(user?.id ?? null);
   // First-run: the guide explains the console's language (Live Ops, Readiness, Route) — open it
-  // once for a brand-new staffer instead of hoping she finds the ⓘ pill.
+  // once for a brand-new staffer instead of hoping she finds the ⓘ pill. It opens on Start here now
+  // (2026-10-08): someone on the crew side for the first time on a phone needs the first day before
+  // the vocabulary — and a phone that came by the letter's link has already opened it there.
   useEffect(() => {
     try {
-      if (!localStorage.getItem("gt3-guide-seen")) { localStorage.setItem("gt3-guide-seen", "1"); setGuideOpen(true); }
+      if (!localStorage.getItem("gt3-guide-seen")) { localStorage.setItem("gt3-guide-seen", "1"); setGuide((g) => g ?? "start"); }
     } catch { /* ignore */ }
   }, []);
   // Cross-route deep link: /crew?s=settings&a=set-copy (or a specific copy group, e.g. sc-craft-page
@@ -5729,12 +5763,12 @@ export default function AdminPage() {
           {/* Jump — touch entry to the command palette (⌘K on a keyboard). */}
           <IconButton icon="search" label="Jump to a section, recent, or action" hint="⌘K" onClick={() => window.dispatchEvent(new Event("gt3-open-cmdk"))} />
           {/* Section guide — what each section is for + jump there. */}
-          <IconButton icon="info" label="Section guide" aria-haspopup="dialog" onClick={() => setGuideOpen(true)} />
+          <IconButton icon="info" label="Guide — start here, and what each section is for" aria-haspopup="dialog" onClick={() => setGuide("sections")} />
           {/* Inbox — the one place everything that needs you rolls up (flags + needs-you), from any screen. */}
           <IconButton icon="bell" label={hdrFlags.length ? `Inbox — ${hdrFlags.length} for you` : "Inbox"} badge={hdrFlags.length} crit={hdrCrit > 0} onClick={() => setInboxOpen(true)} />
         </div>
       </div>
-      {guideOpen && <SectionGuide allowed={allowed} current={sec} onGo={setSection} onClose={() => setGuideOpen(false)} />}
+      {guide && <SectionGuide allowed={allowed} current={sec} start={guide === "start"} onGo={setSection} onClose={() => setGuide(null)} />}
       {inboxOpen && (
         <Sheet open onClose={() => setInboxOpen(false)} label="Inbox" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="bell" /> Inbox</b><CloseButton onClick={() => setInboxOpen(false)} /></div>}>
           <AlertsInbox userId={user?.id ?? null} title="Flags & pings for you" onNavigate={() => setInboxOpen(false)} />

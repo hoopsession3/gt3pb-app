@@ -496,25 +496,34 @@ export const PROD_ROUTE = {
 // (/menu 101 089 → 101 710, /truck 103 738 → 104 359): the utilities the card, the calendar and the
 // sheets are laid out with, net of the office route's two rules moved onto theme tokens. The three routes
 // with the second stylesheet sat 0.19 KB under the rounding line; every other route stays at 99.
+// 2026-10-08 (the crew's first day): /delivery 286 → 287, /office 277 → 278, /display and /scan
+// 259 → 260. Built 6191e53 and this commit and gzipped what each route's HTML references: every route's
+// script +193 bytes (/display 265 603 → 265 796, /scan 265 536 → 265 729; /delivery 293 348 → 293 554
+// and /office 284 010 → 284 241 with their chunk splits), which crossed the rounding line on these four.
+// What rides in the shell, for everyone: AuthProvider reads the profile again when the app comes back to
+// the screen (so nobody signs out to become crew), and the ✦ opens straight on Ask GT3 from a link. The
+// first-day guide itself (components/CrewStart, lib/crewStart) loads with the Guide, and the home's
+// "You're on the GT3 crew" row only for the staff member it is for: imported up front, / weighed
+// 277 428 (+1 278) instead of 276 415 (+265).
 export const WEIGHT = {
   "/truck":                    { js: 280, css: 102, chunks: 15 },
   "/events":                   { js: 280, css: 102, chunks: 15 },
   "/menu":                     { js: 264, css:  99, chunks: 15 },
   "/reserve":                  { js: 288, css:  99, chunks: 16 },
-  "/delivery":                 { js: 286, css:  99, chunks: 16 },
+  "/delivery":                 { js: 287, css:  99, chunks: 16 },
   "/3mpire":                   { js: 280, css:  99, chunks: 15 },
   "/craft":                    { js: 264, css:  99, chunks: 15 },
   "/book":                     { js: 264, css:  99, chunks: 15 },
   "/academy":                  { js: 317, css:  99, chunks: 16 },
-  "/office":                   { js: 277, css:  99, chunks: 15 },
-  "/scan":                     { js: 259, css:  99, chunks: 15 },
+  "/office":                   { js: 278, css:  99, chunks: 15 },
+  "/scan":                     { js: 260, css:  99, chunks: 15 },
   "/architecture":             { js: 269, css:  99, chunks: 15 },
   "/playbook":                 { js: 272, css:  99, chunks: 15 },
   "/driver":                   { js: 276, css: 102, chunks: 15 },
   "/agreement":                { js: 267, css:  99, chunks: 15 },
   "/offer":                    { js: 277, css:  99, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 258, css:  99, chunks: 15 },
-  "/display":                  { js: 259, css:  99, chunks: 15 },
+  "/display":                  { js: 260, css:  99, chunks: 15 },
   "/shop":                     { js: 292, css:  99, chunks: 16 },
   "/primal":                   { js: 265, css:  99, chunks: 15 },
   "/privacy":                  { js: 257, css:  99, chunks: 14 },

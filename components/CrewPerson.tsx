@@ -8,6 +8,8 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Sheet, { CloseButton } from "./Sheet";
 import Icon from "./Icon";
+import { sendLetter } from "./AddTeammate";
+import { haptic } from "@/lib/haptics";
 
 // ONE PERSON, ONE PLACE (0311).
 //
@@ -114,6 +116,21 @@ export default function CrewPerson({ userId, onClose, onChanged }: {
   // own checks (owner, or the lead of that market, for the first; owner only for the second), so
   // this is not a privilege we are inventing — it is one that shipped in 0299 and 0289 with nothing
   // wired to it.
+  // THE WELCOME LETTER, AGAIN (2026-10-08). The letter carries the first day now — the steps and the
+  // link to the guide in the app (lib/crewStart) — and the people brought on before it got the old one,
+  // or none (bringing someone on sent nothing before 2026-10-07). An owner sends it from here: the same
+  // route and the same rules as Add a teammate (owner-only, this company's crew, the same letter twice
+  // inside two minutes is sent once), and the line says what the provider said.
+  const [letter, setLetter] = useState<string | null>(null);
+  const resendLetter = async (id: string) => {
+    if (busy) return;
+    setBusy(true);
+    const l = await sendLetter({ kind: "bring_on", user_id: id });
+    setBusy(false);
+    if (l.sent) haptic("success"); else haptic("error");
+    setLetter(l.sent ? `Sent to ${l.to}.` : `Couldn't send${l.detail ? ` — ${l.detail}` : ""}.`);
+  };
+
   const call = async (fn: "set_member_market" | "set_market_lead", args: Record<string, string | null>, ok: string) => {
     if (!supabase || busy) return;
     setBusy(true);
@@ -193,6 +210,16 @@ export default function CrewPerson({ userId, onClose, onChanged }: {
                       </div>
                     );
                   })}
+                  {iAmOwner && (
+                    <div className="cp-step">
+                      <span className="cp-step-k"><Icon name="chat" /></span>
+                      <span className="cp-step-b">
+                        <b>Welcome letter</b>
+                        <i role="status">{letter ?? "Their first day and the link to the guide in the app"}</i>
+                      </span>
+                      <button type="button" className="cp-step-go bg-transparent border-0 cursor-pointer" disabled={busy} onClick={() => resendLetter(p.user_id)}>Send it <span aria-hidden="true">›</span></button>
+                    </div>
+                  )}
                 </div>
 
               </div>

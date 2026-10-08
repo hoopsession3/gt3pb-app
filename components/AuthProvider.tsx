@@ -90,6 +90,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [profileStatus, setProfileStatus] = useState<ProfileStatus>(supabaseEnabled ? "loading" : "ready");
   const [recovery, setRecovery] = useState(false); // landed via a password-reset link → must set a new password
 
+  // When the profile was last read — the quiet re-read on return (below) waits 30 seconds after one.
+  const lastProfileRead = useRef(0);
   const loadProfile = useCallback(async (uid: string) => {
     if (!supabase) return;
     setProfileStatus("loading");
@@ -113,7 +115,33 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (error) { setProfileStatus("error"); return; }
     setProfile(data as Profile | null);
     setProfileStatus("ready");   // includes a genuine null: asked, answered, no row
+    lastProfileRead.current = Date.now();
   }, []);
+
+  // WHO YOU ARE, READ AGAIN WHEN YOU COME BACK (2026-10-08). The profile — and the role in it — was
+  // read when the session started and on a sign-in, and never again. Bringing someone onto the crew
+  // changes their row at once (promote_to_crew; the database's own checks read the row, not the
+  // token), but a phone that already had GT3 open kept showing the customer app until they signed
+  // out and back in — which is the first thing Ryan had to text Niño: "Sign out and sign out of the
+  // app". Now the row is read again when the app comes back to the screen, at most every 30 seconds,
+  // QUIETLY: no "loading" in between (every screen would flash), and the same rule as above — a
+  // failed or empty re-read changes nothing, so a blip never demotes anyone. An unchanged row is not
+  // set again, so a return to the app does not re-render the whole tree for nothing.
+  useEffect(() => {
+    if (!supabase || !user) return;
+    const sb = supabase, uid = user.id;
+    const onBack = () => {
+      if (document.visibilityState !== "visible" || Date.now() - lastProfileRead.current < 30_000) return;
+      lastProfileRead.current = Date.now();
+      void sb.from("profiles").select("*").eq("id", uid).maybeSingle().then(({ data, error }) => {
+        if (error || !data) return;
+        setProfile((prev) => (prev && JSON.stringify(prev) === JSON.stringify(data) ? prev : (data as Profile)));
+      });
+    };
+    document.addEventListener("visibilitychange", onBack);
+    window.addEventListener("focus", onBack);
+    return () => { document.removeEventListener("visibilitychange", onBack); window.removeEventListener("focus", onBack); };
+  }, [user]);
 
   // Capture a referral code from the invite link (/?ref=CODE) before sign-in so it
   // survives the auth round-trip; loadProfile attaches it on first profile load.
