@@ -19,6 +19,7 @@ import { eventIsPast } from "@/lib/readiness";
 import { localToday, etDayKey, etToday, timeRange } from "@/lib/dates";
 import { dateLine } from "@/lib/eventRecord";
 import { vendorKindLabel } from "@/lib/vendorKind";
+import { useLongPress, type MenuItem } from "@/components/LongPress";
 
 // LOCATION EDITOR — the address / pin / vendor-link row for a stop or a vendor place.
 //
@@ -129,9 +130,26 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
   const hours = kind === "stop" ? timeRange(startsAt, stop?.ends_at) : "";
   const sub = [hours, vendor?.poc_name, vendor?.service_dates, hasCoords ? "pinned" : "no pin"].filter(Boolean).join(" · ");
   const stopWhen = startsAt ? [tag, hours].filter(Boolean).join(" · ") : null;
+  // A LONG PRESS ON A STOP (2026-10-08, the navigation round, approved): on its head, the card's own buttons by
+  // name, open or not — go live here (or take the truck offline), edit its facts, its full prep. The open card's
+  // words (the address, the venue's number) still select.
+  const menu: MenuItem[] = kind !== "stop" ? [] : [
+    { key: "open", label: open ? "Hide the details" : "Show the details", icon: open ? "close" : "info", run: onToggle },
+    ...(onGoLive && !isCur ? [{ key: "live", label: "Go live here", icon: "dot", run: () => onGoLive(row.id) } satisfies MenuItem] : []),
+    ...(isCur && onGoOffline ? [{ key: "offline", label: "Take the truck offline", icon: "dotOutline", run: onGoOffline } satisfies MenuItem] : []),
+    { key: "edit", label: "Edit name, date, time, venue & address", icon: "edit", run: () => setEditFacts(true) },
+    ...(onOpenPrep ? [{ key: "prep", label: "Full prep — menu, staffing, run-of-show", icon: "arrowRight", run: onOpenPrep } satisfies MenuItem] : []),
+  ];
+  const press = useLongPress(displayName || "Untitled location", menu);
   return (
     <div className={`ev-card${isCur ? " live" : ""}${open ? " open" : ""}`}>
-      <button className="ev-head" onClick={onToggle} aria-expanded={open}>
+      {press.menu}
+      {/* The facts' sheet is drawn whether the card is open or not: the menu opens it from a closed card. */}
+      {editFacts && (
+        <FieldOpSheet kind="stop" id={row.id} onClose={() => setEditFacts(false)}
+          onSaved={() => { setEditFacts(false); onChanged(); }} onOpenPrep={onOpenPrep} />
+      )}
+      <button {...press.bind} className={`ev-head${kind === "stop" ? " pressable" : ""}`} onClick={onToggle} aria-expanded={open}>
         {/* The light is the live flag and nothing else (an empty ring read as a checkbox). */}
         {isCur && <span className="ev-led" />}
         <span className="ev-head-main">
@@ -192,10 +210,6 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
                   stays (different surface, on-demand only, already correctly singular). */}
               <button type="button" className="adm-btn" onClick={() => setEditFacts(true)}>Edit name, date, time, venue &amp; address ›</button>
               {venue && <VenueContact venue={venue} />}
-              {editFacts && (
-                <FieldOpSheet kind="stop" id={row.id} onClose={() => setEditFacts(false)}
-                  onSaved={() => { setEditFacts(false); onChanged(); }} onOpenPrep={onOpenPrep} />
-              )}
             </div>
           ) : (
           <div className="ev-group">
