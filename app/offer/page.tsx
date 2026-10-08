@@ -90,7 +90,7 @@ export default function OfferPage() {
 
   return (
     <section className="screen">
-      <Masthead eyebrow="Your offer" right={<Link className="pf" href="/" aria-label="Back">‹</Link>} />
+      <Masthead eyebrow="Your offer" right={<Link className="pf hit-44" href="/" aria-label="Back">‹</Link>} />
       <AsyncSection
         state={state}
         isEmpty={(rows) => rows.length === 0}
