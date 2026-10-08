@@ -206,8 +206,11 @@ import { LocationEditor } from "@/components/crew/LocationEditor";
 import { LiveControl } from "@/components/crew/LiveControl";
 import { staffAccess } from "@/lib/access";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { SECTION_TITLE } from "@/lib/routeTitles";
 
-const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", command: "Command", prep: "Readiness", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Assets", driver: "Delivery", notes: "Notes", money: "Money", catalog: "Catalog", customers: "Customers", team: "Team", settings: "Settings" };
+// The sections' names have one home now (lib/routeTitles): this heading, the guide, and the title bar's
+// title and its ‹ read the same words (2026-10-08, the navigation round).
+const SEC_LABEL = SECTION_TITLE;
 const SEC_WHEN: Record<OpSection, string> = {
   day: "Start of shift", now: "During service", ask: "When you're stuck", command: "Are we on track?", prep: "Before the event",
   plan: "Booking ahead", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", driver: "Delivery days", notes: "Any time", money: "The books", catalog: "Changing what we sell", customers: "Your regulars", team: "People & roles", settings: "Changing how it works",
@@ -5785,7 +5788,8 @@ export default function AdminPage() {
           {/* 2026-07-29 a11y: real per-section h1 (was a div) — AppShell's route-level sr-only h1
               is static ("Crew console") and never reflected which of the 17 sections you were in;
               /crew joined H1_SKIP so this is the one heading now, and it actually updates with sec. */}
-          <h1 className="op-head-t">{SEC_LABEL[sec]}</h1>
+          {/* data-large-title: the title bar (components/TitleBar) names the section once this has scrolled away. */}
+          <h1 className="op-head-t" data-large-title>{SEC_LABEL[sec]}</h1>
           {/* The WHEN pill ("START OF SHIFT ⓘ", "DURING SERVICE ⓘ") stood here until 2026-10-04: a
               fixed tagline styled as a status — it said "During service" at 10 PM with the truck
               offline — opening the same guide as the Guide button two inches above it. The guide
