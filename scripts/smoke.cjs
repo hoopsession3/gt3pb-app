@@ -8973,6 +8973,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 // half (0359); these hold lib/officeStatus's rules and the screens to it.
 {
   const OS = require("../.smoke/officeStatus.js");
+  const OC = require("../.smoke/officeChange.js");
   const SK3 = require("../.smoke/schemaSkew.js");
   const nfs = require("node:fs"), npath = require("node:path");
   const read = (p) => nfs.readFileSync(npath.join(__dirname, "..", p), "utf8");
@@ -8982,7 +8983,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     total_cents: 27000, status: "received", payment_status: "pending", driver_outcome: null, jugs_out: null, jugs_in: null, canceled: false, canceled_reason: null,
     cutoff_at: "2026-10-09T22:00:00Z", open: true, money_locked: false, note_open: true, moved_from: null, client_note: null, change_reason: null, changed_at: null,
     gallons_changed: false, location_id: "L1", program_id: "P1", market: "atlanta", paylink_url: null, ...x });
-  const draft = (d, x = {}) => ({ ...OS.draftOf(d), ...x });
+  const draft = (d, x = {}) => ({ ...OC.draftOf(d), ...x });
 
   // ── the rules ──
   const c1 = OS.cutoffLabel("2026-10-09T22:00:00Z", "atlanta", NOW), c2 = OS.cutoffLabel("2026-10-09T22:00:00Z", "atlanta", Date.parse("2026-10-09T22:00:01Z"));
@@ -8991,24 +8992,24 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("your gt3: the clock moves the card — a delivery the database called open is closed once its cutoff passes",
     OS.changeable(del(), NOW) === true && OS.changeable(del(), Date.parse("2026-10-10T00:00:00Z")) === false && OS.changeable(del({ open: false }), NOW) === false);
   const d = del();
-  const p1 = OS.changePlan(d, draft(d, { gallons: 8, moveTo: "2026-10-13", note: "Front desk at 6:30" }), NOW);
+  const p1 = OC.changePlan(d, draft(d, { gallons: 8, moveTo: "2026-10-13", note: "Front desk at 6:30" }), NOW);
   ok("your gt3: Save asks for the quantity, then the move, then the note — one keyed call each",
     JSON.stringify(p1.steps) === JSON.stringify([{ change: "quantity", gallons: 8 }, { change: "move", to: "2026-10-13" }, { change: "note", note: "Front desk at 6:30" }]) && p1.asks.length === 0, p1);
-  const late = OS.changePlan(d, draft(d, { gallons: 8, note: "Ring twice" }), Date.parse("2026-10-10T00:00:00Z"));
+  const late = OC.changePlan(d, draft(d, { gallons: 8, note: "Ring twice" }), Date.parse("2026-10-10T00:00:00Z"));
   ok("your gt3: after the cutoff the quantity becomes a request, and the driver's note still saves until the driver leaves",
     JSON.stringify(late.asks) === JSON.stringify([{ change: "quantity", gallons: 8 }]) && JSON.stringify(late.steps) === JSON.stringify([{ change: "note", note: "Ring twice" }]), late);
-  const paid = OS.changePlan(del({ money_locked: true }), draft(d, { gallons: 4, moveTo: "2026-10-14" }), NOW);
-  const paidSkip = OS.changePlan(del({ money_locked: true }), draft(d, { skip: true }), NOW);
+  const paid = OC.changePlan(del({ money_locked: true }), draft(d, { gallons: 4, moveTo: "2026-10-14" }), NOW);
+  const paidSkip = OC.changePlan(del({ money_locked: true }), draft(d, { skip: true }), NOW);
   ok("your gt3: a billed delivery keeps its money — its quantity and skip go to GT3, its move still saves",
     paid.asks[0]?.change === "quantity" && paid.steps[0]?.change === "move" && paidSkip.asks[0]?.change === "skip" && paidSkip.steps.length === 0, { paid, paidSkip });
-  const sk = OS.changePlan(d, draft(d, { skip: true, gallons: 9, note: "x" }), NOW);
-  const back = OS.changePlan(del({ canceled: true, canceled_reason: "skipped" }), draft(del({ canceled: true, canceled_reason: "skipped" }), { skip: false }), NOW);
-  const paused = OS.changePlan(del({ canceled: true, canceled_reason: "paused" }), draft(del({ canceled: true, canceled_reason: "paused" }), { skip: false, gallons: 9 }), NOW);
+  const sk = OC.changePlan(d, draft(d, { skip: true, gallons: 9, note: "x" }), NOW);
+  const back = OC.changePlan(del({ canceled: true, canceled_reason: "skipped" }), draft(del({ canceled: true, canceled_reason: "skipped" }), { skip: false }), NOW);
+  const paused = OC.changePlan(del({ canceled: true, canceled_reason: "paused" }), draft(del({ canceled: true, canceled_reason: "paused" }), { skip: false, gallons: 9 }), NOW);
   ok("your gt3: a skip is the whole change; a skip comes back; a paused delivery is the weekly order's, not the sheet's; nothing changed asks nothing",
     JSON.stringify(sk.steps) === '[{"change":"skip"}]' && JSON.stringify(back.steps) === '[{"change":"unskip"}]' && paused.steps.length + paused.asks.length === 0
-    && OS.changePlan(d, OS.draftOf(d), NOW).steps.length === 0 && OS.changePlan(d, draft(d, { note: "  " }), NOW).steps.length === 0, { sk, back, paused });
-  const a1 = OS.askOf(d, [{ change: "quantity", gallons: 8 }], "Big meeting", Date.parse("2026-10-10T00:00:00Z"));
-  const a2 = OS.askOf(del({ money_locked: true }), [{ change: "skip" }], "", NOW);
+    && OC.changePlan(d, OC.draftOf(d), NOW).steps.length === 0 && OC.changePlan(d, draft(d, { note: "  " }), NOW).steps.length === 0, { sk, back, paused });
+  const a1 = OC.askOf(d, [{ change: "quantity", gallons: 8 }], "Big meeting", Date.parse("2026-10-10T00:00:00Z"));
+  const a2 = OC.askOf(del({ money_locked: true }), [{ change: "skip" }], "", NOW);
   ok("your gt3: a refused change is sent in words — a change after the cutoff, or a billing question before it",
     a1.kind === "change_after_cutoff" && a1.body === "Monday, Oct 12 delivery: Make it 8 gallons.\nBig meeting" && a2.kind === "billing" && a2.body === "Monday, Oct 12 delivery: Skip it.", { a1, a2 });
 
@@ -9031,10 +9032,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const m359 = read("supabase/migrations/0359_a_client_changes_a_delivery_until_its_cutoff.sql");
   const dbLabels = [...m359.matchAll(/when '([a-z_]+)' then '([^']+)'/g)].map((m) => [m[1], m[2]]);
   ok("your gt3: the crew's word for a request is the database's (office_request_label), word for word",
-    dbLabels.length === 7 && dbLabels.every(([k, v]) => OS.requestLabel(k) === v) && OS.requestLabel("other") === "Request", dbLabels);
+    dbLabels.length === 7 && dbLabels.every(([k, v]) => OC.requestLabel(k) === v) && OC.requestLabel("other") === "Request", dbLabels);
   ok("your gt3: the crew's route says what the client did — moved, the gallons set for the day, why, the note",
-    OS.clientChanges({ moved_from: "2026-10-12", gallons_changed_at: "x", gallons: 8, change_reason: "fewer_people", client_note: "Ring twice" }).join(" · ") === "moved from Mon, Oct 12 · set 8 gal for this day · fewer people in · “Ring twice”"
-    && OS.clientChanges({}).length === 0);
+    OC.clientChanges({ moved_from: "2026-10-12", gallons_changed_at: "x", gallons: 8, change_reason: "fewer_people", client_note: "Ring twice" }).join(" · ") === "moved from Mon, Oct 12 · set 8 gal for this day · fewer people in · “Ring twice”"
+    && OC.clientChanges({}).length === 0);
   const leg = OS.legacyHome({ id: "a1", company: "Gwen Co", standing_active: true, standing_gallons: 4, jug_balance: 3, billing_terms: "net15" },
     [{ id: "o1", delivery_date: "2026-10-12", delivery_window: null, gallons: 4, total_cents: 18000, status: "received", payment_status: "pending" }], [], [], "2026-10-07", 4500, 3);
   ok("your gt3: before 0359 the page reads the old tables into the same shape — and offers no change it couldn't save",

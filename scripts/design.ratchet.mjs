@@ -487,9 +487,18 @@ export const PROD_ROUTE = {
 // utilities as the house sheet's gate asks — the first screens to use flex-col, the gap and margin steps
 // and the type sizes, so they pay for classes the next screens get free. /truck, /events and /driver
 // moved the same and stayed at 101. Script unchanged.
+// 2026-10-07 (Your GT3, the office client's home): /office 273 → 277, and /truck, /events, /driver css
+// 101 → 102. Built ac4d335 and this commit and gzipped what each route's HTML references. /office's script:
+// 279 324 → 284 010 bytes (+4 686) — the next delivery card and its four steps, the six-week calendar,
+// requests, invoices with Pay, the subscription that keeps it live, and lib/officeStatus, the page's one
+// reader; the change and ask sheets, lib/officeChange and the kit's segmented control load with the first
+// tap that opens a sheet (1 391 bytes lighter than carrying them up front). Every stylesheet +621 bytes
+// (/menu 101 089 → 101 710, /truck 103 738 → 104 359): the utilities the card, the calendar and the
+// sheets are laid out with, net of the office route's two rules moved onto theme tokens. The three routes
+// with the second stylesheet sat 0.19 KB under the rounding line; every other route stays at 99.
 export const WEIGHT = {
-  "/truck":                    { js: 280, css: 101, chunks: 15 },
-  "/events":                   { js: 280, css: 101, chunks: 15 },
+  "/truck":                    { js: 280, css: 102, chunks: 15 },
+  "/events":                   { js: 280, css: 102, chunks: 15 },
   "/menu":                     { js: 264, css:  99, chunks: 15 },
   "/reserve":                  { js: 288, css:  99, chunks: 16 },
   "/delivery":                 { js: 286, css:  99, chunks: 16 },
@@ -497,11 +506,11 @@ export const WEIGHT = {
   "/craft":                    { js: 264, css:  99, chunks: 15 },
   "/book":                     { js: 264, css:  99, chunks: 15 },
   "/academy":                  { js: 317, css:  99, chunks: 16 },
-  "/office":                   { js: 273, css:  99, chunks: 15 },
+  "/office":                   { js: 277, css:  99, chunks: 15 },
   "/scan":                     { js: 259, css:  99, chunks: 15 },
   "/architecture":             { js: 269, css:  99, chunks: 15 },
   "/playbook":                 { js: 272, css:  99, chunks: 15 },
-  "/driver":                   { js: 276, css: 101, chunks: 15 },
+  "/driver":                   { js: 276, css: 102, chunks: 15 },
   "/agreement":                { js: 267, css:  99, chunks: 15 },
   "/offer":                    { js: 277, css:  99, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 258, css:  99, chunks: 15 },
