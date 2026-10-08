@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { keepPlace, placeFor, restorePlace, returnToPlace } from "@/lib/appScroll";
+import { HELP_EVENTS, type Asked, type HelpEvent } from "@/lib/helpSheets";
 import { useApp } from "./AppProvider";
 import BottomNav from "./BottomNav";
 import { OperatorSectionProvider } from "./OperatorSection";
@@ -36,6 +38,8 @@ import dynamic from "next/dynamic";
 // public route to a ceiling so the next static import of a staff feature fails there, by name.
 const OperatorNav = dynamic(() => import("./OperatorNav"));
 const QuickDock = dynamic(() => import("./QuickDock"));
+// Ask us, Connect and Display as sheets — loaded by the first ask, never with the page (lib/helpSheets).
+const HelpSheets = dynamic(() => import("./HelpSheets"), { ssr: false });
 const EventCopilot = dynamic(() => import("./EventCopilot"));
 const CommandPalette = dynamic(() => import("./CommandPalette"));
 const SwipeBack = dynamic(() => import("./SwipeBack"));
@@ -83,11 +87,37 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [checkoutWanted, setCheckoutWanted] = useState(false);
   if (!checkoutWanted && (cartCount > 0 || coOpen)) setCheckoutWanted(true);
 
-  // Mirror the prototype go(): scroll to top + close any open sheet on navigation.
+  // A new screen opens at its top — unless the move was a tab bar tap or a step back through history,
+  // which come back to where that screen was left (lib/appScroll, EACH TAB KEEPS ITS PLACE). The key is
+  // switched in a layout effect, before the browser reports the scroll the new content causes, so a long
+  // page's place is never overwritten by the short page that replaced it.
+  const placeKey = useRef(pathname);
   useEffect(() => {
-    if (bodyRef.current) bodyRef.current.scrollTop = 0;
-    closeDrink();
-  }, [pathname, closeDrink]);
+    const body = bodyRef.current;
+    if (!body) return;
+    const onScroll = () => keepPlace(placeKey.current, body.scrollTop);
+    // A step through history to another screen; a crew section's step (same path) is ScrollRestore's.
+    const onPop = () => { if (window.location.pathname !== placeKey.current) returnToPlace(); };
+    body.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("popstate", onPop);
+    return () => { body.removeEventListener("scroll", onScroll); window.removeEventListener("popstate", onPop); };
+  }, []);
+  useLayoutEffect(() => {
+    placeKey.current = pathname;
+    const body = bodyRef.current;
+    if (!body) return;
+    return restorePlace(body, placeFor(pathname));
+  }, [pathname]);
+  // Close any open drink sheet on navigation (the prototype's go()).
+  useEffect(() => { closeDrink(); }, [pathname, closeDrink]);
+
+  // The menus' sheets, asked for by an event (lib/helpSheets); the first ask loads them.
+  const [asked, setAsked] = useState<Asked | null>(null);
+  useEffect(() => {
+    const onAsk = (e: Event) => setAsked((a) => ({ which: e.type as HelpEvent, n: (a?.n ?? 0) + 1 }));
+    for (const t of HELP_EVENTS) window.addEventListener(t, onAsk);
+    return () => { for (const t of HELP_EVENTS) window.removeEventListener(t, onAsk); };
+  }, []);
 
   // NO ZOOM ON A TAPPED FIELD (2026-10-06): an iPhone zoomed into every form's 15px fields and stayed
   // zoomed, cutting the screen off on the right. lib/ios says why and how; this applies it on every
@@ -219,6 +249,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             {customerSurface && <Concierge />}
           </FloatRail>
         )}
+        {/* Ask us, Connect and Display as sheets, opened from the header and the menus (on a phone the rail is gone). */}
+        {asked && !isShare && <HelpSheets asked={asked} />}
         {customerSurface && <MarketingSplash />}
         <ErrorReporter />
         {NativeBridge && <NativeBridge />}

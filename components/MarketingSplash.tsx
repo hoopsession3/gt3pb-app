@@ -7,6 +7,7 @@ import { useAuth } from "./AuthProvider";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useSiteCopy } from "@/lib/copy";
 import { cameThroughFrontDoor, clearFrontDoor } from "@/lib/viewerHint";
+import { isNativeApp } from "@/lib/native";
 
 // MARKETING SPLASH — the sales word-art the app opens to for guests. Fixed premium copy ("Own your
 // week."), so it ships with NO database dependency and shows the moment we deploy. Always closeable
@@ -74,6 +75,9 @@ export default function MarketingSplash() {
     // remount this subtree within the first frames, and a mark set up-front would suppress the
     // splash before anyone saw it (the old "never opens" bug, now a week long).
     if (pathname !== "/" && pathname !== "/truck") return;
+    // NOT IN THE IPHONE APP (2026-10-08, the iPhone chrome round, approved): someone who installed the app has
+    // already chosen GT3, and its launch screen has shown the brand. The app opens on the menu (app/page.tsx).
+    if (isNativeApp()) return;
     if (!ready || user) return;                       // a member knows the brand; wait for auth to say
     // /truck is the front door only when the hop from "/" said so (cleared below, when it shows).
     if (pathname === "/truck" && !cameThroughFrontDoor()) return;
