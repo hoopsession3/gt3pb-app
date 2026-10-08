@@ -43,6 +43,20 @@ export const ROLES: { key: Role; label: string; blurb: string }[] = [
   { key: "contractor", label: "Contractor", blurb: "Short-term help for an event or activation." },
 ];
 
+// The app's account roles (member/server/admin/owner…) map onto Academy roles. Event-manager and
+// contractor are Academy-only paths until profiles carry them. One home (2026-10-07): the Academy
+// page reads it, and so does the crew welcome letter, which names the path a new teammate starts on.
+export const APP_TO_ACADEMY: Record<string, Role> = {
+  owner: "founder", admin: "admin", event_manager: "event_manager",
+  operator: "operator", server: "operator", contractor: "contractor", member: "staff",
+};
+export const toAcademyRole = (appRole: string): Role => APP_TO_ACADEMY[appRole] ?? "staff";
+/** The Academy path an app role starts on — its label and its one line. */
+export const trackFor = (appRole: string): { label: string; blurb: string } | null => {
+  const r = ROLES.find((x) => x.key === toAcademyRole(appRole));
+  return r ? { label: r.label, blurb: r.blurb } : null;
+};
+
 export interface QuizQ { q: string; options: string[]; correct: number; why?: string }
 export interface ModuleSection { h: string; p: string }
 export interface Scenario { situation: string; doThis: string }

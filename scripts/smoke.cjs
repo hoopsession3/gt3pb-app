@@ -6599,10 +6599,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("academy: ?assign= opens the board with them chosen — for an admin, and only someone on it",
     /useState<View>\(\(\) => \(assignFor \? \{ k: "team" \} : \{ k: "home" \}\)\)/.test(ac) && /if \(view\.k === "team" && isAdmin\) return <TeamBoard assignFor=\{assignFor\}/.test(ac) && /const chosen = rows\.some\(\(r\) => r\.id === memberId\) \? memberId : "";/.test(ac));
   const pg = code(read("app/crew/page.tsx"));
+  // The door moved to components/AddTeammate (2026-10-07, one door): the same rules, read where they live.
+  const add = code(read("components/AddTeammate.tsx"));
   ok("bring someone on: the city starts as theirs, else yours, else the founding market — not Atlanta by the alphabet",
-    /supabase\.from\("v_promotable"\)\.select\("id, display_name, email, customer_name, market"\)/.test(pg) && /\[pickedRow\?\.market, profile\?\.market, FOUNDING_MARKET\]/.test(pg) && !/setMarket\(\(prev\) => prev \|\| /.test(pg));
+    /supabase\.from\("v_promotable"\)\.select\("id, display_name, email, customer_name, market"\)/.test(add) && /\[picked\?\.market, profile\?\.market, FOUNDING_MARKET\]/.test(add) && !/setMarket\(\(prev\) => prev \|\| /.test(add));
   ok("bring someone on: their offer and their Academy path open for them",
-    pg.includes("href={`/crew?s=money&a=offers&offer_for=${justHired.id}`}") && pg.includes("href={`/academy?assign=${justHired.id}`}"));
+    add.includes("href={`/crew?s=money&a=offers&offer_for=${done.id}`}") && add.includes("href={`/academy?assign=${done.id}`}"));
   // 2026-10-06 (the settings round): the ?a= consumer reads and drops in two steps — a link to the
   // Pass waits for ?s=now to land before it is taken — still through lib/urlParam, its one home.
   ok("crew page: a link's one-time instruction has one home", /const a = readParam\("a"\);/.test(pg) && /dropParam\("a"\);/.test(pg) && /readParam\("promote"\)/.test(pg) && !/searchParams\.delete\("promote"\)/.test(pg) && !/searchParams\.delete\("a"\)/.test(pg));
@@ -6627,9 +6629,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const ep = code(read("components/EventDayPlanner.tsx"));
   ok("run of show: a new block starts where the last one ends, at the venue for the venue's work, with the crew as chips",
     /const nextStart = \(dayItems\[dayItems\.length - 1\]\?\.end_time \?\? ""\)\.trim\(\);/.test(ep) && /const AT_THE_VENUE = new Set\(\["setup", "service", "teardown"\]\);/.test(ep) && /location: follow\(p\.location, was\.place, now\.place\)/.test(ep) && /onClick=\{\(\) => toggleWho\(n\)\}/.test(ep));
-  const it = code(read("components/InviteTeammate.tsx"));
-  ok("invite: an email that already has an account is offered the door that works",
-    /\.eq\("email_norm", em\)\.not\("user_id", "is", null\)/.test(it) && it.includes("href={`/crew?s=team&promote=${hasAccount.id}`}"));
+  ok("invite: an email that already has an account is brought on in the same door, not invited into a void",
+    /\.eq\("email_norm", inviting\)\.not\("user_id", "is", null\)/.test(add)
+    && /if \(people\.some\(\(p\) => p\.id === uid\)\) \{ setPick\(uid\); toast\("They already have an account — bring them on instead\."\); \}/.test(add));
   const dop = code(read("components/DeliveryOps.tsx"));
   ok("loop returns: whose bottles, and who counted them", /insert\(\{ returns: v, customer_id: whose \|\| null, created_by: user\?\.id \?\? null \}\)/.test(dop));
   const ir = code(read("app/api/agents/intake/route.ts"));
@@ -8245,7 +8247,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     "set-notify": ["<DeviceAlerts userId={userId} />", "<PassSound />", "<NotifPrefs userId={userId} />"],
     "set-display": ["<Appearance />", "<DisplayControls />"],
     "set-pay": ["<PaymentSettings />"], "set-ordering": ["<CupOrderingDial />", "<OfficeSettings />"], "set-markets": ["<MarketsPanel />"],
-    "set-team": ["<InviteTeammate />", '<OrgChart part="lanes" />'], "set-digest": ["<FounderDigest />"],
+    "set-team": ['<GoLine to="team" anchor="team-members">Add someone, or change a role</GoLine>', '<OrgChart part="lanes" />'], "set-digest": ["<FounderDigest />"],
     "set-integrations": ["<IntegrationsPanel />", "<OutlookConnect />"], "set-ai": ["<AiTraining />", "<CopilotDirectory />", "<AiSpend />"],
     "set-brand": ["<SiteCopyEditor />", "<PromoEditor />"],
     "set-admintrail": ["<AuditTrail />"], "set-errors": ["<ErrorLog />", "<MaintenanceLog />"], "set-lists": ["<ListsPanel />"],
@@ -8346,12 +8348,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /sections\[1:array_position\(sections, 'money'\)\] \|\| array\['catalog'\]::text\[\] \|\| sections\[array_position\(sections, 'money'\) \+ 1:\]/.test(mig)
       && /else array_append\(sections, 'catalog'\)/.test(mig) && /select public\.record_migration\('0352_catalog_lane'\);\s*$/.test(mig));
   }
-  ok("old spots: Team keeps \"Invites & roles ›\" and \"Train the AI ›\" for the owner (an admin's line goes to the lane owners), the roster keeps roles, the org chart keeps the people",
-    /\{isOwner && <GoLine to="settings" anchor="set-invite">Invites &amp; roles<\/GoLine>\}/.test(team) && /\{isOwner && <GoLine to="settings" anchor="set-train">Train the AI<\/GoLine>\}/.test(team)
+  ok("old spots: Team keeps \"Train the AI ›\" for the owner (an admin's line goes to the lane owners), the roster keeps roles and the one door to add someone, the org chart keeps the people — and Settings sends there",
+    /\{isOwner && <GoLine to="settings" anchor="set-train">Train the AI<\/GoLine>\}/.test(team)
     && /\{!isOwner && <GoLine to="settings" anchor="set-lanes">Lane owners<\/GoLine>\}/.test(team)
-    && !/<InviteTeammate|<AiTraining/.test(team) && /<OrgChart part="people" \/>/.test(team)
+    && !/<InviteTeammate|<AiTraining|anchor="set-invite"/.test(team) && /<OrgChart part="people" \/>/.test(team)
     && /\{isOwner && <div id="team-members" style=\{\{ scrollMarginTop: 16 \}\}><Members \/><\/div>\}/.test(team)
-    && /\{isOwner && <GoLine to="team" anchor="team-members">Change someone&rsquo;s role<\/GoLine>\}/.test(sh));
+    && /<AddTeammate promoteFor=\{promoteFor\} onDone=\{membersState\.reload\} \/>/.test(pg)
+    && /\{isOwner && <SetPart id="set-invite" label="Add a teammate"><GoLine to="team" anchor="team-members">Add someone, or change a role<\/GoLine><\/SetPart>\}/.test(sh));
   const oc = code(read("components/OrgChart.tsx"));
   ok("old spots: OrgChart draws its two parts in two homes — the people on Team, the lane owners in Settings — and a refused owner pick is said",
     /export default function OrgChart\(\{ part = "people" \}/.test(oc) && /\{\(\) => part === "people" \? \(/.test(oc)
@@ -8622,7 +8625,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("words: no screen sends anyone to an old home — Route's dial, Now ▸ Live truck, \"connect from Plan › Calendar\", Team → Train the AI, the roster \"below\"",
     !/Locations &amp; ordering dial/.test(lc) && !/Now ▸ Live truck|the global window|global setting applies/.test(code(read("components/crew/OwnerDetails.tsx")))
     && !/connect from Plan › Calendar/.test(code(read("components/IntegrationsPanel.tsx"))) && !/Team → Train the AI/.test(code(read("components/AiTraining.tsx")))
-    && !/roster below/.test(code(read("components/InviteTeammate.tsx"))) && !/Business → Studio/.test(pg)
+    && !/Business → Studio/.test(pg)
     && !appFiles.some((f) => /Menu & availability|Ordering & payments|Copy & brand|Markets & legal|Team & access|Front-end copy/.test(code(read(f)))));
 }
 
@@ -8889,6 +8892,78 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /\.k-seg-scroll\{[^}]*overflow-x:auto[^}]*padding-block:8px;margin-block:-8px\}/.test(css));
   ok("pills: the CSS audit counts the pills outside the kit, and the count only falls (ONE PILL)",
     /export function pillRulesIn\(ast\)/.test(audit) && /pillRules: \d+,/.test(audit) && /9\. ONE PILL/.test(audit));
+}
+
+// ── COMMAND, MY DAY AND TEAM, CLEANED (2026-10-07) — Ryan: "Ewww, command and my day are almost the
+//    same, command has bad css" and "Invite and bring team member on seems redundant"; "When brought on,
+//    a GT3 welcome letter should come". ──
+{
+  const WL = require("../.smoke/crewWelcome.js");
+  const nfs = require("node:fs"), npath = require("node:path");
+  const read = (p) => nfs.readFileSync(npath.join(__dirname, "..", p), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  const osr2 = code(read("components/OsRegistry.tsx")), cbd = code(read("components/CommandBoard.tsx")), css2 = read("app/globals.css");
+  const add2 = code(read("components/AddTeammate.tsx")), wr = code(read("app/api/team/welcome/route.ts")), crew2 = code(read("app/crew/page.tsx"));
+  ok("command: the portfolio's rows sit on the page — a hairline between them, no card fill, no colour that only the night theme can carry",
+    /\.osr-row\{[^}]*background:none;[^}]*border-bottom:1px solid var\(--line\)/.test(css2) && !/\.osr-row\{[^}]*rgba\(0,0,0/.test(css2) && !/\.osr-(dot|when|owner)\b/.test(css2));
+  ok("command: the audit being overdue is said once, above the rows — not as a day count on every row",
+    /const overdue = active\.filter\(\(r\) => \(daysSince\(r\.last_audited\) \?\? 99\) >= 7\)\.length;/.test(osr2) && /<p className="osr-due [^"]*" role="status">/.test(osr2) && !/osr-when|stale \? " stale"/.test(osr2));
+  ok("command: a workstream's name leads its row and its score closes it, with its band's dot",
+    osr2.indexOf('<span className="osr-main">') > 0 && osr2.indexOf('<span className="osr-main">') < osr2.indexOf("className={`osr-score ${dotClass(w.health, w.status)}`}"));
+  ok("command: the team's week is one line of counts that opens on a tap — the tasks My Day lists are not listed a second time",
+    /className=\{`cmd-week\$\{weekOpen \? " open" : ""\}`\} onClick=\{\(\) => setWeekOpen\(\(o\) => !o\)\} aria-expanded=\{weekOpen\}/.test(cbd)
+    && !/label="This week"|label="Done this week"/.test(cbd) && /<b className="text-cream font-bold tabular-nums">\{data\.overdue\.length\}<\/b> overdue/.test(cbd));
+  ok("command: an initiative two weeks past its date folds to its line, its progress and the question it raises — its milestones a tap away, nothing removed",
+    /const folded = !!it\.target_date && daysTo\(it\.target_date\) < -14 && !unfolded\.has\(it\.id\);/.test(cbd) && /Show the milestones/.test(cbd) && /Fold it back/.test(cbd)
+    && /onClick=\{\(\) => finishInit\(it\)\}/.test(cbd));
+  ok("command: Blockers are the company's — an incident or a goal at risk",
+    /data\.incidents\.length === 0 && data\.goals\.filter\(\(g\) => g\.checkin_status === "at_risk"\)\.length === 0 \? <EmptyState title="Nothing blocked" \/>/.test(cbd));
+  ok("command: Team's activity rows and the KPI rows have a day surface, and the night keeps its own",
+    /\.app\.crew-day \.util-row,\.app\.crew-day \.kpib-row\{background:var\(--ink-onLight-03\)\}/.test(css2) && /\.cmd-goalsel\{background-color:var\(--ink-onLight-03\)/.test(css2));
+  // ── one door ──
+  ok("team: one door — Add a teammate — brings on someone with an account and invites an email with none; the second door is gone",
+    /supabase\.rpc\("promote_to_crew", \{ p_member: picked\.id, p_role: role, p_market: market \|\| null, p_lead: lead \}\)/.test(add2)
+    && /supabase\.from\("team_invites"\)\.insert\(\{ email: inviting, role, invited_by: user\?\.id \?\? null \}\)/.test(add2)
+    && !nfs.existsSync(npath.join(__dirname, "..", "components/InviteTeammate.tsx")) && !/function PromotePanel|Bring someone onto the crew/.test(crew2));
+  ok("team: the confirm names the city, not its slug — \"In Atlanta\", and says the letter goes",
+    /const cityName = \(slug: string\) => markets\.find\(\(m\) => m\.slug === slug\)\?\.name \|\| slug;/.test(add2) && /body: city \? `In \$\{city\}\$\{lead \? `, leading \$\{city\}` : ""\}\. They get a GT3 welcome letter\.`/.test(add2));
+  ok("team: after a bring-on and after an invite the letter is sent, and the screen says what the provider said — sent to whom, or why not",
+    /const letter = await sendLetter\(\{ kind: "bring_on", user_id: picked\.id \}\);/.test(add2) && /const letter = await sendLetter\(\{ kind: "invite", email: inviting \}\);/.test(add2)
+    && /\? <>\{what\} sent to \{l\.to\}\.<\/>/.test(add2) && /The \{what\.toLowerCase\(\)\} couldn&rsquo;t send/.test(add2));
+  ok("team: an open invite can be sent again or cancelled; a failed read says so, never \"nobody\"",
+    /onClick=\{\(\) => resend\(i\)\}>Send again<\/button>/.test(add2) && /onClick=\{\(\) => cancel\(i\)\}/.test(add2) && /this is not &ldquo;nobody&rdquo;/.test(add2));
+  const tAt = crew2.indexOf('{sec === "team" && isAdmin && ('), teamBlk = crew2.slice(tAt, crew2.indexOf("<AcademyCard />", tAt));
+  ok("team: the roster comes first with its door on top, and the role pick says the role — no badge repeating it",
+    tAt > 0 && teamBlk.indexOf("<Members />") > 0 && teamBlk.indexOf("<Members />") < teamBlk.indexOf("<WorkloadBoard />") && teamBlk.indexOf("<WorkloadBoard />") < teamBlk.indexOf("<UtilizationPanel />")
+    && !/tm-badge/.test(crew2) && /className="tm-acts"/.test(crew2));
+  // ── the letter ──
+  ok("welcome letter: owner-only, inside the owner's company, to a crew member or an open invite — never an address the caller typed",
+    /if \(!\(await ownerFromRequest\(req\)\)\)/.test(wr) && /const tenant = await tenantFromRequest\(req\);/.test(wr)
+    && /\.select\("id, display_name, role, market, leads_market"\)\.eq\("tenant_id", tenant\)\.eq\("id", userId\)/.test(wr)
+    && /if \(person\.role === "member"\) return NextResponse\.json/.test(wr)
+    && /\.from\("team_invites"\)\s*\.select\("email, role"\)\.eq\("tenant_id", tenant\)\.eq\("email", em\)\.is\("claimed_at", null\)/.test(wr)
+    && /export const POST = route\("team\/welcome", post\);/.test(wr));
+  ok("welcome letter: sent and recorded in one call, and the same letter twice inside two minutes is sent once",
+    /await tellCustomer\(\{ orderId: null, email: to, kind: kindKey, sentBy: me\?\.id \?\? null, \.\.\.letter \}\)/.test(wr)
+    && /\.gte\("created_at", new Date\(Date\.now\(\) - 120_000\)\.toISOString\(\)\)/.test(wr)
+    && /"crew_welcome" \| "crew_invite"/.test(code(read("lib/customerMessage.ts"))));
+  const w1 = WL.crewWelcome({ name: "Niño Reyes", role: "operator", city: "Atlanta", cityLead: "Kayla", track: { label: "Operator", blurb: "Runs the cart and the line. Serves with confidence." }, from: "Ryan" });
+  ok("welcome letter: their first name, their role, their city by name, who leads it, the first three steps and their Academy path",
+    w1.subject === "Welcome to the GT3 crew, Niño" && /^Niño,\n/.test(w1.message) && /You're on the crew as Operator in Atlanta\./.test(w1.message)
+    && /Runs the cart and the line\./.test(w1.message) && /1\. Sign in at https:\/\/app\.gt3pb\.com with this email address\./.test(w1.message)
+    && /3\. Start your training in the Academy — the Operator path\./.test(w1.message) && /Kayla leads Atlanta — they're your first call\./.test(w1.message) && /Ryan, GT3 Performance Bar$/.test(w1.message), w1);
+  const w2 = WL.crewWelcome({ name: null, role: "server", city: null, from: null });
+  ok("welcome letter: a part with nothing to say is left out — no city, no lead, no invented name",
+    w2.subject === "Welcome to the GT3 crew" && /^Hello,\n/.test(w2.message) && /You're on the crew as Server\./.test(w2.message) && !/ in |leads|undefined|null/.test(w2.message.split("\n")[2]) && !/undefined|null/.test(w2.message), w2);
+  const w3 = WL.crewWelcome({ name: "Dana", role: "operator", city: "Greenville", leadsCity: true, cityLead: "Dana", from: "Ryan" });
+  ok("welcome letter: someone made a city's lead is told so, and not told to call themselves", /You lead Greenville\./.test(w3.message) && !/Dana leads Greenville/.test(w3.message), w3.message);
+  const inv = WL.crewInvite({ email: "kim@example.com", role: "event_manager", from: "Ryan Thompkins" });
+  ok("invite letter: who invited them, the role waiting, and the email to sign up with",
+    inv.subject === "Ryan invited you to the GT3 crew" && /Ryan Thompkins added you to the GT3 Performance Bar crew as Event Manager\./.test(inv.message)
+    && /sign up with this email address \(kim@example\.com\)/.test(inv.message), inv);
+  const acad = read("lib/academy.ts"), acPage = code(read("app/academy/page.tsx"));
+  ok("academy: a role's path has one home — lib/academy maps it, the Academy page and the letter both read it",
+    /export const APP_TO_ACADEMY: Record<string, Role> = \{/.test(acad) && /export const trackFor = /.test(acad) && !/const APP_TO_ACADEMY/.test(acPage) && /toAcademyRole\(roleOf\(profile\)\)/.test(acPage));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

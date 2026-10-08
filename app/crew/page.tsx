@@ -97,7 +97,8 @@ const KpiBoard = dynamic(() => import("@/components/KpiBoard"), { loading: () =>
 const UtilizationPanel = dynamic(() => import("@/components/UtilizationPanel"), { loading: () => <PourFill label="Loading…" /> });
 const CrewPerson = dynamic(() => import("@/components/CrewPerson"), { ssr: false });
 import { RecordLink } from "@/components/RecordSheet";
-const InviteTeammate = dynamic(() => import("@/components/InviteTeammate"), { loading: () => <PourFill label="Loading…" /> });
+// Owner-only and opened on a tap: loaded with the roster, not with the console.
+const AddTeammate = dynamic(() => import("@/components/AddTeammate"), { loading: () => <PourFill label="Loading…" /> });
 const CrmPanel = dynamic(() => import("@/components/CrmPanel"), { loading: () => <PourFill label="Loading…" /> });
 const CodesPanel = dynamic(() => import("@/components/CodesPanel"), { loading: () => <PourFill label="Loading…" /> });
 const PerksPanel = dynamic(() => import("@/components/PerksPanel"), { loading: () => <PourFill label="Loading…" /> });
@@ -3991,7 +3992,6 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
           <b>{m.display_name ?? "Unnamed"}{isSelf && <span className="tm-you">you</span>}</b>
           <span className="adm-ref">{m.referral_code || "—"}</span>
         </div>
-        <span className={`tm-badge tone-${meta.tone}`}>{roleLabel(role)}</span>
         {isDriver && <span className="tm-driver" title="Delivery driver"><Icon name="compass" /></span>}
       </div>
       <label className="tm-rolepick">
@@ -4002,11 +4002,16 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
       </label>
       {/* THE DOOR THAT WAS MISSING. Tapping a person here used to open Points and Credit —
           customer fields, on an employee — and everything that actually matters about them lived
-          on six other screens. This opens the one place they all meet. */}
-      <button className="tm-open" onClick={() => setProfile(true)}>
-        <Icon name="team" /> Open {(m.display_name ?? "profile").split(" ")[0]}&apos;s profile <span className="ev-chev" aria-hidden="true">›</span>
-      </button>
-      <button className="tm-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Hide loyalty" : `Loyalty & credit · ${pts} pts`} <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span></button>
+          on six other screens. This opens the one place they all meet.
+          ONE LINE OF ACTIONS (2026-10-07): the profile and the details were two full-width buttons
+          under a role badge that repeated the role pick above them. The badge is gone (the pick
+          says the role) and the two doors share a line. */}
+      <div className="tm-acts">
+        <button type="button" className="tm-act" onClick={() => setProfile(true)}>
+          <Icon name="team" /> {(m.display_name ?? "Their").split(" ")[0]}&apos;s profile <span className="ev-chev" aria-hidden="true">›</span>
+        </button>
+        <button type="button" className="tm-act" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Hide details" : `Name, driver & loyalty · ${pts} pts`} <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span></button>
+      </div>
       {profile && <CrewPerson userId={m.id} onClose={() => setProfile(false)} onChanged={onSaved} />}
       {open && (
         <div className="adm-fields tm-loyalty">
@@ -4022,264 +4027,19 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
   );
 }
 
-// PROMOTE — the member → crew door. The roster filters everyone at role 'member' out of view, so
-// until now the one transition the app had no control for was bringing a customer in. These are the
-// same people: 14 of the 15 customers already hold a profile. One RPC does role, market and
-// market-lead together (0299) because they have a required order and two of the three have no client
-// path at all — profiles has carried only an own-profile update policy since 0001.
-const HIRE_ROLES: RoleKey[] = ["server", "contractor", "operator", "event_manager"];
-
-// OPEN IS NOT THE SAME AS VISIBLE, and one scroll is not enough.
-//
-// The hire panel sits below the stat tiles, the utilization list, the guest-visit line and the
-// invite form — about two screens down. Arriving from a customer card opened it and left the person
-// looking at the top of Team, where nothing had apparently happened.
-//
-// Two attempts have already failed in production, and the measurements say why. A 120ms timer
-// scrolled a document that had not finished loading. Two animation frames scrolled one that had not
-// finished GROWING: the panel measured y=1699 on one run and y=1719 on the next, because the async
-// sections above it were still arriving and pushing it further down each time. There is no single
-// moment to scroll at, because the page keeps moving.
-//
-// So stop guessing at the moment and check the result instead. Re-assert until the element is
-// actually in view, bounded — a scroll that has not landed after a second and a half is a scroll
-// that is being fought by something else, and continuing to yank the page would be worse than
-// leaving it. Instant, not smooth: a retry must not fight an in-flight animation.
-function scrollHereUntilItSticks(ref: { current: HTMLElement | null }, tries = 12) {
-  let n = 0;
-  const tick = () => {
-    const el = ref.current;
-    if (!el || n++ >= tries) return;
-    try {
-      const r = el.getBoundingClientRect();
-      const settled = r.top > 40 && r.bottom < window.innerHeight;
-      if (settled) return;
-      el.scrollIntoView({ behavior: "auto", block: "center" });
-    } catch { return; }
-    setTimeout(tick, 130);
-  };
-  requestAnimationFrame(tick);
-}
-
-function PromotePanel({ onDone }: { onDone: () => void }) {
-  const confirm = useConfirm();
-  const { toast } = useApp();
-  const { profile } = useAuth();
-  // ?promote=<their profile id> — read on the first render (lib/urlParam), so the panel is born open
-  // with them wanted rather than opened by an effect a render later. Removed from the address below.
-  const [promoteFor] = useState<string | null>(() => readParam("promote"));
-  const [open, setOpen] = useState(() => !!promoteFor);
-  const [rows, setRows] = useState<{ id: string; display_name: string | null; email: string | null; customer_name: string | null; market: string | null }[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [q, setQ] = useState("");
-  const [pick, setPickRaw] = useState<string | null>(null);
-  const [role, setRole] = useState<string>("operator");
-  // THE CITY STARTS AS THEIRS (2026-10-04, the form audit). It started as the first market
-  // alphabetically — Atlanta — so a Greenville customer brought on was filed in Atlanta unless
-  // somebody noticed. It now starts as the city on their own profile (v_promotable.market), else
-  // yours, else the founding market; choosing one makes it yours until someone else is picked.
-  const [marketChosen, setMarketChosen] = useState<string | null>(null);
-  const setPick = (id: string | null) => { setPickRaw(id); setMarketChosen(null); };
-  const [lead, setLead] = useState(false);
-  const [markets, setMarkets] = useState<{ slug: string; name: string }[]>([]);
-  const [busy, setBusy] = useState(false);
-  const wantedRef = useRef<string | null>(promoteFor);
-  const boxRef = useRef<HTMLDivElement | null>(null);
-  // What the promotion actually STARTED, kept after the form clears. Setting a role is the
-  // paperwork, not the event: the next real steps are the offer letter and their Academy path, and
-  // ending on a toast left the person who just hired someone with nowhere to go.
-  const [justHired, setJustHired] = useState<{ id: string; name: string; role: string; market: string; lead: boolean } | null>(null);
-  const pickedRow = pick ? rows.find((r) => r.id === pick) ?? null : null;
-  const market = marketChosen
-    ?? [pickedRow?.market, profile?.market, FOUNDING_MARKET].find((m) => !!m && markets.some((x) => x.slug === m))
-    ?? markets[0]?.slug ?? "";
-
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    setLoading(true);
-    const [{ data: p }, { data: mk }] = await Promise.all([
-      supabase.from("v_promotable").select("id, display_name, email, customer_name, market"),
-      supabase.from("markets").select("slug, name").order("slug"),
-    ]);
-    const people = (p as typeof rows) ?? [];
-    setRows(people);
-    setMarkets((mk as typeof markets) ?? []);
-    setLoading(false);
-    // Arrived from a customer's card with someone already named: pick them now that the list is
-    // actually here. Done inside load rather than in an effect watching rows, because this is the
-    // one moment the answer is knowable and an effect for it would only add a render pass.
-    const w = wantedRef.current;
-    if (w) {
-      wantedRef.current = null;
-      if (people.some((r) => r.id === w)) {
-        setPickRaw(w); setMarketChosen(null);
-        scrollHereUntilItSticks(boxRef);
-      } else {
-        toast("They are already on the crew — change their role from the roster below.");
-      }
-    }
-  }, [toast]);
-
-  useEffect(() => { if (open) load(); }, [open, load]);
-
-  // ── arriving from a customer's card ───────────────────────────────────────────────────────────
-  // The Customers screen is where an owner goes to act on a person, so its card links here with
-  // ?promote=<their profile id> rather than growing a second copy of this form. It is read on the
-  // first render (promoteFor, above): the panel is born open, and the id waits in a ref for load(),
-  // which reads it at the one moment the list is known. Someone who is NOT in that list is already
-  // on the crew, and load() says so — silently selecting nobody reads as a broken link. The
-  // parameter is then cleared (lib/urlParam), so a refresh or a section change never repeats it.
-  useEffect(() => { if (promoteFor) dropParam("promote"); }, [promoteFor]);
-  // The scroll itself happens in load(), NOT here. A fixed timer was the first attempt and
-  // production proved it wrong: it fired before the promotable list had come back and before the
-  // rest of Team had finished laying out, so it scrolled a document that was still growing and
-  // the panel ended up at y=1699 in a 962px viewport — open, preselected, and still off screen.
-  // The only moment worth scrolling at is the one where the thing being scrolled to exists.
-
-  const promote = async () => {
-    if (!supabase || !pick) return;
-    const who = rows.find((r) => r.id === pick);
-    const name = who?.display_name || who?.customer_name || "this person";
-    if (!(await confirm({ title: `Bring ${name} onto the crew as ${roleLabel(role)}?`, body: market ? `In ${market}${lead ? `, leading ${market}` : ""}.` : undefined, confirmLabel: "Bring them on" }))) return;
-    setBusy(true);
-    const { error } = await supabase.rpc("promote_to_crew", {
-      p_member: pick, p_role: role, p_market: market || null, p_lead: lead,
-    });
-    setBusy(false);
-    if (error) { toast(`Error: ${error.message}`, "error"); return; }
-    toast(`${name} → ${roleLabel(role)}${lead ? ` · leads ${market}` : ""}`);
-    setJustHired({ id: pick, name, role: roleLabel(role), market, lead });
-    setPick(null); setLead(false);
-    load();
-    onDone();
-  };
-
-  const ql = q.trim().toLowerCase();
-  const shown = rows.filter((r) => !ql
-    || (r.display_name ?? "").toLowerCase().includes(ql)
-    || (r.customer_name ?? "").toLowerCase().includes(ql)
-    || (r.email ?? "").toLowerCase().includes(ql));
-
-  // A PICKER STOPS BEING A PICKER ONCE SOMETHING IS PICKED.
-  //
-  // Landing the scroll fixed the panel and exposed the same fault one level down: the list is
-  // 260px of its own scroll over fourteen people, so arriving from Niño's card put his row —
-  // selected, highlighted, correct — at y=606 inside a list that clips at 573. The panel was on
-  // screen saying "Bring someone onto the crew" over five names that were not him. Everything
-  // worked; nothing said so.
-  //
-  // Scrolling the inner list too would have been the third patch to the same idea. The list exists
-  // to answer one question, and once the question is answered it is fourteen wrong answers taking
-  // up 260px. So it collapses to the answer, and every label that said "someone" now says who.
-  const picked = pick ? rows.find((r) => r.id === pick) ?? null : null;
-  const pickedName = picked ? (picked.display_name || picked.customer_name || "this person") : null;
-  const pickedFirst = pickedName ? pickedName.split(" ")[0] : null;
-
-  return (
-    <div className="tm-hire" id="tm-hire" ref={boxRef}>
-      <button type="button" className="tm-hire-open" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        {pickedName ? `Bring ${pickedName} onto the crew` : "Bring someone onto the crew"}
-        <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
-      </button>
-      {open && (
-        <div className="tm-hire-body">
-          {/* A ROLE CHANGE IS NOT A HIRE. promote_to_crew sets role, market and lead in one
-              transaction and that is genuinely all it should do — but it is the START of hiring
-              someone, not the end, and finishing on a toast left the owner who just did it with
-              nowhere to go. These are the two things that actually happen next, and both already
-              exist: the offer letter (0281/0286, with the statutory terms) and their Academy path
-              for the role they now hold. */}
-          {justHired && (
-            <div className="tm-hired">
-              <b>{justHired.name} is on the crew.</b> {justHired.role}
-              {justHired.market ? ` · ${justHired.market}` : ""}{justHired.lead ? " · leads the market" : ""}.
-              <div className="tm-hired-next">
-                {/* Both carry who (lib/urlParam): the offer opens already for them, and the Academy's
-                    assign sheet opens with them chosen. */}
-                <a className="tm-hire-open" href={`/crew?s=money&a=offers&offer_for=${justHired.id}`}>
-                  Draft their offer letter <span className="ev-chev" aria-hidden="true">›</span>
-                </a>
-                <a className="tm-hire-open" href={`/academy?assign=${justHired.id}`}>
-                  Their Academy path is live — see what {justHired.name.split(" ")[0]} has to complete <span className="ev-chev" aria-hidden="true">›</span>
-                </a>
-              </div>
-              <button type="button" className="note-arch" style={{ marginTop: 8 }} onClick={() => setJustHired(null)}>Bring in someone else</button>
-            </div>
-          )}
-          {loading && <div className="h-sub">Loading…</div>}
-          {!loading && rows.length === 0 && <div className="h-sub">Nobody to bring in — every account is already on the crew.</div>}
-          {!loading && rows.length > 0 && (
-            <>
-              {picked ? (
-                <div className="tm-hire-chosen">
-                  <span>
-                    <b>{pickedName}</b>
-                    <i>{picked.email || "no email on file"}</i>
-                  </span>
-                  <button type="button" className="note-arch"
-                          onClick={() => { setPick(null); setQ(""); }}>Someone else</button>
-                </div>
-              ) : (
-                <>
-                  {rows.length > 5 && (
-                    <input className="auth-input" placeholder="Search name or email" aria-label="Search people"
-                           value={q} onChange={(e) => setQ(e.target.value)} />
-                  )}
-                  <div className="tm-hire-list">
-                    {shown.map((r) => (
-                      <button key={r.id} type="button" className="tm-hire-row"
-                              onClick={() => setPick(r.id)}>
-                        <b>{r.display_name || r.customer_name || "Unnamed"}</b>
-                        <i>{r.email || "no email on file"}</i>
-                      </button>
-                    ))}
-                    {shown.length === 0 && <div className="h-sub">No match for &ldquo;{q}&rdquo;.</div>}
-                  </div>
-                </>
-              )}
-              {picked && (
-                <>
-                  <div className="tm-hire-form">
-                    <label>Role
-                      <select value={role} onChange={(e) => setRole(e.target.value)}>
-                        {HIRE_ROLES.map((r) => <option key={r} value={r}>{roleLabel(r)}</option>)}
-                      </select>
-                    </label>
-                    <label>City
-                      <select value={market} onChange={(e) => setMarketChosen(e.target.value)}>
-                        {markets.map((m) => <option key={m.slug} value={m.slug}>{m.name || m.slug}</option>)}
-                      </select>
-                    </label>
-                    {/* Leading a market requires operator or above — the same rule set_market_lead enforces. */}
-                    <label className="adm-check">
-                      <input type="checkbox" checked={lead}
-                             disabled={!["operator", "event_manager"].includes(role)}
-                             onChange={(e) => setLead(e.target.checked)} />
-                      Leads this city
-                    </label>
-                    <button className="adm-btn primary" onClick={promote} disabled={busy}>
-                      {busy ? "…" : `Bring ${pickedFirst} on`}
-                    </button>
-                  </div>
-                  {/* Ryan asked what pressing this actually starts. Say it before the press, not only
-                      after: the same two steps the tm-hired block then links to. */}
-                  <p className="tm-hire-next">
-                    Sets their role and city now. Their offer letter and Academy path come next.
-                  </p>
-                </>
-              )}
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
+// ADD A TEAMMATE — one door (components/AddTeammate, 2026-10-07): someone with an account is brought
+// on (promote_to_crew — role, city and the city they lead, in one transaction, 0299); an email with
+// none is invited; either way they get a GT3 welcome letter. It replaced "Bring someone onto the
+// crew" here and "Invite a teammate" in Settings — two doors for one job.
 function Members() {
   const { user } = useAuth();
   const { setSection } = useOperatorSection();
   const [q, setQ] = useState("");
+  // ?promote=<their profile id> — a customer's card sends an owner here with them named. Read on the
+  // first render (lib/urlParam) so the door is born open with them wanted, then cleared from the
+  // address so a refresh or a section change never repeats it.
+  const [promoteFor] = useState<string | null>(() => readParam("promote"));
+  useEffect(() => { if (promoteFor) dropParam("promote"); }, [promoteFor]);
   const membersState = useAsyncData<Profile[]>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
     const { data } = await supabase.from("profiles").select("*").order("display_name");
@@ -4319,7 +4079,7 @@ function Members() {
           {customerCount} customer account{customerCount === 1 ? "" : "s"} moved to <b>Customers</b>{" "}— the CRM. This roster is leadership &amp; crew. ›
         </button>
       )}
-      <PromotePanel onDone={membersState.reload} />
+      <AddTeammate promoteFor={promoteFor} onDone={membersState.reload} />
       {staff.length > 5 && (
         <input className="auth-input tm-search" placeholder="Search name, code, or role" aria-label="Search team" value={q} onChange={(e) => setQ(e.target.value)} />
       )}
@@ -5683,10 +5443,10 @@ function SettingsHome({ userId, isAdmin, isOwner }: { userId: string | null; isA
         {isAdmin && <Panel id="set-markets" title="Locations & markets" sub="Which cities can open — and if not, why not" remember={false}><MarketsPanel /></Panel>}
         {isAdmin && (
           <Panel id="set-team" title="Team & permissions" sub={isOwner ? "Invite someone, who owns each lane, roles" : "Who owns each lane"} value={v(g.lanes)} remember={false}>
-            {isOwner && <SetPart id="set-invite" label="Invite a teammate"><InviteTeammate /></SetPart>}
+            {/* Adding someone and changing a role both happen on Team, where the people are (2026-10-07):
+                one door above the roster — components/AddTeammate — and the role on each person's row. */}
+            {isOwner && <SetPart id="set-invite" label="Add a teammate"><GoLine to="team" anchor="team-members">Add someone, or change a role</GoLine></SetPart>}
             <SetPart id="set-lanes"><OrgChart part="lanes" /></SetPart>
-            {/* A role is changed on the person's row in Team's roster — the roster stays where the people are. */}
-            {isOwner && <GoLine to="team" anchor="team-members">Change someone&rsquo;s role</GoLine>}
           </Panel>
         )}
         {isAdmin && <Panel id="set-digest" title="Reports" sub="The founder digest — the business roll-up, and how often" value={v(g.digest)} remember={false}><FounderDigest /></Panel>}
@@ -6324,27 +6084,28 @@ export default function AdminPage() {
 
       {sec === "team" && isAdmin && (
         <>
+          {/* THE PEOPLE FIRST (2026-10-07, Ryan: "Invite and bring team member on seems redundant, bad CSS
+              flow"). The page opened on stat tiles and a usage report, listed the same people three
+              times (who's on what, the org chart, the roster) and put the way to add someone at the
+              bottom, two screens down. Now it opens on the roster with its one door, Add a teammate
+              (components/AddTeammate), then who's on what, the structure, and the activity numbers.
+              The roster keeps its id: Settings' "Add someone, or change a role" lands on it. */}
+          {isOwner && <div id="team-members" style={{ scrollMarginTop: 16 }}><Members /></div>}
+          {/* Who owns each lane is Settings › Business › Team & permissions (2026-10-06); an admin's line goes there. */}
+          {!isOwner && <GoLine to="settings" anchor="set-lanes">Lane owners</GoLine>}
+          <SectionHeader label="Who's on what" />
+          <WorkloadBoard />
+          {/* Was "Roster" (2026-07-16, ground-up redesign): OrgChart rendered two labeled concerns
+              (the org chart's reporting tiers, then work streams' ownership grid). Since 2026-10-06 the
+              lane owners are Settings › Business › Team & permissions (OrgChart part="lanes"); the
+              picture of the people stays here. */}
+          <SectionHeader label="Team structure" />
+          <OrgChart part="people" />
           <TeamKpis />
           {/* Utilization (0267, Ryan: "so you don't have to ask me this no more") — who's actually
               IN the system: active days, sign-ins, actions, last-seen per person, plus the
               anonymous guest pulse. Admin-only data by RLS. */}
           <UtilizationPanel />
-          {/* Inviting someone, and who owns each lane, are Settings › Business › Team & permissions (2026-10-06,
-              the settings round). Changing a role stays here, on the person's row in the roster.
-              Inviting is the owner's, so an admin's line goes to the lane owners, which are theirs. */}
-          {isOwner && <GoLine to="settings" anchor="set-invite">Invites &amp; roles</GoLine>}
-          {!isOwner && <GoLine to="settings" anchor="set-lanes">Lane owners</GoLine>}
-          <SectionHeader label="Who's on what" />
-          <WorkloadBoard />
-          {/* Was "Roster" (2026-07-16, ground-up redesign): OrgChart rendered two labeled concerns
-              (the org chart's reporting tiers, then work streams' ownership grid), and Members below
-              adds a third ("Team", the actual member list) — "Roster" only described the last.
-              Since 2026-10-06 the lane owners are Settings › Business › Team & permissions (OrgChart part="lanes");
-              the picture of the people stays here. The roster has an id so Settings' "Change
-              someone's role" lands on it. */}
-          <SectionHeader label="Team structure" />
-          <OrgChart part="people" />
-          {isOwner && <div id="team-members" style={{ scrollMarginTop: 16 }}><Members /></div>}
           <SectionHeader label="Growth & training" />
           {/* Was a flat link with no state, on a page where everything else shows live numbers — so it
               was the one block the eye skipped, and the Academy had zero progress rows for anybody.

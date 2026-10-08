@@ -142,35 +142,48 @@ export default function OsRegistry() {
             const mine = recent.filter((a) => a.workstream_id === w.id).slice(0, 2);
             return w.status === "active" && mine.length >= 2 && mine.every((a) => a.total < 8);
           };
+          // ONE STALE FACT, SAID ONCE (2026-10-07, Ryan: "Ewww"). Every row carried its own "64d" in the
+          // warning colour — the same fact, that the Monday audit had not run, nine times down the
+          // screen. It is one line above the rows now: how many are overdue and when the last ran.
+          const lastRun = rows.map((r) => r.last_audited).filter(Boolean).sort().pop() ?? null;
+          const overdue = active.filter((r) => (daysSince(r.last_audited) ?? 99) >= 7).length;
           return (
             <>
               <SectionHeader label="The portfolio" annotation="ten workstreams · audited Mondays"
                 right={<span className={`osr-mean ${mean >= 8 ? "ok" : "warn"}`}>mean {mean.toFixed(1)}</span>} />
               <div className="h-sub">Score is a search function for where attention goes this week. Below 8 gets named in the review; below 8 two weeks running owes the ledger a kill / pause / recover decision. Parked by decision is legal — stalled without one is not.</div>
+              {overdue > 0 && (
+                <p className="osr-due flex items-start gap-2 mt-2.5 mb-0.5 px-3 py-2.5 border border-line2 rounded-lg font-sans text-[13px] leading-[1.45] text-cream" role="status">
+                  <Icon name="warning" />
+                  <span>{overdue === active.length ? "The Monday audit is overdue" : `${overdue} of ${active.length} workstreams are due an audit`}{lastRun ? ` — last run ${nice(lastRun)}, ${daysSince(lastRun)} days ago` : " — none has been run yet"}.{isAdmin ? " Tap a workstream to score it." : ""}</span>
+                </p>
+              )}
+              {isAdmin && (
+                <div className="osr-add">
+                  <input className="note-in" placeholder="＋ Add a workstream…" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addStream(); }} aria-label="New workstream name" />
+                  {newName.trim() && <button type="button" className="note-save" onClick={addStream}>Add</button>}
+                </div>
+              )}
+              {/* THE ROWS ARE THE PAGE'S, NOT CARDS ON IT (2026-10-07). Each was a card filled with a
+                  see-through black made for the night console — on the cream day theme every one
+                  turned muddy grey — and led with its score in a coin, which read as a rank. The name
+                  leads now, the owner starts the line under it, and the score sits at the end with a
+                  dot that says its band: 10 green, 8–9 gold, below 8 red. Rows sit on the page with a
+                  hairline between them, in both themes. */}
               <div className="osr-rows">
-                {isAdmin && (
-                  <div className="osr-add">
-                    <input className="note-in" placeholder="＋ Add a workstream…" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addStream(); }} aria-label="New workstream name" />
-                    {newName.trim() && <button type="button" className="note-save" onClick={addStream}>Add</button>}
-                  </div>
-                )}
-                {rows.map((w) => {
-                  const stale = (daysSince(w.last_audited) ?? 99) >= 7;
-                  return (
-                    <button key={w.id} type="button" className={`osr-row${w.status === "parked" ? " parked" : ""}`} onClick={() => isAdmin && openAudit(w)} disabled={!isAdmin} aria-label={`Audit ${w.name}`}>
-                      <span className={`osr-dot ${dotClass(w.health, w.status)}`}>{w.status === "parked" ? "‖" : w.health}</span>
-                      <span className="osr-main">
-                        <span className="osr-name">{w.name}<i className="osr-owner">{ownerName(w)}</i>{w.status === "blocked" && <i className="osr-flag">blocked</i>}{w.status === "parked" && <i className="osr-flag park">parked by decision</i>}</span>
-                        {w.status !== "parked" && (
-                          <span className="osr-next">{w.next_action ?? "no next action — that's a 0 on criterion 2"}{w.due ? ` · ${nice(w.due)}` : ""}</span>
-                        )}
-                        {w.blocker && w.status !== "parked" && <span className="osr-block"><Icon name="warning" /> {w.blocker}</span>}
-                        {owesDecision(w) && <span className="osr-owes">⚖ two weeks below 8 — log kill / pause / recover in the ledger (Plan › Operating rhythm)</span>}
-                      </span>
-                      <span className={`osr-when${stale ? " stale" : ""}`}>{w.last_audited ? `${daysSince(w.last_audited)}d` : "never"}</span>
-                    </button>
-                  );
-                })}
+                {rows.map((w) => (
+                  <button key={w.id} type="button" className={`osr-row${w.status === "parked" ? " parked" : ""}`} onClick={() => isAdmin && openAudit(w)} disabled={!isAdmin} aria-label={`${w.name}, ${w.status === "parked" ? "parked" : `${w.health} of 10`}${isAdmin ? " — audit it" : ""}`}>
+                    <span className="osr-main">
+                      <span className="osr-name">{w.name}{w.status === "blocked" && <i className="osr-flag">blocked</i>}{w.status === "parked" && <i className="osr-flag park">parked by decision</i>}</span>
+                      {w.status !== "parked" && (
+                        <span className="osr-next"><b className="osr-who">{ownerName(w)}</b> · {w.next_action ?? "no next action — that's a 0 on criterion 2"}{w.due ? ` · ${nice(w.due)}` : ""}</span>
+                      )}
+                      {w.blocker && w.status !== "parked" && <span className="osr-block"><Icon name="warning" /> {w.blocker}</span>}
+                      {owesDecision(w) && <span className="osr-owes">⚖ two weeks below 8 — log kill / pause / recover in the ledger (Plan › Operating rhythm)</span>}
+                    </span>
+                    <span className={`osr-score ${dotClass(w.health, w.status)}`} aria-hidden="true">{w.status === "parked" ? "parked" : <><i />{w.health}<small>/10</small></>}</span>
+                  </button>
+                ))}
               </div>
             </>
           );
