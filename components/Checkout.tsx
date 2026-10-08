@@ -223,7 +223,7 @@ export default function Checkout() {
     // Held while the card is being charged (2026-10-05): every way out of the sheet — the pull, a tap
     // outside, Escape — gives and stays put until the charge answers. A do-nothing onClose used to stand
     // in for this, and a tap outside then faded the sheet out for good — "Order in." with it.
-    <Sheet open={open} onClose={onClose} dismissible={!busy} className="paper" labelledBy="checkout-title"
+    <Sheet open={open} onClose={onClose} dismissible={!busy} detents={false} className="paper" labelledBy="checkout-title"
       header={<div className="oa-kicker" id="checkout-title">Checkout</div>}>
       {done ? (
         <OrderConfirm
