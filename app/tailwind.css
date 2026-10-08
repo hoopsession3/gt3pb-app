@@ -72,6 +72,9 @@
   --color-well: var(--well);
   --color-white: #fff;
   --color-black: #000;
+  /* the screen's own ground — the status bar's in the iPhone app (components/NativeBridge reads it from the
+     screen into --native-bar), the charcoal elsewhere: what the title bar's blurred ground is made of */
+  --color-ground: var(--native-bar, var(--char));
 
   /* the house grid: --sp-1 … --sp-9 are 4 · 8 · 12 · 16 · 20 · 24 · 32 · 40 · 48 px = p-1 … p-12 */
   --spacing: 4px;
