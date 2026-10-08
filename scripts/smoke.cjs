@@ -5485,7 +5485,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /if \(error\) throw error;/.test(sheet) && /role="alert">\{err\}/.test(sheet));
   ok("command: an initiative on the board opens the same sheet; the Money pointer is an admin's, since only an admin can open Money",
     /onClick=\{\(\) => setOpenInit\(it\.id\)\}/.test(board) && /<InitiativeSheet id=\{openInit\}/.test(board)
-    && /\{isAdmin && <button type="button" className="adm-golink" onClick=\{\(\) => setSection\("money"\)\}>/.test(board));
+    && /\{isAdmin && <button type="button" className="adm-golink(?: hit-y-44)?" onClick=\{\(\) => setSection\("money"\)\}>/.test(board));
   ok("assets: the kinds the log sheet offers are declared to the vocabulary audit", /\/\/ vocab: asset_maintenance\.kind\nconst KINDS = /.test(read("components/AssetMaintenance.tsx")));
 }
 
@@ -8372,7 +8372,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const lc = code(read("components/crew/LiveControl.tsx"));
   ok("old spots: Route and the Live truck instrument keep \"Cup-ordering dial ›\" — for an owner or an admin, the ones who can save it",
     /\{admin && <GoLine to="settings" anchor="set-dial">Cup-ordering dial<\/GoLine>\}/.test(lc)
-    && /\{admin && <button type="button" className="adm-golink" onClick=\{goDial\}>Cup-ordering dial ›<\/button>\}/.test(lc)
+    && /\{admin && <button type="button" className="adm-golink(?: hit-y-44)?" onClick=\{goDial\}>Cup-ordering dial ›<\/button>\}/.test(lc)
     && /const goDial = \(\) => \{ setSection\("settings"\); scrollToAnchor\("set-dial"\); \};/.test(lc) && /const admin = canOf\(profile\)\.admin;/.test(lc));
   ok("old spots: Live ops keeps one line while order alerts are off on this phone — the card that asked is Settings › You now",
     /<AlertsOffLine \/>/.test(block('{sec === "now" && (')) && !/EnableAlerts|Turn on order alerts/.test(pg)

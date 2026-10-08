@@ -894,6 +894,62 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await ctx.close();
   }
 
+  // ── 5b · THE BARS AND WHAT FLOATS NEAR THEM (2026-10-08, the foundations round) ──
+  // Four things that were wrong on every Face ID iPhone and that the pass above could not see, because none
+  // of them is on a screen at rest: a broadcast banner sat under the status bar (its words and its ✕ in the
+  // clock's band), a toast landed on the tab bar, the pull-to-refresh ring turned under the status bar, and a
+  // stray .tl margin made the tab bar 122pt tall (UIKit's is 83 with the home indicator).
+  {
+    const bcast = { id: "5a10e000-0000-4000-8000-0000000000bc", title: "Truck at Main St till 2", body: "Order ahead and skip the line.", kind: "announcement", style: "info", audience: "all", cta_label: null, cta_href: null, active: true, starts_at: null, ends_at: null, created_at: "2026-10-08T00:00:00Z" };
+    const ctx = await phoneContext(MAIN, { seed: { broadcasts: [bcast] } });
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    await page.goto(`${BASE}/menu`, { waitUntil: "load" });
+    const shown = await page.waitForSelector(".bcast .bcast-x", { timeout: 8000 }).then(() => true, () => false);
+    await page.waitForTimeout(400); await page.evaluate(SETTLE);
+    const m = await page.evaluate(() => {
+      const r = (sel) => { const el = document.querySelector(sel); if (!el) return null; const b = el.getBoundingClientRect(); return { top: b.top, bottom: b.bottom, height: b.height }; };
+      const screen = document.querySelector(".screen");
+      return { words: r(".bcast .bcast-x"), close: r(".bcast .bcast-close"), screenPad: screen ? parseFloat(getComputedStyle(screen).paddingTop) : null, nav: r(".nav") };
+    });
+    if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "menu--broadcast") });
+    ok("bars: a broadcast banner's words and its ✕ sit below the status bar", shown && m.words && m.close && m.words.top >= MAIN.top && m.close.top >= MAIN.top - 2, JSON.stringify(m));
+    ok("bars: the screen under the banner does not pad for the status bar a second time", m.screenPad !== null && m.screenPad < MAIN.top, `padding-top ${m.screenPad}`);
+    // 108pt today (74 + the 34pt home indicator; UIKit's is 49 + 34) — how tall it should be is a design call
+    // (the proposals). What this holds is that nothing stray stretches it again: it was 122.
+    ok("bars: the tab bar is only as tall as its own parts — at most 110pt with the home indicator (122 when a stray .tl margin pushed its labels down)", !!m.nav && m.nav.height <= 110, `tab bar ${m.nav && Math.round(m.nav.height)}pt`);
+    const t = await page.evaluate(() => {
+      const toast = document.querySelector(".toast"); const nav = document.querySelector(".nav");
+      if (!toast || !nav) return null;
+      toast.classList.add("show"); toast.style.transition = "none";
+      const tb = toast.getBoundingClientRect(), nb = nav.getBoundingClientRect();
+      return { toastBottom: tb.bottom, navTop: nb.top };
+    });
+    if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "menu--toast") });
+    ok("bars: a toast sits above the tab bar, clear of it", !!t && t.toastBottom <= t.navTop - 4, JSON.stringify(t));
+    ok("bars: no errors", errors.length === 0, errors.join(" | "));
+    await ctx.close();
+  }
+  {
+    const ctx = await phoneContext(MAIN, { owner: true });
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    await page.goto(`${BASE}/crew?s=day`, { waitUntil: "load" });
+    await page.waitForSelector(".nav.opnav, .opnav", { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(400); await page.evaluate(SETTLE);
+    // The ring joins the page on the first pull (components/PullToRefresh), so its rule is read from a probe.
+    const p = await page.evaluate(() => {
+      const body = document.getElementById("body"); const nav = document.querySelector(".nav");
+      const probe = document.createElement("div"); probe.className = "ptr"; body?.appendChild(probe);
+      const top = body ? parseFloat(getComputedStyle(probe).top) : null; probe.remove();
+      return { ptrTop: top, nav: nav ? nav.getBoundingClientRect().height : null };
+    });
+    ok("bars: the pull-to-refresh ring turns below the status bar", p.ptrTop !== null && p.ptrTop >= MAIN.top, `top ${p.ptrTop}`);
+    ok("bars: the crew's tab bar is at most 110pt with the home indicator (it was 122)", p.nav !== null && p.nav <= 110, `tab bar ${p.nav && Math.round(p.nav)}pt`);
+    await ctx.close();
+  }
+
   // ── 6 · deleting your account, in the app (App Store Review Guideline 5.1.1(v)) ──
   // Signed in, from the avatar's menu: the row, its screen (loaded when tapped — so it must be in the
   // export), what it asks the web's API, and after the red button a phone that is signed out and home.
