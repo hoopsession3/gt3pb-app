@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { staffAccess } from "@/lib/access";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import Icon from "@/components/Icon";
+import { useBackStep } from "@/components/useBack";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { ARCHITECTURE, ARCH_OVERVIEW, DATABASES, BUSINESS, BUSINESS_OVERVIEW, BUILD_STATS, MANAGE_LABEL, STATUS_LABEL, sotUrl, type ArchLayer, type ArchComponent, type ArchStatus } from "@/lib/architecture";
@@ -28,6 +28,9 @@ export default function ArchitecturePage() {
   const { user, profile, profileStatus, refreshProfile } = useAuth();
   const [open, setOpen] = useState<ArchLayer | null>(null);
   const [comp, setComp] = useState<string | null>(null);
+  // A layer opened is a step (components/useBack): Back — the bar's "‹ System map", the edge swipe, the
+  // browser's — goes back to all the layers, where an in-page "‹ All layers" scrolled away with the list.
+  useBackStep(open ? "System map" : null, () => { setOpen(null); setComp(null); });
   const [q, setQ] = useState("");
   const [view, setView] = useState<"progress" | "business" | "layers" | "databases">("progress");
   const [live, setLive] = useState<Record<string, ArchStatus> | null>(null);
@@ -64,7 +67,7 @@ export default function ArchitecturePage() {
   if (access === "wait" || access === "failed") {
     return (
       <section className="screen">
-        <Masthead eyebrow="System map" right={<Link className="pf hit-44" href="/3mpire" aria-label="Back">‹</Link>} />
+        <Masthead eyebrow="System map" />
         <div className="h-title">{access === "failed" ? "Couldn't check your access" : "One moment"}</div>
         <div className="h-sub">
           {access === "failed"
@@ -82,7 +85,7 @@ export default function ArchitecturePage() {
   if (!isOwner) {
     return (
       <section className="screen">
-        <Masthead eyebrow="System map" right={<Link className="pf hit-44" href="/3mpire" aria-label="Back">‹</Link>} />
+        <Masthead eyebrow="System map" />
         <div className="h-title">Owners only</div>
         <div className="h-sub">The system architecture map is restricted to owners.</div>
         <ClosingBeat />
@@ -113,14 +116,13 @@ export default function ArchitecturePage() {
 
   return (
     <section className="screen arch">
-      <Masthead eyebrow="System map" live={!!live} right={<Link className="pf hit-44" href="/3mpire" aria-label="Exit">‹</Link>} />
+      <Masthead eyebrow="System map" live={!!live} />
 
       {open ? (
         <>
-          <button type="button" className="arch-back" onClick={() => { setOpen(null); setComp(null); }}>‹ All layers</button>
           <div className="arch-layer-head" style={{ ["--c" as string]: open.color }}>
             <span className="arch-tag">{open.tag}</span>
-            <div className="h-title" style={{ marginTop: 6 }}>{open.label}</div>
+            <div className="h-title" style={{ marginTop: 6 }} data-large-title data-title={open.label}>{open.label}</div>
             <div className="h-sub">{open.blurb}</div>
           </div>
           <div className="arch-comps">{open.components.map((c) => <Comp key={c.name} c={c} color={open.color} />)}</div>
