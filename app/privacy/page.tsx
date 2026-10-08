@@ -7,7 +7,7 @@ export default function PrivacyPage() {
   return (
     <section className="screen legal">
       <div className="legal-wrap">
-        <h1>Privacy</h1>
+        <h1 data-large-title>Privacy</h1>
         <p className="legal-date">GT3 Performance Bar · effective August 2026</p>
         <p>We collect what running your order requires and nothing more: your name for pickup, your email if you sign in or want a receipt, your phone if you give it for order updates, and your order history so your usual is one tap. Delivery orders keep the address you enter, for delivering.</p>
         <p><b>Payments never touch our servers.</b> Card details go directly to Square, our payment processor — we see a confirmation and a masked reference, never your card number. Receipts and refunds run through Square too.</p>
