@@ -827,7 +827,7 @@ function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: 
 
   return (
     <Sheet open onClose={onClose} label="Review post" dirty={!!item && (caption !== (item.caption ?? "") || !!note.trim())}
-      header={<div style={{ display: "flex", alignItems: "center" }}><span>Review post</span><span style={{ marginLeft: "auto" }} /><CloseButton className="drop-sheet-x" onClick={onClose} /></div>}>
+      header={<div style={{ display: "flex", alignItems: "center" }}><span>Review post</span><span style={{ marginLeft: "auto" }} /><CloseButton className="drop-sheet-x hit-44" onClick={onClose} /></div>}>
         {!item ? <div className="dops-empty"><PourFill size={38} label="Pulling it up…" /></div> : (
           <div className="capprove">
             <div className="capprove-meta">{item.kind} · {item.channel}{item.status ? ` · ${item.status}` : ""}</div>
@@ -852,7 +852,7 @@ function DropSheet({ onClose }: { onClose: () => void }) {
   const { profile } = useAuth();
   const canPlan = (profile?.is_admin ?? false) || ["owner", "admin", "event_manager"].includes(profile?.role ?? "");
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span>This week&rsquo;s drop</span><button type="button" className="drop-sheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span>This week&rsquo;s drop</span><button type="button" className="drop-sheet-x hit-44" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
         <DropOps canPlan={canPlan} />
         <button type="button" className="drop-sheet-done" onClick={onClose}>Done</button>
     </Sheet>
@@ -1245,7 +1245,7 @@ function IncidentLog({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; 
         <div key={r.id} className={`inc-row${r.resolved ? " done" : ""}`}>
           <button type="button" className="inc-ck" onClick={() => toggle(r)} aria-label={r.resolved ? "Mark unresolved" : "Mark resolved"}>{r.resolved ? <Icon name="check" /> : <Icon name="dotOutline" />}</button>
           <span className="inc-main"><b className={r.severity === "blocker" ? "inc-blk" : ""}>{r.problem}</b><span>{[r.symptom, r.resolved ? "resolved" : null, new Date(r.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })].filter(Boolean).join(" · ")}</span></span>
-          <button type="button" className="inc-x" onClick={() => del(r.id)} aria-label="Delete incident"><Icon name="close" /></button>
+          <button type="button" className="inc-x hit-44" onClick={() => del(r.id)} aria-label="Delete incident"><Icon name="close" /></button>
         </div>
       ))}
     </div>
@@ -1467,7 +1467,7 @@ function MyDay({ userId, isLeader, canGoLive, canBrew }: { userId: string | null
           on-demand by nature; it shouldn't occupy the glance screen). */}
       {isLeader && (
         <div style={{ marginTop: 18 }}>
-          <button type="button" className="k-chip k-chip-sec" onClick={() => setLeadOpen((o) => !o)} aria-expanded={leadOpen}>
+          <button type="button" className="k-chip hit-y-44 k-chip-sec" onClick={() => setLeadOpen((o) => !o)} aria-expanded={leadOpen}>
             <Icon name="compass" /> Lead the week — GTM, briefing &amp; intake {leadOpen ? "▴" : "▾"}
           </button>
           {leadOpen && (
@@ -1710,7 +1710,7 @@ function ReadinessAgent() {
       <div className="rdy">
         <div className="rdy-top">
           <span className="rdy-blurb">Ask the prep agent if you&apos;re stocked for the next two weeks.</span>
-          <button type="button" className="rdy-run" onClick={run} disabled={busy}>{busy ? "Checking…" : <><Icon name="sparkles" /> Check</>}</button>
+          <button type="button" className="rdy-run hit-y-44" onClick={run} disabled={busy}>{busy ? "Checking…" : <><Icon name="sparkles" /> Check</>}</button>
         </div>
         {res && (
           <div className={`rdy-out sev-${res.severity}`}>
@@ -1827,7 +1827,7 @@ function InspectionPrep() {
             <option value="">No event — just brief me</option>
             {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.day_label || ev.day || ""} · {ev.title || "Event"}</option>)}
           </select>
-          <button type="button" className="rdy-run" onClick={run} disabled={busy || !state.trim()}>{busy ? "Researching…" : <><Icon name="sparkles" /> Research</>}</button>
+          <button type="button" className="rdy-run hit-y-44" onClick={run} disabled={busy || !state.trim()}>{busy ? "Researching…" : <><Icon name="sparkles" /> Research</>}</button>
         </div>
         {wait && (
           <div className="insp-wait" role="status" aria-live="polite">
@@ -3084,9 +3084,9 @@ function MeetingNotes() {
             <div className="note-filter">
               <input className="note-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search notes…" aria-label="Search notes" />
               <div className="note-tabs">
-                <button type="button" className={`note-tab${mineOnly ? " on" : ""}`} onClick={() => setMineOnly((v) => !v)}>Mine</button>
-                <button type="button" className={`note-tab${tab === "active" ? " on" : ""}`} onClick={() => setTab("active")}>Active</button>
-                <button type="button" className={`note-tab${tab === "archived" ? " on" : ""}`} onClick={() => setTab("archived")}>Archived{archivedCount ? ` ${archivedCount}` : ""}</button>
+                <button type="button" className={`note-tab hit-y-44${mineOnly ? " on" : ""}`} onClick={() => setMineOnly((v) => !v)}>Mine</button>
+                <button type="button" className={`note-tab hit-y-44${tab === "active" ? " on" : ""}`} onClick={() => setTab("active")}>Active</button>
+                <button type="button" className={`note-tab hit-y-44${tab === "archived" ? " on" : ""}`} onClick={() => setTab("archived")}>Archived{archivedCount ? ` ${archivedCount}` : ""}</button>
               </div>
             </div>
             {shown.map((n) => (
@@ -3507,7 +3507,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
                 <button type="button" className="note-fu-flag" onClick={() => flag(t)} aria-label="Flag as can't-miss" title="Flag as can't-miss">⚑</button>
                 {!t.ai_proposal && <button type="button" className="note-fu-solve" onClick={() => resolve(t)} disabled={resolving.has(t.id)} title="Propose how to complete this">{resolving.has(t.id) ? "…" : "💡"}</button>}
                 {isAdmin && <button type="button" className="note-fu-flag" onClick={() => openTask(t.id, "event")} aria-label="Edit follow-up" title="Edit follow-up">✎</button>}
-                {isAdmin && <button type="button" className="note-fu-x" onClick={() => removeItem(t)} aria-label="Remove follow-up"><Icon name="close" /></button>}
+                {isAdmin && <button type="button" className="note-fu-x hit-44" onClick={() => removeItem(t)} aria-label="Remove follow-up"><Icon name="close" /></button>}
               </div>
               {t.ai_proposal && (
                 <div className={`fu-prop${t.ai_has_answer ? " has" : ""}`}>
@@ -4304,7 +4304,7 @@ function EventEconomics({ e, econRow, catalog, onSave }: {
             <div className="pnl-note">
               Some lines use the blended {pctInt(econ.cogs_pct)}% COGS — their own unit cost gives the exact margin.
               {canSetCosts
-                ? <button type="button" className="adm-golink" onClick={() => { setSection("money"); scrollToAnchor("econ"); }}>Set unit costs <Icon name="arrowRight" /></button>
+                ? <button type="button" className="adm-golink hit-y-44" onClick={() => { setSection("money"); scrollToAnchor("econ"); }}>Set unit costs <Icon name="arrowRight" /></button>
                 : <> An owner or admin sets them.</>}
             </div>
           )}
@@ -5700,7 +5700,7 @@ export default function AdminPage() {
   if (access === "wait") return <section className="screen" />;
   if (access === "failed") return (
     <section className="screen">
-      <div className="toprow"><div className="eyb">Crew</div><Link className="pf" href="/">‹</Link></div>
+      <div className="toprow"><div className="eyb">Crew</div><Link className="pf hit-44" href="/">‹</Link></div>
       <div className="h-title">Couldn&apos;t load your account.</div>
       <div className="h-sub">This is not a permissions problem — we couldn&apos;t read your profile just now, so we don&apos;t know what you can see. Nothing has changed.</div>
       <button type="button" className="note-save" style={{ marginTop: 14 }} onClick={() => refreshProfile()}>Try again</button>
@@ -5709,7 +5709,7 @@ export default function AdminPage() {
   if (role === "member") {
     return (
       <section className="screen">
-        <div className="toprow"><div className="eyb">Crew</div><Link className="pf" href="/">‹</Link></div>
+        <div className="toprow"><div className="eyb">Crew</div><Link className="pf hit-44" href="/">‹</Link></div>
         <div className="h-title">Staff only.</div>
         <div className="h-sub">This area is for GT3PB staff. If that&apos;s you, ask the owner to add you — then tap below.</div>
         <button type="button" className="note-save" style={{ marginTop: 14 }} onClick={() => window.location.reload()}>I&apos;ve been added — check again</button>
@@ -5932,7 +5932,7 @@ export default function AdminPage() {
                 <Fragment key={k}>
                   {/* Back office — rarely touched — sits after the divider. */}
                   {k === "vendors" && <span className="subnav-div" aria-hidden />}
-                  <button type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab${k === "vendors" ? " back" : ""}${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>
+                  <button type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab hit-y-44${k === "vendors" ? " back" : ""}${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>
                     {PLAN_LABEL[k]}{n > 0 && <span className={`subnav-badge${hot ? " hot" : ""}`} aria-label={`${n} ${what}`}>{n}</span>}
                   </button>
                 </Fragment>
@@ -6026,7 +6026,7 @@ export default function AdminPage() {
           <Panel id="pay" title="Refunds & payment settings" defaultOpen>
             {/* Refunds live in Square by design (the card data never touches this app) — but the
                 DOOR to them belongs here (enterprise round P3). */}
-            <a className="adm-golink" style={{ display: "inline-block", marginTop: 10 }} href="https://squareup.com/dashboard/sales/transactions" target="_blank" rel="noreferrer">Refunds &amp; disputes — Square Dashboard <Icon name="externalLink" /></a>
+            <a className="adm-golink hit-y-44" style={{ display: "inline-block", marginTop: 10 }} href="https://squareup.com/dashboard/sales/transactions" target="_blank" rel="noreferrer">Refunds &amp; disputes — Square Dashboard <Icon name="externalLink" /></a>
             <GoLine to="settings" anchor="set-pay">Payment settings</GoLine>
           </Panel>
           <SectionHeader label="The numbers" />
