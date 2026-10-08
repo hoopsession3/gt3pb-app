@@ -11,6 +11,7 @@ import { useSiteCopy, fillCopy } from "@/lib/copy";
 import { etToday } from "@/lib/dates";
 import { useCustomerKnown, useKnownField } from "@/components/useCustomerKnown";
 import { useViewerMarket } from "@/components/useViewerMarket";
+import { nextOnEnter } from "@/lib/formKeys";
 
 // "Book the bar" intake — captures B2B/event requests into Supabase (admins manage them
 // in the back office). Booking Tool v5 stays the rate source of truth; the app never quotes.
@@ -94,18 +95,18 @@ export default function BookScreen() {
           so labels + placeholders render as plain t() — editable via Settings → the Book group. */}
       <form className="auth-form" onSubmit={submit} style={{ marginTop: 18 }}>
         <label className="auth-label" htmlFor="b-name">{t("book.f_name")}</label>
-        <input id="b-name" className="auth-input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder={t("book.ph_name")} maxLength={200} required />
+        <input id="b-name" className="auth-input" enterKeyHint="next" onKeyDown={nextOnEnter} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder={t("book.ph_name")} maxLength={200} required />
         <label className="auth-label" htmlFor="b-email">{t("book.f_email")}</label>
-        <input id="b-email" className="auth-input" type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("book.ph_email")} maxLength={200} required />
+        <input id="b-email" className="auth-input" enterKeyHint="next" onKeyDown={nextOnEnter} type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("book.ph_email")} maxLength={200} required />
         <label className="auth-label" htmlFor="b-phone">{t("book.f_phone")}</label>
-        <input id="b-phone" className="auth-input" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t("book.ph_phone")} maxLength={40} />
+        <input id="b-phone" className="auth-input" enterKeyHint="next" onKeyDown={nextOnEnter} type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t("book.ph_phone")} maxLength={40} />
         <EditableCopy k="book.consent" value={t("book.consent")} as="p" className="tel-consent" multiline />
         <div className="b-row">
           <div><label className="auth-label" htmlFor="b-date">{t("book.f_date")}</label><input id="b-date" className="auth-input" type="date" value={f.event_date} onChange={set("event_date")} min={etToday()} required /></div>
-          <div><label className="auth-label" htmlFor="b-head">{t("book.f_headcount")}</label><input id="b-head" className="auth-input" type="number" inputMode="numeric" min={1} max={100000} value={f.headcount} onChange={set("headcount")} placeholder={t("book.ph_headcount")} /></div>
+          <div><label className="auth-label" htmlFor="b-head">{t("book.f_headcount")}</label><input id="b-head" className="auth-input" enterKeyHint="next" onKeyDown={nextOnEnter} type="number" inputMode="numeric" min={1} max={100000} value={f.headcount} onChange={set("headcount")} placeholder={t("book.ph_headcount")} /></div>
         </div>
         <label className="auth-label" htmlFor="b-loc">{t("book.f_location")}</label>
-        <input id="b-loc" className="auth-input" value={f.location_text} onChange={set("location_text")} placeholder={t("book.ph_location")} maxLength={300} />
+        <input id="b-loc" className="auth-input" enterKeyHint="next" onKeyDown={nextOnEnter} value={f.location_text} onChange={set("location_text")} placeholder={t("book.ph_location")} maxLength={300} />
         <label className="auth-label" htmlFor="b-notes">{t("book.f_notes")}</label>
         <textarea id="b-notes" className="auth-input" value={f.notes} onChange={set("notes")} placeholder={t("book.ph_notes")} rows={3} maxLength={2000} />
         <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}><span>{busy ? "Sending…" : t("book.submit")}</span></button>
