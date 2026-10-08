@@ -171,6 +171,11 @@ p,.entry-why,.gl-uc,.k-sub{text-wrap:pretty}
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
 }
 html,body{height:100%;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+/* An app, not a document (2026-10-08): in Safari and the Home Screen web app the whole shell — tab bar and
+   all — rubber-banded past the ends of the one scroller, and a double tap on a button zoomed the page.
+   The iPhone app already holds its shell still (capacitor.config.ts scrollEnabled:false). */
+html,body{overscroll-behavior:none}
+html{touch-action:manipulation}
 body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream);
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;
   display:flex;align-items:flex-start;justify-content:center;min-height:100dvh}
@@ -180,7 +185,9 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
   /* material depth: a barely-there film grain over the warm radial light → matte glass, not flat black */
   background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.05'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23g)'/%3E%3C/svg%3E") repeat,radial-gradient(125% 55% at 50% -8%, #1c1812 0%, #100d09 46%, #070605 100%);
   position:relative;overflow:hidden;display:flex;flex-direction:column}
-@media(min-width:520px){
+/* The frame needs a tall screen as well as a wide one (2026-10-08): a phone on its side (844×390) matched the
+   768px rule and drew a 700×371 bezel with a tab bar, leaving ~280px for the page. It keeps the phone layout. */
+@media(min-width:520px) and (min-height:640px){
   body{align-items:center;padding:18px}
   .app{height:min(900px,96dvh);min-height:0;border-radius:40px;
     box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 9px #050505,0 0 0 11px #1c1a16}
@@ -189,8 +196,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
      screen corners. .app is position:relative, so absolute anchors to it. The quick-actions
      button, the theme toggle and the update prompt live in .fab-dock now (2026-10-04) and are
      absolute against it at every width, so they are no longer listed here. */
-  .app > .rdg,.app > .conc-fab{position:absolute}
-  /* keep centered modal sheets within the frame width */
+  .app > .rail,.app > .offline-bar{position:absolute}  /* the rail and the offline bar ride the frame, not the window (2026-10-08) */
 }
 .body{flex:1;overflow-y:auto;overflow-x:hidden;position:relative;-webkit-overflow-scrolling:touch}
 .body::-webkit-scrollbar{display:none}
@@ -213,15 +219,11 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .hero-eye{font-family:'Inter';font-weight:600;letter-spacing:2px;text-transform:uppercase;font-size:10.5px;color:var(--gold)}
 .hero-state{font-family:'Inter';font-weight:700;font-size:31px;line-height:1.02;margin:6px 0 2px}
 .hero-sub{font-size:12.5px;color:var(--cream-m);line-height:1.45;margin-bottom:14px;max-width:280px}
-.cells{display:flex;gap:9px;margin-top:18px}
 .cell{flex:1;background:rgba(0,0,0,.22);border:1px solid var(--line);border-radius:15px;padding:13px 11px}
-.cell .cv{font-family:'DM Mono';font-weight:500;font-size:16px;letter-spacing:-.3px;line-height:1}
-.cell .cv.warn{color:var(--warn)}.cell .cv.gold{color:var(--gold2)}.cell .cv.ok{color:var(--ok)}
 .cell .cl{font-family:'Inter';font-weight:500;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-m);margin-top:7px}
 /* section header */
 .sec{font-family:'Inter';font-weight:800;letter-spacing:1.4px;text-transform:uppercase;font-size:12.5px;color:var(--gold);margin:30px 0 14px;display:flex;align-items:center;gap:12px}
 .sec:after{content:"";flex:1;height:1px;background:var(--line2)}
-.sec .lk{color:var(--gold2);font-size:10px}
 /* step rows (today) */
 .step{display:flex;align-items:center;gap:15px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:15px 16px;box-shadow:0 6px 16px rgba(0,0,0,.18);margin-bottom:11px}
 .step .ic{flex:0 0 48px;height:48px;border-radius:var(--r-2xl);display:flex;align-items:center;justify-content:center;font-size:22px}
@@ -256,9 +258,6 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .did:last-child{border-bottom:none}
 .did .dc{flex:0 0 38px;height:38px;border-radius:11px;background:rgba(0,0,0,.2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center}
 .did .dc svg{width:17px;height:17px;stroke:var(--gold);fill:none}
-.did .dt{flex:1}.did .dt b{font-family:'Inter';font-weight:600;font-size:13.5px;letter-spacing:.2px;display:block}
-.did .dt span{font-size:11.5px;color:var(--cream-m);display:block;margin-top:2px}
-.did .okc{color:var(--ok);opacity:.8}.did .okc svg{width:16px;height:16px}
 .signoff{text-align:center;font-family:'Fraunces';font-style:italic;font-size:13px;color:var(--ink-whisper);margin-top:24px}
 
 /* ===== TRUCK ===== */
@@ -275,7 +274,6 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .tag.live{color:var(--red)}.tag.soon{color:var(--cream-m)}
 
 /* ── truck · editorial dispatch (no card/tiles/clock) ── */
-.disp{margin-top:20px}
 .livedot{width:8px;height:8px;border-radius:50%;background:#46c14a;margin-right:8px;box-shadow:0 0 0 4px rgba(70,193,74,.16);animation:lv 1.8s infinite}
 .t-order{margin-top:18px}
 .t-ghost{width:100%;border:1px solid var(--line2);cursor:pointer;font-family:'Inter';font-weight:600;letter-spacing:.3px;font-size:13px;padding:13px;border-radius:var(--r-xl);background:transparent;color:var(--cream-m)}
@@ -321,14 +319,8 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .subpitch-fine{text-align:center;font-family:'Inter';font-size:11px;color:var(--cream-m);margin-top:11px}
 
 /* ===== MENU ===== */
-.menucat{font-family:'Inter';font-weight:600;letter-spacing:1.5px;text-transform:uppercase;font-size:11px;color:var(--cream-m);margin:26px 0 12px;display:flex;align-items:baseline;gap:9px}
-.menucat .sx{font-family:'Archivo Black';font-size:13px;color:var(--red)}
-.menucat .wn{font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;font-size:12px;color:var(--gold2);margin-left:auto;text-transform:none;letter-spacing:0}
 .drink{display:flex;align-items:center;gap:15px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:13px;margin-bottom:11px;box-shadow:0 6px 16px rgba(0,0,0,.16);cursor:pointer}
 .drink .sw{flex:0 0 56px;height:56px;border-radius:15px;display:flex;align-items:center;justify-content:center;font-family:'Archivo Black';font-size:12px;color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.15)}
-.drink .dm{flex:1;min-width:0}
-.drink .dm b{font-family:'Inter';font-weight:600;font-size:16px;letter-spacing:.3px;display:block}
-.drink .dm span{font-size:11.5px;color:var(--cream-m);display:block;margin-top:2px}
 .drink .px{font-family:'DM Mono';font-weight:500;font-size:14px;color:var(--cream)}
 .drink .plus{width:32px;height:32px;border-radius:50%;background:color-mix(in srgb, var(--brand-red) 16%, transparent);color:var(--red);display:flex;align-items:center;justify-content:center;font-family:'Archivo Black';font-size:18px}
 .drink .plus.on{background:var(--ok);color:#fff}
@@ -362,11 +354,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .ev .info span{font-size:11.5px;color:var(--cream-m);display:block;margin-top:1px}
 .ev .info .go{color:var(--gold2);font-family:'Inter';font-weight:500;font-size:10.5px;letter-spacing:.3px;margin-top:3px;display:block}
 .motag{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold2);background:rgba(184,144,47,.16);padding:2px 6px;border-radius:5px;margin-left:6px;vertical-align:middle}
-.rsvp{flex:0 0 auto;font-family:'Inter';font-weight:600;font-size:12px;letter-spacing:.2px;padding:9px 15px;border-radius:11px;border:1px solid var(--line2);background:transparent;color:var(--cream);cursor:pointer;transition:.15s}
-.rsvp.in{background:var(--gold2);border-color:var(--gold2);color:#15140f}
 .bring{display:flex;align-items:center;gap:14px;background:#15120d;border:1px solid var(--line);border-radius:var(--r-3xl);padding:16px;margin-top:16px}
-.bring .bt{flex:1}.bring .bt b{font-family:'Inter';font-weight:700;font-size:16px;letter-spacing:-.4px;display:block}
-.bring .bt span{font-size:11.5px;color:var(--cream-m)}
 .bring button{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1px;text-transform:uppercase;background:var(--red);color:#fff;border:none;padding:12px 15px;border-radius:var(--r-xl);cursor:pointer}
 
 /* ===== 3MPIRE ===== */
@@ -421,8 +409,6 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .row .rl{flex:1}.row .rl b{font-family:'Inter';font-weight:600;font-size:14.5px;letter-spacing:.2px;display:block}
 .row .rl span{font-size:11.5px;color:var(--cream-m)}
 .row .rr{color:var(--cream-m)}
-.domain{display:flex;justify-content:center;padding:24px 0 6px}
-.domain img{height:24px;opacity:.8}
 
 /* ===== BOOK (B2B hand-off CTA) ===== */
 /* The screen's own padding with the top trimmed to 6px — the status bar's height kept in it (it was
@@ -441,7 +427,6 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
   transform:translateY(110%);transition:transform .32s var(--ease),visibility 0s linear .32s;visibility:hidden;max-height:min(84%,calc(100dvh - var(--kb,0px) - 40px));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border-top:1px solid var(--line2)}
 .sheet.open{transform:translateY(0);visibility:visible;transition:transform .32s var(--ease),visibility 0s}.sheet::-webkit-scrollbar{display:none}
 .grab{width:42px;height:4px;background:var(--line2);border:none;padding:0;cursor:pointer;border-radius:3px;margin:11px auto 2px;display:block}
-.sin{padding:8px 22px calc(26px + env(safe-area-inset-bottom))}
 .spec-label{font-family:'Inter';font-weight:600;letter-spacing:1.5px;text-transform:uppercase;font-size:10px;color:var(--gold2);margin:16px 0 8px}
 
 /* nav */
@@ -505,10 +490,10 @@ html:not([data-viewer="guest"]) .tab[data-for="guest"]{display:none}
 .tab:active{transform:scale(.94)}
 .tab svg{width:22px;height:22px}
 .tab .tl{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:.06em;text-transform:uppercase}
-.toast{position:absolute;left:22px;right:22px;bottom:96px;background:var(--ok);color:#fff;border-radius:15px;padding:14px 16px;font-family:'Inter';font-weight:600;letter-spacing:.4px;font-size:12.5px;z-index:60;transform:translateY(220%);opacity:0;pointer-events:none;transition:transform .3s,opacity .3s;display:flex;gap:10px;align-items:center;line-height:1.35}
+.toast{position:absolute;left:22px;right:22px;bottom:calc(96px + env(safe-area-inset-bottom,0px));background:var(--ok);color:#fff;border-radius:15px;padding:14px 16px;font-family:'Inter';font-weight:600;letter-spacing:.4px;font-size:12.5px;z-index:60;transform:translateY(220%);opacity:0;pointer-events:none;transition:transform .3s,opacity .3s;display:flex;gap:10px;align-items:center;line-height:1.35}
 /* never cover the CartBar (2026-08-01 audit: "Added — keep building" landed ON the Review bar it
    was pointing at) — with the bar in the shell, the toast rides one story higher. */
-.app:has(.cartbar) .toast{bottom:150px}
+.app:has(.cartbar) .toast{bottom:calc(150px + env(safe-area-inset-bottom,0px))}
 .toast.show{transform:translateY(0);opacity:1}.toast svg{width:18px;height:18px;flex:0 0 auto}
 .toast.err{background:var(--red)}.toast.err svg{stroke:#fff}
 /* ABOVE THE SHEET (2026-10-05, the gesture round). The toast sat at z 60 and every sheet's scrim at 80,
@@ -546,7 +531,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .toprow .eyb,.hero-eye,.drop .eyb,.memcard .mt .eyb,.referral .eyb,.subpitch .eyb,.bookcard .eyb,.sec,.spec-label,.menucat{
   font-family:var(--mono)!important;font-weight:500!important;letter-spacing:2px!important;text-transform:uppercase}
 .sec{letter-spacing:2.4px!important;color:var(--bronze)}
-.menucat .wn{font-family:'Inter','Helvetica Neue',Arial,sans-serif!important}
 /* editorial red-italic emphasis inside any headline: <em> or .it */
 .h-title em,.h-title .it,.drop h2 em,.hero-state em,.memcard .mt h2 em,h2 em.it{
   font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;color:var(--red-h);letter-spacing:-.5px}
@@ -937,7 +921,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .guide-create-x span{font-family:'Inter';font-size:12px;color:var(--cream-m);line-height:1.35}
 .guide-create-go{color:var(--gold2);font-size:18px;font-weight:700}
 /* ── Broadcast bar — an operator-published live message/ad shown to every user (0196) ── */
-.bcast{display:flex;align-items:center;gap:12px;padding:10px 16px;font-family:'Inter';font-size:13.5px;border-bottom:1px solid var(--line);position:relative;z-index:40;animation:bcast-in .28s ease}
+.bcast{display:flex;align-items:center;gap:12px;padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top,0px));font-family:'Inter';font-size:13.5px;border-bottom:1px solid var(--line);position:relative;z-index:40;animation:bcast-in .28s ease}
 @keyframes bcast-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
 .bcast-x{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .bcast-t{font-weight:700;color:var(--cream)}
@@ -1137,7 +1121,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .adm-status{display:flex;gap:6px;flex-wrap:wrap}
 .adm-status button{font-family:'Inter';font-weight:600;font-size:10.5px;padding:6px 10px;border-radius:9px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer}
 .adm-status button.on{background:rgba(184,144,47,.18);border-color:var(--gold2);color:var(--gold2)}
-.adm-status .adm-req-del{margin-left:auto;color:var(--red);border-color:color-mix(in srgb, var(--brand-red) 35%, transparent);font-weight:700}
 .sub-renew.soon{color:var(--gold2)}
 .sub-renew.due{color:var(--red);font-weight:600}
 /* kitchen orders */
@@ -1216,6 +1199,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .auth-paste-hint{font-size:12px;color:color-mix(in srgb, var(--brand-cream) 45%, transparent);line-height:1.5;margin:7px 0 11px}
 .handle.ghost{background:transparent;border:1px solid var(--line2);color:var(--cream-m)}
 .auth-tabs{display:flex;gap:6px;margin-top:18px}
+.auth-tabs .auth-tab::after{z-index:1}  /* the form below animates in on a transform, which painted it over the tabs' taller tap area (2026-10-08) */
 .auth-tabs.auth-intent{margin-top:20px}
 .auth-tabs.auth-tabs-mini{margin-top:10px}
 .auth-tabs-mini .auth-tab{font-size:11px;padding:8px 12px;opacity:.85}
@@ -1223,7 +1207,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .auth-tab.on{background:color-mix(in srgb, var(--brand-red) 18%, transparent);border-color:var(--red);color:var(--cream)}
 .auth-pass-wrap{position:relative}
 .auth-pass-wrap .auth-input{padding-right:60px}
-.auth-show-pass{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--gold);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer;padding:4px}
+.auth-show-pass{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--gold);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer;padding:0 10px;min-height:44px;min-width:44px}  /* a 44pt target over the field's right end (2026-10-08) */
 /* signed-in check-in toggles (Today) */
 
 /* ── GenerateDay: question form ── */
@@ -1303,7 +1287,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .entry-why{font-family:'Fraunces';font-style:italic;font-size:12.5px;color:#6f6a59;margin-top:6px;line-height:1.4}
 
 .menu-integrity{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:#6b6555;text-align:center;margin-top:26px;line-height:1.8}
-.menu-mto{font-family:'Fraunces';font-style:italic;font-size:12.5px;color:#6f6a59;text-align:center;margin-top:7px}
 .order-bar{width:100%;margin-top:20px;border:none;cursor:pointer;font-family:'Inter';font-weight:600;letter-spacing:1.5px;text-transform:uppercase;font-size:12.5px;padding:16px;border-radius:var(--r-2xl);background:var(--red);color:#fff;box-shadow:0 8px 20px color-mix(in srgb, var(--brand-red) 26%, transparent)}
 .order-bar:active{transform:scale(.99)}
 
@@ -1532,10 +1515,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .adm-approve-actions{display:flex;gap:9px;flex-wrap:wrap}
 
 /* supply picker — fixed header (search) + scrolling list + sticky add button */
-.supply-sheet{display:flex;flex-direction:column;max-height:82vh;padding-top:0}
 .supply-head{flex:0 0 auto;padding-top:10px}
-.supply-sheet .supply-list{flex:1 1 auto;overflow-y:auto;min-height:80px;margin:8px 0}
-.supply-sheet .supply-add{flex:0 0 auto;margin-top:0}
 .supply-count{color:var(--gold2);background:rgba(168,124,63,.12);border-radius:var(--r-4xl);padding:1px 8px;font-size:10px}
 
 /* my tasks */
@@ -1582,7 +1562,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 
 /* Operator console — bigger, touch-friendly controls applied across every section
    (Now / Prep / Plan / Money / Team). Scoped to .admin so the customer app is untouched. */
-.admin .adm-btn{font-size:13.5px;padding:12px 16px;border-radius:var(--r-xl);min-height:44px}
+:is(.admin,.sheet2) .adm-btn{font-size:13.5px;padding:12px 16px;border-radius:var(--r-xl);min-height:44px}  /* sheets render outside .admin: there it was ~34px (2026-10-08) */
 .admin .adm-role{min-height:44px;padding:10px 14px;border-radius:11px;border:1px solid var(--line2);background-color:rgba(168,124,63,.08);color:var(--gold2);font-family:'Inter';font-weight:600;font-size:13.5px;-webkit-appearance:none;appearance:none;cursor:pointer}
 .admin .adm-crew-row{gap:8px}
 .admin .adm-crew-chip{font-size:13px;padding:9px 13px;border-radius:var(--r-lg);min-height:40px;display:inline-flex;align-items:center;gap:7px}
@@ -1919,8 +1899,9 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .oo-step button:active{transform:scale(.94)}
 .oo-jug-v{min-width:34px;text-align:center;font-family:'Archivo Black';font-size:20px;color:var(--cream)}
 
-/* Load-Out & Tow Plan */
-.tl{margin-top:14px}
+/* Load-Out & Tow Plan. Scoped (2026-10-08, the foundations round): a bare .tl also matched the tab label in
+   both tab bars and pushed every label 14px below its icon — the crew bar was 122pt tall on an iPhone. */
+.adm-sec.tl{margin-top:14px}
 .tl-prof{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-top:8px;padding:11px 13px;background:rgba(168,124,63,.07);border:1px solid var(--line2);border-radius:var(--r-xl)}
 .tl-prof-main b{display:block;font-family:'Inter';font-weight:600;font-size:14px;color:var(--cream)}
 .tl-prof-main span{display:block;font-family:'Inter';font-size:11.5px;color:var(--cream-m);margin-top:3px}
@@ -2349,7 +2330,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .adm-task-wrap,.note-fu-wrap{display:block}
 
 /* ── input sheet (focused guided entry; keeps context above visible) ── */
-.isheet-x{background:none;border:none;color:var(--cream-m);font-family:'Inter';font-size:17px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}
+.isheet-x{background:none;border:none;color:var(--cream-m);font-family:'Inter';font-size:17px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none;min-width:44px;min-height:44px;padding:0;display:inline-flex;align-items:center;justify-content:center;flex:none}  /* 44×44, as .qd-x: it was the glyph alone, ~17px (2026-10-08) */
 .isheet-title{font-family:'Inter';font-weight:600;font-size:15px;color:var(--cream)}
 .isheet-done{background:none;border:none;color:var(--gold2);font-family:'Inter';font-weight:700;font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .isheet-done:disabled{opacity:.4}
@@ -2528,7 +2509,6 @@ h5.pr-h{font-size:12.5px;color:var(--cream-d)}
 .qd-scrim{position:fixed;inset:0;z-index:59;background:radial-gradient(58% 44% at 50% 50%,color-mix(in srgb, var(--brand-gold2) 13%, transparent),transparent 68%),rgba(0,0,0,.55);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);display:flex;align-items:center;justify-content:center;padding:16px 16px calc(16px + var(--kb,0px));box-sizing:border-box}
 .qd-sheet{width:100%;max-width:560px;max-height:min(88vh,calc(100dvh - var(--kb,0px) - 32px));display:flex;flex-direction:column;background:var(--bg,#161310);border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.6);animation:qdup .18s ease;overflow:hidden}
 @keyframes qdup{from{transform:translateY(10px) scale(.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
-.qd-tabs{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
 .qd-tab{background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:var(--r-pill);padding:8px 14px;min-height:44px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;white-space:nowrap;cursor:pointer;-webkit-appearance:none;appearance:none}  /* 44: measured 34px when the purchase sheet's fixture first painted this row (2026-10-04) — the dock is a thumb control */
 .qd-tab.on{background:color-mix(in srgb, var(--brand-gold) 18%, transparent);border-color:var(--gold2);color:var(--gold2)}
 .qd-x{margin-left:auto;background:none;border:none;color:var(--cream-m);font-size:18px;cursor:pointer;padding:4px 8px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}  /* 44×44: the close on every sheet measured 30px (2026-10-03) */
@@ -3228,7 +3208,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .brand-upload .brand-asset-img{border-style:dashed}
 
 /* ── Event day planner · run of show ── */
-.qd-sheet.dp{max-width:620px;max-height:min(90vh,calc(100dvh - var(--kb,0px) - 16px))}
 .dp-eyebrow{font-family:'Inter';font-weight:700;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--gold2)}
 .dp-title{font-family:'Fraunces',serif;font-size:20px;line-height:1.2;color:var(--cream);margin-top:2px}
 .dp-daysctl{display:flex;align-items:center;gap:8px;padding:0 16px 10px;font-family:'Inter';font-size:13px;color:var(--cream-m)}
@@ -3441,11 +3420,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .eg-list li::before{content:"✓";position:absolute;left:0;top:0;color:var(--ok);font-weight:700}
 
 /* ── Note composer: AI task preview ── */
-.note-tasks-prev{margin-top:9px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:10px 12px;font-family:'Inter';font-size:12.5px;color:var(--cream-m)}
-.app.crew-day .note-tasks-prev{background:var(--card)}
-.note-tasks-prev b{color:var(--cream)}
-.note-tasks-prev ul{margin:6px 0 0;padding-left:16px;display:flex;flex-direction:column;gap:3px}
-.note-tasks-prev li{font-size:12.5px;line-height:1.45;color:var(--cream)}
 
 /* ── Plan sub-nav: priority badges + back-office divider ── */
 .subnav-tab{display:inline-flex;align-items:center;gap:6px}
@@ -3684,11 +3658,10 @@ body:has(.conc-sheet) .rail{display:flex}
 .brew-timer-txt span{font-family:'Inter';font-size:11.5px;color:var(--cream-m);line-height:1.35}
 .brew-timer b{font-family:'DM Mono';font-size:16px;color:#5fd0c2}
 .brew-timer span:last-child{font-family:'Inter';font-size:12px;color:var(--cream-m);flex:1 1 100%}
-.brew-timer-dot{width:9px;height:9px;border-radius:50%;background:#2bb3a3;animation:brewpulse 1.8s ease-in-out infinite}
 .brew-timer.soon{background:rgba(207,154,74,.16);border-color:var(--warn)}
-.brew-timer.soon b{color:var(--warn)}.brew-timer.soon .brew-timer-dot{background:var(--warn)}
+.brew-timer.soon b{color:var(--warn)}
 .brew-timer.done{background:color-mix(in srgb, var(--brand-red) 16%, transparent);border-color:var(--red-h)}
-.brew-timer.done b{color:var(--red-h)}.brew-timer.done .brew-timer-dot{background:var(--red-h)}
+.brew-timer.done b{color:var(--red-h)}
 @keyframes brewpulse{0%,100%{opacity:1}50%{opacity:.3}}
 .brew-score{display:flex;align-items:center;gap:6px;margin-top:9px;font-family:'Inter';font-size:12px;color:var(--cream-m)}
 .brew-score-b{width:28px;height:28px;border-radius:var(--r-md);background:transparent;border:1px solid var(--line2);color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer}
@@ -3757,7 +3730,7 @@ body:has(.conc-sheet) .rail{display:flex}
    capping running-text columns so line length stays readable.
    These rules come last, so they override the 480px/900px shell.
    ============================================================ */
-@media(min-width:768px){
+@media(min-width:768px) and (min-height:640px){
   body{padding:24px}
   .app{max-width:700px;height:min(1180px,95dvh);border-radius:34px}
   .screen{padding:calc(8px + env(safe-area-inset-top)) 30px 32px}
@@ -3769,7 +3742,7 @@ body:has(.conc-sheet) .rail{display:flex}
   .h-sub{max-width:520px}
 }
 /* 12.9" iPad Pro (and 11" landscape) — full planning canvas */
-@media(min-width:1024px){
+@media(min-width:1024px) and (min-height:640px){
   body{padding:30px}
   .app{max-width:860px;height:min(1340px,95dvh)}
   .screen{padding:calc(10px + env(safe-area-inset-top)) 42px 42px}
@@ -3855,7 +3828,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .app.crew-day .daybrief{background:rgba(201,166,97,.12)}
 .daybrief-h{display:flex;align-items:center;gap:8px;font-family:'Inter',sans-serif;font-weight:700;font-size:13px;letter-spacing:.02em;color:var(--gold2);margin-bottom:8px}
 .daybrief-edit{margin-left:auto;background:none;border:1px solid var(--line2);color:var(--cream);border-radius:var(--r-md);font-size:12px;font-weight:600;padding:3px 10px;cursor:pointer}
-.daybrief-empty{font-size:13px;color:var(--muted);line-height:1.5}
 .daybrief-row{display:flex;gap:10px;padding:5px 0;font-size:14px;line-height:1.5}
 .daybrief-row b{flex:0 0 56px;color:var(--gold2);font-family:'Inter',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding-top:1px}
 .daybrief-row span{color:var(--cream)}
@@ -4049,10 +4021,7 @@ body:has(.conc-sheet) .rail{display:flex}
 
 /* order-ahead OPS (admin "Now" — cohesive with the kitchen pass) */
 .dops{margin-top:14px}
-.dops-head{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
 .dops-kick{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600}
-.dops-head b{font-size:16px;color:var(--cream);font-weight:700}
-.app.crew-day .dops-head b{color:var(--cream)}
 .dops-brew{font-size:12px;color:var(--muted);margin:0 2px 12px}.dops-brew b{color:var(--cream)}
 .app.crew-day .dops-brew b{color:var(--cream)}
 .dops-order{border:1px solid var(--hair,color-mix(in srgb, var(--brand-cream) 14%, transparent));border-radius:var(--r-2xl);padding:12px 13px;margin-bottom:10px}
@@ -4118,12 +4087,13 @@ body:has(.conc-sheet) .rail{display:flex}
 .sheet2{color:var(--cream)}
 .sheet2-head{flex:0 0 auto;padding:2px 18px 12px;touch-action:none}
 .sheet2-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:0 18px calc(18px + env(safe-area-inset-bottom))}
+.sheet2-body:has(+.sheet2-foot){padding-bottom:18px}  /* the footer below already clears the home indicator (2026-10-08) */
 .sheet2-foot{flex:0 0 auto;padding:12px 18px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--bg,#161310)}
 /* .paper — the cream "printed menu" look for the drink sheet, carried onto <Sheet> */
 .sheet2.paper{background:#F4EFE3;color:#221F18;border-color:rgba(34,31,24,.14)}
 .sheet2.paper .sheet2-grab::before{background:rgba(34,31,24,.22)}
 .sheet2.paper .sheet2-foot{background:#F4EFE3;border-top-color:rgba(34,31,24,.12)}
-@media(min-width:520px){
+@media(min-width:520px) and (min-height:640px){
   .sheet2-scrim{align-items:center;padding:16px}
   .sheet2{border:1px solid var(--line);border-radius:var(--r-4xl);max-height:min(88vh,calc(100dvh - var(--kb,0px) - 32px));box-shadow:0 24px 60px rgba(0,0,0,.6),0 0 55px -6px color-mix(in srgb, var(--brand-gold2) 34%, transparent);animation:sheet2pop .22s var(--ease)}
 }
@@ -4306,8 +4276,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .mypack-flag.done{background:color-mix(in srgb, var(--brand-cream) 6%, transparent);color:var(--cream-d);border:1px solid var(--line2)}
 .app.crew-day .mypack-flag.paid,body.light .mypack-flag.paid{color:var(--green-onLight)}
 .app.crew-day .mypack-flag.due,body.light .mypack-flag.due{color:var(--gold2)}
-.mypack-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.mypack-top b{font-family:'Inter';font-weight:800;font-size:14.5px;color:var(--cream)}
 .mypack-pay{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--warn);border:1px solid var(--warn);border-radius:var(--r-sm);padding:2px 7px}
 .mypack-pay.ok{color:var(--ok);border-color:var(--ok)}
 .mypack-mix{font-size:12.5px;color:var(--cream-m);margin-top:5px}
@@ -4905,7 +4873,6 @@ body:has(.conc-sheet) .rail{display:flex}
 @media (hover:hover){.chub-tab:hover{box-shadow:0 12px 30px rgba(184,144,47,.28)}}
 .chub-tab .rail-txt i{color:rgba(244,234,214,.5)}
 .chub-tab-i{font-size:15px;line-height:1;color:#C8A661}
-.chub-tab-l{white-space:nowrap}
 .chub-panel{position:absolute;right:0;bottom:54px;width:min(310px,86vw);max-height:min(60vh,520px);overflow-y:auto;background:linear-gradient(168deg,#17130d 0%,#1e160e 60%,#241811 100%);color:#f4ead6;border:1px solid #B8902F;border-radius:18px;padding:15px;box-shadow:0 24px 60px rgba(0,0,0,.6);animation:chub-raise-in .42s cubic-bezier(.2,.9,.2,1)}
 .chub-panel::-webkit-scrollbar{width:0}
 @keyframes chub-raise-in{from{opacity:0;transform:translate(16px,10px)}to{opacity:1;transform:none}}
@@ -5001,7 +4968,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
    the gap it leaves; armed, the ring closes; refreshing, it turns. */
 .body[data-ptr="pull"]>:not(.ptr),.body[data-ptr="ease"]>:not(.ptr){transform:translate3d(0,var(--ptr,0px),0)}
 .body[data-ptr="ease"]>:not(.ptr){transition:transform .34s cubic-bezier(.32,.72,0,1)}
-.ptr{position:absolute;top:12px;left:50%;width:28px;height:28px;margin-left:-14px;pointer-events:none;opacity:0;color:var(--gold2)}
+.ptr{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));left:50%;width:28px;height:28px;margin-left:-14px;pointer-events:none;opacity:0;color:var(--gold2)}
 .body:not([data-ptr="pull"]):not([data-ptr="ease"]) .ptr{opacity:0!important}
 .ptr svg{display:block;width:28px;height:28px;transform:rotate(-90deg)}
 .ptr circle{fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-dasharray:calc(var(--ptr-p,0) * 80) 100;transition:stroke-dasharray .08s linear}
@@ -5651,7 +5618,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .legal-wrap p b{color:var(--cream)}
 .legal-fine{font-size:11.5px;font-style:italic;color:var(--cream-d)}
 /* ── Blind-spot round (2026-08-01): consent microcopy, offline state, batch picker ── */
-.tel-consent{font-family:'Inter';font-size:10px;line-height:1.5;color:var(--cream-d);margin:4px 2px 0}
+.tel-consent{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m);margin:4px 2px 0}  /* the SMS consent is read before agreeing: 12px in --cream-m, not 10px faded (2026-10-08) */
 .offline-bar{position:fixed;top:0;left:0;right:0;z-index:95;background:#3a2f16;color:#e8ddc2;border-bottom:1px solid color-mix(in srgb, var(--brand-gold2) 40%, transparent);font-family:'Inter';font-weight:600;font-size:12px;text-align:center;padding:calc(8px + env(safe-area-inset-top)) 14px 8px}
 .dops-batchsel{font-family:'DM Mono';font-size:11px;padding:6px 8px;border-radius:9px;border:1px solid var(--line2);background-color:transparent;color:var(--cream-m);max-width:150px}
 .dops-batchsel.set{border-color:rgba(184,144,47,.45);color:var(--gold2)}
@@ -5774,7 +5741,7 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .dl-h-xl em{font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;color:var(--red-h)}
 .dl-zlead{font-weight:600;color:var(--cream)}
 .dl-ziprow-xl .auth-input{font-family:'DM Mono',monospace;font-size:19px;letter-spacing:.18em;text-align:center;padding:15px 10px;min-width:0;width:100%}
-.dl-ziprow .handle{width:auto;flex:0 0 auto;padding:0 26px}
+.dl-ziprow .handle{width:auto;flex:0 0 auto;padding:0 26px;min-height:44px;align-self:stretch}  /* as tall as the ZIP field beside it, and never under 44 (2026-10-08) */
 
 /* pickup-day / which-Sunday pills (shared) */
 .dl-days{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
@@ -6076,7 +6043,7 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 @keyframes sheet2pop-out{to{opacity:0;transform:scale(.965)}}
 .sheet2-scrim.out{animation:scrim-out .21s var(--ease) both;pointer-events:none}
 .sheet2.out{animation:sheet2-out .21s var(--ease) both}
-@media (min-width:520px){.sheet2.out{animation:sheet2pop-out .18s var(--ease) both}}
+@media (min-width:520px) and (min-height:640px){.sheet2.out{animation:sheet2pop-out .18s var(--ease) both}}
 /* PULLED OFF (2026-10-05, the gesture round): a sheet the finger carried away has already left — at the
    finger's speed, from where it was let go (components/Sheet). The exit above would snap it back to the
    top and play the slide again; `gone` keeps it where the pull put it. */
@@ -6090,7 +6057,7 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .sheet2-ask-go{background:transparent;border:1px solid color-mix(in srgb, var(--brand-red) 55%, transparent);color:var(--red-onLight,var(--red-h));font-weight:600}
 .sheet2-ask-no{background:var(--cream);border:none;color:var(--bg,#161310);font-weight:700}
 .sheet2-ask-go:focus-visible,.sheet2-ask-no:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
-@media(min-width:520px){.sheet2-ask-scrim{align-items:center}}
+@media(min-width:520px) and (min-height:640px){.sheet2-ask-scrim{align-items:center}}
 
 /* Spring physics on sheet arrivals — --spring lives with the other tokens at the top of this file:
    a real spring via linear() where the browser has it, the entrance curve everywhere else. */
@@ -6109,7 +6076,7 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 
 /* ── Notes 10/10 — the luxury note popout (golden glow, LV restraint) ─────────────────────────── */
 .sheet2.note-lux{box-shadow:0 -14px 50px rgba(0,0,0,.6),0 0 80px -10px color-mix(in srgb, var(--brand-gold2) 50%, transparent),inset 0 1px 0 color-mix(in srgb, var(--brand-gold2) 22%, transparent);border-color:color-mix(in srgb, var(--brand-gold2) 32%, transparent)}
-@media (min-width:520px){.sheet2.note-lux{box-shadow:0 24px 60px rgba(0,0,0,.6),0 0 90px -12px color-mix(in srgb, var(--brand-gold2) 55%, transparent),inset 0 1px 0 color-mix(in srgb, var(--brand-gold2) 22%, transparent)}}
+@media (min-width:520px) and (min-height:640px){.sheet2.note-lux{box-shadow:0 24px 60px rgba(0,0,0,.6),0 0 90px -12px color-mix(in srgb, var(--brand-gold2) 55%, transparent),inset 0 1px 0 color-mix(in srgb, var(--brand-gold2) 22%, transparent)}}
 .app.crew-day .sheet2.note-lux,body.light .sheet2.note-lux{box-shadow:0 24px 60px var(--line2),0 0 70px -14px rgba(184,144,47,.4),inset 0 1px 0 rgba(184,144,47,.3);border-color:rgba(184,144,47,.34)}
 .note-lux-head{display:flex;align-items:center;width:100%}
 .note-lux-eyb{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold2)}
@@ -6142,7 +6109,6 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 /* new-note button gets the gold treatment */
 .note-new{box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 0 20px -6px color-mix(in srgb, var(--brand-gold2) 40%, transparent)}
 /* partner attach chip on note cards */
-.note-meta .note-partner{color:var(--gold2)}
 
 /* ── Founding members — tier control + perks (0176) ──────────────────────────────────────────── */
 .crm-badge.founding{background:linear-gradient(135deg,color-mix(in srgb, var(--brand-gold2) 24%, transparent),rgba(184,144,47,.14));color:var(--gold2);border:1px solid var(--gold2);box-shadow:0 0 14px -4px color-mix(in srgb, var(--brand-gold2) 60%, transparent)}
@@ -7278,7 +7244,8 @@ div.owed-row-go{cursor:default}
 .shop-qty button{width:44px;height:42px;background:#FBF8EF;border:0;font-size:20px;color:#221F18;cursor:pointer}
 .shop-qty span{min-width:44px;text-align:center;font-family:var(--mono);font-size:15px}
 /* sticky cart bar */
-.shop-cartbar{position:sticky;bottom:calc(12px + env(safe-area-inset-bottom));z-index:5;width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:20px 0 0;padding:15px 18px;background:var(--red);color:#fff;border:0;border-radius:var(--r-2xl);cursor:pointer;box-shadow:0 12px 28px color-mix(in srgb, var(--brand-red) 36%, transparent)}
+.shop-cartbar{position:sticky;bottom:12px;  /* sticky inside the page's scroller, which already ends above the tab bar and the home indicator (2026-10-08) */
+z-index:5;width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:20px 0 0;padding:15px 18px;background:var(--red);color:#fff;border:0;border-radius:var(--r-2xl);cursor:pointer;box-shadow:0 12px 28px color-mix(in srgb, var(--brand-red) 36%, transparent)}
 .shop-cartbar-n{font-family:'Inter';font-weight:700;font-size:13px;letter-spacing:.3px}
 .shop-cartbar-go{display:inline-flex;align-items:center;gap:7px;font-family:'Inter';font-weight:800;font-size:14px}
 /* checkout */
@@ -7767,8 +7734,10 @@ div.owed-row-go{cursor:default}
 /* 2. THE BASE CONTROL. Zero specificity, so it is a floor and never a ceiling. */
 .app :where(select),.app :where(input:not([type="checkbox"]):not([type="radio"])),.app :where(textarea){
   background-color:var(--bg,#0d0b08);border:1px solid var(--line);border-radius:9px;
-  padding:10px 12px;color:var(--cream);font-family:'Inter';font-size:15px;line-height:1.2;
+  padding:10px 12px;color:var(--cream);font-family:'Inter';font-size:16px;line-height:1.2;
   width:100%;min-width:0;min-height:44px;   /* WCAG 2.5.5 — these sheets get used one-handed */
+  /* 16px, not 15 (2026-10-08): iOS zooms the page into any field under 16px the moment it is tapped, before
+     AppShell's holdFocusZoom has hydrated to stop it, and it stays zoomed. */
 }
 .app :where(textarea){min-height:66px;resize:vertical}
 
@@ -7893,6 +7862,9 @@ div.owed-row-go{cursor:default}
   border:none;padding:10px 12px;min-height:56px;font:inherit;color:var(--cream);cursor:pointer}
 @media (hover:hover){.so-row:hover{background:color-mix(in srgb, var(--gold2) 7%, var(--card))}}
 .so-row:focus-visible{outline:2px solid var(--gold2);outline-offset:-2px}
+/* A panel that rounds its corners with overflow:hidden clips a ring drawn outside its header, so a keyboard
+   user saw no focus at all on 43 crew panels, every Settings row and the Guide (2026-10-08): drawn inside. */
+:is(.mpanel-h,.guide-row-h,.garage-head):focus-visible{outline-offset:-3px}
 .so-row-b{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
 .so-row-b b{font-family:'Inter';font-size:13.5px;font-weight:600;color:var(--cream);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
