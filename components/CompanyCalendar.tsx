@@ -470,7 +470,8 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
         </div>
       )}
       <div ref={sentinel} className="cal-stickysentinel" aria-hidden />
-      <div className={`cal-sticky${stuck ? " is-stuck" : ""}`}>
+      {/* Under the title bar while it shows (components/TitleBar, data-compact): the month row steps down under it. */}
+      <div className={`cal-sticky${stuck ? " is-stuck" : ""} [.app:has([data-tbar][data-compact])_&]:top-[calc(env(safe-area-inset-top,0px)+44px)]! [.app:has(>.bcast):has([data-tbar][data-compact])_&]:top-11!`}>
         <div className="cal-bar">
           <div className="cal-nav">
             {!FLOW_VIEWS.includes(view) && <button type="button" className="cal-arrow hit-44" onClick={() => nav(-1)} aria-label="Previous">‹</button>}

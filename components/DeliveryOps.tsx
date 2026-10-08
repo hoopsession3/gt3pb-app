@@ -13,6 +13,7 @@ import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
 import { usePrompt } from "@/components/PromptSheet";
 import { useAuth } from "./AuthProvider";
+import Link from "next/link";
 
 // SUNDAY DELIVERY OPS — the crew side of the delivery debrief, in DropOps' shape: one summary
 // sentence (units, one hero thought), the Saturday brew totals (incl. Performance combos), and a
@@ -138,7 +139,7 @@ export default function DeliveryOps() {
         {premiumTotal > 0 && <> · Premium: <b>{Object.keys(premiumMix).length ? Object.entries(premiumMix).map(([k, n]) => `${n}× ${k}`).join(" · ") : premiumTotal}</b></>}
       </div>
       <LoopQuickLog porches={rows} />
-      <a className="dops-driver-link" href="/driver"><Icon name="truck" /> Open the driver run — map &amp; turn-by-turn <Icon name="arrowRight" /></a>
+      <Link className="dops-driver-link" href="/driver"><Icon name="truck" /> Open the driver run — map &amp; turn-by-turn <Icon name="arrowRight" /></Link>
       <button type="button" className="dops-assign-link" onClick={() => setAssign(true)}><Icon name="team" /> Assign this run to a driver <Icon name="arrowRight" /></button>
       <button type="button" className="dops-assign-link" onClick={() => setPackout(true)}><Icon name="package" /> Vehicle packout plan <Icon name="arrowRight" /></button>
       {assign && <AssignTaskSheet defaultTitle={`Sunday delivery run — ${rows.length} porch${rows.length === 1 ? "" : "es"} · ${bottles} bottles`} dueOn={date} category="ops" onClose={() => setAssign(false)} />}
@@ -188,7 +189,7 @@ export default function DeliveryOps() {
                       </select>
                     )}
                     {o.status === "out_for_delivery" && (
-                      <a className="dops-mini" href="/driver">Log the outcome in driver mode <Icon name="arrowRight" /></a>
+                      <Link className="dops-mini" href="/driver">Log the outcome in driver mode <Icon name="arrowRight" /></Link>
                     )}
                   </div>
                 </>}

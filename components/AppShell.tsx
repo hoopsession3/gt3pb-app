@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { keepPlace, placeFor, restorePlace, returnToPlace } from "@/lib/appScroll";
 import { HELP_EVENTS, type Asked, type HelpEvent } from "@/lib/helpSheets";
@@ -25,6 +25,8 @@ import FloatRail from "./FloatRail";
 import ErrorReporter from "./ErrorReporter";
 import MarketingSplash from "./MarketingSplash";
 import BroadcastBanner from "./BroadcastBanner";
+import TitleBar from "./TitleBar";
+import { isNativeApp } from "@/lib/native";
 import { surfaceOf, showsCommerce } from "@/lib/surfaces";
 import { holdFocusZoom } from "@/lib/ios";
 import dynamic from "next/dynamic";
@@ -78,9 +80,18 @@ const H1_TITLES: Record<string, string> = {
 };
 const routeTitle = (p: string): string => (p === "/" ? "GT3 Performance Bar" : H1_TITLES[p.split("/")[1] || ""] || "GT3 Performance Bar");
 
+// No browser around the page — the iPhone app, or a PWA opened from the home screen — so nothing answers a
+// swipe from the left edge but the app itself (components/SwipeBack). Asked on the client only; the server
+// and the first paint say no, and nothing on screen depends on it.
+const noSubscribe = () => () => {};
+const noBrowser = (): boolean => isNativeApp() || window.matchMedia?.("(display-mode: standalone)").matches === true
+  || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+const onServer = () => false;
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const bodyRef = useRef<HTMLElement>(null);
+  const appOnly = useSyncExternalStore(noSubscribe, noBrowser, onServer);
   const { closeDrink, cartCount, coOpen } = useApp();
   // Latched during render (React's "adjust state when an input changes"), not in an effect: once
   // wanted it stays mounted, and an effect would paint one frame without it after the first add.
@@ -208,6 +219,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             reports as scrollable-region-focusable the moment that route was scanned. The skip
             link still lands here. */}
         <main className="body" ref={bodyRef} id="body" tabIndex={0}>
+          {/* The title bar: the screen's name once its own title has scrolled away, and Back in one place. */}
+          {!isShare && <TitleBar />}
           {!isShare && !H1_SKIP.has(pathname) && !pathname.startsWith("/primal/") && <h1 className="sr-only">{routeTitle(pathname)}</h1>}
           {children}
         </main>
@@ -237,7 +250,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         {inAdmin && <EventCopilot />}
         {inAdmin && <CommandPalette />}
-        {inAdmin && <SwipeBack />}
+        {/* The edge swipe back: the console's always; elsewhere where no browser gives one (the app, a home-screen PWA). */}
+        {!isShare && (inAdmin || appOnly) && <SwipeBack />}
         {inAdmin && <PullToRefresh />}
         {inAdmin && <ScrollRestore />}
         {/* Every floating tab lives on ONE movable, collapsible right-edge rail. */}
