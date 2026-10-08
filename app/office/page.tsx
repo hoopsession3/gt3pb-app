@@ -19,6 +19,7 @@ import OfficeCalendar from "@/components/OfficeCalendar";
 import { money } from "@/lib/money";
 import { haptic } from "@/lib/haptics";
 import { useRealtimeTable } from "@/lib/realtime";
+import { refusalText } from "@/lib/refusal";
 import {
   STAGES, changeable, cutoffLabel, dayLabel, deliveryState, invoiceState, legacyHome, nextDelivery, programLine, relDay, requestState, stageOf,
   type LegacyAccount, type LegacyInvoice, type LegacyOrder, type OfficeAccount, type OfficeDelivery, type OfficeHome,
@@ -124,9 +125,10 @@ export default function OfficeScreen() {
       error = old.error ?? (old.data?.length ? null : error);
     }
     setBusy(false);
-    // Under the minimum, set_office_standing refuses with 22023 and a sentence a person can act on
-    // ("The minimum is 4 gallons a week."), and that is what the toast says.
-    if (error) toast(error.code === "22023" ? error.message : "Couldn't save — try again", "error");
+    // Under the minimum, set_office_standing refuses with a sentence a person can act on ("The minimum
+    // is 4 gallons a week."), and that is what the toast says: lib/refusal reads which errors are
+    // refusals, for every office screen. A failure that is not one says "try again".
+    if (error) toast(refusalText(error) ?? "Couldn't save — try again", "error");
     else if (p.standing_active === false) haptic("toggleOff");
     else if (p.standing_active) haptic("toggleOn");
     else haptic("selection");

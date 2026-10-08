@@ -11,8 +11,9 @@
 //      recorded — never onto a morning that location already has, a closed day or a weekend; the
 //      mornings offered are exactly those.
 //   4. The driver's note, until the driver leaves.
-//   5. The cutoff, in the database: after it every change is refused with 55000 (the screen's cue to
-//      turn the sheet into a request) — the crew can still change it; a paid delivery keeps its money.
+//   5. The cutoff, in the database: after it every change is refused with PT409 (HTTP 409; it was
+//      55000, a 500, until 0360), the screen's cue to turn the sheet into a request — the crew can
+//      still change it; a paid delivery keeps its money.
 //   6. Who: admin, location manager and orderer change; billing and viewer read (and billing asks);
 //      a location manager only at their location; another company, a stranger, another tenant's
 //      crew and crew in another city are told the delivery is not there; nobody writes the tables.
@@ -183,7 +184,7 @@ const price = (await val(db, `select office_price_cents p from public.live_statu
   ok("4 · the note runs past the cutoff, until the driver leaves", late.error === null && (await ord(ids.late)).n === "Leave at reception", late);
   await q(`update public.business_orders set status = 'out_for_delivery' where id = $1`, [ids.late]);
   const gone = await change(ORDERER, ids.late, "note", { note: "Too late" });
-  ok("4 · …and not after (55000: the screen offers a message instead)", gone.code === "55000" && /driver has left/.test(gone.error), gone);
+  ok("4 · …and not after (PT409: the screen offers a message instead)", gone.code === "PT409" && /driver has left/.test(gone.error), gone);
   await q(`update public.business_orders set status = 'received' where id = $1`, [ids.late]);
   const clear = await change(ORDERER, ids.D1, "note", { note: "" });
   ok("4 · an empty note clears it", clear.error === null && (await ord(ids.D1)).n === null, clear);
@@ -194,21 +195,21 @@ const price = (await val(db, `select office_price_cents p from public.live_statu
   const qty = await change(ORDERER, ids.late, "quantity", { gallons: 6 });
   const skip = await change(ORDERER, ids.late, "skip");
   const move = await change(ORDERER, ids.late, "move", { to: (await val(db, `select (current_date + 9)::text d`)).d });
-  ok("5 · after the cutoff a client's quantity, skip and move are refused with 55000, saying when it closed",
-    [qty, skip, move].every((x) => x.code === "55000") && /closed .* at 6:00 PM/.test(qty.error) && (await ord(ids.late)).g === 4 && (await ord(ids.late)).c === false, { qty, skip, move });
+  ok("5 · after the cutoff a client's quantity, skip and move are refused with PT409, saying when it closed",
+    [qty, skip, move].every((x) => x.code === "PT409") && /closed .* at 6:00 PM/.test(qty.error) && (await ord(ids.late)).g === 4 && (await ord(ids.late)).c === false, { qty, skip, move });
   const crew = await change(CREW, ids.late, "quantity", { gallons: 6 });
   ok("5 · the crew can still change it (the AM answering the request)", crew.error === null && (await ord(ids.late)).g === 6, crew);
   ok("5 · …and the record says it was the crew", (await val(db, `select by_crew from public.office_order_changes where order_id = $1 and change = 'quantity'`, [ids.late])).by_crew === true);
   await q(`update public.business_orders set payment_status = 'paid' where id = $1`, [ids.D4]);
   const paidQty = await change(ADMIN, ids.D4, "quantity", { gallons: 8 });
   const paidSkip = await change(ADMIN, ids.D4, "skip");
-  ok("5 · a paid delivery keeps its money: its quantity and skip become a request", paidQty.code === "55000" && /is paid/.test(paidQty.error) && paidSkip.code === "55000" && (await ord(ids.D4)).g === 4, { paidQty, paidSkip });
+  ok("5 · a paid delivery keeps its money: its quantity and skip become a request", paidQty.code === "PT409" && /is paid/.test(paidQty.error) && paidSkip.code === "PT409" && (await ord(ids.D4)).g === 4, { paidQty, paidSkip });
   const paidMove = await change(ADMIN, ids.D4, "move", { to: (await val(db, `select ($1::date + 1)::text d`, [ids.dates[3]])).d });
   ok("5 · …but it can still move to another morning", paidMove.error === null, paidMove);
   await change(ADMIN, ids.D4, "move", { to: ids.dates[3] });
   await q(`update public.business_orders set status = 'brewed' where id = $1`, [ids.D5]);
   const brewing = await change(ADMIN, ids.D5, "quantity", { gallons: 5 });
-  ok("5 · once it is brewing, it is under way", brewing.code === "55000" && /under way/.test(brewing.error), brewing);
+  ok("5 · once it is brewing, it is under way", brewing.code === "PT409" && /under way/.test(brewing.error), brewing);
   await q(`update public.business_orders set status = 'received' where id = $1`, [ids.D5]);
 }
 
@@ -219,18 +220,18 @@ const price = (await val(db, `select office_price_cents p from public.live_statu
   ok("6 · a viewer and a billing person read deliveries but don't change them — told so", viewer.code === "42501" && /ask your office admin/.test(viewer.error) && billing.code === "42501", { viewer, billing });
   const mgrHere = await change(LOCMGR, ids.annex, "quantity", { gallons: 5 });
   const mgrThere = await change(LOCMGR, ids.D5, "quantity", { gallons: 5 });
-  ok("6 · a location manager changes their site's delivery, and the other site's is not there for them", mgrHere.error === null && mgrThere.code === "P0002", { mgrHere, mgrThere });
+  ok("6 · a location manager changes their site's delivery, and the other site's is not there for them", mgrHere.error === null && mgrThere.code === "PT404", { mgrHere, mgrThere });
   const other = await change(OTHER, ids.D5, "skip");
   const stranger = await change(STRANGER, ids.D5, "skip");
   const t2 = await change(T2_CREW, ids.D5, "skip");
   const atl = await change(ATL_CREW, ids.D5, "skip");
   const anon = await change(null, ids.D5, "skip");
   ok("6 · company B, a stranger, another tenant's crew and crew in another city are told it isn't there; signed out can't call it",
-    [other, stranger, t2, atl].every((x) => x.code === "P0002" && /no longer exists/.test(x.error)) && anon.error !== null && (await ord(ids.D5)).c === false, { other, stranger, t2, atl, anon });
+    [other, stranger, t2, atl].every((x) => x.code === "PT404" && /no longer exists/.test(x.error)) && anon.error !== null && (await ord(ids.D5)).c === false, { other, stranger, t2, atl, anon });
   const homeB = await as(db, OTHER, `select public.office_home($1) h`, [ids.coA]);
   const homeT2 = await as(db, T2_CREW, `select public.office_home($1) h`, [ids.coA]);
   const datesB = await as(db, OTHER, `select * from public.office_open_dates($1)`, [ids.D5]);
-  ok("6 · company B can't read company A's home or its open mornings by id", homeB.code === "P0002" && homeT2.code === "P0002" && datesB.code === "P0002", { homeB, homeT2, datesB });
+  ok("6 · company B can't read company A's home or its open mornings by id", homeB.code === "PT404" && homeT2.code === "PT404" && datesB.code === "PT404", { homeB, homeT2, datesB });
   const write = await as(db, ORDERER, `update public.business_orders set gallons = 40 where id = $1 returning id`, [ids.D5]);
   const forge = await as(db, ORDERER, `insert into public.office_order_changes (company_id, order_id, change) values ($1, $2, 'quantity')`, [ids.coA, ids.D5]);
   const forgeReq = await as(db, ORDERER, `insert into public.company_requests (company_id, kind, body) values ($1, 'other', 'hi')`, [ids.coA]);
@@ -273,7 +274,7 @@ const price = (await val(db, `select office_price_cents p from public.live_statu
   const other = await ask(OTHER, "other", "Hi", { order: ids.D5 });
   const blank = await ask(ORDERER, "other", "   ");
   ok("7 · a viewer is told their role can't; company B can't ask about A's delivery; a request says something",
-    viewer.code === "42501" && other.code === "P0002" && /no longer exists/.test(other.error) && blank.code === "22023", { viewer, other, blank });
+    viewer.code === "42501" && other.code === "PT404" && /no longer exists/.test(other.error) && blank.code === "22023", { viewer, other, blank });
   const clientSet = await as(db, ORDERER, `select (public.office_request_set($1, 'done')).status`, [req.id]);
   ok("7 · only the crew moves a request along", clientSet.code === "42501", clientSet);
   const working = await as(db, CREW, `select (public.office_request_set($1, 'in_progress')).*`, [req.id]);
@@ -329,7 +330,7 @@ const price = (await val(db, `select office_price_cents p from public.live_statu
   const paused = await val(db, `select bool_and(canceled_at is not null) c from public.business_orders where id = any ($1::uuid[])`, [[ids.D1, ids.D3, ids.D5]]);
   ok("9 · a pause takes off everything open — the client's changed days too", paused.c === true && (await ord(ids.D1)).r === "paused" && (await ord(ids.D2)).r === "skipped", [await ord(ids.D1), await ord(ids.D2)]);
   const unskipPaused = await change(ADMIN, ids.D2, "unskip");
-  ok("9 · a skip can't come back while the program is paused", unskipPaused.code === "55000" && /paused/.test(unskipPaused.error), unskipPaused);
+  ok("9 · a skip can't come back while the program is paused", unskipPaused.code === "PT409" && /paused/.test(unskipPaused.error), unskipPaused);
   await as(db, ADMIN, `select public.set_office_standing($1, true, null)`, [ids.acctA]);
   const d1 = await ord(ids.D1), d3 = await ord(ids.D3), d2 = await ord(ids.D2);
   ok("9 · a resume brings them back as the client left them; the skip stays skipped", !d1.c && d1.g === 6 && !d3.c && d3.mf === ids.dates[2] && d2.c && d2.r === "skipped", { d1, d3, d2 });

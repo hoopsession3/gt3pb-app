@@ -7,6 +7,7 @@ import { useApp } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
 import { haptic } from "@/lib/haptics";
 import { nextIdem, type IdemState } from "@/lib/idempotency";
+import { refusalText } from "@/lib/refusal";
 import { REQUEST_KINDS, type RequestKind } from "@/lib/officeChange";
 
 // ASK GT3 (2026-10-07, Phase 2A-2). Everything a client used to text: an extra delivery, an event,
@@ -42,7 +43,7 @@ export default function OfficeAskSheet({ companyId, startKind = "extra_delivery"
       p_kind: kind, p_body: text, p_order: null, p_company: companyId, p_wants: null, p_key: key.current.key,
     });
     setBusy(false);
-    if (error) { toast(error.code === "22023" || error.code === "42501" ? error.message : "Couldn't send it — try again", "error"); return; }
+    if (error) { toast(refusalText(error) ?? "Couldn't send it — try again", "error"); return; }
     key.current = null;
     haptic("success");
     toast("Sent — GT3 has it and will reply here");

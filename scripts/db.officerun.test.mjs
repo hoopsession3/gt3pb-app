@@ -121,13 +121,13 @@ const untouched = async (id) => { const o = await ord(id); return o.status === "
   const reopenClient = await reopen(CLIENT, O(2), "mine");
   ok("4 · nor reopen one", reopenClient.error !== null && (await ord(O(2))).status === "delivered", reopenClient);
   const atl = await log(ATL_DRIVER, O(7), "delivered_swapped", 1);
-  ok("4 · crew in another city can't log a Greenville stop — it isn't on their screen", atl.error !== null && atl.code === "P0002" && await untouched(O(7)), atl);
+  ok("4 · crew in another city can't log a Greenville stop — it isn't on their screen", atl.error !== null && atl.code === "PT404" && await untouched(O(7)), atl);
   const atlBack = await reopen(ATL_DRIVER, O(2));
-  ok("4 · …nor reopen one", atlBack.error !== null && atlBack.code === "P0002" && (await ord(O(2))).status === "delivered", atlBack);
+  ok("4 · …nor reopen one", atlBack.error !== null && atlBack.code === "PT404" && (await ord(O(2))).status === "delivered", atlBack);
   const other = await log(OTHER_CO, O(7), "delivered_swapped", 1);
-  ok("4 · another company's crew can't touch this company's deliveries", other.error !== null && other.code === "P0002" && await untouched(O(7)), other);
+  ok("4 · another company's crew can't touch this company's deliveries", other.error !== null && other.code === "PT404" && await untouched(O(7)), other);
   const otherBack = await reopen(OTHER_CO, O(2));
-  ok("4 · …in either direction", otherBack.error !== null && otherBack.code === "P0002" && (await ord(O(2))).status === "delivered", otherBack);
+  ok("4 · …in either direction", otherBack.error !== null && otherBack.code === "PT404" && (await ord(O(2))).status === "delivered", otherBack);
 }
 
 // ── 5 · the run and the route hear each other ──
