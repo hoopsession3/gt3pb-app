@@ -113,6 +113,10 @@
 @custom-variant day (&:where(.crew-day, .crew-day *));
 /* Off: the look is lib/theme's, and the phone's setting alone is not it. */
 @custom-variant dark (&:not(*));
+/* The frame and the phone (2026-10-08): the test app/globals.css draws the frame with — 520 wide and 640
+   tall is a desktop or an iPad, in the frame; anything smaller is a phone, held either way. */
+@custom-variant frame (@media (min-width: 520px) and (min-height: 640px));
+@custom-variant phone (@media not all and (min-width: 520px) and (min-height: 640px));
 
 /* Safe areas: the inset alone, or the inset and a step of the grid (pb-safe-4 = inset + 16px). */
 @utility pt-safe { padding-top: env(safe-area-inset-top, 0px); }
