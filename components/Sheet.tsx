@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import Icon from "./Icon";
 import type { SheetMotionProps } from "./SheetMotion";
 import { haptic } from "@/lib/haptics";
+import { appHistory } from "@/lib/appHistory";
 
 // The pull and the sideways walk load with the first sheet that opens (components/SheetMotion's header).
 const SheetMotion = dynamic<SheetMotionProps>(() => import("./SheetMotion"), { ssr: false });
@@ -195,13 +196,25 @@ export default function Sheet({
     mark: (id: symbol, d: boolean) => { if (d) inner.current.set(id, true); else inner.current.delete(id); },
   }), [leave]);
 
+  // BACK CLOSES THE SHEET (2026-10-08, the navigation round, approved). An open sheet is a step in the app's
+  // history (lib/appHistory): Back — Android's, the browser's — comes here first, and goes through the same
+  // door as Escape: a held sheet stays, a form with typed changes asks, and with that question showing, Back
+  // answers it "Keep editing". True when the sheet is leaving.
+  const onBack = useEffectEvent((): boolean => {
+    if (ask) { setAsk(null); return false; }
+    if (!dismissible) { nudge(); return false; }
+    if (unsaved()) { askFor(requestClose); return false; }
+    requestClose();
+    return true;
+  });
   // Open sheets, newest on top: Escape belongs to the top one. Every sheet used to listen on the window
   // and close itself, so one keypress closed a sheet AND the sheet it was opened from — taking the
   // inner one's unsaved form with it.
   useEffect(() => {
     if (phase !== "open") return;
     stack.push(me);
-    return () => { const i = stack.lastIndexOf(me); if (i >= 0) stack.splice(i, 1); };
+    const end = appHistory()?.step({ back: () => onBack() });
+    return () => { end?.(); const i = stack.lastIndexOf(me); if (i >= 0) stack.splice(i, 1); };
   }, [phase, me]);
   const onEscape = useEffectEvent((e: KeyboardEvent) => {
     // A field that uses Escape itself (an inline edit cancelling) has said so with preventDefault.

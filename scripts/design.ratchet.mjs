@@ -270,6 +270,8 @@ export const SHIFT = {
 // 2026-10-08 (the iPhone chrome round): every tap floor up from 26 — the rail's handle is not on a phone any more
 // (components/FloatRail), so the smallest target is the page's own: the footer's Privacy link (43.6), a 44pt field,
 // the tab bar's 49pt tabs, /3mpire's Share invite (42). Measured on this commit's build.
+// 2026-10-08 (the navigation round): /academy 49 → 44 — its Back is the title bar's ‹ now (components/TitleBar), a
+// 44pt control at the top left, where a 44pt ‹ sat in the masthead's corner before the iPhone chrome round.
 // Floors say "not smaller than this", not "this is fine".
 export const ROUTE = {
   "/":              { depth: 2, tap: 43.6, text: 10 },
@@ -284,7 +286,7 @@ export const ROUTE = {
   "/shop":          { depth: 2, tap: 43.6, text: 10 },
   "/primal":        { depth: 1, tap: 43.6, text: 10 },
   "/office":        { depth: 1, tap: 43.6, text: 10 },
-  "/academy":       { depth: 0, tap: 49, text: 11 },
+  "/academy":       { depth: 0, tap: 44, text: 11 },
   "/scan":          { depth: 0, tap: 43.6, text: 10 },
   "/architecture":  { depth: 0, tap: 43.6, text: 10 },
   "/playbook":      { depth: 0, tap: 49, text: null },
@@ -522,30 +524,36 @@ export const PROD_ROUTE = {
 // for everyone, +855 to +922 bytes: each tab keeps its place (lib/appScroll), the ear for the menus' sheets (which
 // load on the first ask — lib/helpSheets), and Return's next-field move (lib/formKeys). Crossed the rounding line
 // upward on /architecture, /agreement, /offer, /display, /privacy, /terms and /built.
+// 2026-10-08 (the navigation round): every route +4 KB of script, and the stylesheet over the 100 KB line on the 99s.
+// Built 69c3cc7 and this commit and gzipped what each route's HTML references: +4 173 to +4 277 bytes everywhere —
+// what Back now does, for everyone: an open sheet is a step Back closes, and its history entry goes when it does
+// (lib/appHistory, which has to be loaded before the router to hear Back first); the title bar that keeps a screen's
+// name and carries Back in one place (components/TitleBar, useBack), and the screens' short names (lib/routeTitles).
+// The stylesheet: the bar's own utilities (a blurred ground, its two buttons, the calendars' rows stepping under it).
 export const WEIGHT = {
-  "/truck":                    { js: 278, css: 102, chunks: 15 },
-  "/events":                   { js: 278, css: 102, chunks: 15 },
-  "/menu":                     { js: 262, css:  99, chunks: 15 },
-  "/reserve":                  { js: 286, css:  99, chunks: 16 },
-  "/delivery":                 { js: 285, css:  99, chunks: 16 },
-  "/3mpire":                   { js: 278, css:  99, chunks: 15 },
-  "/craft":                    { js: 261, css:  99, chunks: 15 },
-  "/book":                     { js: 262, css:  99, chunks: 15 },
-  "/academy":                  { js: 318, css:  99, chunks: 16 },
-  "/office":                   { js: 276, css:  99, chunks: 15 },
-  "/scan":                     { js: 260, css:  99, chunks: 15 },
-  "/architecture":             { js: 270, css:  99, chunks: 15 },
-  "/playbook":                 { js: 270, css:  99, chunks: 15 },
-  "/driver":                   { js: 274, css: 102, chunks: 15 },
-  "/agreement":                { js: 268, css:  99, chunks: 15 },
-  "/offer":                    { js: 278, css:  99, chunks: 15 },
-  "/built/gt3-built-k7m9x4q2": { js: 259, css:  99, chunks: 15 },
-  "/display":                  { js: 261, css:  99, chunks: 15 },
-  "/shop":                     { js: 290, css:  99, chunks: 16 },
-  "/primal":                   { js: 263, css:  99, chunks: 15 },
-  "/privacy":                  { js: 258, css:  99, chunks: 14 },
-  "/terms":                    { js: 258, css:  99, chunks: 14 },
-  "/":                         { js: 268, css:  99, chunks: 15 },
+  "/truck":                    { js: 282, css: 102, chunks: 15 },
+  "/events":                   { js: 282, css: 102, chunks: 15 },
+  "/menu":                     { js: 266, css: 100, chunks: 15 },
+  "/reserve":                  { js: 290, css: 100, chunks: 16 },
+  "/delivery":                 { js: 289, css: 100, chunks: 16 },
+  "/3mpire":                   { js: 282, css: 100, chunks: 15 },
+  "/craft":                    { js: 266, css: 100, chunks: 15 },
+  "/book":                     { js: 266, css: 100, chunks: 15 },
+  "/academy":                  { js: 323, css: 100, chunks: 16 },
+  "/office":                   { js: 280, css: 100, chunks: 15 },
+  "/scan":                     { js: 265, css: 100, chunks: 15 },
+  "/architecture":             { js: 274, css: 100, chunks: 15 },
+  "/playbook":                 { js: 274, css: 100, chunks: 15 },
+  "/driver":                   { js: 278, css: 102, chunks: 15 },
+  "/agreement":                { js: 272, css: 100, chunks: 15 },
+  "/offer":                    { js: 282, css: 100, chunks: 15 },
+  "/built/gt3-built-k7m9x4q2": { js: 264, css: 100, chunks: 15 },
+  "/display":                  { js: 265, css: 100, chunks: 15 },
+  "/shop":                     { js: 294, css: 100, chunks: 16 },
+  "/primal":                   { js: 267, css: 100, chunks: 15 },
+  "/privacy":                  { js: 262, css: 100, chunks: 14 },
+  "/terms":                    { js: 262, css: 100, chunks: 14 },
+  "/":                         { js: 272, css: 100, chunks: 15 },
 };
 
 export function weightVerdict(path, w, row = WEIGHT[path]) {

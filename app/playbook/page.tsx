@@ -8,6 +8,7 @@ import { StrategyThread, DecisionLog, PlayBuilder, useDrafts } from "@/component
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { useConfirm } from "@/components/ConfirmSheet";
+import Link from "next/link";
 
 // THE PLAYBOOK — the whole strategy on one owner screen, and now a working document: every block
 // and play carries a live discussion thread (owners get pinged), the guided builder walks you
@@ -119,7 +120,7 @@ export default function PlaybookPage() {
       <DecisionLog canWrite={role === "owner" || role === "admin"} />
 
       <div className="pb-foot">
-        Deeper cuts: <a href="/architecture">the live architecture map</a> (owner) · <a href="/built/gt3-built-k7m9x4q2">the partner one-pager</a> (safe to show) ·
+        Deeper cuts: <Link href="/architecture">the live architecture map</Link> (owner) · <Link href="/built/gt3-built-k7m9x4q2">the partner one-pager</Link> (safe to show) ·
         the numbers behind every play recompute daily in <b>Money</b>.
       </div>
       <ClosingBeat />

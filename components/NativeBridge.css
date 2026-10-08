@@ -12,6 +12,9 @@
 .native-bar{position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);z-index:50;pointer-events:none;background:var(--native-bar,#15140f)}
 .native-bar::after{content:"";position:absolute;left:0;right:0;top:100%;height:12px;background:linear-gradient(var(--native-bar,#15140f),transparent);opacity:0;transition:opacity .2s ease}
 html[data-scrolled] .native-bar::after{opacity:1}
+/* While the title bar shows (components/TitleBar), it is the scroll edge: its own ground and hairline sit right
+   under this band, and the fade would lie across its top (2026-10-08). */
+html:has([data-tbar][data-compact]) .native-bar::after{opacity:0}
 
 /* THE KEYBOARD. The web view itself shrinks above it (capacitor.config.ts, resize "native"), so a tab bar
    kept for its height would sit over the keyboard as an empty band. It leaves the layout instead, as a

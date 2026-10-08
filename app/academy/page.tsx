@@ -19,6 +19,7 @@ import {
   type Module, type Product, type QuizQ, type Role, type Ack, type AssignmentLike,
 } from "@/lib/academy";
 import { staffAccess } from "@/lib/access";
+import { useBackStep } from "@/components/useBack";
 
 // What a level is held to, as opposed to what it has been taught. Four separate things on purpose:
 // what the role owns, the non-negotiables, the rhythm it keeps, and how it is actually judged.
@@ -203,7 +204,7 @@ export default function AcademyPage() {
   // used to be "0/N modules · 0%" for everyone, done or not, until the read came back.
   if (!loaded) return (
     <section className="screen academy">
-      <Masthead eyebrow="GT3 Academy" right={<Link className="pf hit-44" href="/3mpire" aria-label="Exit">‹</Link>} />
+      <Masthead eyebrow="GT3 Academy" />
       {loadErr ? (
         <EmptyState role="alert" title="Your training record did not load"
           sub={`${loadErr}. Nothing you have done is lost — this was a read that did not answer.`}
@@ -249,7 +250,7 @@ export default function AcademyPage() {
 
   return (
     <section className="screen academy">
-      <Masthead eyebrow="GT3 Academy" right={<Link className="pf hit-44" href="/3mpire" aria-label="Exit">‹</Link>} />
+      <Masthead eyebrow="GT3 Academy" />
       <h1 className="h-title">Your <em className="it">path.</em></h1>
       <div className="subm" style={{ marginTop: 10 }}>{roleLabel} track · {reqDone}/{required.length} modules</div>
       {loadErr && <p className="subm" role="status">Could not refresh your record — {loadErr}. This is what was last read.</p>}
@@ -388,13 +389,14 @@ function Ring({ pct }: { pct: number }) {
 
 // ── module reader + quiz ──
 function ModuleReader({ m, done, onBack, onComplete }: { m: Module; done: boolean; onBack: () => void; onComplete: (score: number | null) => void }) {
+  useBackStep("Academy", onBack);
   const [quiz, setQuiz] = useState(false);
   return (
     <section className="screen academy">
-      <div className="toprow"><button className="ac-back" onClick={onBack}>‹ Academy</button><div className="eyb">{sectionMeta(m.section).label}</div></div>
+      <div className="toprow"><div className="eyb">{sectionMeta(m.section).label}</div></div>
       {!quiz ? (
         <>
-          <h1 className="h-title" style={{ fontSize: 28 }}>{m.title}</h1>
+          <h1 className="h-title" style={{ fontSize: 28 }} data-large-title data-title={m.title}>{m.title}</h1>
           <div className="subm" style={{ marginTop: 8 }}>{m.estMin} min{done ? " · completed" : ""}</div>
           {m.whyItMatters && <div className="ac-why"><span className="ac-why-k">Why it matters</span><p>{m.whyItMatters}</p></div>}
           {m.objectives && m.objectives.length > 0 && (
@@ -478,12 +480,13 @@ function Quiz({ qs, pass, onPass, onCancel }: { qs: QuizQ[]; pass: number; onPas
 
 // ── acknowledgement (food-safety e-sign) ──
 function AckView({ a, defaultName, signed, onBack, onSign }: { a: Ack; defaultName: string; signed: boolean; onBack: () => void; onSign: (name: string) => void }) {
+  useBackStep("Academy", onBack);
   const [name, setName] = useState(defaultName);
   const [agree, setAgree] = useState(false);
   return (
     <section className="screen academy">
-      <div className="toprow"><button className="ac-back" onClick={onBack}>‹ Academy</button><div className="eyb">Acknowledgement</div></div>
-      <h1 className="h-title" style={{ fontSize: 28 }}>{a.title}</h1>
+      <div className="toprow"><div className="eyb">Acknowledgement</div></div>
+      <h1 className="h-title" style={{ fontSize: 28 }} data-large-title data-title={a.title}>{a.title}</h1>
       {signed && <div className="subm" style={{ marginTop: 8, color: "var(--ok)" }}>Already signed — re-sign to re-affirm</div>}
       <div className="ac-body">{a.body.map((p, i) => <div key={i} className="ac-bsec"><p className="ac-bp">{p}</p></div>)}</div>
       <div className="ac-sign">
@@ -497,10 +500,11 @@ function AckView({ a, defaultName, signed, onBack, onSign }: { a: Ack; defaultNa
 
 // ── product detail (education + cookbook) ──
 function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
+  useBackStep("Academy", onBack);
   return (
     <section className="screen academy">
-      <div className="toprow"><button className="ac-back" onClick={onBack}>‹ Academy</button><div className="eyb">{p.line}</div></div>
-      <h1 className="h-title" style={{ fontSize: 30 }}>{p.name}</h1>
+      <div className="toprow"><div className="eyb">{p.line}</div></div>
+      <h1 className="h-title" style={{ fontSize: 30 }} data-large-title data-title={p.name}>{p.name}</h1>
       <p className="ac-what">{p.what}</p>
 
       <SectionHeader label="Why it exists" />
@@ -567,6 +571,10 @@ function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
 
 // ── admin team-readiness board + assignment ──
 function TeamBoard({ onBack, assignFor = null }: { onBack: () => void; assignFor?: string | null }) {
+  // Each of the Academy's own views is a step (components/useBack): the bar's "‹ Academy", the edge swipe and
+  // the browser's Back return to the path — its "‹ Academy" used to be the first thing in the view, and
+  // scrolled away with it (2026-10-08, the navigation round).
+  useBackStep("Academy", onBack);
   const { user } = useAuth();
   const { toast } = useApp();
   const [rows, setRows] = useState<{ id: string; name: string; role: string; done: number; certs: number; overdue: number }[]>([]);
@@ -621,8 +629,8 @@ function TeamBoard({ onBack, assignFor = null }: { onBack: () => void; assignFor
 
   return (
     <section className="screen academy">
-      <div className="toprow"><button className="ac-back" onClick={onBack}>‹ Academy</button><div className="eyb">Admin</div></div>
-      <h1 className="h-title" style={{ fontSize: 28 }}>Team <em className="it">readiness.</em></h1>
+      <div className="toprow"><div className="eyb">Admin</div></div>
+      <h1 className="h-title" style={{ fontSize: 28 }} data-large-title data-title="Team readiness">Team <em className="it">readiness.</em></h1>
 
       <SectionHeader label="Assign training" />
       <div className="ac-assign">

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import Gt3Mark from "@/components/Gt3Mark";
+import Link from "next/link";
 
 // ============================================================
 // KIT — Customer Design System v1 (2026-07-14). The app-wide
@@ -29,10 +30,13 @@ import Gt3Mark from "@/components/Gt3Mark";
 
 // eyebrow takes ReactNode (not just string), same reason as SectionHeader's label/annotation below —
 // so a caller can pass an EditableCopy element (Craft page's eyebrow is owner-editable copy).
+// The masthead's eyebrow names the screen: it is the screen's large title (data-large-title, 2026-10-08) —
+// once it has scrolled away, the title bar (components/TitleBar) keeps the screen's name at the top. With
+// no eyebrow, the masthead itself is.
 export function Masthead({ eyebrow, live = false, right, tone = "dark" }: { eyebrow?: ReactNode; live?: boolean; right?: ReactNode; tone?: "dark" | "light" }) {
   return (
     <>
-      <header className={`k-mast${tone === "light" ? " k-mast-light" : ""}`}>
+      <header className={`k-mast${tone === "light" ? " k-mast-light" : ""}`} data-large-title={eyebrow ? undefined : true}>
         <div className="k-lock">
           <Gt3Mark tone="cream" />
           <span className="k-pb">Performance Bar</span>
@@ -40,7 +44,7 @@ export function Masthead({ eyebrow, live = false, right, tone = "dark" }: { eyeb
         {right}
       </header>
       {eyebrow && (
-        <div className={`k-eyb k-page-eyb${live ? " live" : ""}`}>
+        <div className={`k-eyb k-page-eyb${live ? " live" : ""}`} data-large-title>
           {live && <span className="livedot" />}
           {eyebrow}
         </div>
@@ -119,8 +123,10 @@ export function ClosingBeat() {
       <div className="rule" />
       <Gt3Mark tone="cream" />
       <div className="sig">Carolinas, Georgia</div>
-      {/* the legal footer (2026-08-01 enterprise round P5) — quiet, but present on every page */}
-      <div className="k-legal"><a href="/privacy">Privacy</a><span aria-hidden> · </span><a href="/terms">Terms</a></div>
+      {/* the legal footer (2026-08-01 enterprise round P5) — quiet, but present on every page. Links that move
+          within the app (2026-10-08): a plain <a> loaded the whole site again for a page of text, and lost Back's
+          name for where it came from (lib/appHistory). */}
+      <div className="k-legal"><Link href="/privacy">Privacy</Link><span aria-hidden> · </span><Link href="/terms">Terms</Link></div>
     </div>
   );
 }
