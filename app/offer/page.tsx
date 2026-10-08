@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
@@ -90,7 +89,7 @@ export default function OfferPage() {
 
   return (
     <section className="screen">
-      <Masthead eyebrow="Your offer" right={<Link className="pf hit-44" href="/" aria-label="Back">‹</Link>} />
+      <Masthead eyebrow="Your offer" />
       <AsyncSection
         state={state}
         isEmpty={(rows) => rows.length === 0}
