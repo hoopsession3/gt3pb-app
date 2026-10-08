@@ -3,6 +3,7 @@ import { staffFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiA
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ClaudeMsg } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
+import { startKnowledge } from "@/lib/crewStart";
 import { ownerCorrections, brewRecipeFacts, logConvo, MEASURING_RULES } from "@/lib/agentKnowledge";
 import { claimSafe, CLAIM_FALLBACK } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
@@ -81,7 +82,10 @@ async function post(req: Request) {
 
   // MEASURING_RULES sits with the recipe facts and above the general knowledge: it governs how any
   // quantity below it is stated, so it has to be read before them, not after.
-  const system = `${SYSTEM}${corrections ? `\n\n${corrections}` : ""}\n\n${MEASURING_RULES}${brewFacts ? `\n\n${brewFacts}` : ""}\n\n=== GT3 KNOWLEDGE ===\n${academyKnowledge()}\n\n=== ASSETS / GEAR WE HAVE ===\n${assets || "(none loaded)"}\n\n=== INVENTORY ON HAND ===\n${inv || "(none loaded)"}\n\n=== PERMIT / INSPECTION REQUIREMENTS BY JURISDICTION (researched; [STATE/County], ANY = universal) ===\n${rules || "(none loaded)"}\nWhen asked about permits or an inspection for a place, use the rows matching that state/county PLUS the ANY rows. If we have NO rows for that jurisdiction, say it isn't researched yet, give the universal items, and tell them to confirm with that county's health department (and flag it to an owner to research). For an inspection ask, lead with what the inspector will check, then a short prep checklist. Always remind them to confirm with the authority for the specific date.`;
+  // THE APP ITSELF (2026-10-08): "how do I get to crew mode?" was a text from Ryan, not something this
+  // could answer — its knowledge was the craft. lib/crewStart's steps, the same words as the welcome
+  // letter and the Guide's Start here, with the in-app links an answer may point to.
+  const system = `${SYSTEM}${corrections ? `\n\n${corrections}` : ""}\n\n${MEASURING_RULES}${brewFacts ? `\n\n${brewFacts}` : ""}\n\n=== GT3 KNOWLEDGE ===\n${academyKnowledge()}\n\n=== THE APP ITSELF ===\n${startKnowledge()}\n\n=== ASSETS / GEAR WE HAVE ===\n${assets || "(none loaded)"}\n\n=== INVENTORY ON HAND ===\n${inv || "(none loaded)"}\n\n=== PERMIT / INSPECTION REQUIREMENTS BY JURISDICTION (researched; [STATE/County], ANY = universal) ===\n${rules || "(none loaded)"}\nWhen asked about permits or an inspection for a place, use the rows matching that state/county PLUS the ANY rows. If we have NO rows for that jurisdiction, say it isn't researched yet, give the universal items, and tell them to confirm with that county's health department (and flag it to an owner to research). For an inspection ask, lead with what the inspector will check, then a short prep checklist. Always remind them to confirm with the authority for the specific date.`;
 
   try {
     const r = await callClaude({ label: "operator", model: MODELS.sonnet, maxTokens: 700, temperature: 0.3, system, messages: trimmed });
