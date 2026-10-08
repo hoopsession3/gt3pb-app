@@ -76,3 +76,17 @@ export function isMissingFunction(err: { code?: string | null; message?: string 
   if (String(err.code ?? "") === "PGRST202") return true;
   return MISSING_FUNCTION_TEXT.test(String(err.message ?? ""));
 }
+
+// THE TABLE THAT DOES NOT EXIST YET (2026-10-07). The same window, for a table a pending migration
+// creates (0359's company_requests): before the paste PostgREST answers PGRST205, "Could not find the
+// table 'public.company_requests' in the schema cache" (an older PostgREST, 42P01 "relation … does not
+// exist"). A reader that sees exactly this has nothing to show yet; any other error is an error.
+const MISSING_TABLE_TEXT = /Could not find the table '[^']+' in the schema cache|relation "[^"]+" does not exist/i;
+
+/** Is this error ONLY "that table is not there yet"? */
+export function isMissingTable(err: { code?: string | null; message?: string | null } | null | undefined): boolean {
+  if (!err) return false;
+  const code = String(err.code ?? "");
+  if (code === "PGRST205" || code === "42P01") return true;
+  return MISSING_TABLE_TEXT.test(String(err.message ?? ""));
+}
