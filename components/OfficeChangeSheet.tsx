@@ -9,10 +9,8 @@ import { haptic } from "@/lib/haptics";
 import { money } from "@/lib/money";
 import { windowHours } from "@/lib/office";
 import { nextIdem, type IdemState } from "@/lib/idempotency";
-import {
-  OFFICE_REASONS, askOf, changePlan, changeable, cutoffLabel, dayLabel, deliveryState, draftOf, stepWords,
-  type ChangeDraft, type ChangeStep, type OfficeDelivery, type OfficeReason,
-} from "@/lib/officeStatus";
+import { changeable, cutoffLabel, dayLabel, deliveryState, type OfficeDelivery } from "@/lib/officeStatus";
+import { OFFICE_REASONS, askOf, changePlan, draftOf, stepWords, type ChangeDraft, type ChangeStep, type OfficeReason } from "@/lib/officeChange";
 
 // CHANGE IT IN ONE SHEET (2026-10-07, Phase 2A-2 — the mock's screen B). One delivery: its gallons,
 // skip it (or bring a skip back), move it to another morning, a note for the driver — saved by

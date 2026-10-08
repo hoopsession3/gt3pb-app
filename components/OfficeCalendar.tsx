@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { IconButton } from "@/components/controls";
+import Icon from "@/components/Icon";
 import { haptic } from "@/lib/haptics";
 import { windowHours } from "@/lib/office";
 import { byDate, calendarMonths, cutoffLabel, dayLabel, deliveryState, monthGrid, monthLabel, type OfficeDelivery } from "@/lib/officeStatus";
@@ -33,8 +33,10 @@ export default function OfficeCalendar({ agenda, today, now, onPick }: {
     <div className="flex flex-col gap-2 mt-2">
       <div className="flex items-center gap-2">
         <h3 className="m-0 flex-1 font-sans font-bold text-[17px] text-cream">{monthLabel(year, month0)}</h3>
-        <IconButton icon="chevronLeft" label="Previous month" onClick={() => go(-1)} className={at === 0 ? "invisible" : undefined} />
-        <IconButton icon="chevronRight" label="Next month" onClick={() => go(1)} className={at === months.length - 1 ? "invisible" : undefined} />
+        {/* the kit's round button, written out: the kit's module carries its segmented control too, which
+            only the change sheet uses — this page loads without it (scripts/design.ratchet.mjs WEIGHT) */}
+        <button type="button" className={`k-icon-btn${at === 0 ? " invisible" : ""}`} onClick={() => go(-1)} aria-label="Previous month" title="Previous month"><Icon name="chevronLeft" /></button>
+        <button type="button" className={`k-icon-btn${at === months.length - 1 ? " invisible" : ""}`} onClick={() => go(1)} aria-label="Next month" title="Next month"><Icon name="chevronRight" /></button>
       </div>
       <div className="grid grid-cols-7 gap-y-1 text-center" aria-hidden="true">
         {WEEKDAYS.map((w, k) => <span key={k} className="font-mono text-[10px] tracking-[.12em] text-cream-dim">{w}</span>)}

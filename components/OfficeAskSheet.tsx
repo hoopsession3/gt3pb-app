@@ -7,7 +7,7 @@ import { useApp } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
 import { haptic } from "@/lib/haptics";
 import { nextIdem, type IdemState } from "@/lib/idempotency";
-import { REQUEST_KINDS, type RequestKind } from "@/lib/officeStatus";
+import { REQUEST_KINDS, type RequestKind } from "@/lib/officeChange";
 
 // ASK GT3 (2026-10-07, Phase 2A-2). Everything a client used to text: an extra delivery, an event,
 // another location, equipment, a billing question, something that went wrong. office_request (0359)
