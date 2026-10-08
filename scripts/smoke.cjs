@@ -5668,7 +5668,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("needs you: a row with nowhere to go and nothing to tap is not drawn as a door",
     /if \(to\.kind === "none"\) return false;/.test(owedSrc) && /if \(to\.kind === "none"\) return;/.test(owedSrc) && /if \(!answer\) return canGo\(r\) \? \(/.test(owedSrc));
   ok("office: the customer sees when an invoice is due, and 'paid' once it is — it said the database's 'open' for ever",
-    /\.select\("id, amount_cents, status, issued_at, terms, due_at"\)/.test(office) && /`due \$\{new Date\(`\$\{v\.due_at\}T12:00:00`\)/.test(office));
+    /\.select\("id, amount_cents, status, issued_at, terms, due_at"\)/.test(office) && /const st = invoiceState\(v, h\.today\);/.test(office)
+    && /return due < today \? \{ key: "overdue", label: `Overdue · was due \$\{short\}` \} : \{ key: "due", label: `Due \$\{short\}` \};/.test(read("lib/officeStatus.ts")));
 
   // ── a client sees their account and cannot rewrite it (2026-10-07, 0354) ──
   // A signed-in client could write any column of their own office account from the browser — net 30
@@ -8964,6 +8965,120 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const acad = read("lib/academy.ts"), acPage = code(read("app/academy/page.tsx"));
   ok("academy: a role's path has one home — lib/academy maps it, the Academy page and the letter both read it",
     /export const APP_TO_ACADEMY: Record<string, Role> = \{/.test(acad) && /export const trackFor = /.test(acad) && !/const APP_TO_ACADEMY/.test(acPage) && /toAcademyRole\(roleOf\(profile\)\)/.test(acPage));
+}
+
+// ── YOUR GT3 (2026-10-07, Phase 2A-2 of the B2B report) — the office client's home, the change sheet,
+// requests, and the crew's side of them. Ryan: "They should be able in real time see their GT3 calendar
+// where they can manage their order super easy." scripts/db.officechange.test.mjs proves the database
+// half (0359); these hold lib/officeStatus's rules and the screens to it.
+{
+  const OS = require("../.smoke/officeStatus.js");
+  const SK3 = require("../.smoke/schemaSkew.js");
+  const nfs = require("node:fs"), npath = require("node:path");
+  const read = (p) => nfs.readFileSync(npath.join(__dirname, "..", p), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  const NOW = Date.parse("2026-10-07T16:00:00Z");                       // Wed Oct 7, noon ET
+  const del = (x = {}) => ({ id: "d1", date: "2026-10-12", scheduled_for: "2026-10-12", window: "mon_0500_0800", gallons: 6, price_per_gallon_cents: 4500,
+    total_cents: 27000, status: "received", payment_status: "pending", driver_outcome: null, jugs_out: null, jugs_in: null, canceled: false, canceled_reason: null,
+    cutoff_at: "2026-10-09T22:00:00Z", open: true, money_locked: false, note_open: true, moved_from: null, client_note: null, change_reason: null, changed_at: null,
+    gallons_changed: false, location_id: "L1", program_id: "P1", market: "atlanta", paylink_url: null, ...x });
+  const draft = (d, x = {}) => ({ ...OS.draftOf(d), ...x });
+
+  // ── the rules ──
+  const c1 = OS.cutoffLabel("2026-10-09T22:00:00Z", "atlanta", NOW), c2 = OS.cutoffLabel("2026-10-09T22:00:00Z", "atlanta", Date.parse("2026-10-09T22:00:01Z"));
+  ok("your gt3: changes close at 6 PM the weekday before, said in the delivery's own city, and say when they have closed",
+    c1.when === "Fri 6 PM" && c1.closed === false && c2.closed === true && OS.cutoffLabel("2026-10-30T22:00:00Z", "atlanta", NOW).when === "Fri, Oct 30 · 6 PM" && OS.cutoffLabel(null, "atlanta", NOW) === null, { c1, c2 });
+  ok("your gt3: the clock moves the card — a delivery the database called open is closed once its cutoff passes",
+    OS.changeable(del(), NOW) === true && OS.changeable(del(), Date.parse("2026-10-10T00:00:00Z")) === false && OS.changeable(del({ open: false }), NOW) === false);
+  const d = del();
+  const p1 = OS.changePlan(d, draft(d, { gallons: 8, moveTo: "2026-10-13", note: "Front desk at 6:30" }), NOW);
+  ok("your gt3: Save asks for the quantity, then the move, then the note — one keyed call each",
+    JSON.stringify(p1.steps) === JSON.stringify([{ change: "quantity", gallons: 8 }, { change: "move", to: "2026-10-13" }, { change: "note", note: "Front desk at 6:30" }]) && p1.asks.length === 0, p1);
+  const late = OS.changePlan(d, draft(d, { gallons: 8, note: "Ring twice" }), Date.parse("2026-10-10T00:00:00Z"));
+  ok("your gt3: after the cutoff the quantity becomes a request, and the driver's note still saves until the driver leaves",
+    JSON.stringify(late.asks) === JSON.stringify([{ change: "quantity", gallons: 8 }]) && JSON.stringify(late.steps) === JSON.stringify([{ change: "note", note: "Ring twice" }]), late);
+  const paid = OS.changePlan(del({ money_locked: true }), draft(d, { gallons: 4, moveTo: "2026-10-14" }), NOW);
+  const paidSkip = OS.changePlan(del({ money_locked: true }), draft(d, { skip: true }), NOW);
+  ok("your gt3: a billed delivery keeps its money — its quantity and skip go to GT3, its move still saves",
+    paid.asks[0]?.change === "quantity" && paid.steps[0]?.change === "move" && paidSkip.asks[0]?.change === "skip" && paidSkip.steps.length === 0, { paid, paidSkip });
+  const sk = OS.changePlan(d, draft(d, { skip: true, gallons: 9, note: "x" }), NOW);
+  const back = OS.changePlan(del({ canceled: true, canceled_reason: "skipped" }), draft(del({ canceled: true, canceled_reason: "skipped" }), { skip: false }), NOW);
+  const paused = OS.changePlan(del({ canceled: true, canceled_reason: "paused" }), draft(del({ canceled: true, canceled_reason: "paused" }), { skip: false, gallons: 9 }), NOW);
+  ok("your gt3: a skip is the whole change; a skip comes back; a paused delivery is the weekly order's, not the sheet's; nothing changed asks nothing",
+    JSON.stringify(sk.steps) === '[{"change":"skip"}]' && JSON.stringify(back.steps) === '[{"change":"unskip"}]' && paused.steps.length + paused.asks.length === 0
+    && OS.changePlan(d, OS.draftOf(d), NOW).steps.length === 0 && OS.changePlan(d, draft(d, { note: "  " }), NOW).steps.length === 0, { sk, back, paused });
+  const a1 = OS.askOf(d, [{ change: "quantity", gallons: 8 }], "Big meeting", Date.parse("2026-10-10T00:00:00Z"));
+  const a2 = OS.askOf(del({ money_locked: true }), [{ change: "skip" }], "", NOW);
+  ok("your gt3: a refused change is sent in words — a change after the cutoff, or a billing question before it",
+    a1.kind === "change_after_cutoff" && a1.body === "Monday, Oct 12 delivery: Make it 8 gallons.\nBig meeting" && a2.kind === "billing" && a2.body === "Monday, Oct 12 delivery: Skip it.", { a1, a2 });
+
+  // ── the calendar ──
+  const oct = OS.monthGrid(2026, 9);
+  ok("your gt3: the calendar is Monday-first — October 2026 opens on its Thursday, and every week has seven days",
+    oct.length === 5 && oct[0].map((x) => x.inMonth).join() === "false,false,false,true,true,true,true" && oct[0][3].key === "2026-10-01" && oct.every((w) => w.length === 7) && oct[4][5].key === "2026-10-31", oct[0]);
+  ok("your gt3: the months run from this one to the last delivery's, across a new year",
+    JSON.stringify(OS.calendarMonths([{ date: "2027-01-04" }], "2026-12-28")) === '[{"year":2026,"month0":11},{"year":2027,"month0":0}]' && OS.calendarMonths([], "2026-10-07").length === 1);
+  ok("your gt3: one word per delivery, the same on the card, the calendar and the list; the next delivery is never a skip",
+    OS.deliveryState(del({ status: "out_for_delivery" })).label === "On the way" && OS.deliveryState(del({ canceled: true, canceled_reason: "skipped" })).label === "Skipped"
+    && OS.deliveryState(del({ status: "issue" })).key === "missed" && OS.stageOf(del({ status: "brewed" })) === 1 && OS.stageOf(del({ canceled: true })) === -1
+    && OS.nextDelivery([del({ id: "a", canceled: true, canceled_reason: "skipped" }), del({ id: "b" })]).id === "b" && OS.nextDelivery([]) === null);
+  ok("your gt3: the weekly order said once — every Monday, every other Tuesday, Mon & Thu — each with its own window",
+    OS.programLine({ every_n_weeks: 1, weekdays: [1], window: "mon_0500_0800" }) === "Every Monday · 5–8 AM" && OS.programLine({ every_n_weeks: 2, weekdays: [2], window: "tue_0600_0900" }) === "Every other Tuesday · 6–9 AM"
+    && OS.programLine({ every_n_weeks: 1, weekdays: [4, 1], window: null }) === "Mon & Thu · 5–8 AM");
+  ok("your gt3: an invoice says paid, due on its day, or overdue — and a request says sent, on it, done or declined",
+    OS.invoiceState({ status: "open", due_at: "2026-10-05" }, "2026-10-07").label === "Overdue · was due Oct 5" && OS.invoiceState({ status: "sent", due_at: "2026-10-20" }, "2026-10-07").label === "Due Oct 20"
+    && OS.invoiceState({ status: "paid", due_at: null }, "2026-10-07").key === "paid" && OS.requestState("in_progress").label === "On it" && OS.requestState("open").label === "Sent");
+  const m359 = read("supabase/migrations/0359_a_client_changes_a_delivery_until_its_cutoff.sql");
+  const dbLabels = [...m359.matchAll(/when '([a-z_]+)' then '([^']+)'/g)].map((m) => [m[1], m[2]]);
+  ok("your gt3: the crew's word for a request is the database's (office_request_label), word for word",
+    dbLabels.length === 7 && dbLabels.every(([k, v]) => OS.requestLabel(k) === v) && OS.requestLabel("other") === "Request", dbLabels);
+  ok("your gt3: the crew's route says what the client did — moved, the gallons set for the day, why, the note",
+    OS.clientChanges({ moved_from: "2026-10-12", gallons_changed_at: "x", gallons: 8, change_reason: "fewer_people", client_note: "Ring twice" }).join(" · ") === "moved from Mon, Oct 12 · set 8 gal for this day · fewer people in · “Ring twice”"
+    && OS.clientChanges({}).length === 0);
+  const leg = OS.legacyHome({ id: "a1", company: "Gwen Co", standing_active: true, standing_gallons: 4, jug_balance: 3, billing_terms: "net15" },
+    [{ id: "o1", delivery_date: "2026-10-12", delivery_window: null, gallons: 4, total_cents: 18000, status: "received", payment_status: "pending" }], [], [], "2026-10-07", 4500, 3);
+  ok("your gt3: before 0359 the page reads the old tables into the same shape — and offers no change it couldn't save",
+    leg.legacy === true && leg.can_change === false && leg.can_request === false && leg.agenda[0].open === false && leg.programs[0].account.mine === true && leg.jugs === 3);
+  ok("your gt3: a missing table is told apart from a broken read (PGRST205 / 42P01), the way a missing function is",
+    SK3.isMissingTable({ code: "PGRST205" }) && SK3.isMissingTable({ message: "Could not find the table 'public.company_requests' in the schema cache" })
+    && SK3.isMissingTable({ code: "42P01" }) && !SK3.isMissingTable({ code: "42501", message: "permission denied" }) && !SK3.isMissingTable(null));
+
+  // ── the screens ──
+  const page = code(read("app/office/page.tsx")), sheet = code(read("components/OfficeChangeSheet.tsx")), ask = code(read("components/OfficeAskSheet.tsx"));
+  const cal = code(read("components/OfficeCalendar.tsx")), run3 = code(read("components/OfficeRun.tsx")), crew3 = code(read("components/OfficeOrders.tsx"));
+  ok("your gt3: the home is one call (office_home), and only a missing function or no company yet reads the old way — any other failure says so",
+    /const \{ data, error \} = await supabase\.rpc\("office_home"\);/.test(page)
+    && /if \(error\) next = \(await import\("@\/lib\/schemaSkew"\)\)\.isMissingFunction\(error\) \? await loadLegacy\(\) : "error";/.test(page)
+    && /else if \(!next\) next = await loadLegacy\(\);/.test(page) && /if \(next === "error"\) \{ setLoadError\(true\);/.test(page));
+  ok("your gt3: the page is live — the company's deliveries, changes and requests, each filtered to the company",
+    /\{ table: "business_orders", filter: `company_id=eq\.\$\{cid\}` \},\s*\{ table: "office_order_changes", filter: `company_id=eq\.\$\{cid\}` \},\s*\{ table: "company_requests", filter: `company_id=eq\.\$\{cid\}` \},\s*\], load, \{ enabled: !!cid \}\);/.test(page)
+    && /alter publication supabase_realtime add table public\.%I/.test(m359) && /array\['office_order_changes', 'company_requests'\] loop\s+if not exists \(select 1 from pg_publication_tables/.test(m359));
+  ok("your gt3: everyone on the company's account reads its deliveries, at their locations (the policy realtime needs)",
+    /create policy "biz order member read" on public\.business_orders for select\s+using \(company_id is not null and public\.office_member_can\(company_id, location_id, 'read'\)\);/.test(m359));
+  ok("your gt3: the change sheet and the ask sheet load with the first tap that opens one",
+    /const OfficeChangeSheet = dynamic\(\(\) => import\("@\/components\/OfficeChangeSheet"\), \{ ssr: false \}\);/.test(page) && /const OfficeAskSheet = dynamic\(\(\) => import\("@\/components\/OfficeAskSheet"\), \{ ssr: false \}\);/.test(page));
+  ok("your gt3: every change is its own keyed call to office_change_delivery — a retry carries the same key, a landed step spends it",
+    /const keyFor = \(kind: string, details: unknown\) => \(keys\.current\[kind\] = nextIdem\(keys\.current\[kind\], d\.id, details\)\)\.key;/.test(sheet)
+    && /supabase!\.rpc\("office_change_delivery", \{/.test(sheet) && /p_key: key,/.test(sheet) && /if \(!res\.error\) delete keys\.current\[s\.change\];/.test(sheet)
+    && /const plan = changePlan\(seen, draft, now\);/.test(sheet));
+  ok("your gt3: when the database says the changes closed (55000) the sheet turns what's left into a request — never a dead button",
+    /if \(error\.code === "55000"\) \{\s*setClosedNow\(true\);/.test(sheet) && /const open = canChange && !closedNow && changeable\(d, now\);/.test(sheet)
+    && /supabase\.rpc\("office_request", \{\s*p_kind: ask\.kind, p_body: ask\.body, p_order: d\.id,/.test(sheet));
+  ok("your gt3: the mornings it can move to are the database's (office_open_dates), and a failed read says so",
+    /supabase\.rpc\("office_open_dates", \{ p_order: d\.id \}\)/.test(sheet) && /if \(error\) \{ setDatesErr\(true\); return; \}/.test(sheet) && /Couldn&rsquo;t load the other mornings/.test(sheet));
+  ok("your gt3: asking GT3 is a record with one key per send, from the home and from a missed delivery",
+    /supabase\.rpc\("office_request", \{\s*p_kind: kind, p_body: text, p_order: null, p_company: companyId, p_wants: null, p_key: key\.current\.key,/.test(ask)
+    && /onClick=\{\(\) => setAsking\("extra_delivery"\)\}>Ask GT3<\/button>/.test(page) && /onAsk=\{\(\) => setAsking\("service_issue"\)\}/.test(page));
+  ok("your gt3: a delivery day on the calendar is a button that opens its sheet and says everything to a screen reader",
+    /<button key=\{c\.key\} type="button" onClick=\{\(\) => \{ haptic\("light"\); onPick\(d\); \}\} aria-label=\{say\}/.test(cal) && /Changes close \$\{cut\.when\}/.test(cal) && /size-11/.test(cal));
+  ok("your gt3: the driver sees the client's note on the stop, and the route reads as it did before 0359",
+    /let \{ data, error \} = await read\(`\$\{cols\}, client_note`\);\s*if \(error && isMissingColumn\(error\)\) \(\{ data, error \} = await read\(cols\)\);/.test(run3)
+    && /\{o\.client_note && <div className="driver-addr"><b>From \{o\.company\}:<\/b> \{o\.client_note\}<\/div>\}/.test(run3));
+  ok("your gt3: the crew answers a request where the route is — take it, done with what the client reads, or declined with why",
+    /supabase\.rpc\("office_request_set", \{ p_request: r\.id, p_status: status, p_resolution: resolution \}\)/.test(crew3)
+    && /if \(status === "declined" && !resolution\) \{ toast\("Say why — the client reads it", "error"\); return; \}/.test(crew3)
+    && /if \(reqs\.error && !isMissingTable\(reqs\.error\)\) throw new Error\(reqs\.error\.message\);/.test(crew3) && /useRealtimeTable\("company_requests", reload\);/.test(crew3)
+    && /\{clientChanges\(o\)\.length > 0 && <div className="oo-addr text-gold2">Client: \{clientChanges\(o\)\.join\(" · "\)\}<\/div>\}/.test(crew3));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
