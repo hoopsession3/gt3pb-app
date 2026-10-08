@@ -365,7 +365,7 @@ export default function BrewPlanner() {
 
       <div className="brew-toggle">
         {(["schedule", "log"] as const).map((k) => (
-          <button key={k} type="button" className={`brew-toggle-b${view === k ? " on" : ""}`} onClick={() => setView(k)}>{k === "schedule" ? "Schedule" : "Production log"}</button>
+          <button key={k} type="button" className={`brew-toggle-b hit-y-44${view === k ? " on" : ""}`} onClick={() => setView(k)}>{k === "schedule" ? "Schedule" : "Production log"}</button>
         ))}
       </div>
 

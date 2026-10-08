@@ -168,10 +168,10 @@ export default function Studio() {
       <div className="studio-top">
         <div className="studio-views" role="tablist" aria-label="View">
           {STUDIO_VIEWS.map((x) => (
-            <button key={x.key} type="button" className={`studio-view${view === x.key ? " on" : ""}`} onClick={() => pickView(x.key)}>{x.label}</button>
+            <button key={x.key} type="button" className={`studio-view hit-y-44${view === x.key ? " on" : ""}`} onClick={() => pickView(x.key)}>{x.label}</button>
           ))}
         </div>
-        {view !== "brand" && view !== "flyer" && view !== "letter" && <button type="button" className="rdy-run" onClick={() => create()}><Icon name="sparkles" /> New piece</button>}
+        {view !== "brand" && view !== "flyer" && view !== "letter" && <button type="button" className="rdy-run hit-y-44" onClick={() => create()}><Icon name="sparkles" /> New piece</button>}
       </div>
 
       {view === "flyer" ? (
@@ -205,7 +205,7 @@ export default function Studio() {
         <>
           <div className="subnav" role="tablist" aria-label="Filter">
             {["all", ...Object.keys(STATUS)].map((k) => (
-              <button key={k} type="button" className={`subnav-tab${filter === k ? " on" : ""}`} onClick={() => setFilter(k)}>{k === "all" ? "All" : STATUS[k].label}</button>
+              <button key={k} type="button" className={`subnav-tab hit-y-44${filter === k ? " on" : ""}`} onClick={() => setFilter(k)}>{k === "all" ? "All" : STATUS[k].label}</button>
             ))}
           </div>
           <div className="ig-note">Instagram feed preview — drag tiles to plan the feed, tap to open.</div>
@@ -247,7 +247,7 @@ export default function Studio() {
         <>
           <div className="subnav" role="tablist" aria-label="Filter">
             {["all", ...Object.keys(STATUS)].map((k) => (
-              <button key={k} type="button" className={`subnav-tab${filter === k ? " on" : ""}`} onClick={() => setFilter(k)}>
+              <button key={k} type="button" className={`subnav-tab hit-y-44${filter === k ? " on" : ""}`} onClick={() => setFilter(k)}>
                 {k === "all" ? "All" : STATUS[k].label}
               </button>
             ))}

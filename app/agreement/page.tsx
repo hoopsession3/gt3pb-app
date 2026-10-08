@@ -46,7 +46,7 @@ export default function AgreementPage() {
   if (access === "wait" || access === "failed") {
     return (
       <section className="screen">
-        <Masthead eyebrow="Your agreement" right={<Link className="pf" href="/3mpire" aria-label="Back">‹</Link>} />
+        <Masthead eyebrow="Your agreement" right={<Link className="pf hit-44" href="/3mpire" aria-label="Back">‹</Link>} />
         <div className="h-title">{access === "failed" ? "Couldn't check your access" : "One moment"}</div>
         <div className="h-sub">
           {access === "failed"
@@ -64,7 +64,7 @@ export default function AgreementPage() {
   if (access === "deny") {
     return (
       <section className="screen">
-        <Masthead eyebrow="Your agreement" right={<Link className="pf" href="/3mpire" aria-label="Back">‹</Link>} />
+        <Masthead eyebrow="Your agreement" right={<Link className="pf hit-44" href="/3mpire" aria-label="Back">‹</Link>} />
         <div className="h-title">Crew only</div>
         <div className="h-sub">Operator agreements are between GT3 and the people running its markets.</div>
         <ClosingBeat />
@@ -74,7 +74,7 @@ export default function AgreementPage() {
 
   return (
     <section className="screen">
-      <Masthead eyebrow="Your agreement" right={<Link className="pf" href="/3mpire" aria-label="Back">‹</Link>} />
+      <Masthead eyebrow="Your agreement" right={<Link className="pf hit-44" href="/3mpire" aria-label="Back">‹</Link>} />
       <OperatorDeal mine />
       <ClosingBeat />
     </section>

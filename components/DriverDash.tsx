@@ -53,7 +53,7 @@ export default function DriverDash({ isLead }: { isLead: boolean }) {
       </AsyncSection>
       {/* A pointer must point (2026-08-01 audit): this was plain text naming a destination with no
           door. When the section's whole job is directing you onward, the direction is a button. */}
-      {isLead && <button type="button" className="adm-golink" style={{ marginTop: 10 }} onClick={() => setSection("now")}>Run ops — statuses, outcomes &amp; pack-out · Live Ops › Delivery <Icon name="arrowRight" /></button>}
+      {isLead && <button type="button" className="adm-golink hit-y-44" style={{ marginTop: 10 }} onClick={() => setSection("now")}>Run ops — statuses, outcomes &amp; pack-out · Live Ops › Delivery <Icon name="arrowRight" /></button>}
     </div>
   );
 }

@@ -473,15 +473,15 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
       <div className={`cal-sticky${stuck ? " is-stuck" : ""}`}>
         <div className="cal-bar">
           <div className="cal-nav">
-            {!FLOW_VIEWS.includes(view) && <button type="button" className="cal-arrow" onClick={() => nav(-1)} aria-label="Previous">‹</button>}
+            {!FLOW_VIEWS.includes(view) && <button type="button" className="cal-arrow hit-44" onClick={() => nav(-1)} aria-label="Previous">‹</button>}
             <span className="cal-month">{label}</span>
-            {!FLOW_VIEWS.includes(view) && <button type="button" className="cal-arrow" onClick={() => nav(1)} aria-label="Next">›</button>}
+            {!FLOW_VIEWS.includes(view) && <button type="button" className="cal-arrow hit-44" onClick={() => nav(1)} aria-label="Next">›</button>}
           </div>
-          <button type="button" className="cal-today" onClick={() => setCur(new Date(now.getFullYear(), now.getMonth(), now.getDate()))}>Today</button>
+          <button type="button" className="cal-today hit-44" onClick={() => setCur(new Date(now.getFullYear(), now.getMonth(), now.getDate()))}>Today</button>
         </div>
         <div className="cal-views">
-          {shownViews.map((v) => <button key={v} type="button" className={`cal-view${view === v ? " on" : ""}`} onClick={() => setV(v)}>{VLABEL[v]}</button>)}
-          {phone && <button type="button" className="cal-view cal-view-more" aria-expanded={moreViews} onClick={() => setMoreViews((m) => !m)}>{moreViews ? "Fewer" : "More"}</button>}
+          {shownViews.map((v) => <button key={v} type="button" className={`cal-view hit-y-44${view === v ? " on" : ""}`} onClick={() => setV(v)}>{VLABEL[v]}</button>)}
+          {phone && <button type="button" className="cal-view hit-y-44 cal-view-more" aria-expanded={moreViews} onClick={() => setMoreViews((m) => !m)}>{moreViews ? "Fewer" : "More"}</button>}
           <button type="button" className={`cal-filterbtn${filter !== "all" ? " on" : ""}`} onClick={() => setFilterSheet(true)} aria-haspopup="dialog">
             {filter === "all" ? "Filter" : laneFilter ? <><span className="cc-dot" style={{ background: laneFilter.color }} />{laneFilter.label}</> : <><span className="cc-dot" style={{ background: CAT[filter].color }} />{CAT[filter].label}</>}
           </button>
@@ -517,7 +517,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
             return (
               <div key={k} {...clickable(() => setDayOpen(k))} className={`cal-cell${dim ? " dim" : ""}${k === todayKey ? " today" : ""}${over === k ? " over" : ""}${warnDays.has(k) ? " heat" : ""}`}
                 onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => o === k ? null : o)} onDrop={() => { setOver(null); const dg = dragId.current; dragId.current = null; if (dg) reschedule(dg.kind, dg.id, k); }}>
-                <div className="cal-cell-h"><span className="cal-date">{d.getDate()}</span>{!readOnly && <button type="button" className="cal-add" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button>}</div>
+                <div className="cal-cell-h"><span className="cal-date">{d.getDate()}</span>{!readOnly && <button type="button" className="cal-add hit-44" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button>}</div>
                 <div className="cal-marks">
                   {[...new Set(items.map((it) => it.cat))].slice(0, 4).map((c) => <span key={c} className="cal-mark" style={{ background: CAT[c]?.color }} />)}
                   {items.length > 0 && <span className="cal-mark-n">{items.length}</span>}
@@ -536,7 +536,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
             return (
               <div key={k} className={`cal-wrow${k === todayKey ? " today" : ""}${over === k ? " over" : ""}${warnDays.has(k) ? " heat" : ""}`}
                 onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => o === k ? null : o)} onDrop={() => { setOver(null); const dg = dragId.current; dragId.current = null; if (dg) reschedule(dg.kind, dg.id, k); }}>
-                <div className="cal-wday" {...clickable(() => setDayOpen(k))}><b>{DOW[d.getDay()]}</b><span>{d.getDate()}</span>{!readOnly && <button type="button" className="cal-add wk" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button>}</div>
+                <div className="cal-wday" {...clickable(() => setDayOpen(k))}><b>{DOW[d.getDay()]}</b><span>{d.getDate()}</span>{!readOnly && <button type="button" className="cal-add hit-44 wk" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button>}</div>
                 <div className="cal-witems">{items.length === 0 ? <span className="cal-wnone">—</span> : items.map((it) => <Chip key={`${it.kind}-${it.id}`} it={it} onOpen={() => openItem(it, k)} />)}</div>
               </div>
             );

@@ -150,7 +150,7 @@ export default function PrepBoard() {
         <div className="pbd">
           <div className="pbd-filters" role="tablist" aria-label="Filter prep">
             {(["all", "critical", "mine", "overdue"] as Filter[]).map((f) => (
-              <button key={f} type="button" role="tab" aria-selected={filter === f} className={`pbd-filter${filter === f ? " on" : ""}${f === "critical" && counts.critical ? " crit" : ""}`} onClick={() => setFilter(f)}>
+              <button key={f} type="button" role="tab" aria-selected={filter === f} className={`pbd-filter hit-y-44${filter === f ? " on" : ""}${f === "critical" && counts.critical ? " crit" : ""}`} onClick={() => setFilter(f)}>
                 {f[0].toUpperCase() + f.slice(1)} <span className="pbd-fn">{counts[f]}</span>
               </button>
             ))}

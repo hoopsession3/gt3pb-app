@@ -64,7 +64,7 @@ export default function ArchitecturePage() {
   if (access === "wait" || access === "failed") {
     return (
       <section className="screen">
-        <Masthead eyebrow="System map" right={<Link className="pf" href="/3mpire" aria-label="Back">‹</Link>} />
+        <Masthead eyebrow="System map" right={<Link className="pf hit-44" href="/3mpire" aria-label="Back">‹</Link>} />
         <div className="h-title">{access === "failed" ? "Couldn't check your access" : "One moment"}</div>
         <div className="h-sub">
           {access === "failed"
@@ -82,7 +82,7 @@ export default function ArchitecturePage() {
   if (!isOwner) {
     return (
       <section className="screen">
-        <Masthead eyebrow="System map" right={<Link className="pf" href="/3mpire" aria-label="Back">‹</Link>} />
+        <Masthead eyebrow="System map" right={<Link className="pf hit-44" href="/3mpire" aria-label="Back">‹</Link>} />
         <div className="h-title">Owners only</div>
         <div className="h-sub">The system architecture map is restricted to owners.</div>
         <ClosingBeat />
@@ -113,7 +113,7 @@ export default function ArchitecturePage() {
 
   return (
     <section className="screen arch">
-      <Masthead eyebrow="System map" live={!!live} right={<Link className="pf" href="/3mpire" aria-label="Exit">‹</Link>} />
+      <Masthead eyebrow="System map" live={!!live} right={<Link className="pf hit-44" href="/3mpire" aria-label="Exit">‹</Link>} />
 
       {open ? (
         <>
@@ -130,10 +130,10 @@ export default function ArchitecturePage() {
           <div className="h-title">System architecture</div>
           <div className="h-sub">High level first, then tap in. {live ? "Status is live — read from the running platform." : "Loading live status…"}</div>
           <div className="studio-views" style={{ marginTop: 12 }}>
-            <button type="button" className={`studio-view${view === "progress" ? " on" : ""}`} onClick={() => setView("progress")}>Progress</button>
-            <button type="button" className={`studio-view${view === "business" ? " on" : ""}`} onClick={() => setView("business")}>Business</button>
-            <button type="button" className={`studio-view${view === "layers" ? " on" : ""}`} onClick={() => setView("layers")}>Layers</button>
-            <button type="button" className={`studio-view${view === "databases" ? " on" : ""}`} onClick={() => setView("databases")}>Databases</button>
+            <button type="button" className={`studio-view hit-y-44${view === "progress" ? " on" : ""}`} onClick={() => setView("progress")}>Progress</button>
+            <button type="button" className={`studio-view hit-y-44${view === "business" ? " on" : ""}`} onClick={() => setView("business")}>Business</button>
+            <button type="button" className={`studio-view hit-y-44${view === "layers" ? " on" : ""}`} onClick={() => setView("layers")}>Layers</button>
+            <button type="button" className={`studio-view hit-y-44${view === "databases" ? " on" : ""}`} onClick={() => setView("databases")}>Databases</button>
           </div>
           {view === "progress" ? (
             <div className="arch-prog">

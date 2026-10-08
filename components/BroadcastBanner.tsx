@@ -34,7 +34,7 @@ export default function BroadcastBanner() {
       {b.cta_label && b.cta_href && (
         <a className="bcast-cta" href={b.cta_href} target={b.cta_href.startsWith("http") ? "_blank" : undefined} rel="noreferrer">{b.cta_label}</a>
       )}
-      <button type="button" className="bcast-close" onClick={dismiss} aria-label="Dismiss"><Icon name="close" /></button>
+      <button type="button" className="bcast-close hit-44" onClick={dismiss} aria-label="Dismiss"><Icon name="close" /></button>
     </div>
   );
 }

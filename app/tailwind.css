@@ -126,3 +126,12 @@
 @utility top-safe { top: env(safe-area-inset-top, 0px); }
 @utility bottom-safe { bottom: env(safe-area-inset-bottom, 0px); }
 @utility scroll-pt-safe { scroll-padding-top: env(safe-area-inset-top, 0px); }
+
+/* A TAP TARGET OF AT LEAST 44×44 — Apple's minimum — around a control drawn smaller (2026-10-08, the
+   foundations round). An invisible box centred on the control takes the tap; the control's look and its place
+   in the layout do not change. `hit-44` grows both ways. `hit-y-44` grows only up and down, for controls that sit
+   side by side in a row (chips, segments, filters), so neighbours never share a point. Each makes the control
+   position:relative and draws its ::after, so neither goes on a control that is absolutely positioned or that
+   draws an ::after of its own. A scroll row clips what spills outside it: give the row the room (padding). */
+@utility hit-44 { position: relative; &::after { content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); } }
+@utility hit-y-44 { position: relative; &::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: max(100%, 44px); transform: translateY(-50%); } }

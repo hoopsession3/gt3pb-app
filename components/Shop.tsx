@@ -108,8 +108,8 @@ export default function Shop() {
           (product/checkout/done) so those flows read as their own focused screen. */}
       {(section === "bottles" || view === "grid") && (
         <div className="menu-chips shop-sections" role="tablist" aria-label="Shop">
-          <button type="button" role="tab" aria-selected={section === "bottles"} className={`menu-chip${section === "bottles" ? " on" : ""}`} onClick={() => setSection("bottles")}>{t("shop.sec_bottles")}</button>
-          <button type="button" role="tab" aria-selected={section === "merch"} className={`menu-chip${section === "merch" ? " on" : ""}`} onClick={() => setSection("merch")}>{t("shop.sec_merch")}</button>
+          <button type="button" role="tab" aria-selected={section === "bottles"} className={`menu-chip hit-y-44${section === "bottles" ? " on" : ""}`} onClick={() => setSection("bottles")}>{t("shop.sec_bottles")}</button>
+          <button type="button" role="tab" aria-selected={section === "merch"} className={`menu-chip hit-y-44${section === "merch" ? " on" : ""}`} onClick={() => setSection("merch")}>{t("shop.sec_merch")}</button>
         </div>
       )}
 

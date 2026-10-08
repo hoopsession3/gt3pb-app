@@ -80,6 +80,14 @@ export default function Sheet({
   // every render.
   const bodyHandle = useCallback((el: HTMLDivElement | null) => { ownBody.current = el; if (bodyRef) bodyRef.current = el; }, [bodyRef]);
   const restoreRef = useRef<HTMLElement | null>(null);
+  // WHO OPENED IT (2026-10-08, the foundations round). Most sheets mount already open ({x && <Sheet open>}),
+  // and a field inside with autoFocus takes focus while React commits them — before any effect here runs — so
+  // the effect below used to remember that field as "what was focused before", and closing by X, Cancel or
+  // Save gave focus back to nobody (<body>): a keyboard or screen-reader user started again from the top of
+  // the page. The button that was pressed is read here instead, while the sheet first renders, before any of
+  // its children exist.
+  const [openedFrom] = useState<HTMLElement | null>(() => (open && typeof document !== "undefined" ? (document.activeElement as HTMLElement | null) : null));
+  const usedOpener = useRef(false);
   const askId = useId();
   const [me] = useState(() => Symbol("sheet"));
   // "Discard your changes?" — open while it holds what to do on "Discard".
@@ -213,13 +221,25 @@ export default function Sheet({
   // not on the `open` prop flip — closing plays out over ~210-230ms and shouldn't yank focus early.
   useEffect(() => {
     if (phase !== "open") return;
-    restoreRef.current = (document.activeElement as HTMLElement) ?? null;
+    const opener = !usedOpener.current ? openedFrom : null;
+    usedOpener.current = true;
+    restoreRef.current = opener ?? (document.activeElement as HTMLElement) ?? null;
     const raf = requestAnimationFrame(() => {
+      if (panelRef.current?.contains(document.activeElement)) return;   // a field inside took focus itself (autoFocus)
       const first = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE);
       (first ?? panelRef.current)?.focus();
     });
     return () => cancelAnimationFrame(raf);
-  }, [phase]);
+  }, [phase, openedFrom]);
+  // Unmounted by its parent (X, Cancel, Save — the common case): focus goes back to the opener, unless it
+  // has already gone somewhere real.
+  useEffect(() => () => {
+    const el = restoreRef.current;
+    if (!el || !el.isConnected) return;
+    const now = document.activeElement;
+    if (now && now !== document.body && now.isConnected) return;
+    requestAnimationFrame(() => el.focus?.());
+  }, []);
   useEffect(() => {
     if (phase !== "closed" || !restoreRef.current) return;
     const el = restoreRef.current;

@@ -25,3 +25,9 @@ html[data-kb="up"] :is(.rail,.fab-dock){visibility:hidden}
    stay selectable. */
 html[data-native] :is(a,img){-webkit-touch-callout:none}
 html[data-native] :is(.nav,button,[role="tab"],[role="button"]){-webkit-user-select:none;user-select:none}
+
+/* A BROADCAST BANNER is the first thing under the status bar: it takes the inset itself (.bcast in
+   app/globals.css), so the screen beneath it stops padding for the status bar a second time (2026-10-08). */
+.app:has(>.bcast) :is(.screen,.bookwrap){padding-top:6px}
+.app:has(>.bcast) .auth{padding-top:40px}
+.app:has(>.bcast) :is(.menu-chips,.cal-sticky){top:0}

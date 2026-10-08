@@ -53,7 +53,7 @@ export default function Concierge() {
         header={
           <div className="conc-head">
             <div className="conc-head-l"><span className="conc-badge"><Gt3Mark tone="cream" /></span><div><div className="conc-title" id="concierge-title">Concierge</div></div></div>
-            <button type="button" className="conc-x" onClick={() => setOpen(false)} aria-label="Close"><Icon name="close" /></button>
+            <button type="button" className="conc-x hit-44" onClick={() => setOpen(false)} aria-label="Close"><Icon name="close" /></button>
           </div>
         }
         footer={

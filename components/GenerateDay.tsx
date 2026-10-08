@@ -236,7 +236,7 @@ export default function GenerateDay() {
         </button>
 
         <button
-          className="auth-link"
+          className="auth-link hit-44"
           onClick={() => setRec(null)}
           style={{ marginTop: 14, display: "block", textAlign: "center", width: "100%" }}
         >
@@ -255,7 +255,7 @@ export default function GenerateDay() {
         <div className="gen-ql">Sleep last night</div>
         <div className="gen-opts">
           {([ ["great","Great  8h+"], ["good","Good  6–8h"], ["rough","Rough  4–6h"], ["wrecked","Wrecked  <4h"] ] as [Sleep,string][]).map(([v,l]) => (
-            <button key={v} className={`gen-opt${sleep === v ? " sel" : ""}`} onClick={() => setSleep(v)}>{l}</button>
+            <button key={v} className={`gen-opt hit-y-44${sleep === v ? " sel" : ""}`} onClick={() => setSleep(v)}>{l}</button>
           ))}
         </div>
       </div>
@@ -264,7 +264,7 @@ export default function GenerateDay() {
         <div className="gen-ql">Body feels</div>
         <div className="gen-opts">
           {([ ["fresh","Fresh"], ["normal","Normal"], ["sore","Sore"], ["beaten","Beat up"] ] as [Body,string][]).map(([v,l]) => (
-            <button key={v} className={`gen-opt${body === v ? " sel" : ""}`} onClick={() => setBody(v)}>{l}</button>
+            <button key={v} className={`gen-opt hit-y-44${body === v ? " sel" : ""}`} onClick={() => setBody(v)}>{l}</button>
           ))}
         </div>
       </div>
@@ -273,7 +273,7 @@ export default function GenerateDay() {
         <div className="gen-ql">Workload today</div>
         <div className="gen-opts">
           {([ ["deep","Deep work"], ["meetings","Meetings heavy"], ["mixed","Mixed"], ["light","Light day"] ] as [Workload,string][]).map(([v,l]) => (
-            <button key={v} className={`gen-opt${workload === v ? " sel" : ""}`} onClick={() => setWorkload(v)}>{l}</button>
+            <button key={v} className={`gen-opt hit-y-44${workload === v ? " sel" : ""}`} onClick={() => setWorkload(v)}>{l}</button>
           ))}
         </div>
       </div>
@@ -282,7 +282,7 @@ export default function GenerateDay() {
         <div className="gen-ql">Training today</div>
         <div className="gen-opts">
           {([ ["heavy","Lifting · heavy"], ["light","Lifting · light"], ["none","No session"] ] as [Training,string][]).map(([v,l]) => (
-            <button key={v} className={`gen-opt${training === v ? " sel" : ""}`} onClick={() => setTraining(v)}>{l}</button>
+            <button key={v} className={`gen-opt hit-y-44${training === v ? " sel" : ""}`} onClick={() => setTraining(v)}>{l}</button>
           ))}
         </div>
       </div>
@@ -291,7 +291,7 @@ export default function GenerateDay() {
         <div className="gen-ql">Energy right now</div>
         <div className="gen-opts">
           {([ ["high","High"], ["mid","Mid"], ["low","Low"], ["empty","Running on empty"] ] as [Energy,string][]).map(([v,l]) => (
-            <button key={v} className={`gen-opt${energy === v ? " sel" : ""}`} onClick={() => setEnergy(v)}>{l}</button>
+            <button key={v} className={`gen-opt hit-y-44${energy === v ? " sel" : ""}`} onClick={() => setEnergy(v)}>{l}</button>
           ))}
         </div>
       </div>

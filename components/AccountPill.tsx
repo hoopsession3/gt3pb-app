@@ -61,7 +61,7 @@ export default function AccountPill() {
   const door = useAccountDoor();
   return (
     <div className="acct">
-      <button className="acct-av" aria-label="Your account" aria-haspopup="dialog" aria-expanded={door.open} onClick={door.openAccount}>
+      <button className="acct-av hit-44" aria-label="Your account" aria-haspopup="dialog" aria-expanded={door.open} onClick={door.openAccount}>
         <AccountFace />
         <span className="acct-caret" aria-hidden="true">
           <svg viewBox="0 0 10 10" width="8" height="8"><path d="M2 4l3 3 3-3" fill="none" stroke="#1a1310" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>

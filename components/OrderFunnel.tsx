@@ -807,7 +807,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
           {mode === "pickup" && (
             <div className="oa-code">
               {!codeOpen && codeState !== "ok" ? (
-                <button type="button" className="oa-code-toggle" onClick={() => setCodeOpen(true)}>{t("funnel.have_code")}</button>
+                <button type="button" className="oa-code-toggle hit-44" onClick={() => setCodeOpen(true)}>{t("funnel.have_code")}</button>
               ) : codeState === "ok" && codeBenefit ? (
                 <div className="oa-code-ok">
                   <span className="oa-code-tag">{codeClean}</span>
