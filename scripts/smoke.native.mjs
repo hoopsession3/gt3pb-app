@@ -771,6 +771,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     ok("native: the status bar is styled", has("SystemBars", "setStyle", (o) => o.style === "LIGHT" || o.style === "DARK"), JSON.stringify(calls.filter((c) => c.plugin === "SystemBars")));
     ok("native: the app listens for coming back from the background", has("App", "addListener", (o) => o.eventName === "appStateChange"));
     ok("native: the app listens for a GT3 link opening it", has("App", "addListener", (o) => o.eventName === "appUrlOpen"));
+    ok("native: the keyboard's ‹ › Done bar is turned on (the keyboard plugin hides it)", has("Keyboard", "setAccessoryBarVisible", (o) => o.isVisible === true), JSON.stringify(calls.filter((c) => c.plugin === "Keyboard")));
 
     const opened = async (fn) => {
       const n = (await nativeCalls(page)).length;
@@ -916,9 +917,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "menu--broadcast") });
     ok("bars: a broadcast banner's words and its ✕ sit below the status bar", shown && m.words && m.close && m.words.top >= MAIN.top && m.close.top >= MAIN.top - 2, JSON.stringify(m));
     ok("bars: the screen under the banner does not pad for the status bar a second time", m.screenPad !== null && m.screenPad < MAIN.top, `padding-top ${m.screenPad}`);
-    // 108pt today (74 + the 34pt home indicator; UIKit's is 49 + 34) — how tall it should be is a design call
-    // (the proposals). What this holds is that nothing stray stretches it again: it was 122.
-    ok("bars: the tab bar is only as tall as its own parts — at most 110pt with the home indicator (122 when a stray .tl margin pushed its labels down)", !!m.nav && m.nav.height <= 110, `tab bar ${m.nav && Math.round(m.nav.height)}pt`);
+    // UIKit's height (2026-10-08, the iPhone chrome round, approved): 49pt of tabs on the 34pt home indicator.
+    // It was 122 when a stray .tl margin pushed the labels down, then 108 (the foundations round).
+    ok("bars: the tab bar is an iPhone's — at most 83pt with the home indicator (49 + 34; it was 122, then 108)", !!m.nav && m.nav.height <= 84, `tab bar ${m.nav && Math.round(m.nav.height)}pt`);
     const t = await page.evaluate(() => {
       const toast = document.querySelector(".toast"); const nav = document.querySelector(".nav");
       if (!toast || !nav) return null;
@@ -946,7 +947,69 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       return { ptrTop: top, nav: nav ? nav.getBoundingClientRect().height : null };
     });
     ok("bars: the pull-to-refresh ring turns below the status bar", p.ptrTop !== null && p.ptrTop >= MAIN.top, `top ${p.ptrTop}`);
-    ok("bars: the crew's tab bar is at most 110pt with the home indicator (it was 122)", p.nav !== null && p.nav <= 110, `tab bar ${p.nav && Math.round(p.nav)}pt`);
+    ok("bars: the crew's tab bar is an iPhone's — at most 83pt with the home indicator (it was 122, then 108)", p.nav !== null && p.nav <= 84, `tab bar ${p.nav && Math.round(p.nav)}pt`);
+    await ctx.close();
+  }
+
+  // ── 5c · THE IPHONE CHROME (2026-10-08, the iPhone chrome round — Ryan approved proposals 1, 4 and 9) ──
+  // The app opens a guest on the menu with no front-door ad; nothing floats over the content of a phone's
+  // screen (the rail and the quick-actions button have homes in the header and the menus); the crew's bar
+  // holds an iPhone's 5 tabs; and a tab opens where it was left.
+  {
+    const ctx = await phoneContext(MAIN);
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    const shown = (sel) => page.evaluate((q) => [...document.querySelectorAll(q)].some((el) => { const cs = getComputedStyle(el); const r = el.getBoundingClientRect(); return cs.display !== "none" && cs.visibility !== "hidden" && r.width > 0 && r.height > 0; }), sel);
+    await page.goto(`${BASE}/`, { waitUntil: "load" });
+    await page.waitForURL("**/menu", { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(900); await page.evaluate(SETTLE);
+    ok("chrome: a guest opening the app lands on the menu", new URL(page.url()).pathname === "/menu", page.url());
+    ok("chrome: …with no front-door ad over it", !(await shown(".spl-skip")));
+    ok("chrome: no floating rail and no floating button over a guest's screen", !(await shown(".rail")) && !(await shown(".conc-fab")) && !(await shown(".qd-fab")));
+    const ask = page.locator('button[aria-label^="Ask us"]').first();
+    const askBox = await ask.boundingBox().catch(() => null);
+    ok("chrome: Ask us sits beside the account avatar, below the status bar", !!askBox && askBox.y >= MAIN.top && askBox.width >= 40, JSON.stringify(askBox));
+    if (askBox) {
+      await ask.click(); await page.waitForTimeout(500);
+      ok("chrome: Ask us opens the concierge", !!(await page.$("#concierge-title")));
+      await page.keyboard.press("Escape"); await page.waitForTimeout(500);
+    }
+    // a tab opens where it was left: the menu scrolled, Shop, then Menu again
+    const scrolled = await page.evaluate(() => { const b = document.getElementById("body"); b.scrollTop = 600; return b.scrollTop; });
+    await page.waitForTimeout(250);
+    await page.locator('nav a[href="/shop"]').first().click(); await page.waitForURL("**/shop", { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(600);
+    const onShop = await page.evaluate(() => document.getElementById("body").scrollTop);
+    await page.locator('nav a[href="/menu"]').first().click(); await page.waitForURL("**/menu", { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(1300);
+    const back = await page.evaluate(() => document.getElementById("body").scrollTop);
+    ok("chrome: a new tab opens at its top", onShop === 0, `Shop opened at ${onShop}`);
+    ok("chrome: a tab opens where it was left", scrolled > 300 && Math.abs(back - scrolled) <= 4, `menu left at ${scrolled}, came back at ${back}`);
+    ok("chrome: no errors", errors.length === 0, errors.join(" | "));
+    await ctx.close();
+  }
+  {
+    const ctx = await phoneContext(MAIN, { owner: true });
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    await page.goto(`${BASE}/crew?s=day`, { waitUntil: "load" });
+    await page.waitForSelector(".opnav", { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(500); await page.evaluate(SETTLE);
+    const tabs = await page.$$eval('.opnav [role="tab"]', (els) => els.filter((e) => e.getBoundingClientRect().width > 0).length);
+    ok("chrome: the crew's bar holds an iPhone's five tabs at most — Today, three lanes and More", tabs >= 2 && tabs <= 5, `${tabs} tabs`);
+    const fab = await page.evaluate(() => [...document.querySelectorAll(".qd-fab, .rail")].some((el) => getComputedStyle(el).display !== "none" && el.getBoundingClientRect().width > 0));
+    ok("chrome: no floating quick-actions button or rail over the crew's screen", !fab);
+    const spark = page.locator('.toprow-actions button[aria-label^="Quick actions"]').first();
+    const sparkBox = await spark.boundingBox().catch(() => null);
+    ok("chrome: the crew header carries quick actions (✦), below the status bar", !!sparkBox && sparkBox.y >= MAIN.top, JSON.stringify(sparkBox));
+    if (sparkBox) {
+      await spark.click(); await page.waitForTimeout(600);
+      const sheet = await page.$('.sheet2[role="dialog"]');
+      ok("chrome: ✦ in the header opens quick actions", !!sheet && /Do|Ask|Note/.test(await sheet.innerText()));
+    }
+    ok("chrome: no errors on the crew's screen", errors.length === 0, errors.join(" | "));
     await ctx.close();
   }
 
@@ -979,13 +1042,13 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     ok("delete account: nothing on its screen is under the system's bars", under.length === 0, findings(under));
     const red = page.getByRole("button", { name: "Delete my account" });
     if (said) await red.click();
-    await page.waitForURL((u) => ["/", "/truck"].includes(new URL(u).pathname), { timeout: 8000 }).catch(() => {});
+    await page.waitForURL((u) => ["/", "/menu"].includes(new URL(u).pathname), { timeout: 8000 }).catch(() => {});
     await page.waitForTimeout(500);
     const after = await page.evaluate((key) => ({ path: location.pathname, session: localStorage.getItem(key), told: document.body.innerText.includes("Your account is deleted.") }),
       `sb-${BACKEND_HOST.split(".")[0]}-auth-token`);
-    // home sends a guest on to Find Us (app/page.tsx, the front door), so either is home
+    // home sends a guest in the app on to the menu (app/page.tsx — the app opens on the menu since 2026-10-08), so either is home
     ok("delete account: the red button asks the web's API, then this phone is signed out and home, and told",
-      asked("POST") && ["/", "/truck"].includes(after.path) && after.session === null && after.told, JSON.stringify({ posted: asked("POST"), ...after, session: after.session ? "still here" : null }));
+      asked("POST") && ["/", "/menu"].includes(after.path) && after.session === null && after.told, JSON.stringify({ posted: asked("POST"), ...after, session: after.session ? "still here" : null }));
     ok("delete account: no errors", errors.length === 0, errors.join(" | "));
     await ctx.close();
   }
