@@ -7890,8 +7890,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /toastAction && toastShown && \(/.test(read("components/Toast.tsx")) && /\.toast\{z-index:90\}/.test(read("app/globals.css")) && /\.toast\.has-act\.show\{pointer-events:auto\}/.test(read("app/globals.css")));
 
   // ── the rest of the system ──
-  ok("back: the edge swipe listens first and stands down while a sheet is open",
-    /useGesture\("root", \{\s+axis: "x",\s+capture: true,\s+begin: \(_target, x\) => x <= BACK\.edge && canGoBack && !sheetOpen\(\),/.test(read("components/SwipeBack.tsx")));
+  ok("back: the edge swipe listens first and stands down while a sheet is open — and goes where the title bar's ‹ goes",
+    /useGesture\("root", \{\s+axis: "x",\s+capture: true,\s+begin: \(_target, x\) => x <= BACK\.edge && !!way && !sheetOpen\(\),/.test(read("components/SwipeBack.tsx"))
+    && /const way = useBack\(\);/.test(read("components/SwipeBack.tsx")) && /if \(!cancelled && backGoes\(d\.dx, d\.vx\)\) way\?\.go\(\);/.test(read("components/SwipeBack.tsx")));
   ok("refresh: the pull reads every live screen again (lib/realtime's loaders), and so does coming back to the app after 30s away",
     /export function refreshLive\(\): Promise<void>/.test(read("lib/realtime.ts")) && /loaders\.add\(cb\);/.test(read("lib/realtime.ts")) && /const RESUME_MS = 30_000;/.test(read("lib/realtime.ts"))
     && /\{inAdmin && <PullToRefresh \/>\}/.test(read("components/AppShell.tsx")) && /refreshLive\(\)/.test(read("components/PullToRefresh.tsx")));
@@ -8349,7 +8350,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && ["server", "contractor", "operator", "event_manager"].every((r) => !roleLine(r).includes("catalog"))
     && SECTIONS.has("catalog") && /catalog: "Catalog"/.test(nav) && /\n  catalog: <>/.test(nav)
     && /sections: \["plan", "notes", "money", "catalog", "customers", "team"\]/.test(code(read("lib/streams.ts")))
-    && /catalog: "Catalog"/.test(pg) && /\n  catalog: "[^"]{20,}",/.test(pg) && /\n  catalog: \["Menu & products/.test(pg));
+    && /catalog: "Catalog"/.test(read("lib/routeTitles.ts")) && /const SEC_LABEL = SECTION_TITLE;/.test(pg) && /\n  catalog: "[^"]{20,}",/.test(pg) && /\n  catalog: \["Menu & products/.test(pg));
   {
     const mig = read("supabase/migrations/0352_catalog_lane.sql");
     ok("catalog: 0352 puts it in the live Business lanes right after Money — once, by key — and records itself",
@@ -9270,6 +9271,145 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("the KPI board's fields are 16px — an iPhone zooms into anything smaller", /\.kpib-in input\{width:104px;[^}]*font-size:16px;/.test(read("app/globals.css")));
   ok("the iPhone app opens on the menu, with no front-door ad",
     /if \(isNativeApp\(\)\) \{ router\.replace\("\/menu"\); return; \}/.test(read("app/page.tsx")) && /if \(isNativeApp\(\)\) return;/.test(read("components/MarketingSplash.tsx")));
+}
+
+// ── BACK, AND WHERE IT GOES (2026-10-08, the navigation round: redesigns 2 and 3, approved) ──────────────
+// lib/appHistory, driven over a stand-in tab: entries with a state and an address; push and replace that act
+// at once; back, forward and go that land a task later with a popstate heard in the capture phase first (as
+// the module listens) and then by a "router" (a bubble listener, as Next's); and a clock. Each sheet below
+// is a step whose door closes it and ends a moment later, as a real sheet's exit does.
+{
+  const read = (f) => require("node:fs").readFileSync(require("node:path").join(__dirname, "..", f), "utf8");
+  const AH = require("../.smoke/appHistory.js");
+  const RT = require("../.smoke/routeTitles.js");
+  const tabOf = (start = "https://gt3.test/menu", o = {}) => {
+    const list = o.list ? o.list.map((e) => ({ ...e })) : [{ state: null, url: start }];
+    let idx = list.length - 1, now = 0;
+    const timers = [], listeners = [], heard = [];
+    const later = (fn, ms) => { const t = { at: now + ms, fn }; timers.push(t); return t; };
+    const cancel = (t) => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1); };
+    const clone = (d) => (d == null ? null : JSON.parse(JSON.stringify(d)));
+    const resolve = (url) => (url == null ? list[idx].url : new URL(String(url), list[idx].url).href);
+    const dispatch = () => {
+      const ev = { state: list[idx].state, stopped: false, stopImmediatePropagation() { this.stopped = true; } };
+      for (const l of [...listeners.filter((x) => x.capture), ...listeners.filter((x) => !x.capture)]) { if (ev.stopped) break; l.fn(ev); }
+    };
+    const go = (d) => later(() => { const to = idx + d; if (to < 0 || to >= list.length) return; idx = to; dispatch(); }, 1);
+    const push = (d, _u, url) => { const u = resolve(url); list.splice(idx + 1); list.push({ state: clone(d), url: u }); idx += 1; };
+    const replace = (d, _u, url) => { list[idx] = { state: clone(d), url: resolve(url) }; };
+    const history = { get state() { return list[idx].state; }, pushState: push, replaceState: replace, back: () => go(-1), forward: () => go(1), go };
+    const store = (() => { let v = null; return { get: () => v, set: (x) => { v = x; } }; })();
+    const env = {
+      history, native: { push, replace }, href: () => list[idx].url,
+      path: () => { const u = new URL(list[idx].url); return u.pathname + u.search; },
+      listen: (fn) => listeners.push({ fn, capture: true }), activated: () => o.activated !== false,
+      later, cancel, entries: o.entries !== false, store: o.store ?? store, referrer: () => o.referrer ?? null, depth: () => o.depth ?? list.length,
+    };
+    return {
+      env, list, history, heard,
+      get idx() { return idx; }, get url() { return list[idx].url; }, get state() { return list[idx].state; },
+      tick(ms) { const end = now + ms; for (;;) { timers.sort((a, b) => a.at - b.at); const t = timers[0]; if (!t || t.at > end) break; timers.shift(); now = t.at; t.fn(); } now = end; },
+      router() { listeners.push({ fn: () => heard.push(list[idx].url), capture: false }); },
+      nav(url) { history.pushState({ __NA: true, tree: url }, "", url); },
+    };
+  };
+  const sheet = (app, o = {}) => {
+    const sh = { open: true, asked: 0 };
+    sh.end = app.step({ label: o.label, back: () => { sh.asked += 1; if (o.holds) return false; sh.open = false; queueMicrotask(() => sh.end()); return true; } });
+    sh.close = () => { sh.open = false; sh.end(); };
+    return sh;
+  };
+  const flush = () => new Promise((r) => setImmediate(r));
+  const path = (t) => new URL(t.url).pathname + new URL(t.url).search;
+  PENDING.push((async () => {
+    { const t = tabOf(); const a = AH.createAppHistory(t.env); t.router(); t.nav("/book");
+      ok("history: every entry carries its place, the first is 0, and the trail knows the screen before", t.list[0].state.gt3n === 0 && t.state.gt3n === 1 && a.previous() === "/menu" && t.state.__NA === true);
+      t.history.back(); t.tick(5);
+      ok("history: a Back between screens is the router's (heard once), and the trail follows it", path(t) === "/menu" && t.heard.length === 1 && a.previous() === null); }
+    { const t = tabOf(); const a = AH.createAppHistory(t.env); t.router(); const sh = sheet(a);
+      ok("history: a sheet opening adds one entry at the same address, and marks the entry under it", t.list.length === 2 && t.idx === 1 && path(t) === "/menu" && typeof t.state.gt3Step === "string" && t.list[0].state.gt3Under === t.state.gt3Step);
+      t.history.back(); t.tick(5); await flush(); t.tick(AH.GRACE * 2);
+      ok("history: Back closes the sheet through its door, the screen stays, and nobody else hears it", !sh.open && sh.asked === 1 && t.idx === 0 && t.heard.length === 0 && path(t) === "/menu");
+      t.history.forward(); t.tick(5); t.tick(5);
+      ok("history: Forward onto a sheet Back closed goes straight back, unheard", t.idx === 0 && t.heard.length === 0); }
+    { const t = tabOf(); const a = AH.createAppHistory(t.env); t.router(); const sh = sheet(a); sh.close();
+      t.tick(AH.GRACE - 10); const kept = t.idx === 1; t.tick(20); t.tick(5);
+      ok("history: a sheet closed by its X keeps its entry for GRACE, then takes it back unheard", kept && t.idx === 0 && t.heard.length === 0 && t.state.gt3n === 0); }
+    { const t = tabOf(); const a = AH.createAppHistory(t.env); t.router(); sheet(a).close(); t.nav("/checkout"); t.tick(AH.GRACE * 3);
+      ok("history: close then move — the move takes the entry's place: no extra entry, no step back", t.list.length === 2 && t.idx === 1 && path(t) === "/checkout" && t.state.gt3Step === undefined && t.heard.length === 0 && a.previous() === "/menu"); }
+    { const t = tabOf(); const a = AH.createAppHistory(t.env); t.router(); sheet(a).close(); t.tick(AH.GRACE); t.nav("/shop");
+      const waited = path(t) === "/menu"; t.tick(5);
+      ok("history: a move asked for while an entry is being taken back waits for it, then lands — never undone", waited && t.list.map((e) => new URL(e.url).pathname).join() === "/menu,/shop" && t.idx === 1 && t.heard.length === 0); }
+    { const t = tabOf(); const a = AH.createAppHistory(t.env); t.router(); const sh = sheet(a, { holds: true }); t.history.back(); t.tick(5);
+      ok("history: a sheet that holds (a payment running) stays, and the next Back is still its", sh.open && t.idx === 1 && typeof t.state.gt3Step === "string" && t.heard.length === 0); }
+    { const t = tabOf(); const a = AH.createAppHistory(t.env); t.router(); const s1 = sheet(a); const s2 = sheet(a); const one = t.list.length === 2;
+      t.history.back(); t.tick(5); await flush(); const first = !s2.open && s1.open && t.idx === 1;
+      t.history.back(); t.tick(5); await flush(); t.tick(AH.GRACE * 2);
+      ok("history: two sheets open hold one entry; Back closes the top one, then the next", one && first && !s1.open && t.idx === 0 && t.heard.length === 0); }
+    { const t = tabOf(); const a = AH.createAppHistory(t.env); t.router(); t.nav("/book"); sheet(a).close(); t.history.back(); t.tick(3); t.tick(3); t.tick(AH.GRACE * 2);
+      ok("history: Back in the moment after an X goes on to the screen before (heard once)", path(t) === "/menu" && t.heard.length === 1); }
+    { const t = tabOf(); const a = AH.createAppHistory(t.env); t.router(); sheet(a).close(); const co = sheet(a); t.tick(AH.GRACE * 2); const kept = t.list.length === 2 && t.idx === 1;
+      t.history.back(); t.tick(5);
+      ok("history: the drink closing and the checkout opening in one tap share one entry, and Back closes the checkout", kept && !co.open && t.idx === 0 && t.heard.length === 0); }
+    { const t = tabOf("https://gt3.test/crew?s=team"); const a = AH.createAppHistory(t.env); t.router();
+      t.history.replaceState(t.history.state, "", "/crew?s=team&r=person:7"); const rec = sheet(a); t.history.replaceState(t.history.state, "", "/crew?s=team"); rec.close(); t.tick(AH.GRACE + 10);
+      ok("history: a record closed by its X — the address it cleared stays cleared after its entry goes", t.idx === 0 && path(t) === "/crew?s=team" && t.heard.length === 0); }
+    { const t = tabOf(); const a = AH.createAppHistory(t.env); sheet(a); t.history.replaceState(null, "", "/delivery");
+      ok("history: a replace with no state on a step's entry keeps the step's mark and the place", typeof t.state.gt3Step === "string" && t.state.gt3n === 1); }
+    { const t = tabOf(); AH.createAppHistory(t.env); t.history.pushState({ ...t.history.state, __NA: true }, "", "/book");
+      ok("history: a router copying the old state into a new entry never carries the marks", t.state.gt3Under === undefined && t.state.gt3Step === undefined && t.state.gt3n === 1); }
+    { const t = tabOf(undefined, { entries: false }); const a = AH.createAppHistory(t.env); const sh = sheet(a, { label: "Academy" }); a.back();
+      ok("history: in the iPhone app a step adds no entry, and back() is the step's own door", t.list.length === 1 && a.stepLabel() === "Academy" && sh.asked === 1); }
+    { const t = tabOf(undefined, { activated: false }); const a = AH.createAppHistory(t.env); sheet(a);
+      ok("history: before the person has touched the page, a step adds no entry (Chrome's Back would skip the screen with it)", t.list.length === 1); }
+    { const t = tabOf(); const a = AH.createAppHistory(t.env); t.router(); const sh = sheet(a); t.nav("/shop"); const took = t.list.length === 2 && path(t) === "/shop";
+      t.tick(AH.GRACE + 5); const again = t.list.length === 3 && typeof t.state.gt3Step === "string"; t.history.back(); t.tick(5);
+      ok("history: a move with a sheet still open takes its entry, and the sheet gets one again", took && again && !sh.open && path(t) === "/shop" && t.heard.length === 0); }
+    { const t = tabOf(undefined, { list: [{ state: { __NA: true, gt3n: 0 }, url: "https://gt3.test/menu" }, { state: { __NA: true, gt3n: 1, gt3Under: "k.1" }, url: "https://gt3.test/book" }, { state: { __NA: true, gt3n: 2, gt3Step: "k.1" }, url: "https://gt3.test/book" }] });
+      AH.createAppHistory(t.env); t.router(); t.history.back(); t.tick(3); t.tick(3);
+      ok("history: reloaded on a sheet's entry, Back goes on to the screen before", path(t) === "/menu" && t.heard.length === 1); }
+    { const t = tabOf(); const a = AH.createAppHistory(t.env); t.router(); t.nav("/book"); t.nav("/craft"); const sh = sheet(a); t.history.go(-2); t.tick(3);
+      ok("history: a jump past the screen (a long press on Back) is the router's, not the sheet's", path(t) === "/book" && t.heard.length === 1 && sh.open); }
+    { const t = tabOf(); const a = AH.createAppHistory(t.env); t.router(); const sh = sheet(a, { label: "Academy" }); a.back(); t.tick(5);
+      ok("history: the bar's ‹ with an entry goes through the history, and the step's door answers it", sh.asked === 1 && t.idx === 0 && t.heard.length === 0); }
+    { const t = tabOf(); const a = AH.createAppHistory(t.env); let n = 0; a.subscribe(() => { n += 1; }); t.nav("/book"); const quiet = n === 0; await flush();
+      ok("history: a move is told a moment later — never inside the router's commit (an insertion effect)", quiet && n === 1 && a.moved()); }
+    { const kept = (() => { let v = JSON.stringify({ p: 2, t: { 0: "/menu", 1: "/book", 2: "/craft" } }); return { get: () => v, set: (x) => { v = x; } }; })();
+      const t = tabOf("https://gt3.test/privacy", { store: kept, referrer: "/craft", depth: 4 }); const a = AH.createAppHistory(t.env);
+      const fresh = tabOf("https://gt3.test/privacy", { store: kept, referrer: "/craft", depth: 1 }); const b2 = AH.createAppHistory(fresh.env);
+      ok("history: a whole page loaded by a plain link from our screen follows on from it; a new tab starts again", t.state.gt3n === 3 && a.previous() === "/craft" && fresh.state.gt3n === 0 && b2.previous() === null); }
+  })());
+
+  ok("names: the screens and the crew's sections are named once, short", RT.titleOf("/menu") === "Menu" && RT.titleOf("/truck") === "Find Us" && RT.titleOf("/crew?s=money") === "Money"
+    && RT.titleOf("/crew?s=day&r=person:1") === "My Day" && RT.titleOf("/academy") === "Academy" && RT.titleOf("/constructor") === "Back" && RT.titleOf("/crew?s=toString") === "Crew");
+  ok("names: a tab's own screen has no Back; the five pages whose ‹ went into the bar still go where it went", RT.TAB_ROOTS.every((p) => RT.isTabRoot(p)) && !RT.isTabRoot("/book")
+    && RT.upOf("/academy") === "/3mpire" && RT.upOf("/scan") === "/crew" && RT.upOf("/offer") === "/" && RT.upOf("/agreement") === "/3mpire" && RT.upOf("/architecture") === "/3mpire" && RT.upOf("/book") === null);
+  const tb = read("components/TitleBar.tsx"), sheetSrc = read("components/Sheet.tsx"), ub = read("components/useBack.ts"), shell = read("components/AppShell.tsx");
+  ok("title bar: the shell draws it first in the scroll, on every screen but a partner's share", /\{!isShare && <TitleBar \/>\}\s*\{!isShare && !H1_SKIP/.test(shell));
+  ok("title bar: it watches the screen's large title (a crew heading, a masthead's eyebrow) and names the screen once it is gone",
+    /body\.querySelector\("\[data-large-title\]"\)/.test(tb) && /<h1 className="op-head-t" data-large-title>/.test(read("app/crew/page.tsx"))
+    && /<div className=\{`k-eyb k-page-eyb\$\{live \? " live" : ""\}`\} data-large-title>/.test(read("components/kit.tsx")) && /onClick=\{scrollToTop\}/.test(tb));
+  ok("title bar: 44pt under the status bar, the screen's own ground blurred, 17pt — and nothing on a tab's own screen or the truck's TV",
+    /flex h-11 items-center/.test(tb) && /pt-safe/.test(tb) && /\[backdrop-filter:blur\(24px\)_saturate\(1\.5\)\]/.test(tb) && /bg-ground\/86/.test(tb) && /--color-ground: var\(--native-bar, var\(--char\)\);/.test(read("app/tailwind.css")) && /text-\[17px\] font-semibold text-cream/.test(tb) && /if \(root\) return null;/.test(tb) && /const BARE = new Set\(\["\/display"\]\);/.test(tb));
+  ok("title bar: a resting ‹ is space in the page from its first paint, never pushed in after it",
+    /const resting = !crew && !root && !!way && \(upOf\(pathname\) != null \|\| moved\);/.test(tb) && /if \(!hist \|\| v < 0\) return surfaceOf\(pathname\) === "console" \? null : toUp;/.test(ub));
+  ok("back: one answer for the bar and the swipe — a screen's own view first, then the crew's section, then the screen before, then where its old ‹ went",
+    /const label = hist\.stepLabel\(\);\s*if \(label\) return/.test(ub) && /if \(isTabRoot\(pathname\)\) return null;/.test(ub) && /return toUp;/.test(ub));
+  ok("back: the five pages lost the ‹ in their masthead's corner, and Academy's views their own ‹ Academy",
+    !/aria-label="(Back|Exit)">‹<\/Link>/.test(["agreement", "academy", "offer", "architecture"].map((f) => read(`app/${f}/page.tsx`)).join("")) && !/aria-label="Back to crew"/.test(read("app/scan/page.tsx"))
+    && !/‹ Academy<\/button>/.test(read("app/academy/page.tsx")) && (read("app/academy/page.tsx").match(/useBackStep\("Academy", onBack\);/g) || []).length === 4
+    && !/>‹ All layers</.test(read("app/architecture/page.tsx")) && /useBackStep\(open \? "System map" : null/.test(read("app/architecture/page.tsx")));
+  ok("back: every open sheet is a step Back closes, through the same door as Escape (held stays, typed asks, the question means keep editing)",
+    /const end = appHistory\(\)\?\.step\(\{ back: \(\) => onBack\(\) \}\);/.test(sheetSrc) && /if \(ask\) \{ setAsk\(null\); return false; \}\s*if \(!dismissible\) \{ nudge\(\); return false; \}\s*if \(unsaved\(\)\) \{ askFor\(requestClose\); return false; \}/.test(sheetSrc));
+  ok("back: the history hears popstate first — at the window, in the capture phase, from the moment it loads",
+    /window\.addEventListener\("popstate", fn as unknown as EventListener, true\)/.test(read("lib/appHistory.ts")) && /if \(typeof window !== "undefined" && typeof History !== "undefined"\) appHistory\(\);/.test(read("lib/appHistory.ts")));
+  ok("back: the edge swipe on every screen in the app and a home-screen PWA (a browser tab has its own)", /\{!isShare && \(inAdmin \|\| appOnly\) && <SwipeBack \/>\}/.test(shell));
+  ok("links within the app move within it: the footer's Privacy and Terms, the driver run, the playbook's map (a plain <a> loaded the whole site again)",
+    /<Link href="\/privacy">Privacy<\/Link><span aria-hidden> · <\/span><Link href="\/terms">Terms<\/Link>/.test(read("components/kit.tsx"))
+    && (read("components/DeliveryOps.tsx").match(/<Link className="dops-(driver-link|mini)" href="\/driver">/g) || []).length === 2 && /<Link href="\/architecture">/.test(read("app/playbook/page.tsx")));
+  ok("title bar: the calendars' sticky rows step down under it, and the app's status-bar fade gives way to its hairline",
+    /\[\.app:has\(\[data-tbar\]\[data-compact\]\)_&\]:top-\[calc\(env\(safe-area-inset-top,0px\)\+44px\)\]!/.test(read("components/CompanyCalendar.tsx")) && /\[\.app:has\(\[data-tbar\]\[data-compact\]\)_&\]/.test(read("components/BrandCalendar.tsx"))
+    && /html:has\(\[data-tbar\]\[data-compact\]\) \.native-bar::after\{opacity:0\}/.test(read("components/NativeBridge.css")));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

@@ -410,6 +410,67 @@ try {
     await gp.close();
   }
 
+  // 6c) BACK, AND THE TITLE BAR (2026-10-08, the navigation round: redesigns 2 and 3, approved). A sheet is a
+  //     step Back closes (lib/appHistory): a drink's sheet adds one entry at the same address, Back closes it
+  //     and the menu stays, Escape's close takes the entry back, and Back with the checkout open closes the
+  //     checkout. A screen reached from the menu carries "‹ Menu" at the top left in 44pt of its own; scrolled
+  //     past its heading, the bar names it, a tap on the name goes to the top, and its ‹ goes back. A tab's own
+  //     screen has no bar; the Academy's ‹ (known from its address) is drawn by the server.
+  {
+    const np = await phone.newPage();
+    try {
+      await np.goto(BASE + "/menu", { waitUntil: "domcontentloaded", timeout: 20000 });
+      try { await np.waitForLoadState("networkidle", { timeout: 4000 }); } catch { /* settled enough */ }
+      await sleep(500);
+      const state = () => np.evaluate(() => ({ path: location.pathname, n: history.state?.gt3n ?? null, step: history.state?.gt3Step ?? null, sheet: !!document.querySelector(".sheet2-scrim") }));
+      const s0 = await state();
+      await np.click(".entry"); await sleep(600);
+      const s1 = await state();
+      ok("back · a drink's sheet is a step: one entry, at the same address", s1.sheet && s1.path === "/menu" && s1.n === s0.n + 1 && !!s1.step, JSON.stringify({ s0, s1 }));
+      await np.goBack(); await sleep(700);
+      const s2 = await state();
+      ok("back · Back closes the drink's sheet, and the menu stays", !s2.sheet && s2.path === "/menu" && s2.n === s0.n, JSON.stringify(s2));
+      await np.click(".entry"); await sleep(600);
+      await np.keyboard.press("Escape"); await sleep(800);
+      const s3 = await state();
+      ok("back · a sheet closed by Escape takes its entry back with it", !s3.sheet && s3.path === "/menu" && s3.n === s0.n && !s3.step, JSON.stringify(s3));
+      // A drink in the order — the one section 6 added is kept on the phone, so its sheet may offer to remove it:
+      // then it is left in, and the sheet closed.
+      await np.click(".entry"); await sleep(600);
+      const offer = (await np.$eval(".order-bar", (e) => e.textContent).catch(() => "")) || "";
+      if (/remove/i.test(offer)) await np.keyboard.press("Escape"); else await np.click(".order-bar");
+      await sleep(800);
+      await np.waitForSelector(".cartbar", { timeout: 8000 });
+      await np.click(".cartbar"); await sleep(800);
+      const s4 = await state();
+      await np.goBack(); await sleep(800);
+      const s5 = await state();
+      ok("back · with the checkout open, Back closes the checkout — not the menu", s4.sheet && !s5.sheet && s5.path === "/menu", JSON.stringify({ s4, s5 }));
+      await np.click('.k-legal a[href="/privacy"]');
+      await np.waitForURL(/\/privacy$/, { timeout: 8000 }); await sleep(800);
+      const bar = () => np.evaluate(() => {
+        const t = document.querySelector("[data-tbar]"); if (!t) return null;
+        const b = t.querySelector('button[aria-label^="Back to"]'); const r = b?.getBoundingClientRect(); const tr = t.getBoundingClientRect();
+        return { h: Math.round(tr.height), compact: t.hasAttribute("data-compact"), back: b?.textContent ?? null, bh: r ? Math.round(r.height) : 0, x: r ? Math.round(r.x) : -1 };
+      });
+      const b0 = await bar();
+      ok("title bar · a screen reached from the menu carries ‹ Menu at the top left, in 44pt of its own", b0?.h === 44 && b0.back === "Menu" && b0.bh >= 44 && b0.x <= 12 && !b0.compact, JSON.stringify(b0));
+      await np.evaluate(() => document.getElementById("body").scrollTo(0, 700)); await sleep(600);
+      const b1 = await bar();
+      const title = await np.$eval('[data-tbar] button[aria-label$="back to the top"]', (e) => e.textContent).catch(() => null);
+      ok("title bar · scrolled past its heading, the bar names the screen", !!b1?.compact && title === "Privacy", JSON.stringify({ b1, title }));
+      await np.click('[data-tbar] button[aria-label$="back to the top"]'); await sleep(1000);
+      ok("title bar · a tap on the name goes back to the top", (await np.evaluate(() => document.getElementById("body").scrollTop)) < 5);
+      await np.click('[data-tbar] button[aria-label="Back to Menu"]');
+      await np.waitForURL(/\/menu$/, { timeout: 8000 }); await sleep(500);
+      ok("title bar · its ‹ goes back to the menu, and a tab's own screen has no bar", /\/menu$/.test(np.url()) && !(await np.$("[data-tbar]")));
+    } catch (e) { ok("back · could be exercised on /menu and /privacy", false, String(e.message).slice(0, 160)); }
+    await np.close();
+    const academy = await fetch(BASE + "/academy").then((r) => r.text()).catch(() => "");
+    ok("title bar · the server draws a Back the address decides (‹ 3MPIRE on the Academy), so nothing moves when the page wakes",
+      /data-tbar=""[^>]*class="sticky top-0 z-20 h-11"/.test(academy) && /aria-label="Back to 3MPIRE"/.test(academy));
+  }
+
   // 7) THE NAV THAT MOVED UNDER YOUR THUMB (components/BottomNav.tsx, 2026-10-02). On production
   //    every guest watched the three shared tabs slide one slot left a quarter second after paint:
   //    the server painted the member shape, the client re-shaped it. Now both identity tabs are in

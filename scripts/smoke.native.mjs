@@ -1013,6 +1013,65 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await ctx.close();
   }
 
+  // ── 5d · THE TITLE BAR AND BACK (2026-10-08, the navigation round — Ryan approved proposals 2 and 3) ──
+  // A crew section scrolled past its heading keeps its name in a 44pt bar right under the status bar; a screen
+  // reached from the menu carries "‹ Menu" at the top left; a swipe from the left edge goes back on a customer's
+  // screen in the app (in a browser tab the browser's own swipe does); and in the app a sheet adds nothing to the
+  // history — there is no Back button there to answer it.
+  {
+    const ctx = await phoneContext(MAIN, { owner: true });
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    await page.goto(`${BASE}/crew?s=money`, { waitUntil: "load" });
+    await page.waitForSelector(".op-head-t", { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(600); await page.evaluate(SETTLE);
+    const bar = () => page.evaluate(() => {
+      const t = document.querySelector("[data-tbar]"); if (!t) return null;
+      const title = t.querySelector('button[aria-label$="back to the top"]'); const r = title?.getBoundingClientRect();
+      return { compact: t.hasAttribute("data-compact"), top: r ? Math.round(r.top) : null, h: r ? Math.round(r.height) : null, title: title?.textContent ?? null, seen: title ? getComputedStyle(title).visibility : null };
+    });
+    const b0 = await bar();
+    ok("title bar: at the top of a crew section there is none — its own heading names it", !!b0 && !b0.compact && b0.seen === "hidden", JSON.stringify(b0));
+    const room = await page.evaluate(() => { const b = document.getElementById("body"); b.scrollTop = 520; return b.scrollTop; });
+    await page.waitForTimeout(700);
+    const b1 = await bar();
+    ok("title bar: scrolled past its heading, the section keeps its name in a 44pt bar right under the status bar",
+      room > 200 && !!b1 && b1.compact && b1.title === "Money" && b1.h === 44 && b1.top === MAIN.top && b1.seen === "visible", JSON.stringify({ room, b1 }));
+    const len0 = await page.evaluate(() => history.length);
+    await page.locator('.toprow-actions button[aria-label^="Inbox"]').first().click().catch(() => {});
+    await page.waitForTimeout(600);
+    const opened = !!(await page.$(".sheet2-scrim"));
+    const len1 = await page.evaluate(() => history.length);
+    ok("back: in the app a sheet adds nothing to the history", opened && len1 === len0, `sheet ${opened}, history ${len0} → ${len1}`);
+    await page.keyboard.press("Escape"); await page.waitForTimeout(500);
+    ok("title bar: no errors on the crew's screen", errors.length === 0, errors.join(" | "));
+    await ctx.close();
+  }
+  {
+    const ctx = await phoneContext(MAIN);
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    await page.goto(`${BASE}/menu`, { waitUntil: "load" });
+    await page.waitForTimeout(700); await page.evaluate(SETTLE);
+    await page.locator('.k-legal a[href="/privacy"]').first().click();
+    await page.waitForURL("**/privacy", { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(800);
+    const back = await page.locator('[data-tbar] button[aria-label="Back to Menu"]').first().boundingBox().catch(() => null);
+    ok("back: a screen reached from the menu carries ‹ Menu at the top left, below the status bar", !!back && back.x <= 12 && back.y >= MAIN.top && back.height >= 44, JSON.stringify(back));
+    const cdp = await ctx.newCDPSession(page);
+    const pt = (x, y) => [{ x, y, id: 1, radiusX: 3, radiusY: 3, force: 1 }];
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pt(6, 420) });
+    for (let i = 1; i <= 10; i++) { await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pt(6 + i * 22, 422) }); await page.waitForTimeout(18); }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await page.waitForURL("**/menu", { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(500);
+    ok("back: a swipe from the left edge goes back to the menu, in the app", new URL(page.url()).pathname === "/menu", page.url());
+    ok("back: no errors", errors.length === 0, errors.join(" | "));
+    await ctx.close();
+  }
+
   // ── 6 · deleting your account, in the app (App Store Review Guideline 5.1.1(v)) ──
   // Signed in, from the avatar's menu: the row, its screen (loaded when tapped — so it must be in the
   // export), what it asks the web's API, and after the red button a phone that is signed out and home.
