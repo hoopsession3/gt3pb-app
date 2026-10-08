@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useAuth, isStaff, type Profile } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
 import { readMode } from "@/lib/mode";
+import dynamic from "next/dynamic";
 import { markFrontDoor } from "@/lib/viewerHint";
 import { useApp } from "@/components/AppProvider";
 import { Masthead, SectionHeader, InfoRow, ClosingBeat } from "@/components/kit";
@@ -71,6 +72,11 @@ function YourUsual() {
   );
 }
 
+// YOU'RE ON THE CREW (2026-10-08) — components/CrewWelcomeRow, loaded only for the one person it is
+// for (a staff member who has never picked a side on this phone), so the home's own script does not
+// carry the first-day guide's words for every guest and member.
+const CrewWelcomeRow = dynamic(() => import("@/components/CrewWelcomeRow"));
+
 function TodayReal({ t }: { t: (k: string) => string }) {
   const { user, profile } = useAuth();
   const name = firstName(profile, user?.email);
@@ -80,6 +86,8 @@ function TodayReal({ t }: { t: (k: string) => string }) {
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => { setNow(new Date()); }, []);
   const hasActive = useHasActiveOrder();
+  // Read once, client only: TodayReal renders after the session is known, never in the server's HTML.
+  const [sideChosen] = useState(() => readMode() !== null);
 
   return (
     <section className="screen" id="s-today">
@@ -103,6 +111,8 @@ function TodayReal({ t }: { t: (k: string) => string }) {
       />
       <h1 className="k-title">{now ? `${greet(now)}, ` : ""}{name}.</h1>
       {now && <p className="k-sub">{todayLabel(now)}</p>}
+
+      {isStaff(profile) && !sideChosen && <CrewWelcomeRow />}
 
       {/* your stuff — live order activity first (ready / out-for-delivery / pay-at-pickup) */}
       <MemberInbox />
