@@ -4069,7 +4069,7 @@ body:has(.conc-sheet) .rail{display:flex}
    this half — silently reintroducing the exact bug a14d091 fixed, across every sheet in the app at
    once (reported: the Business → Notes composer's "Save note" button "wasn't visible enough to
    press" with the keyboard open — same failure mode as the original Plan-a-batch report). */
-.sheet2-scrim{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-end;justify-content:center;padding-bottom:var(--kb,0px);box-sizing:border-box;animation:sheet2fade .2s ease}
+.sheet2-scrim{position:fixed;inset:0;z-index:87;display:flex;align-items:flex-end;justify-content:center;padding-bottom:var(--kb,0px);box-sizing:border-box;animation:sheet2fade .2s ease}
 /* The dim and the blur are the scrim's own layer (2026-10-05, the gesture round), so a pull can lighten
    them as the sheet goes down (--scrim, set by components/Sheet) without fading the sheet itself —
    the panel is the scrim's child, and the scrim's own opacity would take the panel with it. */
