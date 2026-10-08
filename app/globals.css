@@ -1750,7 +1750,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .office-done p b{color:var(--gold2)}
 
 /* ── CREW · OFFICE ORDERS (Pit Wall) ── */
-.oo{margin-top:14px;border:1px solid var(--line);border-radius:var(--r-3xl);background:var(--panel,#16130d);overflow:hidden}
+.oo{margin-top:14px;border:1px solid var(--line);border-radius:var(--r-3xl);background:var(--card);overflow:hidden}
 .oo-n{font-family:var(--mono);font-size:11px;color:var(--cream-m)}
 .oo-gen{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--gold2);background:color-mix(in srgb, var(--brand-gold2) 8%, transparent);border:1px solid color-mix(in srgb, var(--brand-gold2) 40%, transparent);border-radius:var(--r-pill);padding:5px 11px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .oo-gen:active{transform:scale(.96)}
@@ -1912,7 +1912,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .oo-addr{font-family:'Inter';font-size:12px;color:var(--cream-d);margin-top:6px;line-height:1.4}
 .oo-acts{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
 .oo-log{margin-top:11px;display:flex;flex-direction:column;gap:8px}
-.oo-jug{display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(0,0,0,.22);border:1px solid var(--line2);border-radius:var(--r-xl);padding:9px 12px}
+.oo-jug{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--ink-onLight-03);border:1px solid var(--line2);border-radius:var(--r-xl);padding:9px 12px}
 .oo-jug-l{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-m)}
 .oo-step{display:flex;align-items:center;gap:4px}
 .oo-step button{width:36px;height:36px;border-radius:var(--r-lg);border:1px solid var(--line2);background:var(--card);color:var(--cream);font-size:19px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}

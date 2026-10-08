@@ -5,7 +5,10 @@ import { useApp } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { mondayLabel, nextMondayKey, windowHours } from "@/lib/office";
-import { isMissingFunction } from "@/lib/schemaSkew";
+import { isMissingFunction, isMissingTable } from "@/lib/schemaSkew";
+import { dayLabel } from "@/lib/officeStatus";
+import { clientChanges, requestLabel } from "@/lib/officeChange";
+import { haptic } from "@/lib/haptics";
 import { addDays, etToday } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -39,8 +42,12 @@ type BOrder = {
   delivery_date: string; delivery_window: string | null; gallons: number; total_cents: number; billing_terms: string;
   payment_status: string; status: string; jugs_out: number; jugs_in: number | null; standing: boolean;
   cutoff_at: string | null;
+  // a client's own hand on it (0359) — select("*") brings them once the columns exist
+  moved_from?: string | null; gallons_changed_at?: string | null; change_reason?: string | null; client_note?: string | null;
 };
-type Board = { rows: BOrder[]; later: BOrder[]; standingN: number };
+// What a client asked GT3 for (0359's company_requests): the crew's to answer, here beside the route.
+type Req = { id: string; kind: string; body: string; status: string; order_id: string | null; created_at: string; companies: { name: string } | null };
+type Board = { rows: BOrder[]; later: BOrder[]; standingN: number; requests: Req[] };
 
 export default function OfficeOrders() {
   const prompt = usePrompt();
@@ -51,16 +58,23 @@ export default function OfficeOrders() {
   const [showLater, setShowLater] = useState(false);
 
   const loader = useCallback(async (): Promise<Board> => {
-    if (!supabase) return { rows: [], later: [], standingN: 0 };
+    if (!supabase) return { rows: [], later: [], standingN: 0, requests: [] };
     const weekAgo = addDays(etToday(), -7);
-    const [ord, acct] = await Promise.all([
+    const [ord, acct, reqs] = await Promise.all([
       supabase.from("business_orders").select("*").is("canceled_at", null)
         .or(`status.neq.delivered,payment_status.in.(pending,failed),delivery_date.gte.${weekAgo}`)
         .order("delivery_date").limit(400),
       supabase.from("business_accounts").select("id", { count: "exact", head: true }).eq("standing_active", true),
+      // arrives-with: 0359 — until it is pasted the table isn't there (PGRST205): isMissingTable below reads
+      // that as nothing asked yet, and the route loads as it did; it is its own request, so it fails alone.
+      supabase.from("company_requests").select("id, kind, body, status, order_id, created_at, companies(name)")
+        .in("status", ["open", "in_progress"]).order("created_at").limit(50),
     ]);
     if (ord.error) throw new Error(ord.error.message);
     if (acct.error) throw new Error(acct.error.message);
+    // Before 0359 the requests table isn't there: nothing asked yet, not a broken route.
+    if (reqs.error && !isMissingTable(reqs.error)) throw new Error(reqs.error.message);
+    const requests = reqs.error ? [] : ((reqs.data as unknown as Req[]) ?? []);
     // SIX WEEKS AHEAD (2026-10-07, 0358). The schedule now keeps six weeks of each program's
     // deliveries, so "every undelivered order" is the next route plus five more weeks of the same
     // offices. The route is the next delivery day (and anything overdue before it), in date order;
@@ -73,13 +87,41 @@ export default function OfficeOrders() {
     const route = open.filter((o) => nextDay === null || o.delivery_date <= nextDay);
     const later = open.filter((o) => nextDay !== null && o.delivery_date > nextDay);
     const done = all.filter((o) => o.status === "delivered").sort((a, b) => b.delivery_date.localeCompare(a.delivery_date));
-    return { rows: [...route, ...done], later, standingN: acct.count ?? 0 };
+    return { rows: [...route, ...done], later, standingN: acct.count ?? 0, requests };
   }, []);
   const board = useAsyncData(loader, []);
   const { reload } = board;
   // The driver logs from the run (components/OfficeRun); this route hears it live (business_orders joins
   // the realtime publication in 0357 — before that the subscription simply receives nothing).
   useRealtimeTable("business_orders", reload);
+  useRealtimeTable("company_requests", reload);
+
+  // A CLIENT ASKED (2026-10-07, 0359). Each request is the crew's to answer: take it (in progress), or
+  // close it — done, or declined with the reason — and what is typed here is what the client reads on
+  // their GT3 page. office_request_set answers the crew's alert about it in the same write.
+  const answer = async (r: Req, status: "in_progress" | "done" | "declined") => {
+    if (!supabase || busyId) return;
+    const who = r.companies?.name ?? "the client";
+    let resolution: string | null = null;
+    if (status !== "in_progress") {
+      const said = await prompt({
+        title: status === "done" ? `Done — what should ${who} hear?` : `Decline — tell ${who} why`,
+        hint: "They read this on their GT3 page.", multiline: true,
+        placeholder: status === "done" ? "Made it 6 — see you Monday." : "Saturdays aren't on a route yet — Monday works.",
+        confirmLabel: status === "done" ? "Mark done" : "Decline",
+      });
+      if (said === null) return;
+      resolution = said.trim() || null;
+      if (status === "declined" && !resolution) { toast("Say why — the client reads it", "error"); return; }
+    }
+    setBusyId(r.id);
+    const { error } = await supabase.rpc("office_request_set", { p_request: r.id, p_status: status, p_resolution: resolution });
+    setBusyId(null);
+    if (error) { toast(error.message, "error"); return; }
+    haptic("success");
+    toast(status === "in_progress" ? `${who} — it's yours` : status === "done" ? `${who} — done, and they can see it` : `${who} — declined, with your reason`);
+    reload();
+  };
 
   // THE SCHEDULE, FROM THE PROGRAMS (2026-10-07, 0356; six weeks from 0358). generate_office_deliveries
   // makes every active program's deliveries for the next six weeks, each in its market's own time, once
@@ -195,12 +237,12 @@ export default function OfficeOrders() {
   };
 
   if (board.status === "loading") return null; // quiet during initial load, same as the original gate
-  if (board.status === "ready" && board.data && board.data.rows.length === 0 && board.data.standingN === 0) return null; // no office program at all yet — same self-hide as before
+  if (board.status === "ready" && board.data && board.data.rows.length === 0 && board.data.standingN === 0 && board.data.requests.length === 0) return null; // no office program at all yet — same self-hide as before
 
   return (
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the office route" emptyTitle="No office activity yet">
       {(data) => {
-        const { standingN, later } = data;
+        const { standingN, later, requests } = data;
         const route = data.rows.filter((o) => o.status !== "delivered");
         const rows = showLater ? [...route, ...later, ...data.rows.filter((o) => o.status === "delivered")] : data.rows;
         return (
@@ -215,13 +257,36 @@ export default function OfficeOrders() {
           // .adm-btn/.adm-act, so they keep their own look, now inside SectionHeader's `right` slot.
           // No data fetching, state, handlers, or conditions below changed — presentation only.
           <section className="oo" aria-label="Office orders" style={{ padding: "0 14px 14px" }}>
+            {/* The count rides with the title and the button says one word: at 390px the long button
+                pushed the title onto two lines and over itself (2026-10-07). */}
             <SectionHeader
               label="Office route"
-              right={<>
-                {standingN > 0 && <button type="button" className="oo-gen" onClick={gen} disabled={!!busyId}>{busyId === "gen" ? "…" : "↻ Generate the schedule"}</button>}
-                <span className="oo-n">{route.length} on the route</span>
-              </>}
+              annotation={`${route.length} on the route`}
+              right={standingN > 0 ? <button type="button" className="oo-gen" onClick={gen} disabled={!!busyId} aria-label="Generate the schedule — the next six weeks of deliveries">{busyId === "gen" ? "…" : "↻ Generate"}</button> : undefined}
             />
+            {requests.length > 0 && (
+              <div className="k-rows mb-3.5" aria-label="Client requests">
+                {requests.map((r) => {
+                  const on = r.order_id ? [...data.rows, ...later].find((o) => o.id === r.order_id) : null;
+                  return (
+                    <InfoRow key={r.id}
+                      name={r.companies?.name ?? "A client"}
+                      nameExtra={<span className="oo-badge">{requestLabel(r.kind)}</span>}
+                      trailing={<span className="oo-n">{r.status === "in_progress" ? "taken" : "new"}</span>}
+                      meta={<>
+                        <div className="oo-addr whitespace-pre-line">{r.body}</div>
+                        <div className="oo-meta"><span>Asked {new Date(r.created_at).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}</span>{on && <><span className="oo-dot">·</span><span>the {dayLabel(on.delivery_date)} delivery</span></>}</div>
+                        <div className="oo-acts">
+                          {r.status === "open" && <button type="button" className="btn-sec" onClick={() => answer(r, "in_progress")} disabled={busyId === r.id}>Take it</button>}
+                          <button type="button" className="btn-sec" onClick={() => answer(r, "done")} disabled={busyId === r.id}>Done</button>
+                          <button type="button" className="btn-ter" onClick={() => answer(r, "declined")} disabled={busyId === r.id}>Decline</button>
+                        </div>
+                      </>}
+                    />
+                  );
+                })}
+              </div>
+            )}
             {rows.length === 0 && later.length === 0 && <EmptyState title="No orders booked yet" sub="Generate the schedule above." />}
             {later.length > 0 && (
               <button type="button" className="btn-ter" onClick={() => setShowLater((v) => !v)} aria-expanded={showLater}>
@@ -246,6 +311,7 @@ export default function OfficeOrders() {
                           <span>{money(o.total_cents)}</span>
                         </div>
                         <div className="oo-addr">{o.address_street}, {o.address_city} {o.address_zip}{o.contact_phone ? ` · ${o.contact_phone}` : ""}{o.access_instructions ? ` · ${o.access_instructions}` : ""}</div>
+                        {clientChanges(o).length > 0 && <div className="oo-addr text-gold2">Client: {clientChanges(o).join(" · ")}</div>}
 
                         {!open ? (
                           <div className="oo-acts">

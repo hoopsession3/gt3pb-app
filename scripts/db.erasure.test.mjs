@@ -256,7 +256,7 @@ ok("the weekly audit prune runs again, keeps the year, and the switch it uses en
 
 // ── 6 · every table that points at an account and holds words about people has a decided fate ──
 // deleted: only about the person · books: kept, emptied of them · work: kept, unsigned · signed: contracts,
-// kept as signed · business: a company's account the person only used
+// kept as signed · business: a company's account the person only used (a company's request stays the company's, unsigned — 0359)
 const DECIDED = {
   deleted: ["academy_acknowledgements", "agent_convos", "check_ins", "loyalty_ledger", "profiles", "reviews", "rsvps", "subscription_interest",
             "team_invites", "user_activity", "vip_verifications"],
@@ -266,7 +266,7 @@ const DECIDED = {
          "meeting_notes", "note_addenda", "note_files", "opportunities", "os_workstreams", "promos", "proposal_events", "proposals", "readiness_checks",
          "schema_migrations", "shoots", "shots", "strategy_decisions"],
   signed: ["agreement_hours", "offer_approvals", "offer_events", "offer_letters", "operator_agreement_events", "operator_agreements"],
-  business: ["business_accounts", "business_orders"],
+  business: ["business_accounts", "business_orders", "company_requests"],
 };
 const decided = new Set(Object.values(DECIDED).flat());
 const PERSONAL = /(^|_)(name|phone|email|address|street|zip|note|notes|body|bio|instructions|contact|description|summary|details|text|comment|message|photo|url|action)($|_)/i;

@@ -9,7 +9,7 @@ import { haptic } from "@/lib/haptics";
 import { etToday } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { mondayLabel, windowHours } from "@/lib/office";
-import { isMissingFunction } from "@/lib/schemaSkew";
+import { isMissingColumn, isMissingFunction } from "@/lib/schemaSkew";
 import Icon from "@/components/Icon";
 import RunBar from "@/components/RunBar";
 
@@ -31,6 +31,7 @@ type Stop = {
   address_street: string; address_city: string; address_zip: string; access_instructions: string | null;
   delivery_date: string; delivery_window: string | null; gallons: number;
   status: string; driver_outcome: string | null; jugs_out: number; jugs_in: number | null; driver_note: string | null;
+  client_note?: string | null;
 };
 type Board = { rows: Stop[]; date: string | null };
 
@@ -44,11 +45,14 @@ export default function OfficeRun() {
 
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { rows: [], date: null };
-    const { data, error } = await supabase.from("business_orders")
-      .select("id, company, contact_name, contact_phone, address_street, address_city, address_zip, access_instructions, delivery_date, delivery_window, gallons, status, driver_outcome, jugs_out, jugs_in, driver_note")
-      .gte("delivery_date", etToday()).is("canceled_at", null).order("delivery_date").limit(100);
+    // The client's own note for this delivery (0359, from their change sheet) rides on the stop. Until
+    // 0359 is pasted the column isn't there and the route reads as it did.
+    const cols = "id, company, contact_name, contact_phone, address_street, address_city, address_zip, access_instructions, delivery_date, delivery_window, gallons, status, driver_outcome, jugs_out, jugs_in, driver_note";
+    const read = (c: string) => supabase!.from("business_orders").select(c).gte("delivery_date", etToday()).is("canceled_at", null).order("delivery_date").limit(100);
+    let { data, error } = await read(`${cols}, client_note`);
+    if (error && isMissingColumn(error)) ({ data, error } = await read(cols));
     if (error) throw new Error(error.message);
-    const all = (data ?? []) as Stop[];
+    const all = (data ?? []) as unknown as Stop[];
     const date = all[0]?.delivery_date ?? null;
     const rows = all.filter((o) => o.delivery_date === date).sort((a, b) =>
       startOf(a.delivery_window).localeCompare(startOf(b.delivery_window)) || a.address_zip.localeCompare(b.address_zip) || a.address_street.localeCompare(b.address_street));
@@ -127,6 +131,7 @@ export default function OfficeRun() {
                 </div>
               </div>
               <div className="driver-addr">{addr}{o.access_instructions ? <> · <em>{o.access_instructions}</em></> : null}</div>
+              {o.client_note && <div className="driver-addr"><b>From {o.company}:</b> {o.client_note}</div>}
               {!done && (
                 <>
                   <div className="driver-acts">

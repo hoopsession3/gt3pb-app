@@ -53,9 +53,9 @@ import postcss from "postcss";
 
 export const CEILING = {
   inlineStyles: 616,          // style={{…}} objects in app/, components/, native/ (621 on 2026-10-07; 620 the same day — the overdue count's margin is a utility; 616 when Team's door became one)
-  rawColours: 499,            // distinct hex / rgb() / rgba() literals in app/globals.css (2026-10-07, after the dead rules went; 499 when Command and Team took theme tokens)
-  globalsBytes: 769_479,      // app/globals.css, source bytes (2026-10-07: 804 KB before 316 dead rules and 4 keyframes went; the pill kit fits in what its seven recipes left;
-                              // Command's and Team's clean-up added rows and actions and put their one-off layout in utilities)
+  rawColours: 498,            // distinct hex / rgb() / rgba() literals in app/globals.css (2026-10-07, after the dead rules went; 499 when Command and Team took theme tokens; 498 when the office route's card did)
+  globalsBytes: 769_476,      // app/globals.css, source bytes (2026-10-07: 804 KB before 316 dead rules and 4 keyframes went; the pill kit fits in what its seven recipes left;
+                              // Command's and Team's clean-up added rows and actions and put their one-off layout in utilities; the office route on theme tokens)
   wholeVariableClasses: 46,   // className tokens that are a ${value} and nothing else (2026-10-07)
   pillRules: 115,             // pills and round buttons outside the kit (2026-10-07: 124 before the pill round moved the
                               // crew header, the lane's sections, the counts and the tab badges onto it; 115 when Team's role badge and invite pills went)
