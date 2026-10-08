@@ -79,7 +79,7 @@ function ScanInner() {
 
   return (
     <section className="screen scanpg">
-      <Masthead eyebrow="Scan card" right={<button type="button" className="pf" aria-label="Back to crew" onClick={() => router.push("/crew")}>‹</button>} />
+      <Masthead eyebrow="Scan card" right={<button type="button" className="pf hit-44" aria-label="Back to crew" onClick={() => router.push("/crew")}>‹</button>} />
       <div className="h-title">Member card</div>
       {!code && <div className="h-sub">No card code — scan a member&apos;s QR from their account.</div>}
       {state === "loading" && <div className="h-sub">Looking up…</div>}
