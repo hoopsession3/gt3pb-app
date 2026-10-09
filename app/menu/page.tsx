@@ -162,7 +162,7 @@ export default function MenuScreen() {
           </div>
         ))}
         <EditableCopy k="menu.packs_note" value={t("menu.packs_note")} as="div" className="mpack-note" multiline />
-        <Link href="/shop?tab=bottles" className="mpack-cta">{t("menu.reserve_pack")}</Link>
+        <Link href="/shop?tab=bottles" className="btn-pri btn-wide">{t("menu.reserve_pack")}</Link>
       </div>
 
       <EditableCopy k="menu.integrity" value={t("menu.integrity")} as="div" className="menu-integrity" />
