@@ -7,24 +7,22 @@
 <!--
   A TEST DOUBLE OF MY DAY, AND IT SAYS SO.
 
-  Ryan, 2026-10-04, a screenshot of My Day at 10:13 PM and no words; then, that night: "Clicking on
-  Greenville Fit Fest today's op does nothing. Strategically look for where something is
-  unnecessary information or should have operational functionality." This is the screen after both
-  passes, in the same state: an owner, an event today and not yet live, three critical tasks late,
-  one task of his own, and what is owed. Since "one task, one place" (later the same day) the three
-  critical tasks are not a "Top 3" under the op card any more — every one of them was in Needs you's
-  team list as well — they lead that list, unfolded.
+  ONE HOME (2026-10-09, round 2 of the UX plan, approved). The same state as before — an owner, an
+  event today and not yet live, three critical team tasks a few days late, one task of his own with no
+  date, and what is owed: 18 late and 6 due soon, four of them equipment — painted as the home paints
+  it now. The week's three numbers, each with its change and its cause; at most three things due
+  today, critical first; then one row each for the equipment, for everything more than two weeks late,
+  for restock, and for All tasks, which opens My tasks and Needs you whole. The numbers are made up
+  for the double, the way the names in it are.
 
-  What left: the 30px greeting and the motto above everything (the date rides on the op card now),
-  the "10 flags & pings for you" card that repeated the bell, "✎ Note to self" (the quick-actions
-  Note tab). What arrived: the whole op card is a button that opens the event, with "Make it live"
-  beside it for whoever may throw that switch; every Needs-you row is a button to the thing it names.
-  And from the 10:40 PM screenshot: a row that can be answered where it is listed leads with My
-  tasks' tick — the nitro tap and the grinder are "Done today" in one tap — and the initiative opens
-  its own sheet.
+  Before (2026-10-04): Ryan's 10:13 PM screenshot and "Strategically look for where something is
+  unnecessary information or should have operational functionality" — the greeting and the motto
+  went, the op card became one button with "Make it live" beside it, and a row that could be answered
+  where it was listed led with My tasks' tick.
 
   Same construction as purchase-sheet.html: the DOM class for class as app/crew/page.tsx,
-  components/DayHeadline.tsx, components/RecordWays.tsx, components/Owed.tsx and components/kit.tsx
+  components/DayHeadline.tsx, components/RecordWays.tsx, components/HomeNumbers.tsx, components/TodayList.tsx
+  and components/kit.tsx
   produce it, styled by the REAL app/globals.css and painted in the real Chromium at phone width, in
   the day theme and then the dark one. Every block names its source in `data-from`, and
   scripts/design.ratchet.mjs FAILS if a class used here no longer appears in that file.
@@ -58,71 +56,64 @@
       </div>
     </div>
 
-    <div class="adm-sec" id="my-day-tasks">
-      <div class="k-sec" data-from="components/kit.tsx"><span class="k-sec-lbl"><h2 class="l">My tasks</h2></span><span class="k-sec-r"><span class="k-count" data-from="app/crew/page.tsx">1</span></span></div>
-      <div class="mytask">
-        <button type="button" class="task-check" aria-label="Mark done: Follow up with ISI Elite Training about next mega workout pop-up"><span class="task-box"></span></button>
-        <button type="button" class="mytask-main" aria-label="Open task: Follow up with ISI Elite Training about next mega workout pop-up">
-          <span class="mytask-label">Follow up with ISI Elite Training about next mega workout pop-up</span>
-          <span class="mytask-ev">Follow-up · Business Meeting</span>
+    <div class="adm-sec" id="home-numbers" data-from="components/HomeNumbers.tsx">
+      <div class="k-sec" data-from="components/kit.tsx"><span class="k-sec-lbl"><h2 class="l">Numbers</h2></span><span class="k-sec-r"><button type="button" class="owed-more -my-3.5" data-from="components/HomeNumbers.tsx">See all <span aria-hidden="true">›</span></button></span></div>
+      <div class="owed">
+        <button type="button" class="owed-row">
+          <span class="owed-row-b"><b>Sales · 7 days</b><span class="text-caption text-cream-muted">Up 18% on the week before · Drop packs +$210</span></span>
+          <span class="flex-none text-title3 font-semibold text-cream whitespace-nowrap tabular-nums">$1,240</span>
+          <span class="owed-c" aria-hidden="true">›</span>
+        </button>
+        <button type="button" class="owed-row">
+          <span class="owed-row-b"><b>Margin · 7 days, est.</b><span class="text-caption text-cream-muted">Up 10% on the week before · after $150 in event costs</span></span>
+          <span class="flex-none text-title3 font-semibold text-cream whitespace-nowrap tabular-nums">$718<small class="text-footnote font-normal text-cream-muted"> · 58%</small></span>
+          <span class="owed-c" aria-hidden="true">›</span>
+        </button>
+        <button type="button" class="owed-row">
+          <span class="owed-row-b"><b>Next drop · This Sat · Oct 10</b><span class="text-caption text-cream-muted">3 more than the last drop had by now · most asked: FLOW</span></span>
+          <span class="flex-none text-title3 font-semibold text-cream whitespace-nowrap tabular-nums">14 packs</span>
+          <span class="owed-c" aria-hidden="true">›</span>
         </button>
       </div>
     </div>
 
-    <div class="owed" data-from="components/Owed.tsx">
-      <div class="owed-head">
-        <span class="owed-k">Needs you</span>
-        <span class="owed-n"><span class="k-count due">18 late</span><span class="k-count soon">6 due soon</span></span>
-      </div>
-      <div class="owed-row late">
-        <button type="button" class="task-check" aria-label="Done today: Nitro tap (stout faucet)" title="Done today"><span class="task-box" aria-hidden="true"></span></button>
-        <button type="button" class="owed-row-go">
-          <span class="owed-row-b"><b>Nitro tap (stout faucet)</b><i>Service due · clean last done Jun 25.</i></span>
-          <span class="owed-age">94 days late</span>
+    <!-- At most three due today, critical first, then the latest — the three the headline once
+         repeated as "Top 3" lead here, once. Everything else is one row away. -->
+    <div class="adm-sec" id="my-day-tasks" data-from="components/TodayList.tsx">
+      <div class="k-sec" data-from="components/kit.tsx"><span class="k-sec-lbl"><h2 class="l">Today</h2></span><span class="k-sec-r"><span class="k-count due" data-from="components/TodayList.tsx">9 due</span></span></div>
+      <div class="owed">
+        <button type="button" class="owed-row late">
+          <span class="owed-row-b"><b><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.3 2.25h17.76a1.5 1.5 0 0 0 1.3-2.25L13.71 3.86a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9.5v4"/></svg></span>Quality-test the current batch — go / no-go on this week's sampling</b><i>event · Greenville Fit Fest</i></span>
+          <span class="owed-age">4 days late</span>
+          <span class="owed-c" aria-hidden="true">›</span>
+        </button>
+        <button type="button" class="owed-row late">
+          <span class="owed-row-b"><b><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.3 2.25h17.76a1.5 1.5 0 0 0 1.3-2.25L13.71 3.86a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9.5v4"/></svg></span>Upstate Spine sample drop + dual-track options sheet (via Sarah)</b><i>Not attached to an event or stop</i></span>
+          <span class="owed-age">1 day late</span>
+          <span class="owed-c" aria-hidden="true">›</span>
+        </button>
+        <button type="button" class="owed-row late">
+          <span class="owed-row-b"><b><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.3 2.25h17.76a1.5 1.5 0 0 0 1.3-2.25L13.71 3.86a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9.5v4"/></svg></span>Decide the loyalty mechanic — locked pilot (5 returns) vs session float (10)</b><i>Not attached to an event or stop</i></span>
+          <span class="owed-age">1 day late</span>
+          <span class="owed-c" aria-hidden="true">›</span>
+        </button>
+        <button type="button" class="owed-row late">
+          <span class="owed-row-b"><b>Equipment upkeep · 4</b><i>4 past their service date — log them in one place</i></span>
+          <span class="owed-c" aria-hidden="true">›</span>
+        </button>
+        <button type="button" class="owed-row">
+          <span class="owed-row-b"><b>More than 2 weeks late · 12</b><i>Each opens where it can be closed or moved</i></span>
+          <span class="owed-c" aria-hidden="true">›</span>
+        </button>
+        <button type="button" class="owed-row">
+          <span class="owed-row-b"><b>Restock · 4 low</b><i>For upcoming events — Assets</i></span>
+          <span class="owed-c" aria-hidden="true">›</span>
+        </button>
+        <button type="button" class="owed-row">
+          <span class="owed-row-b"><b>All tasks · 32</b><i>6 more for today · 7 later</i></span>
           <span class="owed-c" aria-hidden="true">›</span>
         </button>
       </div>
-      <div class="owed-row late">
-        <button type="button" class="task-check" aria-label="Done today: Timemore grinder" title="Done today"><span class="task-box" aria-hidden="true"></span></button>
-        <button type="button" class="owed-row-go">
-          <span class="owed-row-b"><b>Timemore grinder</b><i>Service due · clean last done Jun 25.</i></span>
-          <span class="owed-age">71 days late</span>
-          <span class="owed-c" aria-hidden="true">›</span>
-        </button>
-      </div>
-      <button type="button" class="owed-row late">
-        <span class="owed-row-b"><b>Aug 1 Launch</b><i>Initiative target · The end-of-July to Aug-1 launch: every channel live at once.</i></span>
-        <span class="owed-age">64 days late</span>
-        <span class="owed-c" aria-hidden="true">›</span>
-      </button>
-      <button type="button" class="owed-row">
-        <span class="owed-row-b"><b>Greenville mobile food permit</b><i>Needs re-checking · the county rule</i></span>
-        <span class="owed-age">in 4 days</span>
-        <span class="owed-c" aria-hidden="true">›</span>
-      </button>
-      <!-- The team's late tasks lead with three, unfolded: the three the headline used to repeat as
-           "Top 3" (2026-10-04, one task, one place). -->
-      <div class="owed-head sub">
-        <span class="owed-k">Team tasks late</span>
-        <span class="k-count due">7</span>
-      </div>
-      <button type="button" class="owed-row late">
-        <span class="owed-row-b"><b><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.3 2.25h17.76a1.5 1.5 0 0 0 1.3-2.25L13.71 3.86a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9.5v4"/></svg></span>Quality-test the current batch — go / no-go on this week's sampling</b><i>event · Greenville Fit Fest</i></span>
-        <span class="owed-age">4 days late</span>
-        <span class="owed-c" aria-hidden="true">›</span>
-      </button>
-      <button type="button" class="owed-row late">
-        <span class="owed-row-b"><b><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.3 2.25h17.76a1.5 1.5 0 0 0 1.3-2.25L13.71 3.86a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9.5v4"/></svg></span>Upstate Spine sample drop + dual-track options sheet (via Sarah)</b><i>not attached to an event or stop</i></span>
-        <span class="owed-age">1 day late</span>
-        <span class="owed-c" aria-hidden="true">›</span>
-      </button>
-      <button type="button" class="owed-row late">
-        <span class="owed-row-b"><b><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.3 2.25h17.76a1.5 1.5 0 0 0 1.3-2.25L13.71 3.86a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9.5v4"/></svg></span>Decide the loyalty mechanic — locked pilot (5 returns) vs session float (10)</b><i>not attached to an event or stop</i></span>
-        <span class="owed-age">1 day late</span>
-        <span class="owed-c" aria-hidden="true">›</span>
-      </button>
-      <button type="button" class="owed-more">Show the other 4 <span aria-hidden="true">›</span></button>
-      <button type="button" class="wrule wrule-go"><span>Restock · 4 low for upcoming events ›</span></button>
     </div>
 
   </div>
