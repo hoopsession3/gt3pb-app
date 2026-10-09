@@ -6709,6 +6709,36 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const of = code(read("components/OrderFunnel.tsx"));
   ok("reserve: the Saturday picker keeps its place until the stops are read",
     /\) : !stopsRead \? \(/.test(of) && /<span className="oa-day sk"><b>&nbsp;<\/b><span>&nbsp;<\/span><\/span>/.test(of) && /if \(!live\) return;\s*setStopsRead\(true\);/.test(of));
+  // 2026-10-09: …and with one stop or none, that room is the pickup's — the day, where, when ordering closes —
+  // not given back. Given back, the packs and the button jumped 119px up two seconds in (production 0.054).
+  const picker = of.slice(of.indexOf(") : stops.length > 1 ? ("), of.indexOf('k="funnel.how_many"'));
+  ok("reserve: one pickup or none fills the picker's room — the chosen chip, which doesn't press",
+    picker.length > 0 && !/\) : null\}/.test(picker) && /k="funnel\.pickup_one_label"/.test(picker)
+    && /order by \{closesAt\(drop\.cutoff\)\}/.test(picker) && /className="oa-day sel cursor-default active:transform-none"/.test(picker)
+    && /key: "funnel\.pickup_one_label"/.test(read("lib/copy.ts")));
+  // The GT3 mark is placed against the element that holds it, so every holder is positioned — or the mark
+  // sits in the screen while it fades in and drops when the fade ends (/shop: 0.11 on production).
+  {
+    const css = read("app/globals.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    const positioned = new Set([...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter((m) => /(^|;)position:relative(;|$)/.test(m[2])).flatMap((m) => m[1].split(",").map((x) => x.trim())));
+    const walk = (d) => fs.readdirSync(path.join(__dirname, "..", d), { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(path.join(d, e.name)) : /\.tsx$/.test(e.name) ? [path.join(d, e.name)] : []);
+    const hosts = [];
+    for (const f of [...walk("app"), ...walk("components")]) {
+      const src = read(f);
+      for (const m of src.matchAll(/<Watermark variant=/g)) {
+        const tags = [...src.slice(0, m.index).matchAll(/<(?:section|main|div)\b([^>]*)>/g)];
+        const attrs = tags.length ? tags[tags.length - 1][1] : "";
+        const cls = ((attrs.match(/className="([^"]*)"/) || [])[1] || "").split(/\s+/).filter(Boolean);
+        const id = (attrs.match(/\bid="([^"]+)"/) || [])[1];
+        const sels = [...cls.map((c) => `.${c}`), ...cls.slice(1).map((c) => `.${cls[0]}.${c}`), ...(id ? [`#${id}`, ...cls.map((c) => `.${c}#${id}`)] : [])];
+        hosts.push({ f, sels, ok: sels.some((x) => positioned.has(x)) });
+      }
+    }
+    ok("the GT3 mark: every element that holds one is positioned, so the mark never leaves it",
+      hosts.length >= 13 && hosts.every((h) => h.ok), hosts.filter((h) => !h.ok).map((h) => `${h.f} ${h.sels.join("|") || "no holder"}`));
+  }
 }
 
 // ── THE FORM AUDIT, PART 3b: THINGS (2026-10-04) ─────────────────────────────────────────────────
