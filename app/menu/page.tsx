@@ -74,34 +74,22 @@ export default function MenuScreen() {
           affordance, not just a redundant one, once the whole point is staying on the page. Turn
           on Edit mode from the float rail instead — it never leaves this screen. Re-add a pill here
           only if a new Menu-group key ships that ISN'T wired to EditableCopy somewhere in this flow. */}
-      <Masthead tone="light" eyebrow={<EditableCopy k="masthead.menu" value={t("masthead.menu")} />} right={<AccountPill />} />
-
-      <EditableCopy k="menu.statement" value={t("menu.statement")} as="p" className="mast-stmt" multiline />
+      {/* ONE LINE, THEN THE CHOICES (2026-10-09, round 2 of the UX plan, step 2; Ryan, on this page:
+          "This shit still cluttered"). Ten things stood between the tab and the first drink: an eyebrow
+          repeating the tab ("THE MENU"), a three-line statement, the truck's state in capitals, three
+          links — one of them Shop, already in the tab bar — the chips, and a hint to tap. Left: whether
+          you can order now, in one line, then the three needs. The statement's message closes the page
+          (menu.integrity says it); the chemistry and Primal follow the menu; a drink is one line. */}
+      <Masthead tone="light" right={<AccountPill />} />
       {stateLine
         ? <div className="mast-order mast-state" role="status">{stateLine}</div>
         : <EditableCopy k="menu.order_line" value={t("menu.order_line")} as="div" className="mast-order" />}
-
-      {/* Menu's own categories below (Activation/Hydration/…) already ARE Craft's three pillars —
-          this just names that connection for the customer. Plain text, not EditableCopy: same
-          nested-interactive rule as craft.cta_menu/cta_reserve (button, not a wrapped popover). */}
-      <button type="button" className="btn-ter" onClick={() => router.push("/craft")}>
-        {t("menu.craft_link")} <b><Icon name="arrowRight" /></b>
-      </button>
-      <button type="button" className="btn-ter ml-4.5" onClick={() => router.push("/primal")}>
-        {t("menu.nav_primal")} <b><Icon name="arrowRight" /></b>
-      </button>
-      <button type="button" className="btn-ter ml-4.5" onClick={() => router.push("/shop")}>
-        {t("menu.nav_shop")} <b><Icon name="arrowRight" /></b>
-      </button>
 
       <div className="menu-chips" role="tablist" aria-label="Menu categories">
         {MENU.map((cat, ci) => (
           <button key={cat.name} type="button" role="tab" aria-selected={active === cat.name} className={`k-chip sm${active === cat.name ? " on" : ""}`} onClick={() => jumpTo(cat.name)}>{t(`menu.sec.${ci}.name`)}</button>
         ))}
       </div>
-      {closed
-        ? <EditableCopy k="menu.taphint_closed" value={t("menu.taphint_closed")} as="div" className="menu-taphint" />
-        : <EditableCopy k="menu.taphint" value={t("menu.taphint")} as="div" className="menu-taphint" />}
 
       {MENU.map((cat, ci) => (
         <div key={cat.name} ref={(el) => { catRefs.current[cat.name] = el; }} data-cat={cat.name}>
@@ -136,11 +124,9 @@ export default function MenuScreen() {
                       the pill's own box (.shut), so the answer arriving moves no row. */}
                   <span className={`entry-px${out ? "" : closed ? " shut" : " order"}`}>{priceLabel(id)}</span>
                 </div>
+                {/* One line: why you would pick it. What is in it is the drink's own sheet, one tap away. */}
                 <div className="entry-body">
-                  {t(`menu.${id}.lines`).split("\n").filter(Boolean).map((l) => (
-                    <div className="entry-ing" key={l}>{l}</div>
-                  ))}
-                  <div className="entry-why">{t(`menu.${id}.why`)}</div>
+                  <div className="entry-why">{t(`menu.${id}.why`) || t(`menu.${id}.lines`).split("\n")[0]}</div>
                 </div>
               </div>
             );
@@ -163,6 +149,18 @@ export default function MenuScreen() {
         ))}
         <EditableCopy k="menu.packs_note" value={t("menu.packs_note")} as="div" className="mpack-note" multiline />
         <Link href="/shop?tab=bottles" className="btn-pri btn-wide">{t("menu.reserve_pack")}</Link>
+      </div>
+
+      {/* Where the menu comes from, after the menu. Menu's categories (Activation/Hydration/…) already ARE
+          Craft's three pillars; this names that connection. Plain text, not EditableCopy: same
+          nested-interactive rule as craft.cta_menu/cta_reserve (a button, not a wrapped popover). */}
+      <div className="flex flex-col items-start gap-2 mt-6">
+        <button type="button" className="btn-ter text-left" onClick={() => router.push("/craft")}>
+          {t("menu.craft_link")} <b><Icon name="arrowRight" /></b>
+        </button>
+        <button type="button" className="btn-ter text-left" onClick={() => router.push("/primal")}>
+          {t("menu.nav_primal")} <b><Icon name="arrowRight" /></b>
+        </button>
       </div>
 
       <EditableCopy k="menu.integrity" value={t("menu.integrity")} as="div" className="menu-integrity" />
