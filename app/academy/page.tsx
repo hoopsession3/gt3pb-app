@@ -20,6 +20,7 @@ import {
 } from "@/lib/academy";
 import { staffAccess } from "@/lib/access";
 import { useBackStep } from "@/components/useBack";
+import Button from "@/components/Button";
 
 // What a level is held to, as opposed to what it has been taught. Four separate things on purpose:
 // what the role owns, the non-negotiables, the rhythm it keeps, and how it is actually judged.
@@ -334,7 +335,7 @@ export default function AcademyPage() {
       </div>
 
       {isAdmin && (
-        <button className="ac-team-btn" onClick={() => setView({ k: "team" })}>Team readiness board ›</button>
+        <Button kind="secondary" wide className="mt-3.5 justify-between" onClick={() => setView({ k: "team" })}>Team readiness board ›</Button>
       )}
 
       {/* learning path modules */}
