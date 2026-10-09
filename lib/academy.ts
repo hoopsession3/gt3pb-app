@@ -928,10 +928,13 @@ export const PRODUCTS: Product[] = [
     key: "salted_maple", name: "Salted Maple Latte", line: "Specialty", price: "$14",
     what: "Cold-extracted coffee with real maple and a pinch of salt, balanced — not a sugar bomb.",
     why: "A touch of comfort and sweetness done with a real ingredient.",
-    ingredients: ["Cold-extracted coffee", "Organic A2 grass-fed goat milk", "Real organic maple", "Pinch of sea salt"],
+    // The build is Ryan's recipe card (2026-10-07). It had no amounts until 2026-10-09, so Ask GT3 — which answers
+    // a recipe only from what is written here — could not tell a new cook how to make it. The coffee is DUSK, as
+    // the menu builds this latte (lib/menu.ts).
+    ingredients: ["DUSK cold-extracted coffee (Ceylon cinnamon · green cardamom)", "Organic A2 grass-fed goat milk", "Salted Maple Syrup — organic maple syrup and sea salt, made in-house"],
     benefits: ["Balanced sweet-salty flavor", "Real maple, not flavored syrup", "Made to order"],
     customer: "The guest who wants a treat-leaning coffee but still real ingredients.",
-    talking: ["Real maple and a pinch of salt — balanced, not a syrup bomb", "Disclose the maple as a sweetener", "Built on the same cold-brew base"],
+    talking: ["Real maple and a pinch of salt — balanced, not a syrup bomb", "Disclose the maple as a sweetener", "Built on the DUSK brew — the same cold-extraction base, with Ceylon cinnamon and green cardamom"],
     faqs: [
       { q: "Is it very sweet?", a: "It's balanced — real maple with salt to round it. Maple is the sweetener; we disclose it." },
     ],
@@ -940,7 +943,22 @@ export const PRODUCTS: Product[] = [
       gt3: "Salted Maple Latte is built on the cold-brew base with organic A2 grass-fed goat milk, real organic maple, and a pinch of sea salt. The salt balances the maple so it reads rich and smooth — maple-forward, never cloying. Maple's the sweetener and we name it.",
       founder: "This is the one that proves 'treat' and 'clean' aren't opposites. Real maple instead of flavored syrup, A2 goat milk instead of a mystery barista blend, a pinch of salt to keep it honest — indulgent without a single ingredient we'd have to hide.",
     },
-    cookbook: { batch: "Build to order on the cold-brew base.", brew: ["Pull cold-brew base", "Add measured real maple + pinch of salt", "Add milk/coconut base per build"], serve: ["Over ice, or served warm per build", "Made to order"], storage: "Make to order.", quality: "Sweet-salty balance; maple-forward, not cloying.", troubleshoot: [{ issue: "Too sweet", fix: "Cut maple to spec; add the salt pinch to balance." }] },
+    cookbook: {
+      batch: "10 oz bottle: 6.5 fl oz DUSK, 2 fl oz goat milk, 3 tbsp Salted Maple Syrup. 32 oz bottle: 20 fl oz DUSK, 6 fl oz goat milk, 9 tbsp syrup (½ cup + 1 tbsp). More bottles: multiply the 10 oz amounts. One batch of syrup makes 8 × 10 oz bottles.",
+      brew: [
+        "Syrup (makes 8 bottles): warm 12 fl oz organic maple syrup in a pan on low heat.",
+        "Stir in 2 tbsp sea salt until it dissolves.",
+        "Take it off the heat as soon as it starts to bubble — don't let it bubble over.",
+        "Cool, then store in a glass container.",
+        "To build a bottle, shake or stir the syrup first.",
+        "Into a 10 oz bottle: 6.5 fl oz DUSK, 2 fl oz goat milk, 3 tbsp syrup (a 32 oz bottle: 20 fl oz, 6 fl oz, 9 tbsp).",
+        "Cap and shake. No extra salt — it's all in the syrup.",
+      ],
+      serve: ["Over ice, or served warm per build", "Made to order"],
+      storage: "Make to order. Syrup: glass container; shake or stir before each use.",
+      quality: "Sweet-salty balance; maple-forward, not cloying.",
+      troubleshoot: [{ issue: "Too sweet or too salty", fix: "Check the build: 3 tbsp syrup per 10 oz bottle and no added salt." }],
+    },
   },
   {
     key: "bone_broth", name: "Bone Broth", line: "Fuel", price: "$10",
