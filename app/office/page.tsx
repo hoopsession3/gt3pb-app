@@ -171,7 +171,7 @@ export default function OfficeScreen() {
       ) : (<>
         <h1 className="op-h">{h.company.name}</h1>
         {h.locations.length === 1 && (h.locations[0].street || h.locations[0].label) && (
-          <p className="m-0 font-sans text-[13px] text-cream-muted">{[h.locations[0].label, h.locations[0].street, h.locations[0].city].filter((x, k, a) => x && a.indexOf(x) === k).join(" · ")}</p>
+          <p className="m-0 font-sans text-footnote text-cream-muted">{[h.locations[0].label, h.locations[0].street, h.locations[0].city].filter((x, k, a) => x && a.indexOf(x) === k).join(" · ")}</p>
         )}
 
         {/* the next delivery, live */}
@@ -249,8 +249,8 @@ export default function OfficeScreen() {
                 <div key={r.id} className="op-row items-start">
                   <div className="op-row-x min-w-0">
                     <b>{r.label}</b>
-                    <p className="m-0 mt-px line-clamp-2 font-sans text-[11.5px] text-cream-muted">{r.body}</p>
-                    {r.resolution && <p className="m-0 mt-1 font-sans text-[12.5px] text-cream">GT3: {r.resolution}</p>}
+                    <p className="m-0 mt-px line-clamp-2 font-sans text-caption text-cream-muted">{r.body}</p>
+                    {r.resolution && <p className="m-0 mt-1 font-sans text-footnote text-cream">GT3: {r.resolution}</p>}
                   </div>
                   <div className={`op-row-pay ${st.key === "done" ? "p-paid" : st.key === "declined" ? "" : "p-open"}`}>{st.label}</div>
                 </div>
@@ -323,9 +323,9 @@ function NextCard({ d, h, place, now, onChange, onSkip, onAsk }: { d: OfficeDeli
     <div className="op-card" aria-live="polite">
       <div className="op-card-h">
         <span className="op-k">Next delivery{live ? " · live" : ""}</span>
-        <span className={`font-sans font-semibold text-[12.5px] ${st.key === "missed" ? "text-warn" : st.key === "delivered" ? "text-ok" : "text-cream-muted"}`}>{st.label}</span>
+        <span className={`font-sans font-semibold text-footnote ${st.key === "missed" ? "text-warn" : st.key === "delivered" ? "text-ok" : "text-cream-muted"}`}>{st.label}</span>
       </div>
-      <h2 className="mt-2 mb-0 font-sans font-bold text-[21px] leading-tight text-cream">{relDay(d.date, h.today, true)} · {windowHours(d.window)}</h2>
+      <h2 className="mt-2 mb-0 font-sans font-bold text-title2 leading-tight text-cream">{relDay(d.date, h.today, true)} · {windowHours(d.window)}</h2>
       <p className="op-sub">
         {Math.round(d.gallons)} gal cold brew{place ? ` · ${place}` : ""}{d.moved_from ? ` · moved from ${dayLabel(d.moved_from)}` : ""}
         {d.client_note ? <><br />For the driver: {d.client_note}</> : null}
@@ -335,14 +335,14 @@ function NextCard({ d, h, place, now, onChange, onSkip, onAsk }: { d: OfficeDeli
           {STAGES.map((s, i) => (
             <li key={s} className="flex flex-col gap-1.5">
               <span className={`block h-1 rounded-pill ${i <= stage ? "bg-gold2" : "bg-line2"}`} />
-              <span className={`font-sans text-[11px] ${i === stage ? "text-cream font-semibold" : "text-cream-dim"}`}>{s}</span>
+              <span className={`font-sans text-caption2 ${i === stage ? "text-cream font-semibold" : "text-cream-dim"}`}>{s}</span>
             </li>
           ))}
         </ol>
       )}
       {st.key === "missed" && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-4">
-          <span className="font-sans text-[12.5px] text-cream-muted">The crew has been told, and GT3 will be in touch.</span>
+          <span className="font-sans text-footnote text-cream-muted">The crew has been told, and GT3 will be in touch.</span>
           {!h.legacy && h.can_request && <button type="button" className="btn-ter" onClick={onAsk}>Tell GT3 more</button>}
         </div>
       )}
@@ -352,12 +352,12 @@ function NextCard({ d, h, place, now, onChange, onSkip, onAsk }: { d: OfficeDeli
             <>
               <button type="button" className="btn-sec" onClick={onChange}>Change</button>
               <button type="button" className="btn-ter" onClick={onSkip}>Skip</button>
-              {cut && <span className="ml-auto font-sans text-[12px] text-cream-muted">Changes close {cut.when}</span>}
+              {cut && <span className="ml-auto font-sans text-caption text-cream-muted">Changes close {cut.when}</span>}
             </>
           ) : h.can_request ? (
             <>
               <button type="button" className="btn-sec" onClick={onChange}>Ask for a change</button>
-              {cut && <span className="ml-auto font-sans text-[12px] text-cream-muted">Changes closed {cut.when}</span>}
+              {cut && <span className="ml-auto font-sans text-caption text-cream-muted">Changes closed {cut.when}</span>}
             </>
           ) : null}
         </div>
