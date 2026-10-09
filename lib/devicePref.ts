@@ -18,6 +18,8 @@ export type DevicePref = {
   key: string;
   read: () => string | null;
   write: (value: string) => void;
+  /** Forget the setting: the app's own default (or the phone's, where it has one) again. */
+  clear: () => void;
   subscribe: (onChange: () => void) => () => void;
 };
 
@@ -36,6 +38,11 @@ export function devicePref(key: string): DevicePref {
     write: (value) => {
       latest.set(key, value);
       try { localStorage.setItem(key, value); } catch { /* kept for this tab above */ }
+      if (typeof window !== "undefined") window.dispatchEvent(new Event(event));
+    },
+    clear: () => {
+      latest.delete(key);
+      try { localStorage.removeItem(key); } catch { /* nothing kept to forget */ }
       if (typeof window !== "undefined") window.dispatchEvent(new Event(event));
     },
     subscribe: (onChange) => {
