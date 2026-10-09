@@ -209,7 +209,7 @@ export default function AcademyPage() {
       {loadErr ? (
         <EmptyState role="alert" title="Your training record did not load"
           sub={`${loadErr}. Nothing you have done is lost — this was a read that did not answer.`}
-          action={<button type="button" className="handle" onClick={() => load()}>Try again</button>} />
+          action={<button type="button" className="btn-pri btn-wide mt-4.5" onClick={() => load()}>Try again</button>} />
       ) : <Skeleton variant="row" count={5} />}
     </section>
   );
@@ -263,8 +263,8 @@ export default function AcademyPage() {
           {path.map((k) => {
             const c = certByKey(k)!;
             const st = certStatus(k);
-            const tag = st === "expired" ? " expired" : st === "expiring" ? " soon" : st === "none" ? "" : " on";
-            return <span key={k} className={`ac-cert${tag}`}><i className="ac-cdot" />{c.title.replace(" Certified", "")}{st === "expired" ? " · expired" : st === "expiring" ? " · renew" : ""}</span>;
+            const tone = st === "expired" ? " crit" : st === "expiring" ? " warn" : st === "none" ? "" : " gold";
+            return <span key={k} className={`k-tag${tone}`}>{st !== "none" && st !== "expired" && st !== "expiring" && <Icon name="check" />}{c.title.replace(" Certified", "")}{st === "expired" ? " · expired" : st === "expiring" ? " · renew" : ""}</span>;
           })}
         </div>
       </div>
@@ -421,9 +421,9 @@ function ModuleReader({ m, done, onBack, onComplete }: { m: Module; done: boolea
           )}
           {m.founderInsight && <div className="ac-founder"><span className="ac-founder-k">Founders’ note</span><p>“{m.founderInsight}”</p></div>}
           {m.quiz && m.quiz.length > 0 ? (
-            <button className="handle" onClick={() => setQuiz(true)}>{done ? "Retake knowledge check" : "Take the knowledge check"}</button>
+            <button type="button" className="btn-pri btn-wide mt-4.5" onClick={() => setQuiz(true)}>{done ? "Retake knowledge check" : "Take the knowledge check"}</button>
           ) : (
-            <button className="handle" onClick={() => onComplete(null)}>{done ? "Reviewed" : "Mark complete"}</button>
+            <button type="button" className="btn-pri btn-wide mt-4.5" onClick={() => onComplete(null)}>{done ? "Reviewed" : "Mark complete"}</button>
           )}
         </>
       ) : (
@@ -461,7 +461,7 @@ function Quiz({ qs, pass, onPass, onCancel }: { qs: QuizQ[]; pass: number; onPas
       ))}
       {!graded ? (
         <>
-          <button className="handle" disabled={!answered} onClick={() => setGraded(true)}>{answered ? "Submit" : "Answer all to submit"}</button>
+          <button type="button" className="btn-pri btn-wide mt-4.5" disabled={!answered} onClick={() => setGraded(true)}>{answered ? "Submit" : "Answer all to submit"}</button>
           <button className="ac-back" style={{ marginTop: 10 }} onClick={onCancel}>‹ Back to lesson</button>
         </>
       ) : (
@@ -469,9 +469,9 @@ function Quiz({ qs, pass, onPass, onCancel }: { qs: QuizQ[]; pass: number; onPas
           <b>{score}%</b>
           <span>{passed ? "Passed — nicely done." : `Not yet — ${pass}% to pass. Review and retry.`}</span>
           {passed ? (
-            <button className="handle" onClick={() => onPass(score)}>Complete module</button>
+            <button type="button" className="btn-pri btn-wide mt-1.5" onClick={() => onPass(score)}>Complete module</button>
           ) : (
-            <button className="handle" onClick={() => { setGraded(false); setAns({}); }}>Try again</button>
+            <button type="button" className="btn-pri btn-wide mt-1.5" onClick={() => { setGraded(false); setAns({}); }}>Try again</button>
           )}
         </div>
       )}
@@ -493,7 +493,7 @@ function AckView({ a, defaultName, signed, onBack, onSign }: { a: Ack; defaultNa
       <div className="ac-sign">
         <label className="ac-agree"><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} /><span>{a.statement}</span></label>
         <input className="ev-input" placeholder="Type your full name to sign" value={name} onChange={(e) => setName(e.target.value)} aria-label="Full name" />
-        <button className="handle" disabled={!agree || name.trim().length < 2} onClick={() => onSign(name.trim())}>{signed ? "Re-sign" : "Sign & acknowledge"}</button>
+        <button type="button" className="btn-pri btn-wide mt-4.5" disabled={!agree || name.trim().length < 2} onClick={() => onSign(name.trim())}>{signed ? "Re-sign" : "Sign & acknowledge"}</button>
       </div>
     </section>
   );
@@ -644,7 +644,7 @@ function TeamBoard({ onBack, assignFor = null }: { onBack: () => void; assignFor
           {CERTS.map((c) => <option key={c.key} value={c.key}>{c.title}</option>)}
         </select>
         <input className="ev-input" type="date" value={due} onChange={(e) => setDue(e.target.value)} aria-label="Due date" />
-        <button className="handle" style={{ marginTop: 0 }} onClick={assign}>Assign training</button>
+        <button type="button" className="btn-pri btn-wide" onClick={assign}>Assign training</button>
       </div>
 
       <SectionHeader label="Readiness" />
@@ -659,7 +659,7 @@ function TeamBoard({ onBack, assignFor = null }: { onBack: () => void; assignFor
         {loaded && loadErr && (
           <EmptyState role="alert" title="The team's training records did not load"
             sub={`${loadErr}. Nobody's training is lost — this was a read that did not answer.`}
-            action={<button type="button" className="handle" onClick={() => load()}>Try again</button>} />
+            action={<button type="button" className="btn-pri btn-wide mt-4.5" onClick={() => load()}>Try again</button>} />
         )}
         {loaded && !loadErr && rows.length === 0 && <div className="h-sub">No team members yet.</div>}
       </div>
