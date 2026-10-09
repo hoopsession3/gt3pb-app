@@ -8,7 +8,7 @@ import Icon from "@/components/Icon";
 import { useBackStep } from "@/components/useBack";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
-import { ARCHITECTURE, ARCH_OVERVIEW, DATABASES, BUSINESS, BUSINESS_OVERVIEW, BUILD_STATS, MANAGE_LABEL, STATUS_LABEL, sotUrl, type ArchLayer, type ArchComponent, type ArchStatus } from "@/lib/architecture";
+import { ARCHITECTURE, ARCH_OVERVIEW, DATABASES, BUSINESS, BUSINESS_OVERVIEW, BUILD_STATS, MANAGE_LABEL, STATUS_LABEL, sotUrl, type ArchLayer, type ArchComponent, type ArchStatus, STATUS_TONE, MANAGE_TONE } from "@/lib/architecture";
 import { moneyRound } from "@/lib/money";
 
 // Owner-only system architecture map. High level → layer → component. Manifest-backed, with LIVE
@@ -100,7 +100,7 @@ export default function ArchitecturePage() {
       <div className={`arch-comp${x ? " open" : ""}`} style={{ ["--c" as string]: color }}>
         <button type="button" className="arch-comp-head" onClick={() => setComp(x ? null : c.name)}>
           <span className="arch-comp-n">{layerTag && <span className="arch-comp-layer">{layerTag}</span>}{c.name}</span>
-          <span className={`arch-st st-${st}`}>{STATUS_LABEL[st]}{live && LIVE_KEY[c.name] ? " ·" : ""}</span>
+          <span className={`k-tag${STATUS_TONE[st]}`}>{STATUS_LABEL[st]}{live && LIVE_KEY[c.name] ? " ·" : ""}</span>
         </button>
         <div className="arch-comp-d">{c.desc}</div>
         {x && (
@@ -178,7 +178,7 @@ export default function ArchitecturePage() {
                   <div className="biz-head">
                     <span className="biz-icon" aria-hidden>{b.icon}</span>
                     <span className="biz-name">{b.name}</span>
-                    <span className={`arch-st st-${b.status}`}>{STATUS_LABEL[b.status]}</span>
+                    <span className={`k-tag ml-auto${STATUS_TONE[b.status]}`}>{STATUS_LABEL[b.status]}</span>
                   </div>
                   <p className="biz-outcome">{b.outcome}</p>
                   <ul className="biz-built">{b.built.map((x, i) => <li key={i}>{x}</li>)}</ul>
@@ -197,7 +197,7 @@ export default function ArchitecturePage() {
               </div>
               {DATABASES.map((d) => (
                 <div key={d.table} className="arch-db-row">
-                  <div className="arch-db-h"><span className="arch-db-t">{d.table}</span><span className={`arch-mg mg-${d.manage}`}>{MANAGE_LABEL[d.manage]}</span></div>
+                  <div className="arch-db-h"><span className="arch-db-t">{d.table}</span><span className={`k-tag${MANAGE_TONE[d.manage]}`}>{MANAGE_LABEL[d.manage]}</span></div>
                   <div className="arch-db-note"><b>{d.surface}</b> · {d.note}</div>
                 </div>
               ))}
@@ -213,7 +213,7 @@ export default function ArchitecturePage() {
               <div className="arch-overview">
                 <div className="arch-ov-t">The platform in one breath</div>
                 <p className="arch-ov-b">{ARCH_OVERVIEW.summary}</p>
-                <div className="arch-flow">{ARCH_OVERVIEW.flow.map((f, i) => <span key={f} className="arch-flow-i">{f}{i < ARCH_OVERVIEW.flow.length - 1 ? <span className="arch-flow-a"><Icon name="arrowRight" /></span> : null}</span>)}</div>
+                <div className="arch-flow">{ARCH_OVERVIEW.flow.map((f, i) => <span key={f} className="k-tag txt gold">{f}{i < ARCH_OVERVIEW.flow.length - 1 ? <span className="arch-flow-a"><Icon name="arrowRight" /></span> : null}</span>)}</div>
               </div>
               <div className="arch-layers">
                 {ARCHITECTURE.map((l) => {
