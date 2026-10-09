@@ -272,7 +272,7 @@ export default function CrmPanel() {
             <input className="crm-search" placeholder="Search name, phone, or email" value={q} onChange={(e) => setQ(e.target.value)} />
           )}
           {/* "It's my data" (enterprise round P2) — the accountant/CRM handoff, from the rows on screen */}
-          <button type="button" className="dops-mini" style={{ margin: "6px 0 8px" }} onClick={() => downloadCsv("gt3-customers.csv", shown.map((c) => ({
+          <button type="button" className="btn-sec btn-sm shrink-0 mt-1.5 mb-2" onClick={() => downloadCsv("gt3-customers.csv", shown.map((c) => ({
             name: c.name ?? "", phone: c.phone ?? "", email: c.email ?? "",
             tier: c.tier === "founding" ? (c.vip_verified ? "founding vip" : "founding") : c.user_id ? "member" : "guest",
             since: c.created_at,

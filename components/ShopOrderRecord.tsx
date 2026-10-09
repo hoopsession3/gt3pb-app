@@ -379,7 +379,7 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
                   <div className="so-moves">
                     {moves.map((m) => (
                       <button type="button" key={m}
-                              className={`so-move${needsReason(m) ? " grave" : ""}`}
+                              className={needsReason(m) ? "btn-del" : "btn-sec btn-sm"}
                               onClick={() => { setMove(m); setWhy(""); setAmt(""); }}>
                         {moveVerb(m)}
                       </button>

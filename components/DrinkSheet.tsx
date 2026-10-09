@@ -103,7 +103,7 @@ export default function DrinkSheet() {
           {!ordering.open && !on ? (
             <>
               {/* Closing is not closed: the truck is still pouring for the line, just not online. */}
-              <button className="order-bar" onClick={() => { closeDrink(); router.push("/reserve"); }}>
+              <button type="button" className="btn-pri btn-wide mt-4.5" onClick={() => { closeDrink(); router.push("/reserve"); }}>
                 {o?.state === "closing" ? t("sheet.closing_cta") : t("sheet.closed_cta")}
               </button>
               {/* When cups open, said by lib/ordering — it used to print the STOP's start ("Cup orders
@@ -115,7 +115,7 @@ export default function DrinkSheet() {
             </>
           ) : (
             <>
-              <button className={`order-bar${out && !on ? " order-bar-86" : ""}`} disabled={out && !on} onClick={() => { if (out && !on) { toast("Sold out today — back on the next brew", "error"); return; } if (!on) toast("Added — keep building your order"); bump(openId); closeDrink(); }}>
+              <button type="button" className="btn-pri btn-wide mt-4.5" disabled={out && !on} onClick={() => { if (out && !on) { toast("Sold out today — back on the next brew", "error"); return; } if (!on) toast("Added — keep building your order"); bump(openId); closeDrink(); }}>
                 {on ? t("sheet.remove") : out ? t("sheet.soldout") : t("sheet.add")}
               </button>
               {/* Ordered ahead of a stop it is made when the truck opens — not "the moment you order". */}

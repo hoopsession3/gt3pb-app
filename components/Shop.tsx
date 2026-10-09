@@ -21,6 +21,7 @@ import { useApp } from "@/components/AppProvider";
 import { variantLabel, type Variant, type Product, type CartLine } from "@/lib/shopCart";
 import SwipePager from "@/components/SwipePager";
 import { haptic } from "@/lib/haptics";
+import { Segmented } from "@/components/controls";
 
 // THE SHOP (0273) — GT3 merch on the 0271 storefront spine. Reads published merch through RLS, a simple
 // cart in memory, and the shared Square card mount + /api/shop/checkout for a real one-time charge that
@@ -107,9 +108,9 @@ export default function Shop() {
       {/* Two aisles: Bottles (pack reserve) · Merch (capsule). Hidden while inside a Merch sub-view
           (product/checkout/done) so those flows read as their own focused screen. */}
       {(section === "bottles" || view === "grid") && (
-        <div className="menu-chips shop-sections" role="tablist" aria-label="Shop">
-          <button type="button" role="tab" aria-selected={section === "bottles"} className={`menu-chip hit-y-44${section === "bottles" ? " on" : ""}`} onClick={() => setSection("bottles")}>{t("shop.sec_bottles")}</button>
-          <button type="button" role="tab" aria-selected={section === "merch"} className={`menu-chip hit-y-44${section === "merch" ? " on" : ""}`} onClick={() => setSection("merch")}>{t("shop.sec_merch")}</button>
+        <div className="menu-chips shop-sections">
+          <Segmented label="Shop" fill value={section} onChange={setSection}
+            options={[{ key: "bottles", label: t("shop.sec_bottles") }, { key: "merch", label: t("shop.sec_merch") }]} />
         </div>
       )}
 

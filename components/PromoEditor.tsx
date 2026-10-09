@@ -63,7 +63,7 @@ export default function PromoEditor() {
             </div>
             <label className="prod-toggle"><input type="checkbox" checked={d.active} onChange={(e) => { if (e.target.checked) haptic("toggleOn"); else haptic("toggleOff"); setD({ ...d, active: e.target.checked }); }} /> Show it to guests (live)</label>
             <div className="st-log-btns">
-              <button type="button" className="dops-mini" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save splash"}</button>
+              <button type="button" className="btn-sec btn-sm shrink-0" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save splash"}</button>
             </div>
           </div>
         </div>

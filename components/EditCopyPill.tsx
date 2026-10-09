@@ -25,8 +25,8 @@ export default function EditCopyPill({ group, label }: { group: string; label?: 
   const go = () => { window.location.href = `/crew?s=settings&a=${copyGroupAnchor(group)}`; };
 
   return (
-    <button type="button" className="edit-copy-pill" onClick={go} aria-label={`Edit ${label ?? group.toLowerCase()} copy`}>
-      <Icon name="edit" size={12} /> Edit
+    <button type="button" className="k-chip sm" onClick={go} aria-label={`Edit ${label ?? group.toLowerCase()} copy`}>
+      <Icon name="edit" /> Edit
     </button>
   );
 }

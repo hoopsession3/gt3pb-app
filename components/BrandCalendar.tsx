@@ -15,6 +15,7 @@ import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 import { clickable } from "@/lib/a11y";
 import { goPlanTab } from "@/lib/planNav";
+import { Segmented } from "@/components/controls";
 
 // BRAND CALENDAR — the planning brain of Studio. Posts (scheduled content) + events roll onto one
 // month view so Ryan + Kayla see the whole picture and build FROM it.
@@ -168,16 +169,13 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
       <div className="cal-sticky [.app:has([data-tbar][data-compact])_&]:top-[calc(env(safe-area-inset-top,0px)+44px)]! [.app:has(>.bcast):has([data-tbar][data-compact])_&]:top-11!">
         <div className="cal-bar">
           <div className="cal-nav">
-            <button type="button" className="cal-arrow hit-44" onClick={goPrev} aria-label={view === "week" ? "Previous week" : "Previous month"}>‹</button>
+            <button type="button" className="k-icon-btn" onClick={goPrev} aria-label={view === "week" ? "Previous week" : "Previous month"}><Icon name="chevronLeft" /></button>
             <span className="cal-month">{view === "week" ? weekLabel : monthName}</span>
-            <button type="button" className="cal-arrow hit-44" onClick={goNext} aria-label={view === "week" ? "Next week" : "Next month"}>›</button>
+            <button type="button" className="k-icon-btn" onClick={goNext} aria-label={view === "week" ? "Next week" : "Next month"}><Icon name="chevronRight" /></button>
           </div>
           <div className="cal-barx">
-            <div className="cal-viewtog" role="tablist" aria-label="Calendar view">
-              <button type="button" role="tab" aria-selected={view === "week"} className={`cal-vt${view === "week" ? " on" : ""}`} onClick={() => setCalView("week")}>Week</button>
-              <button type="button" role="tab" aria-selected={view === "month"} className={`cal-vt${view === "month" ? " on" : ""}`} onClick={() => setCalView("month")}>Month</button>
-            </div>
-            <button type="button" className="cal-today hit-44" onClick={goToday}>Today</button>
+            <Segmented label="Calendar view" value={view} onChange={setCalView} options={[{ key: "week", label: "Week" }, { key: "month", label: "Month" }]} />
+            <button type="button" className="btn-sec btn-sm" onClick={goToday}>Today</button>
           </div>
         </div>
         {view === "month" && <div className="cal-dow">{DOW.map((d) => <div key={d} className="cal-dow-c">{d}</div>)}</div>}
@@ -214,7 +212,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
                   ))}
                   {cell.posts.map((c) => <WChip key={c.id} c={c} />)}
                   {cell.posts.length === 0 && cell.evs.length === 0 && (
-                    <button type="button" className="calw-empty" onClick={() => onCreate(iso9(), null)}>+ plan something</button>
+                    <button type="button" className="btn-ter self-start" onClick={() => onCreate(iso9(), null)}>+ plan something</button>
                   )}
                 </div>
               </div>

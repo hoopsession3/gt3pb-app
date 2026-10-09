@@ -490,8 +490,8 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra, people
             <div className="insp-lbl">Level</div>
             <div className="od-tiers">
               {TIERS.map((t) => (
-                <button key={t} type="button" disabled={!editable}
-                  className={`gl-chip${d.tier === t ? " on" : ""}`}
+                <button key={t} type="button" disabled={!editable} aria-pressed={d.tier === t}
+                  className={`k-chip sm${d.tier === t ? " on" : ""}`}
                   onClick={() => setD({ ...d, tier: t })}>
                   {TIER[t].label}{TIER[t].uplift ? ` +${TIER[t].uplift}` : ""}
                 </button>
@@ -710,9 +710,9 @@ function ScopeBlock({ d, setD, editable }: { d: any; setD: (v: any) => void; edi
         })}
       </div>
 
-      <div className="od-basis">
+      <div className="k-chips mt-2.5">
         {SCOPE_BASIS.map((b) => (
-          <button key={b} type="button" className={`od-basis-b${d.scopeBasis === b ? " on" : ""}`}
+          <button key={b} type="button" className={`k-chip${d.scopeBasis === b ? " on" : ""}`}
                   disabled={!editable} aria-pressed={d.scopeBasis === b}
                   onClick={() => setD({ ...d, scopeBasis: b as ScopeBasis })}>
             {SCOPE_BASIS_LABEL[b]}

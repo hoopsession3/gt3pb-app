@@ -476,11 +476,11 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
       <div className={`cal-sticky${stuck ? " is-stuck" : ""} [.app:has([data-tbar][data-compact])_&]:top-[calc(env(safe-area-inset-top,0px)+44px)]! [.app:has(>.bcast):has([data-tbar][data-compact])_&]:top-11!`}>
         <div className="cal-bar">
           <div className="cal-nav">
-            {!FLOW_VIEWS.includes(view) && <button type="button" className="cal-arrow hit-44" onClick={() => nav(-1)} aria-label="Previous">‹</button>}
+            {!FLOW_VIEWS.includes(view) && <button type="button" className="k-icon-btn" onClick={() => nav(-1)} aria-label="Previous"><Icon name="chevronLeft" /></button>}
             <span className="cal-month">{label}</span>
-            {!FLOW_VIEWS.includes(view) && <button type="button" className="cal-arrow hit-44" onClick={() => nav(1)} aria-label="Next">›</button>}
+            {!FLOW_VIEWS.includes(view) && <button type="button" className="k-icon-btn" onClick={() => nav(1)} aria-label="Next"><Icon name="chevronRight" /></button>}
           </div>
-          <button type="button" className="cal-today hit-44" onClick={() => setCur(new Date(now.getFullYear(), now.getMonth(), now.getDate()))}>Today</button>
+          <button type="button" className="btn-sec btn-sm" onClick={() => setCur(new Date(now.getFullYear(), now.getMonth(), now.getDate()))}>Today</button>
         </div>
         <div className="cal-views">
           {/* the views are one switch, as Calendar's Day · Week · Month · Year is (the kit's segmented control) */}
@@ -492,18 +492,22 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
         </div>
         {filterSheet && (
           <Sheet open onClose={() => setFilterSheet(false)} label="Calendar filters" header={<div style={{ display: "flex", alignItems: "center" }}><div className="prep-sheet-h">Show on the calendar</div></div>}>
-            <div className="prep-sheet-opts">
-              <button type="button" className={`prep-sheet-opt${filter === "all" ? " on" : ""}`} onClick={() => { setFilter("all"); setFilterSheet(false); }}>Everything</button>
-              <div className="dv-sub" style={{ margin: "10px 0 4px" }}>By lane</div>
+            <div className="k-chips">
+              <button type="button" className={`k-chip${filter === "all" ? " on" : ""}`} aria-pressed={filter === "all"} onClick={() => { setFilter("all"); setFilterSheet(false); }}>Everything</button>
+            </div>
+            <div className="dv-sub mt-4 mb-2">By lane</div>
+            <div className="k-chips">
               {streams.map((s) => (
-                <button key={s.key} type="button" className={`prep-sheet-opt${filter === `lane:${s.key}` ? " on" : ""}`} onClick={() => { setFilter(`lane:${s.key}`); setFilterSheet(false); }}>
-                  <span className="cc-dot" style={{ background: s.color, marginRight: 6 }} />{s.label}
+                <button key={s.key} type="button" className={`k-chip${filter === `lane:${s.key}` ? " on" : ""}`} aria-pressed={filter === `lane:${s.key}`} onClick={() => { setFilter(`lane:${s.key}`); setFilterSheet(false); }}>
+                  <span className="cc-dot" style={{ background: s.color }} />{s.label}
                 </button>
               ))}
-              <div className="dv-sub" style={{ margin: "10px 0 4px" }}>By category</div>
+            </div>
+            <div className="dv-sub mt-4 mb-2">By category</div>
+            <div className="k-chips">
               {/* lead/pipe never have rows for non-sales roles (loader gates them) — hide the dead chips */}
               {FILTERS.filter((f) => f !== "all" && (canSales || (f !== "lead" && f !== "pipe"))).map((f) => (
-                <button key={f} type="button" className={`prep-sheet-opt${filter === f ? " on" : ""}`} onClick={() => { setFilter(f); setFilterSheet(false); }}>
+                <button key={f} type="button" className={`k-chip${filter === f ? " on" : ""}`} aria-pressed={filter === f} onClick={() => { setFilter(f); setFilterSheet(false); }}>
                   {`${CAT[f].icon} ${CAT[f].label}`}
                 </button>
               ))}

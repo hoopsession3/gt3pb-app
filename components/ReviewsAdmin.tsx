@@ -87,7 +87,7 @@ export default function ReviewsAdmin() {
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load reviews" emptyTitle="Nothing here yet">
       {() => (
         <div className="adm-sec">
-          <SectionHeader label="Reviews" right={<button className="adm-prep-view" onClick={() => setAdding((v) => !v)}>{adding ? "Close" : "+ Add"}</button>} />
+          <SectionHeader label="Reviews" right={<button className="btn-ter" onClick={() => setAdding((v) => !v)}>{adding ? "Close" : "+ Add"}</button>} />
           <div className="h-sub">Nothing shows on the truck display until you approve it. Add ones from Google, Instagram, or the feedback album.</div>
 
           {adding && (
@@ -138,20 +138,20 @@ export default function ReviewsAdmin() {
                       <span className="rva-sug-lbl"><Icon name="sparkles" /> Simplified</span>
                       <div className="rva-sug-q">“{sug}”</div>
                       <div className="rva-sug-actions">
-                        <button className="rva-act ok" onClick={() => acceptSuggestion(r.id)}>Use this + approve</button>
-                        <button className="rva-act" onClick={() => dismissSuggestion(r.id)}>Keep original</button>
+                        <button className="btn-pri btn-sm" onClick={() => acceptSuggestion(r.id)}>Use this + approve</button>
+                        <button className="btn-sec btn-sm" onClick={() => dismissSuggestion(r.id)}>Keep original</button>
                       </div>
                     </div>
                   )}
                 </div>
                 <div className="rva-row-actions">
                   {r.approved
-                    ? <button className="rva-act" onClick={() => setApproved(r.id, false)}>Hide</button>
+                    ? <button className="btn-sec btn-sm" onClick={() => setApproved(r.id, false)}>Hide</button>
                     : <>
-                        <button className="rva-act ok" onClick={() => setApproved(r.id, true)} disabled={!okd} title={okd ? "" : "Below the display bar — simplify or edit it"}>Approve</button>
-                        <button className="rva-act ai" onClick={() => simplify(r)} disabled={busyId === r.id || !r.body?.trim()}>{busyId === r.id ? "…" : <><Icon name="sparkles" /> Simplify</>}</button>
+                        <button className="btn-pri btn-sm" onClick={() => setApproved(r.id, true)} disabled={!okd} title={okd ? "" : "Below the display bar — simplify or edit it"}>Approve</button>
+                        <button className="btn-sec btn-sm" onClick={() => simplify(r)} disabled={busyId === r.id || !r.body?.trim()}>{busyId === r.id ? "…" : <><Icon name="sparkles" /> Simplify</>}</button>
                       </>}
-                  <button className="rva-act del" onClick={() => remove(r.id)} aria-label="Delete"><Icon name="close" /></button>
+                  <button className="k-icon-btn sm" onClick={() => remove(r.id)} aria-label="Delete"><Icon name="close" /></button>
                 </div>
               </div>
             );

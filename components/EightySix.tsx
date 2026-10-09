@@ -41,11 +41,11 @@ export default function EightySix() {
       <SectionHeader label="86 board" />
       {outCount > 0 && <span className="k-count due">{outCount} out</span>}
       <div className="es-note">Tap what you&rsquo;ve run out of — the live menu updates instantly, orders for it are refused, and everything resets at 4am.</div>
-      <div className="es-row">
+      <div className="k-chips">
         {rows.map((p) => (
-          <button key={p.id} type="button" className={`es-chip${p.sold_out ? " out" : ""}`} onClick={() => flip(p)} aria-pressed={p.sold_out}>
-            {p.name}
-            {p.sold_out && p.sold_out_at && <em>{new Date(p.sold_out_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</em>}
+          <button key={p.id} type="button" className={`k-chip${p.sold_out ? " crit on" : ""}`} onClick={() => flip(p)} aria-pressed={p.sold_out}>
+            {p.sold_out ? <s>{p.name}</s> : p.name}
+            {p.sold_out && p.sold_out_at && <span className="font-mono text-caption2 opacity-80">{new Date(p.sold_out_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>}
           </button>
         ))}
       </div>

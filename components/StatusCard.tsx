@@ -358,7 +358,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   return (
     <Sheet open onClose={onClose} label="Member card & status" className="status-lux"
       header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Your member card &amp; status</b><CloseButton onClick={onClose} /></div>}
-      footer={<button type="button" className="status-share" onClick={share} disabled={!ready}>Share your status <Icon name="externalLink" /></button>}>
+      footer={<button type="button" className="btn-pri btn-wide" onClick={share} disabled={!ready}>Share your status <Icon name="externalLink" /></button>}>
 
       {/* Member card group is just this one key — 100% inline coverage — so the Edit pill that used
           to sit in this header (jump to the copy editor's Member card group) came off, 2026-07-17,
@@ -435,7 +435,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
       <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onPick} />
       <div className="status-photo-row">
         <Button type="button" kind="secondary" className="flex-1" onClick={() => fileRef.current?.click()} disabled={saving}>{saving ? "Saving…" : hasPhoto ? "↺ Change photo" : <><Icon name="plus" /> Add your photo — the front frames it</>}</Button>
-        {hasPhoto && !saving && <button type="button" className="status-photo-clear" onClick={clearPhoto} aria-label="Remove photo"><Icon name="close" /></button>}
+        {hasPhoto && !saving && <button type="button" className="k-icon-btn shrink-0" onClick={clearPhoto} aria-label="Remove photo"><Icon name="close" /></button>}
       </div>
       <p className="status-hint">Make it yours — a finish, your motto, your photo. Share it to your story and tag <b>@gt3pb</b>; your code&rsquo;s on the card, so every friend who joins with it earns you both a credit.</p>
 

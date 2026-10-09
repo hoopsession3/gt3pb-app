@@ -161,11 +161,11 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
                 <span className="ops-check" aria-label="Created"><Icon name="check" /></span>
               ) : pending[i] ? (
                 <>
-                  <button type="button" className="ops-approve" onClick={() => { setPending((p) => ({ ...p, [i]: false })); createOp(op, i); }}>Approve</button>
-                  <button type="button" className="ops-cancel" onClick={() => setPending((p) => ({ ...p, [i]: false }))} aria-label="Cancel"><Icon name="close" /></button>
+                  <button type="button" className="btn-pri btn-sm" onClick={() => { setPending((p) => ({ ...p, [i]: false })); createOp(op, i); }}>Approve</button>
+                  <button type="button" className="k-icon-btn sm" onClick={() => setPending((p) => ({ ...p, [i]: false }))} aria-label="Cancel"><Icon name="close" /></button>
                 </>
               ) : (
-                <button type="button" className="ops-create" onClick={() => { haptic("medium"); setPending((p) => ({ ...p, [i]: true })); }}>Create</button>
+                <button type="button" className="btn-sec btn-sm" onClick={() => { haptic("medium"); setPending((p) => ({ ...p, [i]: true })); }}>Create</button>
               )}
             </div>
           </div>
@@ -178,7 +178,7 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
           {plan.gaps.map((g, i) => (
             <div key={i} className="ops-gap">
               <div className="ops-op-x"><b>{g.need}</b>{g.why && <span className="ops-meta">{g.why}</span>}</div>
-              <button type="button" className="ops-track" onClick={() => trackGap(g, i)} disabled={gapDone[i]}>{gapDone[i] ? <Icon name="check" /> : "Track"}</button>
+              <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => trackGap(g, i)} disabled={gapDone[i]}>{gapDone[i] ? <Icon name="check" /> : "Track"}</button>
             </div>
           ))}
         </div>

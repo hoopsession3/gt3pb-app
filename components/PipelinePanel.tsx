@@ -229,7 +229,7 @@ function ActivityDesk({ o, rows, bizAccts, marginPct, onLog, onChanged, onWire }
     <div className="act-desk">
       <div className="act-sum">
         <span className="act-sum-l"><b>Uplift</b> {spend > 0 ? `$${(spend / 100).toLocaleString()} spent` : "no spend logged yet"}{band ? ` · band ${fmtBand(band)} ${band.label}` : ""}{pb != null ? ` · GP back ≈${pb}%` : ""}{wks != null ? (wks === 0 ? " · paid back ✓" : ` · ≈${wks} wk to payback at MRR`) : ""}</span>
-        <button type="button" className="dops-mini" onClick={() => { setEditing(null); setF(actBlank()); setOpen((v) => !v); }} aria-expanded={open}>{open ? "Close" : "⚡ Log activity"}</button>
+        <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => { setEditing(null); setF(actBlank()); setOpen((v) => !v); }} aria-expanded={open}>{open ? "Close" : "⚡ Log activity"}</button>
       </div>
       {live && bizAccts.length > 0 && (
         <label className="act-wire">Revenue wire <i>— this account&apos;s office orders count toward payback</i>
@@ -271,7 +271,7 @@ function ActivityDesk({ o, rows, bizAccts, marginPct, onLog, onChanged, onWire }
           </div>
           {f.type === "restock" && <div className="act-hint">Restock rows power sell-through &amp; spoilage — count the shelf when you leave.</div>}
           <div className="st-log-btns">
-            <button type="button" className="dops-mini" onClick={save}>{editing ? "Save changes" : "Log it"}</button>
+            <button type="button" className="btn-sec btn-sm shrink-0" onClick={save}>{editing ? "Save changes" : "Log it"}</button>
             <button type="button" className="st-discuss" onClick={() => { setEditing(null); setF(actBlank()); setOpen(false); }}>Cancel</button>
           </div>
         </div>
@@ -680,10 +680,10 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
                       <div className={`pipe-dealrow${d.active ? "" : " off"}`}>
                         <button type="button" className="pipe-dealrow-t" onClick={() => openEditDeal(d)} aria-expanded={editId === d.id}><b>{d.title}</b>{lineLabel(d.line) && <em className="pipe-line">{lineLabel(d.line)}</em>}{dealTerms(d) && ` · ${dealTerms(d)}`}{(() => { const res = residualMargin(d, econ); return res != null ? ` · leaves ≈${res}% margin` : ""; })()}{belowFloor(d, econ) && <span className="pipe-floor">below the margin floor</span>}{d.blurb && <i> — {d.blurb}</i>}</button>
                         <span className="pipe-ordwrap">
-                          <button type="button" className="pipe-ord" onClick={() => moveDeal(d, -1)} disabled={i === 0} aria-label={`Move ${d.title} up`}>↑</button>
-                          <button type="button" className="pipe-ord" onClick={() => moveDeal(d, 1)} disabled={i === group.length - 1} aria-label={`Move ${d.title} down`}>↓</button>
+                          <button type="button" className="k-icon-btn sm" onClick={() => moveDeal(d, -1)} disabled={i === 0} aria-label={`Move ${d.title} up`}>↑</button>
+                          <button type="button" className="k-icon-btn sm" onClick={() => moveDeal(d, 1)} disabled={i === group.length - 1} aria-label={`Move ${d.title} down`}>↓</button>
                         </span>
-                        <button type="button" className="lane-pin" onClick={() => toggleDeal(d)}>{d.active ? "Live" : "Off"}</button>
+                        <button type="button" className={`k-chip sm ok shrink-0${d.active ? " on" : ""}`} onClick={() => toggleDeal(d)} role="switch" aria-checked={d.active} aria-label={`${d.title} ${d.active ? "live" : "off"}`}>{d.active ? "Live" : "Off"}</button>
                         <button type="button" className="pipe-del" onClick={() => deleteDeal(d)} aria-label={`Remove ${d.title}`}><Icon name="close" /></button>
                       </div>
                       {editId === d.id && (
@@ -719,7 +719,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
                             <label>One-liner<input value={ed.blurb} onChange={(e) => setEd({ ...ed, blurb: e.target.value })} placeholder="What the account gets" maxLength={120} /></label>
                           </div>
                           <div className="st-log-btns">
-                            <button type="button" className="dops-mini" onClick={saveDeal} disabled={!ed.title.trim()}>Save changes</button>
+                            <button type="button" className="btn-sec btn-sm shrink-0" onClick={saveDeal} disabled={!ed.title.trim()}>Save changes</button>
                             <button type="button" className="st-discuss" onClick={() => setEditId(null)}>Cancel</button>
                           </div>
                         </div>
@@ -761,7 +761,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
                 )}
                 <label>One-liner<input value={nd.blurb} onChange={(e) => setNd({ ...nd, blurb: e.target.value })} placeholder="What the account gets" maxLength={120} /></label>
               </div>
-              <button type="button" className="dops-mini" style={{ marginTop: 8 }} onClick={addDeal} disabled={!nd.title.trim()}>Put it on the table</button>
+              <button type="button" className="btn-sec btn-sm shrink-0 mt-2" onClick={addDeal} disabled={!nd.title.trim()}>Put it on the table</button>
             </div>
           )}
         </div>
@@ -835,7 +835,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
             <label>First step<input value={no.nextStep} onChange={(e) => setNo({ ...no, nextStep: e.target.value })} placeholder="Walk in, ask for the manager" maxLength={120} /></label>
           </div>
           <div className="st-log-btns">
-            <button type="button" className="dops-mini" onClick={() => addOpp()}>Add to the pipeline</button>
+            <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => addOpp()}>Add to the pipeline</button>
             <button type="button" className="st-discuss" onClick={() => setAdding(false)}>Cancel</button>
           </div>
         </div>

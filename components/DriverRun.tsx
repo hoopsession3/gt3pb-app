@@ -221,7 +221,7 @@ export default function DriverRun() {
                     {done && (
                       <div className="driver-donerow">
                         <span className="driver-doneline">{o.status === "held_for_pickup" ? "Held for pickup" : o.status === "issue" ? (o.driver_note || "Not home — follow up") : "Delivered"}{o.empties_collected != null && o.refill_count > 0 && o.status === "delivered" ? ` · ${o.empties_collected}/${o.empties_expected} empties` : ""}</span>
-                        <button type="button" className="driver-undo" onClick={() => rollback(o)}>↩ Undo</button>
+                        <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => rollback(o)}>↩ Undo</button>
                       </div>
                     )}
                   </div>

@@ -12,6 +12,7 @@ import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
+import { Segmented } from "@/components/controls";
 
 // COGS CALCULATOR (Money) — one cohesive place for the cost side: cost per drink (from each
 // product's recipe × ingredient costs), cost per batch (brews, broth — cost/gallon and per 10oz
@@ -75,10 +76,8 @@ export default function CogsCalculator() {
         {blended != null && <> Blended menu margin (fully-costed lines): <b className={`cogs-bm ${marginCls(blended.pct)}`}>{blended.pct}%</b>.</>}
       </div>
 
-      <div className="cogs-tabs">
-        <button type="button" className={`cogs-tab${tab === "drinks" ? " on" : ""}`} onClick={() => setTab("drinks")}>Per drink</button>
-        <button type="button" className={`cogs-tab${tab === "batches" ? " on" : ""}`} onClick={() => setTab("batches")}>Per batch · brews &amp; broth</button>
-      </div>
+      <Segmented label="COGS" fill className="mt-1 mb-2.5" value={tab} onChange={setTab}
+        options={[{ key: "drinks", label: "Per drink" }, { key: "batches", label: "Per batch · brews & broth" }]} />
 
       {tab === "drinks" && (
         <>

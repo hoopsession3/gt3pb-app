@@ -141,7 +141,7 @@ export default function AssetMaintenance() {
                         )}
                         <div className="str-drift-b">
                           {s.overdue && s.due && cadenceDays(s.due) != null && (
-                            <button type="button" className="so-move" onClick={() => doneToday(a, s.due!)} disabled={doing === a.id}>{doing === a.id ? "…" : "Done today"}</button>
+                            <button type="button" className="btn-sec btn-sm" onClick={() => doneToday(a, s.due!)} disabled={doing === a.id}>{doing === a.id ? "…" : "Done today"}</button>
                           )}
                           <Button type="button" kind="secondary" compact wide className="mt-2" onClick={() => setLogFor({ asset: a, from: s.due })}>+ Log maintenance</Button>
                         </div>

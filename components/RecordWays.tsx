@@ -10,8 +10,9 @@ import { useState } from "react";
 // OwnerDetails' wrap flow, so the after-action box a person meets on the sheet is the same box
 // they met behind the prep checklist, down to the placeholder.
 //
-// Every button here clears the 44px floor: `.so-move` and `.cp-go` already do, and
-// `.ownerdet-wrap-actions button` was raised to it in the same change (it measured 31px).
+// Every button here clears the 44px floor: they are the kit's, whose compact buttons reach 44 (2026-10-09, round
+// 7d: they were .so-move, .ownerdet-complete and the box's own `.ownerdet-wrap-actions button` — which outranked
+// the kit's, and drew its primary as an outline), and `.cp-go` already does.
 
 export type Way = { label: string; onClick: () => void; go?: boolean; busy?: boolean };
 
@@ -25,7 +26,7 @@ export function WayButtons({ ways }: { ways: Way[] }) {
           {w.label} <span aria-hidden="true">›</span>
         </button>
       ) : (
-        <button type="button" key={w.label} className="so-move" onClick={w.onClick} disabled={w.busy}>
+        <button type="button" key={w.label} className="btn-sec btn-sm" onClick={w.onClick} disabled={w.busy}>
           {w.busy ? "…" : w.label}
         </button>
       ))}
@@ -51,7 +52,7 @@ export function NoteBox({ label = "After-action", hint = AFTER_ACTION_HINT, valu
       <div className="ownerdet-wrap-actions">
         {actions.map((a) => (
           <button type="button" key={a.label} onClick={a.onClick} disabled={busy}
-                  className={a.primary ? "ownerdet-complete" : a.quiet ? "ownerdet-cancel" : undefined}>
+                  className={a.primary ? "btn-pri btn-sm" : a.quiet ? "btn-ter" : "btn-sec btn-sm"}>
             {a.label}
           </button>
         ))}
@@ -81,8 +82,8 @@ export function TakingsBox({ onAdd, onNothing, busy }: {
         </label>
       </div>
       <div className="ownerdet-wrap-actions">
-        <button type="button" className="ownerdet-complete" onClick={() => onAdd(dollars, items)} disabled={busy}>Add what it took</button>
-        <button type="button" onClick={onNothing} disabled={busy}>It took nothing</button>
+        <button type="button" className="btn-pri btn-sm" onClick={() => onAdd(dollars, items)} disabled={busy}>Add what it took</button>
+        <button type="button" className="btn-sec btn-sm" onClick={onNothing} disabled={busy}>It took nothing</button>
       </div>
     </div>
   );

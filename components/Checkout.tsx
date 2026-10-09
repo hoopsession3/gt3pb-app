@@ -26,6 +26,7 @@ import { useIdemKey } from "./useIdemKey";
 import { payErrorText } from "@/lib/idempotency";
 import { haptic } from "@/lib/haptics";
 import { apiUrl } from "@/lib/native";
+import { Segmented } from "@/components/controls";
 
 export default function Checkout() {
   const { cart, inc, dec, toast, checkout, coOpen: open, closeCheckout: onClose } = useApp();
@@ -261,9 +262,9 @@ export default function Checkout() {
               {lines.map(([id, q]) => (
                 <div className="co-line" key={id}>
                   <span className="co-qty">
-                    <button type="button" className="co-step" aria-label={`Remove one ${DRINKS[id].n}`} onClick={() => dec(id)} disabled={busy}>−</button>
+                    <button type="button" className="k-icon-btn" aria-label={`Remove one ${DRINKS[id].n}`} onClick={() => dec(id)} disabled={busy}>−</button>
                     <b>{q}</b>
-                    <button type="button" className="co-step" aria-label={`Add one ${DRINKS[id].n}`} onClick={() => inc(id)} disabled={busy}>+</button>
+                    <button type="button" className="k-icon-btn" aria-label={`Add one ${DRINKS[id].n}`} onClick={() => inc(id)} disabled={busy}>+</button>
                     {DRINKS[id].n}
                   </span>
                   <span>{money(priceOf(id) * q)}</span>
@@ -303,13 +304,8 @@ export default function Checkout() {
                 <>
                   <div className="co-line"><span>Subtotal</span><span>{money(totalCents)}</span></div>
                   <div className="spec-label" style={{ marginTop: 16 }}>Add a tip</div>
-                  <div className="tip-row">
-                    {[0, 0.15, 0.2, 0.25].map((p) => (
-                      <button key={p} type="button" className={`tip-opt${tipPct === p ? " on" : ""}`} onClick={() => setTipPct(p)}>
-                        {p === 0 ? "No tip" : `${Math.round(p * 100)}%`}
-                      </button>
-                    ))}
-                  </div>
+                  <Segmented label="Tip" kind="choice" fill className="mt-0.5 mb-1.5" value={String(tipPct)} onChange={(k) => setTipPct(Number(k))}
+                    options={[0, 0.15, 0.2, 0.25].map((p) => ({ key: String(p), label: p === 0 ? "No tip" : `${Math.round(p * 100)}%` }))} />
                   <div className="spec-label" style={{ marginTop: 16 }}>Card</div>
                   <div className="sq-wrap">
                     <PaymentCard ref={paymentRef} className="sq-card" tone="paper" onReady={setReady} onError={(m) => setErr(m ?? "")} />

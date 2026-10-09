@@ -254,45 +254,45 @@ export default function GenerateDay() {
     <>
       <div className="gen-q">
         <div className="gen-ql">Sleep last night</div>
-        <div className="gen-opts">
+        <div className="k-chips">
           {([ ["great","Great  8h+"], ["good","Good  6–8h"], ["rough","Rough  4–6h"], ["wrecked","Wrecked  <4h"] ] as [Sleep,string][]).map(([v,l]) => (
-            <button key={v} className={`gen-opt hit-y-44${sleep === v ? " sel" : ""}`} onClick={() => setSleep(v)}>{l}</button>
+            <button key={v} type="button" className={`k-chip sm${sleep === v ? " on" : ""}`} aria-pressed={sleep === v} onClick={() => setSleep(v)}>{l}</button>
           ))}
         </div>
       </div>
 
       <div className="gen-q">
         <div className="gen-ql">Body feels</div>
-        <div className="gen-opts">
+        <div className="k-chips">
           {([ ["fresh","Fresh"], ["normal","Normal"], ["sore","Sore"], ["beaten","Beat up"] ] as [Body,string][]).map(([v,l]) => (
-            <button key={v} className={`gen-opt hit-y-44${body === v ? " sel" : ""}`} onClick={() => setBody(v)}>{l}</button>
+            <button key={v} type="button" className={`k-chip sm${body === v ? " on" : ""}`} aria-pressed={body === v} onClick={() => setBody(v)}>{l}</button>
           ))}
         </div>
       </div>
 
       <div className="gen-q">
         <div className="gen-ql">Workload today</div>
-        <div className="gen-opts">
+        <div className="k-chips">
           {([ ["deep","Deep work"], ["meetings","Meetings heavy"], ["mixed","Mixed"], ["light","Light day"] ] as [Workload,string][]).map(([v,l]) => (
-            <button key={v} className={`gen-opt hit-y-44${workload === v ? " sel" : ""}`} onClick={() => setWorkload(v)}>{l}</button>
+            <button key={v} type="button" className={`k-chip sm${workload === v ? " on" : ""}`} aria-pressed={workload === v} onClick={() => setWorkload(v)}>{l}</button>
           ))}
         </div>
       </div>
 
       <div className="gen-q">
         <div className="gen-ql">Training today</div>
-        <div className="gen-opts">
+        <div className="k-chips">
           {([ ["heavy","Lifting · heavy"], ["light","Lifting · light"], ["none","No session"] ] as [Training,string][]).map(([v,l]) => (
-            <button key={v} className={`gen-opt hit-y-44${training === v ? " sel" : ""}`} onClick={() => setTraining(v)}>{l}</button>
+            <button key={v} type="button" className={`k-chip sm${training === v ? " on" : ""}`} aria-pressed={training === v} onClick={() => setTraining(v)}>{l}</button>
           ))}
         </div>
       </div>
 
       <div className="gen-q">
         <div className="gen-ql">Energy right now</div>
-        <div className="gen-opts">
+        <div className="k-chips">
           {([ ["high","High"], ["mid","Mid"], ["low","Low"], ["empty","Running on empty"] ] as [Energy,string][]).map(([v,l]) => (
-            <button key={v} className={`gen-opt hit-y-44${energy === v ? " sel" : ""}`} onClick={() => setEnergy(v)}>{l}</button>
+            <button key={v} type="button" className={`k-chip sm${energy === v ? " on" : ""}`} aria-pressed={energy === v} onClick={() => setEnergy(v)}>{l}</button>
           ))}
         </div>
       </div>
@@ -301,9 +301,9 @@ export default function GenerateDay() {
         <div className="gen-ql">
           Anything else?&nbsp;<span style={{ fontWeight: 400, opacity: 0.45, textTransform: "none", letterSpacing: 0, fontSize: 11 }}>optional</span>
         </div>
-        <div className="chips">
+        <div className="k-chips">
           {([ ["gut","Gut sensitive"], ["dehydrated","Dehydrated"], ["joints","Joint soreness"], ["stress","High stress"], ["fatigue","Low iron / fatigue"], ["sick","Under the weather"] ] as [Flag,string][]).map(([f,l]) => (
-            <button key={f} className={`chip${flags.has(f) ? " sel" : ""}`} onClick={() => toggleFlag(f)}>{l}</button>
+            <button key={f} type="button" className={`k-chip sm${flags.has(f) ? " on" : ""}`} aria-pressed={flags.has(f)} onClick={() => toggleFlag(f)}>{l}</button>
           ))}
         </div>
       </div>

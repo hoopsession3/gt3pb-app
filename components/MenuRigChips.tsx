@@ -20,7 +20,7 @@ import Icon from "@/components/Icon";
 //
 // Setup & Site persistence stays with the caller: pass the current row as `value` and receive
 // column patches via `onPatch` — EventCard routes them through its events update, MenuEditor
-// keeps its self-contained save. `variant` maps to the host surface's existing chip classes.
+// keeps its self-contained save. `variant` picks the host's section label and row; the chips are the kit's.
 
 export type RigKey = "cart_only" | "trailer_only" | "trailer_plus_cart";
 export type MenuKey = "menu_nitro" | "menu_nature_aid" | "menu_salted_maple" | "menu_bottles" | "menu_broth";
@@ -53,15 +53,15 @@ export type MenuRigPatch = { rig?: RigKey | null; power_available?: boolean | nu
   [K in MenuKey]?: boolean;
 };
 
-// Class map onto each host surface's existing chip skin — no new CSS, no visual churn. The prep tool's chips
-// are the kit's (2026-10-09, the chip round retired .ts-chip; this map is a class list no className shows,
-// and scripts/css.audit.mjs now reads every one).
+// Each host's own section label and row; every chip is the kit's .k-chip (2026-10-09: the event card's
+// .ev-chip and the prep tool's .menued-tog were two more recipes for one, and the Site row stood 12px
+// further from its label than Menu's and Setup's rows from theirs).
 const SKIN = {
-  ev: { h: "ev-sub-h", row: "ev-chips", chip: "ev-chip", siteRow: "ev-chips", tog: "ev-chip" },
-  ts: { h: "menued-h", row: "ts-chips", chip: "k-chip", siteRow: "menued-site", tog: "menued-tog" },
+  ev: { h: "ev-sub-h", row: "k-chips" },
+  ts: { h: "menued-h", row: "ts-chips" },
 } as const;
 
-const triLabel = (v: boolean | null | undefined) => (v === true ? "yes" : v === false ? "no" : "—");
+const triLabel = (v: boolean | null | undefined) => (v === true ? "Yes" : v === false ? "No" : "—");
 
 export default function MenuRigChips({ value, onPatch, variant, ownerType, ownerId }: {
   value: MenuRigValue;
@@ -137,26 +137,26 @@ export default function MenuRigChips({ value, onPatch, variant, ownerType, owner
                 const flag = MENU_SLUG_FLAGS[p.slug] as MenuKey | undefined;
                 const on = ownerCol ? picked.has(p.slug) : !!(flag && value[flag]);
                 return (
-                  <button key={p.slug} type="button" className={`${c.chip}${on ? " on" : ""}`} aria-pressed={on}
+                  <button key={p.slug} type="button" className={`k-chip${on ? " on" : ""}`} aria-pressed={on}
                     onClick={() => toggleProduct(p.slug)}>{on && <><Icon name="check" /> </>}{p.name}</button>
                 );
               })
           : MENU_FLAGS.map((m) => (
-              <button key={m.key} type="button" className={`${c.chip}${value[m.key] ? " on" : ""}`} aria-pressed={!!value[m.key]}
+              <button key={m.key} type="button" className={`k-chip${value[m.key] ? " on" : ""}`} aria-pressed={!!value[m.key]}
                 onClick={() => onPatch({ [m.key]: !value[m.key] })}>{value[m.key] && <><Icon name="check" /> </>}{m.label}</button>
             ))}
       </div>
       <div className={c.h}>Setup — the rig we bring</div>
       <div className={c.row}>
         {RIG_OPTIONS.map((r) => (
-          <button key={r.key} type="button" className={`${c.chip}${rigOn(r.key) ? " on" : ""}`} aria-pressed={rigOn(r.key)}
+          <button key={r.key} type="button" className={`k-chip${rigOn(r.key) ? " on" : ""}`} aria-pressed={rigOn(r.key)}
             onClick={() => onPatch({ rig: rigOn(r.key) ? null : r.key })}>{r.label}</button>
         ))}
       </div>
       <div className={c.h}>Site — ask the venue</div>
-      <div className={c.siteRow}>
-        <button type="button" className={c.tog} onClick={() => cycleTri("power_available")}>Power · <b>{triLabel(value.power_available)}</b></button>
-        <button type="button" className={c.tog} onClick={() => cycleTri("water_available")}>Water · <b>{triLabel(value.water_available)}</b></button>
+      <div className={c.row}>
+        <button type="button" className="k-chip" onClick={() => cycleTri("power_available")}>Power · <b>{triLabel(value.power_available)}</b></button>
+        <button type="button" className="k-chip" onClick={() => cycleTri("water_available")}>Water · <b>{triLabel(value.water_available)}</b></button>
       </div>
     </>
   );

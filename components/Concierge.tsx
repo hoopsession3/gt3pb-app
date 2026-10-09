@@ -69,7 +69,7 @@ export function ConciergeChat({ open, onClose }: { open: boolean; onClose: () =>
       {busy && <div className="conc-msg assistant conc-typing"><span /><span /><span /></div>}
       {msgs.length === 1 && (
         <div className="conc-chips">
-          {CHIPS.map((c) => <button key={c} type="button" className="conc-chip" onClick={() => send(c)}>{c}</button>)}
+          {CHIPS.map((c) => <button key={c} type="button" className="k-chip whitespace-normal text-left" onClick={() => send(c)}>{c}</button>)}
         </div>
       )}
     </Sheet>

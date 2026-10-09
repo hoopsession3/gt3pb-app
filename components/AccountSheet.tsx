@@ -226,7 +226,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
 
       <HelpRows onClose={onClose} owner={role === "owner"} />
 
-      <button type="button" className="acs-signout" onClick={() => { onClose(); signOut(); toast("Signed out"); }}>Sign out</button>
+      <button type="button" className="btn-del mt-2" onClick={() => { onClose(); signOut(); toast("Signed out"); }}>Sign out</button>
     </Sheet>
   );
 }
