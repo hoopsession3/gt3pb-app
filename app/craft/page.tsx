@@ -7,6 +7,7 @@ import EditableCopy from "@/components/EditableCopy";
 import Watermark from "@/components/Watermark";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
+import Button from "@/components/Button";
 
 // OUR CRAFT — the education page, by purpose. Not just coffee & cocoa: every menu ingredient, grouped
 // by what it's FOR — Activation, Hydration, Rebuild/Fuel — in confident, fact-forward GT3 voice ("your
@@ -89,8 +90,8 @@ export default function CraftScreen() {
           {/* CTA text stays plain — inside real <button>s, same nested-interactive rule as the menu
               chips, ReservePitch's CTA, and StorefrontStory's "Order from the bar" button. Still
               editable via Settings › Business › Brand & customer app. */}
-          <button className="craft-cta-b" onClick={() => router.push("/menu")}>{t("craft.cta_menu")}</button>
-          <button className="craft-cta-b ghost" onClick={() => router.push("/reserve")}>{t("craft.cta_reserve")}</button>
+          <Button kind="primary" onClick={() => router.push("/menu")}>{t("craft.cta_menu")}</Button>
+          <Button kind="secondary" onClick={() => router.push("/reserve")}>{t("craft.cta_reserve")}</Button>
         </div>
       </div>
 
