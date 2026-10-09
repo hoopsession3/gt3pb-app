@@ -119,7 +119,7 @@ export default function Reserves() {
                   <button type="button" className="rsv-cancel" onClick={() => cancel(r)} disabled={busy === r.id}>Release</button>
                 </div>
               ) : (
-                <button type="button" className="claim" onClick={() => claim(r)} disabled={sold || busy === r.id}>
+                <button type="button" className="btn-pri btn-wide mt-1" onClick={() => claim(r)} disabled={sold || busy === r.id}>
                   {sold ? "Sold out" : busy === r.id ? "Reserving…" : "Reserve yours"}
                 </button>
               )}

@@ -55,8 +55,9 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
         keeps happening, send us the code below.
       </div>
       <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
-        <button className="act-btn" onClick={reset}>Try again</button>
-        <button className="act-btn ghost" onClick={reload}>Reload</button>
+        {/* the kit's (2026-10-09): .act-btn was styled nowhere, so the screen a crash lands on drew the browser's grey buttons */}
+        <button type="button" className="btn-pri" onClick={reset}>Try again</button>
+        <button type="button" className="btn-sec" onClick={reload}>Reload</button>
       </div>
       {error.digest && (
         <code style={{ marginTop: 10, fontSize: 12, opacity: 0.55, letterSpacing: 0.4 }}>

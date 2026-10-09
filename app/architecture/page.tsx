@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { ARCHITECTURE, ARCH_OVERVIEW, DATABASES, BUSINESS, BUSINESS_OVERVIEW, BUILD_STATS, MANAGE_LABEL, STATUS_LABEL, sotUrl, type ArchLayer, type ArchComponent, type ArchStatus, STATUS_TONE, MANAGE_TONE } from "@/lib/architecture";
 import { moneyRound } from "@/lib/money";
+import { Segmented } from "@/components/controls";
 
 // Owner-only system architecture map. High level → layer → component. Manifest-backed, with LIVE
 // status pulled from /api/architecture/status (env presence + table existence), and search across
@@ -131,12 +132,8 @@ export default function ArchitecturePage() {
         <>
           <div className="h-title">System architecture</div>
           <div className="h-sub">High level first, then tap in. {live ? "Status is live — read from the running platform." : "Loading live status…"}</div>
-          <div className="studio-views" style={{ marginTop: 12 }}>
-            <button type="button" className={`studio-view hit-y-44${view === "progress" ? " on" : ""}`} onClick={() => setView("progress")}>Progress</button>
-            <button type="button" className={`studio-view hit-y-44${view === "business" ? " on" : ""}`} onClick={() => setView("business")}>Business</button>
-            <button type="button" className={`studio-view hit-y-44${view === "layers" ? " on" : ""}`} onClick={() => setView("layers")}>Layers</button>
-            <button type="button" className={`studio-view hit-y-44${view === "databases" ? " on" : ""}`} onClick={() => setView("databases")}>Databases</button>
-          </div>
+          <Segmented label="View" className="mt-3" value={view} onChange={setView}
+            options={[{ key: "progress", label: "Progress" }, { key: "business", label: "Business" }, { key: "layers", label: "Layers" }, { key: "databases", label: "Databases" }]} />
           {view === "progress" ? (
             <div className="arch-prog">
               <div className="arch-overview">

@@ -113,7 +113,7 @@ export default function ListsPanel() {
                 <input className="lst-label" defaultValue={r.label ?? r.value} maxLength={60}
                        aria-label={`Label for ${r.value}`} placeholder={r.value}
                        onBlur={(e) => { const v = e.target.value.trim(); if (v !== (r.label ?? r.value)) patch(r.id, { label: v || null }); }} />
-                <button type="button" className={`lst-live${r.active ? " on" : ""}`} disabled={busy}
+                <button type="button" className={`k-chip sm max-[560px]:col-span-full${r.active ? " on" : ""}`} disabled={busy}
                         aria-pressed={r.active} onClick={() => patch(r.id, { active: !r.active })}
                         title={r.active ? "On the list — click to retire" : "Retired — click to bring back"}>
                   {r.active ? <><Icon name="check" /> Offered</> : "Retired"}

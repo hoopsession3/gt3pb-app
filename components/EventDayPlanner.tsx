@@ -201,9 +201,9 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
 
         <div className="dp-daysctl">
           <span>Runs</span>
-          <button type="button" className="dp-step" onClick={() => setDays(days - 1)} aria-label="Fewer days">−</button>
+          <button type="button" className="k-icon-btn sm" onClick={() => setDays(days - 1)} aria-label="Fewer days">−</button>
           <b>{days}</b><span>{days === 1 ? "day" : "days"}</span>
-          <button type="button" className="dp-step" onClick={() => setDays(days + 1)} aria-label="More days">+</button>
+          <button type="button" className="k-icon-btn sm" onClick={() => setDays(days + 1)} aria-label="More days">+</button>
         </div>
 
         <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the schedule" emptyTitle="Nothing here yet">
@@ -251,13 +251,13 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
                     {it.details && <div className="dp-item-det">{it.details}</div>}
                   </div>
                   <div className="dp-item-acts">
-                    <button type="button" className="dp-mini" onClick={() => setEditing(it)} aria-label="Edit">✎</button>
+                    <button type="button" className="k-icon-btn sm" onClick={() => setEditing(it)} aria-label="Edit"><Icon name="edit" /></button>
                     {days > 1 && (
                       <select className="dp-move" value={it.day_index} onChange={(e) => moveDay(it, parseInt(e.target.value))} title="Move to day" aria-label="Move to day">
                         {Array.from({ length: days }, (_, i) => i + 1).map((di) => <option key={di} value={di}>D{di}</option>)}
                       </select>
                     )}
-                    <button type="button" className="dp-mini del" onClick={() => delItem(it.id)} aria-label="Delete"><Icon name="close" /></button>
+                    <button type="button" className="k-icon-btn sm" onClick={() => delItem(it.id)} aria-label="Delete"><Icon name="close" /></button>
                   </div>
                 </div>
               );

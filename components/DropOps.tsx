@@ -358,10 +358,10 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
                           })}
                         </div>
                         <div className="dops-actions">
-                          {nextLabel && <button type="button" className="dops-check adv" onClick={() => setStage(o, PACK_STAGES[cur + 1].key)}>{nextLabel}</button>}
-                          {canCollect(o) && <button type="button" className="dops-check collect" onClick={() => collect(o)}>Collect {dollars(o.total_cents / 100)}</button>}
+                          {nextLabel && <button type="button" className="btn-sec btn-sm flex-1" onClick={() => setStage(o, PACK_STAGES[cur + 1].key)}>{nextLabel}</button>}
+                          {canCollect(o) && <button type="button" className="btn-sec btn-sm flex-1" onClick={() => collect(o)}>Collect {dollars(o.total_cents / 100)}</button>}
                           {canUndo(o, me, admin) && (
-                            <button type="button" className="dops-check done" onClick={() => undoTake(o)} aria-label={`Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment from ${o.name}`}>
+                            <button type="button" className="k-chip sm ok on flex-1" onClick={() => undoTake(o)} aria-label={`Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment from ${o.name}`}>
                               {o.collected_via === "cash" ? "Cash" : "Reader"} <Icon name="check" />
                             </button>
                           )}
@@ -372,12 +372,12 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
                             </select>
                           )}
                           {o.glass === "return" && (
-                            <button type="button" className={`dops-check${o.bottles_returned ? " done" : ""}`} onClick={() => toggle(o.id, "bottles_returned", !o.bottles_returned)}>{o.bottles_returned ? <><Icon name="check" /> Bottles in</> : "Bottles in"}</button>
+                            <button type="button" className={`k-chip sm ok flex-1${o.bottles_returned ? " on" : ""}`} aria-pressed={!!o.bottles_returned} onClick={() => toggle(o.id, "bottles_returned", !o.bottles_returned)}>{o.bottles_returned ? <><Icon name="check" /> Bottles in</> : "Bottles in"}</button>
                           )}
                           {!o.picked_up && (
                             <>
-                              <button type="button" className="dops-mini" onClick={() => pushNextWeek(o)}><Icon name="arrowRight" /> Next drop</button>
-                              <button type="button" className="dops-mini danger" onClick={() => cancel(o)}>Cancel</button>
+                              <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => pushNextWeek(o)}><Icon name="arrowRight" /> Next drop</button>
+                              <button type="button" className="btn-del shrink-0" onClick={() => cancel(o)}>Cancel</button>
                             </>
                           )}
                         </div>
@@ -400,8 +400,8 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
                     <div className="dops-up-row" key={o.id}>
                       <span><b>{o.name}</b> — {o.size}-pack{isSettled(o) ? <> · paid <Icon name="check" /></> : ""}</span>
                       <span className="dops-up-act">
-                        <button type="button" className="dops-mini" onClick={() => pullBack(o)}>← This drop</button>
-                        <button type="button" className="dops-mini danger" onClick={() => cancel(o)}>Cancel</button>
+                        <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => pullBack(o)}>← This drop</button>
+                        <button type="button" className="btn-del shrink-0" onClick={() => cancel(o)}>Cancel</button>
                       </span>
                     </div>
                   ))}

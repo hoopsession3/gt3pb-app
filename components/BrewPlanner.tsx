@@ -411,7 +411,7 @@ export default function BrewPlanner() {
 
                 {/* The method used to live only in the planning result, so a batch you were actually
                     brewing had nowhere to tell you what to do. This is that door. */}
-                <button type="button" className="brew-steps-open" onClick={() => setStepsFor(b)}>
+                <button type="button" className="btn-sec btn-sm btn-wide mt-2" onClick={() => setStepsFor(b)}>
                   <Icon name="clock" /> Brew steps <span aria-hidden="true">›</span>
                 </button>
 
@@ -473,11 +473,11 @@ export default function BrewPlanner() {
                       const over = brewStartOverdue(b, now);
                       return <div className={`brew-startby${over ? " over" : ""}`}>{over ? <><Icon name="warning" /> Past the latest start to be ready in time — start now</> : <><Icon name="clock" /> Start by {fmtTs(b.latest_start_at)} to be ready in time</>}</div>;
                     })()}
-                    <button type="button" className="brew-start" onClick={() => setStarting(b)}>▶ Start brew ({Number(b.extraction_hours) || 20}h)</button>
+                    <button type="button" className="btn-pri btn-sm btn-wide mt-2" onClick={() => setStarting(b)}>▶ Start brew ({Number(b.extraction_hours) || 20}h)</button>
                     {/* A planned batch is the cheapest kind of mistake and used to be the hardest to
                         take back — nothing had happened yet, and the only Delete was two taps away
                         in the production log. */}
-                    <button type="button" className="brew-remove" onClick={() => removeBatch(b)}>Remove — planned by mistake</button>
+                    <button type="button" className="btn-del mt-2" onClick={() => removeBatch(b)}>Remove — planned by mistake</button>
                   </>
                 )}
                 {b.status === "brewing" && b.ready_at && (() => {

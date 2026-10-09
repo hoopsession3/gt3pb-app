@@ -298,7 +298,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
           {done ? (
             <span className="ownerdet-completed"><Icon name="check" /> Completed{f.completed_at ? ` ${new Date(f.completed_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</span>
           ) : isAdmin && arrived ? (
-            <button type="button" className="ownerdet-complete" onClick={() => { setRecap(f.recap ?? ""); setWrapping((w) => !w); }}><Icon name="check" /> Complete {isEvent ? "event" : "stop"}</button>
+            <button type="button" className="btn-pri btn-sm" onClick={() => { setRecap(f.recap ?? ""); setWrapping((w) => !w); }}><Icon name="check" /> Complete {isEvent ? "event" : "stop"}</button>
           ) : null}
         </div>
         {wrapping && (
@@ -317,9 +317,9 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
             the note already existing. Now the gate is "done", and the empty case offers the box. */}
         {done && !wrapping && (f.recap
           ? <div className="ownerdet-recap"><b>Recap</b> {f.recap}{isAdmin && <button type="button" className="ownerdet-recap-edit" onClick={() => { setRecap(f.recap ?? ""); setWrapping(true); }}>edit</button>}</div>
-          : isAdmin && <button type="button" className="ownerdet-complete" onClick={() => { setRecap(""); setWrapping(true); }}>Add the after-action note</button>)}
+          : isAdmin && <button type="button" className="btn-pri btn-sm" onClick={() => { setRecap(""); setWrapping(true); }}>Add the after-action note</button>)}
         <AddToCalendar ev={cal} defaultBuffer={Number(f.default_buffer_min) || 0} />
-        {isAdmin && <button type="button" className="ownerdet-edit" onClick={() => {
+        {isAdmin && <button type="button" className="btn-ter ml-auto" onClick={() => {
           // Seed the edit-guard baseline NOW, from what's about to show in the form — for stops,
           // that's the date-derived default (not the raw column); see derivedStopStatus above.
           const derived = isEvent ? (f.stage ?? null) : derivedStopStatus(f.status ?? null, f.starts_at ?? null, f.completed_at ?? null);
@@ -381,8 +381,8 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
         <button type="button" className="btn-ter ml-auto" onClick={convertType} disabled={saving}>Change to {isEvent ? "truck stop" : "event"} ⇄</button>
       </div>
       <div className="ownerdet-danger">
-        <button type="button" className="ownerdet-arch" onClick={archive} disabled={saving}>Archive {what}</button>
-        <button type="button" className="ownerdet-del" onClick={del} disabled={saving}>Delete for good</button>
+        <button type="button" className="btn-sec btn-sm flex-1" onClick={archive} disabled={saving}>Archive {what}</button>
+        <button type="button" className="btn-del flex-1 justify-center" onClick={del} disabled={saving}>Delete for good</button>
       </div>
       <div className="prod-actions" style={{ marginTop: 12 }}>
         <button type="button" className="note-arch" onClick={() => { setEdit(false); ownerState.reload(); }} disabled={saving}>Cancel</button>

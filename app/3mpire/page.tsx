@@ -61,7 +61,7 @@ function OrderHistory() {
             <span>{histDate(o.created_at)} · {isSettled(o) ? "Paid" : "Pre-order"}</span>
           </div>
           <span className="hist-px">{money(o.total_cents)}</span>
-          <button className="hist-redo" onClick={() => reorder(o.items as DrinkId[])} aria-label="Order this again">↻</button>
+          <button className="k-icon-btn shrink-0" onClick={() => reorder(o.items as DrinkId[])} aria-label="Order this again">↻</button>
         </div>
       ))}
       {orders.length > 4 && (
@@ -125,7 +125,7 @@ function ReferralCard({ code }: { code: string }) {
       <EditableCopy k="mpire.ref_title" value={t("mpire.ref_title")} as="h3" />
       <EditableCopy k="mpire.ref_body" value={t("mpire.ref_body")} as="p" className="ref-sub" multiline />
       <div className="code"><b>{code}</b><span className="cp" aria-label={`Copy referral code ${code}`} {...clickable(copyCode)}>{copyLbl}</span></div>
-      <button type="button" className="ref-share" onClick={share}>{t("account.share")}</button>
+      <button type="button" className="btn-pri btn-wide mt-2.5" onClick={share}>{t("account.share")}</button>
       {stats && stats.n > 0 && (
         <div className="ref-stat">{stats.n} {stats.n === 1 ? "friend" : "friends"} joined · {moneyRound(stats.earned)} earned</div>
       )}

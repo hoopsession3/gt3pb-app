@@ -11,6 +11,7 @@ import { useOperatorSection } from "./OperatorNav";
 import VenuePick from "./VenuePickLazy";
 import type { VenueFill } from "@/lib/venues";
 import { haptic } from "@/lib/haptics";
+import { Segmented } from "@/components/controls";
 
 // EVENT COPILOT (chief-of-staff, guided) — say it in plain words, the agent reads it into a draft, you
 // review/complete the card, and it creates the event OR truck stop at the venue picked from the book
@@ -106,10 +107,8 @@ export default function EventCopilot() {
       ) : (
         <div className="ec-draft">
           {draft.clarify ? <div className="ec-clarify"><Icon name="chat" /> {draft.clarify}</div> : <div className="ec-ready">Looks good — review and create.</div>}
-          <div className="ec-typ">
-            <button type="button" className={`ec-typ-b${draft.kind === "event" ? " on" : ""}`} onClick={() => set("kind", "event")}>Event</button>
-            <button type="button" className={`ec-typ-b${draft.kind === "stop" ? " on" : ""}`} onClick={() => set("kind", "stop")}><Icon name="truck" /> Truck stop</button>
-          </div>
+          <Segmented label="Kind" kind="choice" fill className="mb-2.5" value={draft.kind} onChange={(k) => set("kind", k)}
+            options={[{ key: "event", label: "Event" }, { key: "stop", label: <><Icon name="truck" /> Truck stop</> }]} />
           <label className="prod-f"><span>Name</span><input value={draft.title} onChange={(e) => set("title", e.target.value)} placeholder="Event name" /></label>
           <label className="prod-f" style={{ marginTop: 8 }}><span>Date</span><input type="date" value={draft.date ?? ""} onChange={(e) => set("date", e.target.value || null)} /></label>
           <VenuePick kind={draft.kind} source="the event copilot" onChange={onVenue} style={{ marginTop: 8 }}

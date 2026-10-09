@@ -282,7 +282,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onChanged, on
         </LeaveButton>
       )}
       <div className="ownerdet-danger" style={{ marginTop: 12 }}>
-        <button type="button" className="ownerdet-arch" onClick={archive} disabled={saving}>Archive</button>
+        <button type="button" className="btn-sec btn-sm flex-1" onClick={archive} disabled={saving}>Archive</button>
       </div>
       {walker}
     </Sheet>

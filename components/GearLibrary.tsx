@@ -224,12 +224,12 @@ export default function GearLibrary() {
           <div className="gl-toolbar">
             <button className="btn-ter mt-2" onClick={startNew}>+ Add gear</button>
             <div className="gl-filters">
-              <button type="button" className={`gl-chip${marketFilter === "all" ? " on" : ""}`} onClick={() => setMarketFilter("all")}>All markets</button>
+              <button type="button" className={`k-chip sm${marketFilter === "all" ? " on" : ""}`} aria-pressed={marketFilter === "all"} onClick={() => setMarketFilter("all")}>All markets</button>
               {MARKETS.map((m) => (
-                <button key={m} type="button" className={`gl-chip${marketFilter === m ? " on" : ""}`} onClick={() => setMarketFilter(m)}>{MARKET_LABEL[m]}</button>
+                <button key={m} type="button" className={`k-chip sm${marketFilter === m ? " on" : ""}`} aria-pressed={marketFilter === m} onClick={() => setMarketFilter(m)}>{MARKET_LABEL[m]}</button>
               ))}
               {retiredCount > 0 && (
-                <button type="button" className={`gl-chip${showRetired ? " on" : ""}`} onClick={() => setShowRetired((v) => !v)}>
+                <button type="button" className={`k-chip sm${showRetired ? " on" : ""}`} aria-pressed={showRetired} onClick={() => setShowRetired((v) => !v)}>
                   Retired ({retiredCount})
                 </button>
               )}

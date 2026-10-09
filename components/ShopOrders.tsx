@@ -94,10 +94,10 @@ export default function ShopOrders() {
                   <span className="so-kpi"><b>{money(queue?.refunded_cents ?? 0)}</b><i>refunded</i></span>}
               </div>
 
-              <div className="so-filters">
+              <div className="k-chips mb-2.5">
                 {FILTERS.map((f) => (
-                  <button type="button" key={f.key}
-                          className={`so-filter${filter === f.key ? " on" : ""}`}
+                  <button type="button" key={f.key} aria-pressed={filter === f.key}
+                          className={`k-chip${filter === f.key ? " on" : ""}`}
                           onClick={() => setFilter(f.key)}>
                     {f.label}
                   </button>

@@ -168,12 +168,14 @@ export default function Studio() {
         </p>
       )}
       <div className="studio-top">
-        <div className="studio-views" role="tablist" aria-label="View">
+        {/* Six views: chips that wrap, so every one is in sight on a phone (a segmented control of six scrolled two
+            of them out of view). They are pages — a swipe turns them — so the row is a tab list. */}
+        <div className="flex flex-wrap gap-2 min-w-0" role="tablist" aria-label="View">
           {STUDIO_VIEWS.map((x) => (
-            <button key={x.key} type="button" className={`studio-view hit-y-44${view === x.key ? " on" : ""}`} onClick={() => pickView(x.key)}>{x.label}</button>
+            <button key={x.key} type="button" role="tab" aria-selected={view === x.key} className={`k-chip sm${view === x.key ? " on" : ""}`} onClick={() => pickView(x.key)}>{x.label}</button>
           ))}
         </div>
-        {view !== "brand" && view !== "flyer" && view !== "letter" && <button type="button" className="rdy-run hit-y-44" onClick={() => create()}><Icon name="sparkles" /> New piece</button>}
+        {view !== "brand" && view !== "flyer" && view !== "letter" && <button type="button" className="btn-pri btn-sm shrink-0" onClick={() => create()}><Icon name="sparkles" /> New piece</button>}
       </div>
 
       {view === "flyer" ? (
@@ -205,9 +207,9 @@ export default function Studio() {
         </>
       ) : view === "grid" ? (
         <>
-          <div className="subnav" role="tablist" aria-label="Filter">
+          <div className="subnav" role="group" aria-label="Filter">
             {["all", ...Object.keys(STATUS)].map((k) => (
-              <button key={k} type="button" className={`subnav-tab hit-y-44${filter === k ? " on" : ""}`} onClick={() => setFilter(k)}>{k === "all" ? "All" : STATUS[k].label}</button>
+              <button key={k} type="button" className={`k-chip sm${filter === k ? " on" : ""}`} aria-pressed={filter === k} onClick={() => setFilter(k)}>{k === "all" ? "All" : STATUS[k].label}</button>
             ))}
           </div>
           <div className="ig-note">Instagram feed preview — drag tiles to plan the feed, tap to open.</div>
@@ -247,9 +249,9 @@ export default function Studio() {
         </>
       ) : (
         <>
-          <div className="subnav" role="tablist" aria-label="Filter">
+          <div className="subnav" role="group" aria-label="Filter">
             {["all", ...Object.keys(STATUS)].map((k) => (
-              <button key={k} type="button" className={`subnav-tab hit-y-44${filter === k ? " on" : ""}`} onClick={() => setFilter(k)}>
+              <button key={k} type="button" className={`k-chip sm${filter === k ? " on" : ""}`} aria-pressed={filter === k} onClick={() => setFilter(k)}>
                 {k === "all" ? "All" : STATUS[k].label}
               </button>
             ))}
@@ -800,9 +802,9 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
       {kitOpen && (
         <Sheet open onClose={() => setKitOpen(false)} label="Post kit" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="package" /> Post kit</b><CloseButton onClick={() => setKitOpen(false)} /></div>}>
-              <div className="kit-row"><span className="kit-h">Caption</span><button className="kit-copy" onClick={() => copyText(caption)}>Copy</button></div>
+              <div className="kit-row"><span className="kit-h">Caption</span><button className="btn-ter" onClick={() => copyText(caption)}>Copy</button></div>
               <div className="kit-box" style={{ whiteSpace: "pre-wrap" }}>{caption || "—"}</div>
-              {tags.trim() && <><div className="kit-row"><span className="kit-h">Hashtags</span><button className="kit-copy" onClick={() => copyText(tags.split(",").map((t) => `#${t.trim()}`).join(" "))}>Copy</button></div><div className="kit-box">{tags.split(",").map((t) => `#${t.trim()}`).join(" ")}</div></>}
+              {tags.trim() && <><div className="kit-row"><span className="kit-h">Hashtags</span><button className="btn-ter" onClick={() => copyText(tags.split(",").map((t) => `#${t.trim()}`).join(" "))}>Copy</button></div><div className="kit-box">{tags.split(",").map((t) => `#${t.trim()}`).join(" ")}</div></>}
               {mediaList.length > 0 && <><div className="kit-row"><span className="kit-h">Media ({mediaList.length})</span></div><div className="kit-media">{mediaList.map((m, i) => <a key={i} className="kit-dl" href={m.url} download target="_blank" rel="noreferrer">{m.type === "video" ? "Video" : "Photo"} {i + 1}</a>)}</div></>}
               <div className="kit-row"><span className="kit-h">Best time to post</span></div>
               <div className="kit-box">{bestTime(item.channel)}</div>
@@ -854,7 +856,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       {/* Schedule + workflow */}
       <div className="studio-sched">
         <input type="datetime-local" className="insp-in" value={sched} onChange={(e) => setSched(e.target.value)} />
-        <button type="button" className="studio-act" onClick={schedule} disabled={!sched}>Schedule</button>
+        <button type="button" className="btn-sec btn-sm" onClick={schedule} disabled={!sched}>Schedule</button>
       </div>
 
       <div className="studio-actions">

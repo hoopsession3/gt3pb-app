@@ -38,7 +38,7 @@ export default function ErrorLog() {
       {() => (
         <div className="audit-trail">
           <div className="audit-actions">
-            <button type="button" className="dops-mini" onClick={() => downloadCsv("gt3-errors.csv", rows.map((r) => ({
+            <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => downloadCsv("gt3-errors.csv", rows.map((r) => ({
               kind: kindOf(r), message: r.message, where: whereOf(r), count: r.count, first_seen: r.first_seen, last_seen: r.last_seen, frame: frameOf(r), ua: r.ua ?? "",
             })))}>Export CSV</button>
           </div>

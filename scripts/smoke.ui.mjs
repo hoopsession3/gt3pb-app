@@ -293,7 +293,7 @@ try {
       ok("sheet · tapping outside a drink's sheet removes it — scrim and all", !(await rp.$(".sheet2-scrim")));
       ok("phone · no floating rail and no floating button on a phone", !(await shown(".rail")) && !(await shown(".qd-fab")) && !(await shown(".conc-fab")));
       await rp.click(".entry"); await sleep(500);
-      await rp.click(".order-bar"); await sleep(600);
+      await rp.click(".sheet2 .btn-pri.btn-wide"); await sleep(600);
       const cartText = await rp.$eval(".cartbar", (e) => e.textContent).catch(() => "");
       ok("order · adding it shows the cart bar with one drink and its price", /1 drink/.test(cartText) && /\$\d/.test(cartText), cartText);
       // Ask us, beside the avatar
@@ -331,7 +331,7 @@ try {
       const handle = await box(".rail-open");
       ok("rail · in the frame, its handle is painted", !!handle && handle.h > 0, handle ? "" : "no rail handle at 600×900");
       await fp.click(".entry"); await sleep(500);
-      await fp.click(".order-bar"); await sleep(600);
+      await fp.click(".sheet2 .btn-pri.btn-wide"); await sleep(600);
       await fp.click(".rail-open");
       await sleep(120);   // on purpose: inside the old animation window
       const app = await box(".app"), rail = await box(".rail"), nav = await box(".nav"), cart = await box(".cartbar");
@@ -397,7 +397,7 @@ try {
       await gp.goto(BASE + "/shop", { waitUntil: "domcontentloaded", timeout: 20000 });
       try { await gp.waitForLoadState("networkidle", { timeout: 4000 }); } catch { /* settled enough */ }
       await sleep(500);
-      const aisle = () => gp.$eval(".shop-sections .menu-chip.on", (e) => e.textContent.trim()).catch(() => null);
+      const aisle = () => gp.$eval(".shop-sections .k-seg-opt.on", (e) => e.textContent.trim()).catch(() => null);
       const a0 = await aisle();
       await swipe({ x: 330, y: 640 }, { x: 80, y: 646 }, 200);
       await sleep(900);
@@ -437,8 +437,8 @@ try {
       // A drink in the order — the one section 6 added is kept on the phone, so its sheet may offer to remove it:
       // then it is left in, and the sheet closed.
       await np.click(".entry"); await sleep(600);
-      const offer = (await np.$eval(".order-bar", (e) => e.textContent).catch(() => "")) || "";
-      if (/remove/i.test(offer)) await np.keyboard.press("Escape"); else await np.click(".order-bar");
+      const offer = (await np.$eval(".sheet2 .btn-pri.btn-wide", (e) => e.textContent).catch(() => "")) || "";
+      if (/remove/i.test(offer)) await np.keyboard.press("Escape"); else await np.click(".sheet2 .btn-pri.btn-wide");
       await sleep(800);
       await np.waitForSelector(".cartbar", { timeout: 8000 });
       await np.click(".cartbar"); await sleep(800);
@@ -494,8 +494,8 @@ try {
       const b = await look(sp);
       ok("sheet · closed, the page comes home", !b.receded && b.scale === 1 && b.radius === 0 && b.sheets === 0, JSON.stringify(b));
       await sp.click(".entry"); await sleep(700);
-      const offer = (await sp.$eval(".order-bar", (e) => e.textContent).catch(() => "")) || "";
-      if (/remove/i.test(offer)) await sp.keyboard.press("Escape"); else await sp.click(".order-bar");
+      const offer = (await sp.$eval(".sheet2 .btn-pri.btn-wide", (e) => e.textContent).catch(() => "")) || "";
+      if (/remove/i.test(offer)) await sp.keyboard.press("Escape"); else await sp.click(".sheet2 .btn-pri.btn-wide");
       await sleep(800);
       await sp.waitForSelector(".cartbar", { timeout: 8000 });
       await sp.click(".cartbar"); await sleep(900);

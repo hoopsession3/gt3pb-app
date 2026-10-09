@@ -373,7 +373,7 @@ export default function FindUs() {
           Identical for stops and events. LivePing is the push opt-in (0257). */}
       <div className="fu-chips">
         {hero && (heroHasCoords || heroWhere) && (
-          <button type="button" className="fu-dir" onClick={() => { if (heroHasCoords) openDirections(hero.lat as number, hero.lng as number); else if (heroWhere) openAddress(heroWhere); }}>
+          <button type="button" className="k-chip mt-2.5" onClick={() => { if (heroHasCoords) openDirections(hero.lat as number, hero.lng as number); else if (heroWhere) openAddress(heroWhere); }}>
             <Icon name="pin" /> {t("findus.directions")}
           </button>
         )}
@@ -544,7 +544,7 @@ function LivePingButton() {
   };
   if (state === "hidden") return null;
   return (
-    <button type="button" className={`fu-ping hit-y-44${state === "on" ? " on" : ""}`} onClick={toggle} aria-pressed={state === "on"} disabled={state === "busy"}>
+    <button type="button" className={`k-chip mt-2.5${state === "on" ? " on" : ""}`} onClick={toggle} aria-pressed={state === "on"} disabled={state === "busy"}>
       <Icon name="bell" /> {state === "busy" ? "One sec…" : state === "on" ? t("findus.ping_on") : t("findus.ping_off")}
     </button>
   );

@@ -131,7 +131,7 @@ export default function PackPlan({ ownerType, ownerId, title, onClose }: { owner
               </div>
               <label className="prod-f"><span>Bottles per cooler</span><input type="number" min="1" value={coolerCap} onChange={(e) => setCoolerCap(e.target.value)} /></label>
             </div>
-            <div className="pp-quick"><span>Fleet: {kegFleetStr}</span><span /><button type="button" className="pp-mini" onClick={allKeg}>All to keg</button><button type="button" className="pp-mini" onClick={allBottle}>All to bottles</button></div>
+            <div className="pp-quick"><span>Fleet: {kegFleetStr}</span><span /><button type="button" className="btn-sec btn-sm" onClick={allKeg}>All to keg</button><button type="button" className="btn-sec btn-sm" onClick={allBottle}>All to bottles</button></div>
 
             {plan.rows.map((r) => (
               <div key={r.b.id} className="pp-row">

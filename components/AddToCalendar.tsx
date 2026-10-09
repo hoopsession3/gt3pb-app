@@ -59,7 +59,7 @@ export default function AddToCalendar({ ev, label = "Add to calendar", defaultBu
               <span className="atc-buf-h">Buffer before</span>
               <div className="atc-buf-row">
                 {(BUFFERS.some((b) => b.v === defaultBuffer) ? BUFFERS : [...BUFFERS, { v: defaultBuffer, label: `${defaultBuffer}m` }].sort((a, b) => a.v - b.v)).map((b) => (
-                  <button key={b.v} type="button" className={`atc-buf-c${buffer === b.v ? " on" : ""}`} onClick={() => setBuffer(b.v)} aria-pressed={buffer === b.v}>{b.label}</button>
+                  <button key={b.v} type="button" className={`k-chip sm flex-1${buffer === b.v ? " on" : ""}`} onClick={() => setBuffer(b.v)} aria-pressed={buffer === b.v}>{b.label}</button>
                 ))}
               </div>
             </div>

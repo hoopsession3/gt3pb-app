@@ -91,7 +91,7 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
       )}
       <div className="brand-head">
         {k.wordmark_url ? <img src={k.wordmark_url} alt="GT3 wordmark" className="brand-word" /> : <span className="brand-name">GT3</span>}
-        {canEdit && state.status !== "error" && <button type="button" className="studio-act" onClick={() => { if (edit) save(); else { setDraft(kit); setEdit(true); } }} disabled={saving}>{edit ? (saving ? "Saving…" : "Save") : "Edit"}</button>}
+        {canEdit && state.status !== "error" && <button type="button" className="btn-sec btn-sm" onClick={() => { if (edit) save(); else { setDraft(kit); setEdit(true); } }} disabled={saving}>{edit ? (saving ? "Saving…" : "Save") : "Edit"}</button>}
       </div>
 
       <div className="brand-voice">
@@ -113,7 +113,7 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
         <div className="brand-addc">
           <input className="insp-in insp-st" type="color" aria-label="New colour" value={newC.hex.length === 7 ? newC.hex : "#a97c3f"} onChange={(e) => setNewC({ ...newC, hex: e.target.value })} />
           <input className="insp-in" value={newC.name} onChange={(e) => setNewC({ ...newC, name: e.target.value })} placeholder="Color name" />
-          <button type="button" className="studio-act" onClick={() => { if (newC.name) { setDraft({ ...draft, colors: [...draft.colors, { name: newC.name, hex: newC.hex }] }); setNewC({ name: "", hex: "#" }); } }}>Add</button>
+          <button type="button" className="btn-sec btn-sm" onClick={() => { if (newC.name) { setDraft({ ...draft, colors: [...draft.colors, { name: newC.name, hex: newC.hex }] }); setNewC({ name: "", hex: "#" }); } }}>Add</button>
         </div>
       )}
 
@@ -135,7 +135,7 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
             )}
           </div>
         ))}
-        {edit && <button type="button" className="studio-act" style={{ marginTop: 8 }} onClick={() => setDraft({ ...draft, fonts: [...draft.fonts, { role: "Role", name: "Font" }] })}>+ Add font</button>}
+        {edit && <button type="button" className="btn-sec btn-sm mt-2" onClick={() => setDraft({ ...draft, fonts: [...draft.fonts, { role: "Role", name: "Font" }] })}>+ Add font</button>}
       </div>
 
       {edit && (

@@ -159,7 +159,7 @@ export default function OfficeRun() {
               {done && (
                 <div className="driver-donerow">
                   <span className="driver-doneline">{o.status === "issue" ? (o.driver_note || "Not delivered — the crew is told") : o.driver_outcome === "delivered_swapped" ? `Delivered · ${o.jugs_in ?? 0}/${o.jugs_out} empties back` : "Delivered"}</span>
-                  <button type="button" className="driver-undo" onClick={() => reopen(o)} disabled={busyId === o.id}>↩ Undo</button>
+                  <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => reopen(o)} disabled={busyId === o.id}>↩ Undo</button>
                 </div>
               )}
             </div>

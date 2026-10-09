@@ -140,8 +140,8 @@ export default function DeliveryOps() {
       </div>
       <LoopQuickLog porches={rows} />
       <Link className="dops-driver-link" href="/driver"><Icon name="truck" /> Open the driver run — map &amp; turn-by-turn <Icon name="arrowRight" /></Link>
-      <button type="button" className="dops-assign-link" onClick={() => setAssign(true)}><Icon name="team" /> Assign this run to a driver <Icon name="arrowRight" /></button>
-      <button type="button" className="dops-assign-link" onClick={() => setPackout(true)}><Icon name="package" /> Vehicle packout plan <Icon name="arrowRight" /></button>
+      <button type="button" className="btn-sec btn-sm btn-wide mt-2" onClick={() => setAssign(true)}><Icon name="team" /> Assign this run to a driver <Icon name="arrowRight" /></button>
+      <button type="button" className="btn-sec btn-sm btn-wide mt-2" onClick={() => setPackout(true)}><Icon name="package" /> Vehicle packout plan <Icon name="arrowRight" /></button>
       {assign && <AssignTaskSheet defaultTitle={`Sunday delivery run — ${rows.length} porch${rows.length === 1 ? "" : "es"} · ${bottles} bottles`} dueOn={date} category="ops" onClose={() => setAssign(false)} />}
       {packout && <DeliveryPackout bottles={bottles} orders={rows.length} refills={refills} onClose={() => setPackout(false)} />}
       <button type="button" className="dops-prog" onClick={() => setListOpen(!showList)} aria-expanded={showList}>
@@ -180,7 +180,7 @@ export default function DeliveryOps() {
                   )}
                   <div className="dops-actions">
                     {STATUS_NEXT[o.status] && (
-                      <button type="button" className="dops-check" onClick={() => setStatus(o, STATUS_NEXT[o.status])}><Icon name="arrowRight" /> {STATUS_LABEL[STATUS_NEXT[o.status]]}</button>
+                      <button type="button" className="btn-sec btn-sm flex-1" onClick={() => setStatus(o, STATUS_NEXT[o.status])}><Icon name="arrowRight" /> {STATUS_LABEL[STATUS_NEXT[o.status]]}</button>
                     )}
                     {batches.length > 0 && (
                       <select className={`dops-batchsel${o.batch_id ? " set" : ""}`} value={o.batch_id ?? ""} onChange={(e) => setBatch(o.id, e.target.value)} aria-label="Filled from batch" title="Filled from batch — recall traceability">
@@ -189,7 +189,7 @@ export default function DeliveryOps() {
                       </select>
                     )}
                     {o.status === "out_for_delivery" && (
-                      <Link className="dops-mini" href="/driver">Log the outcome in driver mode <Icon name="arrowRight" /></Link>
+                      <Link className="btn-sec btn-sm shrink-0" href="/driver">Log the outcome in driver mode <Icon name="arrowRight" /></Link>
                     )}
                   </div>
                 </>}
@@ -277,13 +277,13 @@ function LoopQuickLog({ porches }: { porches: readonly DOrder[] }) {
           {people.map((o) => <option key={o.customer_id as string} value={o.customer_id as string}>{o.name}{o.refill_count > 0 ? " · swap" : ""}</option>)}
         </select>
       )}
-      <button type="button" className="dops-mini" onClick={log} disabled={!n}>Log</button>
+      <button type="button" className="btn-sec btn-sm shrink-0" onClick={log} disabled={!n}>Log</button>
       {msg && <i className="dops-loop-m">{msg}</i>}
       {today.length > 0 && (
         <span className="dops-loop-today">
           today:
           {today.map((t) => (
-            <button key={t.id} type="button" className="dops-loop-chip"
+            <button key={t.id} type="button" className="k-chip sm"
                     title={`Void this entry of ${t.returns}`}
                     onClick={() => undo(t.id, t.returns)}>
               {t.returns}<span aria-hidden="true">×</span>

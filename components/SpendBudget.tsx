@@ -264,7 +264,7 @@ export default function SpendBudget() {
                         <select className="note-in" value={ee.vendor} onChange={(e) => setEe({ ...ee, vendor: e.target.value })} aria-label="Venue or account"><option value="">Venue or account (optional)</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select>
                       </div>
                       <div className="st-log-btns">
-                        <button type="button" className="dops-mini" onClick={() => saveExpense(row.id)} disabled={savingExp}>{savingExp ? "Saving…" : "Save"}</button>
+                        <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => saveExpense(row.id)} disabled={savingExp}>{savingExp ? "Saving…" : "Save"}</button>
                         <button type="button" className="st-discuss" onClick={() => setEditExpId(null)}>Cancel</button>
                       </div>
                     </div>

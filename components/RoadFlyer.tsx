@@ -11,6 +11,7 @@ import Icon from "@/components/Icon";
 import { saveFile } from "@/lib/deviceActions";
 import { APP_BUILD } from "@/lib/native";
 import Button from "./Button";
+import { Segmented } from "@/components/controls";
 
 // ROAD FLYER — the locked GT3 house graphics, drawn on a canvas so they're pixel-identical every
 // time. A five-slide set (Announce · Menu · Sub-menu · Details · Photo) that reads as ONE luxury
@@ -476,18 +477,15 @@ export default function RoadFlyer() {
     <div className="rf">
       <div className="rf-tpl-head">
         <span>Template · {THEMES[tpl].name}</span>
-        <button type="button" className="rf-ai" onClick={suggest} disabled={suggesting}>{suggesting ? "Thinking…" : <><Icon name="sparkles" /> Suggest for me</>}</button>
+        <button type="button" className="btn-sec btn-sm shrink-0" onClick={suggest} disabled={suggesting}>{suggesting ? "Thinking…" : <><Icon name="sparkles" /> Suggest for me</>}</button>
       </div>
-      <div className="rf-tpls" role="tablist" aria-label="Template">
+      <div className="rf-tpls" role="group" aria-label="Template">
         {THEMES.map((t, i) => (
-          <button key={t.id} type="button" className={`rf-tpl${tpl === i ? " on" : ""}`} onClick={() => pickTpl(i)} title={t.note}>{t.name}</button>
+          <button key={t.id} type="button" className={`k-chip sm${tpl === i ? " on" : ""}`} aria-pressed={tpl === i} onClick={() => pickTpl(i)} title={t.note}>{t.name}</button>
         ))}
       </div>
-      <div className="rf-tiles">
-        {([["announce", "Announce"], ["menu", "Menu"], ["submenu", "Sub-menu"], ["details", "Details"], ["photo", "Photo"]] as const).map(([k, l]) => (
-          <button key={k} type="button" className={`rf-tile${tile === k ? " on" : ""}`} onClick={() => setTile(k)}>{l}</button>
-        ))}
-      </div>
+      <Segmented label="Slide" size="sm" fill value={tile} onChange={setTile}
+        options={([["announce", "Announce"], ["menu", "Menu"], ["submenu", "Sub-menu"], ["details", "Details"], ["photo", "Photo"]] as const).map(([k, l]) => ({ key: k, label: l }))} />
       <div className="rf-note">Pick a template up top — 10 cuts of the GT3 look. Then a slide (Announce → Menu → Sub-menu → Details), fill it in, and download or save to the feed.</div>
       {opts.length > 0 && tile === "announce" && (
         <select className="rf-pick" defaultValue="" onChange={(e) => e.target.value && pick(e.target.value)}>
@@ -509,8 +507,8 @@ export default function RoadFlyer() {
       )}
       <canvas ref={canvasRef} width={W} height={H} className="rf-canvas" />
       <div className="rf-actions">
-        <button type="button" className="rf-dl ghost" onClick={download}>{APP_BUILD ? "Save or share" : "Download"}</button>
-        <button type="button" className="rf-dl" onClick={saveToFeed} disabled={busy}>{busy ? "Saving…" : <><Icon name="star" /> Save to feed</>}</button>
+        <button type="button" className="btn-sec flex-1" onClick={download}>{APP_BUILD ? "Save or share" : "Download"}</button>
+        <button type="button" className="btn-pri flex-1" onClick={saveToFeed} disabled={busy}>{busy ? "Saving…" : <><Icon name="star" /> Save to feed</>}</button>
       </div>
     </div>
   );

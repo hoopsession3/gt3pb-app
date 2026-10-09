@@ -249,10 +249,10 @@ export default function TaskSheetBody({ id, source, onClose }: { id: string; sou
 
             {/* actions */}
             <div className="tsheet-actions">
-              <button type="button" className={`tsheet-done${t.done ? " on" : ""}`} onClick={toggleDone} disabled={busy}>
+              <button type="button" className={`${t.done ? "btn-sec" : "btn-pri"} flex-1`} onClick={toggleDone} disabled={busy}>
                 {t.done ? "↩ Reopen" : <><Icon name="check" /> Mark done</>}
               </button>
-              {isAdmin && <button type="button" className="tsheet-del" onClick={remove} disabled={busy}>Delete</button>}
+              {isAdmin && <button type="button" className="btn-del" onClick={remove} disabled={busy}>Delete</button>}
             </div>
           </div>
         )}

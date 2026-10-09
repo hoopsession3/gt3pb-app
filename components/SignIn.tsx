@@ -7,6 +7,7 @@ import Mpire from "./Mpire";
 import { useAuth } from "./AuthProvider";
 import { isIPhoneLike } from "@/lib/ios";
 import { nextOnEnter } from "@/lib/formKeys";
+import { Segmented } from "@/components/controls";
 
 type Mode = "passwordless" | "password";
 type Intent = "join" | "signin";
@@ -229,15 +230,11 @@ export default function SignIn() {
               : <>Good to see you. Pick how you want to sign in.</>}
           </p>
 
-          <div className="auth-tabs auth-intent">
-            <button className={`auth-tab hit-y-44${intent === "join" ? " on" : ""}`} onClick={() => { setIntent("join"); setErr(""); }}>Become a member</button>
-            <button className={`auth-tab hit-y-44${intent === "signin" ? " on" : ""}`} onClick={() => { setIntent("signin"); setErr(""); }}>Member sign in</button>
-          </div>
-
-          <div className="auth-tabs auth-tabs-mini">
-            <button className={`auth-tab hit-y-44${mode === "passwordless" ? " on" : ""}`} onClick={() => { setMode("passwordless"); setErr(""); }}>Link / code</button>
-            <button className={`auth-tab hit-y-44${mode === "password" ? " on" : ""}`} onClick={() => { setMode("password"); setErr(""); }}>Password</button>
-          </div>
+          {/* relative z-1: the form below animates in on a transform, which would paint over the options' taller reach */}
+          <Segmented label="Joining or signing in" kind="choice" fill className="relative z-1 mt-5" value={intent} onChange={(k) => { setIntent(k); setErr(""); }}
+            options={[{ key: "join", label: "Become a member" }, { key: "signin", label: "Member sign in" }]} />
+          <Segmented label="How to sign in" kind="choice" size="sm" fill className="relative z-1 mt-2.5" value={mode} onChange={(k) => { setMode(k); setErr(""); }}
+            options={[{ key: "passwordless", label: "Link / code" }, { key: "password", label: "Password" }]} />
 
           {mode === "passwordless" && (
             <form className="auth-form" onSubmit={handleSendCode}>

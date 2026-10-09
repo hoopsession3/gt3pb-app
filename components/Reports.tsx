@@ -5,6 +5,7 @@ import { SectionHeader } from "@/components/kit";
 import { fetchSalesReport, type SalesReport } from "@/lib/reports";
 import { moneyRound } from "@/lib/money";
 import { supabase } from "@/lib/supabase";
+import { Segmented } from "@/components/controls";
 
 // Sales actuals — the first reporting dashboard (MONEY tab). Real revenue + per-event actuals +
 // product mix + daily trend, read from one staff-gated RPC. On-brand bars, no chart dependency.
@@ -63,11 +64,8 @@ export default function Reports() {
   return (
     <div className="adm-sec rpt">
       <SectionHeader label="Sales" annotation="the number" right={
-        <div className="rpt-range">
-          {RANGES.map((d) => (
-            <button key={d} className={`rpt-r hit-y-44${days === d ? " on" : ""}`} onClick={() => setDays(d)}>{d}d</button>
-          ))}
-        </div>
+        <Segmented label="Range" kind="choice" size="sm" value={String(days)} onChange={(k) => setDays(Number(k))}
+          options={RANGES.map((d) => ({ key: String(d), label: `${d}d`, title: `The last ${d} days` }))} />
       } />
 
       {loading && !rep ? (

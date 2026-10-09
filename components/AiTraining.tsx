@@ -131,7 +131,7 @@ export default function AiTraining() {
           {media && <a className="st-discuss" href={media} target="_blank" rel="noreferrer">View <Icon name="externalLink" /></a>}
         </div>
         <div className="st-log-btns">
-          <button type="button" className="dops-mini" onClick={save} disabled={busy}>{busy ? "Saving…" : `Teach ${AGENT_LABEL[agent]}`}</button>
+          <button type="button" className="btn-sec btn-sm shrink-0" onClick={save} disabled={busy}>{busy ? "Saving…" : `Teach ${AGENT_LABEL[agent]}`}</button>
         </div>
       </div>
 

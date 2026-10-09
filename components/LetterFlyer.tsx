@@ -343,14 +343,14 @@ export default function LetterFlyer() {
   return (
     <div className="rf">
       <div className="rf-tpl-head"><span>Letter · {STYLES[tpl].name} · {FORMATS[fmt].label}</span></div>
-      <div className="rf-tpls" role="tablist" aria-label="Letter style">
+      <div className="rf-tpls" role="group" aria-label="Letter style">
         {STYLES.map((t, i) => (
-          <button key={t.id} type="button" className={`rf-tpl${tpl === i ? " on" : ""}`} onClick={() => pickTpl(i)} title={t.note}>{t.name}</button>
+          <button key={t.id} type="button" className={`k-chip sm${tpl === i ? " on" : ""}`} aria-pressed={tpl === i} onClick={() => pickTpl(i)} title={t.note}>{t.name}</button>
         ))}
       </div>
-      <div className="rf-tpls" role="tablist" aria-label="Format">
+      <div className="rf-tpls" role="group" aria-label="Format">
         {FORMATS.map((t, i) => (
-          <button key={t.id} type="button" className={`rf-tpl${fmt === i ? " on" : ""}`} onClick={() => pickFmt(i)}>{t.label}</button>
+          <button key={t.id} type="button" className={`k-chip sm${fmt === i ? " on" : ""}`} aria-pressed={fmt === i} onClick={() => pickFmt(i)}>{t.label}</button>
         ))}
       </div>
       <div className="rf-note">10 editable letter styles × 4 social formats. Pick a style + format, write your note — the only fixed line is <b>Pure Signal. No Noise.</b> Then download or save to the feed.</div>
@@ -361,8 +361,8 @@ export default function LetterFlyer() {
       {field("date", "Date (optional)", "July 4, 2026")}
       <canvas ref={canvasRef} width={FORMATS[fmt].w} height={FORMATS[fmt].h} className="rf-canvas" />
       <div className="rf-actions">
-        <button type="button" className="rf-dl ghost" onClick={download}>{APP_BUILD ? "Save or share" : "Download"}</button>
-        <button type="button" className="rf-dl" onClick={saveToFeed} disabled={busy}>{busy ? "Saving…" : <><Icon name="star" /> Save to feed</>}</button>
+        <button type="button" className="btn-sec flex-1" onClick={download}>{APP_BUILD ? "Save or share" : "Download"}</button>
+        <button type="button" className="btn-pri flex-1" onClick={saveToFeed} disabled={busy}>{busy ? "Saving…" : <><Icon name="star" /> Save to feed</>}</button>
       </div>
     </div>
   );

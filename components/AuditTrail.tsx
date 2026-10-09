@@ -43,7 +43,7 @@ export default function AuditTrail() {
       {() => (
         <div className="audit-trail">
           <div className="audit-actions">
-            <button type="button" className="dops-mini" onClick={() => downloadCsv("gt3-change-log.csv", rows.map((r) => ({
+            <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => downloadCsv("gt3-change-log.csv", rows.map((r) => ({
               when: r.created_at, who: r.actor ? (names[r.actor] ?? r.actor) : "system", what: TABLE_LABEL[r.table_name] ?? r.table_name,
               action: ACTION_LABEL[r.action] ?? r.action, row: r.row_pk ?? "", change: r.summary ?? "",
             })))}>Export CSV</button>

@@ -126,7 +126,7 @@ export default function ShootPlanner() {
                       <div className="shoot-shots">
                         {list.map((s) => (
                           <div className="shoot-shot" key={s.id}>
-                            <button type="button" className={`shoot-st st-${s.status}`} onClick={() => cycleShot(s)}>{SHOT_LABEL[s.status]}</button>
+                            <button type="button" className={`k-chip sm shrink-0${s.status === "shot" ? " on" : s.status === "cut" ? " ok on" : ""}`} onClick={() => cycleShot(s)} aria-label={`Shot status: ${s.status === "cut" ? "in edit" : s.status} — tap for the next`}>{SHOT_LABEL[s.status]}</button>
                             <span className="shoot-desc">{s.description}</span>
                             <select className="shoot-assign" value={s.assignee ?? ""} onChange={(e) => assignShot(s, e.target.value)} aria-label="Assign shot"><option value="">—</option>{crew.map((c) => <option key={c.id} value={c.id}>{crewLabel(c)}</option>)}</select>
                             <button type="button" className="shoot-del" onClick={() => delShot(s.id)} aria-label="Delete shot"><Icon name="close" /></button>

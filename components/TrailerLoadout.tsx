@@ -184,7 +184,7 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
                 <span>{tp.maker} · {tp.size_label} · GVWR {fmt(tp.gvwr_lb)} lb · {tp.tire_psi} PSI</span>
                 <span>Tows with {tp.tow_vehicle}</span>
               </div>
-              {isOwner && <button className="tl-edit" onClick={() => { setForm({}); setEdit((e) => !e); }}>{edit ? "Close" : "Tune"}</button>}
+              {isOwner && <button className="btn-ter shrink-0" onClick={() => { setForm({}); setEdit((e) => !e); }}>{edit ? "Close" : "Tune"}</button>}
             </div>
 
             {edit && isOwner && (

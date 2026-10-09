@@ -290,7 +290,7 @@ export default function Goals() {
               <input className="auth-input" type="date" value={eg.due} onChange={(e) => setEg({ ...eg, due: e.target.value })} aria-label="Due date" />
             </div>
             <div className="st-log-btns">
-              <button type="button" className="dops-mini" onClick={() => saveEdit(g)} disabled={savingEdit}>{savingEdit ? "Saving…" : "Save"}</button>
+              <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => saveEdit(g)} disabled={savingEdit}>{savingEdit ? "Saving…" : "Save"}</button>
               <button type="button" className="st-discuss" onClick={() => setEditingId(null)}>Cancel</button>
               <button type="button" className="st-discuss goal-archive" onClick={() => archiveGoal(g)}>Archive goal</button>
             </div>
@@ -364,7 +364,7 @@ export default function Goals() {
               <div className="goal-init add">
                 <input className="auth-input" autoFocus value={initTitle} onChange={(e) => setInitTitle(e.target.value)} placeholder="A concrete move — e.g. Pitch 3 wholesale accounts"
                   onKeyDown={(e) => { if (e.key === "Enter") addInitiative(g.id); if (e.key === "Escape") setInitFor(null); }} />
-                <button type="button" className="dops-mini" onClick={() => addInitiative(g.id)}>Add</button>
+                <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => addInitiative(g.id)}>Add</button>
               </div>
             )}
           </div>
@@ -376,7 +376,7 @@ export default function Goals() {
               <input className="auth-input" inputMode="decimal" autoFocus value={logVal}
                 onChange={(e) => setLogVal(e.target.value)} placeholder={String(g.current_value)}
                 onKeyDown={(e) => { if (e.key === "Enter") logProgress(g); if (e.key === "Escape") setLogging(null); }} />
-              <button type="button" className="dops-mini" onClick={() => logProgress(g)}>Log</button>
+              <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => logProgress(g)}>Log</button>
             </span>
           ) : (
             <button type="button" className="st-discuss" onClick={() => { setLogging(g.id); setLogVal(""); }}>＋ Log progress</button>
@@ -456,7 +456,7 @@ export default function Goals() {
             <input className="auth-input" type="date" value={ng.due} onChange={(e) => setNg({ ...ng, due: e.target.value })} aria-label="Due date" />
           </div>
           <div className="st-log-btns">
-            <button type="button" className="dops-mini" onClick={addGoal} disabled={savingGoal}>{savingGoal ? "Putting it up…" : "Put it on the board"}</button>
+            <button type="button" className="btn-sec btn-sm shrink-0" onClick={addGoal} disabled={savingGoal}>{savingGoal ? "Putting it up…" : "Put it on the board"}</button>
             <button type="button" className="st-discuss" onClick={() => setAdding(false)}>Cancel</button>
           </div>
         </div>

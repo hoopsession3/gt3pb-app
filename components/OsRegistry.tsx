@@ -238,7 +238,7 @@ export default function OsRegistry() {
               <input className="note-in" value={draft.blocker} onChange={(e) => setDraft({ ...draft, blocker: e.target.value })} placeholder="What's stuck, if anything" /></label>
             <label className="prod-f"><span>Audit note — why it isn't a 10</span>
               <input className="note-in" value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} placeholder="One line, plain" /></label>
-            <button type="button" className="note-del osr-remove" onClick={removeStream}>Remove from the portfolio</button>
+            <button type="button" className="btn-del osr-remove" onClick={removeStream}>Remove from the portfolio</button>
           </div>
         </Sheet>
       )}

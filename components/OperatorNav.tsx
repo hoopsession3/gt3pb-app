@@ -309,7 +309,7 @@ function MoreSheet({ lanes, pins, activeId, onOpen, onSettings, onClose, canPin 
             <span className="lane-secs">{g.members.map((m) => SECTION_LABEL[m]).join(" · ")}</span>
           </button>
           {canPin && (
-            <button type="button" className={`lane-pin${local.includes(g.id) ? " on" : ""}`} onClick={() => toggle(g.id)} aria-pressed={local.includes(g.id)} aria-label={`${local.includes(g.id) ? "Unpin" : "Pin"} ${g.label}`}>
+            <button type="button" className={`k-chip sm shrink-0${local.includes(g.id) ? " on" : ""}`} onClick={() => toggle(g.id)} aria-pressed={local.includes(g.id)} aria-label={`${local.includes(g.id) ? "Unpin" : "Pin"} ${g.label}`}>
               {local.includes(g.id) ? "Pinned" : "Pin"}
             </button>
           )}

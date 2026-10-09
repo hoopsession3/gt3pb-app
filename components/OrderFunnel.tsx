@@ -769,7 +769,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
             {dupRows.map((r, i) => <div key={i} className="dup-row">{r.kind === "pickup" ? <Icon name="bell" /> : <Icon name="truck" />} {r.label}</div>)}
           </div>
           <button type="button" className="btn-pri btn-wide" onClick={() => { setDupOk(targetDayKey()); setDupRows(null); setStep("pay"); }}>Yes — add this order too <Icon name="arrowRight" /></button>
-          <button type="button" className="dup-nvm" onClick={() => setDupRows(null)}>Never mind — keep what I have</button>
+          <button type="button" className="btn-sec btn-wide mt-2" onClick={() => setDupRows(null)}>Never mind — keep what I have</button>
           <p className="pnl-note" style={{ marginTop: 10 }}>Tip: your packs for one day roll up together under “Your packs” — you can also change a pack instead of adding one.</p>
         </Sheet>
       )}
@@ -836,7 +836,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
                   <input className="auth-input" value={code} onChange={(e) => { setCode(e.target.value); if (codeState !== "idle") setCodeState("idle"); }}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); checkCode(); } }}
                     placeholder={t("funnel.code_ph")} aria-label="Discount code" autoCapitalize="characters" />
-                  <button type="button" className="oa-code-apply" onClick={checkCode} disabled={!codeClean || codeState === "checking"}>{codeState === "checking" ? "…" : t("funnel.code_apply")}</button>
+                  <button type="button" className="btn-sec shrink-0" onClick={checkCode} disabled={!codeClean || codeState === "checking"}>{codeState === "checking" ? "…" : t("funnel.code_apply")}</button>
                 </div>
               )}
               {codeState === "bad" && <p className="oa-code-bad">That code isn&rsquo;t valid — check it and try again.</p>}

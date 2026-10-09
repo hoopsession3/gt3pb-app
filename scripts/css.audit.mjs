@@ -58,7 +58,18 @@
 //                       size it, round it, letter it or fill it (padding, height, radius, font, letter-
 //                       spacing, capitals, background, shadow). The button recipes still outside the kit — a
 //                       rule named for a button (-btn, -cta, -go, -send, -add…) that draws a pressed box
-//                       with words — are counted, and the count only falls (8).
+//                       with words — are counted, and the count only falls (8). Nor may a rule for a bare button
+//                       or link in a box (.box button{…}) reach a kit control the box holds: a class and an element
+//                       outrank the kit's class (the record box drew its primary as an outline). And a button whose
+//                       every class is styled nowhere draws the browser's grey face (the crash screen's two did).
+//  11. NO BUTTON IN DISGUISE  the button and chip recipes the name and radius tests could not see: a class a
+//                       <button> or a link wears, whose own rule draws a pressed box with words (a fill or a border,
+//                       a padding or a size, and a pointer). There were 158 on 2026-10-09 — .dops-mini on 22
+//                       buttons, .gen-opt, .auth-tab, .tip-opt, .order-bar, .claim — and 86 moved onto the kits
+//                       (round 7d). What stays is a row, a card, a check or the frame's own chrome, each named in
+//                       UNNAMED_EXEMPT with why: there, the box is the thing (a row that opens its record, a pack to
+//                       pick, a box that ticks), not a button's look. Any other is a recipe, and fails; an exemption
+//                       whose class no longer draws one fails too, so the list only shrinks.
 //   8. ONLY DOWN        what the utilities are for can only shrink from what is recorded in CEILING:
 //                       inline style objects, the distinct raw colours written in app/globals.css, its
 //                       size, and class names taken whole from a variable (`${status}`) — a value from
@@ -72,11 +83,11 @@ import ts from "typescript";
 import postcss from "postcss";
 
 export const CEILING = {
-  inlineStyles: 575,          // style={{…}} objects in app/, components/, native/ (575 on 2026-10-09, the desk round: Brew's Recipes head took a utility for its 18px; 576 the same day, the chip round: the margins written inline beside .handle and the pills — sign-in's, the checkout's, the academy's, Find Us's — are utilities, and so are two sheet heads' rows; 598 the same day, the button round: sixteen buttons' margins and widths are utilities; 621 on 2026-10-07; 620 the same day — the overdue count's margin is a utility; 616 when Team's door became one; 614 on 2026-10-08 — the Guide's header is utilities, with its two pages)
-  rawColours: 463,            // 463 on 2026-10-09 (the chip round: 32 hand-mixed greens, blues, golds and reds went with the chip and tag recipes — a tag's colour is a --tone-* now); 495 the same day (the button round: two went with the recipes); 497 on 2026-10-08 (the foundations round: the dead brew-timer dot's teal went with it); distinct hex / rgb() / rgba() literals in app/globals.css (2026-10-07, after the dead rules went; 499 when Command and Team took theme tokens; 498 when the office route's card did)
-  globalsBytes: 717_944,      // 717,944 on 2026-10-09 (the mark's screens: all ten that hold a GT3 mark are positioned, under a shorter note); 717,983 the same day (the chip round: 105 pill rules — chips, tags, pill buttons — the 16 button recipes and .handle gave way to the kit's chip, tag and count, −36 KB); 754,309 the same day (the button round: 31 recipes and the sheets' copies gave way to a kit of four kinds in two sizes); 766,799 on 2026-10-08 (the type round: 1,119 sizes folded onto the ten steps, 10.5px and 13.5px among them); 768,059 the same day (the navigation round: the system map's "‹ All layers" went into the title bar, and its rule with it); 768,213 the same day (the iPhone chrome round: the tab bar at 49pt, the KPI board's fields at 16px); 768,222 the same day (the foundations round: 50 rules no screen can match went — the old sheet, the .did and .cell rows, the menu's first draft — and the safe-area, tap-target and 16px-field fixes fit in what they left); app/globals.css, source bytes (2026-10-07: 804 KB before 316 dead rules and 4 keyframes went; the pill kit fits in what its seven recipes left;
+  inlineStyles: 566,          // style={{…}} objects in app/, components/, native/ (566 on 2026-10-09, round 7d: the margins written inline beside the recipes that moved — the drops', the lists', the calendar filter's headings, the architecture page's views, the prep sheet's actions — are utilities; 575 the same day, the desk round: Brew's Recipes head took a utility for its 18px; 576 the same day, the chip round: the margins written inline beside .handle and the pills — sign-in's, the checkout's, the academy's, Find Us's — are utilities, and so are two sheet heads' rows; 598 the same day, the button round: sixteen buttons' margins and widths are utilities; 621 on 2026-10-07; 620 the same day — the overdue count's margin is a utility; 616 when Team's door became one; 614 on 2026-10-08 — the Guide's header is utilities, with its two pages)
+  rawColours: 448,            // 448 on 2026-10-09 (round 7d: 16 went with the recipes — the drop board's and the 86 board's reds and greens, the concierge's browns, My Day's warning pink, the member card's sheen, the Edit pill's gold — and one came, paper's wash for the kit's icon button); 463 the same day (the chip round: 32 hand-mixed greens, blues, golds and reds went with the chip and tag recipes — a tag's colour is a --tone-* now); 495 the same day (the button round: two went with the recipes); 497 on 2026-10-08 (the foundations round: the dead brew-timer dot's teal went with it); distinct hex / rgb() / rgba() literals in app/globals.css (2026-10-07, after the dead rules went; 499 when Command and Team took theme tokens; 498 when the office route's card did)
+  globalsBytes: 685_387,      // 685,387 on 2026-10-09 (round 7d: 86 button and chip recipes the name and radius tests could not see gave way to the kits, −31 KB); 717,944 the same day (the mark's screens: all ten that hold a GT3 mark are positioned, under a shorter note); 717,983 the same day (the chip round: 105 pill rules — chips, tags, pill buttons — the 16 button recipes and .handle gave way to the kit's chip, tag and count, −36 KB); 754,309 the same day (the button round: 31 recipes and the sheets' copies gave way to a kit of four kinds in two sizes); 766,799 on 2026-10-08 (the type round: 1,119 sizes folded onto the ten steps, 10.5px and 13.5px among them); 768,059 the same day (the navigation round: the system map's "‹ All layers" went into the title bar, and its rule with it); 768,213 the same day (the iPhone chrome round: the tab bar at 49pt, the KPI board's fields at 16px); 768,222 the same day (the foundations round: 50 rules no screen can match went — the old sheet, the .did and .cell rows, the menu's first draft — and the safe-area, tap-target and 16px-field fixes fit in what they left); app/globals.css, source bytes (2026-10-07: 804 KB before 316 dead rules and 4 keyframes went; the pill kit fits in what its seven recipes left;
                               // Command's and Team's clean-up added rows and actions and put their one-off layout in utilities; the office route on theme tokens)
-  wholeVariableClasses: 37,   // className tokens that are a ${value} and nothing else (2026-10-07; 46 → 38 on 2026-10-09, the chip round: eight statuses that wrote their own class — a play's, a goal's, a discussion's kind, an offer letter's, the launch's verdict and checks, a Studio piece's — choose a tag's tone among written words; 38 → 37 the same day, the desk round: the shell's class is written in pieces, "app desk-shell" a string of its own so Tailwind reads desk-shell)
+  wholeVariableClasses: 34,   // className tokens that are a ${value} and nothing else (2026-10-07; 37 → 34 on 2026-10-09, round 7d: the menu and rig chips' skin map gave way to the kit's chip; 46 → 38 on 2026-10-09, the chip round: eight statuses that wrote their own class — a play's, a goal's, a discussion's kind, an offer letter's, the launch's verdict and checks, a Studio piece's — choose a tag's tone among written words; 38 → 37 the same day, the desk round: the shell's class is written in pieces, "app desk-shell" a string of its own so Tailwind reads desk-shell)
   buttonRecipes: 0,           // button recipes outside the kit (2026-10-09, the button round: 41 before it moved 31 recipes and the
                               // sheets' .note-save, .note-cancel and .cfm-ok onto "03 · Buttons"; the chip round moved the last 16 the same day)
   pillRules: 7,               // pills and round buttons outside the kit (7 on 2026-10-09, the chip round: two fields, the menu's price, an avatar, the offline toast,
@@ -277,6 +288,66 @@ export const RETIRED_PILLS = [
   "goal-tier", "pay-status", "pb-status", "studio-card-camp", "codes-badge", "pd-status", "st-log-srcnote",
   "st-log-fu", "cmd-goalchip", "cmd-goalsel", "note-pfile", "ck-weigh", "osr-mean", "gtm-count", "pr-tier", "disc-kind", "ofr-chip",
 ];
+/** Rule 11's exemptions: what draws a box on a <button> and is not a button's look — by kind, with why. */
+export const UNNAMED_EXEMPT = {
+  // the row is the button, as the kit's InfoRow is: it opens its record, a disclosure, a field's editor, a switch's row
+  rows: ["prep-collapse", "tm-hire-open", "assign-row", "eg-row", "office-toggle", "alerts-strip", "rdg-opt",
+    "dp-draftrow", "tm-hire-row", "so-row", "pnotes-row", "ev-fieldbtn", "cl-op", "sales-opp", "brew-logrow", "team-crm-link",
+    "garage-head", "cmd-week", "notif-cat", "place-again", "note-file-open", "disc-row", "tm-open", "ofr-row", "ev-golive"],
+  // a card or a tile that is one choice or one door — a pack, a day, a module, a photo, a calendar's entry
+  cards: ["dl-card", "ev-prep", "oa-day", "ac-mod", "aud", "studio-thumb", "subpitch-pack", "ac-prod", "ac-opt", "ac-ackcard",
+    "guide-create", "prep-card", "lib-cell", "studio-card", "calw-ev", "arch-tile", "cc-chip", "dp-tab", "mini-m", "brew-recipe",
+    "intake-drop", "oa-usual", "oa-tile", "svc-enter", "mp-flex", "shop-card"],
+  // a box that ticks, a score's cells, a drop's stages, a photo's own toolbar, the Display sheet's four A's (each drawn at
+  // the size it picks — and the shell, which carries the sheet, carries no control's code)
+  checks: ["rdy-check", "pbd-check", "goal-init-ck", "brew-score-b", "osr-chip", "dops-stage", "ms-b", "rdg-size"],
+  // a switch is not a button: three recipes for one iOS switch, which one kit switch will replace (the forms round)
+  switches: ["op-switch", "pay-toggle", "oa-toggle"],
+  // the frame's own: the cart bars, the update prompt, the rail's and the help's edge tabs, the account's face, the
+  // wallets' own badges (Apple's and Google's artwork rules)
+  chrome: ["cartbar", "shop-cartbar", "sw-update", "rail-fold", "rail-open", "conc-fab", "rdg-fab", "chub-tab", "acct-av", "mp-wallet"],
+};
+
+/** Rule 11: classes a <button>, a link or a <Link> wears whose own rule draws a pressed box with words — a fill or a
+ *  border, a padding, a size or a height, and a pointer — outside the kits. Class → where it is worn. */
+export function unnamedRecipesIn(root, ast) {
+  const files = ["app", "components", "native"].flatMap((d) => walk(root, d, (n) => n.endsWith(".tsx")));
+  const worn = new Map();
+  for (const f of files) {
+    const src = readFileSync(join(root, f), "utf8");
+    const sf = ts.createSourceFile(f, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const visit = (n) => {
+      if ((ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) && /^(button|a|Link|LeaveButton)$/.test(n.tagName.getText(sf))) {
+        for (const p of n.attributes.properties) {
+          if (!ts.isJsxAttribute(p) || p.name.getText(sf) !== "className" || !p.initializer) continue;
+          for (const m of p.initializer.getText(sf).matchAll(/[A-Za-z_][\w-]*/g)) {
+            if (!worn.has(m[0])) worn.set(m[0], `${toPosix(f)}:${sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1}`);
+          }
+        }
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+  }
+  const out = new Map();
+  ast.walkRules((r) => {
+    if (r.parent?.type === "atrule" && /keyframes/i.test(r.parent.name)) return;
+    const d = {};
+    r.each((n) => { if (n.type === "decl") d[n.prop] = n.value.trim(); });
+    const fill = d.background || d["background-color"] || "";
+    const box = (fill && !/^(none|transparent|inherit)$/.test(fill)) || /solid|dashed/.test(d.border || "");
+    if (!box || !(d["font-size"] || d.padding || d["min-height"] || d.height) || d.cursor !== "pointer") return;
+    for (const sel of r.selectors) {
+      const last = sel.trim().split(/\s+|>|\+|~/).filter(Boolean).pop() || "";
+      for (const m of last.matchAll(/\.([A-Za-z_][\w-]*)/g)) {
+        if (/^(btn-|k-)/.test(m[1]) || !worn.has(m[1])) continue;
+        out.set(m[1], worn.get(m[1]));
+      }
+    }
+  });
+  return out;
+}
+
 /** What a rule outside the kit may not set on a kit button: its size, its shape, its letters, its fill. */
 export const BUTTON_LOOK = /^(padding(-(top|right|bottom|left|inline|block)(-start|-end)?)?|(min-|max-)?height|border(-(top|bottom)-(left|right))?-radius|border(-(top|right|bottom|left))?(-width|-style)?|font(-(family|size|weight|style))?|letter-spacing|text-transform|line-height|background(-color|-image)?|box-shadow|text-decoration(-line)?)$/;
 /** …and the utilities that would say the same on the element. */
@@ -330,6 +401,77 @@ export function buttonRestylesIn(ast, css, companions) {
     r.each((d) => { if (d.type === "decl" && BUTTON_LOOK.test(d.prop)) bad.push(d.prop); });
     if (bad.length) out.push(`${r.selector.replace(/\s+/g, " ").slice(0, 60)} sets ${bad.join(", ")}`);
   });
+  return out;
+}
+
+/** Rule 10's blind spot: a rule for a bare element in a box — `.box button{…}` — outranks a kit class on that
+ *  element (a class and an element beat a class), so where the box holds a kit control the rule draws over it.
+ *  (2026-10-09: .ownerdet-wrap-actions button drew the record box's kit primary as an outline, and .adm-status
+ *  button the booking request's doors.) The box's own words in the screens are read; a kit control inside it fails. */
+export function elementRestylesIn(root, ast) {
+  const rules = [];
+  ast.walkRules((r) => {
+    if (r.parent?.type === "atrule" && /keyframes/i.test(r.parent.name)) return;
+    const props = [];
+    r.each((d) => { if (d.type === "decl" && BUTTON_LOOK.test(d.prop)) props.push(d.prop); });
+    if (!props.length) return;
+    for (const sel of r.selectors) {
+      const parts = demanded(sel).trim().split(/\s+|>|\+|~/).filter(Boolean);
+      const last = parts.pop() || "";
+      const el = last.match(/^(button|a)(?=$|[:\[])/);
+      if (!el) continue;
+      const box = [...parts].reverse().map((x) => [...x.matchAll(/\.([A-Za-z_][\w-]*)/g)].map((m) => m[1])).find((cs) => cs.length);
+      if (box) rules.push({ box, el: el[1], props, sel: sel.trim().replace(/\s+/g, " ") });
+    }
+  });
+  const out = [];
+  if (!rules.length) return out;
+  const KIT = new RegExp(`(^|[\\s"'\`{])(${[...KIT_BUTTONS.filter((c) => c !== "btn-sm" && c !== "btn-wide"), "k-chip", "k-icon-btn", "k-seg-opt"].join("|")})([\\s"'\`}]|$)`);
+  const has = (text, c) => new RegExp(`(^|[\\s"'\`{])${c}([\\s"'\`}]|$)`).test(text);
+  const files = ["app", "components", "native"].flatMap((d) => walk(root, d, (n) => n.endsWith(".tsx")));
+  for (const f of files) {
+    const src = readFileSync(join(root, f), "utf8");
+    if (!rules.some((r) => r.box.every((c) => src.includes(c)))) continue;
+    const sf = ts.createSourceFile(f, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const classOf = (open) => { for (const p of open.attributes.properties) if (ts.isJsxAttribute(p) && p.name.getText(sf) === "className" && p.initializer) return p.initializer.getText(sf); return ""; };
+    const visit = (n, inside) => {
+      let here = inside;
+      if (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)) {
+        const open = ts.isJsxElement(n) ? n.openingElement : n;
+        const c = classOf(open), tag = open.tagName.getText(sf);
+        if (inside.length && /^(button|a|Link)$/.test(tag) && KIT.test(c)) {
+          for (const r of inside) if (r.el === "button" ? tag === "button" : tag !== "button") out.push(`${r.sel} sets ${r.props.join(", ")} on a kit control (${toPosix(f)}:${sf.getLineAndCharacterOfPosition(open.getStart(sf)).line + 1})`);
+        }
+        const mine = rules.filter((r) => r.box.every((x) => has(c, x)));
+        if (mine.length) here = [...inside, ...mine];
+      }
+      ts.forEachChild(n, (k) => visit(k, here));
+    };
+    visit(sf, []);
+  }
+  return out;
+}
+
+/** A <button> whose every class is styled nowhere — not by the house stylesheet, not by a utility — draws the browser's
+ *  own grey face (2026-10-09: the crash screen's Try again and Reload, .act-btn, and the delivery loop's entries).
+ *  Read where the classes are written words; a className from a variable is the screen's to answer for. */
+export function greyButtonsIn(root, styled) {
+  const files = ["app", "components", "native"].flatMap((d) => walk(root, d, (n) => n.endsWith(".tsx")));
+  const out = [];
+  for (const f of files) {
+    const src = readFileSync(join(root, f), "utf8");
+    const sf = ts.createSourceFile(f, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const visit = (n) => {
+      if ((ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) && n.tagName.getText(sf) === "button") {
+        const cls = n.attributes.properties.find((p) => ts.isJsxAttribute(p) && p.name.getText(sf) === "className");
+        const text = cls?.initializer && ts.isStringLiteral(cls.initializer) ? cls.initializer.text : null;
+        const words = text ? text.split(/\s+/).filter(Boolean) : [];
+        if (words.length && words.every((w) => !styled(w))) out.push(`"${text}" (${toPosix(f)}:${sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1})`);
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+  }
   return out;
 }
 
@@ -448,9 +590,21 @@ export async function audit(root) {
   const companions = buttonCompanions(root);
   const restyles = buttonRestylesIn(ast, globals, companions);
   if (restyles.length) fail("one set of buttons", `${restyles.length} rule(s) outside the kit size, round, letter or fill a kit button: ${restyles.slice(0, 4).join(" | ")}`);
+  const twBuilt = houseClasses(tw);
+  const grey = greyButtonsIn(root, (c) => houseNow.has(c) || twBuilt.has(c) || !!ds.candidatesToCss([c])[0]);
+  if (grey.length) fail("one set of buttons", `${grey.length} button(s) whose every class is styled nowhere — the browser's grey face: ${grey.slice(0, 4).join(", ")}`);
+  const boxRestyles = elementRestylesIn(root, ast);
+  if (boxRestyles.length) fail("one set of buttons", `${boxRestyles.length} rule(s) for a bare button or link in a box draw over the kit control it holds: ${boxRestyles.slice(0, 3).join(" | ")} — a class and an element outrank the kit's class; style the box's own buttons by their class`);
   const utilityRestyles = [...companions].filter(([c]) => BUTTON_LOOK_UTILITY.test(c.split(":").pop().replace(/^!|!$/g, "")));
   if (utilityRestyles.length) fail("one set of buttons", `utilities restyle a kit button: ${utilityRestyles.slice(0, 6).map(([c, f]) => `${c} (${[...f][0]})`).join(", ")} — place it (margin, flex, width), never size or letter it`);
   const buttonRecipes = buttonRecipesIn(ast);
+
+  // 11 · no button in disguise
+  const unnamed = unnamedRecipesIn(root, ast);
+  const exempt = Object.values(UNNAMED_EXEMPT).flat();
+  for (const [c, at] of unnamed) if (!exempt.includes(c)) fail("no button in disguise", `.${c} (${at}) draws a button of its own — use the kit (components/Button, .k-chip, the segmented control, .k-icon-btn), or name it in UNNAMED_EXEMPT with why`);
+  const stale = exempt.filter((c) => !unnamed.has(c));
+  if (stale.length) fail("no button in disguise", `UNNAMED_EXEMPT names ${stale.join(", ")}, which no longer draw a box on a button — take them off the list`);
 
   const counts = { inlineStyles: m.inlineStyles, rawColours: rawColours(globals).size, globalsBytes: Buffer.byteLength(globals), wholeVariableClasses: m.wholeVariable.length, pillRules: pills.length, buttonRecipes: buttonRecipes.length };
   for (const [k, v] of Object.entries(counts)) {
