@@ -97,7 +97,7 @@ export default function Discussions({ onOpenNotes }: { onOpenNotes: () => void }
         <div className="disc-rail">
           {rows.map((r) => (
             <button key={`${r.kind}:${r.id}`} type="button" className="disc-row" onClick={() => go(r)}>
-              <div className="disc-top"><i className={`disc-kind ${r.kind}`}>{KIND_LABEL[r.kind]}</i><b className="disc-title">{r.title}</b><span className="disc-n"><Icon name="chat" />{r.n}</span></div>
+              <div className="disc-top"><i className={`k-tag${r.kind === "strategy" ? "" : " gold"}`}>{KIND_LABEL[r.kind]}</i><b className="disc-title">{r.title}</b><span className="disc-n"><Icon name="chat" />{r.n}</span></div>
               <div className="disc-latest"><b>{r.who}</b> · {r.when} — {r.latest}</div>
             </button>
           ))}

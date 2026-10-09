@@ -71,7 +71,7 @@ export default function CookNeedList({ ingredients }: { ingredients: CookIngredi
             <span className="ck-need-n">
               {ing.name}
               {ing.scales === false && <i className="ck-fixed">fixed</i>}
-              {q.needsScale && <em className="ck-weigh"><Icon name="scale" /> WEIGH</em>}
+              {q.needsScale && <em className="k-tag crit"><Icon name="scale" /> WEIGH</em>}
             </span>
           </li>
         ))}

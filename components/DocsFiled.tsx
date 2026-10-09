@@ -137,11 +137,11 @@ export default function DocsFiled() {
                 "Certificate of insurance" when none is on file is a dead end dressed as a choice. */}
             {present.length > 1 && (
               <div className="prod-actions" style={{ marginTop: 8 }}>
-                <button type="button" className={kind === "" ? "k-chip hit-y-44" : "k-chip hit-y-44 k-chip-sec"} onClick={() => setKind("")}>
+                <button type="button" className={`k-chip${kind === "" ? " on" : ""}`} aria-pressed={kind === ""} onClick={() => setKind("")}>
                   All
                 </button>
                 {present.map((k) => (
-                  <button key={k} type="button" className={kind === k ? "k-chip hit-y-44" : "k-chip hit-y-44 k-chip-sec"}
+                  <button key={k} type="button" className={`k-chip${kind === k ? " on" : ""}`}
                           onClick={() => setKind(kind === k ? "" : k)} aria-pressed={kind === k}>
                     {kindLabel(k)}
                   </button>

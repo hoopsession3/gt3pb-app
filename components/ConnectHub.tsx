@@ -43,7 +43,7 @@ export function ConnectBody({ onGo }: { onGo: () => void }) {
           return (
             <div key={g.q} className={`chub-grp${on ? " on" : ""}${lead ? " chub-grp-lead" : ""}`}>
               <button type="button" className="chub-q" aria-expanded={on} onClick={() => setGroup(on ? -1 : i)}>
-                <span>{g.q}{lead && <span className="chub-lead-tag">owner</span>}</span><span className="chub-q-chev" aria-hidden>⌄</span>
+                <span>{g.q}{lead && <span className="k-tag gold fill ml-2">owner</span>}</span><span className="chub-q-chev" aria-hidden>⌄</span>
               </button>
               {on && (
                 <div className="chub-links">

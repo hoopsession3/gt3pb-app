@@ -100,7 +100,7 @@ export default function MyDeliveries() {
     <div className="mypacks" role="status">
       <div className="mypacks-h">Your deliveries</div>
       <p className="mypacks-err">We couldn&apos;t load your deliveries just now — this doesn&apos;t mean you don&apos;t have one.</p>
-      <button type="button" className="handle" onClick={() => load()}><span>Try again</span></button>
+      <button type="button" className="btn-pri btn-wide mt-4.5" onClick={() => load()}><span>Try again</span></button>
     </div>
   );
   if (rows.length === 0) return null;
@@ -148,7 +148,7 @@ export default function MyDeliveries() {
                 })()}
                 {p.status === "received" && (
                   <div className="mypack-actions">
-                    <button type="button" className="danger" onClick={() => cancel(p)} disabled={busy === p.id}>{busy === p.id ? "Canceling…" : "Cancel"}</button>
+                    <button type="button" className="btn-del" onClick={() => cancel(p)} disabled={busy === p.id}>{busy === p.id ? "Canceling…" : "Cancel"}</button>
                   </div>
                 )}
               </>

@@ -60,7 +60,7 @@ export default function OfficeAskSheet({ companyId, startKind = "extra_delivery"
 
   return (
     <Sheet open onClose={onClose} label="Ask GT3" header={header} className="office-sheet" dirty={body.trim().length > 0} dismissible={!busy}
-      footer={<button type="button" className="handle" onClick={send} disabled={busy || !body.trim()}><span>{busy ? "Sending…" : "Send to GT3"}</span></button>}>
+      footer={<button type="button" className="btn-pri btn-wide mt-4.5" onClick={send} disabled={busy || !body.trim()}><span>{busy ? "Sending…" : "Send to GT3"}</span></button>}>
       <p className="office-lede">It lands with the crew as a request, and the answer comes back here — on your GT3 page, not in a text thread.</p>
       <div className="flex flex-col gap-2">
         <span className="office-k">What is it about?</span>

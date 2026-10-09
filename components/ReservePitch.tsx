@@ -29,7 +29,7 @@ export default function ReservePitch() {
           itself a role="button" element; nesting the two is both an interaction conflict (which
           click wins?) and invalid/ARIA-unfriendly markup. Same call already made for the menu
           category chips and the per-drink list rows. Still editable via Settings › Business › Brand & customer app. */}
-      <button type="button" className="subpitch-cta" onClick={go}>{t("pitch.cta")}</button>
+      <button type="button" className="btn-pri btn-wide" onClick={go}>{t("pitch.cta")}</button>
       <EditableCopy k="pitch.fine" value={t("pitch.fine")} as="div" className="subpitch-fine" multiline />
     </section>
   );

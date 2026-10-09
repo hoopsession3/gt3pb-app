@@ -19,7 +19,7 @@ export default function CrewWelcomeRow() {
   return (
     <div className="k-rows mt-4">
       <InfoRow lead="Crew" leadSub="new" name="You're on the GT3 crew" sub="Your first-day guide is ready"
-        trailing={<span className="k-chip k-chip-sec">Open</span>} onClick={() => window.location.assign(START_PATH)}
+        trailing={<span className="k-chip">Open</span>} onClick={() => window.location.assign(START_PATH)}
         ariaLabel="You're on the GT3 crew — open the crew side and your first-day guide" />
     </div>
   );

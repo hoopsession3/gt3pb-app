@@ -55,7 +55,7 @@ export default function AcademyCard() {
       <span className="acad-top">
         <span className="opx-link-t">GT3 Academy</span>
         {p && (
-          <span className={`acad-chip${p.complete ? " done" : p.modulesDone === 0 ? " none" : ""}`}>
+          <span className={`k-tag${p.complete ? " ok" : p.modulesDone === 0 ? "" : " gold"}`}>
             {p.complete ? "Certified" : `${p.certsEarned}/${p.certsTotal}`}
           </span>
         )}

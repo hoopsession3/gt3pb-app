@@ -131,7 +131,7 @@ export default function ProposalDesk({ oppId, vendorName, isAdmin }: { oppId: st
     <div className="pd">
       <div className="pd-head">
         <span className="pd-title">Proposal &amp; reach-out strategy</span>
-        {status && <span className={`pd-status s-${status}`}>{LABEL[status]}</span>}
+        {status && <span className={`k-tag${status === "in_review" ? " gold" : status === "sent" ? " blue" : status === "negotiating" ? " warn" : status === "won" ? " ok" : status === "lost" ? " crit" : ""}`}>{LABEL[status]}</span>}
       </div>
 
       {status && !decided && (
@@ -149,18 +149,18 @@ export default function ProposalDesk({ oppId, vendorName, isAdmin }: { oppId: st
       </div>
 
       {!status && (
-        <button type="button" className="pd-start" onClick={() => advance("draft")} disabled={busy}>Start the proposal</button>
+        <button type="button" className="btn-pri" onClick={() => advance("draft")} disabled={busy}>Start the proposal</button>
       )}
 
       {status && !decided && (
         <div className="pd-controls">
-          {prevStatus && <button type="button" className="pd-back" onClick={() => advance(prevStatus)} disabled={busy}>← {LABEL[prevStatus]}</button>}
-          {nextStatus && <button type="button" className="pd-adv" onClick={() => advance(nextStatus)} disabled={busy}>{NEXT_VERB[nextStatus] ?? `To ${LABEL[nextStatus]}`} <Icon name="arrowRight" /></button>}
+          {prevStatus && <button type="button" className="btn-sec" onClick={() => advance(prevStatus)} disabled={busy}>← {LABEL[prevStatus]}</button>}
+          {nextStatus && <button type="button" className="btn-pri" onClick={() => advance(nextStatus)} disabled={busy}>{NEXT_VERB[nextStatus] ?? `To ${LABEL[nextStatus]}`} <Icon name="arrowRight" /></button>}
           {isAdmin && (
             <div className="pd-decide">
               <input className="auth-input" value={decisionNote} onChange={(e) => setDecisionNote(e.target.value)} placeholder="Decision note (optional)" aria-label="Decision note" />
-              <button type="button" className="pd-won" onClick={() => advance("won", decisionNote.trim() || undefined)} disabled={busy}>Mark won</button>
-              <button type="button" className="pd-lost" onClick={() => advance("lost", decisionNote.trim() || undefined)} disabled={busy}>Mark lost</button>
+              <button type="button" className="btn-sec" onClick={() => advance("won", decisionNote.trim() || undefined)} disabled={busy}>Mark won</button>
+              <button type="button" className="btn-sec" onClick={() => advance("lost", decisionNote.trim() || undefined)} disabled={busy}>Mark lost</button>
             </div>
           )}
           {!isAdmin && idx >= LINEAR.indexOf("sent") && <p className="pd-hint">Ready for the owner&rsquo;s decision — they&rsquo;ll record won or lost.</p>}
@@ -171,7 +171,7 @@ export default function ProposalDesk({ oppId, vendorName, isAdmin }: { oppId: st
         <div className={`pd-decided ${status}`}>
           <b>{status === "won" ? "Won" : "Lost"}</b> · {prop?.decided_by ? nameOf(prop.decided_by) : "Owner"}{prop?.decided_at ? ` · ${when(prop.decided_at)}` : ""}
           {prop?.decision_note && <p className="pd-decided-note">&ldquo;{prop.decision_note}&rdquo;</p>}
-          {isAdmin && <button type="button" className="pd-reopen" onClick={() => advance("negotiating")} disabled={busy}>Reopen</button>}
+          {isAdmin && <button type="button" className="btn-ter mt-2" onClick={() => advance("negotiating")} disabled={busy}>Reopen</button>}
         </div>
       )}
 

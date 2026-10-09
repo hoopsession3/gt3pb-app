@@ -57,7 +57,7 @@ export default function StampCard() {
       >
         <div className="stamp-top">
           <span className="stamp-brand"><Gt3Mark tone="cream" /><span className="stamp-k">{t("stamp.kicker")}</span></span>
-          <span className="stamp-badge">{badge}</span>
+          <span className="k-tag gold fill">{badge}</span>
         </div>
         <div className="stamp-grid" role="img" aria-label={`${inCard} of ${GOAL} stamps`}>
           {Array.from({ length: GOAL }).map((_, i) => (

@@ -36,7 +36,7 @@ export default function CopilotDirectory() {
                   name={c.label}
                   sub={c.desc}
                   trailing={<>
-                    <span className="cl-op-sec">{SECTION_LABEL[c.section]}</span>
+                    <span className="k-tag">{SECTION_LABEL[c.section]}</span>
                     <span className="k-caret" aria-hidden="true">›</span>
                   </>}
                   onClick={() => setSection(c.section)}

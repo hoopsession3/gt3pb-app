@@ -142,7 +142,7 @@ export default function SignIn() {
         <>
           <h2 className="auth-headline">Check your email.</h2>
           <p className="auth-sub">We sent a confirmation link to <b>{email}</b>. Tap it to activate your account, then come back and sign in.</p>
-          <button className="handle" onClick={reset} style={{ marginTop: 20 }}><span>Back to sign in</span></button>
+          <button type="button" className="btn-pri btn-wide mt-5" onClick={reset}><span>Back to sign in</span></button>
         </>
       )}
 
@@ -153,7 +153,7 @@ export default function SignIn() {
           <p className="auth-sub">We sent a password-reset link to <b>{email}</b>. Tap it, set a new password, and you&apos;re back in.</p>
           <p className="auth-paste-hint" style={{ marginTop: 8 }}>Don&apos;t see it? Check spam / promotions. Open the link in <b>this same browser</b>.</p>
           {err && <div className="auth-err">{err}</div>}
-          <button className="handle" onClick={reset} style={{ marginTop: 20 }}><span>Back to sign in</span></button>
+          <button type="button" className="btn-pri btn-wide mt-5" onClick={reset}><span>Back to sign in</span></button>
         </>
       )}
 
@@ -180,12 +180,12 @@ export default function SignIn() {
             value={otp}
             onChange={(e) => { setOtp(e.target.value.replace(/\D/g, "").slice(0, 8)); setErr(""); }}
           />
-          <button className="handle" disabled={otp.length < 6 || busy} onClick={handleVerifyCode} style={{ marginTop: 10 }}>
+          <button type="button" className="btn-pri btn-wide mt-2.5" disabled={otp.length < 6 || busy} onClick={handleVerifyCode}>
             <span>{busy ? "Verifying…" : "Verify code"}</span>
           </button>
 
           <div className="auth-divider" />
-          <button className="handle ghost" disabled={busy || cooldown > 0} onClick={handleResend}>
+          <button type="button" className="btn-sec btn-wide mt-4.5" disabled={busy || cooldown > 0} onClick={handleResend}>
             <span>{busy ? "Sending…" : cooldown > 0 ? `Resend in ${cooldown}s` : "Resend"}</span>
           </button>
           <button className="auth-link hit-44" onClick={reset}>← Different email</button>
@@ -209,7 +209,7 @@ export default function SignIn() {
                 onChange={(e) => { setPastedUrl(e.target.value); setPasteErr(""); }}
               />
               {pasteErr && <div className="auth-err">{pasteErr}</div>}
-              <button className="handle ghost" disabled={!pastedUrl.trim() || pasteBusy} onClick={handlePastedUrl} style={{ marginTop: 10 }}>
+              <button type="button" className="btn-sec btn-wide mt-2.5" disabled={!pastedUrl.trim() || pasteBusy} onClick={handlePastedUrl}>
                 <span>{pasteBusy ? "Signing in…" : "Sign in with pasted link"}</span>
               </button>
             </>
@@ -254,7 +254,7 @@ export default function SignIn() {
                 <span>Keep me signed in</span>
               </label>
               {err && <div className="auth-err">{err}</div>}
-              <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}>
+              <button className="btn-pri btn-wide mt-4.5" type="submit" disabled={busy}>
                 <span>{busy ? "Sending…" : intent === "join" ? "Become a member — email my link" : "Send my sign-in link"}</span>
               </button>
             </form>
@@ -300,7 +300,7 @@ export default function SignIn() {
                 <span>Keep me signed in</span>
               </label>
               {err && <div className="auth-err">{err}</div>}
-              <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}>
+              <button className="btn-pri btn-wide mt-4.5" type="submit" disabled={busy}>
                 <span>{busy ? (isNew ? "Creating…" : "Signing in…") : (isNew ? "Become a member" : "Sign in")}</span>
               </button>
               {!isNew && (

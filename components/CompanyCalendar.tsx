@@ -27,6 +27,7 @@ import { createTodo, updateTask, deleteTask } from "@/lib/tasks";
 import FieldOpSheet from "./FieldOpSheet";
 import Sheet, { CloseButton, LeaveButton, useSheetDoor } from "@/components/Sheet";
 import Icon from "@/components/Icon";
+import { Segmented } from "@/components/controls";
 import { SectionHeader } from "@/components/kit";
 import { useOutlookStatus, outlookLine } from "./OutlookConnect";
 import GoLine from "./GoLine";
@@ -482,8 +483,9 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
           <button type="button" className="cal-today hit-44" onClick={() => setCur(new Date(now.getFullYear(), now.getMonth(), now.getDate()))}>Today</button>
         </div>
         <div className="cal-views">
-          {shownViews.map((v) => <button key={v} type="button" className={`cal-view hit-y-44${view === v ? " on" : ""}`} onClick={() => setV(v)}>{VLABEL[v]}</button>)}
-          {phone && <button type="button" className="cal-view hit-y-44 cal-view-more" aria-expanded={moreViews} onClick={() => setMoreViews((m) => !m)}>{moreViews ? "Fewer" : "More"}</button>}
+          {/* the views are one switch, as Calendar's Day · Week · Month · Year is (the kit's segmented control) */}
+          <Segmented label="Calendar view" className="min-w-0" value={view} onChange={setV} options={shownViews.map((v) => ({ key: v, label: VLABEL[v] }))} />
+          {phone && <button type="button" className="btn-ter" aria-expanded={moreViews} onClick={() => setMoreViews((m) => !m)}>{moreViews ? "Fewer" : "More"}</button>}
           <Button type="button" kind="secondary" compact className="ml-auto" onClick={() => setFilterSheet(true)} aria-haspopup="dialog">
             {filter === "all" ? "Filter" : laneFilter ? <><span className="cc-dot" style={{ background: laneFilter.color }} />{laneFilter.label}</> : <><span className="cc-dot" style={{ background: CAT[filter].color }} />{CAT[filter].label}</>}
           </Button>
@@ -707,9 +709,9 @@ function SwipeNav({ i, n, label, onMove }: { i: number; n: number; label: string
   if (!host) return null;
   return createPortal(
     <div className="cal-swipenav" role="group" aria-label="Walk the calendar">
-      <button type="button" onClick={() => (door ? door(() => onMove(-1)) : onMove(-1))} disabled={i === 0} aria-label="Previous item">‹</button>
+      <button type="button" className="k-icon-btn pri" onClick={() => (door ? door(() => onMove(-1)) : onMove(-1))} disabled={i === 0} aria-label="Previous item"><Icon name="chevronLeft" /></button>
       <span>{label} · {i + 1}/{n}</span>
-      <button type="button" onClick={() => (door ? door(() => onMove(1)) : onMove(1))} disabled={i === n - 1} aria-label="Next item">›</button>
+      <button type="button" className="k-icon-btn pri" onClick={() => (door ? door(() => onMove(1)) : onMove(1))} disabled={i === n - 1} aria-label="Next item"><Icon name="chevronRight" /></button>
     </div>,
     host,
   );
@@ -991,7 +993,7 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
               </select>
             </label>
           )}
-          {jump && <LeaveButton className="cal-tolink" style={{ marginTop: 10, marginLeft: 0 }} onClick={jump.go}>{jump.label} <Icon name="externalLink" /></LeaveButton>}
+          {jump && <LeaveButton className="btn-ter mt-2.5" onClick={jump.go}>{jump.label} <Icon name="externalLink" /></LeaveButton>}
           <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
             {removable ? <button type="button" className="note-arch" onClick={remove} disabled={saving}>{kind === "content" ? "Unschedule" : "Delete"}</button> : <span />}
             <div style={{ display: "flex", gap: 8 }}>
@@ -1058,7 +1060,7 @@ function OutlookBar({ onSynced }: { onSynced: () => void }) {
   return (
     <div className="ol-bar">
       <div className="ol-top"><span className="ol-i"><Icon name="calendar" /></span><b>Outlook sync</b>
-        {st.connected ? <span className="ol-state on">Connected</span> : <span className="ol-state">Not connected</span>}
+        {st.connected ? <span className="k-tag ok ml-auto">Connected</span> : <span className="k-tag ml-auto">Not connected</span>}
       </div>
       {st.connected && (
         <>
@@ -1118,7 +1120,7 @@ function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[];
   return (
     // The day said in words under the kinds, not as "2026-09-27" squeezed beside them: at phone width
     // the three tabs broke over two lines each ("To-" / "do") to make room for it.
-    <Sheet open onClose={onClose} label="Add to the calendar" dirty={!!(title.trim() || where.trim() || address.trim() || venueId)} header={<div style={{ display: "flex", alignItems: "center", gap: 6 }}><button type="button" className={`qd-tab${kind === "todo" ? " on" : ""}`} onClick={() => setKind("todo")}>To-do</button><button type="button" className={`qd-tab${kind === "stop" ? " on" : ""}`} onClick={() => setKind("stop")}><Icon name="truck" /> Truck stop</button><button type="button" className={`qd-tab${kind === "event" ? " on" : ""}`} onClick={() => setKind("event")}>Event</button><span style={{ marginLeft: "auto" }} /><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Add to the calendar" dirty={!!(title.trim() || where.trim() || address.trim() || venueId)} header={<div className="flex items-center gap-2"><Segmented label="What to add" kind="choice" value={kind} onChange={setKind} options={[{ key: "todo", label: "To-do" }, { key: "stop", label: <><Icon name="truck" /> Truck stop</> }, { key: "event", label: "Event" }]} /><CloseButton onClick={onClose} /></div>}>
           <div className="dp-hint" style={{ marginTop: 0, marginBottom: 8 }}>{`For ${dayWithDate(day) || day}`}</div>
           <input className="note-in" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === "todo" ? "What needs doing?" : kind === "stop" ? "Stop name — e.g. Saturday Market" : "Event name"} aria-label={kind === "todo" ? "What needs doing" : kind === "stop" ? "Stop name" : "Event name"} autoFocus />
           {kind !== "todo" && (

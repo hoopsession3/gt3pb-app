@@ -184,10 +184,10 @@ export default function StoryViewer({ items, start = 0, title, onClose }: Props)
         <span className="sv-title">{title}</span>
         <div className="sv-top-b">
           {item.kind === "video" && !videoFailed && (
-            <button type="button" className="sv-ic" onClick={() => setMuted((m) => !m)}
+            <button type="button" className="k-icon-btn glass" onClick={() => setMuted((m) => !m)}
               aria-label={muted ? "Unmute video" : "Mute video"}>{muted ? "🔇" : "🔊"}</button>
           )}
-          <button type="button" className="sv-ic" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+          <button type="button" className="k-icon-btn glass" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
         </div>
       </div>
 
@@ -221,7 +221,7 @@ export default function StoryViewer({ items, start = 0, title, onClose }: Props)
         <button type="button" className="sv-zone next" onClick={() => go(1)} aria-label={i === count - 1 ? "Close" : "Next"}>
           <span className="sv-arrow" aria-hidden>›</span>
         </button>
-        {paused && <span className="sv-paused" aria-hidden>Paused</span>}
+        {paused && <span className="k-tag glass sv-paused" aria-hidden>Paused</span>}
       </div>
 
       <p className="sv-count" aria-live="polite">{i + 1} / {count}{item.alt ? ` · ${item.alt}` : ""}</p>

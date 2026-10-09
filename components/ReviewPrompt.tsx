@@ -65,7 +65,7 @@ export default function ReviewPrompt() {
         <>
           <textarea className="rvp-in" rows={2} maxLength={280} value={body} onChange={(e) => setBody(e.target.value)}
             placeholder={rating >= 4 ? "What made it good? (optional)" : "What could be better? (optional)"} />
-          <button type="button" className="rvp-send" disabled={busy} onClick={submit}>{busy ? "Sending…" : "Send it"}</button>
+          <button type="button" className="btn-pri" disabled={busy} onClick={submit}>{busy ? "Sending…" : "Send it"}</button>
         </>
       )}
     </section>

@@ -144,7 +144,7 @@ export default function PrimalAcademy() {
                         <Link href={lessonHref(l.slug)} key={l.id} className={`pr-card${isDone ? " done" : ""}`} style={{ "--accent": accent } as React.CSSProperties}>
                           <div className="pr-card-top">
                             <span className="pr-card-t">{l.title}</span>
-                            {l.tier === "pro" ? <span className="pr-tier pro"><Icon name="lock" size={11} /> Pro</span> : <span className="pr-tier">Free</span>}
+                            {l.tier === "pro" ? <span className="k-tag gold"><Icon name="lock" size={11} /> Pro</span> : <span className="k-tag">Free</span>}
                           </div>
                           {l.summary && <span className="pr-card-s">{l.summary}</span>}
                           <div className="pr-card-foot">
@@ -167,7 +167,7 @@ export default function PrimalAcademy() {
           <EditableCopy k="primal.cta_eye" value={copy("primal.cta_eye")} as="div" className="pr-cta-n" />
           <EditableCopy k="primal.cta_body" value={copy("primal.cta_body")} as="p" className="pr-cta-body" multiline />
           {/* CTA text is inside a <Link> — plain copy(), not EditableCopy (nested-interactive rule). */}
-          <Link href="/reserve" className="mpack-cta pr-cta">{copy("primal.cta_link")}</Link>
+          <Link href="/reserve" className="btn-pri btn-wide max-w-[320px] mx-auto">{copy("primal.cta_link")}</Link>
         </div>
       )}
 

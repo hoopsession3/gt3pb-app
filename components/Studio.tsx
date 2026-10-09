@@ -51,10 +51,11 @@ const STUDIO_VIEWS: readonly { key: StudioView; label: string }[] = [
   { key: "calendar", label: "Calendar" }, { key: "board", label: "Board" }, { key: "grid", label: "Grid" },
   { key: "flyer", label: "Flyer" }, { key: "letter", label: "Letter" }, { key: "brand", label: "Brand" },
 ];
-const STATUS: Record<string, { label: string; cls: string }> = {
-  draft: { label: "Draft", cls: "st-draft" }, review: { label: "In review", cls: "st-review" },
-  changes: { label: "Changes", cls: "st-changes" }, approved: { label: "Approved", cls: "st-approved" },
-  scheduled: { label: "Scheduled", cls: "st-scheduled" }, published: { label: "Published", cls: "st-published" },
+// cls is the grid dot's (.ig-tag); tone is the status tag's (the kit's .k-tag)
+const STATUS: Record<string, { label: string; cls: string; tone: string }> = {
+  draft: { label: "Draft", cls: "st-draft", tone: "" }, review: { label: "In review", cls: "st-review", tone: " gold" },
+  changes: { label: "Changes", cls: "st-changes", tone: " crit" }, approved: { label: "Approved", cls: "st-approved", tone: " ok" },
+  scheduled: { label: "Scheduled", cls: "st-scheduled", tone: " blue" }, published: { label: "Published", cls: "st-published", tone: " ok" },
 };
 const KINDS = ["post", "carousel", "reel", "story", "caption", "email", "menu_card", "promo", "blog"];
 // Format → the real frame aspect ratio + label, so the mockup matches what posts on the platform.
@@ -260,11 +261,11 @@ export default function Studio() {
               {shown.map((it) => (
                 <button key={it.id} type="button" className="studio-card" onClick={() => setOpenId(it.id)}>
                   <div className="studio-card-h">
-                    <span className={`st-pill ${STATUS[it.status]?.cls ?? ""}`}>{STATUS[it.status]?.label ?? it.status}</span>
+                    <span className={`k-tag${STATUS[it.status]?.tone ?? ""}`}>{STATUS[it.status]?.label ?? it.status}</span>
                     <span className="studio-card-ch">{it.channel}</span>
                   </div>
                   <div className="studio-card-t">{it.title || "Untitled"}</div>
-                  {it.campaign && <span className="studio-card-camp">{it.campaign}</span>}
+                  {it.campaign && <span className="k-tag gold mt-1.5">{it.campaign}</span>}
                   {it.caption && <div className="studio-card-c">{it.caption}</div>}
                   <div className="studio-card-f">{it.scheduled_for ? <><Icon name="calendar" /> {fmtDate(it.scheduled_for)}</> : `Edited ${fmtDate(it.updated_at)}`}</div>
                 </button>
@@ -663,7 +664,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       <div className="studio-top">
         <button type="button" className="studio-back" onClick={onClose}>‹ Studio</button>
         <div className="studio-presence">
-          <span className={`st-pill ${STATUS[status]?.cls ?? ""}`}>{STATUS[status]?.label ?? status}</span>
+          <span className={`k-tag${STATUS[status]?.tone ?? ""}`}>{STATUS[status]?.label ?? status}</span>
           {peers.map((p) => <span key={p.id} className="studio-peer" title={`${p.name} is here`}>{p.name.slice(0, 1).toUpperCase()}</span>)}
           {savedAt && <span className="studio-saved">Saved {savedAt}</span>}
         </div>
@@ -743,7 +744,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       <div className="studio-media">
         <div className="studio-media-fmt">{fmtFor(item.kind).label}{mediaList.length > 1 ? ` · ${mediaList.length} slides` : ""}<Button type="button" kind="quiet" className="ml-auto" onClick={openLibrary}>Library</Button></div>
         {mediaList.length === 0 ? (
-          <button type="button" className="studio-media-add" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : "＋ Add photos / video / reel"}</button>
+          <button type="button" className="btn-sec btn-wide" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : <><Icon name="plus" /> Add photos, video or a reel</>}</button>
         ) : (
           <div className="studio-sim">
             <div className="studio-sim-head"><span className="studio-sim-av" />gt3performancebar<span className="studio-sim-dots">•••</span></div>
@@ -755,8 +756,8 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
                 </div>}
             {isVertical && <><span className="sim-safe top" /><span className="sim-safe bottom" /><span className="sim-safe right" /></>}
             {mediaList.length > 1 && <div className="studio-dots">{mediaList.map((_, i) => <span key={i} className={i === active ? "on" : ""} />)}</div>}
-            {mediaList.length > 1 && active > 0 && <button type="button" className="studio-nav prev" onClick={() => setActive((a) => a - 1)} aria-label="Previous">‹</button>}
-            {mediaList.length > 1 && active < mediaList.length - 1 && <button type="button" className="studio-nav next" onClick={() => setActive((a) => a + 1)} aria-label="Next">›</button>}
+            {mediaList.length > 1 && active > 0 && <button type="button" className="k-icon-btn sm glass studio-nav prev" onClick={() => setActive((a) => a - 1)} aria-label="Previous"><Icon name="chevronLeft" /></button>}
+            {mediaList.length > 1 && active < mediaList.length - 1 && <button type="button" className="k-icon-btn sm glass studio-nav next" onClick={() => setActive((a) => a + 1)} aria-label="Next"><Icon name="chevronRight" /></button>}
             </div>
             {!isVertical && (
               <>
@@ -826,7 +827,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         <div className="insp-lbl"><Icon name="sparkles" /> Caption engine</div>
         <div className="oa-input">
           <input value={brief} onChange={(e) => setBrief(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") draft(); }} placeholder="Brief — e.g. 'promote Saturday market; lead with why no oxalates'" />
-          <button type="button" className="oa-send" onClick={draft} disabled={drafting || !brief.trim()}>{drafting ? "Drafting…" : "Draft"}</button>
+          <button type="button" className="btn-pri" onClick={draft} disabled={drafting || !brief.trim()}>{drafting ? "Drafting…" : "Draft"}</button>
           {draftErr && <div className="oa-err" role="status">Couldn&apos;t draft that — {draftErr}</div>}
         </div>
         {options.map((o, i) => (

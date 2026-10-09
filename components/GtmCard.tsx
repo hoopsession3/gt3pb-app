@@ -38,7 +38,7 @@ export default function GtmCard({ onOpenSchedule, onOpenInitiative }: GtmCardPro
 
   // Readiness count badge — unchanged content/logic; lives in the trailing slot alongside the caret.
   const countBadge = count
-    ? <span className={`gtm-count${days != null && days <= 7 ? " near" : ""}`}>{count}</span>
+    ? <span className={`k-count${days != null && days <= 7 ? " due" : ""}`}>{count}</span>
     : null;
   const initiativeTrailing = countBadge || onOpenInitiative
     ? <>{countBadge}{onOpenInitiative ? caret : null}</>

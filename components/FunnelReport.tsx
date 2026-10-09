@@ -58,8 +58,8 @@ export default function FunnelReport() {
             <div className="fn-block" key={f.key}>
               <div className="fn-block-h">
                 <b>{f.label}</b>
-                {conv != null && <span className="fn-conv">{conv}% finish</span>}
-                {pickup > 0 && <span className="fn-alt">+{pickup} pay at window</span>}
+                {conv != null && <span className="k-tag txt gold fill ml-auto">{conv}% finish</span>}
+                {pickup > 0 && <span className="k-tag txt">+{pickup} pay at window</span>}
               </div>
               <div className="fn-steps">
                 {f.steps.map(([s, lbl], i) => {

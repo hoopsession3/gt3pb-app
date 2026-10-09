@@ -273,13 +273,13 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
             // the one picked stays on screen even when it is past the first few
             ...suppliers.slice(SHOWN).filter((x) => x.id === from.id),
           ]).map((x) => (
-            <button type="button" key={x.id} className={`ts-chip${from.id === x.id ? " on" : ""}`} aria-pressed={from.id === x.id}
+            <button type="button" key={x.id} className={`k-chip${from.id === x.id ? " on" : ""}`} aria-pressed={from.id === x.id}
               onClick={() => pickFrom(from.id === x.id ? null : x)}>{x.name}</button>
           ))}
           {!allShown && suppliers && suppliers.length > SHOWN && (
-            <button type="button" className="ts-chip" onClick={() => setAllShown(true)}>{`+ ${suppliers.length - SHOWN} more`}</button>
+            <button type="button" className="k-chip" onClick={() => setAllShown(true)}>{`+ ${suppliers.length - SHOWN} more`}</button>
           )}
-          <button type="button" className={`ts-chip${naming || (!from.id && from.name) ? " on" : ""}`} aria-pressed={naming || (!from.id && !!from.name)}
+          <button type="button" className={`k-chip${naming || (!from.id && from.name) ? " on" : ""}`} aria-pressed={naming || (!from.id && !!from.name)}
             onClick={() => {
               if (naming || (!from.id && from.name)) { setNaming(false); setFrom(NOBODY); return; }
               if (from.id) pickFrom(null);
@@ -308,7 +308,7 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
         <span>Category</span>
         <div className="lp-chips">
           {cats.map((c) => (
-            <button type="button" key={c.slug} className={`ts-chip${cat === c.slug ? " on" : ""}`}
+            <button type="button" key={c.slug} className={`k-chip${cat === c.slug ? " on" : ""}`}
               aria-pressed={cat === c.slug} onClick={() => pickCat(c.slug)}>{categoryLabel(c.slug, cats)}</button>
           ))}
         </div>
@@ -356,9 +356,9 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
       <div className="lp-f" role="group" aria-label="When">
         <span>When</span>
         <div className="lp-chips">
-          <button type="button" className={`ts-chip${day === "today" ? " on" : ""}`} aria-pressed={day === "today"} onClick={() => setDay("today")}>Today</button>
-          <button type="button" className={`ts-chip${day === "yesterday" ? " on" : ""}`} aria-pressed={day === "yesterday"} onClick={() => setDay("yesterday")}>Yesterday</button>
-          <button type="button" className={`ts-chip${day === "pick" ? " on" : ""}`} aria-pressed={day === "pick"} onClick={() => setDay("pick")}>Another day</button>
+          <button type="button" className={`k-chip${day === "today" ? " on" : ""}`} aria-pressed={day === "today"} onClick={() => setDay("today")}>Today</button>
+          <button type="button" className={`k-chip${day === "yesterday" ? " on" : ""}`} aria-pressed={day === "yesterday"} onClick={() => setDay("yesterday")}>Yesterday</button>
+          <button type="button" className={`k-chip${day === "pick" ? " on" : ""}`} aria-pressed={day === "pick"} onClick={() => setDay("pick")}>Another day</button>
         </div>
         {day === "pick" && (
           <input className="note-in lp-date" type="date" value={picked} max={purchaseDay("today", "", now)}
@@ -370,7 +370,7 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
           <span>City</span>
           <div className="lp-chips">
             {MARKETS.map((m) => (
-              <button type="button" key={m} className={`ts-chip${market === m ? " on" : ""}`} aria-pressed={market === m}
+              <button type="button" key={m} className={`k-chip${market === m ? " on" : ""}`} aria-pressed={market === m}
                 onClick={() => setMarket(m)}>{MARKET_LABEL[m]}</button>
             ))}
           </div>

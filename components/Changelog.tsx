@@ -125,10 +125,10 @@ export default function Changelog() {
       ))}
 
       <div className="chg-filters">
-        <button type="button" className={`chg-chip${filter === "all" ? " on" : ""}`} onClick={() => setFilter("all")}>All</button>
-        <button type="button" className={`chg-chip${filter === "highlight" ? " on" : ""}`} onClick={() => setFilter("highlight")}><Icon name="star" /> Headliners</button>
+        <button type="button" className={`k-chip${filter === "all" ? " on" : ""}`} aria-pressed={filter === "all"} onClick={() => setFilter("all")}>All</button>
+        <button type="button" className={`k-chip${filter === "highlight" ? " on" : ""}`} aria-pressed={filter === "highlight"} onClick={() => setFilter("highlight")}><Icon name="star" /> Headliners</button>
         {presentCats.map((k) => (
-          <button key={k} type="button" className={`chg-chip${filter === k ? " on" : ""}`} onClick={() => setFilter(k)} style={filter === k ? { borderColor: CATS[k].c, color: CATS[k].c } : undefined}>{CATS[k].label}</button>
+          <button key={k} type="button" className={`k-chip hue${filter === k ? " on" : ""}`} aria-pressed={filter === k} onClick={() => setFilter(k)} style={filter === k ? { ["--k-tone" as string]: CATS[k].c } : undefined}>{CATS[k].label}</button>
         ))}
       </div>
 
@@ -148,7 +148,7 @@ export default function Changelog() {
             <button type="button" className="chg-month-h" onClick={toggle} aria-expanded={open}>
               <span className="chg-month-t">{monthLabel(mk)}</span>
               <span className="chg-month-roll">{rollup}</span>
-              <span className="chg-month-n">{items.length}</span>
+              <span className="k-count">{items.length}</span>
               <span className={`chg-chev${open ? " open" : ""}`} aria-hidden>›</span>
             </button>
             {/* .chg-row deliberately stays bespoke here — evaluated for kit's InfoRow (title/summary

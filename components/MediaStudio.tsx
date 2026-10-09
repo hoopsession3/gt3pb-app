@@ -77,7 +77,7 @@ export default function MediaStudio({ productId, value, onChange }: Props) {
                   <div className="ms-thumb">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     {t ? <img src={t} alt={m.alt || ""} /> : <span className="ms-ph"><Icon name="package" /></span>}
-                    {m.kind === "video" && <span className="ms-badge">Video</span>}
+                    {m.kind === "video" && <span className="k-tag glass ms-badge">Video</span>}
                   </div>
                 </div>
               );
@@ -101,8 +101,8 @@ export default function MediaStudio({ productId, value, onChange }: Props) {
                 <div className="ms-thumb">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   {t ? <img src={t} alt="" /> : <span className="ms-ph"><Icon name="package" /></span>}
-                  {m.kind === "video" && <span className="ms-badge">Video</span>}
-                  {idx === 0 && <span className="ms-badge cover">Cover</span>}
+                  {m.kind === "video" && <span className="k-tag glass ms-badge">Video</span>}
+                  {idx === 0 && <span className="k-tag gold fill ms-badge cover">Cover</span>}
                 </div>
                 <div className="ms-row">
                   <button type="button" className="ms-b" onClick={() => onChange(move(value, idx, idx - 1))} disabled={idx === 0} aria-label="Move earlier">↑</button>

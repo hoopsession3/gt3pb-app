@@ -127,7 +127,7 @@ export default function OrderStatus() {
         {/* Paid at the window, the order is the crew's to cancel: the database refuses it from a
             phone (0341), so the button that can only fail is not here. */}
         {o.status === "new" && !o.collected_at && (
-          <button type="button" className="orderbar-cancel hit-44" onClick={cancel} disabled={canceling}>
+          <button type="button" className="btn-del" onClick={cancel} disabled={canceling}>
             {canceling ? "Canceling…" : "Cancel"}
           </button>
         )}
@@ -137,7 +137,7 @@ export default function OrderStatus() {
       {etaOpen ? (
         <div className="orderbar-eta" role="group" aria-label="Tell the truck">
           {([["on_way", "compass", "On my way"], ["outside", "pin", "I'm outside"], ["late", "clock", "Running late"]] as const).map(([k, icon, label]) => (
-            <button key={k} type="button" className={`eta-chip${o.eta_status === k ? " on" : ""}`} disabled={etaBusy} onClick={async () => { await setEta(k); setEtaOpen(false); }} aria-pressed={o.eta_status === k}>
+            <button key={k} type="button" className={`k-chip sm${o.eta_status === k ? " on" : ""}`} disabled={etaBusy} onClick={async () => { await setEta(k); setEtaOpen(false); }} aria-pressed={o.eta_status === k}>
               <Icon name={icon} /> {label}
             </button>
           ))}

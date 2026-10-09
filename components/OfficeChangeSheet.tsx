@@ -181,7 +181,7 @@ export default function OfficeChangeSheet({ delivery: d, place, canChange, canRe
             : <>Changes close <b className="text-cream">{cut.when}</b>. After that, this sheet sends GT3 a request.</>}
         </p>
       )}
-      <button type="button" className="handle" onClick={save} disabled={busy || (!plan.steps.length && !asks.length)}>
+      <button type="button" className="btn-pri btn-wide mt-4.5" onClick={save} disabled={busy || (!plan.steps.length && !asks.length)}>
         <span>{busy ? "Saving…" : label}</span>
       </button>
     </div>

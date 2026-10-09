@@ -196,7 +196,7 @@ export default function InventoryLibrary() {
           <span>Whose shelf</span>
           <div className="ts-chips">
             {MARKETS.map((m) => (
-              <button type="button" key={m} className={`ts-chip${draft.market === m ? " on" : ""}`} aria-pressed={draft.market === m}
+              <button type="button" key={m} className={`k-chip${draft.market === m ? " on" : ""}`} aria-pressed={draft.market === m}
                 onClick={() => setDraft({ ...draft, market: m })}>{MARKET_LABEL[m]}</button>
             ))}
           </div>

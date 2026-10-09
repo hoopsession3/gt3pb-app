@@ -117,7 +117,7 @@ export default function PackPlan({ ownerType, ownerId, title, onClose }: { owner
           <>
             <div className="pp-cfg">
               {/* A typed count is about one size — switching size goes back to what the shelf says. */}
-              <div className="ts-chips">{[10, 16].map((n) => <button key={n} type="button" className={`ts-chip${oz === n ? " on" : ""}`} onClick={() => { setOz(n); setTyped(null); }}>{n}oz</button>)}</div>
+              <div className="ts-chips">{[10, 16].map((n) => <button key={n} type="button" className={`k-chip${oz === n ? " on" : ""}`} aria-pressed={oz === n} onClick={() => { setOz(n); setTyped(null); }}>{n}oz</button>)}</div>
               <label className="prod-f"><span>{oz}oz bottles on hand</span><input type="number" min="0" value={stock} placeholder="How many?" onChange={(e) => setTyped(e.target.value)} /></label>
               {/* Where that number came from, right under it. */}
               <div className="dp-hint pp-src">

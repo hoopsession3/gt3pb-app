@@ -160,7 +160,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
         </div>
         <div className="acs-id">
           <div className="acs-name">{name}</div>
-          <span className={`acs-tier${founding ? " founding" : ""}`}>{founding ? <><Icon name="star" /> Founding Member</> : "Member"}</span>
+          <span className={`k-tag mt-1.5${founding ? " gold fill" : ""}`}>{founding ? <><Icon name="star" /> Founding Member</> : "Member"}</span>
           <div className="acs-line">{inCard}<i>/{GOAL}</i> · {stamps}{credit > 0 ? ` · $${credit % 1 === 0 ? credit.toFixed(0) : credit.toFixed(2)} credit` : free > 0 ? ` · ${free} free earned` : ""}</div>
         </div>
         <span className="acs-row-c" aria-hidden>›</span>

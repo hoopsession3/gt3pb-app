@@ -75,7 +75,7 @@ export default function SmartIntake() {
       {done ? (
         <div className="eg-done">
           <div className="eg-done-h"><Icon name="check" /> Filed to {done === "asset" ? "Assets / gear" : done === "inventory" ? "Inventory" : "Documents"}</div>
-          <button type="button" className="cos-redo" onClick={reset}>Drop another file</button>
+          <button type="button" className="btn-sec btn-wide mt-3" onClick={reset}>Drop another file</button>
         </div>
       ) : !p ? (
         <button type="button" className="intake-drop" onClick={() => fileRef.current?.click()} disabled={!!busy}>
@@ -110,7 +110,7 @@ export default function SmartIntake() {
           )}
 
           <div className="ts-chips" style={{ marginTop: 10 }}>
-            {KINDS.map((k) => <button key={k.key} type="button" className={`ts-chip${p.kind === k.key ? " on" : ""}`} onClick={() => set("kind", k.key)}><Icon name={k.icon} /> {k.label}</button>)}
+            {KINDS.map((k) => <button key={k.key} type="button" className={`k-chip${p.kind === k.key ? " on" : ""}`} aria-pressed={p.kind === k.key} onClick={() => set("kind", k.key)}><Icon name={k.icon} /> {k.label}</button>)}
           </div>
 
           <input className="note-in" style={{ marginTop: 10 }} value={p.name} onChange={(e) => set("name", e.target.value)} placeholder="Name" />

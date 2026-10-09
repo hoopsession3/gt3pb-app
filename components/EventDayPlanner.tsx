@@ -242,7 +242,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
               const k = kindOf(it.kind);
               return (
                 <div key={it.id} className={`dp-item${it.done ? " done" : ""}`} style={{ ["--c" as string]: k.color }}>
-                  <button type="button" className="dp-check" onClick={() => toggle(it)} aria-label="Toggle done">{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</button>
+                  <button type="button" className="k-icon-btn sm dp-check" onClick={() => toggle(it)} aria-pressed={it.done} aria-label="Done">{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</button>
                   <div className="dp-time">{it.start_time || "—"}{it.end_time ? <span className="dp-time-e">{it.end_time}</span> : null}</div>
                   <div className="dp-item-main">
                     <div className="dp-item-h"><span className="dp-kind" title={k.label}>{k.icon}</span><span className="dp-item-t">{it.title}</span></div>
@@ -266,7 +266,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
 
           <div className="dp-quick">
             {QUICK.map((q) => (
-              <button key={q.title} type="button" className="dp-qchip" style={{ ["--c" as string]: kindOf(q.kind).color }}
+              <button key={q.title} type="button" className="k-chip"
                 onClick={() => addItem({ title: q.title, kind: q.kind, start_time: q.start ?? (nextStart || null),
                   location: venueFor(q.kind).place || null, address: venueFor(q.kind).address || null })}>
                 <span>{kindOf(q.kind).icon}</span>{q.title}
@@ -324,7 +324,7 @@ function ItemForm({ item, start, venueFor, onSite, onClose, onSave }: {
           <input className="note-in" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="What's happening? e.g. Arrive Airbnb" autoFocus />
           <div className="dp-kinds">
             {KINDS.map((k) => (
-              <button key={k.key} type="button" className={`dp-kchip${f.kind === k.key ? " on" : ""}`} style={{ ["--c" as string]: k.color }} onClick={() => setKind(k.key)}>{k.icon} {k.label}</button>
+              <button key={k.key} type="button" className={`k-chip hue${f.kind === k.key ? " on" : ""}`} style={{ ["--k-tone" as string]: k.color }} aria-pressed={f.kind === k.key} onClick={() => setKind(k.key)}>{k.icon} {k.label}</button>
             ))}
           </div>
           <div className="prod-grid" style={{ marginTop: 10 }}>
@@ -345,7 +345,7 @@ function ItemForm({ item, start, venueFor, onSite, onClose, onSave }: {
                 <span>{onSite.staffed ? "On this one — tap to add to Who" : "The crew — tap to add to Who"}</span>
                 <div className="ts-chips" role="group" aria-label="Who — tap to add">
                   {onSite.names.map((n) => (
-                    <button key={n} type="button" className={`ts-chip${isOn(n) ? " on" : ""}`} aria-pressed={isOn(n)} onClick={() => toggleWho(n)}>{n}</button>
+                    <button key={n} type="button" className={`k-chip${isOn(n) ? " on" : ""}`} aria-pressed={isOn(n)} onClick={() => toggleWho(n)}>{n}</button>
                   ))}
                 </div>
               </div>

@@ -130,7 +130,7 @@ export default function ReviewsAdmin() {
             return (
               <div key={r.id} className="rva-row">
                 <div className="rva-row-body">
-                  <div className="rva-row-meta">{Array.from({ length: c.rating }).map((_, i) => <Icon key={i} name="star" />)}<span className="rva-src-tag">{r.source}</span>{!okd && <span className="rva-warn">below display bar</span>}</div>
+                  <div className="rva-row-meta">{Array.from({ length: c.rating }).map((_, i) => <Icon key={i} name="star" />)}<span className="k-tag">{r.source}</span>{!okd && <span className="rva-warn">below display bar</span>}</div>
                   <div className="rva-row-q">“{c.text}”</div>
                   <div className="rva-row-who">— {c.who}</div>
                   {sug && (

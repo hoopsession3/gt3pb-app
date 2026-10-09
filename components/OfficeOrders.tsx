@@ -262,7 +262,7 @@ export default function OfficeOrders() {
             <SectionHeader
               label="Office route"
               annotation={`${route.length} on the route`}
-              right={standingN > 0 ? <button type="button" className="oo-gen" onClick={gen} disabled={!!busyId} aria-label="Generate the schedule — the next six weeks of deliveries">{busyId === "gen" ? "…" : "↻ Generate"}</button> : undefined}
+              right={standingN > 0 ? <button type="button" className="btn-ter" onClick={gen} disabled={!!busyId} aria-label="Generate the schedule — the next six weeks of deliveries">{busyId === "gen" ? "…" : "↻ Generate"}</button> : undefined}
             />
             {requests.length > 0 && (
               <div className="k-rows mb-3.5" aria-label="Client requests">

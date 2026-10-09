@@ -100,7 +100,7 @@ export function InfoRow({ lead, leadSub, name, nameExtra, sub, meta, trailing, l
         <div className="k-lead">{lead}{leadSub && <b>{leadSub}</b>}</div>
       )}
       <div className="k-bd" {...bodyProps}>
-        <div className="k-nm">{name}{live && <span className="k-tag-live">Live</span>}{nameExtra}</div>
+        <div className="k-nm">{name}{live && <span className="k-tag ok">Live</span>}{nameExtra}</div>
         {sub && <div className="k-rsub">{sub}</div>}
         {meta && <div className="k-meta">{meta}</div>}
       </div>

@@ -300,7 +300,7 @@ export default function Goals() {
             <div className="goal-top">
               <span className="goal-title">{g.title}</span>
               {g.metric_source && <span className="goal-live" title={METRIC_SOURCES[g.metric_source]?.hint}>live</span>}
-              {g.horizon && <span className={`goal-tier tier-${g.horizon}`}>{g.horizon}</span>}
+              {g.horizon && <span className={`k-tag${g.horizon === "strategic" ? " blue" : g.horizon === "tactical" ? " gold" : g.horizon === "operational" ? " ok" : ""}`}>{g.horizon}</span>}
               {g.play && <span className="goal-play">{g.play}</span>}
               {canLead && <button type="button" className="goal-edit-btn" onClick={() => startEdit(g)} aria-label={`Edit ${g.title}`}><Icon name="edit" size={12} /></button>}
             </div>
@@ -313,8 +313,8 @@ export default function Goals() {
             {canLead && (
               <div className="goal-checkin">
                 <span className="goal-checkin-k">Check-in</span>
-                <button type="button" className={`goal-chip ok${g.checkin_status === "on_track" ? " on" : ""}`} onClick={() => checkIn(g, "on_track")} aria-pressed={g.checkin_status === "on_track"}>On track</button>
-                <button type="button" className={`goal-chip risk${g.checkin_status === "at_risk" ? " on" : ""}`} onClick={() => checkIn(g, "at_risk")} aria-pressed={g.checkin_status === "at_risk"}>At risk</button>
+                <button type="button" className={`k-chip ok${g.checkin_status === "on_track" ? " on" : ""}`} onClick={() => checkIn(g, "on_track")} aria-pressed={g.checkin_status === "on_track"}>On track</button>
+                <button type="button" className={`k-chip warn${g.checkin_status === "at_risk" ? " on" : ""}`} onClick={() => checkIn(g, "at_risk")} aria-pressed={g.checkin_status === "at_risk"}>At risk</button>
                 {quietDays(g) !== null && <span className="goal-quiet">💤 quiet {quietDays(g)}d</span>}
               </div>
             )}
@@ -421,7 +421,7 @@ export default function Goals() {
                 {settled.map((g) => (
                   <div className="dops-up-row" key={g.id}>
                     <span><b>{g.title}</b> — {g.current_value}{g.unit && ` ${g.unit}`} of {g.target_value}{g.unit && ` ${g.unit}`}</span>
-                    <span className={`goal-chip ${g.status}`}>{g.status === "hit" ? <><Icon name="check" /> hit</> : g.status}</span>
+                    <span className={`k-tag${g.status === "hit" ? " ok" : g.status === "missed" ? " crit" : ""}`}>{g.status === "hit" ? <><Icon name="check" /> hit</> : g.status}</span>
                   </div>
                 ))}
               </div>

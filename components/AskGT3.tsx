@@ -94,15 +94,15 @@ export default function AskGT3() {
         <div ref={endRef} />
       </div>
       <div className="oa-quick">
-        {QUICK.map((q) => <button key={q.label} type="button" className="oa-chip" onClick={() => send(q.ask)} disabled={busy} title={q.ask}>{q.label}</button>)}
+        {QUICK.map((q) => <button key={q.label} type="button" className="k-chip" onClick={() => send(q.ask)} disabled={busy} title={q.ask}>{q.label}</button>)}
       </div>
       <div className="oa-input">
-        {dictate.supported && <button type="button" className={`oa-mic${dictate.listening ? " on" : ""}`} onClick={dictate.toggle}
+        {dictate.supported && <button type="button" className={`k-icon-btn oa-mic${dictate.listening ? " on" : ""}`} onClick={dictate.toggle}
                 aria-label={dictate.listening ? "Stop listening" : "Speak your question"} aria-pressed={dictate.listening}>
           <Icon name="mic" size={19} />
         </button>}
         <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(input); }} placeholder="Ask GT3…" enterKeyHint="send" />
-        <button type="button" className="oa-send" onClick={() => send(input)} disabled={busy || !input.trim()}>Ask</button>
+        <button type="button" className="btn-pri" onClick={() => send(input)} disabled={busy || !input.trim()}>Ask</button>
       </div>
       {genNotes !== null && (
         <EventGenerator

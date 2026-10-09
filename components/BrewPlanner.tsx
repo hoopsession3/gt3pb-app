@@ -513,7 +513,7 @@ export default function BrewPlanner() {
                               "still good" extends the hold 24h (quiets the ladder for a day, on the
                               record), or archive it from the status controls if it's done. */}
                           {ms <= 0 && (
-                            <button type="button" className="brew-taste" onClick={async () => {
+                            <button type="button" className="btn-ter ml-2.5" onClick={async () => {
                               if (!supabase) return;
                               await supabase.from("brew_batches").update({ hold_hours: Number(b.hold_hours ?? 72) + 24 }).eq("id", b.id);
                             }}>Tasted — still good, +24h</button>
@@ -705,8 +705,8 @@ function BatchLog({ batch, events, stops, lotBoard, onClose, onSaved, onRemove }
           <label className="prod-f" style={{ marginTop: 10 }}><span>Taste / cupping notes</span><textarea className="note-in" rows={3} value={f.taste_notes ?? ""} onChange={(e) => set("taste_notes", e.target.value)} placeholder="Aroma, body, balance, anything off…" /></label>
           <div className="prod-f" style={{ marginTop: 10 }}><span>Serving which events / stops? (first drives the schedule)</span>
             <div className="ts-chips" style={{ marginTop: 4 }}>
-              {events.map((ev2) => { const k = `e:${ev2.id}`; const on = targets.includes(k); return <button key={ev2.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="event" /> {ev2.title || ev2.day_label}</button>; })}
-              {stops.map((s) => { const k = `s:${s.id}`; const on = targets.includes(k); return <button key={s.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="truck" /> {s.name}</button>; })}
+              {events.map((ev2) => { const k = `e:${ev2.id}`; const on = targets.includes(k); return <button key={ev2.id} type="button" className={`k-chip${on ? " on" : ""}`} aria-pressed={on} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="event" /> {ev2.title || ev2.day_label}</button>; })}
+              {stops.map((s) => { const k = `s:${s.id}`; const on = targets.includes(k); return <button key={s.id} type="button" className={`k-chip${on ? " on" : ""}`} aria-pressed={on} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="truck" /> {s.name}</button>; })}
               {events.length === 0 && stops.length === 0 && <span className="dp-hint">No events or stops yet.</span>}
             </div>
           </div>
@@ -779,7 +779,7 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
             <>
               <div className="dp-hint">Split the {batch.batch_gal} gal between keg and bottles — I&apos;ll work out the counts, UVDTF labels, and the pack plan.</div>
               <div className="ts-chips" style={{ marginTop: 12 }}>
-                {[10, 16].map((n) => <button key={n} type="button" className={`ts-chip${oz === n ? " on" : ""}`} onClick={() => setOz(n)}>{n} oz bottles</button>)}
+                {[10, 16].map((n) => <button key={n} type="button" className={`k-chip${oz === n ? " on" : ""}`} aria-pressed={oz === n} onClick={() => setOz(n)}>{n} oz bottles</button>)}
               </div>
               <div className="prod-grid" style={{ marginTop: 8 }}>
                 <label className="prod-f"><span>To keg (gal)</span><input type="number" min="0" step="0.5" max={String(batch.batch_gal)} value={kegGal} onChange={(e) => setKegGal(e.target.value)} /></label>
@@ -988,7 +988,7 @@ function BrewSheet({ recipe, events, stops, vessels, inv, initialTarget, onClose
                 </div>
                 <div className="bq-picks" role="group" aria-label="Quick sizes">
                   {picks.map((p) => (
-                    <button key={p.label + (p.sub ?? "")} type="button" className={`ts-chip${drinks === p.drinks ? " on" : ""}`} onClick={() => { setTyped(null); setGal(gallonsForBottles(p.drinks, y)); }}>
+                    <button key={p.label + (p.sub ?? "")} type="button" className={`k-chip${drinks === p.drinks ? " on" : ""}`} aria-pressed={drinks === p.drinks} onClick={() => { setTyped(null); setGal(gallonsForBottles(p.drinks, y)); }}>
                       <b>{p.label}</b>{p.sub ? <span className="bq-pick-sub">{p.sub}</span> : null}
                     </button>
                   ))}
@@ -1047,7 +1047,7 @@ function BrewSheet({ recipe, events, stops, vessels, inv, initialTarget, onClose
                       const n = Math.max(1, Math.ceil(gal / Number(v.capacity_gal) - 1e-9));
                       const on = vessel?.id === v.id;
                       return (
-                        <button key={v.id} type="button" className={`ts-chip${on ? " on" : ""}`} aria-pressed={on} onClick={() => setPinned(v.id)}>
+                        <button key={v.id} type="button" className={`k-chip${on ? " on" : ""}`} aria-pressed={on} onClick={() => setPinned(v.id)}>
                           {on && <><Icon name="check" /> </>}<Icon name="jar" /> {n > 1 ? `${n} × ` : ""}{v.name}<span className="bq-pick-sub">holds {bottlesFor(Number(v.capacity_gal), y)} drinks</span>
                         </button>
                       );
@@ -1068,8 +1068,8 @@ function BrewSheet({ recipe, events, stops, vessels, inv, initialTarget, onClose
               <div className="bq">
                 <div className="bq-q">What&apos;s it for? <span className="bq-opt">optional · the first pick sets when to start</span></div>
                 <div className="ts-chips" style={{ marginBottom: 0 }}>
-                  {upcomingEvents.map((ev) => { const k = `e:${ev.id}`; const on = targets.includes(k); return <button key={ev.id} type="button" className={`ts-chip${on ? " on" : ""}`} aria-pressed={on} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="event" /> {ev.title || ev.day_label}{ev.day ? <span className="bq-pick-sub">{fmtDate(ev.day)}</span> : null}</button>; })}
-                  {upcomingStops.map((s) => { const k = `s:${s.id}`; const on = targets.includes(k); return <button key={s.id} type="button" className={`ts-chip${on ? " on" : ""}`} aria-pressed={on} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="truck" /> {s.name}</button>; })}
+                  {upcomingEvents.map((ev) => { const k = `e:${ev.id}`; const on = targets.includes(k); return <button key={ev.id} type="button" className={`k-chip${on ? " on" : ""}`} aria-pressed={on} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="event" /> {ev.title || ev.day_label}{ev.day ? <span className="bq-pick-sub">{fmtDate(ev.day)}</span> : null}</button>; })}
+                  {upcomingStops.map((s) => { const k = `s:${s.id}`; const on = targets.includes(k); return <button key={s.id} type="button" className={`k-chip${on ? " on" : ""}`} aria-pressed={on} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="truck" /> {s.name}</button>; })}
                   {upcomingEvents.length === 0 && upcomingStops.length === 0 && <span className="dp-hint">No upcoming events or stops yet.</span>}
                 </div>
               </div>

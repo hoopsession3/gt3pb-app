@@ -137,7 +137,7 @@ export default function Shop() {
             {products.map((p) => (
               <button type="button" key={p.id} className="shop-card" onClick={() => { setActive(p); setView("product"); }}>
                 <div className="shop-thumb">{(() => { const m = readMedia(p); const cover = coverOf(m); return cover
-                  ? <><img src={cover} alt={p.title} loading="lazy" />{m.length > 1 && <span className="shop-story-dot" aria-hidden>{hasVideo(m) ? "▶" : m.length}</span>}</>
+                  ? <><img src={cover} alt={p.title} loading="lazy" />{m.length > 1 && <span className="k-tag glass shop-story-dot" aria-hidden>{hasVideo(m) ? "▶" : m.length}</span>}</>
                   : <span className="shop-thumb-ph"><Icon name="package" /></span>; })()}</div>
                 <div className="shop-card-b">
                   <span className="shop-card-t">{p.public_title || p.title}</span>
@@ -212,7 +212,7 @@ function ProductDetail({ product, onBack, onAdd }: { product: Product; onBack: (
         <button type="button" className="shop-hero as-story" onClick={() => setStoryAt(0)}
           aria-label={`Open ${product.title} — ${media.length} photo${media.length === 1 ? "" : "s"} and video, full screen`}>
           {cover ? <img src={cover} alt="" /> : <span className="shop-thumb-ph lg"><Icon name="package" /></span>}
-          <span className="shop-hero-cue" aria-hidden>{hasVideo(media) ? "▶ Watch" : `${media.length} photos`}</span>
+          <span className="k-tag glass txt shop-hero-cue" aria-hidden>{hasVideo(media) ? "▶ Watch" : `${media.length} photos`}</span>
           <span className="shop-hero-pips" aria-hidden>{media.map((m) => <i key={m.id} />)}</span>
         </button>
       ) : (
@@ -237,7 +237,7 @@ function ProductDetail({ product, onBack, onAdd }: { product: Product; onBack: (
         <span>{qty}</span>
         <button type="button" onClick={() => { if (qty < 20) haptic("increase"); else haptic("boundary"); setQty((q) => Math.min(20, q + 1)); }} aria-label="More">+</button>
       </div>
-      <button type="button" className="mpack-cta" onClick={() => onAdd(variant, qty)}>{t("shop.add_cart")} · {money(product.price_cents * qty)}</button>
+      <button type="button" className="btn-pri btn-wide" onClick={() => onAdd(variant, qty)}>{t("shop.add_cart")} · {money(product.price_cents * qty)}</button>
     </div>
   );
 }

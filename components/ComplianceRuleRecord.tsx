@@ -199,7 +199,7 @@ function RuleBody({ d, admin, onDone }: { d: Data; admin: boolean; onDone: () =>
                   <input className="note-in" inputMode="numeric" value={leadDays} onChange={(e) => setLeadDays(e.target.value.replace(/[^\d]/g, ""))} aria-label="Days" placeholder="days" style={{ width: 90 }} />
                   <div className="ts-chips" role="group" aria-label="Business or calendar days">
                     {LEAD_BASES.map((b) => (
-                      <button key={b} type="button" className={`ts-chip${leadBasis === b ? " on" : ""}`} aria-pressed={leadBasis === b} onClick={() => setLeadBasis(leadBasis === b ? "" : b)}>{b} days</button>
+                      <button key={b} type="button" className={`k-chip${leadBasis === b ? " on" : ""}`} aria-pressed={leadBasis === b} onClick={() => setLeadBasis(leadBasis === b ? "" : b)}>{b} days</button>
                     ))}
                   </div>
                 </div>

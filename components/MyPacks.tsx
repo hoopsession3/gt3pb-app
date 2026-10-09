@@ -176,7 +176,7 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
                 <span className="mypack-sub">{mixSummary(packMix(p)) || "your mix"} · #{p.id.slice(0, 6).toUpperCase()}</span>
               </span>
               <span className="mypack-rt">
-                <span className={`mypack-flag ${p.picked_up ? "done" : isSettled(p) ? "paid" : "due"}`}>{p.picked_up ? <><Icon name="check" /> picked up</> : isSettled(p) ? <><Icon name="check" /> paid</> : "$ at pickup"}</span>
+                <span className={`k-tag${p.picked_up ? "" : isSettled(p) ? " ok mypack-paid" : " gold"}`}>{p.picked_up ? <><Icon name="check" /> picked up</> : isSettled(p) ? <><Icon name="check" /> paid</> : "$ at pickup"}</span>
                 <span className="mypack-car">{isOpen ? "▾" : "▸"}</span>
               </span>
             </button>
@@ -205,13 +205,13 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
                   <>
                     <div className="mypack-actions">
                       {days.some((d) => d.key !== p.drop_date) && (
-                        <button type="button" onClick={() => setMoving(moving === p.id ? null : p.id)} aria-expanded={moving === p.id}>Move day</button>
+                        <button type="button" className="btn-sec" onClick={() => setMoving(moving === p.id ? null : p.id)} aria-expanded={moving === p.id}>Move day</button>
                       )}
                       {/* Paid at the window: the money is in the crew's hands, so changing or
                           canceling it is theirs too — the database refuses it from here (0341),
                           and a button that can only fail is not offered. */}
-                      {onChange && !p.collected_at && <button type="button" onClick={() => onChange(p)}>Change the pack</button>}
-                      {!p.collected_at && <button type="button" className="danger" onClick={() => cancel(p)} disabled={busy === p.id}>{busy === p.id ? "Canceling…" : "Cancel"}</button>}
+                      {onChange && !p.collected_at && <button type="button" className="btn-sec" onClick={() => onChange(p)}>Change the pack</button>}
+                      {!p.collected_at && <button type="button" className="btn-del" onClick={() => cancel(p)} disabled={busy === p.id}>{busy === p.id ? "Canceling…" : "Cancel"}</button>}
                     </div>
                     {p.collected_at && <p className="mypack-paidnote">Paid at the window — to change or cancel it, ask the crew.</p>}
                     {moving === p.id && (
@@ -219,7 +219,7 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
                         <span>Pick the new day — everything else stays the same.</span>
                         <div className="mypack-move-days">
                           {days.filter((d) => d.key !== p.drop_date).map((d) => (
-                            <button key={d.key} type="button" disabled={busy === p.id} onClick={() => moveDay(p, d.key)}>{d.label}</button>
+                            <button key={d.key} type="button" className="k-chip" disabled={busy === p.id} onClick={() => moveDay(p, d.key)}>{d.label}</button>
                           ))}
                         </div>
                       </div>

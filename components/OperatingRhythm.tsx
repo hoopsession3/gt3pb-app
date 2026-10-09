@@ -107,13 +107,13 @@ export default function OperatingRhythm({ isAdmin, onOpenNotes }: { isAdmin: boo
           <div className="rhythm-k">Weekly Operating Review</div>
           <p className="rhythm-sub">The week that was — revenue, goals moved or stalled, events run, incidents, decisions — plus the week ahead. Retro: keep · change · start.</p>
           {p?.review && <button type="button" className="rhythm-last" onClick={onOpenNotes}>{latestLine(p.review)} <Icon name="arrowRight" /></button>}
-          {isAdmin && <button type="button" className="rhythm-go" onClick={() => assemble("review")} disabled={busy !== null}>{busy === "review" ? "Assembling…" : <><Icon name="sparkles" /> Assemble this week&rsquo;s review</>}</button>}
+          {isAdmin && <button type="button" className="btn-pri mt-auto" onClick={() => assemble("review")} disabled={busy !== null}>{busy === "review" ? "Assembling…" : <><Icon name="sparkles" /> Assemble this week&rsquo;s review</>}</button>}
         </div>
         <div className="rhythm-card">
           <div className="rhythm-k">Strategy Session</div>
           <p className="rhythm-sub">The agenda nobody has to remember: open threads, goals needing a call, plays on the table, program hygiene, aging blockers. Close every call with ⚖ Log a decision.</p>
           {p?.strategy && <button type="button" className="rhythm-last" onClick={onOpenNotes}>{latestLine(p.strategy)} <Icon name="arrowRight" /></button>}
-          {isAdmin && <button type="button" className="rhythm-go" onClick={() => assemble("session")} disabled={busy !== null}>{busy === "session" ? "Assembling…" : <><Icon name="sparkles" /> Start a strategy session</>}</button>}
+          {isAdmin && <button type="button" className="btn-pri mt-auto" onClick={() => assemble("session")} disabled={busy !== null}>{busy === "session" ? "Assembling…" : <><Icon name="sparkles" /> Start a strategy session</>}</button>}
           {isAdmin && <button type="button" className="rhythm-last" onClick={() => setExtractOpen(true)}>⇣ Had the session already? Paste the transcript — extract &amp; file</button>}
         </div>
       </div>
