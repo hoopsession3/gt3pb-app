@@ -332,6 +332,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "funnel.pricemode_pickup_back", group: "Reserve flow", label: "Size step — price mode, bring-back", default: "Prices with bring-back empties — need new glass? It’s $10 a bottle, picked at the next step." },
   { key: "funnel.pricemode_pickup_new", group: "Reserve flow", label: "Size step — price mode, new glass", default: "New-glass prices — bring your empties back next drop and pay less." },
   { key: "funnel.pickup_day_label", group: "Reserve flow", label: "Size step — pickup-day picker label", default: "Pickup day — your call" },
+  { key: "funnel.pickup_one_label", group: "Reserve flow", label: "Size step — label over the one pickup (no day to pick)", default: "Pickup" },
   { key: "funnel.how_many", group: "Reserve flow", label: "Size step — bottle-count label", default: "How many bottles" },
   { key: "funnel.bottles_unit", group: "Reserve flow", label: "Size tile — unit label", default: "BOTTLES" },
   { key: "funnel.build_cta", group: "Reserve flow", label: "Size step — advance button", default: "Build your pack" },
