@@ -59,15 +59,14 @@ export const NOT_PAGES = {
   "app/menu/page.tsx#Menu categories": "jumps within one long menu — the categories are places on one page, scrolled to",
   "components/OrderFunnel.tsx#Fulfillment": "pickup or delivery — a choice in the order form",
   "components/ReviewsAdmin.tsx#Reviews": "pending or live — two halves of one list, a filter",
-  "components/LetterFlyer.tsx#Letter style": "an option of the letter being made",
-  "components/LetterFlyer.tsx#Format": "an option of the letter being made",
-  "components/RoadFlyer.tsx#Template": "an option of the flyer being made",
   "components/BrewPlanner.tsx#Size it by": "a unit for the size being typed",
   "components/FunnelReport.tsx#Window": "the time range a report covers — a filter",
-  "components/Studio.tsx#Filter": "a filter on the pieces shown — a swipe on Studio turns its views",
   "components/BrandCalendar.tsx#Calendar view": "the content calendar's month or list, inside Studio's Calendar view — a swipe there turns Studio's views",
   "components/PrepBoard.tsx#Filter prep": "a filter on one board",
   "components/CompanyCalendar.tsx#Calendar view": "how the same dates are shown — agenda, week, month; a swipe on the calendar walks its dates (‹ ›)",
+  "components/RoadFlyer.tsx#Slide": "the slide of the flyer being made — inside Studio's Flyer view, where a swipe turns Studio's views",
+  "components/CogsCalculator.tsx#COGS": "per drink or per batch — two tables of one calculator inside a section, where a swipe turns the sections",
+  "app/architecture/page.tsx#View": "four readings of the one system map — the screen under them is the same map, redrawn",
   "components/QuickDock.tsx#Quick actions": "the dock's four tools in one sheet — a form, a conversation, a note, a receipt; a swipe across them would leave one half-typed",
 };
 

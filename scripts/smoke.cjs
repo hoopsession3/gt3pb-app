@@ -5083,7 +5083,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("one write: FieldOpSheet and EventsAdmin archive through lib/wrap", /archiveOwner\(supabase, \{ kind, id \}\)/.test(fo) && /archiveOwner\(supabase!, \{ kind: "event", id \}\)/.test(page) && !/archived_at: new Date\(\)\.toISOString\(\), is_live: false/.test(page));
     ok("one write: the event live flag has one caller shape — lib/wrap's RPC call", /setEventLive\(supabase!, id, live\)/.test(page) && !/rpc\("admin_set_event_live"/.test(page) && !/rpc\("admin_set_event_live"/.test(ev));
     ok("one write: no component sends a done patch to the database by hand", ["components/EventRecord.tsx", "components/StopRecord.tsx", "components/crew/OwnerDetails.tsx", "components/crew/LiveControl.tsx", "components/FieldOpSheet.tsx"].every((f) => !/\.update\(\{[^)]*completed_at/.test(code(read(f))) && !/\.update\(\{[^)]*(stage|status): "done"/.test(code(read(f)))));
-    ok("tap floor: the wrap box's buttons and the complete button clear 44px", /\.ownerdet-wrap-actions button\{[^}]*min-height:44px/.test(read("app/globals.css")) && /\.ownerdet-complete\{[^}]*min-height:44px/.test(read("app/globals.css")));
+    ok("tap floor: the wrap box's buttons and the complete button clear 44px — the kit's, whose compact buttons reach 44 (the box's own rule drew over them)",
+      /className=\{a\.primary \? "btn-pri btn-sm" : a\.quiet \? "btn-ter" : "btn-sec btn-sm"\}/.test(read("components/RecordWays.tsx"))
+      && /<button type="button" className="btn-sec btn-sm" onClick=\{onNothing\}/.test(read("components/RecordWays.tsx"))
+      && /<Icon name="check" \/> Complete \{isEvent \? "event" : "stop"\}/.test(read("components/crew/OwnerDetails.tsx")) && /className="btn-pri btn-sm" onClick=\{\(\) => \{ setRecap\(f\.recap/.test(read("components/crew/OwnerDetails.tsx"))
+      && /\.btn-sm::after\{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px\}/.test(read("app/globals.css")) && !/\.ownerdet-wrap-actions button\{/.test(read("app/globals.css")));
   }
 }
 
@@ -5559,7 +5563,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("prep: a menu chip that did not save goes back and says so — the write's result was ignored",
     /const \{ error \} = await supabase\.from\(table\)\.update\(patch\)\.eq\("id", ownerId\);\s*if \(error\) \{ setF\(before\); toast\(/.test(crewSrc));
   ok("prep: the controls that measured 22–28px have the 44 every other one there has (Add to calendar is the kit's quiet button, 44 to the thumb)",
-    /\.admin \.adm-prep-back,\.ownerdet-edit,\.daybrief-edit\{min-height:44px\}/.test(css)
+    /\.admin \.adm-prep-back\{min-height:44px\}/.test(css) && /className="btn-ter ml-auto"/.test(read("components/crew/OwnerDetails.tsx"))
     && /<Button type="button" kind="quiet" onClick=\{\(\) => setOpen\(\(o\) => !o\)\} aria-haspopup="menu"/.test(read("components/AddToCalendar.tsx")));
   ok("prep: the screen is painted and held by the design ratchet", /scripts\/fixtures\/prep-target\.html/.test(read("scripts/design.ratchet.mjs"))
     && /export const PREP_TARGET = \{ depth: 2, tap: 44, text: 11 \};/.test(read("scripts/design.ratchet.mjs")));
@@ -5636,8 +5640,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // ── the pass ──
   const crewSrc = code(read("app/crew/page.tsx"));
   const kit = crewSrc.slice(crewSrc.indexOf("function Kitchen("), crewSrc.indexOf("function ServicePulse("));
-  ok("pass: an owed ticket has 'Collect $…' — the ticket's own recall button, recoloured — and only where the database can record it",
-    /\{canCollect\(o\) && <button type="button" className="adm-recall adm-collect" onClick=\{\(\) => collect\(o\)\}>Collect \{money\(o\.total_cents\)\}<\/button>\}/.test(kit)
+  ok("pass: an owed ticket has 'Collect $…' — the kit's secondary, as tall as the recall beside it — and only where the database can record it",
+    /\{canCollect\(o\) && <button type="button" className="btn-sec shrink-0" onClick=\{\(\) => collect\(o\)\}>Collect \{money\(o\.total_cents\)\}<\/button>\}/.test(kit)
     && (kit.match(/canCollect\(o\) && <button/g) || []).length === 2);
   ok("pass: 'Picked up' on an owed ticket asks how they paid first — hand-off is when the money is asked about",
     /if \(to === "done" && canCollect\(o\)\) \{\s*const how = await askCollect\(\{ who: o\.customer \?\? "Guest", cents: o\.total_cents, handOff: true \}\);\s*if \(!how\) return;\s*const row = how === "unpaid" \? o : await takeMoney\(o, how\);\s*if \(!row\) return;\s*return move\(row, to\);/.test(kit));
@@ -5662,7 +5666,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("pickup: 'still to collect at the window' counts what is owed — it counted every pack not paid online",
     /const dueAtWindow = rows\.filter\(\(o\) => !isSettled\(o\)\)/.test(dops) && !/rows\.filter\(\(o\) => !o\.paid\)/.test(dops));
   ok("pickup: a pack can be collected, and handing it over asks first — whichever button got it to picked up",
-    /\{canCollect\(o\) && <button type="button" className="dops-check collect" onClick=\{\(\) => collect\(o\)\}>/.test(dops)
+    /\{canCollect\(o\) && <button type="button" className="btn-sec btn-sm flex-1" onClick=\{\(\) => collect\(o\)\}>/.test(dops)
     && /if \(stage === "picked_up" && canCollect\(o\)\) \{\s*const how = await askCollect\(\{ who: o\.name, cents: o\.total_cents, handOff: true \}\);/.test(dops)
     && (dops.match(/setStage\(o, /g) || []).length === 2 && !/setStage\(o\.id,/.test(dops) && /\{collectSheet\}/.test(dops));
   ok("pickup: a canceled pack's refund is what its payment was — cash back across the window, a card in Square, flagged critical (0242's rule)",
@@ -5861,7 +5865,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const sheet = read("components/CollectSheet.tsx"), css = read("app/globals.css");
   ok("collect sheet: two answers as the house choice card, the third quiet but a full 44px target",
     /className="dl-card collect-way"/.test(sheet) && /Hand it over unpaid/.test(sheet) && /\.collect-skip\{[^}]*min-height:44px/.test(css)
-    && /\.adm-collect\{[^}]*\}/.test(css) && !/\.adm-collect\{[^}]*border-radius/.test(css) && !/\.collect-way\{[^}]*border-radius/.test(css));
+    && !/\.adm-collect\b/.test(css) && !/\.collect-way\{[^}]*border-radius/.test(css));
   ok("money: the database test runs in db:test", /node scripts\/db\.collect\.test\.mjs/.test(require("../package.json").scripts["db:test"]));
   ok("collect sheet: the pass and the sheet are painted and held by the design ratchet, day and dark",
     /scripts\/fixtures\/collect-sheet\.html/.test(read("scripts/design.ratchet.mjs"))
@@ -9480,7 +9484,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("back: the edge swipe on every screen in the app and a home-screen PWA (a browser tab has its own)", /\{!isShare && \(inAdmin \|\| appOnly\) && <SwipeBack \/>\}/.test(shell));
   ok("links within the app move within it: the footer's Privacy and Terms, the driver run, the playbook's map (a plain <a> loaded the whole site again)",
     /<Link href="\/privacy">Privacy<\/Link><span aria-hidden> · <\/span><Link href="\/terms">Terms<\/Link>/.test(read("components/kit.tsx"))
-    && (read("components/DeliveryOps.tsx").match(/<Link className="dops-(driver-link|mini)" href="\/driver">/g) || []).length === 2 && /<Link href="\/architecture">/.test(read("app/playbook/page.tsx")));
+    && (read("components/DeliveryOps.tsx").match(/<Link className="(dops-driver-link|btn-sec btn-sm shrink-0)" href="\/driver">/g) || []).length === 2 && /<Link href="\/architecture">/.test(read("app/playbook/page.tsx")));
   ok("title bar: the calendars' sticky rows step down under it, and the app's status-bar fade gives way to its hairline",
     /\[\.app:has\(\[data-tbar\]\[data-compact\]\)_&\]:top-\[calc\(env\(safe-area-inset-top,0px\)\+44px\)\]!/.test(read("components/CompanyCalendar.tsx")) && /\[\.app:has\(\[data-tbar\]\[data-compact\]\)_&\]/.test(read("components/BrandCalendar.tsx"))
     && /html:has\(\[data-tbar\]\[data-compact\]\) \.native-bar::after\{opacity:0\}/.test(read("components/NativeBridge.css")));
@@ -9742,7 +9746,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const named = RETIRED_PILLS.filter((c) => new RegExp(`\\.${c}(?![\\w-])`).test(g.replace(/\/\*[\s\S]*?\*\//g, "")) || files.some((f) => new RegExp(`className=[^>]*["'\` ]${c}(?![\\w-])`).test(read(f))));
   ok(`chips: the ${RETIRED_PILLS.length} retired chip and tag recipes are gone — no rule styles one, no screen names one`, RETIRED_PILLS.length > 60 && named.length === 0, named.join(", "));
   ok("chips: the prep tool's Menu & setup chips are the kit's — its map of skins still named .ts-chip, a class list no className shows, and the audit reads every one",
-    /ts: \{ h: "menued-h", row: "ts-chips", chip: "k-chip",/.test(read("components/MenuRigChips.tsx"))
+    /ts: \{ h: "menued-h", row: "ts-chips" \},/.test(read("components/MenuRigChips.tsx")) && (read("components/MenuRigChips.tsx").match(/className=\{`k-chip\$\{/g) || []).length === 3
     && /export function classListsIn\(root\)/.test(audit) && /for \(const \[c, files\] of classListsIn\(root\)\)/.test(audit));
   ok("chips: the CSS audit holds the kit (rule 9) — the retired recipes, and the pills and button recipes outside it, which only fall",
     /export const RETIRED_PILLS = \[/.test(audit) && /pillRules: 7,/.test(audit) && /buttonRecipes: 0,/.test(audit) && /"handle",/.test(audit));
@@ -9805,6 +9809,78 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     !/<SectionHeader label="Goals" \/>/.test(pg) && /<SectionHeader label="Goals" right=/.test(read("components/Goals.tsx")));
   ok("desk: the iPhone app never meets it — iPhone only, held upright", /TARGETED_DEVICE_FAMILY = 1;/.test(read("ios/App/App.xcodeproj/project.pbxproj"))
     && /<key>UISupportedInterfaceOrientations<\/key>\s*<array>\s*<string>UIInterfaceOrientationPortrait<\/string>\s*<\/array>/.test(read("ios/App/App/Info.plist")));
+}
+
+// ── NO BUTTON IN DISGUISE (2026-10-09, round 7d: redesign 7's last part) ────────────────────────────────────────────
+// The button and chip rounds found recipes by their names (-btn, -cta) and their radii (a pill). 158 more drew a button
+// on a <button> under another name — .dops-mini on 22, .gen-opt, .auth-tab, .tip-opt, .order-bar, .claim. 86 are the
+// kits' now; the 72 left are rows, cards, checks, switches and the frame's chrome, each named with why (css.audit 11).
+{
+  const read = (f) => require("node:fs").readFileSync(require("node:path").join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const audit = read("scripts/css.audit.mjs"), g = read("app/globals.css"), pg = read("app/crew/page.tsx");
+  ok("recipes: the CSS audit reads every <button> and link for a box of its own (rule 11) — what is left is named, by kind, with why, and a name that no longer draws one comes off",
+    /export function unnamedRecipesIn\(root, ast\)/.test(audit) && /export const UNNAMED_EXEMPT = \{/.test(audit)
+    && /fail\("no button in disguise", `\.\$\{c\} \(\$\{at\}\) draws a button of its own/.test(audit) && /take them off the list/.test(audit)
+    && ["rows:", "cards:", "checks:", "switches:", "chrome:"].every((k) => audit.includes(`  ${k} [`)));
+  ok("recipes: a rule for a bare button in a box cannot draw over the kit control the box holds — the record box's primary was an outline, the booking request's doors were the status chips' boxes",
+    /export function elementRestylesIn\(root, ast\)/.test(audit) && /const boxRestyles = elementRestylesIn\(root, ast\);/.test(audit)
+    && !/\.ownerdet-wrap-actions button\{/.test(g) && !/\.adm-status button\{/.test(g) && !/\.mnt-meta a\{/.test(g));
+  ok("recipes: the booking request's status is chips (chosen, and said so), its doors the kit's compact buttons, its delete the kit's red words",
+    /className=\{`k-chip sm\$\{r\.status === s \? " on" : ""\}`\} aria-pressed=\{r\.status === s\}/.test(pg)
+    && (pg.match(/<button className="btn-sec btn-sm" onClick=/g) || []).length >= 3 && /className="btn-del ml-auto" onClick=\{\(\) => del\(r\)\}/.test(pg));
+  const gd = read("components/GenerateDay.tsx");
+  ok("recipes: the home page's dial-in answers are chips — one chosen per question, gold, and a screen reader hears which",
+    (gd.match(/className=\{`k-chip sm\$\{(sleep|body|workload|training|energy) === v \? " on" : ""\}`\} aria-pressed=\{\1 === v\}/g) || []).length === 5
+    && /className=\{`k-chip sm\$\{flags\.has\(f\) \? " on" : ""\}`\} aria-pressed=\{flags\.has\(f\)\}/.test(gd) && !/gen-opt|"chip/.test(gd));
+  const seg = (f, re) => re.test(read(f)) && /import \{ (\w+, )?Segmented(, \w+)? \} from "@\/components\/controls";/.test(read(f));
+  ok("recipes: a switch that looks like one — sign-in's two, the tip, Event or Truck stop, COGS, Sales' range, the flyer's slide, the shop's aisles and the system map's views are the segmented control",
+    seg("components/SignIn.tsx", /<Segmented label="Joining or signing in" kind="choice" fill className="relative z-1 mt-5"/) && /<Segmented label="How to sign in" kind="choice" size="sm" fill/.test(read("components/SignIn.tsx"))
+    && seg("components/Checkout.tsx", /<Segmented label="Tip" kind="choice" fill className="mt-0\.5 mb-1\.5" value=\{String\(tipPct\)\} onChange=\{\(k\) => setTipPct\(Number\(k\)\)\}/)
+    && seg("components/EventCopilot.tsx", /<Segmented label="Kind" kind="choice" fill className="mb-2\.5" value=\{draft\.kind\}/)
+    && seg("components/CogsCalculator.tsx", /<Segmented label="COGS" fill className="mt-1 mb-2\.5" value=\{tab\} onChange=\{setTab\}/)
+    && seg("components/Reports.tsx", /<Segmented label="Range" kind="choice" size="sm" value=\{String\(days\)\} onChange=\{\(k\) => setDays\(Number\(k\)\)\}/)
+    && seg("components/RoadFlyer.tsx", /<Segmented label="Slide" size="sm" fill value=\{tile\} onChange=\{setTile\}/)
+    && seg("components/Shop.tsx", /<div className="menu-chips shop-sections">\s*<Segmented label="Shop" fill value=\{section\} onChange=\{setSection\}/)
+    && seg("app/architecture/page.tsx", /<Segmented label="View" className="mt-3" value=\{view\} onChange=\{setView\}/));
+  ok("recipes: a customer's one primary is the kit's — reserve a bottle, share your code, add to the order (and its closed and sold-out words), share your status; a code's Apply is the secondary",
+    /<button type="button" className="btn-pri btn-wide mt-1" onClick=\{\(\) => claim\(r\)\}/.test(read("components/Reserves.tsx"))
+    && /<button type="button" className="btn-pri btn-wide mt-2\.5" onClick=\{share\}>/.test(read("app/3mpire/page.tsx"))
+    && (read("components/DrinkSheet.tsx").match(/className="btn-pri btn-wide mt-4\.5"/g) || []).length === 2 && !/order-bar/.test(code(read("components/DrinkSheet.tsx")))
+    && /footer=\{<button type="button" className="btn-pri btn-wide" onClick=\{share\} disabled=\{!ready\}>/.test(read("components/StatusCard.tsx"))
+    && /<button type="button" className="btn-sec shrink-0" onClick=\{checkCode\}/.test(read("components/OrderFunnel.tsx")));
+  const fu = read("components/FindUs.tsx");
+  ok("recipes: Find Us's directions and live ping are chips, the ping chosen while it is on — and its on words fit a phone's line (a chip does not wrap)",
+    /<button type="button" className="k-chip mt-2\.5" onClick=\{\(\) => \{ if \(heroHasCoords\)/.test(fu) && /className=\{`k-chip mt-2\.5\$\{state === "on" \? " on" : ""\}`\} onClick=\{toggle\} aria-pressed=\{state === "on"\}/.test(fu)
+    && /key: "findus\.ping_on"[^}]*default: "On the list — we'll ping you"/.test(read("lib/copy.ts")));
+  ok("recipes: My Day's rhythm is chips — the lane's colour on each icon, not a border down a pill's curve, and they still seat in one after another",
+    /<Icon name="truck" style=\{\{ color: laneColor\("stop"\) \}\} \/>/.test(pg) && /<Icon name="package" style=\{\{ color: laneColor\("drop"\) \}\} \/>/.test(pg)
+    && /className=\{`k-chip sm\$\{b\.warn \? " warn" : ""\}`\}/.test(pg) && /\.op-trans :is\(\.mypack,\.myday-rhythm>\.k-chip,\.prep-card,\.pipe-card,\.mypack-day\)\{animation:seatIn/.test(g));
+  ok("recipes: the 86 board — what ran out is a red chip with its name struck through, and the time beside it",
+    /className=\{`k-chip\$\{p\.sold_out \? " crit on" : ""\}`\} onClick=\{\(\) => flip\(p\)\} aria-pressed=\{p\.sold_out\}>\s*\{p\.sold_out \? <s>\{p\.name\}<\/s> : p\.name\}/.test(read("components/EightySix.tsx")));
+  ok("recipes: a row of chips that scrolls keeps their 44 — 8px above and below inside the scroll, the row where it stood (Plan's pages, Studio's filters, the flyer's styles)",
+    /\.subnav\{display:flex;align-items:center;gap:6px;overflow-x:auto;padding:8px 0;margin:-6px 0 4px;/.test(g) && /\.rf-tpls\{display:flex;gap:6px;overflow-x:auto;padding:8px 0;margin:-8px 0 5px;/.test(g)
+    && /\.k-chip\.sm::after\{inset:-8px 0\}/.test(g));
+  ok("recipes: Studio's six views are chips that wrap — every one in sight on a phone — in a tab list, each a tab, the chosen one selected; New piece keeps its line",
+    /<div className="flex flex-wrap gap-2 min-w-0" role="tablist" aria-label="View">\s*\{STUDIO_VIEWS\.map\(\(x\) => \(\s*<button key=\{x\.key\} type="button" role="tab" aria-selected=\{view === x\.key\} className=\{`k-chip sm\$\{view === x\.key \? " on" : ""\}`\}/.test(read("components/Studio.tsx"))
+    && /className="btn-pri btn-sm shrink-0" onClick=\{\(\) => create\(\)\}/.test(read("components/Studio.tsx")));
+  ok("recipes: filters are not tabs — Studio's and the flyer studio's rows are groups of chips, each chosen one pressed",
+    (read("components/Studio.tsx").match(/<div className="subnav" role="group" aria-label="Filter">/g) || []).length === 2
+    && (read("components/Studio.tsx").match(/aria-pressed=\{filter === k\}/g) || []).length === 2
+    && /<div className="rf-tpls" role="group" aria-label="Letter style">/.test(read("components/LetterFlyer.tsx")) && /<div className="rf-tpls" role="group" aria-label="Template">/.test(read("components/RoadFlyer.tsx")));
+  const mr = read("components/MenuRigChips.tsx");
+  ok("recipes: the event's and the stop's menu, rig and site are one set of kit chips — the Site row as near its label as the other two",
+    /ev: \{ h: "ev-sub-h", row: "k-chips" \},/.test(mr) && (mr.match(/<div className=\{c\.row\}>/g) || []).length === 3
+    && (mr.match(/<button type="button" className="k-chip" onClick=\{\(\) => cycleTri\(/g) || []).length === 2 && !/\.(ev-chip|menued-tog|menued-site)\b/.test(g));
+  ok("recipes: no button draws the browser's grey face — the crash screen's Try again and Reload are the kit's (.act-btn was styled nowhere), the delivery loop's entries are chips, and the audit reads every button for it",
+    /<button type="button" className="btn-pri" onClick=\{reset\}>Try again<\/button>\s*<button type="button" className="btn-sec" onClick=\{reload\}>Reload<\/button>/.test(read("app/error.tsx"))
+    && /<button key=\{t\.id\} type="button" className="k-chip sm"/.test(read("components/DeliveryOps.tsx"))
+    && /export function greyButtonsIn\(root, styled\)/.test(audit) && /const grey = greyButtonsIn\(root, /.test(audit));
+  ok("recipes: Studio's calendar's Week · Month is the segmented control, and its bar wraps — on a phone Today ran past the edge",
+    /<Segmented label="Calendar view" value=\{view\} onChange=\{setCalView\}/.test(read("components/BrandCalendar.tsx"))
+    && /\.cal-bar\{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;/.test(g) && !/\.cal-vt\b/.test(g));
+  ok("recipes: the note composer's follow-up row — critical and remove are icon buttons; Summarize is a compact secondary under the transcript",
+    /className=\{`k-icon-btn self-center\$\{a\.critical \? " on" : ""\}`\}/.test(pg) && /className="btn-sec btn-sm btn-wide mt-0\.5 mb-1" onClick=\{summarize\}/.test(pg));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

@@ -1207,7 +1207,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const v = await onTop();
     ok("the Pass: the void's question stands above the Pass, where it can be answered", v.top && /Void Jess/.test(v.label ?? ""), JSON.stringify(v));
     await page.keyboard.press("Escape"); await page.waitForTimeout(700);
-    await page.locator(".svc-full .adm-order .adm-collect").first().click().catch(() => {});
+    await page.locator(".svc-full .adm-order button.btn-sec", { hasText: /^Collect \$/ }).first().click().catch(() => {});   // the kit's secondary (round 7d: it was .adm-collect)
     await page.waitForTimeout(800);
     const c = await onTop();
     ok("the Pass: Collect's sheet stands above the Pass", c.top && /Collect \$18/.test(c.label ?? ""), JSON.stringify(c));
@@ -1583,9 +1583,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
 
       // the invite link
       await page.goto(`${BASE}/3mpire`, { waitUntil: "load" }); await settle();
-      const invite = page.locator("button.ref-share");
+      const invite = page.locator(".referral button.btn-pri");
       await invite.waitFor({ timeout: 8000 }).catch(() => {});
-      if (!(await invite.count())) ok("device: /3mpire has the invite link's Share", false, "no button.ref-share");
+      if (!(await invite.count())) ok("device: /3mpire has the invite link's Share", false, "no Share in .referral");
       else {
         const got = await asked(() => invite.click());
         const sheet = got.find((c) => c.plugin === "Share" && c.method === "share");
@@ -1601,8 +1601,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         const cardRow = page.locator("button", { hasText: "Your member card" }).first();
         await cardRow.waitFor({ timeout: 5000 }).catch(() => {});
         await cardRow.click().catch(() => {});
-        const shareCard = page.locator("button.status-share");
-        const ready = await page.waitForFunction(() => { const b = document.querySelector("button.status-share"); return !!b && !b.disabled; }, null, { timeout: 15000 }).then(() => true, () => false);
+        const shareCard = page.locator(".status-lux button.btn-pri");
+        const ready = await page.waitForFunction(() => { const b = document.querySelector(".status-lux button.btn-pri"); return !!b && !b.disabled; }, null, { timeout: 15000 }).then(() => true, () => false);
         ok("device: the member card draws, and its Share is ready", ready);
         if (ready) {
           const got = await asked(() => shareCard.click(), 2500);
