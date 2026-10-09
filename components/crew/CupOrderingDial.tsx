@@ -65,7 +65,7 @@ export default function CupOrderingDial() {
             <div className="adm-lead-opts" role="radiogroup" aria-label="When cup pre-orders open">
               {LEADS.map(([h, label]) => (
                 <button key={h} type="button" role="radio" aria-checked={on === h} disabled={busy}
-                  className={`adm-lead-opt${on === h ? " on" : ""}`} onClick={() => pick(h)}>{label}</button>
+                  className={`k-chip${on === h ? " on" : ""}`} onClick={() => pick(h)}>{label}</button>
               ))}
             </div>
           </div>

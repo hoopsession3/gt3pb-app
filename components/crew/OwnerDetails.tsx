@@ -378,7 +378,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
       {!isEvent && <div className="ownerdet-hint">Go live &amp; broadcast GPS from the Live truck card on Live Ops.</div>}
       <div className="ownerdet-convert">
         <span className="ownerdet-convert-l">Wrong type?</span>
-        <button type="button" className="ownerdet-convert-b" onClick={convertType} disabled={saving}>Change to {isEvent ? "truck stop" : "event"} ⇄</button>
+        <button type="button" className="btn-ter ml-auto" onClick={convertType} disabled={saving}>Change to {isEvent ? "truck stop" : "event"} ⇄</button>
       </div>
       <div className="ownerdet-danger">
         <button type="button" className="ownerdet-arch" onClick={archive} disabled={saving}>Archive {what}</button>
