@@ -91,7 +91,7 @@ function ScanInner() {
             {Array.from({ length: GOAL }).map((_, i) => <span key={i} className={`scan-dot${i < inCard ? " on" : ""}${i === GOAL - 1 ? " gift" : ""}`} />)}
           </div>
           <div className="scan-foot">{inCard === 0 && member.points > 0 ? "Card full — this one's on us" : `${GOAL - inCard} more till a free cup`}</div>
-          <button type="button" className="scan-add" onClick={addStamp} disabled={busy}>{busy ? "Adding…" : <><Icon name="plus" /> Add a stamp</>}</button>
+          <button type="button" className="btn-pri btn-wide" onClick={addStamp} disabled={busy}>{busy ? "Adding…" : <><Icon name="plus" /> Add a stamp</>}</button>
           {state === "added" && <div className="scan-added">Stamp added — now {member.points} points.</div>}
           {state === "error" && <div className="h-sub">That didn&apos;t record — tap to try again.</div>}
         </div>
