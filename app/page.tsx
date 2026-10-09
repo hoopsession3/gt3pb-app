@@ -126,7 +126,7 @@ function TodayReal({ t }: { t: (k: string) => string }) {
         label={<EditableCopy k="home.dialed_title" value={t("home.dialed_title")} />}
         annotation={<EditableCopy k="home.dialed_sub" value={t("home.dialed_sub")} />}
       />
-      <EditableCopy k="home.questions" value={t("home.questions")} as="p" style={{ fontSize: 14, color: "var(--cream-m)", margin: "14px 2px 4px" }} />
+      <EditableCopy k="home.questions" value={t("home.questions")} as="p" style={{ fontSize: 15, color: "var(--cream-m)", margin: "14px 2px 4px" }} />
       <GenerateDay />
 
       <ClosingBeat />
