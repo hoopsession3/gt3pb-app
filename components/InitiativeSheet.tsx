@@ -132,7 +132,7 @@ function InitiativeBody({ it, canEdit, canOpenBoard, onBoard, onSaved }: {
           {err && <p className="load-failed" role="alert">{err}</p>}
           <div className="prod-actions" style={{ marginTop: 12 }}>
             {canOpenBoard ? <button type="button" className="note-arch" onClick={onBoard}>Open the board</button> : <span />}
-            <button type="button" className="note-save" onClick={save} disabled={busy || !changed || !title.trim()}>{busy ? "Saving…" : "Save"}</button>
+            <button type="button" className="btn-pri" onClick={save} disabled={busy || !changed || !title.trim()}>{busy ? "Saving…" : "Save"}</button>
           </div>
           <p className="pnl-note">Finished? Finish it on the board — that also completes every open task under it.</p>
         </div>

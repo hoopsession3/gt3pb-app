@@ -7,6 +7,7 @@ import EditableCopy from "@/components/EditableCopy";
 import Watermark from "@/components/Watermark";
 import { useSiteCopy } from "@/lib/copy";
 import { apiUrl } from "@/lib/native";
+import { btn } from "./Button";
 
 // COUPON LANDING (0268) — where a printed QR points. The scan COUNTS ITSELF (funnel_events, the
 // same zero-PII spine every storefront funnel uses), then the page routes by what the code IS in
@@ -42,13 +43,13 @@ export default function CouponLanding({ code }: { code: string }) {
               <>
                 <EditableCopy k="coupon.checkout_sub" value={t("coupon.checkout_sub")} as="p" className="cpn-sub" />
                 {/* CTAs sit inside a <Link> → plain t(), not inline-editable. */}
-                <Link className="cpn-cta" href={`/reserve?code=${encodeURIComponent(cpn.code ?? code)}`}>{t("coupon.checkout_cta")}</Link>
+                <Link className={btn("primary", { wide: true })} href={`/reserve?code=${encodeURIComponent(cpn.code ?? code)}`}>{t("coupon.checkout_cta")}</Link>
                 <div className="cpn-code">{t("coupon.code_label")} <b>{cpn.code}</b></div>
               </>
             ) : (
               <>
                 <EditableCopy k="coupon.loop_body" value={t("coupon.loop_body")} as="p" className="cpn-sub" multiline />
-                <Link className="cpn-cta" href="/menu">{t("coupon.loop_cta")}</Link>
+                <Link className={btn("primary", { wide: true })} href="/menu">{t("coupon.loop_cta")}</Link>
               </>
             )}
           </>
@@ -56,7 +57,7 @@ export default function CouponLanding({ code }: { code: string }) {
           <>
             <EditableCopy k="coupon.ended_title" value={t("coupon.ended_title")} as="h1" className="cpn-offer" />
             <EditableCopy k="coupon.ended_sub" value={t("coupon.ended_sub")} as="p" className="cpn-sub" />
-            <Link className="cpn-cta" href="/menu">{t("coupon.ended_cta")}</Link>
+            <Link className={btn("primary", { wide: true })} href="/menu">{t("coupon.ended_cta")}</Link>
           </>
         )}
       </div>

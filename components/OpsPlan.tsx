@@ -10,6 +10,7 @@ import { resolveVendor, type ResolveDecision, type VendorMatch } from "@/lib/ven
 import { createEventTask } from "@/lib/tasks";
 import VendorResolve from "./VendorResolve";
 import Icon from "@/components/Icon";
+import Button from "./Button";
 
 // OPS PLAN (chief-of-staff) — turn a meeting note into a build-able operations plan. Calls the
 // opsplan agent, then lets the operator tap "Create" on each proposed op (event/stop, vendor,
@@ -127,9 +128,9 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
   };
 
   if (!plan) return (
-    <button type="button" className={`ops-go${busy ? " loading" : ""}`} onClick={analyze} disabled={busy}>
+    <Button type="button" kind="primary" wide className="my-3" onClick={analyze} disabled={busy}>
       {busy ? <>Reading the note<span className="ops-dots"><i /><i /><i /></span></> : <><Icon name="sparkles" /> Build operations</>}
-    </button>
+    </Button>
   );
 
   const approved = Object.values(done).filter(Boolean).length;

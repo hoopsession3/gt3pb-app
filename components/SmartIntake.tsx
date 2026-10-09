@@ -140,7 +140,7 @@ export default function SmartIntake() {
           {err && <div className="dp-err" style={{ marginTop: 8 }}>{err}</div>}
           <div className="prod-actions" style={{ marginTop: 12 }}>
             <button type="button" className="note-arch" onClick={reset} disabled={!!busy}>Cancel</button>
-            <button type="button" className="note-save" onClick={file} disabled={!!busy}>{busy || <>File it <Icon name="arrowRight" /> {p.kind === "asset" ? "Assets" : p.kind === "inventory" ? "Inventory" : "Documents"}</>}</button>
+            <button type="button" className="btn-pri" onClick={file} disabled={!!busy}>{busy || <>File it <Icon name="arrowRight" /> {p.kind === "asset" ? "Assets" : p.kind === "inventory" ? "Inventory" : "Documents"}</>}</button>
           </div>
         </div>
       )}

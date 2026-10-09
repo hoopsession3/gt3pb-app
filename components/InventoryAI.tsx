@@ -65,7 +65,7 @@ export default function InventoryAI({ onClose, onAdded }: { onClose: () => void;
             <div className="eg-done">
               <div className="eg-done-h"><Icon name="check" /> Added &ldquo;{item?.name}&rdquo; to inventory</div>
               <div className="dp-hint" style={{ marginTop: 8 }}>It&apos;s in the stock register now — edit qty, reorder point, or anything else inline anytime.</div>
-              <div className="prod-actions" style={{ marginTop: 12 }}><span /><button type="button" className="note-save" onClick={onClose}>Done</button></div>
+              <div className="prod-actions" style={{ marginTop: 12 }}><span /><button type="button" className="btn-pri" onClick={onClose}>Done</button></div>
             </div>
           ) : !item ? (
             <>
@@ -74,7 +74,7 @@ export default function InventoryAI({ onClose, onAdded }: { onClose: () => void;
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
-                <button type="button" className="note-save" onClick={draft} disabled={busy || !desc.trim()}>{busy ? "Drafting…" : <><Icon name="sparkles" /> Draft it</>}</button>
+                <button type="button" className="btn-pri" onClick={draft} disabled={busy || !desc.trim()}>{busy ? "Drafting…" : <><Icon name="sparkles" /> Draft it</>}</button>
               </div>
             </>
           ) : (
@@ -112,7 +112,7 @@ export default function InventoryAI({ onClose, onAdded }: { onClose: () => void;
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={() => setItem(null)} disabled={busy}>‹ Redo</button>
-                <button type="button" className="note-save" onClick={save} disabled={busy || !item.name.trim()}>{busy ? "Adding…" : "Add to inventory"}</button>
+                <button type="button" className="btn-pri" onClick={save} disabled={busy || !item.name.trim()}>{busy ? "Adding…" : "Add to inventory"}</button>
               </div>
             </>
           )}

@@ -12,6 +12,7 @@ import {
   STATUS_LABEL, DISPOSITIONS, DISPOSITION_LABEL, CRITICALITY, CRITICALITY_LABEL,
   nextStates, toStatus, toCriticality, validateRetire, isDeployed, isOwned,
 } from "@/lib/equipment";
+import Button from "./Button";
 
 // Gear & manuals — the GT3 asset register, read from Postgres (system-of-record). Staff can
 // add / edit inline; writes go straight to the `assets` table (RLS: staff-write).
@@ -206,8 +207,8 @@ export default function GearLibrary() {
       </label>
       {err && <div className="gl-err">{err}</div>}
       <div className="gl-form-actions">
-        <button className="adm-btn primary" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
-        <button className="adm-btn ghost" onClick={cancel} disabled={busy}>Cancel</button>
+        <Button kind="primary" compact onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</Button>
+        <Button kind="quiet" onClick={cancel} disabled={busy}>Cancel</Button>
       </div>
     </div>
   );
@@ -221,7 +222,7 @@ export default function GearLibrary() {
       {open && (
         <div className="gl-body">
           <div className="gl-toolbar">
-            <button className="adm-regen" onClick={startNew}>+ Add gear</button>
+            <button className="btn-ter mt-2" onClick={startNew}>+ Add gear</button>
             <div className="gl-filters">
               <button type="button" className={`gl-chip${marketFilter === "all" ? " on" : ""}`} onClick={() => setMarketFilter("all")}>All markets</button>
               {MARKETS.map((m) => (
@@ -253,8 +254,8 @@ export default function GearLibrary() {
               </label>
               {err && <div className="gl-err">{err}</div>}
               <div className="gl-form-actions">
-                <button className="adm-btn primary" onClick={doRetire} disabled={busy}>{busy ? "Retiring…" : "Retire it"}</button>
-                <button className="adm-btn ghost" onClick={() => { setRetiring(null); setErr(null); }} disabled={busy}>Cancel</button>
+                <Button kind="destructive" onClick={doRetire} disabled={busy}>{busy ? "Retiring…" : "Retire it"}</Button>
+                <Button kind="quiet" onClick={() => { setRetiring(null); setErr(null); }} disabled={busy}>Cancel</Button>
               </div>
             </div>
           )}

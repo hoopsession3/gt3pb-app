@@ -65,7 +65,7 @@ export default function LessonsManager() {
         <div className="adm-sec">
           <div className="studio-top">
             <SectionHeader label="Return to Primal · lessons" />
-            <button type="button" className="btn-sec" onClick={() => setShowStructure((s) => !s)}>{showStructure ? "Hide structure" : "Pillars & modules"}</button>
+            <button type="button" className="btn-sec btn-sm" onClick={() => setShowStructure((s) => !s)}>{showStructure ? "Hide structure" : "Pillars & modules"}</button>
           </div>
           <div className="h-sub">Write the customer nutrition academy. New lessons are born hidden — fill them in, link the menu stack, then publish. Rookie is free; Pro unlocks through a membership.</div>
 
@@ -209,8 +209,8 @@ function LessonRow({ l, products, open, onToggle, onSaved, toast }: { l: Lesson;
 
           <label className="prod-toggle"><input type="checkbox" checked={published} onChange={togglePublish} /> Published — visible to guests{published && d.published_at ? ` (since ${new Date(d.published_at).toLocaleDateString()})` : ""}</label>
           <div className="prod-actions" style={{ flexWrap: "wrap" }}>
-            <button type="button" className="btn-ter" onClick={del}>Delete</button>
-            <button type="button" className="btn-pri" onClick={save} disabled={isBlank(d.title)}>Save</button>
+            <button type="button" className="btn-del" onClick={del}>Delete</button>
+            <button type="button" className="btn-pri btn-wide" onClick={save} disabled={isBlank(d.title)}>Save</button>
           </div>
         </div>
       )}

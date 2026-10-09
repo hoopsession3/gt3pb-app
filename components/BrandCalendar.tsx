@@ -283,7 +283,7 @@ function DayView({ dayKey, posts, evs, evTitle, onClose, onEdit, onOpenFull, onA
               </div>
             ))}
           </div>
-          <div className="prod-actions" style={{ marginTop: 14 }}><span /><button type="button" className="note-save" onClick={onAdd}>+ New piece</button></div>
+          <div className="prod-actions" style={{ marginTop: 14 }}><span /><button type="button" className="btn-pri" onClick={onAdd}>+ New piece</button></div>
     </Sheet>
   );
 }
@@ -346,7 +346,7 @@ function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string;
             <button type="button" className="note-arch" onClick={unschedule} disabled={saving}>Unschedule</button>
             <div style={{ display: "flex", gap: 8 }}>
               <LeaveButton className="note-arch" onClick={onClose}>Cancel</LeaveButton>
-              <button type="button" className="note-save" onClick={save} disabled={saving || isBlank(f?.title)}>{saving ? "Saving…" : "Save"}</button>
+              <button type="button" className="btn-pri" onClick={save} disabled={saving || isBlank(f?.title)}>{saving ? "Saving…" : "Save"}</button>
             </div>
           </div>
     </Sheet>

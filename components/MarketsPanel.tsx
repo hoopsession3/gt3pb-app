@@ -250,7 +250,7 @@ function Disclaimer({ mk, busy, onSave, onCancel }: {
         hint="S.C. Code 41-1-110 wants this in underlined capitals on the first page. The letter renders it that way; the words are counsel's."
       />
       <div className="prod-actions">
-        <button type="button" className="btn-pri" disabled={busy} onClick={() => onSave(text)}>
+        <button type="button" className="btn-pri btn-wide" disabled={busy} onClick={() => onSave(text)}>
           {busy ? "Saving…" : "Save disclaimer"}
         </button>
         <button type="button" className="btn-sec" disabled={busy} onClick={onCancel}>Cancel</button>

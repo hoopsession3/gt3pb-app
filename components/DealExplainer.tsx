@@ -205,7 +205,7 @@ export default function DealExplainer({ row, onCounter }: { row: Row; onCounter?
             numbers above that changes your share from {computeSplit({ ...terms, supplyFunding: offered }).operatorPct}%
             to {split.operatorPct}%.
           </p>
-          <button type="button" className="btn-pri" onClick={() =>
+          <button type="button" className="btn-pri btn-wide" onClick={() =>
             onCounter(`I'd like supply funding at ${funding}% rather than ${offered}% — that puts my share at ${split.operatorPct}%. Happy to talk it through.`)
           }>Ask for {funding}% instead</button>
         </div>

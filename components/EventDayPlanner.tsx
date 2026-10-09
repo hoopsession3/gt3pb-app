@@ -13,6 +13,7 @@ import { errorMessage } from "@/lib/errorMessage";
 import { useCrew } from "./useCrew";
 import { follow } from "@/lib/pickFill";
 import { edited } from "@/lib/formGuard";
+import Button from "./Button";
 
 // EVENT DAY PLANNER — a multi-day, time-by-time run of show for one event. Pick how many days the
 // event runs, then build each day block by block: leave home 9:00, drive, arrive Airbnb (address +
@@ -231,7 +232,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
                 {departure.risks.length > 0 && <div className="dp-leave-risks">{departure.risks.map((r, i) => <span key={i}><Icon name="warning" /> {r}</span>)}</div>}
               </div>
             ) : (
-              <button type="button" className="dp-leave-btn" onClick={genDeparture} disabled={depBusy}>{depBusy ? "Working out when to leave…" : <><Icon name="clock" /> When do we leave? — summarize from the schedule</>}</button>
+              <Button type="button" kind="secondary" wide className="mb-3" onClick={genDeparture} disabled={depBusy}>{depBusy ? "Working out when to leave…" : <><Icon name="clock" /> When do we leave? — summarize from the schedule</>}</Button>
             )
           )}
 
@@ -355,7 +356,7 @@ function ItemForm({ item, start, venueFor, onSite, onClose, onSave }: {
           <label className="prod-f" style={{ marginTop: 8 }}><span>Details — gate code, parking, contact, what to load</span><textarea className="note-in" rows={3} value={f.details ?? ""} onChange={(e) => set("details", e.target.value)} placeholder="Everything you'll want at a glance" /></label>
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <LeaveButton className="note-arch" onClick={onClose}>Cancel</LeaveButton>
-            <button type="button" className="note-save" onClick={() => onSave(f)} disabled={!f.title?.trim()}>{item ? "Save" : "Add block"}</button>
+            <button type="button" className="btn-pri" onClick={() => onSave(f)} disabled={!f.title?.trim()}>{item ? "Save" : "Add block"}</button>
           </div>
     </Sheet>
   );
@@ -390,7 +391,7 @@ function DraftPanel({ ownerType = "event", eventId, dayIndex, onClose, onAdd }: 
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
-                <button type="button" className="note-save" onClick={run} disabled={loading}>{loading ? "Drafting…" : "Draft the day"}</button>
+                <button type="button" className="btn-pri" onClick={run} disabled={loading}>{loading ? "Drafting…" : "Draft the day"}</button>
               </div>
             </>
           )}
@@ -408,7 +409,7 @@ function DraftPanel({ ownerType = "event", eventId, dayIndex, onClose, onAdd }: 
               </div>
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={() => setRows(null)}>‹ Redo</button>
-                <button type="button" className="note-save" onClick={() => onAdd(rows.filter((_, i) => pick[i]))} disabled={!Object.values(pick).some(Boolean)}>Add {Object.values(pick).filter(Boolean).length} to day</button>
+                <button type="button" className="btn-pri" onClick={() => onAdd(rows.filter((_, i) => pick[i]))} disabled={!Object.values(pick).some(Boolean)}>Add {Object.values(pick).filter(Boolean).length} to day</button>
               </div>
             </>
           )}

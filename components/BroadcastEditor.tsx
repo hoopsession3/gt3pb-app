@@ -9,6 +9,7 @@ import type { Broadcast } from "@/lib/broadcasts";
 import Icon from "@/components/Icon";
 import { InfoRow } from "@/components/kit";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { btn } from "./Button";
 
 // BROADCAST EDITOR (Settings) — compose an announcement/ad and put it live across the app to everyone.
 // The composer exposes every option: what it says, who sees it, how it looks, an optional call-to-
@@ -73,7 +74,7 @@ export default function BroadcastEditor() {
         <div className="bce-preview-l">Preview</div>
         <div className={`bcast bcast-${d.style}`} role="status">
           <div className="bcast-x"><b className="bcast-t">{d.title || "Your headline"}</b>{d.body && <span className="bcast-b">{d.body}</span>}</div>
-          {d.cta_label && <span className="bcast-cta">{d.cta_label}</span>}
+          {d.cta_label && <span className={btn("quiet", { className: "bcast-cta" })}>{d.cta_label}</span>}
           {/* A PICTURE OF a close button, inside the preview of what guests will see — not a
               control. It carried aria-hidden on a real <button>, which is worse than an
               unlabelled one: a keyboard user could still Tab onto it, land on something their
@@ -110,9 +111,8 @@ export default function BroadcastEditor() {
           live ships the broadcast app-wide — the most externally-consequential write of any
           Panel on this screen, same "outward-facing commit" reasoning as Studio's Publish to
           site / CodesPanel's mint / InviteTeammate's invite. Checked every sibling Panel:
-          SiteCopyEditor/PromoEditor/CopilotDirectory/AiSpend carry no note-save or btn-pri at
-          all; Changelog still has an unmigrated legacy .note-save "Log it" button (out of scope
-          here). OfficeSettings' and FounderDigest's save actions are each the only button on
+          SiteCopyEditor/PromoEditor/CopilotDirectory/AiSpend carry no btn-pri at all, and Changelog's
+          "Log it" is the kit's primary of its own form (2026-10-09, the button round). OfficeSettings' and FounderDigest's save actions are each the only button on
           their own small form and would read "likely .btn-pri" in isolation, but Panels open
           independently (see Panel() below — more than one can be visible at once), so they're
           kept at .btn-sec to keep this the single one; see the note on each of those buttons.
@@ -121,7 +121,7 @@ export default function BroadcastEditor() {
           is a real, deliberate write (just not the one that ships it) → .btn-sec. New only
           resets local form state, no persistence → .btn-ter. */}
       <div className="prod-actions" style={{ marginTop: 14, flexWrap: "wrap" }}>
-        <button type="button" className="btn-pri" onClick={() => save(true)} disabled={saving || !d.title.trim()}>{saving ? "…" : d.id ? "Update & go live" : "Go live"}</button>
+        <button type="button" className="btn-pri btn-wide" onClick={() => save(true)} disabled={saving || !d.title.trim()}>{saving ? "…" : d.id ? "Update & go live" : "Go live"}</button>
         <button type="button" className="btn-sec" onClick={() => save(false)} disabled={saving || !d.title.trim()}>Save draft</button>
         {d.id && <button type="button" className="btn-ter" onClick={() => setD(BLANK)} disabled={saving}>New</button>}
       </div>

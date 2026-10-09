@@ -65,7 +65,7 @@ export default function IntegrationsPanel() {
           <div className="intg-row">
             <span className="intg-dot unk" aria-hidden />
             <span className="intg-x"><b>Test a real email</b><span>sends one message to your own account address</span></span>
-            <button type="button" className="btn-sec" disabled={testing || !p.notify?.email} onClick={async () => {
+            <button type="button" className="btn-sec btn-sm" disabled={testing || !p.notify?.email} onClick={async () => {
               setTesting(true); setTest(null);
               try {
                 const r = await authedFetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "test" }) });

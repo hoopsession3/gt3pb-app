@@ -12,6 +12,7 @@ import { withCurrent } from "@/lib/options";
 import { drinkCogs, margin, shelfLabel, type InvCost } from "@/lib/cogs";
 import { money } from "@/lib/money";
 import { useConfirm } from "@/components/ConfirmSheet";
+import Button from "./Button";
 
 // MENU / PRODUCT manager — the catalog as a managed, relational record. Edit every attribute
 // (name, line, price, description, ingredients), set the recipe (which inventory items a serving
@@ -69,7 +70,7 @@ export default function MenuManager() {
                 `.mpanel-body > .adm-sec > .studio-top > .k-sec{display:none}` hides the dupe
                 SectionHeader title but relies on the button staying a SIBLING of .k-sec, not a
                 child of it — moving the button inside SectionHeader's `right` would hide it too. */}
-            <button type="button" className="btn-sec" onClick={create}>+ New item</button>
+            <button type="button" className="btn-sec btn-sm" onClick={create}>+ New item</button>
           </div>
           <div className="h-sub">The catalog the app charges from — card &amp; cash. Edit every attribute, set each drink&apos;s recipe (the inventory a serving uses), toggle what&apos;s on the menu.</div>
           {products.map((p) => <ProductRow key={p.id} p={p} inv={inv} open={openId === p.id} onToggle={() => setOpenId(openId === p.id ? null : p.id)} onSaved={reload} toast={toast} />)}
@@ -177,9 +178,9 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
             <span className="prod-line">{p.line}</span>
             <span className="prod-px">{money(p.price_cents)}</span>
             {p.active && (
-              <button type="button" className={`prod-86btn${p.sold_out ? " on" : ""}`} onClick={toggle86}>
+              <Button type="button" kind="secondary" compact className="shrink-0" onClick={toggle86}>
                 {p.sold_out ? "Back on" : "86"}
-              </button>
+              </Button>
             )}
           </>}
         />
@@ -253,15 +254,14 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
 
           {/* Save is the one true commit action while this row is open — the parent's openId
               guarantees at most one ProductRow is ever open at a time, so at most one .btn-pri
-              renders across this whole screen. Delete is destructive/secondary → .btn-ter, same
-              tier Studio.tsx and OfficeOrders.tsx use for Delete/Cancel. .btn-pri is a block,
-              width:100% button; .prod-actions is a shared class (30+ other bespoke forms app-wide
+              renders across this whole screen. Delete is destructive → .btn-del, red words (2026-10-09,
+              the button round). .btn-pri .btn-wide is a block, width:100% button; .prod-actions is a shared class (30+ other bespoke forms app-wide
               reuse it) with no flex-wrap in its CSS, so it's added locally here rather than in
               globals.css — otherwise Save would be squeezed shoulder-to-shoulder with Delete
               instead of taking its own full-width row. */}
           <div className="prod-actions" style={{ flexWrap: "wrap" }}>
-            <button type="button" className="btn-ter" onClick={del}>Delete</button>
-            <button type="button" className="btn-pri" onClick={save} disabled={isBlank(d.name) || (d.active && !(Number(d.price_cents) > 0))}>Save</button>
+            <button type="button" className="btn-del" onClick={del}>Delete</button>
+            <button type="button" className="btn-pri btn-wide" onClick={save} disabled={isBlank(d.name) || (d.active && !(Number(d.price_cents) > 0))}>Save</button>
           </div>
         </div>
       )}

@@ -15,6 +15,7 @@ import {
 } from "@/lib/venues";
 import { useVenues } from "./useVenues";
 import VenueContact from "./VenueContact";
+import Button from "./Button";
 
 // The look-alike sheet only opens when a new venue resembles one in the book.
 const VendorResolve = dynamic(() => import("@/components/VendorResolve"));
@@ -203,8 +204,8 @@ export default function VenuePick({
           <div className="vnew-row">
             <input className="ev-input" value={nm} onChange={(e) => setNm(e.target.value)} placeholder="The venue's name" aria-label="The new venue's name"
               maxLength={120} autoFocus onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
-            <button type="button" className="adm-btn" onClick={() => add()} disabled={busy || !nm.trim()}>{busy ? "Adding…" : "Add"}</button>
-            <button type="button" className="ev-arch-btn" onClick={() => { setAdding(false); setErr(null); }} disabled={busy}>Cancel</button>
+            <Button type="button" kind="primary" compact onClick={() => add()} disabled={busy || !nm.trim()}>{busy ? "Adding…" : "Add"}</Button>
+            <Button type="button" kind="quiet" onClick={() => { setAdding(false); setErr(null); }} disabled={busy}>Cancel</Button>
           </div>
           <p className="lp-note">{`It goes in the venue book now${seedAddress ? `, at ${seedAddress}` : ""}, waiting on the owner's approval.`}</p>
         </>

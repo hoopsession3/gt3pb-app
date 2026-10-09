@@ -50,7 +50,7 @@ export default function PlanEditor() {
                 rule `.mpanel-body > .adm-sec > .studio-top > .k-sec{display:none}` hides the dupe
                 title only because the button stays OUTSIDE .k-sec as a sibling — nesting it inside
                 SectionHeader's `right` would hide the button along with the title. */}
-            <button type="button" className="btn-sec" onClick={add}>+ New plan</button>
+            <button type="button" className="btn-sec btn-sm" onClick={add}>+ New plan</button>
           </div>
           <div className="h-sub">The tiers members can subscribe to — name, price, billing period, on/off.</div>
           {plans.map((p) => <PlanRow key={p.key} p={p} onSaved={reload} toast={toast} />)}
@@ -117,11 +117,10 @@ function PlanRow({ p, onSaved, toast }: { p: Plan; onSaved: () => void; toast: (
             button on screen at once (e.g. mid-edit on two plans before saving either) — a direct
             violation of "max ONE .btn-pri per screen" that no amount of gating on THIS screen can
             fix without changing behavior (adding an open/close state), which is out of scope.
-            Delete is still .btn-ter (destructive/secondary), same tier as MenuManager and
-            Studio.tsx/OfficeOrders.tsx's Delete/Cancel. */}
+            Delete is .btn-del, red words, as on MenuManager and Studio.tsx (2026-10-09, the button round). */}
         <div className="prod-actions">
-          <button type="button" className="btn-ter" onClick={del}>Delete</button>
-          <button type="button" className="btn-sec" onClick={save} disabled={!dirty || isBlank(d.label) || (d.active && !(Number(d.price_cents) > 0))}>Save</button>
+          <button type="button" className="btn-del" onClick={del}>Delete</button>
+          <button type="button" className="btn-sec btn-sm" onClick={save} disabled={!dirty || isBlank(d.label) || (d.active && !(Number(d.price_cents) > 0))}>Save</button>
         </div>
       </div>
     </div>

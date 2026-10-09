@@ -21,6 +21,7 @@ import { startSteps, whoToAsk, type StartFacts, type StartStep, type StartGo } f
 import { isNativeApp } from "@/lib/native";
 import { haptic } from "@/lib/haptics";
 import Icon from "./Icon";
+import Button from "./Button";
 
 type Facts = Pick<StartFacts, "city" | "leadsCity" | "cityLead" | "owners" | "track">;
 
@@ -91,7 +92,7 @@ export default function CrewStart({ onSection, onClose }: {
               <div className="guide-body">
                 <p className="guide-more">{whoText(s)}</p>
                 {s.go && !(s.key === "crew" && s.done) && (
-                  <button type="button" className="guide-go" onClick={() => go(s.go!)}>{s.go.label} ›</button>
+                  <Button type="button" kind="primary" compact onClick={() => go(s.go!)}>{s.go.label} ›</Button>
                 )}
               </div>
             )}

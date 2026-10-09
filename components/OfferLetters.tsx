@@ -234,7 +234,7 @@ export default function OfferLetters() {
       <AsyncSection state={board} loadingLabel="Loading offers…" errorTitle="Couldn’t load offers" emptyTitle="No offers yet">{() => (
        <>
         <div className="ofr-actions">
-          <button type="button" className="btn-pri" onClick={() => { setOpenId(null); setArrivedNote(null); setDraft(startOffer(ctx)); }}>
+          <button type="button" className="btn-pri btn-wide" onClick={() => { setOpenId(null); setArrivedNote(null); setDraft(startOffer(ctx)); }}>
             <Icon name="plus" /> New offer
           </button>
         </div>
@@ -359,14 +359,14 @@ export default function OfferLetters() {
                     payMethod: open.pay_method, deductions: open.deductions,
                     package: Array.isArray(open.package) ? open.package : [],
                   })}>Edit</button>
-                  <button type="button" className="btn-pri" disabled={busy}
+                  <button type="button" className="btn-pri btn-wide" disabled={busy}
                     onClick={() => rpc("submit_offer_for_review", { p_id: open.id }, "Sent to the co-owners")}>
                     Send for approval <Icon name="arrowRight" />
                   </button>
                 </>
               )}
               {open.status === "approved" && (
-                <button type="button" className="btn-pri" disabled={busy} onClick={async () => {
+                <button type="button" className="btn-pri btn-wide" disabled={busy} onClick={async () => {
                   if (!supabase) return;
                   setBusy(true);
                   const { error } = await supabase.from("offer_letters")
@@ -445,7 +445,7 @@ function ReviewPanel({ onDecide, busy }: { onDecide: (a: "approve" | "request_ch
         placeholder="A note (optional — required in spirit if you're asking for changes)" />
       <div className="ofr-do">
         <button type="button" className="btn-sec" disabled={busy} onClick={() => onDecide("request_changes", note)}>Ask for changes</button>
-        <button type="button" className="btn-pri" disabled={busy} onClick={() => onDecide("approve", note)}>Approve</button>
+        <button type="button" className="btn-pri btn-wide" disabled={busy} onClick={() => onDecide("approve", note)}>Approve</button>
       </div>
     </div>
   );
@@ -625,7 +625,7 @@ function OfferForm({ draft, setDraft, onSave, onCancel, busy, onPick, members, m
 
       <div className="ofr-do">
         <button type="button" className="btn-ter" onClick={onCancel} disabled={busy}>Cancel</button>
-        <button type="button" className="btn-pri" onClick={onSave} disabled={busy || !v.ok}>Save draft</button>
+        <button type="button" className="btn-pri btn-wide" onClick={onSave} disabled={busy || !v.ok}>Save draft</button>
       </div>
     </div>
   );

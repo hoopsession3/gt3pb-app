@@ -30,6 +30,7 @@ import Icon from "@/components/Icon";
 import { SectionHeader } from "@/components/kit";
 import { useOutlookStatus, outlookLine } from "./OutlookConnect";
 import GoLine from "./GoLine";
+import Button from "./Button";
 
 // COMPANY CALENDAR — one pane for everything dated: truck events, admin/ops work, scheduled content
 // (from Studio), and free-standing to-dos. Category-colored, filterable, click-through to source.
@@ -483,9 +484,9 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
         <div className="cal-views">
           {shownViews.map((v) => <button key={v} type="button" className={`cal-view hit-y-44${view === v ? " on" : ""}`} onClick={() => setV(v)}>{VLABEL[v]}</button>)}
           {phone && <button type="button" className="cal-view hit-y-44 cal-view-more" aria-expanded={moreViews} onClick={() => setMoreViews((m) => !m)}>{moreViews ? "Fewer" : "More"}</button>}
-          <button type="button" className={`cal-filterbtn${filter !== "all" ? " on" : ""}`} onClick={() => setFilterSheet(true)} aria-haspopup="dialog">
+          <Button type="button" kind="secondary" compact className="ml-auto" onClick={() => setFilterSheet(true)} aria-haspopup="dialog">
             {filter === "all" ? "Filter" : laneFilter ? <><span className="cc-dot" style={{ background: laneFilter.color }} />{laneFilter.label}</> : <><span className="cc-dot" style={{ background: CAT[filter].color }} />{CAT[filter].label}</>}
-          </button>
+          </Button>
         </div>
         {filterSheet && (
           <Sheet open onClose={() => setFilterSheet(false)} label="Calendar filters" header={<div style={{ display: "flex", alignItems: "center" }}><div className="prep-sheet-h">Show on the calendar</div></div>}>
@@ -787,7 +788,7 @@ function DayView({ dayKey, items, events, readOnly = false, onClose, onAdd, onSa
               </>
             )}
           </div>
-          {!readOnly && <div className="prod-actions" style={{ marginTop: 14 }}><span /><button type="button" className="note-save" onClick={onAdd}>+ Add to this day</button></div>}
+          {!readOnly && <div className="prod-actions" style={{ marginTop: 14 }}><span /><button type="button" className="btn-pri" onClick={onAdd}>+ Add to this day</button></div>}
     </Sheet>
     {edit && (edit.kind === "event" || edit.kind === "stop"
       ? <FieldOpSheet kind={edit.kind} id={edit.id} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); onSaved(); }} onChanged={onSaved}
@@ -995,7 +996,7 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
             {removable ? <button type="button" className="note-arch" onClick={remove} disabled={saving}>{kind === "content" ? "Unschedule" : "Delete"}</button> : <span />}
             <div style={{ display: "flex", gap: 8 }}>
               <LeaveButton className="note-arch" onClick={onClose}>Cancel</LeaveButton>
-              <button type="button" className="note-save" onClick={save} disabled={saving || (nameRequired && isBlank(f[cfg.nameCol]))}>{saving ? "Saving…" : "Save"}</button>
+              <button type="button" className="btn-pri" onClick={save} disabled={saving || (nameRequired && isBlank(f[cfg.nameCol]))}>{saving ? "Saving…" : "Save"}</button>
             </div>
           </div>
     {walker}
@@ -1063,7 +1064,7 @@ function OutlookBar({ onSynced }: { onSynced: () => void }) {
         <>
           <div className="ol-note">{outlookLine(st)}</div>
           <div className="ol-acts">
-            <button type="button" className="ol-btn primary" onClick={sync} disabled={busy}>{busy ? "Syncing…" : "Sync now"}</button>
+            <Button type="button" kind="secondary" compact onClick={sync} disabled={busy}>{busy ? "Syncing…" : "Sync now"}</Button>
           </div>
         </>
       )}
@@ -1146,7 +1147,7 @@ function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[];
           {err && <p className="lp-ask" role="alert" style={{ marginTop: 10 }}>{err}</p>}
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <LeaveButton className="note-arch" onClick={onClose}>Cancel</LeaveButton>
-            <button type="button" className="note-save" onClick={() => save()} disabled={!title.trim() || busy}>{busy ? "Adding…" : "Add"}</button>
+            <button type="button" className="btn-pri" onClick={() => save()} disabled={!title.trim() || busy}>{busy ? "Adding…" : "Add"}</button>
           </div>
     </Sheet>
   );

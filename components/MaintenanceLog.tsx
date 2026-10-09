@@ -135,7 +135,7 @@ export default function MaintenanceLog() {
                 <label className="prod-f" style={{ marginTop: 8 }}><span>Artifact link (optional)</span><input value={d.artifact_url ?? ""} onChange={(e) => set("artifact_url", e.target.value)} placeholder="https://…" /></label>
                 <div className="prod-actions" style={{ marginTop: 12 }}>
                   <button type="button" className="note-arch" onClick={() => { setD(BLANK); setComposing(false); }} disabled={saving}>Cancel</button>
-                  <button type="button" className="note-save" onClick={save} disabled={saving || !d.title.trim()}>{saving ? "Saving…" : d.id ? "Update" : "Log it"}</button>
+                  <button type="button" className="btn-pri" onClick={save} disabled={saving || !d.title.trim()}>{saving ? "Saving…" : d.id ? "Update" : "Log it"}</button>
                 </div>
               </div>
             )}
@@ -185,7 +185,7 @@ export default function MaintenanceLog() {
                               {nd && <span>Next due {nd.due}{nd.overdue ? " (overdue)" : ""}</span>}
                               {a.artifact_url && <a href={a.artifact_url} target="_blank" rel="noreferrer" className="btn-ter">Open artifact <Icon name="externalLink" /></a>}
                               <button type="button" className="btn-ter" onClick={() => editRow(a)}>Edit</button>
-                              <button type="button" className="btn-ter" style={{ marginLeft: "auto" }} onClick={() => del(a)}>Delete</button>
+                              <button type="button" className="btn-del ml-auto" onClick={() => del(a)}>Delete</button>
                             </div>
                           </div>
                         )}

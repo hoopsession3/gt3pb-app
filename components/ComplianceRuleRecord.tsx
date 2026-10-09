@@ -170,8 +170,8 @@ function RuleBody({ d, admin, onDone }: { d: Data; admin: boolean; onDone: () =>
               ? <button type="button" className="note-arch" onClick={() => { setChanged(false); setErr(null); }}>Back</button>
               : <button type="button" className="note-arch" onClick={() => { setChanged(true); setErr(null); }}>It&rsquo;s changed</button>}
             {changed
-              ? <button type="button" className="note-save" onClick={() => recheck("changed")} disabled={busy}>{busy ? "Saving…" : "Report the change"}</button>
-              : <button type="button" className="note-save" onClick={() => recheck("confirmed")} disabled={busy}>{busy ? "Saving…" : "Still true — checked today"}</button>}
+              ? <button type="button" className="btn-pri" onClick={() => recheck("changed")} disabled={busy}>{busy ? "Saving…" : "Report the change"}</button>
+              : <button type="button" className="btn-pri" onClick={() => recheck("confirmed")} disabled={busy}>{busy ? "Saving…" : "Still true — checked today"}</button>}
           </div>
           {changed && <p className="pnl-note">The rule&rsquo;s words stay as they are: it is marked not confirmed, with what you were told, and the owners are asked to correct it.</p>}
         </div>
@@ -206,7 +206,7 @@ function RuleBody({ d, admin, onDone }: { d: Data; admin: boolean; onDone: () =>
               </div>
               <div className="prod-actions" style={{ marginTop: 12 }}>
                 <span />
-                <button type="button" className="note-save" onClick={correct} disabled={busy}>{busy ? "Saving…" : "Save the correction"}</button>
+                <button type="button" className="btn-pri" onClick={correct} disabled={busy}>{busy ? "Saving…" : "Save the correction"}</button>
               </div>
             </div>
           )}

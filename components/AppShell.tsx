@@ -206,7 +206,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* Records open from anywhere (?r=kind:id). Inside TaskSheetProvider so a task sheet can open
           the person it is assigned to, and so both live above every screen that prints a name. */}
       <RecordProvider>
-      <div className={`app${inAdmin && theme === "day" ? " crew-day" : ""}${disp ? ` ${disp}` : ""}`}>
+      {/* data-surface says which kind of page this is (lib/surfaces): the console's primary button is gold. */}
+      <div className={`app${inAdmin && theme === "day" ? " crew-day" : ""}${disp ? ` ${disp}` : ""}`} data-surface={surface}>
         {/* Skip link — first focusable element; keyboard users jump past the chrome to the content. */}
         <a href="#body" className="skip-link">Skip to content</a>
         {/* Live broadcast bar — an operator-published message/ad, shown to every user in real time. */}

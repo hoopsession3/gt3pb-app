@@ -219,7 +219,7 @@ export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) 
                   <div className="insp-lbl">No agreement for {draftFor.name || "them"} yet</div>
                   <div className="prod-actions">
                     <button type="button" className="note-arch" onClick={() => setDraftFor(null)}>Not now</button>
-                    <button type="button" className="btn-pri" disabled={busy} onClick={() => createDraft(draftFor)}>
+                    <button type="button" className="btn-pri btn-wide" disabled={busy} onClick={() => createDraft(draftFor)}>
                       {busy ? "Creating…" : `Draft one for ${draftFor.name || "them"}`}
                     </button>
                   </div>
@@ -540,7 +540,7 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra, people
 
           {/* ── actions ── */}
           <div className="prod-actions" style={{ flexWrap: "wrap" }}>
-            {editable && <button type="button" className="btn-pri" onClick={() => save()} disabled={busy}>{busy ? "Saving…" : "Save"}</button>}
+            {editable && <button type="button" className="btn-pri btn-wide" onClick={() => save()} disabled={busy}>{busy ? "Saving…" : "Save"}</button>}
             {/* WAS: filtered to sent | active | ended, and FLOW.sent holds none of those — so a sent
                 agreement showed no buttons at all, under a note telling you to move it back to draft.
                 The owner-side moves are listed explicitly instead. "active" is gone on purpose: an
@@ -592,7 +592,7 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra, people
             )}
             {isMine && (status === "sent" || status === "countered") && (
               <>
-                <button type="button" className="btn-pri" onClick={() => respond("accept")} disabled={busy}>Accept</button>
+                <button type="button" className="btn-pri btn-wide" onClick={() => respond("accept")} disabled={busy}>Accept</button>
                 <button type="button" className="btn-sec" onClick={() => respond("request_changes")} disabled={busy}>Request changes</button>
                 <button type="button" className="btn-sec" onClick={() => respond("counter")} disabled={busy}>Counter</button>
               </>
@@ -649,7 +649,7 @@ function LinkOperator({ row, toast, onSaved }: { row: Row; toast: (m: string, t?
         <PersonPick label="Link this agreement to" value={who} onChange={(v) => setWho(v)} allowOther={false}
                     allowNone noneLabel="Pick them from the crew" prefer={["operator", "event_manager"]} /></label>
       <div className="prod-actions">
-        <button type="button" className="btn-pri" disabled={busy || !who.id} onClick={link}>{busy ? "…" : "Link it"}</button>
+        <button type="button" className="btn-pri btn-wide" disabled={busy || !who.id} onClick={link}>{busy ? "…" : "Link it"}</button>
       </div>
     </div>
   );
@@ -816,7 +816,7 @@ function HoursBlock({ agreementId, covers, basis, extra, canLog, toast, onSaved 
             <input value={note} maxLength={120} onChange={(e) => setNote(e.target.value)} /></label>
           <div className="prod-actions">
             <button type="button" className="note-arch" onClick={() => setOpen(false)}>Cancel</button>
-            <button type="button" className="note-save" disabled={busy} onClick={log}>{busy ? "…" : "Log it"}</button>
+            <button type="button" className="btn-pri" disabled={busy} onClick={log}>{busy ? "…" : "Log it"}</button>
           </div>
         </div>
       ) : (
@@ -893,7 +893,7 @@ function SignBlock({ row, status, isMine, integrity, toast, onSaved }: {
                    placeholder={status === "accepted" ? row.operator_name : "Your name"}
                    onChange={(e) => setName(e.target.value)} />
           </label>
-          <button type="button" className="btn-pri" disabled={busy || !name.trim()}
+          <button type="button" className="btn-pri btn-wide" disabled={busy || !name.trim()}
                   onClick={() => call(status === "accepted" ? "sign_agreement" : "countersign_agreement")}>
             {busy ? "…" : status === "accepted" ? "Sign" : "Countersign & activate"}
           </button>

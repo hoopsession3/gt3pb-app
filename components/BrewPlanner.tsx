@@ -25,6 +25,7 @@ import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { errorMessage } from "@/lib/errorMessage";
+import Button from "./Button";
 
 // BREW — recipes + a back-scheduled batch plan. Pick a recipe, set the batch size in GALLONS (the
 // recipe scales exactly to it and hits its OG/Signal-Score spec), tie it to the event it's for, and
@@ -353,7 +354,7 @@ export default function BrewPlanner() {
       {() => (
     <div className="adm-sec">
       <SectionHeader label="Brew" />
-      <button className="adm-btn primary" style={{ marginLeft: "auto" }} onClick={() => setPlan(recipes[0] ?? null)} disabled={!recipes.length}>+ Plan a batch</button>
+      <Button kind="primary" wide onClick={() => setPlan(recipes[0] ?? null)} disabled={!recipes.length}>+ Plan a batch</Button>
       <div className="pnl-note" style={{ marginBottom: 8 }}>Recipes scale exactly to the gallons of water you brew and hold the spec. Batches are back-scheduled from the event they&apos;re for, then logged to standard.</div>
 
       {mutErr && (
@@ -520,7 +521,7 @@ export default function BrewPlanner() {
                         </div>
                       );
                     })()}
-                    <button type="button" className="brew-pack-btn" onClick={() => setPack(b)}><Icon name="package" /> Plan the bottle loadout</button>
+                    <Button type="button" kind="secondary" compact wide className="mt-2" onClick={() => setPack(b)}><Icon name="package" /> Plan the bottle loadout</Button>
                   </>
                 )}
               </div>
@@ -578,7 +579,7 @@ function StartBrewSheet({ batch, lotBoard, onClose, onStart }: { batch: Batch; l
           <label className="prod-f" style={{ marginTop: 8 }}><span>Brewer — the brew alarms ring for them</span><PersonPick label="Brewer" value={brewer} onChange={setBrewer} /></label>
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
-            <button type="button" className="note-save" onClick={async () => { setBusy(true); await onStart({ lot, brewer }); setBusy(false); }} disabled={busy}>{busy ? "Starting…" : `▶ Start the ${hrs}h brew`}</button>
+            <button type="button" className="btn-pri" onClick={async () => { setBusy(true); await onStart({ lot, brewer }); setBusy(false); }} disabled={busy}>{busy ? "Starting…" : `▶ Start the ${hrs}h brew`}</button>
           </div>
     </Sheet>
   );
@@ -607,7 +608,7 @@ function BrewAdjust({ batch, onClose, onSaveTime, onStop, onUndo, onRemove }: { 
           {readyPreview && <div className="brew-spec">Ready ~{readyPreview.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })} · {hrs}h extraction</div>}
           <div className="prod-actions" style={{ marginTop: 12 }}>
             <LeaveButton className="note-arch" onClick={onClose}>Cancel</LeaveButton>
-            <button type="button" className="note-save" disabled={busy || !start} onClick={() => run(() => onSaveTime(batch, start))}>Save brew time</button>
+            <button type="button" className="btn-pri" disabled={busy || !start} onClick={() => run(() => onSaveTime(batch, start))}>Save brew time</button>
           </div>
           <div className="brew-adjust-sep" />
           <button type="button" className="brew-adjust-danger" disabled={busy} onClick={() => run(() => onStop(batch))}>⏹ Stop &amp; bottle now</button>
@@ -714,7 +715,7 @@ function BatchLog({ batch, events, stops, lotBoard, onClose, onSaved, onRemove }
             <button type="button" className="note-arch brew-del" onClick={del} disabled={busy}>Remove batch</button>
             <div style={{ display: "flex", gap: 8 }}>
             <LeaveButton className="note-arch" onClick={onClose}>Cancel</LeaveButton>
-            <button type="button" className="note-save" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save log"}</button>
+            <button type="button" className="btn-pri" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save log"}</button>
             </div>
           </div>
     </Sheet>
@@ -788,7 +789,7 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
-                <button type="button" className="note-save" onClick={planIt} disabled={busy}>{busy ? "Planning…" : <><Icon name="package" /> Plan the pack</>}</button>
+                <button type="button" className="btn-pri" onClick={planIt} disabled={busy}>{busy ? "Planning…" : <><Icon name="package" /> Plan the pack</>}</button>
               </div>
             </>
           ) : (
@@ -801,10 +802,10 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
               {res.layout?.length > 0 && (<><div className="brew-block-h">How to pack a cooler</div><ol className="ts-steps">{res.layout.map((s: string, i: number) => <li key={i}>{s}</li>)}</ol></>)}
               {res.vehicle && <div className="brew-when"><Icon name="compass" /> {res.vehicle}</div>}
               {res.checklist?.length > 0 && (<><div className="brew-block-h">Before you pull off</div><ul className="brew-checks">{res.checklist.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul></>)}
-              <button type="button" className="brew-pack-btn" style={{ marginTop: 12 }} onClick={() => setAssignTask(true)}>Assign this pack-out as a task <Icon name="arrowRight" /></button>
+              <Button type="button" kind="secondary" wide className="mt-3" onClick={() => setAssignTask(true)}>Assign this pack-out as a task <Icon name="arrowRight" /></Button>
               <div className="prod-actions" style={{ marginTop: 12 }}>
                 <button type="button" className="note-arch" onClick={() => setRes(null)}>‹ Change</button>
-                <button type="button" className="note-save" onClick={onClose}>Done</button>
+                <button type="button" className="btn-pri" onClick={onClose}>Done</button>
               </div>
             </>
           )}
@@ -969,7 +970,7 @@ function BrewSheet({ recipe, events, stops, vessels, inv, initialTarget, onClose
             <div className="eg-done">
               <div className="eg-done-h"><Icon name="check" /> Batch added to the brew schedule</div>
               <div className="dp-hint" style={{ marginTop: 8 }}>Find it under Brew — advance its status as you go and log the Signal Score when it&apos;s ready.</div>
-              <div className="prod-actions" style={{ marginTop: 12 }}><span /><button type="button" className="note-save" onClick={onDone}>Done</button></div>
+              <div className="prod-actions" style={{ marginTop: 12 }}><span /><button type="button" className="btn-pri" onClick={onDone}>Done</button></div>
             </div>
           ) : !res ? (
             <>
@@ -1075,7 +1076,7 @@ function BrewSheet({ recipe, events, stops, vessels, inv, initialTarget, onClose
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
-                <button type="button" className="note-save" onClick={planIt} disabled={busy || !(gal > 0)}>{busy ? "Scaling…" : "Scale + schedule"}</button>
+                <button type="button" className="btn-pri" onClick={planIt} disabled={busy || !(gal > 0)}>{busy ? "Scaling…" : "Scale + schedule"}</button>
               </div>
             </>
           ) : (
@@ -1105,7 +1106,7 @@ function BrewSheet({ recipe, events, stops, vessels, inv, initialTarget, onClose
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={() => setRes(null)} disabled={busy}>‹ Change</button>
-                <button type="button" className="note-save" onClick={save} disabled={busy}>{busy ? "Saving…" : "Add to schedule"}</button>
+                <button type="button" className="btn-pri" onClick={save} disabled={busy}>{busy ? "Saving…" : "Add to schedule"}</button>
               </div>
             </>
           )}

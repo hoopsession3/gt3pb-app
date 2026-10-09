@@ -65,7 +65,7 @@ export default function TroubleshootAI({ ownerType, ownerId, title, onClose, onL
             <div className="eg-done">
               <div className="eg-done-h"><Icon name="check" /> Logged to this {ownerType}&apos;s recap{done.added ? ` · ${done.added} prevention task${done.added === 1 ? "" : "s"} added to prep` : ""}</div>
               <div className="dp-hint" style={{ marginTop: 8 }}>It&apos;s saved against this {ownerType} — you&apos;ll see it in the recap so the same thing doesn&apos;t bite twice.</div>
-              <div className="prod-actions" style={{ marginTop: 12 }}><span /><button type="button" className="note-save" onClick={onClose}>Done</button></div>
+              <div className="prod-actions" style={{ marginTop: 12 }}><span /><button type="button" className="btn-pri" onClick={onClose}>Done</button></div>
             </div>
           ) : !diag ? (
             <>
@@ -81,7 +81,7 @@ export default function TroubleshootAI({ ownerType, ownerId, title, onClose, onL
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
-                <button type="button" className="note-save" onClick={diagnose} disabled={busy || !problem.trim()}>{busy ? "Diagnosing…" : <><Icon name="wrench" /> Diagnose</>}</button>
+                <button type="button" className="btn-pri" onClick={diagnose} disabled={busy || !problem.trim()}>{busy ? "Diagnosing…" : <><Icon name="wrench" /> Diagnose</>}</button>
               </div>
             </>
           ) : (
@@ -122,7 +122,7 @@ export default function TroubleshootAI({ ownerType, ownerId, title, onClose, onL
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={() => setDiag(null)} disabled={busy}>‹ Back</button>
-                <button type="button" className="note-save" onClick={logIt} disabled={busy}>{busy ? "Logging…" : keep > 0 ? `Log + add ${keep} to prep` : "Log to recap"}</button>
+                <button type="button" className="btn-pri" onClick={logIt} disabled={busy}>{busy ? "Logging…" : keep > 0 ? `Log + add ${keep} to prep` : "Log to recap"}</button>
               </div>
             </>
           )}

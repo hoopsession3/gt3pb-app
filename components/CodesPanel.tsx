@@ -196,7 +196,7 @@ export default function CodesPanel() {
           {/* The one .btn-pri on this screen (Customers → Loyalty & codes): minting is the only
               action here that writes a new, real, redeemable code — CrmPanel and VipQueue (this
               panel's siblings under sec==="customers") carry none, so this stays the single one. */}
-          <button type="button" className="btn-pri" onClick={mint} disabled={saving || !codeClean || dupe}>
+          <button type="button" className="btn-pri btn-wide" onClick={mint} disabled={saving || !codeClean || dupe}>
             {saving ? "Minting…" : `Mint ${codeClean || "code"}`}
           </button>
         </div>

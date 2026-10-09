@@ -363,7 +363,7 @@ export default function FindUs() {
       {ordering?.state === "closing"
         ? <EditableCopy k="findus.cta_closed" value={t("findus.cta_closed")} as="p" className="k-sub" style={{ marginTop: 4 }} multiline />
         : <>
-            <button type="button" className="btn-pri k-cta" onClick={() => router.push("/menu")}>{t(ordering && !ordering.open ? "findus.cta_menu" : "findus.cta_preorder")}</button>
+            <button type="button" className="btn-pri btn-wide k-cta" onClick={() => router.push("/menu")}>{t(ordering && !ordering.open ? "findus.cta_menu" : "findus.cta_preorder")}</button>
             <p className="k-sub fu-state" role="status">{ordering ? (ordering.open ? readyWords(ordering) : closedWords(ordering, { named: false })) : " "}</p>
           </>}
 

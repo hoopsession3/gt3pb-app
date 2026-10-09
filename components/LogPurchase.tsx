@@ -20,6 +20,7 @@ import { isMissingFunction } from "@/lib/schemaSkew";
 import { useAsyncData } from "@/lib/useAsyncData";
 import VendorResolve from "./VendorResolve";
 import { useUnsaved } from "./Sheet";
+import Button from "./Button";
 
 // LOG A PURCHASE — the capture half of spend (2026-10-04).
 //
@@ -244,16 +245,16 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
       <input ref={fileRef} type="file" accept="image/*,application/pdf" capture="environment" hidden
         onChange={(e) => { const f = e.target.files?.[0]; if (f) setFile(f); e.currentTarget.value = ""; }} />
       {file ? (
-        <div className="btn-sec lp-receipt has">
+        <div className="flex items-center gap-2 min-h-btn rounded-btn border border-line2 pl-3 pr-1 text-cream">
           <Icon name="check" size={16} />
           <span className="lp-receipt-name">{file.name}</span>
           <button type="button" className="lp-link" onClick={() => fileRef.current?.click()}>Change</button>
           <button type="button" className="lp-link" onClick={() => setFile(null)}>Remove</button>
         </div>
       ) : (
-        <button type="button" className="btn-sec lp-receipt" onClick={() => fileRef.current?.click()}>
+        <Button type="button" kind="secondary" wide onClick={() => fileRef.current?.click()}>
           <Icon name="plus" size={18} /> Photograph the receipt
-        </button>
+        </Button>
       )}
 
       {/* 2 · what it cost */}
@@ -378,7 +379,7 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
 
       {ask && <p className="lp-ask">{ask}</p>}
 
-      <button type="button" className="btn-pri lp-save" onClick={() => save()} disabled={!ready}>
+      <button type="button" className="btn-pri btn-wide" onClick={() => save()} disabled={!ready}>
         {busy ? "Logging…" : cents > 0 && cat ? `Log $${moneyPlain(cents)} · ${categoryLabel(cat, cats)}` : "Log it"}
       </button>
       {!busy && (cents <= 0 || !cat || (shelf && qty === null)) && (

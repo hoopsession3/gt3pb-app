@@ -8,6 +8,7 @@ import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useSiteCopy } from "@/lib/copy";
 import { cameThroughFrontDoor, clearFrontDoor } from "@/lib/viewerHint";
 import { isNativeApp } from "@/lib/native";
+import Button from "./Button";
 
 // MARKETING SPLASH — the sales word-art the app opens to for guests. Fixed premium copy ("Own your
 // week."), so it ships with NO database dependency and shows the moment we deploy. Always closeable
@@ -173,7 +174,7 @@ export default function MarketingSplash() {
         <p className="spl-head">{copy.head1}{copy.head2 ? <><br />{copy.head2}</> : null}</p>
         {/* The price keeps its own .spl-price span (styling preserved) between two editable text keys. */}
         <p className="spl-sub">{copy.sub} <b>{t("splash.price_pre")} <span className="spl-price">{t("splash.price_amt")}</span> {t("splash.price_suf")}</b></p>
-        <button type="button" className="spl-cta" onClick={(e) => { e.stopPropagation(); go(); }}>{copy.cta}</button>
+        <Button type="button" kind="primary" wide className="spl-cta" onClick={(e) => { e.stopPropagation(); go(); }}>{copy.cta}</Button>
         <div className="spl-foot">{t("splash.foot")}</div>
       </div>
 

@@ -131,8 +131,8 @@ export default function MerchManager() {
           <div className="studio-top">
             <SectionHeader label="The Shop · merch" />
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button type="button" className="btn-sec" onClick={() => setShowAdd((s) => !s)}>{showAdd ? "Close" : "+ Add product"}</button>
-              <button type="button" className="btn-sec" onClick={sync} disabled={syncing}>{syncing ? "Syncing…" : "Sync from Apliiq"}</button>
+              <button type="button" className="btn-sec btn-sm" onClick={() => setShowAdd((s) => !s)}>{showAdd ? "Close" : "+ Add product"}</button>
+              <button type="button" className="btn-sec btn-sm" onClick={sync} disabled={syncing}>{syncing ? "Syncing…" : "Sync from Apliiq"}</button>
             </div>
           </div>
           <div className="h-sub">
@@ -154,12 +154,12 @@ export default function MerchManager() {
               </div>
               {twin ? (
                 <ApliiqMatch p={twin} lead={`Apliiq #${na.apliiq.trim()} is already in the shop list —`}>
-                  <button type="button" className="btn-sec" onClick={() => openTwin(twin)}>Open it</button>
+                  <button type="button" className="btn-sec btn-sm" onClick={() => openTwin(twin)}>Open it</button>
                 </ApliiqMatch>
               ) : na.apliiq.trim() !== "" && (
                 <div className="dp-hint">{`No synced product has Apliiq #${na.apliiq.trim()} — it is saved as typed. Check the digits against Apliiq: a wrong ID charges a sale that never ships.`}</div>
               )}
-              <div className="prod-actions"><button type="button" className="btn-pri" onClick={addProduct} disabled={isBlank(na.title) || !!twin}>Add (hidden)</button></div>
+              <div className="prod-actions"><button type="button" className="btn-pri btn-wide" onClick={addProduct} disabled={isBlank(na.title) || !!twin}>Add (hidden)</button></div>
             </div>
           )}
 
@@ -348,7 +348,7 @@ function MerchRow({ p, all, open, onToggle, onOpen, onSaved, toast }: {
           </label>
           {holder && !absorbing && (
             <ApliiqMatch p={holder} lead={`Apliiq #${typedId} is on`}>
-              <button type="button" className="btn-sec" onClick={moveHere}>Move the link here</button>
+              <button type="button" className="btn-sec btn-sm" onClick={moveHere}>Move the link here</button>
               <button type="button" className="btn-ter" onClick={() => onOpen(holder)}>Open it</button>
             </ApliiqMatch>
           )}
@@ -401,7 +401,7 @@ function MerchRow({ p, all, open, onToggle, onOpen, onSaved, toast }: {
           {life === "published" && d.published_at && <div className="dp-hint">Live since {new Date(d.published_at).toLocaleDateString()}.</div>}
           {life === "archived" && d.published_at && <div className="dp-hint">Was live since {new Date(d.published_at).toLocaleDateString()} — set back to Published to restore it.</div>}
           <div className="prod-actions" style={{ flexWrap: "wrap" }}>
-            <button type="button" className="btn-pri" onClick={save} disabled={isBlank(d.title) || (!!holder && !absorbing)}>Save</button>
+            <button type="button" className="btn-pri btn-wide" onClick={save} disabled={isBlank(d.title) || (!!holder && !absorbing)}>Save</button>
           </div>
         </div>
       )}

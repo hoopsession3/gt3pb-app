@@ -10,6 +10,7 @@ import { roleLabel, type Role } from "@/lib/roles";
 import { FOUNDING_MARKET } from "@/lib/markets";
 import { authedFetch } from "@/lib/authedFetch";
 import Icon from "@/components/Icon";
+import Button from "./Button";
 
 // ADD A TEAMMATE — ONE DOOR (2026-10-07, Ryan: "Invite and bring team member on seems redundant").
 //
@@ -262,9 +263,9 @@ export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string
                     </label>
                   </>
                 )}
-                <button type="button" className="adm-btn primary" onClick={picked ? bringOn : invite} disabled={busy}>
+                <Button type="button" kind="primary" className="ml-auto" onClick={picked ? bringOn : invite} disabled={busy}>
                   {busy ? "…" : picked ? `Bring ${nameOf(picked).split(" ")[0]} on` : "Send the invite"}
-                </button>
+                </Button>
               </div>
               <p className="tm-hire-next">
                 {picked

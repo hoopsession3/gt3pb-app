@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { haptic } from "@/lib/haptics";
 import type { MyFlag } from "@/lib/useMyAlerts";
 import Icon from "@/components/Icon";
+import Button from "./Button";
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 // ALERT ACTION — handle an alert's goal IN PLACE, from the card. The 0174 `kind` names the handler
@@ -113,9 +114,9 @@ export default function AlertAction({ flag, meId, onResolved }: {
   return (
     <div className="alert-act">
       {ctx && <span className="alert-act-ctx">{ctx}</span>}
-      <button type="button" className="alert-act-do" onClick={run} disabled={busy || !!msg}>
+      <Button type="button" kind="primary" compact className="shrink-0" onClick={run} disabled={busy || !!msg}>
         {msg ?? (busy ? "…" : cfg.verb)}
-      </button>
+      </Button>
     </div>
   );
 }

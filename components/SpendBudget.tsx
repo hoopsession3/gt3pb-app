@@ -17,6 +17,7 @@ import { moneyPlain, moneyRound } from "@/lib/money";
 import { localToday } from "@/lib/dates";
 import { attachReceipt as fileReceipt } from "@/lib/receipts";
 import { usePrompt } from "@/components/PromptSheet";
+import Button from "./Button";
 
 // SPEND & BUDGET (0209) — the procurement side of Money. Log what the business spends (optionally to a
 // real vendor / event) and track it against a per-category monthly budget. Reads report_spend(); every
@@ -201,7 +202,7 @@ export default function SpendBudget() {
             {/* What this panel lets you DO, in one row. Logging opens the capture sheet; budgets are a
                 setting you visit, not a wall of "$0 / set budget" rows you scroll past. */}
             <div className="spb-acts">
-              <button type="button" className="so-go spb-log" onClick={logPurchase}><Icon name="plus" size={14} /> Log a purchase</button>
+              <Button type="button" kind="primary" onClick={logPurchase}><Icon name="plus" /> Log a purchase</Button>
               <button type="button" className="btn-sec" onClick={() => setSetupOpen((v) => !v)} aria-expanded={setupOpen}>
                 {setupOpen ? "Done with budgets" : rep.total_budget_cents > 0 ? "Edit budgets" : "Set budgets"}
               </button>

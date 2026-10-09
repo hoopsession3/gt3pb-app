@@ -72,7 +72,7 @@ export function DeviceAlerts({ userId }: { userId: string | null }) {
         <div className="pay-row-s">{SAYS[perm]}</div>
       </div>
       {perm === "default"
-        ? <button type="button" className="btn-sec" onClick={turnOn}>Turn on</button>
+        ? <button type="button" className="btn-sec btn-sm" onClick={turnOn}>Turn on</button>
         : perm === "granted" ? <span className="pay-status on">On</span>
         : perm === "denied" ? <span className="pay-status">Blocked</span>
         : perm === "unsupported" ? <span className="pay-status">Not here</span>

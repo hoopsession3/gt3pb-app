@@ -120,7 +120,7 @@ export default function OperatingRhythm({ isAdmin, onOpenNotes }: { isAdmin: boo
       {extractOpen && (
         <Sheet open onClose={() => setExtractOpen(false)} label="Extract a session"
           header={<div className="note-lux-head"><span className="note-lux-eyb">Post-session pipeline</span><CloseButton onClick={() => setExtractOpen(false)} /></div>}
-          footer={<div className="note-actions"><button type="button" className="note-cancel" onClick={() => setExtractOpen(false)}>Cancel</button><button type="button" className="note-save" onClick={runExtract} disabled={!transcript.trim() || extracting}>{extracting ? "Extracting…" : "Extract & file"}</button></div>}>
+          footer={<div className="note-actions"><button type="button" className="btn-sec" onClick={() => setExtractOpen(false)}>Cancel</button><button type="button" className="btn-pri" onClick={runExtract} disabled={!transcript.trim() || extracting}>{extracting ? "Extracting…" : "Extract & file"}</button></div>}>
           <p className="rhythm-sub">The five extractions, filed on their spines in one pass: decisions → the ledger (with provenance) · open items → dated follow-ups · calendar → events · pipeline moves → matched accounts. Account names it can&rsquo;t match are reported, never guessed into new accounts. The transcript itself is kept on the session note.</p>
           <textarea className="note-area" rows={12} placeholder="Paste the whole transcript or your raw session notes…" value={transcript} onChange={(e) => setTranscript(e.target.value)} autoFocus />
         </Sheet>
