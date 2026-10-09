@@ -70,6 +70,19 @@
 //                       UNNAMED_EXEMPT with why: there, the box is the thing (a row that opens its record, a pack to
 //                       pick, a box that ticks), not a button's look. Any other is a recipe, and fails; an exemption
 //                       whose class no longer draws one fails too, so the list only shrinks.
+//  12. ONE FIELD        a field is the base field (app/globals.css FORM CONTROLS, 2): 16px words, 44pt tall, one fill,
+//                       one edge, one corner. A container may draw its own (.prod-f input, .gl-f select — two parts,
+//                       so they outrank the base), but no rule sets a field's words under 16px — an iPhone zooms into
+//                       a smaller one the moment it is tapped, before the page can stop it, and 13px is hard to read
+//                       while typing (2026-10-09, the forms round: 28 container rules drew 11 to 15, the console's
+//                       forms on 189 fields among them). And no one-class field rule is written ABOVE the base: .app
+//                       :where(…) weighs a class and comes later, so every property it sets is drawn by the base, not
+//                       by the rule — from 2026-09-07 it had drawn its box over 50 recipes, 343 declarations that
+//                       painted nothing (the emailed code's big digits, the copy editor's own type). A field that
+//                       is not a form's field is written below the base (FORM CONTROLS, 10). A field is an input
+//                       that is not a tick, a slider, a colour, a file or a button, a select or a textarea; its
+//                       classes are read from every class list on one, and from a component that hands its
+//                       className to one (PersonPick).
 //   8. ONLY DOWN        what the utilities are for can only shrink from what is recorded in CEILING:
 //                       inline style objects, the distinct raw colours written in app/globals.css, its
 //                       size, and class names taken whole from a variable (`${status}`) — a value from
@@ -85,7 +98,7 @@ import postcss from "postcss";
 export const CEILING = {
   inlineStyles: 566,          // style={{…}} objects in app/, components/, native/ (566 on 2026-10-09, round 7d: the margins written inline beside the recipes that moved — the drops', the lists', the calendar filter's headings, the architecture page's views, the prep sheet's actions — are utilities; 575 the same day, the desk round: Brew's Recipes head took a utility for its 18px; 576 the same day, the chip round: the margins written inline beside .handle and the pills — sign-in's, the checkout's, the academy's, Find Us's — are utilities, and so are two sheet heads' rows; 598 the same day, the button round: sixteen buttons' margins and widths are utilities; 621 on 2026-10-07; 620 the same day — the overdue count's margin is a utility; 616 when Team's door became one; 614 on 2026-10-08 — the Guide's header is utilities, with its two pages)
   rawColours: 448,            // 448 on 2026-10-09 (round 7d: 16 went with the recipes — the drop board's and the 86 board's reds and greens, the concierge's browns, My Day's warning pink, the member card's sheen, the Edit pill's gold — and one came, paper's wash for the kit's icon button); 463 the same day (the chip round: 32 hand-mixed greens, blues, golds and reds went with the chip and tag recipes — a tag's colour is a --tone-* now); 495 the same day (the button round: two went with the recipes); 497 on 2026-10-08 (the foundations round: the dead brew-timer dot's teal went with it); distinct hex / rgb() / rgba() literals in app/globals.css (2026-10-07, after the dead rules went; 499 when Command and Team took theme tokens; 498 when the office route's card did)
-  globalsBytes: 685_387,      // 685,387 on 2026-10-09 (round 7d: 86 button and chip recipes the name and radius tests could not see gave way to the kits, −31 KB); 717,944 the same day (the mark's screens: all ten that hold a GT3 mark are positioned, under a shorter note); 717,983 the same day (the chip round: 105 pill rules — chips, tags, pill buttons — the 16 button recipes and .handle gave way to the kit's chip, tag and count, −36 KB); 754,309 the same day (the button round: 31 recipes and the sheets' copies gave way to a kit of four kinds in two sizes); 766,799 on 2026-10-08 (the type round: 1,119 sizes folded onto the ten steps, 10.5px and 13.5px among them); 768,059 the same day (the navigation round: the system map's "‹ All layers" went into the title bar, and its rule with it); 768,213 the same day (the iPhone chrome round: the tab bar at 49pt, the KPI board's fields at 16px); 768,222 the same day (the foundations round: 50 rules no screen can match went — the old sheet, the .did and .cell rows, the menu's first draft — and the safe-area, tap-target and 16px-field fixes fit in what they left); app/globals.css, source bytes (2026-10-07: 804 KB before 316 dead rules and 4 keyframes went; the pill kit fits in what its seven recipes left;
+  globalsBytes: 680_903,      // 680,903 on 2026-10-09 (the forms round: 279 field declarations the base field drew over went, the eight fields that are not a form's field moved below it, and three switch recipes are the kit's one); 685,387 the same day (round 7d: 86 button and chip recipes the name and radius tests could not see gave way to the kits, −31 KB); 717,944 the same day (the mark's screens: all ten that hold a GT3 mark are positioned, under a shorter note); 717,983 the same day (the chip round: 105 pill rules — chips, tags, pill buttons — the 16 button recipes and .handle gave way to the kit's chip, tag and count, −36 KB); 754,309 the same day (the button round: 31 recipes and the sheets' copies gave way to a kit of four kinds in two sizes); 766,799 on 2026-10-08 (the type round: 1,119 sizes folded onto the ten steps, 10.5px and 13.5px among them); 768,059 the same day (the navigation round: the system map's "‹ All layers" went into the title bar, and its rule with it); 768,213 the same day (the iPhone chrome round: the tab bar at 49pt, the KPI board's fields at 16px); 768,222 the same day (the foundations round: 50 rules no screen can match went — the old sheet, the .did and .cell rows, the menu's first draft — and the safe-area, tap-target and 16px-field fixes fit in what they left); app/globals.css, source bytes (2026-10-07: 804 KB before 316 dead rules and 4 keyframes went; the pill kit fits in what its seven recipes left;
                               // Command's and Team's clean-up added rows and actions and put their one-off layout in utilities; the office route on theme tokens)
   wholeVariableClasses: 34,   // className tokens that are a ${value} and nothing else (2026-10-07; 37 → 34 on 2026-10-09, round 7d: the menu and rig chips' skin map gave way to the kit's chip; 46 → 38 on 2026-10-09, the chip round: eight statuses that wrote their own class — a play's, a goal's, a discussion's kind, an offer letter's, the launch's verdict and checks, a Studio piece's — choose a tag's tone among written words; 38 → 37 the same day, the desk round: the shell's class is written in pieces, "app desk-shell" a string of its own so Tailwind reads desk-shell)
   buttonRecipes: 0,           // button recipes outside the kit (2026-10-09, the button round: 41 before it moved 31 recipes and the
@@ -260,6 +273,103 @@ export function pillRulesIn(ast) {
   return out;
 }
 
+/** The components that hand their className to one of `tags` — a function whose parameter takes className and whose
+ *  JSX gives it, as it is, to a <button> (InlineCreate) or a field (PersonPick): what a screen passes it is that
+ *  element's class list. */
+export function relaysIn(root, files, tags) {
+  const out = new Set();
+  for (const f of files) {
+    const src = readFileSync(join(root, f), "utf8");
+    if (!src.includes("className={className}")) continue;
+    const sf = ts.createSourceFile(f, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const hands = (body) => {
+      let yes = false;
+      const v = (n) => {
+        if ((ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) && tags.includes(n.tagName.getText(sf))) {
+          const c = n.attributes.properties.find((p) => ts.isJsxAttribute(p) && p.name.getText(sf) === "className");
+          if (c?.initializer && ts.isJsxExpression(c.initializer) && c.initializer.expression && ts.isIdentifier(c.initializer.expression) && c.initializer.expression.text === "className") yes = true;
+        }
+        if (!yes) ts.forEachChild(n, v);
+      };
+      v(body);
+      return yes;
+    };
+    const takes = (params) => params.some((p) => ts.isObjectBindingPattern(p.name) && p.name.elements.some((e) => (e.propertyName ?? e.name).getText(sf) === "className"));
+    const visit = (n) => {
+      if (ts.isFunctionDeclaration(n) && n.name && n.body && takes(n.parameters) && hands(n.body)) out.add(n.name.text);
+      if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer && (ts.isArrowFunction(n.initializer) || ts.isFunctionExpression(n.initializer)) && takes(n.initializer.parameters) && hands(n.initializer.body)) out.add(n.name.text);
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+  }
+  return out;
+}
+
+/** Rule 12: the classes a field wears — an input that is not a tick, a slider, a colour, a file or a button, a select
+ *  or a textarea — from every class list on one, and from a component that hands its className to one. */
+export function fieldClassesIn(root) {
+  const files = ["app", "components", "native"].flatMap((d) => walk(root, d, (n) => n.endsWith(".tsx")));
+  const NOT_A_FIELD = /^(checkbox|radio|range|color|file|hidden|submit|button|image|reset)$/;
+  const relay = relaysIn(root, files, ["input", "select", "textarea"]);
+  const strings = (n, out = []) => {
+    if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) out.push(n.text);
+    else if (ts.isTemplateExpression(n)) { out.push(n.head.text); for (const sp of n.templateSpans) { strings(sp.expression, out); out.push(sp.literal.text); } }
+    else ts.forEachChild(n, (c) => strings(c, out));
+    return out;
+  };
+  const out = new Map();
+  for (const f of files) {
+    const src = readFileSync(join(root, f), "utf8");
+    const sf = ts.createSourceFile(f, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const visit = (n) => {
+      if (ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) {
+        const tag = n.tagName.getText(sf);
+        const attr = (k) => n.attributes.properties.find((p) => ts.isJsxAttribute(p) && p.name.getText(sf) === k);
+        const type = attr("type")?.initializer && ts.isStringLiteral(attr("type").initializer) ? attr("type").initializer.text : "";
+        const field = tag === "select" || tag === "textarea" || (tag === "input" && !NOT_A_FIELD.test(type)) || relay.has(tag);
+        const cls = attr("className");
+        if (field && cls?.initializer) for (const t of strings(cls.initializer)) for (const c of t.split(/\s+/)) if (/^[A-Za-z_][\w-]*$/.test(c)) { if (!out.has(c)) out.set(c, new Set()); out.get(c).add(toPosix(f)); }
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+  }
+  return out;
+}
+
+/** Rule 12: the base field rule; the rules that set a field's words under 16px; and the one-class field rules written
+ *  above the base, with what they set that the base draws instead. */
+export function fieldRulesIn(ast, fieldClasses) {
+  let base = null;
+  ast.walkRules((r) => { if (!base && /^\.app :where\(select\)/.test(r.selector.trim())) base = r; });
+  const baseProps = new Set();
+  base?.each((d) => d.type === "decl" && baseProps.add(d.prop));
+  const SMALL_TOKEN = /^var\(--text-(caption2|caption|footnote|subhead)\)$/;
+  const small = [], dead = [];
+  const sizeOf = (r) => { let v = null; r.each((d) => { if (d.type !== "decl") return; if (d.prop === "font-size") v = d.value.trim(); if (d.prop === "font") { const m = d.value.match(/(\d+(?:\.\d+)?)px/); if (m) v = m[1] + "px"; } }); return v; };
+  const reaches = (sel) => {
+    const last = sel.trim().split(/\s+|>|\+|~/).filter(Boolean).pop() || "";
+    const bare = last.replace(/::?[\w-]+(\((?:[^()]|\([^()]*\))*\))?/g, "");
+    if (/^(input|select|textarea)\b/.test(bare) && !/\[type="?(checkbox|radio|range|color|file)"?\]/.test(last)) return true;
+    return [...bare.matchAll(/\.([A-Za-z_][\w-]*)/g)].some((m) => fieldClasses.has(m[1]));
+  };
+  ast.walkRules((r) => {
+    if (r.parent?.type === "atrule" && /keyframes/i.test(r.parent.name)) return;
+    const v = sizeOf(r);
+    const under = v && ((/px$/.test(v) && parseFloat(v) < 16) || SMALL_TOKEN.test(v));
+    if (under) for (const sel of r.selectors) if (reaches(sel)) small.push(`${sel.trim()} {font-size: ${v}}`);
+    if (!base || r.source.start.line >= base.source.start.line) return;
+    for (const sel of r.selectors) {
+      const m = sel.trim().match(/^\.([A-Za-z_][\w-]*)$/);
+      if (!m || !fieldClasses.has(m[1])) continue;
+      const lost = [];
+      r.each((d) => { if (d.type === "decl" && !d.important && (baseProps.has(d.prop) || d.prop === "background" || d.prop === "font" || /^border(-(top|right|bottom|left))?(-(width|style|color))?$/.test(d.prop) || /^padding-/.test(d.prop))) lost.push(d.prop); });
+      if (lost.length) dead.push(`.${m[1]} (line ${r.source.start.line}: ${lost.join(", ")})`);
+    }
+  });
+  return { base, baseSize: base ? sizeOf(base) : null, small, dead };
+}
+
 /** The kit's buttons, and the recipes they replaced (rule 10). */
 export const KIT_BUTTONS = ["btn-pri", "btn-sec", "btn-ter", "btn-del", "btn-sm", "btn-wide"];
 export const RETIRED_BUTTONS = [
@@ -301,8 +411,9 @@ export const UNNAMED_EXEMPT = {
   // a box that ticks, a score's cells, a drop's stages, a photo's own toolbar, the Display sheet's four A's (each drawn at
   // the size it picks — and the shell, which carries the sheet, carries no control's code)
   checks: ["rdy-check", "pbd-check", "goal-init-ck", "brew-score-b", "osr-chip", "dops-stage", "ms-b", "rdg-size"],
-  // a switch is not a button: three recipes for one iOS switch, which one kit switch will replace (the forms round)
-  switches: ["op-switch", "pay-toggle", "oa-toggle"],
+  // a switch drawn as a tile with its caption (an event's Order ahead and Pickup, side by side): the iOS switches are
+  // the kit's .k-switch (2026-10-09, the forms round)
+  switches: ["oa-toggle"],
   // the frame's own: the cart bars, the update prompt, the rail's and the help's edge tabs, the account's face, the
   // wallets' own badges (Apple's and Google's artwork rules)
   chrome: ["cartbar", "shop-cartbar", "sw-update", "rail-fold", "rail-open", "conc-fab", "rdg-fab", "chub-tab", "acct-av", "mp-wallet"],
@@ -457,12 +568,15 @@ export function elementRestylesIn(root, ast) {
  *  Read where the classes are written words; a className from a variable is the screen's to answer for. */
 export function greyButtonsIn(root, styled) {
   const files = ["app", "components", "native"].flatMap((d) => walk(root, d, (n) => n.endsWith(".tsx")));
+  // a component that hands its className to a <button> (InlineCreate) draws that button: the classes a screen gives
+  // it are the button's (the shoot planner's + Shot and + New shoot were the browser's grey face from 2026-07-13)
+  const relay = relaysIn(root, files, ["button"]);
   const out = [];
   for (const f of files) {
     const src = readFileSync(join(root, f), "utf8");
     const sf = ts.createSourceFile(f, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     const visit = (n) => {
-      if ((ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) && n.tagName.getText(sf) === "button") {
+      if ((ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) && (n.tagName.getText(sf) === "button" || relay.has(n.tagName.getText(sf)))) {
         const cls = n.attributes.properties.find((p) => ts.isJsxAttribute(p) && p.name.getText(sf) === "className");
         const text = cls?.initializer && ts.isStringLiteral(cls.initializer) ? cls.initializer.text : null;
         const words = text ? text.split(/\s+/).filter(Boolean) : [];
@@ -605,6 +719,13 @@ export async function audit(root) {
   for (const [c, at] of unnamed) if (!exempt.includes(c)) fail("no button in disguise", `.${c} (${at}) draws a button of its own — use the kit (components/Button, .k-chip, the segmented control, .k-icon-btn), or name it in UNNAMED_EXEMPT with why`);
   const stale = exempt.filter((c) => !unnamed.has(c));
   if (stale.length) fail("no button in disguise", `UNNAMED_EXEMPT names ${stale.join(", ")}, which no longer draw a box on a button — take them off the list`);
+
+  // 12 · one field
+  const fields = fieldRulesIn(ast, fieldClassesIn(root));
+  if (!fields.base) fail("one field", "app/globals.css has no base field (.app :where(select), .app :where(input…), .app :where(textarea)) — FORM CONTROLS, 2");
+  else if (fields.baseSize !== "16px") fail("one field", `the base field's words are ${fields.baseSize} — 16px: an iPhone zooms into a smaller field the moment it is tapped`);
+  if (fields.small.length) fail("one field", `${fields.small.length} rule(s) set a field's words under 16px: ${fields.small.slice(0, 4).join(" | ")} — 16px, the base field's`);
+  if (fields.dead.length) fail("one field", `${fields.dead.length} one-class field rule(s) written above the base field set what the base draws instead: ${fields.dead.slice(0, 4).join(" | ")} — the base (.app :where(…)) weighs a class and comes later; place the field (margin, flex, max-width) or write its look below FORM CONTROLS (10)`);
 
   const counts = { inlineStyles: m.inlineStyles, rawColours: rawColours(globals).size, globalsBytes: Buffer.byteLength(globals), wholeVariableClasses: m.wholeVariable.length, pillRules: pills.length, buttonRecipes: buttonRecipes.length };
   for (const [k, v] of Object.entries(counts)) {

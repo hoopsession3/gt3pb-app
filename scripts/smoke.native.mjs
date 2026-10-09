@@ -1473,6 +1473,67 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     ok("desk: no errors", allErrors.length === 0, allErrors.join(" | "));
   }
 
+  // ── 5j · ONE FIELD (2026-10-09, the forms round) ──
+  // Every field's words at 16px — the base field's — and the fields that are not a form's field drawn as their own:
+  // measured on specimens drawn into the screen itself (the console's form, the gear library's select, the emailed
+  // code, the kit's switch) and on real ones: the sign-in wall's fields, a new note's, the concierge's composer.
+  {
+    const fieldsOn = (page) => page.evaluate(() => [...document.querySelectorAll("input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=range]), select, textarea")]
+      .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; })
+      .map((e) => ({ c: (e.className || e.tagName).toString().slice(0, 30), fs: parseFloat(getComputedStyle(e).fontSize) })));
+    const ctx = await phoneContext(MAIN);
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    await page.goto(`${BASE}/3mpire`, { waitUntil: "load" });
+    await page.waitForTimeout(900); await page.evaluate(SETTLE);
+    const wall = await fieldsOn(page);
+    ok("fields: the sign-in wall's fields draw 16px words — an iPhone zooms into a smaller one when it is tapped", wall.length > 0 && wall.every((f) => f.fs >= 16), JSON.stringify(wall));
+    await page.goto(`${BASE}/truck`, { waitUntil: "load" });
+    await page.waitForTimeout(900); await page.evaluate(SETTLE);
+    await page.locator('button[aria-label^="Ask us"]').first().click({ timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(900); await page.evaluate(SETTLE);
+    const conc = await page.evaluate(() => { const e = document.querySelector(".conc-in"); if (!e) return null; const cs = getComputedStyle(e); return { fs: cs.fontSize, rad: cs.borderRadius, h: Math.round(e.getBoundingClientRect().height) }; });
+    ok("fields: the concierge's composer is round beside its round send, at 16px (the base field had drawn its 9px box over it)", !!conc && conc.fs === "16px" && parseFloat(conc.rad) >= 22 && conc.h >= 44, JSON.stringify(conc));
+    await ctx.close();
+    const crew = await phoneContext(MAIN, { owner: true, theme: "day" });
+    const cp = await crew.newPage();
+    await insetsOn(cp, MAIN.top, MAIN.bottom);
+    const errors2 = watch(cp);
+    await cp.goto(`${BASE}/crew?s=notes`, { waitUntil: "load" });
+    await cp.waitForTimeout(1200); await cp.evaluate(SETTLE);
+    const spec = await cp.evaluate(() => {
+      const host = document.getElementById("body");
+      const box = document.createElement("div"); host.appendChild(box);
+      box.innerHTML = '<div class="prod-f"><input value="Riverside Run Club"><select><option>Planning</option></select><textarea>A note</textarea></div>'
+        + '<div class="gl-f"><select><option>Greenville</option></select></div><input class="auth-input auth-code" value="482916">'
+        + '<button type="button" role="switch" aria-checked="false" class="k-switch"><span class="k-switch-k"></span></button>'
+        + '<button type="button" role="switch" aria-checked="true" class="k-switch on"><span class="k-switch-k"></span></button>';
+      const q = (sel) => box.querySelector(sel);
+      const fs = (e) => getComputedStyle(e).fontSize;
+      const sw = (e) => { const r = e.getBoundingClientRect(), af = getComputedStyle(e, "::after"), k = e.querySelector(".k-switch-k").getBoundingClientRect();
+        return { w: Math.round(r.width), h: Math.round(r.height), reach: Math.round(r.height - parseFloat(af.top) - parseFloat(af.bottom)), knob: Math.round(k.width), knobAt: Math.round(k.left - r.left), bg: getComputedStyle(e).backgroundColor }; };
+      const out = { form: [fs(q(".prod-f input")), fs(q(".prod-f select")), fs(q(".prod-f textarea"))], gl: fs(q(".gl-f select")),
+        code: { fs: fs(q(".auth-code")), ff: getComputedStyle(q(".auth-code")).fontFamily }, off: sw(box.querySelectorAll(".k-switch")[0]), on: sw(box.querySelectorAll(".k-switch")[1]),
+        gold2: getComputedStyle(document.querySelector(".app")).getPropertyValue("--gold2").trim() };
+      box.remove();
+      return out;
+    });
+    const hex = (h) => { const n = parseInt(h.replace("#", ""), 16); return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`; };
+    ok("fields: the console's form draws 16px words in its fields, selects and notes (15px on 189 fields), the gear library's 16 (13)",
+      spec.form.every((v) => v === "16px") && spec.gl === "16px", JSON.stringify(spec));
+    ok("fields: the emailed code reads in 22px mono digits", spec.code.fs === "22px" && /DM Mono/.test(spec.code.ff), JSON.stringify(spec.code));
+    ok("switch: the kit's switch is 51×31 with a 27pt knob, 44 to the thumb; on, the knob rides right on the kit's gold",
+      spec.off.w === 51 && spec.off.h === 31 && spec.off.knob === 27 && spec.off.reach >= 44 && spec.off.knobAt === 2 && spec.on.knobAt === 22 && spec.on.bg === hex(spec.gold2), JSON.stringify({ off: spec.off, on: spec.on }));
+    await cp.locator('button:has-text("New note")').first().click({ timeout: 5000 }).catch(() => {});
+    await cp.waitForTimeout(900); await cp.evaluate(SETTLE);
+    const note = await fieldsOn(cp);
+    const title = note.find((f) => /note-lux-title/.test(f.c));
+    ok("fields: a new note's fields draw at 16px or more — its title at 17", note.length >= 3 && note.every((f) => f.fs >= 16) && !!title && title.fs === 17, JSON.stringify(note));
+    ok("fields: no errors", errors.length === 0 && errors2.length === 0, [...errors, ...errors2].join(" | "));
+    await crew.close();
+  }
+
   // ── 6 · deleting your account, in the app (App Store Review Guideline 5.1.1(v)) ──
   // Signed in, from the avatar's menu: the row, its screen (loaded when tapped — so it must be in the
   // export), what it asks the web's API, and after the red button a phone that is signed out and home.
