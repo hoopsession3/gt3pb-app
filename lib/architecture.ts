@@ -10,6 +10,8 @@ export interface ArchComponent { name: string; status: ArchStatus; desc: string;
 export interface ArchLayer { id: string; tag: string; label: string; color: string; blurb: string; components: ArchComponent[] }
 
 export const STATUS_LABEL: Record<ArchStatus, string> = { live: "Live", configured: "Configured", staged: "Staged", planned: "Planned" };
+/** each status's tag tone (the kit's .k-tag) */
+export const STATUS_TONE: Record<ArchStatus, string> = { live: " ok", configured: " gold", staged: " warn", planned: "" };
 
 // High-level overview — the platform in one breath, and how a request flows through the layers.
 export const ARCH_OVERVIEW = {
@@ -20,6 +22,7 @@ export const ARCH_OVERVIEW = {
 // Database review — can each table be managed from the app, and how fully?
 export type Manage = "full" | "partial" | "readonly" | "system";
 export const MANAGE_LABEL: Record<Manage, string> = { full: "Full CRUD", partial: "Partial", readonly: "Read-only", system: "System" };
+export const MANAGE_TONE: Record<Manage, string> = { full: " ok", partial: " gold", readonly: " blue", system: "" };
 export interface DbEntry { table: string; manage: Manage; surface: string; note: string }
 export const DATABASES: DbEntry[] = [
   // Fully manageable from the app (create · edit attributes · delete)
