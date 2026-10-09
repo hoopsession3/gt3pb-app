@@ -3257,11 +3257,9 @@ body:has(.conc-sheet) .rail{display:flex}
    Curated surfaces give themselves a stacking context (position:relative+z-index:0) so the z-index:-1
    mark sits above the surface background but below all content. One mark per screen; opacity lives in
    the app's --line hairline register (you feel it before you see it). NOT global — opt-in per screen. */
-/* clip, not hidden (2026-10-06): hidden made each of these screens a scroll container of its own, so
-   nothing inside could stick to the page's scroll — the menu's category chips (.menu-chips, sticky by
-   design) scrolled away with the page. clip crops the mark the same and leaves sticky alone; hidden
-   stays first for an engine without clip. */
-.screen.arrival,.screen.menu,.screen.arch,.screen#s-today{position:relative;z-index:0;overflow:hidden;overflow:clip}
+/* Every screen holding a mark (10-09: /shop's mark fell to the viewport's foot as its fade ended, 0.11 of
+   shift). clip, not hidden: hidden made a scroll container, and the menu's sticky chips scrolled away. */
+.screen.arrival,.screen.menu,.screen.arch,.screen#s-today,.screen.shop,.screen.craft,.screen#s-delivery,.screen#s-reserve,.screen.office-portal,.screen.primal{position:relative;z-index:0;overflow:hidden;overflow:clip}
 .wm{position:absolute;z-index:-1;pointer-events:none;background-repeat:no-repeat;background-position:center;background-size:contain;aspect-ratio:1184/1730}
 /* arrival (dark) — cream mark bleeding off the top-right, behind the hero statement */
 .wm--landing{top:-46px;right:-21%;width:74%;max-width:420px;opacity:.05;background-image:url(/brand/3_outline_cream.svg)}
