@@ -32,9 +32,12 @@ export function academyKnowledge(): string {
     // `weighs` is carried through so the assistant knows which procedures put something on a scale
     // without having to find the word "weigh" in the prose — the same reason the Cookbook page keys
     // its scale band on the flag rather than on the sentence (see lib/academy.ts).
+    // `byVolume` is the other half: every amount is a cup or a spoon, so the scale rules don't apply.
     const weighs = cb?.weighs
       ? " | THIS PROCEDURE WEIGHS INGREDIENTS — give the scale rules from the MEASURING block every time you explain it"
-      : "";
+      : cb?.byVolume
+        ? " | MEASURED BY VOLUME — every amount is fluid ounces or spoons: a measuring cup and spoons, never a scale. Give no scale rules and no grams for it"
+        : "";
     const recipe = cb
       ? `\n  RECIPE — batch: ${cb.batch ?? "—"} | brew: ${(cb.brew ?? []).join(" → ") || "—"}${weighs} | serve: ${(cb.serve ?? []).join(" → ") || "—"} | storage: ${cb.storage ?? "—"} | quality: ${cb.quality ?? "—"}${cb.troubleshoot?.length ? ` | troubleshoot: ${cb.troubleshoot.map((t) => `${t.issue} → ${t.fix}`).join("; ")}` : ""}`
       : "";

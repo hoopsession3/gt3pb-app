@@ -94,6 +94,9 @@ export const MEASURING_RULES =
   "2 gal of water and 2 gal of honey weigh very different amounts, and nothing on file gives you a " +
   "density. If asked for the weight of a volume, say it depends on the ingredient's density and is " +
   "not on file.\n" +
+  "- A FLUID OUNCE IS A VOLUME. Fluid ounces, cups and spoons are measured in a measuring cup or " +
+  "spoon, not on a scale: no scale rules and no grams for them. A \"10 oz bottle\" is the bottle's " +
+  "size.\n" +
   "- A VOLUME SHE CAN MEASURE. 1 gal = 4 qt = 16 cups = 128 fl oz (3.785 L). Nobody can measure " +
   "1.214 gal; everybody can measure a gallon and three and a half cups. So a gallon figure that is " +
   "not a whole number is ALSO stated as whole gallons plus cups to the nearest quarter cup, and in " +
