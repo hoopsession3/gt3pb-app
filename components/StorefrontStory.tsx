@@ -30,7 +30,7 @@ export default function StorefrontStory() {
       <button className="btn-ter" onClick={() => router.push("/craft")}>{t("story.craft_link")} <b><Icon name="arrowRight" /></b></button>
 
       <div className="arr-cta">
-        <button className="arr-order" onClick={() => router.push("/menu")}>{t("reserve.order_bar")}</button>
+        <button type="button" className="btn-sec btn-wide" onClick={() => router.push("/menu")}>{t("reserve.order_bar")}</button>
         <div className="arr-order-sub">{t("home.cta_sub")}</div>
       </div>
 

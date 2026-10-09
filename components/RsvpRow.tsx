@@ -96,7 +96,7 @@ export function RsvpRow({ ev }: { ev: EventRow }) {
         expanded={hasDetail ? open : undefined}
         trailing={
           <>
-            <button type="button" className={`k-chip hit-y-44${going ? " on" : " sec"}`} onClick={onRsvp} aria-pressed={going} aria-label={`${going ? "Going" : "I'm in"} — ${ev.title}`}>{going ? <>Going <Icon name="check" /></> : "I'm in"}</button>
+            <button type="button" className={`k-chip${going ? " on" : ""}`} onClick={onRsvp} aria-pressed={going} aria-label={`${going ? "Going" : "I'm in"} — ${ev.title}`}>{going ? <>Going <Icon name="check" /></> : "I'm in"}</button>
             {hasDetail && <span className={`k-caret${open ? " open" : ""}`} aria-hidden="true">›</span>}
           </>
         }
@@ -119,7 +119,7 @@ export function RsvpRow({ ev }: { ev: EventRow }) {
             {/* stop/event parity (2026-08-01): the same Get-directions chip the stop rows carry —
                 turn-by-turn off the pin when geocoded, else a maps handoff on the address text */}
             {((ev.lat != null && ev.lng != null) || ev.location_text) && (
-              <button type="button" className="k-chip hit-y-44 k-chip-sec" onClick={() => { if (ev.lat != null && ev.lng != null) openDirections(ev.lat, ev.lng); else if (ev.location_text) openAddress(ev.location_text); }}>{t("findus.directions")}</button>
+              <button type="button" className="k-chip" onClick={() => { if (ev.lat != null && ev.lng != null) openDirections(ev.lat, ev.lng); else if (ev.location_text) openAddress(ev.location_text); }}>{t("findus.directions")}</button>
             )}
             <AddToCalendar ev={calFromEvent({ id: ev.id, title: ev.title, day: ev.day, start_time: ev.start_time, end_time: ev.end_time, location_text: ev.location_text, blurb: ev.blurb })} />
           </div>

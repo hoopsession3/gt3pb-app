@@ -10,6 +10,7 @@ import LogPurchase from "./LogPurchase";
 import CopilotLauncher from "./CopilotLauncher";
 import Sheet, { CloseButton, useUnsaved } from "@/components/Sheet";
 import Icon from "@/components/Icon";
+import { Segmented } from "@/components/controls";
 import { useDictation } from "./useDictation";
 
 /** The page was opened with ?ask=1 — a link that means "open Ask GT3". False on the server. */
@@ -84,12 +85,12 @@ export default function QuickDock() {
     <>
       {/* On a phone the button is the crew header's ✦, beside search (2026-10-08, the iPhone chrome round):
           floating, it sat over the content of every crew screen. The frame keeps it. */}
-      <button type="button" className={`qd-fab${open ? " open" : ""} phone:hidden!`} onClick={() => setOpen((o) => !o)} aria-label={open ? "Close quick actions" : "Quick actions — run a copilot, ask GT3, take a note, or log a purchase"}>
+      <button type="button" className={`k-icon-btn lg qd-fab${open ? "" : " pri"} phone:hidden!`} onClick={() => setOpen((o) => !o)} aria-label={open ? "Close quick actions" : "Quick actions — run a copilot, ask GT3, take a note, or log a purchase"}>
         {open ? <Icon name="close" /> : <Icon name="sparkles" />}
       </button>
 
       {open && (
-        <Sheet open onClose={() => setOpen(false)} label="Quick actions" header={<div style={{ display: "flex", alignItems: "center", gap: 6 }}><button type="button" className={`qd-tab${mode === "do" ? " on" : ""}`} onClick={() => setMode("do")}><Icon name="sparkles" /> Do</button><button type="button" className={`qd-tab${mode === "ask" ? " on" : ""}`} onClick={() => setMode("ask")}>Ask GT3</button><button type="button" className={`qd-tab${mode === "note" ? " on" : ""}`} onClick={() => setMode("note")}>Note</button><button type="button" className={`qd-tab${mode === "spend" ? " on" : ""}`} onClick={() => setMode("spend")}>Spend</button><CloseButton onClick={() => setOpen(false)} /></div>}>
+        <Sheet open onClose={() => setOpen(false)} label="Quick actions" header={<div className="flex items-center gap-2"><Segmented label="Quick actions" value={mode} onChange={setMode} options={[{ key: "do", label: <><Icon name="sparkles" /> Do</> }, { key: "ask", label: "Ask GT3" }, { key: "note", label: "Note" }, { key: "spend", label: "Spend" }]} /><CloseButton onClick={() => setOpen(false)} /></div>}>
           {mode === "do" ? <CopilotLauncher role={role} onPick={(s) => { setSection(s); setOpen(false); }} />
             : mode === "ask" ? <AskGT3 />
             : mode === "spend" ? <LogPurchase onDone={() => setOpen(false)} />
@@ -140,17 +141,17 @@ function QuickNote({ userId, onSaved }: { userId: string | null; onSaved: () => 
     <div className="qd-note">
       <div className="qd-note-row">
         <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Jot it down — a thought, a to-do, a reminder…" rows={4} autoFocus />
-        {dictate.supported && <button type="button" className={`oa-mic${dictate.listening ? " on" : ""}`} onClick={dictate.toggle}
+        {dictate.supported && <button type="button" className={`k-icon-btn oa-mic${dictate.listening ? " on" : ""}`} onClick={dictate.toggle}
           aria-label={dictate.listening ? "Stop listening" : "Speak your note"} aria-pressed={dictate.listening}><Icon name="mic" size={19} /></button>}
       </div>
       <div className="qd-note-vis" role="radiogroup" aria-label="Who can see this note">
         {QN_VIS.map((o) => (
-          <button key={o.v} type="button" role="radio" aria-checked={vis === o.v} className={`qd-vis-chip${vis === o.v ? " on" : ""}`} onClick={() => setVis(o.v)}><Icon name={o.icon} /> {o.label}</button>
+          <button key={o.v} type="button" role="radio" aria-checked={vis === o.v} className={`k-chip${vis === o.v ? " on" : ""}`} onClick={() => setVis(o.v)}><Icon name={o.icon} /> {o.label}</button>
         ))}
       </div>
       <div className="qd-note-foot">
         <span className="qd-note-msg">{msg || "Saves under Business › Notes — expand it there later."}</span>
-        <button type="button" className="oa-send" onClick={save} disabled={saving || !text.trim()}>{saving ? "Saving…" : "Save note"}</button>
+        <button type="button" className="btn-pri" onClick={save} disabled={saving || !text.trim()}>{saving ? "Saving…" : "Save note"}</button>
       </div>
     </div>
   );

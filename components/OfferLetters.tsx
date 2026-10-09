@@ -259,7 +259,7 @@ export default function OfferLetters() {
                     {r.status === "in_review" && t.total > 0 && (
                       <span className="ofr-tally">{t.approved}/{t.total} approved</span>
                     )}
-                    <span className={`ofr-chip ${st.tone}`}>{st.label}</span>
+                    <span className={`k-tag${st.tone === "wait" ? " gold" : st.tone === "ok" ? " ok" : st.tone === "stop" ? " crit" : ""}`}>{st.label}</span>
                   </span>
                 </button>
               );

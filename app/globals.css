@@ -28,6 +28,9 @@ p,.entry-why,.gl-uc,.k-sub{text-wrap:pretty}
   --r-pill:999px;
   /* the button kit's two sizes (2026-10-09, the button round: "03 · Buttons" below; app/tailwind.css names them) */
   --btn-h:50px; --btn-h-sm:36px;
+  /* the kit's tones (2026-10-09, the chip round): the ink a status speaks in — a tag's words, a chosen chip's fill.
+     The crew's light look and paper restate them (each holds 4.5:1 on its ground), so a tag is legible wherever it lands */
+  --tone-ok:var(--ok); --tone-gold:var(--gold2); --tone-warn:var(--warn); --tone-crit:var(--red-h); --tone-blue:#6fa8dc;
   /* the house motion voice: --ease for state changes, --ease-enter for things arriving; --spring is a real
      spring via linear() where the browser has it (the @supports gate lives with the sheet rules) */
   --ease:cubic-bezier(.2,.7,.3,1);
@@ -208,7 +211,6 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 /* shared top + headers */
 .toprow{display:flex;align-items:center;justify-content:space-between;padding:6px 0 2px}
 .toprow .eyb{font-family:'Inter';font-weight:600;letter-spacing:2px;text-transform:uppercase;font-size:11px;color:var(--gold)}
-.pf{width:38px;height:38px;border-radius:50%;background:var(--red);display:flex;align-items:center;justify-content:center;font-family:'Archivo Black';font-size:15px;color:#fff;border:2px solid color-mix(in srgb, var(--brand-cream) 25%, transparent);cursor:pointer;text-decoration:none}
 /* When the member has saved a photo it becomes the avatar everywhere — the flag turns into their portrait. */
 .h-title{font-family:'Inter';font-weight:700;font-size:34px;line-height:1.02;letter-spacing:-1.3px;margin-top:14px}
 .h-sub{font-size:15px;color:var(--cream-m);margin-top:8px;line-height:1.55;max-width:340px}
@@ -240,21 +242,14 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .honest{margin-top:16px;background:color-mix(in srgb, var(--brand-red) 8%, transparent);border:1px solid color-mix(in srgb, var(--brand-red) 20%, transparent);border-radius:var(--r-2xl);padding:14px 16px;font-size:13px;line-height:1.5;color:color-mix(in srgb, var(--brand-cream) 82%, transparent)}
 .honest b{color:var(--cream)}
 /* primary button */
-.handle{width:100%;margin-top:18px;border:none;cursor:pointer;font-family:'Inter';font-weight:600;letter-spacing:1.5px;text-transform:uppercase;
-  font-size:15px;padding:17px;border-radius:var(--r-2xl);color:#fff;background:var(--red);
-  box-shadow:0 8px 20px color-mix(in srgb, var(--brand-red) 26%, transparent);display:flex;align-items:center;justify-content:center;gap:10px;transition:.16s}
-.handle:active{transform:scale(.985)}.handle svg{width:17px;height:17px}
-.handle:disabled{opacity:.45;box-shadow:none;cursor:default}
 /* Cohesion: give the high-traffic tappables that were missing it the house press-feedback. */
-.rsvp:active,.scan-add:not(:disabled):active,.conc-send:active,.subpitch-pack:active,.stop:active{transform:scale(.97)}
+.rsvp:active,.subpitch-pack:active,.stop:active{transform:scale(.97)}
 /* Crew Pit Wall — the high-traffic controls that had no press feedback (chips, FAB; the buttons settle in "03 · Buttons"). */
 .myday-chip:active,.qd-fab:active,.adm-act-more:active,.alert-ack:active,.alert-open:active,.cogs-row:active,.cogs-tab:active,.adm-prep-view:active,.adm-prep-back:active,.adm-crew-chip:active,.adm-role:active,.adm-golink:active{transform:scale(.96)}
-.qd-fab:active{box-shadow:0 4px 12px rgba(0,0,0,.4)}
 /* Academy — tappable rows/options/cert chips get the house press feedback. */
-.ac-mod:active,.ac-opt:not(:disabled):active,.ac-cert:active,.ac-prod:active,.ac-ackcard:active,.ac-back:active{transform:scale(.985)}
+.ac-mod:active,.ac-opt:not(:disabled):active,.ac-prod:active,.ac-ackcard:active,.ac-back:active{transform:scale(.985)}
 /* Academy subtitles used .subm which was never defined (rendered as raw body text) — alias to .h-sub. */
 .subm{font-family:'Inter';font-size:13px;color:var(--cream-m);margin-top:8px;line-height:1.5}
-.handle .sm{font-family:'Inter';font-weight:500;font-size:11px;letter-spacing:.1em;opacity:.8;display:block;margin-top:2px}
 /* did rows */
 .did{display:flex;align-items:center;gap:14px;padding:15px 0;border-bottom:1px solid var(--line)}
 .did:last-child{border-bottom:none}
@@ -277,7 +272,6 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 
 /* ── truck · editorial dispatch (no card/tiles/clock) ── */
 .livedot{width:8px;height:8px;border-radius:50%;background:#46c14a;margin-right:8px;box-shadow:0 0 0 4px rgba(70,193,74,.16);animation:lv 1.8s infinite}
-.t-order{margin-top:18px}
 .t-ghost{width:100%;border:1px solid var(--line2);cursor:pointer;font-family:'Inter';font-weight:600;letter-spacing:.3px;font-size:13px;padding:13px;border-radius:var(--r-xl);background:transparent;color:var(--cream-m)}
 .empty{border:1px dashed var(--line2);border-radius:var(--r-3xl);padding:26px 18px;text-align:center;margin-top:14px}
 .empty-t{font-family:'Fraunces';font-style:italic;font-size:15px;color:var(--cream)}
@@ -399,7 +393,6 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .sub-pack-cap{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-m)}
 .sub-pack-price{font-family:'DM Mono';font-weight:500;font-size:13px;margin-top:5px;color:var(--cream)}
 .sub-pack-each{font-family:'Inter';font-size:11px;color:var(--cream-m)}
-.sub-cta{margin-top:2px}
 .sub-cardfield{background:rgba(0,0,0,.22);border:1px solid var(--line2);border-radius:var(--r-xl);padding:12px;margin-bottom:10px;min-height:52px}
 /* 44px tall (2026-10-04): the confirmation's "Not now" measured 15 — a line of text to hit with a
    thumb, under the one button every purchase ends on (components/OrderConfirm). */
@@ -443,10 +436,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .orderbar-wrap{flex:0 0 auto;display:flex;flex-direction:column;z-index:31}
 .orderbar{flex:0 0 auto;display:flex;align-items:center;gap:12px;margin:0 12px 10px;padding:13px 16px;border-radius:15px;background:var(--card);border:1px solid var(--line2);box-shadow:0 -2px 22px rgba(0,0,0,.4);z-index:31;animation:cartup .22s ease}
 /* talk-to-the-truck quick replies under the order banner */
-.orderbar-eta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:-4px 14px 10px;animation:cartup .22s ease}
-.eta-chip{background:var(--card);border:1px solid var(--line2);border-radius:var(--r-pill);color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:12px;padding:7px 11px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.eta-chip.on{border-color:var(--gold2);color:var(--cream);background:color-mix(in srgb, var(--brand-gold2) 14%, transparent)}
-.eta-chip:disabled{opacity:.6}
+.orderbar-eta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-4px 14px 10px;animation:cartup .22s ease}
 /* the same signal on the pass */
 .kds-eta{display:inline-flex;margin-top:6px;font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:.04em;border-radius:var(--r-md);padding:4px 8px;border:1px solid var(--line2);color:var(--cream-m)}
 .kds-eta.outside{background:color-mix(in srgb, var(--brand-red) 16%, transparent);border-color:var(--red-h);color:#ffb3af;animation:offpulse 1.4s ease-in-out infinite}
@@ -466,9 +456,6 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .orderbar.st-ready .orderbar-main b{color:#bfe0b3}
 .orderbar-main span{display:block;font-size:12px;color:var(--cream-m);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .orderbar-tag{flex:0 0 auto;font-family:'DM Mono';font-size:11px;color:var(--cream-m)}
-.orderbar-cancel{flex:0 0 auto;font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m);background:transparent;border:1px solid color-mix(in srgb, var(--brand-cream) 28%, transparent);border-radius:var(--r-pill);padding:4px 11px;cursor:pointer}
-@media (hover:hover){.orderbar-cancel:hover{color:var(--cream);border-color:color-mix(in srgb, var(--brand-cream) 50%, transparent)}}
-.orderbar-cancel:disabled{opacity:.5;cursor:default}
 
 /* Self-update prompt — appears when a new build is ready */
 /* bottom lifts above the FAB tier so fixed chrome never collides (CSS audit pack 2 2026-07) */
@@ -518,7 +505,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .hero-state{letter-spacing:-1.3px}
 .toprow .eyb,.hero-eye,.drop .eyb,.memcard .mt .eyb,.referral .eyb{font-weight:650}
 /* buttons: Apple restraint (less tracking, optical size) */
-.handle{font-size:13px;letter-spacing:.3px;font-weight:650}
 .bring button,.rsvp,.drop .badge,.tag{letter-spacing:.4px}
 /* nav labels */
 .tab .tl{letter-spacing:.3px;font-weight:600}
@@ -558,10 +544,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ac-ring-v{position:absolute;font-family:var(--mono);font-size:22px;color:var(--cream);letter-spacing:-1px}
 .ac-ring-v small{font-size:11px;color:var(--cream-m)}
 .ac-certs{display:flex;flex-wrap:wrap;gap:7px;flex:1}
-.ac-cert{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--cream-d);border:1px solid var(--line2);border-radius:var(--r-pill);padding:6px 10px}
-.ac-cert .ac-cdot{width:6px;height:6px;border-radius:50%;background:var(--cream-d)}
-.ac-cert.on{color:var(--gold2);border-color:color-mix(in srgb, var(--brand-gold2) 40%, transparent);background:color-mix(in srgb, var(--brand-gold2) 10%, transparent)}
-.ac-cert.on .ac-cdot{background:var(--gold2);box-shadow:0 0 6px 1px color-mix(in srgb, var(--brand-gold2) 55%, transparent)}
 .ac-ready{display:flex;flex-direction:column;gap:1px}
 .ac-rrow{display:flex;align-items:center;gap:11px;font-family:'Inter';font-size:15px;color:var(--cream-m);padding:9px 2px;border-bottom:1px solid var(--line)}
 .ac-rrow.ok{color:var(--cream)}
@@ -606,7 +588,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ac-result b{font-family:var(--mono);font-size:42px;letter-spacing:-2px;line-height:1}
 .ac-result.pass b{color:var(--ok)}.ac-result.fail b{color:var(--red-h)}
 .ac-result span{font-family:'Inter';font-size:13px;color:var(--cream-m);text-align:center;margin-bottom:6px}
-.ac-result .handle{margin-top:6px}
 /* product detail */
 .ac-what{font-family:'Fraunces';font-style:italic;font-size:16px;line-height:1.5;color:var(--cream-m);margin-top:10px}
 .ac-grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
@@ -634,10 +615,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ac-tpct{flex:0 0 auto;font-family:var(--mono);font-size:12px;color:var(--cream-m);min-width:38px;text-align:right}
 .ac-tpct.ok{color:var(--gold2)}.ac-tpct.zero{color:var(--cream-d)}
 /* cert expiry states */
-.ac-cert.soon{color:var(--warn);border-color:rgba(207,154,74,.4);background:rgba(207,154,74,.1)}
-.ac-cert.soon .ac-cdot{background:var(--warn)}
-.ac-cert.expired{color:var(--red-h);border-color:color-mix(in srgb, var(--brand-red) 40%, transparent);background:color-mix(in srgb, var(--brand-red) 10%, transparent)}
-.ac-cert.expired .ac-cdot{background:var(--red)}
 /* required acknowledgement card */
 .ac-ackcard{display:flex;align-items:center;gap:12px;width:100%;text-align:left;margin-top:16px;background:color-mix(in srgb, var(--brand-red) 10%, transparent);border:1px solid color-mix(in srgb, var(--brand-red) 34%, transparent);border-radius:13px;padding:13px 15px;cursor:pointer;color:var(--cream)}
 .ac-ack-x{flex:0 0 26px;height:26px;border-radius:50%;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Inter';font-weight:700;font-size:15px}
@@ -881,8 +858,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 /* change item type (event ↔ truck stop) */
 .ownerdet-convert{display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
 .ownerdet-convert-l{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--cream-d)}
-.ownerdet-convert-b{margin-left:auto;background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:var(--r-pill);padding:7px 13px;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
-@media (hover:hover){.ownerdet-convert-b:hover{border-color:var(--gold2)}}
 /* event copilot (guided create) */
 .ec-eye{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold2)}
 .ec-start{display:flex;flex-direction:column;gap:11px}
@@ -921,8 +896,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .bce-preview .bcast{border:1px solid var(--line);border-radius:11px}
 .bce-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;background:var(--gold2)}
 .bce-dot.bcast-success{background:var(--ok)} .bce-dot.bcast-warning{background:var(--warn)} .bce-dot.bcast-brand{background:var(--red-deep,#B82420)}
-.bce-toggle{flex-shrink:0;background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:var(--r-pill);padding:6px 11px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.bce-toggle.on{color:var(--ok);border-color:rgba(106,160,92,.5)}
 .bce-del{flex-shrink:0;background:none;border:none;color:var(--cream-d);font-size:15px;cursor:pointer;padding:2px 6px}
 /* ── Maintenance & audits dashboard (Settings, 0198) ── */
 .mnt{display:flex;flex-direction:column;gap:14px}
@@ -936,13 +909,11 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .mnt-kpi.warn .mnt-k-v{color:var(--warn)}
 .mnt-k-l{font-family:var(--mono,'DM Mono');font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-d)}
 .mnt-form{background:rgba(0,0,0,.14);border:1px solid var(--line);border-radius:var(--r-xl);padding:13px}
-.mnt-filters{display:flex;gap:7px;flex-wrap:wrap;margin-top:2px}
+.mnt-filters{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
 /* Aligned to .chg-chip's treatment (2026-07-16, CSS consolidation pass): same filter-chip pattern,
    independently defined with a translucent-white base and a soft gold-tint "on" state instead of
    the solid-card base + filled-gold "on" state used everywhere else this app marks a selected
    filter/tab (.chg-chip, .rpt-r.on — and the kit's .k-seg-opt.on). Aligned so both read as the same control. */
-.mnt-chip{background:var(--card);border:1px solid var(--line2);border-radius:var(--r-pill);padding:5px 12px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.mnt-chip.on{background:var(--gold);border-color:var(--gold);color:#1a1610}
 .mnt-list{display:flex;flex-direction:column;gap:8px}
 .mnt-row{background:var(--card);border:1px solid var(--line);border-radius:var(--r-xl);border-left:3px solid var(--line2);overflow:hidden}
 .mnt-row.st-pass{border-left-color:var(--ok)} .mnt-row.st-warn{border-left-color:var(--warn)} .mnt-row.st-fail{border-left-color:var(--red,#d24a44)} .mnt-row.st-info{border-left-color:var(--gold2)}
@@ -1145,7 +1116,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
    not boxes inside the sheet's box — the inputs are boxes already. The deadline's two counts are
    chips, and on a sheet filled in one-handed a chip is a 44px target like everything else on it. */
 .crr-form,.crr-fix{margin-top:16px}
-.crr-fix .ts-chip{min-height:44px;padding:0 14px}
 @keyframes kdsflash{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--brand-red) 0%, transparent)}50%{box-shadow:0 0 0 2px var(--red),0 0 22px color-mix(in srgb, var(--brand-red) 50%, transparent)}}
 .adm-attn{background:rgba(210,69,63,.1);border:1px solid rgba(210,69,63,.32);border-radius:var(--r-xl);padding:11px 14px;margin-top:9px;font-size:13px;line-height:1.45;color:#e7b6b3}
 .adm-attn b{color:#fff;font-weight:600}
@@ -1173,7 +1143,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .auth-check-row input[type=checkbox]{width:17px;height:17px;accent-color:var(--red);cursor:pointer;flex-shrink:0}
 .auth-divider{width:100%;height:1px;background:var(--line);margin:22px 0 0}
 .auth-paste-hint{font-size:12px;color:color-mix(in srgb, var(--brand-cream) 45%, transparent);line-height:1.5;margin:7px 0 11px}
-.handle.ghost{background:transparent;border:1px solid var(--line2);color:var(--cream-m)}
 .auth-tabs{display:flex;gap:6px;margin-top:18px}
 .auth-tabs .auth-tab::after{z-index:1}  /* the form below animates in on a transform, which painted it over the tabs' taller tap area (2026-10-08) */
 .auth-tabs.auth-intent{margin-top:20px}
@@ -1347,8 +1316,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 /* ── Section guide sheet ── */
 .guide-t{font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;font-size:22px;color:var(--cream);line-height:1}
 .guide-lede{font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:5px;line-height:1.4}
-.guide-x{flex:0 0 auto;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r-pill);background:rgba(255,255,255,.05);border:1px solid var(--line2);color:var(--cream-m);font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.app.crew-day .guide-x{background:var(--ink-onLight-05)}
 .guide-list{display:flex;flex-direction:column;gap:8px}
 .guide-row{border:1px solid var(--line);border-radius:var(--r-2xl);overflow:hidden;background:rgba(255,255,255,.02)}
 .app.crew-day .guide-row{background:rgba(34,31,24,.02)}
@@ -1360,7 +1327,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .guide-row-t{display:flex;align-items:center;gap:8px;font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;font-size:17px;color:var(--cream);line-height:1.1}
 .guide-here-dot{font-family:'DM Mono',monospace;font-style:normal;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2)}
 .guide-row-sub{display:block;font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.guide-when{flex:0 0 auto;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold2);border:1px solid var(--gold2);border-radius:var(--r-pill);padding:3px 7px 2px;line-height:1;opacity:.85;white-space:nowrap}
 .guide-chev{flex:0 0 auto;color:var(--cream-m);font-size:13px}
 .guide-body{padding:0 13px 14px 50px}
 .guide-more{font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream);opacity:.9;margin:0 0 12px}
@@ -1378,11 +1344,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
    a paper-scope token, which is how the offer-letter stat block went grey-on-cream. */
 .acad-top{display:flex;align-items:center;gap:10px}
 .acad-top .opx-link-t{flex:1 1 auto;min-width:0}
-.acad-chip{flex:none;font-family:'Inter';font-size:11px;font-weight:800;letter-spacing:.3px;
-  padding:3px 9px;border-radius:var(--r-pill);font-variant-numeric:tabular-nums;
-  color:var(--gold);border:1px solid var(--gold);background:color-mix(in srgb, var(--gold) 12%, transparent)}
-.acad-chip.done{color:var(--ok);border-color:color-mix(in srgb, var(--ok) 55%, transparent);background:color-mix(in srgb, var(--ok) 14%, transparent)}
-.acad-chip.none{color:var(--cream-m);border-color:var(--line2);background:transparent}
 .acad-bar{display:block;height:4px;border-radius:var(--r-pill);background:var(--line2);margin-top:9px;overflow:hidden}
 .acad-bar>i{display:block;height:100%;background:var(--gold);border-radius:var(--r-pill);min-width:0}
 .acad-next{display:block;font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:8px}
@@ -1440,12 +1401,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .adm-task.crit .task-label{color:#ecb4b1}
 .adm-task.done .task-label{color:var(--cream-m);text-decoration:line-through}
 .task-right{flex:0 0 auto;display:flex;align-items:center;gap:8px;margin-left:auto}
-.task-assign{display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:5px 13px 5px 5px;border-radius:var(--r-pill);border:1px dashed var(--line2);background:rgba(168,124,63,.07);color:var(--gold2);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.task-assign:active{transform:scale(.97)}
-.task-assign.set{border-style:solid;border-color:var(--gold2);background:rgba(168,124,63,.16)}
-.task-assign.readonly{cursor:default}
-.task-assign-add{padding:0 7px}
-.task-assign-av{flex:0 0 auto;width:28px;height:28px;border-radius:50%;background:var(--gold2);color:#1a1310;display:flex;align-items:center;justify-content:center;font-family:'Archivo Black';font-size:12px}
 .task-assign-name{max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* assignee picker sheet */
@@ -1622,8 +1577,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .acs-av.ph{background-size:cover;background-position:center;background-repeat:no-repeat}
 .acs-id{min-width:0}
 .acs-name{font-family:'Inter';font-weight:700;font-size:22px;letter-spacing:-.3px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.acs-tier{display:inline-block;margin-top:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-m);border:1px solid var(--line2);border-radius:var(--r-pill);padding:3px 10px 2px}
-.acs-tier.founding{color:#0e0d0b;background:var(--gold2);border-color:transparent;font-weight:600}
 /* rewards glance */
 /* order again — one tap from anywhere */
 /* your member card — the gold hero action, shares the member-card ground */
@@ -1658,7 +1611,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .aud-d{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-m)}
 .aud.on .aud-d{color:var(--red-h,#d64b46)}
 .aud-office{margin-top:10px;display:flex;flex-direction:column;gap:14px}
-.aud-office .handle{margin-top:2px}
 /* sheet */
 .office-head{display:flex;align-items:center;width:100%}
 .office-head-t{display:flex;align-items:center;gap:9px;font-family:'Inter';font-weight:700;font-size:15px;color:var(--cream)}
@@ -1703,9 +1655,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 /* ── CREW · OFFICE ORDERS (Pit Wall) ── */
 .oo{margin-top:14px;border:1px solid var(--line);border-radius:var(--r-3xl);background:var(--card);overflow:hidden}
 .oo-n{font-family:var(--mono);font-size:11px;color:var(--cream-m)}
-.oo-gen{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--gold2);background:color-mix(in srgb, var(--brand-gold2) 8%, transparent);border:1px solid color-mix(in srgb, var(--brand-gold2) 40%, transparent);border-radius:var(--r-pill);padding:5px 11px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.oo-gen:active{transform:scale(.96)}
-.oo-gen:disabled{opacity:.5}
 
 /* ── OFFICE PORTAL (member self-serve) ── */
 .office-portal .op-h{font-family:'Inter';font-weight:750;font-size:28px;letter-spacing:-.4px;color:var(--cream);margin:14px 0 4px}
@@ -2234,12 +2183,6 @@ select.note-in{-webkit-appearance:none;appearance:none}
    is unreadable in half the app is not a safety marker.
    Measured in a headless render of this exact markup, both themes: WEIGH 4.78:1 dark / 8.90:1 day;
    the band's cream on the red fill 5.63:1 in both; the figures 7.86:1 / 7.73:1. */
-.ck-weigh{display:inline-flex;align-items:center;gap:3px;flex:none;font-style:normal;
-  font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.07em;
-  padding:1px 5px;border-radius:var(--r-pill);
-  color:var(--red-onLight);border:1px solid color-mix(in srgb, var(--brand-red) 55%, transparent);
-  background:color-mix(in srgb, var(--brand-red) 14%, transparent)}
-.ck-weigh svg{width:11px;height:11px}
 
 /* 0327 folded a repeating condition into one row and counted it; 0333 is what finally shows the
    count. Reads as a tally, not a badge — the number is information about the alert, not an alarm
@@ -2248,8 +2191,6 @@ select.note-in{-webkit-appearance:none;appearance:none}
    spends money at a vendor, so it reads as a decision with its consequence printed under it. */
 .so-send{display:flex;flex-direction:column;gap:6px;margin:10px 0 14px}
 .so-send .so-warn{margin:0}
-.alert-times{display:inline-block;margin-left:6px;padding:1px 5px;border-radius:999px;font-family:var(--mono);font-weight:600;font-size:11px;letter-spacing:.02em;color:var(--cream-m);background:rgba(255,255,255,.07);vertical-align:middle}
-.app.crew-day .alert-times{color:rgba(26,22,16,.62);background:rgba(26,22,16,.07)}
 .alert-when{display:inline-block;margin-left:8px;font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:.02em;color:var(--cream-m);white-space:nowrap;vertical-align:middle}
 .app.crew-day .alert-when{color:rgba(26,22,16,.5)}
 .alert.sev-critical .alert-title{color:#ecb4b1}
@@ -2257,8 +2198,6 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .alert-ack{flex:0 0 auto;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:var(--r-lg);padding:9px 14px;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none;min-height:40px}
 /* respond / clear actions on alerts (0084 alert-inbox pass) */
 .alert-open{flex:0 0 auto;background:var(--gold);border:none;border-radius:var(--r-lg);padding:9px 14px;color:#1a1610;font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none;min-height:40px}
-.alert-clearall{margin-left:auto;background:none;border:1px solid var(--line2);border-radius:var(--r-pill);padding:4px 12px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.app.crew-day .alert-clearall{color:var(--muted2-onLight)}
 .opnav .tab .ti{position:relative}
 /* the tab's count is the kit's .k-badge (2026-10-07); only where it sits on a tab is the tab's */
 .nav-badge.k-badge{top:-5px;left:calc(50% + 4px);right:auto}
@@ -2409,20 +2348,14 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 /* WRAPS. It was nowrap + overflow-x:auto: 1,052 px of chips in a 426 px panel, so three of the
    five sat off-screen behind a scroll with no fade and no arrow. Wrapping shows all five at once,
    which is the entire job of a shortcut — and the labels are short enough now to fit two rows. */
-.oa-quick{display:flex;flex-wrap:wrap;gap:7px;padding:2px 0 4px}
-.oa-chip{flex:0 0 auto;background:color-mix(in srgb, var(--brand-gold) 14%, transparent);border:1px solid var(--line2);border-radius:var(--r-pill);padding:7px 13px;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:13px;white-space:nowrap;cursor:pointer;-webkit-appearance:none;appearance:none}
-.oa-chip:disabled{opacity:.5}
+.oa-quick{display:flex;flex-wrap:wrap;gap:8px;padding:2px 0 4px}
 .oa-input{display:flex;gap:8px;align-items:center}
 .oa-input input{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px 15px;color:var(--cream);font-family:'Inter';font-size:16px;-webkit-appearance:none;appearance:none}
 .oa-input input:focus{border-color:var(--gold2)}
 /* Holds an <Icon name="mic">, not the emoji it used to hold — display:grid so the glyph centres
    instead of sitting on a text baseline. font-size no longer sizes it; the icon does. */
-.oa-mic{flex:0 0 auto;width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--cream-d);display:grid;place-items:center;cursor:pointer;-webkit-appearance:none;appearance:none}
-.oa-mic.on{color:#1a1610}
-.oa-mic.on{background:var(--gold);border-color:var(--gold);animation:oamic 1.2s infinite}
+.oa-mic.on{animation:oamic 1.2s infinite}  /* the kit's icon button, gold while it listens — and it pulses */
 @keyframes oamic{0%,100%{box-shadow:0 0 0 0 rgba(212,165,92,.5)}50%{box-shadow:0 0 0 7px rgba(212,165,92,0)}}
-.oa-send{flex:0 0 auto;background:var(--gold);border:none;border-radius:13px;padding:13px 18px;color:#1a1610;font-family:'Inter';font-weight:700;font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.oa-send:disabled{opacity:.45}
 /* Why no caption options came back. The catch above this was bare, so a failed draft and a model
    with no ideas looked the same: spinner stops, list stays empty, no explanation. */
 .oa-err{flex:1 1 100%;margin-top:8px;font-family:'Inter';font-size:13px;line-height:1.45;color:#d9776e}
@@ -2458,16 +2391,13 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 .subnav-tab.on{background:color-mix(in srgb, var(--brand-gold) 14%, transparent);border-color:var(--gold2);color:var(--gold2)}
 
 /* ── QuickDock — floating Ask + Note launcher ── */
-.qd-fab{position:absolute;right:16px;bottom:16px;z-index:60;width:54px;height:54px;border-radius:50%;border:none;background:var(--gold);color:#1a1610;font-size:22px;font-weight:700;box-shadow:0 8px 22px rgba(0,0,0,.35);cursor:pointer;-webkit-appearance:none;appearance:none;display:flex;align-items:center;justify-content:center}
-.qd-fab.open{background:var(--card);color:var(--cream);border:1px solid var(--line)}
+.k-icon-btn.qd-fab{position:absolute;right:16px;bottom:16px;box-shadow:0 8px 22px rgba(0,0,0,.35)}  /* the kit's large icon button, floated (a wide screen only) */
 /* Sheets are centered pop-ups that blur the screen behind, so nothing in the page (nav, FAB,
    calendar) reads through or competes with them. Bottom padding tracks the keyboard so the
    centered sheet stays fully above it. */
 .qd-scrim{position:fixed;inset:0;z-index:59;background:radial-gradient(58% 44% at 50% 50%,color-mix(in srgb, var(--brand-gold2) 13%, transparent),transparent 68%),rgba(0,0,0,.55);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);display:flex;align-items:center;justify-content:center;padding:16px 16px calc(16px + var(--kb,0px));box-sizing:border-box}
 .qd-sheet{width:100%;max-width:560px;max-height:min(88vh,calc(100dvh - var(--kb,0px) - 32px));display:flex;flex-direction:column;background:var(--bg,#161310);border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.6);animation:qdup .18s ease;overflow:hidden}
-@keyframes qdup{from{transform:translateY(10px) scale(.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
-.qd-tab{background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:var(--r-pill);padding:8px 14px;min-height:44px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;white-space:nowrap;cursor:pointer;-webkit-appearance:none;appearance:none}  /* 44: measured 34px when the purchase sheet's fixture first painted this row (2026-10-04) — the dock is a thumb control */
-.qd-tab.on{background:color-mix(in srgb, var(--brand-gold) 18%, transparent);border-color:var(--gold2);color:var(--gold2)}
+@keyframes qdup{from{transform:translateY(10px) scale(.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}  /* 44: measured 34px when the purchase sheet's fixture first painted this row (2026-10-04) — the dock is a thumb control */
 .qd-x{margin-left:auto;background:none;border:none;color:var(--cream-m);font-size:17px;cursor:pointer;padding:4px 8px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}  /* 44×44: the close on every sheet measured 30px (2026-10-03) */
 .qd-body{flex:1 1 auto;min-height:0;padding:14px 14px calc(18px + env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .qd-note-row{display:flex;gap:8px;align-items:flex-start}
@@ -2493,10 +2423,8 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 .cl-op-label{font-family:'Inter';font-weight:600;font-size:15px;color:var(--cream);line-height:1.25}
 .cl-op-desc{font-family:'Inter';font-size:12px;color:var(--cream-m);line-height:1.35}
 .cl-op-go{display:flex;align-items:center;gap:8px;flex-shrink:0}
-.cl-op-sec{font-family:var(--mono,'DM Mono');font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-d);border:1px solid var(--line2);border-radius:var(--r-pill);padding:3px 8px;white-space:nowrap}
 .cl-op-arrow{color:var(--gold2);font-size:15px;transition:transform .15s ease}
 @media (hover:hover){.cl-op:hover .cl-op-arrow{transform:translateX(3px)}}
-@media (hover:hover){.cl-op:hover .cl-op-sec{border-color:var(--gold2);color:var(--gold2)}}
 .cl-empty{font-family:'Inter';font-size:13px;color:var(--cream-m);line-height:1.5;text-align:center;padding:22px 12px}
 @media (prefers-reduced-motion:reduce){.cl-op,.cl-op-arrow,.cl-search{transition:none}@media (hover:hover){.cl-op:hover .cl-op-arrow{transform:none}}}
 
@@ -2528,12 +2456,6 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 .studio-presence{display:flex;align-items:center;gap:6px}
 .studio-peer{width:24px;height:24px;border-radius:50%;background:var(--gold);color:#1a1610;font-family:'Inter';font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg,#161310);margin-left:-8px}
 .studio-saved{font-family:'Inter';font-size:12px;color:var(--cream-m);margin-left:6px}
-.st-pill{font-family:'Inter';font-weight:700;font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:var(--r-pill);border:1px solid var(--line2);color:var(--cream-m)}
-.st-pill.st-draft{color:var(--cream-m)}
-.st-pill.st-review{color:var(--gold2);border-color:var(--gold2)}
-.st-pill.st-changes{color:#d2554a;border-color:#d2554a}
-.st-pill.st-approved,.st-pill.st-published{color:var(--ok);border-color:var(--ok)}
-.st-pill.st-scheduled{color:#6fa8dc;border-color:#6fa8dc}
 .studio-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 /* Instagram feed grid preview */
 .ig-note{font-family:'Inter';font-size:12px;color:var(--cream-m);margin:4px 0 9px}
@@ -2619,8 +2541,6 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 .rf-actions{display:flex;gap:8px;margin-top:4px}
 .rf-dl{flex:1;padding:12px;border-radius:11px;border:none;background:var(--red);color:#fff;font-family:'Inter';font-weight:700;font-size:15px;cursor:pointer}
 .rf-dl.ghost{background:transparent;border:1px solid var(--line2);color:var(--cream)}
-.studio-media-add{width:100%;padding:22px;border-radius:var(--r-xl);border:1.5px dashed var(--line2);background:rgba(255,255,255,.02);color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer}
-.app.crew-day .studio-media-add{background:var(--ink-onLight-03)}
 /* full post simulation (IG chrome + safe zones) */
 .studio-sim{width:100%;max-width:300px;margin:0 auto}
 .studio-sim-head{display:flex;align-items:center;gap:7px;font-family:'Inter';font-weight:650;font-size:12px;color:var(--cream);padding:2px 2px 6px}
@@ -2642,7 +2562,7 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 .studio-dots{position:absolute;top:8px;left:0;right:0;display:flex;gap:4px;justify-content:center;z-index:2}
 .studio-dots span{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.5)}
 .studio-dots span.on{background:#fff}
-.studio-nav{position:absolute;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;border:none;background:rgba(0,0,0,.45);color:#fff;font-size:17px;cursor:pointer;z-index:2;display:flex;align-items:center;justify-content:center}
+.k-icon-btn.studio-nav{position:absolute;top:calc(50% - 14px);z-index:2}  /* the kit's glass icon buttons, placed (top by calc: the kit presses with transform) */
 .studio-nav.prev{left:6px}.studio-nav.next{right:6px}
 .studio-thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .studio-thumb{position:relative;width:52px;height:52px;border-radius:var(--r-md);border:1px solid var(--line2);background-size:cover;background-position:center;cursor:pointer;padding:0;overflow:hidden;flex:0 0 auto}
@@ -2761,10 +2681,6 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 .calw-h{display:flex;align-items:baseline;gap:9px;margin-bottom:9px}
 .calw-dow{font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-m)}
 .calw-date{font-family:'Fraunces','Inter',serif;font-size:22px;line-height:1;color:var(--cream)}
-.calw-today{font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#1a1610;background:var(--gold);border-radius:var(--r-pill);padding:3px 8px}
-.calw-add{margin-left:auto;background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:var(--r-md);padding:6px 11px;color:var(--gold2);font-family:'Inter';font-weight:700;font-size:12px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .12s}
-.calw-add:focus{background:rgba(212,165,92,.14)}
-@media (hover:hover){.calw-add:hover{background:rgba(212,165,92,.14)}}
 .calw-items{display:flex;flex-direction:column;gap:7px}
 .calw-ev{display:block;text-align:left;font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream);background:rgba(111,168,220,.16);border:1px solid rgba(111,168,220,.28);border-radius:var(--r-lg);padding:9px 11px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .calw-chip{display:flex;align-items:stretch;gap:10px;text-align:left;width:100%;background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:var(--r-lg);padding:9px 11px 9px 0;color:var(--cream);cursor:grab;-webkit-appearance:none;appearance:none;transition:background .12s,border-color .12s,transform .06s}
@@ -2813,9 +2729,7 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 .note-filter{display:flex;gap:8px;align-items:center;margin:6px 0 14px;flex-wrap:wrap}
 .note-search{flex:1 1 100%;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px 14px;color:var(--cream);font-family:'Inter';font-size:15px;-webkit-appearance:none;appearance:none}
 .note-search:focus{border-color:var(--gold2)}
-.note-tabs{display:flex;gap:4px;flex:0 0 auto}
-.note-tab{background:transparent;border:1px solid var(--line2);border-radius:var(--r-pill);padding:9px 14px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none;white-space:nowrap}
-.note-tab.on{background:var(--gold);border-color:var(--gold);color:#1a1610}
+.note-tabs{display:flex;gap:6px;flex:0 0 auto}
 .note-foot{display:flex;gap:14px;align-items:center;margin-top:6px}
 .note-arch{background:none;border:none;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;padding:4px 10px 4px 0;min-height:44px}  /* 44: a thumb's floor, not a text button's whim (2026-10-03, the brew sheet measured its Cancel at 24px) */
 @media (hover:hover){.note-arch:hover{color:var(--cream)}}
@@ -2846,6 +2760,7 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
      "dark text on a gold chip" choice rather than a light-specific color; adding a differently-named
      token for the same value would add confusion, not remove it. */
   --red-onLight:#8f1d1a; --green-onLight:#3f6b2f; --danger-onLight:#a13c34;
+  --tone-ok:var(--green-onLight); --tone-gold:var(--gold2); --tone-warn:var(--warn); --tone-crit:var(--red-onLight); --tone-blue:var(--color-info);
   --muted2-onLight:#6c6256; --muted3-onLight:#6f6a59; --amber-onLight:#8a6a2a;
   --ink-onLight-03:rgba(34,31,24,.03); --ink-onLight-04:rgba(34,31,24,.04); --ink-onLight-05:rgba(34,31,24,.05);
   --ink-onLight-16:rgba(34,31,24,.16); --ink-onLight-18:rgba(34,31,24,.18); --ink-onLight-24:rgba(34,31,24,.24);
@@ -2862,7 +2777,7 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
    (2026-07-09). Two failure families: gold pills whose day background darkened past what ink text
    can sit on (→ white labels), and classes that hardcode dark-theme colors (pink crit text, cream
    chip text, light-blue link, light-red pills) that never flipped for the cream ground. */
-.app.crew-day :is(.subnav-tab.on,.studio-view.on,.cos-tg.on,.rdy-run,.skip-link,.cal-nudge button,.alert-open,.note-tab.on,.oa-msg.user,.oa-send,.insp-yes,.qd-fab,.cmt-av,.cmt-count,.studio-peer,.cal-vt.on,.calw-today,.prof-av,.org-av,.fn-day.on,.fn-conv,.cmd-cd,.vipq-yes,.fdig-opt.on,.pbd-filter.on,.rhythm-go){color:var(--card)}
+.app.crew-day :is(.subnav-tab.on,.studio-view.on,.cos-tg.on,.rdy-run,.skip-link,.cal-nudge button,.alert-open,.oa-msg.user,.insp-yes,.qd-fab,.cmt-av,.cmt-count,.studio-peer,.cal-vt.on,.prof-av,.org-av,.fn-day.on){color:var(--card)}
 /* contrast fix (2026-07-15 crew-day audit): .subnav-tab.on and .studio-view.on are translucent-tint
    pills (not solid gold like the rest of the list above) whose OWN dark-theme rule already sets
    color:var(--gold2) — that's correct in both themes and shouldn't have been swept into the white-text
@@ -2870,7 +2785,6 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
    bronze tint background (color-mix(in srgb, var(--brand-gold) 14%, transparent), a literal, not a var) still reads pale in day mode,
    so dark var(--gold2) text is required for legibility; pure white text on that pale tint was invisible. */
 .app.crew-day .subnav-tab.on,.app.crew-day .studio-view.on{color:var(--gold2)}
-.app.crew-day .subnav-tab.on .subnav-badge{background:rgba(255,255,255,.2);color:var(--gold2)}
 .app.crew-day :is(.mytask.crit .mytask-label,.adm-task.crit .task-label,.alert.sev-critical .alert-title,.note-del){color:var(--red-onLight)}
 .app.crew-day :is(.mytask-pri.crit){color:var(--red-onLight)}
 .app.crew-day .ai-agent{color:var(--cream)}
@@ -2881,18 +2795,14 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 .app.crew-day .auth-input::placeholder{color:rgba(34,31,24,.62)}
 /* tiny-type roles (8–11px) need the secondary ink tier — tertiary measures under 4.5 at this size
    (both themes: the same physics applies on the dark ground) */
-:is(.tm-scope,.tm-you,.pay-status){color:var(--cream-m)}
+:is(.tm-scope,.tm-you){color:var(--cream-m)}
 .app.crew-day .opnav{border-top:1px solid var(--gold)}
 .app.crew-day .opnav .tab.on .tl,.app.crew-day .opnav .tab.on .ti{color:var(--gold)}
 /* .app.crew-day .cal-sticky override removed 2026-10-01: it re-painted the bar opaque over the
    frosted rule at .cal-sticky, which already reads var(--bg) through the theme. */
 .app.crew-day .qd-sheet{background:var(--card)}
 /* white-on-dark subtle fills vanish on light → faint dark tint instead */
-.app.crew-day .studio-act,
-.app.crew-day .qd-tab,
-.app.crew-day .studio-rel-chips button,
-.app.crew-day .cell,
-.app.crew-day .sub-cardfield{background:var(--ink-onLight-05)}
+.app.crew-day .studio-act,.app.crew-day .studio-rel-chips button,.app.crew-day .cell,.app.crew-day .sub-cardfield{background:var(--ink-onLight-05)}
 /* dark inset panels read heavy on light → white/cream */
 .app.crew-day .rdy,
 .app.crew-day .rdy-out,
@@ -2941,16 +2851,13 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 .app.crew-day .auth-paste-hint{color:rgba(34,31,24,.62)}
 .app.crew-day .auth-err{color:var(--red-onLight);background:color-mix(in srgb, var(--brand-red) 8%, transparent)}
 /* gold pills: day-mode gold deepens, so the dark label loses — keep the label light */
-.app.crew-day .note-tab.on{color:var(--oa-cream)}
 .app.crew-day .oa-msg.user{color:var(--oa-cream)}
 /* CSS audit pack 2 (2026-07): the recurring trap this fixes — .app.crew-day descendant rules (0,3,0)
    silently beat .x.on state rules (0,2,0). Every .on/.done/.sel state a day override had killed
    gets its fill back here. */
 .app.crew-day .ev-golive.on{background:color-mix(in srgb, var(--brand-red) 12%, transparent);color:var(--red-onLight)}
 .app.crew-day .dp-tab.on{background:color-mix(in srgb, var(--brand-gold) 14%, transparent)}
-.app.crew-day .qd-tab.on{background:color-mix(in srgb, var(--brand-gold) 18%, transparent)}
 .app.crew-day .offchip.on{background:#f0f6ec}
-.app.crew-day .qd-fab.open{color:var(--cream)}
 /* day-mode contrast: status text + controls the packs missed */
 .app.crew-day :is(.dp-leave-h b){color:var(--color-info)}
 .app.crew-day .adm-age.late{color:var(--red-onLight)}
@@ -3047,7 +2954,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .arch-ov-when{font-weight:400;letter-spacing:0;text-transform:none;color:var(--cream-d)}
 .arch-ov-b{font-family:'Inter';font-size:15px;line-height:1.55;color:var(--cream-m);margin:8px 0 12px}
 .arch-flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.arch-flow-i{display:flex;align-items:center;gap:6px;font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream);background:color-mix(in srgb, var(--brand-gold) 12%, transparent);border:1px solid var(--line2);border-radius:var(--r-pill);padding:5px 10px}
 .arch-flow-a{color:var(--gold2);margin-left:2px}
 .arch-layers{display:flex;flex-direction:column;gap:11px;margin-top:14px}
 .arch-tile{text-align:left;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:var(--r-3xl);padding:15px 16px;cursor:pointer;-webkit-appearance:none;appearance:none}
@@ -3065,11 +2971,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .arch-comp{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:var(--r-2xl);padding:13px 15px}
 .arch-comp-head{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:none;border:none;cursor:pointer;padding:0;-webkit-appearance:none;appearance:none}
 .arch-comp-n{font-family:'Inter';font-weight:700;font-size:15px;color:var(--cream);text-align:left}
-.arch-st{flex:0 0 auto;font-family:'Inter';font-weight:700;font-size:11px;letter-spacing:.4px;text-transform:uppercase;padding:3px 9px;border-radius:var(--r-pill);border:1px solid var(--line2);color:var(--cream-m)}
-.arch-st.st-live{color:var(--ok);border-color:var(--ok)}
-.arch-st.st-configured{color:var(--gold2);border-color:var(--gold2)}
-.arch-st.st-staged{color:var(--warn);border-color:var(--warn)}
-.arch-st.st-planned{color:var(--cream-d)}
 .arch-comp-d{font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream-m);margin-top:6px}
 .arch-comp-deep{margin-top:11px;border-top:1px solid var(--line);padding-top:11px}
 .arch-comp-detail{font-family:'Inter';font-size:13px;line-height:1.55;color:var(--cream);margin:0 0 9px}
@@ -3122,11 +3023,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .arch-db-row{background:var(--card);border:1px solid var(--line);border-radius:var(--r-xl);padding:12px 14px;margin-bottom:8px}
 .arch-db-h{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .arch-db-t{font-family:'DM Mono';font-size:15px;color:var(--cream)}
-.arch-mg{flex:0 0 auto;font-family:'Inter';font-weight:700;font-size:11px;letter-spacing:.4px;text-transform:uppercase;padding:3px 9px;border-radius:var(--r-pill);border:1px solid var(--line2);color:var(--cream-m)}
-.arch-mg.mg-full{color:var(--ok);border-color:var(--ok)}
-.arch-mg.mg-partial{color:var(--gold2);border-color:var(--gold2)}
-.arch-mg.mg-readonly{color:#6fa8dc;border-color:#6fa8dc}
-.arch-mg.mg-system{color:var(--cream-d)}
 .arch-db-note{font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream-m);margin-top:6px}
 .arch-db-note b{color:var(--cream)}
 
@@ -3148,8 +3044,7 @@ body:has(.conc-sheet) .rail{display:flex}
 .cc-chip.two .cc-dot{margin-top:4px}
 /* ── Brand: upload + editable assets ── */
 .brand-asset-wrap{position:relative}
-.brand-asset-x{position:relative;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
-.brand-asset-x::after{content:"";position:absolute;inset:-8px} /* 44px effective touch target (CSS audit pack 2 2026-07) */
+.brand-asset-x{position:relative;top:4px;right:4px;z-index:2}
 .brand-upload{cursor:pointer}
 .brand-up-plus{font-size:28px;color:var(--gold2);font-weight:300}
 .brand-upload .brand-asset-img{border-style:dashed}
@@ -3174,8 +3069,7 @@ body:has(.conc-sheet) .rail{display:flex}
 .dp-item{display:flex;gap:9px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--c,#888);border-radius:var(--r-xl);padding:10px 11px}
 .dp-item.done{opacity:.55}
 .dp-item.done .dp-item-t{text-decoration:line-through}
-.dp-check{flex:0 0 auto;width:24px;height:24px;border-radius:50%;border:1px solid var(--line2);background:transparent;color:var(--c,var(--cream-m));font-size:13px;cursor:pointer;margin-top:1px;position:relative}
-.dp-check::after{content:"";position:absolute;inset:-8px} /* 44px effective touch target (CSS audit pack 2 2026-07) */
+.dp-check{margin-top:1px;color:var(--c,var(--cream-m))}  /* the kit's small icon button, inked in its block's kind */
 .dp-time{flex:0 0 54px;font-family:'DM Mono';font-size:13px;color:var(--cream);line-height:1.3}
 .dp-time-e{display:block;font-size:11px;color:var(--cream-m)}
 .dp-item-main{flex:1;min-width:0}
@@ -3189,18 +3083,14 @@ body:has(.conc-sheet) .rail{display:flex}
 .dp-mini{width:28px;height:28px;border-radius:7px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);font-size:13px;cursor:pointer}
 .dp-mini.del:active{color:var(--bad,#d66)}
 .dp-move{border:1px solid var(--line2);background-color:transparent;color:var(--cream-m);border-radius:7px;font-size:11px;padding:3px 4px;-webkit-appearance:none;appearance:none}
-.dp-quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
-.dp-qchip{display:flex;align-items:center;gap:5px;background:transparent;border:1px solid var(--line2);border-radius:var(--r-pill);padding:6px 11px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.dp-qchip:active{background:color-mix(in srgb, var(--brand-gold) 14%, transparent);border-color:var(--c,var(--gold2));color:var(--cream)}
+.dp-quick{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .dp-actions{display:flex;gap:9px;margin-top:14px}
 .dp-add,.dp-draft{flex:1;border-radius:11px;padding:12px;font-family:'Inter';font-weight:700;font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .dp-add{background:transparent;border:1px solid var(--line2);color:var(--cream)}
 .dp-draft{background:linear-gradient(135deg,#a97c3f,#caa35f);border:none;color:#1a1409}
 /* edit / draft sub-sheets sit above the planner */
 .qd-sheet.dp-form{max-width:520px;border-radius:18px;max-height:min(88vh,calc(100dvh - var(--kb,0px) - 24px))}
-.dp-kinds,.dp-draftlist{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-.dp-kchip{display:flex;align-items:center;gap:4px;background:transparent;border:1px solid var(--line2);border-radius:var(--r-pill);padding:6px 10px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.dp-kchip.on{background:color-mix(in srgb, var(--brand-gold) 14%, transparent);border-color:var(--c,var(--gold2));color:var(--cream)}
+.dp-kinds,.dp-draftlist{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .dp-hint{font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream-m);margin-bottom:10px}
 .dp-err{font-family:'Inter';font-size:13px;color:var(--bad,#d66);margin-top:8px}
 .dp-draftlist{flex-direction:column}
@@ -3224,7 +3114,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .biz-head{display:flex;align-items:center;gap:9px}
 .biz-icon{font-size:17px;flex:0 0 auto}
 .biz-name{font-family:'Inter';font-weight:800;font-size:15px;color:var(--cream)}
-.biz-head .arch-st{margin-left:auto}
 .biz-outcome{font-family:'Inter';font-size:13px;line-height:1.5;color:var(--gold2);margin:8px 0 0;font-weight:600}
 .biz-built{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:5px}
 .biz-built li{position:relative;padding-left:16px;font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream-m)}
@@ -3273,15 +3162,10 @@ body:has(.conc-sheet) .rail{display:flex}
 .conc-inbar{display:flex;gap:8px;padding:11px 13px;border-top:1px solid #2c2a22}
 .conc-in{flex:1;background:#0f0e0a;border:1px solid #36332a;border-radius:var(--r-pill);padding:11px 15px;color:#f4ead6;font-family:'Inter';font-size:15px}
 .conc-in:focus{border-color:var(--gold2)}
-.conc-send{flex:0 0 auto;width:42px;height:42px;border-radius:50%;background:var(--gold2);color:#15140f;border:none;font-size:17px;font-weight:800;cursor:pointer}
-.conc-send:disabled{opacity:.4;cursor:default}
 .conc-foot{padding:0 15px 12px;font-family:'Inter';font-size:11px;line-height:1.4;color:#7d745f;text-align:center}
 
 /* ── Company calendar: view switcher + views ── */
-.cal-views{display:flex;gap:5px;padding-bottom:8px;overflow-x:auto;-webkit-overflow-scrolling:touch}
-.cal-view{flex:0 0 auto;background:transparent;border:1px solid var(--line2);border-radius:var(--r-pill);padding:6px 13px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.cal-view.on{background:var(--cream);color:var(--bg,#161310);border-color:var(--cream)}
-.app.crew-day .cal-view.on{background:var(--cream);color:var(--card);border-color:var(--cream)}
+.cal-views{display:flex;align-items:center;gap:8px;padding-bottom:8px}  /* the views' switch scrolls inside itself when they will not fit (min-w-0), so More and Filter stay in reach */
 /* week view — day rows */
 .cal-week{display:flex;flex-direction:column;gap:6px}
 .cal-wrow{display:flex;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:9px 11px}
@@ -3320,8 +3204,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .app.crew-day .ol-bar{background:var(--card)}
 .ol-top{display:flex;align-items:center;gap:8px;font-family:'Inter';font-size:15px;color:var(--cream)}
 .ol-i{font-size:15px}
-.ol-state{margin-left:auto;font-family:'Inter';font-weight:700;font-size:11px;letter-spacing:.4px;text-transform:uppercase;padding:3px 9px;border-radius:var(--r-pill);border:1px solid var(--line2);color:var(--cream-m)}
-.ol-state.on{color:var(--ok);border-color:var(--ok)}
 .ol-note{font-family:'Inter';font-size:12px;line-height:1.45;color:var(--cream-m);margin-top:7px}
 .ol-note code{font-family:'DM Mono';font-size:11px;background:rgba(255,255,255,.05);padding:1px 4px;border-radius:var(--r-xs)}
 .ol-acts{display:flex;gap:8px;margin-top:9px}
@@ -3365,11 +3247,7 @@ body:has(.conc-sheet) .rail{display:flex}
 /* ── Note composer: AI task preview ── */
 
 /* ── Plan sub-nav: priority badges + back-office divider ── */
-.subnav-tab{display:inline-flex;align-items:center;gap:6px}
-.subnav-badge{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;padding:0 5px;border-radius:var(--r-pill);background:var(--line2);color:var(--cream);font-family:'Inter';font-weight:800;font-size:11px;line-height:1}
-.subnav-tab.on .subnav-badge{background:color-mix(in srgb, var(--brand-gold) 25%, transparent);color:var(--gold2)}
-.subnav-badge.hot{background:#c4453c;color:#fff}            /* pending bookings = money waiting — always loud */
-.subnav-tab.on .subnav-badge.hot{background:#c4453c;color:#fff}
+.subnav-tab{display:inline-flex;align-items:center;gap:6px}            /* pending bookings = money waiting — always loud */
 .subnav-div{flex:0 0 auto;align-self:center;width:1px;height:20px;background:var(--line2);margin:0 4px}
 .subnav-tab.back{opacity:.72;font-weight:500}            /* rarely-touched: visually quieter */
 .subnav-tab.back.on{opacity:1}
@@ -3423,7 +3301,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .cal-titlebar{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;padding:2px 0 8px}
 .cal-eyebrow{font-family:'Inter';font-weight:800;font-size:15px;color:var(--cream)}
 .cal-titlesub{font-family:'Inter';font-size:12px;color:var(--cream-m)}
-.cal-tolink{margin-left:auto;background:transparent;border:1px solid var(--line2);border-radius:var(--r-pill);padding:5px 12px;color:var(--gold2);font-family:'Inter';font-weight:700;font-size:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .cal-nudge{display:flex;align-items:center;gap:10px;background:rgba(212,165,92,.13);border:1px solid var(--gold2);border-radius:11px;padding:9px 12px;margin-bottom:10px;font-family:'Inter';font-size:13px;color:var(--cream)}
 .cal-nudge b{color:var(--gold2)}
 .cal-nudge button{margin-left:auto;flex:0 0 auto;background:var(--gold2);border:none;border-radius:var(--r-md);padding:7px 13px;color:#1a1409;font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer}
@@ -3432,8 +3309,6 @@ body:has(.conc-sheet) .rail{display:flex}
    to .app so iOS stacking traps in .body can't swallow it. ‹ › walk the calendar's item spine. */
 .cal-swipenav{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:85;display:flex;align-items:center;gap:2px;background:rgba(21,17,13,.94);border:1px solid var(--line2);border-radius:var(--r-pill);padding:4px 6px;box-shadow:0 10px 30px rgba(0,0,0,.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .cal-swipenav span{font-family:'DM Mono';font-size:12px;color:var(--cream-m);padding:0 7px;white-space:nowrap}
-.cal-swipenav button{width:34px;height:34px;border-radius:50%;border:none;background:var(--gold2);color:#1a1409;font-size:20px;line-height:1;font-weight:700;cursor:pointer;-webkit-appearance:none;appearance:none;display:flex;align-items:center;justify-content:center}
-.cal-swipenav button:disabled{opacity:.32;cursor:default}
 
 /* ── Event lifecycle stage ── */
 .ev-badge.stage{background:rgba(255,255,255,.06);border:1px solid var(--c,var(--line2));color:var(--c,var(--cream))}
@@ -3443,10 +3318,6 @@ body:has(.conc-sheet) .rail{display:flex}
    took the record sheet's word ("In prep") too. 9px sides fit them with 6px to spare; a narrower
    phone wraps the last one under rather than hiding it. */
 .ev-stage{display:flex;flex-wrap:wrap;gap:5px 4px;padding-bottom:11px}
-.ev-stage-pill{flex:0 0 auto;background:transparent;border:1px solid var(--line2);border-radius:var(--r-pill);padding:6px 9px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .12s,color .12s,border-color .12s}
-.ev-stage-pill.on{background:var(--c,var(--gold));border-color:var(--c,var(--gold));color:#15140f}
-.ev-stage-pill:disabled{cursor:default;opacity:.5}
-.ev-stage-pill.on:disabled{opacity:1}
 
 /* ── Day-mode fix: the prep/supply bottom-sheet was hardcoded near-black, so in the light crew
    console its (now-dark) text rendered on a dark sheet — invisible. Flip it light in Day mode. ── */
@@ -3477,9 +3348,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .app.crew-day .cos-toggle{background:rgba(34,31,24,.06)}
 .cos-tg{background:none;border:none;border-radius:7px;padding:6px 11px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:12px;cursor:pointer}
 .cos-tg.on{background:var(--gold);color:#15140f}
-.cos-go,.cos-redo{width:100%;background:linear-gradient(135deg,#a97c3f,#caa35f);border:none;border-radius:11px;padding:12px;color:#1a1409;font-family:'Inter';font-weight:800;font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.cos-redo{background:transparent;border:1px solid var(--line2);color:var(--cream-m);margin-top:12px;font-weight:700;font-size:13px}
-.cos-go:disabled,.cos-redo:disabled{opacity:.6}
 .cos-headline{font-family:'Inter';font-weight:700;font-size:16px;line-height:1.35;color:var(--cream);margin-bottom:7px}
 .cos-counts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
 .cos-counts span{font-family:'DM Mono';font-size:11px;color:var(--cream-m);background:color-mix(in srgb, var(--brand-cream) 6%, transparent);border-radius:5px;padding:2px 6px}
@@ -3499,13 +3367,9 @@ body:has(.conc-sheet) .rail{display:flex}
 .cos-plan li{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 /* Actionable briefing — complete the source item / spin a recommendation into an assigned task */
 .cos-prio-acts{display:flex;gap:6px;margin-top:6px}
-.cos-act{-webkit-appearance:none;appearance:none;border:1px solid var(--line2);background:color-mix(in srgb, var(--brand-cream) 5%, transparent);color:var(--cream);font-family:'Inter';font-weight:700;font-size:11px;padding:3px 9px;border-radius:var(--r-pill);cursor:pointer;white-space:nowrap;flex:0 0 auto}
-@media (hover:hover){.cos-act:hover{border-color:var(--gold2);color:var(--gold2)}}
-.cos-act.sm{padding:1px 8px;font-size:13px;line-height:1.2}
 .cos-doneflag{font-family:'Inter';font-weight:800;font-size:11px;color:#6aa05c;padding:3px 0}
 .cos-prio.done{opacity:.55}
 .cos-prio.done .cos-prio-main b{text-decoration:line-through}
-.app.crew-day .cos-act{background:var(--ink-onLight-04)}
 .cos-risk{display:flex;flex-direction:column;gap:1px;padding:7px 10px;background:color-mix(in srgb, var(--brand-red) 10%, transparent);border:1px solid color-mix(in srgb, var(--brand-red) 35%, transparent);border-radius:9px;margin-bottom:6px}
 .cos-risk b{font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream)}
 .cos-risk span{font-family:'Inter';font-size:12px;color:var(--cream-m)}
@@ -3615,9 +3479,8 @@ body:has(.conc-sheet) .rail{display:flex}
 
 /* ============ LUXURY LAYER · tactile press + aligned figures (grain lives on .app bg) ============ */
 /* a crisp mechanical give on tap — the visual half of haptics; reads premium even where iOS mutes vibration */
-.oa-tile,.oa-day,.oa-cta,.note-arch,.brew-start,.dl-ctr-b button,.dl-card,.handle,.brew-adjust-danger,.brew-adjust-undo,.qd-tab{transition:transform .11s var(--ease),filter .15s ease,background-color .15s ease}
-.oa-tile:active,.oa-day:active,.oa-cta:active,.note-arch:active,.brew-start:active,.dl-ctr-b button:active,.dl-card:active,.handle:active,.brew-adjust-danger:active,.brew-adjust-undo:active,.qd-tab:active{transform:scale(.965)}
-.oa-cta:active{filter:brightness(1.06)}
+.oa-tile,.oa-day,.note-arch,.brew-start,.dl-ctr-b button,.dl-card,.brew-adjust-danger,.brew-adjust-undo{transition:transform .11s var(--ease),filter .15s ease,background-color .15s ease}
+.oa-tile:active,.oa-day:active,.note-arch:active,.brew-start:active,.dl-ctr-b button:active,.dl-card:active,.brew-adjust-danger:active,.brew-adjust-undo:active{transform:scale(.965)}
 /* figures line up + never jitter — Stripe/Apple-grade number setting */
 .dl-quote,.dl-quote-t,.brew-timer,.spl-price,.dl-deadline{font-variant-numeric:tabular-nums}
 .brew-recipe{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
@@ -3640,9 +3503,7 @@ body:has(.conc-sheet) .rail{display:flex}
 .brew-flags b{color:var(--warn)}
 
 /* ── Troubleshoot AI (field ops) ── */
-.ts-chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
-.ts-chip{display:flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--line2);border-radius:var(--r-pill);padding:7px 12px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .12s,color .12s,border-color .12s}
-.ts-chip.on{background:rgba(207,154,74,.16);border-color:var(--warn);color:var(--cream)}
+.ts-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
 .ts-toggle{display:flex;align-items:center;gap:8px;margin-top:11px;font-family:'Inter';font-size:13px;color:var(--cream-m);cursor:pointer}
 .ts-toggle input{width:17px;height:17px;accent-color:var(--red)}
 .ts-summary{background:color-mix(in srgb, var(--brand-red) 10%, transparent);border:1px solid color-mix(in srgb, var(--brand-red) 40%, transparent);border-radius:11px;padding:11px 13px;font-family:'Inter';font-weight:600;font-size:15px;color:var(--cream);line-height:1.4;margin-bottom:14px}
@@ -3780,7 +3641,7 @@ body:has(.conc-sheet) .rail{display:flex}
 /* Reset / nuke an event or stop's prep + schedule — destructive, kept understated until needed. */
 .adm-reset-row{margin-top:16px;display:flex;justify-content:center}
 /* one press language for every dismiss glyph across all sheets */
-:is(.qd-x,.guide-x,.crew-x,.adm-act-more,.isheet-x):active{opacity:.55;transform:scale(.9)}
+:is(.qd-x,.crew-x,.adm-act-more,.isheet-x):active{opacity:.55;transform:scale(.9)}
 
 /* Owner (event/stop) identity + date/place/status, editable inline in the prep hub. */
 .ownerdet{margin:8px 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -3947,10 +3808,6 @@ body:has(.conc-sheet) .rail{display:flex}
    Lacquered-red finish (soft ambient glow + a hairline top highlight, the same "lifted" depth
    language the app's cards already use) instead of a flat fill — one deliberately finished primary
    action, not five flat buttons that happened to match. */
-:is(.oa-cta,.subpitch-cta,.sub-cta,.t-order,.arr-order,.mpack-cta){width:100%;background:var(--oa-red);color:var(--oa-cream);border:none;border-radius:var(--r-2xl);padding:16px;font-size:15px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;cursor:pointer;transition:transform .16s,box-shadow .16s,filter .16s;font-family:inherit;box-shadow:0 10px 24px color-mix(in srgb, var(--brand-red) 32%, transparent),inset 0 1px 0 rgba(255,255,255,.14)}
-:is(.oa-cta,.subpitch-cta,.sub-cta,.t-order,.arr-order,.mpack-cta):active{transform:scale(.99);filter:brightness(1.06);box-shadow:0 4px 12px color-mix(in srgb, var(--brand-red) 26%, transparent),inset 0 1px 0 rgba(255,255,255,.1)}
-:is(.oa-cta,.subpitch-cta,.sub-cta,.t-order,.arr-order,.mpack-cta):disabled{opacity:.35;cursor:default;box-shadow:none;filter:none}
-.oa-cta.ghost{box-shadow:none}
 .oa-window{text-align:center;font-size:12px;color:var(--oa-cream-faint);margin-top:12px;line-height:1.6}.oa-window b{color:var(--oa-cream-dim);font-weight:600}
 
 /* order-ahead OPS (admin "Now" — cohesive with the kitchen pass) */
@@ -4166,7 +4023,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .mpack-px{font-family:'Inter';font-size:13px;color:#6f6a59;text-align:right}
 .mpack-px b{color:#221f18;font-family:'DM Mono',monospace;font-size:13px}
 .mpack-note{font-family:'Inter';font-size:12px;line-height:1.55;color:#6f6a59;margin:10px 0 12px}
-.mpack-cta{display:block;text-align:center;text-decoration:none}
 
 /* checkout drawer: quiet pack cross-sell */
 /* checkout closed — the truck isn't pouring; explain the window + route to the pack reserve */
@@ -4198,12 +4054,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .mypack-main{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
 .mypack-main b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mypack-sub{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.04em;color:var(--cream-m);line-height:1.5}
-.mypack-flag{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.07em;text-transform:uppercase;border-radius:var(--r-pill);padding:4px 9px;white-space:nowrap;flex:0 0 auto}
-.mypack-flag.paid{background:rgba(106,160,92,.16);color:#9fd18f;border:1px solid rgba(106,160,92,.45)}
-.mypack-flag.due{background:color-mix(in srgb, var(--brand-gold2) 12%, transparent);color:var(--gold2);border:1px solid color-mix(in srgb, var(--brand-gold2) 40%, transparent)}
-.mypack-flag.done{background:color-mix(in srgb, var(--brand-cream) 6%, transparent);color:var(--cream-d);border:1px solid var(--line2)}
-.app.crew-day .mypack-flag.paid,body.light .mypack-flag.paid{color:var(--green-onLight)}
-.app.crew-day .mypack-flag.due,body.light .mypack-flag.due{color:var(--gold2)}
 .mypack-pay{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--warn);border:1px solid var(--warn);border-radius:var(--r-sm);padding:2px 7px}
 .mypack-pay.ok{color:var(--ok);border-color:var(--ok)}
 .mypack-mix{font-size:13px;color:var(--cream-m);margin-top:5px}
@@ -4215,9 +4065,7 @@ body:has(.conc-sheet) .rail{display:flex}
 .mypack-st{font-size:12px;color:var(--cream-d);margin-top:7px;line-height:1.45}
 .mypack-st b{color:var(--cream);font-weight:700}
 .mypack.done .mypack-st{color:var(--ok)}
-.mypack-actions{display:flex;gap:8px;margin-top:11px}
-.mypack-actions button{background:transparent;border:1px solid var(--line2);border-radius:var(--r-pill);color:var(--cream);font-family:'Inter';font-weight:700;font-size:12px;padding:8px 14px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.mypack-actions button.danger{color:#d98a86;border-color:rgba(217,138,134,.5)}
+.mypack-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin-top:12px}
 .oa-editing{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--gold);border-radius:var(--r-lg);padding:10px 12px;margin-bottom:14px;font-size:13px;color:var(--cream);background:color-mix(in srgb, var(--brand-gold2) 10%, transparent)}
 .oa-editing button{background:none;border:none;color:var(--gold2);font-family:'Inter';font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;text-decoration:underline;-webkit-appearance:none;appearance:none}
 
@@ -4319,10 +4167,9 @@ body:has(.conc-sheet) .rail{display:flex}
 /* The kit's icon button, at the 44px a thumb needs (the kit's 38 is for a row of them). */
 .bq-num .k-icon-btn{width:44px;height:44px;font-size:22px;line-height:1}
 .bq-unit{font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream-m)}
-.bq-picks{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
-.bq-picks .ts-chip b{font-weight:800;font-variant-numeric:tabular-nums}
+.bq-picks{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
 .bq-pick-sub{font-weight:500;font-size:11px;color:var(--cream-d)}
-.ts-chip.on .bq-pick-sub{color:var(--cream-m)}
+.k-chip.on .bq-pick-sub{color:inherit;opacity:.72}
 /* Three ways to say one batch — the kit's segmented control (.k-seg), visibly a switch: a menu
    that opened was indistinguishable from a box that did not. */
 .bq-units{margin-top:10px;max-width:22em}
@@ -4365,9 +4212,7 @@ body:has(.conc-sheet) .rail{display:flex}
 .app.crew-day .myday-chip.warn{color:var(--red-onLight)}
 
 /* NEW CALENDAR VIEWS — Board (flow kanban) · Cards (up next) · Rails (by work stream) */
-.cal-views{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-wrap:nowrap}
-.cal-views::-webkit-scrollbar{display:none}
-.cal-view{flex:0 0 auto}
+.cal-views{flex-wrap:nowrap}
 .cal-board{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x proximity;padding:12px 2px 6px;-webkit-overflow-scrolling:touch}
 .bd-col{flex:0 0 200px;scroll-snap-align:start;background:var(--card);border:1px solid var(--line);border-radius:var(--r-2xl);padding:10px;min-height:130px}
 .bd-col.over{outline:1.5px solid var(--gold2)}
@@ -4597,10 +4442,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .app.crew-day .sc-in{background:rgba(0,0,0,.04);color:var(--cream)}
 .sc-in:focus{border-color:var(--gold2,#B8902F)}
 .sc-actions{display:flex;gap:8px;margin-top:8px}
-.sc-save,.sc-reset{font-size:12px;font-weight:600;border-radius:9px;padding:7px 13px;cursor:pointer;font-family:'Inter',sans-serif;border:1px solid var(--hair,color-mix(in srgb, var(--brand-cream) 16%, transparent));background:transparent;color:var(--cream,var(--brand-cream))}
-.app.crew-day .sc-save,.app.crew-day .sc-reset{color:var(--cream)}
-.sc-save{background:var(--gold2,#B8902F);border-color:var(--gold2,#B8902F);color:#0e0d0b}
-.sc-save:disabled,.sc-reset:disabled{opacity:.4;cursor:default}
 
 /* ─────────── loyalty stamp card (home) ─────────── */
 /* shared GT3 card frame — gold ground + machined hairline + glow (matches .memberpass / the status card) */
@@ -4611,9 +4452,8 @@ body:has(.conc-sheet) .rail{display:flex}
 .stamp-brand .g3{font-size:16px}
 .stamp-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}
 .stamp-k{font-family:'Inter';font-weight:700;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-m)}
-.stamp-badge{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#0e0d0b;background:var(--gold2);border-radius:var(--r-pill);padding:4px 9px 3px}
 .stamp-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:6px;margin-bottom:10px}
-.stamp-dot{aspect-ratio:1;border-radius:var(--r-pill);border:1.5px dashed var(--line2);display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent}
+.stamp-dot{aspect-ratio:1;border-radius:50%;border:1.5px dashed var(--line2);display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent}
 .stamp-dot.on{border-style:solid;border-color:var(--red);background:color-mix(in srgb, var(--brand-red) 14%, transparent);color:var(--red)}
 .stamp-dot.gift{border-color:var(--gold2);color:var(--gold2)}
 .stamp-dot.gift.on{background:rgba(184,144,47,.16)}
@@ -4635,8 +4475,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .rvp-star.on,.rva-star.on{color:var(--gold2)}
 .rvp-in{width:100%;background:rgba(255,255,255,.04);border:1px solid var(--line2);border-radius:11px;color:var(--cream);font-family:'Inter';font-size:13px;padding:10px;resize:none;margin-bottom:8px}
 .app.crew-day .rvp-in,.app.crew-day .rva-in{background-color:var(--card)}
-.rvp-send{background:var(--red);border:none;border-radius:11px;color:#fff;font-family:'Inter';font-weight:700;font-size:13px;padding:10px 18px;cursor:pointer}
-.rvp-send:disabled{opacity:.5}
 
 /* ─────────── review desk (admin) ─────────── */
 .rva-add{background:rgba(255,255,255,.03);border:1px solid var(--line2);border-radius:var(--r-xl);padding:12px;margin-bottom:12px}
@@ -4649,7 +4487,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .rva-prev.bad{color:var(--warn)}
 .rva-row{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;padding:11px 0;border-top:1px solid var(--line)}
 .rva-row-meta{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--gold2);margin-bottom:4px}
-.rva-src-tag{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-d);border:1px solid var(--line2);border-radius:var(--r-pill);padding:2px 6px}
 .rva-warn{font-family:'DM Mono',monospace;font-size:11px;text-transform:uppercase;color:var(--warn)}
 .rva-row-q{font-family:'Inter';font-size:13px;color:var(--cream);line-height:1.4}
 .rva-row-who{font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:3px}
@@ -4747,7 +4584,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .stamp.near .stamp-foot{color:var(--gold2);font-weight:600}
 .stamp.won{border-color:var(--red)}
 .stamp.won::after{background:radial-gradient(120% 80% at 100% 0%,color-mix(in srgb, var(--brand-red) 16%, transparent),transparent 60%)}
-.stamp.won .stamp-badge{background:var(--red);color:#fff}
 .stamp.won .stamp-foot{color:var(--red);font-weight:700}
 
 /* ─────────── GT3 membership card (scannable) ─────────── */
@@ -4755,7 +4591,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .memberpass::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 80% at 100% 0%,color-mix(in srgb, var(--brand-gold2) 14%, transparent),transparent 60%);pointer-events:none}
 .mp-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .mp-mark .g3{font-size:28px}
-.mp-tier{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold-light,#C8A661);border:1px solid color-mix(in srgb, var(--brand-gold2) 40%, transparent);border-radius:var(--r-pill);padding:4px 10px 3px}
 .mp-name{font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;font-size:28px;line-height:1;margin-bottom:14px}
 .mp-row{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}
 .mp-meta-k{font-family:'Inter';font-weight:700;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-d)}
@@ -4780,7 +4615,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .scan-dot.on{border-style:solid;border-color:var(--red);background:color-mix(in srgb, var(--brand-red) 30%, transparent)}
 .scan-dot.gift{border-color:var(--gold-light,#C8A661)}
 .scan-foot{font-family:'Inter';font-size:13px;color:var(--cream-m);margin-bottom:14px}
-.scan-add{width:100%;background:var(--red);color:#fff;border:none;border-radius:var(--r-xl);font-family:'Inter';font-weight:700;font-size:15px;padding:14px;cursor:pointer}
 .scan-added{font-family:'Inter';font-size:13px;color:var(--ok);font-weight:600;margin-top:10px;text-align:center}
 .mp-wallets{display:flex;flex-direction:column;gap:8px;margin-top:13px}
 .mp-wallets .mp-wallet{margin-top:0}
@@ -4822,7 +4656,6 @@ body:has(.conc-sheet) .rail{display:flex}
 /* investor-brief group — leadership only, gold-flagged */
 .chub-grp-lead{border-color:color-mix(in srgb, var(--brand-gold2) 50%, transparent);background:linear-gradient(180deg,color-mix(in srgb, var(--brand-gold2) 8%, transparent),transparent)}
 .chub-grp-lead .chub-q{color:#C8A661}
-.chub-lead-tag{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#0e0d0b;background:#C8A661;border-radius:var(--r-pill);padding:2px 6px 1px;margin-left:8px;vertical-align:middle}
 
 /* truck display — Connect scene (scan to order + follow) */
 .tvl-connect{display:flex;align-items:center;justify-content:center;gap:6vmin;width:100%;max-width:1100px}
@@ -4843,7 +4676,7 @@ body:has(.conc-sheet) .rail{display:flex}
 /* chub-link works as <button> too (internal in-app nav) */
 button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}
 /* back on the bare partner-share page */
-.built-back{position:fixed;top:calc(env(safe-area-inset-top) + 12px);left:12px;z-index:40;display:inline-flex;align-items:center;background:rgba(20,18,14,.82);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:var(--cream,var(--brand-cream));border:1px solid var(--line2,color-mix(in srgb, var(--brand-cream) 20%, transparent));border-radius:var(--r-pill);padding:8px 14px;font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.k-icon-btn.built-back{position:fixed;top:calc(env(safe-area-inset-top) + 12px);left:12px;z-index:40}  /* the kit's glass icon button, placed */
 
 /* ─────────── command palette (⌘K quick-jump, crew) ─────────── */
 .cmdk-scrim{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:flex-start;justify-content:center;padding-top:14vh}
@@ -4923,15 +4756,11 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .app.crew-day .svc-full{background:#f3efe6}
 .svc-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;background:inherit;padding:calc(6px + env(safe-area-inset-top)) 0 10px;border-bottom:1px solid var(--line)}
 .svc-bar b{font-family:'Inter';font-weight:800;letter-spacing:2px;text-transform:uppercase;font-size:12px;color:var(--gold)}
-.svc-exit{background:transparent;border:1px solid var(--line2);border-radius:var(--r-pill);color:var(--cream);font-family:'Inter';font-weight:700;font-size:13px;padding:8px 14px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .app.crew-day .svc-bar b{color:#7a5a1e}
-.app.crew-day .svc-exit{color:#1a1610;border-color:rgba(26,22,16,.25)}
 /* Ordering dial — when cup pre-orders open (Live truck panel) */
 .adm-lead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 4px}
 .adm-lead-k{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-m)}
-.adm-lead-opts{display:inline-flex;gap:6px;flex-wrap:wrap}
-.adm-lead-opt{background:transparent;border:1px solid var(--line2);border-radius:var(--r-pill);color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:12px;padding:6px 11px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.adm-lead-opt.on{background:color-mix(in srgb, var(--brand-gold2) 16%, transparent);border-color:var(--gold);color:var(--cream)}
+.adm-lead-opts{display:inline-flex;gap:8px;flex-wrap:wrap}
 
 /* ─────────── membership screen, quieted (owner feedback: one hero, one stat line) ─────────── */
 .memline{display:flex;align-items:baseline;justify-content:center;gap:8px;font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;color:var(--cream-m);margin:10px 2px 18px}
@@ -4989,8 +4818,6 @@ button.mkpi-tile:active{transform:scale(.98)}
 .fn-block{background:var(--card);border:1px solid var(--line);border-radius:var(--r-2xl);padding:13px 14px}
 .fn-block-h{display:flex;align-items:center;gap:8px;margin-bottom:11px}
 .fn-block-h b{font-family:'Inter';font-weight:700;font-size:15px;color:var(--cream)}
-.fn-conv{margin-left:auto;font-family:'Inter';font-weight:800;font-size:11px;color:#1a1610;background:var(--gold);border-radius:var(--r-pill);padding:3px 9px}
-.fn-alt{font-family:'Inter';font-weight:700;font-size:11px;color:var(--cream-m);background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:var(--r-pill);padding:3px 9px}
 .fn-steps{display:flex;flex-direction:column;gap:9px}
 .fn-step-l{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}
 .fn-step-l span{font-family:'Inter';font-size:13px;color:var(--cream-m)}
@@ -5030,17 +4857,13 @@ button.mkpi-tile:active{transform:scale(.98)}
 .chg-k-l{display:block;font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--cream-m);margin-top:5px}
 .chg-form{background:var(--card);border:1px solid var(--line2);border-radius:var(--r-2xl);padding:12px 14px}
 .chg-hl{display:flex;align-items:center;gap:8px;margin-top:10px;font-family:'Inter';font-size:13px;color:var(--cream-m)}
-.chg-filters{display:flex;flex-wrap:wrap;gap:6px}
-.chg-chip{font-family:'Inter';font-weight:650;font-size:12px;padding:5px 11px;border-radius:var(--r-pill);border:1px solid var(--line2);background:var(--card);color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none}
-.chg-chip.on{background:var(--gold);border-color:var(--gold);color:#1a1610}
+.chg-filters{display:flex;flex-wrap:wrap;gap:8px}
 .chg-month{display:flex;flex-direction:column;gap:8px}
 .chg-month-h{width:100%;display:flex;align-items:center;gap:9px;margin:12px 0 2px;padding:6px 2px;background:none;border:none;cursor:pointer;-webkit-appearance:none;appearance:none;text-align:left}
 .chg-month-t{font-family:'Inter';font-weight:800;font-size:12px;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);flex:0 0 auto}
 .chg-month-roll{font-family:'Inter';font-weight:600;font-size:11px;color:var(--cream-m);flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.chg-month-n{font-family:'Inter';font-weight:800;font-size:11px;color:var(--cream);background:rgba(255,255,255,.06);border-radius:var(--r-pill);padding:2px 8px;flex:0 0 auto}
 .chg-chev{flex:0 0 auto;color:var(--cream-m);font-size:15px;transition:transform .15s ease;transform:rotate(0deg)}
 .chg-chev.open{transform:rotate(90deg)}
-.app.crew-day .chg-month-n{background:rgba(26,22,16,.07)}
 .chg-row{display:flex;gap:11px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:var(--r-xl);padding:11px 13px}
 .chg-row.hl{border-color:color-mix(in srgb, var(--brand-gold2) 40%, transparent)}
 .chg-cat{flex:0 0 auto;font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#15140f;border-radius:var(--r-sm);padding:3px 7px;margin-top:2px;white-space:nowrap}
@@ -5051,14 +4874,12 @@ button.mkpi-tile:active{transform:scale(.98)}
 .chg-meta{display:flex;gap:8px;align-items:center;margin-top:2px}
 .chg-area{font-family:'DM Mono','Inter';font-size:11px;letter-spacing:.03em;text-transform:uppercase;color:var(--cream-m);background:rgba(255,255,255,.05);border-radius:5px;padding:2px 6px}
 .chg-date{font-family:'Inter';font-size:11px;color:var(--cream-d)}
-.app.crew-day .chg-kpi,.app.crew-day .chg-form,.app.crew-day .chg-row,.app.crew-day .chg-chip{background:var(--card);border-color:var(--ink2-onLight-10)}
+.app.crew-day .chg-kpi,.app.crew-day .chg-form,.app.crew-day .chg-row{background:var(--card);border-color:var(--ink2-onLight-10)}
 .app.crew-day .chg-area{background:var(--ink2-onLight-06)}
 
 /* ── Command Board · the shared war room (the digital MagBoard) ── */
 .cmd{display:flex;flex-direction:column}
 .cmd-init{background:var(--card);border:1px solid var(--line2);border-radius:var(--r-2xl);padding:13px 14px;margin-bottom:10px}
-.cmd-cd{flex:0 0 auto;font-family:'Inter';font-weight:700;font-size:11px;color:#1a1610;background:var(--gold);border-radius:var(--r-pill);padding:3px 10px;white-space:nowrap}
-.cmd-cd.late{background:#c4453c;color:#fff}
 .cmd-prog{display:flex;align-items:center;gap:9px;margin:10px 0 11px}
 .cmd-prog-bar{flex:1 1 auto;height:8px;background:rgba(255,255,255,.06);border-radius:var(--r-pill);overflow:hidden}
 .cmd-prog-bar>span{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:var(--r-pill);transition:width .3s ease}
@@ -5076,8 +4897,6 @@ button.mkpi-tile:active{transform:scale(.98)}
 .cmd-ws{flex:0 0 auto;font-family:'DM Mono','Inter';font-size:11px;letter-spacing:.03em;text-transform:uppercase;color:var(--cream-m);background:rgba(255,255,255,.05);border-radius:5px;padding:2px 6px}
 .cmd-mile-due{flex:0 0 auto;font-family:'Inter';font-size:11px;color:var(--cream-d)}
 .cmd-mile-due.late{color:#c98b7a;font-weight:700}
-.cmd-add{align-self:flex-start;margin-top:9px;font-family:'Inter';font-weight:650;font-size:12px;padding:5px 11px;border-radius:9px;border:1px dashed var(--line2);background:none;color:var(--cream-m);cursor:pointer}
-.cmd-add.big{margin-top:2px;margin-bottom:6px;font-size:13px;padding:8px 14px;color:var(--cream)}
 .cmd-row-due{flex:0 0 auto;font-family:'Inter';font-size:11px;color:var(--cream-d)}
 .cmd-row-due.late{color:#c98b7a;font-weight:700}
 .cmd-more{font-family:'Inter';font-size:12px;color:var(--cream-m);padding:3px 2px}
@@ -5099,19 +4918,13 @@ button.mkpi-tile:active{transform:scale(.98)}
 .vipq-main b{font-family:'Inter';font-weight:700;font-size:15px;color:var(--cream)}
 .vipq-sub{font-family:'Inter';font-size:12px;color:var(--cream-m)}
 .vipq-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:7px}
-.vipq-yes{font-family:'Inter';font-weight:700;font-size:12px;padding:6px 12px;border-radius:9px;border:none;background:var(--gold);color:#1a1610;cursor:pointer}
 /* .vip: the Founding-VIP verify choice (0251) — same shape as .vipq-yes, but an outlined gold chip
    (var(--gold) text on a translucent fill, like .rf-ai) instead of a solid fill. Reads as "the elevated
    option" next to plain Founding without a second competing solid-gold button, and — unlike .vipq-yes's
    hardcoded #1a1610 — every color here is a var, so it doesn't need an entry in the light-theme
    .app.crew-day override list below (that list exists exactly for the hardcoded-text-on-gold case). */
-.vipq-yes.vip{border:1px solid var(--gold);background:rgba(184,144,47,.14);color:var(--gold)}
-.vipq-no{font-family:'Inter';font-weight:600;font-size:12px;padding:6px 12px;border-radius:9px;border:1px solid var(--line2);background:none;color:var(--cream-m);cursor:pointer}
 .vipq-done{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:9px;background:rgba(255,255,255,.03)}
 .vipq-done-t{font-family:'Inter';font-size:13px;color:var(--cream)}
-.vipq-tag{font-family:'Inter';font-weight:700;font-size:11px;padding:2px 8px;border-radius:var(--r-pill)}
-.vipq-tag.st-verified{background:rgba(106,160,92,.18);color:#8fae86}
-.vipq-tag.st-rejected{background:rgba(196,69,60,.16);color:#c98b7a}
 .vipv{border:1px solid var(--gold2);border-radius:var(--r-3xl);padding:14px 15px;margin:10px 0;background:linear-gradient(180deg,color-mix(in srgb, var(--brand-gold2) 6%, transparent),transparent)}
 .vipv.done{border-color:rgba(106,160,92,.5);color:#8fae86;font-family:'Inter';font-weight:700;font-size:15px}
 .vipv.wait{border-color:var(--line2);color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px}
@@ -5128,21 +4941,13 @@ button.mkpi-tile:active{transform:scale(.98)}
 .rdy-check{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line2);border-radius:11px;padding:9px 12px;cursor:pointer;font:inherit}
 .rdy-check:disabled{cursor:default}
 .rdy-label{flex:1 1 auto;min-width:0;font-family:'Inter';font-size:13px;color:var(--cream);display:flex;align-items:center;gap:7px}
-.rdy-opt{font-size:11px;font-weight:600;color:var(--cream-m);border:1px solid var(--line2);border-radius:var(--r-pill);padding:1px 6px}
 .rdy-cat{font-family:'Inter';font-size:11px;color:var(--cream-m);text-transform:uppercase;letter-spacing:.05em}
-.rdy-st{font-family:'Inter';font-weight:700;font-size:11px;padding:3px 9px;border-radius:var(--r-pill);white-space:nowrap}
-.rdy-st.rdy-ok{background:rgba(106,160,92,.16);color:#8fae86}
-.rdy-st.rdy-warn{background:color-mix(in srgb, var(--brand-gold2) 16%, transparent);color:var(--gold)}
-.rdy-st.rdy-bad{background:rgba(196,69,60,.16);color:#d98a7d}
 .app.crew-day .rdy-check{background:var(--card);border-color:var(--ink2-onLight-10)}
 
 /* ── Founder digest settings ── */
 .fdig{display:flex;flex-direction:column;gap:11px}
 .fdig-note{font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream-m);margin:0}
-.fdig-cad{display:flex;gap:7px}
-.fdig-opt{font-family:'Inter';font-weight:600;font-size:13px;padding:7px 14px;border-radius:var(--r-pill);border:1px solid var(--line2);background:none;color:var(--cream-m);cursor:pointer}
-.fdig-opt.on{background:var(--gold);border-color:var(--gold);color:#1a1610}
-.fdig-opt:disabled{opacity:.6}
+.fdig-cad{display:flex;flex-wrap:wrap;gap:8px}
 
 /* ── Spend & budget ── */
 .spb{display:flex;flex-direction:column;gap:12px}
@@ -5171,7 +4976,6 @@ button.mkpi-tile:active{transform:scale(.98)}
 .lp-f > span i{font-style:normal;font-weight:400;opacity:.75}
 .lp-amt{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
 .lp-chips{display:flex;flex-wrap:wrap;gap:8px}
-.lp .ts-chip{min-height:44px;padding:0 14px;font-size:13px}
 .lp-date{max-width:220px}
 .lp-ask{margin:0;font-family:'Inter';font-size:13px;line-height:1.45;color:var(--warn)}
 .lp-note{margin:0;font-family:'Inter';font-size:13px;line-height:1.45;color:var(--cream-m)}
@@ -5213,10 +5017,6 @@ button.mkpi-tile:active{transform:scale(.98)}
 .goal-owner-l{font-family:'Inter';font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--cream-m)}
 .goal-owner-sel{font-family:'Inter';font-size:12px;padding:4px 9px;border-radius:var(--r-md);border:1px solid var(--line2);background-color:var(--card);color:var(--cream)}
 .goal-owner-n{font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream)}
-.goal-tier{font-family:'Inter';font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:var(--r-pill)}
-.goal-tier.tier-strategic{background:rgba(140,120,200,.18);color:#a99bd6}
-.goal-tier.tier-tactical{background:color-mix(in srgb, var(--brand-gold2) 16%, transparent);color:var(--gold)}
-.goal-tier.tier-operational{background:rgba(106,160,92,.16);color:#8fae86}
 
 /* ── Planning board · the plan at altitude (understated-luxury kanban by horizon) ── */
 /* a hairline gold rule crowns each column — brightest at the apex tier, quieting down the horizons */
@@ -5230,11 +5030,7 @@ button.mkpi-tile:active{transform:scale(.98)}
 
 /* ── Prep board · aggregate readiness triage ── */
 .pbd{display:flex;flex-direction:column;gap:10px}
-.pbd-filters{display:flex;gap:7px;flex-wrap:wrap}
-.pbd-filter{display:inline-flex;align-items:center;gap:6px;font-family:'Inter';font-weight:600;font-size:12px;padding:6px 12px;border-radius:var(--r-pill);border:1px solid var(--line2);background:none;color:var(--cream-m);cursor:pointer}
-.pbd-filter.on{background:var(--gold);border-color:var(--gold);color:#1a1610}
-.pbd-filter.crit:not(.on){border-color:rgba(196,69,60,.5);color:#d98a7d}
-.pbd-fn{font-variant-numeric:tabular-nums;font-weight:700;opacity:.85}
+.pbd-filters{display:flex;gap:8px;flex-wrap:wrap}
 .pbd-empty{font-family:'Inter';font-size:13px;color:var(--cream-m);padding:8px 2px}
 /* What the tiles do not count, said once (lib/readiness, 2026-10-03). */
 .pbd-leftopen{margin:0 0 10px;font-family:'Inter';font-size:13px;line-height:1.45;color:var(--cream-m)}
@@ -5287,8 +5083,6 @@ button.mkpi-tile:active{transform:scale(.98)}
 .pay-row{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
 .pay-row-t{font-family:'Inter';font-weight:800;font-size:15px;color:var(--cream)}
 .pay-row-s{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m);margin-top:4px;max-width:34ch}
-.pay-status{flex:0 0 auto;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-d);border:1px solid var(--line2);border-radius:var(--r-pill);padding:4px 9px}
-.pay-status.on{color:var(--ok);border-color:var(--ok)}
 .pay-toggle{flex:0 0 auto;position:relative;width:56px;height:32px;border-radius:var(--r-pill);border:1px solid var(--line2);background:color-mix(in srgb, var(--brand-cream) 8%, transparent);cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .16s}
 .pay-toggle.on{background:var(--ok);border-color:var(--ok)}
 .pay-toggle-knob{position:absolute;top:2px;left:2px;width:26px;height:26px;border-radius:50%;background:#fff;transition:transform .16s}
@@ -5342,7 +5136,6 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .of-seg button.on{background:var(--oa-red-tint);border-color:var(--oa-red);box-shadow:0 0 34px -12px color-mix(in srgb, var(--brand-red) 50%, transparent)}
 .of-seg button.on b{color:var(--cream)}
 .of-seg button.on span{color:var(--gold2)}
-.oa-cta.ghost{background:none;border:1px solid var(--line2);color:var(--cream);margin-top:12px}
 
 /* ─────────── Sunday delivery flow (/delivery) — Voice 2, house dark shell ─────────── */
 .dl-deadline{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.08em;color:var(--cream-m);border:1px solid var(--line);border-radius:var(--r-lg);padding:8px 12px;margin:4px 0 16px}
@@ -5391,16 +5184,13 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 /* ─────────── the playbook (/playbook, owner) ─────────── */
 .pb-loop{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:8px}
 .pb-loop li{display:flex;gap:12px;font-family:'Inter';font-size:13px;line-height:1.55;color:var(--cream-m)}
-.pb-loop-n{flex:0 0 22px;height:22px;border-radius:var(--r-pill);border:1px solid var(--gold2,#B8902F);color:var(--gold2,#C8A661);font-family:'DM Mono',monospace;font-size:11px;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.pb-loop-n{flex:0 0 22px;height:22px;border-radius:50%;border:1px solid var(--gold2);color:var(--gold2);font-family:var(--mono);font-size:11px;display:flex;align-items:center;justify-content:center;margin-top:1px}  /* a step's number on a ring: an ordinal, not a count */
 .pb-block{border:1px solid var(--line);border-radius:var(--r-2xl);padding:14px 16px;margin-bottom:10px}
 .pb-block-h{font-family:'Inter';font-weight:700;font-size:13px;color:var(--gold2,#C8A661);letter-spacing:.02em;margin-bottom:6px}
 .pb-line{font-family:'Inter';font-size:13px;line-height:1.6;color:var(--cream-m);margin:0 0 5px}
 .pb-play{border:1px solid var(--line);border-radius:var(--r-2xl);padding:13px 15px;margin-bottom:10px}
 .pb-play-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:5px}
 .pb-play-top b{font-family:'Inter';font-weight:700;font-size:15px;color:var(--cream)}
-.pb-status{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.14em;border-radius:var(--r-pill);padding:3px 8px;border:1px solid var(--line2);color:var(--cream-m)}
-.pb-status.active{border-color:#7FA86B;color:#7FA86B}
-.pb-status.planning{border-color:var(--gold2,#B8902F);color:var(--gold2,#C8A661)}
 .pb-roi{font-family:'Inter';font-size:12px;color:var(--cream-m);margin:0 0 4px}
 .pb-roi b{font-family:'DM Mono',monospace;font-weight:500;color:var(--gold2,#C8A661)}
 .pb-inapp{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-d);margin:0}
@@ -5428,9 +5218,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .st-builder{border:1px solid var(--gold2,#B8902F);border-radius:var(--r-3xl);padding:16px;display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
 .st-coach{font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;font-size:15px;color:var(--cream);margin:0}
 .st-b{display:flex;flex-direction:column;gap:8px}
-.st-cats{display:flex;flex-wrap:wrap;gap:6px}
-.st-cat{width:auto !important;border:1px solid var(--line2) !important;border-radius:var(--r-pill) !important;padding:7px 12px !important;font-size:12px !important}
-.st-cat.on{border-color:var(--gold2,#C8A661) !important;color:var(--gold2,#C8A661) !important}
+.st-cats{display:flex;flex-wrap:wrap;gap:8px}
 .st-review{border:1px dashed var(--line2);border-radius:var(--r-xl);padding:12px;font-family:'Inter';font-size:13px;color:var(--cream)}
 .st-review p{margin:5px 0 0;color:var(--cream-m)}
 .st-build b{color:var(--gold2,#C8A661)}
@@ -5486,9 +5274,6 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .pipe-kpi{grid-template-columns:repeat(3,1fr)}
 .pipe-kpi>.mkpi-tile:last-child:nth-child(odd){grid-column:auto}
 .pipe-rail{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 10px}
-.pipe-rail-chip{display:inline-flex;align-items:center;gap:6px;font-family:'Inter';font-weight:600;font-size:12px;padding:7px 11px;border-radius:var(--r-pill);border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none}
-.pipe-rail-chip b{font-family:'DM Mono';font-weight:500;font-size:11px;color:var(--gold2)}
-.pipe-rail-chip:disabled{opacity:.38;cursor:default}
 .pipe-src{font-style:normal;font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--gold2);background:rgba(184,144,47,.12);border:1px solid rgba(184,144,47,.3);border-radius:var(--r-md);padding:2px 6px;margin-left:6px}
 .pipe-next.today{color:var(--gold2);font-weight:600}
 /* Request-card decision anatomy: labeled control groups + quiet delete */
@@ -5635,9 +5420,6 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .goal-edit-h{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2)}
 .goal-archive{color:var(--red-h);margin-left:auto}
 .goal-settled{margin-top:14px;border-top:1px dashed var(--line);padding-top:10px}
-.goal-chip{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
-.goal-chip.hit{color:var(--ok)}
-.goal-chip.missed{color:var(--red-h)}
 
 /* service pulse — counts on the door */
 .svc-enter.hot{border-color:var(--red);background:linear-gradient(135deg,color-mix(in srgb, var(--brand-red) 14%, transparent),color-mix(in srgb, var(--brand-red) 4%, transparent))}
@@ -5655,8 +5437,7 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .dl-h-xl{font-size:34px;line-height:1.08;margin-bottom:10px}
 .dl-h-xl em{font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;color:var(--red-h)}
 .dl-zlead{font-weight:600;color:var(--cream)}
-.dl-ziprow-xl .auth-input{font-family:'DM Mono',monospace;font-size:20px;letter-spacing:.18em;text-align:center;padding:15px 10px;min-width:0;width:100%}
-.dl-ziprow .handle{width:auto;flex:0 0 auto;padding:0 26px;min-height:44px;align-self:stretch}  /* as tall as the ZIP field beside it, and never under 44 (2026-10-08) */
+.dl-ziprow-xl .auth-input{font-family:'DM Mono',monospace;font-size:20px;letter-spacing:.18em;text-align:center;padding:15px 10px;min-width:0;width:100%}  /* as tall as the ZIP field beside it, and never under 44 (2026-10-08) */
 
 /* pickup-day / which-Sunday pills (shared) */
 .dl-days{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
@@ -5799,13 +5580,11 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .capprove-t{font-family:'Inter';font-weight:800;font-size:17px;color:var(--cream);line-height:1.2}
 .capprove-tags{font-family:'Inter';font-size:12px;color:var(--gold2);word-break:break-word}
 .capprove-acts{display:flex;gap:10px;align-items:center;margin-top:2px}
-.capprove-acts .oa-cta{flex:1;margin-top:0}
 /* App splash — what's live now */
 .promo-now{font-family:'Inter';font-size:13px;color:var(--cream-m);border:1px solid var(--line);border-radius:var(--r-lg);padding:9px 12px;margin-bottom:12px}
 .promo-now b{color:var(--cream)}
 
 /* studio: campaign/theme tag on a content card (kept light — one chip, not a taxonomy) */
-.studio-card-camp{display:inline-block;margin-top:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold2);border:1px solid var(--line2);border-radius:var(--r-pill);padding:2px 9px}
 
 /* Pipeline: linked notes fold on an expanded opportunity */
 .pipe-notes{display:flex;flex-direction:column;gap:5px;margin-top:9px;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:rgba(0,0,0,.14)}
@@ -5814,11 +5593,7 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .pipe-note{font-family:'Inter';font-size:13px;color:var(--cream)}
 /* Calendar: read-only stop card (identity edits live in the prep hub) */
 /* Quick note: who-sees-it chips (private is the default for a jot) */
-.qd-note-vis{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
-.qd-vis-chip{font-family:'Inter';font-weight:600;font-size:12px;padding:7px 11px;border-radius:var(--r-pill);border:1px solid var(--line2);background:rgba(0,0,0,.22);color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none}
-.qd-vis-chip.on{border-color:var(--gold2);color:var(--gold2);background:rgba(184,144,47,.1)}
-.app.crew-day .qd-vis-chip{background:var(--card)}
-.app.crew-day .qd-vis-chip.on{background:rgba(184,144,47,.1)}
+.qd-note-vis{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
 .pipe-lines-div{width:1px;align-self:stretch;background:var(--line2);margin:0 3px;flex:0 0 auto}
 /* Visibility selects look like controls (the stripped native chevron read as static text) */
 select.note-vis{background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23B8902F' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:30px}
@@ -5839,8 +5614,7 @@ select.note-vis{background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xm
 .mypack-dayh span{font-family:var(--mono);font-size:11px;letter-spacing:.3px;text-transform:uppercase;color:var(--cream-m)}
 .mypack-move{display:flex;flex-direction:column;gap:8px;margin-top:9px;padding:11px 13px;border:1px dashed var(--line2);border-radius:11px}
 .mypack-move>span{font-family:'Inter';font-size:13px;color:var(--cream-m)}
-.mypack-move-days{display:flex;gap:7px;flex-wrap:wrap}
-.mypack-move-days button{font-family:'Inter';font-weight:650;font-size:13px;padding:9px 13px;border-radius:var(--r-pill);border:1px solid var(--gold2);background:transparent;color:var(--gold2);cursor:pointer;-webkit-appearance:none;appearance:none}
+.mypack-move-days{display:flex;gap:8px;flex-wrap:wrap}
 
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -5872,7 +5646,7 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 
 /* Numbers that line up: money and telemetry set in Inter get tabular figures. (DM Mono is
    inherently tabular — this covers the proportional-face numbers.) */
-.oa-p,.dl-quote-t,.dl-done-total,.mypack-flag,.subnav-badge,.pipe-head,.gauge .gv,.mypack-dayh span,.cogs-row,.cogs-head{font-variant-numeric:tabular-nums}
+.oa-p,.dl-quote-t,.dl-done-total,.pipe-head,.gauge .gv,.mypack-dayh span,.cogs-row,.cogs-head{font-variant-numeric:tabular-nums}
 
 /* THE living element: when the truck is live, the dot breathes. Slow, quiet, unmistakable. */
 @keyframes breathe{0%,100%{box-shadow:0 0 0 3px rgba(70,193,74,.2)}50%{box-shadow:0 0 0 7px rgba(70,193,74,.07)}}
@@ -5880,12 +5654,6 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 
 /* Primary CTAs: machined edge (hairline top light) + a pointer-only lift. Touch keeps the
    existing press-scale; nothing moves on its own. */
-.oa-cta{box-shadow:inset 0 1px 0 rgba(255,255,255,.12),var(--shadow-1);transition:transform .18s var(--ease),box-shadow .18s var(--ease),filter .18s var(--ease)}
-@media (hover:hover){
-  .oa-cta:hover:not(:disabled){transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),var(--shadow-2)}
-  .oa-cta:active:not(:disabled){transform:translateY(0) scale(.985);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),var(--shadow-1)}
-}
-.app.crew-day .oa-cta,body.light .oa-cta{box-shadow:inset 0 1px 0 rgba(255,255,255,.35),var(--shadow-1)}
 
 /* Cards acknowledge the pointer without dancing: hairline warms, depth steps up half a notch.
    (.mypack keeps its border — the left edge is the payment status stripe — and takes depth only.) */
@@ -5917,7 +5685,7 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 
 /* Money settles, it doesn't snap: when the crew marks a pack paid, the flag lands with weight. */
 @keyframes settle{0%{transform:scale(1.16)}55%{transform:scale(.97)}100%{transform:scale(1)}}
-.mypack-flag.paid{animation:settle .45s var(--ease) both}
+.mypack-paid{animation:settle .45s var(--ease) both}
 
 /* THE signature: a paid confirmation gets the green flag — checkered, swept in under the total.
    Race control says you're in. Renders only when the eyebrow really reads "paid". */
@@ -5992,11 +5760,7 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .note-lux-head .qd-x{margin-left:auto}
 .note-lux-title{font-family:'Inter';font-weight:650;font-size:17px}
 /* visibility chips — the "who sees it" ask, one tap, gold when on */
-.note-vis-chips{display:flex;gap:7px;flex-wrap:wrap;margin:2px 0 4px}
-.note-vischip{font-family:'Inter';font-weight:600;font-size:13px;padding:8px 13px;border-radius:var(--r-pill);border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none;min-height:40px;transition:all .15s var(--ease)}
-.note-vischip.on{border-color:var(--gold2);color:var(--gold2);background:color-mix(in srgb, var(--brand-gold2) 12%, transparent);box-shadow:0 0 16px -4px color-mix(in srgb, var(--brand-gold2) 50%, transparent)}
-.app.crew-day .note-vischip{background:var(--card)}
-.app.crew-day .note-vischip.on{color:var(--gold2);background:rgba(184,144,47,.1)}
+.note-vis-chips{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 4px}
 /* transcript is progressive-disclosure — a jot doesn't see a meeting form */
 .note-transcript{border:1px solid var(--line);border-radius:var(--r-xl);padding:0 12px;margin:2px 0}
 .note-transcript summary{font-family:'Inter';font-size:13px;color:var(--cream-m);cursor:pointer;padding:11px 0;list-style:none}
@@ -6006,7 +5770,6 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .note-transcript .note-area{margin-bottom:10px}
 /* follow-ups, each assignable to a partner */
 .note-fu-h{display:flex;align-items:center;justify-content:space-between;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-m);margin-top:6px}
-.note-fu-add{font-family:'Inter';font-weight:650;font-size:13px;color:var(--gold2);background:color-mix(in srgb, var(--brand-gold2) 10%, transparent);border:1px solid var(--gold2);border-radius:var(--r-pill);padding:6px 12px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .note-fu-empty{font-family:'Inter';font-size:13px;color:var(--cream-d);line-height:1.5;padding:2px 0 4px}
 .note-fu-edit{display:flex;flex-direction:column;gap:7px;padding:10px;border:1px solid var(--line);border-radius:var(--r-xl);margin-top:8px;background:rgba(0,0,0,.12)}
 .app.crew-day .note-fu-edit{background:var(--ink-onLight-03)}
@@ -6023,18 +5786,12 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .crm-badge.founding{background:linear-gradient(135deg,color-mix(in srgb, var(--brand-gold2) 24%, transparent),rgba(184,144,47,.14));color:var(--gold2);border:1px solid var(--gold2);box-shadow:0 0 14px -4px color-mix(in srgb, var(--brand-gold2) 60%, transparent)}
 .crm-tier{display:flex;align-items:center;gap:12px;margin-top:12px}
 .crm-tier-l{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--cream-m);flex:0 0 auto}
-.crm-tier-seg{display:flex;gap:6px;flex-wrap:wrap}
-.crm-tier-b{font-family:'Inter';font-weight:650;font-size:13px;padding:8px 14px;border-radius:var(--r-pill);border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none;min-height:38px}
-.crm-tier-b.on{border-color:var(--gold2);color:var(--gold2);background:color-mix(in srgb, var(--brand-gold2) 10%, transparent)}
-.crm-tier-b.gold.on{background:linear-gradient(135deg,color-mix(in srgb, var(--brand-gold2) 20%, transparent),rgba(184,144,47,.1));box-shadow:0 0 18px -4px color-mix(in srgb, var(--brand-gold2) 60%, transparent)}
+.crm-tier-seg{display:flex;gap:8px;flex-wrap:wrap}
 /* Founding VIP (0252) — same outlined-gold-chip treatment as .vipq-yes.vip (0251) and .status-ig
    (member card's Instagram button): a secondary/adjacent gold action next to the solid-gold
    ".gold.on" primary, not a second competing solid fill. Every color here is a var(), so — same
    reasoning already noted on .vipq-yes.vip — it needs no separate .app.crew-day override; the vars
    themselves already resolve to the light-theme palette in that scope. */
-.crm-tier-b.vip.on{border-color:var(--gold);color:var(--gold);background:rgba(184,144,47,.14)}
-.app.crew-day .crm-tier-b{background:var(--card)}
-.app.crew-day .crm-tier-b.on{color:var(--gold2)}
 .crm-perks{list-style:none;margin:10px 0 0;padding:11px 13px;border:1px solid color-mix(in srgb, var(--brand-gold2) 30%, transparent);border-radius:var(--r-xl);background:color-mix(in srgb, var(--brand-gold2) 6%, transparent)}
 .crm-perks li{font-family:'Inter';font-size:13px;color:var(--gold2);line-height:1.7}
 .app.crew-day .crm-perks li{color:var(--gold2)}
@@ -6108,7 +5865,6 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .codes{margin:18px 0 0;border:1px solid var(--line);border-radius:var(--r-2xl);padding:16px;background:color-mix(in srgb, var(--brand-cream) 2%, transparent)}
 .codes-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .codes-sub{font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream-m);margin-top:3px;max-width:46ch}
-.codes-new{flex:0 0 auto;font-family:'Inter';font-weight:650;font-size:13px;padding:9px 14px;border-radius:var(--r-pill);border:1px solid color-mix(in srgb, var(--brand-gold2) 45%, transparent);background:color-mix(in srgb, var(--brand-gold2) 8%, transparent);color:var(--gold2);cursor:pointer;-webkit-appearance:none;appearance:none}
 .codes-form{margin:14px 0 4px;display:flex;flex-direction:column;gap:12px;padding:14px;border:1px dashed var(--line2);border-radius:var(--r-xl)}
 .codes-row{display:flex;gap:12px;flex-wrap:wrap}
 .codes-f{display:flex;flex-direction:column;gap:5px;flex:1;min-width:140px}
@@ -6116,9 +5872,6 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .codes-warn{font-family:'Inter';font-size:13px;color:var(--warn);margin:0}
 .codes-reach{font-family:'Inter';font-size:13px;line-height:1.45;color:var(--cream-m);margin:0}
 .codes-code{font-family:var(--mono);font-weight:600;font-size:15px;letter-spacing:1px;color:var(--cream)}
-.codes-badge{font-family:'Inter';font-weight:700;font-size:12px;padding:3px 9px;border-radius:var(--r-pill);background:color-mix(in srgb, var(--brand-gold2) 14%, transparent);color:var(--gold2)}
-.codes-toggle{flex:0 0 auto;font-family:'Inter';font-weight:650;font-size:12px;padding:6px 13px;border-radius:var(--r-pill);border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none}
-.codes-toggle.on{border-color:rgba(122,168,107,.5);background:rgba(122,168,107,.12);color:var(--oa-green,#7FA86B)}
 
 /* storefront code box — order funnel pay step */
 .oa-code{margin:14px 0 0}
@@ -6149,19 +5902,12 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .digest-item-t{font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .digest-item-b{font-family:'Inter';font-size:12px;color:var(--cream-m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .digest-item-x{flex:0 0 auto;width:40px;background:transparent;border:none;border-left:1px solid var(--line);color:var(--cream-m);cursor:pointer;font-size:13px;-webkit-appearance:none;appearance:none}
-.digest-clear{align-self:flex-start;margin-top:2px;font-family:'Inter';font-weight:600;font-size:13px;padding:7px 14px;border-radius:var(--r-pill);border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none}
 
 /* ═══ PROPOSAL DESK (Pipeline) — the co-authored reach-out strategy + its lifecycle + the append-only
    trail to the owner's decision (S·1 / 0180, 2026-07). Lives inside an opportunity. ═══ */
 .pd{margin:12px 0 0;padding:14px;border:1px solid var(--line);border-radius:13px;background:color-mix(in srgb, var(--brand-cream) 2%, transparent)}
 .pd-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
 .pd-title{font-family:'Inter';font-weight:700;font-size:13px;color:var(--cream)}
-.pd-status{font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;padding:4px 10px;border-radius:var(--r-pill);border:1px solid var(--line2);color:var(--cream-m)}
-.pd-status.s-in_review{color:var(--gold2);border-color:color-mix(in srgb, var(--brand-gold2) 40%, transparent);background:color-mix(in srgb, var(--brand-gold2) 8%, transparent)}
-.pd-status.s-sent{color:#79a0c8;border-color:rgba(121,160,200,.4);background:rgba(121,160,200,.08)}
-.pd-status.s-negotiating{color:var(--warn);border-color:rgba(207,154,74,.4);background:rgba(207,154,74,.08)}
-.pd-status.s-won{color:var(--oa-green,#7FA86B);border-color:rgba(122,168,107,.45);background:rgba(122,168,107,.1)}
-.pd-status.s-lost{color:#c98;border-color:color-mix(in srgb, var(--brand-red) 40%, transparent);background:color-mix(in srgb, var(--brand-red) 8%, transparent)}
 .pd-steps{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px}
 .pd-step{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:4px 8px;border-radius:var(--r-sm);border:1px solid var(--line);color:var(--cream-m);opacity:.6}
 .pd-step.past{opacity:.9;border-color:rgba(122,168,107,.35);color:var(--oa-green,#7FA86B)}
@@ -6172,19 +5918,14 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .pd-strategy::placeholder{color:var(--cream-m);opacity:.7}
 .pd-meta{display:flex;gap:12px;margin:5px 2px 0;font-family:var(--mono);font-size:11px;letter-spacing:.4px;color:var(--cream-m)}
 .pd-saving{color:var(--gold2)}
-.pd-start,.pd-adv{font-family:'Inter';font-weight:650;font-size:13px;padding:9px 16px;border-radius:var(--r-pill);border:none;background:var(--oa-red);color:#fff;cursor:pointer;-webkit-appearance:none;appearance:none}
 .pd-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
-.pd-back,.pd-reopen{font-family:'Inter';font-weight:600;font-size:13px;padding:8px 14px;border-radius:var(--r-pill);border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none}
 .pd-decide{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-left:auto}
 .pd-decide .auth-input{min-width:150px;flex:1}
-.pd-won{font-family:'Inter';font-weight:700;font-size:13px;padding:8px 14px;border-radius:var(--r-pill);border:1px solid rgba(122,168,107,.5);background:rgba(122,168,107,.14);color:var(--oa-green,#7FA86B);cursor:pointer;-webkit-appearance:none;appearance:none}
-.pd-lost{font-family:'Inter';font-weight:700;font-size:13px;padding:8px 14px;border-radius:var(--r-pill);border:1px solid color-mix(in srgb, var(--brand-red) 45%, transparent);background:color-mix(in srgb, var(--brand-red) 10%, transparent);color:#d98;cursor:pointer;-webkit-appearance:none;appearance:none}
 .pd-hint{width:100%;font-family:'Inter';font-size:13px;color:var(--cream-m);margin:2px 0 0}
 .pd-decided{margin-top:12px;padding:11px 13px;border-radius:11px;font-family:'Inter';font-size:13px;color:var(--cream)}
 .pd-decided.won{border:1px solid rgba(122,168,107,.4);background:rgba(122,168,107,.08)}
 .pd-decided.lost{border:1px solid color-mix(in srgb, var(--brand-red) 35%, transparent);background:color-mix(in srgb, var(--brand-red) 7%, transparent)}
 .pd-decided-note{font-style:italic;color:var(--cream-m);margin:4px 0 0}
-.pd-reopen{margin-top:8px}
 .pd-trail{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
 .pd-trail-h{font-family:var(--mono);font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gold2);background:transparent;border:none;cursor:pointer;padding:0;-webkit-appearance:none;appearance:none}
 .pd-trail-list{list-style:none;margin:10px 0 0;display:flex;flex-direction:column;gap:11px}
@@ -6378,8 +6119,6 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .gtm{margin:0 0 16px;padding:13px 15px;border-radius:15px;background:var(--char2,#1a1710);border:1px solid var(--line2,#332e26)}
 .gtm-eyb{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold2,#c8a661);margin-bottom:9px}
 .gtm-ic{font-size:17px;flex:0 0 auto;line-height:1}
-.gtm-count{flex:0 0 auto;font-family:'DM Mono',ui-monospace,monospace;font-size:12px;font-weight:600;color:var(--cream-m);padding:3px 9px;border-radius:var(--r-pill);border:1px solid var(--line2,#332e26)}
-.gtm-count.near{color:#e79a96;border-color:color-mix(in srgb, var(--brand-red) 45%, transparent)}
 .app.crew-day .gtm{background:var(--card)}
 .app.crew-day .gtm-eyb{color:var(--amber-onLight)}
 /* ============================================================
@@ -6453,18 +6192,7 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .k-tr{flex:none;display:flex;align-items:center;gap:10px}
 .k-caret{color:var(--cream-d);font-size:17px;transition:transform .15s}
 .k-caret.open{transform:rotate(90deg)}
-.k-chip{font-family:'Inter';font-weight:700;font-size:12px;padding:8px 14px;border-radius:11px;border:none;cursor:pointer;line-height:1;display:inline-flex;align-items:center;gap:6px}
-.k-chip.pri{background:var(--red);color:#fff}
-/* Named k-chip-sec, NOT "sec" — that bare class already exists app-wide (~line 119, an unrelated
-   legacy section-label style: uppercase, gold, big margins, display:flex). An element with
-   className="k-chip sec" matched BOTH — .sec's uppercase/margin/flex leaked through on every
-   property .k-chip.sec didn't explicitly set, a real, live bug on 3 shipped chips (crew's "Lead
-   the week" toggle, and the customer "Order again" / "Get directions" chips), each rendering
-   heavier/louder than designed. Fixed 2026-07-16 by giving this tier its own collision-free name. */
-.k-chip-sec{background:transparent;color:var(--cream);border:1px solid var(--line2)}
-.k-chip.on{background:rgba(127,206,130,.14);color:#7fce82;border:1px solid rgba(127,206,130,.35)}
 .k-row.now .k-nm{color:var(--cream)}
-.k-tag-live{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7fce82;border:1px solid rgba(127,206,130,.4);border-radius:var(--r-sm);padding:3px 7px}
 /* facts strip (hero telemetry) */
 .k-facts{display:flex;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:20px}
 .k-facts .f{flex:1;padding:14px 0;min-width:0}
@@ -6520,7 +6248,13 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
    pills outside this kit, which two screens used. scripts/css.audit.mjs (ONE PILL) counts them, and
    the count only falls. One height per size (28 · 36), 44px to the thumb on every one (the ::after
    reaches past the paint); a tonal wash of the surface's own ink, not a hairline, and the chosen one
-   filled; tokens the crew's light look restates; numbers tabular. */
+   filled; tokens the crew's light look restates; numbers tabular.
+   THE CHIP ROUND (2026-10-09, redesign 7's second half): the pill rules left beside it — chips for a
+   choice, tags for a status, pill and round buttons, 112 rules — are this kit's chip, tag, count and
+   icon button now, or the button kit's (03 · Buttons), and the 16 last button recipes with them. Seven
+   pills remain outside it, each a different thing: two fields (the concierge's, the academy's search;
+   the forms round's), the menu's price, an avatar, the offline toast, the calendar's floating walk and
+   the fan card's ribbon (art). */
 /* segmented control (controls.tsx): the chosen one fills itself until its thumb has measured */
 /* .k-seg-scroll scrolls; its padding keeps each option's 44px reach (a scroll clips). .k-seg-wrap takes the margins */
 .k-seg-wrap{display:inline-flex;max-width:100%;vertical-align:middle}
@@ -6549,10 +6283,21 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .k-icon-btn .k-ic,.k-icon-btn>svg{width:18px;height:18px}
 .k-icon-btn:active{transform:scale(.94);background:var(--ink-onLight-16)}
 .k-icon-btn:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
-@media (hover:hover){.k-icon-btn:hover{background:var(--ink2-onLight-10)}}
+@media (hover:hover){.k-icon-btn:not(.on,.pri,.glass,:disabled):hover{background:var(--ink2-onLight-10)}}
 .k-icon-btn.sm{width:28px;height:28px}
 .k-icon-btn.sm::after{inset:-8px}
 .k-icon-btn.sm .k-ic,.k-icon-btn.sm>svg{width:15px;height:15px}
+/* switched on (a mic listening) it fills gold; the one that sends or adds fills the surface's primary — red on a
+   customer's screen, gold in the console, as a button's primary; .glass sits on a photo; .lg is the regular
+   button's height, for the one that floats on a wide screen (the console's quick actions) */
+.k-icon-btn:disabled{opacity:.45;cursor:default}
+.k-icon-btn.on{background:var(--gold2);color:var(--char)}
+.k-icon-btn.pri{background:var(--red);color:#fff}
+[data-surface="console"] .k-icon-btn.pri{background:var(--gold);color:var(--char2)}
+.k-icon-btn.glass{background:color-mix(in srgb, #000 45%, transparent);color:var(--brand-cream);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.k-icon-btn:is(.on,.pri,.glass):active{opacity:.75}
+.k-icon-btn.lg{width:var(--btn-h);height:var(--btn-h)}
+.k-icon-btn.lg .k-ic,.k-icon-btn.lg>svg{width:22px;height:22px}
 /* a count on an icon, ringed in the ground behind it */
 .k-badge{position:absolute;top:-4px;right:-4px;display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:var(--r-pill);background:var(--gold2);color:var(--char);font-family:'Inter';font-weight:700;font-size:11px;line-height:1;font-variant-numeric:tabular-nums;box-shadow:0 0 0 2px var(--bg,var(--char));pointer-events:none}
 .k-badge.crit{background:var(--red);color:#fff}
@@ -6561,6 +6306,62 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .k-count.due{background:color-mix(in srgb, var(--brand-red) 13%, transparent);color:var(--red-onLight)}
 .k-count.soon{background:color-mix(in srgb, var(--brand-gold) 16%, transparent);color:var(--amber-onLight)}
 .k-count.ok{background:color-mix(in srgb, var(--ok) 16%, transparent);color:var(--green-onLight)}
+/* inside a control (a tab's count) it is smaller; .crit is the count that must be loud (bookings waiting = money waiting) */
+.k-count.sm{min-width:18px;height:18px;padding:0 5px;font-size:11px}
+.k-count.crit{background:var(--red);color:#fff}
+/* chip (2026-10-09, the chip round: redesign 7's second half) — a choice: a filter, a view, a toggle, a
+   suggestion; or a small action on a customer's row, as the App Store's GET is. 36pt with subheadline words,
+   .sm 28pt with footnote words where a row is dense; 44 to the thumb either way. At rest a wash of the
+   surface's own ink; chosen, filled gold, the segmented control's gold. A tone (.ok .warn .crit) is for a
+   choice whose colour is its meaning — On track, At risk — and --k-tone takes one from the data (an event's
+   stage, with .hue); .warn and .crit ink the chip at rest too (the filter of what is critical). .pri is a customer
+   row's one filled action. A chip that is not a button (a row's "Open", when the row is the button) draws
+   the same and does not press. */
+.k-chip{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:none;min-width:0;min-height:36px;padding:6px 14px;border:0;border-radius:var(--r-pill);background:color-mix(in srgb, var(--cream) 8%, transparent);color:var(--cream);font-family:'Inter';font-weight:600;font-size:15px;line-height:1.2;letter-spacing:normal;text-transform:none;text-decoration:none;text-align:center;white-space:nowrap;vertical-align:middle;cursor:pointer;-webkit-appearance:none;appearance:none;-webkit-tap-highlight-color:transparent;transition:background-color .15s var(--ease),color .15s var(--ease),transform .12s var(--ease)}
+.k-chip::after{content:"";position:absolute;inset:-4px 0}
+.k-chip .k-ic,.k-chip>svg{width:16px;height:16px}
+.k-chip b{font-weight:700;font-variant-numeric:tabular-nums}
+.k-chip.on{background:var(--k-tone,var(--gold2));color:var(--k-on,var(--char))}
+.k-chip.ok{--k-tone:var(--tone-ok)}
+.k-chip.warn{--k-tone:var(--tone-warn)}
+.k-chip.crit{--k-tone:var(--tone-crit)}
+/* .hue: the colour comes from the data (style --k-tone) and is the same in both looks, so its ink stays dark */
+.k-chip.hue{--k-on:#15120d}
+.k-chip:is(.warn,.crit):not(.on){color:var(--k-tone)}
+.k-chip.pri{background:var(--red);color:#fff}
+:is(button,a).k-chip:active:not(:disabled){transform:scale(.96)}
+.k-chip:not(button,a){cursor:inherit}
+.k-chip:disabled{opacity:.45;cursor:default}
+.k-chip.on:disabled{opacity:1}  /* chosen and fixed (an event's stage while it is live): still legible as the one */
+.k-chip:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
+@media (hover:hover){:is(button,a).k-chip:not(.on,.pri,:disabled):hover{background:color-mix(in srgb, var(--cream) 12%, transparent)}}
+.k-chip.sm{min-height:28px;padding:4px 11px;gap:4px;font-size:13px}
+.k-chip.sm::after{inset:-8px 0}
+.k-chip.sm .k-ic,.k-chip.sm>svg{width:13px;height:13px}
+@media (prefers-reduced-motion:reduce){.k-chip{transition:none}}
+/* a person on a chip (a task's assignee): their initial on a gold disc at the chip's start */
+.k-av{display:inline-flex;align-items:center;justify-content:center;flex:none;width:28px;height:28px;margin-left:-10px;border-radius:50%;background:var(--gold2);color:var(--char);font-family:'Archivo Black';font-size:12px;line-height:1}
+.k-chips{display:flex;flex-wrap:wrap;gap:8px}
+/* tag (2026-10-09, the chip round) — a status or a label, never a control: 22pt with 11pt mono capitals, the
+   house's telemetry voice (.k-lead, .k-meta). Neutral by default. A tone washes it in its colour and inks it in
+   that colour's ink for the surface (--tone-*, which the crew's light look and paper restate); .fill is the one
+   a screen must not miss — Today, Founding member, a date gone late. .txt carries the data's own words as they
+   were written — a goal's name, a note's title, a file — in Inter. .glass sits on a photo. */
+.k-tag{display:inline-flex;align-items:center;gap:4px;flex:none;max-width:100%;height:22px;padding:0 8px;border:0;border-radius:var(--r-pill);background:var(--k-wash,color-mix(in srgb, var(--cream) 8%, transparent));color:var(--k-ink,var(--cream-m));font-family:var(--mono);font-style:normal;font-weight:500;font-size:11px;line-height:1;letter-spacing:var(--track-eyebrow);text-transform:uppercase;white-space:nowrap;vertical-align:middle;font-variant-numeric:tabular-nums}
+.k-tag .k-ic,.k-tag>svg{width:11px;height:11px;flex:none}
+.k-tag.ok{--k-ink:var(--tone-ok);--k-wash:color-mix(in srgb, var(--tone-ok) 16%, transparent)}
+.k-tag.gold{--k-ink:var(--tone-gold);--k-wash:color-mix(in srgb, var(--tone-gold) 14%, transparent)}
+.k-tag.warn{--k-ink:var(--tone-warn);--k-wash:color-mix(in srgb, var(--tone-warn) 16%, transparent)}
+.k-tag.crit{--k-ink:var(--tone-crit);--k-wash:color-mix(in srgb, var(--tone-crit) 14%, transparent)}
+.k-tag.blue{--k-ink:var(--tone-blue);--k-wash:color-mix(in srgb, var(--tone-blue) 14%, transparent)}
+.k-tag.fill{--k-wash:var(--k-ink,var(--cream-m));color:var(--char)}
+.k-tag.txt{font-family:'Inter';font-weight:600;font-size:12px;letter-spacing:0;text-transform:none}
+.k-tag.glass{--k-wash:color-mix(in srgb, #000 55%, transparent);--k-ink:var(--brand-cream);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+/* a tag that comes off (a file on a note, a goal an initiative serves) ends in its ×, 44 to the thumb */
+.k-tag-x{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:none;width:16px;height:16px;margin-right:-4px;padding:0;border:0;border-radius:50%;background:none;color:inherit;opacity:.7;cursor:pointer;-webkit-appearance:none;appearance:none}
+.k-tag-x::after{content:"";position:absolute;inset:-14px}
+.k-tag-x .k-ic,.k-tag-x>svg{width:11px;height:11px}
+@media (hover:hover){.k-tag-x:hover{opacity:1}}
 /* 09 · Card primitives (Wave 2) — one base + a stripe accent (--k-stripe) + two semantic families.
    The audit found ~238 bespoke box classes; ~90% collapse to these four shapes with different
    numbers plugged in. Not a retrofit-everything mandate — new work should reach for these first. */
@@ -6590,11 +6391,7 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
    of silently disagreeing about whether the stop is current (crew-console audit finding). */
 .pbd-group-past{flex:0 0 auto;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-d)}
 /* 2026-10-04: the group's event or stop opens its record; a past one says Wrap up. */
-.pbd-group-open{flex:0 0 auto;min-height:32px;background:none;border:1px solid var(--line2);border-radius:var(--r-pill);padding:4px 11px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:11px;color:var(--gold2);-webkit-appearance:none;appearance:none}
-.pbd-group-all{flex:0 0 auto;background:none;border:1px solid var(--line2);border-radius:var(--r-pill);padding:4px 11px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:11px;color:var(--cream-m)}
-.pbd-group-all.armed{border-color:var(--red-h);color:var(--red-h);background:color-mix(in srgb, var(--brand-red) 6%, transparent)}
 /* Command board — the deliberate "finish the whole initiative" action (admin, scope-explicit confirm). */
-.cmd-finish{display:inline-block;margin-top:10px;background:none;border:1px solid var(--line2);border-radius:var(--r-pill);padding:6px 14px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:12px;color:var(--cream-m)}
 .wl.k-rows .wl-bar{width:70px}
 /* ── 0262 note continuation — additions, kept files, note thread (2026-08-02, Ryan: "can I add to
    a note … and not override the current note?"). Additions render as attributed blocks UNDER the
@@ -6610,18 +6407,12 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .note-file-open{flex:1;min-width:0;display:flex;align-items:center;gap:7px;background:rgba(0,0,0,.22);border:1px solid var(--line2);border-radius:var(--r-lg);padding:8px 11px;cursor:pointer;text-align:left;font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream);-webkit-appearance:none;appearance:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .note-file-open i{font-style:normal;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;color:var(--cream-m);margin-left:auto;padding-left:8px}
 .note-pfiles{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 10px}
-.note-pfile{display:inline-flex;align-items:center;gap:5px;background:color-mix(in srgb, var(--brand-gold2) 8%, transparent);border:1px solid var(--line2);border-radius:var(--r-pill);padding:4px 6px 4px 10px;font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream);max-width:230px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.note-pfile button{background:none;border:none;padding:1px;color:var(--cream-m);cursor:pointer;line-height:0;-webkit-appearance:none;appearance:none}
-.note-pfile button svg{width:11px;height:11px}
 .note-pfiles-hint{font-family:'Inter';font-size:11px;color:var(--cream-m);font-style:italic}
 .note-addbox{margin-top:12px;padding:12px;border:1px solid var(--line2);border-radius:var(--r-xl);background:rgba(0,0,0,.18)}
 .note-addbox .note-area{margin-bottom:10px}
 .note-addbox-r{display:flex;justify-content:flex-end;gap:8px;margin-top:2px}
 .note-cont-row{display:flex;align-items:center;gap:18px;margin-top:10px}
 .note-cont-row .note-renamelink{padding:2px 0}
-.note-discuss{display:inline-flex;align-items:center;gap:7px;margin-top:12px;background:none;border:1px solid var(--line2);border-radius:var(--r-pill);padding:6px 13px;cursor:pointer;font-family:'Inter';font-weight:650;font-size:12px;color:var(--cream-m);-webkit-appearance:none;appearance:none}
-.note-discuss svg{width:13px;height:13px}
-.note-discuss .cmt-count{margin-left:2px}
 /* ── 0263 exec operating rhythm (2026-08-02, "Build all recommended improvements") — the review
    step installed as a surface: rituals atop Plan, check-ins on goals, the ledger with
    follow-through, program→goal links on Command, one Discussions rail. */
@@ -6643,9 +6434,6 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .rhythm-last svg{width:11px;height:11px}
 /* THE RHYTHM CARD'S ACTION — a gold pill, filled: an action is a button, not another outlined box inside the box.
    Day-theme white label comes from the solid-gold-pill list near line 2940. */
-.rhythm-go{display:inline-flex;align-items:center;justify-content:center;gap:7px;margin-top:auto;background:var(--gold);border:1px solid var(--gold);border-radius:var(--r-pill);padding:9px 14px;min-height:40px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:13px;color:#1a1610;-webkit-appearance:none;appearance:none}
-.rhythm-go:disabled{opacity:.55;cursor:default}
-.rhythm-go svg{width:13px;height:13px}
 .rhythm-ledger{margin-top:14px}
 .rhythm-ledger>summary{font-family:'Inter';font-weight:650;font-size:13px;color:var(--gold2);cursor:pointer;list-style:none}
 .rhythm-ledger>summary::-webkit-details-marker{display:none}
@@ -6654,38 +6442,25 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .disc-rail{display:flex;flex-direction:column;gap:8px}
 .disc-row{display:block;width:100%;text-align:left;background:rgba(0,0,0,.18);border:1px solid var(--line2);border-radius:var(--r-xl);padding:10px 12px;cursor:pointer;-webkit-appearance:none;appearance:none;color:var(--cream)}
 .disc-top{display:flex;align-items:center;gap:8px;min-width:0}
-.disc-kind{font-style:normal;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2);border:1px solid var(--line2);border-radius:var(--r-pill);padding:2px 7px;flex:0 0 auto}
-.disc-kind.strategy{color:var(--cream-m)}
 .disc-title{flex:1;min-width:0;font-family:'Inter';font-weight:650;font-size:13px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .disc-n{display:inline-flex;align-items:center;gap:3px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;color:var(--cream-m)}
 .disc-n svg{width:11px;height:11px}
 .disc-latest{margin-top:4px;font-family:'Inter';font-size:12px;line-height:1.45;color:var(--cream-m);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .disc-latest b{color:var(--cream);font-weight:650}
-.goal-checkin{display:flex;align-items:center;gap:7px;margin-top:9px;flex-wrap:wrap}
+.goal-checkin{display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap}
 .goal-checkin-k{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--cream-m)}
-.goal-chip{background:none;border:1px solid var(--line2);border-radius:var(--r-pill);padding:4px 11px;cursor:pointer;font-family:'Inter';font-weight:650;font-size:11px;color:var(--cream-m);-webkit-appearance:none;appearance:none}
-.goal-chip.ok.on{border-color:var(--good, #4a8);color:var(--good, #4a8);background:rgba(68,170,136,.08)}
-.goal-chip.risk.on{border-color:var(--warn);color:var(--warn);background:rgba(200,120,40,.08)}
 .goal-quiet{font-family:'Inter';font-size:11px;color:var(--cream-m)}
 .goal-card.atrisk{border-color:var(--warn)}
 .cmd-serves{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:2px 0 10px}
 .cmd-serves-k{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--cream-m)}
 .cmd-serves-none{font-family:'Inter';font-size:11px;font-style:italic;color:var(--cream-m)}
-.cmd-goalchip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line2);border-radius:var(--r-pill);padding:3px 9px;font-family:'Inter';font-weight:600;font-size:11px;color:var(--cream)}
-.cmd-goalchip.risk{border-color:var(--warn);color:var(--warn)}
-.cmd-goalchip button{background:none;border:none;padding:0 0 0 2px;color:var(--cream-m);cursor:pointer;font-size:13px;line-height:1;-webkit-appearance:none;appearance:none}
-.cmd-goalsel{background-color:var(--ink-onLight-03);border:1px solid var(--line2);border-radius:var(--r-pill);padding:3px 9px;font-family:'Inter';font-weight:650;font-size:11px;color:var(--gold2);max-width:120px}
 .cmd-risklab{color:var(--warn);font-weight:700}
 .note-decbox{margin-top:12px;padding:12px;border:1px solid var(--line2);border-radius:var(--r-xl);background:rgba(0,0,0,.18);display:flex;flex-direction:column;gap:8px}
 .note-decbox-h{font-family:'Inter';font-weight:650;font-size:12px;color:var(--gold2)}
 .note-src.rite{background:color-mix(in srgb, var(--brand-gold2) 12%, transparent);color:var(--gold2)}
 .st-log-next{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.st-log-srcnote,.st-log-fu{font-family:'Inter';font-weight:600;font-size:11px;border:1px solid var(--line2);border-radius:var(--r-pill);padding:2px 8px;color:var(--cream-m)}
-.st-log-fu.done{border-color:var(--good, #4a8);color:var(--good, #4a8)}
 /* ── 0264–0266 GT3 Command (2026-08-03) — the portfolio registry, Monday audit sheet, the twelve
    KPIs, pipeline priority badges. The registry leads Command: health dot = the audit total. */
-.osr-mean{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;padding:3px 10px;border-radius:var(--r-pill);border:1px solid var(--line2)}
-.osr-mean.ok{color:var(--good,#4a8)}.osr-mean.warn{color:var(--warn)}
 /* Rows on the page, not cards: no fill only the night theme can carry (2026-10-07). */
 .osr-rows{display:flex;flex-direction:column;margin-top:6px}
 .osr-row{display:flex;align-items:flex-start;gap:12px;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:13px 4px;cursor:pointer;color:var(--cream);-webkit-appearance:none;appearance:none}
@@ -6926,7 +6701,6 @@ div.owed-row-go{cursor:default}
 .dayhead-op-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .dayhead-op .myday-brief{margin:8px 0 0}
 .kpib-live{font-style:normal;margin-left:6px;color:#5b9a6b;letter-spacing:.6px}
-.brew-taste{margin-left:10px;background:none;border:1px solid var(--line2);border-radius:var(--r-pill);padding:3px 10px;cursor:pointer;font-family:'Inter';font-weight:650;font-size:11px;color:var(--cream);-webkit-appearance:none;appearance:none}
 .mkpi-stage{font-family:'Fraunces',serif;font-style:italic;font-size:13px;color:var(--cream-m);margin:0 0 10px}
 
 /* ── activation economics (0268) — uplift rail · activity desk · loop log · coupon landing ── */
@@ -6951,7 +6725,6 @@ div.owed-row-go{cursor:default}
 .dops-loop select{width:auto;max-width:200px;padding-right:30px}
 .dops-loop-m{font-style:italic;font-size:11px}
 .codes-trail{display:flex;align-items:center;gap:6px}
-.codes-qr{background:none;border:1px solid var(--line2);border-radius:var(--r-pill);padding:3px 9px;cursor:pointer;font-family:'Inter';font-weight:650;font-size:11px;color:var(--cream);-webkit-appearance:none;appearance:none}
 .cpn{min-height:100dvh;display:grid;place-items:center;padding:24px;position:relative}
 .cpn-card{max-width:400px;width:100%;text-align:center;background:var(--panel,rgba(255,255,255,.03));border:1px solid var(--line2);border-radius:18px;padding:34px 26px;position:relative;z-index:1}
 .cpn-brand{font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:3px;color:var(--cream-m);margin-bottom:14px}
@@ -7017,8 +6790,6 @@ div.owed-row-go{cursor:default}
 .pr-card.done::before{opacity:.4}
 .pr-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
 .pr-card-t{font-family:'Inter';font-weight:700;font-size:16px;letter-spacing:-.1px;color:var(--oa-cream);line-height:1.2}
-.pr-tier{flex:0 0 auto;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--oa-cream-faint);border:1px solid var(--line2);border-radius:var(--r-pill);padding:3px 8px}
-.pr-tier.pro{color:var(--gold2);border-color:color-mix(in srgb, var(--brand-gold2) 40%, transparent);display:inline-flex;align-items:center;gap:3px}
 .pr-card-s{font-family:'Inter';font-size:13px;line-height:1.5;color:var(--oa-cream-dim)}
 .pr-card-foot{display:flex;align-items:center;justify-content:space-between;margin-top:2px}
 .pr-min{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:11px;letter-spacing:.4px;color:var(--oa-cream-faint)}
@@ -7028,7 +6799,6 @@ div.owed-row-go{cursor:default}
 .pr-cta-block{margin:40px 0 0;padding:26px 22px;border:1px solid var(--line);border-radius:var(--r-3xl);background:radial-gradient(120% 100% at 50% 0,var(--ink-onLight-05),var(--ink-onLight-03));text-align:center}
 .pr-cta-n{font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:2.6px;text-transform:uppercase;color:var(--gold2)}
 .pr-cta-body{font-family:'Inter';font-size:15px;line-height:1.6;color:var(--oa-cream-dim);max-width:44ch;margin:12px auto 18px}
-.pr-cta{max-width:320px;margin:0 auto}
 /* ── lesson page ── */
 .pr-crumb{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:16px 0 0;font-family:var(--mono);font-size:11px;letter-spacing:.4px;color:var(--oa-cream-faint)}
 .pr-crumb a{color:var(--gold2);text-decoration:none}
@@ -7065,7 +6835,6 @@ div.owed-row-go{cursor:default}
 .pr-drink-px{font-family:var(--mono);font-size:13px;color:var(--gold2);font-weight:500}
 .pr-drink-off{font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--oa-cream-faint)}
 .pr-drink-why{display:block;font-family:'Inter';font-size:13px;line-height:1.5;color:var(--oa-cream-dim);margin-top:3px}
-.pr-stack-cta{margin-top:18px}
 /* actions + progress */
 .pr-actions{margin:28px 0 0}
 .pr-done-badge{display:flex;align-items:center;justify-content:center;gap:8px;padding:15px;border:1px solid rgba(106,160,92,.4);border-radius:var(--r-2xl);background:rgba(106,160,92,.1);font-family:'Inter';font-weight:700;font-size:15px;color:var(--ok)}
@@ -7115,6 +6884,7 @@ div.owed-row-go{cursor:default}
   --ink-whisper:rgba(34,31,24,.64);
   /* 15% brand red reads as loud pink on paper; 8% reads as a considered selection */
   --oa-red-tint:color-mix(in srgb, var(--brand-red) 8%, transparent);
+  --tone-ok:var(--ok); --tone-gold:var(--gold2); --tone-warn:var(--warn); --tone-crit:var(--red-h); --tone-blue:var(--color-info);
 }
 /* Dark islands re-assert their own ink. A surface that is genuinely dark inside a light screen is
    not a bug to flatten — it's a panel — so it restates the charcoal palette rather than inheriting
@@ -7128,8 +6898,8 @@ div.owed-row-go{cursor:default}
   --line2:color-mix(in srgb, var(--brand-cream) 20%, transparent);
   --gold:#a97c3f; --gold2:#c8a661; --bronze:#a97c3f; --ok:#6aa05c; --red-h:#dd5651;
   --ink-whisper:color-mix(in srgb, var(--brand-cream) 50%, transparent);
+  --tone-ok:var(--ok); --tone-gold:var(--gold2); --tone-warn:#cf9a4a; --tone-crit:var(--red-h); --tone-blue:#6fa8dc;
 }
-:is(.shop,.menu,.sheet,.sheet2) :is(.oa-cta,.subpitch-cta,.sub-cta,.t-order,.arr-order,.mpack-cta):not(.ghost),
 :is(.shop,.menu,.sheet,.sheet2) .oa-tile .oa-tag{--oa-cream:#F5F1E8;--cream:#F5F1E8}
 .shop-stmt{font-family:'Fraunces';font-style:italic;font-size:16px;line-height:1.5;color:#5a5142;margin:14px 0 20px;max-width:52ch}
 .shop-note{margin:24px 0;text-align:center;font-family:'Inter';font-size:15px;color:#5a5142}
@@ -7194,7 +6964,6 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
 .shop-ship .known-note{color:#6b6555;opacity:1}
 .shop-err{font-family:'Inter';font-size:13px;color:var(--red);margin:10px 0}
 .shop-fine{font-family:'Inter';font-size:12px;line-height:1.5;color:#7a7160;margin:12px 0 0;text-align:center}
-.shop-pay .mpack-cta{margin-top:14px}
 /* done */
 .shop-done{text-align:center;margin:44px 0}
 .shop-done-ic{display:inline-flex;width:60px;height:60px;align-items:center;justify-content:center;border-radius:50%;background:rgba(106,160,92,.14);color:var(--ok);font-size:28px;margin:0 0 10px}
@@ -7205,17 +6974,13 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
    ═══════════════════════════════════════════════════════════════════════════════════════════════ */
 /* Grid card: a quiet count/▶ pip so a shopper can tell which products have more to show. */
 .shop-thumb{position:relative}
-.shop-story-dot{position:absolute;top:8px;right:8px;min-width:20px;height:20px;padding:0 6px;border-radius:var(--r-pill);
-  display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb, #221F18 72%, transparent);
-  color:var(--brand-cream);font-family:var(--mono);font-size:11px;font-weight:600;line-height:1;backdrop-filter:blur(3px)}
+.shop-story-dot{position:absolute;top:8px;right:8px}  /* the kit's glass tag (.k-tag.glass), placed */
 /* Detail hero as a door: same box, now a button, with the story's pips drawn along the bottom. */
 .shop-hero.as-story{position:relative;padding:0;border:0;cursor:pointer;width:100%;-webkit-appearance:none;appearance:none;
   transition:transform .16s var(--ease),box-shadow .16s}
 .shop-hero.as-story:active{transform:scale(.995)}
 @media (hover:hover){.shop-hero.as-story:hover{box-shadow:0 12px 30px rgba(34,31,24,.16)}}
-.shop-hero-cue{position:absolute;left:12px;bottom:14px;display:inline-flex;align-items:center;gap:6px;
-  padding:6px 11px;border-radius:var(--r-pill);background:color-mix(in srgb, #221F18 74%, transparent);color:var(--brand-cream);
-  font-family:'Inter';font-weight:650;font-size:12px;letter-spacing:.02em;backdrop-filter:blur(4px)}
+.shop-hero-cue{position:absolute;left:12px;bottom:14px}
 .shop-hero-pips{position:absolute;left:12px;right:12px;bottom:6px;display:flex;gap:3px}
 .shop-hero-pips i{flex:1;height:2px;border-radius:2px;background:color-mix(in srgb, var(--brand-cream) 62%, transparent)}
 
@@ -7229,9 +6994,8 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
 .ms-thumb{position:relative;aspect-ratio:1;border-radius:9px;overflow:hidden;background:var(--char3);display:flex;align-items:center;justify-content:center}
 .ms-thumb img{width:100%;height:100%;object-fit:cover}
 .ms-ph{color:var(--cream-d);font-size:28px;display:inline-flex}
-.ms-badge{position:absolute;top:5px;left:5px;padding:2px 7px;border-radius:var(--r-pill);background:color-mix(in srgb, #000 62%, transparent);
-  color:var(--brand-cream);font-family:'Inter';font-weight:650;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
-.ms-badge.cover{left:auto;right:5px;background:var(--gold2);color:#1a1610}
+.ms-badge{position:absolute;top:5px;left:5px}  /* the kit's tags (glass, or gold for the cover), placed */
+.ms-badge.cover{left:auto;right:5px}
 .ms-row{display:flex;gap:4px}
 .ms-b{flex:1;min-width:0;min-height:32px;padding:0 6px;border:1px solid var(--line2);border-radius:9px;background:transparent;
   color:var(--cream);font-family:'Inter';font-weight:600;font-size:11px;cursor:pointer;-webkit-appearance:none;appearance:none;
@@ -7262,9 +7026,6 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
 .sv-title{flex:1;min-width:0;font-family:'Inter';font-weight:700;font-size:13px;letter-spacing:.01em;color:var(--brand-cream);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sv-top-b{display:flex;gap:4px;flex:0 0 auto}
-.sv-ic{width:40px;height:40px;border:0;border-radius:50%;background:color-mix(in srgb, var(--brand-cream) 10%, transparent);
-  color:var(--brand-cream);font-size:15px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;-webkit-appearance:none;appearance:none}
-@media (hover:hover){.sv-ic:hover{background:color-mix(in srgb, var(--brand-cream) 20%, transparent)}}
 .sv-stage{position:relative;flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;touch-action:pan-y}
 .sv-media{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;background:#000}
 .sv-fallback{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
@@ -7279,23 +7040,14 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
   text-shadow:0 2px 10px rgba(0,0,0,.6)}
 @media (hover:hover){.sv-zone:not(:disabled):hover .sv-arrow{opacity:.85}}
 .sv-zone:focus-visible .sv-arrow{opacity:.9}
-.sv-paused{position:absolute;top:12px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:11px;
-  letter-spacing:.18em;text-transform:uppercase;color:var(--brand-cream);background:color-mix(in srgb, #000 55%, transparent);
-  padding:4px 10px;border-radius:var(--r-pill);pointer-events:none}
+.sv-paused{position:absolute;top:12px;left:50%;transform:translateX(-50%);pointer-events:none}
 .sv-count{flex:0 0 auto;margin:8px 16px 0;text-align:center;font-family:'Inter';font-size:12px;line-height:1.4;
   color:color-mix(in srgb, var(--brand-cream) 70%, transparent)}
 
 /* ── City switcher (0279) — only rendered when a second market is actually on the road ──────────
    Sits on the dark truck surface, so it uses the root ink tokens. Sized to the same 44px touch
    floor as every other control; `on` reads as the selected city rather than a hover accident. */
-.mkt-switch{display:flex;gap:7px;flex-wrap:wrap;margin:14px 0 2px}
-.mkt-chip{flex:0 0 auto;min-height:34px;padding:7px 15px;border-radius:var(--r-pill);border:1px solid var(--line2);
-  background:transparent;color:var(--cream-m);font-family:'Inter';font-weight:650;font-size:12px;
-  letter-spacing:.09em;text-transform:uppercase;cursor:pointer;-webkit-appearance:none;appearance:none;
-  transition:background .15s,border-color .15s,color .15s}
-.mkt-chip.on{background:var(--cream);border-color:var(--cream);color:var(--char)}
-@media (hover:hover){.mkt-chip:not(.on):hover{border-color:var(--gold2);color:var(--cream)}}
-.mkt-chip:active{transform:scale(.97)}
+.mkt-switch{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 2px}
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════════
    OFFER LETTERS (0281) — owner writes · co-owners approve · candidate signs.
@@ -7319,12 +7071,6 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
 .ofr-row-who em{font-style:normal;font-family:'Inter';font-size:12px;color:var(--cream-d)}
 .ofr-row-meta{display:flex;align-items:center;gap:9px;flex:0 0 auto}
 .ofr-tally{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--cream-d);white-space:nowrap}
-.ofr-chip{font-family:'Inter';font-weight:650;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
-  padding:4px 9px;border-radius:var(--r-pill);white-space:nowrap;border:1px solid transparent}
-.ofr-chip.draft{color:var(--cream-d);border-color:var(--line2)}
-.ofr-chip.wait{color:var(--gold2);border-color:color-mix(in srgb, var(--brand-gold2) 40%, transparent);background:color-mix(in srgb, var(--brand-gold) 10%, transparent)}
-.ofr-chip.ok{color:var(--ok);border-color:color-mix(in srgb, #6aa05c 45%, transparent);background:rgba(106,160,92,.10)}
-.ofr-chip.stop{color:var(--red-h);border-color:color-mix(in srgb, var(--brand-red) 38%, transparent);background:color-mix(in srgb, var(--brand-red) 10%, transparent)}
 
 /* the letter itself */
 .ofr-detail{margin:14px 0 0;display:flex;flex-direction:column;gap:12px}
@@ -8033,4 +7779,3 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
 @media (hover:hover){.acs-row.crew:hover{background:color-mix(in srgb, var(--brand-gold) 16%, transparent)}}
 
 /* The calendar's "More" pill on a phone (CompanyCalendar: three views shown, four behind it). */
-.cal-view-more{color:var(--gold2);border-style:dashed}

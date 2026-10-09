@@ -69,16 +69,16 @@ export default function ChiefOfSales({ onLeads }: { onLeads?: () => void }) {
             <div className="eg-done">
               <div className="eg-done-h"><Icon name="check" /> Added {done} lead{done === 1 ? "" : "s"} to Bookings</div>
               <div className="dp-hint" style={{ marginTop: 6 }}>They&apos;re in the list below — work them like any booking.</div>
-              <button type="button" className="cos-redo" onClick={() => setDone(null)}>Scout again</button>
+              <button type="button" className="btn-sec btn-wide mt-3" onClick={() => setDone(null)}>Scout again</button>
             </div>
           ) : !opps ? (
             <>
               <div className="ts-chips">
-                {MARKETS.map((m) => <button key={m} type="button" className={`ts-chip${markets.includes(m) ? " on" : ""}`} onClick={() => toggleMarket(m)}><Icon name="pin" /> {m}</button>)}
+                {MARKETS.map((m) => <button key={m} type="button" className={`k-chip${markets.includes(m) ? " on" : ""}`} aria-pressed={markets.includes(m)} onClick={() => toggleMarket(m)}><Icon name="pin" /> {m}</button>)}
               </div>
               <input className="note-in" style={{ marginTop: 8 }} value={focus} onChange={(e) => setFocus(e.target.value)} placeholder="Focus (optional) — e.g. run clubs, wellness expos, fall festivals" />
               {err && <div className="dp-err" style={{ marginTop: 8 }}>{err}</div>}
-              <button type="button" className="cos-go" style={{ marginTop: 12 }} onClick={scout} disabled={busy || markets.length === 0}>{busy ? "Scouting the web…" : <><Icon name="target" /> Scout opportunities</>}</button>
+              <button type="button" className="btn-pri btn-wide mt-3" onClick={scout} disabled={busy || markets.length === 0}>{busy ? "Scouting the web…" : <><Icon name="target" /> Scout opportunities</>}</button>
             </>
           ) : (
             <>

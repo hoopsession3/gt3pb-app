@@ -858,7 +858,7 @@ function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: 
             {item.hashtags?.length ? <div className="capprove-tags">{item.hashtags.map((h) => `#${h}`).join(" ")}</div> : null}
             <input className="ev-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What to change (only if requesting changes)" aria-label="What to change" />
             <div className="capprove-acts">
-              <button type="button" className="oa-cta" disabled={busy} onClick={() => decide("approved")}>{busy ? "…" : <><Icon name="check" /> Approve</>}</button>
+              <button type="button" className="btn-pri flex-1" disabled={busy} onClick={() => decide("approved")}>{busy ? "…" : <><Icon name="check" /> Approve</>}</button>
               <button type="button" className="studio-act" disabled={busy} onClick={() => decide("changes")}>Request changes</button>
             </div>
             <p className="insp-foot">Approving saves your caption edits. Once you act, this alert clears.</p>
@@ -1010,7 +1010,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
       {reviewPost && <ContentApprovalSheet contentId={reviewPost.id} meName={meName} meId={userId} onClose={() => setReviewPost(null)} onActioned={() => { ack(reviewPost.alert); setReviewPost(null); }} />}
       <SectionHeader label={title} right={<>
         {mine.length > 0 && <span className={`k-count${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>}
-        {mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearEvery()}>Clear all</button>}
+        {mine.length > 1 && <button type="button" className="btn-ter" onClick={() => clearEvery()}>Clear all</button>}
         {prefsDoor}
       </>} />
       {prefsSheet}
@@ -1035,7 +1035,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
                   <button type="button" className="digest-item-x" onClick={() => ack(a)} aria-label={`Dismiss ${a.title}`}><Icon name="close" /></button>
                 </div>
               ))}
-              <button type="button" className="digest-clear" onClick={() => clearHeld()}>Mark all read</button>
+              <button type="button" className="btn-ter self-start" onClick={() => clearHeld()}>Mark all read</button>
             </div>
           )}
         </div>
@@ -1064,7 +1064,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
             {(() => {
               const main = (
                 <>
-                  <span className="alert-title">{a.title}{myLane(a.category) && <span className="myday-lane">your lane</span>}{(a.occurrences ?? 1) > 1 && <span className="alert-times" title={`Happened ${a.occurrences} times${a.last_seen_at ? `, last ${ageLabel(a.last_seen_at)}` : ""}`}>×{a.occurrences}</span>}<span className="alert-when">{ageLabel(alertWhen(a))}</span></span>
+                  <span className="alert-title">{a.title}{myLane(a.category) && <span className="myday-lane">your lane</span>}{(a.occurrences ?? 1) > 1 && <span className="k-tag ml-1.5" title={`Happened ${a.occurrences} times${a.last_seen_at ? `, last ${ageLabel(a.last_seen_at)}` : ""}`}>×{a.occurrences}</span>}<span className="alert-when">{ageLabel(alertWhen(a))}</span></span>
                   {a.body && <span className="alert-body">{a.body}</span>}
                 </>
               );
@@ -1187,7 +1187,7 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
       {choices.length > 0 && (
         <div className="ts-chips" role="group" aria-label="Who to notify">
           {choices.map((p) => (
-            <button key={p.id} type="button" className="ts-chip" onClick={() => {
+            <button key={p.id} type="button" className="k-chip" onClick={() => {
               const next = insertMention(text, p);
               setText(next.text); setPicked((x) => ({ ...x, [p.id]: next.token }));
               // Back to the box, at the end — the keyboard stays up and the sentence carries on.
@@ -1496,7 +1496,7 @@ function MyDay({ userId, isLeader, canGoLive, canBrew }: { userId: string | null
           on-demand by nature; it shouldn't occupy the glance screen). */}
       {isLeader && (
         <div style={{ marginTop: 18 }}>
-          <button type="button" className="k-chip hit-y-44 k-chip-sec" onClick={() => setLeadOpen((o) => !o)} aria-expanded={leadOpen}>
+          <button type="button" className={`k-chip${leadOpen ? " on" : ""}`} onClick={() => setLeadOpen((o) => !o)} aria-expanded={leadOpen}>
             <Icon name="compass" /> Lead the week — GTM, briefing &amp; intake {leadOpen ? "▴" : "▾"}
           </button>
           {leadOpen && (
@@ -2674,13 +2674,13 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
                   <button type="button" className="task-discuss" onClick={() => setOpenThread(openThread === t.id ? null : t.id)} aria-label={`Discuss ${t.label}`}><Icon name="chat" />{counts[t.id] ? <span className="cmt-count">{counts[t.id]}</span> : <span className="task-discuss-l">Discuss</span>}</button>
                   {isAdmin && <button type="button" className="task-discuss" onClick={() => openTask(t.id, "event")} aria-label={`Edit ${t.label}`} title="Edit task">✎</button>}
                   {isAdmin ? (
-                    <button type="button" className={`task-assign${t.assignee ? " set" : ""}`} onClick={() => setAssignFor(t)} aria-label={t.assignee ? `Reassign ${t.label} — currently ${staffName(t.assignee)}` : `Assign ${t.label} to crew`}>
+                    <button type="button" className="k-chip" onClick={() => setAssignFor(t)} aria-label={t.assignee ? `Reassign ${t.label} — currently ${staffName(t.assignee)}` : `Assign ${t.label} to crew`}>
                       {t.assignee
-                        ? <><span className="task-assign-av">{initialOf(t.assignee)}</span><span className="task-assign-name">{firstNameOf(t.assignee)}</span></>
-                        : <span className="task-assign-add">+ Assign</span>}
+                        ? <><span className="k-av">{initialOf(t.assignee)}</span><span className="task-assign-name">{firstNameOf(t.assignee)}</span></>
+                        : "+ Assign"}
                     </button>
                   ) : t.assignee ? (
-                    <span className="task-assign set readonly"><span className="task-assign-av">{initialOf(t.assignee)}</span><span className="task-assign-name">{firstNameOf(t.assignee)}</span></span>
+                    <span className="k-chip"><span className="k-av">{initialOf(t.assignee)}</span><span className="task-assign-name">{firstNameOf(t.assignee)}</span></span>
                   ) : null}
                 </div>
               </div>
@@ -2865,7 +2865,7 @@ function SupplyPicker({ ev, title, have, onAdd, onClose }: {
             </div>
           ))}
         </div>
-        <button className="handle supply-add" onClick={confirm} disabled={selCount === 0}>
+        <button type="button" className="btn-pri btn-wide mt-4.5" onClick={confirm} disabled={selCount === 0}>
           <span>{selCount > 0 ? `Add ${selCount} to checklist` : "Select items to add"}</span>
         </button>
     </Sheet>
@@ -3058,7 +3058,7 @@ function MeetingNotes() {
             </div>
             <div className="note-vis-chips" role="radiogroup" aria-label="Who can see this note">
               {([["private",<><Icon name="lock" /> Just me</>],["team",<><Icon name="team" /> Team</>],["collab",<><Icon name="partners" /> Team + comments</>]] as const).map(([v,l]) => (
-                <button key={v} type="button" role="radio" aria-checked={cVis === v} className={`note-vischip${cVis === v ? " on" : ""}`} onClick={() => { setCVis(v); setVisTouched(true); }}>{l}</button>
+                <button key={v} type="button" role="radio" aria-checked={cVis === v} className={`k-chip${cVis === v ? " on" : ""}`} onClick={() => { setCVis(v); setVisTouched(true); }}>{l}</button>
               ))}
             </div>
             <textarea className="note-area" placeholder="The note — a thought, a plan, a recap…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={cSummary.length > 200 ? 10 : 3} />
@@ -3068,7 +3068,7 @@ function MeetingNotes() {
               {cFiles.length > 0 && (
                 <div className="note-pfiles">
                   {cFiles.map((f, i) => (
-                    <span key={i} className="note-pfile">📎 {f.name}<button type="button" onClick={() => setCFiles((p) => p.filter((_, j) => j !== i))} aria-label={`Remove ${f.name}`}><Icon name="close" /></button></span>
+                    <span key={i} className="k-tag txt max-w-[230px]"><span className="truncate min-w-0">📎 {f.name}</span><button type="button" className="k-tag-x" onClick={() => setCFiles((p) => p.filter((_, j) => j !== i))} aria-label={`Remove ${f.name}`}><Icon name="close" /></button></span>
                   ))}
                   <span className="note-pfiles-hint">kept on the note when you save</span>
                 </div>
@@ -3077,7 +3077,7 @@ function MeetingNotes() {
               <button type="button" className="note-suggest note-sum" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : <><Icon name="sparkles" /> Summarize <Icon name="arrowRight" /> title · recap · tasks</>}</button>
             </details>
             <div className="note-fu-h">Follow-ups
-              <button type="button" className="note-fu-add" onClick={() => setCActions((a) => [...a, { title: "", category: "task", critical: false, assignee: meId }])}>+ Add</button>
+              <button type="button" className="btn-ter" onClick={() => setCActions((a) => [...a, { title: "", category: "task", critical: false, assignee: meId }])}>+ Add</button>
             </div>
             {cActions.length === 0 && <div className="note-fu-empty">No follow-ups yet — add one and assign it to a partner, or <Icon name="sparkles" /> summarize a transcript to pull them out.</div>}
             {cActions.map((a, i) => (
@@ -3113,9 +3113,9 @@ function MeetingNotes() {
             <div className="note-filter">
               <input className="note-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search notes…" aria-label="Search notes" />
               <div className="note-tabs">
-                <button type="button" className={`note-tab hit-y-44${mineOnly ? " on" : ""}`} onClick={() => setMineOnly((v) => !v)}>Mine</button>
-                <button type="button" className={`note-tab hit-y-44${tab === "active" ? " on" : ""}`} onClick={() => setTab("active")}>Active</button>
-                <button type="button" className={`note-tab hit-y-44${tab === "archived" ? " on" : ""}`} onClick={() => setTab("archived")}>Archived{archivedCount ? ` ${archivedCount}` : ""}</button>
+                <button type="button" className={`k-chip${mineOnly ? " on" : ""}`} aria-pressed={mineOnly} onClick={() => setMineOnly((v) => !v)}>Mine</button>
+                <button type="button" className={`k-chip${tab === "active" ? " on" : ""}`} aria-pressed={tab === "active"} onClick={() => setTab("active")}>Active</button>
+                <button type="button" className={`k-chip${tab === "archived" ? " on" : ""}`} aria-pressed={tab === "archived"} onClick={() => setTab("archived")}>Archived{archivedCount ? ` ${archivedCount}` : ""}</button>
               </div>
             </div>
             {shown.map((n) => (
@@ -3488,7 +3488,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
                 {addFiles.length > 0 && (
                   <div className="note-pfiles">
                     {addFiles.map((f, i) => (
-                      <span key={i} className="note-pfile">📎 {f.name}<button type="button" onClick={() => setAddFiles((p) => p.filter((_, j) => j !== i))} aria-label={`Remove ${f.name}`}><Icon name="close" /></button></span>
+                      <span key={i} className="k-tag txt max-w-[230px]"><span className="truncate min-w-0">📎 {f.name}</span><button type="button" className="k-tag-x" onClick={() => setAddFiles((p) => p.filter((_, j) => j !== i))} aria-label={`Remove ${f.name}`}><Icon name="close" /></button></span>
                     ))}
                     <span className="note-pfiles-hint">kept on the note</span>
                   </div>
@@ -3509,7 +3509,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
           )}
           {(note.visibility === "collab" || note.created_by === meId) && (
             <>
-              <button type="button" className="note-discuss" onClick={() => setNoteThread((v) => !v)} aria-expanded={noteThread}>
+              <button type="button" className="btn-ter mt-3" onClick={() => setNoteThread((v) => !v)} aria-expanded={noteThread}>
                 <Icon name="chat" /> Discuss this note{noteCmts ? <span className="cmt-count">{noteCmts}</span> : null}
               </button>
               {noteThread && (
@@ -4595,7 +4595,7 @@ function EventCard({ e, today, open, onToggle, onUpdate, onRemove, onSetLive, on
               const settable = !e.is_live && k !== "live"; // Live is driven by the green flag, not a tap
               return (
                 <button key={k} type="button" role="tab" aria-selected={cur} disabled={!settable && !cur}
-                  className={`ev-stage-pill${cur ? " on" : ""}`} style={{ ["--c" as string]: STAGE_COLOR[k] }}
+                  className={`k-chip sm hue${cur ? " on" : ""}`} style={{ ["--k-tone" as string]: STAGE_COLOR[k] }}
                   onClick={() => { if (settable && !cur) onUpdate({ stage: k }); }}>{stageLabel(k)}</button>
               );
             })}
@@ -5317,7 +5317,7 @@ function SectionGuide({ allowed, current, start, onGo, onClose }: { allowed: OpS
             <div className="guide-t" id="section-guide-title">{page === "start" ? "Start here" : "When to use what"}</div>
             <div className="guide-lede">{page === "start" ? "Your first day on the crew — each step, and one tap that does it." : "Each section is one job at one moment. Tap to learn more, then jump straight there."}</div>
           </div>
-          <button type="button" className="guide-x ml-auto" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+          <button type="button" className="k-icon-btn ml-auto" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
         </div>
         <Segmented label="Guide" size="sm" value={page} onChange={setPage}
           options={[{ key: "start", label: "Start here" }, { key: "sections", label: "Every section" }]} />
@@ -5345,7 +5345,7 @@ function SectionGuide({ allowed, current, start, onGo, onClose }: { allowed: OpS
                     <span className="guide-row-t">{SEC_LABEL[s]}{here && <span className="guide-here-dot"><Icon name="dot" /> here now</span>}</span>
                     <span className="guide-row-sub">{SEC_SUB[s]}</span>
                   </span>
-                  <span className="guide-when">{SEC_WHEN[s]}</span>
+                  <span className="k-tag gold">{SEC_WHEN[s]}</span>
                   <span className={`guide-chev ev-chev${isOpen ? " open" : ""}`} aria-hidden>›</span>
                 </button>
                 {isOpen && (
@@ -5744,7 +5744,7 @@ export default function AdminPage() {
   if (access === "wait") return <section className="screen" />;
   if (access === "failed") return (
     <section className="screen">
-      <div className="toprow"><div className="eyb">Crew</div><Link className="pf hit-44" href="/">‹</Link></div>
+      <div className="toprow"><div className="eyb">Crew</div><Link className="k-icon-btn" href="/" aria-label="Back to the app"><Icon name="chevronLeft" /></Link></div>
       <div className="h-title">Couldn&apos;t load your account.</div>
       <div className="h-sub">This is not a permissions problem — we couldn&apos;t read your profile just now, so we don&apos;t know what you can see. Nothing has changed.</div>
       <button type="button" className="btn-pri mt-3.5" onClick={() => refreshProfile()}>Try again</button>
@@ -5753,7 +5753,7 @@ export default function AdminPage() {
   if (role === "member") {
     return (
       <section className="screen">
-        <div className="toprow"><div className="eyb">Crew</div><Link className="pf hit-44" href="/">‹</Link></div>
+        <div className="toprow"><div className="eyb">Crew</div><Link className="k-icon-btn" href="/" aria-label="Back to the app"><Icon name="chevronLeft" /></Link></div>
         <div className="h-title">Staff only.</div>
         <div className="h-sub">This area is for GT3PB staff. If that&apos;s you, ask the owner to add you — then tap below.</div>
         <button type="button" className="btn-pri mt-3.5" onClick={() => window.location.reload()}>I&apos;ve been added — check again</button>
@@ -5920,7 +5920,7 @@ export default function AdminPage() {
         <div className="svc-full text-cream" role="dialog" aria-modal="true" aria-label="The Pass">
           <div className="svc-bar">
             <b>The Pass</b>
-            <button type="button" className="svc-exit" onClick={() => setSvc(false)}><Icon name="close" /> Exit</button>
+            <button type="button" className="btn-ter" onClick={() => setSvc(false)}><Icon name="close" /> Exit</button>
           </div>
           <div className="svc-grid">
             <div className="svc-main"><Kitchen /></div>
@@ -5982,7 +5982,7 @@ export default function AdminPage() {
                   {/* Back office — rarely touched — sits after the divider. */}
                   {k === "vendors" && <span className="subnav-div" aria-hidden />}
                   <button type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab hit-y-44${k === "vendors" ? " back" : ""}${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>
-                    {PLAN_LABEL[k]}{n > 0 && <span className={`subnav-badge${hot ? " hot" : ""}`} aria-label={`${n} ${what}`}>{n}</span>}
+                    {PLAN_LABEL[k]}{n > 0 && <span className={`k-count sm${hot ? " crit" : ""}`} aria-label={`${n} ${what}`}>{n}</span>}
                   </button>
                 </Fragment>
               );

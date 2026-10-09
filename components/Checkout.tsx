@@ -296,7 +296,7 @@ export default function Checkout() {
                   <div className="co-closed-t"><Icon name="coffee" /> The truck isn&apos;t taking online orders right now</div>
                   {o && <p className="co-closed-s">{closedWords(o, { closing: t("findus.cta_closed") })}</p>}
                   <p className="co-closed-s">Want it locked in anyway? A <b>pack reserve</b> is brewed to your order and waiting at the next drop.</p>
-                  <button type="button" className="handle" onClick={() => { onClose(); router.push("/reserve"); }}><span>Reserve a pack instead</span></button>
+                  <button type="button" className="btn-pri btn-wide mt-4.5" onClick={() => { onClose(); router.push("/reserve"); }}><span>Reserve a pack instead</span></button>
                   <div className="signoff">Your cart stays right here for when we&apos;re pouring.</div>
                 </div>
               ) : squareClientReady ? (
@@ -319,7 +319,7 @@ export default function Checkout() {
                   <div className="co-foot">
                     {blocked86.length > 0 && <div className="co-86">{blocked86.join(" · ")} just sold out — remove {blocked86.length === 1 ? "it" : "them"} with the − button to continue.</div>}
                     <div className="co-line co-total"><span>Total</span><span>{total}</span></div>
-                    <button className="handle" onClick={pay} disabled={!ready || busy || items.length === 0 || !customer || blocked86.length > 0}>
+                    <button type="button" className="btn-pri btn-wide mt-4.5" onClick={pay} disabled={!ready || busy || items.length === 0 || !customer || blocked86.length > 0}>
                       <span>{busy ? "Charging…" : blocked86.length > 0 ? "Remove sold-out items" : !customer ? "Add a name above" : ready ? `Pay ${total}` : "Loading card…"}</span>
                     </button>
                     {/* Card is primary; pay-at-pickup is the secondary path when the operator allows it. */}
@@ -338,7 +338,7 @@ export default function Checkout() {
                   <div className="honest" style={{ marginTop: 16 }}>
                     This is a <b>pre-order</b>{" "}— we&apos;ll have it ready and you pay at the truck.
                   </div>
-                  <button className="handle" onClick={sendPreOrder} disabled={busy || !customer || items.length === 0 || blocked86.length > 0}>
+                  <button type="button" className="btn-pri btn-wide mt-4.5" onClick={sendPreOrder} disabled={busy || !customer || items.length === 0 || blocked86.length > 0}>
                     <span>{busy ? "Sending…" : blocked86.length > 0 ? "Remove sold-out items" : "Send pre-order"}</span>
                   </button>
                 </>

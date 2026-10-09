@@ -71,7 +71,7 @@ export default function TroubleshootAI({ ownerType, ownerId, title, onClose, onL
             <>
               <div className="ts-chips">
                 {SYMPTOMS.map((s) => (
-                  <button key={s.key} type="button" className={`ts-chip${symptom === s.key ? " on" : ""}`} onClick={() => setSymptom(s.key)}>
+                  <button key={s.key} type="button" className={`k-chip${symptom === s.key ? " on" : ""}`} aria-pressed={symptom === s.key} onClick={() => setSymptom(s.key)}>
                     <span aria-hidden="true"><Icon name={s.icon} /></span>{s.label}
                   </button>
                 ))}

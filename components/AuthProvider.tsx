@@ -339,7 +339,7 @@ function PasswordRecovery({ updatePassword, onCancel }: { updatePassword: AuthCt
             <>
               <h1 className="auth-headline" style={{ marginTop: 0 }}>Password updated.</h1>
               <p className="auth-sub">You&apos;re all set — you&apos;re signed in with your new password.</p>
-              <button className="handle" onClick={close} style={{ marginTop: 18 }}><span>Continue</span></button>
+              <button type="button" className="btn-pri btn-wide mt-4.5" onClick={close}><span>Continue</span></button>
             </>
           ) : (
             <form className="auth-form" onSubmit={submit}>
@@ -353,7 +353,7 @@ function PasswordRecovery({ updatePassword, onCancel }: { updatePassword: AuthCt
               <label className="auth-label" htmlFor="rec-confirm">Confirm password</label>
               <input id="rec-confirm" className="auth-input" enterKeyHint="go" type={show ? "text" : "password"} autoComplete="new-password" placeholder="Repeat password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
               {err && <div className="auth-err">{err}</div>}
-              <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}><span>{busy ? "Saving…" : "Save new password"}</span></button>
+              <button className="btn-pri btn-wide mt-4.5" type="submit" disabled={busy}><span>{busy ? "Saving…" : "Save new password"}</span></button>
               <button type="button" className="auth-link hit-44" onClick={close} style={{ marginTop: 10 }}>Cancel</button>
             </form>
           )}

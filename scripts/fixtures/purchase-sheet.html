@@ -29,11 +29,13 @@
     <div class="sheet2 " role="dialog" aria-modal="true" aria-label="Quick actions" style="margin:0 auto">
       <div class="sheet2-grab"></div>
       <div class="sheet2-head">
-        <div style="display:flex;align-items:center;gap:6px" data-from="components/QuickDock.tsx">
-          <button type="button" class="qd-tab">Do</button>
-          <button type="button" class="qd-tab">Ask GT3</button>
-          <button type="button" class="qd-tab">Note</button>
-          <button type="button" class="qd-tab on">Spend</button>
+        <div class="flex items-center gap-2" data-from="components/QuickDock.tsx">
+          <div class="k-seg-wrap" data-from="components/controls.tsx"><div class="k-seg-scroll"><div class="k-seg" role="tablist" aria-label="Quick actions"><span class="k-seg-thumb" aria-hidden="true"></span>
+            <button type="button" role="tab" aria-selected="false" class="k-seg-opt">✦ Do</button>
+            <button type="button" role="tab" aria-selected="false" class="k-seg-opt">Ask GT3</button>
+            <button type="button" role="tab" aria-selected="false" class="k-seg-opt">Note</button>
+            <button type="button" role="tab" aria-selected="true" class="k-seg-opt on">Spend</button>
+          </div></div></div>
           <button type="button" class="qd-x" title="Close" aria-label="Close" data-from="components/Sheet.tsx">✕</button>
         </div>
       </div>
@@ -53,29 +55,29 @@
           <div class="lp-f" role="group" aria-label="Category">
             <span>Category</span>
             <div class="lp-chips">
-              <button type="button" class="ts-chip on" aria-pressed="true">Supplies</button>
-              <button type="button" class="ts-chip" aria-pressed="false">Ingredients</button>
-              <button type="button" class="ts-chip" aria-pressed="false">Equipment</button>
-              <button type="button" class="ts-chip" aria-pressed="false">Marketing</button>
-              <button type="button" class="ts-chip" aria-pressed="false">Fees &amp; software</button>
-              <button type="button" class="ts-chip" aria-pressed="false">Labor</button>
-              <button type="button" class="ts-chip" aria-pressed="false">Other</button>
+              <button type="button" class="k-chip on" aria-pressed="true">Supplies</button>
+              <button type="button" class="k-chip" aria-pressed="false">Ingredients</button>
+              <button type="button" class="k-chip" aria-pressed="false">Equipment</button>
+              <button type="button" class="k-chip" aria-pressed="false">Marketing</button>
+              <button type="button" class="k-chip" aria-pressed="false">Fees &amp; software</button>
+              <button type="button" class="k-chip" aria-pressed="false">Labor</button>
+              <button type="button" class="k-chip" aria-pressed="false">Other</button>
             </div>
           </div>
 
           <div class="lp-f" role="group" aria-label="When">
             <span>When</span>
             <div class="lp-chips">
-              <button type="button" class="ts-chip on" aria-pressed="true">Today</button>
-              <button type="button" class="ts-chip" aria-pressed="false">Yesterday</button>
-              <button type="button" class="ts-chip" aria-pressed="false">Another day</button>
+              <button type="button" class="k-chip on" aria-pressed="true">Today</button>
+              <button type="button" class="k-chip" aria-pressed="false">Yesterday</button>
+              <button type="button" class="k-chip" aria-pressed="false">Another day</button>
             </div>
           </div>
           <div class="lp-f" role="group" aria-label="City">
             <span>City</span>
             <div class="lp-chips">
-              <button type="button" class="ts-chip on" aria-pressed="true">Greenville</button>
-              <button type="button" class="ts-chip" aria-pressed="false">Atlanta</button>
+              <button type="button" class="k-chip on" aria-pressed="true">Greenville</button>
+              <button type="button" class="k-chip" aria-pressed="false">Atlanta</button>
             </div>
           </div>
 

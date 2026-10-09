@@ -109,7 +109,7 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
           <div className="office-done-ic"><Icon name="jar" /></div>
           <h2>You&rsquo;re on the Monday route.</h2>
           <p>{done.gallons} gallons of cold-extract, <b>{mondayLabel(done.date)}, 5–8 AM</b>, in amber glass jugs. We&rsquo;ll {billing === "prepaid" ? "text a payment link to confirm" : "send an invoice"} and swap empties for full every week{standing ? "" : " (this order)"}.</p>
-          <button type="button" className="handle" onClick={onClose}><span>Done</span></button>
+          <button type="button" className="btn-pri btn-wide mt-4.5" onClick={onClose}><span>Done</span></button>
         </div>
       </Sheet>
     );
@@ -117,7 +117,7 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
 
   return (
     <Sheet open onClose={onClose} label="Office delivery order" header={header} className="office-sheet" dirty={typed} dismissible={!busy} detents={false}
-      footer={<button type="button" className="handle" onClick={submit} disabled={busy || !ready}><span>{busy ? "Booking…" : `Book ${q.gallons} gal · ${money(q.totalCents)}`}</span></button>}>
+      footer={<button type="button" className="btn-pri btn-wide mt-4.5" onClick={submit} disabled={busy || !ready}><span>{busy ? "Booking…" : `Book ${q.gallons} gal · ${money(q.totalCents)}`}</span></button>}>
 
       <p className="office-lede">Fresh cold-extract for the whole team — <b>amber gallon jugs</b>, delivered <b>{OFFICE.windowLabel}</b>, empties swapped for full each week. 3-gallon minimum.</p>
 

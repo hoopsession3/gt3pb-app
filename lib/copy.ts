@@ -206,11 +206,11 @@ export const COPY_META: CopyMeta[] = [
   { key: "findus.eyebrow_event", group: "Find Us", label: "Masthead eyebrow — next up is an event", default: "Next event" },
   { key: "findus.eyebrow_stop", group: "Find Us", label: "Masthead eyebrow — next up is a stop", default: "Next stop" },
   { key: "findus.no_stops", group: "Find Us", label: "Headline — nothing on the schedule", default: "No stops yet" },
-  { key: "findus.cta_preorder", group: "Find Us", label: "Primary CTA — pre-order (inside a button)", default: "PRE-ORDER · SKIP THE LINE" },
+  { key: "findus.cta_preorder", group: "Find Us", label: "Primary CTA — pre-order (inside a button)", default: "Pre-order · skip the line" },
   // 2026-10-04: with nothing to pre-order (no stop, or the next one's window not open yet) the red
   // button still went to the menu and still said PRE-ORDER. It says what it does now; the line under
   // it says when cup orders open (lib/ordering).
-  { key: "findus.cta_menu", group: "Find Us", label: "Primary CTA — truck closed, see the menu (inside a button)", default: "SEE THE MENU" },
+  { key: "findus.cta_menu", group: "Find Us", label: "Primary CTA — truck closed, see the menu (inside a button)", default: "See the menu" },
   { key: "findus.cta_closed", group: "Find Us", label: "Primary CTA — after online ordering closes", multiline: true,
     default: "Online ordering’s closed for today — come see us at the bar before we pack up." },
   { key: "findus.road_title", group: "Find Us", label: "On The Road — section title", default: "On The Road" },

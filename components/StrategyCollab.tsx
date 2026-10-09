@@ -75,7 +75,7 @@ export function StrategyThread({ k, label, link = "/playbook" }: { k: string; la
           posting is not, and hiding the box would turn a read failure into a write outage too. */}
       <div className="st-inbar">
         <input className="auth-input" value={text} onChange={(e) => setText(e.target.value)} placeholder="Talk it through — the other owners get pinged" onKeyDown={(e) => e.key === "Enter" && send()} aria-label="Comment" />
-        <button type="button" className="handle" onClick={send} disabled={!text.trim()}><span>Send</span></button>
+        <button type="button" className="btn-pri btn-wide mt-4.5" onClick={send} disabled={!text.trim()}><span>Send</span></button>
       </div>
     </div>
   );
@@ -132,7 +132,7 @@ export function DecisionLog({ canWrite }: { canWrite: boolean }) {
                 <input className="auth-input" placeholder="The decision, one sentence" value={f.decision} onChange={(e) => setF({ ...f, decision: e.target.value })} />
                 <input className="auth-input" placeholder="Why (optional, future-you will ask)" value={f.why} onChange={(e) => setF({ ...f, why: e.target.value })} />
                 <div className="st-log-btns">
-                  <button type="button" className="handle" onClick={add} disabled={!f.decision.trim()}><span>Log it</span></button>
+                  <button type="button" className="btn-pri btn-wide mt-4.5" onClick={add} disabled={!f.decision.trim()}><span>Log it</span></button>
                   <button type="button" className="dl-back" onClick={() => setAdding(false)}>Cancel</button>
                 </div>
               </div>
@@ -146,9 +146,9 @@ export function DecisionLog({ canWrite }: { canWrite: boolean }) {
               {d.why && <p>{d.why}</p>}
               {((d.note_id && noteTitle[d.note_id]) || (d.follow_up_task_id && task[d.follow_up_task_id])) && (
                 <div className="st-log-next">
-                  {d.note_id && noteTitle[d.note_id] && <span className="st-log-srcnote">from note · {noteTitle[d.note_id]}</span>}
+                  {d.note_id && noteTitle[d.note_id] && <span className="k-tag txt">from note · {noteTitle[d.note_id]}</span>}
                   {d.follow_up_task_id && task[d.follow_up_task_id] && (
-                    <span className={`st-log-fu${task[d.follow_up_task_id].done ? " done" : ""}`}>→ {task[d.follow_up_task_id].label} · {task[d.follow_up_task_id].done ? "done ✓" : "open"}</span>
+                    <span className={`k-tag txt${task[d.follow_up_task_id].done ? " ok" : ""}`}>→ {task[d.follow_up_task_id].label} · {task[d.follow_up_task_id].done ? "done ✓" : "open"}</span>
                   )}
                 </div>
               )}
@@ -202,7 +202,7 @@ export function PlayBuilder({ prefill, onDone }: { prefill?: GtmPlay | null; onD
   const steps = [
     <div key={0} className="st-b">
       <input className="auth-input" placeholder="Play name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
-      <div className="st-cats">{CATS.map((c) => <button type="button" key={c} className={`chub-q st-cat${f.category === c ? " on" : ""}`} onClick={() => setF({ ...f, category: c })}>{c}</button>)}</div>
+      <div className="st-cats">{CATS.map((c) => <button type="button" key={c} className={`k-chip${f.category === c ? " on" : ""}`} aria-pressed={f.category === c} onClick={() => setF({ ...f, category: c })}>{c}</button>)}</div>
     </div>,
     <input key={1} className="auth-input" placeholder="Target audience" value={f.audience} onChange={(e) => setF({ ...f, audience: e.target.value })} />,
     <textarea key={2} className="auth-input" rows={3} placeholder="The play, in plain English" value={f.what} onChange={(e) => setF({ ...f, what: e.target.value })} />,
@@ -215,7 +215,7 @@ export function PlayBuilder({ prefill, onDone }: { prefill?: GtmPlay | null; onD
     </div>,
     <input key={5} className="auth-input" placeholder="Where the app runs it (or what's missing)" value={f.inApp} onChange={(e) => setF({ ...f, inApp: e.target.value })} />,
     <div key={6} className="st-review">
-      <b>{f.name || "Unnamed"}</b> <span className="pb-status planning">{f.category}</span>
+      <b>{f.name || "Unnamed"}</b> <span className="k-tag gold">{f.category}</span>
       {prefill && <p className="dl-sub">Overhauls: {prefill.name}</p>}
       <p>{f.what}</p>
       {f.steps && <p className="dl-sub">{f.steps.split("\n").filter(Boolean).length} execution steps</p>}
@@ -232,8 +232,8 @@ export function PlayBuilder({ prefill, onDone }: { prefill?: GtmPlay | null; onD
       <div className="st-log-btns">
         {step > 0 && <button type="button" className="dl-back" onClick={() => setStep(step - 1)}>‹ Back</button>}
         {step < 6
-          ? <button type="button" className="handle" onClick={() => setStep(step + 1)} disabled={!canNext}><span>Next ›</span></button>
-          : <button type="button" className="handle" onClick={save} disabled={!f.name.trim() || !f.what.trim()}><span>Save draft</span></button>}
+          ? <button type="button" className="btn-pri btn-wide mt-4.5" onClick={() => setStep(step + 1)} disabled={!canNext}><span>Next ›</span></button>
+          : <button type="button" className="btn-pri btn-wide mt-4.5" onClick={save} disabled={!f.name.trim() || !f.what.trim()}><span>Save draft</span></button>}
         <button type="button" className="dl-back" onClick={onDone}>Close</button>
       </div>
     </div>

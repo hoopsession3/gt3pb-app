@@ -101,9 +101,9 @@ export default function VipQueue() {
                   <b><RecordLink kind="customer" id={v.customer_id}>{v.customers?.name?.trim() || "A member"}</RecordLink></b>
                   <span className="vipq-sub">Submitted {new Date(v.created_at).toLocaleDateString()} · now {v.customers?.tier ?? "guest"}</span>
                   <div className="vipq-acts">
-                    <button type="button" className="vipq-yes" onClick={() => setAsking({ kind: "verify", v, grant: "founding" })} disabled={busy === v.id}><Icon name="check" /> Verify <Icon name="arrowRight" /> Founding</button>
-                    <button type="button" className="vipq-yes vip" onClick={() => setAsking({ kind: "verify", v, grant: "founding_vip" })} disabled={busy === v.id}><Icon name="star" /> Verify <Icon name="arrowRight" /> Founding VIP</button>
-                    <button type="button" className="vipq-no" onClick={() => setAsking({ kind: "reject", v })} disabled={busy === v.id}>Reject</button>
+                    <button type="button" className="btn-pri btn-sm" onClick={() => setAsking({ kind: "verify", v, grant: "founding" })} disabled={busy === v.id}><Icon name="check" /> Verify <Icon name="arrowRight" /> Founding</button>
+                    <button type="button" className="btn-sec btn-sm" onClick={() => setAsking({ kind: "verify", v, grant: "founding_vip" })} disabled={busy === v.id}><Icon name="star" /> Verify <Icon name="arrowRight" /> Founding VIP</button>
+                    <button type="button" className="btn-del" onClick={() => setAsking({ kind: "reject", v })} disabled={busy === v.id}>Reject</button>
                   </div>
                 </div>
               </div>
@@ -114,7 +114,7 @@ export default function VipQueue() {
                 {recent.map((v) => (
                   <div key={v.id} className="vipq-done">
                     <span className="vipq-done-t"><RecordLink kind="customer" id={v.customer_id}>{v.customers?.name?.trim() || "A member"}</RecordLink></span>
-                    <span className={`vipq-tag st-${v.status}`}>{v.status === "verified" ? <><Icon name={v.granted_tier === "founding_vip" ? "star" : "check"} /> {v.granted_tier === "founding_vip" ? "Founding VIP" : "Founding"}{v.reward ? ` · ${v.reward}` : ""}</> : "Rejected"}</span>
+                    <span className={`k-tag${v.status === "verified" ? " ok" : v.status === "rejected" ? " crit" : ""}`}>{v.status === "verified" ? <><Icon name={v.granted_tier === "founding_vip" ? "star" : "check"} /> {v.granted_tier === "founding_vip" ? "Founding VIP" : "Founding"}{v.reward ? ` · ${v.reward}` : ""}</> : "Rejected"}</span>
                   </div>
                 ))}
               </>

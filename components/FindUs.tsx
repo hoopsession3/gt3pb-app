@@ -310,7 +310,7 @@ export default function FindUs() {
       {shouldOfferMarketChoice(present) && (
         <div className="mkt-switch" role="group" aria-label="Choose a city">
           {present.map((m) => (
-            <button key={m} type="button" className={`mkt-chip${m === viewerMarket ? " on" : ""}`}
+            <button key={m} type="button" className={`k-chip${m === viewerMarket ? " on" : ""}`}
               aria-pressed={m === viewerMarket} onClick={() => chooseMarket(m)}>
               {MARKET_LABEL[m]}
             </button>
@@ -421,12 +421,12 @@ export default function FindUs() {
                         )}
                         <p>{(r.notes ?? r.note) ?? <EditableCopy k="truck.stop_note" value={t("truck.stop_note")} as="span" />}</p>
                         {/* the same rule as the red button: no Pre-order chip in the live stop's last hour */}
-                        {rowLive && ordering?.open !== false && <button type="button" className="k-chip hit-y-44 pri" onClick={() => router.push("/menu")}>{t("findus.preorder")}</button>}
+                        {rowLive && ordering?.open !== false && <button type="button" className="k-chip pri" onClick={() => router.push("/menu")}>{t("findus.preorder")}</button>}
                         {/* directions works ungecoded too — coords when pinned, else maps handoff on the address text */}
                         {(r.lat != null && r.lng != null) ? (
-                          <button type="button" className="k-chip hit-y-44 k-chip-sec" style={rowLive && ordering?.open !== false ? { marginLeft: 8 } : undefined} onClick={() => openDirections(r.lat as number, r.lng as number)}>{t("findus.directions")}</button>
+                          <button type="button" className={`k-chip${rowLive && ordering?.open !== false ? " ml-2" : ""}`} onClick={() => openDirections(r.lat as number, r.lng as number)}>{t("findus.directions")}</button>
                         ) : (r.location_text || r.address) ? (
-                          <button type="button" className="k-chip hit-y-44 k-chip-sec" style={rowLive && ordering?.open !== false ? { marginLeft: 8 } : undefined} onClick={() => openAddress((r.location_text ?? r.address) as string)}>{t("findus.directions")}</button>
+                          <button type="button" className={`k-chip${rowLive && ordering?.open !== false ? " ml-2" : ""}`} onClick={() => openAddress((r.location_text ?? r.address) as string)}>{t("findus.directions")}</button>
                         ) : null}
                       </div>
                     )}

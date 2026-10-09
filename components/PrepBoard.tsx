@@ -150,8 +150,8 @@ export default function PrepBoard() {
         <div className="pbd">
           <div className="pbd-filters" role="tablist" aria-label="Filter prep">
             {(["all", "critical", "mine", "overdue"] as Filter[]).map((f) => (
-              <button key={f} type="button" role="tab" aria-selected={filter === f} className={`pbd-filter hit-y-44${filter === f ? " on" : ""}${f === "critical" && counts.critical ? " crit" : ""}`} onClick={() => setFilter(f)}>
-                {f[0].toUpperCase() + f.slice(1)} <span className="pbd-fn">{counts[f]}</span>
+              <button key={f} type="button" role="tab" aria-selected={filter === f} className={`k-chip${filter === f ? " on" : ""}${f === "critical" && counts.critical ? " crit" : ""}`} onClick={() => setFilter(f)}>
+                {f[0].toUpperCase() + f.slice(1)} <b>{counts[f]}</b>
               </button>
             ))}
           </div>
@@ -179,11 +179,11 @@ export default function PrepBoard() {
                     {/* The event or stop a group is named for opens its record (2026-10-04): the name only
                         folded the list. A past one says what it is owed — the record's wrap and archive. */}
                     {g.recId && (g.kind === "event" || g.kind === "stop") && (
-                      <button type="button" className="pbd-group-open" onClick={() => openRecord(g.kind as "event" | "stop", g.recId!)}>
+                      <button type="button" className="btn-ter" onClick={() => openRecord(g.kind as "event" | "stop", g.recId!)}>
                         {g.past ? "Wrap up" : "Open"} <span aria-hidden="true">›</span>
                       </button>
                     )}
-                    <button type="button" className={`pbd-group-all${armed === g.key ? " armed" : ""}`}
+                    <button type="button" className={armed === g.key ? "btn-del" : "btn-ter"}
                       onClick={() => (armed === g.key ? completeGroup(g) : setArmed(g.key))}
                       onBlur={() => setArmed((a) => (a === g.key ? null : a))}
                       aria-label={`Complete all ${g.tasks.length} tasks in ${g.label}`}>

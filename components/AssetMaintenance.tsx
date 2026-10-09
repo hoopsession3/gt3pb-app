@@ -202,7 +202,7 @@ function LogSheet({ asset, from, onClose, onSaved }: { asset: Asset; from: Log |
       dirty={summary.trim() !== (from?.summary ?? "").trim() || howTo.trim() !== (from?.how_to ?? "").trim() || !!cost.trim() || nextTouched}
       header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Log · {asset.name}</b><CloseButton onClick={onClose} /></div>}>
           <div className="ts-chips">
-            {KINDS.map((k) => <button key={k} type="button" className={`ts-chip${kind === k ? " on" : ""}`} onClick={() => onKind(k)}>{KIND_ICON[k]} {k}</button>)}
+            {KINDS.map((k) => <button key={k} type="button" className={`k-chip${kind === k ? " on" : ""}`} aria-pressed={kind === k} onClick={() => onKind(k)}>{KIND_ICON[k]} {k}</button>)}
           </div>
           <input className="note-in" style={{ marginTop: 10 }} value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="What was done? e.g. Replaced CO2 regulator, cleaned lines" autoFocus />
           <div className="prod-grid" style={{ marginTop: 10 }}>

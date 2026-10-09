@@ -200,7 +200,7 @@ export default function PrimalLesson({ slug }: { slug: string }) {
               ))}
             </div>
           ))}
-          <Link href="/menu" className="mpack-cta pr-stack-cta">Order your stack ›</Link>
+          <Link href="/menu" className="btn-pri btn-wide mt-4.5">Order your stack ›</Link>
         </section>
       )}
 

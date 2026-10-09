@@ -130,7 +130,7 @@ export default function PerksPanel() {
     <div className="codes">
       <div className="codes-head">
         <div className="codes-sub">Set what each tier gets — Member, Founding, or Founding-VIP-only. Applied live at checkout, no deploy.</div>
-        <button type="button" className="codes-new" onClick={() => setOpen((v) => !v)}>{open ? "Close" : "+ New perk"}</button>
+        <button type="button" className="btn-ter" onClick={() => setOpen((v) => !v)}>{open ? "Close" : "+ New perk"}</button>
       </div>
 
       {open && (
@@ -214,10 +214,10 @@ export default function PerksPanel() {
               <div key={r.id} style={{ opacity: r.active ? 1 : 0.55 }}>
                 <InfoRow
                   name={<span className="codes-code">{r.requires_vip ? <Icon name="star" /> : null} {whoText(r)}</span>}
-                  nameExtra={<span className="codes-badge">{valueText(r)}</span>}
+                  nameExtra={<span className="k-tag txt gold">{valueText(r)}</span>}
                   sub={<>{`${r.label} · `}{targetText(r)}</>}
                   trailing={
-                    <button type="button" className={`codes-toggle${r.active ? " on" : ""}`} onClick={() => toggle(r)} role="switch" aria-checked={r.active} aria-label={`${whoText(r)} perk ${r.active ? "active" : "paused"}`}>
+                    <button type="button" className={`k-chip sm ok${r.active ? " on" : ""}`} onClick={() => toggle(r)} role="switch" aria-checked={r.active} aria-label={`${whoText(r)} perk ${r.active ? "active" : "paused"}`}>
                       {r.active ? "Active" : "Paused"}
                     </button>
                   }

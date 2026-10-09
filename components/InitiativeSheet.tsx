@@ -120,7 +120,7 @@ function InitiativeBody({ it, canEdit, canOpenBoard, onBoard, onSaved }: {
           {target && out != null && target !== it.target_date && <p className="pnl-note">{dueWord(out) === "due today" ? "Due today." : out < 0 ? `That is already ${dueWord(out)}.` : `That is ${dueWord(out)}.`}</p>}
           <div className="ts-chips" role="group" aria-label="Status" style={{ marginTop: 10 }}>
             {SETTABLE.map((s) => (
-              <button key={s} type="button" className={`ts-chip${status === s ? " on" : ""}`} aria-pressed={status === s} onClick={() => setStatus(s)}>{STATUS_WORD[s]}</button>
+              <button key={s} type="button" className={`k-chip${status === s ? " on" : ""}`} aria-pressed={status === s} onClick={() => setStatus(s)}>{STATUS_WORD[s]}</button>
             ))}
           </div>
           <label className="prod-f"><span>Name</span>

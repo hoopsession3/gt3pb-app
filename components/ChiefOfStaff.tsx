@@ -66,7 +66,7 @@ export default function ChiefOfStaff() {
       </div>
 
       {!b ? (
-        <button type="button" className="cos-go" onClick={() => run()} disabled={busy}>{busy ? "Reading everything…" : <><Icon name="sparkles" /> Brief &amp; lead my {period === "week" ? "week" : period}</>}</button>
+        <button type="button" className="btn-pri btn-wide" onClick={() => run()} disabled={busy}>{busy ? "Reading everything…" : <><Icon name="sparkles" /> Brief &amp; lead my {period === "week" ? "week" : period}</>}</button>
       ) : (
         <>
           <div className="cos-headline">{b.headline}</div>
@@ -86,8 +86,8 @@ export default function ChiefOfStaff() {
                       <span className="cos-prio-acts">
                         {ref && (isDone
                           ? <span className="cos-doneflag"><Icon name="check" /> Done</span>
-                          : <button type="button" className="cos-act" onClick={() => complete(ref)}><Icon name="check" /> Done</button>)}
-                        <button type="button" className="cos-act" onClick={() => setAssignTitle(p.title)}><Icon name="plus" /> Task</button>
+                          : <button type="button" className="btn-sec btn-sm" onClick={() => complete(ref)}><Icon name="check" /> Done</button>)}
+                        <button type="button" className="btn-sec btn-sm" onClick={() => setAssignTitle(p.title)}><Icon name="plus" /> Task</button>
                       </span>
                     </span>
                   </div>
@@ -99,7 +99,7 @@ export default function ChiefOfStaff() {
           {b.lead_plan?.length > 0 && (
             <div className="cos-block">
               <div className="cos-block-h">Lead the {period === "week" ? "week" : period}</div>
-              <ol className="cos-plan">{b.lead_plan.map((s: string, i: number) => <li key={i}><span>{s}</span><button type="button" className="cos-act sm" onClick={() => setAssignTitle(s)} aria-label="Make a task from this step"><Icon name="plus" /></button></li>)}</ol>
+              <ol className="cos-plan">{b.lead_plan.map((s: string, i: number) => <li key={i}><span>{s}</span><button type="button" className="k-icon-btn sm" onClick={() => setAssignTitle(s)} aria-label="Make a task from this step"><Icon name="plus" /></button></li>)}</ol>
             </div>
           )}
 
@@ -131,7 +131,7 @@ export default function ChiefOfStaff() {
             <div className="cos-watch">👁 {b.watch.join(" · ")}</div>
           )}
 
-          <button type="button" className="cos-redo" onClick={() => run()} disabled={busy}>{busy ? "Refreshing…" : "↻ Refresh briefing"}</button>
+          <button type="button" className="btn-sec btn-wide mt-3" onClick={() => run()} disabled={busy}>{busy ? "Refreshing…" : "↻ Refresh briefing"}</button>
         </>
       )}
       {err && <div className="dp-err" style={{ marginTop: 8 }}>{err}</div>}

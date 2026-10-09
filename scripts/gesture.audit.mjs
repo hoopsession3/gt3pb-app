@@ -67,6 +67,8 @@ export const NOT_PAGES = {
   "components/Studio.tsx#Filter": "a filter on the pieces shown — a swipe on Studio turns its views",
   "components/BrandCalendar.tsx#Calendar view": "the content calendar's month or list, inside Studio's Calendar view — a swipe there turns Studio's views",
   "components/PrepBoard.tsx#Filter prep": "a filter on one board",
+  "components/CompanyCalendar.tsx#Calendar view": "how the same dates are shown — agenda, week, month; a swipe on the calendar walks its dates (‹ ›)",
+  "components/QuickDock.tsx#Quick actions": "the dock's four tools in one sheet — a form, a conversation, a note, a receipt; a swipe across them would leave one half-typed",
 };
 
 // ── 3. where touch listeners may live ──────────────────────────────────────────────────────────

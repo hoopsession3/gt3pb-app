@@ -85,7 +85,7 @@ export default function PaymentSettings() {
               : "Not connected yet. Add the Square keys in the host env to turn on card payments."}
           </div>
         </div>
-        <span className={`pay-status${squareClientReady ? " on" : ""}`}>{squareClientReady ? "Connected" : "Off"}</span>
+        <span className={`k-tag${squareClientReady ? " ok" : ""}`}>{squareClientReady ? "Connected" : "Off"}</span>
       </div>
       <button type="button" className="btn-ter mt-2" onClick={runCheck} disabled={checking}>{checking ? "Checking with Square…" : "Check card connection"}</button>
       {health && (

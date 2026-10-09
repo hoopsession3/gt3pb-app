@@ -162,7 +162,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
     <div className="cal">
       <div className="cal-titlebar">
         <span className="cal-eyebrow">Content schedule</span>
-        <button type="button" className="cal-tolink" onClick={() => { goPlanTab("calendar"); goToCompany(); }}>Company calendar <Icon name="externalLink" /></button>
+        <button type="button" className="btn-ter ml-auto" onClick={() => { goPlanTab("calendar"); goToCompany(); }}>Company calendar <Icon name="externalLink" /></button>
       </div>
       {/* Under the title bar while it shows (components/TitleBar, data-compact): this row steps down under it. */}
       <div className="cal-sticky [.app:has([data-tbar][data-compact])_&]:top-[calc(env(safe-area-inset-top,0px)+44px)]! [.app:has(>.bcast):has([data-tbar][data-compact])_&]:top-11!">
@@ -204,8 +204,8 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
                 <div className="calw-h">
                   <span className="calw-dow">{DOW[d.getDay()]}</span>
                   <span className="calw-date">{d.getDate()}</span>
-                  {isToday && <span className="calw-today">Today</span>}
-                  <button type="button" className="calw-add hit-44" onClick={() => onCreate(iso9(), dayEv)} aria-label={`New piece ${DOW[d.getDay()]}`}>+ Add</button>
+                  {isToday && <span className="k-tag gold fill">Today</span>}
+                  <button type="button" className="btn-ter ml-auto" onClick={() => onCreate(iso9(), dayEv)} aria-label={`New piece ${DOW[d.getDay()]}`}>+ Add</button>
                 </div>
                 <div className="calw-items">
                   {cell.evs.map((e) => (
@@ -341,7 +341,7 @@ function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string;
               </select>
             </label>
           </div>
-          <LeaveButton className="cal-tolink" style={{ marginTop: 10, marginLeft: 0 }} onClick={() => onOpenFull(id)}>Open full editor (hook, caption, Canva) <Icon name="externalLink" /></LeaveButton>
+          <LeaveButton className="btn-ter mt-2.5" onClick={() => onOpenFull(id)}>Open full editor (hook, caption, Canva) <Icon name="externalLink" /></LeaveButton>
           <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
             <button type="button" className="note-arch" onClick={unschedule} disabled={saving}>Unschedule</button>
             <div style={{ display: "flex", gap: 8 }}>

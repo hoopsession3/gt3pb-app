@@ -162,7 +162,7 @@ export default function BroadcastEditor() {
                 bodyClick={() => edit(b)}
                 ariaLabel={`${b.title || "Untitled"} — edit`}
                 trailing={<>
-                  <button type="button" className={`bce-toggle${b.active ? " on" : ""}`} onClick={() => toggle(b)}>{b.active ? "Take down" : "Go live"}</button>
+                  <button type="button" className="btn-sec btn-sm" onClick={() => toggle(b)}>{b.active ? "Take down" : "Go live"}</button>
                   <button type="button" className="bce-del" onClick={() => del(b)} aria-label="Delete"><Icon name="close" /></button>
                 </>}
               />

@@ -93,8 +93,8 @@ export default function SiteCopyEditor() {
                       ? <textarea id={`sc-${m.key}`} className="sc-in" rows={3} value={valueOf(m.key, m.default)} onChange={(e) => setDraft((p) => ({ ...p, [m.key]: e.target.value }))} />
                       : <input id={`sc-${m.key}`} className="sc-in" value={valueOf(m.key, m.default)} onChange={(e) => setDraft((p) => ({ ...p, [m.key]: e.target.value }))} />}
                     <div className="sc-actions">
-                      <button type="button" className="sc-save" disabled={busy === m.key || !dirty(m.key, m.default)} onClick={() => save(m.key, m.default)}>{busy === m.key ? "Saving…" : "Save"}</button>
-                      <button type="button" className="sc-reset" disabled={busy === m.key || !overridden} onClick={() => reset(m.key)}>Reset to default</button>
+                      <button type="button" className="btn-pri btn-sm" disabled={busy === m.key || !dirty(m.key, m.default)} onClick={() => save(m.key, m.default)}>{busy === m.key ? "Saving…" : "Save"}</button>
+                      <button type="button" className="btn-ter" disabled={busy === m.key || !overridden} onClick={() => reset(m.key)}>Reset to default</button>
                     </div>
                   </div>
                 );

@@ -652,7 +652,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
           const n = opps.filter((o) => o.stage === s.key).length;
           if ((s.key === "expand" || s.key === "lost") && n === 0) return null;
           return (
-            <button key={s.key} type="button" className="pipe-rail-chip" disabled={n === 0}
+            <button key={s.key} type="button" className="k-chip sm" disabled={n === 0}
               onClick={() => document.getElementById(`pipe-stage-${s.key}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>
               <span className="cc-dot" style={{ background: STAGE_COLOR[s.key] }} />{s.label}<b>{n}</b>
             </button>
@@ -772,12 +772,12 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
         if (present.length < 2) return null;
         return (
           <div className="pipe-lines">
-            <button type="button" className={`ts-chip${mineOnly ? " on" : ""}`} onClick={() => setMineOnly(true)}>My accounts{mineCount ? ` · ${mineCount}` : ""}</button>
-            <button type="button" className={`ts-chip${!mineOnly ? " on" : ""}`} onClick={() => setMineOnly(false)}>Everyone</button>
+            <button type="button" className={`k-chip${mineOnly ? " on" : ""}`} aria-pressed={mineOnly} onClick={() => setMineOnly(true)}>My accounts{mineCount ? ` · ${mineCount}` : ""}</button>
+            <button type="button" className={`k-chip${!mineOnly ? " on" : ""}`} aria-pressed={!mineOnly} onClick={() => setMineOnly(false)}>Everyone</button>
             <span className="pipe-lines-div" aria-hidden />
-            <button type="button" className={`ts-chip${lineFilter === "all" ? " on" : ""}`} onClick={() => setLineFilter("all")}>All lines</button>
+            <button type="button" className={`k-chip${lineFilter === "all" ? " on" : ""}`} aria-pressed={lineFilter === "all"} onClick={() => setLineFilter("all")}>All lines</button>
             {present.map((l) => (
-              <button key={l} type="button" className={`ts-chip${lineFilter === l ? " on" : ""}`} onClick={() => setLineFilter(l)}>{lineLabel(l) ?? l}</button>
+              <button key={l} type="button" className={`k-chip${lineFilter === l ? " on" : ""}`} aria-pressed={lineFilter === l} onClick={() => setLineFilter(l)}>{lineLabel(l) ?? l}</button>
             ))}
           </div>
         );

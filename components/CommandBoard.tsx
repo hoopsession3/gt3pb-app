@@ -242,7 +242,7 @@ export default function CommandBoard() {
                     <InfoRow
                       name={<>{it.emoji ? `${it.emoji} ` : ""}{it.title}</>}
                       sub={it.summary || undefined}
-                      trailing={it.target_date ? <span className={`cmd-cd${late ? " late" : ""}`}>{dnice(it.target_date)} · {cd}</span> : undefined}
+                      trailing={it.target_date ? <span className={`k-tag txt fill${late ? " crit" : " gold"}`}>{dnice(it.target_date)} · {cd}</span> : undefined}
                       onClick={() => setOpenInit(it.id)}
                       ariaLabel={`Open ${it.title}`}
                     />
@@ -268,14 +268,14 @@ export default function CommandBoard() {
                       <div className="cmd-serves">
                         <span className="cmd-serves-k">Serves</span>
                         {served.map((g) => (
-                          <span key={g.id} className={`cmd-goalchip${g.checkin_status === "at_risk" ? " risk" : ""}`}>
+                          <span key={g.id} className={`k-tag txt${g.checkin_status === "at_risk" ? " warn" : ""}`}>
                             🎯 {g.title} · {Math.min(100, Math.round((Number(g.current_value) / Math.max(1, Number(g.target_value))) * 100))}%
-                            {isAdmin && <button type="button" onClick={() => unlinkGoal(it.id, g.id)} aria-label={`Unlink ${g.title}`}>×</button>}
+                            {isAdmin && <button type="button" className="k-tag-x" onClick={() => unlinkGoal(it.id, g.id)} aria-label={`Unlink ${g.title}`}><Icon name="close" /></button>}
                           </span>
                         ))}
                         {served.length === 0 && <span className="cmd-serves-none">no goal linked yet</span>}
                         {isAdmin && linkable.length > 0 && (
-                          <select className="cmd-goalsel" value="" onChange={(e) => linkGoal(it.id, e.target.value)} aria-label="Link a goal this initiative serves">
+                          <select className="max-w-[120px] font-semibold" value="" onChange={(e) => linkGoal(it.id, e.target.value)} aria-label="Link a goal this initiative serves">
                             <option value="">+ goal</option>
                             {linkable.map((g) => <option key={g.id} value={g.id}>{g.title}</option>)}
                           </select>
@@ -315,14 +315,14 @@ export default function CommandBoard() {
                       })}
                     </div>
                   )}
-                  {isAdmin && <InlineCreate label="+ Milestone" placeholder="Milestone" className="cmd-add hit-y-44" onCreate={(t) => addMilestone(it.id, t)} />}
+                  {isAdmin && <InlineCreate label="+ Milestone" placeholder="Milestone" className="btn-ter self-start mt-2" onCreate={(t) => addMilestone(it.id, t)} />}
                   {late && unfolded.has(it.id) && <button type="button" className="btn-ter flex mt-1" onClick={() => unfold(it.id)}>Fold it back</button>}
                   </>}
-                  {isAdmin && <button type="button" className="cmd-finish" onClick={() => finishInit(it)}><Icon name="check" /> Finish initiative — completes every task under it</button>}
+                  {isAdmin && <button type="button" className="btn-ter flex mt-2.5" onClick={() => finishInit(it)}><Icon name="check" /> Finish initiative</button>}
                 </div>
               );
             })}
-            {isAdmin && <InlineCreate label="+ New initiative" placeholder="Initiative name" className="cmd-add big hit-y-44" onCreate={createInit} />}
+            {isAdmin && <InlineCreate label="+ New initiative" placeholder="Initiative name" className="btn-ter self-start mt-1 mb-2" onCreate={createInit} />}
 
             {/* ── Launch readiness · go/no-go ── */}
             <LaunchReadiness />

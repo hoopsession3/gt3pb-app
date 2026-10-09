@@ -40,10 +40,10 @@ const FIXTURE = join(ROOT, "scripts/fixtures/plan-screen.html");
 // below were raised to it. The brew sheet's chips stand 32px with their 11px words (31 at 10px).
 // A second double, same rules (2026-10-03): the brew sheet, after Ryan scored it 5/10 from his
 // phone. Its own ceilings: depth 4 is the kit's segmented control (a filled option inside its
-// bordered track, inside the sheet); 31 px is the house chip (.ts-chip) — every chip in the
-// console is that height, and raising it is a decision for all of them, not a side effect here.
+// bordered track, inside the sheet); 31 px was the house chip (.ts-chip) — every chip in the console was that height.
+// The chip round (2026-10-09) made that decision for all of them: the kit's chip is 36pt and reaches 44.
 const BREW_FIXTURE = join(ROOT, "scripts/fixtures/brew-sheet.html");
-export const BREW_SHEET = { depth: 3, tap: 32, text: 11 };
+export const BREW_SHEET = { depth: 3, tap: 40, text: 11 };  // tap 32 → 40 (2026-10-09, the chip round): the chips are the kit's, 36pt and 44 to the thumb
 // The event record sheet with its ways out (2026-10-03). Depth 6 is the box inside the finding
 // inside the gaps block inside the sheet — an honest nesting, since the finding IS the form. The
 // floor that matters is the tap: 44, because the box these controls share with OwnerDetails
@@ -54,7 +54,7 @@ export const RECORD_SHEET = { depth: 5, tap: 44, text: 11 };
 // quick-actions dock, after Ryan asked whether an open form under the report was the right shape. It
 // is used one-handed at a register, so its tap floor is 44 like the record sheet's.
 const PURCHASE_FIXTURE = join(ROOT, "scripts/fixtures/purchase-sheet.html");
-export const PURCHASE_SHEET = { depth: 2, tap: 44, text: 12 };
+export const PURCHASE_SHEET = { depth: 3, tap: 44, text: 12 };  // depth 2 → 3 (2026-10-09, the chip round): the dock's four tools are the kit's segmented control in the sheet's head — a chosen option on its track, inside the sheet
 // My Day (2026-10-04) — the screen the console opens on, after Ryan's 10:13 PM screenshot: the top
 // three painted as grey slabs in the day theme, the greeting a lowercase fragment wedged under them.
 // The section's own content, measured: depth 2 is the brief inside today's op card; 44 is every
@@ -119,16 +119,16 @@ export const CHROME_CLEARANCE = 8;
 
 // ── THE CEILINGS — measured, not remembered (2026-10-01, after the one-box-per-level pass) ───────
 export const CEILING = {
-  cardRules: 723,        // 751 → 723 (2026-10-09, the button round: 28 rules that drew a button as a card of its own went with the 31 recipes). 756 → 751 (2026-10-08, the foundations round: dead card recipes went — .cell, .rsvp, .note-tasks-prev, .supply-sheet, .domain). rules that make a card: radius + (border | fill). 759 → 756 (2026-10-07, Ryan's "Ewww" on Command and Team): the portfolio's rows sit on the page (.osr-row, .osr-dot, .osr-owner were cards), the role badge and the invite pills went with the second door (.tm-badge, .tinv-role), the overdue line's box is utilities; + the team's week line (.cmd-week) and the score's dot. 810 → 766 (2026-10-07, the Tailwind round): 44 of them styled classes no screen names any more — the old account menu, the pre-kit display, the strategy board, the old craft steps, the isheet — and went with the 320 dead rules scripts/css.audit.mjs now keeps at zero. 809 → 810 (2026-10-06, the settings round, Settings as a list): + .set-list, the grouped list each Settings section's rows sit on (a card by what it is); + the segmented control's track and segment (.set-seg, .set-seg > button — Appearance's Day · Dark · Auto, 40px tall where 27px pills were); − the lane cards (.ws-card: one lane per row now); − the floating moon (.theme-toggle: Appearance lives in Settings). 810 → 809 (2026-10-06, the settings round): the "More controls" card (.set-card), five cards pointing out of Settings at controls that are in Settings now — retired with its map; Settings draws with .mpanel, SectionHeader and .pay-row and adds no card CSS. 809 → 810 (2026-10-05, the gesture round): "Discard your changes?" — the card a sheet asks the question on, over the sheet, at the thumb (.sheet2-ask-card); it is a card by what it is. The toast's Undo is a text action, not a pill, so it adds none. 810 → 809: the quiet Outlook line, retired with the not-configured bar it styled (2026-10-05). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04) 766 → 759 (2026-10-07, the pill round): the crew header's bell, Jump and Guide, the section pills and the count pill were each a card-making rule of their own; the kit's pills make one per primitive.
-  rawRadii: 25,          // distinct border-radius values that are not a --r-* token, 50% or 0. 27 → 26 (2026-10-07): the only rule with its value was a dead one (scripts/css.audit.mjs); 26 → 25 (the pill round): calc(var(--r-xl) - 3px) was the old segmented control's option
-  dupSelectors: 50,      // 51 → 50 (2026-10-09, the button round: .spl-cta:focus-visible, declared twice, went with the splash's recipe). 52 → 51 (2026-10-08: .menucat .wn, declared twice, went with the dead menu draft). single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02; 54 → 53: .myday-live, declared twice, retired with the card it lived on, 2026-10-04; 53 → 52: .crew-jump .crew-jump-k, retired with Jump's pill, 2026-10-07)
+  cardRules: 618,        // 723 → 618 (2026-10-09, the chip round: the chip, tag and pill-button recipes and the 16 last button recipes — each a card of its own — are the kit's chip, tag, count and buttons, one rule per primitive). 751 → 723 (2026-10-09, the button round: 28 rules that drew a button as a card of its own went with the 31 recipes). 756 → 751 (2026-10-08, the foundations round: dead card recipes went — .cell, .rsvp, .note-tasks-prev, .supply-sheet, .domain). rules that make a card: radius + (border | fill). 759 → 756 (2026-10-07, Ryan's "Ewww" on Command and Team): the portfolio's rows sit on the page (.osr-row, .osr-dot, .osr-owner were cards), the role badge and the invite pills went with the second door (.tm-badge, .tinv-role), the overdue line's box is utilities; + the team's week line (.cmd-week) and the score's dot. 810 → 766 (2026-10-07, the Tailwind round): 44 of them styled classes no screen names any more — the old account menu, the pre-kit display, the strategy board, the old craft steps, the isheet — and went with the 320 dead rules scripts/css.audit.mjs now keeps at zero. 809 → 810 (2026-10-06, the settings round, Settings as a list): + .set-list, the grouped list each Settings section's rows sit on (a card by what it is); + the segmented control's track and segment (.set-seg, .set-seg > button — Appearance's Day · Dark · Auto, 40px tall where 27px pills were); − the lane cards (.ws-card: one lane per row now); − the floating moon (.theme-toggle: Appearance lives in Settings). 810 → 809 (2026-10-06, the settings round): the "More controls" card (.set-card), five cards pointing out of Settings at controls that are in Settings now — retired with its map; Settings draws with .mpanel, SectionHeader and .pay-row and adds no card CSS. 809 → 810 (2026-10-05, the gesture round): "Discard your changes?" — the card a sheet asks the question on, over the sheet, at the thumb (.sheet2-ask-card); it is a card by what it is. The toast's Undo is a text action, not a pill, so it adds none. 810 → 809: the quiet Outlook line, retired with the not-configured bar it styled (2026-10-05). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04) 766 → 759 (2026-10-07, the pill round): the crew header's bell, Jump and Guide, the section pills and the count pill were each a card-making rule of their own; the kit's pills make one per primitive.
+  rawRadii: 24,          // distinct border-radius values that are not a --r-* token, 50% or 0. 25 → 24 (2026-10-09, the chip round: the last 9px pill-ish buttons went to the kit). 27 → 26 (2026-10-07): the only rule with its value was a dead one (scripts/css.audit.mjs); 26 → 25 (the pill round): calc(var(--r-xl) - 3px) was the old segmented control's option
+  dupSelectors: 44,      // 50 → 44 (2026-10-09, the chip round: selectors declared twice went with their recipes — .handle, .goal-chip, .cal-view, .oa-cta.ghost, .mypack-flag.paid, and .note-fu-add, the follow-up row and the + Add button that shared its name). 51 → 50 (2026-10-09, the button round: .spl-cta:focus-visible, declared twice, went with the splash's recipe). 52 → 51 (2026-10-08: .menucat .wn, declared twice, went with the dead menu draft). single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02; 54 → 53: .myday-live, declared twice, retired with the card it lived on, 2026-10-04; 53 → 52: .crew-jump .crew-jump-k, retired with Jump's pill, 2026-10-07)
   rootBlocks: 1,         // separate `:root{` blocks — tokens have one home (6 → 1 on 2026-10-02: motion, spring, eyebrow tracking, color-scheme and the radius scale folded in)
   subFloorFontRules: 0,  // px font-sizes under THE TYPE FLOOR (10px, see the note in globals.css). 184 → 0 on 2026-10-02
   darkWells: 25,         // fills of literal black at 10–44% with no rule for a light surface — see darkWellCounts. 26 → 25 on 2026-10-07 (Your GT3): the office route's empty-jugs stepper (.oo-jug) takes the theme's surface, and its card (.oo), black in the day theme from an undefined --panel, takes --card. 31 → 26 on 2026-10-07 (Ryan: "Ewww", Command and Team in the day theme): the portfolio's rows (.osr-row, flat on the page now), the goal pick (.cmd-goalsel), and Team's activity rows and Command's KPI rows and inputs (.util-row, .kpib-row, .kpib-in input — a day surface each). 34 → 31 on 2026-10-07: three were in rules that styled nothing (the dead CSS, scripts/css.audit.mjs). Measured 37 the day it was written (2026-10-04); 37 → 35 that day: the task checkbox and My Day's top three; 35 → 34 on 2026-10-05: a venue's contact block (.vlink), now under the venue pick on the event card and on Route
   selectClassShorthands: 0, // rules that paint a class some <select> carries with the `background` shorthand (selectClassShorthands). Measured 25 the day it was written (2026-10-04) and 25 → 0 that day: background-color, the way the rest of the selects are painted — the stripes under OsRegistry's Status pick (.note-in), and the arrow the day theme erased from the brew board's status, the goal and shoot owner picks, the assignee picks and the rest
   undefinedTokens: 0,    // var(--x) reads with no fallback of a custom property nothing defines — see undefinedTokens(). 1 → 0 the day it was written (2026-10-06): the Academy's progress track, var(--ink-onLight-08), a step the scale never had
   selectShorthands: 0,   // rules on a <select> that paint with the `background` SHORTHAND. It resets background-repeat, and the chevron the app draws on every select then tiles across it — stripes, in the day theme, on every select whose container had one (Ryan's brew sheet, 2026-10-03). 19 → 0: colour is background-color.
-  maxLeafDepth: 2,       // boxes around the innermost box on the Plan screen (was 4)
+  maxLeafDepth: 3,       // boxes around the innermost box on the Plan screen (was 4; 2 → 3 on 2026-10-09, the chip round: the calendar's views are the kit's segmented control, Calendar's Day · Week · Month, and its chosen option sits on its track inside the calendar's card, as the brew sheet's does)
   railAreaFraction: 0.066, // expanded rail as a share of a 390×844 viewport — a 48px row plus 8px of air above the nav, in the layout flow (2026-10-02). Width used to be the number (0.46 → 0.27 → a bar); area is what a toolbar can be held to
   railCoversFixed: 0,      // fixed-position buttons the expanded rail sits on top of
 };
@@ -281,6 +281,8 @@ export const SHIFT = {
 // set, grew from 43.6 to 44. The tab bar's labels went to 11 on a line of their own height, so its 49pt tabs stay
 // 49 (iOS's bar: 49 + the home indicator). PROD_ROUTE below says the same of production, from
 // the same fold: its 10s are 11s; the map's zoom buttons (30, Leaflet's own) are not text and stay.
+// 2026-10-09 (the chip round): /built 34 → 44, here and on production — its Back is the kit's glass icon button (36pt,
+// 44 to the thumb) where a 34pt "‹ Back" pill floated.
 export const ROUTE = {
   "/":              { depth: 2, tap: 44, text: 11 },
   "/truck":         { depth: 2, tap: 44, text: 11 },
@@ -301,7 +303,7 @@ export const ROUTE = {
   "/driver":        { depth: 0, tap: 49, text: 32 },
   "/agreement":     { depth: 1, tap: 44, text: 11 },
   "/offer":         { depth: 1, tap: 44, text: 11 },
-  "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 34, text: 11 },
+  "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 44, text: 11 },
   "/display":       { depth: 1, tap: 49, text: 10 },
   "/privacy":       { depth: 0, tap: 49, text: 15 },
   "/terms":         { depth: 0, tap: 49, text: 15 },
@@ -338,7 +340,7 @@ export const PROD_ROUTE = {
   "/driver":        { depth: 1, tap: 44, text: 11 },
   "/agreement":     { depth: 1, tap: 44, text: 11 },
   "/offer":         { depth: 1, tap: 44, text: 11 },
-  "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 34, text: 11 },
+  "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 44, text: 11 },
   "/display":       { depth: 1, tap: 49, text: 10 },
   "/privacy":       { depth: 0, tap: 49, text: 15 },
   "/terms":         { depth: 0, tap: 49, text: 15 },
@@ -552,29 +554,29 @@ export const PROD_ROUTE = {
 // following the phone's in the iPhone app (the reading itself is in the app's bundle only). The stylesheets came down
 // a line (100 → 99, 103 → 102), recorded; the script crossed the rounding line on /delivery, /office and /primal.
 export const WEIGHT = {
-  "/truck":                    { js: 283, css: 100, chunks: 15 },
-  "/events":                   { js: 283, css: 100, chunks: 15 },
-  "/menu":                     { js: 267, css: 97, chunks: 15 },
-  "/reserve":                  { js: 291, css: 97, chunks: 16 },
-  "/delivery":                 { js: 290, css: 97, chunks: 16 },
-  "/3mpire":                   { js: 283, css: 97, chunks: 15 },
-  "/craft":                    { js: 266, css: 97, chunks: 15 },
-  "/book":                     { js: 267, css: 97, chunks: 15 },
-  "/academy":                  { js: 324, css: 97, chunks: 16 },
-  "/office":                   { js: 281, css: 97, chunks: 15 },
-  "/scan":                     { js: 266, css: 97, chunks: 15 },
-  "/architecture":             { js: 275, css: 97, chunks: 15 },
-  "/playbook":                 { js: 275, css: 97, chunks: 15 },
-  "/driver":                   { js: 279, css: 100, chunks: 15 },
-  "/agreement":                { js: 273, css: 97, chunks: 15 },
-  "/offer":                    { js: 283, css: 97, chunks: 15 },
-  "/built/gt3-built-k7m9x4q2": { js: 264, css: 100, chunks: 15 },
-  "/display":                  { js: 266, css: 97, chunks: 15 },
-  "/shop":                     { js: 295, css: 97, chunks: 16 },
-  "/primal":                   { js: 268, css: 97, chunks: 15 },
-  "/privacy":                  { js: 263, css: 97, chunks: 14 },
-  "/terms":                    { js: 263, css: 97, chunks: 14 },
-  "/":                         { js: 273, css: 97, chunks: 15 },
+  "/truck":                    { js: 283, css: 95, chunks: 15 },
+  "/events":                   { js: 283, css: 95, chunks: 15 },
+  "/menu":                     { js: 267, css: 93, chunks: 15 },
+  "/reserve":                  { js: 291, css: 93, chunks: 16 },
+  "/delivery":                 { js: 290, css: 93, chunks: 16 },
+  "/3mpire":                   { js: 283, css: 93, chunks: 15 },
+  "/craft":                    { js: 266, css: 93, chunks: 15 },
+  "/book":                     { js: 267, css: 93, chunks: 15 },
+  "/academy":                  { js: 324, css: 93, chunks: 16 },
+  "/office":                   { js: 281, css: 93, chunks: 15 },
+  "/scan":                     { js: 266, css: 93, chunks: 15 },
+  "/architecture":             { js: 275, css: 93, chunks: 15 },
+  "/playbook":                 { js: 275, css: 93, chunks: 15 },
+  "/driver":                   { js: 279, css: 95, chunks: 15 },
+  "/agreement":                { js: 273, css: 93, chunks: 15 },
+  "/offer":                    { js: 283, css: 93, chunks: 15 },
+  "/built/gt3-built-k7m9x4q2": { js: 264, css: 93, chunks: 15 },
+  "/display":                  { js: 266, css: 93, chunks: 15 },
+  "/shop":                     { js: 295, css: 93, chunks: 16 },
+  "/primal":                   { js: 268, css: 93, chunks: 15 },
+  "/privacy":                  { js: 263, css: 93, chunks: 14 },
+  "/terms":                    { js: 263, css: 93, chunks: 14 },
+  "/":                         { js: 273, css: 93, chunks: 15 },
 };
 
 // 2026-10-09 (the button round: redesign 7): every route's stylesheet -1 628 bytes and its script +188 to +245 (gzip).
@@ -583,6 +585,11 @@ export const WEIGHT = {
 // ("03 · Buttons"); the shell carries the kit's component (components/Button: the broadcast bar's link and the splash's
 // button are drawn with it). The stylesheets came down two lines (99 → 97, 102 → 100), recorded; the script crossed the
 // rounding line on /academy, /scan and /display.
+// 2026-10-09 (the chip round: redesign 7's second half): every route's stylesheet −4 907 bytes (gzip) and its script −10 to
+// +73. Built 945db08 and this commit and gzipped what each route's HTML references (/menu's stylesheet 99 793 → 94 886, its
+// script 273 541 → 273 560): 105 pill rules — chips, tags, pill buttons — the 16 last button recipes and .handle gave way to the
+// kit's chip, tag and count; the screens name the kit's classes, a few bytes apiece. The stylesheets came down four and five
+// lines (97 → 93, 100 → 95), recorded.
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];
   const out = [];

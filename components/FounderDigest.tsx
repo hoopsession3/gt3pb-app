@@ -54,7 +54,7 @@ export default function FounderDigest() {
       <p className="fdig-note">A once-a-day roll-up — all-channel revenue, launch readiness, open blockers, reorders, and what needs you — for the founders. Daily/weekly also land in the Inbox automatically; use Send now for an email + text right away.</p>
       <div className="fdig-cad" role="group" aria-label="Digest cadence">
         {(["off", "daily", "weekly"] as DigestCadence[]).map((c) => (
-          <button key={c} type="button" className={`fdig-opt${cadence === c ? " on" : ""}`} onClick={() => change(c)} disabled={busy} aria-pressed={cadence === c}>{DIGEST_LABELS[c]}</button>
+          <button key={c} type="button" className={`k-chip${cadence === c ? " on" : ""}`} onClick={() => change(c)} disabled={busy} aria-pressed={cadence === c}>{DIGEST_LABELS[c]}</button>
         ))}
       </div>
       {/* .btn-sec, not .btn-pri: on its own this is the only action on the form, but this Panel is

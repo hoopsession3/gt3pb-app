@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { BUSINESS, BUILD_STATS, STATUS_LABEL } from "@/lib/architecture";
+import { BUSINESS, BUILD_STATS, STATUS_LABEL, STATUS_TONE } from "@/lib/architecture";
 import Watermark from "@/components/Watermark";
 import BuiltBack from "@/components/BuiltBack";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
@@ -50,7 +50,7 @@ export default async function BuiltShare({ params }: { params: Promise<{ key: st
             <div className="biz-head">
               <span className="biz-icon" aria-hidden>{b.icon}</span>
               <span className="biz-name">{b.name}</span>
-              <span className={`arch-st st-${b.status}`}>{STATUS_LABEL[b.status]}</span>
+              <span className={`k-tag ml-auto${STATUS_TONE[b.status]}`}>{STATUS_LABEL[b.status]}</span>
             </div>
             <p className="biz-outcome">{b.outcome}</p>
           </div>

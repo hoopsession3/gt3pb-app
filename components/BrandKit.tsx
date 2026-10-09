@@ -154,7 +154,7 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
                   <span className={`brand-asset-img${a.kind === "photo" ? " photo" : ""}`}><img src={a.url} alt={a.label} /></span>
                   <span className="brand-asset-l">{a.label}</span>
                 </a>
-                {canEdit && <button type="button" className="brand-asset-x" onClick={() => delAsset(a.id)} aria-label={`Delete ${a.label}`}><Icon name="close" /></button>}
+                {canEdit && <button type="button" className="k-icon-btn sm glass brand-asset-x" onClick={() => delAsset(a.id)} aria-label={`Delete ${a.label}`}><Icon name="close" /></button>}
               </div>
             ))}
             {canEdit && (

@@ -180,7 +180,7 @@ export function CrmDetail({ c }: { c: Customer }) {
                 <div className="crm-tier-seg" role="radiogroup" aria-label="Member tier and VIP status">
                   {(["member", "founding", "founding_vip"] as const).map((t) => (
                     <button key={t} type="button" role="radio" aria-checked={uiTier === t}
-                      className={`crm-tier-b${uiTier === t ? " on" : ""}${t === "founding" ? " gold" : ""}${t === "founding_vip" ? " vip" : ""}`}
+                      className={`k-chip${uiTier === t ? " on" : ""}`}
                       onClick={() => setUiTier(t)}>
                       {t === "founding_vip" ? <><Icon name="star" /> Founding VIP</> : t === "founding" ? <><Icon name="star" /> Founding</> : "Member"}
                     </button>

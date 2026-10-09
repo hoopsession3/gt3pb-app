@@ -136,7 +136,7 @@ export default function CodesPanel() {
       {/* The <Panel> owns the title now — this is just the lead line + the mint action (cohesion pass). */}
       <div className="codes-head">
         <div className="codes-sub">Mint a redeemable code — customers enter it at checkout, priced live. No deploy.</div>
-        <button type="button" className="codes-new" onClick={() => setOpen((v) => !v)}>{open ? "Close" : "+ New code"}</button>
+        <button type="button" className="btn-ter" onClick={() => setOpen((v) => !v)}>{open ? "Close" : "+ New code"}</button>
       </div>
 
       {open && (
@@ -218,12 +218,12 @@ export default function CodesPanel() {
               <div key={r.id} style={{ opacity: r.active ? 1 : 0.55 }}>
                 <InfoRow
                   name={<span className="codes-code">{r.code}</span>}
-                  nameExtra={<span className="codes-badge">{valueText(r)}</span>}
+                  nameExtra={<span className="k-tag txt gold">{valueText(r)}</span>}
                   sub={targetText(r)}
                   trailing={
                     <span className="codes-trail">
-                      <button type="button" className="codes-qr" onClick={() => copyQr(r)} aria-label={`Copy QR link for ${r.code}`}>QR ⧉</button>
-                      <button type="button" className={`codes-toggle${r.active ? " on" : ""}`} onClick={() => toggle(r)} role="switch" aria-checked={r.active} aria-label={`${r.code} ${r.active ? "active" : "paused"}`}>
+                      <button type="button" className="btn-sec btn-sm" onClick={() => copyQr(r)} aria-label={`Copy QR link for ${r.code}`}>QR ⧉</button>
+                      <button type="button" className={`k-chip sm ok${r.active ? " on" : ""}`} onClick={() => toggle(r)} role="switch" aria-checked={r.active} aria-label={`${r.code} ${r.active ? "active" : "paused"}`}>
                         {r.active ? "Active" : "Paused"}
                       </button>
                     </span>

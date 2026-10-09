@@ -65,7 +65,7 @@ function YourUsual() {
         leadSub={t("today.usual_leadsub")}
         name={names}
         sub={t("today.usual_sub")}
-        trailing={<span className="k-chip k-chip-sec">{t("today.usual_cta")}</span>}
+        trailing={<span className="k-chip">{t("today.usual_cta")}</span>}
         onClick={() => reorder(last.items as DrinkId[])}
         ariaLabel={`Order your usual again: ${names}`}
       />

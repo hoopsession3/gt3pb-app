@@ -143,9 +143,9 @@ export default function MaintenanceLog() {
             {rows.length > 0 ? (
               <>
                 <div className="mnt-filters">
-                  <button type="button" className={`mnt-chip${filter === "all" ? " on" : ""}`} onClick={() => setFilter("all")}>All</button>
+                  <button type="button" className={`k-chip${filter === "all" ? " on" : ""}`} aria-pressed={filter === "all"} onClick={() => setFilter("all")}>All</button>
                   {KINDS.filter(([k]) => rows.some((r) => r.kind === k)).map(([k, l]) => (
-                    <button key={k} type="button" className={`mnt-chip${filter === k ? " on" : ""}`} onClick={() => setFilter(k)}>{l}</button>
+                    <button key={k} type="button" className={`k-chip${filter === k ? " on" : ""}`} aria-pressed={filter === k} onClick={() => setFilter(k)}>{l}</button>
                   ))}
                 </div>
                 {/* Each row's header (dot · title · kind/date/cadence/overdue · score · chevron) is

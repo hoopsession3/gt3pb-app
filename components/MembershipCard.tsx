@@ -67,7 +67,7 @@ export default function MembershipCard() {
     <section className="memberpass" aria-label="GT3 membership card">
       <div className="mp-top">
         <div className="mp-mark"><Gt3Mark tone="cream" /></div>
-        <span className="mp-tier">{profile.founding_member ? "Founding Member" : "Member"}</span>
+        <span className="k-tag gold">{profile.founding_member ? "Founding Member" : "Member"}</span>
       </div>
       <div className="mp-name">{name}</div>
       <div className="mp-row">

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useApp } from "./AppProvider";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { SectionHeader } from "@/components/kit";
+import Icon from "@/components/Icon";
 
 // ─── answer types ─────────────────────────────────────────────────────────────
 type Sleep    = "great" | "good" | "rough" | "wrecked";
@@ -230,8 +231,8 @@ export default function GenerateDay() {
 
         <div className="honest"><b>Straight talk:</b> {rec.straight}</div>
 
-        <button className="handle" onClick={addStack} style={{ marginTop: 18 }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"><path d="M5 12l5 5L20 7" /></svg>
+        <button type="button" className="btn-pri btn-wide mt-4.5" onClick={addStack}>
+          <Icon name="check" />
           <span>Add my stack</span>
         </button>
 
@@ -308,10 +309,10 @@ export default function GenerateDay() {
       </div>
 
       <button
-        className="handle"
+        type="button"
+        className="btn-pri btn-wide mt-5.5"
         disabled={!ready || busy}
         onClick={generate}
-        style={{ marginTop: 22 }}
       >
         <span>{busy ? "Reading your inputs…" : "Generate my stack"}</span>
       </button>

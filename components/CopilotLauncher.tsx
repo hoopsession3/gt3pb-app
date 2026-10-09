@@ -52,7 +52,7 @@ export default function CopilotLauncher({ role, onPick }: { role: string; onPick
                     <span className="cl-op-desc">{c.desc}</span>
                   </span>
                   <span className="cl-op-go">
-                    <span className="cl-op-sec">{SECTION_LABEL[c.section]}</span>
+                    <span className="k-tag">{SECTION_LABEL[c.section]}</span>
                     <span className="cl-op-arrow" aria-hidden><Icon name="arrowRight" /></span>
                   </span>
                 </button>

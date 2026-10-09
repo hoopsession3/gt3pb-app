@@ -53,10 +53,12 @@ export type MenuRigPatch = { rig?: RigKey | null; power_available?: boolean | nu
   [K in MenuKey]?: boolean;
 };
 
-// Class map onto each host surface's existing chip skin — no new CSS, no visual churn.
+// Class map onto each host surface's existing chip skin — no new CSS, no visual churn. The prep tool's chips
+// are the kit's (2026-10-09, the chip round retired .ts-chip; this map is a class list no className shows,
+// and scripts/css.audit.mjs now reads every one).
 const SKIN = {
   ev: { h: "ev-sub-h", row: "ev-chips", chip: "ev-chip", siteRow: "ev-chips", tog: "ev-chip" },
-  ts: { h: "menued-h", row: "ts-chips", chip: "ts-chip", siteRow: "menued-site", tog: "menued-tog" },
+  ts: { h: "menued-h", row: "ts-chips", chip: "k-chip", siteRow: "menued-site", tog: "menued-tog" },
 } as const;
 
 const triLabel = (v: boolean | null | undefined) => (v === true ? "yes" : v === false ? "no" : "—");

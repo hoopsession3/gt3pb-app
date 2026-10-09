@@ -702,7 +702,7 @@ function ScopeBlock({ d, setD, editable }: { d: any; setD: (v: any) => void; edi
         {acts.map((a) => {
           const on = d.covers.includes(a.value);
           return (
-            <button key={a.value} type="button" className={`ts-chip${on ? " on" : ""}`}
+            <button key={a.value} type="button" className={`k-chip${on ? " on" : ""}`}
                     disabled={!editable} aria-pressed={on} onClick={() => toggle(a.value)}>
               {on && <><Icon name="check" /> </>}{a.label}
             </button>
