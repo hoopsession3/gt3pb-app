@@ -27,6 +27,7 @@ export type HomeItem = {
 
 export type HomeSplit<T extends HomeItem = HomeItem> = {
   today: T[];        // at most TODAY_MAX, in rank order
+  due: T[];          // every item due today or late by STALE_DAYS or less, in rank order
   moreToday: number;        // due today or late, past the first TODAY_MAX
   stale: T[];               // late by more than STALE_DAYS
   upkeep: T[];              // equipment upkeep due or late, whatever its age: one row on the home
@@ -54,6 +55,7 @@ export function splitHome<T extends HomeItem>(items: readonly T[]): HomeSplit<T>
   const stale = rest.filter((i) => homeBucket(i.daysOut) === "stale").sort(rankToday);
   return {
     today: due.slice(0, TODAY_MAX),
+    due,
     moreToday: Math.max(0, due.length - TODAY_MAX),
     stale,
     upkeep,
