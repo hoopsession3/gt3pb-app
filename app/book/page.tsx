@@ -109,7 +109,7 @@ export default function BookScreen() {
         <input id="b-loc" className="auth-input" enterKeyHint="next" onKeyDown={nextOnEnter} value={f.location_text} onChange={set("location_text")} placeholder={t("book.ph_location")} maxLength={300} />
         <label className="auth-label" htmlFor="b-notes">{t("book.f_notes")}</label>
         <textarea id="b-notes" className="auth-input" value={f.notes} onChange={set("notes")} placeholder={t("book.ph_notes")} rows={3} maxLength={2000} />
-        <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}><span>{busy ? "Sending…" : t("book.submit")}</span></button>
+        <button className="btn-pri btn-wide mt-4.5" type="submit" disabled={busy}><span>{busy ? "Sending…" : t("book.submit")}</span></button>
       </form>
       {/* Pricing footnote removed entirely at Ryan's call (2026-07-30) — the form ends at the
           button; the success card carries the "we reply within a day" expectation. */}
