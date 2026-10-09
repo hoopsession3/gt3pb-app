@@ -223,7 +223,7 @@ export default function OfficeScreen() {
               }
               return (
                 <div key={p.id} className="op-card">
-                  <div className="op-card-h"><span className="op-k">{where ? `Weekly · ${where.label || where.street}` : "Standing weekly"}</span><button type="button" className={`op-switch${a.standing_active ? " on" : ""}`} onClick={() => patch(a, { standing_active: !a.standing_active })} aria-pressed={a.standing_active} aria-label="Weekly order on" disabled={busy}><span className="op-switch-k" /></button></div>
+                  <div className="op-card-h"><span className="op-k">{where ? `Weekly · ${where.label || where.street}` : "Standing weekly"}</span><button type="button" role="switch" aria-checked={!!a.standing_active} className={`k-switch${a.standing_active ? " on" : ""}`} onClick={() => patch(a, { standing_active: !a.standing_active })} aria-label="Weekly order" disabled={busy}><span className="k-switch-k" /></button></div>
                   {a.standing_active ? (
                     <>
                       <p className="op-sub">{programLine(p)} — we brew the night before.</p>
