@@ -91,6 +91,14 @@
   --radius-4xl: var(--r-4xl);
   --radius-pill: var(--r-pill);
 
+  /* buttons: the kit's two sizes (2026-10-09, the button round: redesign 7) — h-btn / min-h-btn 50pt and h-btn-sm 36pt,
+     rounded-btn and rounded-btn-sm, for a field or a control that stands beside a button. The buttons themselves are
+     app/globals.css "03 · Buttons" (components/Button). */
+  --spacing-btn: var(--btn-h);
+  --spacing-btn-sm: var(--btn-h-sm);
+  --radius-btn: var(--r-2xl);
+  --radius-btn-sm: var(--r-lg);
+
   /* depth: the house ladder — rest, raised, overlay */
   --shadow-*: initial;
   --shadow-rest: var(--shadow-1);
