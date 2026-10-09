@@ -570,7 +570,7 @@ export const WEIGHT = {
   "/driver":                   { js: 279, css: 95, chunks: 15 },
   "/agreement":                { js: 273, css: 93, chunks: 15 },
   "/offer":                    { js: 283, css: 93, chunks: 15 },
-  "/built/gt3-built-k7m9x4q2": { js: 264, css: 93, chunks: 15 },
+  "/built/gt3-built-k7m9x4q2": { js: 265, css: 93, chunks: 15 },
   "/display":                  { js: 266, css: 93, chunks: 15 },
   "/shop":                     { js: 295, css: 93, chunks: 16 },
   "/primal":                   { js: 268, css: 93, chunks: 15 },
@@ -590,6 +590,11 @@ export const WEIGHT = {
 // script 273 541 → 273 560): 105 pill rules — chips, tags, pill buttons — the 16 last button recipes and .handle gave way to the
 // kit's chip, tag and count; the screens name the kit's classes, a few bytes apiece. The stylesheets came down four and five
 // lines (97 → 93, 100 → 95), recorded.
+// 2026-10-09 (nothing moves after paint): every route's script +28 bytes and stylesheet +69 (gzip), the order funnel's
+// three routes' script +136. Built main (4aabeba) and this commit and gzipped what each route's HTML references: the
+// label over the one pickup (a copy default the shell carries), the pickup's room on /reserve, /shop and /delivery, two
+// utilities (cursor-default, active:transform-none), and the screens that hold the GT3 mark. /built's script crossed the
+// rounding line (264 → 265), recorded.
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];
   const out = [];
@@ -623,6 +628,7 @@ export function routeVerdict(path, m, row = ROUTE[path]) {
     if (m.shift.total > SHIFT.total) out.push(`${path}: layout shift ${m.shift.total} — gate ${SHIFT.total}${what}. Something is painted, then pushed.`);
   }
   // A button in the browser's grey face is a style rule that never reached it (2026-10-04, .cp-go).
+  if (Array.isArray(m.marksLoose) && m.marksLoose.length) out.push(`${path}: the GT3 mark is placed outside its screen (${m.marksLoose.join(", ")}) — add the screen to the positioned list beside .wm in app/globals.css, or the mark jumps when the screen's fade ends.`);
   if (Array.isArray(m.uaButtons) && m.uaButtons.length) out.push(`${path}: ${m.uaButtons.length} button(s) in the browser's default grey face — ${m.uaButtons.slice(0, 3).join(" · ")}. Give the class a reset.`);
   return out;
 }

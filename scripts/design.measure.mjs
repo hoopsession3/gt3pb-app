@@ -192,6 +192,11 @@ export const MEASURE = `(() => {
     overflowX, smallestTap: smallestTap === 999 ? null : smallestTap, smallestTapWhat, smallestText: smallestText === 99 ? null : smallestText, smallestTextWhat, fixedOverlays, headings, nestedScroll,
     uaButtons,
     shift,
+    // THE MARK STAYS IN ITS SCREEN (2026-10-09). A .wm is placed against the screen that holds it; a screen
+    // that isn't positioned holds it only while its entrance fade transforms it, then lets it drop to
+    // whatever is positioned above — on /shop, from the page's foot to the viewport's, 0.11 of layout shift.
+    marksLoose: [...document.querySelectorAll(".wm")].filter((w) => w.offsetParent !== w.parentElement)
+      .map((w) => (w.parentElement && (w.parentElement.id || w.parentElement.className)) || "?"),
   };
 })()`;
 
