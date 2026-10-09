@@ -4696,8 +4696,8 @@ function EventCard({ e, today, open, onToggle, onUpdate, onRemove, onSetLive, on
               <label className="ev-f">End<input type="time" defaultValue={toTimeInput(e.end_time)} aria-label="End time" onBlur={(ev) => (ev.target.value.trim() || null) !== e.end_time && onUpdate({ end_time: ev.target.value.trim() || null })} /></label>
               <label className="ev-f">Going<input type="text" readOnly value={`${e.going_count ?? 0} · from RSVPs`} title="Live headcount from member RSVPs — not editable" /></label>
             </div>
-            <button className={`ev-toggle${e.member_only ? " on" : ""}`} onClick={() => onUpdate({ member_only: !e.member_only })} aria-pressed={e.member_only}>
-              <span className="ev-toggle-track"><span className="ev-toggle-knob" /></span>
+            <button type="button" role="switch" aria-checked={!!e.member_only} className="ev-toggle" onClick={() => onUpdate({ member_only: !e.member_only })}>
+              <span className={`k-switch${e.member_only ? " on" : ""}`} aria-hidden><span className="k-switch-k" /></span>
               Members only
             </button>
           </div>

@@ -32,8 +32,8 @@ export function PassSound() {
             : "A chime and a buzz on this phone when a new order lands on the pass, and when a guest says they're outside."}
         </div>
       </div>
-      <button type="button" role="switch" aria-checked={!muted} aria-label="Pass sound" className={`pay-toggle${!muted ? " on" : ""}`} onClick={flip}>
-        <span className="pay-toggle-knob" />
+      <button type="button" role="switch" aria-checked={!muted} aria-label="Pass sound" className={`k-switch${!muted ? " on" : ""}`} onClick={flip}>
+        <span className="k-switch-k" />
       </button>
     </div>
   );

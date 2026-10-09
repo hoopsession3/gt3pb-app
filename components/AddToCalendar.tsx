@@ -30,11 +30,16 @@ export default function AddToCalendar({ ev, label = "Add to calendar", defaultBu
   // stale render is thrown away before the browser sees it.
   const [lastDefault, setLastDefault] = useState(defaultBuffer);
   if (lastDefault !== defaultBuffer) { setLastDefault(defaultBuffer); setBuffer(defaultBuffer); }
+  // The menu closes on a touch or a click outside it, and on Escape — back to the button that opened it, as every
+  // other menu and sheet here does (2026-10-09, the forms round: it had neither Escape nor a touch, only a mouse's
+  // press, which an iPhone does not send for a tap on nothing in particular).
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    const onDoc = (e: PointerEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); setOpen(false); ref.current?.querySelector<HTMLButtonElement>("button")?.focus(); } };
+    document.addEventListener("pointerdown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("pointerdown", onDoc); document.removeEventListener("keydown", onKey); };
   }, [open]);
   if (!ev) return null;
   const out = withBuffer(ev, buffer);

@@ -51,11 +51,12 @@ const STUDIO_VIEWS: readonly { key: StudioView; label: string }[] = [
   { key: "calendar", label: "Calendar" }, { key: "board", label: "Board" }, { key: "grid", label: "Grid" },
   { key: "flyer", label: "Flyer" }, { key: "letter", label: "Letter" }, { key: "brand", label: "Brand" },
 ];
-// cls is the grid dot's (.ig-tag); tone is the status tag's (the kit's .k-tag)
+// cls is the grid dot's (.ig-tag); tone is the status tag's (the kit's .k-tag). The dot's names are its own: as
+// .st-review it took the strategy desk's review box too, and an "In review" dot drew 33px wide (2026-10-09).
 const STATUS: Record<string, { label: string; cls: string; tone: string }> = {
-  draft: { label: "Draft", cls: "st-draft", tone: "" }, review: { label: "In review", cls: "st-review", tone: " gold" },
-  changes: { label: "Changes", cls: "st-changes", tone: " crit" }, approved: { label: "Approved", cls: "st-approved", tone: " ok" },
-  scheduled: { label: "Scheduled", cls: "st-scheduled", tone: " blue" }, published: { label: "Published", cls: "st-published", tone: " ok" },
+  draft: { label: "Draft", cls: "ig-draft", tone: "" }, review: { label: "In review", cls: "ig-review", tone: " gold" },
+  changes: { label: "Changes", cls: "ig-changes", tone: " crit" }, approved: { label: "Approved", cls: "ig-approved", tone: " ok" },
+  scheduled: { label: "Scheduled", cls: "ig-scheduled", tone: " blue" }, published: { label: "Published", cls: "ig-published", tone: " ok" },
 };
 const KINDS = ["post", "carousel", "reel", "story", "caption", "email", "menu_card", "promo", "blog"];
 // Format → the real frame aspect ratio + label, so the mockup matches what posts on the platform.

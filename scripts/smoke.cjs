@@ -9883,6 +9883,68 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /className=\{`k-icon-btn self-center\$\{a\.critical \? " on" : ""\}`\}/.test(pg) && /className="btn-sec btn-sm btn-wide mt-0\.5 mb-1" onClick=\{summarize\}/.test(pg));
 }
 
+// ── ONE FIELD (2026-10-09, the forms round) ──────────────────────────────────────────────────────────────────────
+// The base field (.app :where(input…)) was written to be "zero specificity, a floor"; the .app in front of the :where()
+// gives it a class's weight, and it comes late — so from 2026-09-07 it drew its box over 50 one-class field recipes
+// written above it (343 declarations that painted nothing), and the 28 container rules that DID outrank it drew the
+// console's forms at 15px, the gear library's at 13, a goal's at 11. One field now, gated (css.audit 12).
+{
+  const read = (f) => require("node:fs").readFileSync(require("node:path").join(__dirname, "..", f), "utf8");
+  const audit = read("scripts/css.audit.mjs"), g = read("app/globals.css"), pg = read("app/crew/page.tsx");
+  const baseAt = g.indexOf(".app :where(select),.app :where(input:not([type=\"checkbox\"]):not([type=\"radio\"])),.app :where(textarea){");
+  ok("fields: the base field is 16px, and says what it weighs — one class, outranked by a container's rule and by any rule below it, never by a one-class rule above it",
+    baseAt > 0 && /padding:10px 12px;color:var\(--cream\);font-family:'Inter';font-size:16px;line-height:1\.2;/.test(g.slice(baseAt, baseAt + 400))
+    && /the rule\s+weighs one class/.test(g) && /a ONE-class rule written ABOVE it loses every property it sets/.test(g) && !/Zero specificity, so it is a floor and never a ceiling/.test(g));
+  ok("fields: the console's forms, the gear library's, the pipeline's, a goal's, the delivery loop's and the shop's checkout draw 16px words",
+    [/\.prod-f input,\.prod-f textarea,\.prod-f select,\.prod-addc select,\.prod-addc input\{[^}]*font-size:16px/, /\.ev-f input,\.ev-f select\{[^}]*font-size:16px/,
+     /\.gl-f input,\.gl-f select,\.gl-f textarea\{[^}]*font-size:16px/, /\.gl-f select\{font-size:16px;border-radius:7px\}/, /\.pipe-grid input,\.pipe-grid select\{[^}]*font-size:16px/,
+     /\.goal-init-meta select,\.goal-init-meta input\{[^}]*font-size:16px/, /\.dops-loop input,\.dops-loop select\{[^}]*font-size:16px/,
+     /\.shop-ship input,\.shop-ship-row input,\.shop-ship select\{[^}]*font-size:16px/, /\.shop-vari select\{[^}]*font-size:16px/, /\.lst-row input\{[^}]*font-size:16px/s]
+      .every((re) => re.test(g)));
+  ok("fields: a one-class field rule above the base keeps only what places it — the Field kit's, the notes', the sign-in's own looks went, as the base drew over them",
+    /\.fld-in\{-webkit-appearance:none;appearance:none\}/.test(g) && !/^\.note-in\{[^}]*font-size/m.test(g) && !/^\.auth-input\{[^}]*border-radius/m.test(g)
+    && /\.pbd-assign\{flex:0 0 auto;max-width:128px\}/.test(g));
+  const lines = g.split("\n");
+  const own = (sel) => lines.filter((l) => l.startsWith(sel));                     // the rule that starts a line with it
+  const below = (sel) => { const i = g.indexOf("\n" + sel); return i > baseAt && baseAt > 0; };
+  ok("fields: the eight fields that are not a form's field are written below the base, so their own look wins — the emailed code, the input sheet's answer, a Studio title, the palette's line, a purchase's amount, a note's title, the copy editor, the concierge's composer",
+    [".auth-code{", ".ec-in{", ".ec-multi{", ".isheet-in{", ".isheet-area{", ".studio-title{", ".cmdk-in{", ".lp-amt{", ".note-lux-title{", ".conc-in{"].every((s) => own(s).length === 1 && below(s))
+    && /10\. A FIELD THAT IS NOT A FORM'S FIELD/.test(g));
+  ok("fields: the emailed code reads in big mono digits; the copy editor takes the copy's own type and height; the concierge's composer is round, at 16px, beside its round send",
+    /\.auth-code\{font-family:'DM Mono';letter-spacing:8px;text-align:center;font-size:22px\}/.test(g)
+    && /\.ec-in\{display:block;width:100%;min-height:0;box-sizing:border-box;font:inherit;color:inherit;letter-spacing:inherit;line-height:inherit;/.test(g)
+    && /\.conc-in\{flex:1;background:#0f0e0a;border:1px solid #36332a;border-radius:var\(--r-pill\);padding:11px 15px;color:#f4ead6;font-family:'Inter';font-size:16px\}/.test(g));
+  ok("fields: the CSS audit's rule 12 — a rule that sets a field's words under 16px fails, so does a one-class field rule above the base, and so does a base under 16px; a field is read from every class list on one and from a component that hands it its className",
+    /\/\/  12\. ONE FIELD/.test(audit) && /export function fieldClassesIn\(root\)/.test(audit) && /export function fieldRulesIn\(ast, fieldClasses\)/.test(audit)
+    && /export function relaysIn\(root, files, tags\)/.test(audit) && /const fields = fieldRulesIn\(ast, fieldClassesIn\(root\)\);/.test(audit)
+    && /set a field's words under 16px/.test(audit) && /written above the base field set what the base draws instead/.test(audit) && /the base field's words are \$\{fields\.baseSize\}/.test(audit));
+  ok("buttons: a component that hands its className to a button is read too — the shoot planner's + Shot and + New shoot were the browser's grey face since July; they are the kit's quiet words",
+    /const relay = relaysIn\(root, files, \["button"\]\);/.test(audit) && /relay\.has\(n\.tagName\.getText\(sf\)\)/.test(audit)
+    && /<InlineCreate label="\+ Shot" placeholder="Shot description" className="btn-ter self-start"/.test(read("components/ShootPlanner.tsx"))
+    && /<InlineCreate label="\+ New shoot" placeholder="Shoot name \(e\.g\. Atlanta brand shoot\)" className="btn-ter self-start mt-2"/.test(read("components/ShootPlanner.tsx")));
+  ok("fields: a shot's description keeps its line — the picker takes the next one when the row is tight (it read one word a line)",
+    /\.shoot-shot\{display:flex;flex-wrap:wrap;align-items:center;gap:8px\}/.test(g) && /\.shoot-desc\{flex:1 1 9em;min-width:0;/.test(g) && /\.shoot-assign\{max-width:150px;margin-left:auto\}/.test(g));
+  ok("switch: one kit switch — 51×31, a 27pt knob that slides, the kit's gold when on, 44 to the thumb; the three switch recipes are gone",
+    /\.k-switch\{position:relative;flex:none;display:inline-block;width:51px;height:31px;padding:0;border:0;border-radius:var\(--r-pill\);background:var\(--ink-onLight-16\);/.test(g)
+    && /\.k-switch-k\{position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;/.test(g) && /\.k-switch\.on\{background:var\(--gold2\)\}/.test(g)
+    && /\.k-switch\.on \.k-switch-k\{transform:translateX\(20px\)\}/.test(g) && /button\.k-switch::after\{content:"";position:absolute;inset:-7px -2px\}/.test(g)
+    && !/\.(op-switch|pay-toggle|ev-toggle-track|ev-toggle-knob)\b/.test(g.replace(/\/\*[\s\S]*?\*\//g, "")));
+  ok("switch: /office's weekly order, Settings' Pass sound, pay at pickup and subscriptions, and an event's Members only are the kit's switch — each says it is one (role switch, aria-checked)",
+    /role="switch" aria-checked=\{!!a\.standing_active\} className=\{`k-switch\$\{a\.standing_active \? " on" : ""\}`\}/.test(read("app/office/page.tsx"))
+    && /role="switch" aria-checked=\{!muted\} aria-label="Pass sound" className=\{`k-switch\$\{!muted \? " on" : ""\}`\}/.test(read("components/YouPrefs.tsx"))
+    && (read("components/PaymentSettings.tsx").match(/className=\{`k-switch\$\{/g) || []).length === 2
+    && /<button type="button" role="switch" aria-checked=\{!!e\.member_only\} className="ev-toggle"/.test(pg) && /<span className=\{`k-switch\$\{e\.member_only \? " on" : ""\}`\} aria-hidden>/.test(pg));
+  ok("grid: a tile's status dot has names of its own, in the tags' tones — as .st-review it took the strategy desk's review box and drew 33px wide",
+    /review: \{ label: "In review", cls: "ig-review", tone: " gold" \}/.test(read("components/Studio.tsx")) && !/cls: "st-/.test(read("components/Studio.tsx"))
+    && /\.ig-tag\.ig-review\{background:var\(--tone-gold\)\}/.test(g) && /\.ig-tag\.ig-changes\{background:var\(--tone-crit\)\}/.test(g) && !/\.ig-tag\.st-/.test(g));
+  ok("map: Find Us's + and − are 44 to the thumb (Leaflet draws them 30 on a touch screen)",
+    /\.leaflet-touch \.leaflet-control-zoom\.leaflet-bar a\{width:44px;height:44px;line-height:44px\}/.test(g));
+  const atc = read("components/AddToCalendar.tsx");
+  ok("menu: Add to calendar's menu closes on Escape, back to the button that opened it, and on a touch outside — not only a mouse's press",
+    /if \(e\.key === "Escape"\) \{ e\.preventDefault\(\); setOpen\(false\); ref\.current\?\.querySelector<HTMLButtonElement>\("button"\)\?\.focus\(\); \}/.test(atc)
+    && /document\.addEventListener\("pointerdown", onDoc\);/.test(atc) && !/"mousedown"/.test(atc));
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.

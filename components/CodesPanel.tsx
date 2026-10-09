@@ -203,9 +203,9 @@ export default function CodesPanel() {
       )}
 
       {/* Kit InfoRow replaces the ad-hoc .codes-item/.codes-item-main row (code → name, value badge →
-          nameExtra, target → sub). .codes-toggle stays its own bespoke switch, not a .btn-pri/-sec/-ter:
-          it's role="switch"/aria-checked, a binary active/paused STATE control, not a commit action —
-          same treatment PaymentSettings' .pay-toggle and EventCopilot's .oa-toggle already get. Because
+          nameExtra, target → sub). The active/paused control is the kit's chip (role="switch"/aria-checked,
+          chosen while the code is active), not a .btn-pri/-sec/-ter: a binary STATE control, not a commit
+          action — as Settings' switches (the kit's .k-switch) and EventCopilot's .oa-toggle are. Because
           the toggle is itself an interactive control, the row uses neither onClick nor bodyClick (avoids
           nesting a button in a button) and just renders as plain, non-interactive InfoRow markup, same as
           DropOps' pack rows. The per-row dim-when-paused look (was .codes-item.off{opacity:.55}) is kept

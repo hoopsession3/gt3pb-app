@@ -133,7 +133,7 @@ export default function ShootPlanner() {
                           </div>
                         ))}
                       </div>
-                      <InlineCreate label="+ Shot" placeholder="Shot description" className="shoot-add" onCreate={(t) => addShot(sh.id, t)} />
+                      <InlineCreate label="+ Shot" placeholder="Shot description" className="btn-ter self-start" onCreate={(t) => addShot(sh.id, t)} />
                       <button type="button" className="dp-draft" onClick={() => setDrafting(sh.id)}><Icon name="sparkles" /> Draft shots with AI</button>
                       <button type="button" className="shoot-delshoot" onClick={() => delShoot(sh.id)}>Delete shoot</button>
                     </div>
@@ -144,7 +144,7 @@ export default function ShootPlanner() {
           </>
         )}
       </AsyncSection>
-      <InlineCreate label="+ New shoot" placeholder="Shoot name (e.g. Atlanta brand shoot)" className="shoot-new" onCreate={createShoot} />
+      <InlineCreate label="+ New shoot" placeholder="Shoot name (e.g. Atlanta brand shoot)" className="btn-ter self-start mt-2" onCreate={createShoot} />
       {drafting && (
         <ShotDraftPanel shootId={drafting} onClose={() => setDrafting(null)}
           onAdd={async (descriptions) => {
