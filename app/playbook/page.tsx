@@ -86,7 +86,7 @@ export default function PlaybookPage() {
           <p className="st-when">drafted by {d.author_name?.split(" ")[0] || "an owner"}</p>
           <Discuss k={"draft:" + d.id} label={`Draft: ${d.name}`} />
           {/* The retire the query has been filtering for since day one. */}
-          <button type="button" className="pb-retire"
+          <button type="button" className="btn-sec btn-sm btn-wide mt-2"
                   onClick={async () => { if (await confirm({ title: `Retire “${d.name}”?`, body: "It comes off the playbook. The draft and anything said about it are kept.", confirmLabel: "Retire" })) retire(d.id); }}>
             Retire this draft
           </button>
