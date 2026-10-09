@@ -50,7 +50,7 @@ export default function CustomerKpis() {
   }, []);
 
   return (
-    <div className="mkpi" role="group" aria-label="Customers at a glance">
+    <div className="mkpi desk:grid-cols-none desk:grid-flow-col desk:auto-cols-fr" role="group" aria-label="Customers at a glance">
       {kpis.map((t) => (
         <div className="mkpi-tile" key={t.k}>
           <div className="mkpi-v">{t.v}</div>

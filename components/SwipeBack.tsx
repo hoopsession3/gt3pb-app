@@ -6,6 +6,7 @@ import { sheetOpen } from "./Sheet";
 import { useBack } from "./useBack";
 import { BACK, backGoes } from "@/lib/gesture";
 import { haptic } from "@/lib/haptics";
+import { deskNow } from "@/lib/surfaces";
 
 // SWIPE-BACK — a left-edge drag that goes back. Installed PWAs have no browser chrome, so the OS edge-swipe
 // doesn't exist; this restores the expected "swipe from the left to go back". Only fires when there's
@@ -23,6 +24,9 @@ import { haptic } from "@/lib/haptics";
 // for both, so they never disagree): out of a view a screen opened inside itself, to the screen before,
 // to the crew's last section. Outside the console it is drawn only where nothing else answers that
 // swipe — the iPhone app and a PWA on the home screen (AppShell decides); a browser tab has its own.
+//
+// NOT FROM THE SIDEBAR (2026-10-09, redesign 5). On the desk the window's left edge is the sidebar, and a drag
+// across a list of sections is not a way back; there the title bar's ‹ and the browser's own swipe stand.
 export default function SwipeBack() {
   const way = useBack();
   const [shown, setShown] = useState(false);
@@ -32,7 +36,7 @@ export default function SwipeBack() {
   useGesture("root", {
     axis: "x",
     capture: true,
-    begin: (_target, x) => x <= BACK.edge && !!way && !sheetOpen(),
+    begin: (_target, x) => x <= BACK.edge && !!way && !sheetOpen() && !deskNow(),
     take: (d) => d.dx > 0,
     move: (d) => {
       const dx = Math.min(Math.max(d.dx, 0), BACK.max);

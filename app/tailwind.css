@@ -143,6 +143,17 @@
    tall is a desktop or an iPad, in the frame; anything smaller is a phone, held either way. */
 @custom-variant frame (@media (min-width: 520px) and (min-height: 640px));
 @custom-variant phone (@media not all and (min-width: 520px) and (min-height: 640px));
+/* The desk (2026-10-09, redesign 5): from 1,024 wide in landscape the console and /office leave the frame for a
+   sidebar and a canvas (THE DESK, below). It holds on a page that says data-desk only, and it outranks `frame:` (a
+   desk is wide and tall enough for the frame's test too): what floats in the frame sits in the header on the desk,
+   as it does on a phone. */
+@custom-variant desk {
+  @media (min-width: 1024px) and (orientation: landscape) {
+    &:is([data-desk], [data-desk] *) {
+      @slot;
+    }
+  }
+}
 
 /* Safe areas: the inset alone, or the inset and a step of the grid (pb-safe-4 = inset + 16px). */
 @utility pt-safe { padding-top: env(safe-area-inset-top, 0px); }
@@ -201,5 +212,119 @@
   @media not all and (min-width: 520px) and (min-height: 640px) {
     transition: max-height 300ms var(--ease-enter);
     &[data-detent="half"] { max-height: 52dvh !important; }
+  }
+}
+
+/* ============================================================
+   THE DESK (2026-10-09, redesign 5, approved by Ryan 2026-10-08)
+   "From 1024 wide up, the frame goes. The tab bar becomes a sidebar, and each section's panels fill a two-column
+   canvas up to 1,240 wide. /office gets the same treatment. Phones, and iPads held upright, keep today's layout."
+   On a laptop the console was a phone mock-up 860 wide in a black room: a tab bar along its bottom edge, one column
+   of panels a hand's width wide, and most of the screen unused. Here the console and /office (lib/surfaces
+   deskRoute; the shell says data-desk) fill the window: the tab bar stands at the left as a sidebar, and the page is
+   a canvas whose sections are laid in two columns by hand (components/kit Columns). Landscape only, so an iPad held
+   upright — the 13-inch is 1,032 wide — keeps its frame; the iPhone app is a phone app held upright and never meets
+   this. The query is lib/surfaces DESK_QUERY's, word for word (scripts/smoke.cjs holds the spellings together).
+   Each piece is a utility on the element it lays out — the shell, the sidebar, the columns, Settings' groups —
+   and a one-off on a screen is the `desk:` variant (a strip of numbers in one row, Studio's week in seven columns).
+   ============================================================ */
+/* The shell (components/AppShell): the window, not a frame; the page's canvas up to 1,240 wide; and what rode above
+   the tab bar rides above the canvas's foot, in the canvas's middle. */
+@utility desk-shell {
+  @media (min-width: 1024px) and (orientation: landscape) {
+    &[data-desk] {
+      --desk-side: 236px;
+      --desk-gap: 28px;
+      max-width: none;
+      height: 100vh;
+      height: 100dvh;
+      border-radius: 0;
+      box-shadow: none;
+      padding-left: var(--desk-side);
+    }
+    body:has(> &[data-desk]) { display: block; padding: 0; }
+    &[data-desk] .screen { max-width: 1240px; margin-inline: auto; padding: 28px clamp(28px, 3.4vw, 48px) 56px; }
+    &[data-desk] > .toast { left: calc(var(--desk-side) + 24px); right: 24px; max-width: 440px; margin-inline: auto; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+    &[data-desk]:has(.cartbar) > .toast { bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
+    &[data-desk] :is(.cartbar, .orderbar) { align-self: center; width: min(560px, calc(100% - 48px)); margin-inline: 0; }
+    &[data-desk] .fab-dock .sw-update { max-width: 440px; margin-inline: auto; bottom: 24px; }
+    &[data-desk] .fab-dock .offchip { bottom: 24px; }
+  }
+}
+/* The tab bar, a sidebar (components/OperatorNav, BottomNav): the window's full height at its left edge, a list of rows
+   — the icon beside its word, the lit row washed in the surface's own colour (the console's gold, a guest's red), a
+   pointer's hover a lighter wash. A phone's bar steps down behind quick actions and hides under the keyboard; a
+   sidebar does neither. */
+@utility desk-sidebar {
+  @media (min-width: 1024px) and (orientation: landscape) {
+    .app[data-desk] > & {
+      position: absolute; top: 0; bottom: 0; left: 0; width: var(--desk-side);
+      flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 2px;
+      overflow-y: auto; overscroll-behavior: contain;
+      padding: calc(18px + env(safe-area-inset-top, 0px)) 12px calc(16px + env(safe-area-inset-bottom, 0px)) calc(12px + env(safe-area-inset-left, 0px));
+      border-top: 0; border-right: 1px solid var(--line);
+      /* the washes, as properties: a browser without color-mix draws no wash, never a solid fill */
+      --desk-lit: color-mix(in srgb, var(--red) 14%, transparent);
+      --desk-hover: color-mix(in srgb, var(--cream) 6%, transparent);
+    }
+    .app[data-desk] > &.opnav { --desk-lit: color-mix(in srgb, var(--gold2) 15%, transparent); }
+    .app.crew-day[data-desk] > &.opnav { --desk-lit: color-mix(in srgb, var(--gold) 14%, transparent); }
+    .app[data-desk] > &::-webkit-scrollbar { display: none; }
+    .app[data-desk] > & > .opnav-tabs { flex: 0 0 auto; flex-direction: column; gap: 2px; }
+    .app[data-desk] > & .tab {
+      flex: 0 0 auto; flex-direction: row; justify-content: flex-start; gap: 12px; min-height: 44px; padding: 0 12px;
+      border-radius: var(--r-lg); opacity: .74; transition: opacity .15s, background-color .15s, transform .1s;
+    }
+    .app[data-desk] > & .tab .tl { font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+    .app[data-desk] > & .tab svg { width: 20px; height: 20px; }
+    .app[data-desk] > & .tab.on { opacity: 1; background: var(--desk-lit); }
+    .app[data-desk] > &.opnav .tab.on .ti { color: var(--gold2); }
+    .app.crew-day[data-desk] > &.opnav .tab.on .ti { color: var(--gold); }
+    .app[data-desk] > & .tab.on::after { display: none; }
+    .app[data-desk] > & .tab:active { transform: scale(.98); }
+    .app[data-desk]:has(.qd-scrim) > & { transform: none; }
+    html.kb-open .app[data-desk] > & { visibility: visible; }
+  }
+  @media (min-width: 1024px) and (orientation: landscape) and (hover: hover) {
+    .app[data-desk] > & .tab:not(.on):hover { opacity: 1; background: var(--desk-hover); }
+  }
+}
+/* Two columns (components/kit Columns, Column). Anywhere but the desk neither is a box at all, so a phone's page is
+   the one column it always was, in the order it is written. On the desk: side by side, both starting on the same
+   line whatever opens them — a group, or a component whose own head (.k-sec) sits a level or two inside it — and a
+   column with nothing in it is not drawn, so the other has the canvas. */
+@utility desk-cols {
+  display: contents;
+  @media (min-width: 1024px) and (orientation: landscape) {
+    .app[data-desk] & { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: var(--desk-gap); align-items: start; margin-top: 30px; }
+    .app[data-desk] &:has(> :empty) { grid-template-columns: minmax(0, 1fr); }
+  }
+}
+@utility desk-col {
+  display: contents;
+  @media (min-width: 1024px) and (orientation: landscape) {
+    .app[data-desk] & { display: block; min-width: 0; }
+    .app[data-desk] &:empty { display: none; }
+    .app[data-desk] & > :first-child,
+    .app[data-desk] & > :first-child > :is(.k-sec, .adm-sec):first-child,
+    .app[data-desk] & > :first-child > :first-child > .k-sec:first-child { margin-top: 0; }
+  }
+}
+/* Settings' three groups (app/crew/page.tsx SettingsHome): You, and Advanced under it, on the left; the Business beside
+   them. Crew see You alone, at a list's width. A phone reads You, Business, Advanced. */
+@utility desk-settings {
+  display: contents;
+  & > .set-grp { display: contents; }
+  @media (min-width: 1024px) and (orientation: landscape) {
+    .app[data-desk] & {
+      display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto 1fr;
+      grid-template-areas: "you biz" "adv biz"; column-gap: var(--desk-gap); align-items: start;
+    }
+    .app[data-desk] &:has(> .set-biz:empty) { grid-template-columns: minmax(0, 760px); grid-template-rows: auto; grid-template-areas: "you" "adv"; }
+    .app[data-desk] & > .set-grp:empty { display: none; }
+    .app[data-desk] & > .set-grp { display: block; min-width: 0; }
+    .app[data-desk] & > .set-you { grid-area: you; }
+    .app[data-desk] & > .set-biz { grid-area: biz; }
+    .app[data-desk] & > .set-adv { grid-area: adv; }
   }
 }

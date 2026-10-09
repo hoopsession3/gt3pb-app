@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Children, Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useApp } from "@/components/AppProvider";
-import { SectionHeader, InfoRow } from "@/components/kit";
+import { SectionHeader, InfoRow, Columns, Column } from "@/components/kit";
 import { Segmented, IconButton } from "@/components/controls";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
 import { SENIORITY, roleLabel, tierOf, toRole, canOf, type Role, type Tier } from "@/lib/roles";
@@ -1448,6 +1448,10 @@ function MyDay({ userId, isLeader, canGoLive, canBrew }: { userId: string | null
           is about. The greeting is gone, the motto with it (its copy key is retired, so Settings no
           longer offers to edit a line that shows nowhere), and the date rides on today's op card.
           The headline still comes before the plates, which is all P3 asked. */}
+      {/* ON THE DESK (2026-10-09, redesign 5): the day's work on the left — today's op, its stops, drops and brews,
+          your tasks — and what is owed and the week's leadership tools beside it. A phone reads them in this order. */}
+      <Columns>
+      <Column>
       <DayHeadline canGoLive={canGoLive} />
       {rhythmState.status === "error" && (
         <p className="load-failed" role="status">
@@ -1483,6 +1487,8 @@ function MyDay({ userId, isLeader, canGoLive, canBrew }: { userId: string | null
       )}
       {/* MY TASKS above the fold — the day's work leads; everything else follows. */}
       <MyTasks userId={userId} />
+      </Column>
+      <Column>
       {/* WHAT IS OWED (0320). Under the day's work, because a task due today outranks a permit due
           in a fortnight — but on the default screen, because until now the app stored eleven kinds
           of deadline and showed none of them. On the day this shipped: four pieces of equipment
@@ -1514,6 +1520,8 @@ function MyDay({ userId, isLeader, canGoLive, canBrew }: { userId: string | null
           )}
         </div>
       )}
+      </Column>
+      </Columns>
     </>
   );
 }
@@ -3118,6 +3126,9 @@ function MeetingNotes() {
                 <button type="button" className={`k-chip${tab === "archived" ? " on" : ""}`} aria-pressed={tab === "archived"} onClick={() => setTab("archived")}>Archived{archivedCount ? ` ${archivedCount}` : ""}</button>
               </div>
             </div>
+            {/* On the desk (2026-10-09, redesign 5) the notes stand two to a row, and an opened one reads at half the
+                canvas — about a phone's width and a half. Elsewhere the list is the list (not a box at all). */}
+            <div className="contents desk:grid desk:grid-cols-2 desk:gap-x-3 desk:items-start">
             {shown.map((n) => (
               <MeetingNoteCard
                 key={n.id} note={n} open={openId === n.id} onToggle={() => setOpenId(openId === n.id ? null : n.id)}
@@ -3129,6 +3140,7 @@ function MeetingNotes() {
                 onSummary={(s) => setNotes((prev) => prev.map((x) => (x.id === n.id ? { ...x, summary: s } : x)))}
               />
             ))}
+            </div>
             {shown.length === 0 && !composing && (
               <EmptyState
                 title={q ? "No notes match your search" : tab === "archived" ? "No archived notes" : "No notes yet"}
@@ -5483,6 +5495,10 @@ function SettingsHome({ userId, isAdmin, isOwner }: { userId: string | null; isA
       <p className="set-lead">{isAdmin
         ? "Yours first, then the business’s. Tap a row to change it — a change goes live at once, no deploy."
         : "Your account, your notifications, and how the app looks on this phone."}</p>
+      {/* ON THE DESK (2026-10-09, redesign 5): the three groups in two columns — You, and Advanced under it, on the
+          left; the Business beside them (app/tailwind.css desk-settings). A phone reads You, Business, Advanced. */}
+      <div className="desk-settings">
+      <div className="set-grp set-you">
       <SectionHeader label="You" annotation="you · this phone" />
       <SetList>
         <div id="set-account" className="set-row set-acct"><AccountRow /></div>
@@ -5496,7 +5512,9 @@ function SettingsHome({ userId, isAdmin, isOwner }: { userId: string | null; isA
           <SetPart><DisplayControls /></SetPart>
         </Panel>
       </SetList>
+      </div>
 
+      <div className="set-grp set-biz">
       {isAdmin && <SectionHeader label="Business" annotation="owners & admins" />}
       <SetList>
         {isAdmin && <Panel id="set-pay" title="Payments & checkout" sub="Card checkout, pay at pickup, subscriptions" value={v(g.pay)} remember={false}><PaymentSettings /></Panel>}
@@ -5543,6 +5561,7 @@ function SettingsHome({ userId, isAdmin, isOwner }: { userId: string | null; isA
           </Panel>
         )}
       </SetList>
+      </div>
 
       {/* 2026-07-16 scope assessment: the change log, errors and the audit log are tools ABOUT the
           software itself rather than tools for running the business, so they sit last, behind their
@@ -5551,6 +5570,7 @@ function SettingsHome({ userId, isAdmin, isOwner }: { userId: string | null; isA
           editor could show. 0306 moved every dropdown's list into the database so the same column
           stopped being a picker on one screen and a text box on another; the lists are edited here,
           or adding a unit means opening the SQL editor. */}
+      <div className="set-grp set-adv">
       {isAdmin && <SectionHeader label="Advanced" annotation="about the software" />}
       <SetList>
         {isAdmin && <Panel id="set-admintrail" title="Activity log" sub="Who changed what, and when" remember={false}><AuditTrail /></Panel>}
@@ -5565,6 +5585,8 @@ function SettingsHome({ userId, isAdmin, isOwner }: { userId: string | null; isA
         )}
         {isAdmin && <Panel id="set-lists" title="Data & lists" sub="The choices every picker in the app offers" remember={false}><ListsPanel /></Panel>}
       </SetList>
+      </div>
+      </div>
     </>
   );
 }
@@ -5806,8 +5828,9 @@ export default function AdminPage() {
         <div className="toprow-actions">
           {/* Quick actions on a phone — run a copilot, ask GT3, a note, a purchase (2026-10-08, the iPhone
               chrome round, approved): the ✦ that floated over every crew screen lives here, beside search.
-              The frame (desktop, iPad) keeps the floating button and does not draw this one. */}
-          <IconButton icon="sparkles" label="Quick actions — run a copilot, ask GT3, take a note, or log a purchase" className="frame:hidden!" aria-haspopup="dialog" onClick={() => window.dispatchEvent(new Event("gt3-quick-do"))} />
+              The frame (desktop, iPad) keeps the floating button and does not draw this one; the desk (2026-10-09,
+              redesign 5) draws this one, and nothing floats over its canvas. */}
+          <IconButton icon="sparkles" label="Quick actions — run a copilot, ask GT3, take a note, or log a purchase" className="frame:hidden! desk:inline-flex!" aria-haspopup="dialog" onClick={() => window.dispatchEvent(new Event("gt3-quick-do"))} />
           {/* Jump — touch entry to the command palette (⌘K on a keyboard). */}
           <IconButton icon="search" label="Jump to a section, recent, or action" hint="⌘K" onClick={() => window.dispatchEvent(new Event("gt3-open-cmdk"))} />
           {/* Section guide — what each section is for + jump there. */}
@@ -5873,17 +5896,26 @@ export default function AdminPage() {
           {/* GT3 COMMAND (2026-08-03): the Executive OS lands. The portfolio registry LEADS —
               ten workstreams, Monday-audited — then the war room, then goals, then the twelve
               KPIs. One screen = the state of the company; Plan = the cadence that changes it. */}
+          {/* ON THE DESK (2026-10-09, redesign 5): the portfolio and the war room on the left; goals and the twelve
+              numbers on the right. */}
+          <Columns>
+          <Column>
           <OsRegistry />
           <CommandBoard />
+          </Column>
+          <Column>
           {/* Goals moved home 2026-07-29 (was its own section): "are we on track?" and "where are
               we steering?" are the same leadership conversation — one screen answers both now.
               Goals keeps its id="goals" anchor, so strategy alerts land right on it.
               PlanningBoard cut 2026-07-30 (redundancy audit): it re-listed every goal card below
               it — same title, progress, owner — as a non-tappable horizon grid, and the horizon
-              already sits on each card as its tier chip. One list, one home. */}
-          <SectionHeader label="Goals" />
+              already sits on each card as its tier chip. One list, one home.
+              ONE "GOALS" (2026-10-09): Goals draws its own head, with the count — this one stood above it, so the
+              screen said GOALS twice and a screen reader heard two headings of the same name. */}
           <Goals />
           <KpiBoard />
+          </Column>
+          </Columns>
         </>
       )}
 
@@ -5894,6 +5926,10 @@ export default function AdminPage() {
               Sunday delivery (folds until run day) → dispatch panels → personal tasks. The boards
               themselves (pass, pickup checklist, 86) render in ONE place: Service mode. */}
           <AlertsInbox userId={user?.id ?? null} compact />
+          {/* ON THE DESK (2026-10-09, redesign 5): service on the left — the pass, the truck, the drop — and the
+              runs, the heads-up and your tasks on the right. */}
+          <Columns>
+          <Column>
           {!svc && (
             <>
               <ServicePulse onEnter={() => setSvc(true)} />
@@ -5901,6 +5937,12 @@ export default function AdminPage() {
                   of service, not a panel below the fold. */}
               {canManage && <LiveControl compact />}
               <DropOps brief onOpen={() => setSvc(true)} canPlan={canManage} />
+            </>
+          )}
+          </Column>
+          <Column>
+          {!svc && (
+            <>
               <DeliveryOps />
               <OfficeOrders />
             </>
@@ -5910,6 +5952,8 @@ export default function AdminPage() {
           {/* Turning order alerts on is Settings › You › Notifications › Alerts on this device now (2026-10-06, the
               settings round); here, one line, and only while they are off on this phone. */}
           <AlertsOffLine />
+          </Column>
+          </Columns>
         </>
       )}
       {/* SERVICE MODE — the KDS as ONE working surface: the pass is the board (tickets flow 2-up
@@ -5942,8 +5986,14 @@ export default function AdminPage() {
               dynamic"), and the global all-prep board bows out while a single target has the
               floor — its numbers would contradict the scoped tiles right above it. */}
           <PrepKpis target={prepSel} />
+          {/* ON THE DESK (2026-10-09, redesign 5): the one board on the left, prep by stop on the right. Drilled
+              into one stop, the board bows out and the stop has the canvas (an empty column is not drawn). */}
+          <Columns>
+          <Column>
           {!prepSel && <SectionHeader label="All open prep · one board" />}
           {!prepSel && <Panel id="prep-board" title="Work every open task — critical first" defaultOpen><PrepBoard /></Panel>}
+          </Column>
+          <Column>
           {/* 2026-07-30 (Ryan's screenshot): this screen used to stack the stock-check agent +
               Inspection prep ABOVE the actual work, and an "At a glance" block (Overview)
               summarized the exact target cards rendered right below it. The glance is deleted
@@ -5953,6 +6003,8 @@ export default function AdminPage() {
           {!prepSel && <SectionHeader label="Event prep · by stop" />}
           <EventPrep sel={prepSel} setSel={setPrepSel} />
           {!prepSel && canManage && <InspectionPrep />}
+          </Column>
+          </Columns>
         </>
       )}
 
@@ -6006,8 +6058,11 @@ export default function AdminPage() {
                   problems and the calendar, which is what Plan is opened for. The rituals are
                   weekly and keep their cards; they are just below the thing you came for. */}
               <CompanyCalendar />
-              <OperatingRhythm isAdmin={isAdmin} onOpenNotes={() => setSection("notes")} />
-              <Panel id="plan-discussions" title="Discussions · every open thread, one place"><Discussions onOpenNotes={() => setSection("notes")} /></Panel>
+              {/* On the desk the calendar keeps the canvas's width; the rituals and the threads sit side by side under it. */}
+              <Columns>
+              <Column><OperatingRhythm isAdmin={isAdmin} onOpenNotes={() => setSection("notes")} /></Column>
+              <Column><Panel id="plan-discussions" title="Discussions · every open thread, one place"><Discussions onOpenNotes={() => setSection("notes")} /></Panel></Column>
+              </Columns>
             </>
           )}
           {planTab === "events" && (
@@ -6029,11 +6084,16 @@ export default function AdminPage() {
               {/* One lead funnel (typed): inbound booking requests are the intake stage, then the
                   B2B pipeline board, then the Tools zone (Chief of Sales + the deal catalog rides
                   PipelinePanel's own bottom block) — daily flow above, monthly setup below. */}
-              <Bookings />
+              {/* On the desk: what came in on the left, the accounts being worked on the right. */}
+              <Columns>
+              <Column><Bookings /></Column>
+              <Column>
               <SectionHeader id="pipeline-board" label="Pipeline" annotation="accounts being worked — stage by stage to Won" />
               <PipelinePanel isAdmin={isAdmin} />
               <SectionHeader label="Tools" />
               <ChiefOfSales />
+              </Column>
+              </Columns>
             </>
           )}
           {planTab === "vendors" && <VendorsAdmin />}
@@ -6064,6 +6124,10 @@ export default function AdminPage() {
         <>
           {/* Dashboard, not a filing cabinet: live numbers first, then modules grouped by job. */}
           <MoneyKpis />
+          {/* ON THE DESK (2026-10-09, redesign 5): the money moving now on the left — spend, getting paid, the
+              numbers — and the setup and the records on the right. */}
+          <Columns>
+          <Column>
           <SectionHeader label="Spend & budget" />
           <Panel id="spend" title="Spend & budget · what the business spends" defaultOpen><SpendBudget /></Panel>
           <SectionHeader label="Get paid" />
@@ -6086,6 +6150,8 @@ export default function AdminPage() {
           <Panel id="snapshot" title="Business snapshot"><SnapshotReport /></Panel>
           <Panel id="pnl" title="Per-event P&L"><EventPnlReport /></Panel>
           <Panel id="funnels" title="Funnels · where people drop off"><FunnelReport /></Panel>
+          </Column>
+          <Column>
           <SectionHeader label="Pricing & margins" />
           {/* What the business sells — the menu, the merch, the lessons — is the Catalog (2026-10-06,
               the settings-by-category round); what each costs and earns stays here. */}
@@ -6110,6 +6176,8 @@ export default function AdminPage() {
           {/* The storefront queue. Lives here rather than under Catalog & pricing with the
               merch manager: a paid order is a record with a person attached, not a product. */}
           <Panel id="shoporders" title="The Shop · orders" defaultOpen><ShopOrders /></Panel>
+          </Column>
+          </Columns>
         </>
       )}
 
@@ -6121,9 +6189,14 @@ export default function AdminPage() {
           {/* Stock-check agent moved here from Readiness (2026-07-30): "are we stocked for the
               next two weeks" is a question about THIS screen's inventory — it lives with its
               subject now instead of squatting above the prep list. */}
-          {canManage && <ReadinessAgent />}
+          {/* On the desk: the stock-check agent beside the assets it reads. */}
+          <Columns>
+          <Column>{canManage && <ReadinessAgent />}</Column>
+          <Column>
           <SectionHeader label="Assets & stock" />
           <GarageSection />
+          </Column>
+          </Columns>
         </>
       )}
       {sec === "driver" && <DriverDash isLead={canManage} />}
@@ -6135,14 +6208,21 @@ export default function AdminPage() {
           kept its id; an old link lands here through lib/panelHome. */}
       {sec === "catalog" && isAdmin && (
         <>
+          {/* On the desk: what we sell on the left, what members get on the right. */}
+          <Columns>
+          <Column>
           <SectionHeader label="What we sell" />
           <Panel id="menu" title="Menu & products" sub="Every drink and product, its price, and whether it’s on" defaultOpen><MenuManager /></Panel>
           <Panel id="merch" title="The Shop · merch" sub="Shirts and gear in the online shop"><MerchManager /></Panel>
           <Panel id="lessons" title="Return to Primal · lessons" sub="The lessons members can take"><LessonsManager /></Panel>
+          </Column>
+          <Column>
           <SectionHeader label="Memberships & offers" />
           <Panel id="plans" title="Membership plans" sub="What members pay, and what they get"><PlanEditor /></Panel>
           <Panel id="cust-codes" title="Discount codes" sub="Mint a code, see who used it, turn one off"><CodesPanel /></Panel>
           <Panel id="cust-perks" title="Founding perks" sub="What a founding member gets, and what a VIP gets"><PerksPanel /></Panel>
+          </Column>
+          </Columns>
         </>
       )}
 
@@ -6150,18 +6230,25 @@ export default function AdminPage() {
         <>
           {/* Money's 10/10 template: glance-first KPIs → crew-group dividers → uniform Panels. */}
           <CustomerKpis />
+          {/* On the desk: the customer book on the left; proofs to verify and the broadcast on the right. */}
+          <Columns>
+          <Column>
           <SectionHeader label="The people" />
           <Panel id="cust-book" title="Customer book · every guest &amp; member" defaultOpen><CrmPanel /></Panel>
           {/* Discount codes and the founding perks (ids "cust-codes", "cust-perks") are the Catalog's
               (2026-10-06): what a member gets is part of what the business sells. One line where they
               were. */}
           <GoLine to="catalog" anchor="cust-codes">Codes &amp; perks</GoLine>
+          </Column>
+          <Column>
           <SectionHeader label="VIP verification" />
           <Panel id="cust-vip" title="Bottle-owner proofs · verify → Founding" defaultOpen><VipQueue /></Panel>
           {/* MESSAGES (2026-10-06, the settings-by-category round): a broadcast is something the business
               says to its customers, not a setting — so it left Settings for the customer book. */}
           <SectionHeader label="Messages" />
           <Panel id="cust-broadcast" title="Broadcast" sub="A live message or ad, to everyone in the app"><BroadcastEditor /></Panel>
+          </Column>
+          </Columns>
         </>
       )}
 
@@ -6173,11 +6260,17 @@ export default function AdminPage() {
               bottom, two screens down. Now it opens on the roster with its one door, Add a teammate
               (components/AddTeammate), then who's on what, the structure, and the activity numbers.
               The roster keeps its id: Settings' "Add someone, or change a role" lands on it. */}
+          {/* ON THE DESK (2026-10-09, redesign 5): the people and who is on what on the left; the structure, the
+              numbers and training on the right. */}
+          <Columns>
+          <Column>
           {isOwner && <div id="team-members" style={{ scrollMarginTop: 16 }}><Members /></div>}
           {/* Who owns each lane is Settings › Business › Team & permissions (2026-10-06); an admin's line goes there. */}
           {!isOwner && <GoLine to="settings" anchor="set-lanes">Lane owners</GoLine>}
           <SectionHeader label="Who's on what" />
           <WorkloadBoard />
+          </Column>
+          <Column>
           {/* Was "Roster" (2026-07-16, ground-up redesign): OrgChart rendered two labeled concerns
               (the org chart's reporting tiers, then work streams' ownership grid). Since 2026-10-06 the
               lane owners are Settings › Business › Team & permissions (OrgChart part="lanes"); the
@@ -6196,6 +6289,8 @@ export default function AdminPage() {
           <AcademyCard />
           {/* Train the AI is Settings › Business › AI now (2026-10-06, the settings round). */}
           {isOwner && <GoLine to="settings" anchor="set-train">Train the AI</GoLine>}
+          </Column>
+          </Columns>
         </>
       )}
       </div>

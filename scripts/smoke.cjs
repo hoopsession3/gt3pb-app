@@ -5174,8 +5174,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
     const shell = code(read("components/AppShell.tsx"));
     const css = read("app/globals.css").replace(/\/\*[\s\S]*?\*\//g, "");
-    ok("chrome: the crew nav's landmark IS the nav — the app column's child, the same shape as the customer nav",
-      /<nav className="nav opnav" aria-label="Section navigation">/.test(read("components/OperatorNav.tsx")) && /<nav className="nav" aria-label="Primary">/.test(read("components/BottomNav.tsx")));
+    ok("chrome: the crew nav's landmark IS the nav — the app column's child, the same shape as the customer nav (and on the desk both are the sidebar)",
+      /<nav className="nav opnav desk-sidebar" aria-label="Section navigation">/.test(read("components/OperatorNav.tsx")) && /<nav className="nav desk-sidebar" aria-label="Primary">/.test(read("components/BottomNav.tsx")));
     ok("chrome: the floating tier rides one dock — quick actions (the console's one floating button), the offline chip, the update prompt",
       /<div className="fab-dock">\s*\{inAdmin && <QuickDock \/>\}\s*\{inAdmin && <OfflineChip \/>\}\s*<ServiceWorkerRegister \/>\s*<\/div>/.test(shell)
         && (shell.match(/<QuickDock \/>/g) || []).length === 1 && (shell.match(/<ServiceWorkerRegister \/>/g) || []).length === 1 && !/theme-toggle/.test(shell));
@@ -7965,7 +7965,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   // ── the rest of the system ──
   ok("back: the edge swipe listens first and stands down while a sheet is open — and goes where the title bar's ‹ goes",
-    /useGesture\("root", \{\s+axis: "x",\s+capture: true,\s+begin: \(_target, x\) => x <= BACK\.edge && !!way && !sheetOpen\(\),/.test(read("components/SwipeBack.tsx"))
+    /useGesture\("root", \{\s+axis: "x",\s+capture: true,\s+begin: \(_target, x\) => x <= BACK\.edge && !!way && !sheetOpen\(\) && !deskNow\(\),/.test(read("components/SwipeBack.tsx"))
     && /const way = useBack\(\);/.test(read("components/SwipeBack.tsx")) && /if \(!cancelled && backGoes\(d\.dx, d\.vx\)\) way\?\.go\(\);/.test(read("components/SwipeBack.tsx")));
   ok("refresh: the pull reads every live screen again (lib/realtime's loaders), and so does coming back to the app after 30s away",
     /export function refreshLive\(\): Promise<void>/.test(read("lib/realtime.ts")) && /loaders\.add\(cb\);/.test(read("lib/realtime.ts")) && /const RESUME_MS = 30_000;/.test(read("lib/realtime.ts"))
@@ -8417,7 +8417,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /<GoLine to="catalog" anchor="cust-codes">Codes &amp; perks<\/GoLine>/.test(cust) && !/<CodesPanel|<PerksPanel|id="cust-codes"|id="cust-perks"/.test(cust)
     && /<SectionHeader label="Messages" \/>\s*<Panel id="cust-broadcast" title="Broadcast" sub="[^"]{8,}"><BroadcastEditor \/><\/Panel>/.test(cust));
   ok("catalog: what the business sells, in one section — the menu open at rest, then merch and lessons; then plans, codes and perks — every row saying what it holds",
-    /<SectionHeader label="What we sell" \/>\s*<Panel id="menu" title="Menu & products" sub="[^"]{8,}" defaultOpen><MenuManager \/><\/Panel>\s*<Panel id="merch" title="The Shop · merch" sub="[^"]{8,}"><MerchManager \/><\/Panel>\s*<Panel id="lessons" title="Return to Primal · lessons" sub="[^"]{8,}"><LessonsManager \/><\/Panel>\s*<SectionHeader label="Memberships & offers" \/>\s*<Panel id="plans" title="Membership plans" sub="[^"]{8,}"><PlanEditor \/><\/Panel>\s*<Panel id="cust-codes" title="Discount codes" sub="[^"]{8,}"><CodesPanel \/><\/Panel>\s*<Panel id="cust-perks" title="Founding perks" sub="[^"]{8,}"><PerksPanel \/><\/Panel>/.test(cat)
+    /<SectionHeader label="What we sell" \/>\s*<Panel id="menu" title="Menu & products" sub="[^"]{8,}" defaultOpen><MenuManager \/><\/Panel>\s*<Panel id="merch" title="The Shop · merch" sub="[^"]{8,}"><MerchManager \/><\/Panel>\s*<Panel id="lessons" title="Return to Primal · lessons" sub="[^"]{8,}"><LessonsManager \/><\/Panel>\s*<\/Column>\s*<Column>\s*<SectionHeader label="Memberships & offers" \/>\s*<Panel id="plans" title="Membership plans" sub="[^"]{8,}"><PlanEditor \/><\/Panel>\s*<Panel id="cust-codes" title="Discount codes" sub="[^"]{8,}"><CodesPanel \/><\/Panel>\s*<Panel id="cust-perks" title="Founding perks" sub="[^"]{8,}"><PerksPanel \/><\/Panel>/.test(cat)
     && ["<MenuManager />", "<MerchManager />", "<LessonsManager />", "<PlanEditor />", "<CodesPanel />", "<PerksPanel />", "<BroadcastEditor />"].every((c) => pg.split(c).length === 2));
   ok("catalog: a section of the console — owners and admins open it, it sits right after Money in their sections and in the Business lane, and the Guide explains it",
     ["admin", "owner"].every((r) => { const l = roleLine(r); return l.indexOf("catalog") === l.indexOf("money") + 1; })
@@ -9321,13 +9321,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /keepPlace\(placeKey\.current, body\.scrollTop\)/.test(shell));
   ok("each tab keeps its place: a tab tap and a step through history are returns; a same-path history step (a crew section) is not",
     /returnToPlace\(\); if \(!on\) haptic\("selection"\);/.test(bottom) && /if \(window\.location\.pathname !== placeKey\.current\) returnToPlace\(\);/.test(shell));
-  ok("no floating chrome on a phone: the rail and the quick-actions button are hidden there, not unmounted",
-    /phone:hidden!/.test(read("components/FloatRail.tsx")) && /className=\{`k-icon-btn lg qd-fab\$\{open \? "" : " pri"\} phone:hidden!`\}/.test(read("components/QuickDock.tsx"))
+  ok("no floating chrome on a phone (or the desk): the rail and the quick-actions button are hidden there, not unmounted",
+    /phone:hidden! desk:hidden!/.test(read("components/FloatRail.tsx")) && /className=\{`k-icon-btn lg qd-fab\$\{open \? "" : " pri"\} phone:hidden! desk:hidden!`\}/.test(read("components/QuickDock.tsx"))
     && /@custom-variant phone \(@media not all and \(min-width: 520px\) and \(min-height: 640px\)\);/.test(read("app/tailwind.css"))
     && /@custom-variant frame \(@media \(min-width: 520px\) and \(min-height: 640px\)\);/.test(read("app/tailwind.css")));
-  ok("no floating chrome on a phone: each of their doors exists — ✦ in the crew header, Ask us beside the avatar, Connect and Display in the menus",
-    /<IconButton icon="sparkles"[^>]*className="frame:hidden!"[^>]*onClick=\{\(\) => window\.dispatchEvent\(new Event\("gt3-quick-do"\)\)\}/.test(read("app/crew/page.tsx"))
-    && /className="acct-av hit-44 text-gold2 frame:hidden!"/.test(read("components/AccountPill.tsx")) && /new Event\("gt3-open-concierge"\)/.test(read("components/AccountPill.tsx"))
+  ok("no floating chrome on a phone (or the desk): each of their doors exists — ✦ in the crew header, Ask us beside the avatar, Connect and Display in the menus",
+    /<IconButton icon="sparkles"[^>]*className="frame:hidden! desk:inline-flex!"[^>]*onClick=\{\(\) => window\.dispatchEvent\(new Event\("gt3-quick-do"\)\)\}/.test(read("app/crew/page.tsx"))
+    && /className="acct-av hit-44 text-gold2 frame:hidden! desk:flex!"/.test(read("components/AccountPill.tsx")) && /new Event\("gt3-open-concierge"\)/.test(read("components/AccountPill.tsx"))
     && /export const HELP_EVENTS = \["gt3-open-concierge", "gt3-open-connect", "gt3-open-display"\] as const;/.test(read("lib/helpSheets.ts"))
     && /for \(const t of HELP_EVENTS\) window\.addEventListener\(t, onAsk\);/.test(shell) && /\{asked && !isShare && <HelpSheets asked=\{asked\} \/>\}/.test(shell)
     && /<ConciergeChat open=\{open === "gt3-open-concierge"\} onClose=\{close\} \/>/.test(read("components/HelpSheets.tsx"))
@@ -9748,6 +9748,63 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /export const RETIRED_PILLS = \[/.test(audit) && /pillRules: 7,/.test(audit) && /buttonRecipes: 0,/.test(audit) && /"handle",/.test(audit));
   ok("design: a target scrolled wholly out of its scroller is judged in view — its reach is not cut to the edge it sits beyond",
     /if \(b\.bottom <= c\.top \|\| b\.top >= c\.bottom \|\| b\.right <= c\.left \|\| b\.left >= c\.right\) continue;/.test(read("scripts/design.measure.mjs")));
+}
+
+// ── THE DESK (2026-10-09, redesign 5, approved by Ryan 2026-10-08) ─────────────────────────────────────────────────
+// "From 1024 wide up, the frame goes. The tab bar becomes a sidebar, and each section's panels fill a two-column canvas
+// up to 1,240 wide. /office gets the same treatment. Phones, and iPads held upright, keep today's layout." The console and
+// /office say data-desk (lib/surfaces deskRoute); app/tailwind.css lays the desk out from that and the width, in
+// landscape only; the screens arrange their groups by hand in components/kit Columns, which a phone never sees as boxes.
+// scripts/smoke.native.mjs (5i) measures it on a laptop's screen and an iPad held upright.
+{
+  const read = (f) => require("node:fs").readFileSync(require("node:path").join(__dirname, "..", f), "utf8");
+  const tw = read("app/tailwind.css"), surf = read("lib/surfaces.ts"), shell = read("components/AppShell.tsx"), pg = read("app/crew/page.tsx");
+  const Q = "(min-width: 1024px) and (orientation: landscape)";
+  ok("desk: one test for when — lib/surfaces' DESK_QUERY, the `desk:` variant and every desk utility say the same words, landscape only (an iPad held upright keeps its frame)",
+    surf.includes(`export const DESK_QUERY = "${Q}";`) && tw.includes(`@custom-variant desk {\n  @media ${Q} {\n    &:is([data-desk], [data-desk] *) {`)
+    && ["desk-shell", "desk-sidebar", "desk-cols", "desk-col", "desk-settings"].every((u) => new RegExp(`@utility ${u} \\{[\\s\\S]*?@media ${Q.replace(/[()]/g, "\\$&")} \\{`).test(tw))
+    && !/@media[^{]*1024px(?![^{]*orientation: landscape)[^{]*\{[^}]*data-desk/.test(tw));
+  ok("desk: the console and /office, and no other page — the shell says data-desk from lib/surfaces, and the markup is the same at every width",
+    /export function deskRoute\(pathname: string \| null \| undefined\): boolean \{\s*const p = pathname \|\| "\/";\s*return surfaceOf\(p\) === "console" \|\| p === "\/office" \|\| p\.startsWith\("\/office\/"\);/.test(surf)
+    && /const desk = deskRoute\(pathname\);/.test(shell) && /<div className=\{"app desk-shell" \+ \(inAdmin && theme === "day" \? " crew-day" : ""\) \+ \(disp \? ` \$\{disp\}` : ""\)\} data-surface=\{surface\} data-desk=\{desk \? "" : undefined\}>/.test(shell));
+  ok("desk: the window, not a frame — the canvas runs to 1,240 wide, and the tab bar stands at the window's left edge as a sidebar of rows, the lit one washed",
+    /&\[data-desk\] \{\s*--desk-side: 236px;[\s\S]*?max-width: none;\s*height: 100vh;\s*height: 100dvh;\s*border-radius: 0;\s*box-shadow: none;\s*padding-left: var\(--desk-side\);/.test(tw)
+    && /body:has\(> &\[data-desk\]\) \{ display: block; padding: 0; \}/.test(tw) && /&\[data-desk\] \.screen \{ max-width: 1240px; margin-inline: auto;/.test(tw)
+    && /\.app\[data-desk\] > & \{\s*position: absolute; top: 0; bottom: 0; left: 0; width: var\(--desk-side\);\s*flex-direction: column;/.test(tw)
+    && /\.app\[data-desk\] > & \.tab \{\s*flex: 0 0 auto; flex-direction: row; justify-content: flex-start; gap: 12px; min-height: 44px;/.test(tw)
+    && /\.app\[data-desk\] > &\.opnav \{ --desk-lit: color-mix\(in srgb, var\(--gold2\) 15%, transparent\); \}/.test(tw) && /\.app\[data-desk\] > & \.tab\.on \{ opacity: 1; background: var\(--desk-lit\); \}/.test(tw)
+    && /\.app\[data-desk\]:has\(\.qd-scrim\) > & \{ transform: none; \}/.test(tw) && /html\.kb-open \.app\[data-desk\] > & \{ visibility: visible; \}/.test(tw));
+  ok("desk: the sidebar's head names the space (the house's mark and Crew console), drawn on the desk only; its rows are a list that stands up (↑/↓, and it says so)",
+    /<div className="hidden desk:flex items-center gap-2\.5 min-h-11 px-3 mb-4" aria-hidden="true">\s*<Gt3Mark tone="cream" className="font-display text-title3 tracking-\[\.3px\] text-cream" \/>\s*<span[^>]*>Crew console<\/span>/.test(read("components/OperatorNav.tsx"))
+    && /aria-orientation=\{desk \? "vertical" : "horizontal"\}/.test(read("components/OperatorNav.tsx")) && /e\.key === "ArrowRight" \|\| e\.key === "ArrowDown"/.test(read("components/OperatorNav.tsx")));
+  const kit = read("components/kit.tsx");
+  ok("desk: Columns are not boxes anywhere but the desk — a phone's page is the one column it was, in the order written — and on the desk a column with nothing in it is not drawn",
+    /export function Columns\(\{ children \}: \{ children: ReactNode \}\) \{\s*return <div className="desk-cols">\{children\}<\/div>;/.test(kit)
+    && /export function Column\(\{ children \}: \{ children: ReactNode \}\) \{\s*return <div className="desk-col">\{children\}<\/div>;/.test(kit)
+    && /@utility desk-cols \{\s*display: contents;/.test(tw) && /@utility desk-col \{\s*display: contents;/.test(tw) && /@utility desk-settings \{\s*display: contents;\s*& > \.set-grp \{ display: contents; \}/.test(tw)
+    && /\.app\[data-desk\] &:has\(> :empty\) \{ grid-template-columns: minmax\(0, 1fr\); \}/.test(tw) && /\.app\[data-desk\] &:empty \{ display: none; \}/.test(tw));
+  const cols = (s) => (s.match(/<Columns>/g) || []).length;
+  ok("desk: the sections are arranged by hand — My Day, Live Ops, Command, Readiness, Plan's calendar and leads, Money, Assets, Catalog, Customers and Team in the console, Brew's planner and /office",
+    cols(pg) === 11 && cols(read("components/BrewPlanner.tsx")) === 1 && cols(read("app/office/page.tsx")) === 1
+    && (pg.match(/<Columns>/g) || []).length === (pg.match(/<\/Columns>/g) || []).length && (pg.match(/<Column>/g) || []).length === (pg.match(/<\/Column>/g) || []).length
+    && /<div className="desk-settings">\s*<div className="set-grp set-you">/.test(pg) && /<div className="set-grp set-biz">\s*\{isAdmin && <SectionHeader label="Business"/.test(pg)
+    && /<div className="set-grp set-adv">\s*\{isAdmin && <SectionHeader label="Advanced"/.test(pg));
+  ok("desk: /office's deliveries beside its account — the next one, the calendar and the weekly order on the left; requests, invoices, what was delivered and the jugs on the right",
+    /<Columns>\s*<Column>\s*\{\/\* the next delivery, live \*\/\}/.test(read("app/office/page.tsx")) && /<\/Column>\s*<Column>\s*\{\/\* requests to GT3, and the door to send one \*\/\}/.test(read("app/office/page.tsx")));
+  ok("desk: what floats in the frame sits in the header — the ✦ beside search, Ask us beside the account — and the rail is not drawn (its tabs have the phone's homes)",
+    /phone:hidden! desk:hidden!/.test(read("components/FloatRail.tsx")) && /qd-fab\$\{open \? "" : " pri"\} phone:hidden! desk:hidden!/.test(read("components/QuickDock.tsx"))
+    && /className="frame:hidden! desk:inline-flex!"/.test(pg) && /frame:hidden! desk:flex!/.test(read("components/AccountPill.tsx")));
+  ok("desk: the swipe back stands down there — the window's left edge is the sidebar, and a drag across a list of sections is not a way back",
+    /!sheetOpen\(\) && !deskNow\(\)/.test(read("components/SwipeBack.tsx"))
+    && /export function deskNow\(\): boolean \{[\s\S]*?window\.matchMedia\(DESK_QUERY\)\.matches && !!document\.querySelector\("\.app\[data-desk\]"\)/.test(surf));
+  ok("desk: a strip of numbers is one row; Studio's week is seven columns; the notes two to a row; an office's invitation a card's width",
+    ["components/MoneyKpis.tsx", "components/CustomerKpis.tsx", "components/CrewKpis.tsx"].every((f) => /className="mkpi desk:grid-cols-none desk:grid-flow-col desk:auto-cols-fr"/.test(read(f)))
+    && /<div className="calw desk:grid desk:grid-cols-7 desk:gap-2">/.test(read("components/BrandCalendar.tsx"))
+    && /<div className="contents desk:grid desk:grid-cols-2 desk:gap-x-3 desk:items-start">/.test(pg) && (read("app/office/page.tsx").match(/className="op-none desk:max-w-130 desk:mx-auto"/g) || []).length === 2);
+  ok("desk: Command says GOALS once — Goals draws its own head with the count, and the one above it is gone",
+    !/<SectionHeader label="Goals" \/>/.test(pg) && /<SectionHeader label="Goals" right=/.test(read("components/Goals.tsx")));
+  ok("desk: the iPhone app never meets it — iPhone only, held upright", /TARGETED_DEVICE_FAMILY = 1;/.test(read("ios/App/App.xcodeproj/project.pbxproj"))
+    && /<key>UISupportedInterfaceOrientations<\/key>\s*<array>\s*<string>UIInterfaceOrientationPortrait<\/string>\s*<\/array>/.test(read("ios/App/App/Info.plist")));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

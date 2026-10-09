@@ -27,7 +27,7 @@ import MarketingSplash from "./MarketingSplash";
 import BroadcastBanner from "./BroadcastBanner";
 import TitleBar from "./TitleBar";
 import { isNativeApp } from "@/lib/native";
-import { surfaceOf, showsCommerce } from "@/lib/surfaces";
+import { surfaceOf, showsCommerce, deskRoute } from "@/lib/surfaces";
 import { holdFocusZoom } from "@/lib/ios";
 import dynamic from "next/dynamic";
 
@@ -180,6 +180,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isShare = surface === "share";
   // Commerce chrome (cart bar, order status, concierge, splash) on the pages people order from only.
   const customerSurface = showsCommerce(surface);
+  // THE DESK (lib/surfaces, 2026-10-09): the console and /office leave the frame on a wide screen in landscape —
+  // app/tailwind.css (desk-shell) decides when, from this attribute and the width; the markup is the same at every width.
+  const desk = deskRoute(pathname);
 
   // Day mode: the crew console defaults to a light theme for daylight/outdoor use. Persisted.
   // Customer-facing pages are unaffected.
@@ -207,7 +210,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           the person it is assigned to, and so both live above every screen that prints a name. */}
       <RecordProvider>
       {/* data-surface says which kind of page this is (lib/surfaces): the console's primary button is gold. */}
-      <div className={`app${inAdmin && theme === "day" ? " crew-day" : ""}${disp ? ` ${disp}` : ""}`} data-surface={surface}>
+      {/* "app desk-shell" is a string of its own so Tailwind's scanner reads desk-shell as a class (inside a template,
+          run into ${…}, it was not one, and the shell's utility never built). */}
+      <div className={"app desk-shell" + (inAdmin && theme === "day" ? " crew-day" : "") + (disp ? ` ${disp}` : "")} data-surface={surface} data-desk={desk ? "" : undefined}>
         {/* Skip link — first focusable element; keyboard users jump past the chrome to the content. */}
         <a href="#body" className="skip-link">Skip to content</a>
         {/* Live broadcast bar — an operator-published message/ad, shown to every user in real time. */}

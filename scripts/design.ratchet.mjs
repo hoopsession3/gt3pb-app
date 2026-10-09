@@ -554,29 +554,29 @@ export const PROD_ROUTE = {
 // following the phone's in the iPhone app (the reading itself is in the app's bundle only). The stylesheets came down
 // a line (100 → 99, 103 → 102), recorded; the script crossed the rounding line on /delivery, /office and /primal.
 export const WEIGHT = {
-  "/truck":                    { js: 283, css: 95, chunks: 15 },
-  "/events":                   { js: 283, css: 95, chunks: 15 },
-  "/menu":                     { js: 267, css: 93, chunks: 15 },
-  "/reserve":                  { js: 291, css: 93, chunks: 16 },
-  "/delivery":                 { js: 290, css: 93, chunks: 16 },
-  "/3mpire":                   { js: 283, css: 93, chunks: 15 },
-  "/craft":                    { js: 266, css: 93, chunks: 15 },
-  "/book":                     { js: 267, css: 93, chunks: 15 },
-  "/academy":                  { js: 324, css: 93, chunks: 16 },
-  "/office":                   { js: 281, css: 93, chunks: 15 },
-  "/scan":                     { js: 266, css: 93, chunks: 15 },
-  "/architecture":             { js: 275, css: 93, chunks: 15 },
-  "/playbook":                 { js: 275, css: 93, chunks: 15 },
-  "/driver":                   { js: 279, css: 95, chunks: 15 },
-  "/agreement":                { js: 273, css: 93, chunks: 15 },
-  "/offer":                    { js: 283, css: 93, chunks: 15 },
-  "/built/gt3-built-k7m9x4q2": { js: 265, css: 93, chunks: 15 },
-  "/display":                  { js: 266, css: 93, chunks: 15 },
-  "/shop":                     { js: 295, css: 93, chunks: 16 },
-  "/primal":                   { js: 268, css: 93, chunks: 15 },
-  "/privacy":                  { js: 263, css: 93, chunks: 14 },
-  "/terms":                    { js: 263, css: 93, chunks: 14 },
-  "/":                         { js: 273, css: 93, chunks: 15 },
+  "/truck":                    { js: 284, css: 97, chunks: 15 },
+  "/events":                   { js: 284, css: 97, chunks: 15 },
+  "/menu":                     { js: 267, css: 94, chunks: 15 },
+  "/reserve":                  { js: 291, css: 94, chunks: 16 },
+  "/delivery":                 { js: 290, css: 94, chunks: 16 },
+  "/3mpire":                   { js: 283, css: 94, chunks: 15 },
+  "/craft":                    { js: 267, css: 94, chunks: 15 },
+  "/book":                     { js: 268, css: 94, chunks: 15 },
+  "/academy":                  { js: 324, css: 94, chunks: 16 },
+  "/office":                   { js: 281, css: 94, chunks: 15 },
+  "/scan":                     { js: 266, css: 94, chunks: 15 },
+  "/architecture":             { js: 276, css: 94, chunks: 15 },
+  "/playbook":                 { js: 275, css: 94, chunks: 15 },
+  "/driver":                   { js: 279, css: 97, chunks: 15 },
+  "/agreement":                { js: 273, css: 94, chunks: 15 },
+  "/offer":                    { js: 283, css: 94, chunks: 15 },
+  "/built/gt3-built-k7m9x4q2": { js: 265, css: 94, chunks: 15 },
+  "/display":                  { js: 266, css: 94, chunks: 15 },
+  "/shop":                     { js: 295, css: 94, chunks: 16 },
+  "/primal":                   { js: 268, css: 94, chunks: 15 },
+  "/privacy":                  { js: 264, css: 94, chunks: 14 },
+  "/terms":                    { js: 264, css: 94, chunks: 14 },
+  "/":                         { js: 273, css: 94, chunks: 15 },
 };
 
 // 2026-10-09 (the button round: redesign 7): every route's stylesheet -1 628 bytes and its script +188 to +245 (gzip).
@@ -595,6 +595,14 @@ export const WEIGHT = {
 // label over the one pickup (a copy default the shell carries), the pickup's room on /reserve, /shop and /delivery, two
 // utilities (cursor-default, active:transform-none), and the screens that hold the GT3 mark. /built's script crossed the
 // rounding line (264 → 265), recorded.
+// 2026-10-09 (the desk round: redesign 5): every route's stylesheet +1 279 bytes and its script +251 to +327 (gzip). Built
+// the chip round's commit and this one and gzipped what each route's HTML references (/menu's stylesheet 94 886 → 96 165, its
+// script 273 560 → 273 842): the desk — from 1,024 wide in landscape the console and /office leave the frame for a sidebar and
+// a canvas of two columns — is utilities in the one stylesheet every route shares (app/tailwind.css THE DESK), and the shell
+// names the pages it is for (lib/surfaces deskRoute, components/kit Columns). The stylesheets went up a line (93 → 94, 95 → 96,
+// /truck's 96.498), recorded; the script crossed the rounding line on /truck, /events, /craft, /architecture, /built, /privacy
+// and /terms. Rebased onto the round above it (#112): /truck's, /events' and /driver's stylesheet (96 → 97) and /book's
+// script (267 → 268) crossed the line again, recorded.
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];
   const out = [];

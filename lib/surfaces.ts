@@ -34,3 +34,25 @@ export function surfaceOf(pathname: string | null | undefined): Surface {
 
 /** The drinks cart bar, a live order's status, the guest concierge and the marketing splash. */
 export const showsCommerce = (s: Surface): boolean => s === "customer";
+
+// THE DESK (2026-10-09, redesign 5, approved by Ryan 2026-10-08). From 1,024 wide in landscape — a laptop, a
+// desktop, an iPad on its side — the crew console and an office client's home leave the phone frame: the tab bar
+// is a sidebar and the page a canvas of two columns up to 1,240 wide (app/globals.css THE DESK, and the `desk:`
+// variant in app/tailwind.css). They are the two places someone works from a big screen for an hour. Every other
+// page keeps the frame, and a phone, or an iPad held upright (the 13-inch is 1,032 wide), keeps the layout it has.
+// The iPhone app is a phone app held upright (ios/: iPhone only, portrait), so it never meets this.
+// The query is spelled three times — here, in the stylesheet and in the variant — and scripts/smoke.cjs holds the
+// three to the same words.
+export const DESK_QUERY = "(min-width: 1024px) and (orientation: landscape)";
+
+/** Does this page leave the frame for the desk on a wide screen? The console, and /office. */
+export function deskRoute(pathname: string | null | undefined): boolean {
+  const p = pathname || "/";
+  return surfaceOf(p) === "console" || p === "/office" || p.startsWith("/office/");
+}
+
+/** Is the desk drawn right now — a desk page on a wide screen in landscape? On the client only. */
+export function deskNow(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia(DESK_QUERY).matches && !!document.querySelector(".app[data-desk]");
+}

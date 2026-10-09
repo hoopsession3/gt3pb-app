@@ -21,7 +21,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import { useApp } from "./AppProvider";
-import { SectionHeader } from "@/components/kit";
+import { SectionHeader, Columns, Column } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { errorMessage } from "@/lib/errorMessage";
@@ -353,6 +353,9 @@ export default function BrewPlanner() {
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load brew" emptyTitle="Nothing here yet">
       {() => (
     <div className="adm-sec">
+      {/* ON THE DESK (2026-10-09, redesign 5): the schedule on the left, the recipes beside it. */}
+      <Columns>
+      <Column>
       <SectionHeader label="Brew" />
       <Button kind="primary" wide onClick={() => setPlan(recipes[0] ?? null)} disabled={!recipes.length}>+ Plan a batch</Button>
       <div className="pnl-note" style={{ marginBottom: 8 }}>Recipes scale exactly to the gallons of water you brew and hold the spec. Batches are back-scheduled from the event they&apos;re for, then logged to standard.</div>
@@ -385,7 +388,8 @@ export default function BrewPlanner() {
             ))}
           </div>
         )
-      ) : (<>
+      ) : (
+      <>
       <div className="brew-sched-h">Brew schedule</div>
       {active.length === 0 ? <EmptyState title="No batches scheduled" sub="Tap + Plan a batch." /> : (
         <div className="brew-list">
@@ -530,8 +534,14 @@ export default function BrewPlanner() {
         </div>
       )}
 
+      </>
+      )}
+      </Column>
+      <Column>
+      {view !== "log" && (
+      <>
       {/* Recipes */}
-      <div className="brew-sched-h" style={{ marginTop: 18 }}>Recipes</div>
+      <div className="brew-sched-h mt-4.5">Recipes</div>
       <div className="brew-list">
         {recipes.map((r) => (
           <button key={r.id} type="button" className="brew-recipe" onClick={() => setPlan(r)}>
@@ -540,7 +550,10 @@ export default function BrewPlanner() {
           </button>
         ))}
       </div>
-      </>)}
+      </>
+      )}
+      </Column>
+      </Columns>
 
       {plan && <BrewSheet recipe={plan} events={events} stops={stops} vessels={vessels} inv={inv} initialTarget={pendingTarget ?? undefined} onClose={() => { setPlan(null); setPendingTarget(null); }} onDone={() => { setPlan(null); setPendingTarget(null); reload(); }} />}
       {pack && <BottleLoadout batch={pack} onClose={() => setPack(null)} />}

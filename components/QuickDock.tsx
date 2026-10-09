@@ -84,8 +84,10 @@ export default function QuickDock() {
   return (
     <>
       {/* On a phone the button is the crew header's ✦, beside search (2026-10-08, the iPhone chrome round):
-          floating, it sat over the content of every crew screen. The frame keeps it. */}
-      <button type="button" className={`k-icon-btn lg qd-fab${open ? "" : " pri"} phone:hidden!`} onClick={() => setOpen((o) => !o)} aria-label={open ? "Close quick actions" : "Quick actions — run a copilot, ask GT3, take a note, or log a purchase"}>
+          floating, it sat over the content of every crew screen. The frame keeps it. On the desk (2026-10-09,
+          redesign 5) it is the header's ✦ again: nothing floats over the canvas, and the four tools of the header
+          — quick actions, search, the guide, the inbox — read as one toolbar. */}
+      <button type="button" className={`k-icon-btn lg qd-fab${open ? "" : " pri"} phone:hidden! desk:hidden!`} onClick={() => setOpen((o) => !o)} aria-label={open ? "Close quick actions" : "Quick actions — run a copilot, ask GT3, take a note, or log a purchase"}>
         {open ? <Icon name="close" /> : <Icon name="sparkles" />}
       </button>
 
