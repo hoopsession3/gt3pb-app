@@ -13,7 +13,7 @@ import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, alertWhen, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
-import { localToday, etToday, dayKey, dayWithDate, relativeDay, ageLabel, evDate, evTime } from "@/lib/dates";
+import { localToday, etToday, dayWithDate, relativeDay, ageLabel, evDate, evTime } from "@/lib/dates";
 import { orderClockFrom, waitingToOpen, waitingLabel } from "@/lib/ordering";
 import { prepBucket } from "@/lib/readiness";
 import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
@@ -38,6 +38,9 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "@/components/AsyncSection";
 import Owed from "@/components/Owed";  // daily path: the overdue list is on the default screen
+import HomeNumbers from "@/components/HomeNumbers";  // daily path: the home's three numbers
+import TodayList from "@/components/TodayList";      // daily path: the home's Today list
+import { flagIsToday } from "@/lib/home";
 // Daily path too (2026-10-04): today's op card lives here now, for everybody, so it is a static
 // import like the rest of the morning screen — a crew member opening My Day must never wait on a
 // chunk to see where they are working (see "Code-split" below).
@@ -85,6 +88,7 @@ import NoteAttach from "@/components/NoteAttach";
 import Goals from "@/components/Goals";
 import { useLocationSuggestions } from "@/components/useLocationSuggestions";
 import { completeTask, createEventTask, createEventTasks, deleteTask, deleteTasks, deleteTasksForParent, type NewEventTask, type TaskParent } from "@/lib/tasks";
+import { loadMyTasks, type MyTaskRow } from "@/lib/myTasks";
 const AiTraining = dynamic(() => import("@/components/AiTraining"), { loading: () => <PourFill label="Loading…" /> });
 const PromoEditor = dynamic(() => import("@/components/PromoEditor"), { loading: () => <PourFill label="Loading…" /> });
 import EightySix from "@/components/EightySix";
@@ -1207,13 +1211,8 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
 
 // ───────────────────────── pre-flight readiness ─────────────────────────
 // ───────────────────────── my tasks: what's assigned to me, by priority ─────────────────────────
-type MyTaskRow = EventTask & {
-  events: { title: string | null; day: string | null; is_live: boolean | null } | null;
-  meeting_notes: { title: string | null } | null;
-  goals: { title: string | null } | null;
-  source?: "event" | "todo";      // 'todo' rows are delegated to-dos (0210) folded into one plate
-  category?: string | null;       // todos carry a category instead of an event/goal parent
-};
+// The row and its one read live in lib/myTasks (2026-10-09, One home): the home's Today list reads
+// the same plate.
 
 // MY DAY — the personal rollup: what's on today, the flags & pings aimed at YOU (alerts targeted
 // to your user), and your assigned tasks. The home base "where do my flags go?" answer.
@@ -1401,7 +1400,7 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
 type Rhythm = { stops: { id: string; name: string | null; starts_at: string | null }[]; dropPacks: number; porches: number; brews: { id: string; recipe_name: string; batch_gal: number; warn: boolean }[] };
 const NO_RHYTHM: Rhythm = { stops: [], dropPacks: 0, porches: 0, brews: [] };
 
-function MyDay({ userId, isLeader, canGoLive, canBrew }: { userId: string | null; isLeader: boolean; canGoLive: boolean; canBrew: boolean }) {
+function MyDay({ userId, isLeader, canGoLive, canBrew, money }: { userId: string | null; isLeader: boolean; canGoLive: boolean; canBrew: boolean; money: boolean }) {
   // Flags ride the one shared hook (same source as the Now strip + nav badge). Crew see their own
   // pings + broadcasts now too — the old isLeader gate predates the staff-wide alerts RLS (0157).
   const { flags, error: flagsErr, reload: reloadFlags } = useMyAlerts(userId);
@@ -1447,8 +1446,11 @@ function MyDay({ userId, isLeader, canGoLive, canBrew }: { userId: string | null
           is about. The greeting is gone, the motto with it (its copy key is retired, so Settings no
           longer offers to edit a line that shows nowhere), and the date rides on today's op card.
           The headline still comes before the plates, which is all P3 asked. */}
-      {/* ON THE DESK (2026-10-09, redesign 5): the day's work on the left — today's op, its stops, drops and brews,
-          your tasks — and what is owed and the week's leadership tools beside it. A phone reads them in this order. */}
+      {/* ONE HOME (2026-10-09, round 2 of the UX plan, approved): how are we doing, and what's next —
+          in one look. On the left the day itself (today's op, its stops, drops and brews) and the
+          week's three numbers, each with its change and its cause; beside it, at most three things due
+          today, with the equipment, the stale and the full lists each folded to one row. A phone reads
+          them in this order. My tasks and Needs you are whole, one tap down, in "All tasks". */}
       <Columns>
       <Column>
       <DayHeadline canGoLive={canGoLive} />
@@ -1484,17 +1486,16 @@ function MyDay({ userId, isLeader, canGoLive, canBrew }: { userId: string | null
           <button type="button" className="btn-ter" onClick={() => reloadFlags()}>Try again</button>
         </p>
       )}
-      {/* MY TASKS above the fold — the day's work leads; everything else follows. */}
-      <MyTasks userId={userId} />
+      {/* THE WEEK IN THREE NUMBERS — sales and margin for whoever holds Money, the next drop for
+          whoever manages; nothing for crew, whose home is the day's work. */}
+      <HomeNumbers money={money} drops={isLeader} />
       </Column>
       <Column>
-      {/* WHAT IS OWED (0320). Under the day's work, because a task due today outranks a permit due
-          in a fortnight — but on the default screen, because until now the app stored eleven kinds
-          of deadline and showed none of them. On the day this shipped: four pieces of equipment
-          past their service date (the nitro tap by 69 days), two initiative targets and three
-          workstream next-actions overdue, and six permit rules needing a re-check. Nothing in the
-          product said so. Silence is only a signal when somebody is listening. */}
-      <Owed />
+      {/* TODAY: what is due, and only that, from My tasks and Needs you together (components/TodayList).
+          WHAT IS OWED (0320) still reads here — until it shipped the app stored eleven kinds of deadline
+          and showed none of them, and silence is only a signal when somebody is listening — but a
+          deadline months past no longer leads the morning: it waits, counted, in one row. */}
+      <TodayList allTasks={<><MyTasks userId={userId} anchor={false} /><Owed /></>} />
       {/* "✎ Note to self" lived here — the same sheet the quick-actions button opens on its Note
           tab, from every screen. One door (2026-10-04). */}
       {/* Lead-the-week tools: collapsed to one chip until called for (decrowd — the briefing is
@@ -1525,7 +1526,7 @@ function MyDay({ userId, isLeader, canGoLive, canBrew }: { userId: string | null
   );
 }
 
-function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boolean }) {
+function MyTasks({ userId, chip = false, anchor = true }: { userId: string | null; chip?: boolean; anchor?: boolean }) {
   const { setSection } = useOperatorSection();
   const { openTask } = useTaskSheet();
   const { toast } = useApp();
@@ -1537,35 +1538,12 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
   const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!supabase || !userId) { setTasks([]); setLoaded(true); return; }
-    // ONE task read: the all_tasks spine view (0210, enriched by 0225) — event_tasks ∪ todos with
-    // the op/note/goal context joined in the database. Same plate the WorkloadBoard reads, so task
-    // surfaces can't drift apart again. Op context rides the field_ops spine, which is why a
-    // STOP-owned task now shows its stop's name (it rendered as a bare "Event" before).
-    const { data, error } = await supabase
-      .from("all_tasks")
-      .select("*")
-      .eq("assignee", userId)
-      .eq("done", false)
-      .order("sort", { ascending: true, nullsFirst: false });   // events keep their sort; sortless to-dos land after, as before
-    if (error) { setErr(error.message); setLoaded(true); return; }
+    // ONE task read: the all_tasks spine view (0210, enriched by 0225), in lib/myTasks — the same
+    // plate the WorkloadBoard and the home's Today list read, so task surfaces can't drift apart
+    // again. Op context rides the field_ops spine, which is why a STOP-owned task shows its stop's name.
+    const { rows, error } = await loadMyTasks(userId);
+    if (error) { setErr(error); setLoaded(true); return; }
     setErr(null);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows: MyTaskRow[] = ((data as any[]) ?? []).map((r) =>
-      r.source === "todo"
-        ? ({
-            id: r.id, label: r.title, source: "todo", category: r.category,
-            due_at: r.due ? new Date(`${r.due}T23:59:59`).toISOString() : null,   // local end-of-day as a REAL instant, so a to-do due today isn't "overdue" all evening (behind-UTC bug)
-            critical: false, warn: false, events: null, meeting_notes: null, goals: null,
-          } as MyTaskRow)
-        : ({
-            ...r, label: r.title, source: "event" as const,
-            // != null (not truthiness): an empty-string title is still a real row — panel finding.
-            // Stop dates bucket on the OPERATOR's wall clock (dayKey, the one-clock spine), not a UTC cast.
-            events: r.op_name != null ? { title: r.op_kind === "stop" ? `🚚 ${r.op_name}` : r.op_name, day: r.op_day ?? (r.op_starts_at ? dayKey(new Date(r.op_starts_at)) : null), is_live: r.op_is_live } : null,
-            meeting_notes: r.meeting_note_title != null ? { title: r.meeting_note_title } : null,
-            goals: r.goal_title != null ? { title: r.goal_title } : null,
-          } as MyTaskRow));
     setTasks(rows);
     setLoaded(true);
   }, [userId]);
@@ -1615,7 +1593,7 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
 
   if (err) {
     return (
-      <div className="adm-sec" id="my-day-tasks">
+      <div className="adm-sec" id={anchor ? "my-day-tasks" : undefined}>
         <p className="load-failed" role="status">
           Couldn&apos;t load your tasks — this is not &ldquo;nothing on your plate&rdquo;.{" "}
           <button type="button" className="btn-ter" onClick={() => load()}>Try again</button>
@@ -1628,14 +1606,14 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
   // rather than leaving a gap where the day's work usually leads.
   if (empty) {
     return (
-      <div className="adm-sec" id="my-day-tasks">
+      <div className="adm-sec" id={anchor ? "my-day-tasks" : undefined}>
         <EmptyState title="Nothing on your plate" sub="You're clear for today — check Live Ops if something's moving." />
       </div>
     );
   }
 
   return (
-    <div className="adm-sec" id="my-day-tasks">
+    <div className="adm-sec" id={anchor ? "my-day-tasks" : undefined}>
       <SectionHeader label="My tasks" right={<span className={`k-count${crit || over ? " due" : ""}`}>{tasks.length}{over ? ` · ${over} overdue` : crit ? ` · ${crit} critical` : ""}</span>} />
       {sorted.map((t) => (
         <div key={t.id} className={`mytask${t.critical ? " crit" : isOver(t) ? " crit" : t.warn ? " warn" : ""}`}>
@@ -5624,7 +5602,12 @@ export default function AdminPage() {
   // The header 🔔 badge, for EVERY role (2026-10-04). It was gated on canManage — the leader-only rule
   // 0157 retired for alerts — so a server's bell never loaded while My Day and the nav badge counted
   // her pings from the same hook. The bell is the inbox's one door now; it has to open for everyone.
-  const { flags: hdrFlags, critCount: hdrCrit } = useMyAlerts(user?.id ?? null);
+  // THE BELL COUNTS TODAY (2026-10-09, One home). It counted every unanswered alert of the last thirty,
+  // so it read the same at 7 AM as at 11 PM and never reached zero. It counts what was true today
+  // (lib/home flagIsToday); the inbox behind it, and every other reader of the hook, keep them all.
+  const { flags: hdrFlags } = useMyAlerts(user?.id ?? null);
+  const hdrToday = hdrFlags.filter((f) => flagIsToday(f, localToday()));
+  const hdrTodayCrit = hdrToday.filter((f) => f.severity === "critical").length;
   // First-run: the guide explains the console's language (Live Ops, Readiness, Route) — open it
   // once for a brand-new staffer instead of hoping she finds the ⓘ pill. It opens on Start here now
   // (2026-10-08): someone on the crew side for the first time on a phone needs the first day before
@@ -5835,7 +5818,7 @@ export default function AdminPage() {
           {/* Section guide — what each section is for + jump there. */}
           <IconButton icon="info" label="Guide — start here, and what each section is for" aria-haspopup="dialog" onClick={() => setGuide("sections")} />
           {/* Inbox — the one place everything that needs you rolls up (flags + needs-you), from any screen. */}
-          <IconButton icon="bell" label={hdrFlags.length ? `Inbox — ${hdrFlags.length} for you` : "Inbox"} badge={hdrFlags.length} crit={hdrCrit > 0} onClick={() => setInboxOpen(true)} />
+          <IconButton icon="bell" label={hdrToday.length ? `Inbox — ${hdrToday.length} today` : "Inbox"} badge={hdrToday.length} crit={hdrTodayCrit > 0} onClick={() => setInboxOpen(true)} />
         </div>
       </div>
       {guide && <SectionGuide allowed={allowed} current={sec} start={guide === "start"} onGo={setSection} onClose={() => setGuide(null)} />}
@@ -5887,7 +5870,7 @@ export default function AdminPage() {
           {/* P3 (2026-08-03): a leader's day opens with the headline — today's op + top 3 due —
               before the plates. MyDay renders it now (2026-10-04), under the greeting, so the
               greeting opens the screen and today's op has one card for everybody. */}
-          <MyDay userId={user?.id ?? null} isLeader={canManage} canGoLive={isAdmin} canBrew={canManage || role === "operator"} />
+          <MyDay userId={user?.id ?? null} isLeader={canManage} canGoLive={isAdmin} canBrew={canManage || role === "operator"} money={isAdmin} />
         </>
       )}
       {sec === "command" && canManage && (
