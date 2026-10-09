@@ -544,14 +544,13 @@ function Kitchen() {
           svc-bar, ~line 5730) — this SectionHeader only repeated it (case differs), so it's cut,
           same precedent as ReadinessAgent's redundant "Readiness" header being cut where a
           crew-group divider directly above already said it. The mute toggle + active count are
-          real controls (not a title), so they're kept, right-aligned in a bare wrapper. Unlike
-          .adm-prep-view (which has its own margin-left:auto), neither .k-count nor .kds-mute
-          does, so the wrapper reproduces the rest of .k-sec-r's own layout too (align-items:center,
+          real controls (not a title), so they're kept, right-aligned in a bare wrapper. Neither
+          .k-count nor the mute has a margin-left:auto of its own, so the wrapper reproduces the rest of .k-sec-r's own layout too (align-items:center,
           gap:8px) rather than just justifyContent, so this doesn't lose the vertical centering or
           the pill↔button spacing the two had inside the old SectionHeader's right slot. */}
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
         {active.length > 0 && <span className="k-count">{active.length} active</span>}
-        <button type="button" className="kds-mute" onClick={toggleMute} aria-pressed={muted}>{muted ? "🔇 Muted" : <><Icon name="bell" /> Sound</>}</button>
+        <button type="button" className={`k-chip sm${muted ? " on" : ""}`} onClick={toggleMute} aria-pressed={muted}>{muted ? "🔇 Muted" : <><Icon name="bell" /> Sound</>}</button>
       </div>
 
       {err && <div className="adm-attn" role="alert">Backend error: {err}</div>}
@@ -606,10 +605,10 @@ function Kitchen() {
                     )}
                     <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={isSettled(o) ? "pd" : "unp"}>{passWord(o)}</span> · <span className="kds-stagetime">{ago(o.status_changed_at)} in stage</span></div>
                     <div className="adm-actions-row">
-                      {PREV[o.status] && <button className="adm-recall" onClick={() => recall(o)} aria-label="Move back a stage">↩</button>}
-                      {canCollect(o) && <button type="button" className="adm-recall adm-collect" onClick={() => collect(o)}>Collect {money(o.total_cents)}</button>}
+                      {PREV[o.status] && <button className="k-icon-btn lg shrink-0" onClick={() => recall(o)} aria-label="Move back a stage">↩</button>}
+                      {canCollect(o) && <button type="button" className="btn-sec shrink-0" onClick={() => collect(o)}>Collect {money(o.total_cents)}</button>}
                       {canUndo(o, me, admin) && (
-                        <button type="button" className="adm-recall adm-collect done" onClick={() => undoTake(o)} aria-label={`Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment from ${o.customer ?? "Guest"}`}>
+                        <button type="button" className="btn-sec shrink-0 text-ok border-ok" onClick={() => undoTake(o)} aria-label={`Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment from ${o.customer ?? "Guest"}`}>
                           {o.collected_via === "cash" ? "Cash" : "Reader"} <Icon name="check" />
                         </button>
                       )}
@@ -644,12 +643,12 @@ function Kitchen() {
                 <div className="adm-items">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")}</div>
                 <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={isSettled(o) ? "pd" : "unp"}>{passWord(o, true)}</span></div>
                 <div className="adm-actions-row">
-                  <button className="adm-recall" onClick={() => recall(o)} aria-label={`Bring ${o.customer ?? "order"} back to ready`}>↩ Recall</button>
+                  <button className="k-icon-btn lg shrink-0" onClick={() => recall(o)} aria-label={`Bring ${o.customer ?? "order"} back to ready`}>↩ Recall</button>
                   {/* Handed over unpaid and settled a minute later — a regular squaring up — is
                       still money taken at the window, and this tray is where that order still is. */}
-                  {canCollect(o) && <button type="button" className="adm-recall adm-collect" onClick={() => collect(o)}>Collect {money(o.total_cents)}</button>}
+                  {canCollect(o) && <button type="button" className="btn-sec shrink-0" onClick={() => collect(o)}>Collect {money(o.total_cents)}</button>}
                   {canUndo(o, me, admin) && (
-                    <button type="button" className="adm-recall adm-collect done" onClick={() => undoTake(o)} aria-label={`Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment from ${o.customer ?? "Guest"}`}>
+                    <button type="button" className="btn-sec shrink-0 text-ok border-ok" onClick={() => undoTake(o)} aria-label={`Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment from ${o.customer ?? "Guest"}`}>
                       {o.collected_via === "cash" ? "Cash" : "Reader"} <Icon name="check" />
                     </button>
                   )}
@@ -859,7 +858,7 @@ function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: 
             <input className="ev-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What to change (only if requesting changes)" aria-label="What to change" />
             <div className="capprove-acts">
               <button type="button" className="btn-pri flex-1" disabled={busy} onClick={() => decide("approved")}>{busy ? "…" : <><Icon name="check" /> Approve</>}</button>
-              <button type="button" className="studio-act" disabled={busy} onClick={() => decide("changes")}>Request changes</button>
+              <button type="button" className="btn-sec btn-sm" disabled={busy} onClick={() => decide("changes")}>Request changes</button>
             </div>
             <p className="insp-foot">Approving saves your caption edits. Once you act, this alert clears.</p>
           </div>
@@ -876,7 +875,7 @@ function DropSheet({ onClose }: { onClose: () => void }) {
   return (
     <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span>This week&rsquo;s drop</span><button type="button" className="drop-sheet-x hit-44" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
         <DropOps canPlan={canPlan} />
-        <button type="button" className="drop-sheet-done" onClick={onClose}>Done</button>
+        <button type="button" className="btn-sec btn-wide mt-3" onClick={onClose}>Done</button>
     </Sheet>
   );
 }
@@ -1074,10 +1073,10 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
             })()}
             {counts[a.id] ? <button type="button" className="alert-discuss" onClick={() => setOpenThread(openThread === a.id ? null : a.id)} aria-label="Discuss"><Icon name="chat" /><span className="cmt-count">{counts[a.id]}</span></button> : null}
             {canOpen(a) && (
-              <button type="button" className={alertHasInlineAction(a.kind) ? "alert-open ghost" : "alert-open"} onClick={() => gotoAlert(a)}>{alertHasInlineAction(a.kind) ? "Open" : <>Open <Icon name="arrowRight" /></>}</button>
+              <button type="button" className={alertHasInlineAction(a.kind) ? "btn-sec btn-sm shrink-0" : "btn-pri btn-sm shrink-0"} onClick={() => gotoAlert(a)}>{alertHasInlineAction(a.kind) ? "Open" : <>Open <Icon name="arrowRight" /></>}</button>
             )}
-            {a.severity !== "critical" && <button type="button" className="alert-snz" onClick={() => { void later(a); }} aria-label="Snooze 1 hour" title="Snooze 1 hour"><Icon name="clock" /></button>}
-            <button type="button" className="alert-ack" onClick={() => { void clear(a); }} aria-label="Got it"><Icon name="check" /></button>
+            {a.severity !== "critical" && <button type="button" className="k-icon-btn shrink-0" onClick={() => { void later(a); }} aria-label="Snooze 1 hour" title="Snooze 1 hour"><Icon name="clock" /></button>}
+            <button type="button" className="k-icon-btn shrink-0" onClick={() => { void clear(a); }} aria-label="Got it"><Icon name="check" /></button>
           </div>
           {alertHasInlineAction(a.kind) && <AlertAction flag={a} meId={userId} onResolved={() => ack(a)} />}
           {openThread === a.id && (
@@ -1374,7 +1373,7 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
         if (!isAdmin && empty) return null; // nothing to show crew yet
         return (
           <div className="daybrief">
-            <div className="daybrief-h">Day-of brief · how to show up{isAdmin && !edit && <button type="button" className="daybrief-edit" onClick={() => setEdit(true)}>{empty ? "+ Add" : "Edit"}</button>}</div>
+            <div className="daybrief-h">Day-of brief · how to show up{isAdmin && !edit && <button type="button" className="btn-ter ml-auto" onClick={() => setEdit(true)}>{empty ? "+ Add" : "Edit"}</button>}</div>
             {edit ? (
               <>
                 <label className="prod-f"><span>Dress code — what to wear</span><input className="note-in" value={dress} onChange={(e) => setDress(e.target.value)} placeholder="e.g. Black GT3 tee, dark jeans, closed-toe shoes" maxLength={600} /></label>
@@ -1462,15 +1461,15 @@ function MyDay({ userId, isLeader, canGoLive, canBrew }: { userId: string | null
       {(rhythm.stops.length > 0 || rhythm.dropPacks > 0 || rhythm.porches > 0 || rhythm.brews.length > 0) && (
         <div className="myday-rhythm">
           {rhythm.stops.map((s) => (
-            <button key={s.id} type="button" className="myday-chip" style={{ borderLeftColor: laneColor("stop") }} onClick={() => openRecord("stop", s.id)}>
-              <Icon name="truck" /> {s.name || "Truck stop"}{s.starts_at ? ` · ${new Date(s.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""} ›
+            <button key={s.id} type="button" className="k-chip sm" onClick={() => openRecord("stop", s.id)}>
+              <Icon name="truck" style={{ color: laneColor("stop") }} /> {s.name || "Truck stop"}{s.starts_at ? ` · ${new Date(s.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""} ›
             </button>
           ))}
-          {rhythm.dropPacks > 0 && <button type="button" className="myday-chip" style={{ borderLeftColor: laneColor("drop") }} onClick={() => setSection("now")}><Icon name="package" /> Drop today · {rhythm.dropPacks} pack{rhythm.dropPacks === 1 ? "" : "s"} ›</button>}
-          {rhythm.porches > 0 && <button type="button" className="myday-chip" style={{ borderLeftColor: laneColor("delivery") }} onClick={() => { window.location.href = "/driver"; }}><Icon name="compass" /> Delivery run · {rhythm.porches} porch{rhythm.porches === 1 ? "" : "es"} ›</button>}
+          {rhythm.dropPacks > 0 && <button type="button" className="k-chip sm" onClick={() => setSection("now")}><Icon name="package" style={{ color: laneColor("drop") }} /> Drop today · {rhythm.dropPacks} pack{rhythm.dropPacks === 1 ? "" : "s"} ›</button>}
+          {rhythm.porches > 0 && <button type="button" className="k-chip sm" onClick={() => { window.location.href = "/driver"; }}><Icon name="compass" style={{ color: laneColor("delivery") }} /> Delivery run · {rhythm.porches} porch{rhythm.porches === 1 ? "" : "es"} ›</button>}
           {canBrew && rhythm.brews.map((b) => (
-            <button key={b.id} type="button" className={`myday-chip${b.warn ? " warn" : ""}`} style={{ borderLeftColor: laneColor("brew") }} onClick={() => setSection("brew")}>
-              <Icon name="coffee" /> Brew · {b.recipe_name} {b.batch_gal} gal{b.warn ? " — start now" : ""} ›
+            <button key={b.id} type="button" className={`k-chip sm${b.warn ? " warn" : ""}`} onClick={() => setSection("brew")}>
+              <Icon name="coffee" style={b.warn ? undefined : { color: laneColor("brew") }} /> Brew · {b.recipe_name} {b.batch_gal} gal{b.warn ? " — start now" : ""} ›
             </button>
           ))}
         </div>
@@ -1665,9 +1664,9 @@ const whenBucket = (day: string | null | undefined) => prepBucket(day, localToda
 function PrepViewSheet({ dir, setDir, onClose }: { dir: "asc" | "desc"; setDir: (d: "asc" | "desc") => void; onClose: () => void }) {
   return (
     <Sheet open onClose={onClose} label="Group tasks" header={<div style={{ display: "flex", alignItems: "center" }}>Group by · date / when</div>}>
-        <div className="prep-sheet-opts">
-          <button className={`prep-sheet-opt${dir === "asc" ? " on" : ""}`} onClick={() => { setDir("asc"); onClose(); }}>Soonest first</button>
-          <button className={`prep-sheet-opt${dir === "desc" ? " on" : ""}`} onClick={() => { setDir("desc"); onClose(); }}>Latest first</button>
+        <div className="k-chips">
+          <button type="button" className={`k-chip flex-1${dir === "asc" ? " on" : ""}`} aria-pressed={dir === "asc"} onClick={() => { setDir("asc"); onClose(); }}>Soonest first</button>
+          <button type="button" className={`k-chip flex-1${dir === "desc" ? " on" : ""}`} aria-pressed={dir === "desc"} onClick={() => { setDir("desc"); onClose(); }}>Latest first</button>
         </div>
     </Sheet>
   );
@@ -1747,7 +1746,7 @@ function ReadinessAgent() {
       <div className="rdy">
         <div className="rdy-top">
           <span className="rdy-blurb">Ask the prep agent if you&apos;re stocked for the next two weeks.</span>
-          <button type="button" className="rdy-run hit-y-44" onClick={run} disabled={busy}>{busy ? "Checking…" : <><Icon name="sparkles" /> Check</>}</button>
+          <button type="button" className="btn-pri btn-sm shrink-0" onClick={run} disabled={busy}>{busy ? "Checking…" : <><Icon name="sparkles" /> Check</>}</button>
         </div>
         {res && (
           <div className={`rdy-out sev-${res.severity}`}>
@@ -1864,7 +1863,7 @@ function InspectionPrep() {
             <option value="">No event — just brief me</option>
             {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.day_label || ev.day || ""} · {ev.title || "Event"}</option>)}
           </select>
-          <button type="button" className="rdy-run hit-y-44" onClick={run} disabled={busy || !state.trim()}>{busy ? "Researching…" : <><Icon name="sparkles" /> Research</>}</button>
+          <button type="button" className="btn-pri btn-sm shrink-0" onClick={run} disabled={busy || !state.trim()}>{busy ? "Researching…" : <><Icon name="sparkles" /> Research</>}</button>
         </div>
         {wait && (
           <div className="insp-wait" role="status" aria-live="polite">
@@ -1967,7 +1966,7 @@ function EventPrep({ sel, setSel }: { sel: PrepTarget | null; setSel: Dispatch<S
         this list died 2026-07-30 — it restated the exact target cards below it and Live Ops' own
         live status. Ryan: "feels unnecessary and like it's in other sections. Redundant.") */}
     <div className="adm-sec adm-prep">
-      <div style={{ display: "flex" }}><button className="adm-prep-view" onClick={() => setSheet(true)} aria-haspopup="dialog">View ⌄</button></div>
+      <div className="flex justify-end"><button className="btn-ter" onClick={() => setSheet(true)} aria-haspopup="dialog">View ⌄</button></div>
       <AsyncSection
         state={prepState}
         isEmpty={(d) => d.events.length === 0 && d.stops.length === 0}
@@ -3037,7 +3036,7 @@ function MeetingNotes() {
       <SectionHeader label="Notes" right={<span className="k-count">{notes.length}</span>} />
       <div className="h-sub note-intro">Pick who sees each one (<Icon name="lock" /> me · <Icon name="team" /> team · <Icon name="partners" /> team&nbsp;+&nbsp;comments). Follow-ups land in My&nbsp;Tasks; <Icon name="sparkles" /> summarize turns a transcript into the note. Notes grow — <b>＋&nbsp;add</b> anytime; nothing is ever overwritten.</div>
 
-      <button type="button" className="note-new" onClick={() => setComposing(true)}>✎ New note</button>
+      <button type="button" className="btn-sec btn-wide" onClick={() => setComposing(true)}>✎ New note</button>
       {composing && (
         <Sheet open onClose={() => { setComposing(false); setCActions([]); setCFiles([]); }} label="New note" className="note-lux"
           // The words stay with the page when the composer closes; its follow-ups and files do not.
@@ -3082,7 +3081,7 @@ function MeetingNotes() {
                 </div>
               )}
               <textarea className="note-area" placeholder="Paste a transcript — or attach files above to fill this in…" value={cBody} onChange={(e) => setCBody(e.target.value)} rows={4} />
-              <button type="button" className="note-suggest note-sum" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : <><Icon name="sparkles" /> Summarize <Icon name="arrowRight" /> title · recap · tasks</>}</button>
+              <button type="button" className="btn-sec btn-sm btn-wide mt-0.5 mb-1" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : <><Icon name="sparkles" /> Summarize <Icon name="arrowRight" /> title · recap · tasks</>}</button>
             </details>
             <div className="note-fu-h">Follow-ups
               <button type="button" className="btn-ter" onClick={() => setCActions((a) => [...a, { title: "", category: "task", critical: false, assignee: meId }])}>+ Add</button>
@@ -3094,8 +3093,8 @@ function MeetingNotes() {
                 <div className="note-fu-edit-r">
                   <PersonPick label="Assign to" className="note-in" value={{ id: a.assignee ?? null, name: "" }} allowOther={false} allowNone noneLabel="Unassigned"
                               onChange={(v) => setCActions((arr) => arr.map((x, j) => j === i ? { ...x, assignee: v.id } : x))} />
-                  <button type="button" className={`note-fu-crit${a.critical ? " on" : ""}`} onClick={() => setCActions((arr) => arr.map((x, j) => j === i ? { ...x, critical: !x.critical } : x))} aria-pressed={a.critical} title="Mark critical"><Icon name="warning" /></button>
-                  <button type="button" className="note-fu-del" onClick={() => setCActions((arr) => arr.filter((_, j) => j !== i))} aria-label="Remove"><Icon name="close" /></button>
+                  <button type="button" className={`k-icon-btn self-center${a.critical ? " on" : ""}`} onClick={() => setCActions((arr) => arr.map((x, j) => j === i ? { ...x, critical: !x.critical } : x))} aria-pressed={a.critical} title="Mark critical"><Icon name="warning" /></button>
+                  <button type="button" className="k-icon-btn self-center" onClick={() => setCActions((arr) => arr.filter((_, j) => j !== i))} aria-label="Remove"><Icon name="close" /></button>
                 </div>
               </div>
             ))}
@@ -3548,7 +3547,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
           )}
           <OpsPlan noteId={note.id} />
           <div className="note-fu-h">Follow-ups
-            <button type="button" className="note-suggest" onClick={suggest} disabled={suggesting}>{suggesting ? "Reading…" : <><Icon name="sparkles" /> Suggest</>}</button>
+            <button type="button" className="btn-ter ml-auto" onClick={suggest} disabled={suggesting}>{suggesting ? "Reading…" : <><Icon name="sparkles" /> Suggest</>}</button>
           </div>
           {items.map((t) => (
             <div key={t.id} className="note-fu-wrap">
@@ -3557,10 +3556,10 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
                   <span className="task-box">{t.done && <svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" /></svg>}</span>
                 </button>
                 <span className="note-fu-label">{t.label}</span>
-                <button type="button" className="note-fu-assign" onClick={() => setAssignFor(t)}>{t.assignee ? firstNameOf(t.assignee) : "Assign"}</button>
+                <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => setAssignFor(t)}>{t.assignee ? firstNameOf(t.assignee) : "Assign"}</button>
                 <button type="button" className="note-fu-flag" onClick={() => setOpenThread(openThread === t.id ? null : t.id)} aria-label="Discuss" title="Discuss"><Icon name="chat" />{counts[t.id] ? <span className="cmt-count">{counts[t.id]}</span> : null}</button>
                 <button type="button" className="note-fu-flag" onClick={() => flag(t)} aria-label="Flag as can't-miss" title="Flag as can't-miss">⚑</button>
-                {!t.ai_proposal && <button type="button" className="note-fu-solve" onClick={() => resolve(t)} disabled={resolving.has(t.id)} title="Propose how to complete this">{resolving.has(t.id) ? "…" : "💡"}</button>}
+                {!t.ai_proposal && <button type="button" className="note-fu-flag" onClick={() => resolve(t)} disabled={resolving.has(t.id)} aria-label="Propose how to complete this" title="Propose how to complete this">{resolving.has(t.id) ? "…" : "💡"}</button>}
                 {isAdmin && <button type="button" className="note-fu-flag" onClick={() => openTask(t.id, "event")} aria-label="Edit follow-up" title="Edit follow-up">✎</button>}
                 {isAdmin && <button type="button" className="note-fu-x hit-44" onClick={() => removeItem(t)} aria-label="Remove follow-up"><Icon name="close" /></button>}
               </div>
@@ -3583,7 +3582,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
           </div>
           <div className="note-foot">
             <button type="button" className="note-arch" onClick={onArchive}>{note.archived_at ? "Restore" : "Archive"}</button>
-            {isAdmin && <button type="button" className="note-del" onClick={onDelete}>Delete note</button>}
+            {isAdmin && <button type="button" className="btn-del mt-4" onClick={onDelete}>Delete note</button>}
           </div>
         </div>
       )}
@@ -3722,23 +3721,23 @@ function Bookings() {
           </div>
           {/* Decision anatomy (2026-08-01 audit): the status ladder and the forward doors were seven
               identically-dressed mysteries on one row. Two LABELED groups now — "Status" (choose a
-              state) and "Turn it into" (go somewhere) — with delete as a quiet text action, not a
-              floating red circle that read as close-this-card. */}
+              state: the kit's chips) and "Turn it into" (go somewhere: the kit's compact buttons) — with
+              delete as the kit's destructive words, not a floating red circle that read as close-this-card. */}
           <div className="adm-status">
             <span className="adm-ctl-k">Status</span>
             {STATUSES.map((s) => (
-              <button key={s} className={r.status === s ? "on" : ""} onClick={() => setStatus(r.id, s)}>{s}</button>
+              <button key={s} type="button" className={`k-chip sm${r.status === s ? " on" : ""}`} aria-pressed={r.status === s} onClick={() => setStatus(r.id, s)}>{s}</button>
             ))}
           </div>
           <div className="adm-status adm-doors">
             <span className="adm-ctl-k">Turn it into</span>
-            <button className="adm-req-mk" onClick={() => makeEvent(r)}><Icon name="arrowRight" /> An event</button>
+            <button className="btn-sec btn-sm" onClick={() => makeEvent(r)}><Icon name="arrowRight" /> An event</button>
             {r.opportunity_id ? (
-              <button className="adm-req-mk linked" onClick={() => document.getElementById("pipeline-board")?.scrollIntoView({ behavior: "smooth", block: "start" })}>On the pipeline <Icon name="arrowRight" /></button>
+              <button className="btn-sec btn-sm" onClick={() => document.getElementById("pipeline-board")?.scrollIntoView({ behavior: "smooth", block: "start" })}>On the pipeline <Icon name="arrowRight" /></button>
             ) : (
-              <button className="adm-req-mk" onClick={() => promote(r)} disabled={promoting === r.id}>{promoting === r.id ? "Promoting…" : <><Icon name="arrowRight" /> A pipeline account</>}</button>
+              <button className="btn-sec btn-sm" onClick={() => promote(r)} disabled={promoting === r.id}>{promoting === r.id ? "Promoting…" : <><Icon name="arrowRight" /> A pipeline account</>}</button>
             )}
-            <button className="adm-req-quietdel" onClick={() => del(r)} aria-label={`Delete booking request from ${r.name ?? "contact"}`}>Delete</button>
+            <button type="button" className="btn-del ml-auto" onClick={() => del(r)} aria-label={`Delete booking request from ${r.name ?? "contact"}`}>Delete</button>
           </div>
         </div>
       ))}
@@ -4735,7 +4734,7 @@ function EventCard({ e, today, open, onToggle, onUpdate, onRemove, onSetLive, on
           <EventEconomics e={e} econRow={econRow} catalog={catalog} onSave={onSaveEcon} />
 
           <div className="ev-card-foot">
-            <button className="ev-archive" onClick={onArchive}>{e.is_live ? "Close & archive" : "Archive event"}</button>
+            <button className="btn-sec btn-sm" onClick={onArchive}>{e.is_live ? "Close & archive" : "Archive event"}</button>
             <button className="ev-delete" onClick={onRemove}>Delete</button>
           </div>
         </div>
@@ -4980,7 +4979,7 @@ function OrdersHistory() {
         return (
           <div className="adm-sec">
             {/* "It's my data" (enterprise round P2) — the accountant handoff, from the rows shown */}
-            <button type="button" className="dops-mini" style={{ marginBottom: 8 }} onClick={() => downloadCsv("gt3-orders.csv", shown.map((o) => ({
+            <button type="button" className="btn-sec btn-sm shrink-0 mb-2" onClick={() => downloadCsv("gt3-orders.csv", shown.map((o) => ({
               when: o.status_changed_at ?? "", order: o.id.slice(0, 4), customer: o.customer ?? "guest",
               items: o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · "),
               total: moneyPlain(o.total_cents), status: o.status, paid: ledgerWord(o),
@@ -6033,7 +6032,7 @@ export default function AdminPage() {
                 <Fragment key={k}>
                   {/* Back office — rarely touched — sits after the divider. */}
                   {k === "vendors" && <span className="subnav-div" aria-hidden />}
-                  <button type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab hit-y-44${k === "vendors" ? " back" : ""}${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>
+                  <button type="button" role="tab" aria-selected={planTab === k} className={`k-chip sm${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>
                     {PLAN_LABEL[k]}{n > 0 && <span className={`k-count sm${hot ? " crit" : ""}`} aria-label={`${n} ${what}`}>{n}</span>}
                   </button>
                 </Fragment>
