@@ -5999,7 +5999,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     it("h", -1, true, "team"), it("i", -40, false, "upkeep"), it("j", 0, false, "upkeep"), it("k", -10, false, "owed"),
   ]);
   ok("one home: at most three due today — critical first, then your own, then the latest — and a count of the rest",
-    H.TODAY_MAX === 3 && split.today.map((i) => i.key).join() === "h,c,b" && split.moreToday === 2);
+    H.TODAY_MAX === 3 && split.today.map((i) => i.key).join() === "h,c,b" && split.moreToday === 2 && split.due.map((i) => i.key).join() === "h,c,b,a,k");
   ok("one home: more than two weeks late folds into one row — fourteen days late is still today's",
     H.STALE_DAYS === 14 && split.stale.map((i) => i.key).join() === "e,d" && H.homeBucket(-14) === "today" && H.homeBucket(-15) === "stale");
   ok("one home: equipment is one row however old, and later or undated work waits in All tasks",
@@ -6045,6 +6045,19 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("one home: each number says its change and its cause, and a failed read is not zero",
     /changeWords\(pctChange\(sales\.now, sales\.prev\)\)/.test(nums) && /sales\.driver \?/.test(nums) && /paceWords\(drop\.packs, drop\.then\)/.test(nums)
     && /errorSub="This is not zero — we could not read them just now\."/.test(nums) && (nums.match(/if \(failed\) throw new Error\(failed\.message\);/g) || []).length === 2);
+  const qd = code(read("components/QuickDock.tsx")), cmdSec = crew.slice(crew.indexOf('sec === "command" && canManage'), crew.indexOf('sec === "now"'));
+  ok("one home: Lead the week left My Day — the GTM card retired, the briefing on Command, intake under Quick actions › File",
+    !/Lead the week|<GtmCard|<ChiefOfStaff|<SmartIntake|<DocsFiled/.test(myDay) && !fs.existsSync(path.join(__dirname, "..", "components/GtmCard.tsx"))
+    && /<ChiefOfStaff \/>/.test(cmdSec)
+    && /\.\.\.\(manage \? \[\{ key: "file" as const, label: "File" \}\] : \[\]\)/.test(qd) && /mode === "file" && manage \? <><SmartIntake \/><DocsFiled \/><\/>/.test(qd)
+    && /const SmartIntake = dynamic\(\(\) => import\("\.\/SmartIntake"\)/.test(qd) && /const DocsFiled = dynamic\(\(\) => import\("\.\/DocsFiled"\)/.test(qd));
+  ok("one home: on a phone Today comes right under the day — the numbers beside it on a desk, after it on a phone, and only for who has them",
+    myDay.indexOf("<TodayList ") > 0 && myDay.indexOf("<TodayList ") < myDay.indexOf("<HomeNumbers ") && /\{\(money \|\| isLeader\) && \(/.test(myDay));
+  ok("one home: the head's count is the rows it shows plus the one row that opens the rest — and it is a count, not an alarm",
+    /fold\("due", `\$\{s\.moreToday\} more due today`/.test(today) && /sheet === "due" &&/.test(today) && /k-count\$\{due \? "" : " ok"\}/.test(today));
+  ok("the op card: Make it live is the screen's one primary, and the display face is the event's name alone (it drew Wear and Details)",
+    /<Button kind="primary" compact onClick=\{\(\) => makeLive\(op\.id\)\}/.test(code(read("components/DayHeadline.tsx")))
+    && /\.dayhead-op-t>b\{font-family:'Archivo Black'/.test(read("app/globals.css")) && !/\.dayhead-op b\{/.test(read("app/globals.css")));
   ok("one drop day: the home's number and the pickup board ask lib/dropDate which day 'this drop' is",
     /nextDropDay\(sb\)/.test(nums) && /nextDropDay\(supabase\)/.test(dops) && !/\.gte\("starts_at", new Date\(\)\.toISOString\(\)\)/.test(dops));
 }
@@ -9175,7 +9188,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const qd = code(read("components/QuickDock.tsx"));
   ok("Ask GT3 in one tap: the guide sends gt3-quick-ask, a link carries ?ask=1 — the dock starts open on Ask and the address forgets it",
     /window\.addEventListener\("gt3-quick-ask", onAsk\)/.test(qd) && /const onAsk = \(\) => \{ setMode\("ask"\); setOpen\(true\); \};/.test(qd)
-    && /const \[open, setOpen\] = useState\(askOnLoad\);/.test(qd) && /useState<"do" \| "ask" \| "note" \| "spend">\(askOnLoad \? "ask" : "do"\)/.test(qd)
+    && /const \[open, setOpen\] = useState\(askOnLoad\);/.test(qd) && /useState<"do" \| "ask" \| "note" \| "spend" \| "file">\(askOnLoad \? "ask" : "do"\)/.test(qd)
     && /url\.searchParams\.delete\("ask"\);\s*window\.history\.replaceState/.test(qd));
   // ── the doc, in the app ──
   const cp = code(read("app/crew/page.tsx")), cst = code(read("components/CrewStart.tsx"));
