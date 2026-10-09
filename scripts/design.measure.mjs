@@ -64,7 +64,9 @@ export const MEASURE = `(() => {
   };
   const root = document.querySelector(".screen") || document.querySelector("main") || document.body;
   const all = [...root.querySelectorAll("*")];
-  const boxes = all.filter(isBox);
+  // The map draws its own chrome (2026-10-09): Leaflet's zoom bar holds its + and −, and at 44 to the thumb they
+  // are wide enough to count as boxes — a box in a box on the map, which nests no card of ours.
+  const boxes = all.filter((el) => isBox(el) && !el.closest(".leaflet-control-container"));
   const set = new Set(boxes);
   const depthOf = (el) => { let d = 0, p = el.parentElement; while (p && p !== document.body) { if (set.has(p)) d++; p = p.parentElement; } return d; };
   const leaves = boxes.filter((b) => !boxes.some((o) => o !== b && b.contains(o)));
