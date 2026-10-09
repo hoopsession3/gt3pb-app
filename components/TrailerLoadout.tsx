@@ -196,12 +196,12 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
                 {numField("tongue_limit_lb", "Tongue limit (lb)")}
                 <label className="tl-f wide"><span>Tow vehicle</span>
                   <input type="text" defaultValue={tp.tow_vehicle ?? ""} onChange={(e) => setForm((f) => ({ ...f, tow_vehicle: e.target.value }))} /></label>
-                <div className="tl-f wide" style={{ fontFamily: "var(--mono)", fontSize: 9, letterSpacing: 1, textTransform: "uppercase", color: "var(--bronze)", paddingTop: 4 }}>Trailer interior (in)</div>
+                <div className="tl-f wide" style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: 1, textTransform: "uppercase", color: "var(--bronze)", paddingTop: 4 }}>Trailer interior (in)</div>
                 {numField("interior_len_in", "Length (in)")}
                 {numField("interior_width_in", "Width (in)")}
                 {numField("interior_height_in", "Height (in)")}
                 {numField("usable_pct", "Usable %")}
-                <div className="tl-f wide" style={{ fontFamily: "var(--mono)", fontSize: 9, letterSpacing: 1, textTransform: "uppercase", color: "var(--bronze)", paddingTop: 4 }}>Vehicle cargo bay (in)</div>
+                <div className="tl-f wide" style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: 1, textTransform: "uppercase", color: "var(--bronze)", paddingTop: 4 }}>Vehicle cargo bay (in)</div>
                 <div className="tl-vlook">
                   <input className="tl-vlook-q" type="text" value={veh.q} onChange={(e) => setVeh((v) => ({ ...v, q: e.target.value }))} placeholder="Year make model — e.g. 2026 Honda Pilot" onKeyDown={(e) => e.key === "Enter" && lookupVehicle()} />
                   <select className="tl-vlook-pax" value={veh.pax} onChange={(e) => setVeh((v) => ({ ...v, pax: Number(e.target.value) }))} aria-label="Passengers riding">

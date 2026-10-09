@@ -77,7 +77,7 @@ export default function BottomNav() {
               </svg>
             </span>
             {/* Labels inside a <Link> → plain t(), keyed by the tab's stable key (nav.today/find/…). */}
-            <span className="tl">{t(`nav.${tab.key}`)}</span>
+            <span className="tl leading-none">{t(`nav.${tab.key}`)}</span>
           </Link>
         );
       })}

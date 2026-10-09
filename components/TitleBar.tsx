@@ -120,13 +120,13 @@ export default function TitleBar() {
         <div ref={rowRef} className="relative flex h-11 items-center px-1">
           {way && (
             <button type="button" onClick={way.go} aria-label={`Back to ${way.label}`}
-              className={`relative z-10 flex h-11 min-w-11 max-w-[42%] cursor-pointer appearance-none items-center gap-0.5 border-0 bg-transparent pl-1 pr-2 font-sans text-[17px] text-gold2 transition-[opacity,visibility] duration-200 ${shown ? "visible opacity-100" : "invisible opacity-0"}`}>
+              className={`relative z-10 flex h-11 min-w-11 max-w-[42%] cursor-pointer appearance-none items-center gap-0.5 border-0 bg-transparent pl-1 pr-2 font-sans text-body text-gold2 transition-[opacity,visibility] duration-200 ${shown ? "visible opacity-100" : "invisible opacity-0"}`}>
               <Icon name="chevronLeft" size={24} className="shrink-0" />
               <span className="truncate">{way.label}</span>
             </button>
           )}
           <button type="button" onClick={scrollToTop} aria-label={`${title} — back to the top`}
-            className={`absolute left-1/2 h-11 max-w-[52%] -translate-x-1/2 cursor-pointer appearance-none truncate border-0 bg-transparent px-2 font-sans text-[17px] font-semibold text-cream transition-[opacity,visibility] duration-200 ${compact ? "visible opacity-100" : "invisible opacity-0"}`}>
+            className={`absolute left-1/2 h-11 max-w-[52%] -translate-x-1/2 cursor-pointer appearance-none truncate border-0 bg-transparent px-2 font-sans text-body font-semibold text-cream transition-[opacity,visibility] duration-200 ${compact ? "visible opacity-100" : "invisible opacity-0"}`}>
             {title}
           </button>
         </div>

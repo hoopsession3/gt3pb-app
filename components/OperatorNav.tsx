@@ -225,13 +225,13 @@ export default function OperatorNav() {
             if (section !== g.members[0]) setSection(g.members[0]); else scrollToTop();
           }}>
             <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{g.id === "today" ? ICONS.day : streamIcon(g.icon)}</svg>{g.id === "today" && critCount > 0 && <span className="k-badge crit nav-badge" title={`${critCount} critical alert${critCount === 1 ? "" : "s"} — needs you now`} aria-label={`${critCount} critical alert${critCount === 1 ? "" : "s"} — needs you now`}>{critCount}</span>}{g.id !== "today" && (laneCounts[g.id] ?? 0) > 0 && <span className="k-badge nav-badge" title={`${laneCounts[g.id]} open item${laneCounts[g.id] === 1 ? "" : "s"} in ${g.label}`} aria-label={`${laneCounts[g.id]} open item${laneCounts[g.id] === 1 ? "" : "s"} in ${g.label}`}>{laneCounts[g.id]}</span>}</span>
-            <span className="tl">{g.label}</span>
+            <span className="tl leading-none">{g.label}</span>
           </button>
         );
       })}
       <button role="tab" aria-selected={moreOn} className={`tab${moreOn ? " on" : ""}`} onClick={() => setMoreOpen(true)}>
         <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{STREAM_ICONS.more}</svg></span>
-        <span className="tl">More</span>
+        <span className="tl leading-none">More</span>
       </button>
     </div>
     </nav>

@@ -82,7 +82,7 @@ export default function CrewStart({ onSection, onClose }: {
             <button type="button" className="guide-row-h" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? "" : s.key)}>
               <span className="guide-num">{s.done ? <Icon name="check" size={14} /> : i + 1}</span>
               <span className="guide-row-tt">
-                <span className="guide-row-t text-[16px]">{s.title}</span>
+                <span className="guide-row-t text-callout">{s.title}</span>
                 {s.done && <span className="guide-row-sub">Done</span>}
               </span>
               <span className={`guide-chev ev-chev${isOpen ? " open" : ""}`} aria-hidden>›</span>
