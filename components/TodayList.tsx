@@ -88,7 +88,7 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
   useRealtimeTable({ table: "todos", filter: `assignee=eq.${meId}` }, state.reload, { enabled: !!meId });
 
   const { go, canGo, sheet: initiativeSheet } = useObligationGo(viewer, () => state.reload());
-  const [sheet, setSheet] = useState<null | "all" | "stale" | "upkeep">(null);
+  const [sheet, setSheet] = useState<null | "all" | "due" | "stale" | "upkeep">(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   // ── the one tap on a row: tick it, or open what it names ─────────────────────────────────────
@@ -178,7 +178,7 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
   const due = head ? head.today.length + head.moreToday : null;
   return (
     <div className="adm-sec" id="my-day-tasks">
-      <SectionHeader label="Today" right={due === null ? undefined : <span className={`k-count${due ? " due" : " ok"}`}>{due ? `${due} due` : "Clear"}</span>} />
+      <SectionHeader label="Today" right={due === null ? undefined : <span className={`k-count${due ? "" : " ok"}`}>{due ? `${due} due` : "Clear"}</span>} />
       <AsyncSection
         state={state}
         isEmpty={(d) => d.items.length === 0 && d.owed.bookings === 0 && d.owed.low.length === 0 && !d.owed.extrasFailed}
@@ -195,6 +195,8 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
             <div className="owed">
               {s.today.map((i) => row(i))}
               {s.today.length === 0 && <p className="pnl-note" role="status">Nothing due today.</p>}
+              {/* The rest of today, counted where it opens: the head's number is these rows plus this one's. */}
+              {s.moreToday > 0 && fold("due", `${s.moreToday} more due today`, "Every one, in the same order", () => setSheet("due"))}
 
               {s.upkeep.length > 0 && fold("upkeep", `Equipment upkeep · ${s.upkeep.length}`,
                 upkeepLate ? `${upkeepLate} past ${upkeepLate === 1 ? "its" : "their"} service date — log them in one place` : "Due soon — log them in one place",
@@ -204,13 +206,18 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
                 () => setSheet("stale"))}
               {owed.bookings > 0 && fold("bookings", `${owed.bookings} booking ${owed.bookings === 1 ? "request" : "requests"} to answer`, "Plan › Leads", () => goPlanTab("leads", { setSection }))}
               {owed.low.length > 0 && fold("restock", `Restock · ${owed.low.length} low`, "For upcoming events — Assets", () => setSection("garage"))}
-              {fold("all", `All tasks · ${s.total}`, [s.moreToday ? `${s.moreToday} more for today` : "", s.later ? `${s.later} later` : ""].filter(Boolean).join(" · ") || "Your tasks and what's owed, in full", () => setSheet("all"))}
+              {fold("all", `All tasks · ${s.total}`, s.later ? `${s.later} later, and everything above in full` : "Your tasks and what's owed, in full", () => setSheet("all"))}
               {owed.extrasFailed && (
                 <p className="pnl-note" role="status">Team tasks, restock and booking replies couldn&rsquo;t be read just now — the rest is current.</p>
               )}
 
               {sheet === "all" && (
                 <Sheet open onClose={() => setSheet(null)} label="All tasks" header={sheetHead("All tasks")}>{allTasks}</Sheet>
+              )}
+              {sheet === "due" && (
+                <Sheet open onClose={() => setSheet(null)} label="Due today" header={sheetHead(`Due today · ${s.due.length}`)}>
+                  <div className="owed">{s.due.map((i) => row(i))}</div>
+                </Sheet>
               )}
               {sheet === "stale" && (
                 <Sheet open onClose={() => setSheet(null)} label={STALE_LABEL} header={sheetHead(STALE_LABEL)}>

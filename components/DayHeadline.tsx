@@ -8,7 +8,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useRecord } from "./RecordSheet";
 import { useApp } from "./AppProvider";
-import { WayButtons } from "./RecordWays";
+import Button from "./Button";
 
 // THE DAY'S HEADLINE — what today is about, before the plates.
 //
@@ -119,8 +119,11 @@ export default function DayHeadline({ canGoLive }: { canGoLive: boolean }) {
               </span>
               <span className="ev-chev" aria-hidden="true">›</span>
             </button>
+            {/* The day's one switch is the screen's one primary (2026-10-09, One home): it was an outline. */}
             {canGoLive && !op.is_live && !done && (
-              <WayButtons ways={[{ label: "Make it live", busy: arming === op.id, onClick: () => makeLive(op.id) }]} />
+              <div className="str-drift-b">
+                <Button kind="primary" compact onClick={() => makeLive(op.id)} disabled={arming === op.id}>{arming === op.id ? "…" : "Make it live"}</Button>
+              </div>
             )}
           </div>
         );

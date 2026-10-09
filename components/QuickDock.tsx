@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { useAuth, roleOf } from "./AuthProvider";
 import { useOperatorSection } from "./OperatorNav";
 import { supabase } from "@/lib/supabase";
@@ -12,6 +13,15 @@ import Sheet, { CloseButton, useUnsaved } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { Segmented } from "@/components/controls";
 import { useDictation } from "./useDictation";
+import { canOf } from "@/lib/roles";
+import PourFill from "./PourFill";
+
+// FILE (2026-10-09, One home): Smart intake and what it filed came here from My Day's "Lead the week"
+// fold. A permit, a receipt, a certificate arrives in the hand — on a run, at the window — so filing it
+// is a quick action from every screen, with the list of what was filed right under it ("where did that
+// go?" is asked where you put it). Loaded on the tab's first open, not with the shell.
+const SmartIntake = dynamic(() => import("./SmartIntake"), { loading: () => <PourFill label="Loading…" /> });
+const DocsFiled = dynamic(() => import("./DocsFiled"), { loading: () => <PourFill label="Loading…" /> });
 
 /** The page was opened with ?ask=1 — a link that means "open Ask GT3". False on the server. */
 function askOnLoadParam(): boolean {
@@ -27,6 +37,7 @@ export default function QuickDock() {
   const { profile, user } = useAuth();
   const role = roleOf(profile);
   const isStaff = role !== "member";
+  const manage = canOf(profile).manage;
   const { setSection } = useOperatorSection();
 
   // A page loaded with ?ask=1 starts with Ask GT3 open (see "ASK GT3, IN ONE TAP" below). Read in the
@@ -34,7 +45,7 @@ export default function QuickDock() {
   // profile there, so no staff), so the first client render cannot disagree with the server's HTML.
   const [askOnLoad] = useState(askOnLoadParam);
   const [open, setOpen] = useState(askOnLoad);
-  const [mode, setMode] = useState<"do" | "ask" | "note" | "spend">(askOnLoad ? "ask" : "do");
+  const [mode, setMode] = useState<"do" | "ask" | "note" | "spend" | "file">(askOnLoad ? "ask" : "do");
 
   // My Day's "✎ Note to self" chip (and anything else) can summon the note pane directly.
   useEffect(() => {
@@ -48,6 +59,12 @@ export default function QuickDock() {
     const onSpend = () => { setMode("spend"); setOpen(true); };
     window.addEventListener("gt3-log-purchase", onSpend);
     return () => window.removeEventListener("gt3-log-purchase", onSpend);
+  }, []);
+  // Anything can summon File directly (a "File a permit" link, a guide step).
+  useEffect(() => {
+    const onFile = () => { setMode("file"); setOpen(true); };
+    window.addEventListener("gt3-quick-file", onFile);
+    return () => window.removeEventListener("gt3-quick-file", onFile);
   }, []);
   // Anything can summon the copilot launcher (the "do" front door) directly.
   useEffect(() => {
@@ -92,10 +109,11 @@ export default function QuickDock() {
       </button>
 
       {open && (
-        <Sheet open onClose={() => setOpen(false)} label="Quick actions" header={<div className="flex items-center gap-2"><Segmented label="Quick actions" value={mode} onChange={setMode} options={[{ key: "do", label: <><Icon name="sparkles" /> Do</> }, { key: "ask", label: "Ask GT3" }, { key: "note", label: "Note" }, { key: "spend", label: "Spend" }]} /><CloseButton onClick={() => setOpen(false)} /></div>}>
+        <Sheet open onClose={() => setOpen(false)} label="Quick actions" header={<div className="flex items-center gap-2"><Segmented label="Quick actions" value={mode} onChange={setMode} options={[{ key: "do", label: <><Icon name="sparkles" /> Do</> }, { key: "ask", label: "Ask GT3" }, { key: "note", label: "Note" }, { key: "spend", label: "Spend" }, ...(manage ? [{ key: "file" as const, label: "File" }] : [])]} /><CloseButton onClick={() => setOpen(false)} /></div>}>
           {mode === "do" ? <CopilotLauncher role={role} onPick={(s) => { setSection(s); setOpen(false); }} />
             : mode === "ask" ? <AskGT3 />
             : mode === "spend" ? <LogPurchase onDone={() => setOpen(false)} />
+            : mode === "file" && manage ? <><SmartIntake /><DocsFiled /></>
             : <QuickNote userId={user?.id ?? null} onSaved={() => setOpen(false)} />}
         </Sheet>
       )}

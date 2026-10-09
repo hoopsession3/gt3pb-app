@@ -12,7 +12,7 @@ import Icon from "@/components/Icon";
 //
 // Each row is a kit InfoRow (label → name, desc → sub, destination section → trailing) instead of the
 // old one-off .cl-op button family. onClick + a trailing caret beside the destination badge is the
-// app's established "this row jumps elsewhere" convention (see GtmCard's Mondays/Aug 1 rows) — matched
+// app's established "this row jumps elsewhere" convention (kit InfoRows with a trailing caret) — matched
 // here rather than reinventing the removed custom arrow. Category grouping (.cl-list/.cl-group/.cl-cat)
 // and the intro copy (.set-lead) are unchanged; only the row itself moved onto the kit primitive.
 export default function CopilotDirectory() {
