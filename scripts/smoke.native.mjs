@@ -1316,6 +1316,63 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await crew.close();
   }
 
+  // ── 5h · ONE KIT FOR CHIPS AND TAGS (2026-10-09, the chip round — redesign 7's second half) ──
+  // A choice is the kit's chip — 36pt with 15pt words (28 with 13 where a row is dense), 44 to the thumb, the chosen one
+  // gold; a status is its tag — 22pt, 11pt mono capitals, its tone's ink for the look it lands in. Measured on a
+  // specimen of each drawn into the screen itself, and on real ones: the notes' tabs, and the guest's join (.handle was
+  // the red primary in capitals; it is the kit's).
+  {
+    const specimen = (page) => page.evaluate(() => {
+      const host = document.getElementById("body");
+      const make = (tag, cls, text) => { const e = document.createElement(tag); if (tag === "button") e.type = "button"; e.className = cls; e.textContent = text; host.appendChild(e); return e; };
+      const read = (e) => { const r = e.getBoundingClientRect(), cs = getComputedStyle(e), af = getComputedStyle(e, "::after");
+        return { h: Math.round(r.height), fs: cs.fontSize, ff: cs.fontFamily, caps: cs.textTransform, bg: cs.backgroundColor, ink: cs.color,
+          reach: af.content === "none" || af.content === "normal" ? null : Math.round(r.height - parseFloat(af.top) - parseFloat(af.bottom)) }; };
+      const els = { chip: make("button", "k-chip", "Today"), sm: make("button", "k-chip sm", "Today"), on: make("button", "k-chip on", "Today"),
+        tag: make("span", "k-tag", "Draft"), crit: make("span", "k-tag crit", "Blocked") };
+      const out = Object.fromEntries(Object.entries(els).map(([k, e]) => [k, read(e)]));
+      Object.values(els).forEach((e) => e.remove());
+      const css = getComputedStyle(document.querySelector(".app") || document.body);
+      return { out, gold2: css.getPropertyValue("--gold2").trim(), crit: css.getPropertyValue("--tone-crit").trim() };
+    });
+    const hex = (h) => { const n = parseInt(h.replace("#", ""), 16); return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`; };
+    const ctx = await phoneContext(MAIN);
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    await page.goto(`${BASE}/menu`, { waitUntil: "load" });
+    await page.waitForTimeout(600); await page.evaluate(SETTLE);
+    const guest = await specimen(page);
+    const c = guest.out;
+    ok("chips: a chip stands 36pt with 15pt words and reaches 44; the small one 28pt, reaching 44 too; the chosen one is gold",
+      c.chip.h === 36 && c.chip.fs === "15px" && c.chip.reach === 44 && c.sm.h === 28 && c.sm.reach === 44 && c.on.bg === hex(guest.gold2), JSON.stringify(guest));
+    ok("tags: a tag stands 22pt in 11pt mono capitals", c.tag.h === 22 && c.tag.fs === "11px" && /DM Mono/.test(c.tag.ff) && c.tag.caps === "uppercase", JSON.stringify(c.tag));
+    await page.goto(`${BASE}/3mpire`, { waitUntil: "load" });
+    await page.waitForTimeout(900); await page.evaluate(SETTLE);
+    const join = await page.evaluate(() => {
+      const b = [...document.querySelectorAll("button.btn-pri")].find((x) => /member/i.test(x.textContent));
+      if (!b) return null;
+      const r = b.getBoundingClientRect(), cs = getComputedStyle(b);
+      return { h: Math.round(r.height), caps: cs.textTransform, bg: cs.backgroundColor, words: b.textContent.trim().slice(0, 40), old: document.querySelectorAll(".handle").length };
+    });
+    ok("buttons: the guest's join is the kit's primary — GT3 red, 50pt, its words as written (it was .handle, red in capitals)",
+      !!join && join.h === 50 && join.caps === "none" && join.bg === "rgb(184, 36, 32)" && join.old === 0, JSON.stringify(join));
+    await ctx.close();
+    const crew = await phoneContext(MAIN, { owner: true, theme: "day" });
+    const cp = await crew.newPage();
+    await insetsOn(cp, MAIN.top, MAIN.bottom);
+    const errors2 = watch(cp);
+    await cp.goto(`${BASE}/crew?s=notes`, { waitUntil: "load" });
+    await cp.waitForTimeout(1200); await cp.evaluate(SETTLE);
+    const day = await specimen(cp);
+    ok("tags: in the crew's light look a tone inks in its light-surface ink (critical is the deep red, 4.5:1 on cream)",
+      day.crit === "#8f1d1a" && day.out.crit.ink === hex(day.crit) && day.out.on.bg === hex(day.gold2), JSON.stringify({ crit: day.crit, ink: day.out.crit.ink, gold2: day.gold2, on: day.out.on.bg }));
+    const tabs = await cp.evaluate(() => [...document.querySelectorAll(".note-tabs .k-chip")].map((b) => ({ w: b.textContent.trim(), h: Math.round(b.getBoundingClientRect().height), on: b.classList.contains("on"), pressed: b.getAttribute("aria-pressed") })));
+    ok("chips: the notes' tabs are the kit's chips — 36pt, Active chosen and saying so", tabs.length === 3 && tabs.every((t) => t.h === 36) && tabs.some((t) => t.w === "Active" && t.on && t.pressed === "true"), JSON.stringify(tabs));
+    ok("chips: no errors", errors.length === 0 && errors2.length === 0, [...errors, ...errors2].join(" | "));
+    await crew.close();
+  }
+
   // ── 6 · deleting your account, in the app (App Store Review Guideline 5.1.1(v)) ──
   // Signed in, from the avatar's menu: the row, its screen (loaded when tapped — so it must be in the
   // export), what it asks the web's API, and after the red button a phone that is signed out and home.

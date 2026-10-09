@@ -126,6 +126,9 @@ export const MEASURE = `(() => {
       const cs = getComputedStyle(p);
       if (cs.overflowX === "visible" && cs.overflowY === "visible") continue;
       const c = p.getBoundingClientRect();
+      // …and a target scrolled wholly out of that scroller is one you scroll to: its reach is judged in view, not
+      // cut to the scroller's edge it sits beyond (2026-10-09: the rule sheet's deadline chips, below the fold)
+      if (b.bottom <= c.top || b.top >= c.bottom || b.right <= c.left || b.left >= c.right) continue;
       x0 = Math.min(b.left, Math.max(x0, c.left)); y0 = Math.min(b.top, Math.max(y0, c.top));
       x1 = Math.max(b.right, Math.min(x1, c.right)); y1 = Math.max(b.bottom, Math.min(y1, c.bottom));
     }

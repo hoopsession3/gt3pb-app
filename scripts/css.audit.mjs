@@ -39,11 +39,14 @@
 //                       'P1'…'P4' in the database and .pipe-pri.p1 on the screen. What a selector puts
 //                       inside :not(), :is(), :where() or [attr] is not a class it needs. 316 rules,
 //                       parts of 13 more and 4 keyframes styled nothing on 2026-10-07.
-//   9. ONE PILL         a control rounded to a pill, or a round button, is the kit's — .k-seg, .k-icon-btn,
-//                       .k-badge, .k-count (app/globals.css "PILLS, ONE KIT", components/controls.tsx). Ryan's My
-//                       Day header was five controls in five recipes; the house held 162 pill rules in 156
-//                       recipes (17 font sizes, 25 heights, 49 paddings, 5 faces) beside a kit two screens
-//                       used. The pill rules outside the kit are counted, and the count only falls (8).
+//   9. ONE PILL         a control rounded to a pill, or a round button, is the kit's — .k-seg, .k-chip, .k-tag,
+//                       .k-icon-btn, .k-badge, .k-count (app/globals.css "PILLS, ONE KIT", components/controls.tsx).
+//                       Ryan's My Day header was five controls in five recipes; the house held 162 pill rules in
+//                       156 recipes (17 font sizes, 25 heights, 49 paddings, 5 faces) beside a kit two screens
+//                       used. A choice is a chip, a status is a tag, a count is a count (2026-10-09, the chip
+//                       round: 105 of the 112 pill rules went, and stay gone — no rule styles one, no screen names one,
+//                       in a className or in any class list it writes, a component's map of skins too: RETIRED_PILLS).
+//                       The pill rules outside the kit are counted, and the count only falls (8).
 //  10. ONE SET OF BUTTONS  a button is the kit's — app/globals.css "03 · Buttons", components/Button: primary,
 //                       secondary, quiet or destructive, regular or compact (2026-10-09, the button round:
 //                       redesign 7, approved). The house held 31 recipes for a button — 19 heights, 10 corner
@@ -69,14 +72,15 @@ import ts from "typescript";
 import postcss from "postcss";
 
 export const CEILING = {
-  inlineStyles: 598,          // style={{…}} objects in app/, components/, native/ (598 on 2026-10-09, the button round: sixteen buttons' margins and widths are utilities; 621 on 2026-10-07; 620 the same day — the overdue count's margin is a utility; 616 when Team's door became one; 614 on 2026-10-08 — the Guide's header is utilities, with its two pages)
-  rawColours: 495,            // 495 on 2026-10-09 (the button round: two went with the recipes); 497 on 2026-10-08 (the foundations round: the dead brew-timer dot's teal went with it); distinct hex / rgb() / rgba() literals in app/globals.css (2026-10-07, after the dead rules went; 499 when Command and Team took theme tokens; 498 when the office route's card did)
-  globalsBytes: 754_309,      // 754,309 on 2026-10-09 (the button round: 31 recipes and the sheets' copies gave way to a kit of four kinds in two sizes); 766,799 on 2026-10-08 (the type round: 1,119 sizes folded onto the ten steps, 10.5px and 13.5px among them); 768,059 the same day (the navigation round: the system map's "‹ All layers" went into the title bar, and its rule with it); 768,213 the same day (the iPhone chrome round: the tab bar at 49pt, the KPI board's fields at 16px); 768,222 the same day (the foundations round: 50 rules no screen can match went — the old sheet, the .did and .cell rows, the menu's first draft — and the safe-area, tap-target and 16px-field fixes fit in what they left); app/globals.css, source bytes (2026-10-07: 804 KB before 316 dead rules and 4 keyframes went; the pill kit fits in what its seven recipes left;
+  inlineStyles: 576,          // style={{…}} objects in app/, components/, native/ (576 on 2026-10-09, the chip round: the margins written inline beside .handle and the pills — sign-in's, the checkout's, the academy's, Find Us's — are utilities, and so are two sheet heads' rows; 598 the same day, the button round: sixteen buttons' margins and widths are utilities; 621 on 2026-10-07; 620 the same day — the overdue count's margin is a utility; 616 when Team's door became one; 614 on 2026-10-08 — the Guide's header is utilities, with its two pages)
+  rawColours: 463,            // 463 on 2026-10-09 (the chip round: 32 hand-mixed greens, blues, golds and reds went with the chip and tag recipes — a tag's colour is a --tone-* now); 495 the same day (the button round: two went with the recipes); 497 on 2026-10-08 (the foundations round: the dead brew-timer dot's teal went with it); distinct hex / rgb() / rgba() literals in app/globals.css (2026-10-07, after the dead rules went; 499 when Command and Team took theme tokens; 498 when the office route's card did)
+  globalsBytes: 717_983,      // 717,983 on 2026-10-09 (the chip round: 105 pill rules — chips, tags, pill buttons — the 16 button recipes and .handle gave way to the kit's chip, tag and count, −36 KB); 754,309 the same day (the button round: 31 recipes and the sheets' copies gave way to a kit of four kinds in two sizes); 766,799 on 2026-10-08 (the type round: 1,119 sizes folded onto the ten steps, 10.5px and 13.5px among them); 768,059 the same day (the navigation round: the system map's "‹ All layers" went into the title bar, and its rule with it); 768,213 the same day (the iPhone chrome round: the tab bar at 49pt, the KPI board's fields at 16px); 768,222 the same day (the foundations round: 50 rules no screen can match went — the old sheet, the .did and .cell rows, the menu's first draft — and the safe-area, tap-target and 16px-field fixes fit in what they left); app/globals.css, source bytes (2026-10-07: 804 KB before 316 dead rules and 4 keyframes went; the pill kit fits in what its seven recipes left;
                               // Command's and Team's clean-up added rows and actions and put their one-off layout in utilities; the office route on theme tokens)
-  wholeVariableClasses: 46,   // className tokens that are a ${value} and nothing else (2026-10-07)
-  buttonRecipes: 16,          // button recipes outside the kit (2026-10-09, the button round: 41 before it moved 31 recipes and the
-                              // sheets' .note-save, .note-cancel and .cfm-ok onto "03 · Buttons"; these 16 follow with the chips)
-  pillRules: 112,             // pills and round buttons outside the kit (112 on 2026-10-09: the coupon's, the broadcast bar's and the splash's pill buttons are the button kit's; 2026-10-07: 124 before the pill round moved the
+  wholeVariableClasses: 38,   // className tokens that are a ${value} and nothing else (2026-10-07; 46 → 38 on 2026-10-09, the chip round: eight statuses that wrote their own class — a play's, a goal's, a discussion's kind, an offer letter's, the launch's verdict and checks, a Studio piece's — choose a tag's tone among written words)
+  buttonRecipes: 0,           // button recipes outside the kit (2026-10-09, the button round: 41 before it moved 31 recipes and the
+                              // sheets' .note-save, .note-cancel and .cfm-ok onto "03 · Buttons"; the chip round moved the last 16 the same day)
+  pillRules: 7,               // pills and round buttons outside the kit (7 on 2026-10-09, the chip round: two fields, the menu's price, an avatar, the offline toast,
+                              // the calendar's floating walk and the fan card's ribbon — each a different thing, named in "PILLS, ONE KIT"; 112 the same day: the coupon's, the broadcast bar's and the splash's pill buttons are the button kit's; 2026-10-07: 124 before the pill round moved the
                               // crew header, the lane's sections, the counts and the tab badges onto it; 115 when Team's role badge and invite pills went)
 };
 
@@ -147,6 +151,33 @@ export function markup(root) {
     for (const c of one.classes) { if (!classes.has(c)) classes.set(c, new Set()); classes.get(c).add(toPosix(f)); }
   }
   return { files, inlineStyles, classes, wholeVariable };
+}
+
+/** Class lists the code writes outside a className — a component's map of skins ({ chip: "k-chip" }), a tone
+ *  table — so a retired recipe cannot hide in one. A string is a class list when every word in it is lower case
+ *  and one at least is hyphenated (ts-chip, btn-sec): prose has capitals, stops and commas, and a bare word
+ *  ("handle it") is not a class list. Class token → the files that write it. (2026-10-09: MenuRigChips' map still
+ *  named .ts-chip after the chip round retired it, and the prep tool's Menu & setup drew bare buttons.) */
+export function classListsIn(root) {
+  const files = ["app", "components", "native", "lib"].flatMap((d) => walk(root, d, (n) => /\.tsx?$/.test(n)));
+  const out = new Map();
+  const word = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+  for (const f of files) {
+    const src = readFileSync(join(root, f), "utf8");
+    const sf = ts.createSourceFile(f, src, ts.ScriptTarget.Latest, true, f.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+    const visit = (x) => {
+      const texts = ts.isStringLiteral(x) || ts.isNoSubstitutionTemplateLiteral(x) ? [x.text]
+        : ts.isTemplateExpression(x) ? [x.head.text, ...x.templateSpans.map((t) => t.literal.text)] : [];
+      for (const t of texts) {
+        const words = t.trim().split(/\s+/).filter(Boolean);
+        if (!words.length || !words.every((w) => word.test(w)) || !words.some((w) => w.includes("-"))) continue;
+        for (const w of words) { if (!out.has(w)) out.set(w, new Set()); out.get(w).add(toPosix(f)); }
+      }
+      ts.forEachChild(x, visit);
+    };
+    visit(sf);
+  }
+  return out;
 }
 
 /** Every class the house stylesheet styles, and the rules that style them. */
@@ -225,6 +256,26 @@ export const RETIRED_BUTTONS = [
   "driver-route-cta", "craft-cta-b", "rf-btn", "ol-btn", "natt-btn", "brew-pack-btn", "vipv-btn", "status-photo-btn",
   "ev-arch-btn", "studio-lib-btn", "ac-team-btn", "dp-leave-btn", "note-fu-addbtn", "prod-86btn", "cal-filterbtn",
   "adm-reset-btn", "note-save", "note-cancel", "cfm-ok", "ts-btn", "liveinst-go", "eg-btn", "lp-receipt", "lp-save", "adm-regen",
+  // 2026-10-09, the chip round: the 16 recipes the button round left, and the pill buttons, are the kit's
+  "calw-add", "cmd-add", "conc-send", "cos-go", "cos-redo", "mpack-cta", "oa-cta", "oa-send", "rhythm-go", "rvp-send", "sc-save",
+  "sc-reset", "scan-add", "studio-media-add", "sub-cta", "subpitch-cta", "arr-order", "t-order", "vipq-yes", "vipq-no",
+  "orderbar-cancel", "ownerdet-convert-b", "bce-toggle", "oo-gen", "alert-clearall", "digest-clear", "codes-new", "codes-qr",
+  "cal-tolink", "note-discuss", "brew-taste", "cmd-finish", "pbd-group-open", "pbd-group-all", "pd-start", "pd-adv", "pd-back",
+  "pd-reopen", "pd-won", "pd-lost", "cos-act", "svc-exit", "guide-x", "sv-ic",
+  // .handle was the house's "primary button" — red, 15px capitals — on 39 buttons (sign-in, checkout's Pay, the academy);
+  // no -btn in its name, so the button round's count never saw it
+  "handle",
+];
+/** The chip and tag recipes the kit's chip, tag and count replaced (rule 9, the chip round). */
+export const RETIRED_PILLS = [
+  "eta-chip", "mnt-chip", "dp-qchip", "dp-kchip", "cal-view", "cal-view-more", "ev-stage-pill", "adm-lead-opt", "chg-chip",
+  "fdig-opt", "pbd-filter", "pbd-fn", "st-cat", "qd-vis-chip", "note-vischip", "note-tab", "crm-tier-b", "codes-toggle",
+  "goal-chip", "mkt-chip", "pipe-rail-chip", "oa-chip", "ts-chip", "k-chip-sec", "k-tag-live", "qd-tab", "task-assign",
+  "task-assign-av", "task-assign-add", "ac-cert", "ac-cdot", "guide-when", "acad-chip", "acs-tier", "alert-times", "cl-op-sec",
+  "st-pill", "calw-today", "arch-st", "arch-mg", "arch-flow-i", "ol-state", "subnav-badge", "mypack-flag", "stamp-badge",
+  "rva-src-tag", "mp-tier", "chub-lead-tag", "fn-conv", "fn-alt", "chg-month-n", "cmd-cd", "vipq-tag", "rdy-opt", "rdy-st",
+  "goal-tier", "pay-status", "pb-status", "studio-card-camp", "codes-badge", "pd-status", "st-log-srcnote",
+  "st-log-fu", "cmd-goalchip", "cmd-goalsel", "note-pfile", "ck-weigh", "osr-mean", "gtm-count", "pr-tier", "disc-kind", "ofr-chip",
 ];
 /** What a rule outside the kit may not set on a kit button: its size, its shape, its letters, its fill. */
 export const BUTTON_LOOK = /^(padding(-(top|right|bottom|left|inline|block)(-start|-end)?)?|(min-|max-)?height|border(-(top|bottom)-(left|right))?-radius|border(-(top|right|bottom|left))?(-width|-style)?|font(-(family|size|weight|style))?|letter-spacing|text-transform|line-height|background(-color|-image)?|box-shadow|text-decoration(-line)?)$/;
@@ -355,9 +406,15 @@ export async function audit(root) {
   if (!/\.dark\\:hidden\s*\{\s*&:not\(\*\)/.test(probe)) fail("no dark:", "dark: builds a rule that can match — the look is lib/theme's");
 
   const m = markup(root);
+  for (const [c, files] of classListsIn(root)) {
+    if (m.classes.has(c)) continue;   // a className names it too: said once, below
+    if (RETIRED_BUTTONS.includes(c)) fail("one set of buttons", `${c} is a retired button recipe, in a class list (${[...files].join(", ")}) — use the kit (components/Button)`);
+    if (RETIRED_PILLS.includes(c)) fail("one pill", `${c} is a retired chip or tag recipe, in a class list (${[...files].join(", ")}) — use the kit's .k-chip, .k-tag or .k-count`);
+  }
   for (const [c, files] of m.classes) {
     if (/^dark:/.test(c)) fail("no dark:", `${c} in ${[...files].join(", ")}`);
     if (RETIRED_BUTTONS.includes(c)) fail("one set of buttons", `${c} is a retired button recipe (${[...files].join(", ")}) — use the kit (components/Button)`);
+    if (RETIRED_PILLS.includes(c)) fail("one pill", `${c} is a retired chip or tag recipe (${[...files].join(", ")}) — use the kit's .k-chip, .k-tag or .k-count`);
     if (/(^|:)(bg|text|border|ring|fill|stroke|outline|shadow|from|to|via|decoration|accent|caret|divide)-\[(#|rgb|hsl|oklch|color)/.test(c)) fail("GT3's colours", `${c} writes a raw colour (${[...files].join(", ")}) — use a GT3 colour`);
     if (/(^|:)text-\[\d+(?:\.\d+)?(px|rem|em)\]/.test(c)) fail("one type scale", `${c} sets a size of its own (${[...files].join(", ")}) — name a step: text-caption2 … text-large`);
   }
@@ -379,8 +436,10 @@ export async function audit(root) {
   if (dead.length) fail("no dead CSS", `${dead.length} selector(s) style a class nothing names: ${dead.slice(0, 6).join(" | ")}`);
 
   // 8 · only down
-  // 9 · one pill (counted with the ratchets below)
+  // 9 · one pill (counted with the ratchets below; the retired recipes styled nowhere)
   const pills = pillRulesIn(ast);
+  const styledPills = RETIRED_PILLS.filter((c) => houseClasses(globals).has(c));
+  if (styledPills.length) fail("one pill", `app/globals.css styles a retired chip or tag recipe: ${styledPills.join(", ")} — use the kit (.k-chip, .k-tag, .k-count)`);
 
   // 10 · one set of buttons
   const houseNow = houseClasses(globals);

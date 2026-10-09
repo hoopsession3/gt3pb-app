@@ -2187,8 +2187,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // and the old inventory count is gone, not merely unused
   ok("badges: the Events badge no longer counts upcoming events instead of problems",
     !/from\("events"\)[^;]*count: "exact"[^;]*gte\("day"/.test(crew));
-  // the `hot` class had CSS and a stated purpose and nothing applied it (globals.css:3286)
-  ok("badges: the loud variant defined in CSS is actually applied", /subnav-badge\$\{\s*hot\s*\?\s*" hot"/.test(crew));
+  // the loud count had CSS and a stated purpose and nothing applied it (globals.css:3286); it is the kit's now (2026-10-09)
+  ok("badges: the loud variant defined in CSS is actually applied", /k-count sm\$\{\s*hot\s*\?\s*" crit"/.test(crew) && /\.k-count\.crit\{background:var\(--red\);color:#fff\}/.test(fs.readFileSync(path.join(root, "app/globals.css"), "utf8")));
   ok("badges: a bare number is not the accessible name", /aria-label=\{`\$\{n\} \$\{what\}`\}/.test(crew));
 }
 
@@ -2251,12 +2251,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const path = require("node:path");
   const css = fs.readFileSync(path.join(__dirname, "..", "app/globals.css"), "utf8");
 
-  const OFF_SCALE_CEILING = 301;   // only ever edit this DOWN
+  const OFF_SCALE_CEILING = 256;   // only ever edit this DOWN (301 → 256 on 2026-10-09, the chip round: the recipes that went took their between-steps radii with them)
   const offScale = (css.match(/border-radius:\s*[0-9.]+px/g) || []).length;
   const onScale = (css.match(/border-radius:var\(--r-/g) || []).length;
 
   ok("radius: the scale is declared", /--r-xs:.*--r-pill:/s.test(css.slice(0, 20000)) || /--r-pill:999px/.test(css));
-  ok("radius: most declarations are on it", onScale > offScale * 2, { onScale, offScale });
+  // "Most" is a majority. It was "twice the rest" until the chip round (2026-10-09) folded 93 pill radii into the
+  // kit's one per primitive: collapsing duplicates lowers the on-scale count without moving one value off the
+  // scale, so a ratio of counts would have punished it. The off-scale ceiling below is the ratchet that matters.
+  ok("radius: most declarations are on it", onScale > offScale, { onScale, offScale });
   ok(`radius: off-scale count did not grow (${offScale} ≤ ${OFF_SCALE_CEILING})`,
     offScale <= OFF_SCALE_CEILING,
     offScale > OFF_SCALE_CEILING
@@ -5636,7 +5639,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /: isSettled\(p\) \? <><Icon name="check" \/> paid<\/> : "\$ at pickup"\}/.test(packs) && /return cur && !isSettled\(prev\) && isSettled\(cur\); \}\)\) haptic\("paid"\);/.test(packs)
     && /const atPickup = rows\.filter\(\(x\) => !isSettled\(x\)\)\.length;/.test(packs) && !/p\.paid \? <>|p\.paid \? "paid"|: p\.paid \? "paid"/.test(packs));
   ok("customer: paid at the window, the pack and the cup are the crew's to cancel — no button that the database will refuse",
-    /\{!p\.collected_at && <button type="button" className="danger" onClick=\{\(\) => cancel\(p\)\}/.test(packs) && /\{onChange && !p\.collected_at && /.test(packs)
+    /\{!p\.collected_at && <button type="button" className="btn-del" onClick=\{\(\) => cancel\(p\)\}/.test(packs) && /\{onChange && !p\.collected_at && /.test(packs)
     && /\{o\.status === "new" && !o\.collected_at && \(/.test(status) && /const paid = isSettled\(o\);/.test(status));
   ok("customer: the lists that select their own columns read the stored answer (payment_status, there since 0155) — never a column 0341 has yet to add",
     /\.select\("id, size, paid, payment_status, picked_up"\)/.test(funnel) && /\$\{isSettled\(o\) \? "paid" : "pay at pickup"\}/.test(funnel)
@@ -5896,7 +5899,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("permits: the database test runs in db:test", /node scripts\/db\.compliance\.test\.mjs/.test(require("../package.json").scripts["db:test"]));
   ok("permits: the rule sheet is painted and held by the design ratchet — its forms are sections, not boxes in a box",
     /scripts\/fixtures\/rule-sheet\.html/.test(read("scripts/design.ratchet.mjs")) && /export const RULE_SHEET = \{ depth: 2, tap: 44, text: 11 \};/.test(read("scripts/design.ratchet.mjs"))
-    && /\.crr-fix \.ts-chip\{min-height:44px;/.test(read("app/globals.css")));
+    && /className=\{`k-chip\$\{leadBasis === b \? " on" : ""\}`\}/.test(read("components/ComplianceRuleRecord.tsx")) && /\.k-chip::after\{content:"";position:absolute;inset:-4px 0\}/.test(read("app/globals.css")));
 }
 
 // ── MY DAY: ONE TASK, ONE PLACE (2026-10-04) ───────────────────────────────────────────────────
@@ -6127,7 +6130,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /const sev = waiting \? "calm" : ageSev\(ageMin\(orderClockFrom\(o\)\)\);/.test(crew) && /waitingLabel\(o\.ready_from\)/.test(crew)
     && !/ageMin\(o\.created_at\)/.test(crew));
   ok("copy: the three new keys are registered with their defaults",
-    /key: "findus\.cta_menu"[^}]*default: "SEE THE MENU"/.test(read("lib/copy.ts")) && /key: "sheet\.closing_cta"/.test(read("lib/copy.ts")) && /key: "menu\.taphint_closed"/.test(read("lib/copy.ts")));
+    /key: "findus\.cta_menu"[^}]*default: "See the menu"/.test(read("lib/copy.ts")) && /key: "sheet\.closing_cta"/.test(read("lib/copy.ts")) && /key: "menu\.taphint_closed"/.test(read("lib/copy.ts")));
 
   // ── the QR and the splash ──
   const conn = read("lib/connect.ts"), disp = code(read("app/display/page.tsx")), splash = code(read("components/MarketingSplash.tsx"));
@@ -7138,7 +7141,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("record sheets: the header — the name and how long ago — wraps rather than trailing off",
     /\.so-id \.cp-id-t b,\.so-id \.cp-id-t span\{white-space:normal;overflow:visible/.test(cssP));
   ok("events list: a card's name wraps, and the five stages fit a 390px card (wrapping on a narrower one)",
-    !/\.ev-title\{[^}]*nowrap/.test(cssP) && /\.ev-stage\{display:flex;flex-wrap:wrap;gap:5px 4px;/.test(cssP) && /\.ev-stage-pill\{flex:0 0 auto;[^}]*padding:6px 9px;/.test(cssP));
+    !/\.ev-title\{[^}]*nowrap/.test(cssP) && /\.ev-stage\{display:flex;flex-wrap:wrap;gap:5px 4px;/.test(cssP) && /className=\{`k-chip sm hue\$\{cur \? " on" : ""\}`\}/.test(read("app/crew/page.tsx")) && /\.k-chip\.sm\{min-height:28px;padding:4px 11px;/.test(cssP));
   ok("card css: the light is drawn only as the live dot, and the hours read in sentence case",
     /\.ev-led\{flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:var\(--red\)/.test(cssP) && !/\.ev-card\.live \.ev-led\{/.test(cssP)
     && /\.ev-sub\{font-family:'Inter';font-weight:500;font-size:12px;color:var\(--cream-m\)/.test(cssP) && !/\.ev-sub\{[^}]*uppercase/.test(cssP));
@@ -7669,7 +7672,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /import VenueContact from "@\/components\/VenueContact";/.test(read("components/crew/LocationEditor.tsx")) && !/VenuePick/.test(code(read("components/crew/LocationEditor.tsx")))
     && /\.venue-loading\{min-height:72px\}/.test(read("app/globals.css")));
   ok("quick-add: the three kinds stay on one line at phone width, and the day is said in words under them",
-    /\.qd-tab\{[^}]*white-space:nowrap/.test(read("app/globals.css")) && /\{`For \$\{dayWithDate\(day\) \|\| day\}`\}/.test(cc) && !/color: "var\(--cream-m\)" \}\}>\{day\}<\/span>/.test(cc));
+    /<Segmented label="What to add" kind="choice" value=\{kind\} onChange=\{setKind\}/.test(cc) && /\.k-seg-opt\{[^}]*white-space:nowrap/.test(read("app/globals.css")) && /\{`For \$\{dayWithDate\(day\) \|\| day\}`\}/.test(cc) && !/color: "var\(--cream-m\)" \}\}>\{day\}<\/span>/.test(cc));
   ok("venue pick: compiled for the smoke run", /lib\/milestonePick\.ts lib\/venues\.ts/.test(read("package.json")));
 }
 
@@ -8930,7 +8933,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("command: Blockers are the company's — an incident or a goal at risk",
     /data\.incidents\.length === 0 && data\.goals\.filter\(\(g\) => g\.checkin_status === "at_risk"\)\.length === 0 \? <EmptyState title="Nothing blocked" \/>/.test(cbd));
   ok("command: Team's activity rows and the KPI rows have a day surface, and the night keeps its own",
-    /\.app\.crew-day \.util-row,\.app\.crew-day \.kpib-row\{background:var\(--ink-onLight-03\)\}/.test(css2) && /\.cmd-goalsel\{background-color:var\(--ink-onLight-03\)/.test(css2));
+    /\.app\.crew-day \.util-row,\.app\.crew-day \.kpib-row\{background:var\(--ink-onLight-03\)\}/.test(css2) && /<select className="max-w-\[120px\] font-semibold"/.test(cbd));
   // ── one door ──
   ok("team: one door — Add a teammate — brings on someone with an account and invites an email with none; the second door is gone",
     /supabase\.rpc\("promote_to_crew", \{ p_member: picked\.id, p_role: role, p_market: market \|\| null, p_lead: lead \}\)/.test(add2)
@@ -9249,7 +9252,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("each tab keeps its place: a tab tap and a step through history are returns; a same-path history step (a crew section) is not",
     /returnToPlace\(\); if \(!on\) haptic\("selection"\);/.test(bottom) && /if \(window\.location\.pathname !== placeKey\.current\) returnToPlace\(\);/.test(shell));
   ok("no floating chrome on a phone: the rail and the quick-actions button are hidden there, not unmounted",
-    /phone:hidden!/.test(read("components/FloatRail.tsx")) && /className=\{`qd-fab\$\{open \? " open" : ""\} phone:hidden!`\}/.test(read("components/QuickDock.tsx"))
+    /phone:hidden!/.test(read("components/FloatRail.tsx")) && /className=\{`k-icon-btn lg qd-fab\$\{open \? "" : " pri"\} phone:hidden!`\}/.test(read("components/QuickDock.tsx"))
     && /@custom-variant phone \(@media not all and \(min-width: 520px\) and \(min-height: 640px\)\);/.test(read("app/tailwind.css"))
     && /@custom-variant frame \(@media \(min-width: 520px\) and \(min-height: 640px\)\);/.test(read("app/tailwind.css")));
   ok("no floating chrome on a phone: each of their doors exists — ✦ in the crew header, Ask us beside the avatar, Connect and Display in the menus",
@@ -9593,7 +9596,88 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     (read("components/crew/LiveControl.tsx").match(/compact className="ml-auto shrink-0"/g) || []).length === 3);
   const audit = read("scripts/css.audit.mjs");
   ok("buttons: the CSS audit holds the set (rule 10) — retired recipes, restyles by rule or utility, and the recipes still outside the kit, which only fall",
-    /export const RETIRED_BUTTONS = \[/.test(audit) && /export function buttonRestylesIn\(/.test(audit) && /BUTTON_LOOK_UTILITY\.test\(/.test(audit) && /buttonRecipes: 16,/.test(audit));
+    /export const RETIRED_BUTTONS = \[/.test(audit) && /export function buttonRestylesIn\(/.test(audit) && /BUTTON_LOOK_UTILITY\.test\(/.test(audit) && /buttonRecipes: 0,/.test(audit));
+}
+
+// ── ONE KIT FOR CHIPS AND TAGS (2026-10-09, the chip round: redesign 7's second half) ─────────────────────────────────
+// A choice is the kit's chip, a status its tag, a count its count; a round button its icon button; and the pill buttons
+// and the 16 button recipes the button round left are the button kit's. 105 of the 112 pill rules beside the kit are gone,
+// with .handle — the house's red "primary button" in capitals on 39 buttons, which no -btn in its name let the button
+// round's count see. scripts/css.audit.mjs (ONE PILL, RETIRED_PILLS; ONE SET OF BUTTONS, RETIRED_BUTTONS) keeps them gone.
+{
+  const read = (f) => require("node:fs").readFileSync(require("node:path").join(__dirname, "..", f), "utf8");
+  const g = read("app/globals.css");
+  ok("chips: one chip — 36pt with 15pt semibold words on a wash of the surface's own ink, a capsule, and 44 to the thumb",
+    /\.k-chip\{position:relative;display:inline-flex;[^}]*min-height:36px;padding:6px 14px;border:0;border-radius:var\(--r-pill\);background:color-mix\(in srgb, var\(--cream\) 8%, transparent\);color:var\(--cream\);font-family:'Inter';font-weight:600;font-size:15px;[^}]*text-transform:none;/.test(g)
+    && /\.k-chip::after\{content:"";position:absolute;inset:-4px 0\}/.test(g));
+  ok("chips: the small one is 28pt with 13pt words, and still 44 to the thumb",
+    /\.k-chip\.sm\{min-height:28px;padding:4px 11px;gap:4px;font-size:13px\}/.test(g) && /\.k-chip\.sm::after\{inset:-8px 0\}/.test(g));
+  ok("chips: the chosen one fills — gold, as the segmented control's — or its tone's colour, in the surface's dark ink; a colour from the data keeps a dark ink in both looks",
+    /\.k-chip\.on\{background:var\(--k-tone,var\(--gold2\)\);color:var\(--k-on,var\(--char\)\)\}/.test(g)
+    && /\.k-chip\.ok\{--k-tone:var\(--tone-ok\)\}/.test(g) && /\.k-chip\.warn\{--k-tone:var\(--tone-warn\)\}/.test(g) && /\.k-chip\.crit\{--k-tone:var\(--tone-crit\)\}/.test(g)
+    && /\.k-chip\.hue\{--k-on:#15120d\}/.test(g) && /\.k-chip:is\(\.warn,\.crit\):not\(\.on\)\{color:var\(--k-tone\)\}/.test(g));
+  ok("chips: a chip presses only when it is a button or a link; a disabled one dims, and a chosen one that cannot change stays legible",
+    /:is\(button,a\)\.k-chip:active:not\(:disabled\)\{transform:scale\(\.96\)\}/.test(g) && /\.k-chip:not\(button,a\)\{cursor:inherit\}/.test(g)
+    && /\.k-chip:disabled\{opacity:\.45;cursor:default\}/.test(g) && /\.k-chip\.on:disabled\{opacity:1\}/.test(g));
+  ok("tags: one tag — 22pt, 11pt mono capitals (the house's telemetry voice), neutral unless a tone washes it; .txt keeps the data's own words, .glass sits on a photo",
+    /\.k-tag\{display:inline-flex;[^}]*height:22px;padding:0 8px;border:0;border-radius:var\(--r-pill\);background:var\(--k-wash,color-mix\(in srgb, var\(--cream\) 8%, transparent\)\);color:var\(--k-ink,var\(--cream-m\)\);font-family:var\(--mono\);[^}]*font-size:11px;line-height:1;letter-spacing:var\(--track-eyebrow\);text-transform:uppercase;/.test(g)
+    && ["ok", "gold", "warn", "crit", "blue"].every((t) => new RegExp(`\\.k-tag\\.${t}\\{--k-ink:var\\(--tone-${t}\\);--k-wash:color-mix\\(in srgb, var\\(--tone-${t}\\) 1[46]%, transparent\\)\\}`).test(g))
+    && /\.k-tag\.fill\{--k-wash:var\(--k-ink,var\(--cream-m\)\);color:var\(--char\)\}/.test(g)
+    && /\.k-tag\.txt\{font-family:'Inter';font-weight:600;font-size:12px;letter-spacing:0;text-transform:none\}/.test(g) && /\.k-tag\.glass\{/.test(g));
+  ok("tags: the tones are tokens, declared once, and the crew's light look and paper restate them — a tag holds 4.5:1 wherever it lands",
+    /--tone-ok:var\(--ok\); --tone-gold:var\(--gold2\); --tone-warn:var\(--warn\); --tone-crit:var\(--red-h\); --tone-blue:#6fa8dc;/.test(g.slice(0, 4000))
+    && /--tone-ok:var\(--green-onLight\); --tone-gold:var\(--gold2\); --tone-warn:var\(--warn\); --tone-crit:var\(--red-onLight\); --tone-blue:var\(--color-info\);/.test(g)
+    && /--oa-red-tint:color-mix\(in srgb, var\(--brand-red\) 8%, transparent\);\s*--tone-ok:var\(--ok\); --tone-gold:var\(--gold2\); --tone-warn:var\(--warn\); --tone-crit:var\(--red-h\); --tone-blue:var\(--color-info\);/.test(g));
+  ok("tags: one that comes off ends in its × — 44 to the thumb (a file on a note, a goal an initiative serves)",
+    /\.k-tag-x\{position:relative;[^}]*width:16px;height:16px;/.test(g) && /\.k-tag-x::after\{content:"";position:absolute;inset:-14px\}/.test(g)
+    && (read("app/crew/page.tsx").match(/className="k-tag-x" onClick=/g) || []).length === 2 && /className="k-tag-x" onClick=\{\(\) => unlinkGoal\(it\.id, g\.id\)\}/.test(read("components/CommandBoard.tsx")));
+  ok("icon buttons: switched on it fills gold; the one that sends or adds is the surface's primary; .glass sits on a photo; .lg is the regular button's height",
+    /\.k-icon-btn:disabled\{opacity:\.45;cursor:default\}/.test(g) && /\.k-icon-btn\.on\{background:var\(--gold2\);color:var\(--char\)\}/.test(g)
+    && /\.k-icon-btn\.pri\{background:var\(--red\);color:#fff\}/.test(g) && /\[data-surface="console"\] \.k-icon-btn\.pri\{background:var\(--gold\);color:var\(--char2\)\}/.test(g)
+    && /\.k-icon-btn\.lg\{width:var\(--btn-h\);height:var\(--btn-h\)\}/.test(g) && /\.k-icon-btn\.glass\{background:color-mix\(in srgb, #000 45%, transparent\);/.test(g));
+  ok("icon buttons: a floated one is placed with both classes, so the kit's own position:relative never wins (the quick-actions button, a photo's arrows, /built's Back)",
+    /\.k-icon-btn\.qd-fab\{position:absolute;right:16px;bottom:16px;/.test(g) && /\.k-icon-btn\.studio-nav\{position:absolute;top:calc\(50% - 14px\);z-index:2\}/.test(g)
+    && /\.k-icon-btn\.built-back\{position:fixed;/.test(g));
+  ok("counts: a count inside a control is smaller, and the one that must be loud is filled red",
+    /\.k-count\.sm\{min-width:18px;height:18px;padding:0 5px;font-size:11px\}/.test(g) && /\.k-count\.crit\{background:var\(--red\);color:#fff\}/.test(g));
+  const pressedIn = ["components/PipelinePanel.tsx", "components/BrewPlanner.tsx", "components/PackPlan.tsx", "components/MaintenanceLog.tsx", "components/Changelog.tsx",
+    "components/DocsFiled.tsx", "components/TroubleshootAI.tsx", "components/SmartIntake.tsx", "components/AssetMaintenance.tsx", "components/ChiefOfSales.tsx"];
+  ok("chips: a chip that is chosen says so to a screen reader (aria-pressed), in every list of choices that had only its colour",
+    pressedIn.every((f) => /className=\{`k-chip[^`]*\$\{([^`]*?) \? " on" : ""\}`\} aria-pressed=\{/.test(read(f))));
+  ok("chips: a guest's I'm in on an event is the kit's chip, chosen when they're going — it wore the old section label (.sec): capitals, spaced, 30px above",
+    /className=\{`k-chip\$\{going \? " on" : ""\}`\} onClick=\{onRsvp\} aria-pressed=\{going\}/.test(read("components/RsvpRow.tsx")) && !/" sec"/.test(read("components/RsvpRow.tsx")));
+  ok("chips: a stop's row on Find Us carries chips — pre-order filled, directions at rest — spaced by a utility, not an inline margin",
+    /className="k-chip pri" onClick=\{\(\) => router\.push\("\/menu"\)\}/.test(read("components/FindUs.tsx")) && !/marginLeft: 8/.test(read("components/FindUs.tsx")));
+  const cc = read("components/CompanyCalendar.tsx"), qd = read("components/QuickDock.tsx");
+  ok("switches: a sheet's modes and the calendar's views are the kit's segmented control — a switch that looks like one — with More as quiet words beside it",
+    /<Segmented label="Quick actions" value=\{mode\} onChange=\{setMode\}/.test(qd) && /<Segmented label="What to add" kind="choice"/.test(cc)
+    && /<Segmented label="Calendar view" className="min-w-0" value=\{view\} onChange=\{setV\}/.test(cc) && /className="btn-ter" aria-expanded=\{moreViews\}/.test(cc));
+  ok("buttons: the follow-up row and the + Add that shared .note-fu-add — the row was drawn as a gold pill — are a row and quiet words",
+    /<button type="button" className="btn-ter" onClick=\{\(\) => setCActions\(/.test(read("app/crew/page.tsx")) && !/\.note-fu-add\{font-family/.test(g) && /\.note-fu-add\{display:flex;gap:9px;margin-top:12px\}/.test(g));
+  const files = require("node:child_process").execSync("git ls-files app components", { cwd: require("node:path").join(__dirname, "..") }).toString().split("\n").filter((f) => f.endsWith(".tsx"));
+  ok("buttons: .handle, the red primary in capitals on 39 buttons, is the kit's — sign-in, checkout's Pay, the academy — and nothing names it",
+    !files.some((f) => /className=(["'`])(?:[^"'`]*\s)?handle(?:\s[^"'`]*)?\1/.test(read(f))) && !/(^|[\s,}])\.handle[\s{:.,]/m.test(g.replace(/\/\*[\s\S]*?\*\//g, ""))
+    && /className="btn-pri btn-wide mt-4\.5" onClick=\{pay\}/.test(read("components/Checkout.tsx")) && /<button className="btn-pri btn-wide mt-4\.5" type="submit" disabled=\{busy\}>/.test(read("components/SignIn.tsx")));
+  ok("buttons: the ZIP's Check stands beside its field, as tall as it — the recipe's own margin had it 18px lower",
+    /className="btn-pri self-stretch" onClick=\{checkZone\}/.test(read("components/OrderFunnel.tsx")));
+  ok("buttons: one primary per screen — the storefront's way to the bar, under /delivery's, /reserve's and /shop's own, is secondary",
+    /className="btn-sec btn-wide" onClick=\{\(\) => router\.push\("\/menu"\)\}/.test(read("components/StorefrontStory.tsx")));
+  ok("buttons: Find Us's primary says its words in sentence case (they were typed in capitals)",
+    /key: "findus\.cta_preorder"[^}]*default: "Pre-order · skip the line"/.test(read("lib/copy.ts")) && /key: "findus\.cta_menu"[^}]*default: "See the menu"/.test(read("lib/copy.ts")));
+  ok("buttons: the composer's mic is the kit's icon button, gold and pulsing while it listens",
+    /className=\{`k-icon-btn oa-mic\$\{dictate\.listening \? " on" : ""\}`\}/.test(read("components/AskGT3.tsx")) && /className=\{`k-icon-btn oa-mic\$\{dictate\.listening \? " on" : ""\}`\}/.test(qd)
+    && /\.oa-mic\.on\{animation:oamic 1\.2s infinite\}/.test(g));
+  const audit = read("scripts/css.audit.mjs");
+  const { RETIRED_PILLS } = { RETIRED_PILLS: [...audit.match(/export const RETIRED_PILLS = \[([\s\S]*?)\];/)[1].matchAll(/"([\w-]+)"/g)].map((m) => m[1]) };
+  const named = RETIRED_PILLS.filter((c) => new RegExp(`\\.${c}(?![\\w-])`).test(g.replace(/\/\*[\s\S]*?\*\//g, "")) || files.some((f) => new RegExp(`className=[^>]*["'\` ]${c}(?![\\w-])`).test(read(f))));
+  ok(`chips: the ${RETIRED_PILLS.length} retired chip and tag recipes are gone — no rule styles one, no screen names one`, RETIRED_PILLS.length > 60 && named.length === 0, named.join(", "));
+  ok("chips: the prep tool's Menu & setup chips are the kit's — its map of skins still named .ts-chip, a class list no className shows, and the audit reads every one",
+    /ts: \{ h: "menued-h", row: "ts-chips", chip: "k-chip",/.test(read("components/MenuRigChips.tsx"))
+    && /export function classListsIn\(root\)/.test(audit) && /for \(const \[c, files\] of classListsIn\(root\)\)/.test(audit));
+  ok("chips: the CSS audit holds the kit (rule 9) — the retired recipes, and the pills and button recipes outside it, which only fall",
+    /export const RETIRED_PILLS = \[/.test(audit) && /pillRules: 7,/.test(audit) && /buttonRecipes: 0,/.test(audit) && /"handle",/.test(audit));
+  ok("design: a target scrolled wholly out of its scroller is judged in view — its reach is not cut to the edge it sits beyond",
+    /if \(b\.bottom <= c\.top \|\| b\.top >= c\.bottom \|\| b\.right <= c\.left \|\| b\.left >= c\.right\) continue;/.test(read("scripts/design.measure.mjs")));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
