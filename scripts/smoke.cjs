@@ -1317,6 +1317,16 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("cookbook: the latte adds no salt of its own — all of it is in the syrup (it said \"add … pinch of salt\" and \"add the salt pinch to balance\")",
     !(lb.brew ?? []).some((x) => /pinch of salt/i.test(x)) && (lb.brew ?? []).some((x) => /No extra salt — it's all in the syrup/.test(x))
     && !/salt pinch/.test(JSON.stringify(lb.troubleshoot ?? [])) && !lb.weighs);
+  // The answer that followed had the build and told the cook to tare a scale for it. Every amount in it is a
+  // volume, and the assistant is now told so beside the recipe; a weighed batch still gets the scale rules.
+  const KB = require("../.smoke/operatorKb.js").academyKnowledge();
+  const kbOf = (name) => KB.split("\n## ").find((x) => x.startsWith(`${name} (`)) ?? "";
+  ok("cookbook: the latte is measured by volume and Ask GT3 is told so — a cup and spoons, no scale rules, no grams; a weighed batch still gets the scale rules",
+    lb.byVolume === true && /MEASURED BY VOLUME — every amount is fluid ounces or spoons/.test(kbOf(latte?.name))
+    && !/WEIGHS INGREDIENTS/.test(kbOf(latte?.name))
+    && A.PRODUCTS.filter((p) => p.cookbook?.weighs).length >= 2
+    && A.PRODUCTS.filter((p) => p.cookbook?.weighs).every((p) => /WEIGHS INGREDIENTS/.test(kbOf(p.name)) && !/MEASURED BY VOLUME/.test(kbOf(p.name))),
+    kbOf(latte?.name).slice(0, 80));
 
   const none = new Set();
   const op = A.pathProgress("operator", none);
@@ -4328,6 +4338,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   }
   ok("cookbooks: every procedure that talks about weighing carries weighs:true, so the band shows",
     mismatched.length === 0, mismatched);
+  // byVolume says the opposite (2026-10-09), so it is held to it: nothing weighed, a volume named, never both flags.
+  const byVol = cookbooks.filter((cb) => /\bbyVolume:\s*true\b/.test(cb));
+  ok("cookbooks: a procedure marked byVolume weighs nothing, names a volume, and is never also weighs:true",
+    byVol.length >= 1 && byVol.every((cb) => {
+      const brew = (cb.match(/brew:\s*\[([^\]]*)\]/) ?? [, ""])[1];
+      return !WEIGH_WORDS.test(brew) && /\b(fl oz|tbsp|tsp|cups?)\b/.test(brew) && !/\bweighs:\s*true\b/.test(cb);
+    }), byVol.length);
   ok("cookbooks: at least one procedure IS flagged — a gate that passes on an empty set proves nothing",
     cookbooks.filter((cb) => /\bweighs:\s*true\b/.test(cb)).length >= 2,
     cookbooks.filter((cb) => /\bweighs:\s*true\b/.test(cb)).length);
@@ -4387,6 +4404,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /Bold, never backticks/.test(measuring) && !/`\d/.test(measuring) && /\*\*560 g \(19\.8 oz\)\*\*/.test(measuring));
   ok("measuring: every number is named for what it is — a volume of water is not a \"scale factor\"",
     /NAME EVERY NUMBER/.test(measuring) && /scale factor/.test(measuring));
+  ok("measuring: a fluid ounce is a volume — a measuring cup or spoon, no scale rules, no grams — and a 10 oz bottle is a size",
+    /A FLUID OUNCE IS A VOLUME/.test(measuring) && /not on a scale: no scale rules and no grams/.test(measuring) && /bottle's/.test(measuring));
   {
     const op = read("app/api/agents/operator/route.ts");
     ok("operator: code spans are for things typed or read off a display, never an amount", /\\`code\\` ONLY for something typed or read off a display/.test(op) && /Never for an amount/.test(op));

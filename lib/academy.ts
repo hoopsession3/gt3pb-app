@@ -788,6 +788,12 @@ export interface Product {
     // does precisely that: it reads these procedures and fails if one talks about weighing with
     // this flag unset. It is not fine in a render path, which fails silently in a kitchen.
     weighs?: boolean;
+    // ── …OR IS EVERY AMOUNT A CUP OR A SPOON? (2026-10-09) ─────────────────────────────────────
+    // Ask GT3's first answer for the Salted Maple Latte — fluid ounces and tablespoons throughout —
+    // told the cook to tare a scale. A fluid ounce is a volume, measured in a cup. Set only where
+    // every amount is written and none is weighed; lib/operatorKb.ts tells the assistant, and smoke
+    // holds the flag to that.
+    byVolume?: boolean;
   };
 }
 
@@ -944,6 +950,7 @@ export const PRODUCTS: Product[] = [
       founder: "This is the one that proves 'treat' and 'clean' aren't opposites. Real maple instead of flavored syrup, A2 goat milk instead of a mystery barista blend, a pinch of salt to keep it honest — indulgent without a single ingredient we'd have to hide.",
     },
     cookbook: {
+      byVolume: true,
       batch: "10 oz bottle: 6.5 fl oz DUSK, 2 fl oz goat milk, 3 tbsp Salted Maple Syrup. 32 oz bottle: 20 fl oz DUSK, 6 fl oz goat milk, 9 tbsp syrup (½ cup + 1 tbsp). More bottles: multiply the 10 oz amounts. One batch of syrup makes 8 × 10 oz bottles.",
       brew: [
         "Syrup (makes 8 bottles): warm 12 fl oz organic maple syrup in a pan on low heat.",
