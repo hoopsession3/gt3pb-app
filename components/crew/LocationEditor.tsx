@@ -263,7 +263,7 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
                 no differentiating state, so the green "complete" styling and check icon promised something
                 that never happened. */}
             {kind === "stop" && onOpenPrep && <Button kind="secondary" compact className="mr-auto" onClick={onOpenPrep}>Full prep — menu, staffing, run-of-show ›</Button>}
-            {kind === "vendor" && <button className="ev-archive" onClick={onArchive}>Archive</button>}
+            {kind === "vendor" && <button className="btn-sec btn-sm" onClick={onArchive}>Archive</button>}
             {kind === "vendor" && <button className="ev-delete" onClick={remove}>Delete</button>}
           </div>
         </div>
