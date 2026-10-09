@@ -208,6 +208,7 @@ import { LiveControl } from "@/components/crew/LiveControl";
 import { staffAccess } from "@/lib/access";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { SECTION_TITLE } from "@/lib/routeTitles";
+import Button from "@/components/Button";
 
 // The sections' names have one home now (lib/routeTitles): this heading, the guide, and the title bar's
 // title and its ‹ read the same words (2026-10-08, the navigation round).
@@ -1181,7 +1182,7 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
       ))}
       <div className="cmt-add">
         <input ref={replyRef} className="note-in" placeholder="Reply… (@name to notify)" aria-label="Reply to comment" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
-        <button type="button" className="note-fu-addbtn" onClick={send} disabled={!text.trim() || sending}>Send</button>
+        <Button type="button" kind="primary" compact onClick={send} disabled={!text.trim() || sending}>Send</Button>
       </div>
       {choices.length > 0 && (
         <div className="ts-chips" role="group" aria-label="Who to notify">
@@ -1380,7 +1381,7 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
                 <label className="prod-f" style={{ marginTop: 8 }}><span>Call time, parking, what to bring, anything else</span><textarea className="note-in" rows={4} value={brief} onChange={(e) => setBrief(e.target.value)} placeholder={"Call 9:30a · park behind the pavilion · bring your apron + black hat · we pour 11–3"} maxLength={4000} /></label>
                 <div className="prod-actions" style={{ marginTop: 10 }}>
                   <button type="button" className="note-arch" onClick={() => { setEdit(false); briefState.reload(); }} disabled={saving}>Cancel</button>
-                  <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save brief"}</button>
+                  <button type="button" className="btn-pri" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save brief"}</button>
                 </div>
               </>
             ) : empty ? (
@@ -2469,19 +2470,19 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           </div>
           {isAdmin && (
             <div className="adm-prep-actions">
-              <button className="adm-regen" onClick={() => generate(true)} disabled={generating}>↻ Regenerate from menu</button>
-              <button className="adm-regen" onClick={() => setPrepAIOpen(true)}><Icon name="sparkles" /> AI prep list</button>
-              <button className="adm-regen ts-btn" onClick={() => setTroubleshootOpen(true)}><Icon name="wrench" /> Troubleshoot</button>
-              <button className="adm-regen" onClick={() => setShowSupplies(true)}>+ Add supplies</button>
+              <button className="btn-ter mt-2" onClick={() => generate(true)} disabled={generating}>↻ Regenerate from menu</button>
+              <button className="btn-ter mt-2" onClick={() => setPrepAIOpen(true)}><Icon name="sparkles" /> AI prep list</button>
+              <button className="btn-ter mt-2" onClick={() => setTroubleshootOpen(true)}><Icon name="wrench" /> Troubleshoot</button>
+              <button className="btn-ter mt-2" onClick={() => setShowSupplies(true)}>+ Add supplies</button>
             </div>
           )}
         </>
       ) : isAdmin ? (
         // id: the scoped "No pick list yet" tile lands here — on the buttons that make one.
         <div className="adm-prep-actions" id="prep-target-start" style={{ flexWrap: "wrap" }}>
-          <button className="adm-btn primary" onClick={() => generate()} disabled={generating}>{generating ? "Generating…" : "Generate pack list from menu"}</button>
-          <button className="adm-btn" onClick={() => setPrepAIOpen(true)}><Icon name="sparkles" /> AI prep list</button>
-          <button className="adm-btn ts-btn" onClick={() => setTroubleshootOpen(true)}><Icon name="wrench" /> Troubleshoot</button>
+          <Button kind="primary" onClick={() => generate()} disabled={generating}>{generating ? "Generating…" : "Generate pack list from menu"}</Button>
+          <Button kind="secondary" onClick={() => setPrepAIOpen(true)}><Icon name="sparkles" /> AI prep list</Button>
+          <Button kind="secondary" onClick={() => setTroubleshootOpen(true)}><Icon name="wrench" /> Troubleshoot</Button>
         </div>
       ) : <div id="prep-target-start"><EmptyState title="No pick list yet" /></div>}
       {prepAIOpen && (
@@ -2570,7 +2571,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       {/* Nuke / reset — wipe the prep + schedule built for this event/stop and start clean. */}
       {isAdmin && total > 0 && (
         <div className="adm-reset-row">
-          <button type="button" className="adm-reset-btn" onClick={resetAll} disabled={generating}>Reset this {isEvent ? "event" : "truck stop"} — clear prep &amp; schedule</button>
+          <Button type="button" kind="destructive" onClick={resetAll} disabled={generating}>Reset this {isEvent ? "event" : "truck stop"} — clear prep &amp; schedule</Button>
         </div>
       )}
 
@@ -2606,8 +2607,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
             ))}
           </div>
           <div className="adm-approve-actions">
-            {iAmRequired && <button className={`adm-btn${iApproved ? " ghost" : " primary"}`} onClick={() => toggleApproval(iApproved)}>{iApproved ? "Withdraw approval" : "Approve prep"}</button>}
-            {isAdmin && !fullyApproved && pendingApprovers.length > 0 && <button className="adm-btn ghost" onClick={() => requestSignoff(pendingApprovers)}>Request sign-off</button>}
+            {iAmRequired && <Button kind={iApproved ? "secondary" : "primary"} onClick={() => toggleApproval(iApproved)}>{iApproved ? "Withdraw approval" : "Approve prep"}</Button>}
+            {isAdmin && !fullyApproved && pendingApprovers.length > 0 && <Button kind="secondary" onClick={() => requestSignoff(pendingApprovers)}>Request sign-off</Button>}
           </div>
           {managers.length === 0 && <div className="h-sub" style={{ marginTop: 6 }}>Tag a crew member <Icon name="star" /> as manager to require their approval too.</div>}
         </div>
@@ -2695,7 +2696,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
         <div className="adm-task-add">
           <input className="subpitch-email" style={{ marginBottom: 0 }} placeholder="Add a task…" value={newTask} onChange={(e) => setNewTask(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTask()} aria-label="Add a task" />
           <input type="date" className="subpitch-email adm-task-due" style={{ marginBottom: 0 }} value={newTaskDue} onChange={(e) => setNewTaskDue(e.target.value)} aria-label="Due date (optional)" title="Due date (optional)" />
-          <button className="adm-btn" onClick={addTask}>Add</button>
+          <Button kind="secondary" compact onClick={addTask}>Add</Button>
         </div>
       )}
 
@@ -3034,7 +3035,7 @@ function MeetingNotes() {
           // The words stay with the page when the composer closes; its follow-ups and files do not.
           dirty={cActions.length > 0 || cFiles.length > 0}
           header={<div className="note-lux-head"><span className="note-lux-eyb">New note</span><CloseButton onClick={() => { setComposing(false); setCActions([]); setCFiles([]); }} /></div>}
-          footer={<div className="note-actions"><LeaveButton className="note-cancel" onClick={() => { setComposing(false); setCActions([]); setCFiles([]); }}>Cancel</LeaveButton><button type="button" className="note-save" disabled={!cTitle.trim() || saving} onClick={save}>{saving ? "Saving…" : "Save note"}</button></div>}>
+          footer={<div className="note-actions"><LeaveButton className="btn-sec" onClick={() => { setComposing(false); setCActions([]); setCFiles([]); }}>Cancel</LeaveButton><button type="button" className="btn-pri" disabled={!cTitle.trim() || saving} onClick={save}>{saving ? "Saving…" : "Save note"}</button></div>}>
           <div className="note-composer">
             <input className="note-in note-lux-title" placeholder="What&rsquo;s this note about?" value={cTitle} onChange={(e) => setCTitle(e.target.value)} autoFocus />
             <div className="note-row">
@@ -3425,7 +3426,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
                 <input className="note-in" value={titleDraft} autoFocus maxLength={120} aria-label="Note name"
                   onChange={(e) => setTitleDraft(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") saveTitle(); if (e.key === "Escape") { setRenaming(false); setTitleDraft(note.title); } }} />
-                <button type="button" className="note-save" onClick={saveTitle} disabled={!titleDraft.trim()}>Save</button>
+                <button type="button" className="btn-pri" onClick={saveTitle} disabled={!titleDraft.trim()}>Save</button>
                 <button type="button" className="note-arch" onClick={() => { setRenaming(false); setTitleDraft(note.title); }}>Cancel</button>
               </div>
             ) : (
@@ -3494,7 +3495,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
                 )}
                 <div className="note-addbox-r">
                   <button type="button" className="note-arch" onClick={() => { setAdding(false); setAddDraft(""); setAddFiles([]); }}>Cancel</button>
-                  <button type="button" className="note-save" onClick={saveAdd} disabled={addSaving || (!addDraft.trim() && addFiles.length === 0)}>{addSaving ? "Adding…" : "Add to note"}</button>
+                  <button type="button" className="btn-pri" onClick={saveAdd} disabled={addSaving || (!addDraft.trim() && addFiles.length === 0)}>{addSaving ? "Adding…" : "Add to note"}</button>
                 </div>
               </div>
             ) : (
@@ -3526,7 +3527,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
                 <input className="note-in" placeholder="Follow-up task (optional — files on this note)" value={dec.fu} onChange={(e) => setDec({ ...dec, fu: e.target.value })} />
                 <div className="note-addbox-r">
                   <button type="button" className="note-arch" onClick={() => { setLogging(false); setDec({ key: "", decision: "", why: "", fu: "" }); }}>Cancel</button>
-                  <button type="button" className="note-save" onClick={saveDecision} disabled={!dec.decision.trim()}>Log it</button>
+                  <button type="button" className="btn-pri" onClick={saveDecision} disabled={!dec.decision.trim()}>Log it</button>
                 </div>
               </div>
             ) : (
@@ -3566,7 +3567,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
           ))}
           <div className="note-fu-add">
             <input className="note-in" placeholder="Add a follow-up…" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
-            <button type="button" className="note-fu-addbtn" onClick={add} disabled={!newItem.trim()}>Add</button>
+            <Button type="button" kind="primary" compact onClick={add} disabled={!newItem.trim()}>Add</Button>
           </div>
           <div className="note-foot">
             <button type="button" className="note-arch" onClick={onArchive}>{note.archived_at ? "Restore" : "Archive"}</button>
@@ -3813,7 +3814,7 @@ function ReservesAdmin() {
 
   return (
     <div className="adm-sec">
-      <SectionHeader label="Reserves" right={<button type="button" className="btn-sec" onClick={add}>+ Add</button>} />
+      <SectionHeader label="Reserves" right={<Button type="button" kind="quiet" onClick={add}>+ Add</Button>} />
       <AsyncSection
         state={reservesState}
         isEmpty={(rows) => rows.filter((r) => r.status !== "archived").length === 0}
@@ -3866,7 +3867,7 @@ function ReservesAdmin() {
                     </label>
                     <label className="adm-check"><input type="checkbox" defaultChecked={r.member_only} onChange={(e) => update(r.id, { member_only: e.target.checked })} />Members</label>
                     <button type="button" className="btn-ter" onClick={() => archive(r.id)}>Archive</button>
-                    <button type="button" className="btn-ter" style={{ color: "#e07a76" }} onClick={() => remove(r.id, r.name)}>Delete</button>
+                    <Button type="button" kind="destructive" onClick={() => remove(r.id, r.name)}>Delete</Button>
                   </div>
                 </div>
               ))}
@@ -4064,7 +4065,7 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
           <label>Credit $<input type="text" inputMode="decimal" value={credit} onChange={(e) => setCredit(e.target.value)} /></label>
           <label className="adm-check"><input type="checkbox" checked={founding} onChange={(e) => setFounding(e.target.checked)} />Founding</label>
           {role !== "member" && <label className="adm-check"><input type="checkbox" checked={isDriver} onChange={toggleDriver} /><Icon name="compass" /> Driver</label>}
-          <button className={`adm-btn${dirty ? " primary" : ""}`} onClick={save} disabled={!dirty || busy}>{busy ? "…" : "Save"}</button>
+          <Button kind="primary" compact onClick={save} disabled={!dirty || busy}>{busy ? "…" : "Save"}</Button>
         </div>
       )}
     </div>
@@ -4821,7 +4822,7 @@ function EventsAdmin() {
   return (
     <div className="adm-sec">
       <SectionHeader label="Events" right={<>
-        <button className="adm-btn eg-btn" onClick={() => setGenOpen(true)}><Icon name="sparkles" /> From notes</button>
+        <Button kind="quiet" className="mr-2" onClick={() => setGenOpen(true)}><Icon name="sparkles" /> From notes</Button>
         <InlineCreate label="+ Add" placeholder="Event title" onCreate={addEvent} />
       </>} />
       {genOpen && <EventGenerator onClose={() => setGenOpen(false)} onCreated={load} />}
@@ -4881,8 +4882,8 @@ function EventsAdmin() {
                       <span className="ev-arch-name">{e.title || "Untitled event"}</span>
                       {/* Which one: two archived rows can share a title (0314's twins). */}
                       <span className="ev-arch-when">{evDate(e) ?? "No date"}</span>
-                      <button className="ev-arch-btn" onClick={() => restore(e.id)}>Restore</button>
-                      <button className="ev-arch-btn del" onClick={() => remove(e.id)}>Delete</button>
+                      <Button kind="secondary" compact onClick={() => restore(e.id)}>Restore</Button>
+                      <Button kind="destructive" onClick={() => remove(e.id)}>Delete</Button>
                     </div>
                   ))}
                 </div>
@@ -5055,8 +5056,8 @@ function VendorLocationsEditor({ vendorId, vendorName }: { vendorId: string; ven
             {locs.map((l) => (
               <div className="vloc-row" key={l.id}>
                 <div className="vloc-main"><b>{l.label}</b>{(l.address || l.location_text) && <span>{l.address ?? l.location_text}</span>}</div>
-                {l.is_primary ? <span className="vloc-pri">Primary</span> : <button className="ev-arch-btn" onClick={() => setPrimary(l.id)}>Make primary</button>}
-                <button className="ev-arch-btn del" onClick={() => archiveLoc(l.id, l.label)}>Remove</button>
+                {l.is_primary ? <span className="vloc-pri">Primary</span> : <Button kind="secondary" compact onClick={() => setPrimary(l.id)}>Make primary</Button>}
+                <Button kind="destructive" onClick={() => archiveLoc(l.id, l.label)}>Remove</Button>
               </div>
             ))}
           </>
@@ -5065,7 +5066,7 @@ function VendorLocationsEditor({ vendorId, vendorName }: { vendorId: string; ven
       <div className="vnew-row" style={{ marginTop: 8 }}>
         <input className="ev-input" value={nm} onChange={(e) => setNm(e.target.value)} placeholder="Location name" maxLength={80} />
         <input className="ev-input" value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="Address (optional)" maxLength={300} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
-        <button type="button" className="adm-btn" onClick={add} disabled={!nm.trim()}>Add</button>
+        <Button type="button" kind="secondary" compact onClick={add} disabled={!nm.trim()}>Add</Button>
       </div>
     </div>
   );
@@ -5199,8 +5200,8 @@ function VendorsAdmin() {
                     <span className="vdupe-names"><b>{d.a_name}</b><em>{Math.round(d.sim * 100)}%</em><b>{d.b_name}</b></span>
                     {isAdmin ? (
                       <span style={{ display: "flex", gap: 6 }}>
-                        <button className="adm-btn" disabled={merging} onClick={() => merge(d.a, d.b, d.a_name, d.b_name)}>Keep {d.a_name}</button>
-                        <button className="adm-btn" disabled={merging} onClick={() => merge(d.b, d.a, d.b_name, d.a_name)}>Keep {d.b_name}</button>
+                        <Button kind="secondary" compact disabled={merging} onClick={() => merge(d.a, d.b, d.a_name, d.b_name)}>Keep {d.a_name}</Button>
+                        <Button kind="secondary" compact disabled={merging} onClick={() => merge(d.b, d.a, d.b_name, d.a_name)}>Keep {d.b_name}</Button>
                       </span>
                     ) : (
                       <span className="pnl-note">Owner can merge these</span>
@@ -5215,7 +5216,7 @@ function VendorsAdmin() {
                 {pending.map((v) => (
                   <div className="vendor-sug pend" key={`pend-${v.id}`}>
                     <div className="vendor-sug-main"><b>{v.name}</b><span>Added from a truck stop — approve to add it to the book</span></div>
-                    <button className="adm-btn primary" onClick={() => approve(v.id)}>Approve</button>
+                    <Button kind="primary" compact onClick={() => approve(v.id)}>Approve</Button>
                   </div>
                 ))}
               </div>
@@ -5226,7 +5227,7 @@ function VendorsAdmin() {
                 {suggestions.map((sug) => (
                   <div className="vendor-sug" key={`${sug.kind}-${sug.id}`}>
                     <div className="vendor-sug-main"><b>{sug.name}</b><span>{sug.kind === "stop" ? "Stop" : "Event"}{sug.sub ? ` · ${sug.sub}` : ""}</span></div>
-                    <button className="adm-btn" onClick={() => createFrom(sug)}>+ Create</button>
+                    <Button kind="secondary" compact onClick={() => createFrom(sug)}>+ Create</Button>
                   </div>
                 ))}
               </div>
@@ -5246,7 +5247,7 @@ function VendorsAdmin() {
               <div className="ev-archived">
                 <button className="ev-arch-head" onClick={() => setShowArch((s) => !s)} aria-expanded={showArch}>Archived vendors · {archived.length}<span className={`ev-chev${showArch ? " open" : ""}`}>›</span></button>
                 {showArch && archived.map((v) => (
-                  <div className="ev-arch-row" key={v.id}><span className="ev-arch-name">{v.name}</span><button className="ev-arch-btn" onClick={() => restore(v.id)}>Restore</button><button className="ev-arch-btn del" onClick={() => del(v.id, v.name)}>Delete</button></div>
+                  <div className="ev-arch-row" key={v.id}><span className="ev-arch-name">{v.name}</span><Button kind="secondary" compact onClick={() => restore(v.id)}>Restore</Button><Button kind="destructive" onClick={() => del(v.id, v.name)}>Delete</Button></div>
                 ))}
               </div>
             )}
@@ -5354,7 +5355,7 @@ function SectionGuide({ allowed, current, start, onGo, onClose }: { allowed: OpS
                     <ul className="guide-inside">{SEC_INSIDE[s].map((x) => <li key={x}>{x}</li>)}</ul>
                     {here
                       ? <div className="guide-here-note">You're in {SEC_LABEL[s]} now.</div>
-                      : <button type="button" className="guide-go" onClick={() => { onGo(s); onClose(); }}>Go to {SEC_LABEL[s]} ›</button>}
+                      : <Button type="button" kind="primary" compact onClick={() => { onGo(s); onClose(); }}>Go to {SEC_LABEL[s]} ›</Button>}
                   </div>
                 )}
               </div>
@@ -5746,7 +5747,7 @@ export default function AdminPage() {
       <div className="toprow"><div className="eyb">Crew</div><Link className="pf hit-44" href="/">‹</Link></div>
       <div className="h-title">Couldn&apos;t load your account.</div>
       <div className="h-sub">This is not a permissions problem — we couldn&apos;t read your profile just now, so we don&apos;t know what you can see. Nothing has changed.</div>
-      <button type="button" className="note-save" style={{ marginTop: 14 }} onClick={() => refreshProfile()}>Try again</button>
+      <button type="button" className="btn-pri mt-3.5" onClick={() => refreshProfile()}>Try again</button>
     </section>
   );
   if (role === "member") {
@@ -5755,7 +5756,7 @@ export default function AdminPage() {
         <div className="toprow"><div className="eyb">Crew</div><Link className="pf hit-44" href="/">‹</Link></div>
         <div className="h-title">Staff only.</div>
         <div className="h-sub">This area is for GT3PB staff. If that&apos;s you, ask the owner to add you — then tap below.</div>
-        <button type="button" className="note-save" style={{ marginTop: 14 }} onClick={() => window.location.reload()}>I&apos;ve been added — check again</button>
+        <button type="button" className="btn-pri mt-3.5" onClick={() => window.location.reload()}>I&apos;ve been added — check again</button>
       </section>
     );
   }
