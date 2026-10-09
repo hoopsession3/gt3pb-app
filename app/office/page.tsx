@@ -7,7 +7,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
 import Watermark from "@/components/Watermark";
-import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
+import { Masthead, SectionHeader, ClosingBeat, Columns, Column } from "@/components/kit";
 import Skeleton from "@/components/Skeleton";
 import { supabase } from "@/lib/supabase";
 import { officeQuote, windowHours } from "@/lib/office";
@@ -155,14 +155,14 @@ export default function OfficeScreen() {
       <Masthead eyebrow="Your GT3" right={<AccountPill />} />
 
       {loadError ? (
-        <div className="op-none">
+        <div className="op-none desk:max-w-130 desk:mx-auto">
           <div className="op-none-ic"><Icon name="warning" /></div>
           <h1>Couldn&rsquo;t load your account.</h1>
           <p>Something went wrong loading your office delivery details.</p>
           <button type="button" className="btn-pri btn-wide mt-4.5" onClick={() => load()}><span>Try again</span></button>
         </div>
       ) : !h ? (
-        <div className="op-none">
+        <div className="op-none desk:max-w-130 desk:mx-auto">
           <div className="op-none-ic"><Icon name="jar" /></div>
           <h1>Bring GT3 to the office.</h1>
           <p>Fresh cold-extract in amber gallon jugs, delivered Monday 5–8&nbsp;AM, empties swapped for full each week. {settings.minGallons}-gallon minimum.</p>
@@ -174,6 +174,12 @@ export default function OfficeScreen() {
           <p className="m-0 font-sans text-footnote text-cream-muted">{[h.locations[0].label, h.locations[0].street, h.locations[0].city].filter((x, k, a) => x && a.indexOf(x) === k).join(" · ")}</p>
         )}
 
+        {/* ON THE DESK (2026-10-09, redesign 5, approved: "/office gets the same treatment, for example its
+            deliveries beside its calendar"). The deliveries on the left — the next one, the calendar, the weekly
+            order — and the account beside them: requests, invoices, what was delivered, the jugs. A phone reads
+            them in this order. */}
+        <Columns>
+        <Column>
         {/* the next delivery, live */}
         {next ? <NextCard d={next} h={h} place={placeOf(next)} now={now} onChange={() => open(next)} onSkip={() => open(next, true)} onAsk={() => setAsking("service_issue")} /> : (
           <div className="op-card"><span className="op-k">Next delivery</span><p className="op-sub">Nothing on the schedule in the next six weeks{h.programs.some((p) => p.status === "paused") ? " — the weekly order is paused" : ""}.</p></div>
@@ -238,6 +244,8 @@ export default function OfficeScreen() {
           </div>
         )}
 
+        </Column>
+        <Column>
         {/* requests to GT3, and the door to send one */}
         {!h.legacy && (h.requests.length > 0 || h.can_request) && (
           <div className="op-list">
@@ -298,6 +306,8 @@ export default function OfficeScreen() {
         </div>
 
         {h.legacy && <p className="op-fine">Questions or a one-off change? Text us — we confirm every route the Friday before.</p>}
+        </Column>
+        </Columns>
       </>)}
       <ClosingBeat />
 
