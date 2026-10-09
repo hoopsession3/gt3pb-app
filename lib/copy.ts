@@ -279,7 +279,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "findus.past_events", group: "Find Us", label: "Past-events fold label", default: "Past events" },
   { key: "findus.book_cta", group: "Find Us", label: "Book-the-bar button", default: "Book the bar for your event" },
   { key: "findus.ping_off", group: "Find Us", label: "Live-ping opt-in — off", default: "Ping me when the truck goes live" },
-  { key: "findus.ping_on", group: "Find Us", label: "Live-ping opt-in — on", default: "You're on the list — we'll ping you when we're live" },
+  { key: "findus.ping_on", group: "Find Us", label: "Live-ping opt-in — on", default: "On the list — we'll ping you" },
   // ── Drink sheet (the popout over /menu). Pillar tag + section labels + chrome CTAs. The per-drink
   //    d.has/d.no ingredient lists stay in the menu data (lib/menu.ts), not here. ──
   { key: "sheet.pillar_before", group: "Menu", label: "Drink sheet — Activation pillar tag", default: "Activation · Before the work" },
