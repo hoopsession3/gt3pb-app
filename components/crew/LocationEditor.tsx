@@ -20,6 +20,7 @@ import { localToday, etDayKey, etToday, timeRange } from "@/lib/dates";
 import { dateLine } from "@/lib/eventRecord";
 import { vendorKindLabel } from "@/lib/vendorKind";
 import { useLongPress, type MenuItem } from "@/components/LongPress";
+import Button from "../Button";
 
 // LOCATION EDITOR — the address / pin / vendor-link row for a stop or a vendor place.
 //
@@ -208,7 +209,7 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
                   one destination — exactly the "why is prep on the screen twice" complaint that opened
                   this audit. FieldOpSheet still offers its own single door to the hub on demand; that one
                   stays (different surface, on-demand only, already correctly singular). */}
-              <button type="button" className="adm-btn" onClick={() => setEditFacts(true)}>Edit name, date, time, venue &amp; address ›</button>
+              <Button type="button" kind="secondary" compact onClick={() => setEditFacts(true)}>Edit name, date, time, venue &amp; address ›</Button>
               {venue && <VenueContact venue={venue} />}
             </div>
           ) : (
@@ -261,7 +262,7 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
                 complete-this-stop action — it wasn't: both buttons called this exact same onOpenPrep with
                 no differentiating state, so the green "complete" styling and check icon promised something
                 that never happened. */}
-            {kind === "stop" && onOpenPrep && <button className="adm-btn" style={{ marginRight: "auto" }} onClick={onOpenPrep}>Full prep — menu, staffing, run-of-show ›</button>}
+            {kind === "stop" && onOpenPrep && <Button kind="secondary" compact className="mr-auto" onClick={onOpenPrep}>Full prep — menu, staffing, run-of-show ›</Button>}
             {kind === "vendor" && <button className="ev-archive" onClick={onArchive}>Archive</button>}
             {kind === "vendor" && <button className="ev-delete" onClick={remove}>Delete</button>}
           </div>
