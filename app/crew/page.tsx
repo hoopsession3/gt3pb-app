@@ -57,7 +57,6 @@ import { goPlanTab, isPlanTab, planTabFromUrl, stampPlanTab, PLAN_TAB_KEY, PLAN_
 import SwipePager from "@/components/SwipePager";
 import SwipeRow, { type RowAction } from "@/components/SwipeRow";
 import LongPress, { useLongPress, type MenuItem } from "@/components/LongPress";
-import GtmCard from "@/components/GtmCard";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
 import { queueOrderStatus, queueCollectCup, isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
@@ -183,8 +182,6 @@ const IntegrationsPanel = dynamic(() => import("@/components/IntegrationsPanel")
 const OutlookConnect = dynamic(() => import("@/components/OutlookConnect"), { loading: () => <PourFill label="Loading…" /> });
 const CupOrderingDial = dynamic(() => import("@/components/crew/CupOrderingDial"), { loading: () => <PourFill label="Loading…" /> });
 const ErrorLog = dynamic(() => import("@/components/ErrorLog"), { loading: () => <PourFill label="Loading…" /> });
-const SmartIntake = dynamic(() => import("@/components/SmartIntake"), { loading: () => <PourFill label="Loading…" /> });
-const DocsFiled = dynamic(() => import("@/components/DocsFiled"), { loading: () => <PourFill label="Loading…" /> });
 import Prose from "@/components/Prose";
 import { chime, unlockAudio } from "@/lib/chime";
 import { haptic } from "@/lib/haptics";
@@ -1436,7 +1433,6 @@ function MyDay({ userId, isLeader, canGoLive, canBrew, money }: { userId: string
   const rhythm = rhythmState.data ?? NO_RHYTHM;
 
 
-  const [leadOpen, setLeadOpen] = useState(false); // leadership briefing/intake — collapsed by default (decrowd)
   return (
     <>
       {/* WHAT OPENS THE DAY IS THE DAY (2026-10-04, Ryan: "strategically look for where something is
@@ -1486,41 +1482,28 @@ function MyDay({ userId, isLeader, canGoLive, canBrew, money }: { userId: string
           <button type="button" className="btn-ter" onClick={() => reloadFlags()}>Try again</button>
         </p>
       )}
-      {/* THE WEEK IN THREE NUMBERS — sales and margin for whoever holds Money, the next drop for
-          whoever manages; nothing for crew, whose home is the day's work. */}
-      <HomeNumbers money={money} drops={isLeader} />
-      </Column>
-      <Column>
       {/* TODAY: what is due, and only that, from My tasks and Needs you together (components/TodayList).
           WHAT IS OWED (0320) still reads here — until it shipped the app stored eleven kinds of deadline
           and showed none of them, and silence is only a signal when somebody is listening — but a
-          deadline months past no longer leads the morning: it waits, counted, in one row. */}
+          deadline months past no longer leads the morning: it waits, counted, in one row. Under the
+          day itself, so a phone reaches it on the first screen (2026-10-09: the numbers stood above it
+          and left two of its rows above the tab bar). */}
       <TodayList allTasks={<><MyTasks userId={userId} anchor={false} /><Owed /></>} />
-      {/* "✎ Note to self" lived here — the same sheet the quick-actions button opens on its Note
-          tab, from every screen. One door (2026-10-04). */}
-      {/* Lead-the-week tools: collapsed to one chip until called for (decrowd — the briefing is
-          on-demand by nature; it shouldn't occupy the glance screen). */}
-      {isLeader && (
-        <div style={{ marginTop: 18 }}>
-          <button type="button" className={`k-chip${leadOpen ? " on" : ""}`} onClick={() => setLeadOpen((o) => !o)} aria-expanded={leadOpen}>
-            <Icon name="compass" /> Lead the week — GTM, briefing &amp; intake {leadOpen ? "▴" : "▾"}
-          </button>
-          {leadOpen && (
-            <div style={{ marginTop: 12 }}>
-              {/* GTM definition first — its home is the collapsed chip (Ryan: "GTM -> collapsed chip") */}
-              <GtmCard onOpenSchedule={() => setSection("now")} onOpenInitiative={() => setSection("command")} />
-              <ChiefOfStaff />
-              <SmartIntake />
-              {/* The read half of intake. Filing has worked since 0088; nothing in the app has ever
-                  read public.documents, so a permit went in and could only be got back out of the
-                  SQL editor. Mounted directly under the thing that writes it, because "where did
-                  that go?" is asked in the place you put it. */}
-              <DocsFiled />
-            </div>
-          )}
-        </div>
-      )}
       </Column>
+      {(money || isLeader) && (
+      <Column>
+      {/* THE WEEK IN THREE NUMBERS — sales and margin for whoever holds Money, the next drop for
+          whoever manages; nothing for crew, whose home is the day's work. Beside the day on a desk,
+          under it on a phone: glanced at once, after what is due. */}
+      <HomeNumbers money={money} drops={isLeader} />
+      {/* LEAD THE WEEK LEFT MY DAY (2026-10-09, One home; Ryan: "whats the lead the week, gtm briefing &
+          intake, any operational purposes?"). A chip that folded three tools a leader reaches for weekly or
+          less: a go-to-market card of fixed text whose anchor was Aug 1 (retired — Command's initiatives
+          and goals are the live version of "what we're driving to"), the Chief of Staff briefing (on
+          Command now, where the week is led), and Smart intake with what it filed (Quick actions › File,
+          from every screen — a permit arrives in the hand, not at My Day). A daily screen holds the day. */}
+      </Column>
+      )}
       </Columns>
     </>
   );
@@ -5886,6 +5869,9 @@ export default function AdminPage() {
           <CommandBoard />
           </Column>
           <Column>
+          {/* THE WEEK, LED FROM HERE (2026-10-09): the Chief of Staff briefing came from My Day's "Lead the
+              week" fold — on demand, owner-run, and about the period, so it sits with the goals it ranks. */}
+          <ChiefOfStaff />
           {/* Goals moved home 2026-07-29 (was its own section): "are we on track?" and "where are
               we steering?" are the same leadership conversation — one screen answers both now.
               Goals keeps its id="goals" anchor, so strategy alerts land right on it.
