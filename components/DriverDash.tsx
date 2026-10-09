@@ -10,6 +10,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import { useOperatorSection } from "./OperatorNav";
+import { btn } from "./Button";
 
 // The driver's tab — the next run at a glance, one action: open driver mode (map + run list).
 // Run OPS (statuses, outcomes, pack-out) stay in Live Ops; this is the wheel view. Fetch state via
@@ -46,7 +47,7 @@ export default function DriverDash({ isLead }: { isLead: boolean }) {
                 <b>{runDay ? "Today" : new Date(`${nextDate}T00:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</b>
                 <span>{run.length} porch{run.length === 1 ? "" : "es"}{zips ? ` · ${zips}` : ""}</span>
               </div>
-              <Link href="/driver" className="drv-go"><Icon name="compass" /> Open driver mode — map &amp; run list</Link>
+              <Link href="/driver" className={btn("primary", { wide: true })}><Icon name="compass" /> Open driver mode — map &amp; run list</Link>
             </div>
           );
         }}

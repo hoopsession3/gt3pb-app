@@ -1256,6 +1256,66 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await big.close();
   }
 
+  // ── 5g · ONE SET OF BUTTONS (2026-10-09, the button round — Ryan approved proposal 7) ──
+  // Four kinds in two sizes (app/globals.css "03 · Buttons", components/Button): primary filled — GT3 red on a
+  // customer's screen, gold in the console — secondary outlined, quiet gold words, destructive red words. Regular
+  // stands 50pt with 17pt words; compact 36pt with 15pt words and a 44pt reach. Measured on a specimen of each,
+  // drawn into the screen itself (so the screen's own look inks it), and on a real one: the guest's Sign in.
+  {
+    const specimen = (page) => page.evaluate(() => {
+      const host = document.getElementById("body");
+      const out = {};
+      for (const [k, c] of Object.entries({ pri: "btn-pri", sec: "btn-sec", ter: "btn-ter", del: "btn-del" })) for (const sm of [false, true]) {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = sm ? `${c} btn-sm` : c; b.textContent = "Save";
+        host.appendChild(b);
+        const r = b.getBoundingClientRect(), cs = getComputedStyle(b), af = getComputedStyle(b, "::after");
+        out[k + (sm ? "-sm" : "")] = { h: Math.round(r.height), fs: cs.fontSize, bg: cs.backgroundColor, ink: cs.color,
+          reach: af.content === "none" ? null : Math.round(r.height - parseFloat(af.top) - parseFloat(af.bottom)) };
+        b.remove();
+      }
+      const app = document.querySelector(".app");
+      return { out, surface: app?.dataset.surface, gold: getComputedStyle(app).getPropertyValue("--gold").trim() };
+    });
+    const hex = (h) => { const n = parseInt(h.replace("#", ""), 16); return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`; };
+    const ctx = await phoneContext(MAIN);
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    await page.goto(`${BASE}/menu`, { waitUntil: "load" });
+    await page.waitForTimeout(600); await page.evaluate(SETTLE);
+    const guest = await specimen(page);
+    const g = guest.out;
+    ok("buttons: on a customer's screen regular stands 50pt with 17pt words, the primary GT3 red, the quiet and destructive kinds 44 to the thumb",
+      guest.surface === "customer" && g.pri.h === 50 && g.sec.h === 50 && g.pri.fs === "17px" && g.pri.bg === "rgb(184, 36, 32)" && g.ter.h >= 44 && g.del.h >= 44, JSON.stringify(guest));
+    ok("buttons: compact stands 36pt with 15pt words and still reaches 44pt", g["pri-sm"].h === 36 && g["sec-sm"].h === 36 && g["sec-sm"].fs === "15px"
+      && g["pri-sm"].reach === 44 && g["sec-sm"].reach === 44, JSON.stringify({ pri: g["pri-sm"], sec: g["sec-sm"] }));
+    const pill = page.locator('button.acct-av[aria-label="Your account"]').first();
+    if (await pill.count()) await pill.click();
+    await page.waitForTimeout(700);
+    const signIn = await page.evaluate(() => {
+      const b = [...document.querySelectorAll(".sheet2 .btn-pri")].find((x) => x.textContent.trim() === "Sign in");
+      if (!b) return null;
+      const r = b.getBoundingClientRect(), cs = getComputedStyle(b);
+      const box = getComputedStyle(b.parentElement), inner = b.parentElement.clientWidth - parseFloat(box.paddingLeft) - parseFloat(box.paddingRight);
+      return { h: Math.round(r.height), caps: cs.textTransform, wide: Math.abs(r.width - inner) <= 1, w: Math.round(r.width), inner: Math.round(inner) };
+    });
+    ok("buttons: the guest's Sign in is the kit's primary — 50pt, the sheet's width, in sentence case (it was capitals, a recipe of its own)",
+      !!signIn && signIn.h === 50 && signIn.caps === "none" && signIn.wide, JSON.stringify(signIn));
+    await ctx.close();
+    const crew = await phoneContext(MAIN, { owner: true, theme: "dark" });
+    const cp = await crew.newPage();
+    await insetsOn(cp, MAIN.top, MAIN.bottom);
+    const errors2 = watch(cp);
+    await cp.goto(`${BASE}/crew?s=now`, { waitUntil: "load" });
+    await cp.waitForTimeout(900); await cp.evaluate(SETTLE);
+    const console_ = await specimen(cp);
+    ok("buttons: in the crew console the primary is gold — the shell says which surface it is (data-surface)",
+      console_.surface === "console" && console_.out.pri.bg === hex(console_.gold) && console_.out.pri.h === 50, JSON.stringify({ surface: console_.surface, gold: console_.gold, pri: console_.out.pri }));
+    ok("buttons: no errors", errors.length === 0 && errors2.length === 0, [...errors, ...errors2].join(" | "));
+    await crew.close();
+  }
+
   // ── 6 · deleting your account, in the app (App Store Review Guideline 5.1.1(v)) ──
   // Signed in, from the avatar's menu: the row, its screen (loaded when tapped — so it must be in the
   // export), what it asks the web's API, and after the red button a phone that is signed out and home.
@@ -1407,7 +1467,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       if (!(await eventRow.count())) ok("device: Find Us shows the seeded event", false, "no Night Run row on /truck");
       else {
         await eventRow.click();
-        await page.locator(".atc-btn").first().click();
+        await page.locator(".atc > button").first().click();
         const item = page.locator(".atc-menu .atc-item").first();
         const label = (await item.textContent())?.trim() ?? "";
         const got = await asked(() => item.click());
@@ -1477,7 +1537,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         csv?.name === "gt3-errors.csv" && csv.text.startsWith("﻿kind,message,where,count,first_seen,last_seen,frame,ua\r\n"), JSON.stringify(csv && { name: csv.name, text: csv.text.slice(0, 60) }));
       await page.goto(`${BASE}/truck`, { waitUntil: "load" }); await settle();
       await page.locator('[aria-label="Night Run — details"]').first().click().catch(() => {});
-      await page.locator(".atc-btn").first().click().catch(() => {});
+      await page.locator(".atc > button").first().click().catch(() => {});
       const ics = await download(() => page.locator(".atc-menu .atc-item").first().click());
       ok("device, no phone: Add to calendar downloads the .ics, as on the web",
         ics?.name === "night-run.ics" && /^BEGIN:VCALENDAR\r\n/.test(ics.text) && /SUMMARY:Night Run\r\n/.test(ics.text) && /LOCATION:Falls Park\\, Greenville SC\r\n/.test(ics.text),

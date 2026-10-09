@@ -66,7 +66,7 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
           <div className="prof-av-row">
             <div className="prof-av" style={avatar ? { backgroundImage: `url(${avatar})` } : undefined} aria-hidden>{!avatar && initial}</div>
             <div className="prof-av-ctl">
-              <button type="button" className="note-save" onClick={() => fileRef.current?.click()} disabled={busy}>{busy ? "Uploading…" : avatar ? "Change photo" : "Add photo"}</button>
+              <button type="button" className="btn-sec btn-sm" onClick={() => fileRef.current?.click()} disabled={busy}>{busy ? "Uploading…" : avatar ? "Change photo" : "Add photo"}</button>
               <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) pickAvatar(f); e.target.value = ""; }} />
               <div className="prof-av-hint">A clean headshot reads best.</div>
             </div>
@@ -82,12 +82,12 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
             ) : notifState === "denied" ? (
               <div className="prof-notif-s">Blocked in your phone&apos;s settings — enable notifications for this app to get &ldquo;order ready&rdquo; pings.</div>
             ) : (
-              <button type="button" className="note-save" style={{ width: "100%" }} onClick={enableNotifs}><Icon name="bell" /> Turn on order-ready alerts</button>
+              <button type="button" className="btn-sec btn-wide" onClick={enableNotifs}><Icon name="bell" /> Turn on order-ready alerts</button>
             )}
           </div>
           <div className="prod-actions" style={{ marginTop: 14 }}>
-            <LeaveButton className="note-arch" onClick={onClose}>Cancel</LeaveButton>
-            <button type="button" className="note-save" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save profile"}</button>
+            <LeaveButton className="btn-ter" onClick={onClose}>Cancel</LeaveButton>
+            <button type="button" className="btn-pri" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save profile"}</button>
           </div>
     </Sheet>
   );

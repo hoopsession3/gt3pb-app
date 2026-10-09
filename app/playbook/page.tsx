@@ -69,7 +69,7 @@ export default function PlaybookPage() {
         <PlayBuilder prefill={builder.prefill} onDone={() => { setBuilder(null); reload(); }} />
       ) : (
         <>
-          <button type="button" className="btn-pri" onClick={() => setBuilder({ prefill: null })}><Icon name="plus" /> Build a play</button>
+          <button type="button" className="btn-pri btn-wide" onClick={() => setBuilder({ prefill: null })}><Icon name="plus" /> Build a play</button>
           <p className="k-sub">Seven guided steps — name it, aim it, plan it, put honest numbers on it, wire it to the app. Saves as a draft for discussion.</p>
         </>
       )}

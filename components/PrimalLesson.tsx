@@ -208,7 +208,7 @@ export default function PrimalLesson({ slug }: { slug: string }) {
         {isDone ? (
           <div className="pr-done-badge"><Icon name="check" size={16} /> Completed — nice work</div>
         ) : v.customerId ? (
-          <button type="button" className="btn-pri" onClick={markComplete} disabled={saving}>{saving ? "Saving…" : "Mark complete"}</button>
+          <button type="button" className="btn-pri btn-wide" onClick={markComplete} disabled={saving}>{saving ? "Saving…" : "Mark complete"}</button>
         ) : (
           <div className="pr-signin-row">
             <span>Track your progress —</span> <AccountPill />

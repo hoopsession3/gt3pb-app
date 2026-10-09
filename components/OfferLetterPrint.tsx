@@ -80,7 +80,7 @@ export default function OfferLetterPrint({ row, onClose }: { row: LetterRow; onC
             ? "This letter is missing its at-will disclaimer — it is not ready to send."
             : "Printing does not send anything. The offer's status is unchanged."}
         </p>
-        <button type="button" className="btn-pri" onClick={() => void printPage(`Offer letter — ${row.candidate_name}`)}>Print / Save PDF</button>
+        <button type="button" className="btn-pri shrink-0" onClick={() => void printPage(`Offer letter — ${row.candidate_name}`)}>Print / Save PDF</button>
       </div>
 
       <div className="ofl-sheet">

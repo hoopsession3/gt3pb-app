@@ -81,7 +81,7 @@ export default function DeleteAccount({ staff, onKeep, onDeleted }: {
         <p className="cfm-body">Not yet.</p>
         {phase.blockers.map((b) => <p key={b.code} className="dp-hint">{b.message}</p>)}
         <div className="prod-actions cfm-actions">
-          <button type="button" className="cfm-ok" onClick={onKeep}>Back to your account</button>
+          <button type="button" className="btn-pri" onClick={onKeep}>Back to your account</button>
         </div>
       </div>
     );
@@ -93,7 +93,7 @@ export default function DeleteAccount({ staff, onKeep, onDeleted }: {
         <p className="cfm-body" role="alert">{phase.message}</p>
         <div className="prod-actions cfm-actions">
           <button type="button" className="note-arch" onClick={onKeep}>Back</button>
-          <button type="button" className="cfm-ok" onClick={() => { setPhase({ at: "checking" }); setAsked((n) => n + 1); }}>Try again</button>
+          <button type="button" className="btn-pri" onClick={() => { setPhase({ at: "checking" }); setAsked((n) => n + 1); }}>Try again</button>
         </div>
       </div>
     );
@@ -119,8 +119,8 @@ export default function DeleteAccount({ staff, onKeep, onDeleted }: {
       </p>
 
       <div className="prod-actions cfm-actions">
-        <button type="button" className="note-arch" onClick={onKeep} disabled={busy}>Keep my account</button>
-        <button type="button" className="note-save" onClick={() => erase(phase.membership)} disabled={busy}>
+        <button type="button" className="btn-ter" onClick={onKeep} disabled={busy}>Keep my account</button>
+        <button type="button" className="btn-del" onClick={() => erase(phase.membership)} disabled={busy}>
           {busy ? "Deleting…" : "Delete my account"}
         </button>
       </div>

@@ -166,7 +166,7 @@ export default function TaskSheetBody({ id, source, onClose }: { id: string; sou
             {editing ? (
               <div className="tsheet-edit">
                 <input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && saveTitle()} className="auth-input" />
-                <button type="button" className="note-save" onClick={saveTitle} disabled={busy}>Save</button>
+                <button type="button" className="btn-pri" onClick={saveTitle} disabled={busy}>Save</button>
               </div>
             ) : (
               <button type="button" className="tsheet-editlink" onClick={() => { setDraft(t.title ?? ""); setEditing(true); }}>Edit title</button>

@@ -157,7 +157,7 @@ export default function PackPlan({ ownerType, ownerId, title, onClose }: { owner
               {plan.totalKegShort > 0.01 && <div className="pp-tot-row warn"><span><Icon name="warning" /> Not enough keg space</span><b>{plan.totalKegShort.toFixed(1)} gal won&apos;t fit</b></div>}
             </div>
             <div className="dp-hint" style={{ marginTop: 10 }}>Tip: tune each batch&apos;s keg gallons until the cooler count and bottle stock work. The fleet is shared — earlier batches claim kegs first.</div>
-            <div className="prod-actions" style={{ marginTop: 14 }}><span /><button type="button" className="note-save" onClick={onClose}>Done</button></div>
+            <div className="prod-actions" style={{ marginTop: 14 }}><span /><button type="button" className="btn-pri" onClick={onClose}>Done</button></div>
           </>
         )}
       </AsyncSection>

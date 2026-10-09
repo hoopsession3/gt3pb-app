@@ -74,7 +74,7 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
             <div className="eg-done">
               <div className="eg-done-h"><Icon name="check" /> Added {done} item{done === 1 ? "" : "s"} to this event&apos;s prep</div>
               <div className="dp-hint" style={{ marginTop: 8 }}>Find them on the event&apos;s pick list (Prep). Assign, flag, and check them off there.</div>
-              <div className="prod-actions" style={{ marginTop: 12 }}><span /><button type="button" className="note-save" onClick={onClose}>Done</button></div>
+              <div className="prod-actions" style={{ marginTop: 12 }}><span /><button type="button" className="btn-pri" onClick={onClose}>Done</button></div>
             </div>
           ) : !tasks ? (
             <>
@@ -83,7 +83,7 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
-                <button type="button" className="note-save" onClick={generate} disabled={busy}>{busy ? "Building…" : <><Icon name="sparkles" /> Build the prep list</>}</button>
+                <button type="button" className="btn-pri" onClick={generate} disabled={busy}>{busy ? "Building…" : <><Icon name="sparkles" /> Build the prep list</>}</button>
               </div>
             </>
           ) : (
@@ -101,7 +101,7 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={() => setTasks(null)} disabled={busy}>‹ Redo</button>
-                <button type="button" className="note-save" onClick={add} disabled={busy || keepCount === 0}>{busy ? "Adding…" : `Add ${keepCount} to prep`}</button>
+                <button type="button" className="btn-pri" onClick={add} disabled={busy || keepCount === 0}>{busy ? "Adding…" : `Add ${keepCount} to prep`}</button>
               </div>
             </>
           )}

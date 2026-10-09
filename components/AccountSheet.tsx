@@ -13,6 +13,7 @@ import { DRINKS, type DrinkId } from "@/lib/menu";
 import { readEditMode, writeEditMode } from "@/lib/editModeToggle";
 import { showsCommerce, surfaceOf } from "@/lib/surfaces";
 import type { Order } from "@/lib/db";
+import Button from "./Button";
 
 // THE account popout — a MENU, reachable from the avatar on every page.
 //
@@ -131,7 +132,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
         <div className="acs-guest">
           <div className="acs-guest-t">Points · pours · reserves</div>
           <p>Sign in to earn stamps, track your orders, and carry your GT3 member card.</p>
-          <button type="button" className="acs-cta" onClick={() => go("/3mpire")}>Sign in</button>
+          <Button type="button" kind="primary" wide onClick={() => go("/3mpire")}>Sign in</Button>
         </div>
         <HelpRows onClose={onClose} owner={false} />
       </Sheet>

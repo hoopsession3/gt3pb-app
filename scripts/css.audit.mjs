@@ -44,6 +44,18 @@
 //                       Day header was five controls in five recipes; the house held 162 pill rules in 156
 //                       recipes (17 font sizes, 25 heights, 49 paddings, 5 faces) beside a kit two screens
 //                       used. The pill rules outside the kit are counted, and the count only falls (8).
+//  10. ONE SET OF BUTTONS  a button is the kit's — app/globals.css "03 · Buttons", components/Button: primary,
+//                       secondary, quiet or destructive, regular or compact (2026-10-09, the button round:
+//                       redesign 7, approved). The house held 31 recipes for a button — 19 heights, 10 corner
+//                       radii, 9 type sizes and 14 fills for the same word — and the console's sheets copied
+//                       one of them twice more (.note-save, .cfm-ok). Those are gone and stay gone: no rule
+//                       styles one, no screen names one (RETIRED_BUTTONS). A rule outside the kit may place
+//                       a kit button (margin, flex, grid, width, position) or ink it on a light surface
+//                       (color, border-color), and so may a class or a utility written beside it; none may
+//                       size it, round it, letter it or fill it (padding, height, radius, font, letter-
+//                       spacing, capitals, background, shadow). The button recipes still outside the kit — a
+//                       rule named for a button (-btn, -cta, -go, -send, -add…) that draws a pressed box
+//                       with words — are counted, and the count only falls (8).
 //   8. ONLY DOWN        what the utilities are for can only shrink from what is recorded in CEILING:
 //                       inline style objects, the distinct raw colours written in app/globals.css, its
 //                       size, and class names taken whole from a variable (`${status}`) — a value from
@@ -57,12 +69,14 @@ import ts from "typescript";
 import postcss from "postcss";
 
 export const CEILING = {
-  inlineStyles: 614,          // style={{…}} objects in app/, components/, native/ (621 on 2026-10-07; 620 the same day — the overdue count's margin is a utility; 616 when Team's door became one; 614 on 2026-10-08 — the Guide's header is utilities, with its two pages)
-  rawColours: 497,            // 497 on 2026-10-08 (the foundations round: the dead brew-timer dot's teal went with it); distinct hex / rgb() / rgba() literals in app/globals.css (2026-10-07, after the dead rules went; 499 when Command and Team took theme tokens; 498 when the office route's card did)
-  globalsBytes: 766_799,      // 766,799 on 2026-10-08 (the type round: 1,119 sizes folded onto the ten steps, 10.5px and 13.5px among them); 768,059 the same day (the navigation round: the system map's "‹ All layers" went into the title bar, and its rule with it); 768,213 the same day (the iPhone chrome round: the tab bar at 49pt, the KPI board's fields at 16px); 768,222 the same day (the foundations round: 50 rules no screen can match went — the old sheet, the .did and .cell rows, the menu's first draft — and the safe-area, tap-target and 16px-field fixes fit in what they left); app/globals.css, source bytes (2026-10-07: 804 KB before 316 dead rules and 4 keyframes went; the pill kit fits in what its seven recipes left;
+  inlineStyles: 598,          // style={{…}} objects in app/, components/, native/ (598 on 2026-10-09, the button round: sixteen buttons' margins and widths are utilities; 621 on 2026-10-07; 620 the same day — the overdue count's margin is a utility; 616 when Team's door became one; 614 on 2026-10-08 — the Guide's header is utilities, with its two pages)
+  rawColours: 495,            // 495 on 2026-10-09 (the button round: two went with the recipes); 497 on 2026-10-08 (the foundations round: the dead brew-timer dot's teal went with it); distinct hex / rgb() / rgba() literals in app/globals.css (2026-10-07, after the dead rules went; 499 when Command and Team took theme tokens; 498 when the office route's card did)
+  globalsBytes: 754_309,      // 754,309 on 2026-10-09 (the button round: 31 recipes and the sheets' copies gave way to a kit of four kinds in two sizes); 766,799 on 2026-10-08 (the type round: 1,119 sizes folded onto the ten steps, 10.5px and 13.5px among them); 768,059 the same day (the navigation round: the system map's "‹ All layers" went into the title bar, and its rule with it); 768,213 the same day (the iPhone chrome round: the tab bar at 49pt, the KPI board's fields at 16px); 768,222 the same day (the foundations round: 50 rules no screen can match went — the old sheet, the .did and .cell rows, the menu's first draft — and the safe-area, tap-target and 16px-field fixes fit in what they left); app/globals.css, source bytes (2026-10-07: 804 KB before 316 dead rules and 4 keyframes went; the pill kit fits in what its seven recipes left;
                               // Command's and Team's clean-up added rows and actions and put their one-off layout in utilities; the office route on theme tokens)
   wholeVariableClasses: 46,   // className tokens that are a ${value} and nothing else (2026-10-07)
-  pillRules: 115,             // pills and round buttons outside the kit (2026-10-07: 124 before the pill round moved the
+  buttonRecipes: 16,          // button recipes outside the kit (2026-10-09, the button round: 41 before it moved 31 recipes and the
+                              // sheets' .note-save, .note-cancel and .cfm-ok onto "03 · Buttons"; these 16 follow with the chips)
+  pillRules: 112,             // pills and round buttons outside the kit (112 on 2026-10-09: the coupon's, the broadcast bar's and the splash's pill buttons are the button kit's; 2026-10-07: 124 before the pill round moved the
                               // crew header, the lane's sections, the counts and the tab badges onto it; 115 when Team's role badge and invite pills went)
 };
 
@@ -204,6 +218,90 @@ export function pillRulesIn(ast) {
   return out;
 }
 
+/** The kit's buttons, and the recipes they replaced (rule 10). */
+export const KIT_BUTTONS = ["btn-pri", "btn-sec", "btn-ter", "btn-del", "btn-sm", "btn-wide"];
+export const RETIRED_BUTTONS = [
+  "adm-btn", "guide-go", "ops-go", "drv-go", "so-go", "inline-create-go", "alert-act-do", "atc-btn", "cpn-cta", "acs-cta",
+  "driver-route-cta", "craft-cta-b", "rf-btn", "ol-btn", "natt-btn", "brew-pack-btn", "vipv-btn", "status-photo-btn",
+  "ev-arch-btn", "studio-lib-btn", "ac-team-btn", "dp-leave-btn", "note-fu-addbtn", "prod-86btn", "cal-filterbtn",
+  "adm-reset-btn", "note-save", "note-cancel", "cfm-ok", "ts-btn", "liveinst-go", "eg-btn", "lp-receipt", "lp-save", "adm-regen",
+];
+/** What a rule outside the kit may not set on a kit button: its size, its shape, its letters, its fill. */
+export const BUTTON_LOOK = /^(padding(-(top|right|bottom|left|inline|block)(-start|-end)?)?|(min-|max-)?height|border(-(top|bottom)-(left|right))?-radius|border(-(top|right|bottom|left))?(-width|-style)?|font(-(family|size|weight|style))?|letter-spacing|text-transform|line-height|background(-color|-image)?|box-shadow|text-decoration(-line)?)$/;
+/** …and the utilities that would say the same on the element. */
+export const BUTTON_LOOK_UTILITY = /^(p[xytrblse]?-|text-(caption2|caption|footnote|subhead|callout|body|title3|title2|title1|large)$|font-|leading-|tracking-|(uppercase|lowercase|capitalize|normal-case)$|rounded|(h|min-h|max-h|size)-|bg-|shadow|border(-[xytrblse])?(-\d+)?$|(underline|no-underline|line-through)$)/;
+
+/** The classes written beside a kit button: in a className that holds a kit class, a <Button>'s className,
+ *  and the className a btn() call is handed. Class token → the files it sits in. */
+export function buttonCompanions(root) {
+  const files = ["app", "components", "native"].flatMap((d) => walk(root, d, (n) => n.endsWith(".tsx")));
+  const out = new Map();
+  const add = (str, f) => { for (const c of str.split(/\s+/)) if (c && !KIT_BUTTONS.includes(c)) { if (!out.has(c)) out.set(c, new Set()); out.get(c).add(toPosix(f)); } };
+  for (const f of files) {
+    const src = readFileSync(join(root, f), "utf8");
+    if (!/btn-(pri|sec|ter|del)|<Button\b|\bbtn\(/.test(src)) continue;
+    const sf = ts.createSourceFile(f, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const literals = (x, acc = []) => { if (ts.isStringLiteral(x) || ts.isNoSubstitutionTemplateLiteral(x)) acc.push(x.text); else if (ts.isTemplateExpression(x)) acc.push([x.head.text, ...x.templateSpans.map((t) => t.literal.text)].join(" ")); ts.forEachChild(x, (c) => { literals(c, acc); }); return acc; };
+    const visit = (n) => {
+      if (ts.isJsxAttribute(n) && n.name.getText(sf) === "className" && n.initializer) {
+        const owner = n.parent.parent;
+        const isButton = (ts.isJsxOpeningElement(owner) || ts.isJsxSelfClosingElement(owner)) && owner.tagName.getText(sf) === "Button";
+        const strs = ts.isStringLiteral(n.initializer) ? [n.initializer.text] : n.initializer.expression ? literals(n.initializer.expression) : [];
+        for (const str of strs) if (isButton || str.split(/\s+/).some((c) => KIT_BUTTONS.includes(c))) add(str, f);
+      }
+      if (ts.isCallExpression(n) && n.expression.getText(sf) === "btn") {
+        for (const a of n.arguments) if (ts.isObjectLiteralExpression(a)) for (const pr of a.properties)
+          if (ts.isPropertyAssignment(pr) && pr.name.getText(sf) === "className") for (const str of literals(pr.initializer)) add(str, f);
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+  }
+  return out;
+}
+
+/** Rules outside the kit that size, round, letter or fill a kit button — named by a kit class, or by a class
+ *  written beside one, in the selector's last compound (what it styles). */
+export function buttonRestylesIn(ast, css, companions) {
+  const from = css.indexOf("/* 03 · Buttons"), to = css.indexOf("/* 04 · Section header");
+  const own = new Set([...KIT_BUTTONS, ...companions.keys()]);
+  const out = [];
+  ast.walkRules((r) => {
+    if (r.parent?.type === "atrule" && /keyframes/i.test(r.parent.name)) return;
+    const at = r.source?.start?.offset ?? -1;
+    if (from >= 0 && at > from && at < to) return;
+    const styled = r.selectors.some((s) => {
+      const last = demanded(s).trim().split(/\s+|>|\+|~/).filter(Boolean).pop() || "";
+      return [...last.matchAll(/\.([A-Za-z_][\w-]*)/g)].some((m) => own.has(m[1]));
+    });
+    if (!styled) return;
+    const bad = [];
+    r.each((d) => { if (d.type === "decl" && BUTTON_LOOK.test(d.prop)) bad.push(d.prop); });
+    if (bad.length) out.push(`${r.selector.replace(/\s+/g, " ").slice(0, 60)} sets ${bad.join(", ")}`);
+  });
+  return out;
+}
+
+/** Button recipes outside the kit: a rule named for a button (-btn, -cta, -go, -send, -save, -add, -ok, -yes, -do)
+ *  that draws a pressed box with words — a fill or a border, a size or a padding, and a pointer. One per class. */
+export function buttonRecipesIn(ast) {
+  const NAMED = /(^|-)(btn|cta|go|button|send|save|ok|yes|do|add)(-|$)/;
+  const out = new Set();
+  ast.walkRules((r) => {
+    if (r.parent?.type === "atrule" && /keyframes/i.test(r.parent.name)) return;
+    const d = {};
+    r.each((n) => { if (n.type === "decl") d[n.prop] = n.value.trim(); });
+    const fill = d.background || d["background-color"] || "";
+    const box = (fill && !/^(none|transparent)$/.test(fill)) || /solid|dashed/.test(d.border || "");
+    if (!box || !(d["font-size"] || d.padding || d["min-height"]) || d.cursor !== "pointer") return;
+    for (const s of r.selectors) {
+      const last = s.trim().split(/\s+|>|\+|~/).filter(Boolean).pop() || "";
+      for (const m of last.matchAll(/\.([A-Za-z_][\w-]*)/g)) if (NAMED.test(m[1]) && !KIT_BUTTONS.includes(m[1]) && !/^k-/.test(m[1])) out.add(m[1]);
+    }
+  });
+  return [...out].sort();
+}
+
 /** The :hover rules that apply on a phone too — outside @media (hover:hover). */
 export function looseHoversIn(ast) {
   const loose = [];
@@ -259,6 +357,7 @@ export async function audit(root) {
   const m = markup(root);
   for (const [c, files] of m.classes) {
     if (/^dark:/.test(c)) fail("no dark:", `${c} in ${[...files].join(", ")}`);
+    if (RETIRED_BUTTONS.includes(c)) fail("one set of buttons", `${c} is a retired button recipe (${[...files].join(", ")}) — use the kit (components/Button)`);
     if (/(^|:)(bg|text|border|ring|fill|stroke|outline|shadow|from|to|via|decoration|accent|caret|divide)-\[(#|rgb|hsl|oklch|color)/.test(c)) fail("GT3's colours", `${c} writes a raw colour (${[...files].join(", ")}) — use a GT3 colour`);
     if (/(^|:)text-\[\d+(?:\.\d+)?(px|rem|em)\]/.test(c)) fail("one type scale", `${c} sets a size of its own (${[...files].join(", ")}) — name a step: text-caption2 … text-large`);
   }
@@ -283,22 +382,34 @@ export async function audit(root) {
   // 9 · one pill (counted with the ratchets below)
   const pills = pillRulesIn(ast);
 
-  const counts = { inlineStyles: m.inlineStyles, rawColours: rawColours(globals).size, globalsBytes: Buffer.byteLength(globals), wholeVariableClasses: m.wholeVariable.length, pillRules: pills.length };
+  // 10 · one set of buttons
+  const houseNow = houseClasses(globals);
+  const styledRetired = RETIRED_BUTTONS.filter((c) => houseNow.has(c));
+  if (styledRetired.length) fail("one set of buttons", `app/globals.css styles a retired button recipe: ${styledRetired.join(", ")} — use the kit (components/Button)`);
+  const companions = buttonCompanions(root);
+  const restyles = buttonRestylesIn(ast, globals, companions);
+  if (restyles.length) fail("one set of buttons", `${restyles.length} rule(s) outside the kit size, round, letter or fill a kit button: ${restyles.slice(0, 4).join(" | ")}`);
+  const utilityRestyles = [...companions].filter(([c]) => BUTTON_LOOK_UTILITY.test(c.split(":").pop().replace(/^!|!$/g, "")));
+  if (utilityRestyles.length) fail("one set of buttons", `utilities restyle a kit button: ${utilityRestyles.slice(0, 6).map(([c, f]) => `${c} (${[...f][0]})`).join(", ")} — place it (margin, flex, width), never size or letter it`);
+  const buttonRecipes = buttonRecipesIn(ast);
+
+  const counts = { inlineStyles: m.inlineStyles, rawColours: rawColours(globals).size, globalsBytes: Buffer.byteLength(globals), wholeVariableClasses: m.wholeVariable.length, pillRules: pills.length, buttonRecipes: buttonRecipes.length };
   for (const [k, v] of Object.entries(counts)) {
     if (v > CEILING[k]) fail("only down", `${k} ${v} — ceiling ${CEILING[k]}. Up: new one-off layout goes in utilities (app/tailwind.css), not here.`);
     // Slack is room for new debt: a ceiling above the count is lowered in the commit that earned it.
     else if (v < CEILING[k]) fail("only down", `${k} ${v} — ceiling ${CEILING[k]} sits above it. Good; now lower the ceiling to ${v}.`);
   }
-  return { bad, counts, markup: m, dead, loose, twice, pills };
+  return { bad, counts, markup: m, dead, loose, twice, pills, buttonRecipes };
 }
 
 if (import.meta.url === (await import("node:url")).pathToFileURL(process.argv[1] || "").href) {
   const root = join(dirname(new URL(import.meta.url).pathname), "..");
-  const { bad, counts, markup: m, pills } = await audit(root);
+  const { bad, counts, markup: m, pills, buttonRecipes } = await audit(root);
   if (process.argv.includes("--list")) {
     console.log(`  counts: ${JSON.stringify(counts)}`);
     console.log(`  class names taken whole from a variable:\n    ${m.wholeVariable.join("\n    ")}`);
     console.log(`  pill rules outside the kit:\n    ${pills.join("\n    ")}`);
+    console.log(`  button recipes outside the kit: ${buttonRecipes.join(" ")}`);
   }
   const slack = Object.entries(counts).filter(([k, v]) => v < CEILING[k]).map(([k, v]) => `${k} ${v} < ${CEILING[k]}`);
   console.log(`CSS AUDIT: ${m.files.length} screen file(s) · ${m.classes.size} class name(s) · ${counts.inlineStyles} inline style object(s) · ${counts.rawColours} raw colour(s) in app/globals.css — ${bad.length} unanswered${slack.length ? ` (room to lower: ${slack.join(", ")})` : ""}`);

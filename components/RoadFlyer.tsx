@@ -10,6 +10,7 @@ import { localToday } from "@/lib/dates";
 import Icon from "@/components/Icon";
 import { saveFile } from "@/lib/deviceActions";
 import { APP_BUILD } from "@/lib/native";
+import Button from "./Button";
 
 // ROAD FLYER — the locked GT3 house graphics, drawn on a canvas so they're pixel-identical every
 // time. A five-slide set (Announce · Menu · Sub-menu · Details · Photo) that reads as ONE luxury
@@ -501,8 +502,8 @@ export default function RoadFlyer() {
       {tile === "details" && <label className="rf-f"><span>Tasting notes — one drink per line as <b>Name | description</b> (up to 5)</span><textarea rows={7} value={f.details} onChange={(e) => setF((p) => ({ ...p, details: e.target.value }))} /></label>}
       {usesPhoto && (
         <div className="rf-photo">
-          <button type="button" className="rf-btn" onClick={() => fileRef.current?.click()} disabled={busy}>{busy ? "Working…" : f.photo ? "Replace photo" : <><Icon name="plus" /> Add photo</>}</button>
-          {f.photo && <button type="button" className="rf-btn ghost" onClick={() => setF((p) => ({ ...p, photo: "" }))}>Remove</button>}
+          <Button type="button" kind="secondary" compact className="flex-1" onClick={() => fileRef.current?.click()} disabled={busy}>{busy ? "Working…" : f.photo ? "Replace photo" : <><Icon name="plus" /> Add photo</>}</Button>
+          {f.photo && <Button type="button" kind="destructive" className="mx-1" onClick={() => setF((p) => ({ ...p, photo: "" }))}>Remove</Button>}
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadPhoto(file); e.target.value = ""; }} />
         </div>
       )}

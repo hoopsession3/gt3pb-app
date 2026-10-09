@@ -87,7 +87,7 @@ export default function PaymentSettings() {
         </div>
         <span className={`pay-status${squareClientReady ? " on" : ""}`}>{squareClientReady ? "Connected" : "Off"}</span>
       </div>
-      <button type="button" className="adm-regen" onClick={runCheck} disabled={checking}>{checking ? "Checking with Square…" : "Check card connection"}</button>
+      <button type="button" className="btn-ter mt-2" onClick={runCheck} disabled={checking}>{checking ? "Checking with Square…" : "Check card connection"}</button>
       {health && (
         <div className="pay-health">
           {health.map((c) => (

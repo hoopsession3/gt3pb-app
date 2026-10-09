@@ -131,7 +131,7 @@ export default function ListsPanel() {
                          onChange={(e) => setNewLabel(e.target.value)} /></label>
                 <div className="prod-actions">
                   <button type="button" className="note-arch" onClick={() => { setAdding(null); setNewValue(""); setNewLabel(""); }}>Cancel</button>
-                  <button type="button" className="note-save" disabled={busy || !newValue.trim()} onClick={() => add(s.key)}>Add</button>
+                  <button type="button" className="btn-pri" disabled={busy || !newValue.trim()} onClick={() => add(s.key)}>Add</button>
                 </div>
               </div>
             ) : (

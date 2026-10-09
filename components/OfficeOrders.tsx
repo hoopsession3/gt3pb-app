@@ -253,8 +253,8 @@ export default function OfficeOrders() {
           // same call DeliveryOps made for its own row actions, just one level more involved here.
           // Action buttons now use .btn-pri/.btn-sec/.btn-ter: "Delivered & swapped" is the one
           // .btn-pri on this screen (only one order can be open at a time via openId, so it's never
-          // rendered more than once at once). .oo-gen (route-generate) and the order count aren't
-          // .adm-btn/.adm-act, so they keep their own look, now inside SectionHeader's `right` slot.
+          // rendered more than once at once); a row's actions are compact (.btn-sm, 2026-10-09). .oo-gen
+          // (route-generate) and the order count keep their own look, inside SectionHeader's `right` slot.
           // No data fetching, state, handlers, or conditions below changed — presentation only.
           <section className="oo" aria-label="Office orders" style={{ padding: "0 14px 14px" }}>
             {/* The count rides with the title and the button says one word: at 390px the long button
@@ -277,8 +277,8 @@ export default function OfficeOrders() {
                         <div className="oo-addr whitespace-pre-line">{r.body}</div>
                         <div className="oo-meta"><span>Asked {new Date(r.created_at).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}</span>{on && <><span className="oo-dot">·</span><span>the {dayLabel(on.delivery_date)} delivery</span></>}</div>
                         <div className="oo-acts">
-                          {r.status === "open" && <button type="button" className="btn-sec" onClick={() => answer(r, "in_progress")} disabled={busyId === r.id}>Take it</button>}
-                          <button type="button" className="btn-sec" onClick={() => answer(r, "done")} disabled={busyId === r.id}>Done</button>
+                          {r.status === "open" && <button type="button" className="btn-sec btn-sm" onClick={() => answer(r, "in_progress")} disabled={busyId === r.id}>Take it</button>}
+                          <button type="button" className="btn-sec btn-sm" onClick={() => answer(r, "done")} disabled={busyId === r.id}>Done</button>
                           <button type="button" className="btn-ter" onClick={() => answer(r, "declined")} disabled={busyId === r.id}>Decline</button>
                         </div>
                       </>}
@@ -315,7 +315,7 @@ export default function OfficeOrders() {
 
                         {!open ? (
                           <div className="oo-acts">
-                            {o.status !== "delivered" && <button type="button" className="btn-sec" onClick={() => { setOpenId(o.id); setEmpties((e) => ({ ...e, [o.id]: Math.round(o.gallons) })); }}>Log delivery</button>}
+                            {o.status !== "delivered" && <button type="button" className="btn-sec btn-sm" onClick={() => { setOpenId(o.id); setEmpties((e) => ({ ...e, [o.id]: Math.round(o.gallons) })); }}>Log delivery</button>}
                             {/* MONEY AFTER THE CUTOFF (0358). With six weeks on the route, a pay link or a net
                                 invoice could be made weeks early: the invoice fell due before the delivery, and a
                                 delivery with a link or an invoice stops following its program (a pause, new
@@ -323,10 +323,10 @@ export default function OfficeOrders() {
                             {(o.payment_status === "pending" || o.payment_status === "failed") && (o.status === "delivered" || !o.cutoff_at || new Date(o.cutoff_at).getTime() <= Date.now()) && (
                               o.billing_terms === "prepaid"
                                 ? <>
-                                    <button type="button" className="btn-sec" onClick={() => payLink(o)} disabled={busyId === o.id}>Payment link</button>
+                                    <button type="button" className="btn-sec btn-sm" onClick={() => payLink(o)} disabled={busyId === o.id}>Payment link</button>
                                     <button type="button" className="btn-ter" onClick={() => setPay(o, "paid")} disabled={busyId === o.id}>Mark paid</button>
                                   </>
-                                : <button type="button" className="btn-sec" onClick={() => setPay(o, "invoiced")} disabled={busyId === o.id}>Invoice</button>
+                                : <button type="button" className="btn-sec btn-sm" onClick={() => setPay(o, "invoiced")} disabled={busyId === o.id}>Invoice</button>
                             )}
                             {o.status !== "delivered" && <button type="button" className="btn-ter" onClick={() => cancel(o)} disabled={busyId === o.id}>Cancel</button>}
                             {/* A wrong empties count landed in two places — the ledger row AND the
@@ -344,7 +344,7 @@ export default function OfficeOrders() {
                                 <button type="button" onClick={() => setEmpties((e) => ({ ...e, [o.id]: (e[o.id] ?? Math.round(o.gallons)) + 1 }))} aria-label="More">+</button>
                               </div>
                             </div>
-                            <button type="button" className="btn-pri" onClick={() => deliver(o, true)} disabled={busyId === o.id}><Icon name="check" /> Delivered &amp; swapped</button>
+                            <button type="button" className="btn-pri btn-wide" onClick={() => deliver(o, true)} disabled={busyId === o.id}><Icon name="check" /> Delivered &amp; swapped</button>
                             <button type="button" className="btn-sec" onClick={() => deliver(o, false)} disabled={busyId === o.id}>Delivered — no empties</button>
                             <button type="button" className="btn-ter" onClick={() => setOpenId(null)}>Back</button>
                           </div>

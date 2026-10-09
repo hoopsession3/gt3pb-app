@@ -23,6 +23,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { canOf } from "@/lib/roles";
 import { scrollToAnchor } from "@/lib/anchors";
 import GoLine from "@/components/GoLine";
+import Button from "../Button";
 
 // LIVE CONTROL — the truck's live status board: where it is, whether it is open, what is next.
 //
@@ -290,18 +291,18 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
                 : nextStop ? <>next · <RecordLink kind="stop" id={nextStop.id}>{nextStop.name}</RecordLink> · {nextWhen}</> : "nothing on the road"}</span>
             </div>
             {live?.is_live
-              ? <button className="adm-btn ghost" onClick={pause}>Go offline</button>
+              ? <Button kind="secondary" compact className="ml-auto shrink-0" onClick={pause}>Go offline</Button>
               : nextStop
-                ? <button className={`adm-btn ${stopIsDue(nextStop.starts_at) ? "primary" : "ghost"} liveinst-go`} onClick={goLiveNext}>Go live</button>
-                : <button className="adm-btn ghost liveinst-go" onClick={() => goPlanTab("route", { setSection })}>Plan the next stop</button>}
+                ? <Button kind={stopIsDue(nextStop.starts_at) ? "primary" : "secondary"} compact className="ml-auto shrink-0" onClick={goLiveNext}>Go live</Button>
+                : <Button kind="secondary" compact className="ml-auto shrink-0" onClick={() => goPlanTab("route", { setSection })}>Plan the next stop</Button>}
           </div>
           {live?.is_live ? (
             <div className="liveinst-row">
               {!broadcasting && !live?.pos_updated_at && <span className="liveinst-warn">Map dot off —</span>}
               <span className="liveinst-sub">{broadcasting ? <><Icon name="dot" /> Broadcasting — dot moves with you</> : posLabel}</span>
               {broadcasting
-                ? <button className="adm-btn ghost" onClick={stopBroadcast}>Stop</button>
-                : <span style={{ display: "flex", gap: 8 }}><button className="adm-btn ghost" onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</button><button className="adm-btn primary" onClick={startBroadcast}>Broadcast</button></span>}
+                ? <Button kind="secondary" compact onClick={stopBroadcast}>Stop</Button>
+                : <span className="flex gap-2"><Button kind="secondary" compact onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</Button><Button kind="primary" compact onClick={startBroadcast}>Broadcast</Button></span>}
             </div>
           ) : null}
           <button type="button" className="adm-golink hit-y-44" onClick={() => goPlanTab("route", { setSection })}>{road.length > 1 ? `${road.length - 1} more stop${road.length > 2 ? "s" : ""} ahead · ` : ""}Locations · Plan › Route</button>
@@ -322,7 +323,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
             card below), but the action can't be — this was the only "Go offline" button reachable
             anywhere outside the Now tab's compact instrument, and that one disappears once you're
             past the pulse screen. Hiding it here left no way to end service from Stops at all. */}
-        {live?.is_live && <button className="adm-btn ghost" onClick={pause}>Go offline</button>}
+        {live?.is_live && <Button kind="secondary" compact onClick={pause}>Go offline</Button>}
       </div>}
       {/* The cup-ordering dial (0137) sat in that card until 2026-10-06 (the settings round). It lives
           in Settings › Business › Ordering & delivery now (components/crew/CupOrderingDial): only an owner or an
@@ -337,11 +338,11 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
           <div className="adm-live adm-live-pos">
             <div className="adm-live-status"><span className="h-sub">{broadcasting ? <><Icon name="dot" /> Broadcasting — dot moves with you</> : posLabel}</span></div>
             {broadcasting ? (
-              <button className="adm-btn ghost" onClick={stopBroadcast}>Stop</button>
+              <Button kind="secondary" compact onClick={stopBroadcast}>Stop</Button>
             ) : (
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="adm-btn ghost" onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</button>
-                <button className="adm-btn primary" onClick={startBroadcast}>Broadcast live</button>
+              <div className="flex gap-2">
+                <Button kind="secondary" compact onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</Button>
+                <Button kind="primary" compact onClick={startBroadcast}>Broadcast live</Button>
               </div>
             )}
           </div>
@@ -433,8 +434,8 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
               return (
                 <div className="ev-arch-row" key={s.id}>
                   <span className="ev-arch-name">{s.name || "Untitled location"}{when ? ` · ${when}` : ""}</span>
-                  <button className="ev-arch-btn" onClick={() => stopAgain(s)}>Stop again</button>
-                  <button className="ev-arch-btn" onClick={() => archiveStop(s.id)}>Archive</button>
+                  <Button kind="secondary" compact onClick={() => stopAgain(s)}>Stop again</Button>
+                  <Button kind="secondary" compact onClick={() => archiveStop(s.id)}>Archive</Button>
                 </div>
               );
             })}
@@ -449,8 +450,8 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
           {showArchStops && archived.map((s) => (
             <div className="ev-arch-row" key={s.id}>
               <span className="ev-arch-name">{s.name || "Untitled location"}</span>
-              <button className="ev-arch-btn" onClick={() => restoreStop(s.id)}>Restore</button>
-              <button className="ev-arch-btn del" onClick={() => deleteStop(s.id, s.name)}>Delete</button>
+              <Button kind="secondary" compact onClick={() => restoreStop(s.id)}>Restore</Button>
+              <Button kind="destructive" onClick={() => deleteStop(s.id, s.name)}>Delete</Button>
             </div>
           ))}
         </div>

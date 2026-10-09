@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
 import { useSiteCopy } from "@/lib/copy";
 import { haptic } from "@/lib/haptics";
+import Button from "./Button";
 
 // SHOW OFF YOUR STATUS — the member's card, made into an object they own. It's DUAL-SIDED: the front
 // is their portrait held in the frame, the back is their GT3 member card (tier, name, code). Tap it
@@ -433,7 +434,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
       {/* photo (feeds the portrait side + the share PNG) */}
       <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onPick} />
       <div className="status-photo-row">
-        <button type="button" className="status-photo-btn" onClick={() => fileRef.current?.click()} disabled={saving}>{saving ? "Saving…" : hasPhoto ? "↺ Change photo" : <><Icon name="plus" /> Add your photo — the front frames it</>}</button>
+        <Button type="button" kind="secondary" className="flex-1" onClick={() => fileRef.current?.click()} disabled={saving}>{saving ? "Saving…" : hasPhoto ? "↺ Change photo" : <><Icon name="plus" /> Add your photo — the front frames it</>}</Button>
         {hasPhoto && !saving && <button type="button" className="status-photo-clear" onClick={clearPhoto} aria-label="Remove photo"><Icon name="close" /></button>}
       </div>
       <p className="status-hint">Make it yours — a finish, your motto, your photo. Share it to your story and tag <b>@gt3pb</b>; your code&rsquo;s on the card, so every friend who joins with it earns you both a credit.</p>

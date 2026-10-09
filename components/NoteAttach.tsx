@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useApp } from "./AppProvider";
 import { authedFetch } from "@/lib/authedFetch";
 import Icon from "@/components/Icon";
+import Button from "./Button";
 
 // Multi-file, multi-format attach → transcribe. Photos of handwritten notes, PDFs, screenshots or
 // .txt — read client-side, sent to the transcribe agent (Claude vision/document), and the combined
@@ -48,9 +49,9 @@ export default function NoteAttach({ onText, onFiles }: { onText: (t: string) =>
   return (
     <div className="natt">
       <input ref={ref} type="file" multiple accept="image/*,application/pdf,text/plain" hidden onChange={(e) => pick(e.target.files)} />
-      <button type="button" className="natt-btn" onClick={() => ref.current?.click()} disabled={busy}>
+      <Button type="button" kind="secondary" compact className="self-start" onClick={() => ref.current?.click()} disabled={busy}>
         {busy ? `Transcribing ${count} file${count === 1 ? "" : "s"}…` : <><Icon name="link" /> Attach photos · PDFs · transcripts</>}
-      </button>
+      </Button>
       <span className="natt-hint">Handwritten notes, PDFs & screenshots — read into the transcript.</span>
     </div>
   );

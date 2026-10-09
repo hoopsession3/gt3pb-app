@@ -53,7 +53,7 @@ export default function AgreementPage() {
             : "Checking your access…"}
         </div>
         {access === "failed" && (
-          <button type="button" className="note-save" style={{ marginTop: 14 }} onClick={() => refreshProfile()}>Try again</button>
+          <button type="button" className="btn-pri mt-3.5" onClick={() => refreshProfile()}>Try again</button>
         )}
         <ClosingBeat />
       </section>

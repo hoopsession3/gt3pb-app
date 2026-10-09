@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import type { VendorMatch } from "@/lib/vendorLink";
+import Button from "./Button";
 
 // THE look-alike confirm sheet (0226) — one component, every create path. When a typed vendor name
 // is ≥40% similar to one already in the book, the DB refuses to mint it silently; this sheet is
@@ -51,19 +52,19 @@ export default function VendorResolve({
               <span>{pct(c.sim)} match{c.status === "pending" ? " · pending approval" : ""}</span>
             </div>
             <div className="vres-acts">
-              <button type="button" className="adm-btn primary" disabled={busy} onClick={() => onUse(c)}>Use this vendor</button>
+              <Button type="button" kind="primary" compact disabled={busy} onClick={() => onUse(c)}>Use this vendor</Button>
               {onAddLocation && (
-                <button type="button" className="adm-btn" disabled={busy} onClick={() => onAddLocation(c)}>+ Add “{name}” as its location</button>
+                <Button type="button" kind="secondary" compact disabled={busy} onClick={() => onAddLocation(c)}>+ Add “{name}” as its location</Button>
               )}
             </div>
           </div>
         ))}
       </div>
       <div className="vres-foot">
-        <button type="button" className="adm-btn ghost" disabled={busy} onClick={onCreateDistinct}>
+        <Button type="button" kind="secondary" disabled={busy} onClick={onCreateDistinct}>
           No — create “{name}” as a new vendor
-        </button>
-        {onSkip && <button type="button" className="ev-arch-btn" disabled={busy} onClick={onSkip}>Skip — no vendor</button>}
+        </Button>
+        {onSkip && <Button type="button" kind="quiet" disabled={busy} onClick={onSkip}>Skip — no vendor</Button>}
       </div>
     </Sheet>,
     document.body,

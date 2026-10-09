@@ -83,7 +83,7 @@ export default function AssignTaskSheet({
               </label>
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <LeaveButton className="note-arch" onClick={onClose}>Not now</LeaveButton>
-                <button type="button" className="note-save" disabled={busy || !title.trim()} onClick={create}>{busy ? "Creating…" : "Create & assign"}</button>
+                <button type="button" className="btn-pri" disabled={busy || !title.trim()} onClick={create}>{busy ? "Creating…" : "Create & assign"}</button>
               </div>
             </>
           ) : (
@@ -93,7 +93,7 @@ export default function AssignTaskSheet({
               <label className="prod-toggle" style={{ marginTop: 12 }}><input type="checkbox" checked={done} onChange={toggleDone} /> Mark it done</label>
               <div className="oa-window" style={{ marginTop: 10 }}>It&rsquo;s in {assignee ? `${nameOf(assignee)}’s` : "the team’s"} day now — and in Plan &rsaquo; Calendar to manage anytime.</div>
               <div className="prod-actions" style={{ marginTop: 14 }}>
-                <button type="button" className="note-save" onClick={onClose}>Done</button>
+                <button type="button" className="btn-pri" onClick={onClose}>Done</button>
               </div>
             </>
           )}

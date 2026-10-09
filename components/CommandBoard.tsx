@@ -252,7 +252,7 @@ export default function CommandBoard() {
                     <div className="flex flex-col gap-2.5 mt-0.5">
                       <p className="m-0 font-sans text-footnote leading-normal text-cream-muted">{-daysTo(it.target_date!)} days past its date with {ms.length - doneN} of {ms.length} milestone{ms.length === 1 ? "" : "s"} open. Finish it, give it a new date, or look at what&rsquo;s left.</p>
                       <div className="flex flex-wrap items-center gap-x-[18px] gap-y-2">
-                        <button type="button" className="btn-sec px-4 py-[9px] text-footnote" onClick={() => unfold(it.id)}>Show the milestones</button>
+                        <button type="button" className="btn-sec btn-sm" onClick={() => unfold(it.id)}>Show the milestones</button>
                         {isAdmin && <button type="button" className="btn-ter" onClick={() => setOpenInit(it.id)}>New date</button>}
                       </div>
                     </div>

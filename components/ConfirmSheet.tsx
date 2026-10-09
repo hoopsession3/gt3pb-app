@@ -71,8 +71,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{opts.title}</b><CloseButton onClick={() => settle(false)} /></div>}>
           {opts.body && <div className="dp-hint cfm-body">{opts.body}</div>}
           <div className="prod-actions cfm-actions">
-            <button type="button" className="note-arch" onClick={() => settle(false)}>{opts.cancelLabel ?? "Keep it"}</button>
-            <button type="button" className={opts.danger ? "note-save" : "cfm-ok"} autoFocus onClick={() => settle(true)}>{opts.confirmLabel ?? "Yes"}</button>
+            <button type="button" className="btn-ter" onClick={() => settle(false)}>{opts.cancelLabel ?? "Keep it"}</button>
+            <button type="button" className={opts.danger ? "btn-del" : "btn-pri"} autoFocus onClick={() => settle(true)}>{opts.confirmLabel ?? "Yes"}</button>
           </div>
         </Sheet>
       )}

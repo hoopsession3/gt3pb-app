@@ -98,7 +98,7 @@ export default function ChiefOfSales({ onLeads }: { onLeads?: () => void }) {
               {err && <div className="dp-err" style={{ marginTop: 8 }}>{err}</div>}
               <div className="prod-actions" style={{ marginTop: 12 }}>
                 <button type="button" className="note-arch" onClick={() => setOpps(null)} disabled={busy}>‹ New scout</button>
-                <button type="button" className="note-save" onClick={save} disabled={busy || keepN === 0}>{busy ? "Saving…" : `Save ${keepN} to Bookings`}</button>
+                <button type="button" className="btn-pri" onClick={save} disabled={busy || keepN === 0}>{busy ? "Saving…" : `Save ${keepN} to Bookings`}</button>
               </div>
             </>
           )}

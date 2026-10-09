@@ -211,7 +211,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onChanged, on
       footer={
         <div className="prod-actions" style={{ marginTop: 0 }}>
           <LeaveButton className="note-arch" onClick={onClose} disabled={saving}>Cancel</LeaveButton>
-          <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+          <button type="button" className="btn-pri" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
         </div>
       }>
       <input className="note-in" value={f[isEvent ? "title" : "name"] ?? ""} onChange={(e) => set(isEvent ? "title" : "name", e.target.value)} placeholder={isEvent ? "Event name" : "Stop name"} aria-label={isEvent ? "Event name" : "Stop name"} autoFocus />

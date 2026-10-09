@@ -119,7 +119,7 @@ export default function Changelog() {
           <label className="chg-hl"><input type="checkbox" checked={d.highlight} onChange={(e) => set("highlight", e.target.checked)} /> Headline change (star it)</label>
           <div className="prod-actions" style={{ marginTop: 10 }}>
             <button type="button" className="note-arch" onClick={() => { setD(BLANK); setComposing(false); }} disabled={saving}>Cancel</button>
-            <button type="button" className="note-save" onClick={save} disabled={saving || !d.title.trim() || !d.summary.trim()}>{saving ? "Saving…" : "Log it"}</button>
+            <button type="button" className="btn-pri" onClick={save} disabled={saving || !d.title.trim() || !d.summary.trim()}>{saving ? "Saving…" : "Log it"}</button>
           </div>
         </div>
       ))}

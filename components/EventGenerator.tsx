@@ -71,7 +71,7 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
                   : "No to-dos"}</li>
               </ul>
               <div className="dp-hint" style={{ marginTop: 8 }}>Tap any of them to open it. Edit or remove anything that&apos;s off.</div>
-              <div className="prod-actions" style={{ marginTop: 12 }}><span /><button type="button" className="note-save" onClick={onClose}>Done</button></div>
+              <div className="prod-actions" style={{ marginTop: 12 }}><span /><button type="button" className="btn-pri" onClick={onClose}>Done</button></div>
             </div>
           ) : !plan ? (
             <>
@@ -80,7 +80,7 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
-                <button type="button" className="note-save" onClick={draft} disabled={busy || !notes.trim()}>{busy ? "Reading your notes…" : <><Icon name="sparkles" /> Draft the plan</>}</button>
+                <button type="button" className="btn-pri" onClick={draft} disabled={busy || !notes.trim()}>{busy ? "Reading your notes…" : <><Icon name="sparkles" /> Draft the plan</>}</button>
               </div>
             </>
           ) : (
@@ -114,7 +114,7 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={() => setPlan(null)} disabled={busy}>‹ Redo</button>
-                <button type="button" className="note-save" onClick={create} disabled={busy}>{busy ? "Creating…" : <>Create it <Icon name="arrowRight" /></>}</button>
+                <button type="button" className="btn-pri" onClick={create} disabled={busy}>{busy ? "Creating…" : <>Create it <Icon name="arrowRight" /></>}</button>
               </div>
             </>
           )}

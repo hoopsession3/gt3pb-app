@@ -28,6 +28,7 @@ import { goPlanTab } from "@/lib/planNav";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { canOf } from "@/lib/roles";
 import GoLine from "@/components/GoLine";
+import Button from "./Button";
 
 // STUDIO — the collaborative marketing studio. Her money-maker, his taste → built around
 // collaboration: real-time co-editing (Supabase Realtime presence + broadcast), real version
@@ -740,7 +741,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
       {/* Post media + a real, format-accurate mockup (post 4:5 · reel/story 9:16 · carousel slides) */}
       <div className="studio-media">
-        <div className="studio-media-fmt">{fmtFor(item.kind).label}{mediaList.length > 1 ? ` · ${mediaList.length} slides` : ""}<button type="button" className="studio-lib-btn" onClick={openLibrary}>Library</button></div>
+        <div className="studio-media-fmt">{fmtFor(item.kind).label}{mediaList.length > 1 ? ` · ${mediaList.length} slides` : ""}<Button type="button" kind="quiet" className="ml-auto" onClick={openLibrary}>Library</Button></div>
         {mediaList.length === 0 ? (
           <button type="button" className="studio-media-add" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : "＋ Add photos / video / reel"}</button>
         ) : (
@@ -836,7 +837,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
             <button type="button" className="insp-yes" onClick={() => useOption(o)}>Use this</button>
           </div>
         ))}
-        <button type="button" className="btn-sec" style={{ marginTop: 6 }} onClick={doRepurpose} disabled={repBusy || !caption.trim()}>{repBusy ? "Repurposing…" : "Repurpose — Story · Reel · Email · Site"}</button>
+        <button type="button" className="btn-sec mt-1.5" onClick={doRepurpose} disabled={repBusy || !caption.trim()}>{repBusy ? "Repurposing…" : "Repurpose — Story · Reel · Email · Site"}</button>
       </div>
 
       {rep && (
@@ -856,21 +857,21 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       </div>
 
       <div className="studio-actions">
-        <button type="button" className="btn-sec" onClick={saveVersion}><Icon name="check" /> Save version</button>
-        {status === "draft" && <button type="button" className="btn-sec" onClick={() => setStage("review", {}, "submitted")} disabled={isBlank(title)}>Submit for review</button>}
-        {(status === "review" || status === "changes") && <button type="button" className="btn-sec" onClick={() => setStage("approved", { approved_by: me.id }, "approved")} disabled={isBlank(title)}>Approve</button>}
+        <button type="button" className="btn-sec btn-sm" onClick={saveVersion}><Icon name="check" /> Save version</button>
+        {status === "draft" && <button type="button" className="btn-sec btn-sm" onClick={() => setStage("review", {}, "submitted")} disabled={isBlank(title)}>Submit for review</button>}
+        {(status === "review" || status === "changes") && <button type="button" className="btn-sec btn-sm" onClick={() => setStage("approved", { approved_by: me.id }, "approved")} disabled={isBlank(title)}>Approve</button>}
         {status === "review" && (
           <span className="studio-changes">
             <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="What to change…" />
-            <button type="button" className="btn-sec" onClick={requestChanges} disabled={!note.trim()}>Request changes</button>
+            <button type="button" className="btn-sec btn-sm" onClick={requestChanges} disabled={!note.trim()}>Request changes</button>
           </span>
         )}
-        {(status === "approved" || status === "scheduled") && <button type="button" className="btn-sec" onClick={() => setStage("published", {}, "published")}>Mark published</button>}
+        {(status === "approved" || status === "scheduled") && <button type="button" className="btn-sec btn-sm" onClick={() => setStage("published", {}, "published")}>Mark published</button>}
         {status === "scheduled" && <button type="button" className="btn-ter" onClick={() => setStage("approved", { scheduled_for: null }, "unscheduled")}>↩ Unschedule</button>}
         {status === "published" && <button type="button" className="btn-ter" onClick={() => setStage("approved", {}, "unpublished")}>↩ Unpublish</button>}
-        <button type="button" className="btn-sec" onClick={() => setKitOpen(true)}><Icon name="package" /> Post kit</button>
+        <button type="button" className="btn-sec btn-sm" onClick={() => setKitOpen(true)}><Icon name="package" /> Post kit</button>
         <button type="button" className="btn-ter" onClick={() => setShowVers((s) => !s)}>History ({versions.length})</button>
-        <button type="button" className="btn-ter" onClick={async () => { if (supabase && (await confirm({ title: "Delete this piece?", body: "This can't be undone.", confirmLabel: "Delete", danger: true }))) { await supabase.from("content_items").delete().eq("id", id); onClose(); } }}>Delete</button>
+        <button type="button" className="btn-del" onClick={async () => { if (supabase && (await confirm({ title: "Delete this piece?", body: "This can't be undone.", confirmLabel: "Delete", danger: true }))) { await supabase.from("content_items").delete().eq("id", id); onClose(); } }}>Delete</button>
       </div>
       {status === "changes" && item.review_note && <p className="insp-foot">Requested: {item.review_note}</p>}
 
@@ -878,9 +879,9 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         <div className="studio-pub">
           <div className="insp-lbl">Design &amp; publish</div>
           <div className="studio-pub-row">
-            <button type="button" className="btn-sec" onClick={makeCanva} disabled={!!pubBusy}>{pubBusy === "design" ? "Opening…" : "Make in Canva"}</button>
+            <button type="button" className="btn-sec btn-sm" onClick={makeCanva} disabled={!!pubBusy}>{pubBusy === "design" ? "Opening…" : "Make in Canva"}</button>
             {pub.edit && <a className="btn-ter" href={pub.edit} target="_blank" rel="noreferrer">Open design <Icon name="externalLink" /></a>}
-            {pub.edit && <button type="button" className="btn-sec" onClick={exportCanva} disabled={!!pubBusy}>{pubBusy === "export" ? "Exporting…" : "Export PNG"}</button>}
+            {pub.edit && <button type="button" className="btn-sec btn-sm" onClick={exportCanva} disabled={!!pubBusy}>{pubBusy === "export" ? "Exporting…" : "Export PNG"}</button>}
             {pub.png && <a className="btn-ter" href={pub.png} target="_blank" rel="noreferrer">View graphic <Icon name="externalLink" /></a>}
           </div>
           <div className="studio-pub-row">
@@ -890,7 +891,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
                 published) is a same-tier .btn-sec below; only one commit-to-the-world action gets
                 the heavy red treatment. It's the first child of this flex-wrap row so going
                 full-width doesn't orphan a sibling — Live/Take off site cleanly wrap under it. */}
-            <button type="button" className="btn-pri" onClick={publish} disabled={!!pubBusy}>{pubBusy === "publish" ? "Publishing…" : "Publish to site"}</button>
+            <button type="button" className="btn-pri btn-wide" onClick={publish} disabled={!!pubBusy}>{pubBusy === "publish" ? "Publishing…" : "Publish to site"}</button>
             {pub.live && <a className="btn-ter" href={pub.live.startsWith("http") ? pub.live : undefined} target="_blank" rel="noreferrer">Live <Icon name="externalLink" /> {pub.live.startsWith("http") ? "" : `(${pub.live})`}</a>}
             {pub.live && <button type="button" className="btn-ter" onClick={unpublishSite} disabled={!!pubBusy}>{pubBusy === "unpublish" ? "Removing…" : "↩ Take off site"}</button>}
           </div>

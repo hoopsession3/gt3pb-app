@@ -6,6 +6,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import { readParam, dropParam } from "@/lib/urlParam";
 import { useConfirm } from "./ConfirmSheet";
 import AsyncSection from "./AsyncSection";
+import Button from "./Button";
 
 // OUTLOOK — the owner's two-way calendar sync (/api/outlook/*, all owner-only).
 //
@@ -87,12 +88,12 @@ export default function OutlookConnect() {
       {(st) => (
         <div className="ol-set">
           {!st.configured && <div className="ol-note">It can&rsquo;t connect yet: it needs the one-time Microsoft app setup on the server, a developer&rsquo;s job.</div>}
-          {st.configured && !st.connected && <button type="button" className="ol-btn primary" onClick={connect} disabled={busy === "connect"}>{busy === "connect" ? "Opening Microsoft…" : "Connect Outlook"}</button>}
+          {st.configured && !st.connected && <Button type="button" kind="primary" onClick={connect} disabled={busy === "connect"}>{busy === "connect" ? "Opening Microsoft…" : "Connect Outlook"}</Button>}
           {st.connected && (
             <>
               <div className="ol-note">{outlookLine(st)}</div>
               <div className="ol-acts">
-                <button type="button" className="ol-btn" onClick={disconnect} disabled={busy === "dc"}>Disconnect</button>
+                <Button type="button" kind="destructive" onClick={disconnect} disabled={busy === "dc"}>Disconnect</Button>
               </div>
             </>
           )}

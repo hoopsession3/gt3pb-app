@@ -161,7 +161,7 @@ export default function OsRegistry() {
               {isAdmin && (
                 <div className="osr-add">
                   <input className="note-in" placeholder="＋ Add a workstream…" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addStream(); }} aria-label="New workstream name" />
-                  {newName.trim() && <button type="button" className="note-save" onClick={addStream}>Add</button>}
+                  {newName.trim() && <button type="button" className="btn-pri" onClick={addStream}>Add</button>}
                 </div>
               )}
               {/* THE ROWS ARE THE PAGE'S, NOT CARDS ON IT (2026-10-07). Each was a card filled with a
@@ -197,7 +197,7 @@ export default function OsRegistry() {
             { name: auditing.name, owner_id: auditing.owner_user_id ?? null, owner: auditing.owner ?? "", next_action: auditing.next_action ?? "", due: auditing.due ?? "", blocker: auditing.blocker ?? "", status: auditing.status, note: "" },
             ["name", "owner_id", "owner", "next_action", "due", "blocker", "status", "note"])}
           header={<div className="note-lux-head"><span className="note-lux-eyb">Monday audit · {auditing.name}</span><CloseButton onClick={() => setAuditing(null)} /></div>}
-          footer={<div className="note-actions"><span className="osr-total">{scored ? `${total} / 10` : anyScored ? "score all five" : "details only"}</span><LeaveButton className="note-cancel" onClick={() => setAuditing(null)}>Cancel</LeaveButton><button type="button" className="note-save" disabled={saving || (anyScored && !scored) || !draft.name.trim() || !hasOwner} onClick={save}>{saving ? "Saving…" : scored ? "Save audit" : "Save details"}</button></div>}>
+          footer={<div className="note-actions"><span className="osr-total">{scored ? `${total} / 10` : anyScored ? "score all five" : "details only"}</span><LeaveButton className="btn-sec" onClick={() => setAuditing(null)}>Cancel</LeaveButton><button type="button" className="btn-pri" disabled={saving || (anyScored && !scored) || !draft.name.trim() || !hasOwner} onClick={save}>{saving ? "Saving…" : scored ? "Save audit" : "Save details"}</button></div>}>
           <div className="osr-audit">
             <div className="osr-audit-row">
               <label className="prod-f"><span>Workstream</span>

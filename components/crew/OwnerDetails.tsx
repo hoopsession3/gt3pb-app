@@ -386,7 +386,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
       </div>
       <div className="prod-actions" style={{ marginTop: 12 }}>
         <button type="button" className="note-arch" onClick={() => { setEdit(false); ownerState.reload(); }} disabled={saving}>Cancel</button>
-        <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save details"}</button>
+        <button type="button" className="btn-pri" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save details"}</button>
       </div>
     </div>
         );

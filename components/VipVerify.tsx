@@ -7,6 +7,7 @@ import { uploadToBucket } from "@/lib/uploads";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
+import Button from "./Button";
 
 // VIP VERIFY — the customer side. A signed-in bottle owner uploads a proof photo; it lands in the staff
 // queue (pending). On verify they become a Founding VIP with a reward. Shows the live status. Reuses the
@@ -64,7 +65,7 @@ export default function VipVerify() {
             <div className="vipv-h"><Icon name="star" /> Own a GT3 bottle? Verify for VIP</div>
             <p className="vipv-sub">Snap a photo with your bottle and we&rsquo;ll make you a <b>Founding VIP</b> — free straight-brew refills, member pricing, and a reward.{data.status === "rejected" && data.note ? ` (Last time: ${data.note})` : ""}</p>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) submit(f); e.currentTarget.value = ""; }} />
-            <button type="button" className="vipv-btn" onClick={() => fileRef.current?.click()} disabled={busy}>{busy ? "Uploading…" : data.status === "rejected" ? "Try again" : "Upload bottle photo"}</button>
+            <Button type="button" kind="secondary" onClick={() => fileRef.current?.click()} disabled={busy}>{busy ? "Uploading…" : data.status === "rejected" ? "Try again" : "Upload bottle photo"}</Button>
             {err && <div className="vipv-err">{err}</div>}
           </div>
         );

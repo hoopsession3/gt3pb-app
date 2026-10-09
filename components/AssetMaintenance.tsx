@@ -15,6 +15,7 @@ import { governing, cadenceDays, logDone } from "@/lib/upkeep";
 import { addDays, localToday } from "@/lib/dates";
 import { errorMessage } from "@/lib/errorMessage";
 import PersonPick, { usePersonMe, type PersonValue } from "./PersonPick";
+import Button from "./Button";
 
 // ASSET MAINTENANCE — upkeep log for the gear. Each asset shows its last service and what's due next
 // (or overdue); tap to see the full history and log a new service/repair/clean/inspection. Staff-gated
@@ -142,7 +143,7 @@ export default function AssetMaintenance() {
                           {s.overdue && s.due && cadenceDays(s.due) != null && (
                             <button type="button" className="so-move" onClick={() => doneToday(a, s.due!)} disabled={doing === a.id}>{doing === a.id ? "…" : "Done today"}</button>
                           )}
-                          <button type="button" className="brew-pack-btn" onClick={() => setLogFor({ asset: a, from: s.due })}>+ Log maintenance</button>
+                          <Button type="button" kind="secondary" compact wide className="mt-2" onClick={() => setLogFor({ asset: a, from: s.due })}>+ Log maintenance</Button>
                         </div>
                       </div>
                     )}
@@ -214,7 +215,7 @@ function LogSheet({ asset, from, onClose, onSaved }: { asset: Asset; from: Log |
           {err && <p className="load-failed" role="alert">{err}</p>}
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <LeaveButton className="note-arch" onClick={onClose}>Cancel</LeaveButton>
-            <button type="button" className="note-save" onClick={save} disabled={busy || !summary.trim()}>{busy ? "Saving…" : "Log it"}</button>
+            <button type="button" className="btn-pri" onClick={save} disabled={busy || !summary.trim()}>{busy ? "Saving…" : "Log it"}</button>
           </div>
     </Sheet>
   );

@@ -42,8 +42,8 @@ export default function PromptSheet({
           onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
       )}
       <div className="prod-actions" style={{ marginTop: 14 }}>
-        <button type="button" className="note-arch" onClick={onCancel}>Cancel</button>
-        <button type="button" className="note-save" onClick={submit} disabled={busy}>{busy ? "…" : confirmLabel}</button>
+        <button type="button" className="btn-ter" onClick={onCancel}>Cancel</button>
+        <button type="button" className="btn-pri" onClick={submit} disabled={busy}>{busy ? "…" : confirmLabel}</button>
       </div>
     </Sheet>
   );

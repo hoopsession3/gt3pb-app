@@ -123,7 +123,7 @@ export default function EventCopilot() {
           )}
           <div className="prod-actions" style={{ marginTop: 12 }}>
             <button type="button" className="note-arch" onClick={() => { setDraft(null); setVenueId(null); setAddress(""); setPin(null); }} disabled={creating}>← Back</button>
-            <button type="button" className="note-save" onClick={create} disabled={creating || !draft.title.trim()}>{creating ? "Creating…" : `Create ${draft.kind === "stop" ? "truck stop" : "event"}`}</button>
+            <button type="button" className="btn-pri" onClick={create} disabled={creating || !draft.title.trim()}>{creating ? "Creating…" : `Create ${draft.kind === "stop" ? "truck stop" : "event"}`}</button>
           </div>
         </div>
       )}

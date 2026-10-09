@@ -26,6 +26,8 @@ p,.entry-why,.gl-uc,.k-sub{text-wrap:pretty}
   --r-xs:4px; --r-sm:6px; --r-md:8px; --r-lg:10px;
   --r-xl:12px; --r-2xl:14px; --r-3xl:16px; --r-4xl:20px;
   --r-pill:999px;
+  /* the button kit's two sizes (2026-10-09, the button round: "03 · Buttons" below; app/tailwind.css names them) */
+  --btn-h:50px; --btn-h-sm:36px;
   /* the house motion voice: --ease for state changes, --ease-enter for things arriving; --spring is a real
      spring via linear() where the browser has it (the @supports gate lives with the sheet rules) */
   --ease:cubic-bezier(.2,.7,.3,1);
@@ -244,12 +246,12 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .handle:active{transform:scale(.985)}.handle svg{width:17px;height:17px}
 .handle:disabled{opacity:.45;box-shadow:none;cursor:default}
 /* Cohesion: give the high-traffic tappables that were missing it the house press-feedback. */
-.rsvp:active,.scan-add:not(:disabled):active,.craft-cta-b:active,.craft-cta-b.ghost:active,.conc-send:active,.subpitch-pack:active,.stop:active{transform:scale(.97)}
-/* Crew Pit Wall — the high-traffic controls that had no press feedback (adm-btn base, chips, FAB). */
-.adm-btn:not(:disabled):active,.myday-chip:active,.qd-fab:active,.adm-act-more:active,.alert-ack:active,.alert-open:active,.cogs-row:active,.cogs-tab:active,.adm-prep-view:active,.adm-prep-back:active,.adm-crew-chip:active,.adm-role:active,.adm-golink:active{transform:scale(.96)}
+.rsvp:active,.scan-add:not(:disabled):active,.conc-send:active,.subpitch-pack:active,.stop:active{transform:scale(.97)}
+/* Crew Pit Wall — the high-traffic controls that had no press feedback (chips, FAB; the buttons settle in "03 · Buttons"). */
+.myday-chip:active,.qd-fab:active,.adm-act-more:active,.alert-ack:active,.alert-open:active,.cogs-row:active,.cogs-tab:active,.adm-prep-view:active,.adm-prep-back:active,.adm-crew-chip:active,.adm-role:active,.adm-golink:active{transform:scale(.96)}
 .qd-fab:active{box-shadow:0 4px 12px rgba(0,0,0,.4)}
 /* Academy — tappable rows/options/cert chips get the house press feedback. */
-.ac-mod:active,.ac-opt:not(:disabled):active,.ac-cert:active,.ac-prod:active,.ac-ackcard:active,.ac-team-btn:active,.ac-back:active{transform:scale(.985)}
+.ac-mod:active,.ac-opt:not(:disabled):active,.ac-cert:active,.ac-prod:active,.ac-ackcard:active,.ac-back:active{transform:scale(.985)}
 /* Academy subtitles used .subm which was never defined (rendered as raw body text) — alias to .h-sub. */
 .subm{font-family:'Inter';font-size:13px;color:var(--cream-m);margin-top:8px;line-height:1.5}
 .handle .sm{font-family:'Inter';font-weight:500;font-size:11px;letter-spacing:.1em;opacity:.8;display:block;margin-top:2px}
@@ -571,7 +573,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ac-rtext b{font-weight:500;color:var(--cream)}
 .ac-rtext i{font-style:normal;font-size:13px;line-height:1.4;color:var(--cream-m)}
 .ac-rrow.ok .ac-rtext i{color:var(--gold2)}
-.ac-team-btn{width:100%;margin-top:14px;text-align:left;background:color-mix(in srgb, var(--brand-gold2) 10%, transparent);border:1px solid var(--gold2);border-radius:var(--r-xl);color:var(--gold2);font-family:'Inter';font-weight:600;font-size:13px;padding:13px 15px;cursor:pointer}
 .ac-mods{display:flex;flex-direction:column;gap:9px}
 .ac-mod{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--r-3xl);padding:13px 14px;cursor:pointer;color:var(--cream);box-shadow:0 6px 16px rgba(0,0,0,.18)}
 .ac-mod.done{border-color:color-mix(in srgb, var(--brand-gold2) 30%, transparent)}
@@ -655,7 +656,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ac-overdue{margin-left:8px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--red-h);background:color-mix(in srgb, var(--brand-red) 16%, transparent);border-radius:5px;padding:2px 6px;vertical-align:middle}
 
 /* ---- route map (Truck) ---- */
-/* isolation:isolate contains Leaflet's internal pane z-indexes (200-700+) and .rm-go's z-index:500
+/* isolation:isolate contains Leaflet's internal pane z-indexes (200-700+) and the Directions button's z-index:500
    to THIS element's own stacking context. Without it, position:relative alone doesn't stop them from
    competing directly against page-level z-index values like .sheet2-scrim's 80 — so opening any Sheet
    (e.g. the account/membership popout) while this map is on screen left the map's tiles, zoom control,
@@ -664,9 +665,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .routemap{height:240px;border-radius:18px;overflow:hidden;border:1px solid var(--line2);background:#100d09;box-shadow:0 6px 16px rgba(0,0,0,.2)}
 .routemap .leaflet-container{background:#100d09;font-family:'Inter';cursor:default}
 .routemap .leaflet-interactive{cursor:pointer}
-.rm-go{position:absolute;right:11px;bottom:11px;z-index:500;display:flex;align-items:center;gap:7px;font-family:'Inter';font-weight:650;font-size:12px;letter-spacing:.6px;text-transform:uppercase;color:#fff;background:var(--red);border:none;border-radius:var(--r-xl);padding:10px 14px;box-shadow:0 5px 16px rgba(0,0,0,.45);cursor:pointer}
-.rm-go:active{transform:scale(.97)}
-.rm-go svg{width:15px;height:15px}
+.routemap-wrap .rm-go{position:absolute;right:11px;bottom:11px;z-index:500}  /* the kit's primary, placed over the map */
 .rm-truck{animation:rmpulse 2s ease-in-out infinite;transform-origin:center}
 @keyframes rmpulse{0%,100%{opacity:1}50%{opacity:.5}}
 .rm-tip{background:rgba(20,19,15,.92)!important;border:1px solid var(--line2)!important;color:var(--cream)!important;font-family:'Inter'!important;font-size:11px!important;font-weight:650!important;letter-spacing:.2px!important;padding:2px 6px!important;border-radius:var(--r-sm)!important;box-shadow:0 3px 10px rgba(0,0,0,.5)!important;white-space:nowrap!important}
@@ -708,27 +707,11 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .kds-stagetime{color:var(--gold2)}
 .adm-order.st-done{opacity:.72;border-left-color:var(--cream-m)}
 .adm-age.calm{color:var(--cream-m)}
-.adm-btn{font-family:'Inter';font-weight:650;font-size:12px;letter-spacing:.2px;padding:9px 13px;border-radius:11px;border:1px solid var(--line2);background:#2a2820;color:var(--cream);cursor:pointer;flex:0 0 auto;white-space:normal}
 /* Name-first inline creator (components/InlineCreate) — type a name before the row exists */
 .inline-create{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}
 .inline-create-in{font-family:'Inter';font-size:13px;padding:7px 10px;border-radius:9px;border:1px solid var(--gold2);background:var(--card);color:var(--cream);width:150px;max-width:44vw;-webkit-appearance:none;appearance:none}
 .inline-create-in:focus{outline:none;box-shadow:0 0 0 3px color-mix(in srgb, var(--brand-gold2) 14%, transparent)}
-.inline-create-go{font-family:'Inter';font-weight:700;font-size:12px;padding:7px 12px;border-radius:9px;border:none;background:var(--gold);color:#1a1610;cursor:pointer;flex:0 0 auto}
-.inline-create-go:disabled{opacity:.5;cursor:default}
 .app.crew-day .inline-create-in{background:var(--card)}
-/* THE red primary action button. .note-save (Plan notes / profile sheets) was a copy-paste of
-   .adm-btn.primary's effective crew-console look with drifted weight/padding — converged via :is()
-   (same approach as the :is(.oa-cta,…) CTA block); call-site class names are UNCHANGED. Size values
-   match the .admin .adm-btn touch override below so the look is one thing everywhere. */
-:is(.adm-btn.primary,.note-save){background:var(--red);border:1px solid var(--red);color:#fff;font-family:'Inter';font-weight:650;font-size:13px;letter-spacing:.2px;padding:12px 16px;border-radius:var(--r-xl);min-height:44px;cursor:pointer;white-space:nowrap;-webkit-appearance:none;appearance:none}
-/* long labels wrap instead of overflowing 320px viewports (CSS audit pack 2 2026-07) */
-:is(.adm-btn,.adm-btn.primary,.note-save){white-space:normal}
-.adm-btn.go{background:#2f7a34;border-color:#2f7a34;color:#fff}
-.adm-btn:disabled{opacity:.5;cursor:default}
-.adm-btn.on{background:var(--ok);border-color:var(--ok);color:#fff}
-.adm-btn.ghost{background:transparent;border:1.5px solid var(--line2);color:var(--cream)}
-/* every crew button variant reacts to a pointer, not just .primary — one coherent control system */
-@media (hover:hover){.adm-btn:not(.primary):not(:disabled):hover{border-color:var(--gold2);background:color-mix(in srgb, var(--brand-gold2) 8%, transparent)}}
 .adm-member{background:var(--card);border:1px solid var(--line);border-radius:var(--r-2xl);padding:12px 14px;margin-top:9px}
 .adm-member-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
 .adm-member-top b{font-family:'Inter';font-weight:650;font-size:15px}
@@ -777,8 +760,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .adm-prep-sec{margin-top:8px}
 .adm-task{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line)}
 .adm-task-link{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;background:rgba(184,144,47,.16);color:var(--gold2);text-decoration:none;font-size:15px;font-weight:700}
-.adm-regen{margin-top:8px;background:none;border:none;color:var(--gold2);font-family:'Inter';font-size:12px;cursor:pointer;padding:3px 0;letter-spacing:.2px}
-.adm-regen:disabled{opacity:.5;cursor:default}
 .adm-task-add{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
 .adm-task-add input{flex:1}
 .adm-task-add .adm-task-due{flex:0 0 auto;max-width:9.5rem}
@@ -814,7 +795,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 /* universal disclosure caret — points right when closed, rotates down (90deg) when its section is open */
 .ev-card.open .ev-chev,.ev-chev.open{transform:rotate(90deg)}
 .am-head .ev-chev{margin-left:auto}
-.adm-regen .ev-chev{font-size:15px;vertical-align:middle}
 .ev-body{padding:14px;display:flex;flex-direction:column;gap:16px;border-top:1px solid var(--line)}
 .ev-golive{display:flex;align-items:center;gap:11px;width:100%;padding:13px;border-radius:var(--r-xl);border:1.5px solid var(--line2);background:rgba(0,0,0,.22);color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;text-align:left;transition:.15s}
 .ev-golive>span:nth-child(2){flex:1;line-height:1.3}
@@ -926,14 +906,13 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .bcast-x{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .bcast-t{font-weight:700;color:var(--cream)}
 .bcast-b{font-size:13px;color:var(--cream-m);line-height:1.35}
-.bcast-cta{flex-shrink:0;background:var(--cream);color:#1a1610;font-weight:700;font-size:13px;padding:6px 13px;border-radius:var(--r-pill);text-decoration:none;white-space:nowrap;cursor:pointer}
+.bcast-cta{flex-shrink:0;white-space:nowrap}
 .bcast-close{flex-shrink:0;background:none;border:none;color:var(--cream-m);font-size:15px;cursor:pointer;padding:2px 6px;line-height:1;-webkit-appearance:none;appearance:none}
 .bcast-info{background:linear-gradient(90deg,color-mix(in srgb, var(--brand-gold2) 16%, transparent),color-mix(in srgb, var(--brand-gold2) 5%, transparent))}
 .bcast-success{background:linear-gradient(90deg,rgba(106,160,92,.22),rgba(106,160,92,.06))}
 .bcast-warning{background:linear-gradient(90deg,rgba(207,154,74,.24),rgba(207,154,74,.07))}
 .bcast-brand{background:linear-gradient(90deg,var(--red-deep,#B82420),#2A2820);border-bottom-color:color-mix(in srgb, var(--brand-gold2) 45%, transparent)}
 .bcast-brand .bcast-t,.bcast-brand .bcast-b{color:var(--brand-cream)}
-.bcast-brand .bcast-cta{background:var(--gold,#C8A661);color:#1a1610}
 .bcast-brand .bcast-close{color:color-mix(in srgb, var(--brand-cream) 70%, transparent)}
 /* Broadcast editor (Settings) */
 .bce{display:flex;flex-direction:column;gap:2px}
@@ -987,13 +966,10 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ev-arch-head .ev-chev{margin-left:auto;font-size:16px;transition:transform .18s}
 .ev-arch-head .ev-chev.open{transform:rotate(90deg)}
 .ev-arch-row{display:flex;align-items:center;gap:9px;padding:10px 2px;border-bottom:1px solid var(--line)}
-.ev-arch-name{flex:1;min-width:0;font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream-m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-arch-name{flex:1;min-width:0;font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream-m);overflow-wrap:anywhere}  /* wraps: a row's buttons are the kit's now, and a name is never cut to fit them */
 /* --cream-m, not --cream-d: the dimmer token measured 3.69:1 on the day ground at 12px (2026-10-02,
    the quiet Outlook line) — under AA for text this size, and this is smaller. */
 .ev-arch-when{flex:0 0 auto;font-family:'Inter';font-size:12px;color:var(--cream-m);font-variant-numeric:tabular-nums}
-.ev-arch-btn{flex:0 0 auto;background:transparent;border:1px solid var(--line2);border-radius:var(--r-md);color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:11px;padding:6px 11px;cursor:pointer}
-.ev-arch-btn:active{border-color:var(--gold2);color:var(--gold2)}
-.ev-arch-btn.del:active{border-color:var(--red);color:var(--red)}
 @media(max-width:380px){.ev-grid{grid-template-columns:repeat(2,1fr)}}
 .app:is(.rd-t2,.rd-t3) .ev-grid{grid-template-columns:repeat(2,1fr)}
 
@@ -1392,7 +1368,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .guide-inside{list-style:none;margin:0 0 14px;padding:0;display:flex;flex-direction:column;gap:6px}
 .guide-inside li{position:relative;padding-left:16px;font-family:'Inter';font-size:13px;color:var(--cream);opacity:.85;line-height:1.35}
 .guide-inside li::before{content:"";position:absolute;left:2px;top:7px;width:5px;height:5px;border-radius:var(--r-pill);background:var(--gold2)}
-.guide-go{display:inline-flex;align-items:center;background:var(--gold);border:none;border-radius:11px;color:#1a1610;font-family:'Inter';font-weight:700;font-size:13px;padding:11px 16px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .guide-here-note{font-family:'Inter';font-size:12px;color:var(--gold2);font-weight:600}
 .opx-link{display:block;text-decoration:none;background:rgba(168,124,63,.08);border:1px solid var(--line2);border-radius:var(--r-2xl);padding:15px 16px;margin-bottom:12px}
 .opx-link:active{background:rgba(168,124,63,.14)}
@@ -1561,8 +1536,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .supply-crit{color:var(--red-h);font-size:11px}
 
 /* Operator console — bigger, touch-friendly controls applied across every section
-   (Now / Prep / Plan / Money / Team). Scoped to .admin so the customer app is untouched. */
-:is(.admin,.sheet2) .adm-btn{font-size:13px;padding:12px 16px;border-radius:var(--r-xl);min-height:44px}  /* sheets render outside .admin: there it was ~34px (2026-10-08) */
+   (Now / Prep / Plan / Money / Team). Scoped to .admin so the customer app is untouched. */  /* sheets render outside .admin: there it was ~34px (2026-10-08) */
 .admin .adm-role{min-height:44px;padding:10px 14px;border-radius:11px;border:1px solid var(--line2);background-color:rgba(168,124,63,.08);color:var(--gold2);font-family:'Inter';font-weight:600;font-size:13px;-webkit-appearance:none;appearance:none;cursor:pointer}
 .admin .adm-crew-row{gap:8px}
 .admin .adm-crew-chip{font-size:13px;padding:9px 13px;border-radius:var(--r-lg);min-height:40px;display:inline-flex;align-items:center;gap:7px}
@@ -1572,7 +1546,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .admin .adm-fields input[type=number],.admin .adm-fields input[type=text]{min-height:44px;padding:11px;border-radius:11px}
 .admin .adm-member{padding:14px 16px;border-radius:var(--r-3xl);margin-top:10px}
 .admin .adm-ready-bar{padding:13px 15px;font-size:13px;border-radius:var(--r-2xl)}
-.admin .adm-regen{font-size:13px;padding:9px 0;min-height:40px}
 .admin .adm-task-add{gap:9px}
 .admin .adm-task-add input{min-height:46px}
 .admin .adm-task-link{width:38px;height:38px;font-size:16px;border-radius:9px}
@@ -1674,8 +1647,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .acs-guest{padding:10px 4px 6px;text-align:center}
 .acs-guest-t{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold2)}
 .acs-guest p{margin:9px 0 16px;font-family:'Inter';font-size:15px;color:var(--cream-m);line-height:1.5}
-.acs-cta{width:100%;background:var(--red);color:#fff;border:none;border-radius:var(--r-2xl);padding:15px;font-family:'Inter';font-weight:700;font-size:15px;letter-spacing:1.1px;text-transform:uppercase;cursor:pointer;box-shadow:0 8px 20px color-mix(in srgb, var(--brand-red) 26%, transparent)}
-.acs-cta:active{transform:scale(.985)}
 
 /* ── DELIVERY AUDIENCE FORK (home / office) + OFFICE ORDER SHEET ── */
 .aud-fork{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0 6px}
@@ -1784,7 +1755,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 /* after the rule above, at its weight — so a panel row keeps the hairline that rule's border:0 took */
 .set-list > :not(:first-child){border-top:1px solid var(--line)}
 .set-row{padding:14px 16px}
-.set-row .btn-sec,.set-part .btn-sec{flex:0 0 auto;width:auto;white-space:nowrap}
+.set-row .btn-sec,.set-part .btn-sec{flex:0 0 auto;white-space:nowrap}
 .set-list .mpanel-t{font-size:15px;letter-spacing:0}
 .mpanel-tt{display:flex;flex-direction:column;gap:3px;flex:1 1 auto;min-width:0}
 .mpanel-s{font-family:'Inter';font-weight:400;font-size:13px;line-height:1.35;color:var(--cream-m)}
@@ -1818,10 +1789,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .ofset-note{font-family:'Inter';font-size:12px;color:var(--cream-d);line-height:1.5;margin:0}
 
 /* ── OPS PLAN (chief-of-staff · note → operations) — a premium propose→approve brief ── */
-.ops-go{margin:12px 0;display:inline-flex;align-items:center;gap:8px;font-family:'Inter';font-weight:700;font-size:13px;color:var(--gold2);background:linear-gradient(135deg,color-mix(in srgb, var(--brand-gold2) 15%, transparent),color-mix(in srgb, var(--brand-gold2) 5%, transparent));border:1px solid color-mix(in srgb, var(--brand-gold2) 45%, transparent);border-radius:var(--r-xl);padding:11px 16px;cursor:pointer;-webkit-appearance:none;appearance:none;box-shadow:0 6px 18px -8px color-mix(in srgb, var(--brand-gold2) 50%, transparent);transition:transform .14s ease,box-shadow .14s ease}
-@media(hover:hover){.ops-go:hover{box-shadow:0 9px 24px -8px color-mix(in srgb, var(--brand-gold2) 70%, transparent)}}
-.ops-go:active{transform:scale(.98)}
-.ops-go:disabled{opacity:.8;cursor:default}
 .ops-dots{display:inline-flex;gap:3px}
 .ops-dots i{width:4px;height:4px;border-radius:50%;background:currentColor;opacity:.4;animation:opsdot 1s infinite}
 .ops-dots i:nth-child(2){animation-delay:.15s}.ops-dots i:nth-child(3){animation-delay:.3s}
@@ -1877,9 +1844,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .ops-track:disabled{opacity:.55}
 /* note attachments → transcribe */
 .natt{display:flex;flex-direction:column;gap:5px;margin:8px 0}
-.natt-btn{align-self:flex-start;font-family:'Inter';font-weight:600;font-size:13px;color:var(--gold2);background:color-mix(in srgb, var(--brand-gold2) 8%, transparent);border:1px dashed color-mix(in srgb, var(--brand-gold2) 50%, transparent);border-radius:11px;padding:9px 15px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:transform .12s ease}
-.natt-btn:active{transform:scale(.98)}
-.natt-btn:disabled{opacity:.6;cursor:default}
 .natt-hint{font-family:'Inter';font-size:11px;color:var(--cream-d)}
 @media(prefers-reduced-motion:reduce){.ops-op,.ops-approve,.ops-cancel,.ops-check,.ops-dots i,.ops-prog-bar i{animation:none;opacity:1;transform:none}}
 .oo-badge{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#0e0d0b;background:var(--gold2);border-radius:5px;padding:2px 6px;flex:none}
@@ -1912,12 +1876,10 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .tl-f span{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--cream-m)}
 .tl-f input{background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:var(--r-md);padding:8px 9px;color:var(--cream);font-family:'Inter';font-size:15px;outline:none;width:100%;min-width:0}
 .tl-f input:focus{border-color:var(--gold2)}
-.tl-editform .adm-btn{grid-column:1 / -1}
 .tl-vlook{grid-column:1 / -1;display:flex;gap:6px;flex-wrap:wrap}
 .tl-vlook-q{flex:1;min-width:150px;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:var(--r-md);padding:8px 9px;color:var(--cream);font-family:'Inter';font-size:15px;outline:none}
 .tl-vlook-q:focus{border-color:var(--gold2)}
 .tl-vlook-pax{background-color:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:var(--r-md);padding:8px 9px;color:var(--cream);font-family:'Inter';font-size:13px;outline:none}
-.tl-editform .tl-vlook .adm-btn{grid-column:auto}
 .app.crew-day .tl-vlook-q,.app.crew-day .tl-vlook-pax,.app.crew-day .tl-f input{background-color:var(--card)}
 .tl-vspec{grid-column:1 / -1;background:color-mix(in srgb, var(--brand-gold) 10%, transparent);border:1px solid color-mix(in srgb, var(--brand-gold) 30%, transparent);border-radius:var(--r-lg);padding:10px 12px;font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream)}
 .tl-vspec b{font-weight:650}
@@ -2174,9 +2136,6 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .pnotes-row b{display:block;font-family:'Inter';font-weight:650;font-size:13px}
 .pnotes-row span{display:block;font-size:12px;color:var(--cream-m);margin-top:2px}
 .app.crew-day .pnotes-row{background:var(--card)}
-.note-cancel{background:none;border:1.5px solid var(--line2);border-radius:11px;padding:11px 18px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
-/* .note-save's box/fill lives in the shared :is(.adm-btn.primary,.note-save) rule (see .adm-btn). */
-.note-save:disabled{opacity:.4}
 .note-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-3xl);margin-top:11px;overflow:hidden;box-shadow:0 6px 16px rgba(0,0,0,.18)}
 .note-card.open{border-color:var(--line2)}
 .note-head{width:100%;display:flex;align-items:center;gap:12px;background:none;border:none;padding:15px 16px;text-align:left;cursor:pointer;-webkit-appearance:none;appearance:none;color:inherit}
@@ -2205,8 +2164,6 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .note-fu-x{flex:0 0 auto;background:none;border:none;color:var(--cream-m);font-size:20px;line-height:1;padding:4px 6px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .note-fu-add{display:flex;gap:9px;margin-top:12px}
 .note-fu-add .note-in{flex:1}
-.note-fu-addbtn{flex:0 0 auto;background:var(--gold);border:none;border-radius:11px;padding:0 18px;color:#1a1610;font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.note-fu-addbtn:disabled{opacity:.4}
 .note-del{margin-top:16px;background:none;border:1px solid var(--line2);border-radius:var(--r-lg);padding:9px 16px;color:#ecb4b1;font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
 
 /* ── alerts inbox (Now section) ── */
@@ -2626,7 +2583,6 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 /* studio post media uploader + format-accurate mockup */
 .studio-media{margin:10px 0 6px}
 .studio-media-fmt{display:flex;align-items:center;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--bronze);margin-bottom:6px}
-.studio-lib-btn{margin-left:auto;font-family:'Inter';font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--gold2);background:rgba(184,144,47,.12);border:1px solid rgba(184,144,47,.3);border-radius:7px;padding:4px 9px;cursor:pointer}
 .lib-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
 .lib-cell{position:relative;aspect-ratio:1/1;background:var(--card);background-size:cover;background-position:center;border:1px solid var(--line2);border-radius:var(--r-md);overflow:hidden;cursor:pointer;padding:0}
 .lib-cell video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -2647,8 +2603,6 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 .rf-f{display:flex;flex-direction:column;gap:4px}
 .rf-f span{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--bronze)}
 .rf-photo{display:flex;gap:8px}
-.rf-btn{flex:1;padding:10px;border-radius:9px;border:1px dashed var(--line2);background:rgba(255,255,255,.02);color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer}
-.rf-btn.ghost{flex:0 0 auto;border-style:solid;color:var(--red);border-color:color-mix(in srgb, var(--brand-red) 40%, transparent)}
 .rf-canvas{width:100%;max-width:300px;margin:6px auto 0;display:block;border-radius:var(--r-xl);border:1px solid var(--line2);box-shadow:0 10px 30px rgba(0,0,0,.3)}
 .rf-tpl-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}
 .rf-tpl-head>span{font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--bronze)}
@@ -2726,10 +2680,6 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
    .btn-pri/.btn-sec/.btn-ter tiers (2026-07-16 redesign pass). */
 .studio-act{background:rgba(255,255,255,.06);border:1px solid var(--line2);border-radius:var(--r-lg);padding:9px 14px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .studio-act:disabled{opacity:.5}
-/* None of the documented tiers style a :disabled state anywhere in the app yet (Studio is the first
-   caller to combine them with the disabled attribute) — pin the same dimming .studio-act always had,
-   scoped to Studio's own action rows so it can't leak into other screens' .btn-sec/.btn-pri. */
-.studio-engine .btn-sec:disabled,.studio-actions .btn-sec:disabled,.studio-pub .btn-sec:disabled,.studio-pub .btn-pri:disabled{opacity:.5}
 .studio-changes{display:flex;gap:6px;align-items:center}
 .studio-changes input{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 11px;color:var(--cream);font-family:'Inter';font-size:13px}
 .studio-vers{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
@@ -2741,7 +2691,6 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 /* ── Studio v1.1 — Canva + Webflow ── */
 .studio-pub{margin-top:14px;padding:13px;border:1px solid var(--line2);border-radius:13px;background:rgba(111,168,220,.06)}
 .studio-pub-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
-.studio-pub a.btn-ter{text-decoration:none}
 
 /* ── Studio view toggle + Brand Calendar ── */
 /* Studio view-switcher — on the kit chip grammar (quiet until selected: hairline pills,
@@ -2913,7 +2862,7 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
    (2026-07-09). Two failure families: gold pills whose day background darkened past what ink text
    can sit on (→ white labels), and classes that hardcode dark-theme colors (pink crit text, cream
    chip text, light-blue link, light-red pills) that never flipped for the cream ground. */
-.app.crew-day :is(.subnav-tab.on,.studio-view.on,.cos-tg.on,.rdy-run,.skip-link,.cal-nudge button,.alert-open,.note-tab.on,.oa-msg.user,.oa-send,.insp-yes,.note-fu-addbtn,.guide-go,.qd-fab,.inline-create-go,.cmt-av,.cmt-count,.studio-peer,.cal-vt.on,.calw-today,.prof-av,.org-av,.fn-day.on,.fn-conv,.cmd-cd,.vipq-yes,.vipv-btn,.fdig-opt.on,.pbd-filter.on,.rhythm-go,.cfm-ok){color:var(--card)}
+.app.crew-day :is(.subnav-tab.on,.studio-view.on,.cos-tg.on,.rdy-run,.skip-link,.cal-nudge button,.alert-open,.note-tab.on,.oa-msg.user,.oa-send,.insp-yes,.qd-fab,.cmt-av,.cmt-count,.studio-peer,.cal-vt.on,.calw-today,.prof-av,.org-av,.fn-day.on,.fn-conv,.cmd-cd,.vipq-yes,.fdig-opt.on,.pbd-filter.on,.rhythm-go){color:var(--card)}
 /* contrast fix (2026-07-15 crew-day audit): .subnav-tab.on and .studio-view.on are translucent-tint
    pills (not solid gold like the rest of the list above) whose OWN dark-theme rule already sets
    color:var(--gold2) — that's correct in both themes and shouldn't have been swept into the white-text
@@ -2960,7 +2909,6 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 .app.crew-day .oa-log{background:transparent}
 .app.crew-day .oa-msg.assistant{background:var(--bg)}
 /* dark-surfaced cards/buttons that had no light-theme override (read as gray/dark blobs in crew day) */
-.app.crew-day .adm-btn:not(.primary):not(.go):not(.on){background:var(--card);color:var(--cream);border-color:var(--line2)}
 /* checkerboard for transparent logos still reads on light */
 .app.crew-day .brand-asset-img{background:repeating-conic-gradient(var(--char3) 0% 25%, #f6f1e6 0% 50%) 50%/16px 16px}
 /* ── A11y fix pack (audit 2026-07): day-mode contrast ──
@@ -3004,7 +2952,7 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 .app.crew-day .offchip.on{background:#f0f6ec}
 .app.crew-day .qd-fab.open{color:var(--cream)}
 /* day-mode contrast: status text + controls the packs missed */
-.app.crew-day :is(.dp-leave-h b,.dp-leave-btn){color:var(--color-info)}
+.app.crew-day :is(.dp-leave-h b){color:var(--color-info)}
 .app.crew-day .adm-age.late{color:var(--red-onLight)}
 .app.crew-day .adm-substat.past_due{color:var(--red-onLight)}
 .app.crew-day :is(.auth-label span,.auth-fine){color:var(--muted)}
@@ -3377,9 +3325,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .ol-note{font-family:'Inter';font-size:12px;line-height:1.45;color:var(--cream-m);margin-top:7px}
 .ol-note code{font-family:'DM Mono';font-size:11px;background:rgba(255,255,255,.05);padding:1px 4px;border-radius:var(--r-xs)}
 .ol-acts{display:flex;gap:8px;margin-top:9px}
-.ol-btn{border-radius:9px;padding:9px 14px;font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer;border:1px solid var(--line2);background:transparent;color:var(--cream);-webkit-appearance:none;appearance:none}
-.ol-btn.primary{background:var(--gold2);border-color:var(--gold2);color:#1a1409;margin-top:9px}
-.ol-acts .ol-btn.primary{margin-top:0}
 .ol-msg{font-family:'Inter';font-size:13px;color:var(--gold2);margin-top:9px}
 
 /* ── Prep declutter: collapsible section header ── */
@@ -3393,10 +3338,9 @@ body:has(.conc-sheet) .rail{display:flex}
 .prep-tool{margin-top:10px}
 /* The prep screen's small controls get the 44px every other control there has (2026-10-04): they
    measured 22–28px — "+ Add" on the brief, "Edit details", "Add to calendar", "‹ All prep". */
-.admin .adm-prep-back,.atc-btn,.ownerdet-edit,.daybrief-edit{min-height:44px}
+.admin .adm-prep-back,.ownerdet-edit,.daybrief-edit{min-height:44px}
 
 /* ── Event generator (create from notes) ── */
-.adm-btn.eg-btn{margin-right:7px}
 .eg-sec{font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--gold2);margin:14px 0 7px}
 .eg-row{display:flex;gap:9px;align-items:flex-start;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--c,#888);border-radius:var(--r-lg);padding:9px 11px;margin-bottom:6px;cursor:pointer;-webkit-appearance:none;appearance:none;opacity:.55}
 .eg-row.on{opacity:1}
@@ -3515,8 +3459,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .dv-row{align-items:center}
 
 /* ── Day planner: "when to leave" summary ── */
-.dp-leave-btn{width:100%;background:rgba(111,168,220,.12);border:1px dashed rgba(111,168,220,.55);border-radius:11px;padding:11px;margin-bottom:11px;color:#9ec5ea;font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.dp-leave-btn:disabled{opacity:.6}
 .dp-leave{background:rgba(111,168,220,.12);border:1px solid rgba(111,168,220,.5);border-radius:11px;padding:11px 13px;margin-bottom:11px}
 .dp-leave-h{display:flex;align-items:center;gap:8px;font-family:'Inter';font-size:13px;color:var(--cream-m)}
 .dp-leave-h b{font-family:'Inter';font-weight:800;font-size:17px;color:#9ec5ea}
@@ -3524,7 +3466,7 @@ body:has(.conc-sheet) .rail{display:flex}
 .dp-leave-sum{font-family:'Inter';font-size:13px;color:var(--cream);line-height:1.45;margin-top:5px}
 .dp-leave-risks{display:flex;flex-direction:column;gap:2px;margin-top:6px}
 .dp-leave-risks span{font-family:'Inter';font-size:12px;color:var(--warn)}
-.app.crew-day .dp-leave,.app.crew-day .dp-leave-btn{background:rgba(111,168,220,.1)}
+.app.crew-day .dp-leave{background:rgba(111,168,220,.1)}
 
 /* ── Chief of Staff briefing ── */
 .cos{background:linear-gradient(160deg,#19150f,#120f0a);border:1px solid var(--gold2);border-radius:var(--r-3xl);padding:15px;margin-bottom:16px}
@@ -3665,7 +3607,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .brew-score{display:flex;align-items:center;gap:6px;margin-top:9px;font-family:'Inter';font-size:12px;color:var(--cream-m)}
 .brew-score-b{width:28px;height:28px;border-radius:var(--r-md);background:transparent;border:1px solid var(--line2);color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer}
 .brew-score-b.on{background:var(--ok);border-color:var(--ok);color:#11210d}
-.brew-pack-btn{margin-top:9px;width:100%;background:transparent;border:1px solid var(--line2);border-radius:9px;padding:9px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .brew-adjust-link{margin-top:8px;background:none;border:none;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;padding:2px 0;text-align:left;display:block}
 .brew-adjust-sep{height:1px;background:var(--line);margin:16px 0 12px}
 .brew-adjust-danger,.brew-adjust-undo{display:block;width:100%;text-align:center;padding:11px;border-radius:11px;font-family:'Inter';font-weight:650;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none;margin-top:9px}
@@ -3674,9 +3615,9 @@ body:has(.conc-sheet) .rail{display:flex}
 
 /* ============ LUXURY LAYER · tactile press + aligned figures (grain lives on .app bg) ============ */
 /* a crisp mechanical give on tap — the visual half of haptics; reads premium even where iOS mutes vibration */
-.oa-tile,.oa-day,.oa-cta,.note-save,.note-arch,.brew-start,.brew-pack-btn,.dl-ctr-b button,.dl-card,.spl-cta,.handle,.brew-adjust-danger,.brew-adjust-undo,.qd-tab{transition:transform .11s var(--ease),filter .15s ease,background-color .15s ease}
-.oa-tile:active,.oa-day:active,.oa-cta:active,.note-save:active,.note-arch:active,.brew-start:active,.brew-pack-btn:active,.dl-ctr-b button:active,.dl-card:active,.spl-cta:active,.handle:active,.brew-adjust-danger:active,.brew-adjust-undo:active,.qd-tab:active{transform:scale(.965)}
-.oa-cta:active,.spl-cta:active,.note-save:active{filter:brightness(1.06)}
+.oa-tile,.oa-day,.oa-cta,.note-arch,.brew-start,.dl-ctr-b button,.dl-card,.handle,.brew-adjust-danger,.brew-adjust-undo,.qd-tab{transition:transform .11s var(--ease),filter .15s ease,background-color .15s ease}
+.oa-tile:active,.oa-day:active,.oa-cta:active,.note-arch:active,.brew-start:active,.dl-ctr-b button:active,.dl-card:active,.handle:active,.brew-adjust-danger:active,.brew-adjust-undo:active,.qd-tab:active{transform:scale(.965)}
+.oa-cta:active{filter:brightness(1.06)}
 /* figures line up + never jitter — Stripe/Apple-grade number setting */
 .dl-quote,.dl-quote-t,.brew-timer,.spl-price,.dl-deadline{font-variant-numeric:tabular-nums}
 .brew-recipe{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
@@ -3699,7 +3640,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .brew-flags b{color:var(--warn)}
 
 /* ── Troubleshoot AI (field ops) ── */
-.ts-btn{border-color:rgba(207,154,74,.5)!important;color:var(--warn)!important}
 .ts-chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
 .ts-chip{display:flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--line2);border-radius:var(--r-pill);padding:7px 12px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .12s,color .12s,border-color .12s}
 .ts-chip.on{background:rgba(207,154,74,.16);border-color:var(--warn);color:var(--cream)}
@@ -3839,12 +3779,8 @@ body:has(.conc-sheet) .rail{display:flex}
 
 /* Reset / nuke an event or stop's prep + schedule — destructive, kept understated until needed. */
 .adm-reset-row{margin-top:16px;display:flex;justify-content:center}
-.adm-reset-btn{background:color-mix(in srgb, var(--brand-red) 10%, transparent);border:1px solid color-mix(in srgb, var(--brand-red) 40%, transparent);color:#e07a76;border-radius:var(--r-lg);font-family:'Inter',sans-serif;font-weight:600;font-size:13px;padding:8px 14px;cursor:pointer}
-@media (hover:hover){.adm-reset-btn:hover{background:color-mix(in srgb, var(--brand-red) 18%, transparent)}}
-.adm-reset-btn:active{transform:scale(.97);background:color-mix(in srgb, var(--brand-red) 24%, transparent)}
 /* one press language for every dismiss glyph across all sheets */
 :is(.qd-x,.guide-x,.crew-x,.adm-act-more,.isheet-x):active{opacity:.55;transform:scale(.9)}
-.adm-reset-btn:disabled{opacity:.5}
 
 /* Owner (event/stop) identity + date/place/status, editable inline in the prep hub. */
 .ownerdet{margin:8px 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -3853,7 +3789,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .ownerdet-edit{margin-left:auto;background:none;border:1px solid var(--line2);color:var(--cream);border-radius:var(--r-md);font-size:12px;font-weight:600;padding:4px 11px;cursor:pointer}
 /* add-to-calendar (self-serve .ics / Google) */
 .atc{position:relative}
-.atc-btn{background:rgba(184,144,47,.12);border:1px solid rgba(184,144,47,.32);color:var(--gold2);border-radius:var(--r-md);font-family:'Inter';font-size:12px;font-weight:600;padding:5px 11px;cursor:pointer;white-space:nowrap}
 .atc-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:40;min-width:180px;background:var(--card);border:1px solid var(--line2);border-radius:var(--r-xl);box-shadow:0 12px 30px rgba(0,0,0,.4);overflow:hidden;display:flex;flex-direction:column}
 .app.crew-day .atc-menu{background:var(--card)}
 .atc-item{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:10px 13px;background:none;border:none;border-bottom:1px solid var(--line);color:var(--cream);font-family:'Inter';font-size:13px;font-weight:600;text-align:left;cursor:pointer;text-decoration:none}
@@ -4125,8 +4060,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .driver-prog b{color:var(--gold2);font-size:20px}
 .driver-bar{height:5px;border-radius:3px;background:color-mix(in srgb, var(--brand-cream) 10%, transparent);overflow:hidden;margin:10px 0 14px}
 .driver-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:3px;transition:width .4s var(--ease)}
-.driver-route-cta{display:block;margin:12px 0 4px;text-align:center;padding:14px;border-radius:13px;background:var(--red);color:#fff;font-family:'Inter';font-weight:800;font-size:15px;text-decoration:none;box-shadow:0 8px 22px color-mix(in srgb, var(--brand-red) 28%, transparent);transition:transform .11s var(--ease)}
-.driver-route-cta:active{transform:scale(.97)}
 .driver-geohint{text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.5px;color:var(--cream-d);margin:8px 0}
 .driver-list{display:flex;flex-direction:column;gap:11px;margin-top:14px}
 .driver-stop{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:14px;transition:opacity .3s}
@@ -4207,16 +4140,12 @@ body:has(.conc-sheet) .rail{display:flex}
 .entry-out{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#a13c34;border:1px solid rgba(161,60,52,.4);border-radius:var(--r-4xl);padding:2px 8px;margin-left:8px;vertical-align:2px;white-space:nowrap}
 .order-bar-86{opacity:.55;cursor:not-allowed}
 .co-86{font-family:'Inter';font-size:12px;line-height:1.5;color:#c98e8e;border:1px dashed rgba(200,90,90,.45);border-radius:var(--r-lg);padding:9px 12px;margin:10px 0}
-.prod-86btn{flex:none;font-family:'Inter';font-weight:700;font-size:11px;letter-spacing:.06em;color:#c98e8e;background:none;border:1.5px solid rgba(200,90,90,.45);border-radius:var(--r-lg);padding:8px 12px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.prod-86btn.on{color:#0e0d0b;background:#7FA86B;border-color:#7FA86B}
 /* timing dot on a menu row — BEFORE gold · DURING teal · AFTER red, same palette as the customer
    pillars; hollow when no timing is set */
 .prod-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;background:transparent;border:1px solid var(--line2)}
 .prod-dot[data-on]{border:none}
 .prod-86tag{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#a13c34;border:1px solid rgba(161,60,52,.4);border-radius:var(--r-4xl);padding:2px 7px;margin-left:8px;vertical-align:1px}
-.app.crew-day .prod-86btn{color:var(--danger-onLight)}
 /* .on keeps the base near-black — the green bg is constant across themes; white here failed 3:1 */
-.app.crew-day .prod-86btn.on{color:#0e0d0b}
 /* the 86 board on Now — chips, tap to flip */
 .es-note{font-family:'Inter';font-size:12px;color:var(--muted);margin:-2px 0 10px}
 .es-row{display:flex;flex-wrap:wrap;gap:8px}
@@ -4468,7 +4397,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .drv-top{display:flex;align-items:baseline;gap:9px;margin-bottom:12px}
 .drv-top b{font-family:'Inter';font-weight:800;font-size:16px;color:var(--cream)}
 .drv-top span{font-size:12px;color:var(--cream-m)}
-.drv-go{display:block;text-align:center;background:var(--red-h);color:#fff;border-radius:var(--r-xl);padding:14px;font-family:'Inter';font-weight:700;font-size:15px;text-decoration:none}
 
 /* lane sheet (nav ⋯ More) — open a lane, pin up to 3 to your bar */
 .lane-legend{display:flex;gap:14px;flex-wrap:wrap;margin:2px 0 8px}
@@ -4514,12 +4442,11 @@ body:has(.conc-sheet) .rail{display:flex}
 .liveinst{background:var(--char2);border:1px solid var(--line2);border-radius:var(--r-3xl);padding:2px 14px;margin:0 0 14px}
 .liveinst.on{border-color:rgba(127,168,107,.5);box-shadow:0 0 34px -16px rgba(127,168,107,.55)}
 .liveinst-row{display:flex;align-items:center;gap:11px;padding:11px 0;border-top:1px solid var(--line)}
-/* wrap-safe: .adm-btn is flex:0 0 auto, so a long primary action used to overrun the OFFLINE/next
+/* wrap-safe: the row's button does not shrink (shrink-0), so a long action used to overrun the OFFLINE/next
    state text instead of yielding. row-gap lets the button drop to its own line before it ever
    overlaps; the state keeps ellipsis. (The stop name lives in the "next ·" line — the button no
    longer repeats it.) */
 .liveinst-row.main{border-top:none;flex-wrap:wrap;row-gap:9px}
-.liveinst-go{flex:0 0 auto;margin-left:auto}
 .liveinst-state{flex:1 1 auto;min-width:0}
 .liveinst{color:var(--cream)}
 .liveinst-state b{display:block;font-family:'DM Mono',ui-monospace,monospace;font-size:13px;letter-spacing:.16em}
@@ -4582,7 +4509,6 @@ body:has(.conc-sheet) .rail{display:flex}
   border:1px solid var(--line2);border-radius:var(--r-md);padding:7px 9px}
 .tm-hire-form .adm-check{flex-direction:row;align-items:center;gap:6px;text-transform:none;
   letter-spacing:0;font-size:13px}
-.tm-hire-form .adm-btn{margin-left:auto}
 /* The picker collapsed to its answer. A 260px scrolling list of fourteen people is the right
    control for choosing one and the wrong control for showing which one was chosen — arriving from
    a customer card put the selected row below that list's own fold, so the panel read as empty.
@@ -4647,10 +4573,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .garage-body{padding:4px 12px 12px}
 
 /* calendar: category filter lives behind one chip (opens a sheet) */
-.cal-filterbtn{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m,color-mix(in srgb, var(--brand-cream) 60%, transparent));background:none;border:1px solid var(--hair,color-mix(in srgb, var(--brand-cream) 14%, transparent));border-radius:var(--r-3xl);padding:6px 12px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.cal-filterbtn.on{color:var(--cream,var(--brand-cream));border-color:var(--gold2,#B8902F)}
-.app.crew-day .cal-filterbtn{color:var(--muted3-onLight);border-color:var(--ink-onLight-18)}
-.app.crew-day .cal-filterbtn.on{color:var(--cream);border-color:var(--oa-gold)}
 
 /* drop sheet — DropOps popped out of an alert's "Open" */
 .drop-sheet{max-width:560px}
@@ -5195,8 +5117,6 @@ button.mkpi-tile:active{transform:scale(.98)}
 .vipv.wait{border-color:var(--line2);color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px}
 .vipv-h{font-family:'Fraunces','Inter',serif;font-weight:600;font-size:17px;color:var(--cream)}
 .vipv-sub{font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream-m);margin:6px 0 11px}
-.vipv-btn{font-family:'Inter';font-weight:700;font-size:13px;padding:11px 16px;border-radius:11px;border:none;background:var(--gold);color:#1a1610;cursor:pointer;-webkit-appearance:none;appearance:none}
-.vipv-btn:disabled{opacity:.6}
 .vipv-err{font-family:'Inter';font-size:12px;color:#c98b7a;margin-top:8px}
 .app.crew-day .vipq-row{background:var(--card);border-color:var(--ink2-onLight-10)}
 
@@ -5239,14 +5159,11 @@ button.mkpi-tile:active{transform:scale(.98)}
    that sat under the report moved into the capture sheet below; what stays is one row of actions and
    one empty state, where there used to be three. */
 .spb-acts{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 12px}
-.spb-acts .btn-sec,.spb-acts .so-go{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 16px;font-size:13px}
 /* Log a purchase (components/LogPurchase) — capture at the register: the receipt first, every target
    thumb-sized, nothing pre-chosen. Built from the house pieces (.btn-sec, .ts-chip, .note-in, .btn-pri)
    so it adds no new kind of box; what is local is size. The house chip is 31px everywhere and that is
    a decision for all of them — this sheet is used one-handed at a register, so here it is 44. */
-.lp{display:flex;flex-direction:column;gap:14px}
-.lp .lp-receipt{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:56px;border-style:dashed;border-color:var(--gold2);color:var(--gold2)}  /* two classes: .btn-sec comes later in this file and would win a tie */
-.lp .lp-receipt.has{justify-content:flex-start;padding:0 4px 0 12px;border-style:solid;color:var(--cream);cursor:default}
+.lp{display:flex;flex-direction:column;gap:14px}  /* two classes: .btn-sec comes later in this file and would win a tie */
 .lp-receipt-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;text-align:left}
 .lp-link{background:none;border:none;color:var(--gold2);font-family:'Inter';font-weight:700;font-size:13px;min-height:44px;padding:0 8px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .lp-f{display:flex;flex-direction:column;gap:6px;min-width:0}
@@ -5264,7 +5181,6 @@ button.mkpi-tile:active{transform:scale(.98)}
 .lp-recv{display:flex;align-items:center;gap:10px}
 .lp-qty{max-width:140px;font-variant-numeric:tabular-nums}
 .lp-unit{font-family:'Inter';font-size:15px;color:var(--cream-m)}
-.lp-save:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
 .lp-need{margin:-6px 0 0;text-align:center;font-family:'Inter';font-size:12px;color:var(--cream-m)}
 .spb-amt{flex:0 0 80px!important}
 .spb-desc{flex:2 1 120px!important}
@@ -5797,11 +5713,8 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .spl-sub{font-weight:400;font-size:clamp(15px,4.2vw,20px);line-height:1.5;color:#b9ad97;max-width:23em;margin:26px 0 0;opacity:0;transform:translateY(16px);animation:spl-up 1.1s var(--ease-enter) .62s forwards}
 .spl-sub b{color:var(--cream);font-weight:600}
 .spl-price{color:var(--gold2,#c8a661);font-weight:700}
-.spl-cta{margin-top:40px;-webkit-appearance:none;appearance:none;border:none;background:var(--red);color:#fff;font-family:inherit;font-weight:700;font-size:16px;letter-spacing:.01em;padding:17px 40px;border-radius:var(--r-pill);cursor:pointer;opacity:0;transform:translateY(14px);animation:spl-up 1.1s var(--ease-enter) .9s forwards;transition:background .25s,transform .12s}
-.spl-cta:focus-visible{background:var(--red-h,#d64b46);outline:none}
-@media (hover:hover){.spl-cta:hover{background:var(--red-h,#d64b46);outline:none}}
-.spl-cta:active{transform:scale(.98)}
-.spl-cta:focus-visible{outline:2px solid var(--cream);outline-offset:3px} /* keyboard focus stays visible on the takeover (CSS audit pack 2026-07) */
+.spl-cta{margin-top:40px;width:min(100%,22rem);animation:spl-cta-in 1.1s var(--ease-enter) .9s backwards}
+@keyframes spl-cta-in{from{opacity:0;transform:translateY(14px)}}
 .spl-foot{margin-top:20px;font-size:13px;letter-spacing:.03em;color:var(--cream-d);opacity:0;animation:spl-up 1.1s ease 1.15s forwards}
 .spl-skip{position:absolute;top:calc(20px + env(safe-area-inset-top));right:22px;z-index:3;-webkit-appearance:none;appearance:none;background:none;border:none;color:var(--cream-m);font-family:inherit;font-size:13px;letter-spacing:.04em;cursor:pointer;opacity:0;animation:spl-up 1s ease 1.3s forwards}
 @media (hover:hover){.spl-skip:hover{color:var(--cream)}}
@@ -5967,12 +5880,12 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 
 /* Primary CTAs: machined edge (hairline top light) + a pointer-only lift. Touch keeps the
    existing press-scale; nothing moves on its own. */
-.oa-cta,.note-save,.spl-cta,.adm-btn.primary{box-shadow:inset 0 1px 0 rgba(255,255,255,.12),var(--shadow-1);transition:transform .18s var(--ease),box-shadow .18s var(--ease),filter .18s var(--ease)}
+.oa-cta{box-shadow:inset 0 1px 0 rgba(255,255,255,.12),var(--shadow-1);transition:transform .18s var(--ease),box-shadow .18s var(--ease),filter .18s var(--ease)}
 @media (hover:hover){
-  .oa-cta:hover:not(:disabled),.note-save:hover:not(:disabled),.spl-cta:hover:not(:disabled),.adm-btn.primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),var(--shadow-2)}
-  .oa-cta:active:not(:disabled),.note-save:active:not(:disabled),.spl-cta:active:not(:disabled),.adm-btn.primary:active:not(:disabled){transform:translateY(0) scale(.985);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),var(--shadow-1)}
+  .oa-cta:hover:not(:disabled){transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),var(--shadow-2)}
+  .oa-cta:active:not(:disabled){transform:translateY(0) scale(.985);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),var(--shadow-1)}
 }
-.app.crew-day :is(.oa-cta,.note-save,.adm-btn.primary),body.light :is(.oa-cta,.note-save){box-shadow:inset 0 1px 0 rgba(255,255,255,.35),var(--shadow-1)}
+.app.crew-day .oa-cta,body.light .oa-cta{box-shadow:inset 0 1px 0 rgba(255,255,255,.35),var(--shadow-1)}
 
 /* Cards acknowledge the pointer without dancing: hairline warms, depth steps up half a notch.
    (.mypack keeps its border — the left edge is the payment status stripe — and takes depth only.) */
@@ -6067,9 +5980,6 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 /* 0174 — handle an alert on the card (My Day cockpit) */
 .alert-act{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
 .alert-act-ctx{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.03em;color:var(--cream-m);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.alert-act-do{flex:0 0 auto;background:var(--ok);border:none;border-radius:var(--r-lg);padding:10px 16px;color:#fff;font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none;min-height:42px;transition:transform .12s var(--ease),filter .15s var(--ease)}
-.alert-act-do:active{transform:scale(.97)}
-.alert-act-do:disabled{opacity:.7;cursor:default}
 .alert-open.ghost{background:transparent;border:1px solid var(--line2);color:var(--cream-m);font-weight:600}
 .app.crew-day .alert-open.ghost{color:var(--cream);border-color:var(--ink-onLight-24)}
 
@@ -6160,7 +6070,6 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 
 /* Status card — photo-frame controls */
 .status-photo-row{display:flex;gap:8px;align-items:stretch;margin:4px 0 2px}
-.status-photo-btn{flex:1;padding:12px 14px;border-radius:var(--r-xl);border:1px dashed color-mix(in srgb, var(--brand-gold2) 50%, transparent);background:color-mix(in srgb, var(--brand-gold2) 6%, transparent);color:var(--gold2);font-family:'Inter';font-weight:650;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .status-photo-clear{flex:0 0 auto;width:46px;border-radius:var(--r-xl);border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none;font-size:15px}
 
 /* ═══ OUR CRAFT (/craft) — the process manifesto: art & chemistry, zero-toxicity materials, the
@@ -6191,8 +6100,6 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .craft-close{margin:48px 0 0;padding-top:30px;border-top:1px solid var(--line);text-align:center}
 .craft-close-line{font-family:'Fraunces';font-style:italic;font-size:22px;color:var(--gold2)}
 .craft-cta{display:flex;gap:10px;justify-content:center;margin:22px 0 4px;flex-wrap:wrap}
-.craft-cta-b{font-family:'Inter';font-weight:700;font-size:13px;letter-spacing:1.1px;text-transform:uppercase;padding:15px 22px;border-radius:var(--r-2xl);border:1px solid transparent;background:var(--oa-red);color:#fff;cursor:pointer;-webkit-appearance:none;appearance:none;box-shadow:0 8px 20px color-mix(in srgb, var(--brand-red) 26%, transparent)}
-.craft-cta-b.ghost{background:transparent;border-color:var(--line2);color:var(--oa-cream);box-shadow:none}
 
 /* the "Read our craft" link from the storefront story */
 
@@ -6501,20 +6408,37 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .k-title.lg{font-size:34px}
 .k-sub{font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:15px;color:var(--cream-m);margin-top:8px;line-height:1.45}
 .k-cap{font-family:var(--mono);font-size:11px;color:var(--cream-d);letter-spacing:.04em}
-/* 03 · Buttons — three tiers */
-.btn-pri{display:block;width:100%;padding:15px;background:var(--red);color:#fff;border:none;border-radius:var(--r-2xl);cursor:pointer;font-family:'Inter';font-weight:700;font-size:15px;letter-spacing:.2px;text-align:center;box-shadow:0 10px 26px color-mix(in srgb, var(--brand-red) 34%, transparent);transition:background .15s}
-.btn-pri:active{background:var(--red-d,#9d1d1a)}
-.btn-sec{display:inline-block;padding:11px 20px;background:transparent;color:var(--cream);border:1px solid var(--line2);border-radius:var(--r-2xl);cursor:pointer;font-family:'Inter';font-weight:700;font-size:15px;letter-spacing:.2px}
-/* 44px to the thumb (padding pulled back with margin so nothing moves), 14px to the eye. Every
-   text link on the public routes is this class, and every one measured 21px tall (2026-10-02). */
-.btn-ter{display:inline-flex;align-items:center;gap:6px;background:none;border:none;padding:12px 4px;margin:-10px -4px;min-height:44px;color:var(--gold2);cursor:pointer;font-family:'Inter';font-weight:600;font-size:15px}
+/* 03 · Buttons — four roles in two sizes (2026-10-09, the button round: redesign 7, approved by Ryan; components/Button).
+   Primary is filled: GT3 red on a customer's screen, gold in the crew console, one per screen. Secondary is outlined.
+   Quiet is gold words and destructive red words, each 44px to the thumb, the padding pulled back with margin so nothing
+   moves. Regular stands 50pt (--btn-h) with body-size words; compact (.btn-sm), in the crew's lists only, 36pt with
+   subheadline words and still 44pt to the thumb. A button sizes to its words; .btn-wide spans its column. Every one
+   dims and settles a little under the finger, as iOS's do. The size, the shape and the words are the kit's: a screen
+   places a button, a light screen inks it through its tokens, and nothing else restyles one (scripts/css.audit.mjs,
+   ONE SET OF BUTTONS). There were 31 recipes for a button: 19 heights, 10 corner radii, 9 type sizes and 14 fills. */
+:is(.btn-pri,.btn-sec){display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:var(--btn-h);padding:8px 20px;border:1px solid transparent;border-radius:var(--r-2xl);font-family:'Inter';font-weight:600;font-size:17px;letter-spacing:-.2px;line-height:1.2;text-align:center;text-transform:none;text-decoration:none;cursor:pointer;-webkit-appearance:none;appearance:none;transition:opacity .15s var(--ease),transform .15s var(--ease)}
+.btn-pri{background:var(--red);color:#fff;box-shadow:0 10px 26px color-mix(in srgb, var(--brand-red) 34%, transparent)}
+[data-surface="console"] .btn-pri{background:var(--gold);color:var(--char2);box-shadow:none}
+.btn-sec{background:transparent;color:var(--cream);border-color:var(--line2)}
+.btn-wide{display:flex;width:100%}
+:is(.btn-ter,.btn-del){display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:12px 4px;margin:-10px -4px;background:none;border:none;font-family:'Inter';font-weight:600;font-size:15px;letter-spacing:normal;text-transform:none;text-decoration:none;cursor:pointer;-webkit-appearance:none;appearance:none;transition:opacity .15s var(--ease)}
+.btn-ter{color:var(--gold2)}
 .btn-ter b,.btn-ter span{color:var(--gold);font-weight:600}
+.btn-del{color:var(--red-h)}
+.app.crew-day .btn-del{color:var(--red-onLight)}
+.btn-sm{position:relative;min-height:var(--btn-h-sm);padding:6px 14px;border-radius:var(--r-lg);font-size:15px}
+.btn-sm::after{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px}
+:is(.btn-pri,.btn-sec,.btn-ter,.btn-del):active:not(:disabled){opacity:.7}
+:is(.btn-pri,.btn-sec):active:not(:disabled){transform:scale(.97)}
+:is(.btn-pri,.btn-sec,.btn-ter,.btn-del):disabled{opacity:.45;cursor:default}
+.btn-pri:disabled{box-shadow:none}
+@media (hover:hover){:is(.btn-pri,.btn-sec):hover:not(:disabled){filter:brightness(1.1)}.btn-sec:hover:not(:disabled){border-color:var(--gold2)}:is(.btn-ter,.btn-del):hover:not(:disabled){opacity:.8}}
 /* 04 · Section header — label + italic annotation + hairline */
-.k-sec{display:flex;align-items:baseline;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:9px;margin:30px 0 4px}
+.k-sec{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 10px;border-bottom:1px solid var(--line);padding-bottom:9px;margin:30px 0 4px}
 .k-sec .l{margin:0;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
 .k-sec .a{font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:13px;color:var(--cream-d)}
 .k-sec-lbl{display:inline-flex;align-items:baseline;gap:8px;min-width:0}
-.k-sec-r{display:flex;align-items:center;gap:8px;flex:none}
+.k-sec-r{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;flex:none;max-width:100%;margin-left:auto}  /* too wide (a composer open): the head's actions take their own line, not the screen's edge */
 /* 05 · Info row — lead · body · trailing slot (stop and event are the SAME row) */
 .k-row{display:flex;align-items:center;gap:16px;padding:15px 0;border-bottom:1px solid var(--line);width:100%;text-align:left;background:none;border-left:none;border-right:none;border-top:none;color:inherit}
 .k-rows>.k-row:last-child,.k-rows>*:last-child .k-row{border-bottom:0}
@@ -6717,12 +6641,9 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .rhythm-sub{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m);margin:0}
 .rhythm-last{display:inline-flex;align-items:center;gap:6px;background:none;border:none;padding:0;font-family:'Inter';font-weight:600;font-size:12px;color:var(--gold2);cursor:pointer;text-align:left;-webkit-appearance:none;appearance:none}
 .rhythm-last svg{width:11px;height:11px}
-/* THE GOLD PRIMARY — filled, like the kit's chosen segment: an action is a button, not another
-   outlined box inside the box. One rule for the rhythm cards' action and the confirm sheet's quiet
-   "yes" (components/ConfirmSheet.tsx), rather than a fourth local gold button beside
-   .ol-btn.primary. Day-theme white label comes from the solid-gold-pill list near line 2940. */
-:is(.rhythm-go,.cfm-ok){display:inline-flex;align-items:center;justify-content:center;gap:7px;margin-top:auto;background:var(--gold);border:1px solid var(--gold);border-radius:var(--r-pill);padding:9px 14px;min-height:40px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:13px;color:#1a1610;-webkit-appearance:none;appearance:none}
-.cfm-ok{min-height:44px;padding:11px 18px;font-size:13px;margin-top:0}
+/* THE RHYTHM CARD'S ACTION — a gold pill, filled: an action is a button, not another outlined box inside the box.
+   Day-theme white label comes from the solid-gold-pill list near line 2940. */
+.rhythm-go{display:inline-flex;align-items:center;justify-content:center;gap:7px;margin-top:auto;background:var(--gold);border:1px solid var(--gold);border-radius:var(--r-pill);padding:9px 14px;min-height:40px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:13px;color:#1a1610;-webkit-appearance:none;appearance:none}
 .rhythm-go:disabled{opacity:.55;cursor:default}
 .rhythm-go svg{width:13px;height:13px}
 .rhythm-ledger{margin-top:14px}
@@ -7036,7 +6957,6 @@ div.owed-row-go{cursor:default}
 .cpn-brand{font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:3px;color:var(--cream-m);margin-bottom:14px}
 .cpn-offer{font-family:'Fraunces',serif;font-size:28px;line-height:1.15;margin:0 0 10px;color:var(--cream)}
 .cpn-sub{font-size:13px;color:var(--cream-m);line-height:1.5;margin:0 0 18px}
-.cpn-cta{display:inline-block;background:var(--gt-red,#a33);color:#fff;border-radius:var(--r-pill);padding:11px 22px;font-family:'Inter';font-weight:700;font-size:13px;text-decoration:none}
 .cpn-code{margin-top:14px;font-size:12px;letter-spacing:1px;color:var(--cream-m)}
 .cpn-code b{color:var(--cream)}
 
@@ -7279,7 +7199,6 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
 .shop-done{text-align:center;margin:44px 0}
 .shop-done-ic{display:inline-flex;width:60px;height:60px;align-items:center;justify-content:center;border-radius:50%;background:rgba(106,160,92,.14);color:var(--ok);font-size:28px;margin:0 0 10px}
 .shop-lede{font-family:'Inter';font-size:16px;line-height:1.6;color:#4a4335;max-width:44ch;margin:14px auto 22px}
-.shop .btn-sec{color:#221F18;border-color:rgba(34,31,24,.25)}
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════════
    SHOP MEDIA (0278) — the story affordance on paper, the story itself on black.
@@ -7510,7 +7429,7 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
 /* Portalled to <body>, so the print rule hides body's other children rather than descendants. */
 .ofl-root{position:fixed;inset:0;z-index:120;background:rgba(20,18,14,.72);
   display:flex;flex-direction:column;align-items:center;overflow:auto;padding:0 0 40px}
-/* THE TOOLBAR FITS A PHONE (2026-10-06). .btn-pri is a full-width button everywhere else; in this row
+/* THE TOOLBAR FITS A PHONE (2026-10-06). The Print button was a full-width button; in this row
    it claimed every pixel and the note shrank to nothing — one word a line, fourteen lines tall. The
    row wraps, the button sizes to its words, on a phone the note takes its own line under Close and
    Print, and the bar clears the status bar of a phone that draws under it. */
@@ -7519,7 +7438,6 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
   background:var(--char);border-bottom:1px solid var(--line2)}
 .ofl-bar-note{font-family:'Inter';font-size:12px;line-height:1.4;color:var(--cream-m);margin:0;
   flex:1;text-align:center;min-width:0}
-.ofl-bar .btn-pri{width:auto;flex:none;padding:10px 16px}
 @media (max-width:560px){ .ofl-bar-note{order:3;flex:1 0 100%;text-align:left} }
 
 /* The sheet itself is always paper, in both themes: it is a document, not a screen. */
@@ -7922,10 +7840,6 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
    theme and DARK brown in crew-day, so a fixed dark ink on it only works in one of them: measured
    live, black on crew-day's gold was 2.72:1. Mixing the text out of --card inverts with the theme
    the fill does — 6.86:1 light, 6.91:1 dark. */
-.so-go{min-height:44px;padding:0 18px;border:none;border-radius:var(--r-lg);background:var(--gold2);
-  color:color-mix(in srgb, var(--card) 92%, var(--gold2));
-  font-family:'Inter';font-size:13px;font-weight:700;cursor:pointer}
-.so-go:disabled{opacity:.6;cursor:default}
 
 .so-foot{margin:14px 0 0;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.03em;
   color:var(--cream-d)}
@@ -8000,7 +7914,6 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
   display:flex;flex-direction:column;gap:6px}
 .str-drift > b{font-family:'Inter';font-size:13px;line-height:1.45;color:var(--cream)}
 .str-drift p{margin:0;font-family:'Inter';font-size:13px;line-height:1.45;color:var(--cream-m)}
-.str-drift .so-go{align-self:flex-start;margin-top:4px}
 
 /* Which gaps leave the building. Everything else on that list is a crew problem. */
 .str-guest{display:inline-block;margin-left:8px;padding:2px 7px;border-radius:var(--r-4xl);
@@ -8099,11 +8012,10 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
 }
 
 /* ── CONFIRM SHEET (2026-10-01) — the one home for "are you sure?", see components/ConfirmSheet.tsx.
-   The confirming button is the house gold pill unless the step is irreversible, when it is the red
-   primary (.note-save) — so red keeps meaning "this cannot be undone". Both are 44px tall. */
+   The confirming button is the kit's primary unless the step is irreversible, when it is destructive — red
+   words, as iOS draws an alert's — so red keeps meaning "this cannot be undone" (2026-10-09, the button round). */
 .cfm-body{margin-bottom:4px;font-size:15px;color:var(--cream)}
 .cfm-actions{gap:12px}
-.cfm-ok:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
 
 /* ── THE ACCOUNT SHEET IS A MENU (2026-10-02, components/AccountSheet.tsx) ────────────────────────
    The identity line is a row that goes to the hub; the three stat tiles, the red reorder block and

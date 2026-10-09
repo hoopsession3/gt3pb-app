@@ -14,6 +14,7 @@ import {
   APLIIQ_PENDING, SHOP_STATUS_META, SQUARE_TRANSACTIONS, ageLabel, isShopStatus, marginPct, money,
   moveVerb, moveWarning, needsReason, nextStatuses, shipLine, statusLabel, waitingOn,
 } from "@/lib/shopOrder";
+import Button from "./Button";
 
 // ONE SHOP ORDER, WHOLE (0313).
 //
@@ -335,9 +336,9 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
                     could achieve is a second cap and a second charge. */}
                 {!o.apliiq_order_id && (o.status === "paid" || o.status === "needs_fulfillment") && (
                   <div className="so-send">
-                    <button type="button" className="so-go" disabled={sending} onClick={sendToPrinter}>
+                    <Button type="button" kind="primary" wide disabled={sending} onClick={sendToPrinter}>
                       {sending ? "Sending…" : "Send to printer"}
-                    </button>
+                    </Button>
                     <p className="so-warn">
                       This places the order at Apliiq and charges the card on file there. Their
                       shipping update comes back to this order automatically — which is why this
@@ -367,11 +368,11 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
                       </label>
                     )}
                     <div className="so-confirm-b">
-                      <button type="button" className="so-go" disabled={busy}
+                      <Button type="button" kind="primary" disabled={busy}
                               onClick={() => apply(move, o.total_cents)}>
                         {busy ? "…" : moveVerb(move)}
-                      </button>
-                      <button type="button" className="note-arch" disabled={busy} onClick={cancelMove}>Cancel</button>
+                      </Button>
+                      <Button type="button" kind="quiet" disabled={busy} onClick={cancelMove}>Cancel</Button>
                     </div>
                   </div>
                 ) : (

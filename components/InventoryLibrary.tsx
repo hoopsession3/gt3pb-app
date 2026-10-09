@@ -19,6 +19,7 @@ import { rankSuppliers, readVendorBook, type VendorRow } from "@/lib/suppliers";
 import { resolveSupplier, type VendorMatch } from "@/lib/vendorLink";
 import { writeAcrossSkew } from "@/lib/schemaSkew";
 import VendorResolve from "./VendorResolve";
+import Button from "./Button";
 
 // Inventory — the GT3 stock register, read from Postgres (system-of-record). Staff add / edit /
 // delete inline; writes go straight to `inventory_items` (RLS: staff-write). Lives next to the
@@ -259,8 +260,8 @@ export default function InventoryLibrary() {
       <label className="gl-f"><span>Notes</span><textarea rows={2} value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} /></label>
       {err && <div className="gl-err">{err}</div>}
       <div className="gl-form-actions">
-        <button className="adm-btn primary" onClick={() => save()} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
-        <button className="adm-btn ghost" onClick={cancel} disabled={busy}>Cancel</button>
+        <Button kind="primary" compact onClick={() => save()} disabled={busy}>{busy ? "Saving…" : "Save"}</Button>
+        <Button kind="quiet" onClick={cancel} disabled={busy}>Cancel</Button>
       </div>
       {asking && (
         <VendorResolve name={asking.name} candidates={asking.candidates} busy={busy}
@@ -298,8 +299,8 @@ export default function InventoryLibrary() {
       {open && (
         <div className="gl-body">
           <div className="gl-toolbar">
-            <button className="adm-regen" onClick={startNew}>+ Add item</button>
-            <button className="adm-regen" onClick={() => setAi(true)}><Icon name="sparkles" /> AI draft</button>
+            <button className="btn-ter mt-2" onClick={startNew}>+ Add item</button>
+            <button className="btn-ter mt-2" onClick={() => setAi(true)}><Icon name="sparkles" /> AI draft</button>
           </div>
           {ai && <InventoryAI onClose={() => setAi(false)} onAdded={load} />}
           {editing === "new" && form}

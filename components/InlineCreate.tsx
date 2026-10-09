@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Button, { btn } from "./Button";
 
 // Name-first inline creator — replaces the "insert a 'New X' placeholder row, then edit inline"
 // pattern that left "Untitled" junk whenever a create was abandoned. Click the button → type a name →
 // the row is created WITH that name (and opened for the rest of its details). Blank / Escape / click-away
 // cancels and nothing ever hits the DB unnamed. One shared composer so every ops list creates the same way.
-export default function InlineCreate({ label, placeholder, onCreate, className = "adm-btn", style }: {
+export default function InlineCreate({ label, placeholder, onCreate, className = btn("quiet"), style }: {
   label: string;
   placeholder: string;
   onCreate: (name: string) => void | Promise<void>;
@@ -40,9 +41,9 @@ export default function InlineCreate({ label, placeholder, onCreate, className =
         onBlur={() => { if (!name.trim()) setOpen(false); }}
       />
       {/* preventDefault on mousedown so the Add click fires before the input's blur closes the composer */}
-      <button type="button" className="inline-create-go" onMouseDown={(e) => e.preventDefault()} onClick={submit} disabled={!name.trim() || busy}>
+      <Button type="button" kind="primary" compact onMouseDown={(e) => e.preventDefault()} onClick={submit} disabled={!name.trim() || busy}>
         {busy ? "…" : "Add"}
-      </button>
+      </Button>
     </span>
   );
 }

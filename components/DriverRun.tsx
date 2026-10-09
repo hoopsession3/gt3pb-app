@@ -15,6 +15,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import RunBar from "@/components/RunBar";
+import { btn } from "./Button";
 
 // DRIVER RUN — the Sunday porch run, built for one hand at the wheel. Porches ordered by ZIP → street
 // (a compact-zone route), pinned on the map, each a big card with Navigate / Call / one-tap outcome.
@@ -162,7 +163,7 @@ export default function DriverRun() {
 
             {points.length > 0 && <RouteMap points={points} />}
             {remaining > 0 && routeHref && (
-              <a className="driver-route-cta" href={routeHref} target="_blank" rel="noopener noreferrer">Navigate the whole run ({remaining} porch{remaining === 1 ? "" : "es"}) <Icon name="arrowRight" /></a>
+              <a className={btn("primary", { wide: true, className: "mt-3 mb-1" })} href={routeHref} target="_blank" rel="noopener noreferrer">Navigate the whole run ({remaining} porch{remaining === 1 ? "" : "es"}) <Icon name="arrowRight" /></a>
             )}
             {points.length < rows.length && <div className="driver-geohint">Pinning porches on the map…</div>}
 

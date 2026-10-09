@@ -13,6 +13,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import { errorMessage } from "@/lib/errorMessage";
+import Button from "./Button";
 
 const fmt = (n: number | null | undefined) => (n ?? 0).toLocaleString();
 const ZONE_LABEL: Record<string, string> = { nose: "Nose (front)", axle: "Over axle", tail: "Tail (rear)" };
@@ -207,7 +208,7 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
                   <select className="tl-vlook-pax" value={veh.pax} onChange={(e) => setVeh((v) => ({ ...v, pax: Number(e.target.value) }))} aria-label="Passengers riding">
                     {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n} value={n}>{n} {n === 1 ? "rider" : "riders"}</option>)}
                   </select>
-                  <button className="adm-btn" onClick={lookupVehicle} disabled={veh.busy || !veh.q.trim()}>{veh.busy ? "…" : <><Icon name="sparkles" /> Look up & fit</>}</button>
+                  <Button kind="secondary" compact onClick={lookupVehicle} disabled={veh.busy || !veh.q.trim()}>{veh.busy ? "…" : <><Icon name="sparkles" /> Look up & fit</>}</Button>
                 </div>
                 {veh.spec && (
                   <div className="tl-vspec">
@@ -221,7 +222,7 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
                 {numField("veh_cargo_width_in", "Width (in)")}
                 {numField("veh_cargo_height_in", "Height (in)")}
                 {numField("veh_usable_pct", "Usable %")}
-                <button className="adm-btn primary" onClick={saveProfile}>Save trailer profile</button>
+                <Button kind="primary" wide className="col-span-full" onClick={saveProfile}>Save trailer profile</Button>
               </div>
             )}
 
@@ -242,7 +243,7 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
             <div className="tl-space">
               <div className="tl-space-h">
                 <span>Space · {rig === "vehicle" ? `${tp.tow_vehicle || "Vehicle"} cargo` : tp.name}</span>
-                {labels.length > 0 && <button className="adm-btn" onClick={runPlan} disabled={planning}>{planning ? "Planning…" : <><Icon name="sparkles" /> Plan the space</>}</button>}
+                {labels.length > 0 && <Button kind="quiet" onClick={runPlan} disabled={planning}>{planning ? "Planning…" : <><Icon name="sparkles" /> Plan the space</>}</Button>}
               </div>
               {!space.hasDims ? (
                 <div className="tl-hint">{isOwner ? "Tap “Tune” and add the rig’s interior dimensions to see how much fits." : "Interior dimensions not set yet."}</div>

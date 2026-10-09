@@ -97,7 +97,7 @@ export default function MilestoneSheet({ m, streams, streamsErr, linkable, initi
       {err && <p className="load-failed" role="alert">{err}</p>}
       <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
         <button type="button" className="note-arch" onClick={onDelete}>Delete</button>
-        <button type="button" className="note-save" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+        <button type="button" className="btn-pri" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
       </div>
     </Sheet>
   );

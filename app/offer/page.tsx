@@ -154,7 +154,7 @@ export default function OfferPage() {
                           hint="GT3 sees this with your response. The offer stays open while they read it."
                         />
                         <div className="prod-actions" style={{ marginTop: 10 }}>
-                          <button type="button" className="btn-pri" disabled={busy || !note.trim()}
+                          <button type="button" className="btn-pri btn-wide" disabled={busy || !note.trim()}
                                   onClick={() => respond(r.id, "counter", note)}>
                             {busy ? "Sending…" : "Send it back"}
                           </button>
@@ -164,7 +164,7 @@ export default function OfferPage() {
                       </div>
                     ) : (
                       <div className="prod-actions" style={{ marginTop: 12 }}>
-                        <button type="button" className="btn-pri" disabled={busy}
+                        <button type="button" className="btn-pri btn-wide" disabled={busy}
                                 onClick={() => respond(r.id, "accept")}>
                           {busy ? "Working…" : "Accept this offer"}
                         </button>

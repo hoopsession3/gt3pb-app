@@ -19,7 +19,7 @@
 //               Product economics", "review it in Plan › Vendors" — with no door beside it. The
 //               direction is the button that was never built.
 //
-// "Interactive" is <button>, <a>, <Link>, <RecordLink>, <summary>, <label>, <select>, <input>,
+// "Interactive" is <button> (and the kit's <Button>), <a>, <Link>, <RecordLink>, <summary>, <label>, <select>, <input>,
 // <textarea>, an element with onClick / href / onPointerDown, or a `{...clickable(…)}` spread
 // (lib/a11y). The walk goes up through everything — a chevron in a .map() inside a <button> is
 // inside the button — and stops being sure, and so does not count, where a parser cannot follow:
@@ -46,7 +46,7 @@ import ts from "typescript";
 export const CHEVRON_CEILING = 0;
 export const DIRECTION_CEILING = 0;
 
-const INTERACTIVE_TAGS = new Set(["button", "a", "Link", "RecordLink", "summary", "label", "select", "input", "textarea"]);
+const INTERACTIVE_TAGS = new Set(["button", "Button", "a", "Link", "RecordLink", "summary", "label", "select", "input", "textarea"]);
 const INTERACTIVE_PROPS = new Set(["onClick", "href", "onPointerDown", "onMouseDown", "onTouchStart"]);
 // The console's places (SEC_LABEL, the lanes, and the panels people are sent to by name).
 export const PLACES = ["My Day", "Live Ops", "Command", "Readiness", "Plan", "Studio", "Brew", "Assets", "Delivery",

@@ -204,7 +204,7 @@ export function CrmDetail({ c }: { c: Customer }) {
               <div className="crm-loy">
                 <label>Points<input inputMode="numeric" value={pts} onChange={(e) => setPts(e.target.value)} /></label>
                 <label>Credit $<input inputMode="decimal" value={credit} onChange={(e) => setCredit(e.target.value)} /></label>
-                <button type="button" className="note-save" style={{ marginLeft: "auto" }} onClick={saveLoyalty} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+                <button type="button" className="btn-pri ml-auto" onClick={saveLoyalty} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
               </div>
               {/* WHERE AN OWNER ACTUALLY LOOKS. Bringing a customer onto the crew shipped in 0299 and
                   lives on the Team roster. Ryan came to THIS card to promote Niño — the screen for

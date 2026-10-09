@@ -87,10 +87,10 @@ export default function MenuScreen() {
       <button type="button" className="btn-ter" onClick={() => router.push("/craft")}>
         {t("menu.craft_link")} <b><Icon name="arrowRight" /></b>
       </button>
-      <button type="button" className="btn-ter" onClick={() => router.push("/primal")} style={{ marginLeft: 18 }}>
+      <button type="button" className="btn-ter ml-4.5" onClick={() => router.push("/primal")}>
         {t("menu.nav_primal")} <b><Icon name="arrowRight" /></b>
       </button>
-      <button type="button" className="btn-ter" onClick={() => router.push("/shop")} style={{ marginLeft: 18 }}>
+      <button type="button" className="btn-ter ml-4.5" onClick={() => router.push("/shop")}>
         {t("menu.nav_shop")} <b><Icon name="arrowRight" /></b>
       </button>
 

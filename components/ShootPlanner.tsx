@@ -191,7 +191,7 @@ function ShotDraftPanel({ shootId, onClose, onAdd }: { shootId: string; onClose:
           {err && <div className="dp-err">{err}</div>}
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
-            <button type="button" className="note-save" onClick={run} disabled={loading}>{loading ? "Drafting…" : "Draft the shot list"}</button>
+            <button type="button" className="btn-pri" onClick={run} disabled={loading}>{loading ? "Drafting…" : "Draft the shot list"}</button>
           </div>
         </>
       )}
@@ -208,7 +208,7 @@ function ShotDraftPanel({ shootId, onClose, onAdd }: { shootId: string; onClose:
           </div>
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <button type="button" className="note-arch" onClick={() => setShotList(null)}>‹ Redo</button>
-            <button type="button" className="note-save" onClick={() => onAdd(shotList.filter((_, i) => pick[i]))} disabled={!Object.values(pick).some(Boolean)}>Add {Object.values(pick).filter(Boolean).length} to shot list</button>
+            <button type="button" className="btn-pri" onClick={() => onAdd(shotList.filter((_, i) => pick[i]))} disabled={!Object.values(pick).some(Boolean)}>Add {Object.values(pick).filter(Boolean).length} to shot list</button>
           </div>
         </>
       )}

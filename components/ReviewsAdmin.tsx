@@ -11,6 +11,7 @@ import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 import { apiUrl } from "@/lib/native";
+import Button from "./Button";
 
 // STAFF REVIEW DESK — approve member feedback and add reviews pulled from Google / Instagram / the
 // feedback album. "Add" inserts pre-approved. Every row shows a live preview of exactly how it'll read
@@ -111,7 +112,7 @@ export default function ReviewsAdmin() {
               {f.body.trim() && (() => { const c = cleanReview(f); const okd = isDisplayable(f); return (
                 <div className={`rva-prev${okd ? "" : " bad"}`}>Preview: {Array.from({ length: c.rating }).map((_, i) => <Icon key={i} name="star" />)} “{c.text}” — {c.who}{okd ? "" : " · won't show (needs 4★+ and a real sentence)"}</div>
               ); })()}
-              <button className="adm-btn primary" onClick={add} disabled={!f.body.trim()}>Add + approve</button>
+              <Button kind="primary" wide onClick={add} disabled={!f.body.trim()}>Add + approve</Button>
             </div>
           )}
 
