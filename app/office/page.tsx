@@ -270,7 +270,7 @@ export default function OfficeScreen() {
                   <div className="op-row-x"><b>{money(v.amount_cents)}</b><span>{new Date(v.issued_at).toLocaleDateString([], { month: "short", day: "numeric" })} · {v.terms === "net30" ? "net 30" : v.terms === "net15" ? "net 15" : "due on receipt"}</span></div>
                   <div className="flex items-center gap-3">
                     <div className={`op-row-pay p-${st.key === "paid" ? "paid" : "open"}`}>{st.label}</div>
-                    {v.pay_url && st.key !== "paid" && <a className="btn-sec no-underline" href={v.pay_url} target="_blank" rel="noopener noreferrer">Pay</a>}
+                    {v.pay_url && st.key !== "paid" && <a className="btn-sec" href={v.pay_url} target="_blank" rel="noopener noreferrer">Pay</a>}
                   </div>
                 </div>
               );
