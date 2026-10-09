@@ -118,11 +118,11 @@ export default function PaymentSettings() {
           role="switch"
           aria-checked={payAtPickup === true}
           aria-label="Pay at pickup"
-          className={`pay-toggle${payAtPickup ? " on" : ""}`}
+          className={`k-switch${payAtPickup ? " on" : ""}`}
           disabled={busy || payAtPickup === null}
           onClick={toggle}
         >
-          <span className="pay-toggle-knob" />
+          <span className="k-switch-k" />
         </button>
       </div>
 
@@ -150,11 +150,11 @@ export default function PaymentSettings() {
           role="switch"
           aria-checked={subsOn === true}
           aria-label="Subscriptions"
-          className={`pay-toggle${subsOn ? " on" : ""}`}
+          className={`k-switch${subsOn ? " on" : ""}`}
           disabled={busy || subsOn === null}
           onClick={toggleSubs}
         >
-          <span className="pay-toggle-knob" />
+          <span className="k-switch-k" />
         </button>
       </div>
 
