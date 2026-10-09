@@ -77,7 +77,7 @@ export default function PlaybookPage() {
         <div className="pb-play st-draft" key={d.id}>
           <div className="pb-play-top">
             <b>{d.name}</b>
-            <span className="pb-status planning">DRAFT{d.overhauls ? " · OVERHAUL" : ""}</span>
+            <span className="k-tag gold">Draft{d.overhauls ? " · overhaul" : ""}</span>
           </div>
           {d.overhauls && <p className="dl-sub">Overhauls: {d.overhauls}</p>}
           <p className="pb-line">{d.what}</p>
@@ -96,7 +96,7 @@ export default function PlaybookPage() {
         <div className="pb-play" key={p.name}>
           <div className="pb-play-top">
             <b>{p.name}</b>
-            <span className={`pb-status ${p.status}`}>{STATUS_LABEL[p.status]}</span>
+            <span className={`k-tag${p.status === "active" ? " ok" : p.status === "planning" ? " gold" : ""}`}>{STATUS_LABEL[p.status]}</span>
           </div>
           <p className="pb-line">{p.what}</p>
           <p className="pb-roi"><b>{p.roi}</b> · payback {p.payback}</p>
