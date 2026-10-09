@@ -5515,8 +5515,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && (prep.match(/onClick=\{planBrew\}/g) || []).length === 2 && /\.prep-tool\{margin-top:10px\}/.test(css));
   ok("prep: a menu chip that did not save goes back and says so — the write's result was ignored",
     /const \{ error \} = await supabase\.from\(table\)\.update\(patch\)\.eq\("id", ownerId\);\s*if \(error\) \{ setF\(before\); toast\(/.test(crewSrc));
-  ok("prep: the controls that measured 22–28px have the 44 every other one there has",
-    /\.admin \.adm-prep-back,\.atc-btn,\.ownerdet-edit,\.daybrief-edit\{min-height:44px\}/.test(css));
+  ok("prep: the controls that measured 22–28px have the 44 every other one there has (Add to calendar is the kit's quiet button, 44 to the thumb)",
+    /\.admin \.adm-prep-back,\.ownerdet-edit,\.daybrief-edit\{min-height:44px\}/.test(css)
+    && /<Button type="button" kind="quiet" onClick=\{\(\) => setOpen\(\(o\) => !o\)\} aria-haspopup="menu"/.test(read("components/AddToCalendar.tsx")));
   ok("prep: the screen is painted and held by the design ratchet", /scripts\/fixtures\/prep-target\.html/.test(read("scripts/design.ratchet.mjs"))
     && /export const PREP_TARGET = \{ depth: 2, tap: 44, text: 11 \};/.test(read("scripts/design.ratchet.mjs")));
 }
@@ -5656,7 +5657,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\.or\(`status\.neq\.delivered,payment_status\.in\.\(pending,failed\),delivery_date\.gte\.\$\{weekAgo\}`\)/.test(oo) && !/\.neq\("status", "delivered"\)/.test(oo));
   ok("office: 'Undo jug swap' only where there is a swap — after a delivery — and 'Log delivery' / 'Cancel' only before one",
     /\{o\.status === "delivered" && <button type="button" className="btn-ter" onClick=\{\(\) => voidSwap\(o\)\}/.test(oo)
-    && /\{o\.status !== "delivered" && <button type="button" className="btn-sec" onClick=\{\(\) => \{ setOpenId\(o\.id\);/.test(oo)
+    && /\{o\.status !== "delivered" && <button type="button" className="btn-sec btn-sm" onClick=\{\(\) => \{ setOpenId\(o\.id\);/.test(oo)
     && /\{o\.status !== "delivered" && <button type="button" className="btn-ter" onClick=\{\(\) => cancel\(o\)\}/.test(oo));
   ok("office: settling moves only from a state that still owes (a second tap cannot make a second invoice), and the invoice write is checked",
     /\.eq\("id", o\.id\)\.in\("payment_status", \["pending", "failed"\]\)\.select\("id"\);/.test(oo)
@@ -8123,7 +8124,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // ── the offer letter and the agreement rows on a phone (2026-10-06) ──
   const css = read("app/globals.css"), od = read("components/OperatorDeal.tsx");
   ok("offer letter: the toolbar wraps, its Print button sizes to its words, and on a phone the note takes its own line — not one word a line beside a full-width button",
-    /\.ofl-bar\{position:sticky;top:0;z-index:2;width:100%;display:flex;flex-wrap:wrap;[^}]*padding-top:max\(11px, env\(safe-area-inset-top\)\);/.test(css) && (css.match(/^\.ofl-bar\{/gm) || []).length === 1 && /\.ofl-bar \.btn-pri\{width:auto;flex:none;padding:10px 16px\}/.test(css)
+    /\.ofl-bar\{position:sticky;top:0;z-index:2;width:100%;display:flex;flex-wrap:wrap;[^}]*padding-top:max\(11px, env\(safe-area-inset-top\)\);/.test(css) && (css.match(/^\.ofl-bar\{/gm) || []).length === 1 && /className="btn-pri shrink-0" onClick=\{\(\) => void printPage\(/.test(read("components/OfferLetterPrint.tsx")) && !/\.ofl-bar \.btn-pri\{/.test(css)
     && /@media \(max-width:560px\)\{ \.ofl-bar-note\{order:3;flex:1 0 100%;text-align:left\} \}/.test(css));
   ok("offer: a note with an unbreakable word breaks anywhere rather than run past its card",
     /\.ofr-tr-note\{[^}]*overflow-wrap:anywhere;min-width:0\}/.test(css) && /\.ofr-ap-note\{[^}]*overflow-wrap:anywhere;min-width:0\}/.test(css));
@@ -8308,7 +8309,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /\.mpanel-v:empty\{display:none\}/.test(css0) && /\.mpanel-v\{[^}]*max-width:50%/.test(css0)
       && /\.mpanel-body > \.set-part \+ \*,\.mpanel-body > \* \+ \.set-part\{border-top:1px solid var\(--line\);margin-top:14px;padding-top:14px\}/.test(css0)
       && /\.set-row\.set-acct\{padding:0\}/.test(css0)
-      && /\.set-row \.btn-sec,\.set-part \.btn-sec\{flex:0 0 auto;width:auto;white-space:nowrap\}/.test(css0));
+      && /\.set-row \.btn-sec,\.set-part \.btn-sec\{flex:0 0 auto;white-space:nowrap\}/.test(css0));
   }
   ok("settings page: the \"More controls\" card map is gone, and its card CSS with it",
     !/set-map|set-card|More controls|Owner control room/.test(pg) && !/\.set-card|\.set-map/.test(read("app/globals.css").replace(/\/\*[\s\S]*?\*\//g, "")));
@@ -8762,9 +8763,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("delete: after it, this device is signed out and lands home, told so",
     /onDeleted=\{\(\) => \{ onClose\(\); signOut\(\); toast\("Your account is deleted\."\); router\.push\("\/"\); \}\}/.test(acs)
     && /supabase\?\.auth\.signOut\(\{ scope: "local" \}\)/.test(del));
-  ok("delete: the screen asks the server first, says what goes and what stays, and only then offers the red button",
+  ok("delete: the screen asks the server first, says what goes and what stays, and only then offers the red words (the kit's destructive)",
     /authedFetch\("\/api\/account\/erase"\)\s*\.then/.test(del) && />Deleted<\/div>/.test(del) && />Kept, without your name<\/div>/.test(del)
-    && /className="note-save" onClick=\{\(\) => erase\(phase\.membership\)\}/.test(del) && /body: JSON\.stringify\(\{ confirm: true \}\)/.test(del)
+    && /className="btn-del" onClick=\{\(\) => erase\(phase\.membership\)\}/.test(del) && /body: JSON\.stringify\(\{ confirm: true \}\)/.test(del)
     && /phase\.at === "blocked"/.test(del) && !/window\.location\.reload/.test(del));
   const at = (re) => { const m = re.exec(rt); return m ? m.index : -1; };
   const order = [at(/body\.confirm !== true/), at(/const first = await blockersFor\(user\.id\)/), at(/\/v2\/subscriptions\/\$\{encodeURIComponent\(id\)\}\/cancel/),
@@ -9533,6 +9534,66 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("text size: until a size is picked in the app the phone's is drawn, a size picked wins, and Reset forgets the pick",
     /return raw == null \? \{ \.\.\.DEFAULT, scale: phone \} : displayFrom\(raw\);/.test(dt) && /onClick=\{\(\) => DISPLAY\.clear\(\)\}>Reset<\/button>/.test(dt)
     && /clear: \(\) => \{\s*latest\.delete\(key\);\s*try \{ localStorage\.removeItem\(key\); \}/.test(dp));
+}
+
+// ── ONE SET OF BUTTONS (2026-10-09, the button round: redesign 7, approved) ───────────────────────────────────────
+// Four kinds in two sizes, in app/globals.css "03 · Buttons" and components/Button. The 31 recipes it replaced, and the
+// sheets' copies of one (.note-save, .note-cancel, .cfm-ok), are gone; scripts/css.audit.mjs (ONE SET OF BUTTONS) keeps
+// them gone and keeps any rule from restyling a kit button.
+{
+  const read = (f) => require("node:fs").readFileSync(require("node:path").join(__dirname, "..", f), "utf8");
+  const g = read("app/globals.css"), tw = read("app/tailwind.css"), b = read("components/Button.tsx");
+  ok("buttons: regular stands 50pt and compact 36pt, as the house's own tokens, and Tailwind names both",
+    /--btn-h:50px; --btn-h-sm:36px;/.test(g)
+    && /--spacing-btn: var\(--btn-h\);\s*--spacing-btn-sm: var\(--btn-h-sm\);\s*--radius-btn: var\(--r-2xl\);\s*--radius-btn-sm: var\(--r-lg\);/.test(tw));
+  ok("buttons: primary and secondary share one box — 50pt, the body style's 17pt semibold, one radius, its own words (no inherited capitals)",
+    /:is\(\.btn-pri,\.btn-sec\)\{display:inline-flex;[^}]*min-height:var\(--btn-h\);[^}]*border-radius:var\(--r-2xl\);[^}]*font-weight:600;font-size:17px;[^}]*text-transform:none;/.test(g));
+  ok("buttons: primary is GT3 red on a customer's screen and gold in the crew console; secondary is outlined",
+    /\.btn-pri\{background:var\(--red\);color:#fff;/.test(g) && /\[data-surface="console"\] \.btn-pri\{background:var\(--gold\);color:var\(--char2\);box-shadow:none\}/.test(g)
+    && /\.btn-sec\{background:transparent;color:var\(--cream\);border-color:var\(--line2\)\}/.test(g)
+    && /data-surface=\{surface\}/.test(read("components/AppShell.tsx")));
+  ok("buttons: quiet is gold words and destructive red words, each 44 to the thumb without moving the layout",
+    /:is\(\.btn-ter,\.btn-del\)\{display:inline-flex;[^}]*min-height:44px;padding:12px 4px;margin:-10px -4px;/.test(g) && /\.btn-ter\{color:var\(--gold2\)\}/.test(g)
+    && /\.btn-del\{color:var\(--red-h\)\}/.test(g) && /\.app\.crew-day \.btn-del\{color:var\(--red-onLight\)\}/.test(g));
+  ok("buttons: compact is 36pt with 15pt words and its reach is 44 (4pt above and below)",
+    /\.btn-sm\{position:relative;min-height:var\(--btn-h-sm\);padding:6px 14px;border-radius:var\(--r-lg\);font-size:15px\}/.test(g)
+    && /\.btn-sm::after\{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px\}/.test(g));
+  ok("buttons: every one dims and settles under the finger, a disabled one is dimmed and a dimmed primary does not glow",
+    /:is\(\.btn-pri,\.btn-sec,\.btn-ter,\.btn-del\):active:not\(:disabled\)\{opacity:\.7\}/.test(g) && /:is\(\.btn-pri,\.btn-sec\):active:not\(:disabled\)\{transform:scale\(\.97\)\}/.test(g)
+    && /:is\(\.btn-pri,\.btn-sec,\.btn-ter,\.btn-del\):disabled\{opacity:\.45;cursor:default\}\s*\.btn-pri:disabled\{box-shadow:none\}/.test(g));
+  ok("buttons: <Button> draws the kit's classes — the kinds by name, compact and wide only for the boxed kinds — and passes type through as written",
+    /const KIND: Record<ButtonKind, string> = \{ primary: "btn-pri", secondary: "btn-sec", quiet: "btn-ter", destructive: "btn-del" \};/.test(b)
+    && /const box = kind === "primary" \|\| kind === "secondary";/.test(b) && /box && compact \? "btn-sm" : ""/.test(b) && /box && wide \? "btn-wide" : ""/.test(b)
+    && /return <button \{\.\.\.rest\} className=\{btn\(kind, \{ compact, wide, className \}\)\}>\{children\}<\/button>;/.test(b) && !/type = "button"/.test(b));
+  const files = require("node:child_process").execSync("git ls-files app components", { cwd: require("node:path").join(__dirname, "..") }).toString().split("\n").filter((f) => f.endsWith(".tsx"));
+  const RETIRED = ["adm-btn", "guide-go", "ops-go", "drv-go", "so-go", "inline-create-go", "alert-act-do", "atc-btn", "cpn-cta", "acs-cta", "driver-route-cta",
+    "craft-cta-b", "rf-btn", "ol-btn", "natt-btn", "brew-pack-btn", "vipv-btn", "status-photo-btn", "ev-arch-btn", "studio-lib-btn", "ac-team-btn", "dp-leave-btn",
+    "note-fu-addbtn", "prod-86btn", "cal-filterbtn", "adm-reset-btn", "note-save", "note-cancel", "cfm-ok", "adm-regen"];
+  const named = RETIRED.filter((c) => new RegExp(`\\.${c}(?![\\w-])`).test(g.replace(/\/\*[\s\S]*?\*\//g, "")) || files.some((f) => new RegExp(`className=[^>]*["'\` ]${c}(?![\\w-])`).test(read(f))));
+  ok("buttons: the 31 recipes and the sheets' copies are gone — no rule styles one, no screen names one", named.length === 0, named.join(", "));
+  const cs = read("components/ConfirmSheet.tsx");
+  ok("buttons: a question's yes is the kit's primary, and red words when the step cannot be undone (as iOS draws an alert's)",
+    /className=\{opts\.danger \? "btn-del" : "btn-pri"\} autoFocus/.test(cs) && /className="btn-ter" onClick=\{\(\) => settle\(false\)\}/.test(cs));
+  ok("buttons: Delete is red words wherever it was gold words",
+    ["components/MenuManager.tsx", "components/PlanEditor.tsx", "components/LessonsManager.tsx"].every((f) => /className="btn-del" onClick=\{del\}>Delete</.test(read(f)))
+    && /className="btn-del ml-auto" onClick=\{\(\) => del\(a\)\}>Delete</.test(read("components/MaintenanceLog.tsx"))
+    && /<Button type="button" kind="destructive" onClick=\{\(\) => remove\(r\.id, r\.name\)\}>Delete<\/Button>/.test(read("app/crew/page.tsx")) && !/style=\{\{ color: "#e07a76" \}\}/.test(read("app/crew/page.tsx")));
+  ok("buttons: the splash's button is the kit's primary, rising in with the rest and still settling under the finger (its entrance does not hold the end state)",
+    /<Button type="button" kind="primary" wide className="spl-cta"/.test(read("components/MarketingSplash.tsx"))
+    && /\.spl-cta\{margin-top:40px;width:min\(100%,22rem\);animation:spl-cta-in 1\.1s var\(--ease-enter\) \.9s backwards\}/.test(g) && /@keyframes spl-cta-in\{from\{opacity:0;transform:translateY\(14px\)\}\}/.test(g));
+  ok("buttons: the map's Directions is the kit's primary, placed over the map (two classes, so the kit's own position never wins)",
+    /<Button kind="primary" className="rm-go" onClick=\{\(\) => openDirections\(target\.lat, target\.lng\)\}/.test(read("components/RouteMap.tsx"))
+    && /\.routemap-wrap \.rm-go\{position:absolute;right:11px;bottom:11px;z-index:500\}/.test(g));
+  ok("buttons: a section head's actions take a line of their own when they will not fit beside its name (a composer opened) — never past the screen's edge",
+    /\.k-sec\{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 10px;/.test(g)
+    && /\.k-sec-r\{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;flex:none;max-width:100%;margin-left:auto\}/.test(g));
+  ok("buttons: an archived row's name wraps beside its buttons instead of being cut to fit them",
+    /\.ev-arch-name\{flex:1;min-width:0;[^}]*overflow-wrap:anywhere\}/.test(g) && !/\.ev-arch-name\{[^}]*text-overflow:ellipsis/.test(g));
+  ok("buttons: the Live instrument's actions are compact and keep their place at the row's end",
+    (read("components/crew/LiveControl.tsx").match(/compact className="ml-auto shrink-0"/g) || []).length === 3);
+  const audit = read("scripts/css.audit.mjs");
+  ok("buttons: the CSS audit holds the set (rule 10) — retired recipes, restyles by rule or utility, and the recipes still outside the kit, which only fall",
+    /export const RETIRED_BUTTONS = \[/.test(audit) && /export function buttonRestylesIn\(/.test(audit) && /BUTTON_LOOK_UTILITY\.test\(/.test(audit) && /buttonRecipes: 16,/.test(audit));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

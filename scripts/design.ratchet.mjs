@@ -119,9 +119,9 @@ export const CHROME_CLEARANCE = 8;
 
 // ── THE CEILINGS — measured, not remembered (2026-10-01, after the one-box-per-level pass) ───────
 export const CEILING = {
-  cardRules: 751,        // 756 → 751 (2026-10-08, the foundations round: dead card recipes went — .cell, .rsvp, .note-tasks-prev, .supply-sheet, .domain). rules that make a card: radius + (border | fill). 759 → 756 (2026-10-07, Ryan's "Ewww" on Command and Team): the portfolio's rows sit on the page (.osr-row, .osr-dot, .osr-owner were cards), the role badge and the invite pills went with the second door (.tm-badge, .tinv-role), the overdue line's box is utilities; + the team's week line (.cmd-week) and the score's dot. 810 → 766 (2026-10-07, the Tailwind round): 44 of them styled classes no screen names any more — the old account menu, the pre-kit display, the strategy board, the old craft steps, the isheet — and went with the 320 dead rules scripts/css.audit.mjs now keeps at zero. 809 → 810 (2026-10-06, the settings round, Settings as a list): + .set-list, the grouped list each Settings section's rows sit on (a card by what it is); + the segmented control's track and segment (.set-seg, .set-seg > button — Appearance's Day · Dark · Auto, 40px tall where 27px pills were); − the lane cards (.ws-card: one lane per row now); − the floating moon (.theme-toggle: Appearance lives in Settings). 810 → 809 (2026-10-06, the settings round): the "More controls" card (.set-card), five cards pointing out of Settings at controls that are in Settings now — retired with its map; Settings draws with .mpanel, SectionHeader and .pay-row and adds no card CSS. 809 → 810 (2026-10-05, the gesture round): "Discard your changes?" — the card a sheet asks the question on, over the sheet, at the thumb (.sheet2-ask-card); it is a card by what it is. The toast's Undo is a text action, not a pill, so it adds none. 810 → 809: the quiet Outlook line, retired with the not-configured bar it styled (2026-10-05). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04) 766 → 759 (2026-10-07, the pill round): the crew header's bell, Jump and Guide, the section pills and the count pill were each a card-making rule of their own; the kit's pills make one per primitive.
+  cardRules: 723,        // 751 → 723 (2026-10-09, the button round: 28 rules that drew a button as a card of its own went with the 31 recipes). 756 → 751 (2026-10-08, the foundations round: dead card recipes went — .cell, .rsvp, .note-tasks-prev, .supply-sheet, .domain). rules that make a card: radius + (border | fill). 759 → 756 (2026-10-07, Ryan's "Ewww" on Command and Team): the portfolio's rows sit on the page (.osr-row, .osr-dot, .osr-owner were cards), the role badge and the invite pills went with the second door (.tm-badge, .tinv-role), the overdue line's box is utilities; + the team's week line (.cmd-week) and the score's dot. 810 → 766 (2026-10-07, the Tailwind round): 44 of them styled classes no screen names any more — the old account menu, the pre-kit display, the strategy board, the old craft steps, the isheet — and went with the 320 dead rules scripts/css.audit.mjs now keeps at zero. 809 → 810 (2026-10-06, the settings round, Settings as a list): + .set-list, the grouped list each Settings section's rows sit on (a card by what it is); + the segmented control's track and segment (.set-seg, .set-seg > button — Appearance's Day · Dark · Auto, 40px tall where 27px pills were); − the lane cards (.ws-card: one lane per row now); − the floating moon (.theme-toggle: Appearance lives in Settings). 810 → 809 (2026-10-06, the settings round): the "More controls" card (.set-card), five cards pointing out of Settings at controls that are in Settings now — retired with its map; Settings draws with .mpanel, SectionHeader and .pay-row and adds no card CSS. 809 → 810 (2026-10-05, the gesture round): "Discard your changes?" — the card a sheet asks the question on, over the sheet, at the thumb (.sheet2-ask-card); it is a card by what it is. The toast's Undo is a text action, not a pill, so it adds none. 810 → 809: the quiet Outlook line, retired with the not-configured bar it styled (2026-10-05). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04) 766 → 759 (2026-10-07, the pill round): the crew header's bell, Jump and Guide, the section pills and the count pill were each a card-making rule of their own; the kit's pills make one per primitive.
   rawRadii: 25,          // distinct border-radius values that are not a --r-* token, 50% or 0. 27 → 26 (2026-10-07): the only rule with its value was a dead one (scripts/css.audit.mjs); 26 → 25 (the pill round): calc(var(--r-xl) - 3px) was the old segmented control's option
-  dupSelectors: 51,      // 52 → 51 (2026-10-08: .menucat .wn, declared twice, went with the dead menu draft). single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02; 54 → 53: .myday-live, declared twice, retired with the card it lived on, 2026-10-04; 53 → 52: .crew-jump .crew-jump-k, retired with Jump's pill, 2026-10-07)
+  dupSelectors: 50,      // 51 → 50 (2026-10-09, the button round: .spl-cta:focus-visible, declared twice, went with the splash's recipe). 52 → 51 (2026-10-08: .menucat .wn, declared twice, went with the dead menu draft). single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02; 54 → 53: .myday-live, declared twice, retired with the card it lived on, 2026-10-04; 53 → 52: .crew-jump .crew-jump-k, retired with Jump's pill, 2026-10-07)
   rootBlocks: 1,         // separate `:root{` blocks — tokens have one home (6 → 1 on 2026-10-02: motion, spring, eyebrow tracking, color-scheme and the radius scale folded in)
   subFloorFontRules: 0,  // px font-sizes under THE TYPE FLOOR (10px, see the note in globals.css). 184 → 0 on 2026-10-02
   darkWells: 25,         // fills of literal black at 10–44% with no rule for a light surface — see darkWellCounts. 26 → 25 on 2026-10-07 (Your GT3): the office route's empty-jugs stepper (.oo-jug) takes the theme's surface, and its card (.oo), black in the day theme from an undefined --panel, takes --card. 31 → 26 on 2026-10-07 (Ryan: "Ewww", Command and Team in the day theme): the portfolio's rows (.osr-row, flat on the page now), the goal pick (.cmd-goalsel), and Team's activity rows and Command's KPI rows and inputs (.util-row, .kpib-row, .kpib-in input — a day surface each). 34 → 31 on 2026-10-07: three were in rules that styled nothing (the dead CSS, scripts/css.audit.mjs). Measured 37 the day it was written (2026-10-04); 37 → 35 that day: the task checkbox and My Day's top three; 35 → 34 on 2026-10-05: a venue's contact block (.vlink), now under the venue pick on the event card and on Route
@@ -552,31 +552,37 @@ export const PROD_ROUTE = {
 // following the phone's in the iPhone app (the reading itself is in the app's bundle only). The stylesheets came down
 // a line (100 → 99, 103 → 102), recorded; the script crossed the rounding line on /delivery, /office and /primal.
 export const WEIGHT = {
-  "/truck":                    { js: 283, css: 102, chunks: 15 },
-  "/events":                   { js: 283, css: 102, chunks: 15 },
-  "/menu":                     { js: 267, css: 99, chunks: 15 },
-  "/reserve":                  { js: 291, css: 99, chunks: 16 },
-  "/delivery":                 { js: 290, css: 99, chunks: 16 },
-  "/3mpire":                   { js: 283, css: 99, chunks: 15 },
-  "/craft":                    { js: 266, css: 99, chunks: 15 },
-  "/book":                     { js: 267, css: 99, chunks: 15 },
-  "/academy":                  { js: 323, css: 99, chunks: 16 },
-  "/office":                   { js: 281, css: 99, chunks: 15 },
-  "/scan":                     { js: 265, css: 99, chunks: 15 },
-  "/architecture":             { js: 275, css: 99, chunks: 15 },
-  "/playbook":                 { js: 275, css: 99, chunks: 15 },
-  "/driver":                   { js: 279, css: 102, chunks: 15 },
-  "/agreement":                { js: 273, css: 99, chunks: 15 },
-  "/offer":                    { js: 283, css: 99, chunks: 15 },
+  "/truck":                    { js: 283, css: 100, chunks: 15 },
+  "/events":                   { js: 283, css: 100, chunks: 15 },
+  "/menu":                     { js: 267, css: 97, chunks: 15 },
+  "/reserve":                  { js: 291, css: 97, chunks: 16 },
+  "/delivery":                 { js: 290, css: 97, chunks: 16 },
+  "/3mpire":                   { js: 283, css: 97, chunks: 15 },
+  "/craft":                    { js: 266, css: 97, chunks: 15 },
+  "/book":                     { js: 267, css: 97, chunks: 15 },
+  "/academy":                  { js: 324, css: 97, chunks: 16 },
+  "/office":                   { js: 281, css: 97, chunks: 15 },
+  "/scan":                     { js: 266, css: 97, chunks: 15 },
+  "/architecture":             { js: 275, css: 97, chunks: 15 },
+  "/playbook":                 { js: 275, css: 97, chunks: 15 },
+  "/driver":                   { js: 279, css: 100, chunks: 15 },
+  "/agreement":                { js: 273, css: 97, chunks: 15 },
+  "/offer":                    { js: 283, css: 97, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 264, css: 100, chunks: 15 },
-  "/display":                  { js: 265, css: 99, chunks: 15 },
-  "/shop":                     { js: 295, css: 99, chunks: 16 },
-  "/primal":                   { js: 268, css: 99, chunks: 15 },
-  "/privacy":                  { js: 263, css: 99, chunks: 14 },
-  "/terms":                    { js: 263, css: 99, chunks: 14 },
-  "/":                         { js: 273, css: 99, chunks: 15 },
+  "/display":                  { js: 266, css: 97, chunks: 15 },
+  "/shop":                     { js: 295, css: 97, chunks: 16 },
+  "/primal":                   { js: 268, css: 97, chunks: 15 },
+  "/privacy":                  { js: 263, css: 97, chunks: 14 },
+  "/terms":                    { js: 263, css: 97, chunks: 14 },
+  "/":                         { js: 273, css: 97, chunks: 15 },
 };
 
+// 2026-10-09 (the button round: redesign 7): every route's stylesheet -1 628 bytes and its script +188 to +245 (gzip).
+// Built ca04722 and this commit and gzipped what each route's HTML references (/menu's stylesheet 101 421 → 99 793, its
+// script 273 353 → 273 541): 31 button recipes and the sheets' copies of one gave way to a kit of four kinds in two sizes
+// ("03 · Buttons"); the shell carries the kit's component (components/Button: the broadcast bar's link and the splash's
+// button are drawn with it). The stylesheets came down two lines (99 → 97, 102 → 100), recorded; the script crossed the
+// rounding line on /academy, /scan and /display.
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];
   const out = [];
@@ -693,6 +699,24 @@ export function darkWellCounts(css) {
 // An element whose classes come from two files names both, space-separated (2026-10-04): the
 // checkout's sheet is `sheet2 paper` — "sheet2" written by components/Sheet.tsx, "paper" passed in by
 // components/Checkout.tsx. Each class must appear in ONE of the files named; none may appear in none.
+// A kit button written <Button kind="secondary" compact> or btn("secondary", { compact: true }) carries the kit's
+// classes (components/Button): its kind's, and btn-sm / btn-wide when it says so (2026-10-09, the button round).
+const KIT_KIND = { primary: "btn-pri", secondary: "btn-sec", quiet: "btn-ter", destructive: "btn-del" };
+export function kitButtonClasses(text) {
+  const out = new Set();
+  for (const m of text.matchAll(/<Button\b([^>]*)>/g)) {
+    const kind = m[1].match(/\bkind=(\{[^}]*\}|"\w+")/);
+    for (const k of kind ? kind[1].matchAll(/"(\w+)"/g) : []) if (KIT_KIND[k[1]]) out.add(KIT_KIND[k[1]]);
+    if (/\bcompact\b/.test(m[1])) out.add("btn-sm");
+    if (/\bwide\b/.test(m[1])) out.add("btn-wide");
+  }
+  for (const m of text.matchAll(/\bbtn\("(\w+)"([^)]*)\)/g)) {
+    if (KIT_KIND[m[1]]) out.add(KIT_KIND[m[1]]);
+    if (/compact: true/.test(m[2])) out.add("btn-sm");
+    if (/wide: true/.test(m[2])) out.add("btn-wide");
+  }
+  return out;
+}
 export function fixtureDrift(html, readSrc = (p) => readFileSync(join(ROOT, p), "utf8")) {
   const missing = [];
   const srcCache = new Map();
@@ -720,7 +744,7 @@ export function fixtureDrift(html, readSrc = (p) => readFileSync(join(ROOT, p), 
         const exact = (text) => new RegExp(`["'\`\\s]${esc(c)}(["'\`\\s}$]|$)`).test(text);
         // A suffix the component computes — `sev-${first.severity}` — is declared by its prefix.
         const dynamic = (text) => c.split("-").slice(0, -1).some((_, i) => text.includes(`${c.split("-").slice(0, i + 1).join("-")}-\${`));
-        if (!texts.some((t) => exact(t) || dynamic(t))) missing.push(`${c}  ← claimed from ${owner}`);
+        if (!texts.some((t) => exact(t) || dynamic(t) || kitButtonClasses(t).has(c))) missing.push(`${c}  ← claimed from ${owner}`);
       }
     }
     if (!voidTag && !attrs.endsWith("/")) stack.push({ tag, from: owner });
