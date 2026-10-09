@@ -153,7 +153,7 @@ export default function OsRegistry() {
                 right={<span className={`osr-mean ${mean >= 8 ? "ok" : "warn"}`}>mean {mean.toFixed(1)}</span>} />
               <div className="h-sub">Score is a search function for where attention goes this week. Below 8 gets named in the review; below 8 two weeks running owes the ledger a kill / pause / recover decision. Parked by decision is legal — stalled without one is not.</div>
               {overdue > 0 && (
-                <p className="osr-due flex items-start gap-2 mt-2.5 mb-0.5 px-3 py-2.5 border border-line2 rounded-lg font-sans text-[13px] leading-[1.45] text-cream" role="status">
+                <p className="osr-due flex items-start gap-2 mt-2.5 mb-0.5 px-3 py-2.5 border border-line2 rounded-lg font-sans text-footnote leading-[1.45] text-cream" role="status">
                   <Icon name="warning" />
                   <span>{overdue === active.length ? "The Monday audit is overdue" : `${overdue} of ${active.length} workstreams are due an audit`}{lastRun ? ` — last run ${nice(lastRun)}, ${daysSince(lastRun)} days ago` : " — none has been run yet"}.{isAdmin ? " Tap a workstream to score it." : ""}</span>
                 </p>

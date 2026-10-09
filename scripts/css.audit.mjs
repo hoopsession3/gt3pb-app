@@ -24,8 +24,13 @@
 //   3. GT3'S COLOURS    a utility can only name a GT3 colour: Tailwind's own palette is off (bg-blue-500
 //                       builds nothing), and no className writes a raw colour (bg-[#…], text-[rgb(…)]).
 //   4. NO dark:         the look is lib/theme's, never the phone's setting alone; dark: builds nothing.
-//   5. THE TYPE FLOOR   no className sets text under 10px (text-[9px]) — the floor app/globals.css
-//                       keeps (scripts/design.ratchet.mjs).
+//   5. ONE TYPE SCALE   every size is one of ten steps, each one of Apple's text styles at the phone's
+//                       standard size: 11 12 13 15 16 17 20 22 28 34 (2026-10-08, the type round: redesign
+//                       6, approved). In app/globals.css a px size of 34 or under is a step (above is a
+//                       display; vmin and clamp are the truck's TV and the splash); a className names a
+//                       step (text-caption2 … text-large), never a pixel size (text-[13.5px]); and the theme
+//                       holds the ten steps and no other. There were 35 sizes, 92% of them between 10 and
+//                       16px in half-pixel steps, and the most used, 10px, under Apple's smallest style.
 //   6. A HOVER IS A HOVER  every :hover rule in app/globals.css sits inside @media (hover:hover), as
 //                       Tailwind's hover: does: on a phone a tapped button must not stay lit.
 //   7. NO DEAD CSS      every class the house stylesheet styles is named somewhere in the screens' code,
@@ -54,7 +59,7 @@ import postcss from "postcss";
 export const CEILING = {
   inlineStyles: 614,          // style={{…}} objects in app/, components/, native/ (621 on 2026-10-07; 620 the same day — the overdue count's margin is a utility; 616 when Team's door became one; 614 on 2026-10-08 — the Guide's header is utilities, with its two pages)
   rawColours: 497,            // 497 on 2026-10-08 (the foundations round: the dead brew-timer dot's teal went with it); distinct hex / rgb() / rgba() literals in app/globals.css (2026-10-07, after the dead rules went; 499 when Command and Team took theme tokens; 498 when the office route's card did)
-  globalsBytes: 768_059,      // 768,059 on 2026-10-08 (the navigation round: the system map's "‹ All layers" went into the title bar, and its rule with it); 768,213 the same day (the iPhone chrome round: the tab bar at 49pt, the KPI board's fields at 16px); 768,222 the same day (the foundations round: 50 rules no screen can match went — the old sheet, the .did and .cell rows, the menu's first draft — and the safe-area, tap-target and 16px-field fixes fit in what they left); app/globals.css, source bytes (2026-10-07: 804 KB before 316 dead rules and 4 keyframes went; the pill kit fits in what its seven recipes left;
+  globalsBytes: 766_799,      // 766,799 on 2026-10-08 (the type round: 1,119 sizes folded onto the ten steps, 10.5px and 13.5px among them); 768,059 the same day (the navigation round: the system map's "‹ All layers" went into the title bar, and its rule with it); 768,213 the same day (the iPhone chrome round: the tab bar at 49pt, the KPI board's fields at 16px); 768,222 the same day (the foundations round: 50 rules no screen can match went — the old sheet, the .did and .cell rows, the menu's first draft — and the safe-area, tap-target and 16px-field fixes fit in what they left); app/globals.css, source bytes (2026-10-07: 804 KB before 316 dead rules and 4 keyframes went; the pill kit fits in what its seven recipes left;
                               // Command's and Team's clean-up added rows and actions and put their one-off layout in utilities; the office route on theme tokens)
   wholeVariableClasses: 46,   // className tokens that are a ${value} and nothing else (2026-10-07)
   pillRules: 115,             // pills and round buttons outside the kit (2026-10-07: 124 before the pill round moved the
@@ -255,9 +260,15 @@ export async function audit(root) {
   for (const [c, files] of m.classes) {
     if (/^dark:/.test(c)) fail("no dark:", `${c} in ${[...files].join(", ")}`);
     if (/(^|:)(bg|text|border|ring|fill|stroke|outline|shadow|from|to|via|decoration|accent|caret|divide)-\[(#|rgb|hsl|oklch|color)/.test(c)) fail("GT3's colours", `${c} writes a raw colour (${[...files].join(", ")}) — use a GT3 colour`);
-    const px = /(^|:)text-\[(\d+(?:\.\d+)?)px\]/.exec(c);
-    if (px && Number(px[2]) < 10) fail("type floor", `${c} sets text under 10px (${[...files].join(", ")})`);
+    if (/(^|:)text-\[\d+(?:\.\d+)?(px|rem|em)\]/.test(c)) fail("one type scale", `${c} sets a size of its own (${[...files].join(", ")}) — name a step: text-caption2 … text-large`);
   }
+
+  // 5 · one type scale: the house stylesheet's sizes, and the theme's steps
+  const STEPS = [11, 12, 13, 15, 16, 17, 20, 22, 28, 34];
+  const offStep = [...globals.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) => Number(m[1])).filter((v) => v <= 34 && !STEPS.includes(v));
+  if (offStep.length) fail("one type scale", `${offStep.length} size(s) in app/globals.css off the ten steps: ${[...new Set(offStep)].join(", ")}px`);
+  const themeSteps = [...tw.matchAll(/^\s*--text-([a-z0-9]+):\s*(\d+)px;/gm)].map((m) => Number(m[2]));
+  if (JSON.stringify(themeSteps) !== JSON.stringify(STEPS) || !/--text-\*:\s*initial;/.test(tw)) fail("one type scale", `app/tailwind.css's text steps are ${themeSteps.join(" ")} — want ${STEPS.join(" ")}, and Tailwind's own sizes off (--text-*: initial)`);
 
   // 6 · a hover is a hover
   const ast = postcss.parse(globals);

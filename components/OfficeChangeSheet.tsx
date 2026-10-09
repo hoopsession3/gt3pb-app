@@ -167,7 +167,7 @@ export default function OfficeChangeSheet({ delivery: d, place, canChange, canRe
     <div className="office-head">
       <span className="flex flex-col gap-0.5 min-w-0">
         <b className="office-head-t">{dayLabel(d.date, true)} · {windowHours(d.window)}</b>
-        <span className="font-sans text-[12.5px] text-cream-muted truncate">{[place, state.label].filter(Boolean).join(" · ")}</span>
+        <span className="font-sans text-footnote text-cream-muted truncate">{[place, state.label].filter(Boolean).join(" · ")}</span>
       </span>
       <CloseButton className="isheet-x" onClick={onClose} />
     </div>
@@ -176,7 +176,7 @@ export default function OfficeChangeSheet({ delivery: d, place, canChange, canRe
   const footer = readOnly ? undefined : (
     <div className="flex flex-col gap-2 w-full">
       {cut && (!d.canceled || skipped) && (
-        <p className="m-0 font-sans text-[12.5px] leading-snug text-cream-muted text-center">
+        <p className="m-0 font-sans text-footnote leading-snug text-cream-muted text-center">
           {cut.closed || closedNow ? <>Changes closed <b className="text-cream">{cut.when}</b> — what you ask now goes to GT3.</>
             : <>Changes close <b className="text-cream">{cut.when}</b>. After that, this sheet sends GT3 a request.</>}
         </p>
@@ -270,7 +270,7 @@ export default function OfficeChangeSheet({ delivery: d, place, canChange, canRe
       {!readOnly && asks.length > 0 && (
         <div className="flex flex-col gap-2 mt-4 p-3.5 rounded-2xl border border-line2">
           <span className="office-k">This goes to GT3 as a request</span>
-          <ul className="m-0 pl-4 font-sans text-[13.5px] leading-normal text-cream">
+          <ul className="m-0 pl-4 font-sans text-footnote leading-normal text-cream">
             {asks.map((s) => <li key={s.change}>{stepWords(s)}</li>)}
           </ul>
           <input className="auth-input" value={extra} onChange={(e) => setExtra(e.target.value)} maxLength={600}

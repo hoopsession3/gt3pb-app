@@ -5518,7 +5518,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("prep: the controls that measured 22–28px have the 44 every other one there has",
     /\.admin \.adm-prep-back,\.atc-btn,\.ownerdet-edit,\.daybrief-edit\{min-height:44px\}/.test(css));
   ok("prep: the screen is painted and held by the design ratchet", /scripts\/fixtures\/prep-target\.html/.test(read("scripts/design.ratchet.mjs"))
-    && /export const PREP_TARGET = \{ depth: 2, tap: 44, text: 10 \};/.test(read("scripts/design.ratchet.mjs")));
+    && /export const PREP_TARGET = \{ depth: 2, tap: 44, text: 11 \};/.test(read("scripts/design.ratchet.mjs")));
 }
 
 // ── MONEY AT THE WINDOW, AND INVOICES THAT FALL DUE (2026-10-04, 0341) ─────────────────────────────
@@ -5822,7 +5822,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("collect sheet: the pass and the sheet are painted and held by the design ratchet, day and dark",
     /scripts\/fixtures\/collect-sheet\.html/.test(read("scripts/design.ratchet.mjs"))
     // depth 2 since the gesture round: the scrim's dim is a layer of its own and no longer a painted box.
-    && /export const COLLECT_SHEET = \{ depth: 2, tap: 44, text: 11\.5 \};/.test(read("scripts/design.ratchet.mjs"))
+    && /export const COLLECT_SHEET = \{ depth: 2, tap: 44, text: 12 \};/.test(read("scripts/design.ratchet.mjs"))
     && !/class="screen/.test(read("scripts/fixtures/collect-sheet.html")));
   ok("money: the migration names its app half", /lib\/collect\.ts isSettled\(\)/.test(read("supabase/migrations/0341_the_window_says_what_it_took.sql"))
     && /components\/CollectSheet/.test(read("supabase/migrations/0341_the_window_says_what_it_took.sql")));
@@ -5894,7 +5894,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\/\/ vocab: compliance_checks\.outcome\nexport const CHECK_OUTCOMES/.test(read("lib/complianceCheck.ts")) && /\/\/ vocab: compliance_rules\.lead_basis\nexport const LEAD_BASES/.test(read("lib/complianceCheck.ts")));
   ok("permits: the database test runs in db:test", /node scripts\/db\.compliance\.test\.mjs/.test(require("../package.json").scripts["db:test"]));
   ok("permits: the rule sheet is painted and held by the design ratchet — its forms are sections, not boxes in a box",
-    /scripts\/fixtures\/rule-sheet\.html/.test(read("scripts/design.ratchet.mjs")) && /export const RULE_SHEET = \{ depth: 2, tap: 44, text: 10\.5 \};/.test(read("scripts/design.ratchet.mjs"))
+    /scripts\/fixtures\/rule-sheet\.html/.test(read("scripts/design.ratchet.mjs")) && /export const RULE_SHEET = \{ depth: 2, tap: 44, text: 11 \};/.test(read("scripts/design.ratchet.mjs"))
     && /\.crr-fix \.ts-chip\{min-height:44px;/.test(read("app/globals.css")));
 }
 
@@ -8487,7 +8487,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const dt = code(read("components/DisplayToggle.tsx"));
   ok("one home: Display & text size is one set of controls — the rail's panel and Settings draw DisplayControls, and both read the one store",
     /<div className="rdg-panel"[^>]*>\s*<DisplayControls \/>\s*<\/div>/.test(dt) && /<DisplayControls \/>/.test(sh)
-    && /return displayFrom\(useDevicePref\(DISPLAY\)\);/.test(dt) && !/useState<Display>/.test(dt)
+    && /const raw = useDevicePref\(DISPLAY\);[\s\S]{0,80}return raw == null \? \{ \.\.\.DEFAULT, scale: phone \} : displayFrom\(raw\);/.test(dt) && !/useState<Display>/.test(dt)
     && /const disp = displayClass\(useDisplay\(\)\);/.test(code(read("components/AppShell.tsx"))));
   const T = require("../.smoke/theme.js"), P = require("../.smoke/passSound.js"), D = require("../.smoke/devicePref.js");
   ok("one home: a stored look is itself — \"dark\" is dark, \"auto\" is the phone's, anything else day — and only \"1\" is muted",
@@ -9390,7 +9390,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /body\.querySelector\("\[data-large-title\]"\)/.test(tb) && /<h1 className="op-head-t" data-large-title>/.test(read("app/crew/page.tsx"))
     && /<div className=\{`k-eyb k-page-eyb\$\{live \? " live" : ""\}`\} data-large-title>/.test(read("components/kit.tsx")) && /onClick=\{scrollToTop\}/.test(tb));
   ok("title bar: 44pt under the status bar, the screen's own ground blurred, 17pt — and nothing on a tab's own screen or the truck's TV",
-    /flex h-11 items-center/.test(tb) && /pt-safe/.test(tb) && /\[backdrop-filter:blur\(24px\)_saturate\(1\.5\)\]/.test(tb) && /bg-ground\/86/.test(tb) && /--color-ground: var\(--native-bar, var\(--char\)\);/.test(read("app/tailwind.css")) && /text-\[17px\] font-semibold text-cream/.test(tb) && /if \(root\) return null;/.test(tb) && /const BARE = new Set\(\["\/display"\]\);/.test(tb));
+    /flex h-11 items-center/.test(tb) && /pt-safe/.test(tb) && /\[backdrop-filter:blur\(24px\)_saturate\(1\.5\)\]/.test(tb) && /bg-ground\/86/.test(tb) && /--color-ground: var\(--native-bar, var\(--char\)\);/.test(read("app/tailwind.css")) && /text-body font-semibold text-cream/.test(tb) && /if \(root\) return null;/.test(tb) && /const BARE = new Set\(\["\/display"\]\);/.test(tb));
   ok("title bar: a resting ‹ is space in the page from its first paint, never pushed in after it",
     /const resting = !crew && !root && !!way && \(upOf\(pathname\) != null \|\| moved\);/.test(tb) && /if \(!hist \|\| v < 0\) return surfaceOf\(pathname\) === "console" \? null : toUp;/.test(ub));
   ok("back: one answer for the bar and the swipe — a screen's own view first, then the crew's section, then the screen before, then where its old ‹ went",
@@ -9507,6 +9507,32 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /<button \{\.\.\.press\.bind\} type="button" className="note-head pressable"/.test(crew) && /run: inside\(\(\) => \{ setTitleDraft\(note\.title\); setRenaming\(true\); \}\)/.test(crew)
     && /run: inside\(\(\) => setAdding\(true\)\)/.test(crew) && /run: inside\(\(\) => setNoteThread\(true\)\)/.test(crew) && /\{ key: "archive", label: note\.archived_at \? "Restore" : "Archive", run: onArchive \}/.test(crew)
     && /\.\.\.\(isAdmin \? \[\{ key: "delete", label: "Delete note", icon: "close", danger: true, run: onDelete \}/.test(crew));
+}
+
+// ── ONE TYPE SCALE, AND THE PHONE'S TEXT SIZE (2026-10-08, the type round: redesign 6, approved) ─────────────────
+{
+  const read = (f) => require("node:fs").readFileSync(require("node:path").join(__dirname, "..", f), "utf8");
+  const PT = require("../.smoke/phoneText.js");
+  const g = read("app/globals.css"), tw = read("app/tailwind.css");
+  const STEPS = [11, 12, 13, 15, 16, 17, 20, 22, 28, 34];
+  const sizes = [...g.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) => Number(m[1]));
+  ok("type: every size in the house stylesheet is one of the ten steps (above 34 is a display), and none is under 11px",
+    sizes.length > 1500 && sizes.every((v) => v > 34 || STEPS.includes(v)) && Math.min(...sizes) === 11);
+  ok("type: the theme names the ten steps after Apple's text styles, and Tailwind's own sizes are off",
+    /--text-\*: initial;\s*--text-caption2: 11px;\s*--text-caption: 12px;\s*--text-footnote: 13px;\s*--text-subhead: 15px;\s*--text-callout: 16px;\s*--text-body: 17px;\s*--text-title3: 20px;\s*--text-title2: 22px;\s*--text-title1: 28px;\s*--text-large: 34px;/.test(tw));
+  ok("type: the title bar's name and Back are the body style (17)", (read("components/TitleBar.tsx").match(/text-body/g) || []).length === 2 && !/text-\[17px\]/.test(read("components/TitleBar.tsx")));
+  ok("text size: the phone's standard size and anything under it is the app's standard; larger ones take the nearest of the app's three",
+    PT.tierForBody(17) === 0 && PT.tierForBody(14) === 0 && PT.tierForBody(16) === 0 && PT.tierForBody(19) === 1 && PT.tierForBody(21) === 3 && PT.tierForBody(23) === 3 && PT.tierForBody(53) === 3
+    && PT.tierForBody(NaN) === 0 && PT.tierForBody(0) === 0);
+  const zooms = [1, ...[1, 2, 3].map((t) => Number((g.match(new RegExp(`\\.app\\.rd-t${t} \\.body\\{zoom:([\\d.]+)\\}`)) || [])[1]))];
+  ok("text size: the app's three larger sizes are the zooms the stylesheet draws", JSON.stringify(zooms) === JSON.stringify([...PT.ZOOMS]));
+  const pt = read("components/usePhoneText.ts"), dt = read("components/DisplayToggle.tsx"), dp = read("lib/devicePref.ts");
+  ok("text size: in the iPhone app it is read from WebKit's own body face, and again when the app comes back to the screen; the website's bundle carries none of it",
+    /font:-apple-system-body/.test(pt) && /if \(!isNativeApp\(\)\) return \(\) => \{\};/.test(pt) && /document\.addEventListener\("visibilitychange", again\);/.test(pt)
+    && /const APP = process\.env\.NEXT_PUBLIC_GT3_TARGET === "app";/.test(pt) && /export const usePhoneTextTier: \(\) => TextTier = APP \? usePhoneTextTierInApp : usePhoneTextTierOnWeb;/.test(pt));
+  ok("text size: until a size is picked in the app the phone's is drawn, a size picked wins, and Reset forgets the pick",
+    /return raw == null \? \{ \.\.\.DEFAULT, scale: phone \} : displayFrom\(raw\);/.test(dt) && /onClick=\{\(\) => DISPLAY\.clear\(\)\}>Reset<\/button>/.test(dt)
+    && /clear: \(\) => \{\s*latest\.delete\(key\);\s*try \{ localStorage\.removeItem\(key\); \}/.test(dp));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

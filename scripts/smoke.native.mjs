@@ -1213,6 +1213,49 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await ctx.close();
   }
 
+  // ── 5f · THE PHONE'S TEXT SIZE (2026-10-08, the type round — Ryan approved proposal 6) ──
+  // Until someone picks a text size in the app, the app takes the one nearest the phone's (lib/phoneText), read from
+  // WebKit's body face. Chromium has no such face, so the page's own body size stands in for the phone's here: 17px is
+  // the standard size and draws the app as it is; 21px (the phone's second-largest ordinary size) draws it a size up
+  // twice over — the app's largest. A size picked in the app wins, and forgetting the pick goes back to the phone's.
+  {
+    const tierOf = (page) => page.evaluate(() => {
+      const app = document.querySelector(".app"), body = document.getElementById("body");
+      return { tier: [1, 2, 3].find((t) => app?.classList.contains(`rd-t${t}`)) ?? 0, zoom: body ? getComputedStyle(body).zoom : null };
+    });
+    const ctx = await phoneContext(MAIN);
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    await page.goto(`${BASE}/menu`, { waitUntil: "load" });
+    await page.waitForTimeout(700); await page.evaluate(SETTLE);
+    const std = await tierOf(page);
+    ok("text size: at the phone's standard size the app is drawn as it is", std.tier === 0 && std.zoom === "1", JSON.stringify(std));
+    await ctx.close();
+    const big = await phoneContext(MAIN);
+    await big.addInitScript(() => {
+      const put = () => { if (!document.head) return false; const st = document.createElement("style"); st.textContent = "body{font-size:21px}"; document.head.appendChild(st); return true; };
+      if (!put()) new MutationObserver((_, o) => { if (put()) o.disconnect(); }).observe(document, { childList: true, subtree: true });
+    });
+    const p2 = await big.newPage();
+    await insetsOn(p2, MAIN.top, MAIN.bottom);
+    const errors2 = watch(p2);
+    await p2.goto(`${BASE}/menu`, { waitUntil: "load" });
+    await p2.waitForTimeout(700); await p2.evaluate(SETTLE);
+    const large = await tierOf(p2);
+    ok("text size: a phone set larger draws the app at the nearest of its own sizes (21pt body → the largest, 1.26)", large.tier === 3 && large.zoom === "1.26", JSON.stringify(large));
+    await p2.evaluate(() => { localStorage.setItem("gt3-display", JSON.stringify({ scale: 0, bold: false, roomy: false })); window.dispatchEvent(new Event("gt3-pref:gt3-display")); });
+    await p2.waitForTimeout(400);
+    const picked = await tierOf(p2);
+    await p2.evaluate(() => { localStorage.removeItem("gt3-display"); window.dispatchEvent(new Event("gt3-pref:gt3-display")); });
+    await p2.waitForTimeout(400);
+    const forgot = await tierOf(p2);
+    ok("text size: a size picked in the app wins over the phone's, and forgetting the pick goes back to the phone's",
+      picked.tier === 0 && forgot.tier === 3, JSON.stringify({ picked, forgot }));
+    ok("text size: no errors", errors.length === 0 && errors2.length === 0, [...errors, ...errors2].join(" | "));
+    await big.close();
+  }
+
   // ── 6 · deleting your account, in the app (App Store Review Guideline 5.1.1(v)) ──
   // Signed in, from the avatar's menu: the row, its screen (loaded when tapped — so it must be in the
   // export), what it asks the web's API, and after the red button a phone that is signed out and home.

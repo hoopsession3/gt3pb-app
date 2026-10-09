@@ -97,6 +97,21 @@
   --shadow-raised: var(--shadow-2);
   --shadow-overlay: var(--shadow-3);
 
+  /* type: the ten steps every size folds onto (2026-10-08, the type round: redesign 6, approved), each one of Apple's text
+     styles at the phone's standard size — text-caption2 … text-large. Nothing smaller than 11px; a screen above 34px is
+     a display (the splash, the truck's TV). */
+  --text-*: initial;
+  --text-caption2: 11px;
+  --text-caption: 12px;
+  --text-footnote: 13px;
+  --text-subhead: 15px;
+  --text-callout: 16px;
+  --text-body: 17px;
+  --text-title3: 20px;
+  --text-title2: 22px;
+  --text-title1: 28px;
+  --text-large: 34px;
+
   /* type: the type system's three faces */
   --font-*: initial;
   --font-sans: "Inter", system-ui, sans-serif;

@@ -32,14 +32,14 @@ export default function OfficeCalendar({ agenda, today, now, onPick }: {
   return (
     <div className="flex flex-col gap-2 mt-2">
       <div className="flex items-center gap-2">
-        <h3 className="m-0 flex-1 font-sans font-bold text-[17px] text-cream">{monthLabel(year, month0)}</h3>
+        <h3 className="m-0 flex-1 font-sans font-bold text-body text-cream">{monthLabel(year, month0)}</h3>
         {/* the kit's round button, written out: the kit's module carries its segmented control too, which
             only the change sheet uses — this page loads without it (scripts/design.ratchet.mjs WEIGHT) */}
         <button type="button" className={`k-icon-btn${at === 0 ? " invisible" : ""}`} onClick={() => go(-1)} aria-label="Previous month" title="Previous month"><Icon name="chevronLeft" /></button>
         <button type="button" className={`k-icon-btn${at === months.length - 1 ? " invisible" : ""}`} onClick={() => go(1)} aria-label="Next month" title="Next month"><Icon name="chevronRight" /></button>
       </div>
       <div className="grid grid-cols-7 gap-y-1 text-center" aria-hidden="true">
-        {WEEKDAYS.map((w, k) => <span key={k} className="font-mono text-[10px] tracking-[.12em] text-cream-dim">{w}</span>)}
+        {WEEKDAYS.map((w, k) => <span key={k} className="font-mono text-caption2 tracking-[.12em] text-cream-dim">{w}</span>)}
       </div>
       {monthGrid(year, month0).map((week) => (
         <div key={week[0].key} className="grid grid-cols-7 gap-y-1 text-center">
@@ -47,7 +47,7 @@ export default function OfficeCalendar({ agenda, today, now, onPick }: {
             const on = c.inMonth ? days[c.key] : undefined;
             const past = c.key < today;
             if (!on?.length) {
-              return <span key={c.key} className={`mx-auto grid place-items-center size-11 rounded-pill font-sans text-[14px] tabular-nums${c.inMonth ? (past ? " text-cream-dim" : " text-cream-muted") : " invisible"}${c.key === today ? " underline decoration-2 underline-offset-4 decoration-gold2" : ""}`}>{c.day}</span>;
+              return <span key={c.key} className={`mx-auto grid place-items-center size-11 rounded-pill font-sans text-subhead tabular-nums${c.inMonth ? (past ? " text-cream-dim" : " text-cream-muted") : " invisible"}${c.key === today ? " underline decoration-2 underline-offset-4 decoration-gold2" : ""}`}>{c.day}</span>;
             }
             const d = on.find((x) => !x.canceled) ?? on[0];
             const st = deliveryState(d);
@@ -56,7 +56,7 @@ export default function OfficeCalendar({ agenda, today, now, onPick }: {
             const say = `${dayLabel(d.date, true)}: ${Math.round(d.gallons)} gallons, ${windowHours(d.window)}, ${st.label.toLowerCase()}${live && cut && !cut.closed && st.key === "scheduled" ? `. Changes close ${cut.when}` : ""}${on.length > 1 ? ` — ${on.length} deliveries` : ""}`;
             return (
               <button key={c.key} type="button" onClick={() => { haptic("light"); onPick(d); }} aria-label={say}
-                className={`mx-auto relative grid place-items-center size-11 rounded-pill font-sans font-bold text-[14px] tabular-nums cursor-pointer border ${
+                className={`mx-auto relative grid place-items-center size-11 rounded-pill font-sans font-bold text-subhead tabular-nums cursor-pointer border ${
                   live ? (st.key === "delivered" ? "bg-card border-line2 text-cream-muted" : "bg-gold2 border-gold2 text-char") : "bg-transparent border-dashed border-cream-dim text-cream-muted line-through"}${c.key === today ? " underline decoration-2 underline-offset-4" : ""}`}>
                 {c.day}
               </button>
@@ -64,7 +64,7 @@ export default function OfficeCalendar({ agenda, today, now, onPick }: {
           })}
         </div>
       ))}
-      <p className="m-0 flex flex-wrap items-center gap-x-4 gap-y-1 font-sans text-[12px] text-cream-muted">
+      <p className="m-0 flex flex-wrap items-center gap-x-4 gap-y-1 font-sans text-caption text-cream-muted">
         <span className="inline-flex items-center gap-1.5"><i className="inline-block size-2.5 rounded-pill bg-gold2" aria-hidden="true" /> Delivery</span>
         <span className="inline-flex items-center gap-1.5"><i className="inline-block size-2.5 rounded-pill border border-dashed border-cream-dim" aria-hidden="true" /> Skipped</span>
         <span className="inline-flex items-center gap-1.5"><i className="inline-block size-2.5 rounded-pill bg-card border border-line2" aria-hidden="true" /> Delivered</span>

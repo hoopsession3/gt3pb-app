@@ -490,7 +490,7 @@ function FindUsCoda() {
   return (
     <>
       <SectionHeader label={<EditableCopy k="findus.byo_title" value={t("findus.byo_title")} />} annotation={<EditableCopy k="findus.byo_note" value={t("findus.byo_note")} />} />
-      <EditableCopy k="findus.byo_pitch" value={t("findus.byo_pitch")} as="p" style={{ fontSize: 14, color: "var(--cream-m)", margin: "14px 2px 12px" }} multiline />
+      <EditableCopy k="findus.byo_pitch" value={t("findus.byo_pitch")} as="p" style={{ fontSize: 15, color: "var(--cream-m)", margin: "14px 2px 12px" }} multiline />
       <button type="button" className="btn-ter" onClick={() => router.push("/book")}>
         {t("findus.book_cta")} <b><Icon name="arrowRight" /></b>
       </button>

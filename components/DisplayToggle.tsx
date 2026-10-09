@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { devicePref, useDevicePref } from "@/lib/devicePref";
 import { TEXT_SIZE_WORDS } from "@/lib/textSize";
+import { usePhoneTextTier } from "./usePhoneText";
 
 // READABILITY CONTROLS — a global "Aa" toggle (every surface, users + operators): bump the text
 // size, make text bolder, and open up the spacing so info is easier to scan. Persisted to
@@ -30,9 +31,12 @@ export function displayFrom(raw: string | null | undefined): Display {
     };
   } catch { return DEFAULT; }
 }
-/** The display preferences this render should draw. The default on the server and while hydrating. */
+/** The display preferences this render should draw. The default on the server and while hydrating. Until
+ *  someone picks a text size, the iPhone app draws the one nearest the phone's own (lib/phoneText). */
 export function useDisplay(): Display {
-  return displayFrom(useDevicePref(DISPLAY));
+  const raw = useDevicePref(DISPLAY);
+  const phone = usePhoneTextTier();
+  return raw == null ? { ...DEFAULT, scale: phone } : displayFrom(raw);
 }
 // the classes AppShell adds to `.app` for a given preference set
 export function displayClass(d: Display): string {
@@ -47,6 +51,8 @@ const SIZES: readonly Display["scale"][] = [0, 1, 2, 3];
 /** Text size, bold and spacing. Drawn in the rail's panel and in Settings › You. */
 export function DisplayControls() {
   const d = useDisplay();
+  const stored = useDevicePref(DISPLAY) != null;
+  const phone = usePhoneTextTier();
   const set = (patch: Partial<Display>) => write({ ...d, ...patch });
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -63,8 +69,9 @@ export function DisplayControls() {
       <button type="button" className={`rdg-opt${d.roomy ? " on" : ""}`} onClick={() => set({ roomy: !d.roomy })} aria-pressed={d.roomy}>
         <span>Roomy spacing</span><span>{d.roomy ? "On" : "Off"}</span>
       </button>
-      {(d.scale || d.bold || d.roomy) ? (
-        <button type="button" className="rdg-reset" onClick={() => set({ scale: 0, bold: false, roomy: false })}>Reset</button>
+      {/* Reset forgets the choice: the standard size again, or in the iPhone app the phone's own. */}
+      {stored && (d.scale !== phone || d.bold || d.roomy) ? (
+        <button type="button" className="rdg-reset" onClick={() => DISPLAY.clear()}>Reset</button>
       ) : null}
     </div>
   );

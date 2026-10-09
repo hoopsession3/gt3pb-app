@@ -441,7 +441,7 @@ function Quiz({ qs, pass, onPass, onCancel }: { qs: QuizQ[]; pass: number; onPas
   const passed = score >= pass;
   return (
     <div className="ac-quiz">
-      <h1 className="h-title" style={{ fontSize: 24 }}>Knowledge check</h1>
+      <h1 className="h-title" style={{ fontSize: 22 }}>Knowledge check</h1>
       <div className="subm" style={{ marginTop: 8 }}>{qs.length} questions · {pass}% to pass</div>
       {qs.map((q, i) => (
         <div key={i} className="ac-q">
@@ -504,7 +504,7 @@ function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
   return (
     <section className="screen academy">
       <div className="toprow"><div className="eyb">{p.line}</div></div>
-      <h1 className="h-title" style={{ fontSize: 30 }} data-large-title data-title={p.name}>{p.name}</h1>
+      <h1 className="h-title" style={{ fontSize: 28 }} data-large-title data-title={p.name}>{p.name}</h1>
       <p className="ac-what">{p.what}</p>
 
       <SectionHeader label="Why it exists" />

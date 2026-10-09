@@ -35,36 +35,39 @@ import { createRequire } from "node:module";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CSS = join(ROOT, "app/globals.css");
 const FIXTURE = join(ROOT, "scripts/fixtures/plan-screen.html");
+// ONE TYPE SCALE (2026-10-08, the type round: redesign 6). Every size folded onto Apple's ten steps, nothing under
+// 11px: each sheet's and screen's smallest text is 11 now (12 on the purchase and collect sheets), and the floors
+// below were raised to it. The brew sheet's chips stand 32px with their 11px words (31 at 10px).
 // A second double, same rules (2026-10-03): the brew sheet, after Ryan scored it 5/10 from his
 // phone. Its own ceilings: depth 4 is the kit's segmented control (a filled option inside its
 // bordered track, inside the sheet); 31 px is the house chip (.ts-chip) — every chip in the
 // console is that height, and raising it is a decision for all of them, not a side effect here.
 const BREW_FIXTURE = join(ROOT, "scripts/fixtures/brew-sheet.html");
-export const BREW_SHEET = { depth: 3, tap: 31, text: 10.5 };
+export const BREW_SHEET = { depth: 3, tap: 32, text: 11 };
 // The event record sheet with its ways out (2026-10-03). Depth 6 is the box inside the finding
 // inside the gaps block inside the sheet — an honest nesting, since the finding IS the form. The
 // floor that matters is the tap: 44, because the box these controls share with OwnerDetails
 // measured 31px before the sheets started drawing it.
 const RECORD_FIXTURE = join(ROOT, "scripts/fixtures/record-sheet.html");
-export const RECORD_SHEET = { depth: 5, tap: 44, text: 10.5 };
+export const RECORD_SHEET = { depth: 5, tap: 44, text: 11 };
 // The purchase sheet (2026-10-04) — Money › Spend's five-field form became a capture sheet in the
 // quick-actions dock, after Ryan asked whether an open form under the report was the right shape. It
 // is used one-handed at a register, so its tap floor is 44 like the record sheet's.
 const PURCHASE_FIXTURE = join(ROOT, "scripts/fixtures/purchase-sheet.html");
-export const PURCHASE_SHEET = { depth: 2, tap: 44, text: 10.5 };
+export const PURCHASE_SHEET = { depth: 2, tap: 44, text: 12 };
 // My Day (2026-10-04) — the screen the console opens on, after Ryan's 10:13 PM screenshot: the top
 // three painted as grey slabs in the day theme, the greeting a lowercase fragment wedged under them.
 // The section's own content, measured: depth 2 is the brief inside today's op card; 44 is every
 // control once the task tick was widened from its 26px box and a one-line top-three item was given
 // a floor (it measured 35); 10 is the eyebrows, at the type floor.
 const MYDAY_FIXTURE = join(ROOT, "scripts/fixtures/my-day.html");
-export const MY_DAY = { depth: 2, tap: 44, text: 10 };
+export const MY_DAY = { depth: 2, tap: 44, text: 11 };
 // One event's prep screen (2026-10-04, Ryan's 10:44 PM screenshot of the Dear Deandra Jazz Brunch,
 // three weeks out with no pick list). Measured after the pass: depth 2 is a tool card's line inside
 // the card; 44 is every control — "+ Add" on the brief measured 22, "Edit details" 24, "Add to
 // calendar" and "‹ All prep" 28 before it; 10 is the eyebrow over the event's name, at the floor.
 const PREP_FIXTURE = join(ROOT, "scripts/fixtures/prep-target.html");
-export const PREP_TARGET = { depth: 2, tap: 44, text: 10 };
+export const PREP_TARGET = { depth: 2, tap: 44, text: 11 };
 // Money at the window (2026-10-04, 0341): two tickets on the pass — one owed with its "Collect",
 // one collected with the collector's undo — under the sheet "Picked up" opens on an owed ticket.
 // Worked one-handed through a window. Measured: depth 3 is an answer's card inside the sheet's panel
@@ -73,12 +76,12 @@ export const PREP_TARGET = { depth: 2, tap: 44, text: 10 };
 // tickets alone, because the measurement roots at .screen when there is one and the fixture had
 // one, so the sheet was never read. Corrected with the rule sheet (0342), which is how it was found.
 const COLLECT_FIXTURE = join(ROOT, "scripts/fixtures/collect-sheet.html");
-export const COLLECT_SHEET = { depth: 2, tap: 44, text: 11.5 };
+export const COLLECT_SHEET = { depth: 2, tap: 44, text: 12 };
 // One permit rule, opened (2026-10-04, 0342): the SC event rule 0284 left unconfirmed, its re-check
 // form and the owner's correction form, the deadline's counts as chips. Filled in on a phone, often
 // on the call to the county; the limits are what it measured when it was built.
 const RULE_FIXTURE = join(ROOT, "scripts/fixtures/rule-sheet.html");
-export const RULE_SHEET = { depth: 2, tap: 44, text: 10.5 };
+export const RULE_SHEET = { depth: 2, tap: 44, text: 11 };
 // The checkout, for an order placed before the stop opens (2026-10-04, 0343): the pickup block —
 // where, then when it is made — above the money, and the confirmation the server's answer fills.
 // A guest at the window with a drink in the other hand. Measured when built: depth 4 is a quantity
@@ -87,7 +90,7 @@ export const RULE_SHEET = { depth: 2, tap: 44, text: 10.5 };
 // block this adds sits at 3. 44 is every control, once "Not now" stopped being a 15px line of text
 // (.sub-link, the same day). 10 is the receipt's labels, at the floor.
 const CHECKOUT_FIXTURE = join(ROOT, "scripts/fixtures/checkout-sheet.html");
-export const CHECKOUT_SHEET = { depth: 3, tap: 44, text: 10 };
+export const CHECKOUT_SHEET = { depth: 3, tap: 44, text: 11 };
 // EVERY SHEET ONE BOX SHALLOWER (2026-10-05, the gesture round). The depths above were measured with
 // the scrim as a painted box around every sheet ("inside the sheet, inside its scrim"). The scrim's dim
 // and blur are a layer of their own now (.sheet2-scrim::before — so a pull can lighten them without
@@ -273,30 +276,35 @@ export const SHIFT = {
 // 2026-10-08 (the navigation round): /academy 49 → 44 — its Back is the title bar's ‹ now (components/TitleBar), a
 // 44pt control at the top left, where a 44pt ‹ sat in the masthead's corner before the iPhone chrome round.
 // Floors say "not smaller than this", not "this is fine".
+// 2026-10-08 (the type round: redesign 6). Every size folded onto the ten steps: each route's smallest text is 11
+// now (15 on privacy and terms, whose least was 14), and the footer's Privacy and Terms, whose height their words
+// set, grew from 43.6 to 44. The tab bar's labels went to 11 on a line of their own height, so its 49pt tabs stay
+// 49 (iOS's bar: 49 + the home indicator). PROD_ROUTE below says the same of production, from
+// the same fold: its 10s are 11s; the map's zoom buttons (30, Leaflet's own) are not text and stay.
 export const ROUTE = {
-  "/":              { depth: 2, tap: 43.6, text: 10 },
-  "/truck":         { depth: 2, tap: 43.6, text: 10 },
-  "/events":        { depth: 2, tap: 43.6, text: 10 },
-  "/menu":          { depth: 2, tap: 43.6, text: 10 },
-  "/reserve":       { depth: 2, tap: 43.6, text: 10 },
-  "/delivery":      { depth: 1, tap: 43.6, text: 10 },
-  "/3mpire":        { depth: 2, tap: 42, text: 10 },
-  "/craft":         { depth: 2, tap: 43.6, text: 10 },
-  "/book":          { depth: 1, tap: 43.6, text: 10 },
-  "/shop":          { depth: 2, tap: 43.6, text: 10 },
-  "/primal":        { depth: 1, tap: 43.6, text: 10 },
-  "/office":        { depth: 1, tap: 43.6, text: 10 },
+  "/":              { depth: 2, tap: 44, text: 11 },
+  "/truck":         { depth: 2, tap: 44, text: 11 },
+  "/events":        { depth: 2, tap: 44, text: 11 },
+  "/menu":          { depth: 2, tap: 44, text: 11 },
+  "/reserve":       { depth: 2, tap: 44, text: 11 },
+  "/delivery":      { depth: 1, tap: 44, text: 11 },
+  "/3mpire":        { depth: 2, tap: 42, text: 11 },
+  "/craft":         { depth: 2, tap: 44, text: 11 },
+  "/book":          { depth: 1, tap: 44, text: 11 },
+  "/shop":          { depth: 2, tap: 44, text: 11 },
+  "/primal":        { depth: 1, tap: 44, text: 11 },
+  "/office":        { depth: 1, tap: 44, text: 11 },
   "/academy":       { depth: 0, tap: 44, text: 11 },
-  "/scan":          { depth: 0, tap: 43.6, text: 10 },
-  "/architecture":  { depth: 0, tap: 43.6, text: 10 },
+  "/scan":          { depth: 0, tap: 44, text: 11 },
+  "/architecture":  { depth: 0, tap: 44, text: 11 },
   "/playbook":      { depth: 0, tap: 49, text: null },
   "/driver":        { depth: 0, tap: 49, text: 32 },
   "/agreement":     { depth: 1, tap: 44, text: 11 },
   "/offer":         { depth: 1, tap: 44, text: 11 },
-  "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 34, text: 10 },
+  "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 34, text: 11 },
   "/display":       { depth: 1, tap: 49, text: 10 },
-  "/privacy":       { depth: 0, tap: 49, text: 14 },
-  "/terms":         { depth: 0, tap: 49, text: 14 },
+  "/privacy":       { depth: 0, tap: 49, text: 15 },
+  "/terms":         { depth: 0, tap: 49, text: 15 },
 };
 
 // ── THE SAME ROUTES, ON PRODUCTION, WITH DATA — read by scripts/verify.prod.mjs ─────────────────
@@ -311,29 +319,29 @@ export const ROUTE = {
 // this commit hides it on a phone, and the tab bar's tabs at their new 49pt: Find Us's map zoom buttons (30) on
 // /, /truck and /events, the footer's Privacy link (43.6), a 44pt field on the sign-in walls, a tab (49).
 export const PROD_ROUTE = {
-  "/":              { depth: 2, tap: 30, text: 10 },
-  "/truck":         { depth: 2, tap: 30, text: 10 },
-  "/events":        { depth: 2, tap: 30, text: 10 },
-  "/menu":          { depth: 2, tap: 43.6, text: 10 },
-  "/reserve":       { depth: 2, tap: 43.6, text: 10 },
-  "/delivery":      { depth: 2, tap: 43.6, text: 10 },
+  "/":              { depth: 2, tap: 30, text: 11 },
+  "/truck":         { depth: 2, tap: 30, text: 11 },
+  "/events":        { depth: 2, tap: 30, text: 11 },
+  "/menu":          { depth: 2, tap: 44, text: 11 },
+  "/reserve":       { depth: 2, tap: 44, text: 11 },
+  "/delivery":      { depth: 2, tap: 44, text: 11 },
   "/3mpire":        { depth: 1, tap: 44, text: 11 },
-  "/craft":         { depth: 2, tap: 43.6, text: 10 },
-  "/book":          { depth: 1, tap: 43.6, text: 10 },
-  "/shop":          { depth: 2, tap: 43.6, text: 10 },
-  "/primal":        { depth: 2, tap: 43.6, text: 10 },
+  "/craft":         { depth: 2, tap: 44, text: 11 },
+  "/book":          { depth: 1, tap: 44, text: 11 },
+  "/shop":          { depth: 2, tap: 44, text: 11 },
+  "/primal":        { depth: 2, tap: 44, text: 11 },
   "/office":        { depth: 1, tap: 44, text: 11 },
   "/academy":       { depth: 1, tap: 44, text: 11 },
-  "/scan":          { depth: 0, tap: 43.6, text: 10 },
-  "/architecture":  { depth: 0, tap: 43.6, text: 10 },
+  "/scan":          { depth: 0, tap: 44, text: 11 },
+  "/architecture":  { depth: 0, tap: 44, text: 11 },
   "/playbook":      { depth: 1, tap: 49, text: 11 },
   "/driver":        { depth: 1, tap: 44, text: 11 },
   "/agreement":     { depth: 1, tap: 44, text: 11 },
   "/offer":         { depth: 1, tap: 44, text: 11 },
-  "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 34, text: 10 },
+  "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 34, text: 11 },
   "/display":       { depth: 1, tap: 49, text: 10 },
-  "/privacy":       { depth: 0, tap: 49, text: 14 },
-  "/terms":         { depth: 0, tap: 49, text: 14 },
+  "/privacy":       { depth: 0, tap: 49, text: 15 },
+  "/terms":         { depth: 0, tap: 49, text: 15 },
 };
 
 // ── WEIGHT — what a phone downloads for each route, cold, from the local build (KB on the wire) ──
@@ -538,30 +546,35 @@ export const PROD_ROUTE = {
 // is used, and the page behind a tall sheet steps back and follows the sheet's pull — as two utilities (page-stage,
 // sheet-detent), and the touch engine's two words for a long press (a touch taken, its lift's click hushed). The long
 // press itself (components/LongPress) loads with the crew's console only.
+// 2026-10-08 (the type round: redesign 6): every route's stylesheet -929 bytes and script +63 (gzip). Built 560d332 and
+// this commit and gzipped what each route's HTML references (/menu's stylesheet 102 350 → 101 421, its script
+// 273 290 → 273 353): 1,119 sizes folded onto the ten steps, the half-pixel ones gone; the shell's text size
+// following the phone's in the iPhone app (the reading itself is in the app's bundle only). The stylesheets came down
+// a line (100 → 99, 103 → 102), recorded; the script crossed the rounding line on /delivery, /office and /primal.
 export const WEIGHT = {
-  "/truck":                    { js: 283, css: 103, chunks: 15 },
-  "/events":                   { js: 283, css: 103, chunks: 15 },
-  "/menu":                     { js: 267, css: 100, chunks: 15 },
-  "/reserve":                  { js: 291, css: 100, chunks: 16 },
-  "/delivery":                 { js: 289, css: 100, chunks: 16 },
-  "/3mpire":                   { js: 283, css: 100, chunks: 15 },
-  "/craft":                    { js: 266, css: 100, chunks: 15 },
-  "/book":                     { js: 267, css: 100, chunks: 15 },
-  "/academy":                  { js: 323, css: 100, chunks: 16 },
-  "/office":                   { js: 280, css: 100, chunks: 15 },
-  "/scan":                     { js: 265, css: 100, chunks: 15 },
-  "/architecture":             { js: 275, css: 100, chunks: 15 },
-  "/playbook":                 { js: 275, css: 100, chunks: 15 },
-  "/driver":                   { js: 279, css: 103, chunks: 15 },
-  "/agreement":                { js: 273, css: 100, chunks: 15 },
-  "/offer":                    { js: 283, css: 100, chunks: 15 },
+  "/truck":                    { js: 283, css: 102, chunks: 15 },
+  "/events":                   { js: 283, css: 102, chunks: 15 },
+  "/menu":                     { js: 267, css: 99, chunks: 15 },
+  "/reserve":                  { js: 291, css: 99, chunks: 16 },
+  "/delivery":                 { js: 290, css: 99, chunks: 16 },
+  "/3mpire":                   { js: 283, css: 99, chunks: 15 },
+  "/craft":                    { js: 266, css: 99, chunks: 15 },
+  "/book":                     { js: 267, css: 99, chunks: 15 },
+  "/academy":                  { js: 323, css: 99, chunks: 16 },
+  "/office":                   { js: 281, css: 99, chunks: 15 },
+  "/scan":                     { js: 265, css: 99, chunks: 15 },
+  "/architecture":             { js: 275, css: 99, chunks: 15 },
+  "/playbook":                 { js: 275, css: 99, chunks: 15 },
+  "/driver":                   { js: 279, css: 102, chunks: 15 },
+  "/agreement":                { js: 273, css: 99, chunks: 15 },
+  "/offer":                    { js: 283, css: 99, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 264, css: 100, chunks: 15 },
-  "/display":                  { js: 265, css: 100, chunks: 15 },
-  "/shop":                     { js: 295, css: 100, chunks: 16 },
-  "/primal":                   { js: 267, css: 100, chunks: 15 },
-  "/privacy":                  { js: 263, css: 100, chunks: 14 },
-  "/terms":                    { js: 263, css: 100, chunks: 14 },
-  "/":                         { js: 273, css: 100, chunks: 15 },
+  "/display":                  { js: 265, css: 99, chunks: 15 },
+  "/shop":                     { js: 295, css: 99, chunks: 16 },
+  "/primal":                   { js: 268, css: 99, chunks: 15 },
+  "/privacy":                  { js: 263, css: 99, chunks: 14 },
+  "/terms":                    { js: 263, css: 99, chunks: 14 },
+  "/":                         { js: 273, css: 99, chunks: 15 },
 };
 
 export function weightVerdict(path, w, row = WEIGHT[path]) {
