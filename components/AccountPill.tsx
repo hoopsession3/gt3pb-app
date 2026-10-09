@@ -67,12 +67,13 @@ export default function AccountPill() {
   const door = useAccountDoor();
   // ASK US, BESIDE YOU (2026-10-08, the iPhone chrome round, approved). On a phone the concierge's tab rode
   // the floating rail over the page; it is this button now, on the screens it answers for (the ones that
-  // sell — lib/surfaces). The frame keeps the rail's tab and does not draw this one.
+  // sell — lib/surfaces). The frame keeps the rail's tab and does not draw this one; the desk, which has no
+  // rail (2026-10-09, redesign 5: /office), draws it here, as a phone does.
   const ask = showsCommerce(surfaceOf(usePathname()));
   return (
     <div className="acct flex items-center gap-2">
       {ask && (
-        <button type="button" className="acct-av hit-44 text-gold2 frame:hidden!"
+        <button type="button" className="acct-av hit-44 text-gold2 frame:hidden! desk:flex!"
           aria-label="Ask us — the menu, the truck's hours, booking" aria-haspopup="dialog" onClick={() => window.dispatchEvent(new Event("gt3-open-concierge"))}>
           <Icon name="chat" size={18} />
         </button>

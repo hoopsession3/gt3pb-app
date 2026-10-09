@@ -193,15 +193,16 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
       )}
 
       {view === "week" ? (
-        <div className="calw">
+        // On the desk (2026-10-09, redesign 5) the seven days stand side by side, as a desktop's week does — a phone's is a list.
+        <div className="calw desk:grid desk:grid-cols-7 desk:gap-2">
           {weekDays.map((d) => {
             const k = key(d); const cell = byDay[k] ?? { posts: [], evs: [] };
             const isToday = k === todayKey; const dayEv = cell.evs[0]?.id ?? null;
             const iso9 = () => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9, 0).toISOString();
             return (
-              <div key={k} className={`calw-day${isToday ? " today" : ""}${over === k ? " over" : ""}`}
+              <div key={k} className={`calw-day${isToday ? " today" : ""}${over === k ? " over" : ""} desk:min-h-45 desk:p-2.5`}
                 onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => (o === k ? null : o))} onDrop={() => drop(k)}>
-                <div className="calw-h">
+                <div className="calw-h desk:flex-wrap desk:gap-y-1">
                   <span className="calw-dow">{DOW[d.getDay()]}</span>
                   <span className="calw-date">{d.getDate()}</span>
                   {isToday && <span className="k-tag gold fill">Today</span>}

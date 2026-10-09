@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useAuth, roleOf } from "./AuthProvider";
 import { useMyAlerts } from "@/lib/useMyAlerts";
 import { useWorkStreams, streamOfCategory, type WorkStream } from "@/lib/streams";
@@ -11,6 +11,14 @@ import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
 import { scrollToTop } from "@/lib/appScroll";
 import { haptic } from "@/lib/haptics";
+import Gt3Mark from "./Gt3Mark";
+import { DESK_QUERY } from "@/lib/surfaces";
+
+// Is the bar a sidebar right now (the desk, 2026-10-09)? Asked on the client; the server and the first paint say
+// no, so nothing hydrates differently — the rows are the same buttons either way, only their direction is told.
+const deskSub = (cb: () => void) => { const m = window.matchMedia?.(DESK_QUERY); m?.addEventListener("change", cb); return () => m?.removeEventListener("change", cb); };
+const deskSnap = () => window.matchMedia?.(DESK_QUERY).matches === true;
+const deskServer = () => false;
 
 // Employee Mode — a dedicated operator console nav that replaces the customer
 // 5-tab nav while you're in /crew. Sections are role-scoped and the choice is
@@ -148,6 +156,7 @@ export default function OperatorNav() {
   const streams = useWorkStreams();
   const { groupId, setGroupId } = useOperatorSection();
   const [moreOpen, setMoreOpen] = useState(false);
+  const desk = useSyncExternalStore(deskSub, deskSnap, deskServer);
   // members / signed-out: no operator console — fall back to the customer nav so
   // they can still navigate away from /crew.
   if (role === "member") return <BottomNav />;
@@ -183,15 +192,16 @@ export default function OperatorNav() {
   // Lane badges — the same unacked flags My Day shows, rolled up category → lane.
   const laneCounts: Record<string, number> = {};
   for (const f of flags) { const lane = streamOfCategory(normalizeCategory(f.category), streams); if (lane) laneCounts[lane.key] = (laneCounts[lane.key] || 0) + 1; }
-  // Roving arrow-key nav for the tablist (WAI-ARIA): ←/→ move + activate, Home/End jump to ends.
+  // Roving arrow-key nav for the tablist (WAI-ARIA): ←/→ move + activate, Home/End jump to ends. On the desk the
+  // list stands up as a sidebar, so ↑/↓ are its arrows (and the list says it is vertical).
   const onNavKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) return;
+    if (!["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
     const tabs = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
     if (!tabs.length) return;
     const cur = tabs.findIndex((t) => t === document.activeElement);
     let next = cur;
-    if (e.key === "ArrowRight") next = cur < 0 ? 0 : (cur + 1) % tabs.length;
-    else if (e.key === "ArrowLeft") next = cur < 0 ? tabs.length - 1 : (cur - 1 + tabs.length) % tabs.length;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") next = cur < 0 ? 0 : (cur + 1) % tabs.length;
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = cur < 0 ? tabs.length - 1 : (cur - 1 + tabs.length) % tabs.length;
     else if (e.key === "Home") next = 0;
     else if (e.key === "End") next = tabs.length - 1;
     e.preventDefault();
@@ -208,8 +218,15 @@ export default function OperatorNav() {
         nav instead of above it. The customer nav (BottomNav) never had the wrapper, which is why
         smoke.ui, measuring /menu, saw the rail where the stylesheet promises it. Same shape now:
         <nav className="nav"> is the column's child; the tablist inside it only lays out the tabs. */}
-    <nav className="nav opnav" aria-label="Section navigation">
-    <div className="opnav-tabs" role="tablist" aria-label="Crew console" onKeyDown={onNavKey}>
+    <nav className="nav opnav desk-sidebar" aria-label="Section navigation">
+    {/* THE SIDEBAR'S HEAD (2026-10-09, redesign 5, approved). On the desk the tab bar stands at the window's left
+        edge as a sidebar, and its head says whose and which space it is: the house's mark and "Crew console".
+        Drawn on the desk only; the tablist below already carries the name for a screen reader. */}
+    <div className="hidden desk:flex items-center gap-2.5 min-h-11 px-3 mb-4" aria-hidden="true">
+      <Gt3Mark tone="cream" className="font-display text-title3 tracking-[.3px] text-cream" />
+      <span className="font-sans font-semibold text-caption tracking-eyebrow uppercase text-cream-muted">Crew console</span>
+    </div>
+    <div className="opnav-tabs" role="tablist" aria-label="Crew console" aria-orientation={desk ? "vertical" : "horizontal"} onKeyDown={onNavKey}>
       {groups.map((g) => {
         const on = currentId === g.id;
         return (

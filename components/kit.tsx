@@ -13,6 +13,8 @@ import Link from "next/link";
 //   InfoRow       lead · body · trailing — a stop and an event
 //                 are the same row; only the trailing changes
 //   ClosingBeat   every page ends on purpose (mark + sig)
+//   Columns       two columns on the desk (a wide screen in
+//                 landscape), one everywhere else, in order
 //   Segmented, IconButton — the kit's controls, in
 //                 components/controls.tsx (a file of their own so
 //                 a page that shows none carries none of their code)
@@ -71,6 +73,20 @@ export function SectionHeader({ label, annotation, right, id }: { label: ReactNo
       {right && <span className="k-sec-r">{right}</span>}
     </div>
   );
+}
+
+// TWO COLUMNS ON THE DESK (2026-10-09, redesign 5, approved). On a wide screen in landscape the console and
+// /office lay a section's groups in two columns, arranged by hand: <Columns><Column>…</Column><Column>…</Column>
+// </Columns>. Anywhere else — a phone, an iPad held upright, the frame — neither is a box at all (display:
+// contents, app/tailwind.css desk-cols), so the page is the one column it always was, in the order it is written:
+// the first column's groups, then the second's. Write them in the order a phone reads them, and split where the
+// desk reads best side by side; a group that wants the full width (a calendar, a strip of numbers) stands
+// outside the Columns, above or between them.
+export function Columns({ children }: { children: ReactNode }) {
+  return <div className="desk-cols">{children}</div>;
+}
+export function Column({ children }: { children: ReactNode }) {
+  return <div className="desk-col">{children}</div>;
 }
 
 // One row for anything scheduled or listed. `lead` is the mono context column

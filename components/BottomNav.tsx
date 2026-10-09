@@ -62,7 +62,7 @@ export default function BottomNav() {
     document.documentElement.dataset.viewer = user ? "member" : "guest";
   }, [enabled, ready, user]);
   return (
-    <nav className="nav" aria-label="Primary">
+    <nav className="nav desk-sidebar" aria-label="Primary">
       {TABS.map((tab) => {
         const on = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
         return (

@@ -60,7 +60,7 @@ function KpiStrip({ tiles, label }: { tiles: KpiTile[]; label: string }) {
     return () => { live = false; };
   }, [tiles]);
   return (
-    <div className="mkpi" role="group" aria-label={label}>
+    <div className="mkpi desk:grid-cols-none desk:grid-flow-col desk:auto-cols-fr" role="group" aria-label={label}>
       {tiles.map((t) => {
         const v = vals[t.key] ?? "—";
         const r = reads[t.key];

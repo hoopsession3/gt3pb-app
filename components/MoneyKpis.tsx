@@ -98,7 +98,8 @@ export default function MoneyKpis() {
   return (
     <>
       {preRevenue && <p className="mkpi-stage">Pre-revenue — every meter below is wired and starts counting the day the first bottle sells.</p>}
-      <div className="mkpi" role="group" aria-label="Money at a glance">
+      {/* On the desk (2026-10-09, redesign 5) a strip of numbers is one row — five tiles at 1,024 wide wrapped four and one. */}
+      <div className="mkpi desk:grid-cols-none desk:grid-flow-col desk:auto-cols-fr" role="group" aria-label="Money at a glance">
         {kpis.map((t) => (
           <button type="button" className="mkpi-tile mkpi-go" key={t.k} onClick={() => goToDest(TO[t.k] ?? { section: "money" }, setSection)}>
             <div className="mkpi-v">{t.v}</div>
