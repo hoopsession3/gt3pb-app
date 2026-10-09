@@ -159,14 +159,14 @@ export default function OfficeScreen() {
           <div className="op-none-ic"><Icon name="warning" /></div>
           <h1>Couldn&rsquo;t load your account.</h1>
           <p>Something went wrong loading your office delivery details.</p>
-          <button type="button" className="handle" onClick={() => load()}><span>Try again</span></button>
+          <button type="button" className="btn-pri btn-wide mt-4.5" onClick={() => load()}><span>Try again</span></button>
         </div>
       ) : !h ? (
         <div className="op-none">
           <div className="op-none-ic"><Icon name="jar" /></div>
           <h1>Bring GT3 to the office.</h1>
           <p>Fresh cold-extract in amber gallon jugs, delivered Monday 5–8&nbsp;AM, empties swapped for full each week. {settings.minGallons}-gallon minimum.</p>
-          <button type="button" className="handle" onClick={() => router.push("/delivery")}><span>Set up office delivery <Icon name="arrowRight" /></span></button>
+          <button type="button" className="btn-pri btn-wide mt-4.5" onClick={() => router.push("/delivery")}><span>Set up office delivery <Icon name="arrowRight" /></span></button>
         </div>
       ) : (<>
         <h1 className="op-h">{h.company.name}</h1>
