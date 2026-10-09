@@ -49,6 +49,8 @@ const FLAVS: Flav[] = ["rise", "flow", "dusk"];
 const FLAV_LABEL: Record<Flav, string> = { rise: "RISE", flow: "FLOW", dusk: "DUSK" };
 const FLAV_DESC: Record<Flav, string> = { rise: FLAVOR_DESC.RISE, flow: FLAVOR_DESC.FLOW, dusk: FLAVOR_DESC.DUSK };
 const dayName = (d: Date) => d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+// "Fri 9 AM": when a pickup's ordering closes, said as the delivery days say theirs.
+const closesAt = (d: Date) => d.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }).replace(":00", "");
 // Sunday label from the slot's REAL date, not its list position — after Friday's 6 PM cutoff the first
 // choice rolls a week out, so "this Sunday" by index was calling an 8-days-away slot "this Sunday".
 const sunLabel = (key: string) => {
@@ -622,7 +624,22 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
                 })}
               </div>
             </>
-          ) : null}
+          ) : (
+            /* ONE PICKUP, OR NONE SCHEDULED (2026-10-09). The room held above was given back when there
+               was nothing to pick, and the packs, the note and the button jumped 119px up two seconds in
+               (production layout shift 0.054, gate 0.04). The room holds the pickup instead: the day,
+               where, and when ordering closes — what the next steps only said later. Drawn as the picker's
+               chosen chip, since it is the pickup the order goes to; nothing to change, so it doesn't press. */
+            <>
+              <EditableCopy k="funnel.pickup_one_label" value={t("funnel.pickup_one_label")} as="div" className="oa-slabel" />
+              <div className="dl-days">
+                <div className="oa-day sel cursor-default active:transform-none">
+                  <b>{dayName(drop.sat)}</b>
+                  <span>{stop?.name ? `${stop.name} · ` : ""}order by {closesAt(drop.cutoff)}</span>
+                </div>
+              </div>
+            </>
+          )}
 
           <EditableCopy k="funnel.how_many" value={t("funnel.how_many")} as="div" className="oa-slabel" />
           <div className="oa-tiles">
