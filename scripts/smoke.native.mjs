@@ -438,7 +438,8 @@ function standIn(writes, seed = {}) {
     if (path === "/auth/v1/token") return answer(200, SESSION);
     if (path.startsWith("/auth/v1/")) return answer(200, {});
     let m;
-    if ((m = path.match(/^\/rest\/v1\/rpc\/(\w+)$/))) return answer(200, asOwner ? OWNER_RPC[m[1]] ?? null : m[1] in OWNER_RPC && m[1] !== "current_tenant" ? false : null);
+    // `seed.rpc` answers a function of its own for the owner (5i's office), as `seed` gives a table rows.
+    if ((m = path.match(/^\/rest\/v1\/rpc\/(\w+)$/))) return answer(200, asOwner ? (seed.rpc && m[1] in seed.rpc ? seed.rpc[m[1]] : OWNER_RPC[m[1]] ?? null) : m[1] in OWNER_RPC && m[1] !== "current_tenant" ? false : null);
     if ((m = path.match(/^\/rest\/v1\/(\w+)$/))) {
       if (req.method() !== "GET" && req.method() !== "HEAD") { writes.push(`${req.method()} ${m[1]}`); return answer(req.method() === "POST" ? 201 : 204); }
       const rows = seed[m[1]] ?? (m[1] === "profiles" && asOwner ? [PROFILE] : []);
@@ -529,10 +530,12 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   // unseen; `seed` puts rows in the stand-in's tables; `shell: false` opens the app's pages in a plain
   // browser — no native side at all, the test run lib/native's isNativeApp() tells apart.
   async function phoneContext(phone, { owner = false, theme = null, guide = false, seed = {}, shell = true } = {}) {
+    // A screen that is not a phone (5i: a laptop, an iPad) is opened as itself — no iPhone, and touch only if it has it.
     const ctx = await browser.newContext({
       viewport: { width: phone.width, height: phone.height },
-      deviceScaleFactor: 3, isMobile: true, hasTouch: true,
-      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
+      ...(phone.desktop
+        ? { deviceScaleFactor: 1, isMobile: false, hasTouch: !!phone.touch }
+        : { deviceScaleFactor: 3, isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148" }),
       serviceWorkers: "block",
       acceptDownloads: !shell,
     });
@@ -1371,6 +1374,103 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     ok("chips: the notes' tabs are the kit's chips — 36pt, Active chosen and saying so", tabs.length === 3 && tabs.every((t) => t.h === 36) && tabs.some((t) => t.w === "Active" && t.on && t.pressed === "true"), JSON.stringify(tabs));
     ok("chips: no errors", errors.length === 0 && errors2.length === 0, [...errors, ...errors2].join(" | "));
     await crew.close();
+  }
+
+  // ── 5i · THE DESK (2026-10-09, redesign 5 — Ryan approved: "From 1024 wide up, the frame goes") ──
+  // Not the iPhone app — it is a phone app held upright and never meets this — but out/ is the same pages, and this is
+  // the harness that signs in: the console and /office on a laptop's screen in a plain browser (1,440 × 900 and
+  // 1,024 × 768), with the tab bar a sidebar and the sections in two columns; and the frame kept on an iPad held upright
+  // (the 13-inch, 1,032 × 1,376) and on a phone, where the columns are not boxes at all.
+  {
+    const DESK = { name: "desk", width: 1440, height: 900, desktop: true };
+    const SMALL = { name: "desk 1024", width: 1024, height: 768, desktop: true };
+    const UPRIGHT = { name: "iPad 13 upright", width: 1032, height: 1376, desktop: true, touch: true };
+    const day = (d) => ({ id: d, date: d, scheduled_for: d, window: "mon_0500_0800", gallons: 6, price_per_gallon_cents: 4500, total_cents: 27000, status: "received", payment_status: "pending",
+      driver_outcome: null, jugs_out: null, jugs_in: null, canceled: false, canceled_reason: null, cutoff_at: null, open: true, money_locked: false, note_open: true, moved_from: null, client_note: null,
+      change_reason: null, changed_at: null, gallons_changed: false, location_id: "l1", program_id: "p1", market: "clt", paylink_url: null });
+    // A made-up office (no real company): one location, a weekly order, two deliveries ahead, a request and an invoice.
+    const office = { company: { id: "c1", name: "Northwind Studio", status: "active", billing_terms: "net30", market: "clt" }, role: "admin", can_change: true, can_request: true,
+      today: "2026-10-09", min_gallons: 3, locations: [{ id: "l1", label: "Northwind HQ", street: "1 Example Way", city: "Charlotte", access: null, market: "clt" }],
+      programs: [{ id: "p1", location_id: "l1", status: "active", every_n_weeks: 1, weekdays: [1], window: "mon_0500_0800", gallons: 6, price_per_gallon_cents: 4500, account: { id: "a1", standing_active: true, standing_gallons: 6, mine: true } }],
+      agenda: [day("2026-10-12"), day("2026-10-19")], recent: [], jugs: 6,
+      invoices: [{ id: "i1", amount_cents: 27000, status: "open", terms: "net30", issued_at: "2026-10-05T14:00:00Z", due_at: "2026-11-04T14:00:00Z", paid_at: null, order_id: null, pay_url: null }],
+      requests: [{ id: "q1", kind: "extra_delivery", label: "Extra delivery", body: "Three more gallons on the 22nd?", status: "open", order_id: null, resolution: null, created_at: "2026-10-07T15:00:00Z", resolved_at: null }] };
+    const look = (page) => page.evaluate(() => {
+      const r = (e) => (e ? e.getBoundingClientRect() : null), shown = (e) => !!e && getComputedStyle(e).display !== "none" && e.getBoundingClientRect().width > 0;
+      const app = document.querySelector(".app"), nav = document.querySelector(".app > nav.nav"), body = document.getElementById("body"), a = r(app), n = r(nav), sc = r(document.querySelector(".screen"));
+      const tabs = nav ? [...nav.querySelectorAll(".tab")].filter(shown).map((t) => { const b = t.getBoundingClientRect(); return { x: Math.round(b.x), y: Math.round(b.y), h: Math.round(b.height), on: t.classList.contains("on"), bg: getComputedStyle(t).backgroundColor }; }) : [];
+      const cols = [...document.querySelectorAll(".desk-col")].map((c) => { const b = c.getBoundingClientRect(); return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), d: getComputedStyle(c).display, t: (c.textContent || "").slice(0, 4000) }; });
+      const tiles = [...document.querySelectorAll(".mkpi .mkpi-tile")].map((t) => Math.round(t.getBoundingClientRect().y));
+      return { app: a && { w: Math.round(a.width), h: Math.round(a.height), radius: parseFloat(getComputedStyle(app).borderTopLeftRadius) || 0 },
+        nav: n && { x: Math.round(n.x), y: Math.round(n.y), w: Math.round(n.width), h: Math.round(n.height) }, tabs, cols, tiles,
+        screen: sc && { x: Math.round(sc.x), w: Math.round(sc.width) },
+        // Sideways: the page, and the scroller unless it clips (/office's watermark bleeds off the right edge by design).
+        over: Math.max(document.scrollingElement.scrollWidth - innerWidth, body && getComputedStyle(body).overflowX !== "hidden" ? body.scrollWidth - body.clientWidth : 0),
+        rail: shown(document.querySelector(".rail")), fab: shown(document.querySelector(".qd-fab")),
+        spark: shown(document.querySelector('.toprow-actions [aria-label^="Quick actions"]')), ask: shown(document.querySelector('.acct [aria-label^="Ask us"]')),
+        head: !!nav && [...nav.querySelectorAll("span")].some((s) => s.textContent === "Crew console" && shown(s.parentElement)),
+        orient: nav?.querySelector('[role="tablist"]')?.getAttribute("aria-orientation") ?? null };
+    });
+    const open = async (vp, path, opts) => {
+      const ctx = await phoneContext(vp, { owner: true, shell: false, ...opts });
+      const page = await ctx.newPage();
+      const errors = watch(page);
+      await page.goto(`${BASE}${path}`, { waitUntil: "load" });
+      await page.waitForTimeout(1300); await page.evaluate(SETTLE);
+      return { ctx, page, errors, g: await look(page) };
+    };
+    const bare = (cols) => cols.map((c) => ({ x: c.x, y: c.y, w: c.w, d: c.d }));
+    const side = (cols) => cols.length === 2 && cols.every((c) => c.d === "block" && c.w >= 300) && cols[0].x < cols[1].x && Math.abs(cols[0].y - cols[1].y) <= 1 && Math.abs(cols[0].w - cols[1].w) <= 2;
+    const allErrors = [];
+
+    const m = await open(DESK, "/crew?s=money", { theme: "day" });
+    allErrors.push(...m.errors);
+    const g = m.g, lit = g.tabs.filter((t) => t.on);
+    ok("desk: the console fills a laptop's window — no frame, no corners", g.app.w === 1440 && g.app.h === 900 && g.app.radius === 0, JSON.stringify(g.app));
+    ok("desk: the tab bar is a sidebar at the window's left edge, its full height and 236 wide — rows of 44 one under another, the lit one washed",
+      g.nav.x === 0 && g.nav.y === 0 && g.nav.w === 236 && g.nav.h === 900 && g.tabs.length >= 3 && g.tabs.every((t) => t.x === g.tabs[0].x && t.h >= 44)
+        && g.tabs.every((t, i) => i === 0 || t.y > g.tabs[i - 1].y) && lit.length === 1 && lit[0].bg !== "rgba(0, 0, 0, 0)", JSON.stringify({ nav: g.nav, tabs: g.tabs }));
+    ok("desk: the sidebar's head says Crew console, and its list says it stands up", g.head && g.orient === "vertical", JSON.stringify({ head: g.head, orient: g.orient }));
+    ok("desk: the canvas sits right of the sidebar, never wider than 1,240, and nothing scrolls sideways", g.screen.x >= 236 && g.screen.w <= 1240 && g.over <= 0, JSON.stringify({ screen: g.screen, over: g.over }));
+    ok("desk: Money's groups stand in two columns side by side, starting on one line — spending, getting paid and the numbers; pricing, operators, members and the records",
+      side(g.cols) && /Spend & budget/.test(g.cols[0].t) && /The numbers/i.test(g.cols[0].t) && /Pricing & margins/.test(g.cols[1].t) && /Records/.test(g.cols[1].t), JSON.stringify(bare(g.cols)));
+    ok("desk: the numbers are one row; nothing floats over the canvas — the ✦ is in the header, and no rail or floating button is drawn",
+      g.tiles.length === 5 && g.tiles.every((y) => y === g.tiles[0]) && g.spark && !g.fab && !g.rail, JSON.stringify({ tiles: g.tiles, spark: g.spark, fab: g.fab, rail: g.rail }));
+    await m.ctx.close();
+
+    const s = await open(SMALL, "/crew?s=money", { theme: "dark" });
+    allErrors.push(...s.errors);
+    ok("desk: at 1,024 × 768 the two columns still stand side by side, the five numbers in one row, nothing sideways",
+      side(s.g.cols) && s.g.tiles.length === 5 && s.g.tiles.every((y) => y === s.g.tiles[0]) && s.g.over <= 0 && s.g.nav.w === 236, JSON.stringify({ cols: bare(s.g.cols), tiles: s.g.tiles, over: s.g.over }));
+    await s.ctx.close();
+
+    const o = await open(DESK, "/office", { seed: { rpc: { office_home: office } } });
+    allErrors.push(...o.errors);
+    ok("desk: /office gets the same treatment — the customer's tabs a sidebar, the deliveries on the left (the next one, the calendar, the weekly order) and the account on the right",
+      o.g.nav.x === 0 && o.g.nav.w === 236 && o.g.app.radius === 0 && side(o.g.cols) && /Next delivery/i.test(o.g.cols[0].t) && /Weekly order/i.test(o.g.cols[0].t)
+        && /Requests/i.test(o.g.cols[1].t) && /Invoices/i.test(o.g.cols[1].t) && o.g.over <= 0,
+      JSON.stringify({ nav: o.g.nav, radius: o.g.app.radius, over: o.g.over, cols: o.g.cols.map((c) => ({ ...bare([c])[0], t: c.t.slice(0, 60) })) }));
+    ok("desk: on /office, Ask us sits beside the account, as on a phone, and no rail is drawn", o.g.ask && !o.g.rail, JSON.stringify({ ask: o.g.ask, rail: o.g.rail }));
+    await o.ctx.close();
+
+    const u = await open(UPRIGHT, "/crew?s=money", { theme: "day" });
+    allErrors.push(...u.errors);
+    ok("desk: an iPad held upright keeps today's layout — the frame, its corners, the tab bar along its foot, one column",
+      u.g.app.radius > 0 && u.g.nav.y > 1000 && u.g.nav.w === u.g.app.w && u.g.cols.length === 2 && u.g.cols.every((c) => c.d === "contents") && !u.g.spark && u.g.fab,
+      JSON.stringify({ app: u.g.app, nav: u.g.nav, cols: u.g.cols.map((c) => c.d), spark: u.g.spark, fab: u.g.fab }));
+    await u.ctx.close();
+
+    const ph = await phoneContext(MAIN, { owner: true, theme: "day" });
+    const pp = await ph.newPage();
+    await insetsOn(pp, MAIN.top, MAIN.bottom);
+    allErrors.push(...watch(pp));
+    await pp.goto(`${BASE}/crew?s=money`, { waitUntil: "load" });
+    await pp.waitForTimeout(1200); await pp.evaluate(SETTLE);
+    const p = await look(pp);
+    ok("desk: on a phone the columns are not boxes at all — one column, the tab bar at the foot, the ✦ in the header",
+      p.cols.length === 2 && p.cols.every((c) => c.d === "contents") && p.nav.y > 600 && p.spark && !p.fab && p.orient === "horizontal", JSON.stringify({ cols: p.cols.map((c) => c.d), nav: p.nav, spark: p.spark, orient: p.orient }));
+    await ph.close();
+    ok("desk: no errors", allErrors.length === 0, allErrors.join(" | "));
   }
 
   // ── 6 · deleting your account, in the app (App Store Review Guideline 5.1.1(v)) ──
