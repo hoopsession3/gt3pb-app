@@ -1302,6 +1302,21 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 // along; nothing outside the Academy page ever read them.
 {
   const A = require("../.smoke/academy.js");
+  // THE SALTED MAPLE LATTE (2026-10-09). A new cook asked Ask GT3 how to make it and got "not on file": the
+  // cookbook said "add measured real maple + pinch of salt" and "milk per build", with no amount anywhere.
+  // Ryan's recipe card is the build now — per bottle, in fluid ounces and tablespoons, the salt only in the syrup.
+  const latte = A.PRODUCTS.find((p) => p.key === "salted_maple");
+  const lb = latte?.cookbook ?? {};
+  ok("cookbook: the Salted Maple Latte's build is written down — 6.5 fl oz DUSK, 2 fl oz goat milk, 3 tbsp Salted Maple Syrup per 10 oz bottle; 20 / 6 / 9 tbsp per 32 oz",
+    /^10 oz bottle: 6\.5 fl oz DUSK, 2 fl oz goat milk, 3 tbsp Salted Maple Syrup\. 32 oz bottle: 20 fl oz DUSK, 6 fl oz goat milk, 9 tbsp syrup/.test(lb.batch ?? "")
+    && (lb.brew ?? []).some((x) => /^Into a 10 oz bottle: 6\.5 fl oz DUSK, 2 fl oz goat milk, 3 tbsp syrup \(a 32 oz bottle: 20 fl oz, 6 fl oz, 9 tbsp\)\.$/.test(x)), JSON.stringify(lb.batch));
+  ok("cookbook: the Salted Maple Syrup is in it, step by step — 12 fl oz maple and 2 tbsp sea salt, warmed low, off the heat as it starts to bubble, cooled into glass, shaken before each use — and it makes 8 bottles",
+    (lb.brew ?? []).length >= 7 && /^Syrup \(makes 8 bottles\): warm 12 fl oz organic maple syrup in a pan on low heat\.$/.test(lb.brew[0])
+    && lb.brew.some((x) => /^Stir in 2 tbsp sea salt until it dissolves\.$/.test(x)) && lb.brew.some((x) => /^Take it off the heat as soon as it starts to bubble/.test(x))
+    && lb.brew.some((x) => /glass container/.test(x)) && /shake or stir before each use/.test(lb.storage ?? ""));
+  ok("cookbook: the latte adds no salt of its own — all of it is in the syrup (it said \"add … pinch of salt\" and \"add the salt pinch to balance\")",
+    !(lb.brew ?? []).some((x) => /pinch of salt/i.test(x)) && (lb.brew ?? []).some((x) => /No extra salt — it's all in the syrup/.test(x))
+    && !/salt pinch/.test(JSON.stringify(lb.troubleshoot ?? [])) && !lb.weighs);
 
   const none = new Set();
   const op = A.pathProgress("operator", none);
@@ -4298,7 +4313,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("cookbooks: …and each one is its own entry, not two run together",
     cookbooks.every((cb) => !/cookbook: \{/.test(cb)),
     cookbooks.filter((cb) => /cookbook: \{/.test(cb)).length);
-  const WEIGH_WORDS = /\b(weigh|weighed|weighing|scale|grams?|\d\s*g\b|ounces?|\boz\b)\b/i;
+  // A fluid ounce is a volume, not a weight (MEASURING_RULES: never convert a volume to a weight): "6.5 fl oz" is
+  // poured, not put on a scale, and a "10 oz bottle" is the bottle's size — neither calls for the band (2026-10-09,
+  // the Salted Maple Latte's build).
+  const WEIGH_WORDS = /\b(weigh|weighed|weighing|scale|grams?|\d\s*g\b|(?<!fluid\s)ounces?(?![\s-]*bottles?)|(?<!fl\.?\s?)\boz\b(?![\s-]*bottles?))\b/i;
   const mismatched = [];
   for (const cb of cookbooks) {
     const brew = (cb.match(/brew:\s*\[([^\]]*)\]/) ?? [, ""])[1];
@@ -4313,6 +4331,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("cookbooks: the page shows the band from the FLAG and never from the prose",
     /p\.cookbook\.weighs\s*&&/.test(read("app/academy/page.tsx"))
     && !WEIGH_WORDS.test((read("app/academy/page.tsx").match(/cookbook\.brew\.(?:some|filter|find)\([\s\S]{0,200}/) ?? [""])[0]));
+  ok("measuring: a fluid ounce is a volume and a 10 oz bottle a size — neither calls for the scale band; \"12 oz\" and \"ounces\" of beans still do",
+    !WEIGH_WORDS.test('"Into a 10 oz bottle: 6.5 fl oz DUSK cold brew, 2 fl oz goat milk", "8 × 10 oz bottles"')
+    && WEIGH_WORDS.test('"12 oz beans"') && WEIGH_WORDS.test('"ounces of beans"') && !WEIGH_WORDS.test('"2 fluid ounces"'));
   // PROVE IT BITES: a procedure that weighs with the flag absent.
   ok("measuring: fed an unflagged weighing procedure, the rule finds it",
     WEIGH_WORDS.test('"Weigh beans 1:13 to mineral water", "Cold-extract ~18 hrs"')
