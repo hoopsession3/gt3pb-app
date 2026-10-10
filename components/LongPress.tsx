@@ -22,7 +22,9 @@ import { haptic } from "@/lib/haptics";
 // back what to put on it (`bind`, and the class `pressable`) and the menu to draw (`menu`, a sheet, drawn in
 // the shell); a row drawn in a list, where a hook cannot be called per row, is drawn by <LongPress>'s children.
 
-export type MenuItem = { key: string; label: string; icon?: IconName; danger?: boolean; run: () => void };
+/** `current`: the row is where you already are (a menu of places — the sections a title opens): it says so to a
+ *  screen reader, and its mark (a check) is drawn in gold. */
+export type MenuItem = { key: string; label: string; icon?: IconName; danger?: boolean; current?: boolean; run: () => void };
 
 /** How long a finger rests on a row before its menu rises (iOS's own is about half a second). */
 export const HOLD = 450;
@@ -120,7 +122,7 @@ export default function LongPress({ title, items, children }: {
 
 /** The menu itself: the row's actions by name, each with its sign on the right as iOS draws them, and the
  *  one that cannot be taken back in red, last. */
-export function RowMenu({ title, items, onClose }: { title: string; items: MenuItem[]; onClose: () => void }) {
+export function RowMenu({ title, items, onClose, label }: { title: string; items: MenuItem[]; onClose: () => void; label?: string }) {
   // While it is up, the browser's own menu stays down: Android's long press, or the right-click's, would land
   // on whatever rose under the finger or the pointer.
   useEffect(() => {
@@ -129,13 +131,13 @@ export function RowMenu({ title, items, onClose }: { title: string; items: MenuI
     return () => window.removeEventListener("contextmenu", hush, true);
   }, []);
   return (
-    <Sheet open onClose={onClose} label={`${title} — actions`}
+    <Sheet open onClose={onClose} label={label ?? `${title} — actions`}
       header={<div className="acs-head select-none"><span className="isheet-title min-w-0 truncate">{title}</span><CloseButton onClick={onClose} className="isheet-x" /></div>}>
       <div className="acs-rows select-none" data-row-menu="">
         {items.map((it) => (
-          <button key={it.key} type="button" className="acs-row min-h-11" onClick={() => { onClose(); it.run(); }}>
+          <button key={it.key} type="button" className="acs-row min-h-11" aria-current={it.current ? "true" : undefined} onClick={() => { onClose(); it.run(); }}>
             <span className="acs-row-x"><b className={it.danger ? "text-red!" : undefined}>{it.label}</b></span>
-            {it.icon && <span className={`acs-row-c${it.danger ? " text-red!" : ""}`} aria-hidden><Icon name={it.icon} /></span>}
+            {it.icon && <span className={`acs-row-c${it.danger ? " text-red!" : ""}${it.current ? " text-gold2!" : ""}`} aria-hidden><Icon name={it.icon} /></span>}
           </button>
         ))}
       </div>

@@ -24,7 +24,7 @@ export type IconName =
   | "compass" | "lock" | "target" | "bell" | "mic" | "clock" | "team" | "partners" | "event" | "link"
   | "coffee" | "jar"
   // dingbat replacements (✓ → ✕ ↗ ★ ▸ ○●) — highest-frequency typographic icon-substitutes
-  | "check" | "arrowRight" | "close" | "chevronRight" | "chevronLeft" | "externalLink" | "star" | "dot" | "dotOutline"
+  | "check" | "arrowRight" | "close" | "chevronRight" | "chevronLeft" | "chevronDown" | "externalLink" | "star" | "dot" | "dotOutline"
   // small utility set, cheap to include, comes up constantly in retrofit work
   | "plus" | "info" | "search" | "more"
   // owner-only "edit this" affordance (2026-07-16, the live-copy edit bridge)
@@ -75,6 +75,8 @@ const PATHS: Record<IconName, React.ReactNode> = {
   chevronRight: <path d="M9 5l7 7-7 7" />,
   // the way back (2026-10-07, the pill round): chevronRight, mirrored — the crew header's Back was a "‹" in Archivo Black
   chevronLeft: <path d="M15 5l-7 7 7 7" />,
+  // a title that opens a menu (2026-10-10, Business's sections): chevronRight, turned down
+  chevronDown: <path d="M5 9l7 7 7-7" />,
   externalLink: <><path d="M14 4h6v6" /><path d="M20 4L10 14" /><path d="M18 14v6H4V6h6" /></>,
   star: <path d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.2-5.4 3.2 1.3-6-4.6-4.1 6.1-.6z" />,
   dot: <circle cx="12" cy="12" r="6" fill="currentColor" stroke="none" />,
@@ -93,7 +95,7 @@ const PATHS: Record<IconName, React.ReactNode> = {
 };
 
 export function Icon({
-  name, size, className = "", style, title,
+  name, size, className = "", style, title, stroke = 2,
 }: {
   name: IconName;
   /** px, sizes the icon independent of surrounding text. Omit to size as 1em (inherits text size). */
@@ -102,11 +104,13 @@ export function Icon({
   style?: CSSProperties;
   /** accessible name — omit for a purely decorative icon sitting next to its own visible text label */
   title?: string;
+  /** the line's weight, in the 24-unit box (2 unless said) — heavier beside heavy type: the crew title's chevron */
+  stroke?: number;
 }) {
   const dims = size ? { width: size, height: size } : undefined;
   return (
     <span className={`k-ic ${className}`.trim()} style={style} aria-hidden={title ? undefined : true} role={title ? "img" : undefined} aria-label={title}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} {...dims}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={stroke} {...dims}>
         {PATHS[name]}
       </svg>
     </span>

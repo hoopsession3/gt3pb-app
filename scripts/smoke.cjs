@@ -6095,7 +6095,25 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /<Panel id="spend" title="Spend & budget · what the business spends" sub="[^"]{12,}">/.test(m) && /<Panel id="pay" title="Refunds & payment settings" sub="[^"]{12,}">/.test(m); })());
   ok("navigation: the name is said once — over a lane's row of sections the title names the lane, as its tab does; a lane of one names its section",
     /<h1 className="op-head-t" data-large-title>\{lane\.members\.length >= 2 \? lane\.label : SEC_LABEL\[sec\]\}<\/h1>/.test(crew)
-    && /<Segmented fill className="lane-tabs mb-3\.5" label=\{lane\.label\} value=\{sec\}/.test(crew));
+    && /<Segmented fill className=\{`lane-tabs mb-3\.5\$\{switcher \? " hidden! desk:flex!" : ""\}`\} label=\{lane\.label\} value=\{sec\}/.test(crew));
+  // A LANE TOO LONG FOR ITS ROW (2026-10-10, the 9→10 round): Business's six on a phone ran off both edges ("Te", "ney").
+  {
+    const css = read("app/globals.css"), lp = read("components/LongPress.tsx"), ic = read("components/Icon.tsx");
+    const head = crew.slice(crew.indexOf("{switcher ? ("), crew.indexOf("SWIPE BETWEEN TABS"));
+    ok("navigation: a lane of more than three sections is switched from its title on a phone — the section's name and a chevron, opening the lane's sections in a sheet, the one you are in checked; the desk keeps the row, under the lane's name",
+      /const switcher = lane\.members\.length > 3;/.test(crew)
+      && /<button type="button" className="desk:hidden! inline-flex items-center gap-1\.5 min-h-11 -my-2 [^"]*active:opacity-55"\s*aria-haspopup="dialog" aria-expanded=\{laneMenu\} onClick=\{\(\) => setLaneMenu\(true\)\}>\s*\{SEC_LABEL\[sec\]\}<Icon name="chevronDown" stroke=\{3\} className="size-5 text-cream-muted" \/>/.test(head)
+      && /<span className="hidden desk:inline">\{lane\.label\}<\/span>/.test(head)
+      && /\{laneMenu && switcher && \(\s*<RowMenu title=\{lane\.label\} label=\{`\$\{lane\.label\} — sections`\}/.test(head)
+      && /current: m === sec, icon: m === sec \? "check" as const : undefined,\s*run: \(\) => \{ if \(m !== sec\) inLane\(m\); else if \(m === "plan" && planOver\) setPlanTab\("calendar"\); \}/.test(head)
+      // the swipe still turns through the lane's sections, row or no row
+      && /lane\.members\.length >= 2 && \{ keys: lane\.members, current: sec, go: \(k\) => inLane\(k as OpSection\), depth: 0 \}/.test(crew)
+      && /chevronDown: <path d="M5 9l7 7 7-7" \/>/.test(ic) && /\| "chevronDown"/.test(ic)
+      && /current\?: boolean; run: \(\) => void \}/.test(lp) && /aria-current=\{it\.current \? "true" : undefined\}/.test(lp) && /label=\{label \?\? `\$\{title\} — actions`\}/.test(lp)
+      && /\$\{it\.current \? " text-gold2!" : ""\}/.test(lp) && /strokeWidth=\{stroke\}/.test(ic) && /stroke = 2,/.test(ic)
+      // in utilities, not the house stylesheet (scripts/css.audit.mjs: its size and its pill rules only fall)
+      && !/op-head-menu|op-head-chev/.test(css + crew));
+  }
 }
 
 // ── ONE LINE TO ORDER: THE ORDERING PAGES (2026-10-09, round 2, step 2 of the UX plan, approved) ─────────
@@ -9366,7 +9384,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && (header.match(/<IconButton icon="(sparkles|search|bell)"/g) || []).length === 3 && /<IconButton icon="chevronLeft" label=\{backWay\.label === "Back" \? "Back"/.test(header)
     && !/<button\b/.test(header) && /badge=\{hdrToday\.length\} crit=\{hdrTodayCrit > 0\}/.test(header));
   ok("pills: the lane's sections are the kit's segmented control, the whole row wide",
-    /<Segmented fill className="lane-tabs mb-3\.5" label=\{lane\.label\} value=\{sec\}/.test(crew));
+    /<Segmented fill className=\{`lane-tabs mb-3\.5\$\{switcher \? " hidden! desk:flex!" : ""\}`\} label=\{lane\.label\} value=\{sec\}/.test(crew));
   const retired = ["crew-bell", "crew-jump", "crew-guide", "modesw", "grp-seg", "grp-toggle", "adm-pill"];
   const stillWritten = retired.filter((c) => new RegExp(`["'\`\\s]${c}(["'\`\\s$]|-)`).test(crew + read("components/Owed.tsx") + read("components/ReviewsAdmin.tsx") + read("components/OperatorNav.tsx")));
   ok("pills: no screen writes a retired pill (crew-bell, crew-jump, crew-guide, modesw, grp-seg, grp-toggle, adm-pill), and the stylesheet styles none",
@@ -9955,7 +9973,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /onContextMenu: \(e\) => \{\s*if \(!ours\(e\)\) return;\s*e\.preventDefault\(\);/.test(lp) && /if \(e\.pointerType === "mouse" \|\| e\.button !== 0 \|\| !ours\(e\)\) return;/.test(lp)
     && /window\.addEventListener\("contextmenu", hush, true\);\s*return \(\) => window\.removeEventListener\("contextmenu", hush, true\);/.test(lp));
   ok("long press: the menu is a sheet of the row's actions by name — 44pt rows, the sign on the right, the one that cannot be taken back in red — and the phone ticks as it rises",
-    /<Sheet open onClose=\{onClose\} label=\{`\$\{title\} — actions`\}/.test(lp) && /className="acs-row min-h-11"/.test(lp) && /it\.danger \? "text-red!"/.test(lp)
+    /<Sheet open onClose=\{onClose\} label=\{label \?\? `\$\{title\} — actions`\}/.test(lp) && /className="acs-row min-h-11"/.test(lp) && /it\.danger \? "text-red!"/.test(lp)
     && /onClick=\{\(\) => \{ onClose\(\); it\.run\(\); \}\}/.test(lp) && /haptic\("medium"\);/.test(lp));
   ok("long press: on a touch screen the row's words start no selection and iOS shows no callout, its fields still select, and a mouse still selects",
     /@utility pressable \{\s*-webkit-touch-callout: none;\s*@media \(pointer: coarse\) \{\s*-webkit-user-select: none;\s*user-select: none;\s*& :is\(input, textarea, \[contenteditable\]\) \{ -webkit-user-select: text; user-select: text; \}/.test(read("app/tailwind.css")));

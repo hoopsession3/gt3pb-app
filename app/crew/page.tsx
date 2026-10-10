@@ -5675,6 +5675,7 @@ export default function AdminPage() {
   useEffect(() => { if (guideAsked) dropParam("guide"); }, [guideAsked]);
   const [guide, setGuide] = useState<null | "start" | "sections">(() => (guideAsked ? (guideAsked === "sections" ? "sections" : "start") : null));
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [laneMenu, setLaneMenu] = useState(false);
   // The header 🔔 badge, for EVERY role (2026-10-04). It was gated on canManage — the leader-only rule
   // 0157 retired for alerts — so a server's bell never loaded while My Day and the nav badge counted
   // her pings from the same hook. The bell is the inbox's one door now; it has to open for everyone.
@@ -5867,6 +5868,13 @@ export default function AdminPage() {
   // (Events), it is Events' Readiness — the row under the header and the lane lit below keep saying
   // Events, as they do when the lane's own tab was tapped to get there.
   const inLane = (m: OpSection) => { if (grp) setGroupId(grp.id); setSection(m); };
+  // A LANE TOO LONG FOR ITS ROW (2026-10-10, the 9→10 round). Business holds six sections (seven where Settings
+  // is filed under it), and its row on a phone ran off both edges — "Te" at the right on Money, "ney" at the
+  // left on Team. Past three, the title is the switch: it names the section you are in, a chevron beside it, and
+  // opens the lane's sections in a sheet, the one you are in checked — the way iOS draws a title that opens a
+  // menu. The desk (redesign 5) is wide enough for the row and keeps it, under the lane's name. A sideways
+  // swipe turns through a lane's sections either way.
+  const switcher = lane.members.length > 3;
 
   // Overview's jump links map onto the operator sections — and the Plan sub-tab when relevant,
   // so "Events" actually lands on Plan→Events instead of whatever tab was last open.
@@ -5924,8 +5932,22 @@ export default function AdminPage() {
           {/* data-large-title: the title bar (components/TitleBar) names the section once this has scrolled away. */}
           {/* THE NAME, ONCE (2026-10-09, the navigation round). Over a lane's row of sections the title said the
               section the row's thumb already showed — "My Day" over "My Day", under a tab that said "Today". It
-              names the lane now, as the tab does; the row names the section. A lane of one names its section. */}
-          <h1 className="op-head-t" data-large-title>{lane.members.length >= 2 ? lane.label : SEC_LABEL[sec]}</h1>
+              names the lane now, as the tab does; the row names the section. A lane of one names its section. A lane
+              of more than three has no row on a phone (A LANE TOO LONG FOR ITS ROW, above): its title names the section
+              and is the switch, and the sheet it opens names the lane. */}
+          {switcher ? (
+            <h1 className="op-head-t" data-large-title>
+              {/* the title's own type, a chevron beside it in the quieter ink; the whole of it is the target, 44px tall,
+                  its negative margin keeping the title's line where it was; pressed, it dims, as a bar button does */}
+              <button type="button" className="desk:hidden! inline-flex items-center gap-1.5 min-h-11 -my-2 p-0 border-0 bg-transparent text-cream [font:inherit] text-left cursor-pointer appearance-none transition-opacity active:opacity-55"
+                aria-haspopup="dialog" aria-expanded={laneMenu} onClick={() => setLaneMenu(true)}>
+                {SEC_LABEL[sec]}<Icon name="chevronDown" stroke={3} className="size-5 text-cream-muted" />
+              </button>
+              <span className="hidden desk:inline">{lane.label}</span>
+            </h1>
+          ) : (
+            <h1 className="op-head-t" data-large-title>{lane.members.length >= 2 ? lane.label : SEC_LABEL[sec]}</h1>
+          )}
           {/* The WHEN pill ("START OF SHIFT ⓘ", "DURING SERVICE ⓘ") stood here until 2026-10-04: a
               fixed tagline styled as a status — it said "During service" at 10 PM with the truck
               offline — opening the same guide as the Guide button two inches above it. The guide
@@ -5938,10 +5960,18 @@ export default function AdminPage() {
       {/* One track, the section you are in on a thumb that slides to the one you tap (2026-10-07, the
           pill round) — three outlined pills before, the chosen one filled. The row shares its width
           equally and scrolls when a lane's names will not fit (the larger text sizes). */}
+      {/* Past three (the switch, above), the row is the desk's alone. */}
       {lane.members.length >= 2 && (
-        <Segmented fill className="lane-tabs mb-3.5" label={lane.label} value={sec}
+        <Segmented fill className={`lane-tabs mb-3.5${switcher ? " hidden! desk:flex!" : ""}`} label={lane.label} value={sec}
           options={lane.members.map((m: OpSection) => ({ key: m, label: SECTION_LABEL[m] }))} onChange={(m) => inLane(m)}
           onReselect={(m) => { if (m === "plan" && planOver) setPlanTab("calendar"); }} />
+      )}
+      {/* The switch's sheet: the lane's sections by the row's names, the one you are in checked. Picking it again
+          does what tapping its segment again does (Plan, over a list: back to the calendar). */}
+      {laneMenu && switcher && (
+        <RowMenu title={lane.label} label={`${lane.label} — sections`} onClose={() => setLaneMenu(false)}
+          items={lane.members.map((m: OpSection) => ({ key: m, label: SECTION_LABEL[m], current: m === sec, icon: m === sec ? "check" as const : undefined,
+            run: () => { if (m !== sec) inLane(m); else if (m === "plan" && planOver) setPlanTab("calendar"); } }))} />
       )}
 
       {/* SWIPE BETWEEN TABS (components/SwipePager, 2026-10-05): a sideways swipe on the section turns
