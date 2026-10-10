@@ -7074,6 +7074,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const road = fresh \?\? board\.data \?\? null;/.test(fu) && !/setOps\(|setLive\(/.test(fu));
   ok("find us: the live-ping chip knows itself on its first render",
     /useState<"hidden" \| "off" \| "on" \| "busy">\(\(\) => \{/.test(fu) && !/setState\(on \? "on" : "off"\)/.test(fu));
+  // 2026-10-10: the opening hour read Eastern and the closing hour the phone's zone, so a stop open 11-5
+  // read "11:00am – 9:00pm" outside Eastern. Day, date and both hours read the truck's clock now.
+  ok("find us: a stop's day, date and both hours are on the truck's clock (Eastern), none on the phone's",
+    /hero\.ends_at \? fmt12\(clockTime\(hero\.ends_at\)\)/.test(fu) && /weekdayOf\(etKeyOf\(s\.starts_at\), "short"\)/.test(fu)
+    && /const key = s\.starts_at \? etKeyOf\(s\.starts_at\) : s\.day;/.test(fu)
+    && !/getHours\(\)|getMinutes\(\)|getMonth\(\)|toLocaleDateString\(undefined|toLocaleTimeString\(undefined/.test(fu));
   const of = code(read("components/OrderFunnel.tsx"));
   ok("reserve: the Saturday picker keeps its place until the stops are read",
     /\) : !stopsRead \? \(/.test(of) && /<span className="oa-day sk"><b>&nbsp;<\/b><span>&nbsp;<\/span><\/span>/.test(of) && /if \(!live\) return;\s*setStopsRead\(true\);/.test(of));

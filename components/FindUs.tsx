@@ -17,7 +17,7 @@ import { useViewerMarket } from "@/components/useViewerMarket";
 import { useOrderingOpen } from "@/components/useOrderingOpen";
 import { closedWords, readyWords } from "@/lib/ordering";
 import { useAvailability } from "@/lib/availability";
-import { localToday, relativeDay, fmt12, clockTime } from "@/lib/dates";
+import { localToday, relativeDay, fmt12, clockTime, etDayKey, weekdayOf } from "@/lib/dates";
 import { isStopAhead } from "@/lib/road";
 import { clickable } from "@/lib/a11y";
 import type { LiveStatus, EventRow } from "@/lib/db";
@@ -58,10 +58,16 @@ type Board = { ops: FieldOp[]; live: LiveStatus | null };
 const NO_OPS: FieldOp[] = [];
 
 // ── stop label helpers (from the truck page — hand-set labels win, else derive) ─────────────────
+// The day, the date and both hours of a stop are read on the truck's clock (Eastern), never the
+// phone's: a stop has one real time, where the truck is. The opening hour was pinned in lib/dates'
+// clockTime; the day, the date and the closing hour still read the phone's zone, so a stop open
+// 11-5 read "11:00am – 9:00pm" to anyone outside Eastern (caught 2026-10-10 taking the App Store
+// shot of Find Us on a machine set to UTC).
+const etKeyOf = (iso: string) => etDayKey(new Date(iso));
 function whenDay(s: FieldOp): string {
   if (s.when_label?.trim()) return s.when_label;
-  if (s.starts_at) return new Date(s.starts_at).toLocaleDateString(undefined, { weekday: "short" }).toUpperCase();
-  if (s.day) { const [y, m, d] = s.day.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "short" }).toUpperCase(); }
+  if (s.starts_at) return weekdayOf(etKeyOf(s.starts_at), "short").toUpperCase();
+  if (s.day) return weekdayOf(s.day, "short").toUpperCase();
   return "TBD";
 }
 function whenTime(s: FieldOp): string {
@@ -79,10 +85,10 @@ function whenTime(s: FieldOp): string {
 // normalization and a private copy here couldn't cross the file boundary. See it there for the
 // full history; this page now shares one implementation with the event rows instead of drifting.
 function whenDate(s: FieldOp): string {
-  const iso = s.starts_at ?? (s.day ? `${s.day}T12:00:00` : null);
-  if (!iso) return "";
-  const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
+  const key = s.starts_at ? etKeyOf(s.starts_at) : s.day;
+  if (!key) return "";
+  const [, m, d] = key.slice(0, 10).split("-").map(Number);
+  return m && d ? `${m}/${d}` : "";
 }
 const TIER_KEYS = new Set(["full", "coffee", "nitro", "beer"]);
 // A couple of 86'd items doesn't make "Full bar on board" untrue — the truck genuinely still has
@@ -263,7 +269,7 @@ export default function FindUs() {
   // stops were already using it; events just weren't falling through to it. now they do.
   const heroOpen = hero ? fmt12(hero.kind === "event" ? hero.start_time || whenTime(hero) : whenTime(hero)) ?? "" : "";
   const heroClose = !hero ? "" : hero.kind === "stop"
-    ? (hero.ends_at ? fmt12(`${String(new Date(hero.ends_at).getHours()).padStart(2, "0")}:${String(new Date(hero.ends_at).getMinutes()).padStart(2, "0")}`) ?? "" : "")
+    ? (hero.ends_at ? fmt12(clockTime(hero.ends_at)) ?? "" : "")
     : (fmt12(hero.end_time) ?? "");
   // Only the hero copy (below) is a safe EditableCopy target — see the comment on descFor.
   const heroDesc = hero?.kind === "stop" ? descFor(hero, t, avail) : null;
