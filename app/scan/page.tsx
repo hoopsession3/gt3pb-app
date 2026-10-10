@@ -6,9 +6,12 @@ import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import Gt3Mark from "@/components/Gt3Mark";
 import { Masthead, ClosingBeat } from "@/components/kit";
+import dynamic from "next/dynamic";
 import Icon from "@/components/Icon";
 import { staffAccess } from "@/lib/access";
 import { haptic } from "@/lib/haptics";
+// The sign-in is for a visitor who is signed out — staff signed in never download it (2026-10-09).
+const SignIn = dynamic(() => import("@/components/SignIn"));
 
 // OPERATOR SCAN — the receiving end of a member's card QR. Staff-only: look up the member by their
 // card code and add a stamp for a walk-up (cash) purchase. RPCs (0132) are SECURITY DEFINER + staff-
@@ -64,7 +67,9 @@ function ScanInner() {
       <ClosingBeat />
     </section>
   );
-  if (ready && (!user || !isStaff)) return (
+  // Signed out, the page names itself and signs in (2026-10-09, round 2) — it said "Staff only" with no way in.
+  if (ready && !user) return <SignIn context={{ title: "Scan a member card.", sub: "Sign in with your crew account to add a stamp." }} />;
+  if (ready && !isStaff) return (
     <section className="screen">
       <Masthead eyebrow="Scan card" />
       <div className="h-title">Staff only</div>
