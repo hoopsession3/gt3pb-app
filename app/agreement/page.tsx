@@ -38,7 +38,7 @@ export default function AgreementPage() {
   const { user, profile, profileStatus, refreshProfile } = useAuth();
   const access = staffAccess(!!user, profileStatus, profile);
 
-  if (access === "anon") return <SignIn />;
+  if (access === "anon") return <SignIn context={{ title: "Your operator agreement.", sub: "Sign in with the email it was sent to, to read it, sign it or answer it." }} />;
 
   // "wait" and "failed" are not refusals and must not be spelled like one — lib/access owns that
   // distinction and scripts/gate.audit.mjs fails the build if a screen forgets it.
