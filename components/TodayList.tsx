@@ -178,7 +178,8 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
   const due = head ? head.today.length + head.moreToday : null;
   return (
     <div className="adm-sec" id="my-day-tasks">
-      <SectionHeader label="Today" right={due === null ? undefined : <span className={`k-count${due ? "" : " ok"}`}>{due ? `${due} due` : "Clear"}</span>} />
+      {/* "To do", not "Today" (2026-10-09, the navigation round): the screen's title names the lane, Today, now. */}
+      <SectionHeader label="To do" right={due === null ? undefined : <span className={`k-count${due ? "" : " ok"}`}>{due ? `${due} due` : "Clear"}</span>} />
       <AsyncSection
         state={state}
         isEmpty={(d) => d.items.length === 0 && d.owed.bookings === 0 && d.owed.low.length === 0 && !d.owed.extrasFailed}

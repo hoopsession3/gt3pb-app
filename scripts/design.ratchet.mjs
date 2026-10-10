@@ -563,29 +563,29 @@ export const PROD_ROUTE = {
 // following the phone's in the iPhone app (the reading itself is in the app's bundle only). The stylesheets came down
 // a line (100 → 99, 103 → 102), recorded; the script crossed the rounding line on /delivery, /office and /primal.
 export const WEIGHT = {
-  "/truck":                    { js: 284, css: 93, chunks: 15 },
-  "/events":                   { js: 284, css: 93, chunks: 15 },
-  "/menu":                     { js: 267, css: 90, chunks: 14 },
-  "/reserve":                  { js: 292, css: 90, chunks: 16 },
-  "/delivery":                 { js: 291, css: 90, chunks: 16 },
-  "/3mpire":                   { js: 284, css: 90, chunks: 15 },
-  "/craft":                    { js: 266, css: 90, chunks: 14 },
-  "/book":                     { js: 267, css: 90, chunks: 14 },
-  "/academy":                  { js: 325, css: 90, chunks: 16 },
-  "/office":                   { js: 281, css: 90, chunks: 15 },
-  "/scan":                     { js: 265, css: 90, chunks: 14 },
-  "/architecture":             { js: 275, css: 90, chunks: 14 },
-  "/playbook":                 { js: 274, css: 90, chunks: 14 },
-  "/driver":                   { js: 280, css: 93, chunks: 15 },
-  "/agreement":                { js: 274, css: 90, chunks: 15 },
-  "/offer":                    { js: 284, css: 90, chunks: 15 },
-  "/built/gt3-built-k7m9x4q2": { js: 264, css: 90, chunks: 14 },
-  "/display":                  { js: 265, css: 90, chunks: 14 },
-  "/shop":                     { js: 296, css: 90, chunks: 16 },
-  "/primal":                   { js: 267, css: 90, chunks: 14 },
-  "/privacy":                  { js: 263, css: 90, chunks: 13 },
-  "/terms":                    { js: 263, css: 90, chunks: 13 },
-  "/":                         { js: 272, css: 90, chunks: 14 },
+  "/truck":                    { js: 285, css: 93, chunks: 16 },
+  "/events":                   { js: 285, css: 93, chunks: 16 },
+  "/menu":                     { js: 267, css: 90, chunks: 15 },
+  "/reserve":                  { js: 292, css: 90, chunks: 17 },
+  "/delivery":                 { js: 291, css: 90, chunks: 17 },
+  "/3mpire":                   { js: 284, css: 90, chunks: 16 },
+  "/craft":                    { js: 266, css: 90, chunks: 15 },
+  "/book":                     { js: 267, css: 90, chunks: 15 },
+  "/academy":                  { js: 325, css: 90, chunks: 17 },
+  "/office":                   { js: 282, css: 90, chunks: 16 },
+  "/scan":                     { js: 265, css: 90, chunks: 15 },
+  "/architecture":             { js: 276, css: 90, chunks: 15 },
+  "/playbook":                 { js: 275, css: 90, chunks: 15 },
+  "/driver":                   { js: 280, css: 93, chunks: 16 },
+  "/agreement":                { js: 274, css: 90, chunks: 16 },
+  "/offer":                    { js: 284, css: 90, chunks: 16 },
+  "/built/gt3-built-k7m9x4q2": { js: 264, css: 90, chunks: 15 },
+  "/display":                  { js: 265, css: 90, chunks: 15 },
+  "/shop":                     { js: 296, css: 90, chunks: 17 },
+  "/primal":                   { js: 268, css: 90, chunks: 15 },
+  "/privacy":                  { js: 263, css: 90, chunks: 14 },
+  "/terms":                    { js: 263, css: 90, chunks: 14 },
+  "/":                         { js: 273, css: 90, chunks: 15 },
 };
 
 // 2026-10-09 (the button round: redesign 7): every route's stylesheet -1 628 bytes and its script +188 to +245 (gzip).
@@ -621,6 +621,13 @@ export const WEIGHT = {
 // the rounding line up, recorded. The stylesheets came down three and four lines (94 → 90, 96 → 93); twelve routes load
 // one chunk fewer. Rebased onto the desk and the round before it (#112): /academy's script crossed the line (324 → 325),
 // recorded.
+// 2026-10-09 (the navigation round: three controls, one alert number; Business opens on Money): every route's script
+// +841 bytes (gzip) and one chunk more. Built the ordering pages' commit (68db8bb) and this one and gzipped what each
+// route's HTML references (/privacy 268 710 → 269 551, /menu 272 491 → 273 332), the raw script +109 bytes. The shell's own
+// change weighs nothing: the base with only the new tab bar (no badges, the Guide and the customer's view as rows in More)
+// measured 268 695 and 13 chunks. With the console's changes — Money's lazily loaded tiles (components/MoneyKpis) gone for
+// the home's three numbers — the bundler splits the shared shell one chunk further: the same code, one more file. Crossed
+// the rounding line up on every route but /scan, /built and /display, recorded.
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];
   const out = [];

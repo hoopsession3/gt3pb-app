@@ -387,8 +387,8 @@ export default function CommandBoard() {
               </div>
             )}
 
-            {/* ── Money ── a pointer, not a second KPI strip (2026-07-30 redundancy audit): the
-                full MoneyKpis grid already opens the Money section — mounting it here duplicated
+            {/* ── Money ── a pointer, not a second KPI strip (2026-07-30 redundancy audit): Money
+                opens on its own numbers (the home's three since 2026-10-09) — mounting them here duplicated
                 all five tiles, and for event managers (Command is canManage, the money queries are
                 admin-gated) they rendered as a block of dead "—"s. One strip, one home.
                 And the pointer itself is an admin's (2026-10-04): Money is not a section an event

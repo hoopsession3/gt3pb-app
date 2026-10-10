@@ -84,11 +84,25 @@ ok("0352 again: no lane gains a second Catalog, and the changelog keeps one line
   && (await q1(`select count(*)::int as n from public.changelog where title = 'Settings by category, and a Catalog for what we sell'`)).n === 1
   && (await q1(`select applied_count from public.schema_migrations where version = '0352_catalog_lane'`))?.applied_count === 2);
 
-// ── 3 · the client's stand-in says the same ────────────────────────────────────────────────────
+// ── 3 · 0361: Business opens on Money (2026-10-09, Ryan: "Business opens on Money", approved) ─────
+// Money moves to the front of the lane, nothing else in it moves, a lane without Money is its tenant's.
+const othersBefore361 = await others();
+await db.exec(mig("0361_business_opens_on_money.sql"));
+ok("0361: the founding Business lane opens on Money — the rest in the order they were",
+  JSON.stringify(await lane(T1, "business")) === JSON.stringify(["money", "plan", "notes", "catalog", "customers", "team"]), await lane(T1, "business"));
+ok("0361: a Business lane reshaped without Money is left as its tenant made it", JSON.stringify(await lane(T2, "business")) === JSON.stringify(["plan", "customers", "catalog"]), await lane(T2, "business"));
+ok("0361: every other lane is untouched", (await others()) === othersBefore361);
+await db.exec(mig("0361_business_opens_on_money.sql"));
+ok("0361 again: nothing moves a second time, the changelog keeps one line, and it records itself each run",
+  JSON.stringify(await lane(T1, "business")) === JSON.stringify(["money", "plan", "notes", "catalog", "customers", "team"])
+  && (await q1(`select count(*)::int as n from public.changelog where title = 'Business opens on Money'`)).n === 1
+  && (await q1(`select applied_count from public.schema_migrations where version = '0361_business_opens_on_money'`))?.applied_count === 2);
+
+// ── 4 · the client's stand-in says the same ────────────────────────────────────────────────────
 const streams = readFileSync(join(ROOT, "lib/streams.ts"), "utf8");
 const biz = /key: "business"[^\n]*sections: \[([^\]]*)\]/.exec(streams)?.[1]?.match(/"([a-z]+)"/g)?.map((x) => x.slice(1, -1)) ?? [];
-ok("lib/streams: DEFAULT_STREAMS' Business lane is the live one — the stand-in drawn before the table answers does not hide the Catalog",
+ok("lib/streams: DEFAULT_STREAMS' Business lane is the live one — the stand-in drawn before the table answers opens on Money and does not hide the Catalog",
   JSON.stringify(biz) === JSON.stringify(await lane(T1, "business")), biz);
 
-console.log(`THE CATALOG IN THE BUSINESS LANE (0352): ${pass} passed, ${fail} failed`);
+console.log(`THE CATALOG IN THE BUSINESS LANE (0352) AND BUSINESS OPENS ON MONEY (0361): ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

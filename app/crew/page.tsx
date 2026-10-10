@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Children, Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useApp } from "@/components/AppProvider";
@@ -47,6 +46,7 @@ import { flagIsToday } from "@/lib/home";
 import DayHeadline from "@/components/DayHeadline";
 import EmptyState from "@/components/EmptyState";
 import { rememberMode } from "@/lib/mode";
+import { useRouter } from "next/navigation";
 import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY_GROUP, VALID as VALID_SECTIONS, type OpSection } from "@/components/OperatorNav";
 import { useTaskSheet } from "@/components/TaskSheet";
 import { useRecord } from "@/components/RecordSheet";
@@ -165,7 +165,6 @@ const OperatorDeal = dynamic(() => import("@/components/OperatorDeal"), { loadin
 const OfferLetters = dynamic(() => import("@/components/OfferLetters"), { loading: () => <PourFill label="Loading…" /> });
 const ScheduleGaps = dynamic(() => import("@/components/ScheduleGaps"), { loading: () => <PourFill label="Loading…" /> });
 const PaymentSettings = dynamic(() => import("@/components/PaymentSettings"), { loading: () => <PourFill label="Loading…" /> });
-const MoneyKpis = dynamic(() => import("@/components/MoneyKpis"), { loading: () => <PourFill label="Loading…" /> });
 const PlanEditor = dynamic(() => import("@/components/PlanEditor"), { loading: () => <PourFill label="Loading…" /> });
 const CompanyCalendar = dynamic(() => import("@/components/CompanyCalendar"), { loading: () => <PourFill label="Loading…" /> });
 const EventDayPlanner = dynamic(() => import("@/components/EventDayPlanner"), { loading: () => <PourFill label="Loading…" /> });
@@ -5625,6 +5624,15 @@ export default function AdminPage() {
     window.addEventListener("gt3-open-inbox", open);
     return () => window.removeEventListener("gt3-open-inbox", open);
   }, []);
+  // The Guide and the customer's view open from More (2026-10-09, the navigation round), the way the inbox
+  // opens from anywhere. Leaving for the customer side is remembered (lib/mode), as the header switch was.
+  useEffect(() => {
+    const open = () => setGuide("sections");
+    const leave = () => { rememberMode("customer"); router.push("/"); };
+    window.addEventListener("gt3-open-guide", open);
+    window.addEventListener("gt3-customer-view", leave);
+    return () => { window.removeEventListener("gt3-open-guide", open); window.removeEventListener("gt3-customer-view", leave); };
+  }, [router]);
   useEffect(() => { setInboxOpen(false); }, [sec]);
   // Utilization (0267): each section visit is an action ping — "last action" reads like
   // "crew:command" in the report. Throttled inside lib/track (1/15s), fire-and-forget.
@@ -5783,12 +5791,9 @@ export default function AdminPage() {
               With no history it used to become "Exit Crew Mode" — a back arrow that flipped the
               device into the customer app — beside the Customer switch that already does that. */}
           {canGoBack && <IconButton icon="chevronLeft" label="Back" onClick={() => back()} />}
-          {/* Mode switch — you're in Crew; Customer drops to the customer app ("/"). Leaving is
-              remembered (lib/mode.ts), so the app opens on the customer side next time; arriving here
-              is remembered below, so it opens here until you leave again. */}
-          <Segmented kind="choice" size="sm" label="View mode" value="crew"
-            options={[{ key: "crew", label: "Crew" }, { key: "customer", label: "Customer", title: "Customer view — the app as a customer sees it" }]}
-            onChange={() => { rememberMode("customer"); router.push("/"); }} />
+          {/* THREE CONTROLS (2026-10-09, the navigation round — Ryan: "Switch + Guide to More", approved). The
+              Crew/Customer switch and the Guide stood here every day for a choice made once a week: they are
+              rows in More now (components/OperatorNav, MoreSheet), and the row holds what is used all day. */}
         </div>
         <div className="toprow-actions">
           {/* Quick actions on a phone — run a copilot, ask GT3, a note, a purchase (2026-10-08, the iPhone
@@ -5798,8 +5803,6 @@ export default function AdminPage() {
           <IconButton icon="sparkles" label="Quick actions — run a copilot, ask GT3, take a note, or log a purchase" className="frame:hidden! desk:inline-flex!" aria-haspopup="dialog" onClick={() => window.dispatchEvent(new Event("gt3-quick-do"))} />
           {/* Jump — touch entry to the command palette (⌘K on a keyboard). */}
           <IconButton icon="search" label="Jump to a section, recent, or action" hint="⌘K" onClick={() => window.dispatchEvent(new Event("gt3-open-cmdk"))} />
-          {/* Section guide — what each section is for + jump there. */}
-          <IconButton icon="info" label="Guide — start here, and what each section is for" aria-haspopup="dialog" onClick={() => setGuide("sections")} />
           {/* Inbox — the one place everything that needs you rolls up (flags + needs-you), from any screen. */}
           <IconButton icon="bell" label={hdrToday.length ? `Inbox — ${hdrToday.length} today` : "Inbox"} badge={hdrToday.length} crit={hdrTodayCrit > 0} onClick={() => setInboxOpen(true)} />
         </div>
@@ -5818,7 +5821,10 @@ export default function AdminPage() {
               is static ("Crew console") and never reflected which of the 17 sections you were in;
               /crew joined H1_SKIP so this is the one heading now, and it actually updates with sec. */}
           {/* data-large-title: the title bar (components/TitleBar) names the section once this has scrolled away. */}
-          <h1 className="op-head-t" data-large-title>{SEC_LABEL[sec]}</h1>
+          {/* THE NAME, ONCE (2026-10-09, the navigation round). Over a lane's row of sections the title said the
+              section the row's thumb already showed — "My Day" over "My Day", under a tab that said "Today". It
+              names the lane now, as the tab does; the row names the section. A lane of one names its section. */}
+          <h1 className="op-head-t" data-large-title>{lane.members.length >= 2 ? lane.label : SEC_LABEL[sec]}</h1>
           {/* The WHEN pill ("START OF SHIFT ⓘ", "DURING SERVICE ⓘ") stood here until 2026-10-04: a
               fixed tagline styled as a status — it said "During service" at 10 PM with the truck
               offline — opening the same guide as the Guide button two inches above it. The guide
@@ -6090,27 +6096,32 @@ export default function AdminPage() {
 
       {sec === "money" && isAdmin && (
         <>
-          {/* Dashboard, not a filing cabinet: live numbers first, then modules grouped by job. */}
-          <MoneyKpis />
+          {/* BUSINESS OPENS HERE (2026-10-09, Ryan: "Business opens on Money", approved; 0361). It opened on five
+              tiles that compared nothing and four panels open at once. Now the home's three numbers, each with
+              its change on the week before and what moved it — a number opens the report that explains it —
+              and two panels open at rest: Sales, and the shop's queue of orders waiting on us. The rest stay
+              folded, each saying what it holds, and remembered. */}
+          <HomeNumbers money drops here="money" />
           {/* ON THE DESK (2026-10-09, redesign 5): the money moving now on the left — spend, getting paid, the
               numbers — and the setup and the records on the right. */}
           <Columns>
           <Column>
           <SectionHeader label="Spend & budget" />
-          <Panel id="spend" title="Spend & budget · what the business spends" defaultOpen><SpendBudget /></Panel>
+          <Panel id="spend" title="Spend & budget · what the business spends" sub="Log a purchase; each category against its monthly budget"><SpendBudget /></Panel>
           <SectionHeader label="Get paid" />
           {/* THE PAY PANEL STAYS (2026-10-06, the settings round). The switches it held — card
               checkout, pay at pickup, subscriptions — are Settings › Business › Payments & checkout now. The
               panel keeps its id: a voided paid order raises a refund alert that links
               /crew?s=money&a=pay, and a refund is still Money's — so it keeps the door to them, and
               one line to the switches. */}
-          <Panel id="pay" title="Refunds & payment settings" defaultOpen>
+          <Panel id="pay" title="Refunds & payment settings" sub="Refunds and disputes are in Square; the payment switches are in Settings">
             {/* Refunds live in Square by design (the card data never touches this app) — but the
                 DOOR to them belongs here (enterprise round P3). */}
             <a className="adm-golink hit-y-44" style={{ display: "inline-block", marginTop: 10 }} href="https://squareup.com/dashboard/sales/transactions" target="_blank" rel="noreferrer">Refunds &amp; disputes — Square Dashboard <Icon name="externalLink" /></a>
             <GoLine to="settings" anchor="set-pay">Payment settings</GoLine>
           </Panel>
-          <SectionHeader label="The numbers" />
+          {/* "Reports" (2026-10-09): the three numbers above are "Numbers"; these are the reports behind them. */}
+          <SectionHeader label="Reports" />
           {/* Open at rest (2026-10-02, Ryan: "do all 6"): Money used to open on MoneyKpis and then
               seventeen closed titles — the accordion wall. One panel per section opens on its own,
               the one most looked at; here that is Sales. The rest stay folded and remembered. */}
