@@ -5982,6 +5982,22 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     !/dayhead-top/.test(read("scripts/fixtures/my-day.html")) && /<h2 class="l">To do<\/h2>/.test(read("scripts/fixtures/my-day.html")));
 }
 
+// ── CRAFT LINES (2026-10-09, round 2 — Ryan: "Craft lines", approved) ────────────────────────────────────────
+// /craft put 554 words between its opening and its only button, four and a half screens down.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const craft = read("app/craft/page.tsx"), css = read("app/globals.css"), copy = read("lib/copy.ts");
+  ok("craft: an ingredient is one line — its name and its drink — that opens its whole story in a sheet; nothing of the story is lost",
+    /\{\.\.\.clickable\(\(\) => setStory\(it\)\)\} aria-haspopup="dialog">/.test(craft) && /<b>\{it\.n \|\| it\.d\}<\/b>/.test(craft) && !/<p>\{it\.d\}<\/p>/.test(craft)
+    && /<p className="dl-sub">\{story\.d\}<\/p>/.test(craft) && /<Sheet open onClose=\{\(\) => setStory\(null\)\}/.test(craft) && !/\.craft-ing-x p\{/.test(css));
+  ok("craft: the menu is one button under the opening, a screen in — and still at the close",
+    (craft.match(/<Button kind="primary" onClick=\{\(\) => router\.push\("\/menu"\)\}>\{t\("craft\.cta_menu"\)\}<\/Button>/g) || []).length === 2
+    && craft.indexOf('router.push("/menu")') < craft.indexOf('<Pillar k="act" />'));
+  ok("craft: the philosophy band that said the lede again is gone, from the page, the stylesheet and the editor",
+    !/craft\.fuel|craft-fuel/.test(craft + css) && !/key: "craft\.fuel"/.test(copy));
+}
+
 // ── SIGN-IN THAT SAYS WHERE YOU ARE (2026-10-09, round 2 — Ryan: "Join by default", "Link returns you",
 // approved) ──────────────────────────────────────────────────────────────────────────────────────────────
 // Seven pages that need an account showed the consumer's join pitch or nothing at all; the form waited

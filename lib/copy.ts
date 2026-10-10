@@ -32,8 +32,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "craft.lede", group: "Craft page", label: "Lede", multiline: true,
     default: "Every drink on our menu is built from whole, recognizable food — chosen on purpose, for what it does for you. Coffee to switch on, coconut and minerals to carry you, slow-simmered broth to rebuild. We treat each one as a craft, because your body runs on what you give it — and it deserves the good stuff." },
   { key: "craft.mol_cap", group: "Craft page", label: "Molecule caption", default: "Caffeine · three methyls, three 3s" },
-  { key: "craft.fuel", group: "Craft page", label: "Philosophy band", multiline: true,
-    default: "Your body is built to run on real, whole food — the way a well-made engine runs best on the right fuel. So we don't hedge: here's exactly what's in the cup, and what it does for you." },
+  // craft.fuel, the philosophy band, retired 2026-10-09: it said the lede again (round 2, "Craft lines").
   // Pillar 1 — Activation
   { key: "craft.act_label", group: "Craft page", label: "Activation — label", default: "01 · Activation" },
   { key: "craft.act_title", group: "Craft page", label: "Activation — title", default: "Switch on — clean." },

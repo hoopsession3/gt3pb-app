@@ -5555,12 +5555,10 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .craft-body{font-family:'Inter';font-weight:400;font-size:16px;line-height:1.64;color:var(--oa-cream-dim,color-mix(in srgb, var(--brand-cream) 62%, transparent));max-width:60ch;margin:16px 0 0}
 .craft-body i{font-style:italic;color:var(--gold2)}
 /* the "same fuel" philosophy band + the by-purpose ingredient lists (the 3-pillar rewrite, 2026-07) */
-.craft-fuel{font-family:'Fraunces',serif;font-style:italic;font-size:clamp(19px,5.2vw,27px);line-height:1.42;color:var(--gold2);text-align:center;max-width:22ch;margin:44px auto 6px;padding-top:30px;border-top:1px solid var(--line)}
-.craft-ings{list-style:none;margin:20px 0 0;display:flex;flex-direction:column;gap:16px}
-.craft-ing{display:flex;gap:13px;align-items:flex-start}
-.craft-ing-dot{flex:0 0 auto;width:8px;height:8px;border-radius:50%;background:var(--gold2);margin-top:8px;box-shadow:0 0 0 3px color-mix(in srgb, var(--brand-gold2) 12%, transparent)}
+.craft-ings{list-style:none;margin:16px 0 0;display:flex;flex-direction:column;gap:4px}
+.craft-ing{display:flex;gap:13px;align-items:center}
+.craft-ing-dot{flex:0 0 auto;width:8px;height:8px;border-radius:50%;background:var(--gold2);box-shadow:0 0 0 3px color-mix(in srgb, var(--brand-gold2) 12%, transparent)}
 .craft-ing-x b{display:block;font-family:'Inter';font-weight:650;font-size:16px;color:var(--oa-cream);letter-spacing:.2px}
-.craft-ing-x p{font-family:'Inter';font-weight:400;font-size:15px;line-height:1.58;color:color-mix(in srgb, var(--brand-cream) 60%, transparent);margin:4px 0 0;max-width:58ch}
 
 .craft-close{margin:48px 0 0;padding-top:30px;border-top:1px solid var(--line);text-align:center}
 .craft-close-line{font-family:'Fraunces';font-style:italic;font-size:22px;color:var(--gold2)}
