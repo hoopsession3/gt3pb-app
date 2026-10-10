@@ -5,7 +5,6 @@ import EditableCopy from "@/components/EditableCopy";
 import Watermark from "@/components/Watermark";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import OrderFunnel from "@/components/OrderFunnel";
-import StorefrontStory from "@/components/StorefrontStory";
 import { useAuth } from "@/components/AuthProvider";
 import { useSiteCopy } from "@/lib/copy";
 
@@ -29,8 +28,8 @@ export default function DeliveryPage() {
     <section className="screen" id="s-delivery">
       <Watermark variant="landing" />
       <Masthead eyebrow={<EditableCopy k="masthead.delivery" value={t("masthead.delivery")} />} right={<AccountPill />} />
-      <OrderFunnel initialMode="delivery" />
-      <StorefrontStory />
+      {/* Under the line above it, not against it (2026-10-09). */}
+      <div className="mt-4"><OrderFunnel initialMode="delivery" /></div>
       <ClosingBeat />
     </section>
   );
