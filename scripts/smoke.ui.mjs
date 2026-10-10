@@ -33,6 +33,12 @@ const weightErrors = [];
 // axe-core, injected per page. The a11y pass is the first check in this harness that looks at what
 // a screen IS rather than what it contains — every other assertion here is a string match.
 const AXE_PATH = require.resolve("axe-core/axe.min.js");
+// Every animation that ends is let finish first (3s at most); the ones that loop (a live dot, a
+// spinner) keep running, as a person would see them. The same function as verify.prod.mjs's.
+const SETTLE = async () => {
+  const ending = document.getAnimations().filter((a) => Number.isFinite(a.effect?.getComputedTiming?.().endTime));
+  await Promise.race([Promise.all(ending.map((a) => a.finished.catch(() => {}))), new Promise((r) => setTimeout(r, 3000))]);
+};
 const a11y = [];
 const a11yErrors = [];
 const a11yScanned = new Set();
@@ -216,8 +222,13 @@ try {
     //    context mid-run on the first pass. An UNSCANNED route counts as a failure below, not as
     //    a clean one — "we could not look" and "we looked and it was fine" are different answers,
     //    and letting them share a result is how a gate starts lying.
+    //    Read once the page has stopped moving — verify.prod.mjs's SETTLE, here too (2026-10-10). The
+    //    sign-in now arrives in half a second, not 1.45, and CI's axe caught it part-way through its fade
+    //    on /scan, /agreement and /offer: cream at a fraction of its opacity is a contrast failure nobody
+    //    ever sees. Before, axe read those pages before the fade began, so the form was never read at all.
     const scan = async () => {
       try { await page.waitForLoadState("networkidle", { timeout: 4000 }); } catch { /* settled enough */ }
+      await page.evaluate(SETTLE);
       await page.addScriptTag({ path: AXE_PATH });
       return page.evaluate(async () =>
         await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] }, resultTypes: ["violations"] }));
