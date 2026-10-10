@@ -6234,10 +6234,20 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /closedWords\(ordering, \{ named: false \}\)/.test(fu) && /ordering\?\.state === "closing"/.test(fu)
     && /\.fu-state\{min-height:1\.45em/.test(read("app/globals.css")));
   ok("Find Us: the live row's Pre-order chip follows the same rule", /rowLive && ordering\?\.open !== false && <button/.test(fu));
-  ok("menu: closed, the order line is the truck's state, the price is a price and the hint says what a tap does",
+  ok("menu: closed, the order line is the truck's state and the price is a price",
     /const closed = o !== null && !o\.open;/.test(menu) && /entry-px\$\{out \? "" : closed \? " shut" : " order"\}/.test(menu) && /\.entry-px\.shut\{border:1px solid transparent;padding:3px 10px\}/.test(read("app/globals.css"))
-    && /className="mast-order mast-state" role="status"/.test(menu) && /k="menu\.taphint_closed"/.test(menu)
+    && /className="mast-order mast-state" role="status"/.test(menu)
     && /closedWords\(o, \{ closing: t\("findus\.cta_closed"\) \}\) : openWords\(o\)/.test(menu));
+  // ONE LINE, THEN THE CHOICES (2026-10-09, round 2 step 2; Ryan, on /menu: "This shit still cluttered").
+  ok("menu: one line, then the choices — no eyebrow repeating the tab, no statement, no links and no hint above the chips",
+    (() => { const top = menu.slice(menu.indexOf("<Masthead "), menu.indexOf('className="menu-chips"'));
+      return /<Masthead tone="light" right=\{<AccountPill \/>\} \/>/.test(top) && !/eyebrow=/.test(top) && !/menu\.statement/.test(top) && !/btn-ter/.test(top) && (top.match(/className="mast-order/g) || []).length === 2; })()
+    && !/menu-taphint|menu\.taphint|menu\.nav_shop|masthead\.menu|menu\.statement/.test(menu + read("lib/copy.ts")));
+  ok("menu: a drink is one line — why you would pick it; what is in it is its sheet, one tap away",
+    /<div className="entry-why">\{t\(`menu\.\$\{id\}\.why`\) \|\| t\(`menu\.\$\{id\}\.lines`\)\.split\("\\n"\)\[0\]\}<\/div>/.test(menu) && !/entry-ing/.test(menu)
+    && /t\(`menu\.\$\{openId\}\.lines`\)/.test(sheet));
+  ok("menu: the chemistry and Primal follow the menu, and Shop is the tab bar's",
+    menu.indexOf('t("menu.craft_link")') > menu.indexOf("PACK_SIZES.map") && menu.indexOf('t("menu.nav_primal")') > menu.indexOf("PACK_SIZES.map") && !/router\.push\("\/shop"\)/.test(menu));
   ok("drink sheet: says when cups open (not the stop's start), quotes the reservable drop, and knows closing from closed",
     /closedWords\(o, \{ closing: t\("findus\.cta_closed"\) \}\)/.test(sheet) && /packDropFrom\(ordering\.stops\.map/.test(sheet)
     && !/toLocaleString\(undefined, \{ weekday: "short", hour/.test(sheet) && /o\?\.state === "closing" \? t\("sheet\.closing_cta"\) : t\("sheet\.closed_cta"\)/.test(sheet)
@@ -6254,8 +6264,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /o\.status !== "ready" && !waitingToOpen\(o\) && ageMin\(orderClockFrom\(o\)\) >= 8/.test(crew)
     && /const sev = waiting \? "calm" : ageSev\(ageMin\(orderClockFrom\(o\)\)\);/.test(crew) && /waitingLabel\(o\.ready_from\)/.test(crew)
     && !/ageMin\(o\.created_at\)/.test(crew));
-  ok("copy: the three new keys are registered with their defaults",
-    /key: "findus\.cta_menu"[^}]*default: "See the menu"/.test(read("lib/copy.ts")) && /key: "sheet\.closing_cta"/.test(read("lib/copy.ts")) && /key: "menu\.taphint_closed"/.test(read("lib/copy.ts")));
+  ok("copy: the new keys are registered with their defaults (menu.taphint_closed retired with the hint, 2026-10-09)",
+    /key: "findus\.cta_menu"[^}]*default: "See the menu"/.test(read("lib/copy.ts")) && /key: "sheet\.closing_cta"/.test(read("lib/copy.ts")) && !/key: "menu\.taphint_closed"/.test(read("lib/copy.ts")));
 
   // ── the QR and the splash ──
   const conn = read("lib/connect.ts"), disp = code(read("app/display/page.tsx")), splash = code(read("components/MarketingSplash.tsx"));
