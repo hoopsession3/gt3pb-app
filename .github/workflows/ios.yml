@@ -216,10 +216,21 @@ jobs:
       - name: The project is what scripts/ios.configure.mjs makes it
         run: node scripts/ios.configure.mjs --check
 
+      # The secret is the .p8 file's text. Pasted into GitHub's web form it comes back with Windows line
+      # endings, and Apple's tools refuse a key whose BEGIN line ends in a carriage return: "Invalid
+      # authentication key credential specified (CryptoKit.CryptoKitASN1Error.invalidPEMDocument)" (run #68,
+      # twice, 2026-10-10). So the file is rebuilt from the key's own base64, whatever a paste did to its
+      # layout (CRLF, lost line breaks, a dropped BEGIN or END line), and read once before Xcode sees it.
       - name: The App Store Connect key, for this run only
         run: |
           mkdir -p "$RUNNER_TEMP/asc"
-          printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/asc/AuthKey_$ASC_KEY_ID.p8"
+          KEY="$RUNNER_TEMP/asc/AuthKey_$ASC_KEY_ID.p8"
+          body=$(printf '%s' "$ASC_KEY_P8" | sed -E 's/-----(BEGIN|END)[A-Z ]*-----//g' | tr -cd 'A-Za-z0-9+/=')
+          { echo "-----BEGIN PRIVATE KEY-----"; printf '%s\n' "$body" | fold -w 64; echo "-----END PRIVATE KEY-----"; } > "$KEY"
+          if ! openssl pkey -in "$KEY" -noout 2>/dev/null; then
+            echo "::error::ASC_KEY_P8 does not hold the key. Paste the whole AuthKey_$ASC_KEY_ID.p8 file into that secret, from -----BEGIN PRIVATE KEY----- to -----END PRIVATE KEY-----."
+            exit 1
+          fi
 
       # Build number = this workflow's run number, so every upload is newer than the last.
       - name: Archive a signed Release build
