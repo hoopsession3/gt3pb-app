@@ -135,7 +135,7 @@ export default function OfficeScreen() {
     load();
   };
 
-  if (enabled && ready && !user) return <SignIn />;
+  if (enabled && ready && !user) return <SignIn context={{ title: "Your GT3 office account.", sub: "Sign in with the email your office orders with — your deliveries, changes and invoices are inside." }} />;
   if (!ready || (enabled && !loaded)) return <section className="screen" id="s-office"><Masthead eyebrow="Your GT3" right={<AccountPill />} /><Skeleton variant="card" count={1} /><Skeleton variant="row" count={3} /></section>;
 
   const h = home;
