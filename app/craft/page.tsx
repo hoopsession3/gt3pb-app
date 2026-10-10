@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import AccountPill from "@/components/AccountPill";
 import EditCopyPill from "@/components/EditCopyPill";
@@ -8,6 +9,9 @@ import Watermark from "@/components/Watermark";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
 import Button from "@/components/Button";
+import Icon from "@/components/Icon";
+import Sheet, { CloseButton } from "@/components/Sheet";
+import { clickable } from "@/lib/a11y";
 
 // OUR CRAFT — the education page, by purpose. Not just coffee & cocoa: every menu ingredient, grouped
 // by what it's FOR — Activation, Hydration, Rebuild/Fuel — in confident, fact-forward GT3 voice ("your
@@ -16,6 +20,12 @@ import Button from "@/components/Button";
 // detox/allergen-safety claims. EVERY line is owner-editable via site_copy (useSiteCopy) — most now
 // inline on this page (2026-07-17); the ingredient blocks and both CTAs stay Settings-only, see the
 // comments below for why. The caffeine molecule is factual chemistry.
+//
+// ONE LINE AN INGREDIENT (2026-10-09, round 2 — Ryan: "Craft lines", approved). The page put 554 words
+// between its opening and its only button, four and a half screens down: every ingredient's whole story,
+// in full, one after another, under a philosophy band that said the lede again. Each ingredient is one line
+// now — its name, and the drink it is in — that opens its whole story in a sheet; the band went; and the
+// menu is one button under the opening as well as at the close.
 
 // Split a "Name — fact\nName — fact" block into rows (em-dash separates name from its line).
 function ings(block: string): { n: string; d: string }[] {
@@ -28,6 +38,7 @@ function ings(block: string): { n: string; d: string }[] {
 export default function CraftScreen() {
   const router = useRouter();
   const t = useSiteCopy();
+  const [story, setStory] = useState<{ n: string; d: string } | null>(null);
 
   const Pillar = ({ k }: { k: "act" | "hyd" | "reb" }) => (
     <div className="craft-sec">
@@ -41,9 +52,12 @@ export default function CraftScreen() {
           Still editable, as one block, via Settings › Business › Brand & customer app. */}
       <ul className="craft-ings">
         {ings(t(`craft.${k}_items`)).map((it, i) => (
-          <li key={i} className="craft-ing">
-            <span className="craft-ing-dot" aria-hidden />
-            <div className="craft-ing-x">{it.n && <b>{it.n}</b>}<p>{it.d}</p></div>
+          <li key={i}>
+            <div className="craft-ing min-h-11 cursor-pointer" {...clickable(() => setStory(it))} aria-haspopup="dialog">
+              <span className="craft-ing-dot" aria-hidden />
+              <div className="craft-ing-x flex-1 min-w-0"><b>{it.n || it.d}</b></div>
+              <Icon name="chevronRight" className="text-cream-muted" />
+            </div>
           </li>
         ))}
       </ul>
@@ -68,8 +82,10 @@ export default function CraftScreen() {
         </div>
       </header>
 
-      {/* PHILOSOPHY — the same fuel */}
-      <EditableCopy k="craft.fuel" value={t("craft.fuel")} as="p" className="craft-fuel" multiline />
+      {/* The menu, under the opening — the page's one action, a screen in instead of four and a half. */}
+      <div className="flex justify-center mt-6">
+        <Button kind="primary" onClick={() => router.push("/menu")}>{t("craft.cta_menu")}</Button>
+      </div>
 
       {/* THE THREE PILLARS — every ingredient, by purpose */}
       <Pillar k="act" />
@@ -97,6 +113,14 @@ export default function CraftScreen() {
 
       <EditableCopy k="craft.signoff" value={t("craft.signoff")} as="div" className="signoff" />
       <ClosingBeat />
+
+      {/* An ingredient's whole story, one tap from its line. */}
+      {story && (
+        <Sheet open onClose={() => setStory(null)} label={story.n || "Ingredient"} className="paper"
+          header={<div className="flex items-center"><b className="text-subhead font-semibold">{story.n || "Ingredient"}</b><CloseButton onClick={() => setStory(null)} /></div>}>
+          <p className="dl-sub">{story.d}</p>
+        </Sheet>
+      )}
     </section>
   );
 }
