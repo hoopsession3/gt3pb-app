@@ -82,110 +82,102 @@ type Task = { id: string; label: string; owner: { kind: "event" | "stop"; id: st
 // headline's list is gone (components/DayHeadline); its three are here, once (2026-10-04).
 const TEAM_LEAD = 3;
 type Data = { rows: Row[]; tasks: Task[]; low: InvItem[]; bookings: number; extrasFailed: boolean };
+export type { Row as OwedRow, Task as OwedTask, Data as OwedData };
 
 const SHOW = 5;
+
+// THE READ, ON ITS OWN (2026-10-09, One home). The home's Today list reads exactly what this panel
+// reads — the same deadlines, the same team list with its "behind its event or stop" rule, the same
+// viewer filter — so it calls this rather than a copy that could drift. Nothing in it changed.
+export async function loadOwed(meId: string | null, role: string, manage: boolean): Promise<Data> {
+  if (!supabase) return { rows: [], tasks: [], low: [], bookings: 0, extrasFailed: false };
+  const today = dayKey(new Date());
+  const nowIso = new Date().toISOString();
+
+  // The list itself. This one throws.
+  const ob = await supabase.from("v_obligations")
+    .select("source, subject_id, area, kind, title, detail, due_on, days_out, severity, route, market, owner_user_id")
+    .neq("severity", "upcoming")
+    .order("due_on", { ascending: true })
+    .limit(100);
+  if (ob.error) throw new Error(ob.error.message);
+
+  // The three softer feeds. Anything that fails here returns empty rather than taking the panel
+  // with it — see the header.
+  //
+  // And only for whoever can act on them (2026-10-04): past-due TEAM tasks and new booking
+  // requests are a manager's to triage (a server's own tasks are in My tasks, and the leads tab is
+  // a manager's), and the restock line goes to Assets, which only the roles that open Assets can.
+  // A server's My Day listed all three, and two of them tapped through to a screen she cannot open.
+  const wantTeam = manage, wantStock = sectionsForRole(role).includes("garage");
+  let tasks: Task[] = [], low: InvItem[] = [], bookings = 0, extrasFailed = false;
+  if (wantTeam || wantStock) try {
+    const [b, evs, st, tk, inv] = await Promise.all([
+      supabase.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
+      supabase.from("events").select("*").order("day"),
+      supabase.from("stops").select("id, name, starts_at, status, archived_at").order("starts_at"),
+      supabase.from("event_tasks").select("id, label, event_id, stop_id, due_at, critical, assignee").eq("done", false).eq("kind", "task"),
+      fetchInventory(),
+    ]);
+    // CHECKED FIRST, BEFORE ANYTHING READS .data. PostgREST returns an error OBJECT rather than
+    // throwing, so a bad column name looks exactly like success with no rows. That is how this
+    // shipped broken: "kind" was selected from events, which has no such column, PostgREST
+    // rejected the whole query, and seven past-due tasks rendered as silence.
+    const softErr = [b.error, evs.error, st.error, tk.error].find(Boolean);
+    if (softErr) throw new Error(softErr.message);
+    bookings = b.count ?? 0;
+
+    const allEv = ((evs.data as { id: string; title: string | null; day: string | null; archived_at: string | null }[]) ?? []).filter((e) => !e.archived_at);
+    const allSt = ((st.data as { id: string; name: string | null; starts_at: string | null; status: string | null; archived_at: string | null }[]) ?? []).filter((x) => !x.archived_at);
+    const evName = new Map(allEv.map((e) => [e.id, e.title ?? "Event"]));
+    const stName = new Map(allSt.map((x) => [x.id, x.name ?? "Stop"]));
+    const evDay = new Map(allEv.map((e) => [e.id, e.day]));
+    const stDay = new Map(allSt.map((x) => [x.id, x.starts_at ? dayKey(new Date(x.starts_at)) : null]));
+    const dueEv = new Set(allEv.filter((e) => e.day && e.day < today).map((e) => e.id));
+    const dueSt = new Set(allSt.filter((x) => x.status === "done" || (x.starts_at && dayKey(new Date(x.starts_at)) < today)).map((x) => x.id));
+
+    const daysLate = (ymd: string | null | undefined) => (ymd ? daysBetween(ymd, today) : null);
+
+    for (const t of ((tk.data as { id: string; label: string; event_id: string | null; stop_id: string | null; due_at: string | null; critical: boolean | null; assignee: string | null }[]) ?? [])) {
+      // ONE TASK, ONE PLACE (2026-10-04): a task assigned to you is in My tasks, right above. The team
+      // list is everybody else's.
+      if (meId && t.assignee === meId) continue;
+      const isPast = t.due_at ? t.due_at < nowIso : ((t.event_id && dueEv.has(t.event_id)) || (t.stop_id && dueSt.has(t.stop_id)));
+      if (!isPast) continue;
+      const own = t.due_at ? dayKey(new Date(t.due_at)) : (t.event_id ? evDay.get(t.event_id) : t.stop_id ? stDay.get(t.stop_id) : null);
+      const owner = t.event_id ? { kind: "event" as const, id: t.event_id, name: evName.get(t.event_id) ?? "Event" }
+                  : t.stop_id ? { kind: "stop" as const, id: t.stop_id, name: stName.get(t.stop_id) ?? "Stop" }
+                  : null;
+      tasks.push({ id: t.id, label: t.label, owner, late: daysLate(own), critical: !!t.critical });
+    }
+    // Critical first, then the latest — the order the headline's top three used, so the three that
+    // lead here are the three it used to show.
+    tasks.sort((a, b) => Number(b.critical) - Number(a.critical) || (b.late ?? 0) - (a.late ?? 0));
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    low = inv.enabled ? rollupLowStock(inv.items, allEv.filter((e) => e.day && e.day >= today) as any) : [];
+  } catch { extrasFailed = true; tasks = []; low = []; bookings = 0; }
+  if (!wantTeam) { tasks = []; bookings = 0; }
+  if (!wantStock) low = [];
+
+  // "Needs you" means you: only the rows this viewer can act on (lib/obligations obligationFor).
+  const v: Viewer = { id: meId, sections: sectionsForRole(role), manage };
+  const rows = ((ob.data as Row[]) ?? []).filter((r) => obligationFor(r, v));
+  return { rows, tasks, low, bookings, extrasFailed };
+}
 // The day key and the "N days late" wording were private copies here; lib/dates and lib/dayWords
 // own them now, so My Day's top three and this panel cannot say lateness two ways.
 
-export default function Owed({ compact = false }: { compact?: boolean }) {
-  const [open, setOpen] = useState(false);
-  const [openTasks, setOpenTasks] = useState(false);
+/**
+ * Where a Needs-you row goes for this viewer, and whether it goes anywhere at all — shared with the
+ * home's Today list (2026-10-09), so a deadline opens the same thing from either. A row goes where
+ * lib/obligations says: the task, the person, or the panel that holds it — an in-app jump, never the
+ * full reload the <a href> rows were (2026-10-04).
+ */
+export function useObligationGo(viewer: Viewer, onSaved?: () => void) {
   const { setSection } = useOperatorSection();
-  const { user, profile } = useAuth();
-  const { toast } = useApp();
-  const confirm = useConfirm();
-  const admin = canOf(profile).admin;
-  // Who is looking decides what is theirs (lib/obligations obligationFor) — read once, as plain values,
-  // so the loader below re-runs only when the person or their role actually changes.
-  const meId = user?.id ?? null;
-  const role = roleOf(profile);
-  const manage = canOf(profile).manage;
-  const viewer: Viewer = { id: meId, sections: sectionsForRole(role), manage };
-
-  const loader = useCallback(async (): Promise<Data> => {
-    if (!supabase) return { rows: [], tasks: [], low: [], bookings: 0, extrasFailed: false };
-    const today = dayKey(new Date());
-    const nowIso = new Date().toISOString();
-
-    // The list itself. This one throws.
-    const ob = await supabase.from("v_obligations")
-      .select("source, subject_id, area, kind, title, detail, due_on, days_out, severity, route, market, owner_user_id")
-      .neq("severity", "upcoming")
-      .order("due_on", { ascending: true })
-      .limit(100);
-    if (ob.error) throw new Error(ob.error.message);
-
-    // The three softer feeds. Anything that fails here returns empty rather than taking the panel
-    // with it — see the header.
-    //
-    // And only for whoever can act on them (2026-10-04): past-due TEAM tasks and new booking
-    // requests are a manager's to triage (a server's own tasks are in My tasks, and the leads tab is
-    // a manager's), and the restock line goes to Assets, which only the roles that open Assets can.
-    // A server's My Day listed all three, and two of them tapped through to a screen she cannot open.
-    const wantTeam = manage, wantStock = sectionsForRole(role).includes("garage");
-    let tasks: Task[] = [], low: InvItem[] = [], bookings = 0, extrasFailed = false;
-    if (wantTeam || wantStock) try {
-      const [b, evs, st, tk, inv] = await Promise.all([
-        supabase.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
-        supabase.from("events").select("*").order("day"),
-        supabase.from("stops").select("id, name, starts_at, status, archived_at").order("starts_at"),
-        supabase.from("event_tasks").select("id, label, event_id, stop_id, due_at, critical, assignee").eq("done", false).eq("kind", "task"),
-        fetchInventory(),
-      ]);
-      // CHECKED FIRST, BEFORE ANYTHING READS .data. PostgREST returns an error OBJECT rather than
-      // throwing, so a bad column name looks exactly like success with no rows. That is how this
-      // shipped broken: "kind" was selected from events, which has no such column, PostgREST
-      // rejected the whole query, and seven past-due tasks rendered as silence.
-      const softErr = [b.error, evs.error, st.error, tk.error].find(Boolean);
-      if (softErr) throw new Error(softErr.message);
-      bookings = b.count ?? 0;
-
-      const allEv = ((evs.data as { id: string; title: string | null; day: string | null; archived_at: string | null }[]) ?? []).filter((e) => !e.archived_at);
-      const allSt = ((st.data as { id: string; name: string | null; starts_at: string | null; status: string | null; archived_at: string | null }[]) ?? []).filter((x) => !x.archived_at);
-      const evName = new Map(allEv.map((e) => [e.id, e.title ?? "Event"]));
-      const stName = new Map(allSt.map((x) => [x.id, x.name ?? "Stop"]));
-      const evDay = new Map(allEv.map((e) => [e.id, e.day]));
-      const stDay = new Map(allSt.map((x) => [x.id, x.starts_at ? dayKey(new Date(x.starts_at)) : null]));
-      const dueEv = new Set(allEv.filter((e) => e.day && e.day < today).map((e) => e.id));
-      const dueSt = new Set(allSt.filter((x) => x.status === "done" || (x.starts_at && dayKey(new Date(x.starts_at)) < today)).map((x) => x.id));
-
-      const daysLate = (ymd: string | null | undefined) => (ymd ? daysBetween(ymd, today) : null);
-
-      for (const t of ((tk.data as { id: string; label: string; event_id: string | null; stop_id: string | null; due_at: string | null; critical: boolean | null; assignee: string | null }[]) ?? [])) {
-        // ONE TASK, ONE PLACE (2026-10-04): a task assigned to you is in My tasks, right above. The team
-        // list is everybody else's.
-        if (meId && t.assignee === meId) continue;
-        const isPast = t.due_at ? t.due_at < nowIso : ((t.event_id && dueEv.has(t.event_id)) || (t.stop_id && dueSt.has(t.stop_id)));
-        if (!isPast) continue;
-        const own = t.due_at ? dayKey(new Date(t.due_at)) : (t.event_id ? evDay.get(t.event_id) : t.stop_id ? stDay.get(t.stop_id) : null);
-        const owner = t.event_id ? { kind: "event" as const, id: t.event_id, name: evName.get(t.event_id) ?? "Event" }
-                    : t.stop_id ? { kind: "stop" as const, id: t.stop_id, name: stName.get(t.stop_id) ?? "Stop" }
-                    : null;
-        tasks.push({ id: t.id, label: t.label, owner, late: daysLate(own), critical: !!t.critical });
-      }
-      // Critical first, then the latest — the order the headline's top three used, so the three that
-      // lead here are the three it used to show.
-      tasks.sort((a, b) => Number(b.critical) - Number(a.critical) || (b.late ?? 0) - (a.late ?? 0));
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      low = inv.enabled ? rollupLowStock(inv.items, allEv.filter((e) => e.day && e.day >= today) as any) : [];
-    } catch { extrasFailed = true; tasks = []; low = []; bookings = 0; }
-    if (!wantTeam) { tasks = []; bookings = 0; }
-    if (!wantStock) low = [];
-
-    // "Needs you" means you: only the rows this viewer can act on (lib/obligations obligationFor).
-    const v: Viewer = { id: meId, sections: sectionsForRole(role), manage };
-    const rows = ((ob.data as Row[]) ?? []).filter((r) => obligationFor(r, v));
-    return { rows, tasks, low, bookings, extrasFailed };
-  }, [meId, role, manage]);
-  const state = useAsyncData<Data>(loader, [loader]);
-
   const { openTask } = useTaskSheet();
   const { openRecord } = useRecord();
-  const [allTasks, setAllTasks] = useState(false);
-  const [allLow, setAllLow] = useState(false);
-  // A row goes where lib/obligations says: the task, the person, or the panel that holds it — an
-  // in-app jump, never the full reload the <a href> rows were (2026-10-04).
   const [initId, setInitId] = useState<string | null>(null);
   const go = (r: ObligationRow) => {
     const to = obligationGo(r, viewer);
@@ -205,6 +197,32 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
     if (to.kind === "none") return false;
     return to.kind !== "section" || viewer.sections.includes(to.section);
   };
+  const sheet = initId ? <InitiativeSheet id={initId} onClose={() => setInitId(null)} onSaved={onSaved} /> : null;
+  return { go, canGo, sheet };
+}
+
+export default function Owed({ compact = false }: { compact?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [openTasks, setOpenTasks] = useState(false);
+  const { setSection } = useOperatorSection();
+  const { user, profile } = useAuth();
+  const { toast } = useApp();
+  const confirm = useConfirm();
+  const admin = canOf(profile).admin;
+  // Who is looking decides what is theirs (lib/obligations obligationFor) — read once, as plain values,
+  // so the loader below re-runs only when the person or their role actually changes.
+  const meId = user?.id ?? null;
+  const role = roleOf(profile);
+  const manage = canOf(profile).manage;
+  const viewer: Viewer = { id: meId, sections: sectionsForRole(role), manage };
+
+  const loader = useCallback((): Promise<Data> => loadOwed(meId, role, manage), [meId, role, manage]);
+  const state = useAsyncData<Data>(loader, [loader]);
+
+  const { openTask } = useTaskSheet();
+  const [allTasks, setAllTasks] = useState(false);
+  const [allLow, setAllLow] = useState(false);
+  const { go, canGo, sheet: initiativeSheet } = useObligationGo(viewer, () => state.reload());
 
   // ── THE ONE TAP ON THE ROW (2026-10-04, Ryan's My Day at 10:40 PM) ─────────────────────────────
   // Four pieces of equipment 71–94 days "late" because saying "it's clean" took eight steps in
@@ -413,7 +431,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
                 </div>
               </>
             )}
-            {initId && <InitiativeSheet id={initId} onClose={() => setInitId(null)} onSaved={() => state.reload()} />}
+            {initiativeSheet}
           </div>
         );
       }}

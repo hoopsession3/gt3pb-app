@@ -8,6 +8,7 @@ import { useApp } from "./AppProvider";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import { FLAVORS, nextDrop, dropDateKey, mixSummary, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
 import { gallonsForBottles, flavorDemand } from "@/lib/brewMath";
+import { nextDropDay } from "@/lib/dropDate";
 import { dayKey, dayWithDate, etToday } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -76,15 +77,10 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
   useEffect(() => {
     if (!supabase) return;
     let liveFlag = true;
-    supabase.from("stops").select("starts_at").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
-      .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(1).maybeSingle()
-      .then(({ data }) => {
-        const at = (data as { starts_at?: string | null } | null)?.starts_at;
-        if (liveFlag && at) {
-          const d = new Date(at);
-          setDrop({ iso: dropDateKey(d), label: d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) });
-        }
-      });
+    // lib/dropDate — the one answer to "which day is this drop", shared with the home's number.
+    nextDropDay(supabase).then((d) => {
+      if (liveFlag && d.fromStop) setDrop({ iso: d.iso, label: d.at.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) });
+    });
     return () => { liveFlag = false; };
   }, []);
   const dropISO = drop.iso;

@@ -5357,7 +5357,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   // ── the chrome ──
   ok("chrome: the bell loads for every role — it was gated on managers while the nav badge was not",
-    /const \{ flags: hdrFlags, critCount: hdrCrit \} = useMyAlerts\(user\?\.id \?\? null\);/.test(crew));
+    /const \{ flags: hdrFlags \} = useMyAlerts\(user\?\.id \?\? null\);/.test(crew));
   ok("chrome: no WHEN pill styled as a status, and its rules left with it",
     !/op-head-when/.test(crew) && !/\.op-head-when\{/.test(css));
   ok("chrome: ‹ is Back only — it no longer turns into 'Exit Crew Mode' beside the Customer switch — and it leads the row, quiet (2026-10-07: it was a 38px red circle at the far right)",
@@ -5973,12 +5973,93 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /const TEAM_LEAD = 3;/.test(read("components/Owed.tsx")) && /: tasks\.slice\(0, TEAM_LEAD\)\)\.map\(/.test(owed)
     && /<span className="owed-k">Team tasks late<\/span>/.test(owed) && /\{t\.critical && <Icon name="warning" \/>\}/.test(owed));
   ok("my tasks: a failed read says so — it said 'Nothing on your plate — you're clear for today' about a list it never saw",
-    /const \{ data, error \} = await supabase\s*\.from\("all_tasks"\)/.test(mine) && /if \(error\) \{ setErr\(error\.message\); setLoaded\(true\); return; \}/.test(mine)
+    /const \{ data, error \} = await supabase\s*\.from\("all_tasks"\)/.test(code(read("lib/myTasks.ts"))) && /if \(error\) return \{ rows: \[\], error: error\.message \};/.test(code(read("lib/myTasks.ts")))
+    && /const \{ rows, error \} = await loadMyTasks\(userId\);/.test(mine) && /if \(error\) \{ setErr\(error\); setLoaded\(true\); return; \}/.test(mine)
     && /const empty = loaded && !err && tasks\.length === 0;/.test(mine) && /Couldn&apos;t load your tasks — this is not &ldquo;nothing on your plate&rdquo;\./.test(mine));
   ok("my tasks: a tick that did not save puts the task back and says so — it vanished either way",
     /const ok = await completeTask\(/.test(mine) && /if \(!ok\) \{ toast\(/.test(mine));
-  ok("one place: the painted My Day has no top three, and its team list leads with them",
-    !/dayhead-top/.test(read("scripts/fixtures/my-day.html")) && /<div class="owed-head sub">/.test(read("scripts/fixtures/my-day.html")));
+  ok("one place: the painted My Day has no top three under the op card — the critical team tasks lead Today, once",
+    !/dayhead-top/.test(read("scripts/fixtures/my-day.html")) && /<h2 class="l">Today<\/h2>/.test(read("scripts/fixtures/my-day.html")));
+}
+
+// ── ONE HOME (2026-10-09, round 2 of the UX plan, approved) ─────────────────────────────────────
+// My Day opened on 31 tasks — 25 of them late, the oldest by 99 days — under a bell that never reached
+// zero, and Command put twelve numbers at equal weight. The home answers "how are we doing, and what's
+// next?": three numbers with their change and their cause, at most three things due today, the rest
+// folded and one tap away. These pin the rules (lib/home), the one plate both lists read, who sees
+// which number, and that nothing was deleted to get there.
+{
+  const H = require("../.smoke/home.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const it = (key, daysOut, critical = false, kind = "mine") => ({ key, title: key, sub: "", daysOut, critical, kind });
+  const split = H.splitHome([
+    it("a", 0), it("b", -3), it("c", -14), it("d", -15), it("e", -99), it("f", 2), it("g", null),
+    it("h", -1, true, "team"), it("i", -40, false, "upkeep"), it("j", 0, false, "upkeep"), it("k", -10, false, "owed"),
+  ]);
+  ok("one home: at most three due today — critical first, then your own, then the latest — and a count of the rest",
+    H.TODAY_MAX === 3 && split.today.map((i) => i.key).join() === "h,c,b" && split.moreToday === 2 && split.due.map((i) => i.key).join() === "h,c,b,a,k");
+  ok("one home: more than two weeks late folds into one row — fourteen days late is still today's",
+    H.STALE_DAYS === 14 && split.stale.map((i) => i.key).join() === "e,d" && H.homeBucket(-14) === "today" && H.homeBucket(-15) === "stale");
+  ok("one home: equipment is one row however old, and later or undated work waits in All tasks",
+    split.upkeep.map((i) => i.key).join() === "i,j" && split.later === 2 && split.total === 11 && H.homeBucket(null) === "later");
+  ok("numbers: a change is said in words, and only against a week that had something to compare with",
+    H.pctChange(118, 100) === 18 && H.pctChange(5, 0) === null && H.changeWords(18) === "Up 18% on the week before"
+    && H.changeWords(-4) === "Down 4% on the week before" && H.changeWords(0) === "Level with the week before" && H.changeWords(null) === "Nothing to compare yet");
+  ok("numbers: the cause is the channel that moved most — last week is the 14-day report less the 7-day one",
+    (() => { const d = H.channelDriver({ cup: 5000, packs: 30000, office: 0 }, { cup: 11000, packs: 40000, office: 0 }); return !!d && d.channel === "packs" && d.deltaCents === 20000 && d.label === "Drop packs"; })()
+    && H.channelDriver({ cup: 100 }, { cup: 200 }) === null);
+  ok("numbers: margin is after ingredients and the week's event costs — an estimate, and labelled one",
+    H.estMargin(100000, 0.3, 15000) === 55000 && H.estMargin(0, 0.3, 0) === 0 && /<b>Margin · 7 days, est\.<\/b>/.test(read("components/HomeNumbers.tsx")));
+  ok("numbers: a drop's pace is the last drop's orders by the same distance from its day — a drop fills all week",
+    H.samePoint([{ created_at: "2026-09-29T09:00:00" }, { created_at: "2026-09-30T11:00:00" }, { created_at: "2026-10-01T09:00:00" }], "2026-10-03", "2026-10-10", new Date("2026-10-07T12:00:00")) === 2
+    && H.paceWords(5, 2) === "3 more than the last drop had by now" && H.paceWords(1, 3) === "2 fewer than the last drop had by now" && H.paceWords(2, 2) === "Level with the last drop by now");
+  ok("numbers: the top of a count, or nothing when every count is zero",
+    JSON.stringify(H.topOf({ RISE: 3, FLOW: 9, DUSK: 1 })) === '["FLOW",9]' && H.topOf({ RISE: 0 }) === null);
+  ok("the bell counts today: raised today, or seen again today — not every unanswered alert of the last thirty",
+    H.flagIsToday({ created_at: "2026-10-01T15:00:00", last_seen_at: "2026-10-09T08:00:00" }, "2026-10-09")
+    && !H.flagIsToday({ created_at: "2026-10-01T15:00:00", last_seen_at: null }, "2026-10-09")
+    && H.flagIsToday({ created_at: "2026-10-09T07:00:00", last_seen_at: null }, "2026-10-09")
+    && /const hdrToday = hdrFlags\.filter\(\(f\) => flagIsToday\(f, localToday\(\)\)\);/.test(read("app/crew/page.tsx"))
+    && /const hdrTodayCrit = hdrToday\.filter\(\(f\) => f\.severity === "critical"\)\.length;/.test(read("app/crew/page.tsx")));
+
+  const crew = code(read("app/crew/page.tsx")), today = code(read("components/TodayList.tsx")), nums = code(read("components/HomeNumbers.tsx"));
+  const owed = code(read("components/Owed.tsx")), dops = code(read("components/DropOps.tsx"));
+  const myDay = crew.slice(crew.indexOf("function MyDay("), crew.indexOf("function MyTasks("));
+  ok("one home: the Today list reads the one plate — lib/myTasks and Needs you's own loadOwed, never a copy of either",
+    /loadMyTasks\(meId\), loadOwed\(meId, role, manage\)/.test(today) && !/from\("all_tasks"\)/.test(today) && !/from\("v_obligations"\)/.test(today)
+    && /export async function loadOwed\(/.test(owed) && /=> loadOwed\(meId, role, manage\)/.test(owed));
+  ok("one home: a failed read is not a quiet day — either half failing fails the list, and it says so",
+    /if \(mine\.error\) throw new Error\(mine\.error\);/.test(today) && /errorSub="This is not the same as nothing being due — we could not read it just now\."/.test(today));
+  ok("one home: nothing deleted — All tasks opens My tasks and Needs you whole; the stale and equipment rows open their own sheets",
+    /<TodayList allTasks=\{<><MyTasks userId=\{userId\} anchor=\{false\} \/><Owed \/><\/>\} \/>/.test(myDay)
+    && /sheet === "all" &&/.test(today) && /sheet === "stale" &&/.test(today) && /sheet === "upkeep" &&/.test(today)
+    && /bulk\(tickable, "done"\)/.test(today) && /bulk\(tickable, "later"\)/.test(today) && /bulk\(s\.upkeep, "done"\)/.test(today));
+  ok("one home: a bulk change says how many took — a write that did not land is counted, not hidden",
+    /const missed = items\.length - took;/.test(today) && /didn't save, try again/.test(today));
+  ok("one home: a deadline opens what Needs you opens — the same router, shared, not copied",
+    /export function useObligationGo\(/.test(owed) && /useObligationGo\(viewer, \(\) => state\.reload\(\)\)/.test(today) && /useObligationGo\(viewer, \(\) => state\.reload\(\)\)/.test(owed));
+  ok("one home: each number is shown to whoever could already see it — money to admins, the drop to managers, none to crew",
+    /<HomeNumbers money=\{money\} drops=\{isLeader\} \/>/.test(myDay) && /money=\{isAdmin\}/.test(crew) && /if \(!money && !drops\) return null;/.test(nums));
+  ok("one home: each number says its change and its cause, and a failed read is not zero",
+    /changeWords\(pctChange\(sales\.now, sales\.prev\)\)/.test(nums) && /sales\.driver \?/.test(nums) && /paceWords\(drop\.packs, drop\.then\)/.test(nums)
+    && /errorSub="This is not zero — we could not read them just now\."/.test(nums) && (nums.match(/if \(failed\) throw new Error\(failed\.message\);/g) || []).length === 2);
+  const qd = code(read("components/QuickDock.tsx")), cmdSec = crew.slice(crew.indexOf('sec === "command" && canManage'), crew.indexOf('sec === "now"'));
+  ok("one home: Lead the week left My Day — the GTM card retired, the briefing on Command, intake under Quick actions › File",
+    !/Lead the week|<GtmCard|<ChiefOfStaff|<SmartIntake|<DocsFiled/.test(myDay) && !fs.existsSync(path.join(__dirname, "..", "components/GtmCard.tsx"))
+    && /<ChiefOfStaff \/>/.test(cmdSec)
+    && /\.\.\.\(manage \? \[\{ key: "file" as const, label: "File" \}\] : \[\]\)/.test(qd) && /mode === "file" && manage \? <><SmartIntake \/><DocsFiled \/><\/>/.test(qd)
+    && /const SmartIntake = dynamic\(\(\) => import\("\.\/SmartIntake"\)/.test(qd) && /const DocsFiled = dynamic\(\(\) => import\("\.\/DocsFiled"\)/.test(qd));
+  ok("one home: on a phone Today comes right under the day — the numbers beside it on a desk, after it on a phone, and only for who has them",
+    myDay.indexOf("<TodayList ") > 0 && myDay.indexOf("<TodayList ") < myDay.indexOf("<HomeNumbers ") && /\{\(money \|\| isLeader\) && \(/.test(myDay));
+  ok("one home: the head's count is the rows it shows plus the one row that opens the rest — and it is a count, not an alarm",
+    /fold\("due", `\$\{s\.moreToday\} more due today`/.test(today) && /sheet === "due" &&/.test(today) && /k-count\$\{due \? "" : " ok"\}/.test(today));
+  ok("the op card: Make it live is the screen's one primary, and the display face is the event's name alone (it drew Wear and Details)",
+    /<Button kind="primary" compact onClick=\{\(\) => makeLive\(op\.id\)\}/.test(code(read("components/DayHeadline.tsx")))
+    && /\.dayhead-op-t>b\{font-family:'Archivo Black'/.test(read("app/globals.css")) && !/\.dayhead-op b\{/.test(read("app/globals.css")));
+  ok("one drop day: the home's number and the pickup board ask lib/dropDate which day 'this drop' is",
+    /nextDropDay\(sb\)/.test(nums) && /nextDropDay\(supabase\)/.test(dops) && !/\.gte\("starts_at", new Date\(\)\.toISOString\(\)\)/.test(dops));
 }
 
 // ── THE CUSTOMER SIDE: ONE ORDERING RULE, AND A PRE-ORDER SAYS WHEN (2026-10-04, 0343) ────────────
@@ -8968,7 +9049,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("pills: the crew header is the kit's — Back, the mode switch, search, the guide and the inbox, and nothing hand-made beside them",
     /<Segmented kind="choice" size="sm" label="View mode" value="crew"/.test(header)
     && (header.match(/<IconButton icon="(search|info|bell)"/g) || []).length === 3 && /<IconButton icon="chevronLeft" label="Back"/.test(header)
-    && !/<button\b/.test(header) && /badge=\{hdrFlags\.length\} crit=\{hdrCrit > 0\}/.test(header));
+    && !/<button\b/.test(header) && /badge=\{hdrToday\.length\} crit=\{hdrTodayCrit > 0\}/.test(header));
   ok("pills: the lane's sections are the kit's segmented control, the whole row wide",
     /<Segmented fill className="lane-tabs mb-3\.5" label=\{lane\.label\} value=\{sec\}/.test(crew));
   const retired = ["crew-bell", "crew-jump", "crew-guide", "modesw", "grp-seg", "grp-toggle", "adm-pill"];
@@ -9107,7 +9188,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const qd = code(read("components/QuickDock.tsx"));
   ok("Ask GT3 in one tap: the guide sends gt3-quick-ask, a link carries ?ask=1 — the dock starts open on Ask and the address forgets it",
     /window\.addEventListener\("gt3-quick-ask", onAsk\)/.test(qd) && /const onAsk = \(\) => \{ setMode\("ask"\); setOpen\(true\); \};/.test(qd)
-    && /const \[open, setOpen\] = useState\(askOnLoad\);/.test(qd) && /useState<"do" \| "ask" \| "note" \| "spend">\(askOnLoad \? "ask" : "do"\)/.test(qd)
+    && /const \[open, setOpen\] = useState\(askOnLoad\);/.test(qd) && /useState<"do" \| "ask" \| "note" \| "spend" \| "file">\(askOnLoad \? "ask" : "do"\)/.test(qd)
     && /url\.searchParams\.delete\("ask"\);\s*window\.history\.replaceState/.test(qd));
   // ── the doc, in the app ──
   const cp = code(read("app/crew/page.tsx")), cst = code(read("components/CrewStart.tsx"));
