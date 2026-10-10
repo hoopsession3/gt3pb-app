@@ -17,6 +17,7 @@ import DrinkSheet from "./DrinkSheet";
 import Toast from "./Toast";
 import Notifications from "./Notifications";
 import ServiceWorkerRegister from "./ServiceWorkerRegister";
+import FreshTab from "./FreshTab";
 import DisplayToggle, { useDisplay, displayClass } from "./DisplayToggle";
 import { useTheme } from "@/lib/theme";
 import EditModeToggle from "./EditModeToggle";
@@ -255,6 +256,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {inAdmin && <OfflineChip />}
           <ServiceWorkerRegister />
         </div>
+        {/* An open tab that comes back after a release reloads into it (components/FreshTab). */}
+        <FreshTab />
         {inAdmin && <EventCopilot />}
         {inAdmin && <CommandPalette />}
         {/* The edge swipe back: the console's always; elsewhere where no browser gives one (the app, a home-screen PWA). */}

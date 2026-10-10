@@ -202,8 +202,6 @@ export const COPY_META: CopyMeta[] = [
   { key: "findus.road_empty_title", group: "Find Us", label: "On The Road — empty title", default: "Nothing scheduled yet" },
   { key: "findus.road_empty_sub", group: "Find Us", label: "On The Road — empty subtitle", multiline: true,
     default: "This week’s stops and events post here — check back soon." },
-  { key: "findus.circuit_title", group: "Find Us", label: "The Circuit — section title", default: "The Circuit" },
-  { key: "findus.circuit_note", group: "Find Us", label: "The Circuit — annotation", default: "tap a stop for directions" },
   { key: "findus.byo_title", group: "Find Us", label: "Bring Us To You — section title", default: "Bring Us To You" },
   { key: "findus.byo_note", group: "Find Us", label: "Bring Us To You — annotation", default: "private events" },
   { key: "findus.byo_pitch", group: "Find Us", label: "Bring Us To You — pitch line", multiline: true,

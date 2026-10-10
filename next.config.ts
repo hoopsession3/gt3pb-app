@@ -63,7 +63,9 @@ const nextConfig: NextConfig = {
   // The web build says it is the web (2026-10-06, the iPhone round), so lib/native APP_BUILD is decided
   // when the bundle is made and every app-only branch — components/NativeBridge and the Capacitor
   // plugins behind it — is dropped from the web's bundle rather than shipped and skipped.
-  env: { NEXT_PUBLIC_GT3_TARGET: "web" },
+  // The web build knows its own commit (2026-10-10), so an open tab can tell when a newer one is live
+  // (components/FreshTab). Vercel's system variable at build time; empty locally, and then it never asks.
+  env: { NEXT_PUBLIC_GT3_TARGET: "web", NEXT_PUBLIC_BUILD_COMMIT: process.env.VERCEL_GIT_COMMIT_SHA ?? "" },
   // The crew console moved from /admin to /crew (it was never "admin" — it's where the crew
   // works). Permanent redirect keeps every old link alive: PWA shortcuts, bookmarks, and the
   // /admin?s=… links stored inside historical alerts (query strings are preserved).

@@ -87,7 +87,9 @@ export default function PrimalAcademy() {
         <EditableCopy k="primal.hero_eye" value={copy("primal.hero_eye")} as="div" className="pr-eye" />
         <h1 className="pr-h1"><EditableCopy k="primal.hero_h1" value={copy("primal.hero_h1")} /> <i><EditableCopy k="primal.hero_h1_em" value={copy("primal.hero_h1_em")} /></i></h1>
         <EditableCopy k="primal.hero_lede" value={copy("primal.hero_lede")} as="p" className="pr-lede" multiline />
-        {t && t.total > 0 && (
+        {/* Progress is yours once you are signed in (2026-10-10, round 2): a guest saw "0/3 complete" under
+            a bar nothing they could do would move — lessons are only marked done for an account. */}
+        {user && t && t.total > 0 && (
           <div className="pr-progress" aria-label={`${doneCount} of ${t.total} lessons complete`}>
             <div className="pr-bar"><span style={{ width: `${Math.round((doneCount / Math.max(1, t.total)) * 100)}%` }} /></div>
             <span className="pr-progress-n">{doneCount}/{t.total} complete</span>
@@ -114,6 +116,10 @@ export default function PrimalAcademy() {
         const mods = t.modules.filter((m) => m.pillar_id === p.id);
         // pillar is visible if it has any lesson that passes the current search
         const pillarLessons = t.lessons.filter((l) => mods.some((m) => m.id === l.module_id));
+        // A pillar with no lesson to read is not shown (2026-10-10, round 2): four of the five stood as a
+        // heading and a paragraph over nothing, and the page read as unfinished. Each appears with its
+        // first lesson this reader can open (RLS: rookie lessons to all, pro to members and staff).
+        if (pillarLessons.length === 0) return null;
         const shown = pillarLessons.filter((l) => !match || match.has(l.id));
         if (match && shown.length === 0) return null;
         const accent = p.accent || "var(--gold2)";

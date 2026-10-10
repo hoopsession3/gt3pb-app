@@ -1,13 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import AccountPill from "@/components/AccountPill";
 import EditCopyPill from "@/components/EditCopyPill";
 import EditableCopy from "@/components/EditableCopy";
 import { Masthead, SectionHeader, InfoRow, ClosingBeat } from "@/components/kit";
 import { RsvpRow } from "@/components/RsvpRow";
-import RouteMap, { type RoutePoint } from "@/components/RouteMap";
 import { openDirections, openAddress } from "@/lib/maps";
 import { subscribePush } from "@/lib/push";
 import { useAuth } from "@/components/AuthProvider";
@@ -187,7 +186,7 @@ export default function FindUs() {
   useEffect(() => {
     if (!supabase) return;
     // The mirrors keep field_ops current on EVERY stop/event write — one realtime subscription
-    // covers the whole road. live_status rides along for the hero + truck dot.
+    // covers the whole road. live_status rides along for the hero.
     const ch = supabase
       .channel("find-us")
       .on("postgres_changes", { event: "*", schema: "public", table: "field_ops" }, refreshQuietly)
@@ -241,6 +240,13 @@ export default function FindUs() {
   const past = roadOps.filter((r) => r.kind === "event" && r.day && r.day < today);
   // the hero is the next PLACE TO FIND US — live stop first, else first upcoming stop or event
   const hero = (isLive && upcoming.find((r) => r.id === live?.current_stop_id)) || upcoming[0];
+  // THE ROAD STARTS AFTER THE HERO (2026-10-10, round 2: "the next stop is listed twice"). The hero
+  // is the next stop — its name, its line (the stop's own note first, descFor), where, when, the menu
+  // and directions — and its row under "On the road" said all of it again, one screen down. A hero
+  // stop is not listed twice now. A hero EVENT keeps its row: the RSVP lives on it, and the hero has none.
+  const rest = hero?.kind === "stop" ? upcoming.filter((r) => r.id !== hero.id) : upcoming;
+  // With nothing after the hero and nothing past, "On the road" would be a heading over nothing.
+  const showRoad = board.status === "error" || upcoming.length === 0 || rest.length > 0 || past.length > 0;
   // Humanize the hero's "when" (the one "where's the truck next" answer): relativeDay returns an
   // unambiguous near-term qualifier — "Today" / "This Sat" — which we pair with the numeric date for
   // clarity ("This Sat · 7/18"). Anything a week or more out (or with no date) keeps the original
@@ -276,14 +282,6 @@ export default function FindUs() {
   const whereLoc = whereParts.length >= 2 ? whereParts.slice(1).join(", ").replace(/\s+\d{5}(?:-\d{4})?\s*$/, "").trim() : "";
   const whereStreet = whereLoc ? whereParts[0] : heroWhere;
   const goHero = () => { if (heroHasCoords) openDirections(hero!.lat as number, hero!.lng as number); else if (heroWhere) openAddress(heroWhere); };
-
-  const points: RoutePoint[] = useMemo(() => ops
-    .filter((r) => r.lat != null && r.lng != null)
-    .map((r) => ({ name: r.name, lat: r.lat as number, lng: r.lng as number, live: isLive && r.id === live?.current_stop_id })), [ops, isLive, live?.current_stop_id]);
-  const truckPos = useMemo(
-    () => (isLive && live?.truck_lat != null && live?.truck_lng != null ? { lat: live.truck_lat, lng: live.truck_lng } : null),
-    [isLive, live?.truck_lat, live?.truck_lng]
-  );
 
   return (
     <section className="screen truck" id="s-find">
@@ -380,16 +378,14 @@ export default function FindUs() {
         <LivePingButton />
       </div>
 
+      {showRoad && <>
       <SectionHeader label={<EditableCopy k="findus.road_title" value={t("findus.road_title")} />} annotation={<EditableCopy k="findus.road_note" value={t("findus.road_note")} />} />
       {/* emptyTitle/emptySub are typed string (AsyncSection), so plain t() here — not EditableCopy. */}
       <AsyncSection state={board} isEmpty={() => upcoming.length === 0} emptyTitle={t("findus.road_empty_title")} emptySub={t("findus.road_empty_sub")} errorTitle="Couldn't load the schedule" loadingLabel="Loading the schedule…">
         {() => (
           <>
-            <div className="k-rows">
-              {/* The hero's own row stays IN the list (2026-08-01) — hero events always did, hero
-                  stops were deduped out, which made the next stop's notes + directions the ONE
-                  set of details you couldn't reach. Both kinds keep their row now, same rule. */}
-              {upcoming.map((r) => {
+            {rest.length > 0 && <div className="k-rows">
+              {rest.map((r) => {
                 if (r.kind === "event") return <RsvpRow key={r.id} ev={toEventRow(r)} />;
                 const rowLive = isLive && r.id === live?.current_stop_id;
                 const isOpen = openStop === r.id;
@@ -433,7 +429,7 @@ export default function FindUs() {
                   </div>
                 );
               })}
-            </div>
+            </div>}
 
             {past.length > 0 && (
               <div style={{ marginTop: 10 }}>
@@ -443,19 +439,10 @@ export default function FindUs() {
                 {showPast && <div className="k-rows">{past.map((r) => <RsvpRow key={r.id} ev={toEventRow(r)} />)}</div>}
               </div>
             )}
-
-            {/* One pinned stop is a map too (2026-08-01) — RouteMap already frames a single point
-                with street context (fitBounds maxZoom cap); requiring 2+ left a one-stop week with
-                no map at all, exactly when a new customer most needs the pin. */}
-            {points.length >= 1 && (
-              <>
-                <SectionHeader label={<EditableCopy k="findus.circuit_title" value={t("findus.circuit_title")} />} annotation={<EditableCopy k="findus.circuit_note" value={t("findus.circuit_note")} />} />
-                <RouteMap points={points} truck={truckPos} />
-              </>
-            )}
           </>
         )}
       </AsyncSection>
+      </>}
 
       <FindUsCoda />
       </Fragment>)}
@@ -491,17 +478,19 @@ function FindUsCoda() {
     <>
       <SectionHeader label={<EditableCopy k="findus.byo_title" value={t("findus.byo_title")} />} annotation={<EditableCopy k="findus.byo_note" value={t("findus.byo_note")} />} />
       <EditableCopy k="findus.byo_pitch" value={t("findus.byo_pitch")} as="p" style={{ fontSize: 15, color: "var(--cream-m)", margin: "14px 2px 12px" }} multiline />
-      <button type="button" className="btn-ter" onClick={() => router.push("/book")}>
-        {t("findus.book_cta")} <b><Icon name="arrowRight" /></b>
-      </button>
-
-      {/* Placement #2 of the craft-education audit (2026-07-27): this IS the guest home page (see
-          the redirect in app/page.tsx), but its one job is "where/when" — so one quiet line at the
-          very bottom, not a pitch. Plain text, not EditableCopy: same nested-interactive rule as
-          the button above it. */}
-      <button type="button" className="btn-ter" onClick={() => router.push("/craft")}>
-        {t("truck.craft_link")} <b><Icon name="arrowRight" /></b>
-      </button>
+      {/* Two places to go, one a line (2026-10-10): side by side they ran together — "…your event →What's
+          really in the cup". The gap is the 44pt reach each one draws past its words, so the two never overlap.
+          Placement #2 of the craft-education audit (2026-07-27): this IS the guest home page (see the redirect
+          in app/page.tsx), but its one job is "where/when" — so the craft link is one quiet line at the very
+          bottom, not a pitch. Plain text, not EditableCopy: the nested-interactive rule. */}
+      <div className="flex flex-col items-start gap-5">
+        <button type="button" className="btn-ter" onClick={() => router.push("/book")}>
+          {t("findus.book_cta")} <b><Icon name="arrowRight" /></b>
+        </button>
+        <button type="button" className="btn-ter" onClick={() => router.push("/craft")}>
+          {t("truck.craft_link")} <b><Icon name="arrowRight" /></b>
+        </button>
+      </div>
 
       <ClosingBeat />
     </>

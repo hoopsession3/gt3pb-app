@@ -8300,7 +8300,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("viewer: the shop fetches it once a product with photos to page through is open — not in a guest's first load",
     /const StoryViewer = dynamic\(\(\) => import\("\.\/StoryViewer"\), \{ ssr: false \}\);/.test(read("components/Shop.tsx")) && !/^import StoryViewer/m.test(read("components/Shop.tsx"))
     && /useEffect\(\(\) => \{ if \(storyable\) void import\("\.\/StoryViewer"\); \}, \[storyable\]\);/.test(read("components/Shop.tsx")));
-  ok("maps keep their own touches", /data-gesture="off"/.test(read("components/RouteMap.tsx")));
+  // No map of our own (2026-10-10): CARTO's tiles began answering "API key required", and both maps — Find Us's
+  // circuit and the driver's run — drew a grey square of watermarks. Directions hand off to Maps instead.
+  ok("maps: no map of our own — Find Us and the driver's run hand directions to Maps, and leaflet is gone",
+    !fs.existsSync(path.join(__dirname, "..", "components/RouteMap.tsx")) && !/RouteMap|leaflet/.test(read("components/FindUs.tsx") + read("components/DriverRun.tsx"))
+    && !/"leaflet"/.test(read("package.json")) && !/routemap|leaflet-/.test(read("app/globals.css")));
   ok("gesture: compiled for the smoke run, and the audit runs with the others",
     /lib\/venues\.ts lib\/gesture\.ts lib\/formGuard\.ts/.test(read("package.json")) && /node scripts\/gesture\.audit\.mjs/.test(read("package.json")));
 }
@@ -9062,7 +9066,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("iphone: NativeBridge does nothing unless a native shell is running the page",
     /useEffect\(\(\) => \{\n\s*if \(!isNativeApp\(\)\) return;/.test(nb) && /useState\(\(\) => isNativeApp\(\)\)/.test(nb));
   ok("iphone: the web build knows it is the web, so every APP_BUILD branch is decided when it is built",
-    /env: \{ NEXT_PUBLIC_GT3_TARGET: "web" \}/.test(read("next.config.ts")) && /export const APP_BUILD = process\.env\.NEXT_PUBLIC_GT3_TARGET === "app";/.test(read("lib/native.ts")));
+    /env: \{ NEXT_PUBLIC_GT3_TARGET: "web"(, NEXT_PUBLIC_BUILD_COMMIT: process\.env\.VERCEL_GIT_COMMIT_SHA \?\? "")? \}/.test(read("next.config.ts")) && /export const APP_BUILD = process\.env\.NEXT_PUBLIC_GT3_TARGET === "app";/.test(read("lib/native.ts")));
 
   // ── the app's addresses ──
   const relative = client.filter((f) => /fetch\(\s*["'`]\/api/.test(code(read(f))));
@@ -9974,9 +9978,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("buttons: the splash's button is the kit's primary, rising in with the rest and still settling under the finger (its entrance does not hold the end state)",
     /<Button type="button" kind="primary" wide className="spl-cta"/.test(read("components/MarketingSplash.tsx"))
     && /\.spl-cta\{margin-top:40px;width:min\(100%,22rem\);animation:spl-cta-in 1\.1s var\(--ease-enter\) \.9s backwards\}/.test(g) && /@keyframes spl-cta-in\{from\{opacity:0;transform:translateY\(14px\)\}\}/.test(g));
-  ok("buttons: the map's Directions is the kit's primary, placed over the map (two classes, so the kit's own position never wins)",
-    /<Button kind="primary" className="rm-go" onClick=\{\(\) => openDirections\(target\.lat, target\.lng\)\}/.test(read("components/RouteMap.tsx"))
-    && /\.routemap-wrap \.rm-go\{position:absolute;right:11px;bottom:11px;z-index:500\}/.test(g));
+  ok("buttons: Find Us has one red action, the menu — directions are a chip (the map's red Directions went with the map)",
+    (read("components/FindUs.tsx").match(/btn-pri/g) || []).length === 1 && /<Icon name="pin" \/> \{t\("findus\.directions"\)\}/.test(read("components/FindUs.tsx")));
   ok("buttons: a section head's actions take a line of their own when they will not fit beside its name (a composer opened) — never past the screen's edge",
     /\.k-sec\{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 10px;/.test(g)
     && /\.k-sec-r\{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;flex:none;max-width:100%;margin-left:auto\}/.test(g));
@@ -10254,8 +10257,41 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("grid: a tile's status dot has names of its own, in the tags' tones — as .st-review it took the strategy desk's review box and drew 33px wide",
     /review: \{ label: "In review", cls: "ig-review", tone: " gold" \}/.test(read("components/Studio.tsx")) && !/cls: "st-/.test(read("components/Studio.tsx"))
     && /\.ig-tag\.ig-review\{background:var\(--tone-gold\)\}/.test(g) && /\.ig-tag\.ig-changes\{background:var\(--tone-crit\)\}/.test(g) && !/\.ig-tag\.st-/.test(g));
-  ok("map: Find Us's + and − are 44 to the thumb (Leaflet draws them 30 on a touch screen)",
-    /\.leaflet-touch \.leaflet-control-zoom\.leaflet-bar a\{width:44px;height:44px;line-height:44px\}/.test(g));
+  {
+    const fu = read("components/FindUs.tsx"), dr = read("components/DriverRun.tsx");
+    ok("Find Us: the next stop is the hero, and the road starts after it (a hero event keeps its row — the RSVP is on it)",
+      /const rest = hero\?\.kind === "stop" \? upcoming\.filter\(\(r\) => r\.id !== hero\.id\) : upcoming;/.test(fu) && /\{rest\.map\(\(r\) => \{/.test(fu) && !/\{upcoming\.map\(/.test(fu)
+      && /\{showRoad && <>/.test(fu));
+    ok("Find Us: booking the bar and the craft link are a line each, 20px apart — the 44pt reach of each, never touching",
+      /<div className="flex flex-col items-start gap-5">\s*<button type="button" className="btn-ter" onClick=\{\(\) => router\.push\("\/book"\)\}>/.test(fu));
+    ok("driver: the whole run opens in Maps by its addresses — no geocoding, no pins to wait for",
+      /rows\.filter\(\(o\) => !doneOf\(o\)\)\.map\(\(o\) => \(\{ address: /.test(dr) && !/geocode|Pinning porches/.test(dr));
+    const pr = read("components/PrimalAcademy.tsx"), bk = read("app/book/page.tsx"), pv = read("app/privacy/page.tsx"), tm = read("app/terms/page.tsx");
+    ok("Primal: a pillar with no lesson to read is not drawn, and progress shows only to someone signed in",
+      /if \(pillarLessons\.length === 0\) return null;/.test(pr) && /\{user && t && t\.total > 0 && \(/.test(pr));
+    ok("Book the bar: the event first, then who to answer — and what we can do without says optional",
+      bk.indexOf('htmlFor="b-date"') > 0 && bk.indexOf('htmlFor="b-date"') < bk.indexOf('htmlFor="b-name"') && bk.indexOf('htmlFor="b-notes"') < bk.indexOf('htmlFor="b-name"')
+      && (bk.match(/ <span>\(optional\)<\/span><\/label>/g) || []).length === 4 && /id="b-phone" className="auth-input" enterKeyHint="send"/.test(bk));
+    {
+      // An open tab comes back current (2026-10-10): Ryan's Safari tab showed the menu from before the night's release.
+      const ft = read("components/FreshTab.tsx"), shell = read("components/AppShell.tsx"), cfg = read("next.config.ts");
+      ok("an open tab that comes back after a minute away asks which build is live, and reloads into a newer one",
+        /export const AWAY_MS = 60_000;/.test(ft) && /fetch\(apiUrl\("\/api\/health"\), \{ cache: "no-store" \}\)/.test(ft)
+        && /live !== mine && !busyHere\(document\)\) window\.location\.reload\(\);/.test(ft) && /if \(e\.persisted\)/.test(ft));
+      ok("…never while someone is typing or a sheet is open, never in the iPhone app, never in a build that doesn't know its commit",
+        /if \(doc\.querySelector\('\[role="dialog"\]'\)\) return true;/.test(ft) && /if \(!mine \|\| process\.env\.NEXT_PUBLIC_GT3_TARGET === "app"\) return;/.test(ft)
+        && /NEXT_PUBLIC_BUILD_COMMIT: process\.env\.VERCEL_GIT_COMMIT_SHA \?\? ""/.test(cfg) && /<FreshTab \/>/.test(shell));
+    }
+    {
+      // A link preview read "slow-simmered broth, made to order" — Ryan: "Simmered to order, take that shit off" (2026-10-10).
+      const desc = (read("app/layout.tsx").match(/^\s*description: "([^"]*)"/m) || [])[1] || "", man = read("app/manifest.ts");
+      ok("the line every link previews with, and the home-screen app's, names the drinks without \"simmered … to order\"",
+        /bone broth/.test(desc) && !/simmer|to order/i.test(desc) && !/simmer|to order/i.test(man));
+    }
+    ok("Privacy tells the truth about passwords and deletion; Privacy and Terms lead each paragraph with what it is about",
+      !/never store a password/.test(pv.replace(/^\/\/.*$/gm, "")) && /one-way hash/.test(pv) && /then Delete account/.test(pv)
+      && (pv.match(/<p><b>/g) || []).length === 5 && (tm.match(/<p><b>/g) || []).length === 5);
+  }
   const atc = read("components/AddToCalendar.tsx");
   ok("menu: Add to calendar's menu closes on Escape, back to the button that opened it, and on a touch outside — not only a mouse's press",
     /if \(e\.key === "Escape"\) \{ e\.preventDefault\(\); setOpen\(false\); ref\.current\?\.querySelector<HTMLButtonElement>\("button"\)\?\.focus\(\); \}/.test(atc)
