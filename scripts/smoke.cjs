@@ -6874,7 +6874,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("address: the field is a combobox — four suggestions after four letters and a pause, ↑ ↓ Return Esc, nothing over a filled-in address until it is edited, and quiet for good when the server has no key",
       /if \(text\.length < 4\) return;/.test(af) && /if \(e\.target\.value\.trim\(\)\.length < 4\) setItems\(\[\]\);/.test(af) && /\}, 300\);/.test(af) && /if \(none \|\| !typed\.current\) return;/.test(af)
       && /if \(j\?\.configured === false\) \{ none = true;/.test(af) && /role="listbox"/.test(af) && /role="option" aria-selected=\{i === active\} tabIndex=\{-1\}/.test(af)
-      && /e\.key === "ArrowDown"/.test(af) && /e\.key === "Escape"/.test(af) && /onPointerDown=\{\(e\) => e\.preventDefault\(\)\}/.test(af));
+      && /e\.key === "ArrowDown"/.test(af) && /e\.key === "Escape"/.test(af) && /onPointerDown=\{\(e\) => e\.preventDefault\(\)\}/.test(af)
+      && /if \(open\) listEl\.current\?\.scrollIntoView\(\{ block: "nearest" \}\);/.test(af));
     ok("address: the key stays on the server, a pick can only be Apple's own search path on Apple's own host, and nothing typed is kept",
       /const API = "https:\/\/maps-api\.apple\.com";/.test(am) && /return \/\^\\\/v1\\\/search\\\?\[\^\\s#\]\{1,1500\}\$\/\.test\(u\);/.test(am)
       && /if \(!isCompletion\(pick\)\) return null;/.test(am) && /fetch\(`\$\{API\}\$\{path\}`/.test(am)

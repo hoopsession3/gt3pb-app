@@ -30,6 +30,7 @@ export default function AddressField({ value, onChange, onPick, near, className,
   const [active, setActive] = useState(-1);
   const typed = useRef(false);
   const asking = useRef<AbortController | null>(null);
+  const listEl = useRef<HTMLDivElement | null>(null);
   const list = `${useId()}-addr`;
   const open = items.length > 0;
 
@@ -51,6 +52,12 @@ export default function AddressField({ value, onChange, onPick, near, className,
     }, 300);
     return () => clearTimeout(wait);
   }, [value, near]);
+
+  // The list, in sight as it opens: a field low in a sheet would otherwise drop it under the sheet's footer
+  // (its button) or the keyboard. The nearest scroller moves only as far as the list needs.
+  useEffect(() => {
+    if (open) listEl.current?.scrollIntoView({ block: "nearest" });
+  }, [open]);
 
   const pick = async (s: Suggestion) => {
     typed.current = false;
@@ -79,7 +86,7 @@ export default function AddressField({ value, onChange, onPick, near, className,
         onChange={(e) => { typed.current = true; if (e.target.value.trim().length < 4) setItems([]); onChange(e.target.value); }} onKeyDown={keys}
         onBlur={() => setTimeout(() => setItems([]), 150)} />
       {open && (
-        <div id={list} role="listbox" aria-label="Matching addresses"
+        <div id={list} ref={listEl} role="listbox" aria-label="Matching addresses"
           className="absolute inset-x-0 top-full z-30 mt-1 overflow-hidden rounded-2xl border border-line bg-card shadow-overlay">
           {items.map((s, i) => (
             <button key={s.pick} id={`${list}-${i}`} type="button" role="option" aria-selected={i === active} tabIndex={-1}
