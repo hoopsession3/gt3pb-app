@@ -5982,6 +5982,44 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     !/dayhead-top/.test(read("scripts/fixtures/my-day.html")) && /<h2 class="l">To do<\/h2>/.test(read("scripts/fixtures/my-day.html")));
 }
 
+// ── SIGN-IN THAT SAYS WHERE YOU ARE (2026-10-09, round 2 — Ryan: "Join by default", "Link returns you",
+// approved) ──────────────────────────────────────────────────────────────────────────────────────────────
+// Seven pages that need an account showed the consumer's join pitch or nothing at all; the form waited
+// 1.45s behind two switches and a checkbox that did nothing; and an emailed link landed on the front door.
+{
+  const RT = require("../.smoke/returnTo.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const si = code(read("components/SignIn.tsx")), auth = code(read("components/AuthProvider.tsx")), css = read("app/globals.css");
+  const NOW = Date.parse("2026-10-09T15:00:00Z");
+  ok("return: only a path of this app is kept — not another site, not a protocol-relative address, not a line break",
+    RT.safePath("/office") === "/office" && RT.safePath("/crew?s=money") === "/crew?s=money"
+    && [null, 3, "", "office", "//evil.example", "/\\evil.example", "https://evil.example/x", "/x\nSet-Cookie: a", "/x\ty"].every((p) => RT.safePath(p) === null));
+  ok("return: the front door is not a page to go back to; a page is stored with when",
+    RT.encodeReturn("/", NOW) === null && JSON.parse(RT.encodeReturn("/offer", NOW)).path === "/offer" && JSON.parse(RT.encodeReturn("/offer", NOW)).at === NOW);
+  ok("return: read back within the hour, not after it, not from the future, not when it is not ours",
+    RT.decodeReturn(RT.encodeReturn("/office", NOW), NOW + 59 * 60000) === "/office" && RT.decodeReturn(RT.encodeReturn("/office", NOW), NOW + 61 * 60000) === null
+    && RT.decodeReturn(RT.encodeReturn("/office", NOW + 5 * 60000), NOW) === null && RT.decodeReturn('{"path":"//evil.example","at":' + NOW + "}", NOW) === null
+    && RT.decodeReturn("not json", NOW) === null && RT.decodeReturn(null, NOW) === null);
+  ok("return: a link sent from a page writes the page down — the sign-in link, the reset link and a new account's confirmation",
+    (si.match(/rememberReturn\(window\.location\.pathname \+ window\.location\.search\);/g) || []).length === 3
+    && si.indexOf("rememberReturn(") < si.indexOf("await sendCode(") && si.indexOf("await sendCode(") > 0);
+  ok("return: the sign-in it completes goes back to that page, once — and stays put when it is already there",
+    /if \(u && \(event === "SIGNED_IN" \|\| event === "INITIAL_SESSION"\)\) \{\s*const to = takeReturn\(\);\s*if \(to && to !== window\.location\.pathname \+ window\.location\.search\) router\.replace\(to\);/.test(auth));
+  ok("sign-in: no switch before the email — joining or signing in, a link or a password, are quiet lines under the button; the checkbox that did nothing is gone",
+    !/<Segmented/.test(si) && !/Keep me signed in|setRemember|auth-check-row/.test(si + css)
+    && /\{intent === "join" \? "Already a member\? Sign in" : "New here\? Join free"\}/.test(si) && /\{mode === "passwordless" \? "Use a password instead" : "Email me a link instead"\}/.test(si));
+  ok("sign-in: the 3MPIRE page joins by default; a page that needs an account names itself and signs in, without the join pitch",
+    /useState<Intent>\(context \? "signin" : "join"\)/.test(si) && /\{context \? context\.title : intent === "join"/.test(si) && /\{!context && \(/.test(si)
+    && /if \(!user\) return <SignIn \/>;/.test(read("app/3mpire/page.tsx")));
+  const pages = { office: "Your GT3 office account.", academy: "The GT3 Academy.", agreement: "Your operator agreement.", offer: "Your offer from GT3.", scan: "Scan a member card.", architecture: "The system map.", playbook: "The Playbook." };
+  ok("sign-in: seven pages that need an account say where you are — office, academy, agreement, offer, scan, system map, playbook",
+    Object.entries(pages).every(([r, title]) => read(`app/${r}/page.tsx`).includes(`<SignIn context={{ title: "${title}", sub: "`)));
+  ok("sign-in: the form is there in half a second — not after 1.45s of an entrance",
+    /\.auth-form\{opacity:0;animation:authRise \.5s ease \.48s both\}/.test(css) && !/authRise \.7s ease 1\.(25|45|7)s/.test(css));
+}
+
 // ── THE NAVIGATION ROUND (2026-10-09, round 2 — Ryan: "Switch + Guide to More", approved; the doc's
 // "one alert number; three controls in the header; the name said once") ───────────────────────────────
 // My Day's header held six controls, three alert counts that never agreed (the bell, Today's tab, each
@@ -8351,7 +8389,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /isSettled\(cur\); \}\)\) haptic\("paid"\);/.test(code(read("components/MyPacks.tsx"))));
 
   ok("haptics: compiled for the smoke run, and the audit runs with the others, right after the gesture audit",
-    /lib\/formGuard\.ts lib\/haptics\.ts --outDir \.smoke/.test(read("package.json")) && /node scripts\/gesture\.audit\.mjs && node scripts\/haptics\.audit\.mjs && /.test(read("package.json")));
+    /lib\/formGuard\.ts lib\/haptics\.ts (?:lib\/[a-zA-Z]+\.ts )*--outDir \.smoke/.test(read("package.json")) && /node scripts\/gesture\.audit\.mjs && node scripts\/haptics\.audit\.mjs && /.test(read("package.json")));
 
   // ── what only an iPhone needs (lib/ios, 2026-10-06) ──
   // One home for "is this an iPhone" — the haptics fallback asks it rather than re-deriving it — and the
@@ -10013,8 +10051,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     (gd.match(/className=\{`k-chip sm\$\{(sleep|body|workload|training|energy) === v \? " on" : ""\}`\} aria-pressed=\{\1 === v\}/g) || []).length === 5
     && /className=\{`k-chip sm\$\{flags\.has\(f\) \? " on" : ""\}`\} aria-pressed=\{flags\.has\(f\)\}/.test(gd) && !/gen-opt|"chip/.test(gd));
   const seg = (f, re) => re.test(read(f)) && /import \{ (\w+, )?Segmented(, \w+)? \} from "@\/components\/controls";/.test(read(f));
-  ok("recipes: a switch that looks like one — sign-in's two, the tip, Event or Truck stop, COGS, Sales' range, the flyer's slide, the shop's aisles and the system map's views are the segmented control",
-    seg("components/SignIn.tsx", /<Segmented label="Joining or signing in" kind="choice" fill className="relative z-1 mt-5"/) && /<Segmented label="How to sign in" kind="choice" size="sm" fill/.test(read("components/SignIn.tsx"))
+  ok("recipes: a switch that looks like one — the tip, Event or Truck stop, COGS, Sales' range, the flyer's slide, the shop's aisles and the system map's views are the segmented control (sign-in's two are quiet lines since 2026-10-09)",
+    !/<Segmented/.test(read("components/SignIn.tsx"))
     && seg("components/Checkout.tsx", /<Segmented label="Tip" kind="choice" fill className="mt-0\.5 mb-1\.5" value=\{String\(tipPct\)\} onChange=\{\(k\) => setTipPct\(Number\(k\)\)\}/)
     && seg("components/EventCopilot.tsx", /<Segmented label="Kind" kind="choice" fill className="mb-2\.5" value=\{draft\.kind\}/)
     && seg("components/CogsCalculator.tsx", /<Segmented label="COGS" fill className="mt-1 mb-2\.5" value=\{tab\} onChange=\{setTab\}/)
