@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { staffAccess } from "@/lib/access";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
+import dynamic from "next/dynamic";
 import Icon from "@/components/Icon";
 import { useBackStep } from "@/components/useBack";
 import { supabase } from "@/lib/supabase";
@@ -11,6 +12,8 @@ import { authedFetch } from "@/lib/authedFetch";
 import { ARCHITECTURE, ARCH_OVERVIEW, DATABASES, BUSINESS, BUSINESS_OVERVIEW, BUILD_STATS, MANAGE_LABEL, STATUS_LABEL, sotUrl, type ArchLayer, type ArchComponent, type ArchStatus, STATUS_TONE, MANAGE_TONE } from "@/lib/architecture";
 import { moneyRound } from "@/lib/money";
 import { Segmented } from "@/components/controls";
+// The sign-in is for a visitor who is signed out — staff signed in never download it (2026-10-09).
+const SignIn = dynamic(() => import("@/components/SignIn"));
 
 // Owner-only system architecture map. High level → layer → component. Manifest-backed, with LIVE
 // status pulled from /api/architecture/status (env presence + table existence), and search across
@@ -26,7 +29,7 @@ const LIVE_KEY: Record<string, string> = {
 };
 
 export default function ArchitecturePage() {
-  const { user, profile, profileStatus, refreshProfile } = useAuth();
+  const { user, ready, profile, profileStatus, refreshProfile } = useAuth();
   const [open, setOpen] = useState<ArchLayer | null>(null);
   const [comp, setComp] = useState<string | null>(null);
   // A layer opened is a step (components/useBack): Back — the bar's "‹ System map", the edge swipe, the
@@ -41,7 +44,7 @@ export default function ArchitecturePage() {
   // the sweep that fixed the other four, which missed this one because nobody thought to look for a
   // fifth. It refused on `roleOf(profile) === "owner"`, and roleOf(null) is "member", so a slow or
   // failed profile read told the owner the owner-only page was not for him.
-  const access = staffAccess(!!user, profileStatus, profile, ["owner"]);
+  const access = ready ? staffAccess(!!user, profileStatus, profile, ["owner"]) : "wait";
   const isOwner = access === "allow";
   useEffect(() => {
     if (!isOwner || !supabase) return;
@@ -64,6 +67,8 @@ export default function ArchitecturePage() {
       .filter(({ c }) => c.name.toLowerCase().includes(s) || c.desc.toLowerCase().includes(s) || (c.detail || "").toLowerCase().includes(s) || (c.config || "").toLowerCase().includes(s));
   }, [q]);
 
+  // Signed out, the page names itself and signs in (2026-10-09, round 2) — it said "Owners only" with no way in.
+  if (access === "anon") return <SignIn context={{ title: "The system map.", sub: "Sign in with an owner account to see how every part of GT3 connects." }} />;
   // "wait" and "failed" are not refusals, and must not be spelled like one.
   if (access === "wait" || access === "failed") {
     return (
