@@ -9225,6 +9225,19 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("iphone: npm run verify ends by building the app's smoke build and opening it on three iPhones", /&& npm run build:app -- --smoke && npm run smoke:native$/.test(pkg.scripts.verify));
   const wf = read(".github/workflows/ios.yml");
   ok("iphone: the TestFlight upload refuses the smoke build, and an app built without its backend", /gt3-smoke-build\.json/.test(wf) && /NEXT_PUBLIC_SUPABASE_URL/.test(wf));
+  // THE WEB'S PUBLIC SETTINGS (2026-10-10): build 72 carried Supabase's two and none of the rest, so its checkout took no cards.
+  const pcList = JSON.parse(read("lib/publicConfig.json")).names, pcRoute = read("app/api/public-config/route.ts"), bApp = read("scripts/build.app.mjs");
+  ok("iphone: the TestFlight build takes the web's public settings the repository does not set — from app.gt3pb.com, by name, never a value printed",
+    /run: npm run build:app -- --web-config https:\/\/app\.gt3pb\.com/.test(wf)
+    && /const FROM_WEB = WEB_CONFIG && !SMOKE \? await fromTheWeb\(WEB_CONFIG\) : \{\};/.test(bApp)
+    && /if \(!n\.startsWith\("NEXT_PUBLIC_"\) \|\| process\.env\[n\]\) continue;/.test(bApp)
+    && /\{ \.\.\.process\.env, \.\.\.FROM_WEB \}/.test(bApp) && /say\(Object\.keys\(got\)\.length \? `from the web \(\$\{origin\}\): \$\{Object\.keys\(got\)\.join\(", "\)\}`/.test(bApp)
+    && /the export does not carry \$\{n\}, which the web gave/.test(bApp));
+  ok("iphone: /api/public-config answers only the NEXT_PUBLIC_ names on lib/publicConfig.json — never Supabase's two, never a name off the list — and says why it is public",
+    pcList.length >= 10 && pcList.every((n) => /^NEXT_PUBLIC_[A-Z0-9_]+$/.test(n)) && !pcList.some((n) => /SUPABASE/.test(n))
+    && pcList.every((n) => wf.includes(`${n}: \${{ vars.${n} }}`))
+    && /^\/\/ public: /m.test(pcRoute) && /for \(const name of CONFIG\.names\) \{\s*if \(!name\.startsWith\("NEXT_PUBLIC_"\)\) continue;\s*const v = process\.env\[name\];/.test(pcRoute)
+    && /const SAFE = \/\^\[\\x20-\\x7e\]\{1,300\}\$\/;/.test(pcRoute) && /export const GET = route\("public-config", get\);/.test(pcRoute) && !/export const (POST|PUT|PATCH|DELETE)/.test(pcRoute));
 }
 
 // ── DELETE MY ACCOUNT (2026-10-06, the iPhone round, part 2) ──────────────────────────────────────

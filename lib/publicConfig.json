@@ -1,0 +1,17 @@
+{
+  "why": "The web's NEXT_PUBLIC_* settings the iPhone build takes from app.gt3pb.com when the repository's variables do not set them (app/api/public-config, scripts/build.app.mjs --web-config). Public by definition: Next.js writes each into every page's script. Only NEXT_PUBLIC_ names belong here, and never Supabase's two, which the workflow requires the repository to set.",
+  "names": [
+    "NEXT_PUBLIC_SQUARE_APP_ID",
+    "NEXT_PUBLIC_SQUARE_LOCATION_ID",
+    "NEXT_PUBLIC_APP_URL",
+    "NEXT_PUBLIC_VAPID_PUBLIC_KEY",
+    "NEXT_PUBLIC_SUBSCRIPTIONS_ON",
+    "NEXT_PUBLIC_SUB_NAME",
+    "NEXT_PUBLIC_SUB_CADENCE",
+    "NEXT_PUBLIC_SUB_PRICE_6",
+    "NEXT_PUBLIC_SUB_PRICE_12",
+    "NEXT_PUBLIC_SUB_PRICE_18",
+    "NEXT_PUBLIC_APPLE_WALLET",
+    "NEXT_PUBLIC_GOOGLE_WALLET"
+  ]
+}

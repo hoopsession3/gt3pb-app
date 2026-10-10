@@ -49,8 +49,45 @@ const WEB_ONLY = LEAVE_OUT.filter((p) => p.startsWith(`app${sep}`) || p.startsWi
   .map((p) => `${p}/`);
 
 const say = (s) => console.log(`build:app — ${s}`);
+
+// THE WEB'S PUBLIC SETTINGS (2026-10-10). `--web-config https://app.gt3pb.com` (the TestFlight job) fills each
+// NEXT_PUBLIC_ setting on lib/publicConfig.json's list that this environment leaves unset or empty, from what the web
+// answers at /api/public-config (app/api/public-config). One the environment sets wins. The names that came from the
+// web are printed, never their values. If the web does not answer, the build goes on with what it has, and says so;
+// the smoke build never asks.
+const WEB_CONFIG = (() => { const i = process.argv.indexOf("--web-config"); return i > 0 ? process.argv[i + 1] : null; })();
+const PRINTABLE = /^[\x20-\x7e]{1,300}$/;
+async function fromTheWeb(origin) {
+  const { names } = JSON.parse(readFileSync(join(ROOT, "lib", "publicConfig.json"), "utf8"));
+  let values;
+  try {
+    const r = await fetch(new URL("/api/public-config", origin), { signal: AbortSignal.timeout(20000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    values = (await r.json())?.values ?? {};
+  } catch (e) {
+    say(`the web's public settings did not arrive from ${origin} (${e.message}) — building with this environment's alone`);
+    return {};
+  }
+  const got = {};
+  for (const n of names) {
+    if (!n.startsWith("NEXT_PUBLIC_") || process.env[n]) continue;
+    if (typeof values[n] === "string" && PRINTABLE.test(values[n])) got[n] = values[n];
+  }
+  say(Object.keys(got).length ? `from the web (${origin}): ${Object.keys(got).join(", ")}` : `from the web (${origin}): nothing this environment lacks`);
+  return got;
+}
+const FROM_WEB = WEB_CONFIG && !SMOKE ? await fromTheWeb(WEB_CONFIG) : {};
 // The smoke build takes none of this machine's NEXT_PUBLIC_ values, so it is the same build everywhere.
 const withoutPublicValues = (env) => Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith("NEXT_PUBLIC_")));
+
+// Whether any script under `dir` holds `text` (a value Next.js was to write into the export).
+function carries(dir, text) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (e.isDirectory() ? carries(p, text) : readFileSync(p, "utf8").includes(text)) return true;
+  }
+  return false;
+}
 
 function routeHandlers(dir) {
   const found = [];
@@ -82,7 +119,7 @@ try {
   const r = spawnSync(next, ["build"], {
     cwd: WORK,
     stdio: "inherit",
-    env: { ...(SMOKE ? withoutPublicValues(process.env) : process.env), ...(SMOKE ? SMOKE_BACKEND : {}), NEXT_PUBLIC_GT3_TARGET: "app", NEXT_PUBLIC_GT3_WEB_ONLY: WEB_ONLY.join(","), NEXT_TELEMETRY_DISABLED: "1" },
+    env: { ...(SMOKE ? withoutPublicValues(process.env) : { ...process.env, ...FROM_WEB }), ...(SMOKE ? SMOKE_BACKEND : {}), NEXT_PUBLIC_GT3_TARGET: "app", NEXT_PUBLIC_GT3_WEB_ONLY: WEB_ONLY.join(","), NEXT_TELEMETRY_DISABLED: "1" },
   });
   if (r.status !== 0) throw new Error(`next build exited ${r.status}`);
 
@@ -99,6 +136,10 @@ try {
   const html = readFileSync(join(OUT, "index.html"), "utf8");
   if (!html.includes('http-equiv="Content-Security-Policy"')) throw new Error("index.html carries no CSP meta tag");
   if (!/viewport-fit=cover/.test(html)) throw new Error("index.html's viewport does not say viewport-fit=cover");
+  // The card form is what the web's settings were fetched for: when Square's two came from the web, the export carries them.
+  for (const n of ["NEXT_PUBLIC_SQUARE_APP_ID", "NEXT_PUBLIC_SQUARE_LOCATION_ID"]) {
+    if (FROM_WEB[n] && !carries(join(OUT, "_next", "static"), FROM_WEB[n])) throw new Error(`the export does not carry ${n}, which the web gave`);
+  }
 
   let files = 0, bytes = 0;
   const walk = (d) => { for (const e of readdirSync(d, { withFileTypes: true })) { const p = join(d, e.name); if (e.isDirectory()) walk(p); else { files++; bytes += statSync(p).size; } } };

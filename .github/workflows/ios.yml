@@ -22,12 +22,10 @@
 #               ASC_ISSUER_ID      Integrations → App Store Connect API, role Admin (Xcode makes the
 #               ASC_KEY_P8         signing certificate and profile with it) — its Key ID, the Issuer
 #                                  ID above the list, and the downloaded .p8 file's text
-#   Variables   the public values the web build already has in Vercel, under the same names:
-#               NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY (required), and as the web has
-#               them NEXT_PUBLIC_SQUARE_APP_ID, NEXT_PUBLIC_SQUARE_LOCATION_ID, NEXT_PUBLIC_SQUARE_ENV,
-#               NEXT_PUBLIC_VAPID_PUBLIC_KEY, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_SUBSCRIPTIONS_ON,
-#               NEXT_PUBLIC_SUB_NAME, NEXT_PUBLIC_SUB_CADENCE, NEXT_PUBLIC_SUB_PRICE_6/_12/_18,
-#               NEXT_PUBLIC_APPLE_WALLET, NEXT_PUBLIC_GOOGLE_WALLET
+#   Variables   NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (required), the web's values from
+#               Vercel. The rest of the web's public settings — Square's, the subscription's, the wallets', the
+#               app URL, the push key (lib/publicConfig.json lists them) — the build asks app.gt3pb.com for
+#               (app/api/public-config, 2026-10-10); a variable set here under the same name wins.
 #   And in App Store Connect, an app record for bundle id com.gt3pb.app ("GT3 Performance Bar").
 #
 # ── WHEN THE SIMULATOR RUN HAPPENS ───────────────────────────────────────────────────────────────────
@@ -205,8 +203,11 @@ jobs:
           cache: npm
       - run: npm ci
 
+      # The web's public settings, for those the repository does not set (2026-10-10): build 72 carried Supabase's two
+      # and none of the rest, so its checkout took no cards. The build asks app.gt3pb.com for the NEXT_PUBLIC_ settings on
+      # lib/publicConfig.json's list (app/api/public-config); a repository variable, where one is set, wins.
       - name: The app's copy of the screens, with its backend
-        run: npm run build:app
+        run: npm run build:app -- --web-config https://app.gt3pb.com
       - name: Never the smoke build, never an app without its backend
         run: |
           test ! -e out/gt3-smoke-build.json || { echo "::error::out/ is the smoke build (stand-in backend)"; exit 1; }
