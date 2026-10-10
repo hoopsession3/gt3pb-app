@@ -118,8 +118,6 @@ export const COPY_META: CopyMeta[] = [
   { key: "reserve.confirm_return", group: "Reserve flow", label: "Confirmation — bringing bottles back (uses {size})", multiline: true, default: "Don't forget your empties — rinse and bring all {size}; that's what your pack price is built on. Fresh 7 days from pickup." },
   { key: "reserve.confirm_new", group: "Reserve flow", label: "Confirmation — new glass", multiline: true, default: "Bottles are yours to keep — or bring them back next drop and unlock pack pricing. Fresh 7 days from pickup." },
   // ── Menu header ──
-  { key: "menu.statement", group: "Menu", label: "Menu statement", multiline: true,
-    default: "Drawn cold, simmered slow, blended from whole ingredients — every cup made the moment you order." },
   { key: "menu.order_line", group: "Menu", label: "Order prompt",
     default: "Order here, and it'll be waiting when you reach the window." },
   // 2026-07-27: system-design pass on where to teach the "why" behind the menu (Ryan asked for a
@@ -127,7 +125,7 @@ export const COPY_META: CopyMeta[] = [
   // categories (Activation/Hydration/…, lib/menu.ts MENU) already ARE Craft's three pillars; this
   // just tells the customer that connection exists. Plain text inside a <button> — same nested-
   // interactive rule as craft.cta_menu/cta_reserve, not inline-click-editable.
-  { key: "menu.craft_link", group: "Menu", label: "Craft-page teaser button (sits above the category chips)",
+  { key: "menu.craft_link", group: "Menu", label: "Craft-page link (after the menu)",
     default: "Grouped by what your body needs — see the full chemistry" },
   // ── Reserve (the signed-out storefront's story page) ──
   { key: "reserve.order_bar", group: "Reserve", label: "Order-from-the-bar button",
@@ -261,7 +259,6 @@ export const COPY_META: CopyMeta[] = [
   //    Keys carry a masthead.* prefix but sit in each page's natural group so "View live →" lands
   //    on the exact page. (Shop/Primal/Book/3MPIRE eyebrows live in those groups above.) ──
   { key: "masthead.today", group: "Home · signed-in", label: "Masthead eyebrow (Today)", default: "Today" },
-  { key: "masthead.menu", group: "Menu", label: "Masthead eyebrow (The Menu)", default: "The Menu" },
   { key: "masthead.delivery", group: "Delivery", label: "Masthead eyebrow (Order ahead)", default: "Order ahead" },
   // ── Find Us · fact rail + chrome (adoption pass 2026-08-10). The fact LABELS (Where/Day/…) and
   //    the honest fallbacks ("Location TBA"/"Soon"). The third fact label is dynamically selected
@@ -295,11 +292,8 @@ export const COPY_META: CopyMeta[] = [
   // The last hour of a stop: still pouring for the line, no longer online — "Truck's closed" was wrong.
   { key: "sheet.closing_cta", group: "Menu", label: "Drink sheet — online ordering closed for today (truck still pouring)", default: "Reserve a pack for the next drop ›" },
   { key: "sheet.made_moment", group: "Menu", label: "Drink sheet — made-to-order sign-off", default: "Made the moment you order, and you'll taste it." },
-  // ── Menu page — nav buttons, tap hint, sold-out badge, reserve link (adoption pass 2026-08-10). ──
+  // ── Menu page — the Primal link, sold-out badge, reserve link (adoption pass 2026-08-10). ──
   { key: "menu.nav_primal", group: "Menu", label: "Nav button — Return to Primal", default: "Return to Primal" },
-  { key: "menu.nav_shop", group: "Menu", label: "Nav button — Shop", default: "Shop" },
-  { key: "menu.taphint", group: "Menu", label: "Tap hint under the chips", default: "tap any drink to order it" },
-  { key: "menu.taphint_closed", group: "Menu", label: "Tap hint under the chips — truck not taking orders", default: "tap any drink to see what's in it" },
   { key: "menu.sold_out", group: "Menu", label: "Menu row — sold-out badge", default: "SOLD OUT" },
   { key: "menu.reserve_pack", group: "Menu", label: "Packs — reserve link", default: "Reserve your pack ›" },
   // ── Shop — product detail + cart chrome (adoption pass 2026-08-10). ──
