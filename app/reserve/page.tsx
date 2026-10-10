@@ -7,12 +7,12 @@ import Watermark from "@/components/Watermark";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import OrderFunnel from "@/components/OrderFunnel";
 import Reserves from "@/components/Reserves";
-import StorefrontStory from "@/components/StorefrontStory";
 import { useSiteCopy } from "@/lib/copy";
 
 // Order-ahead / reserve-your-drop screen, on the kit. One-off Saturday pre-orders — no
-// subscription, no plan. This is also the signed-out storefront's story page: reserve first,
-// then what we make (guests only), then the walk-up path. Today itself is members-only.
+// subscription, no plan. Shop's Bottles aisle at a door of its own (the tab bar lights Shop here):
+// one line, then the choices. The guest story that followed the order — the Menu tab's three acts
+// again, and a button to that tab — went on 2026-10-09; the menu is one tap away.
 export default function ReserveScreen() {
   const t = useSiteCopy();
   return (
@@ -28,8 +28,8 @@ export default function ReserveScreen() {
           here, same slot/pattern as menu.statement right under its masthead. */}
       <EditableCopy k="reserve.headline" value={t("reserve.headline")} as="p" className="mast-stmt" multiline />
       <Reserves />
-      <OrderFunnel initialMode="pickup" />
-      <StorefrontStory />
+      {/* Under the line above it, not against it (2026-10-09). */}
+      <div className="mt-4"><OrderFunnel initialMode="pickup" /></div>
       <ClosingBeat />
     </section>
   );
