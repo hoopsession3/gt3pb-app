@@ -6,9 +6,12 @@ import AccountPill from "@/components/AccountPill";
 import { STRATEGY_CORE, GTM_PLAYS, GOVERNANCE, FLYWHEEL, STRATEGY_REV, type GtmPlay } from "@/lib/strategy";
 import { StrategyThread, DecisionLog, PlayBuilder, useDrafts } from "@/components/StrategyCollab";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
+import dynamic from "next/dynamic";
 import Icon from "@/components/Icon";
 import { useConfirm } from "@/components/ConfirmSheet";
 import Link from "next/link";
+// The sign-in is for a visitor who is signed out — staff signed in never download it (2026-10-09).
+const SignIn = dynamic(() => import("@/components/SignIn"));
 
 // THE PLAYBOOK — the whole strategy on one owner screen, and now a working document: every block
 // and play carries a live discussion thread (owners get pinged), the guided builder walks you
@@ -21,11 +24,13 @@ const keyFor = (name: string) => "gtm:" + name.toLowerCase().replace(/[^a-z0-9]+
 
 export default function PlaybookPage() {
   const confirm = useConfirm();
-  const { profile, enabled } = useAuth();
+  const { profile, enabled, user, ready } = useAuth();
   const [open, setOpen] = useState<string | null>(null); // which thread is open
   const [builder, setBuilder] = useState<null | { prefill: GtmPlay | null }>(null);
   const { drafts, reload, retire } = useDrafts();
   if (!enabled) return null;
+  // Signed out, the page names itself and signs in (2026-10-09, round 2) — it said "Owners only" with no way in.
+  if (ready && !user) return <SignIn context={{ title: "The Playbook.", sub: "Sign in with an owner or admin account." }} />;
   const role = roleOf(profile);
   if (role !== "owner" && role !== "admin") {
     return (
