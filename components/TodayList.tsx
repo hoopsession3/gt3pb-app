@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useRealtimeTable } from "@/lib/realtime";
 import { loadMyTasks, myTaskDay, type MyTaskRow } from "@/lib/myTasks";
-import { splitHome, STALE_DAYS, type HomeItem } from "@/lib/home";
+import { splitHome, STALE_DAYS, dayCount, nextUp, type HomeItem } from "@/lib/home";
 import { completeTask, updateTask } from "@/lib/tasks";
 import { logDone } from "@/lib/upkeep";
 import { roleOf, canOf } from "@/lib/roles";
@@ -39,11 +39,11 @@ import { loadOwed, useObligationGo, type OwedData, type OwedRow } from "./Owed";
 // Nothing is deleted to make it calm; everything folded is one tap away.
 
 type Mine = { kind: "mine"; row: MyTaskRow };
-type Owe = { kind: "owed" | "upkeep"; row: OwedRow };
+type Owe = { kind: "owed" | "upkeep" | "rule"; row: OwedRow };
 type Team = { kind: "team"; id: string };
 type Ref = Mine | Owe | Team;
 type Item = HomeItem & { ref: Ref };
-type Data = { items: Item[]; owed: OwedData };
+type Data = { items: Item[]; owed: OwedData; doneToday: number };
 
 const STALE_LABEL = `More than ${STALE_DAYS / 7} weeks late`;
 const STALE_SHORT = `${STALE_DAYS / 7}+ weeks late`;
@@ -66,30 +66,43 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
   const viewer: Viewer = { id: meId, sections: sectionsForRole(role), manage };
 
   const loader = useCallback(async (): Promise<Data> => {
-    const [mine, owed] = await Promise.all([loadMyTasks(meId), loadOwed(meId, role, manage)]);
+    const today = localToday();
+    // What I finished today, from both task tables' done_at — the head counts it beside what is left. A
+    // count that fails is zero: it is a courtesy, and the list is the answer.
+    const since = new Date(`${today}T00:00:00`).toISOString();
+    const doneIn = async (table: "todos" | "event_tasks"): Promise<number> => {
+      if (!supabase || !meId) return 0;
+      try {
+        const { count, error } = await supabase.from(table).select("id", { count: "exact", head: true }).eq("assignee", meId).eq("done", true).gte("done_at", since);
+        return error ? 0 : count ?? 0;
+      } catch { return 0; }
+    };
+    const [mine, owed, doneTodos, doneEvent] = await Promise.all([loadMyTasks(meId), loadOwed(meId, role, manage), doneIn("todos"), doneIn("event_tasks")]);
     // A failed read is not a quiet day: either half failing fails the list, and the list says so.
     if (mine.error) throw new Error(mine.error);
-    const today = localToday();
     const items: Item[] = [];
     for (const t of mine.rows) {
       const day = myTaskDay(t);
       items.push({ key: `mine:${t.source ?? "event"}:${t.id}`, title: t.label, sub: mineSub(t), daysOut: day ? daysBetween(today, day) : null, critical: !!t.critical, kind: "mine", ref: { kind: "mine", row: t } });
     }
     for (const r of owed.rows) {
-      const kind = r.source === "asset_maintenance" ? "upkeep" : "owed";
-      items.push({ key: `owed:${r.source}:${r.subject_id}`, title: r.title, sub: `${r.kind} · ${r.detail}`, daysOut: Number(r.days_out), critical: false, kind, ref: { kind, row: r } });
+      // A compliance rule nobody ever confirmed is dated today by v_obligations (0330), every day: it is
+      // "never confirmed", not "due today", so it carries no day. One confirmed and gone stale keeps its lateness.
+      const kind = r.source === "asset_maintenance" ? "upkeep" : r.source === "compliance_rules" ? "rule" : "owed";
+      const daysOut = kind === "rule" && Number(r.days_out) >= 0 ? null : Number(r.days_out);
+      items.push({ key: `owed:${r.source}:${r.subject_id}`, title: r.title, sub: `${r.kind} · ${r.detail}`, daysOut, critical: false, kind, ref: { kind, row: r } });
     }
     for (const t of owed.tasks) {
       items.push({ key: `team:${t.id}`, title: t.label, sub: t.owner ? `${t.owner.kind} · ${t.owner.name}` : "Not attached to an event or stop", daysOut: t.late != null ? -t.late : null, critical: t.critical, kind: "team", ref: { kind: "team", id: t.id } });
     }
-    return { items, owed };
+    return { items, owed, doneToday: doneTodos + doneEvent };
   }, [meId, role, manage]);
   const state = useAsyncData<Data>(loader, [loader]);
   useRealtimeTable({ table: "event_tasks", filter: `assignee=eq.${meId}` }, state.reload, { enabled: !!meId });
   useRealtimeTable({ table: "todos", filter: `assignee=eq.${meId}` }, state.reload, { enabled: !!meId });
 
   const { go, canGo, sheet: initiativeSheet } = useObligationGo(viewer, () => state.reload());
-  const [sheet, setSheet] = useState<null | "all" | "due" | "stale" | "upkeep">(null);
+  const [sheet, setSheet] = useState<null | "all" | "due" | "stale" | "upkeep" | "rules">(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   // ── the one tap on a row: tick it, or open what it names ─────────────────────────────────────
@@ -177,10 +190,11 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
   // The head stays put while the list loads; its count arrives with the list.
   const head = state.data ? splitHome(state.data.items) : null;
   const due = head ? head.today.length + head.moreToday : null;
+  const doneToday = state.data?.doneToday ?? 0;
   return (
     <div className="adm-sec" id="my-day-tasks">
       {/* "To do", not "Today" (2026-10-09, the navigation round): the screen's title names the lane, Today, now. */}
-      <SectionHeader label="To do" right={due === null ? undefined : <span className={`k-count${due ? "" : " ok"}`}>{due ? `${due} due` : "Clear"}</span>} />
+      <SectionHeader label="To do" right={due === null ? undefined : <span className={`k-count${due ? "" : " ok"}`}>{dayCount(doneToday, due)}</span>} />
       <AsyncSection
         state={state}
         isEmpty={(d) => d.items.length === 0 && d.owed.bookings === 0 && d.owed.low.length === 0 && !d.owed.extrasFailed}
@@ -196,9 +210,19 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
           return (
             <div className="owed">
               {s.today.map((i) => row(i))}
-              {s.today.length === 0 && <p className="pnl-note" role="status">Nothing due today.</p>}
+              {/* A finished day says so, and points at what comes next — "Nothing due today." said the same of a
+                  clear morning and a done one. */}
+              {s.today.length === 0 && (() => {
+                const next = nextUp(items);
+                return (
+                  <>
+                    <p className="pnl-note" role="status">{doneToday > 0 ? "Today's done." : "Nothing due today."}</p>
+                    {next && fold("next", `Next: ${next.title}`, `${dueWord(next.daysOut as number)} · ${next.sub}`, () => open(next))}
+                  </>
+                );
+              })()}
               {/* The rest of today, counted where it opens: the head's number is these rows plus this one's. */}
-              {s.moreToday > 0 && fold("due", `${s.moreToday} more due today`, "Every one, in the same order", () => setSheet("due"))}
+              {s.moreToday > 0 && fold("due", `${s.moreToday} more due today`, "The full list, critical first", () => setSheet("due"))}
 
               {/* WAITING, ON ONE LINE (2026-10-10, the Today round). Five rows stood under the three things due —
                   equipment, the stale, bookings, restock, all tasks — each a full-width door, each asking whether to
@@ -207,6 +231,8 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
               <div className="flex flex-wrap gap-2 pt-3" role="group" aria-label="Also waiting">
                 {s.upkeep.length > 0 && <button type="button" className={`k-chip sm${upkeepLate ? " warn" : ""}`} onClick={() => setSheet("upkeep")}
                   aria-label={`Equipment upkeep, ${s.upkeep.length}${upkeepLate ? `, ${upkeepLate} past ${upkeepLate === 1 ? "its" : "their"} service date` : ""}`}>Equipment · {s.upkeep.length} ›</button>}
+                {s.rules.length > 0 && <button type="button" className="k-chip sm" onClick={() => setSheet("rules")}
+                  aria-label={`Compliance, ${s.rules.length} ${s.rules.length === 1 ? "rule" : "rules"} to confirm with the authority`}>Compliance · {s.rules.length} ›</button>}
                 {s.stale.length > 0 && <button type="button" className="k-chip sm" onClick={() => setSheet("stale")} aria-label={`${STALE_LABEL}, ${s.stale.length}`}>{STALE_SHORT} · {s.stale.length} ›</button>}
                 {owed.bookings > 0 && <button type="button" className="k-chip sm" onClick={() => goPlanTab("leads", { setSection })}
                   aria-label={`${owed.bookings} booking ${owed.bookings === 1 ? "request" : "requests"} to answer`}>Bookings · {owed.bookings} ›</button>}
@@ -239,6 +265,12 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
                       </div>
                     );
                   })()}
+                </Sheet>
+              )}
+              {sheet === "rules" && (
+                <Sheet open onClose={() => setSheet(null)} label="Compliance to confirm" header={sheetHead(`Compliance · ${s.rules.length} to confirm`)}>
+                  <p className="pnl-note">Each is a rule nobody has confirmed with its authority, or confirmed more than a year ago. Open one to confirm it — with whom, and when.</p>
+                  <div className="owed">{s.rules.map((i) => row(i))}</div>
                 </Sheet>
               )}
               {sheet === "upkeep" && (
