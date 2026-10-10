@@ -201,9 +201,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   const sendCode = useCallback<AuthCtx["sendCode"]>(async (email, displayName) => {
     if (!supabase) return { error: "Sign-in isn't configured yet." };
-    // Free-tier Supabase email sends a magic LINK (templates are locked without custom
-    // SMTP). emailRedirectTo brings the user back to the app signed in; detectSessionInUrl
-    // (set in lib/supabase) completes it. When Resend SMTP lands we can switch to a 6-digit code.
+    // The email carries a code and a link (2026-10-10: the "Magic link or OTP" and "Confirm sign up"
+    // templates put {{ .Token }} above the link). The screen asks for the code (SignIn → verifyCode); the
+    // link still works where it opens: emailRedirectTo brings that browser back signed in, and
+    // detectSessionInUrl (set in lib/supabase) completes it.
     // publicOrigin (lib/native): the web's own address on the web, app.gt3pb.com in the iPhone app,
     // whose own address (capacitor://localhost) means nothing to a mail app.
     const { error } = await supabase.auth.signInWithOtp({
@@ -223,9 +224,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     return error ? { error: error.message } : {};
   }, []);
 
-  // For iOS PWA: magic links open in Safari (separate storage). The user copies the
-  // full redirect URL from Safari's address bar and pastes it here so we can extract
-  // the access/refresh tokens and set the session in the PWA context.
+  // A sign-in URL carrying tokens becomes this page's session: the iPhone app's appUrlOpen hands it one
+  // (NativeBridge). The paste-your-URL box that also used it is gone (2026-10-10) — the code replaced it.
   const signInWithUrl = useCallback<AuthCtx["signInWithUrl"]>(async (url) => {
     if (!supabase) return { error: "Sign-in isn't configured yet." };
     try {

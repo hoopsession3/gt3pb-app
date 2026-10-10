@@ -6055,7 +6055,23 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /if \(u && \(event === "SIGNED_IN" \|\| event === "INITIAL_SESSION"\)\) \{\s*const to = takeReturn\(\);\s*if \(to && to !== window\.location\.pathname \+ window\.location\.search\) router\.replace\(to\);/.test(auth));
   ok("sign-in: no switch before the email — joining or signing in, a link or a password, are quiet lines under the button; the checkbox that did nothing is gone",
     !/<Segmented/.test(si) && !/Keep me signed in|setRemember|auth-check-row/.test(si + css)
-    && /\{intent === "join" \? "Already a member\? Sign in" : "New here\? Join free"\}/.test(si) && /\{mode === "passwordless" \? "Use a password instead" : "Email me a link instead"\}/.test(si));
+    && /\{intent === "join" \? "Already a member\? Sign in" : "New here\? Join free"\}/.test(si) && /\{mode === "passwordless" \? "Use a password instead" : "Email me a code instead"\}/.test(si));
+  // THE CODE COMES FIRST (2026-10-10, Ryan: "Yes, add the code"): both emails carry the code, the screen asks for it.
+  ok("sign-in: the screen after \"email me\" asks for the code — one field, digits only, iPhone's one-time-code, and the whole code sends itself",
+    /const CODE_LEN = 8;/.test(si) && /const MIN_CODE = 6;/.test(si)
+    && /id="auth-code"[\s\S]{0,120}ref=\{codeRef\}[\s\S]{0,200}autoComplete="one-time-code"/.test(si) && /maxLength=\{10\}/.test(si)
+    && /const d = raw\.replace\(\/\\D\/g, ""\)\.slice\(0, 10\);/.test(si) && /if \(d\.length === CODE_LEN && d !== otp\) void handleVerifyCode\(d\);/.test(si)
+    && /if \(token\.length < MIN_CODE \|\| busy\) return;/.test(si) && /disabled=\{otp\.length < MIN_CODE \|\| busy\}/.test(si));
+  ok("sign-in: the code is asked before the link is mentioned, the iPhone app never mentions the link (it opens Safari), and the paste-your-URL box is gone",
+    si.indexOf('id="auth-code"') > 0 && si.indexOf('id="auth-code"') < si.indexOf("Or tap the link in the email")
+    && /\{!inApp && " Or tap the link in the email\."\}/.test(si) && /const \[inApp\] = useState\(\(\) => isNativeApp\(\)\);/.test(si)
+    && !/pastedUrl|signInWithUrl|Paste your sign-in URL|isIPhoneLike/.test(si) && /void signInWithUrl\(url\)/.test(read("components/NativeBridge.tsx")));
+  ok("sign-in: a new password account finishes with the same code, here — not \"tap the link, then come back and sign in\"",
+    /\{\(step === "sent" \|\| step === "confirm"\) && \(/.test(si) && !/Tap it to activate your account, then come back and sign in/.test(si)
+    && /step === "confirm" \? "Confirm and sign in" : "Sign in"/.test(si));
+  ok("sign-in: a resent code empties the field and says to use the newest email; a wrong or old code says so and selects itself",
+    /else \{ setCooldown\(30\); setOtp\(""\); setResent\(true\); codeRef\.current\?\.focus\(\); \}/.test(si)
+    && /requestAnimationFrame\(\(\) => codeRef\.current\?\.select\(\)\);/.test(si) && /A new code is on its way — use the newest email\./.test(si));
   ok("sign-in: the 3MPIRE page joins by default; a page that needs an account names itself and signs in, without the join pitch",
     /useState<Intent>\(context \? "signin" : "join"\)/.test(si) && /\{context \? context\.title : intent === "join"/.test(si) && /\{!context && \(/.test(si)
     && /if \(!user\) return <SignIn \/>;/.test(read("app/3mpire/page.tsx")));

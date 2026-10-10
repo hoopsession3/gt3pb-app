@@ -1076,7 +1076,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .auth-err{margin-top:12px;font-size:13px;color:#e0918c;background:color-mix(in srgb, var(--brand-red) 12%, transparent);border:1px solid color-mix(in srgb, var(--brand-red) 28%, transparent);border-radius:11px;padding:10px 13px;line-height:1.4}
 .auth-fine{font-size:12px;color:color-mix(in srgb, var(--brand-cream) 40%, transparent);line-height:1.55;margin-top:auto;padding-top:26px;padding-bottom:14px;opacity:0;animation:authRise .5s ease .6s both}
 .auth-link{background:none;border:none;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:13px;letter-spacing:.3px;cursor:pointer;margin-top:16px;align-self:flex-start;padding:6px 0}
-.auth-divider{width:100%;height:1px;background:var(--line);margin:22px 0 0}
 .auth-paste-hint{font-size:12px;color:color-mix(in srgb, var(--brand-cream) 45%, transparent);line-height:1.5;margin:7px 0 11px}  /* the form below animates in on a transform, which painted it over the tabs' taller tap area (2026-10-08) */
 .auth-pass-wrap{position:relative}
 .auth-pass-wrap .auth-input{padding-right:60px}

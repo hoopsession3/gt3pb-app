@@ -238,7 +238,7 @@ export const ARCHITECTURE: ArchLayer[] = [
     id: "control", tag: "Control Plane", label: "Identity-aware access on every request", color: "#8b5cf6",
     blurb: "Who is this, what may they do — enforced at the database and the edge.",
     components: [
-      { name: "Supabase Auth", status: "live", desc: "Email/password + magic link; session in the app.", sot: "components/AuthProvider.tsx" },
+      { name: "Supabase Auth", status: "live", desc: "An emailed code (the email carries a link too) or a password; session in the app.", sot: "components/AuthProvider.tsx" },
       { name: "API auth gate", status: "live", desc: "staffFromRequest / userFromRequest — server routes verify the caller's token.", sot: "lib/apiAuth.ts" },
       { name: "Role model", status: "live", desc: "member · server · operator · event_manager · contractor · admin · owner.", sot: "supabase/migrations/0031_academy_governance.sql" },
       { name: "Row-Level Security", status: "live", desc: "is_staff / is_admin / is_owner gate every table.", sot: "supabase/migrations/0039_rls_plan_stable.sql" },

@@ -1,16 +1,28 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { trackFunnel } from "@/lib/funnel";
 import Image from "next/image";
 import Mpire from "./Mpire";
 import { useAuth } from "./AuthProvider";
-import { isIPhoneLike } from "@/lib/ios";
+import { isNativeApp } from "@/lib/native";
 import { nextOnEnter } from "@/lib/formKeys";
 import { rememberReturn } from "@/lib/returnTo";
 
 type Mode = "passwordless" | "password";
 type Intent = "join" | "signin";
+
+// THE CODE COMES FIRST (2026-10-10, Ryan: "Yes, add the code"). Both sign-in emails — Supabase's "Magic link
+// or OTP" and "Confirm sign up" templates — carry the code in big digits above the link. The link opens in
+// Safari, never in the iPhone app (no universal link reaches it: the link is supabase.co's, redirected), and
+// on the web it signs in whichever browser opens it; the code works anywhere it is typed. So the screen after
+// "email me" asks for the code — iPhone offers it from Mail above the keyboard (one-time-code) — and on the
+// web says the link works too. The paste-your-URL workaround the code replaces is gone.
+// CODE_LEN mirrors Supabase → Authentication → Email → "Email OTP length" (8 on this project). At that many
+// digits the code sends itself; 6 to 10 digits can always be sent by the button, so a changed setting slows
+// nobody down. The copy never names the count, so it cannot go stale.
+const CODE_LEN = 8;
+const MIN_CODE = 6;
 
 // WHERE YOU ARE, AND ONE WAY IN (2026-10-09, round 2 — Ryan: "Join by default", "Link returns you",
 // approved). Seven pages that need an account showed this same screen with the consumer's pitch on it
@@ -22,10 +34,10 @@ type Intent = "join" | "signin";
 export type SignInContext = { title: ReactNode; sub: ReactNode };
 
 export default function SignIn({ context }: { context?: SignInContext } = {}) {
-  const { sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword } = useAuth();
-  // iPadOS reports itself as a Mac — lib/ios, the one home for the iPhone check, catches it by its
-  // touch points (see the paste-URL block).
-  const isIOS = isIPhoneLike();
+  const { sendCode, verifyCode, signInWithPassword, signUp, resetPassword } = useAuth();
+  // In the iPhone app the emailed link can only open Safari, so the app never mentions it. Read once, like
+  // NativeBridge's; nothing drawn before the email is sent depends on it, so it cannot split a hydration.
+  const [inApp] = useState(() => isNativeApp());
 
   // The first question is WHO you are (new vs returning) — the auth method comes second.
   const [intent, setIntent] = useState<Intent>(context ? "signin" : "join");
@@ -48,9 +60,10 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
 
   // passwordless — verify step
   const [otp, setOtp] = useState("");
-  const [pastedUrl, setPastedUrl] = useState("");
-  const [pasteErr, setPasteErr] = useState("");
-  const [pasteBusy, setPasteBusy] = useState(false);
+  const [resent, setResent] = useState(false);
+  const codeRef = useRef<HTMLInputElement>(null);
+  // The code field is the screen's one job: it has the caret the moment the screen shows.
+  useEffect(() => { if (step === "sent" || step === "confirm") codeRef.current?.focus(); }, [step]);
 
   // password mode
   const [password, setPassword] = useState("");
@@ -59,7 +72,7 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
   const [showPass, setShowPass] = useState(false);
 
   const reset = () => {
-    setStep("form"); setErr(""); setOtp(""); setPastedUrl(""); setPasteErr("");
+    setStep("form"); setErr(""); setOtp(""); setResent(false);
   };
 
   // ── passwordless submit ──
@@ -74,14 +87,15 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
     else { setStep("sent"); setCooldown(30); trackFunnel("signup", "code_sent"); }
   };
 
-  // ── resend the link/code (same trimming + error handling as first send) ──
+  // ── resend the code (same trimming + error handling as first send). A new code retires the old one,
+  // so the field empties and the screen says to use the newest email. ──
   const handleResend = async () => {
     if (busy || cooldown > 0) return;
-    setBusy(true); setErr("");
+    setBusy(true); setErr(""); setResent(false);
     try {
       const { error } = await sendCode(email.trim(), name.trim() || undefined);
       if (error) setErr(error);
-      else setCooldown(30);
+      else { setCooldown(30); setOtp(""); setResent(true); codeRef.current?.focus(); }
     } catch {
       setErr("Couldn't resend that — try again in a moment.");
     } finally {
@@ -89,23 +103,24 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
     }
   };
 
-  // ── verify 6-digit code ──
-  const handleVerifyCode = async () => {
-    if (!otp.trim()) return;
+  // ── verify the emailed code — typed, pasted, or offered by iPhone from Mail ──
+  const handleVerifyCode = async (token: string = otp) => {
+    if (token.length < MIN_CODE || busy) return;
     setBusy(true); setErr("");
-    const { error } = await verifyCode(email.trim(), otp.trim());
+    const { error } = await verifyCode(email.trim(), token);
     setBusy(false);
-    if (error) setErr(error);
-    else trackFunnel("signup", "signed_in");
+    if (error) {
+      setErr(/expired|invalid/i.test(error)
+        ? "That code didn't work — it may be from an older email, or expired. Use the newest one, or resend."
+        : error);
+      requestAnimationFrame(() => codeRef.current?.select());
+    } else trackFunnel("signup", "signed_in");
   };
-
-  // ── paste magic-link URL (iOS PWA) ──
-  const handlePastedUrl = async () => {
-    if (!pastedUrl.trim()) return;
-    setPasteBusy(true); setPasteErr("");
-    const { error } = await signInWithUrl(pastedUrl.trim());
-    if (error) setPasteErr(error);
-    setPasteBusy(false);
+  // Digits only, whatever arrives (a paste with spaces, Mail's suggestion); the whole code sends itself.
+  const onCode = (raw: string) => {
+    const d = raw.replace(/\D/g, "").slice(0, 10);
+    setOtp(d); setErr("");
+    if (d.length === CODE_LEN && d !== otp) void handleVerifyCode(d);
   };
 
   // ── forgot password → email a reset link ──
@@ -149,83 +164,61 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
       <Image className="auth-logo" src="/gt3-pb-wordmark.png" alt="GT3 Performance Bar" width={440} height={248} priority unoptimized />
       <div className="auth-rule" />
 
-      {/* ── email-confirmed waiting state ── */}
-      {step === "confirm" && (
-        <>
-          <h2 className="auth-headline">Check your email.</h2>
-          <p className="auth-sub">We sent a confirmation link to <b>{email}</b>. Tap it to activate your account, then come back and sign in.</p>
-          <button type="button" className="btn-pri btn-wide mt-5" onClick={reset}><span>Back to sign in</span></button>
-        </>
-      )}
-
       {/* ── password reset link sent ── */}
       {step === "reset-sent" && (
         <>
           <h2 className="auth-headline">Check your email.</h2>
           <p className="auth-sub">We sent a password-reset link to <b>{email}</b>. Tap it, set a new password, and you&apos;re back in.</p>
-          <p className="auth-paste-hint" style={{ marginTop: 8 }}>Don&apos;t see it? Check spam / promotions. Open the link in <b>this same browser</b>.</p>
+          <p className="auth-paste-hint mt-2">Don&apos;t see it? Check spam / promotions. Open the link in <b>this same browser</b>.</p>
           {err && <div className="auth-err">{err}</div>}
           <button type="button" className="btn-pri btn-wide mt-5" onClick={reset}><span>Back to sign in</span></button>
         </>
       )}
 
-      {/* ── passwordless verify step ── */}
-      {step === "sent" && (
+      {/* ── the code: after "email me a code" (sent), and after a new password account (confirm) — the
+          Confirm sign up email carries the same code, so a new account finishes here, not in Safari ── */}
+      {(step === "sent" || step === "confirm") && (
         <>
-          <h2 className="auth-headline">Check your email.</h2>
-          <p className="auth-sub">We sent a sign-in link to <b>{email}</b> — tap it and you&apos;re in.</p>
-          <p className="auth-paste-hint" style={{ marginTop: 8 }}>Don&apos;t see it? Check spam / promotions. Open the link in <b>this same browser</b> (Safari or Chrome) — not from inside another app.</p>
-          {err && <div className="auth-err">{err}</div>}
-
-          <label className="auth-label" htmlFor="auth-code" style={{ marginTop: 22 }}>Got a code instead? Enter it here</label>
-          <input
-            id="auth-code"
-            className="auth-input auth-code"
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            enterKeyHint="go"
-            onKeyDown={(e) => { if (e.key === "Enter" && otp.length >= 6 && !busy) handleVerifyCode(); }}
-            pattern="[0-9]{6,8}"
-            maxLength={8}
-            placeholder="••••••"
-            value={otp}
-            onChange={(e) => { setOtp(e.target.value.replace(/\D/g, "").slice(0, 8)); setErr(""); }}
-          />
-          <button type="button" className="btn-pri btn-wide mt-2.5" disabled={otp.length < 6 || busy} onClick={handleVerifyCode}>
-            <span>{busy ? "Verifying…" : "Verify code"}</span>
-          </button>
-
-          <div className="auth-divider" />
-          <button type="button" className="btn-sec btn-wide mt-4.5" disabled={busy || cooldown > 0} onClick={handleResend}>
-            <span>{busy ? "Sending…" : cooldown > 0 ? `Resend in ${cooldown}s` : "Resend"}</span>
-          </button>
-          <button className="auth-link hit-44" onClick={reset}>← Different email</button>
-
-          {/* iOS-only escape hatch (2026-07-30, Ryan signing in on desktop Chrome: "this iOS url
-              thing doesn't need to be done here, code works fine"). The paste-the-link workaround
-              exists because iOS opens magic links in Safari instead of the installed PWA — on any
-              other platform it's dead weight under the code field, so it only renders on iOS
-              (incl. iPadOS, which masquerades as MacIntel but exposes touch points). */}
-          {isIOS && (
-            <>
-              <div className="auth-divider" />
-              <div className="auth-label" style={{ marginTop: 4 }}>On iOS? Paste your sign-in URL</div>
-              <p className="auth-paste-hint">If the link opened in Safari, copy the URL from the address bar and paste it here.</p>
-              <input
-                className="auth-input"
-                type="url"
-                inputMode="url"
-                placeholder="Paste URL here…"
-                value={pastedUrl}
-                onChange={(e) => { setPastedUrl(e.target.value); setPasteErr(""); }}
-              />
-              {pasteErr && <div className="auth-err">{pasteErr}</div>}
-              <button type="button" className="btn-sec btn-wide mt-2.5" disabled={!pastedUrl.trim() || pasteBusy} onClick={handlePastedUrl}>
-                <span>{pasteBusy ? "Signing in…" : "Sign in with pasted link"}</span>
+          <h2 className="auth-headline">{step === "confirm" ? "Confirm your email." : "Check your email."}</h2>
+          <p className="auth-sub" id="auth-code-for">
+            We sent a code to <b>{email}</b>. {step === "confirm" ? "Enter it to finish joining." : "Enter it here and you’re in."}
+          </p>
+          <form className="auth-form mt-5" noValidate onSubmit={(e) => { e.preventDefault(); void handleVerifyCode(); }}>
+            <input
+              id="auth-code"
+              ref={codeRef}
+              className="auth-input auth-code"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              enterKeyHint="go"
+              pattern="[0-9]*"
+              maxLength={10}
+              aria-label={step === "confirm" ? "Confirmation code" : "Sign-in code"}
+              aria-describedby="auth-code-for"
+              placeholder={"•".repeat(CODE_LEN)}
+              value={otp}
+              onChange={(e) => onCode(e.target.value)}
+            />
+            {err && <div className="auth-err" role="alert">{err}</div>}
+            <button className="btn-pri btn-wide mt-3" type="submit" disabled={otp.length < MIN_CODE || busy}>
+              <span>{busy ? "Checking…" : step === "confirm" ? "Confirm and sign in" : "Sign in"}</span>
+            </button>
+          </form>
+          <p className="auth-paste-hint mt-3.5" aria-live="polite">
+            {resent ? "A new code is on its way — use the newest email." : "Don’t see it? Check spam or promotions."}
+            {!inApp && " Or tap the link in the email."}
+          </p>
+          <div className="auth-form flex flex-wrap gap-x-5">
+            {step === "sent" && (
+              <button type="button" className="auth-link min-h-11 inline-flex items-center disabled:opacity-50" disabled={busy || cooldown > 0} onClick={handleResend}>
+                {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend the code"}
               </button>
-            </>
-          )}
+            )}
+            <button type="button" className="auth-link min-h-11 inline-flex items-center" onClick={reset}>
+              {step === "confirm" ? "Back to sign in" : "Use a different email"}
+            </button>
+          </div>
         </>
       )}
 
@@ -253,7 +246,7 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
               <input id="auth-email" className="auth-input" enterKeyHint="send" type="email" inputMode="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
               {err && <div className="auth-err">{err}</div>}
               <button className="btn-pri btn-wide mt-4.5" type="submit" disabled={busy}>
-                <span>{busy ? "Sending…" : intent === "join" ? "Become a member — email my link" : "Send my sign-in link"}</span>
+                <span>{busy ? "Sending…" : intent === "join" ? "Become a member — email my code" : "Email me a sign-in code"}</span>
               </button>
             </form>
           )}
@@ -298,7 +291,7 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
                 <span>{busy ? (isNew ? "Creating…" : "Signing in…") : (isNew ? "Become a member" : "Sign in")}</span>
               </button>
               {!isNew && (
-                <button type="button" className="auth-link hit-44" onClick={handleReset} disabled={busy} style={{ marginTop: 12 }}>
+                <button type="button" className="auth-link hit-44 mt-3" onClick={handleReset} disabled={busy}>
                   Forgot your password? Email me a reset link
                 </button>
               )}
@@ -316,7 +309,7 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
               </button>
             )}
             <button type="button" className="auth-link min-h-11 inline-flex items-center" onClick={() => { setMode(mode === "passwordless" ? "password" : "passwordless"); setErr(""); }}>
-              {mode === "passwordless" ? "Use a password instead" : "Email me a link instead"}
+              {mode === "passwordless" ? "Use a password instead" : "Email me a code instead"}
             </button>
           </div>
 
