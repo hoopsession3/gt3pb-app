@@ -46,6 +46,7 @@ type Item = HomeItem & { ref: Ref };
 type Data = { items: Item[]; owed: OwedData };
 
 const STALE_LABEL = `More than ${STALE_DAYS / 7} weeks late`;
+const STALE_SHORT = `${STALE_DAYS / 7}+ weeks late`;
 
 function mineSub(t: MyTaskRow): string {
   if (t.source === "todo") return `To-do${t.category ? ` · ${t.category}` : ""}`;
@@ -199,15 +200,19 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
               {/* The rest of today, counted where it opens: the head's number is these rows plus this one's. */}
               {s.moreToday > 0 && fold("due", `${s.moreToday} more due today`, "Every one, in the same order", () => setSheet("due"))}
 
-              {s.upkeep.length > 0 && fold("upkeep", `Equipment upkeep · ${s.upkeep.length}`,
-                upkeepLate ? `${upkeepLate} past ${upkeepLate === 1 ? "its" : "their"} service date — log them in one place` : "Due soon — log them in one place",
-                () => setSheet("upkeep"), upkeepLate > 0)}
-              {s.stale.length > 0 && fold("stale", `${STALE_LABEL} · ${s.stale.length}`,
-                s.stale.some((i) => i.kind !== "team" && !!tickOf(i)) ? "Mark done or move to next week, all at once" : "Each opens where it can be closed or moved",
-                () => setSheet("stale"))}
-              {owed.bookings > 0 && fold("bookings", `${owed.bookings} booking ${owed.bookings === 1 ? "request" : "requests"} to answer`, "Plan › Leads", () => goPlanTab("leads", { setSection }))}
-              {owed.low.length > 0 && fold("restock", `Restock · ${owed.low.length} low`, "For upcoming events — Assets", () => setSection("garage"))}
-              {fold("all", `All tasks · ${s.total}`, s.later ? `${s.later} later, and everything above in full` : "Your tasks and what's owed, in full", () => setSheet("all"))}
+              {/* WAITING, ON ONE LINE (2026-10-10, the Today round). Five rows stood under the three things due —
+                  equipment, the stale, bookings, restock, all tasks — each a full-width door, each asking whether to
+                  look. They are one line of chips now: what is waiting and how much, one tap each, the late in the
+                  warning colour. Each opens what its row opened; the sheets say the rest. */}
+              <div className="flex flex-wrap gap-2 pt-3" role="group" aria-label="Also waiting">
+                {s.upkeep.length > 0 && <button type="button" className={`k-chip sm${upkeepLate ? " warn" : ""}`} onClick={() => setSheet("upkeep")}
+                  aria-label={`Equipment upkeep, ${s.upkeep.length}${upkeepLate ? `, ${upkeepLate} past ${upkeepLate === 1 ? "its" : "their"} service date` : ""}`}>Equipment · {s.upkeep.length} ›</button>}
+                {s.stale.length > 0 && <button type="button" className="k-chip sm" onClick={() => setSheet("stale")} aria-label={`${STALE_LABEL}, ${s.stale.length}`}>{STALE_SHORT} · {s.stale.length} ›</button>}
+                {owed.bookings > 0 && <button type="button" className="k-chip sm" onClick={() => goPlanTab("leads", { setSection })}
+                  aria-label={`${owed.bookings} booking ${owed.bookings === 1 ? "request" : "requests"} to answer`}>Bookings · {owed.bookings} ›</button>}
+                {owed.low.length > 0 && <button type="button" className="k-chip sm warn" onClick={() => setSection("garage")} aria-label={`Restock, ${owed.low.length} low`}>Restock · {owed.low.length} ›</button>}
+                <button type="button" className="k-chip sm" onClick={() => setSheet("all")} aria-label={`All tasks, ${s.total}`}>All tasks · {s.total} ›</button>
+              </div>
               {owed.extrasFailed && (
                 <p className="pnl-note" role="status">Team tasks, restock and booking replies couldn&rsquo;t be read just now — the rest is current.</p>
               )}

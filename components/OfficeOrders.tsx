@@ -9,12 +9,13 @@ import { isMissingFunction, isMissingTable } from "@/lib/schemaSkew";
 import { dayLabel } from "@/lib/officeStatus";
 import { clientChanges, requestLabel } from "@/lib/officeChange";
 import { haptic } from "@/lib/haptics";
-import { addDays, etToday } from "@/lib/dates";
+import { addDays, dayWithDate, etToday } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useRealtimeTable } from "@/lib/realtime";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
-import { SectionHeader, InfoRow } from "@/components/kit";
+import { InfoRow } from "@/components/kit";
+import FoldCard from "@/components/crew/FoldCard";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
 import { usePrompt } from "@/components/PromptSheet";
@@ -245,25 +246,33 @@ export default function OfficeOrders() {
         const { standingN, later, requests } = data;
         const route = data.rows.filter((o) => o.status !== "delivered");
         const rows = showLater ? [...route, ...later, ...data.rows.filter((o) => o.status === "delivered")] : data.rows;
+        // ITS DAY (2026-10-10, the Live Ops fold). Live Ops is today; the route drew every order on it all
+        // week — on a Saturday, 1,100px of Monday under the Pass. It is one row now (the day, how many
+        // deliveries, the gallons to fill) until it is today's work: the delivery day, a delivery that is
+        // late, or a client who asked and has not been answered. A tap opens it on any day.
+        const today = etToday();
+        const day = route[0]?.delivery_date ?? null;
+        const gal = route.reduce((a, o) => a + Math.round(o.gallons), 0);
+        const asked = requests.filter((r) => r.status === "open").length;
+        const itsDay = route.some((o) => o.delivery_date <= today) || asked > 0;
         return (
-          // Kit SectionHeader replaces the ad-hoc .oo-h/.oo-k title row; each order is now a kit
-          // InfoRow (company → name, "standing" → nameExtra, gallons → trailing, date/pay-status/
-          // total/address → meta). The open/closed delivery-log block (jug-count stepper + its own
-          // action set) stays bespoke markup inside meta rather than forcing it into lead/sub —
-          // same call DeliveryOps made for its own row actions, just one level more involved here.
-          // Action buttons now use .btn-pri/.btn-sec/.btn-ter: "Delivered & swapped" is the one
-          // .btn-pri on this screen (only one order can be open at a time via openId, so it's never
-          // rendered more than once at once); a row's actions are compact (.btn-sm, 2026-10-09). .oo-gen
-          // (route-generate) and the order count keep their own look, inside SectionHeader's `right` slot.
-          // No data fetching, state, handlers, or conditions below changed — presentation only.
-          <section className="oo" aria-label="Office orders" style={{ padding: "0 14px 14px" }}>
-            {/* The count rides with the title and the button says one word: at 390px the long button
-                pushed the title onto two lines and over itself (2026-10-07). */}
-            <SectionHeader
-              label="Office route"
-              annotation={`${route.length} on the route`}
-              right={standingN > 0 ? <button type="button" className="btn-ter" onClick={gen} disabled={!!busyId} aria-label="Generate the schedule — the next six weeks of deliveries">{busyId === "gen" ? "…" : "↻ Generate"}</button> : undefined}
-            />
+          // The fold's row is the title (ITS DAY, above); each order is a kit InfoRow (company → name,
+          // "standing" → nameExtra, gallons → trailing, date/pay-status/total/address → meta). The
+          // open/closed delivery-log block (jug-count stepper + its own action set) stays bespoke markup
+          // inside meta rather than forcing it into lead/sub — same call DeliveryOps made for its own row
+          // actions, just one level more involved here. "Delivered & swapped" is the one .btn-pri on this
+          // screen (only one order can be open at a time via openId, so it's never rendered more than once
+          // at once); a row's actions are compact (.btn-sm, 2026-10-09).
+          <FoldCard label="Office orders" title="Office route" today={itsDay}
+            sub={day ? `${dayWithDate(day)} · ${route.length} deliver${route.length === 1 ? "y" : "ies"}` : "Nothing on the route yet"}
+            value={asked > 0 ? <span className="mpanel-warn">{asked} {asked === 1 ? "request" : "requests"}</span> : gal > 0 ? `${gal} gal` : null}>
+            {/* Generate keeps its one word, on the right: at 390px a long button pushed the title onto two
+                lines and over itself (2026-10-07). The title and the count ride on the fold's row now. */}
+            {standingN > 0 && (
+              <div className="flex justify-end mb-2">
+                <button type="button" className="btn-ter" onClick={gen} disabled={!!busyId} aria-label="Generate the schedule — the next six weeks of deliveries">{busyId === "gen" ? "…" : "↻ Generate"}</button>
+              </div>
+            )}
             {requests.length > 0 && (
               <div className="k-rows mb-3.5" aria-label="Client requests">
                 {requests.map((r) => {
@@ -355,7 +364,7 @@ export default function OfficeOrders() {
                 );
               })}
             </div>
-          </section>
+          </FoldCard>
         );
       }}
     </AsyncSection>

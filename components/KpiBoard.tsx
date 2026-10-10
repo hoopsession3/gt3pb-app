@@ -7,7 +7,8 @@ import { useApp } from "./AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
-import { SectionHeader } from "@/components/kit";
+import { SectionHeader, InfoRow } from "@/components/kit";
+import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import { etToday, weekStartKey } from "@/lib/dates";
 import { toMarket, MARKET_LABEL } from "@/lib/markets";
 
@@ -124,11 +125,33 @@ async function computeLive(): Promise<Record<string, number>> {
   return out;
 }
 
+// THE NUMBERS AT REST (2026-10-10, the Command fold). The board opened as twelve fields with a Log button
+// each — an editor left open, read once a week and typed into once a week — under a paragraph about the
+// method. It is a read view now: each number, what it was set to, and how it moved since the period before
+// (its last two entries), coloured by whether that is the good way. The Monday entry is one sheet with the
+// numbers that do not compute themselves, opened from the head. Same writes as before: same-period re-entry
+// updates in place, a weekly figure under its Monday, a monthly one under the 1st.
+type Row = { key: string; label: string; unit: string; cadence: string; isLive: boolean; shown: number | undefined; change: { text: string; good: boolean } | null };
+// Spoilage is the one where down is the good way.
+const LOWER_IS_BETTER = new Set(["spoilage"]);
+const fmt = (unit: string, v: number) => `${unit === "$" ? "$" : ""}${Number(v).toLocaleString()}${unit === "%" ? "%" : ""}`;
+function changeOf(k: { key: string; unit: string }, latest?: Snap, prior?: Snap): Row["change"] {
+  if (!latest || !prior) return null;
+  const d = Math.round((latest.value - prior.value) * 100) / 100;
+  if (d === 0) return { text: "no change", good: true };
+  const sign = d > 0 ? "+" : "−";
+  const a = Math.abs(d).toLocaleString();
+  const text = k.unit === "$" ? `${sign}$${a}` : k.unit === "%" ? `${sign}${a} pts` : `${sign}${a}`;
+  return { text, good: LOWER_IS_BETTER.has(k.key) ? d < 0 : d > 0 };
+}
+
 export default function KpiBoard() {
   const { user, profile } = useAuth();
   const { toast } = useApp();
   const isAdmin = !!profile?.is_admin || ["owner", "admin"].includes(String((profile as any)?.role ?? ""));
   const [entry, setEntry] = useState<Record<string, string>>({});
+  const [logging, setLogging] = useState(false);
+  const [saving, setSaving] = useState(false);
   // ONE CITY'S TWELVE: the board reads the market it writes. 0275 keyed snapshots by market; the
   // read took the newest 96 of every city, so the moment a second city logged a figure the
   // "latest" here could be Atlanta's under Greenville's entry.
@@ -146,55 +169,71 @@ export default function KpiBoard() {
   const state = useAsyncData(loader, [market]);
   useRealtimeTable(["kpi_snapshots"], state.reload);
 
-  const save = async (key: string) => {
-    if (!supabase) return;
-    const raw = (entry[key] ?? "").trim();
-    const v = Number(raw);
-    if (!raw || !Number.isFinite(v)) { toast("Numbers only", "error"); return; }
-    // FILED WHERE THE BOARD SAYS IT IS (2026-10-04, the form audit). 0275 widened the unique key to
-    // (metric, period, market) so each city keeps its own KPIs; this upsert still named the old
-    // (metric, period), which Postgres refuses outright (42P10, "no unique or exclusion constraint
-    // matching the ON CONFLICT specification") — every "Log" since 0275 failed. And the period was
-    // the day, so "same week re-entry updates in place" filed each entry beside the last: a weekly
-    // figure goes under its week's Monday now, a monthly one under the 1st, the rest under the day.
+  // FILED WHERE THE BOARD SAYS IT IS (2026-10-04, the form audit). 0275 widened the unique key to
+  // (metric, period, market) so each city keeps its own KPIs; this upsert still named the old
+  // (metric, period), which Postgres refuses outright (42P10, "no unique or exclusion constraint
+  // matching the ON CONFLICT specification") — every "Log" since 0275 failed. And the period was
+  // the day, so "same week re-entry updates in place" filed each entry beside the last: a weekly
+  // figure goes under its week's Monday now, a monthly one under the 1st, the rest under the day.
+  const periodOf = (key: string) => {
     const today = etToday();
     const cadence = KPIS.find((k) => k.key === key)?.cadence;
-    const period = cadence === "weekly" ? weekStartKey(today) : cadence === "monthly" ? `${today.slice(0, 8)}01` : today;
-    const { error } = await supabase.from("kpi_snapshots").upsert(
-      { metric: key, period, value: v, market, created_by: user?.id ?? null }, { onConflict: "metric,period,market" });
+    return cadence === "weekly" ? weekStartKey(today) : cadence === "monthly" ? `${today.slice(0, 8)}01` : today;
+  };
+  const typed = Object.entries(entry).filter(([, raw]) => raw.trim() !== "");
+  const saveAll = async () => {
+    if (!supabase || saving || typed.length === 0) return;
+    const bad = typed.filter(([, raw]) => !Number.isFinite(Number(raw.trim())));
+    if (bad.length) { toast("Numbers only", "error"); return; }
+    setSaving(true);
+    const rows = typed.map(([key, raw]) => ({ metric: key, period: periodOf(key), value: Number(raw.trim()), market, created_by: user?.id ?? null }));
+    const { error } = await supabase.from("kpi_snapshots").upsert(rows, { onConflict: "metric,period,market" });
+    setSaving(false);
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
-    setEntry((e) => ({ ...e, [key]: "" }));
-    toast("Logged"); state.reload();
+    setEntry({}); setLogging(false);
+    toast(rows.length === 1 ? "Logged" : `Logged ${rows.length}`); state.reload();
   };
 
   return (
     <div className="adm-sec" id="cmd-kpis">
-      <SectionHeader label="The twelve" annotation={`Monday entry until live · ${MARKET_LABEL[market]}`} />
-      <div className="h-sub">The Playbook's KPI framework — the audit's Signal criterion reads this board. Same week re-entry updates in place.</div>
+      <SectionHeader label="The twelve" annotation={MARKET_LABEL[market]}
+        right={isAdmin ? <button type="button" className="btn-ter" onClick={() => setLogging(true)}>Log numbers</button> : undefined} />
       <AsyncSection state={state} isEmpty={() => false} emptyTitle="—" loadingLabel="Loading KPIs…" errorTitle="Couldn't load KPIs">
-        {({ snaps, live }) => (
-          <div className="kpib">
-            {KPIS.map((k) => {
-              const isLive = live[k.key] !== undefined;
-              const mine = snaps.filter((s) => s.metric === k.key);
-              const latest = mine[0]; const prior = mine[1];
-              const shown = isLive ? live[k.key] : latest?.value;
-              const trend = !isLive && latest && prior ? (latest.value > prior.value ? "↑" : latest.value < prior.value ? "↓" : "→") : "";
-              return (
-                <div key={k.key} className="kpib-row">
-                  <span className="kpib-l">{k.label}<i>{k.cadence}{isLive && <em className="kpib-live">live</em>}</i></span>
-                  <span className="kpib-v">{shown !== undefined ? `${k.unit === "$" ? "$" : ""}${Number(shown).toLocaleString()}${k.unit === "%" ? "%" : ""}` : "—"}{trend && <i className={`kpib-t${trend === "↓" ? " down" : ""}`}>{trend}</i>}</span>
-                  {isAdmin && !isLive && (
-                    <span className="kpib-in">
-                      <input inputMode="decimal" placeholder={k.unit} value={entry[k.key] ?? ""} onChange={(e) => setEntry((s) => ({ ...s, [k.key]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") save(k.key); }} aria-label={`Enter ${k.label}`} />
-                      <button type="button" onClick={() => save(k.key)} disabled={!(entry[k.key] ?? "").trim()}>Log</button>
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+        {({ snaps, live }) => {
+          const rows: Row[] = KPIS.map((k) => {
+            const isLive = live[k.key] !== undefined;
+            const mine = snaps.filter((s) => s.metric === k.key);
+            return { ...k, isLive, shown: isLive ? live[k.key] : mine[0]?.value, change: isLive ? null : changeOf(k, mine[0], mine[1]) };
+          });
+          const manual = rows.filter((r) => !r.isLive);
+          return (
+            <>
+              <div className="k-rows">
+                {rows.map((r) => (
+                  <InfoRow key={r.key} name={r.label}
+                    sub={`${r.cadence[0].toUpperCase()}${r.cadence.slice(1)}${r.isLive ? " · live" : ""}`}
+                    trailing={(
+                      <span className="flex flex-col items-end tabular-nums">
+                        <b className="font-mono text-cream">{r.shown !== undefined ? fmt(r.unit, r.shown) : "—"}</b>
+                        {r.change && <span className={`text-caption ${r.change.good ? "text-ok" : "text-warn"}`}>{r.change.text}</span>}
+                      </span>
+                    )} />
+                ))}
+              </div>
+              {logging && (
+                <Sheet open onClose={() => setLogging(false)} label="Log the numbers" dirty={typed.length > 0}
+                  header={<div className="note-lux-head"><span className="note-lux-eyb">The twelve · {MARKET_LABEL[market]}</span><CloseButton onClick={() => setLogging(false)} /></div>}
+                  footer={<div className="note-actions"><LeaveButton className="btn-sec" onClick={() => setLogging(false)}>Cancel</LeaveButton><button type="button" className="btn-pri" disabled={saving || typed.length === 0} onClick={saveAll}>{saving ? "Saving…" : typed.length > 1 ? `Log ${typed.length}` : "Log it"}</button></div>}>
+                  <p className="h-sub">The ones that don&apos;t compute themselves. A weekly number files under this week&apos;s Monday, a monthly one under the 1st; logging again in the same period replaces it.</p>
+                  {manual.length === 0 ? <p className="h-sub">All twelve compute themselves right now.</p> : manual.map((r) => (
+                    <label key={r.key} className="prod-f"><span>{r.label} · {r.cadence}{r.shown !== undefined ? ` · now ${fmt(r.unit, r.shown)}` : ""}</span>
+                      <input inputMode="decimal" placeholder={r.unit} value={entry[r.key] ?? ""} onChange={(e) => setEntry((s) => ({ ...s, [r.key]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") void saveAll(); }} aria-label={`Enter ${r.label}`} /></label>
+                  ))}
+                </Sheet>
+              )}
+            </>
+          );
+        }}
       </AsyncSection>
     </div>
   );

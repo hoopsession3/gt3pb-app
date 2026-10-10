@@ -5,10 +5,11 @@ import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { type PerfMix } from "@/lib/delivery";
-import { etToday } from "@/lib/dates";
+import { dayWithDate, etToday } from "@/lib/dates";
 import AssignTaskSheet from "./AssignTaskSheet";
 import Sheet, { CloseButton } from "./Sheet";
-import { SectionHeader, InfoRow } from "@/components/kit";
+import { InfoRow } from "@/components/kit";
+import FoldCard from "@/components/crew/FoldCard";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
 import { usePrompt } from "@/components/PromptSheet";
@@ -123,14 +124,15 @@ export default function DeliveryOps() {
   const doneCount = rows.filter((o) => o.status === "delivered" || o.status === "held_for_pickup").length;
   const isRunDay = date === etToday();
   const showList = listOpen ?? isRunDay;
-  const dLabel = new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const dLabel = dayWithDate(date);
 
   return (
-    // Standard white-card treatment (matches .mpanel / the boxed .oo sibling) so Sunday delivery sits
-    // in the same container rhythm as the other Live Ops panels instead of rendering bare. Kit
-    // SectionHeader replaces the ad-hoc .dops-head; each porch is a kit InfoRow. Logic is untouched.
-    <section className="mpanel" style={{ marginTop: 14, padding: "0 15px 14px" }} aria-label="Sunday delivery">
-      <SectionHeader label="Sunday delivery" annotation={`${dLabel} · ${rows.length} porch${rows.length === 1 ? "" : "es"}`} />
+    // ONE ROW UNTIL ITS DAY (2026-10-10, the Live Ops fold): the run's day, how many porches, and the
+    // bottles to make — and the whole working face on the run's day, or on a tap (components/crew/
+    // FoldCard). Each porch is a kit InfoRow; the porch list inside still folds until the run.
+    <FoldCard title="Sunday delivery" label="Sunday delivery" today={isRunDay}
+      sub={`${dLabel} · ${rows.length} porch${rows.length === 1 ? "" : "es"}`}
+      value={`${bottles} bottle${bottles === 1 ? "" : "s"}`}>
       <p className="dops-sum">
         <b>{bottles}</b> bottles ({refills} refills · {fresh} fresh) · <b>{money(revenue)}</b> paid on order
         {heldQueue.length > 0 && <> · <b className="dl-held">{heldQueue.length} held for pickup</b></>}
@@ -198,7 +200,7 @@ export default function DeliveryOps() {
           ))}
         </div>
       )}
-    </section>
+    </FoldCard>
   );
 }
 
