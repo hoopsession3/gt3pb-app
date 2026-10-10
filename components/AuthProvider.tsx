@@ -7,6 +7,8 @@ import { writeViewerHint } from "@/lib/viewerHint";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import type { Role } from "@/lib/roles";
 import { publicOrigin } from "@/lib/native";
+import { takeReturn } from "@/lib/returnTo";
+import { useRouter } from "next/navigation";
 import { nextOnEnter } from "@/lib/formKeys";
 
 export interface Profile {
@@ -76,6 +78,7 @@ export function useAuth() {
 }
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [ready, setReady] = useState(!supabaseEnabled); // if no Supabase, we're "ready" immediately
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -183,12 +186,18 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       // Clicking a reset link signs the user in with a short-lived recovery session and fires this
       // event — gate the app behind a "set a new password" overlay until they pick one.
       if (event === "PASSWORD_RECOVERY") setRecovery(true);
+      // THE PAGE YOU STARTED ON (2026-10-09, lib/returnTo): a sign-in link lands on the front door; the
+      // sign-in it completes goes back to the page the link was asked for on, once.
+      if (u && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
+        const to = takeReturn();
+        if (to && to !== window.location.pathname + window.location.search) router.replace(to);
+      }
     });
     return () => {
       active = false;
       sub.subscription.unsubscribe();
     };
-  }, [loadProfile]);
+  }, [loadProfile, router]);
 
   const sendCode = useCallback<AuthCtx["sendCode"]>(async (email, displayName) => {
     if (!supabase) return { error: "Sign-in isn't configured yet." };

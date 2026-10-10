@@ -186,7 +186,7 @@ export default function AcademyPage() {
 
   if (!enabled) return <section className="screen"><Masthead eyebrow="GT3 Academy" /><h1 className="k-title">Academy</h1><p className="k-sub">The live backend isn&apos;t configured here.</p></section>;
   if (!ready) return <section className="screen academy"><Skeleton variant="row" count={5} /></section>;
-  if (!user) return <SignIn />;
+  if (!user) return <SignIn context={{ title: "The GT3 Academy.", sub: "Sign in to pick up your training where you left off." }} />;
   // Academy is the EMPLOYEE training + certification system — it carries internal ops, procedures,
   // and the founder's "why" (founderInsight). A plain customer is signed in but not staff; the old
   // `member → "staff"` role fallback handed them the full staff curriculum. Gate on isStaff() so

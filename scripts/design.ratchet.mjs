@@ -287,6 +287,9 @@ export const SHIFT = {
 // or a password) are the kit's segmented control, a chosen option on its track inside the sign-in's card, as Plan's and
 // the purchase sheet's are; /shop 2 → 3, its aisles the same control in the bar that stays at the top. /3mpire's tap
 // floor 42 → 44 (its sign-in's 42px tabs were among the 86 recipes).
+// 2026-10-10 (the sign-in round): /agreement and /offer depth 2 → 1 — the sign-in's two switches are quiet links now, so
+// no chosen option sits on a track inside its card; /scan and /architecture 0 → 1 — signed out they show the sign-in,
+// one card deep, where they showed nothing.
 export const ROUTE = {
   "/":              { depth: 2, tap: 44, text: 11 },
   "/truck":         { depth: 2, tap: 44, text: 11 },
@@ -301,12 +304,12 @@ export const ROUTE = {
   "/primal":        { depth: 1, tap: 44, text: 11 },
   "/office":        { depth: 1, tap: 44, text: 11 },
   "/academy":       { depth: 0, tap: 44, text: 11 },
-  "/scan":          { depth: 0, tap: 44, text: 11 },
-  "/architecture":  { depth: 0, tap: 44, text: 11 },
+  "/scan":          { depth: 1, tap: 44, text: 11 },
+  "/architecture":  { depth: 1, tap: 44, text: 11 },
   "/playbook":      { depth: 0, tap: 49, text: null },
   "/driver":        { depth: 0, tap: 49, text: 32 },
-  "/agreement":     { depth: 2, tap: 44, text: 11 },
-  "/offer":         { depth: 2, tap: 44, text: 11 },
+  "/agreement":     { depth: 1, tap: 44, text: 11 },
+  "/offer":         { depth: 1, tap: 44, text: 11 },
   "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 44, text: 11 },
   "/display":       { depth: 1, tap: 49, text: 10 },
   "/privacy":       { depth: 0, tap: 49, text: 15 },
@@ -329,6 +332,11 @@ export const ROUTE = {
 // aisles the same control. Measured before and after on the smoke build with its stand-in backend, signed out, at a
 // phone's width — where the before matched these rows, route for route.
 // 2026-10-09 (the forms round): Find Us's map zoom buttons are 44 (they were 30), so /, /truck and /events' floor is 44.
+// 2026-10-10 (the sign-in round): every sign-in wall — /3mpire, /office, /academy, /driver, /agreement, /offer — depth
+// 2 → 1, the switches quiet links; /scan and /architecture 0 → 1, the sign-in where there was nothing; /playbook's floor
+// 49 → 44, its sign-in's field (44) the smallest target where only the tab bar's 49pt tabs were. Measured as round 7d
+// was: the same checks run on local builds with a stand-in backend, signed out, at a phone's width — the before
+// matched these rows route for route.
 export const PROD_ROUTE = {
   "/":              { depth: 2, tap: 44, text: 11 },
   "/truck":         { depth: 2, tap: 44, text: 11 },
@@ -336,19 +344,19 @@ export const PROD_ROUTE = {
   "/menu":          { depth: 2, tap: 44, text: 11 },
   "/reserve":       { depth: 2, tap: 44, text: 11 },
   "/delivery":      { depth: 2, tap: 44, text: 11 },
-  "/3mpire":        { depth: 2, tap: 44, text: 11 },
+  "/3mpire":        { depth: 1, tap: 44, text: 11 },
   "/craft":         { depth: 2, tap: 44, text: 11 },
   "/book":          { depth: 1, tap: 44, text: 11 },
   "/shop":          { depth: 3, tap: 44, text: 11 },
   "/primal":        { depth: 2, tap: 44, text: 11 },
-  "/office":        { depth: 2, tap: 44, text: 11 },
-  "/academy":       { depth: 2, tap: 44, text: 11 },
-  "/scan":          { depth: 0, tap: 44, text: 11 },
-  "/architecture":  { depth: 0, tap: 44, text: 11 },
-  "/playbook":      { depth: 1, tap: 49, text: 11 },
-  "/driver":        { depth: 2, tap: 44, text: 11 },
-  "/agreement":     { depth: 2, tap: 44, text: 11 },
-  "/offer":         { depth: 2, tap: 44, text: 11 },
+  "/office":        { depth: 1, tap: 44, text: 11 },
+  "/academy":       { depth: 1, tap: 44, text: 11 },
+  "/scan":          { depth: 1, tap: 44, text: 11 },
+  "/architecture":  { depth: 1, tap: 44, text: 11 },
+  "/playbook":      { depth: 1, tap: 44, text: 11 },
+  "/driver":        { depth: 1, tap: 44, text: 11 },
+  "/agreement":     { depth: 1, tap: 44, text: 11 },
+  "/offer":         { depth: 1, tap: 44, text: 11 },
   "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 44, text: 11 },
   "/display":       { depth: 1, tap: 49, text: 10 },
   "/privacy":       { depth: 0, tap: 49, text: 15 },
@@ -563,28 +571,28 @@ export const PROD_ROUTE = {
 // following the phone's in the iPhone app (the reading itself is in the app's bundle only). The stylesheets came down
 // a line (100 → 99, 103 → 102), recorded; the script crossed the rounding line on /delivery, /office and /primal.
 export const WEIGHT = {
-  "/truck":                    { js: 285, css: 93, chunks: 16 },
-  "/events":                   { js: 285, css: 93, chunks: 16 },
+  "/truck":                    { js: 285, css: 93, chunks: 15 },
+  "/events":                   { js: 285, css: 93, chunks: 15 },
   "/menu":                     { js: 267, css: 90, chunks: 15 },
-  "/reserve":                  { js: 292, css: 90, chunks: 17 },
-  "/delivery":                 { js: 291, css: 90, chunks: 17 },
-  "/3mpire":                   { js: 284, css: 90, chunks: 16 },
-  "/craft":                    { js: 266, css: 90, chunks: 15 },
+  "/reserve":                  { js: 292, css: 90, chunks: 16 },
+  "/delivery":                 { js: 291, css: 90, chunks: 16 },
+  "/3mpire":                   { js: 284, css: 90, chunks: 15 },
+  "/craft":                    { js: 267, css: 90, chunks: 15 },
   "/book":                     { js: 267, css: 90, chunks: 15 },
-  "/academy":                  { js: 325, css: 90, chunks: 17 },
-  "/office":                   { js: 282, css: 90, chunks: 16 },
-  "/scan":                     { js: 265, css: 90, chunks: 15 },
+  "/academy":                  { js: 325, css: 90, chunks: 16 },
+  "/office":                   { js: 282, css: 90, chunks: 15 },
+  "/scan":                     { js: 266, css: 90, chunks: 15 },
   "/architecture":             { js: 276, css: 90, chunks: 15 },
   "/playbook":                 { js: 275, css: 90, chunks: 15 },
-  "/driver":                   { js: 280, css: 93, chunks: 16 },
-  "/agreement":                { js: 274, css: 90, chunks: 16 },
-  "/offer":                    { js: 284, css: 90, chunks: 16 },
-  "/built/gt3-built-k7m9x4q2": { js: 264, css: 90, chunks: 15 },
-  "/display":                  { js: 265, css: 90, chunks: 15 },
-  "/shop":                     { js: 296, css: 90, chunks: 17 },
+  "/driver":                   { js: 280, css: 93, chunks: 15 },
+  "/agreement":                { js: 274, css: 90, chunks: 15 },
+  "/offer":                    { js: 284, css: 90, chunks: 15 },
+  "/built/gt3-built-k7m9x4q2": { js: 265, css: 90, chunks: 15 },
+  "/display":                  { js: 266, css: 90, chunks: 15 },
+  "/shop":                     { js: 296, css: 90, chunks: 16 },
   "/primal":                   { js: 268, css: 90, chunks: 15 },
-  "/privacy":                  { js: 263, css: 90, chunks: 14 },
-  "/terms":                    { js: 263, css: 90, chunks: 14 },
+  "/privacy":                  { js: 264, css: 90, chunks: 14 },
+  "/terms":                    { js: 264, css: 90, chunks: 14 },
   "/":                         { js: 273, css: 90, chunks: 15 },
 };
 
@@ -628,6 +636,12 @@ export const WEIGHT = {
 // measured 268 695 and 13 chunks. With the console's changes — Money's lazily loaded tiles (components/MoneyKpis) gone for
 // the home's three numbers — the bundler splits the shared shell one chunk further: the same code, one more file. Crossed
 // the rounding line up on every route but /scan, /built and /display, recorded.
+// 2026-10-09 (the sign-in round: where you are, and back to it): the eleven routes that can show the sign-in load one
+// chunk fewer — its two switches were the kit's segmented control, and they are two quiet lines now — and every route's
+// script +274 bytes (gzip, /privacy 269 551 → 269 825): the shell's AuthProvider sends a sign-in that completes back to
+// the page its link was asked for on (lib/returnTo). /scan, the system map and the playbook, which now sign a visitor in
+// instead of turning them away, load the sign-in on that visit only (next/dynamic) — +0 to +1 KB. Crossed the rounding
+// line up on /privacy, /terms, /built, /display, /craft and /scan, recorded.
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];
   const out = [];

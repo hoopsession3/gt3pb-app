@@ -1,32 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { trackFunnel } from "@/lib/funnel";
 import Image from "next/image";
 import Mpire from "./Mpire";
 import { useAuth } from "./AuthProvider";
 import { isIPhoneLike } from "@/lib/ios";
 import { nextOnEnter } from "@/lib/formKeys";
-import { Segmented } from "@/components/controls";
+import { rememberReturn } from "@/lib/returnTo";
 
 type Mode = "passwordless" | "password";
 type Intent = "join" | "signin";
 
-export default function SignIn() {
+// WHERE YOU ARE, AND ONE WAY IN (2026-10-09, round 2 — Ryan: "Join by default", "Link returns you",
+// approved). Seven pages that need an account showed this same screen with the consumer's pitch on it
+// ("Grow your 3MPIRE") or showed nothing, so an office client, a new hire or a crew member scanning a card
+// was never told where they were. A page that needs an account now names itself (`context`) and signs in;
+// the 3MPIRE page joins by default. The two switches that stood before the email — join or sign in, a link
+// or a password — are two quiet lines under the button, and a link sent from a page brings you back to it
+// (lib/returnTo).
+export type SignInContext = { title: ReactNode; sub: ReactNode };
+
+export default function SignIn({ context }: { context?: SignInContext } = {}) {
   const { sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword } = useAuth();
   // iPadOS reports itself as a Mac — lib/ios, the one home for the iPhone check, catches it by its
   // touch points (see the paste-URL block).
   const isIOS = isIPhoneLike();
 
   // The first question is WHO you are (new vs returning) — the auth method comes second.
-  const [intent, setIntent] = useState<Intent>("join");
+  const [intent, setIntent] = useState<Intent>(context ? "signin" : "join");
   const [mode, setMode] = useState<Mode>("passwordless");
   const [step, setStep] = useState<"form" | "sent" | "confirm" | "reset-sent">("form");
 
   // shared fields
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [cooldown, setCooldown] = useState(0); // resend rate-limit (client; Supabase also throttles server-side)
@@ -59,6 +67,7 @@ export default function SignIn() {
     e.preventDefault();
     if (!email.trim()) return;
     setBusy(true); setErr("");
+    rememberReturn(window.location.pathname + window.location.search);
     const { error } = await sendCode(email.trim(), name.trim() || undefined);
     setBusy(false);
     if (error) setErr(error);
@@ -103,6 +112,7 @@ export default function SignIn() {
   const handleReset = async () => {
     if (!email.trim()) { setErr("Enter your email first, then tap reset."); return; }
     setBusy(true); setErr("");
+    rememberReturn(window.location.pathname + window.location.search);
     const { error } = await resetPassword(email.trim());
     setBusy(false);
     if (error) setErr(error); else setStep("reset-sent");
@@ -115,6 +125,7 @@ export default function SignIn() {
     if (isNew && password !== confirm) { setErr("Passwords don't match."); return; }
     setBusy(true); setErr("");
     if (isNew) {
+      rememberReturn(window.location.pathname + window.location.search);
       const { error, confirm: needsConfirm } = await signUp(email.trim(), password, name.trim() || undefined);
       setBusy(false);
       if (error) setErr(error);
@@ -125,7 +136,7 @@ export default function SignIn() {
       setBusy(false);
       if (error) {
         const msg = error.includes("Invalid login credentials")
-          ? "Wrong email or password. New here? Switch to “Become a member” above."
+          ? (context ? "Wrong email or password. No password yet? Have us email you a link instead, below." : "Wrong email or password. New here? Join free, below.")
           : error;
         setErr(msg);
       }
@@ -223,18 +234,12 @@ export default function SignIn() {
         <>
           {/* The 3 in 3MPIRE is the real brand glyph (Mpire → public/brand/gt3-3.png), not a font
               character — display-scale brand words carry the mark, same law as the GT3 masthead. */}
-          <h2 className="auth-headline">{intent === "join" ? <>Grow your <Mpire />.</> : "Welcome back."}</h2>
+          <h2 className="auth-headline">{context ? context.title : intent === "join" ? <>Grow your <Mpire />.</> : "Welcome back."}</h2>
           <p className="auth-sub">
-            {intent === "join"
+            {context ? context.sub : intent === "join"
               ? <>Free to join — points on every pour, first taste of reserves, order-ahead perks.</>
-              : <>Good to see you. Pick how you want to sign in.</>}
+              : <>Good to see you.</>}
           </p>
-
-          {/* relative z-1: the form below animates in on a transform, which would paint over the options' taller reach */}
-          <Segmented label="Joining or signing in" kind="choice" fill className="relative z-1 mt-5" value={intent} onChange={(k) => { setIntent(k); setErr(""); }}
-            options={[{ key: "join", label: "Become a member" }, { key: "signin", label: "Member sign in" }]} />
-          <Segmented label="How to sign in" kind="choice" size="sm" fill className="relative z-1 mt-2.5" value={mode} onChange={(k) => { setMode(k); setErr(""); }}
-            options={[{ key: "passwordless", label: "Link / code" }, { key: "password", label: "Password" }]} />
 
           {mode === "passwordless" && (
             <form className="auth-form" onSubmit={handleSendCode}>
@@ -246,10 +251,6 @@ export default function SignIn() {
               )}
               <label className="auth-label" htmlFor="auth-email">Email</label>
               <input id="auth-email" className="auth-input" enterKeyHint="send" type="email" inputMode="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              <label className="auth-check-row">
-                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-                <span>Keep me signed in</span>
-              </label>
               {err && <div className="auth-err">{err}</div>}
               <button className="btn-pri btn-wide mt-4.5" type="submit" disabled={busy}>
                 <span>{busy ? "Sending…" : intent === "join" ? "Become a member — email my link" : "Send my sign-in link"}</span>
@@ -292,10 +293,6 @@ export default function SignIn() {
                   <input id="pw-confirm" className="auth-input" enterKeyHint="go" type={showPass ? "text" : "password"} autoComplete="new-password" placeholder="Repeat password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
                 </>
               )}
-              <label className="auth-check-row" style={{ marginTop: 14 }}>
-                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-                <span>Keep me signed in</span>
-              </label>
               {err && <div className="auth-err">{err}</div>}
               <button className="btn-pri btn-wide mt-4.5" type="submit" disabled={busy}>
                 <span>{busy ? (isNew ? "Creating…" : "Signing in…") : (isNew ? "Become a member" : "Sign in")}</span>
@@ -308,7 +305,22 @@ export default function SignIn() {
             </form>
           )}
 
-          <p className="auth-fine">Browse the truck, menu &amp; events without signing in — membership just makes Today &amp; your 3MPIRE yours.</p>
+          {/* The other ways in, quiet, under the one that is asked for. A page that needs an account signs in
+              (a link creates the account if there is none), so it does not offer to join. Each is 44 tall in
+              its own box, not by a reach drawn past it: at the foot of /driver the scroller's edge cut that reach
+              to the words' 28px. */}
+          <div className="auth-form flex flex-wrap gap-x-5">
+            {!context && (
+              <button type="button" className="auth-link min-h-11 inline-flex items-center" onClick={() => { setIntent(intent === "join" ? "signin" : "join"); setErr(""); }}>
+                {intent === "join" ? "Already a member? Sign in" : "New here? Join free"}
+              </button>
+            )}
+            <button type="button" className="auth-link min-h-11 inline-flex items-center" onClick={() => { setMode(mode === "passwordless" ? "password" : "passwordless"); setErr(""); }}>
+              {mode === "passwordless" ? "Use a password instead" : "Email me a link instead"}
+            </button>
+          </div>
+
+          {!context && <p className="auth-fine">Browse the truck, menu &amp; events without signing in — membership just makes Today &amp; your 3MPIRE yours.</p>}
         </>
       )}
     </section>
