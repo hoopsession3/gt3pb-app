@@ -14,6 +14,7 @@ import { US_STATES } from "@/lib/usAddress";
 import { variantLabel, type CartLine } from "@/lib/shopCart";
 import { useCustomerKnown, useKnownField, invalidateCustomerKnown } from "./useCustomerKnown";
 import { haptic } from "@/lib/haptics";
+import AddressField from "@/components/AddressField";
 
 // THE MERCH CHECKOUT — the cart, where it ships, and the card (0273). Moved out of components/Shop.tsx
 // on 2026-10-04 and loaded only when a shopper opens it (Shop warms it as soon as the cart has
@@ -98,7 +99,8 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
         <EditableCopy k="checkout.ship_to" value={t("checkout.ship_to")} as="div" className="shop-ship-n" />
         {fromLast && <p className="known-note">From your {known?.shipFrom === "shop" ? "last order" : "last delivery"} — change anything that&apos;s different.</p>}
         <input placeholder={t("checkout.ph_name")} value={ship.name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-        <input placeholder={t("checkout.ph_street")} value={ship.street} onChange={(e) => setStreet(e.target.value)} autoComplete="address-line1" />
+        <AddressField placeholder={t("checkout.ph_street")} label={t("checkout.ph_street")} value={ship.street} onChange={setStreet}
+          onPick={(a) => { setStreet(a.street); if (a.city) setCity(a.city); if (US_STATES.some(([c]) => c === a.state)) setShipState(a.state); if (a.zip) setZip(a.zip); }} />
         <input placeholder={t("checkout.ph_city")} value={ship.city} onChange={(e) => setCity(e.target.value)} autoComplete="address-level2" />
         {/* THE STATE IS A PICK (lib/usAddress). It was a 90px text box, and the printer was sent its
             first two letters: "New York" shipped as NE. The list keeps the code; a browser's saved

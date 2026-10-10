@@ -5,6 +5,7 @@ import Sheet, { CloseButton } from "@/components/Sheet";
 import { edited } from "@/lib/formGuard";
 import Gt3Mark from "@/components/Gt3Mark";
 import Icon from "@/components/Icon";
+import AddressField from "@/components/AddressField";
 import { useAuth } from "@/components/AuthProvider";
 import { useCustomerKnown, useKnownField, invalidateCustomerKnown } from "@/components/useCustomerKnown";
 import { useApp } from "@/components/AppProvider";
@@ -146,7 +147,8 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
         </div>
         <input className="auth-input" placeholder="Phone (delivery-morning texts)" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
         <p className="tel-consent">Your number gets delivery texts from GT3 only — never marketing. Reply STOP anytime.</p>
-        <input className="auth-input" placeholder="Street address" value={street} onChange={(e) => setStreet(e.target.value)} autoComplete="address-line1" maxLength={120} aria-label="Street" />
+        <AddressField className="auth-input" placeholder="Street address" label="Street" value={street} onChange={setStreet}
+          onPick={(a) => { setStreet(a.street); if (a.city) setCity(a.city); if (a.zip) setZip(a.zip); }} />
         <div className="office-two">
           <input className="auth-input" placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} autoComplete="address-level2" maxLength={60} aria-label="City" />
           <input className="auth-input" inputMode="numeric" autoComplete="postal-code" maxLength={5} placeholder="ZIP" value={zip} onChange={(e) => setZip(e.target.value.replace(/\D/g, ""))} aria-label="ZIP" />

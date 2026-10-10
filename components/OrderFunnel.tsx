@@ -34,6 +34,7 @@ import { weekdayOf } from "@/lib/dates";
 import { useIdemKey } from "./useIdemKey";
 import { isSettled } from "@/lib/settled";
 import { apiUrl } from "@/lib/native";
+import AddressField from "./AddressField";
 
 // ORDER FUNNEL — one screen, two fulfillment modes. Pickup (Saturday truck-stop reserve →
 // /api/reserve) and Delivery (Sunday prepaid → /api/delivery/checkout) were separate screens with
@@ -117,6 +118,8 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
   const [ack, setAck] = useState(false);
   const [access, setAccess] = useKnownField(known?.delivery?.access);
   const [street, setStreet, streetKnown] = useKnownField(known?.delivery?.street);
+  // the ZIP of the address last picked from the street's suggestions, held against the one the zone check passed
+  const [pickedZip, setPickedZip] = useState("");
   const [city, setCity] = useKnownField(known?.delivery?.city);
 
   // ── pickup-only ──
@@ -797,7 +800,12 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
               <input className="auth-input" placeholder={t("funnel.f_name")} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={80} aria-label="Name" />
               <input className="auth-input" placeholder={t("funnel.f_phone_del")} type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
               <EditableCopy k="funnel.tel_consent" value={t("funnel.tel_consent")} as="p" className="tel-consent" multiline />
-              <input className="auth-input" placeholder={t("funnel.f_street")} value={street} onChange={(e) => setStreet(e.target.value)} autoComplete="address-line1" maxLength={120} aria-label="Street address" />
+              {/* The street finds itself (components/AddressField): a pick fills the city too, near the ZIP the zone check passed. */}
+              <AddressField className="auth-input" placeholder={t("funnel.f_street")} label="Street address" value={street} onChange={setStreet} near={zip}
+                onPick={(a) => { setStreet(a.street); if (a.city) setCity(a.city); setPickedZip(a.zip); }} />
+              {pickedZip && zip && pickedZip !== zip && (
+                <p className="dl-sub" role="status">That address is in {pickedZip}. Delivery was checked for {zip}: pick an address in {zip}, or go back and check {pickedZip}.</p>
+              )}
               <div className="dl-ziprow">
                 <input className="auth-input" placeholder={t("funnel.f_city")} value={city} onChange={(e) => setCity(e.target.value)} autoComplete="address-level2" maxLength={60} aria-label="City" />
                 <input className="auth-input dl-zip" value={zip} readOnly aria-label="ZIP (from your zone check)" />

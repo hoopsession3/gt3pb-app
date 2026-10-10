@@ -6857,12 +6857,33 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("delivery: ZIP, street, city, gate code, name and phone start from their last delivery",
     ["useKnownField(known?.delivery?.zip)", "useKnownField(known?.delivery?.street)", "useKnownField(known?.delivery?.city)", "useKnownField(known?.delivery?.access)", "useKnownField(known?.fullName || profile?.display_name)", "useKnownField(known?.phone)"].every((x) => of.includes(x)));
   ok("delivery: the fields say what they are, so a guest's phone fills them",
-    /value=\{street\} onChange=\{\(e\) => setStreet\(e\.target\.value\)\} autoComplete="address-line1"/.test(of) && /value=\{city\} onChange=\{\(e\) => setCity\(e\.target\.value\)\} autoComplete="address-level2"/.test(of) && /autoComplete="postal-code" placeholder=\{t\("funnel\.zip_ph"\)\}/.test(of) && /autoComplete="email" placeholder="you@email\.com"/.test(of));
+    /<AddressField className="auth-input" placeholder=\{t\("funnel\.f_street"\)\} label="Street address" value=\{street\} onChange=\{setStreet\}/.test(of) && /autoComplete="address-line1" role="combobox"/.test(read("components/AddressField.tsx")) && /value=\{city\} onChange=\{\(e\) => setCity\(e\.target\.value\)\} autoComplete="address-level2"/.test(of) && /autoComplete="postal-code" placeholder=\{t\("funnel\.zip_ph"\)\}/.test(of) && /autoComplete="email" placeholder="you@email\.com"/.test(of));
   ok("delivery: it says where the details came from", /\{streetKnown && <p className="dl-sub known-note">From your last delivery/.test(of));
   ok("weight: the office order loads when an office is chosen, not with every visit to /reserve and /delivery",
     /const OfficeOrder = dynamic\(\(\) => import\("\.\/OfficeOrder"\)\)/.test(of) && !/import OfficeOrder from/.test(of) && /setAudience\("office"\); void import\("\.\/OfficeOrder"\);/.test(of));
   const sc = code(read("components/ShopCheckout.tsx"));
   ok("merch: the parcel's name and address start from what we know", ["useKnownField(known?.fullName)", "useKnownField(known?.ship?.street)", "useKnownField(known?.ship?.state)", "useKnownField(known?.ship?.zip)"].every((x) => sc.includes(x)));
+  // ADDRESSES, AS THEY ARE TYPED (2026-10-10, Ryan: "When someone types in their address, it goes out and finds it.")
+  {
+    const af = read("components/AddressField.tsx"), am = read("lib/appleMaps.ts"), ar = read("app/api/address/route.ts");
+    ok("address: the street suggests real addresses as it is typed — on delivery (near the zone's ZIP), the office order and the shop's parcel — and a pick fills the rest",
+      /<AddressField className="auth-input"[^>]*near=\{zip\}\s*onPick=\{\(a\) => \{ setStreet\(a\.street\); if \(a\.city\) setCity\(a\.city\); setPickedZip\(a\.zip\); \}\}/.test(of)
+      && /pickedZip && zip && pickedZip !== zip/.test(of)
+      && /<AddressField className="auth-input" placeholder="Street address" label="Street"[^>]*onPick=\{\(a\) => \{ setStreet\(a\.street\); if \(a\.city\) setCity\(a\.city\); if \(a\.zip\) setZip\(a\.zip\); \}\}/.test(read("components/OfficeOrder.tsx"))
+      && /<AddressField placeholder=\{t\("checkout\.ph_street"\)\}[\s\S]{0,300}?if \(US_STATES\.some\(\(\[c\]\) => c === a\.state\)\) setShipState\(a\.state\);/.test(read("components/ShopCheckout.tsx")));
+    ok("address: the field is a combobox — four suggestions after four letters and a pause, ↑ ↓ Return Esc, nothing over a filled-in address until it is edited, and quiet for good when the server has no key",
+      /if \(text\.length < 4\) return;/.test(af) && /if \(e\.target\.value\.trim\(\)\.length < 4\) setItems\(\[\]\);/.test(af) && /\}, 300\);/.test(af) && /if \(none \|\| !typed\.current\) return;/.test(af)
+      && /if \(j\?\.configured === false\) \{ none = true;/.test(af) && /role="listbox"/.test(af) && /role="option" aria-selected=\{i === active\} tabIndex=\{-1\}/.test(af)
+      && /e\.key === "ArrowDown"/.test(af) && /e\.key === "Escape"/.test(af) && /onPointerDown=\{\(e\) => e\.preventDefault\(\)\}/.test(af));
+    ok("address: the key stays on the server, a pick can only be Apple's own search path on Apple's own host, and nothing typed is kept",
+      /const API = "https:\/\/maps-api\.apple\.com";/.test(am) && /return \/\^\\\/v1\\\/search\\\?\[\^\\s#\]\{1,1500\}\$\/\.test\(u\);/.test(am)
+      && /if \(!isCompletion\(pick\)\) return null;/.test(am) && /fetch\(`\$\{API\}\$\{path\}`/.test(am)
+      && !/process\.env\.(NEXT_PUBLIC_)?APPLE_MAPS/.test(af) && !/NEXT_PUBLIC_APPLE_MAPS/.test(am + ar)
+      && !/console\.(log|info|warn|error)/.test(am + ar) && /createHash\("sha256"\)\.update\(`gt3-address:\$\{ip\}`\)/.test(am));
+    ok("address: the route is public on purpose and bounded in the shared store — 40 a minute a caller, 1,000 an hour for the app, under Apple's 25,000 a day",
+      /^\/\/ public: /m.test(ar) && /const PER_CALLER = \{ windowMs: 60_000, max: 40 \};/.test(ar) && /const PER_APP = \{ windowMs: 3_600_000, max: 1_000 \};/.test(ar)
+      && /p_bucket: `address:\$\{callerKey\(req\)\}`/.test(ar) && /p_bucket: "address:all"/.test(ar) && /export const GET = route\("address", get\);/.test(ar) && !/export const POST/.test(ar));
+  }
   const oo = code(read("components/OfficeOrder.tsx"));
   ok("office: the order starts from the office account", ["useKnownField(o?.company)", "useKnownField(o?.contact || known?.fullName)", "useKnownField(o?.phone || known?.phone)", "useKnownField(o?.street)", "useKnownField(o?.access)"].every((x) => oo.includes(x))
     && /autoComplete="organization"/.test(oo));
