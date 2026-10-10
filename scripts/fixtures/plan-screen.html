@@ -66,13 +66,11 @@
        fixture focuses it too, because that is the state the screenshots were taken in. -->
   <div class="op-trans" id="op-trans" tabindex="-1" role="region" aria-label="Plan section">
 
-    <div class="subnav" role="tablist" aria-label="Plan" data-from="app/crew/page.tsx">
-      <button type="button" role="tab" class="k-chip sm on">Calendar</button>
-      <button type="button" role="tab" class="k-chip sm">Events</button>
-      <button type="button" role="tab" class="k-chip sm">Route</button>
-      <button type="button" role="tab" class="k-chip sm">Leads</button>
-      <span class="subnav-div"></span>
-      <button type="button" role="tab" class="k-chip sm">Vendors</button>
+    <!-- Plan is the calendar (2026-10-10): no row of tabs, the calendar's two doors — Leads with the requests
+         waiting, and Lists (Events, Truck stops, Venues & suppliers). -->
+    <div class="mb-3 flex items-center justify-end gap-2" data-from="app/crew/page.tsx">
+      <button type="button" class="k-chip sm">Leads<span class="k-count sm crit">2</span></button>
+      <button type="button" class="k-chip sm">Lists</button>
     </div>
 
     <!-- Panel("Needs sorting · events & stops") › ScheduleGaps -->
