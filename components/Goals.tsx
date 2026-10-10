@@ -48,6 +48,11 @@ export default function Goals() {
   const [logging, setLogging] = useState<string | null>(null);
   const [logVal, setLogVal] = useState("");
   const [initFor, setInitFor] = useState<string | null>(null);    // which goal shows the add-initiative input
+  // A READ VIEW AT REST (2026-10-10, the Command fold). Each card drew its check-in, its owner and horizon pickers,
+  // its moves' owner and date pickers, three actions and a lane picker, for every goal, all the time. A card reads
+  // now — the number, its bar, how it stands, whose it is — and Manage opens the controls on that one card.
+  const [manage, setManage] = useState<string | null>(null);
+  const toggleManage = (id: string) => { setManage((m) => (m === id ? null : id)); setLogging(null); setInitFor(null); };
   const [initTitle, setInitTitle] = useState("");
   const [adding, setAdding] = useState(false);
   const [savingGoal, setSavingGoal] = useState(false);
@@ -272,6 +277,7 @@ export default function Goals() {
     const reached = cur >= g.target_value;
     const goalInits = inits.filter((i) => i.goal_id === g.id);
     const doneN = goalInits.filter((i) => i.done).length;
+    const managing = canLead && manage === g.id;
     return (
       <div className={`goal-card${g.checkin_status === "at_risk" ? " atrisk" : ""}`} key={g.id}>
         {editingId === g.id ? (
@@ -310,7 +316,7 @@ export default function Goals() {
               <span><b>{cur}</b> of <b>{g.target_value}</b>{g.unit && ` ${g.unit}`}</span>
               <span>{goalInits.length > 0 && `${doneN}/${goalInits.length} moves · `}{g.due_date ? `by ${new Date(`${g.due_date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : g.source ? "standing" : ""}</span>
             </div>
-            {canLead && (
+            {managing && (
               <div className="goal-checkin">
                 <span className="goal-checkin-k">Check-in</span>
                 <button type="button" className={`k-chip ok${g.checkin_status === "on_track" ? " on" : ""}`} onClick={() => checkIn(g, "on_track")} aria-pressed={g.checkin_status === "on_track"}>On track</button>
@@ -322,14 +328,15 @@ export default function Goals() {
         )}
 
         <div className="goal-owner">
+          {!managing && g.checkin_status && <span className={`k-tag ${g.checkin_status === "at_risk" ? "warn" : "ok"}`}>{g.checkin_status === "at_risk" ? "At risk" : "On track"}</span>}
           <span className="goal-owner-l">Owner</span>
-          {canLead ? (
+          {managing ? (
             <PersonPick className="goal-owner-sel" label={`Owner of ${g.title}`} value={{ id: g.owner_user_id, name: "" }}
                         allowOther={false} allowNone noneLabel="Unassigned" onChange={(v) => setOwner(g, v.id ?? "")} />
           ) : (
             <span className="goal-owner-n">{firstName(g.owner_user_id) ?? "Unassigned"}</span>
           )}
-          {canLead && (
+          {managing && (
             <select className="goal-owner-sel" value={g.horizon} onChange={(e) => setHorizon(g, e.target.value)} aria-label={`Horizon of ${g.title}`}>
               <option value="strategic">Strategic</option>
               <option value="tactical">Tactical</option>
@@ -346,12 +353,12 @@ export default function Goals() {
                 <div className={`goal-init${i.done ? " done" : ""}`}>
                   <button type="button" className="goal-init-ck" onClick={() => (canLead || i.assignee === user?.id) && toggleInitiative(i)} aria-pressed={i.done} disabled={!canLead && i.assignee !== user?.id}>{i.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</button>
                   <span className="goal-init-t">{i.label}</span>
-                  {!canLead && (i.assignee || i.due_at) && (
+                  {!managing && (i.assignee || i.due_at) && (
                     <span className="goal-init-who">{[firstName(i.assignee), i.due_at ? `due ${new Date(i.due_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : null].filter(Boolean).join(" · ")}</span>
                   )}
-                  {canLead && <button type="button" className="goal-init-x" onClick={() => removeInitiative(i)} aria-label={`Remove ${i.label}`}><Icon name="close" /></button>}
+                  {managing && <button type="button" className="goal-init-x" onClick={() => removeInitiative(i)} aria-label={`Remove ${i.label}`}><Icon name="close" /></button>}
                 </div>
-                {canLead && !i.done && (
+                {managing && !i.done && (
                   <div className="goal-init-meta">
                     <PersonPick label={`Owner of ${i.label}`} value={{ id: i.assignee, name: "" }}
                                 allowOther={false} allowNone noneLabel="No owner" onChange={(v) => assignMove(i, g.title, v.id ?? "")} />
@@ -371,7 +378,7 @@ export default function Goals() {
         )}
 
         <div className="goal-actions">
-          {canLead && !g.metric_source && (logging === g.id ? (
+          {managing && !g.metric_source && (logging === g.id ? (
             <span className="goal-log">
               <input className="auth-input" inputMode="decimal" autoFocus value={logVal}
                 onChange={(e) => setLogVal(e.target.value)} placeholder={String(g.current_value)}
@@ -381,14 +388,15 @@ export default function Goals() {
           ) : (
             <button type="button" className="st-discuss" onClick={() => { setLogging(g.id); setLogVal(""); }}>＋ Log progress</button>
           ))}
-          {canLead && <button type="button" className="st-discuss" onClick={() => { setInitFor(initFor === g.id ? null : g.id); setInitTitle(""); }}>{initFor === g.id ? "Done adding" : "＋ Break it down"}</button>}
+          {managing && <button type="button" className="st-discuss" onClick={() => { setInitFor(initFor === g.id ? null : g.id); setInitTitle(""); }}>{initFor === g.id ? "Done adding" : "＋ Break it down"}</button>}
           {canLead && reached && <button type="button" className="st-discuss" onClick={() => setStatus(g, "hit")}><Icon name="check" /> Mark hit</button>}
           <button type="button" className="st-discuss" onClick={() => setOpen(open === g.id ? null : g.id)} aria-expanded={open === g.id}><Icon name="chat" /> {open === g.id ? "Close" : "Discuss"}</button>
-          {canLead && (
+          {managing && (
             <select className="goal-lane-pick" value={laneOf(g.stream_key)?.key ?? "business"} onChange={(e) => setStream(g, e.target.value)} aria-label={`Lane for ${g.title}`}>
               {streams.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
             </select>
           )}
+          {canLead && <button type="button" className="st-discuss" onClick={() => toggleManage(g.id)} aria-expanded={managing}>{managing ? "Done" : "Manage"}</button>}
         </div>
         {open === g.id && <StrategyThread k={`goal:${g.id}`} label={`Goal: ${g.title}`} />}
       </div>
@@ -398,7 +406,6 @@ export default function Goals() {
   return (
     <div className="adm-sec" id="goals">
       <SectionHeader label="Goals" right={active.length > 0 && <span className="k-count">{active.length}</span>} />
-      <p className="h-sub" style={{ marginBottom: 12 }}>Every goal is a number with a bar, filed to the lane that owns it. Break it into moves; talk it out on the thread.</p>
 
       <AsyncSection state={board} isEmpty={(data) => data.rows.length === 0} emptyTitle="No goals yet" emptySub="Put a number on the wall." errorTitle="Couldn't load the board" loadingLabel="Loading the board…">
         {() => (
@@ -461,10 +468,9 @@ export default function Goals() {
           </div>
         </div>
       ) : (
-        <button type="button" className="dl-card st-build" onClick={() => setAdding(true)}>
-          <b>＋ New goal</b>
-          <span>A number, a lane, a date — measured live from the data where it can be.</span>
-        </button>
+        // THE PAGE AT REST IS A READ VIEW (2026-10-10, the Command fold): a quiet "+ New goal", as the board's other
+        // creates are — it was a card with a line of method under it. The form below says the rest as it is filled.
+        <button type="button" className="btn-ter self-start mt-2" onClick={() => setAdding(true)}>+ New goal</button>
       ))}
     </div>
   );

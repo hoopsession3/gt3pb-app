@@ -10,6 +10,7 @@ import AsyncSection from "./AsyncSection";
 import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import { edited } from "@/lib/formGuard";
 import { SectionHeader } from "@/components/kit";
+import InlineCreate from "./InlineCreate";
 import Icon from "@/components/Icon";
 import { useCrew } from "./useCrew";
 import PersonPick, { type PersonValue } from "./PersonPick";
@@ -60,7 +61,6 @@ export default function OsRegistry() {
   const ownerName = (w: Ws) => streamOwner(w, crew);
   const hasOwner = !!draft.owner.id || !!draft.owner.name.trim();
   const [saving, setSaving] = useState(false);
-  const [newName, setNewName] = useState("");
 
   const loader = useCallback(async (): Promise<{ rows: Ws[]; recent: Audit[] }> => {
     if (!supabase) return { rows: [], recent: [] };
@@ -117,11 +117,11 @@ export default function OsRegistry() {
     setAuditing(null); reload();
   };
 
-  const addStream = async () => {
-    if (!supabase || !newName.trim()) return;
-    const { error } = await supabase.from("os_workstreams").insert({ name: newName.trim().slice(0, 80), owner: "", health: 0, sort: 1000 });
+  const addStream = async (name: string) => {
+    if (!supabase || !name.trim()) return;
+    const { error } = await supabase.from("os_workstreams").insert({ name: name.trim().slice(0, 80), owner: "", health: 0, sort: 1000 });
     if (error) { toast(String(error.message).includes("unique") ? "That workstream already exists" : `Couldn't add — ${error.message}`, "error"); return; }
-    setNewName(""); toast("Added — open it to set the owner and next action"); reload();
+    toast("Added — open it to set the owner and next action"); reload();
   };
   const removeStream = async () => {
     if (!supabase || !auditing) return;
@@ -151,18 +151,11 @@ export default function OsRegistry() {
             <>
               <SectionHeader label="The portfolio" annotation="ten workstreams · audited Mondays"
                 right={<span className={`k-tag ${mean >= 8 ? "ok" : "warn"}`}>mean {mean.toFixed(1)}</span>} />
-              <div className="h-sub">Score is a search function for where attention goes this week. Below 8 gets named in the review; below 8 two weeks running owes the ledger a kill / pause / recover decision. Parked by decision is legal — stalled without one is not.</div>
               {overdue > 0 && (
                 <p className="osr-due flex items-start gap-2 mt-2.5 mb-0.5 px-3 py-2.5 border border-line2 rounded-lg font-sans text-footnote leading-[1.45] text-cream" role="status">
                   <Icon name="warning" />
                   <span>{overdue === active.length ? "The Monday audit is overdue" : `${overdue} of ${active.length} workstreams are due an audit`}{lastRun ? ` — last run ${nice(lastRun)}, ${daysSince(lastRun)} days ago` : " — none has been run yet"}.{isAdmin ? " Tap a workstream to score it." : ""}</span>
                 </p>
-              )}
-              {isAdmin && (
-                <div className="osr-add">
-                  <input className="note-in" placeholder="＋ Add a workstream…" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addStream(); }} aria-label="New workstream name" />
-                  {newName.trim() && <button type="button" className="btn-pri" onClick={addStream}>Add</button>}
-                </div>
               )}
               {/* THE ROWS ARE THE PAGE'S, NOT CARDS ON IT (2026-10-07). Each was a card filled with a
                   see-through black made for the night console — on the cream day theme every one
@@ -185,6 +178,11 @@ export default function OsRegistry() {
                   </button>
                 ))}
               </div>
+              {/* THE PAGE AT REST IS A READ VIEW (2026-10-10, the Command fold): adding a workstream is the board's
+                  name-first create (components/InlineCreate), as an initiative and a milestone are — it was a field
+                  left open above the rows. The method that stood over them — how the score is read — is where the
+                  score is given, the Monday audit's sheet. */}
+              {isAdmin && <InlineCreate label="+ Workstream" placeholder="Workstream name" className="btn-ter self-start mt-2" onCreate={addStream} />}
             </>
           );
         }}
@@ -199,6 +197,7 @@ export default function OsRegistry() {
           header={<div className="note-lux-head"><span className="note-lux-eyb">Monday audit · {auditing.name}</span><CloseButton onClick={() => setAuditing(null)} /></div>}
           footer={<div className="note-actions"><span className="osr-total">{scored ? `${total} / 10` : anyScored ? "score all five" : "details only"}</span><LeaveButton className="btn-sec" onClick={() => setAuditing(null)}>Cancel</LeaveButton><button type="button" className="btn-pri" disabled={saving || (anyScored && !scored) || !draft.name.trim() || !hasOwner} onClick={save}>{saving ? "Saving…" : scored ? "Save audit" : "Save details"}</button></div>}>
           <div className="osr-audit">
+            <p className="h-sub">The score says where attention goes this week. Below 8 is named in the review; below 8 two weeks running owes the ledger a kill, pause or recover decision. Parked by decision is fine — stalled without one is not.</p>
             <div className="osr-audit-row">
               <label className="prod-f"><span>Workstream</span>
                 <input className="note-in" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} maxLength={80} /></label>

@@ -9,7 +9,7 @@ import { SectionHeader, InfoRow } from "@/components/kit";
 import { FLAVORS, nextDrop, dropDateKey, mixSummary, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
 import { gallonsForBottles, flavorDemand } from "@/lib/brewMath";
 import { nextDropDay } from "@/lib/dropDate";
-import { dayKey, dayWithDate, etToday } from "@/lib/dates";
+import { addDays, dayKey, dayWithDate, etToday } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
@@ -19,6 +19,7 @@ import { useAuth } from "./AuthProvider";
 import { canOf } from "@/lib/roles";
 import { canCollect, canUndo, collectPayment, undoCollection, isSettled, paidHow, type CollectVia } from "@/lib/collect";
 import { useCollectSheet } from "./CollectSheet";
+import FoldCard from "@/components/crew/FoldCard";
 
 // DROP OPS — the order-ahead brew sheet + pickup checklist for Saturday's drop. Lives in the admin
 // "Now" section right under the kitchen pass (and pops out of reservation alerts), so walk-up orders
@@ -274,19 +275,20 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
   // tap any time), collapsed otherwise. Same pattern as "Past drops" below.
   const isDropDay = rows.length > 0 && rows[0].drop_date === etToday(); // drop_date is an ET business-day key
   const showList = listOpen ?? isDropDay;
+  // ITS DAYS (2026-10-10, the Live Ops fold). On Live Ops the drop is one row until it is today's work:
+  // the drop itself, and the day before it while the brew isn't queued yet (18h cold extraction — the
+  // brew is the day before, queueBrew below). Any other day it says when, how many packs, and how many
+  // bottles that makes, and opens on a tap.
+  const brewDay = addDays(dropISO, -1);
+  const brewDue = bottles > 0 && batches.length === 0 && etToday() >= brewDay && etToday() <= dropISO;
 
   return (
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the drop" emptyTitle="Nothing here yet">
-      {() => (
-        <div className="dops zone-pickup">
-          {/* The drop block is a card now (matches the crew console's .mpanel panels) so the heading
-              reads as a titled surface, not a bare floating line. SectionHeader supplies its own top
-              spacing; the card only pads sides + bottom. */}
-          <div className="mpanel" style={{ padding: "0 14px 14px" }}>
-            <SectionHeader
-              label="Pickup · reserves & packs"
-              annotation={`${dropWhen}'s drop${rows.length > 0 ? ` · ${rows.length} pack${rows.length === 1 ? "" : "s"}` : ""}`}
-            />
+      {() => {
+        // The card's working face — one body, drawn in the titled panel (Service mode, the drop sheet) or in
+        // Live Ops' fold.
+        const body = (
+          <>
           {/* One sentence with units instead of three bare KPI tiles ("6 BREW" told nobody anything).
               It answers the drop's three questions in reading order: how much to make, what money
               happens at the window, what glass comes back. */}
@@ -384,7 +386,28 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
               ))}
             </>
           )}
+          </>
+        );
+        return (
+        <div className="dops zone-pickup">
+          {/* The drop block is a card (the crew console's .mpanel). On Live Ops it is a fold, one row until
+              its day (ITS DAYS, above); in Service mode and the drop sheet it is the titled panel, where
+              SectionHeader supplies its own top spacing and the card only pads sides + bottom. */}
+          {brief ? (
+            <FoldCard title="Pickup drop" label="Pickup drop" today={isDropDay || brewDue}
+              sub={`${dropWhen} · ${rows.length > 0 ? `${rows.length} pack${rows.length === 1 ? "" : "s"}` : "no reservations yet"}`}
+              value={bottles > 0 ? `${bottles} bottle${bottles === 1 ? "" : "s"}` : null}>
+              {body}
+            </FoldCard>
+          ) : (
+          <div className="mpanel" style={{ padding: "0 14px 14px" }}>
+            <SectionHeader
+              label="Pickup · reserves & packs"
+              annotation={`${dropWhen}'s drop${rows.length > 0 ? ` · ${rows.length} pack${rows.length === 1 ? "" : "s"}` : ""}`}
+            />
+            {body}
           </div>
+          )}
           {/* Moved packs land here in the same breath — never off any surface. Grouped by date so a
               glance says what next week already owes. */}
           {!brief && upcoming.length > 0 && (
@@ -432,7 +455,8 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
           )}
           {collectSheet}
         </div>
-      )}
+        );
+      }}
     </AsyncSection>
   );
 }

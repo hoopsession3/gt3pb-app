@@ -9,7 +9,6 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import LaunchReadiness from "./LaunchReadiness";
-import { useOperatorSection } from "@/components/OperatorNav";
 import { useTaskSheet } from "./TaskSheet";
 import { completeInitiative } from "@/lib/tasks";
 import { SectionHeader, InfoRow } from "@/components/kit";
@@ -64,11 +63,14 @@ export default function CommandBoard() {
   const { user, profile } = useAuth();
   const isAdmin = !!profile?.is_admin;
   const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
-  const { setSection } = useOperatorSection(); // for the Money pointer below
   const [manage, setManage] = useState<Milestone | null>(null);   // milestone open in the manage sheet
   // The initiative itself, opened (2026-10-04): its date, status and name had no editor anywhere —
   // only Finish, which completes every task under it. components/InitiativeSheet is that editor.
   const [openInit, setOpenInit] = useState<string | null>(null);
+  // A READ VIEW AT REST (2026-10-10, the Command fold): an initiative reads — its date, its progress, the goals it
+  // serves, its milestones (still checked off with a tap) — and Manage opens the board's editors on that one
+  // initiative: link a goal, a milestone's ⋯, + Milestone, Finish. They stood open on every initiative.
+  const [managing, setManaging] = useState<string | null>(null);
   // A PAST-DATE INITIATIVE FOLDS (2026-10-07, Ryan: "Ewww"). The July launch sat open at the top of
   // Command 65 days after its date — nine milestones in red, a goal picker, the Finish button — and
   // pushed the company's state below the fold. Past its date by two weeks, an initiative shows its
@@ -236,6 +238,7 @@ export default function CommandBoard() {
               const cd = it.target_date ? countdown(it.target_date) : "";
               const late = it.target_date ? daysTo(it.target_date) < 0 : false;
               const folded = !!it.target_date && daysTo(it.target_date) < -14 && !unfolded.has(it.id);
+              const mng = isAdmin && managing === it.id;
               return (
                 <div className={`cmd-init${folded ? " folded" : ""}`} key={it.id}>
                   <div className="k-rows">
@@ -263,18 +266,18 @@ export default function CommandBoard() {
                     const served = data.goalLinks.filter((l) => l.initiative_id === it.id)
                       .map((l) => data.goals.find((g) => g.id === l.goal_id)).filter(Boolean) as GoalLite[];
                     const linkable = data.goals.filter((g) => !served.some((s) => s.id === g.id));
-                    if (!served.length && !isAdmin) return null;
+                    if (!served.length && !mng) return null;
                     return (
                       <div className="cmd-serves">
                         <span className="cmd-serves-k">Serves</span>
                         {served.map((g) => (
                           <span key={g.id} className={`k-tag txt${g.checkin_status === "at_risk" ? " warn" : ""}`}>
                             🎯 {g.title} · {Math.min(100, Math.round((Number(g.current_value) / Math.max(1, Number(g.target_value))) * 100))}%
-                            {isAdmin && <button type="button" className="k-tag-x" onClick={() => unlinkGoal(it.id, g.id)} aria-label={`Unlink ${g.title}`}><Icon name="close" /></button>}
+                            {mng && <button type="button" className="k-tag-x" onClick={() => unlinkGoal(it.id, g.id)} aria-label={`Unlink ${g.title}`}><Icon name="close" /></button>}
                           </span>
                         ))}
                         {served.length === 0 && <span className="cmd-serves-none">no goal linked yet</span>}
-                        {isAdmin && linkable.length > 0 && (
+                        {mng && linkable.length > 0 && (
                           <select className="max-w-[120px] font-semibold" value="" onChange={(e) => linkGoal(it.id, e.target.value)} aria-label="Link a goal this initiative serves">
                             <option value="">+ goal</option>
                             {linkable.map((g) => <option key={g.id} value={g.id}>{g.title}</option>)}
@@ -290,12 +293,12 @@ export default function CommandBoard() {
                         const ties = links.filter((l) => l.milestone_id === m.id).length;
                         // The workstream by its portfolio name; words that link to nothing are marked so.
                         const ws = milestoneStream(m, data.streams);
-                        const trailing = (ties > 1 || ws || m.due_on || isAdmin) ? (
+                        const trailing = (ties > 1 || ws || m.due_on || mng) ? (
                           <>
                             {ties > 1 && <span className="cmd-tie" title={`Tied to ${ties} initiatives`}>⧉{ties}</span>}
                             {ws && <span className={`cmd-ws${ws.linked ? "" : " loose"}`} title={ws.linked ? undefined : "Not linked to a workstream"}>{ws.text}</span>}
                             {m.due_on && <span className={`cmd-mile-due${mlate ? " late" : ""}`}>{dnice(m.due_on)}</span>}
-                            {isAdmin && <button type="button" className="cmd-mile-mng" onClick={() => setManage(m)} aria-label="Manage milestone">⋯</button>}
+                            {mng && <button type="button" className="cmd-mile-mng" onClick={() => setManage(m)} aria-label="Manage milestone">⋯</button>}
                           </>
                         ) : undefined;
                         return (
@@ -315,10 +318,11 @@ export default function CommandBoard() {
                       })}
                     </div>
                   )}
-                  {isAdmin && <InlineCreate label="+ Milestone" placeholder="Milestone" className="btn-ter self-start mt-2" onCreate={(t) => addMilestone(it.id, t)} />}
+                  {mng && <InlineCreate label="+ Milestone" placeholder="Milestone" className="btn-ter self-start mt-2" onCreate={(t) => addMilestone(it.id, t)} />}
                   {late && unfolded.has(it.id) && <button type="button" className="btn-ter flex mt-1" onClick={() => unfold(it.id)}>Fold it back</button>}
                   </>}
-                  {isAdmin && <button type="button" className="btn-ter flex mt-2.5" onClick={() => finishInit(it)}><Icon name="check" /> Finish initiative</button>}
+                  {(mng || (isAdmin && folded)) && <button type="button" className="btn-ter flex mt-2.5" onClick={() => finishInit(it)}><Icon name="check" /> Finish initiative</button>}
+                  {isAdmin && <button type="button" className="btn-ter flex mt-2" onClick={() => setManaging(mng ? null : it.id)} aria-expanded={mng}>{mng ? "Done" : "Manage"}</button>}
                 </div>
               );
             })}
@@ -387,13 +391,9 @@ export default function CommandBoard() {
               </div>
             )}
 
-            {/* ── Money ── a pointer, not a second KPI strip (2026-07-30 redundancy audit): Money
-                opens on its own numbers (the home's three since 2026-10-09) — mounting them here duplicated
-                all five tiles, and for event managers (Command is canManage, the money queries are
-                admin-gated) they rendered as a block of dead "—"s. One strip, one home.
-                And the pointer itself is an admin's (2026-10-04): Money is not a section an event
-                manager can open, so for them it was a link to the screen they are already on. */}
-            {isAdmin && <button type="button" className="adm-golink hit-y-44" onClick={() => setSection("money")}>Money — the live glance · Money ›</button>}
+            {/* ── Money ── no pointer here (2026-10-10, the Command fold). It read "Money — the live glance · Money ›"
+                between the team's week and the next column, and Money is one tap away anyway: Business opens on it
+                (2026-10-09, the navigation round), and the home's three numbers lead it. */}
 
             {manage && (
               <MilestoneSheet
