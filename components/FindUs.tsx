@@ -273,9 +273,11 @@ export default function FindUs() {
     ? (hero.ends_at ? fmt12(clockTime(hero.ends_at)) ?? "" : "")
     : (fmt12(hero.end_time) ?? "");
   // ONE WHEN (2026-10-10, Find Us 10): the day and the hours were two cells a third of the row wide each — "Tomorrow ·
-  // 10/11" over two lines beside "11:00am – / 2:00pm" over two more. One line says both: "Tomorrow · 10/11 · 11:00am – 2:00pm".
+  // 10/11" over two lines beside "11:00am – / 2:00pm" over two more. One row says both now. On a phone it can still take
+  // two lines (production at 402 wide broke it "…11:00am –" / "2:00pm"), so the hours keep together and the break, when
+  // there is one, falls before them: "Tomorrow · 10/11 ·" / "11:00am – 2:00pm".
   const heroHours = heroClose ? `${heroOpen || "—"} – ${heroClose}` : heroOpen;
-  const heroWhenLine = [heroWhen || t("findus.day_tba"), heroHours].filter(Boolean).join(" · ");
+  const heroDay = heroWhen || t("findus.day_tba");
   // Only the hero copy (below) is a safe EditableCopy target — see the comment on descFor.
   const heroDesc = hero?.kind === "stop" ? descFor(hero, t, avail) : null;
   // THE WHERE (2026-08-01, Ryan's 4/10 audit: "how would a client know where the truck is?").
@@ -348,8 +350,10 @@ export default function FindUs() {
         {hero && (
           <div className="f"><EditableCopy k="findus.fact_where" value={t("findus.fact_where")} as="div" className="fk" />
             {heroWhere ? (
-              /* the address IS the tap target too — same directions handoff as the chip below */
-              <div className="fv where go" {...clickable(goHero)} title={t("findus.directions")}>
+              /* the address IS the tap target too — same directions handoff as the chip below. One line of street and
+                 one of town measure 41 tall in the full-width row (production, 2026-10-10), so the tap reaches up and
+                 down to 44 (hit-y-44) and the row's look stays as it is. */
+              <div className="fv where go hit-y-44" {...clickable(goHero)} title={t("findus.directions")}>
                 {whereStreet}
                 {whereLoc && <span className="where-loc">{whereLoc}</span>}
               </div>
@@ -359,8 +363,8 @@ export default function FindUs() {
           </div>
         )}
         {/* When — the day stays the day even when live (the masthead's eyebrow and dot say "Live now"; a Status cell
-            said it twice, 2026-07-30), and the hours ride on its line (heroWhenLine). */}
-        <div className="f"><EditableCopy k="findus.fact_when" value={t("findus.fact_when")} as="div" className="fk" /><div className="fv">{heroWhenLine}</div></div>
+            said it twice, 2026-07-30), and the hours ride on its line, kept together (heroHours). */}
+        <div className="f"><EditableCopy k="findus.fact_when" value={t("findus.fact_when")} as="div" className="fk" /><div className="fv">{heroDay}{heroHours && <> · <span className="whitespace-nowrap">{heroHours}</span></>}</div></div>
         {hero?.kind === "event" && hero.going_count != null && hero.going_count > 0 && (
           <div className="f"><EditableCopy k="findus.fact_going" value={t("findus.fact_going")} as="div" className="fk" /><div className="fv">{hero.going_count}</div></div>
         )}

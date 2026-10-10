@@ -10426,11 +10426,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("Find Us: no past events — what is over is not on the road, and nothing over can be RSVP'd from it (Ryan: \"why the need for past events?\")",
       !/past\.length|showPast|findus\.past_events/.test(fu + read("lib/copy.ts")) && /const upcoming = roadOps\.filter\(\(r\) => r\.kind === "stop" \|\| !r\.day \|\| r\.day >= today\);/.test(fu)
       && /const showRoad = board\.status === "error" \|\| upcoming\.length === 0 \|\| rest\.length > 0;/.test(fu));
-    ok("Find Us: the facts are two rows the page's width — Where, and When with the day and the hours on one line",
-      /const heroWhenLine = \[heroWhen \|\| t\("findus\.day_tba"\), heroHours\]\.filter\(Boolean\)\.join\(" · "\);/.test(fu)
-      && /<EditableCopy k="findus\.fact_when"[^>]*\/><div className="fv">\{heroWhenLine\}<\/div>/.test(fu)
+    ok("Find Us: the facts are two rows the page's width — Where, and When: the day, then the hours kept together, so a phone breaks the line before them",
+      /const heroDay = heroWhen \|\| t\("findus\.day_tba"\);/.test(fu)
+      && /<EditableCopy k="findus\.fact_when"[^>]*\/><div className="fv">\{heroDay\}\{heroHours && <> · <span className="whitespace-nowrap">\{heroHours\}<\/span><\/>\}<\/div>/.test(fu)
       && /\.k-facts \.f\{display:flex;align-items:baseline;gap:16px;padding:12px 0;min-width:0\}/.test(read("app/globals.css")) && /\.k-facts \.f\+\.f\{border-top:1px solid var\(--line\)\}/.test(read("app/globals.css"))
       && !/findus\.fact_(day|starts|hours|open)/.test(fu + read("lib/copy.ts")));
+    ok("Find Us: the address in the Where row takes a 44pt tap — a street and a town measured 41 on production (2026-10-10)",
+      /<div className="fv where go hit-y-44" \{\.\.\.clickable\(goHero\)\}/.test(fu));
     const mr = read("app/api/map/route.ts"), am = read("lib/appleMaps.ts");
     ok("Find Us: a map of the stop — Apple's picture of its own pin, by the row's id (never a point a caller names), its box held at 2:1, the whole card the directions button, gone if the picture does not come",
       /\{hero && heroHasCoords && <StopMap id=\{hero\.id\} lat=\{hero\.lat as number\} lng=\{hero\.lng as number\} label=\{heroWhere \?\? hero\.name\} onGo=\{goHero\} \/>\}/.test(fu)
