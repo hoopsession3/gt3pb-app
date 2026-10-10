@@ -5197,10 +5197,39 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       /from\("v_event_record"\)/.test(hud) && /\.is\("archived_at", null\)\.neq\("stage", "done"\)\.gte\("day", localToday\(\)\)/.test(hud) && /\.order\("day", \{ ascending: true \}\)\.limit\(1\)/.test(hud));
     ok("heads-up: a failed read is said as a failure, never as an empty calendar", /setNext\(nxErr \? "error"/.test(hud) && /Couldn&apos;t read what&apos;s next/.test(idle));
     ok("heads-up: four honest states — checking, nothing on the calendar, today and not live, next",
-      /Checking the calendar/.test(idle) && /Nothing on the calendar\./.test(idle) && /is today, and it isn&apos;t live\./.test(idle) && /Next: <b>\{title\}<\/b>/.test(idle));
+      /sub="Checking the calendar…"/.test(hud) && /sub="Nothing on the calendar"/.test(idle) && /sub="Today — not live yet"/.test(idle) && /sub=\{`\$\{title\} · \$\{next\.day \? dayWithDate\(next\.day\) : "no date yet"\}`\}/.test(idle));
     ok("heads-up: today's event can be made live from here, through the one RPC that owns the rule", /setEventLive\(supabase, next\.id, true\)/.test(idle) && /label: "Make it live"/.test(idle));
     ok("heads-up: the next event opens its record, and says the one thing it is waiting on", /openRecord\("event", next\.id\)/.test(idle) && /owedLine\(next\)/.test(idle) && /dayWithDate\(next\.day\)/.test(idle));
     ok("heads-up: no box inside the panel's box — the idle state draws no EmptyState", !/<EmptyState/.test(idle) && /<WayButtons/.test(idle));
+    // ── LIVE OPS SHOWS TODAY (2026-10-10, the Live Ops fold) ──
+    // The service glance drew Monday's office route (1,100px on a Saturday), next week's brew sheet and a
+    // count of thirty days of alerts; a live event's sales sat in a folded panel at the bottom.
+    const fold = code(read("components/crew/FoldCard.tsx"));
+    const nowSec = (page.match(/\{sec === "now" && \([\s\S]*?\n      \)\}/) || [""])[0];
+    const strip = (page.match(/if \(compact\) \{[\s\S]*?\n  \}\n/) || [""])[0];
+    const dropSrc = code(read("components/DropOps.tsx")), delSrc = code(read("components/DeliveryOps.tsx")), ooSrc = code(read("components/OfficeOrders.tsx"));
+    ok("live ops: a fold always says what it holds — sub is required, and drawn",
+      /sub: ReactNode;/.test(fold) && /<span className="mpanel-s">\{sub\}<\/span>/.test(fold) && /className=\{`mpanel fold\$\{open \? " open" : ""\}/.test(fold));
+    ok("live ops: a fold opens on its day and forgets a tap by tomorrow — nothing remembered",
+      /const open = asked \?\? today;/.test(fold) && !/localStorage/.test(fold));
+    ok("live ops: a link to a fold opens it, as it opens a <Panel>", /window\.addEventListener\(OPEN_PANEL_EVENT, onOpen\)/.test(fold) && /detail === id\) setAsked\(true\)/.test(fold));
+    ok("live ops: one alert number — the strip names today's critical alert and counts nothing else",
+      /f\.severity === "critical" && flagIsToday\(f, today\)/.test(strip) && /<b>\{hot\[0\]\.title\}<\/b>/.test(strip) && !/alerts need|mine\.length/.test(strip));
+    ok("live ops: the live event's numbers sit on top, the next event is a row on the right",
+      nowSec.indexOf('<EventHUD where="top"') > 0 && nowSec.indexOf('<EventHUD where="top"') < nowSec.indexOf("<Columns>")
+        && nowSec.indexOf('<EventHUD where="later"') > nowSec.indexOf("<DeliveryOps />") && !/<Panel id="hud"/.test(page));
+    ok("live ops: only a live event is polled", /if \(where !== "top" \|\| !liveId\) return;\s*const recon = setInterval\(load, 15000\);/.test(hud));
+    ok("live ops: the drop is one row until drop day — or the brew day, while the brew isn't queued",
+      /<FoldCard title="Pickup drop" label="Pickup drop" today=\{isDropDay \|\| brewDue\}/.test(dropSrc)
+        && /const brewDay = addDays\(dropISO, -1\);/.test(dropSrc) && /const brewDue = bottles > 0 && batches\.length === 0 && etToday\(\) >= brewDay && etToday\(\) <= dropISO;/.test(dropSrc));
+    ok("live ops: Service mode and the drop sheet keep the titled drop panel", /\{brief \? \(\s*<FoldCard/.test(dropSrc) && /label="Pickup · reserves & packs"/.test(dropSrc));
+    ok("live ops: Sunday delivery is one row until the run", /<FoldCard title="Sunday delivery" label="Sunday delivery" today=\{isRunDay\}/.test(delSrc) && /const isRunDay = date === etToday\(\);/.test(delSrc));
+    ok("live ops: the office route is one row until its day, a late delivery, or a client who asked",
+      /<FoldCard label="Office orders" title="Office route" today=\{itsDay\}/.test(ooSrc)
+        && /const itsDay = route\.some\(\(o\) => o\.delivery_date <= today\) \|\| asked > 0;/.test(ooSrc)
+        && /const asked = requests\.filter\(\(r\) => r\.status === "open"\)\.length;/.test(ooSrc));
+    ok("live ops: each run's row says its day with the house's words, and what to make", /dayWithDate\(day\)/.test(ooSrc) && /dayWithDate\(date\)/.test(delSrc) && /`\$\{gal\} gal`/.test(ooSrc) && /`\$\{bottles\} bottle/.test(delSrc));
+    ok("live ops: the office route's own card is gone — the fold is the card", !/\.oo\{/.test(css) && !/className="oo"/.test(ooSrc));
     ok("links on buttons: .cp-go takes the browser's grey face off a <button> (the painted check is design.measure's uaButtons)",
       /\.cp-go\{[^}]*background:none;border:0;padding:0;cursor:pointer;-webkit-appearance:none;appearance:none\}/.test(css)
         && /uaButtons/.test(read("scripts/design.measure.mjs")) && /button\(s\) in the browser's default grey face/.test(read("scripts/design.ratchet.mjs")));
@@ -5530,9 +5559,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\.update\(\{ title: title\.trim\(\), summary: summary\.trim\(\) \|\| null, target_date: target \|\| null, status \}\)\.eq\("id", it\.id\)/.test(sheet)
     && /canEdit=\{can\.admin\}/.test(sheet) && /\/\/ vocab: initiatives\.status\nconst SETTABLE = \["planning", "active", "paused"\] as const;/.test(sheet)
     && /if \(error\) throw error;/.test(sheet) && /role="alert">\{err\}/.test(sheet));
-  ok("command: an initiative on the board opens the same sheet; the Money pointer is an admin's, since only an admin can open Money",
+  ok("command: an initiative on the board opens the same sheet; no Money pointer (Business opens on Money, 2026-10-10)",
     /onClick=\{\(\) => setOpenInit\(it\.id\)\}/.test(board) && /<InitiativeSheet id=\{openInit\}/.test(board)
-    && /\{isAdmin && <button type="button" className="adm-golink(?: hit-y-44)?" onClick=\{\(\) => setSection\("money"\)\}>/.test(board));
+    && !/setSection\("money"\)/.test(board));
   ok("assets: the kinds the log sheet offers are declared to the vocabulary audit", /\/\/ vocab: asset_maintenance\.kind\nconst KINDS = /.test(read("components/AssetMaintenance.tsx")));
 }
 
@@ -6194,6 +6223,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /const SmartIntake = dynamic\(\(\) => import\("\.\/SmartIntake"\)/.test(qd) && /const DocsFiled = dynamic\(\(\) => import\("\.\/DocsFiled"\)/.test(qd));
   ok("one home: on a phone Today comes right under the day — the numbers beside it on a desk, after it on a phone, and only for who has them",
     myDay.indexOf("<TodayList ") > 0 && myDay.indexOf("<TodayList ") < myDay.indexOf("<HomeNumbers ") && /\{\(money \|\| isLeader\) && \(/.test(myDay));
+  ok("today round: what else is waiting is one line of chips, one tap each — equipment, the stale, bookings, restock, all tasks — the late in the warning colour",
+    /<div className="flex flex-wrap gap-2 pt-3" role="group" aria-label="Also waiting">/.test(today)
+      && /className=\{`k-chip sm\$\{upkeepLate \? " warn" : ""\}`\} onClick=\{\(\) => setSheet\("upkeep"\)\}/.test(today)
+      && /onClick=\{\(\) => setSheet\("stale"\)\}/.test(today) && /onClick=\{\(\) => goPlanTab\("leads", \{ setSection \}\)\}/.test(today)
+      && /onClick=\{\(\) => setSheet\("all"\)\} aria-label=\{`All tasks, \$\{s\.total\}`\}>All tasks · \{s\.total\} ›<\/button>/.test(today)
+      && !/fold\("(upkeep|stale|bookings|restock|all)"/.test(today));
   ok("one home: the head's count is the rows it shows plus the one row that opens the rest — and it is a count, not an alarm",
     /fold\("due", `\$\{s\.moreToday\} more due today`/.test(today) && /sheet === "due" &&/.test(today) && /k-count\$\{due \? "" : " ok"\}/.test(today));
   ok("the op card: Make it live is the screen's one primary, and the display face is the event's name alone (it drew Wear and Details)",
@@ -6612,7 +6647,33 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // ── the KPI board files where it reads ──
   const kpi = code(read("components/KpiBoard.tsx"));
   ok("kpi board: the Log names 0275's key (metric, period, market) and carries the market",
-    /onConflict: "metric,period,market"/.test(kpi) && /\{ metric: key, period, value: v, market,/.test(kpi));
+    /onConflict: "metric,period,market"/.test(kpi) && /\(\{ metric: key, period: periodOf\(key\), value: Number\(raw\.trim\(\)\), market,/.test(kpi));
+  // ── THE COMMAND FOLD (2026-10-10): a read view at rest ──
+  const board = (kpi.match(/<div className="k-rows">[\s\S]*?<\/div>/) || [""])[0];
+  ok("command: the twelve read at rest — no field on the board; one sheet logs the numbers that don't compute themselves",
+    !/<input/.test(board) && /\{logging && \(\s*<Sheet open onClose=\{\(\) => setLogging\(false\)\} label="Log the numbers"/.test(kpi)
+      && /const manual = rows\.filter\(\(r\) => !r\.isLive\);/.test(kpi) && /<button type="button" className="btn-ter" onClick=\{\(\) => setLogging\(true\)\}>Log numbers<\/button>/.test(kpi));
+  ok("command: each number shows how it moved since its last entry, coloured by the good way — down is good for spoilage",
+    /const LOWER_IS_BETTER = new Set\(\["spoilage"\]\);/.test(kpi) && /good: LOWER_IS_BETTER\.has\(k\.key\) \? d < 0 : d > 0/.test(kpi)
+      && /change: isLive \? null : changeOf\(k, mine\[0\], mine\[1\]\)/.test(kpi) && /r\.change\.good \? "text-ok" : "text-warn"/.test(kpi));
+  ok("command: one write for the sheet — every typed number in one upsert", /\.upsert\(rows, \{ onConflict: "metric,period,market" \}\)/.test(kpi) && !/\.upsert\(\s*\{ metric/.test(kpi));
+  ok("command: no paragraph of method above the state — the portfolio's is in its audit sheet, the board's in its log sheet",
+    !/The Playbook's KPI framework/.test(kpi) && !/Every goal is a number with a bar/.test(code(read("components/Goals.tsx")))
+      && /<div className="osr-audit">\s*<p className="h-sub">The score says where attention goes this week\./.test(osr) && !/Score is a search function/.test(osr));
+  ok("command: creates are name-first and quiet — a workstream is InlineCreate's, a goal a quiet button",
+    /<InlineCreate label="\+ Workstream" placeholder="Workstream name" className="btn-ter self-start mt-2" onCreate=\{addStream\} \/>/.test(osr) && !/osr-add/.test(osr)
+      && /<button type="button" className="btn-ter self-start mt-2" onClick=\{\(\) => setAdding\(true\)\}>\+ New goal<\/button>/.test(code(read("components/Goals.tsx"))));
+  ok("command: no pointer to Money — Business opens on it", !/Money — the live glance/.test(code(read("components/CommandBoard.tsx"))));
+  {
+    const gl = code(read("components/Goals.tsx")), cb2 = code(read("components/CommandBoard.tsx"));
+    ok("command: a goal reads at rest — its check-in, pickers, moves' pickers, log, break-down and lane open with Manage, on that card",
+      /const managing = canLead && manage === g\.id;/.test(gl) && /\{managing && \(\s*<div className="goal-checkin">/.test(gl)
+        && /\{managing && !i\.done && \(\s*<div className="goal-init-meta">/.test(gl) && /\{managing && \(\s*<select className="goal-lane-pick"/.test(gl)
+        && /onClick=\{\(\) => toggleManage\(g\.id\)\} aria-expanded=\{managing\}>\{managing \? "Done" : "Manage"\}/.test(gl));
+    ok("command: an initiative reads at rest — linking a goal, a milestone's ⋯, + Milestone and Finish open with Manage; a long-late one keeps Finish",
+      /const mng = isAdmin && managing === it\.id;/.test(cb2) && /\{mng && <InlineCreate label="\+ Milestone"/.test(cb2) && /\{mng && linkable\.length > 0 && \(/.test(cb2)
+        && /\(mng \|\| \(isAdmin && folded\)\) && <button type="button" className="btn-ter flex mt-2\.5" onClick=\{\(\) => finishInit\(it\)\}>/.test(cb2));
+  }
   ok("kpi board: it reads the market it writes", /\.eq\("market", market\)/.test(kpi));
   ok("kpi board: a weekly figure is filed under its week's Monday", /cadence === "weekly" \? weekStartKey\(today\)/.test(kpi)
     && DT3.weekStartKey("2026-10-04") === "2026-09-28" && DT3.weekStartKey("2026-09-28") === "2026-09-28" && DT3.weekStartKey("2026-10-03") === "2026-09-28");
@@ -9238,8 +9299,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /onClick=\{\(\) => finishInit\(it\)\}/.test(cbd));
   ok("command: Blockers are the company's — an incident or a goal at risk",
     /data\.incidents\.length === 0 && data\.goals\.filter\(\(g\) => g\.checkin_status === "at_risk"\)\.length === 0 \? <EmptyState title="Nothing blocked" \/>/.test(cbd));
-  ok("command: Team's activity rows and the KPI rows have a day surface, and the night keeps its own",
-    /\.app\.crew-day \.util-row,\.app\.crew-day \.kpib-row\{background:var\(--ink-onLight-03\)\}/.test(css2) && /<select className="max-w-\[120px\] font-semibold"/.test(cbd));
+  ok("command: Team's activity rows have a day surface, and the night keeps its own; the KPI rows are the kit's rows",
+    /\.app\.crew-day \.util-row\{background:var\(--ink-onLight-03\)\}/.test(css2) && /<select className="max-w-\[120px\] font-semibold"/.test(cbd)
+      && /<div className="k-rows">/.test(code(read("components/KpiBoard.tsx"))));
   // ── one door ──
   ok("team: one door — Add a teammate — brings on someone with an account and invites an email with none; the second door is gone",
     /supabase\.rpc\("promote_to_crew", \{ p_member: picked\.id, p_role: role, p_market: market \|\| null, p_lead: lead \}\)/.test(add2)
@@ -9578,7 +9640,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("Return says what it does: next moves to the next field; the last field sends",
     /export function nextOnEnter\(e: KeyboardEvent<HTMLInputElement>\): void/.test(read("lib/formKeys.ts"))
     && hinted("app/book/page.tsx") >= 5 && hinted("components/SignIn.tsx") >= 6 && hinted("components/AuthProvider.tsx") >= 2 && /enterKeyHint="send"/.test(read("components/Concierge.tsx")));
-  ok("the KPI board's fields are 16px — an iPhone zooms into anything smaller", /\.kpib-in input\{width:104px;[^}]*font-size:16px;/.test(read("app/globals.css")));
+  ok("the KPI board's fields are 16px — an iPhone zooms into anything smaller", /<label key=\{r\.key\} className="prod-f">/.test(read("components/KpiBoard.tsx"))
+    && /\.prod-f input,\.prod-f textarea,\.prod-f select,[^{]*\{[^}]*font-size:16px;/.test(read("app/globals.css")));
   ok("the iPhone app opens on the menu, with no front-door ad",
     /if \(isNativeApp\(\)\) \{ router\.replace\("\/menu"\); return; \}/.test(read("app/page.tsx")) && /if \(isNativeApp\(\)\) return;/.test(read("components/MarketingSplash.tsx")));
 }
