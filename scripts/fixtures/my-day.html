@@ -11,9 +11,10 @@
   event today and not yet live, three critical team tasks a few days late, one task of his own with no
   date, and what is owed: 18 late and 6 due soon, four of them equipment — painted as the home paints
   it now. The week's three numbers, each with its change and its cause; at most three things due
-  today, critical first; then one row each for the equipment, for everything more than two weeks late,
-  for restock, and for All tasks, which opens My tasks and Needs you whole. The numbers are made up
-  for the double, the way the names in it are.
+  today, critical first; then the rest of today as one row, and one line of chips for the equipment,
+  everything more than two weeks late, restock, and All tasks, which opens My tasks and Needs you whole
+  (2026-10-10, the Today round: they were a row each). The numbers are made up for the double, the way
+  the names in it are.
 
   Before (2026-10-04): Ryan's 10:13 PM screenshot and "Strategically look for where something is
   unnecessary information or should have operational functionality" — the greeting and the motto
@@ -80,22 +81,12 @@
           <span class="owed-row-b"><b>6 more due today</b><i>Every one, in the same order</i></span>
           <span class="owed-c" aria-hidden="true">›</span>
         </button>
-        <button type="button" class="owed-row late">
-          <span class="owed-row-b"><b>Equipment upkeep · 4</b><i>4 past their service date — log them in one place</i></span>
-          <span class="owed-c" aria-hidden="true">›</span>
-        </button>
-        <button type="button" class="owed-row">
-          <span class="owed-row-b"><b>More than 2 weeks late · 12</b><i>Each opens where it can be closed or moved</i></span>
-          <span class="owed-c" aria-hidden="true">›</span>
-        </button>
-        <button type="button" class="owed-row">
-          <span class="owed-row-b"><b>Restock · 4 low</b><i>For upcoming events — Assets</i></span>
-          <span class="owed-c" aria-hidden="true">›</span>
-        </button>
-        <button type="button" class="owed-row">
-          <span class="owed-row-b"><b>All tasks · 32</b><i>7 later, and everything above in full</i></span>
-          <span class="owed-c" aria-hidden="true">›</span>
-        </button>
+        <div class="flex flex-wrap gap-2 pt-3" role="group" aria-label="Also waiting" data-from="components/TodayList.tsx">
+          <button type="button" class="k-chip sm warn">Equipment · 4 ›</button>
+          <button type="button" class="k-chip sm">2+ weeks late · 12 ›</button>
+          <button type="button" class="k-chip sm warn">Restock · 4 ›</button>
+          <button type="button" class="k-chip sm">All tasks · 32 ›</button>
+        </div>
       </div>
     </div>
 
