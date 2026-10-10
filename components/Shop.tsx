@@ -14,7 +14,6 @@ import { Masthead, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
 import OrderFunnel from "@/components/OrderFunnel";
 import Reserves from "@/components/Reserves";
-import StorefrontStory from "@/components/StorefrontStory";
 import { readMedia, coverOf, hasVideo, type MediaItem } from "@/lib/shopMedia";
 import { money } from "@/lib/money";
 import { useApp } from "@/components/AppProvider";
@@ -98,7 +97,9 @@ export default function Shop() {
   return (
     <section className="screen shop" id="s-shop">
       <Watermark variant="menu" />
-      <Masthead tone="light" eyebrow={<EditableCopy k="shop.eyebrow" value={t("shop.eyebrow")} />} right={<div className="mast-right"><EditCopyPill group="Shop" /><AccountPill /></div>} />
+      {/* No eyebrow (2026-10-09, round 2): "THE SHOP" named the tab lit below it. The aisle row is the
+          first thing under the brand, then one line, then the choices — as on the menu. */}
+      <Masthead tone="light" right={<div className="mast-right"><EditCopyPill group="Shop" /><AccountPill /></div>} />
 
       {/* One h1 per rendered state: the hub views (Bottles, or the Merch grid) get an sr-only h1;
           the Merch product/checkout/done views render their own visible <h1>. /shop stays in
@@ -123,7 +124,8 @@ export default function Shop() {
           <EditableCopy k="reserve.headline" value={t("reserve.headline")} as="p" className="shop-stmt" multiline />
           <Reserves />
           <OrderFunnel initialMode="pickup" syncUrl={false} />
-          <StorefrontStory />
+          {/* The guest's "What we make" story went (2026-10-09): it was the Menu tab's three acts again,
+              under the order, with a second button to that same tab. The menu is one tap away. */}
           <ClosingBeat />
         </>
       )}

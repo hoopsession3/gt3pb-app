@@ -7,6 +7,7 @@ import { useAuth } from "./AuthProvider";
 import { useSiteCopy } from "@/lib/copy";
 import { returnToPlace, scrollToTop } from "@/lib/appScroll";
 import { haptic } from "@/lib/haptics";
+import { tabOf } from "@/lib/routeTitles";
 
 // The nav tells the truth about who you are. Members: Today first — their home. Guests: the truck
 // IS home (first tab), and the last slot is the door ("Join") instead of a Today tab that would
@@ -61,10 +62,12 @@ export default function BottomNav() {
     if (!enabled || !ready) return;
     document.documentElement.dataset.viewer = user ? "member" : "guest";
   }, [enabled, ready, user]);
+  // The tab this screen is part of — /reserve and /delivery light Shop, /events lights Find Us (lib/routeTitles).
+  const lit = tabOf(pathname);
   return (
     <nav className="nav desk-sidebar" aria-label="Primary">
       {TABS.map((tab) => {
-        const on = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
+        const on = tab.href === lit;
         return (
           // The tab for the screen you are on, tapped again, goes back to its top (lib/appScroll). Another
           // tab is a choice changed: the selection tick (2026-10-05, the haptics round), and that tab opens
