@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { useApp } from "./AppProvider";
-import RouteMap, { type RoutePoint } from "./RouteMap";
-import { openAddress, fullRouteUrl, geocode } from "@/lib/maps";
+import { openAddress, fullRouteUrl } from "@/lib/maps";
 import { haptic } from "@/lib/haptics";
 import { type PerfMix } from "@/lib/delivery";
 import { etToday } from "@/lib/dates";
@@ -45,11 +44,9 @@ const packSummary = (o: DOrder) => [
 
 export default function DriverRun() {
   const { toast } = useApp();
-  const [coords, setCoords] = useState<Record<string, { lat: number; lng: number } | null>>({});
   const [openId, setOpenId] = useState<string | null>(null);
   const [empties, setEmpties] = useState<Record<string, number>>({});
   const [busyId, setBusyId] = useState<string | null>(null); // stop being logged — blocks double-tap → double SMS/update
-  const geoOnce = useRef<Set<string>>(new Set());
 
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { rows: [], date: null };
@@ -70,36 +67,18 @@ export default function DriverRun() {
 
   const rows = board.data?.rows ?? [];
 
-  // Geocode each address once, sequentially (Nominatim asks ≤1/sec); results cache in localStorage so
-  // every run after the first is instant. The map fills in progressively as pins resolve.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      for (const o of rows) {
-        if (cancelled) return;
-        if (geoOnce.current.has(o.id)) continue;
-        geoOnce.current.add(o.id);
-        const c = await geocode(`${o.address_street}, ${o.address_city}, ${o.address_zip}`);
-        if (cancelled) return;
-        setCoords((prev) => ({ ...prev, [o.id]: c }));
-        await new Promise((r) => setTimeout(r, 1100));
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [rows]);
-
   const doneOf = (o: DOrder) => o.status === "delivered" || o.status === "held_for_pickup" || o.status === "issue";
   const firstOpenIdx = rows.findIndex((o) => !doneOf(o));
   const doneCount = rows.filter(doneOf).length;
 
-  const points: RoutePoint[] = useMemo(() => rows.map((o, i) => {
-    const c = coords[o.id];
-    return c ? { name: o.name.split(" ")[0], lat: c.lat, lng: c.lng, live: i === firstOpenIdx } : null;
-  }).filter(Boolean) as RoutePoint[], [rows, coords, firstOpenIdx]);
-
+  // THE WHOLE RUN IS ONE TAP INTO MAPS (2026-10-10). The page drew its own map of the porches until
+  // its tiles began answering "API key required" (CARTO, Oct 2026) — a grey square of watermarks
+  // with a second red button on it, over a run this link already opens in Google Maps, stop by stop
+  // and on real streets. The map went, and the geocoding that only pinned it (Nominatim, one address a
+  // second) went with it: the link hands Maps the addresses, which it reads better than we could.
   const routeHref = useMemo(() => fullRouteUrl(
-    rows.filter((o) => !doneOf(o)).map((o) => ({ lat: coords[o.id]?.lat ?? null, lng: coords[o.id]?.lng ?? null, address: `${o.address_street}, ${o.address_city} ${o.address_zip}` }))
-  ), [rows, coords]);
+    rows.filter((o) => !doneOf(o)).map((o) => ({ address: `${o.address_street}, ${o.address_city} ${o.address_zip}` }))
+  ), [rows]);
 
   const notifyDelivered = (o: DOrder) => { void (async () => {
     try {
@@ -161,11 +140,9 @@ export default function DriverRun() {
             </div>
             <RunBar done={doneCount} of={rows.length} />
 
-            {points.length > 0 && <RouteMap points={points} />}
             {remaining > 0 && routeHref && (
               <a className={btn("primary", { wide: true, className: "mt-3 mb-1" })} href={routeHref} target="_blank" rel="noopener noreferrer">Navigate the whole run ({remaining} porch{remaining === 1 ? "" : "es"}) <Icon name="arrowRight" /></a>
             )}
-            {points.length < rows.length && <div className="driver-geohint">Pinning porches on the map…</div>}
 
             <div className="driver-list">
               {rows.map((o, i) => {
