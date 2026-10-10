@@ -1399,10 +1399,12 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       const r = (e) => (e ? e.getBoundingClientRect() : null), shown = (e) => !!e && getComputedStyle(e).display !== "none" && e.getBoundingClientRect().width > 0;
       const app = document.querySelector(".app"), nav = document.querySelector(".app > nav.nav"), body = document.getElementById("body"), a = r(app), n = r(nav), sc = r(document.querySelector(".screen"));
       const tabs = nav ? [...nav.querySelectorAll(".tab")].filter(shown).map((t) => { const b = t.getBoundingClientRect(); return { x: Math.round(b.x), y: Math.round(b.y), h: Math.round(b.height), on: t.classList.contains("on"), bg: getComputedStyle(t).backgroundColor }; }) : [];
-      const cols = [...document.querySelectorAll(".desk-col")].map((c) => { const b = c.getBoundingClientRect(); return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), d: getComputedStyle(c).display, t: (c.textContent || "").slice(0, 4000) }; });
+      const cols = [...document.querySelectorAll(".desk-col")].map((c) => { const b = c.getBoundingClientRect(); return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), d: getComputedStyle(c).display, t: (c.textContent || "").slice(0, 4000), h: [...c.querySelectorAll("h2")].map((e) => (e.textContent || "").trim()) }; });
       const tiles = [...document.querySelectorAll(".mkpi .mkpi-tile")].map((t) => Math.round(t.getBoundingClientRect().y));
+      // Money opens on the home's three numbers (2026-10-09, Business opens on Money): where they stand.
+      const numbers = (() => { const e = document.getElementById("home-numbers"); return e && shown(e) ? Math.round(e.getBoundingClientRect().y) : null; })();
       return { app: a && { w: Math.round(a.width), h: Math.round(a.height), radius: parseFloat(getComputedStyle(app).borderTopLeftRadius) || 0 },
-        nav: n && { x: Math.round(n.x), y: Math.round(n.y), w: Math.round(n.width), h: Math.round(n.height) }, tabs, cols, tiles,
+        nav: n && { x: Math.round(n.x), y: Math.round(n.y), w: Math.round(n.width), h: Math.round(n.height) }, tabs, cols, tiles, numbers,
         screen: sc && { x: Math.round(sc.x), w: Math.round(sc.width) },
         // Sideways: the page, and the scroller unless it clips (/office's watermark bleeds off the right edge by design).
         over: Math.max(document.scrollingElement.scrollWidth - innerWidth, body && getComputedStyle(body).overflowX !== "hidden" ? body.scrollWidth - body.clientWidth : 0),
@@ -1432,16 +1434,16 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         && g.tabs.every((t, i) => i === 0 || t.y > g.tabs[i - 1].y) && lit.length === 1 && lit[0].bg !== "rgba(0, 0, 0, 0)", JSON.stringify({ nav: g.nav, tabs: g.tabs }));
     ok("desk: the sidebar's head says Crew console, and its list says it stands up", g.head && g.orient === "vertical", JSON.stringify({ head: g.head, orient: g.orient }));
     ok("desk: the canvas sits right of the sidebar, never wider than 1,240, and nothing scrolls sideways", g.screen.x >= 236 && g.screen.w <= 1240 && g.over <= 0, JSON.stringify({ screen: g.screen, over: g.over }));
-    ok("desk: Money's groups stand in two columns side by side, starting on one line — spending, getting paid and the numbers; pricing, operators, members and the records",
-      side(g.cols) && /Spend & budget/.test(g.cols[0].t) && /The numbers/i.test(g.cols[0].t) && /Pricing & margins/.test(g.cols[1].t) && /Records/.test(g.cols[1].t), JSON.stringify(bare(g.cols)));
-    ok("desk: the numbers are one row; nothing floats over the canvas — the ✦ is in the header, and no rail or floating button is drawn",
-      g.tiles.length === 5 && g.tiles.every((y) => y === g.tiles[0]) && g.spark && !g.fab && !g.rail, JSON.stringify({ tiles: g.tiles, spark: g.spark, fab: g.fab, rail: g.rail }));
+    ok("desk: Money's groups stand in two columns side by side, starting on one line — spending, getting paid and the reports; pricing, operators, members and the records",
+      side(g.cols) && g.cols[0].h.includes("Spend & budget") && g.cols[0].h.includes("Reports") && g.cols[1].h.includes("Pricing & margins") && g.cols[1].h.includes("Records"), JSON.stringify({ cols: bare(g.cols), heads: g.cols.map((c) => c.h) }));
+    ok("desk: Money opens on the home's three numbers, above its two columns (2026-10-09); nothing floats over the canvas — the ✦ is in the header, and no rail or floating button is drawn",
+      g.numbers !== null && g.cols.length === 2 && g.numbers < g.cols[0].y && g.tiles.length === 0 && g.spark && !g.fab && !g.rail, JSON.stringify({ numbers: g.numbers, cols: bare(g.cols), tiles: g.tiles, spark: g.spark, fab: g.fab, rail: g.rail }));
     await m.ctx.close();
 
     const s = await open(SMALL, "/crew?s=money", { theme: "dark" });
     allErrors.push(...s.errors);
-    ok("desk: at 1,024 × 768 the two columns still stand side by side, the five numbers in one row, nothing sideways",
-      side(s.g.cols) && s.g.tiles.length === 5 && s.g.tiles.every((y) => y === s.g.tiles[0]) && s.g.over <= 0 && s.g.nav.w === 236, JSON.stringify({ cols: bare(s.g.cols), tiles: s.g.tiles, over: s.g.over }));
+    ok("desk: at 1,024 × 768 the two columns still stand side by side under the three numbers, nothing sideways",
+      side(s.g.cols) && s.g.numbers !== null && s.g.numbers < s.g.cols[0].y && s.g.over <= 0 && s.g.nav.w === 236, JSON.stringify({ cols: bare(s.g.cols), numbers: s.g.numbers, over: s.g.over }));
     await s.ctx.close();
 
     const o = await open(DESK, "/office", { seed: { rpc: { office_home: office } } });
@@ -1782,7 +1784,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     if (SHOTS) await page.screenshot({ path: shotPath(MAIN, `crew-header${scale ? "--largest" : ""}`), clip: { x: 0, y: 0, width: MAIN.width, height: 260 } });
     ok(`header ${at}: it is there`, !r.missing);
     ok(`header ${at}: every control in the row is the kit's — round buttons and a segmented switch, nothing else`, !r.missing && r.foreign.length === 0, r.foreign?.join(", "));
-    ok(`header ${at}: the mode is a switch — Crew chosen, Customer beside it`, r.mode === "Crew:true Customer:false", r.mode);
+    ok(`header ${at}: the Crew/Customer switch is More's, not the header's (2026-10-09, the navigation round)`, r.mode === null, r.mode);
     ok(`header ${at}: the row's controls share one line of centres (within 1px)${scale ? " — on each line, if the row wraps" : ", on one line"}`,
       !r.missing && r.offCentre.length === 0 && (scale || r.lines === 1), JSON.stringify({ offCentre: r.offCentre, lines: r.lines }));
     ok(`header ${at}: two heights in the row and no others — the round buttons and the switch's track`, !r.missing && new Set(r.heights).size <= 2, r.heights?.join(" "));

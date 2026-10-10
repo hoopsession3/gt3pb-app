@@ -5364,9 +5364,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\{canGoBack && <IconButton icon="chevronLeft" label="Back" onClick=\{\(\) => back\(\)\} \/>\}/.test(crew) && !/Exit Crew Mode/.test(crew)
     && crew.indexOf('<div className="toprow-lead">') < crew.indexOf('icon="chevronLeft"') && crew.indexOf('icon="chevronLeft"') < crew.indexOf('<div className="toprow-actions">'));
   const nav = code(read("components/OperatorNav.tsx"));
-  ok("chrome: tapping the lane you are on does something — the inbox when it is badged, the lane's first screen otherwise",
-    /if \(!on\) \{ openGroup\(g\); return; \}/.test(nav) && /if \(waiting > 0\) \{ window\.dispatchEvent\(new Event\("gt3-open-inbox"\)\); return; \}/.test(nav)
-    && /if \(section !== g\.members\[0\]\) setSection\(g\.members\[0\]\);/.test(nav));
+  ok("chrome: tapping the lane you are on does something — the lane's first screen, then its top (what is waiting is the bell's, 2026-10-09)",
+    /if \(!on\) \{ openGroup\(g\); return; \}/.test(nav) && !/waiting > 0/.test(nav)
+    && /if \(section !== g\.members\[0\]\) setSection\(g\.members\[0\]\); else scrollToTop\(\);/.test(nav));
 
   // ── the inbox ──
   const recs = require("../.smoke/records.js");
@@ -5395,8 +5395,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /openRecord\(g\.kind as "event" \| "stop", g\.recId!\)/.test(read("components/PrepBoard.tsx")) && /\{g\.past \? "Wrap up" : "Open"\}/.test(read("components/PrepBoard.tsx")));
   ok("plan: on the crew calendar an event or stop opens its record instead of a row that does nothing",
     /onClick=\{\(\) => openRecord\(it\.kind as "event" \| "stop", it\.id\)\}/.test(read("components/CompanyCalendar.tsx")));
-  ok("money: the glance tiles land where they say, through CrewKpis' one jump",
-    /goToDest\(TO\[t\.k\] \?\? \{ section: "money" \}, setSection\)/.test(read("components/MoneyKpis.tsx")) && /export function goToDest/.test(read("components/CrewKpis.tsx")));
+  ok("money: its numbers land where they say, through CrewKpis' one jump — on Money a number opens the report that explains it (2026-10-09)",
+    /const open = \(anchor: "sales" \| "pnl"\) => \(here === "money" \? goToDest\(\{ anchor \}, setSection\) : setSection\("money"\)\);/.test(read("components/HomeNumbers.tsx")) && /export function goToDest/.test(read("components/CrewKpis.tsx")));
   ok("panels: a wrapped component's duplicate title hides, its controls never — Sales' range, '+ Add', 'due soon'",
     /\.mpanel-body > \*:not\(\.adm-hud\) > \.k-sec:first-child:has\(> \.k-sec-r\),\n\.mpanel-body > \.k-sec:first-child:has\(> \.k-sec-r\)\{display:flex;/.test(css)
     && /:has\(> \.k-sec-r\) > \.k-sec-lbl\{display:none\}/.test(css));
@@ -5835,7 +5835,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // app's readers and screens to it.
   {
     const m358 = read("supabase/migrations/0358_office_revenue_is_counted_on_the_day_it_is_delivered.sql");
-    const digestRoute = code(read("app/api/cron/digest/route.ts")), review = code(read("app/api/agents/weekreview/route.ts")), moneyTiles = code(read("components/MoneyKpis.tsx"));
+    const digestRoute = code(read("app/api/cron/digest/route.ts")), review = code(read("app/api/agents/weekreview/route.ts"));
     const crewOffice3 = code(read("components/OfficeOrders.tsx")), officePage = code(read("app/office/page.tsx"));
     ok("office revenue: report_sales, the founder digest and all_orders date an office order by its delivery day, and the schedule keeps six weeks",
       /office := coalesce\(\(select sum\(total_cents\) from business_orders where payment_status = 'paid' and canceled_at is null and delivery_date between since::date and current_date and tenant_id = tid\), 0\);/.test(m358)
@@ -5844,13 +5844,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /total_cents, \(delivery_date \+ time '12:00'\) at time zone 'UTC'\s+from public\.business_orders\s+where delivery_date <= current_date;/.test(m358)
       && /create or replace function public\.office_horizon\(\) returns int\s+language sql immutable as \$\$ select 42 \$\$;/.test(m358)
       && /-- existing rows: founder_digest_alert — /.test(m358));
-    ok("office revenue: the app's own readers count an office order on its delivery day — the console tile, the daily digest, the week review (for its own tenant)",
-      /from\("business_orders"\)\.select\("total_cents"\)\.eq\("payment_status", "paid"\)\.is\("canceled_at", null\)\.gte\("delivery_date", dayKey\(new Date\(week\)\)\)\.lte\("delivery_date", localToday\(\)\)/.test(moneyTiles)
+    ok("office revenue: the app's own readers count an office order on its delivery day — the daily digest, the week review (for its own tenant); the console's numbers read report_sales, 0358's (2026-10-09: Money's tiles retired)",
+      /sb\.rpc\("report_sales", \{ p_days: 7 \}\)/.test(read("components/HomeNumbers.tsx"))
       && /sum\("business_orders", \(q\) => q\.eq\("payment_status", "paid"\)\.is\("canceled_at", null\)\.gte\("delivery_date", day6\(\)\)\.lte\("delivery_date", etToday\(\)\)\)/.test(digestRoute)
       && /supabaseAdmin\.from\("business_orders"\)\.select\("payment_id"\)\.not\("payment_id", "is", null\),/.test(digestRoute)
       && /const onDay = \(q: any\) => q\.eq\("tenant_id", tenant\)\.gte\("delivery_date", fromISO\.slice\(0, 10\)\)\.lt\("delivery_date", toISO\.slice\(0, 10\)\);/.test(review)
       && /revenue\(tenant, d7\.toISOString\(\), now\.toISOString\(\)\)/.test(review) && /revenue\(tenant, d14\.toISOString\(\), d7\.toISOString\(\)\)/.test(review)
-      && !/business_orders[^\n]*gte\("created_at"/.test(moneyTiles + digestRoute));
+      && !/business_orders[^\n]*gte\("created_at"/.test(digestRoute));
     ok("office revenue: the crew's route is the next delivery day with later weeks folded under it, no pay link or invoice before a delivery's cutoff, and the client sees what's coming up soonest first",
       /const nextDay = open\.map\(\(o\) => o\.delivery_date\)\.filter\(\(d\) => d >= today\)\.sort\(\)\[0\] \?\? null;/.test(crewOffice3)
       && /\(o\.status === "delivered" \|\| !o\.cutoff_at \|\| new Date\(o\.cutoff_at\)\.getTime\(\) <= Date\.now\(\)\)/.test(crewOffice3)
@@ -5978,8 +5978,40 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /const empty = loaded && !err && tasks\.length === 0;/.test(mine) && /Couldn&apos;t load your tasks — this is not &ldquo;nothing on your plate&rdquo;\./.test(mine));
   ok("my tasks: a tick that did not save puts the task back and says so — it vanished either way",
     /const ok = await completeTask\(/.test(mine) && /if \(!ok\) \{ toast\(/.test(mine));
-  ok("one place: the painted My Day has no top three under the op card — the critical team tasks lead Today, once",
-    !/dayhead-top/.test(read("scripts/fixtures/my-day.html")) && /<h2 class="l">Today<\/h2>/.test(read("scripts/fixtures/my-day.html")));
+  ok("one place: the painted My Day has no top three under the op card — the critical team tasks lead To do, once (the title says Today since 2026-10-09)",
+    !/dayhead-top/.test(read("scripts/fixtures/my-day.html")) && /<h2 class="l">To do<\/h2>/.test(read("scripts/fixtures/my-day.html")));
+}
+
+// ── THE NAVIGATION ROUND (2026-10-09, round 2 — Ryan: "Switch + Guide to More", approved; the doc's
+// "one alert number; three controls in the header; the name said once") ───────────────────────────────
+// My Day's header held six controls, three alert counts that never agreed (the bell, Today's tab, each
+// lane's), and named the screen three times (the tab, the title, the row's thumb). These pin the cut.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const crew = code(read("app/crew/page.tsx")), nav = code(read("components/OperatorNav.tsx")), css = read("app/globals.css");
+  const header = crew.slice(crew.indexOf('<div className="toprow">'), crew.indexOf("{guide && <SectionGuide"));
+  ok("navigation: three controls in the header — quick actions, search, the inbox — and Back when there is somewhere to go",
+    (header.match(/<IconButton /g) || []).length === 4 && /canGoBack && <IconButton icon="chevronLeft"/.test(header) && !/<Segmented|icon="info"/.test(header));
+  ok("navigation: the Crew/Customer switch and the Guide are rows in More — the switch's leaving still remembered, the Guide over the screen you are on",
+    /onClick=\{\(\) => \{ onClose\(\); window\.dispatchEvent\(new Event\("gt3-open-guide"\)\); \}\}/.test(nav) && /<b>Guide<\/b>/.test(nav)
+    && /onClick=\{\(\) => \{ onClose\(\); window\.dispatchEvent\(new Event\("gt3-customer-view"\)\); \}\}/.test(nav) && /<b>Customer view<\/b>/.test(nav)
+    && /window\.addEventListener\("gt3-open-guide", open\)/.test(crew) && /const open = \(\) => setGuide\("sections"\);/.test(crew)
+    && /const leave = \(\) => \{ rememberMode\("customer"\); router\.push\("\/"\); \};/.test(crew) && /window\.addEventListener\("gt3-customer-view", leave\)/.test(crew)
+    && !/lib\/mode|next\/navigation/.test(nav));
+  ok("navigation: one alert number — the bell's; no tab carries a count, and the lane legend that explained them went with them",
+    !/nav-badge|critCount|laneCounts|useMyAlerts/.test(nav) && !/\.nav-badge|\.lane-legend|\.lane-key/.test(css) && !/lane-legend/.test(nav)
+    && /badge=\{hdrToday\.length\} crit=\{hdrTodayCrit > 0\}/.test(header));
+  ok("navigation: Business opens on Money — first in the lane here and in 0361 for the live rows, with the home's three numbers on top, Sales and the shop's queue open, and every folded panel saying what it holds (Ryan: \"Business opens on Money\", 2026-10-09)",
+    /sections: \["money", "plan", "notes", "catalog", "customers", "team"\]/.test(read("lib/streams.ts"))
+    && /set sections = array\['money'\]::text\[\] \|\| array_remove\(sections, 'money'\)/.test(read("supabase/migrations/0361_business_opens_on_money.sql"))
+    && /<HomeNumbers money drops here="money" \/>/.test(crew) && !/MoneyKpis/.test(crew) && !fs.existsSync(path.join(__dirname, "..", "components/MoneyKpis.tsx"))
+    && (() => { const m = crew.slice(crew.indexOf('{sec === "money" && isAdmin && ('), crew.indexOf('{sec === "notes" && <MeetingNotes />}')); return (m.match(/defaultOpen/g) || []).length === 2 && /<Panel id="sales" title="Sales" defaultOpen>/.test(m) && /<Panel id="shoporders" title="The Shop · orders" defaultOpen>/.test(m)
+      && /<Panel id="spend" title="Spend & budget · what the business spends" sub="[^"]{12,}">/.test(m) && /<Panel id="pay" title="Refunds & payment settings" sub="[^"]{12,}">/.test(m); })());
+  ok("navigation: the name is said once — over a lane's row of sections the title names the lane, as its tab does; a lane of one names its section",
+    /<h1 className="op-head-t" data-large-title>\{lane\.members\.length >= 2 \? lane\.label : SEC_LABEL\[sec\]\}<\/h1>/.test(crew)
+    && /<Segmented fill className="lane-tabs mb-3\.5" label=\{lane\.label\} value=\{sec\}/.test(crew));
 }
 
 // ── ONE LINE TO ORDER: THE ORDERING PAGES (2026-10-09, round 2, step 2 of the UX plan, approved) ─────────
@@ -8558,8 +8590,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const block = (start) => { const i = pg.indexOf(start); return pg.slice(i, pg.indexOf("\n      )}\n", i)); };
   const money = block('{sec === "money" && isAdmin && ('), cust = block('{sec === "customers" && isAdmin && ('), team = block('{sec === "team" && isAdmin && (');
   const cat = block('{sec === "catalog" && isAdmin && (');
-  ok("old spots: Money keeps its pay panel — the refunds door and \"Payment settings ›\" — and the switches left it",
-    /<Panel id="pay" title="Refunds & payment settings" defaultOpen>[\s\S]*?Refunds &amp; disputes — Square Dashboard[\s\S]*?<GoLine to="settings" anchor="set-pay">Payment settings<\/GoLine>\s*<\/Panel>/.test(money)
+  ok("old spots: Money keeps its pay panel — the refunds door and \"Payment settings ›\" — folded at rest since 2026-10-09, and the switches left it",
+    /<Panel id="pay" title="Refunds & payment settings" sub="[^"]+">[\s\S]*?Refunds &amp; disputes — Square Dashboard[\s\S]*?<GoLine to="settings" anchor="set-pay">Payment settings<\/GoLine>\s*<\/Panel>/.test(money)
     && !/<PaymentSettings \/>/.test(money) && !/<MenuManager \/>|<PlanEditor \/>|<MerchManager \/>|<LessonsManager \/>/.test(money)
     && /<SectionHeader label="Pricing & margins" \/>\s*(?:\{\}\s*)?<GoLine to="catalog" anchor="menu">Menu, merch &amp; lessons<\/GoLine>\s*<Panel id="econ" title="Product economics"><ProductCatalog \/><\/Panel>\s*<Panel id="cogs" title="COGS calculator"><CogsCalculator \/><\/Panel>/.test(money)
     && /<GoLine to="catalog" anchor="plans">Membership plans<\/GoLine>/.test(money) && !/Catalog & pricing/.test(money));
@@ -8569,11 +8601,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("catalog: what the business sells, in one section — the menu open at rest, then merch and lessons; then plans, codes and perks — every row saying what it holds",
     /<SectionHeader label="What we sell" \/>\s*<Panel id="menu" title="Menu & products" sub="[^"]{8,}" defaultOpen><MenuManager \/><\/Panel>\s*<Panel id="merch" title="The Shop · merch" sub="[^"]{8,}"><MerchManager \/><\/Panel>\s*<Panel id="lessons" title="Return to Primal · lessons" sub="[^"]{8,}"><LessonsManager \/><\/Panel>\s*<\/Column>\s*<Column>\s*<SectionHeader label="Memberships & offers" \/>\s*<Panel id="plans" title="Membership plans" sub="[^"]{8,}"><PlanEditor \/><\/Panel>\s*<Panel id="cust-codes" title="Discount codes" sub="[^"]{8,}"><CodesPanel \/><\/Panel>\s*<Panel id="cust-perks" title="Founding perks" sub="[^"]{8,}"><PerksPanel \/><\/Panel>/.test(cat)
     && ["<MenuManager />", "<MerchManager />", "<LessonsManager />", "<PlanEditor />", "<CodesPanel />", "<PerksPanel />", "<BroadcastEditor />"].every((c) => pg.split(c).length === 2));
-  ok("catalog: a section of the console — owners and admins open it, it sits right after Money in their sections and in the Business lane, and the Guide explains it",
+  ok("catalog: a section of the console — owners and admins open it, it sits right after Money in their sections, it is in the Business lane (which opens on Money, 2026-10-09), and the Guide explains it",
     ["admin", "owner"].every((r) => { const l = roleLine(r); return l.indexOf("catalog") === l.indexOf("money") + 1; })
     && ["server", "contractor", "operator", "event_manager"].every((r) => !roleLine(r).includes("catalog"))
     && SECTIONS.has("catalog") && /catalog: "Catalog"/.test(nav) && /\n  catalog: <>/.test(nav)
-    && /sections: \["plan", "notes", "money", "catalog", "customers", "team"\]/.test(code(read("lib/streams.ts")))
+    && /sections: \["money", "plan", "notes", "catalog", "customers", "team"\]/.test(code(read("lib/streams.ts")))
     && /catalog: "Catalog"/.test(read("lib/routeTitles.ts")) && /const SEC_LABEL = SECTION_TITLE;/.test(pg) && /\n  catalog: "[^"]{20,}",/.test(pg) && /\n  catalog: \["Menu & products/.test(pg));
   {
     const mig = read("supabase/migrations/0352_catalog_lane.sql");
@@ -9111,9 +9143,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // ── PILLS, ONE KIT (2026-10-07, the pill round) — Ryan's My Day header, five controls in five recipes ──
   const crew = read("app/crew/page.tsx"), kit = read("components/controls.tsx"), audit = read("scripts/css.audit.mjs");
   const header = crew.slice(crew.indexOf("THE HEADER, ONE KIT"), crew.indexOf("{guide && <SectionGuide"));
-  ok("pills: the crew header is the kit's — Back, the mode switch, search, the guide and the inbox, and nothing hand-made beside them",
-    /<Segmented kind="choice" size="sm" label="View mode" value="crew"/.test(header)
-    && (header.match(/<IconButton icon="(search|info|bell)"/g) || []).length === 3 && /<IconButton icon="chevronLeft" label="Back"/.test(header)
+  ok("pills: the crew header is the kit's — Back, then quick actions, search and the inbox (the switch and the Guide are More's, 2026-10-09), and nothing hand-made beside them",
+    !/<Segmented/.test(header) && !/icon="info"/.test(header)
+    && (header.match(/<IconButton icon="(sparkles|search|bell)"/g) || []).length === 3 && /<IconButton icon="chevronLeft" label="Back"/.test(header)
     && !/<button\b/.test(header) && /badge=\{hdrToday\.length\} crit=\{hdrTodayCrit > 0\}/.test(header));
   ok("pills: the lane's sections are the kit's segmented control, the whole row wide",
     /<Segmented fill className="lane-tabs mb-3\.5" label=\{lane\.label\} value=\{sec\}/.test(crew));
@@ -9257,9 +9289,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /url\.searchParams\.delete\("ask"\);\s*window\.history\.replaceState/.test(qd));
   // ── the doc, in the app ──
   const cp = code(read("app/crew/page.tsx")), cst = code(read("components/CrewStart.tsx"));
-  ok("the guide: ?guide=start (the letter's link) opens it on Start here — read once and taken off the address; a first visit opens there too; the ⓘ opens the sections, as it did",
+  ok("the guide: ?guide=start (the letter's link) opens it on Start here — read once and taken off the address; a first visit opens there too; More's Guide row opens the sections (2026-10-09: the ⓘ left the header)",
     /const \[guideAsked\] = useState<string \| null>\(\(\) => readParam\("guide"\)\);/.test(cp) && /if \(guideAsked\) dropParam\("guide"\);/.test(cp)
-    && /setGuide\(\(g\) => g \?\? "start"\)/.test(cp) && /onClick=\{\(\) => setGuide\("sections"\)\}/.test(cp)
+    && /setGuide\(\(g\) => g \?\? "start"\)/.test(cp) && /const open = \(\) => setGuide\("sections"\);/.test(cp)
     && /\{guide && <SectionGuide allowed=\{allowed\} current=\{sec\} start=\{guide === "start"\}/.test(cp));
   ok("the guide: two pages of one guide — Start here and Every section — and Start here loads with the Guide, not with the console",
     /options=\{\[\{ key: "start", label: "Start here" \}, \{ key: "sections", label: "Every section" \}\]\}/.test(cp)
@@ -9949,7 +9981,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /!sheetOpen\(\) && !deskNow\(\)/.test(read("components/SwipeBack.tsx"))
     && /export function deskNow\(\): boolean \{[\s\S]*?window\.matchMedia\(DESK_QUERY\)\.matches && !!document\.querySelector\("\.app\[data-desk\]"\)/.test(surf));
   ok("desk: a strip of numbers is one row; Studio's week is seven columns; the notes two to a row; an office's invitation a card's width",
-    ["components/MoneyKpis.tsx", "components/CustomerKpis.tsx", "components/CrewKpis.tsx"].every((f) => /className="mkpi desk:grid-cols-none desk:grid-flow-col desk:auto-cols-fr"/.test(read(f)))
+    ["components/CustomerKpis.tsx", "components/CrewKpis.tsx"].every((f) => /className="mkpi desk:grid-cols-none desk:grid-flow-col desk:auto-cols-fr"/.test(read(f)))
     && /<div className="calw desk:grid desk:grid-cols-7 desk:gap-2">/.test(read("components/BrandCalendar.tsx"))
     && /<div className="contents desk:grid desk:grid-cols-2 desk:gap-x-3 desk:items-start">/.test(pg) && (read("app/office/page.tsx").match(/className="op-none desk:max-w-130 desk:mx-auto"/g) || []).length === 2);
   ok("desk: Command says GOALS once — Goals draws its own head with the count, and the one above it is gone",
