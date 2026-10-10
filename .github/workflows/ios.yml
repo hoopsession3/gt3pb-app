@@ -233,14 +233,18 @@ jobs:
           fi
 
       # Build number = this workflow's run number, so every upload is newer than the last.
-      - name: Archive a signed Release build
+      # The archive is NOT signed here. Automatic signing archives with a development profile, and a
+      # development profile needs an iPhone registered to the team: "Your team has no devices from which
+      # to generate a provisioning profile" (run #70, 2026-10-10, the first time the key got through). The
+      # export below signs it for the App Store instead, with a distribution certificate and profile Xcode
+      # makes through the API key — no device involved.
+      - name: Archive the Release build (signed at export)
         run: |
           set -o pipefail
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/App.xcarchive" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/asc/AuthKey_$ASC_KEY_ID.p8" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             archive 2>&1 | tee archive.log | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)" || true
           test -d "$RUNNER_TEMP/App.xcarchive"
 
