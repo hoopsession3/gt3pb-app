@@ -11,7 +11,10 @@ import { APP_BUILD } from "@/lib/native";
 export const metadata: Metadata = {
   metadataBase: new URL("https://app.gt3pb.com"),
   title: "GT3 Performance Bar — Only the best for you",
-  description: "Whole-food functional beverages — cold-extracted coffee, whole-coconut hydration, and slow-simmered broth, made to order. Order ahead, reserve a drop, and manage your membership.",
+  // Every link to the app previews with this line (Messages, search). It said "slow-simmered broth, made to
+  // order" until 2026-10-10, which read as "simmered to order" — Ryan: take it off. What the drinks are, then
+  // what the app does.
+  description: "Whole-food functional drinks — cold-extracted coffee, whole-coconut hydration and bone broth. Order ahead, reserve a drop, and manage your membership.",
   applicationName: "GT3PB",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "GT3PB" },
   // The web app's install manifest; the iPhone app is installed from the App Store and has none.

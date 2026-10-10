@@ -624,31 +624,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ac-assign .ev-input,.ac-assign select.ev-input{font-size:16px;width:100%}
 .ac-overdue{margin-left:8px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--red-h);background:color-mix(in srgb, var(--brand-red) 16%, transparent);border-radius:5px;padding:2px 6px;vertical-align:middle}
 
-/* ---- route map (Truck) ---- */
-/* isolation:isolate contains Leaflet's internal pane z-indexes (200-700+) and the Directions button's z-index:500
-   to THIS element's own stacking context. Without it, position:relative alone doesn't stop them from
-   competing directly against page-level z-index values like .sheet2-scrim's 80 — so opening any Sheet
-   (e.g. the account/membership popout) while this map is on screen left the map's tiles, zoom control,
-   and Directions button rendering unblurred and in front of the modal's scrim instead of behind it. */
-.routemap-wrap{position:relative;margin-top:4px;isolation:isolate}
-.routemap{height:240px;border-radius:18px;overflow:hidden;border:1px solid var(--line2);background:#100d09;box-shadow:0 6px 16px rgba(0,0,0,.2)}
-.routemap .leaflet-container{background:#100d09;font-family:'Inter';cursor:default}
-.routemap .leaflet-interactive{cursor:pointer}
-.routemap-wrap .rm-go{position:absolute;right:11px;bottom:11px;z-index:500}  /* the kit's primary, placed over the map */
-.rm-truck{animation:rmpulse 2s ease-in-out infinite;transform-origin:center}
-@keyframes rmpulse{0%,100%{opacity:1}50%{opacity:.5}}
-.rm-tip{background:rgba(20,19,15,.92)!important;border:1px solid var(--line2)!important;color:var(--cream)!important;font-family:'Inter'!important;font-size:11px!important;font-weight:650!important;letter-spacing:.2px!important;padding:2px 6px!important;border-radius:var(--r-sm)!important;box-shadow:0 3px 10px rgba(0,0,0,.5)!important;white-space:nowrap!important}
-.rm-tip.rm-tip-live{background:var(--red)!important;border-color:var(--red-d)!important;color:#fff!important}
-.leaflet-tooltip-left.rm-tip:before{border-left-color:var(--line2)!important}
-.leaflet-tooltip-right.rm-tip:before{border-right-color:var(--line2)!important}
-.leaflet-tooltip-right.rm-tip.rm-tip-live:before{border-right-color:var(--red)!important}
-.leaflet-tooltip-left.rm-tip.rm-tip-live:before{border-left-color:var(--red)!important}
-.leaflet-control-zoom a{background:var(--card)!important;color:var(--cream)!important;border-color:var(--line2)!important}
-@media (hover:hover){.leaflet-control-zoom a:hover{background:var(--char2)!important}}
-/* Find Us's + and − at 44 (2026-10-09, the forms round): Leaflet draws them 30 square on a touch screen, under the
-   thumb's 44 on /, /truck and /events; three classes outrank Leaflet's own two, wherever its sheet lands. */
-.leaflet-touch .leaflet-control-zoom.leaflet-bar a{width:44px;height:44px;line-height:44px}
-
 /* ---- checkout ---- */
 .co-line{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-family:'Inter';font-weight:600;font-size:15px;color:var(--cream)}
 .co-line span:last-child{font-family:'DM Mono';font-weight:500;color:var(--cream-m)}
@@ -3708,7 +3683,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .driver-prog b{color:var(--gold2);font-size:20px}
 .driver-bar{height:5px;border-radius:3px;background:color-mix(in srgb, var(--brand-cream) 10%, transparent);overflow:hidden;margin:10px 0 14px}
 .driver-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:3px;transition:width .4s var(--ease)}
-.driver-geohint{text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.5px;color:var(--cream-d);margin:8px 0}
 .driver-list{display:flex;flex-direction:column;gap:11px;margin-top:14px}
 .driver-stop{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:14px;transition:opacity .3s}
 .driver-stop.next{border-color:var(--gold2);box-shadow:0 0 0 1px var(--gold2),0 8px 24px rgba(0,0,0,.3)}

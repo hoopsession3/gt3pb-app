@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "GT3PB — Only the best for you",
     short_name: "GT3PB",
     description:
-      "Only the best for you — cold-extracted coffee, whole-food hydration, and slow-simmered fuel, prepared to order.",
+      "Only the best for you — cold-extracted coffee, whole-coconut hydration and bone broth.",
     start_url: "/",
     scope: "/",
     display: "standalone",
