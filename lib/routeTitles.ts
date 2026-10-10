@@ -59,3 +59,18 @@ export function upOf(pathname: string): string | null {
   const seg = first(pathname);
   return own(UP, seg) ? UP[seg] : null;
 }
+
+// THE TAB YOU ARE IN (2026-10-09, round 2's every-page review). /reserve and /delivery are Shop's Bottles
+// aisle opened at a door of its own, and /events is Find Us under its old name, so a visitor on any of
+// the three saw no tab lit and could not tell where in the app they were. A screen lights the tab it is
+// part of; its Back still goes where it came from. Matched by whole path segment, as titleOf is, so no
+// route lights a tab by sharing its first letters.
+const TAB_OF: Readonly<Record<string, string>> = {
+  "": "/", truck: "/truck", events: "/truck", menu: "/menu", shop: "/shop", reserve: "/shop", delivery: "/shop", "3mpire": "/3mpire",
+};
+
+/** The tab bar's tab (its href) lit on `pathname`, or null when the screen belongs to none. */
+export function tabOf(pathname: string): string | null {
+  const seg = first(pathname || "/");
+  return own(TAB_OF, seg) ? TAB_OF[seg] : null;
+}

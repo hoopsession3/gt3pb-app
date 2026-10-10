@@ -17,11 +17,9 @@ export const COPY_META: CopyMeta[] = [
   // what was unnecessary. home.statement / home.principles / home.cta had been flagged DEAD since
   // 2026-07-16 — no component ever read them — and an editor field that changes nothing is the
   // same unnecessary information, one screen deeper. An override row left in site_copy is inert.
-  // ── Home · signed-out (Arrival) ──
-  { key: "home.cta_sub", group: "Home · signed-out", label: "Button subtext", multiline: true,
-    default: "Choose what you'd like and we'll have it waiting at the window." },
-  { key: "home.signoff", group: "Home · signed-out", label: "Sign-off",
-    default: "Pure Signal, No Noise." },
+  // ── Home · signed-out and Home · pillars, Story, Reserve: retired 2026-10-09 with the guest story that
+  //    closed /shop, /reserve and /delivery (components/StorefrontStory) — the Menu tab's three acts again,
+  //    under the order. The menu is one tap away. An override row left in site_copy is inert. ──
   // ── Member card (the status card popout) ──
   { key: "card.founding_thanks", group: "Member card", label: "Founding-member thank-you banner", multiline: true,
     default: "✦ Thank you for being a Founding Member — you were here first." },
@@ -88,13 +86,6 @@ export const COPY_META: CopyMeta[] = [
   { key: "stamp.foot_near", group: "Loyalty card", label: "Footer line — 1-2 stamps from a free drink (uses {count})", default: "So close — just {count} more till a free cup." },
   { key: "stamp.foot_progress", group: "Loyalty card", label: "Footer line — default progress, 3+ stamps to go (uses {count})", default: "{count} more drinks till your next free one." },
   { key: "stamp.open_cta", group: "Loyalty card", label: "Footer, right side — opens the member card", default: "Open your card ›" },
-  // ── Home · the three pillars (signed-out "What We Make") ──
-  { key: "home.pillar1_t", group: "Home · pillars", label: "Pillar 1 — title", default: "Activation" },
-  { key: "home.pillar1_d", group: "Home · pillars", label: "Pillar 1 — line", default: "Cold-extracted coffee to start the day clear." },
-  { key: "home.pillar2_t", group: "Home · pillars", label: "Pillar 2 — title", default: "Hydration" },
-  { key: "home.pillar2_d", group: "Home · pillars", label: "Pillar 2 — line", default: "Whole-coconut water to carry you through it." },
-  { key: "home.pillar3_t", group: "Home · pillars", label: "Pillar 3 — title", default: "Fuel" },
-  { key: "home.pillar3_d", group: "Home · pillars", label: "Pillar 3 — line", default: "Slow-simmered broth to rebuild after." },
   // ── Reserve card on the home screen ──
   { key: "pitch.kicker", group: "Reserve card", label: "Kicker", default: "Order Ahead" },
   { key: "pitch.headline", group: "Reserve card", label: "Headline", default: "The bottles you love, brewed to order." },
@@ -127,9 +118,6 @@ export const COPY_META: CopyMeta[] = [
   // interactive rule as craft.cta_menu/cta_reserve, not inline-click-editable.
   { key: "menu.craft_link", group: "Menu", label: "Craft-page link (after the menu)",
     default: "Grouped by what your body needs — see the full chemistry" },
-  // ── Reserve (the signed-out storefront's story page) ──
-  { key: "reserve.order_bar", group: "Reserve", label: "Order-from-the-bar button",
-    default: "Order from the bar" },
   { key: "menu.integrity", group: "Menu", label: "Integrity line",
     default: "Everything real, poured into glass, made the moment you order" },
   { key: "menu.mto", group: "Menu", label: "Made-to-order line",
@@ -164,7 +152,6 @@ export const COPY_META: CopyMeta[] = [
   { key: "truck.craft_link", group: "Truck", label: "Craft-page teaser button (sits above the closing beat)",
     default: "What's really in the cup — and why" },
   // ── Shop (/shop) — the merch storefront. Adoption pass 2026-08-10. ──
-  { key: "shop.eyebrow", group: "Shop", label: "Masthead eyebrow", default: "The Shop" },
   { key: "shop.sec_bottles", group: "Shop", label: "Aisle tab — Bottles (pack reserve)", default: "Bottles" },
   { key: "shop.sec_merch", group: "Shop", label: "Aisle tab — Merch (capsule)", default: "Merch" },
   { key: "shop.tagline", group: "Shop", label: "Storefront tagline", multiline: true,
@@ -323,8 +310,6 @@ export const COPY_META: CopyMeta[] = [
   { key: "funnel.toggle_delivery_sub", group: "Reserve flow", label: "Mode toggle — Delivery sub", default: "Prepaid, to your door" },
   { key: "funnel.size_h_pickup_multi", group: "Reserve flow", label: "Size step — headline (multiple pickup days)", default: "Pick a day and a size." },
   { key: "funnel.size_h_pickup", group: "Reserve flow", label: "Size step — headline (single day, uses {day})", default: "Pick a size for {day}." },
-  { key: "funnel.pricemode_pickup_back", group: "Reserve flow", label: "Size step — price mode, bring-back", default: "Prices with bring-back empties — need new glass? It’s $10 a bottle, picked at the next step." },
-  { key: "funnel.pricemode_pickup_new", group: "Reserve flow", label: "Size step — price mode, new glass", default: "New-glass prices — bring your empties back next drop and pay less." },
   { key: "funnel.pickup_day_label", group: "Reserve flow", label: "Size step — pickup-day picker label", default: "Pickup day — your call" },
   { key: "funnel.pickup_one_label", group: "Reserve flow", label: "Size step — label over the one pickup (no day to pick)", default: "Pickup" },
   { key: "funnel.how_many", group: "Reserve flow", label: "Size step — bottle-count label", default: "How many bottles" },
@@ -363,10 +348,9 @@ export const COPY_META: CopyMeta[] = [
   // ── Order funnel — delivery-mode steps (renders on /delivery). ──
   { key: "funnel.hero_h1", group: "Delivery", label: "Delivery hero — headline line 1", default: "Your week," },
   { key: "funnel.hero_em", group: "Delivery", label: "Delivery hero — headline emphasis", default: "delivered." },
-  { key: "funnel.aud_home", group: "Delivery", label: "Audience fork — home", default: "My home" },
-  { key: "funnel.aud_home_sub", group: "Delivery", label: "Audience fork — home sub", default: "Sunday packs" },
-  { key: "funnel.aud_office", group: "Delivery", label: "Audience fork — office", default: "My office" },
-  { key: "funnel.aud_office_sub", group: "Delivery", label: "Audience fork — office sub", default: "Mon · gallons" },
+  // The home-or-office cards went 2026-10-09 (the ZIP is the first question; an office is a link under it).
+  { key: "funnel.office_link", group: "Delivery", label: "Under the ZIP — the way to office delivery", default: "Ordering for an office?" },
+  { key: "funnel.home_link", group: "Delivery", label: "Office view — the way back to home delivery", default: "Home delivery instead" },
   { key: "funnel.office_cta", group: "Delivery", label: "Office — set-up button", default: "Set up office delivery" },
   { key: "funnel.zip_lead", group: "Delivery", label: "Zone check — lead line", default: "Enter your ZIP — we’ll check your porch." },
   { key: "funnel.zip_ph", group: "Delivery", label: "Zone check — ZIP placeholder", default: "ZIP code" },
@@ -415,10 +399,6 @@ export const COPY_META: CopyMeta[] = [
   { key: "splash.welcome", group: "Splash", label: "Finale — welcome", default: "Welcome to the bar" },
   { key: "splash.sign_pre", group: "Splash", label: "Finale — signature, before the mark", default: "Grow Your" },
   { key: "splash.sign_suf", group: "Splash", label: "Finale — signature, after the mark", default: "mpire" },
-  // ── Storefront story — the guest 'What We Make' close on /reserve + /delivery. ──
-  { key: "story.make_label", group: "Story", label: "Section label", default: "What We Make" },
-  { key: "story.make_note", group: "Story", label: "Section annotation", default: "three acts" },
-  { key: "story.craft_link", group: "Story", label: "Craft-page button", default: "Our craft — the how" },
   // ── Delivery page — the not-live empty state. ──
   { key: "delivery.not_live", group: "Delivery", label: "Empty state — delivery off", default: "Delivery isn't live yet — check back soon." },
   // ── Bottom nav — the five tab labels (guest + member). ──
@@ -492,13 +472,8 @@ export { copyGroupAnchor } from "./copyAnchor";
 
 // group → the live page that actually renders it. Explicit per group (unlike the anchor, a route
 // can't be derived from the name); the per-drink "Menu · <name>" groups all fall through to /menu.
-// "Home · signed-out" points at /reserve, NOT /, because that's where its live keys actually render
-// (guest arrival is StorefrontStory on /reserve + /delivery; / is the signed-in member home and
-// shows none of this group).
 const COPY_GROUP_ROUTE: Record<string, string> = {
-  "Home · signed-out": "/reserve",
   "Home · signed-in": "/",
-  "Home · pillars": "/reserve",
   "Loyalty card": "/",
   "Member card": "/",
   "Craft page": "/craft",
@@ -516,7 +491,6 @@ const COPY_GROUP_ROUTE: Record<string, string> = {
   "Checkout": "/shop",
   "Coupon": "/menu",
   "Splash": "/",
-  "Story": "/reserve",
   "Nav": "/",
   "Account": "/3mpire",
 };
