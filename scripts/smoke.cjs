@@ -5982,6 +5982,61 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     !/dayhead-top/.test(read("scripts/fixtures/my-day.html")) && /<h2 class="l">Today<\/h2>/.test(read("scripts/fixtures/my-day.html")));
 }
 
+// ── ONE LINE TO ORDER: THE ORDERING PAGES (2026-10-09, round 2, step 2 of the UX plan, approved) ─────────
+// /shop's Bottles, /reserve and /delivery are one order flow (components/OrderFunnel) behind three doors.
+// Each put about fifty words between its heading and the first choice, drew four things that are not
+// actions in the action red, closed on the Menu tab's three acts again, and lit no tab on two of the three
+// doors. These pin the cut: one line, then the choices; the chosen in gold; each paragraph one tap away in
+// "How it works"; the price a tile shows matching the menu's; and the tab you are in, lit.
+{
+  const RT = require("../.smoke/routeTitles.js");
+  const OA = require("../.smoke/orderAhead.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const fu = code(read("components/OrderFunnel.tsx")), css = read("app/globals.css"), copy = read("lib/copy.ts");
+
+  ok("ordering: the tab you are in is lit — /reserve and /delivery are Shop's, /events is Find Us, by whole path segment",
+    RT.tabOf("/reserve") === "/shop" && RT.tabOf("/delivery") === "/shop" && RT.tabOf("/shop") === "/shop"
+    && RT.tabOf("/events") === "/truck" && RT.tabOf("/truck") === "/truck" && RT.tabOf("/menu") === "/menu"
+    && RT.tabOf("/") === "/" && RT.tabOf("/3mpire") === "/3mpire" && RT.tabOf("/craft") === null && RT.tabOf("/crew") === null
+    && RT.tabOf("/reserve?x=1") === "/shop");
+  ok("ordering: the tab bar asks lib/routeTitles which tab is lit, and lights only that one",
+    /const lit = tabOf\(pathname\);/.test(read("components/BottomNav.tsx")) && /const on = tab\.href === lit;/.test(read("components/BottomNav.tsx"))
+    && !/pathname\.startsWith\(tab\.href\)/.test(read("components/BottomNav.tsx")));
+  ok("ordering: one line, then the choices — the size step says its heading, then asks; the three paragraphs are gone from it",
+    (() => { const at = fu.indexOf("── SIZE ──") >= 0 ? fu.indexOf("── SIZE ──") : fu.indexOf('{step === "size" && ('); const step = fu.slice(fu.indexOf('{step === "size" && (\n        <div className="dl-step">'), fu.indexOf('{step === "build" && count && ('));
+      return at >= 0 && step.length > 0 && !/k="reserve\.fresh"/.test(step.slice(0, step.indexOf("oa-tiles"))) && !/k="reserve\.window"/.test(step.slice(0, step.indexOf("oa-tiles"))) && !/pricemode_pickup/.test(step); })());
+  ok("ordering: nothing went without a home — what the bottles are, how glass is priced and the window's prices open in How it works, one tap away",
+    /onClick=\{\(\) => setHowOpen\(true\)\}>How it works<\/button>/.test(fu) && /k="reserve\.fresh"/.test(fu) && /k="menu\.packs_note"/.test(fu) && /k="reserve\.window"/.test(fu)
+    && /<Sheet open onClose=\{\(\) => setHowOpen\(false\)\} label="How it works"/.test(fu));
+  ok("ordering: a tile carries both of its prices, so /shop says what /menu says — six bottles, $60 new glass or $42 bring-back",
+    /\$\{money\(packTotal\(s, "return"\) \* 100\)\} bring-back/.test(fu) && /\$\{money\(packTotal\(s, "new"\) \* 100\)\} new glass/.test(fu)
+    && OA.packTotal(6, "new") === 60 && OA.packTotal(6, "return") === 42 && /dollars\(packTotal\(s, "return"\)\)\}<\/b> bring-back/.test(read("app/menu/page.tsx")));
+  ok("ordering: the day is said in full — \"Pick a size for Saturday.\"",
+    /fillCopy\(t\("funnel\.size_h_pickup"\), \{ day: weekdayOf\(dropDateKey\(drop\.sat\)\) \}\)/.test(fu) && !/dayName\(drop\.sat\)\.split\(","\)\[0\]/.test(fu));
+  ok("ordering: the chosen is gold — the pickup/delivery switch, the day, the size — and red is the action's",
+    /\.of-seg button\.on\{background:color-mix\(in srgb, var\(--brand-gold2\) 10%, transparent\);border-color:var\(--gold2\)\}/.test(css)
+    && /\.oa-day\.sel\{border-color:var\(--gold2\);/.test(css) && /\.oa-tile\.sel\{border-color:var\(--gold2\);/.test(css)
+    && !/\.oa-day\.sel b\{color:var\(--red-h\)\}/.test(css) && !/--oa-red-tint/.test(css));
+  ok("ordering: a tile's MOST POPULAR and the menu's are gold labels, not red ones, in ink that reads on both grounds",
+    /\.oa-tile \.oa-tag\{[^}]*color:var\(--char\);background:var\(--gold2\);/.test(css) && /\.mpack-tag\{[^}]*color:var\(--gold2\);border:1px solid color-mix\(in srgb, var\(--brand-gold2\) 45%, transparent\);/.test(css)
+    && !/\.oa-tile \.oa-tag\{--oa-cream/.test(css));
+  ok("ordering: /delivery's first line is a line, not a card — its 34px headline and its box are gone, and its last word is not the action red",
+    !/dl-hero|dl-h-xl/.test(fu + css) && /<h2 className="dl-h serif"><EditableCopy k="funnel\.hero_h1"/.test(fu));
+  ok("ordering: /shop has no eyebrow repeating its tab; the retired keys are gone from the editor too",
+    /<Masthead tone="light" right=\{<div className="mast-right"><EditCopyPill group="Shop" \/><AccountPill \/><\/div>\} \/>/.test(read("components/Shop.tsx"))
+    && !/shop\.eyebrow|story\.make_label|story\.craft_link|home\.pillar1_t|reserve\.order_bar|home\.signoff|home\.cta_sub|pricemode_pickup/.test(copy + read("components/Shop.tsx")));
+  ok("ordering: /delivery asks for the ZIP first — an office is one quiet line under it and a line back, still its own flow (Ryan: \"Office link\", 2026-10-09)",
+    !/aud-fork|role="radiogroup" aria-label="Delivery type"/.test(fu) && !/(^|\n)\.aud[{ .:]/.test(css)
+    && /onClick=\{\(\) => \{ setAudience\("office"\); void import\("\.\/OfficeOrder"\); \}\}>\{t\("funnel\.office_link"\)\}/.test(fu)
+    && /onClick=\{\(\) => setAudience\("home"\)\}><span aria-hidden="true">‹<\/span> \{t\("funnel\.home_link"\)\}/.test(fu)
+    && fu.indexOf('t("funnel.office_link")') > fu.indexOf('t("funnel.zip_check")') && /\{officeOpen && <OfficeOrder onClose=/.test(fu)
+    && /key: "funnel\.office_link"[^}]*default: "Ordering for an office\?"/.test(copy) && !/funnel\.aud_(home|office)/.test(copy + fu));
+  ok("menu: RISE is where a newcomer starts — \"Start here\", not \"Order here\" on a menu every drink of which is ordered the same way",
+    /tag: "Start here",/.test(read("lib/menu.ts")) && !/tag: "Order here"/.test(read("lib/menu.ts")));
+}
+
 // ── ONE HOME (2026-10-09, round 2 of the UX plan, approved) ─────────────────────────────────────
 // My Day opened on 31 tasks — 25 of them late, the oldest by 99 days — under a bell that never reached
 // zero, and Command put twelve numbers at equal weight. The home answers "how are we doing, and what's
@@ -9792,7 +9847,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("tags: the tones are tokens, declared once, and the crew's light look and paper restate them — a tag holds 4.5:1 wherever it lands",
     /--tone-ok:var\(--ok\); --tone-gold:var\(--gold2\); --tone-warn:var\(--warn\); --tone-crit:var\(--red-h\); --tone-blue:#6fa8dc;/.test(g.slice(0, 4000))
     && /--tone-ok:var\(--green-onLight\); --tone-gold:var\(--gold2\); --tone-warn:var\(--warn\); --tone-crit:var\(--red-onLight\); --tone-blue:var\(--color-info\);/.test(g)
-    && /--oa-red-tint:color-mix\(in srgb, var\(--brand-red\) 8%, transparent\);\s*--tone-ok:var\(--ok\); --tone-gold:var\(--gold2\); --tone-warn:var\(--warn\); --tone-crit:var\(--red-h\); --tone-blue:var\(--color-info\);/.test(g));
+    && /--ink-whisper:rgba\(34,31,24,\.64\);\s*--tone-ok:var\(--ok\); --tone-gold:var\(--gold2\); --tone-warn:var\(--warn\); --tone-crit:var\(--red-h\); --tone-blue:var\(--color-info\);/.test(g));
   ok("tags: one that comes off ends in its × — 44 to the thumb (a file on a note, a goal an initiative serves)",
     /\.k-tag-x\{position:relative;[^}]*width:16px;height:16px;/.test(g) && /\.k-tag-x::after\{content:"";position:absolute;inset:-14px\}/.test(g)
     && (read("app/crew/page.tsx").match(/className="k-tag-x" onClick=/g) || []).length === 2 && /className="k-tag-x" onClick=\{\(\) => unlinkGoal\(it\.id, g\.id\)\}/.test(read("components/CommandBoard.tsx")));
@@ -9825,8 +9880,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /className="btn-pri btn-wide mt-4\.5" onClick=\{pay\}/.test(read("components/Checkout.tsx")) && /<button className="btn-pri btn-wide mt-4\.5" type="submit" disabled=\{busy\}>/.test(read("components/SignIn.tsx")));
   ok("buttons: the ZIP's Check stands beside its field, as tall as it — the recipe's own margin had it 18px lower",
     /className="btn-pri self-stretch" onClick=\{checkZone\}/.test(read("components/OrderFunnel.tsx")));
-  ok("buttons: one primary per screen — the storefront's way to the bar, under /delivery's, /reserve's and /shop's own, is secondary",
-    /className="btn-sec btn-wide" onClick=\{\(\) => router\.push\("\/menu"\)\}/.test(read("components/StorefrontStory.tsx")));
+  ok("buttons: one primary per screen — /delivery, /reserve and /shop end at their own order; the guest story's second way to the bar went with the story (2026-10-09)",
+    !require("node:fs").existsSync(require("node:path").join(__dirname, "..", "components/StorefrontStory.tsx"))
+    && ["app/delivery/page.tsx", "app/reserve/page.tsx", "components/Shop.tsx"].every((f) => !/StorefrontStory|router\.push\("\/menu"\)/.test(read(f))));
   ok("buttons: Find Us's primary says its words in sentence case (they were typed in capitals)",
     /key: "findus\.cta_preorder"[^}]*default: "Pre-order · skip the line"/.test(read("lib/copy.ts")) && /key: "findus\.cta_menu"[^}]*default: "See the menu"/.test(read("lib/copy.ts")));
   ok("buttons: the composer's mic is the kit's icon button, gold and pulsing while it listens",
