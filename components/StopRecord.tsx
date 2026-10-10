@@ -130,7 +130,7 @@ export default function StopRecord({ stopId, onClose }: { stopId: string; onClos
   const kind = "stop" as const;
 
   const archive = async () => {
-    if (!(await confirm({ title: "Archive this stop?", body: "It comes off the route, the calendar and readiness, and the record is kept — you can restore it from Plan › Route.", confirmLabel: "Archive" }))) return;
+    if (!(await confirm({ title: "Archive this stop?", body: "It comes off the route, the calendar and readiness, and the record is kept — you can restore it from Plan › Lists › Truck stops.", confirmLabel: "Archive" }))) return;
     run(() => archiveOwner(sb, { kind, id: stopId }), "Stop archived");
   };
 

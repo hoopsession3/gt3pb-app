@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Children, Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { Children, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useApp } from "@/components/AppProvider";
 import { SectionHeader, InfoRow, Columns, Column } from "@/components/kit";
 import FoldCard from "@/components/crew/FoldCard";
@@ -57,7 +57,8 @@ import { WayButtons } from "@/components/RecordWays";
 import { goPlanTab, isPlanTab, planTabFromUrl, stampPlanTab, PLAN_TAB_KEY, PLAN_TAB_EVENT, type PlanTab } from "@/lib/planNav";
 import SwipePager from "@/components/SwipePager";
 import SwipeRow, { type RowAction } from "@/components/SwipeRow";
-import LongPress, { useLongPress, type MenuItem } from "@/components/LongPress";
+import LongPress, { useLongPress, RowMenu, type MenuItem } from "@/components/LongPress";
+import { useBack, useBackStep } from "@/components/useBack";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
 import { queueOrderStatus, queueCollectCup, isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
@@ -196,7 +197,7 @@ import type { Stop, EventRow, EventTask, BookingRequest, Order, Reserve, Subscri
 import { uploadToBucket } from "@/lib/uploads";
 import { resolveVendor, addVendorLocation, type VendorMatch, type ResolveDecision } from "@/lib/vendorLink";
 const VendorResolve = dynamic(() => import("@/components/VendorResolve"), { loading: () => <PourFill label="Loading…" /> });
-import Icon from "@/components/Icon";
+import Icon, { type IconName } from "@/components/Icon";
 import { useJurisdictions } from "@/components/useJurisdictions";
 import AcademyCard from "@/components/AcademyCard";
 import { money, moneyPlain, moneyRound } from "@/lib/money";
@@ -224,7 +225,7 @@ const SEC_SUB: Record<OpSection, string> = {
   now: "The pass, pack pickups & the 86 board — live service.",
   ask: "Recipes, gear, stock & how-to — from the GT3 playbook.",
   prep: "Stock, readiness & the pack list for what's next.",
-  plan: "Calendar, events, the route, leads & vendors.",
+  plan: "The calendar — and from it, leads, events, truck stops, venues & suppliers.",
   notes: "Notes — private or shared; follow-ups become tasks.",
   studio: "Draft, schedule & post — brand & marketing.",
   brew: "Schedule, start & log brews — sized to what's reserved.",
@@ -241,7 +242,7 @@ const SEC_MORE: Record<OpSection, string> = {
   command: "The shared war room both founders see — the digital version of the magnetic board. Your initiatives (a dated program like the Aug-1 launch) with a countdown and milestone progress, then This Week, Blockers, Done and Money in one glance. This is where you answer “are we on track?” together, instead of over text. Company goals live here too — owners, progress and check-ins — so the scoreboard and the steering wheel share one screen.",
   now: "The glance before the work. Alerts land here, the service pulse shows what's waiting (orders on the pass, items 86'd), and one tap opens The Pass — the working screen with the pass board, pickup checklist and 86 board. Prep lives here too: the drop's brew sheet and Sunday delivery.",
   prep: "Get ready before you roll. Build the pack list, check stock and readiness, and sign off that the truck's loaded for the next event or stop.",
-  plan: "The forward calendar. Book events, plan the truck's route (locations and dates), work the leads — incoming booking requests and the sales board — and manage vendors and venues, weeks and months out. The whole arc lives here: a lead becomes an event becomes a stop on the route, without changing sections.",
+  plan: "The forward calendar — Plan opens on it. Add an event or a truck stop on any day and open anything on it; work the leads — incoming booking requests and the sales board — behind Leads; and keep the full lists of events, truck stops, venues and suppliers behind Lists, weeks and months out. The whole arc lives here: a lead becomes an event becomes a stop, without changing sections.",
   notes: "Every note, yours and the team's. Jot one for yourself (🔒 just me), share one with the crew, or file a meeting recap — tag follow-ups and they land in people's tasks with a ping. The ✦ button jots one from any screen.",
   studio: "Your marketing studio. Draft posts and flyers, keep them on-brand, plan the feed, schedule around your drops, and moderate the guest reviews that feed the truck display.",
   brew: "Production's home. Schedule brews sized to demand, hit start-by deadlines, log every batch — with coverage, serve-by and stock checks right on the card.",
@@ -261,9 +262,9 @@ const SEC_MORE: Record<OpSection, string> = {
 const SEC_INSIDE: Record<OpSection, string[]> = {
   day: ["Your open tasks & due dates", "Alerts flagged for you — with discussion threads", "Needs you (leadership): booking replies, past-due tasks, restock", "What's on the calendar today", "Day-of brief — dress code & call time"],
   command: ["The portfolio — ten workstreams, one owner each, audited every Monday /10", "Initiatives — a dated program with countdown & milestone progress + the goals it serves", "This week — everything due across both task lists", "Blockers — incidents, overdue work & at-risk goals", "Done this week — momentum at a glance", "Goals — owners, live numbers, one-tap check-ins", "The twelve — the Playbook's KPI board, Monday entry"],
-  now: ["Service pulse — live counts, one tap into the working screen", "The Pass — the pass board (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Delivery run — run sheet, brew totals & packout (outcomes are logged in driver mode)", "Live truck: go live, GPS broadcast (locations live in Plan › Route; the cup-ordering dial in Settings)", "Alerts & your tasks — pointers into My Day"],
+  now: ["Service pulse — live counts, one tap into the working screen", "The Pass — the pass board (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Delivery run — run sheet, brew totals & packout (outcomes are logged in driver mode)", "Live truck: go live, GPS broadcast (locations live in Plan › Lists › Truck stops; the cup-ordering dial in Settings)", "Alerts & your tasks — pointers into My Day"],
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Crew assignments & sign-off", "Load-out & gear moved to Production › Assets"],
-  plan: ["Company calendar", "Events", "Route — locations & go live (the cup-ordering dial is in Settings)", "Leads — booking requests & the sales board (lead → live → expand)", "Vendors & venues"],
+  plan: ["The company calendar — + on any day adds, a tap opens anything on it", "Leads — booking requests & the sales board (lead → live → expand)", "Lists — every event; truck stops: locations & go live (the cup-ordering dial is in Settings); venues & suppliers"],
   notes: ["Private notes — 🔒 just for you", "Team notes & meeting recaps", "Follow-ups → assigned tasks", "✨ Transcript → summary"],
   studio: ["Post & flyer drafting", "Brand kit — logo, palette, fonts & voice (the words guests read are edited in Settings)", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
   brew: ["Brew schedule with start-by deadlines", "Coverage — makes vs reserved", "Serve-by freshness windows", "Batch log & recipes"],
@@ -1938,7 +1939,7 @@ function EventPrep({ sel, setSel }: { sel: PrepTarget | null; setSel: Dispatch<S
         state={prepState}
         isEmpty={(d) => d.events.length === 0 && d.stops.length === 0}
         emptyTitle="Nothing to prep yet"
-        emptySub="Add an event (Plan → Events) or a truck location (Now → Live truck)."
+        emptySub="Add an event or a truck stop on the Plan calendar — + on any day."
         loadingLabel="Loading prep…"
         errorTitle="Couldn't load prep"
       >
@@ -2028,7 +2029,19 @@ function Garage({ events, stops, liveStopId, loaded }: { events: EventRow[]; sto
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const autoRef = useRef(false);
   useEffect(() => { if (loaded && packSoon && !autoRef.current) { autoRef.current = true; setOpen((o) => ({ ...o, loadout: true })); } }, [loaded, packSoon]);
-  const row = (id: string, icon: ReactNode, title: string, hint: string, body: ReactNode) => (
+  // WHAT IS LATE IS SAID, AND OPENS ITS ROW (2026-10-10, the crew round). Gear past its service sat in a closed row
+  // whose line read "service log · what's due" whatever was late. The count is My Day's (v_obligations, lib/upkeep's
+  // rule — the panel's own), on the row while it is closed, and a late one opens the row once, as an event this
+  // week opens the load-out.
+  const [lateGear, setLateGear] = useState(0);
+  useEffect(() => {
+    if (!supabase) return;
+    void supabase.from("v_obligations").select("subject_id", { count: "exact", head: true }).eq("source", "asset_maintenance").lt("days_out", 0)
+      .then(({ count, error }) => { if (!error) setLateGear(count ?? 0); });
+  }, []);
+  const lateRef = useRef(false);
+  useEffect(() => { if (lateGear > 0 && !lateRef.current) { lateRef.current = true; setOpen((o) => ({ ...o, maint: true })); } }, [lateGear]);
+  const row = (id: string, icon: ReactNode, title: string, hint: ReactNode, body: ReactNode) => (
     <div className={`garage-row${open[id] ? " open" : ""}`}>
       <button type="button" className="garage-head" onClick={() => setOpen((o) => ({ ...o, [id]: !o[id] }))} aria-expanded={!!open[id]}>
         <span className="garage-ic">{icon}</span>
@@ -2043,7 +2056,7 @@ function Garage({ events, stops, liveStopId, loaded }: { events: EventRow[]; sto
     <div className="garage">
       {row("loadout", <Icon name="truck" />, "Load-out & tow plan", packSoon ? "event this week — check the load" : "quiet until an event is near", <TrailerLoadout />)}
       {row("gear", <Icon name="wrench" />, "Gear library", "manuals · specs · how-tos", <GearLibrary />)}
-      {row("maint", <Icon name="wrench" />, "Asset maintenance", "service log · what's due", <AssetMaintenance />)}
+      {row("maint", <Icon name="wrench" />, "Asset maintenance", lateGear > 0 ? <span className="k-count due">{lateGear} overdue</span> : "service log · what's due", <AssetMaintenance />)}
       {row("inventory", <Icon name="package" />, "Inventory", "stock, costs & pars", <InventoryLibrary />)}
     </div>
   );
@@ -3000,10 +3013,11 @@ function MeetingNotes() {
 
   return (
     <div className="adm-sec">
-      <SectionHeader label="Notes" right={<span className="k-count">{notes.length}</span>} />
-      <div className="h-sub note-intro">Pick who sees each one (<Icon name="lock" /> me · <Icon name="team" /> team · <Icon name="partners" /> team&nbsp;+&nbsp;comments). Follow-ups land in My&nbsp;Tasks; <Icon name="sparkles" /> summarize turns a transcript into the note. Notes grow — <b>＋&nbsp;add</b> anytime; nothing is ever overwritten.</div>
-
-      <button type="button" className="btn-sec btn-wide" onClick={() => setComposing(true)}>✎ New note</button>
+      {/* NEW NOTE LEADS (2026-10-10, the crew round). The screen opened on a header saying "Notes" under the lane's
+          "Notes", a paragraph explaining the composer's own chips, and New note as a quiet outline. The one thing
+          this screen is opened to do is now the first thing on it; who sees a note is said on its chips, where it
+          is chosen, and where a follow-up lands is said beside the follow-ups. */}
+      <Button kind="primary" wide onClick={() => setComposing(true)}>+ New note</Button>
       {composing && (
         <Sheet open onClose={() => { setComposing(false); setCActions([]); setCFiles([]); }} label="New note" className="note-lux"
           // The words stay with the page when the composer closes; its follow-ups and files do not.
@@ -3053,7 +3067,7 @@ function MeetingNotes() {
             <div className="note-fu-h">Follow-ups
               <button type="button" className="btn-ter" onClick={() => setCActions((a) => [...a, { title: "", category: "task", critical: false, assignee: meId }])}>+ Add</button>
             </div>
-            {cActions.length === 0 && <div className="note-fu-empty">No follow-ups yet — add one and assign it to a partner, or <Icon name="sparkles" /> summarize a transcript to pull them out.</div>}
+            {cActions.length === 0 && <div className="note-fu-empty">No follow-ups yet — add one and assign it: it lands in their My Tasks. Or <Icon name="sparkles" /> summarize a transcript to pull them out.</div>}
             {cActions.map((a, i) => (
               <div className="note-fu-edit" key={i}>
                 <input className="note-in" placeholder="Follow-up task…" value={a.title} onChange={(e) => setCActions((arr) => arr.map((x, j) => j === i ? { ...x, title: e.target.value } : x))} />
@@ -5179,7 +5193,7 @@ function VendorsAdmin() {
 
   return (
     <div className="adm-sec">
-      <SectionHeader label="Vendors" right={<InlineCreate label="+ Add vendor" placeholder="Vendor name" onCreate={(name) => add(name)} />} />
+      <SectionHeader label="Venues & suppliers" right={<InlineCreate label="+ Add" placeholder="Venue or supplier name" onCreate={(name) => add(name)} />} />
       <div className="pnl-note" style={{ marginBottom: 6 }}>One record per venue/partner — linked from truck stops and events. Edit a POC here and it updates everywhere it&apos;s linked. A vendor can hold several locations.</div>
       <AsyncSection
         state={vendorsState}
@@ -5577,13 +5591,66 @@ function SettingsHome({ userId, isAdmin, isOwner }: { userId: string | null; isA
   );
 }
 
-// Plan's tabs in the order its row shows them — and so the order a sideways swipe turns through them.
-const PLAN_PAGES: readonly PlanTab[] = ["calendar", "events", "route", "leads", "vendors"];
-const PLAN_LABEL: Record<PlanTab, string> = { calendar: "Calendar", events: "Events", route: "Route", leads: "Leads", vendors: "Vendors" };
+// PROOFS WAITING COME FIRST (2026-10-10, the crew round). Customers opened on the customer book — every guest and
+// member, open — and the bottle-owner proofs waiting to be verified sat under it, below hundreds of rows on a phone.
+// While any is waiting the queue leads (and on the desk, the left column); with none, it keeps its place beside
+// the broadcast and says so there, instead of an empty panel above the book.
+function CustomersBody() {
+  const [vipWaiting, setVipWaiting] = useState(0);
+  useEffect(() => {
+    if (!supabase) return;
+    void supabase.from("vip_verifications").select("id", { count: "exact", head: true }).eq("status", "pending")
+      .then(({ count, error }) => { if (!error) setVipWaiting(count ?? 0); });
+  }, []);
+  const vip = (
+    <>
+      <SectionHeader label="VIP verification" />
+      <Panel id="cust-vip" title="Bottle-owner proofs · verify → Founding" defaultOpen><VipQueue /></Panel>
+    </>
+  );
+  return (
+    // On the desk: the customer book on the left; the broadcast on the right — and the proofs over whichever side
+    // says they are waiting.
+    <Columns>
+    <Column>
+    {vipWaiting > 0 && vip}
+    <SectionHeader label="The people" />
+    <Panel id="cust-book" title="Customer book · every guest &amp; member" defaultOpen><CrmPanel /></Panel>
+    {/* Discount codes and the founding perks (ids "cust-codes", "cust-perks") are the Catalog's (2026-10-06): what a
+        member gets is part of what the business sells. One line where they were. */}
+    <GoLine to="catalog" anchor="cust-codes">Codes &amp; perks</GoLine>
+    </Column>
+    <Column>
+    {vipWaiting === 0 && vip}
+    {/* MESSAGES (2026-10-06, the settings-by-category round): a broadcast is something the business says to its
+        customers, not a setting — so it left Settings for the customer book. */}
+    <SectionHeader label="Messages" />
+    <Panel id="cust-broadcast" title="Broadcast" sub="A live message or ad, to everyone in the app"><BroadcastEditor /></Panel>
+    </Column>
+    </Columns>
+  );
+}
+
+// PLAN IS THE CALENDAR (2026-10-10, Ryan: "Do you even need a tab called calendar" — no; "Plan is the
+// calendar", approved). Plan opened on a row of five tabs, Calendar · Events · Route · Leads · Vendors, and
+// the first one named the page it opened on. The calendar is the page now: + on any day adds, a tap opens
+// any event or stop. The other four are views Plan opens over it, the way a pushed screen opens on an
+// iPhone — Back, the edge swipe, a swipe toward the calendar or a tap on Plan in the lane closes one:
+// Leads from a button carrying the count of requests waiting (the Inbox on Calendar), and Events, Truck
+// stops and Venues & suppliers from Lists. Each keeps its address (?t=, lib/planNav), so every link into
+// one still lands there.
+const PLAN_LABEL: Record<PlanTab, string> = { calendar: "Calendar", events: "Events", route: "Truck stops", leads: "Leads", vendors: "Venues & suppliers" };
+const PLAN_LISTS: readonly { tab: PlanTab; icon: IconName }[] = [{ tab: "events", icon: "event" }, { tab: "route", icon: "pin" }, { tab: "vendors", icon: "partners" }];
+/** A list over the calendar says where it is, as Prep › an event does: "Plan › Leads" over the title, Plan a tap
+ *  back to the calendar; and the title bar names the list once its heading scrolls away. */
+function PlanCrumb({ tab, onBack }: { tab: PlanTab; onBack: () => void }) {
+  useCrumb("plan-list", PLAN_LABEL[tab], onBack);
+  return <div data-large-title data-title={PLAN_LABEL[tab]} aria-hidden className="h-0" />;
+}
 
 export default function AdminPage() {
   const { ready, enabled, user, profile, profileStatus, refreshProfile } = useAuth();
-  const { section, setSection, back, canGoBack, groupId: navGroupId, setGroupId } = useOperatorSection();
+  const { section, setSection, groupId: navGroupId, setGroupId } = useOperatorSection();
   const router = useRouter();
   const streams = useWorkStreams();
 
@@ -5746,6 +5813,13 @@ export default function AdminPage() {
       setPlanCounts({ bookings: b.count ?? 0 });
     })();
   }, [sec, canManage, planTab]); // refetch when you switch tabs so badges reflect what you just did
+  // A list Plan opened over the calendar is a step (components/useBack): Back closes it, back to the calendar.
+  const planOver = sec === "plan" && canManage && planTab !== "calendar";
+  useBackStep(planOver ? "Plan" : null, () => setPlanTab("calendar"));
+  const [listsOpen, setListsOpen] = useState(false);
+  // The header's ‹ goes where the title bar's and the edge swipe's go (components/useBack): a list Plan opened
+  // closes first, then the section before this one. It went straight to the section before, under an open list.
+  const backWay = useBack();
 
   // This device opens on the crew side from now on, until Customer view or Exit says otherwise
   // (lib/mode.ts). The condition is INSIDE the effect — a hook after the guard returns below is a
@@ -5817,7 +5891,7 @@ export default function AdminPage() {
           {/* Back = the previous section within crew mode, shown only when there is one (2026-10-04).
               With no history it used to become "Exit Crew Mode" — a back arrow that flipped the
               device into the customer app — beside the Customer switch that already does that. */}
-          {canGoBack && <IconButton icon="chevronLeft" label="Back" onClick={() => back()} />}
+          {backWay && <IconButton icon="chevronLeft" label={backWay.label === "Back" ? "Back" : `Back to ${backWay.label}`} onClick={backWay.go} />}
           {/* THREE CONTROLS (2026-10-09, the navigation round — Ryan: "Switch + Guide to More", approved). The
               Crew/Customer switch and the Guide stood here every day for a choice made once a week: they are
               rows in More now (components/OperatorNav, MoreSheet), and the row holds what is used all day. */}
@@ -5866,16 +5940,17 @@ export default function AdminPage() {
           equally and scrolls when a lane's names will not fit (the larger text sizes). */}
       {lane.members.length >= 2 && (
         <Segmented fill className="lane-tabs mb-3.5" label={lane.label} value={sec}
-          options={lane.members.map((m: OpSection) => ({ key: m, label: SECTION_LABEL[m] }))} onChange={(m) => inLane(m)} />
+          options={lane.members.map((m: OpSection) => ({ key: m, label: SECTION_LABEL[m] }))} onChange={(m) => inLane(m)}
+          onReselect={(m) => { if (m === "plan" && planOver) setPlanTab("calendar"); }} />
       )}
 
       {/* SWIPE BETWEEN TABS (components/SwipePager, 2026-10-05): a sideways swipe on the section turns
-          to the lane's next or previous section — and on Plan, to its next or previous tab first,
-          Calendar → Events → Route → Leads → Vendors, then on to the lane's next section. Each turn is
-          the tap it stands for (setSection / setPlanTab), so the address, history and focus agree. */}
+          to the lane's next or previous section. On a list Plan opened over the calendar, a swipe toward
+          the calendar is the way back to it (2026-10-10, Plan is the calendar). Each turn is the tap it
+          stands for (setSection / setPlanTab), so the address, history and focus agree. */}
       <SwipePager levels={[
         lane.members.length >= 2 && { keys: lane.members, current: sec, go: (k) => inLane(k as OpSection), depth: 0 },
-        sec === "plan" && canManage && { keys: PLAN_PAGES, current: planTab, go: (k) => setPlanTab(k as PlanTab), depth: 1 },
+        planOver && { keys: ["calendar", planTab], current: planTab, go: (k) => setPlanTab(k as PlanTab), depth: 1 },
       ]}>
       {/* Shared-axis transition: keying on `sec` remounts the body on each section change so it
           fades+slides in. planTab changes keep the same key, so sub-tabs don't re-animate.
@@ -5991,13 +6066,11 @@ export default function AdminPage() {
               dynamic"), and the global all-prep board bows out while a single target has the
               floor — its numbers would contradict the scoped tiles right above it. */}
           <PrepKpis target={prepSel} />
-          {/* ON THE DESK (2026-10-09, redesign 5): the one board on the left, prep by stop on the right. Drilled
-              into one stop, the board bows out and the stop has the canvas (an empty column is not drawn). */}
+          {/* THE CARDS FIRST (2026-10-10, the crew round). Readiness is opened to ask "are we ready for the next one?",
+              and each stop's card answers it — the cards are the glance. The board of every open task sat above them,
+              so on a phone the next event was below the whole board. On the desk: the cards on the left, the board on
+              the right. Drilled into one stop, the board bows out and the stop has the canvas. */}
           <Columns>
-          <Column>
-          {!prepSel && <SectionHeader label="All open prep · one board" />}
-          {!prepSel && <Panel id="prep-board" title="Work every open task — critical first" defaultOpen><PrepBoard /></Panel>}
-          </Column>
           <Column>
           {/* 2026-07-30 (Ryan's screenshot): this screen used to stack the stock-check agent +
               Inspection prep ABOVE the actual work, and an "At a glance" block (Overview)
@@ -6007,6 +6080,10 @@ export default function AdminPage() {
               occasional-use by its own copy — parks at the bottom, collapsed, instead of first. */}
           {!prepSel && <SectionHeader label="Event prep · by stop" />}
           <EventPrep sel={prepSel} setSel={setPrepSel} />
+          </Column>
+          <Column>
+          {!prepSel && <SectionHeader label="All open prep · one board" />}
+          {!prepSel && <Panel id="prep-board" title="Work every open task — critical first" defaultOpen><PrepBoard /></Panel>}
           {!prepSel && canManage && <InspectionPrep />}
           </Column>
           </Columns>
@@ -6015,43 +6092,36 @@ export default function AdminPage() {
 
       {sec === "plan" && canManage && (
         <>
-          <div className="subnav" role="tablist" aria-label="Plan">
-            {/* This week — what's hot at this stage */}
-            {/* Ordered by operating rhythm (not alphabet): when → what → where → requests in →
-                production → notes. Back office (rarely touched) sits after the divider. */}
-            {/* Route joined Plan 2026-07-29 (was its own "stops" section): an event and a stop are
-                the same planned thing — the calendar above already rolls both up, and the customer
-                page unified them as field_ops. Planning them in two sections was the seam. */}
-            {/* Leads joined Plan 2026-07-30 (Ryan: "Pipeline plan yes") — the last section merge:
-                a lead becomes an event becomes a route stop without leaving the section. Operators
-                lose lead visibility by Ryan's explicit call (sales is leadership work). */}
-            {/* `hot` was defined in globals.css:3286 with a comment saying what it was for —
-                "pending bookings = money waiting — always loud" — and never applied to anything.
-                Wired here, plus the two gap badges when something on them is guest-visible. The
-                `what` word is the accessible name: a bare number tells a screen reader nothing. */}
-            {/* The row is drawn from PLAN_PAGES, the order a swipe turns through — one list, so the
-                tab a swipe lands on is always the one beside the tab it left. */}
-            {PLAN_PAGES.map((k) => {
-              // Leads counts the booking requests waiting — money waiting, so always loud when there are any.
-              const n = k === "leads" ? planCounts.bookings : 0, hot = n > 0, what = "new booking requests";
-              return (
-                <Fragment key={k}>
-                  {/* Back office — rarely touched — sits after the divider. */}
-                  {k === "vendors" && <span className="subnav-div" aria-hidden />}
-                  <button type="button" role="tab" aria-selected={planTab === k} className={`k-chip sm${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>
-                    {PLAN_LABEL[k]}{n > 0 && <span className={`k-count sm${hot ? " crit" : ""}`} aria-label={`${n} ${what}`}>{n}</span>}
-                  </button>
-                </Fragment>
-              );
-            })}
-          </div>
-          {/* ONE "needs sorting" list for the whole schedule (0324). It sits ABOVE the tabs, not
-              inside one, because it covers both: the Events tab and the Route tab each used to open
-              with their own copy of this panel, so flipping between them showed the same construct
-              twice with two headlines and two badges — 9 rows describing 6 real problems. The
-              placement rule from 0314/0315 still holds and is now stated once: above the list,
-              because a list sorted by date will never surface "still marked confirmed five weeks
-              after it happened" — it files that in the past, where nobody scrolls. */}
+          {/* Route joined Plan 2026-07-29 (was its own "stops" section): an event and a stop are the same planned
+              thing, and the calendar rolls both up. Leads joined 2026-07-30 (Ryan: "Pipeline plan yes"): a lead
+              becomes an event becomes a stop without leaving the section; operators do not see leads, by Ryan's
+              call (sales is leadership work). Since 2026-10-10 none of them is a tab: the calendar is the page,
+              and this row holds the two doors off it (PLAN_LABEL's header says why). */}
+          {planTab === "calendar" ? (
+            <div className="mb-3 flex items-center justify-end gap-2">
+              {/* Requests waiting are money waiting — always loud. The words are the accessible name: a bare
+                  number tells a screen reader nothing. */}
+              <button type="button" className="k-chip sm" onClick={() => setPlanTab("leads")}
+                aria-label={planCounts.bookings > 0 ? `Leads — ${planCounts.bookings} new booking request${planCounts.bookings === 1 ? "" : "s"}` : "Leads"}>
+                Leads{planCounts.bookings > 0 && <span className="k-count sm crit" aria-hidden>{planCounts.bookings}</span>}
+              </button>
+              <button type="button" className="k-chip sm" aria-haspopup="dialog" onClick={() => setListsOpen(true)}>
+                Lists <Icon name="more" />
+              </button>
+            </div>
+          ) : (
+            <PlanCrumb tab={planTab} onBack={() => setPlanTab("calendar")} />
+          )}
+          {listsOpen && (
+            <RowMenu title="Lists" onClose={() => setListsOpen(false)}
+              items={PLAN_LISTS.map(({ tab, icon }) => ({ key: tab, label: PLAN_LABEL[tab], icon, run: () => setPlanTab(tab) }))} />
+          )}
+          {/* ONE "needs sorting" list for the whole schedule (0324), above the calendar and above the Events and
+              Truck stops lists, because it covers both: each used to open with its own copy of this panel, so
+              flipping between them showed the same construct twice with two headlines and two badges — 9 rows
+              describing 6 real problems. The placement rule from 0314/0315 holds: above the list, because a
+              list sorted by date will never surface "still marked confirmed five weeks after it happened" — it
+              files that in the past, where nobody scrolls. */}
           {(planTab === "events" || planTab === "route" || planTab === "calendar") && (
             <Panel id="schedule-gaps" title="Needs sorting · events &amp; stops" defaultOpen><ScheduleGaps /></Panel>
           )}
@@ -6240,25 +6310,7 @@ export default function AdminPage() {
         <>
           {/* Money's 10/10 template: glance-first KPIs → crew-group dividers → uniform Panels. */}
           <CustomerKpis />
-          {/* On the desk: the customer book on the left; proofs to verify and the broadcast on the right. */}
-          <Columns>
-          <Column>
-          <SectionHeader label="The people" />
-          <Panel id="cust-book" title="Customer book · every guest &amp; member" defaultOpen><CrmPanel /></Panel>
-          {/* Discount codes and the founding perks (ids "cust-codes", "cust-perks") are the Catalog's
-              (2026-10-06): what a member gets is part of what the business sells. One line where they
-              were. */}
-          <GoLine to="catalog" anchor="cust-codes">Codes &amp; perks</GoLine>
-          </Column>
-          <Column>
-          <SectionHeader label="VIP verification" />
-          <Panel id="cust-vip" title="Bottle-owner proofs · verify → Founding" defaultOpen><VipQueue /></Panel>
-          {/* MESSAGES (2026-10-06, the settings-by-category round): a broadcast is something the business
-              says to its customers, not a setting — so it left Settings for the customer book. */}
-          <SectionHeader label="Messages" />
-          <Panel id="cust-broadcast" title="Broadcast" sub="A live message or ad, to everyone in the app"><BroadcastEditor /></Panel>
-          </Column>
-          </Columns>
+          <CustomersBody />
         </>
       )}
 

@@ -116,7 +116,7 @@ export default function EventRecord({ eventId, onClose }: { eventId: string; onC
   const kind = "event" as const;
 
   const archive = async () => {
-    if (!(await confirm({ title: "Archive this event?", body: "It comes off the calendar, prep and readiness, and the record is kept — you can restore it from Plan › Events.", confirmLabel: "Archive" }))) return;
+    if (!(await confirm({ title: "Archive this event?", body: "It comes off the calendar, prep and readiness, and the record is kept — you can restore it from Plan › Lists › Events.", confirmLabel: "Archive" }))) return;
     run(() => archiveOwner(sb, { kind, id: eventId }), "Event archived");
   };
 

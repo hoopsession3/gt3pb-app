@@ -403,7 +403,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       const line = o.deals?.line;
       toast(line === "wholesale" || line === "standing" ? "Live — set up the recurring delivery in Live Ops › Delivery, and set the account's MRR."
         : line === "truck_stop" ? "Live — add the location in Route when dates land."
-        : "Live — book it in Plan › Events when dates land. Set the account's MRR if it recurs.");
+        : "Live — book it on the Plan calendar when dates land. Set the account's MRR if it recurs.");
     }
   };
   const setStage = async (o: Opp, stage: Stage) => {

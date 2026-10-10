@@ -2213,8 +2213,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("badges: the Events badge no longer counts upcoming events instead of problems",
     !/from\("events"\)[^;]*count: "exact"[^;]*gte\("day"/.test(crew));
   // the loud count had CSS and a stated purpose and nothing applied it (globals.css:3286); it is the kit's now (2026-10-09)
-  ok("badges: the loud variant defined in CSS is actually applied", /k-count sm\$\{\s*hot\s*\?\s*" crit"/.test(crew) && /\.k-count\.crit\{background:var\(--red\);color:#fff\}/.test(fs.readFileSync(path.join(root, "app/globals.css"), "utf8")));
-  ok("badges: a bare number is not the accessible name", /aria-label=\{`\$\{n\} \$\{what\}`\}/.test(crew));
+  // Plan's Leads door carries it since Plan has no tab row (2026-10-10): loud whenever a request is waiting.
+  ok("badges: the loud variant defined in CSS is actually applied", /\{planCounts\.bookings > 0 && <span className="k-count sm crit" aria-hidden>\{planCounts\.bookings\}<\/span>\}/.test(crew) && /\.k-count\.crit\{background:var\(--red\);color:#fff\}/.test(fs.readFileSync(path.join(root, "app/globals.css"), "utf8")));
+  ok("badges: a bare number is not the accessible name", /aria-label=\{planCounts\.bookings > 0 \? `Leads — \$\{planCounts\.bookings\} new booking request\$\{planCounts\.bookings === 1 \? "" : "s"\}` : "Leads"\}/.test(crew));
 }
 
 // ── TENANT SCOPING: THE INVARIANT THAT MAKES IT SAFE (R-002) ────────────────────────────────────
@@ -5390,7 +5391,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("chrome: no WHEN pill styled as a status, and its rules left with it",
     !/op-head-when/.test(crew) && !/\.op-head-when\{/.test(css));
   ok("chrome: ‹ is Back only — it no longer turns into 'Exit Crew Mode' beside the Customer switch — and it leads the row, quiet (2026-10-07: it was a 38px red circle at the far right)",
-    /\{canGoBack && <IconButton icon="chevronLeft" label="Back" onClick=\{\(\) => back\(\)\} \/>\}/.test(crew) && !/Exit Crew Mode/.test(crew)
+    /\{backWay && <IconButton icon="chevronLeft" label=\{backWay\.label === "Back" \? "Back" : `Back to \$\{backWay\.label\}`\} onClick=\{backWay\.go\} \/>\}/.test(crew) && !/Exit Crew Mode/.test(crew)
     && crew.indexOf('<div className="toprow-lead">') < crew.indexOf('icon="chevronLeft"') && crew.indexOf('icon="chevronLeft"') < crew.indexOf('<div className="toprow-actions">'));
   const nav = code(read("components/OperatorNav.tsx"));
   ok("chrome: tapping the lane you are on does something — the lane's first screen, then its top (what is waiting is the bell's, 2026-10-09)",
@@ -6076,7 +6077,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const crew = code(read("app/crew/page.tsx")), nav = code(read("components/OperatorNav.tsx")), css = read("app/globals.css");
   const header = crew.slice(crew.indexOf('<div className="toprow">'), crew.indexOf("{guide && <SectionGuide"));
   ok("navigation: three controls in the header — quick actions, search, the inbox — and Back when there is somewhere to go",
-    (header.match(/<IconButton /g) || []).length === 4 && /canGoBack && <IconButton icon="chevronLeft"/.test(header) && !/<Segmented|icon="info"/.test(header));
+    (header.match(/<IconButton /g) || []).length === 4 && /backWay && <IconButton icon="chevronLeft"/.test(header) && !/<Segmented|icon="info"/.test(header));
   ok("navigation: the Crew/Customer switch and the Guide are rows in More — the switch's leaving still remembered, the Guide over the screen you are on",
     /onClick=\{\(\) => \{ onClose\(\); window\.dispatchEvent\(new Event\("gt3-open-guide"\)\); \}\}/.test(nav) && /<b>Guide<\/b>/.test(nav)
     && /onClick=\{\(\) => \{ onClose\(\); window\.dispatchEvent\(new Event\("gt3-customer-view"\)\); \}\}/.test(nav) && /<b>Customer view<\/b>/.test(nav)
@@ -6699,8 +6700,42 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("kpi board: a weekly figure is filed under its week's Monday", /cadence === "weekly" \? weekStartKey\(today\)/.test(kpi)
     && DT3.weekStartKey("2026-10-04") === "2026-09-28" && DT3.weekStartKey("2026-09-28") === "2026-09-28" && DT3.weekStartKey("2026-10-03") === "2026-09-28");
 
+  {
+    // Notes opens on New note (2026-10-10, the crew round): no header under the lane's "Notes", no paragraph explaining the composer's chips.
+    const pgN = code(read("app/crew/page.tsx"));
+    const notesAt = pgN.indexOf("function MeetingNotes()"), notesBody = pgN.slice(notesAt, pgN.indexOf("<AsyncSection", notesAt));
+    ok("notes: New note is the screen's first thing and its one primary button; the repeated header and the intro paragraph are gone",
+      /<Button kind="primary" wide onClick=\{\(\) => setComposing\(true\)\}>\+ New note<\/Button>/.test(notesBody)
+      && !/<SectionHeader label="Notes"/.test(notesBody) && !/note-intro/.test(pgN) && !/\.note-intro\{/.test(read("app/globals.css"))
+      && /No follow-ups yet — add one and assign it: it lands in their My Tasks\./.test(pgN));
+  }
+  {
+    // The crew round, part two (2026-10-10): what a screen is opened for comes first.
+    const pgC = code(read("app/crew/page.tsx"));
+    const prepAt = pgC.indexOf('{sec === "prep" && canPrep && ('), prep = pgC.slice(prepAt, pgC.indexOf("</Columns>", prepAt));
+    ok("readiness: each stop's card (the glance) comes before the board of every open task — first on a phone, the left column on the desk",
+      prep.indexOf("<EventPrep sel={prepSel} setSel={setPrepSel} />") > 0 && prep.indexOf("<EventPrep") < prep.indexOf("<PrepBoard />")
+      && prep.indexOf("<PrepBoard />") < prep.indexOf("<InspectionPrep />"));
+    const cb = pgC.slice(pgC.indexOf("function CustomersBody()"), pgC.indexOf("const PLAN_LABEL"));
+    ok("customers: bottle-owner proofs waiting lead, above the book; with none waiting the queue keeps its place by the broadcast",
+      /\.from\("vip_verifications"\)\.select\("id", \{ count: "exact", head: true \}\)\.eq\("status", "pending"\)/.test(cb)
+      && cb.indexOf("{vipWaiting > 0 && vip}") < cb.indexOf('<Panel id="cust-book"') && cb.indexOf('<Panel id="cust-book"') < cb.indexOf("{vipWaiting === 0 && vip}")
+      && /<CustomersBody \/>/.test(pgC));
+    ok("assets: gear past its service is counted on its closed row (My Day's count) and opens the row once",
+      /\.from\("v_obligations"\)\.select\("subject_id", \{ count: "exact", head: true \}\)\.eq\("source", "asset_maintenance"\)\.lt\("days_out", 0\)/.test(pgC)
+      && /if \(lateGear > 0 && !lateRef\.current\) \{ lateRef\.current = true; setOpen\(\(o\) => \(\{ \.\.\.o, maint: true \}\)\); \}/.test(pgC)
+      && /lateGear > 0 \? <span className="k-count due">\{lateGear\} overdue<\/span> : "service log · what's due"/.test(pgC));
+  }
   // ── the brew alarms ring for the person brewing ──
   const bp = code(read("components/BrewPlanner.tsx"));
+  ok("brew: a planned batch's Remove is in its menu beside the status, not in red under the gold Start (2026-10-10)",
+    !/className="btn-del mt-2" onClick=\{\(\) => removeBatch\(b\)\}/.test(bp)
+    && /\{b\.status === "planned" && !b\.brew_started_at && \(\s+<IconButton icon="more" size="sm" label=\{`More for \$\{b\.recipe_name \|\| "this batch"\}`\} aria-haspopup="dialog" onClick=\{\(\) => setMenuFor\(b\)\} \/>/.test(bp)
+    && /items=\{\[\{ key: "remove", label: "Remove — planned by mistake", danger: true, run: \(\) => \{ void removeBatch\(menuFor\); \} \}\]\}/.test(bp));
+  ok("brew: the board opens on + Plan a batch — no header under the lane's Brew, no paragraph on scaling; Brew steps is a door, the status sized to its word",
+    !/<SectionHeader label="Brew"/.test(bp) && !/Recipes scale exactly to the gallons/.test(bp)
+    && /<button type="button" className="btn-ter mt-1" onClick=\{\(\) => setStepsFor\(b\)\}>/.test(bp) && !/btn-sec btn-sm btn-wide mt-2" onClick=\{\(\) => setStepsFor/.test(bp)
+    && /<select className="brew-status flex-none w-auto! max-w-44"/.test(bp));
   ok("brew: Start brew names the brewer from the crew, and writes the id the alarms read",
     /<PersonPick label="Brewer"/.test(bp) && /\.\.\.\(extras\?\.brewer \? \{ brewer_id: extras\.brewer\.id \} : \{\}\)/.test(bp) && /arrives-with: 0344/.test(read("components/BrewPlanner.tsx")));
   ok("brew: the batch log moves the id when the brewer is changed, and leaves it when not",
@@ -8014,7 +8049,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("venue pick: the door to approve a pending venue is offered only where leaving loses nothing — never from a form mid-edit",
     /\{linked\?\.pending && !match && canOf\(profile\)\.admin && <> <button type="button" className="rec-link" onClick=\{\(\) => goPlanTab\("vendors", \{ setSection \}\)\}>Review it ›<\/button><\/>\}/.test(vp));
   ok("venue pick: a venue added by hand is said to be added, not auto-added, in the owner's approval alert",
-    /body: `Added from \$\{opts\?\.source \?\? "a truck stop"\}\. Review the contact details & approve in Plan › Vendors\.`/.test(read("lib/vendorLink.ts")));
+    /body: `Added from \$\{opts\?\.source \?\? "a truck stop"\}\. Review the contact details & approve in Plan › Lists › Venues & suppliers\.`/.test(read("lib/vendorLink.ts")));
   ok("venue pick: a look-alike is asked of the book's own rule (similar_vendors) and offered with one tap",
     /similarVendors\(typed\)/.test(vp) && /looks like \$\{suggestion\.label\} in the venue book/.test(vp) && /onClick=\{\(\) => pick\(suggestion\)\}/.test(vp));
   ok("venue pick: the book is read once for every pick on the screen, a failed read said, a write followed by a fresh read",
@@ -8239,11 +8274,32 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   // ── tabs that page ──
   const pg = code(read("app/crew/page.tsx"));
-  ok("pages: the section body is one pager — the lane's sections, and Plan's tabs on Plan — each turn the tap it stands for, in the lane",
-    /<SwipePager levels=\{\[\s+lane\.members\.length >= 2 && \{ keys: lane\.members, current: sec, go: \(k\) => inLane\(k as OpSection\), depth: 0 \},\s+sec === "plan" && canManage && \{ keys: PLAN_PAGES, current: planTab, go: \(k\) => setPlanTab\(k as PlanTab\), depth: 1 \},/.test(pg)
+  ok("pages: the section body is one pager — the lane's sections, and on a list Plan opened, a swipe toward the calendar — each turn the tap it stands for, in the lane",
+    /<SwipePager levels=\{\[\s+lane\.members\.length >= 2 && \{ keys: lane\.members, current: sec, go: \(k\) => inLane\(k as OpSection\), depth: 0 \},\s+planOver && \{ keys: \["calendar", planTab\], current: planTab, go: \(k\) => setPlanTab\(k as PlanTab\), depth: 1 \},/.test(pg)
     && /const inLane = \(m: OpSection\) => \{ if \(grp\) setGroupId\(grp\.id\); setSection\(m\); \};/.test(pg) && /onChange=\{\(m\) => inLane\(m\)\}/.test(pg));
-  ok("pages: Plan's row is drawn from the same list the swipe turns through",
-    /const PLAN_PAGES: readonly PlanTab\[\] = \["calendar", "events", "route", "leads", "vendors"\];/.test(read("app/crew/page.tsx")) && /\{PLAN_PAGES\.map\(\(k\) => \{/.test(pg));
+  {
+    // PLAN IS THE CALENDAR (2026-10-10, Ryan: "Do you even need a tab called calendar" — "Plan is the calendar", approved).
+    const ctl = code(read("components/controls.tsx")), lc = code(read("components/crew/LiveControl.tsx"));
+    ok("plan: no row of tabs — the calendar is the page; Leads (with the requests waiting, in words) and Lists are its two doors",
+      !/role="tablist" aria-label="Plan"/.test(pg) && !/PLAN_PAGES/.test(pg)
+      && /\{planTab === "calendar" \? \(\s+<div className="mb-3 flex items-center justify-end gap-2">/.test(pg)
+      && /onClick=\{\(\) => setPlanTab\("leads"\)\}\s+aria-label=\{planCounts\.bookings > 0 \? `Leads — \$\{planCounts\.bookings\} new booking request/.test(pg)
+      && /aria-haspopup="dialog" onClick=\{\(\) => setListsOpen\(true\)\}>/.test(pg));
+    ok("plan: Lists opens Events, Truck stops and Venues & suppliers — each list keeps its address (?t=), so every link into one still lands",
+      /const PLAN_LISTS: readonly \{ tab: PlanTab; icon: IconName \}\[\] = \[\{ tab: "events", icon: "event" \}, \{ tab: "route", icon: "pin" \}, \{ tab: "vendors", icon: "partners" \}\];/.test(pg)
+      && /<RowMenu title="Lists" onClose=\{\(\) => setListsOpen\(false\)\}\s+items=\{PLAN_LISTS\.map\(\(\{ tab, icon \}\) => \(\{ key: tab, label: PLAN_LABEL\[tab\], icon, run: \(\) => setPlanTab\(tab\) \}\)\)\} \/>/.test(pg)
+      && /export const PLAN_TABS = \["calendar", "events", "vendors", "route", "leads"\] as const;/.test(read("lib/planNav.ts")));
+    ok("plan: a list over the calendar is a step — Back, the header's ‹, the edge swipe or a tap on Plan in the lane closes it, back to the calendar",
+      /const planOver = sec === "plan" && canManage && planTab !== "calendar";\s+useBackStep\(planOver \? "Plan" : null, \(\) => setPlanTab\("calendar"\)\);/.test(pg)
+      && /\{backWay && <IconButton icon="chevronLeft" label=\{backWay\.label === "Back" \? "Back" : `Back to \$\{backWay\.label\}`\} onClick=\{backWay\.go\} \/>\}/.test(pg)
+      && /onReselect=\{\(m\) => \{ if \(m === "plan" && planOver\) setPlanTab\("calendar"\); \}\}/.test(pg)
+      && /onClick=\{\(\) => \{ if \(!on\) onChange\(o\.key\); else onReselect\?\.\(o\.key\); \}\}/.test(ctl));
+    ok("plan: each list names itself as Lists does — Truck stops on Plan (the Live truck on Live Ops), Venues & suppliers — \"Plan › Leads\" over the title, and the title bar says which",
+      /label=\{manage \? "Truck stops" : "Live truck"\}/.test(lc) && /<SectionHeader label="Venues & suppliers"/.test(pg)
+      && /useCrumb\("plan-list", PLAN_LABEL\[tab\], onBack\);\s+return <div data-large-title data-title=\{PLAN_LABEL\[tab\]\} aria-hidden className="h-0" \/>;/.test(pg)
+      && /<PlanCrumb tab=\{planTab\} onBack=\{\(\) => setPlanTab\("calendar"\)\} \/>/.test(pg)
+      && !/Plan › Route|Plan › Vendors|Plan &rsaquo; Calendar|Plan → Events\)/.test(lc + code(read("components/StopRecord.tsx")) + read("lib/vendorLink.ts") + read("components/AssignTaskSheet.tsx") + pg));
+  }
   ok("pages: Studio's views and the shop's aisles page too, each from its one list",
     /usePagerLevel\(\{ keys: STUDIO_VIEWS\.map\(\(x\) => x\.key\), current: view, go: \(k\) => pickView\(k as StudioView\), depth: 1 \}\);/.test(read("components/Studio.tsx"))
     && /\{STUDIO_VIEWS\.map\(\(x\) => \(/.test(read("components/Studio.tsx"))
@@ -8728,7 +8784,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("old spots: every GoLine goes to a real section and an element that exists", lines.length >= 10 && deadLines.length === 0, { n: lines.length, deadLines });
   ok("old spots: a GoLine never names its place by a variable the check above cannot read", !appFiles.some((f) => /<GoLine to=\{|<GoLine [^>]*anchor=\{/.test(read(f))));
   const block = (start) => { const i = pg.indexOf(start); return pg.slice(i, pg.indexOf("\n      )}\n", i)); };
-  const money = block('{sec === "money" && isAdmin && ('), cust = block('{sec === "customers" && isAdmin && ('), team = block('{sec === "team" && isAdmin && (');
+  // Customers draws its panels in CustomersBody since 2026-10-10 (proofs waiting lead): the section is its block and that.
+  const money = block('{sec === "money" && isAdmin && ('), cust = block('{sec === "customers" && isAdmin && (') + pg.slice(pg.indexOf("function CustomersBody()"), pg.indexOf("const PLAN_LABEL")), team = block('{sec === "team" && isAdmin && (');
   const cat = block('{sec === "catalog" && isAdmin && (');
   ok("old spots: Money keeps its pay panel — the refunds door and \"Payment settings ›\" — folded at rest since 2026-10-09, and the switches left it",
     /<Panel id="pay" title="Refunds & payment settings" sub="[^"]+">[\s\S]*?Refunds &amp; disputes — Square Dashboard[\s\S]*?<GoLine to="settings" anchor="set-pay">Payment settings<\/GoLine>\s*<\/Panel>/.test(money)
@@ -9285,7 +9342,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const header = crew.slice(crew.indexOf("THE HEADER, ONE KIT"), crew.indexOf("{guide && <SectionGuide"));
   ok("pills: the crew header is the kit's — Back, then quick actions, search and the inbox (the switch and the Guide are More's, 2026-10-09), and nothing hand-made beside them",
     !/<Segmented/.test(header) && !/icon="info"/.test(header)
-    && (header.match(/<IconButton icon="(sparkles|search|bell)"/g) || []).length === 3 && /<IconButton icon="chevronLeft" label="Back"/.test(header)
+    && (header.match(/<IconButton icon="(sparkles|search|bell)"/g) || []).length === 3 && /<IconButton icon="chevronLeft" label=\{backWay\.label === "Back" \? "Back"/.test(header)
     && !/<button\b/.test(header) && /badge=\{hdrToday\.length\} crit=\{hdrTodayCrit > 0\}/.test(header));
   ok("pills: the lane's sections are the kit's segmented control, the whole row wide",
     /<Segmented fill className="lane-tabs mb-3\.5" label=\{lane\.label\} value=\{sec\}/.test(crew));

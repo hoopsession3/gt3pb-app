@@ -102,7 +102,7 @@ export async function resolveVendor(
       category: "booking",
       kind: "vendor_pending",
       title: `New venue needs approval — ${nm}`,
-      body: `Added from ${opts?.source ?? "a truck stop"}. Review the contact details & approve in Plan › Vendors.`,
+      body: `Added from ${opts?.source ?? "a truck stop"}. Review the contact details & approve in Plan › Lists › Venues & suppliers.`,
       link: "/crew?s=plan",
       subjectId: id,
     });

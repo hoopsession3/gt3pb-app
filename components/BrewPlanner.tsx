@@ -21,11 +21,13 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import { useApp } from "./AppProvider";
-import { SectionHeader, Columns, Column } from "@/components/kit";
+import { Columns, Column } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { errorMessage } from "@/lib/errorMessage";
 import Button from "./Button";
+import { IconButton } from "@/components/controls";
+import { RowMenu } from "@/components/LongPress";
 
 // BREW — recipes + a back-scheduled batch plan. Pick a recipe, set the batch size in GALLONS (the
 // recipe scales exactly to it and hits its OG/Signal-Score spec), tie it to the event it's for, and
@@ -106,6 +108,7 @@ export default function BrewPlanner() {
   const [stepsFor, setStepsFor] = useState<Batch | null>(null);
   const [starting, setStarting] = useState<Batch | null>(null);
   const [adjust, setAdjust] = useState<Batch | null>(null);
+  const [menuFor, setMenuFor] = useState<Batch | null>(null);
   const [view, setView] = useState<"schedule" | "log">("schedule");
   const [now, setNow] = useState(() => Date.now());
 
@@ -356,9 +359,9 @@ export default function BrewPlanner() {
       {/* ON THE DESK (2026-10-09, redesign 5): the schedule on the left, the recipes beside it. */}
       <Columns>
       <Column>
-      <SectionHeader label="Brew" />
-      <Button kind="primary" wide onClick={() => setPlan(recipes[0] ?? null)} disabled={!recipes.length}>+ Plan a batch</Button>
-      <div className="pnl-note" style={{ marginBottom: 8 }}>Recipes scale exactly to the gallons of water you brew and hold the spec. Batches are back-scheduled from the event they&apos;re for, then logged to standard.</div>
+      {/* PLAN A BATCH LEADS (2026-10-10, the crew round): no "Brew" header under the lane's Brew, and no paragraph on how
+          scaling works above the work — the brew sheet shows the scaled recipe and the dates it back-schedules. */}
+      <Button kind="primary" wide className="mb-3" onClick={() => setPlan(recipes[0] ?? null)} disabled={!recipes.length}>+ Plan a batch</Button>
 
       {mutErr && (
         <div className="brew-oprow warn" role="alert">
@@ -401,9 +404,16 @@ export default function BrewPlanner() {
               <div key={b.id} className={`brew-card st-${b.status}`}>
                 <div className="brew-card-top">
                   <b>{b.recipe_name || "Batch"} · {b.batch_gal} gal</b>
-                  <select className="brew-status" value={b.status} onChange={(e) => setStatus(b.id, e.target.value)}>
+                  {/* Sized to its word, so the batch's name keeps its line (2026-10-10: the field's base width took the row). */}
+                  <select className="brew-status flex-none w-auto! max-w-44" value={b.status} onChange={(e) => setStatus(b.id, e.target.value)}>
                     {STATUS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
                   </select>
+                  {/* REMOVE IS IN THE BATCH'S MENU (2026-10-10, the crew round). It sat in red right under the gold
+                      Start on every planned batch — each card a pair of loud buttons, the one that cannot be taken
+                      back a thumb's slip from the one you came for. It is one tap away still, beside the status. */}
+                  {b.status === "planned" && !b.brew_started_at && (
+                    <IconButton icon="more" size="sm" label={`More for ${b.recipe_name || "this batch"}`} aria-haspopup="dialog" onClick={() => setMenuFor(b)} />
+                  )}
                 </div>
                 <div className="brew-card-meta">
                   {b.vessel ? `${b.vessel} · ` : ""}Brew {fmtDate(b.brew_date)} → ready {fmtTs(b.ready_at)}{tgt ? ` · for ${tgt}` : ""}{spec ? ` · ${spec}` : ""}
@@ -411,7 +421,9 @@ export default function BrewPlanner() {
 
                 {/* The method used to live only in the planning result, so a batch you were actually
                     brewing had nowhere to tell you what to do. This is that door. */}
-                <button type="button" className="btn-sec btn-sm btn-wide mt-2" onClick={() => setStepsFor(b)}>
+                {/* A door, not a second button the width of the card (2026-10-10): each card's one button is what is
+                    next for it — Start, or the bottle loadout. */}
+                <button type="button" className="btn-ter mt-1" onClick={() => setStepsFor(b)}>
                   <Icon name="clock" /> Brew steps <span aria-hidden="true">›</span>
                 </button>
 
@@ -474,10 +486,6 @@ export default function BrewPlanner() {
                       return <div className={`brew-startby${over ? " over" : ""}`}>{over ? <><Icon name="warning" /> Past the latest start to be ready in time — start now</> : <><Icon name="clock" /> Start by {fmtTs(b.latest_start_at)} to be ready in time</>}</div>;
                     })()}
                     <button type="button" className="btn-pri btn-sm btn-wide mt-2" onClick={() => setStarting(b)}>▶ Start brew ({Number(b.extraction_hours) || 20}h)</button>
-                    {/* A planned batch is the cheapest kind of mistake and used to be the hardest to
-                        take back — nothing had happened yet, and the only Delete was two taps away
-                        in the production log. */}
-                    <button type="button" className="btn-del mt-2" onClick={() => removeBatch(b)}>Remove — planned by mistake</button>
                   </>
                 )}
                 {b.status === "brewing" && b.ready_at && (() => {
@@ -560,6 +568,12 @@ export default function BrewPlanner() {
       {logBatch && <BatchLog batch={logBatch} events={events} stops={stops} lotBoard={lotBoard} onClose={() => setLogBatch(null)} onSaved={() => { setLogBatch(null); reload(); }} onRemove={removeBatch} />}
       {stepsFor && <BrewSteps batch={stepsFor as any} onClose={() => setStepsFor(null)} onChanged={reload} />}
       {starting && <StartBrewSheet batch={starting} lotBoard={lotBoard} onClose={() => setStarting(null)} onStart={async (extras) => { if (await startBrew(starting, extras)) setStarting(null); }} />}
+      {/* A planned batch is the cheapest kind of mistake and used to be the hardest to take back — nothing has
+          happened yet, and the only Delete was two taps away in the production log. Its menu holds it. */}
+      {menuFor && (
+        <RowMenu title={`${menuFor.recipe_name || "Batch"} · ${menuFor.batch_gal} gal`} onClose={() => setMenuFor(null)}
+          items={[{ key: "remove", label: "Remove — planned by mistake", danger: true, run: () => { void removeBatch(menuFor); } }]} />
+      )}
       {adjust && <BrewAdjust batch={adjust} onClose={() => setAdjust(null)} onSaveTime={saveBrewTime} onStop={stopBrew} onUndo={undoStart} onRemove={removeBatch} />}
     </div>
       )}

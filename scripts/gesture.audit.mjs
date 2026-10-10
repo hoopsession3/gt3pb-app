@@ -48,7 +48,6 @@ export const OWN_OVERLAYS = {
 // Keyed file#aria-label (or #class when the label is not a literal).
 export const PAGED = {
   "app/crew/page.tsx#lane-tabs": "the lane's sections — the section body's <SwipePager>",
-  "app/crew/page.tsx#Plan": "Plan's tabs — the section body's <SwipePager>",
   "components/Studio.tsx#View": "Studio's views — usePagerLevel",
   "components/Shop.tsx#Shop": "the shop's two aisles — the aisles' <SwipePager>",
   "app/crew/page.tsx#Guide": "the Guide's two pages, Start here and Every section — the Guide sheet's <SwipePager>",

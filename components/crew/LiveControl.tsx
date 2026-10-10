@@ -274,7 +274,8 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
 
   return (
     <div className="adm-sec">
-      <SectionHeader label="Live truck" right={!compact ? <InlineCreate label="+ Add location" placeholder="Location name" onCreate={addStop} /> : undefined} />
+      {/* On Plan it is the list Lists opens as Truck stops (2026-10-10), and says so; on Live Ops it is the instrument. */}
+      <SectionHeader label={manage ? "Truck stops" : "Live truck"} right={!compact ? <InlineCreate label="+ Add location" placeholder="Location name" onCreate={addStop} /> : undefined} />
       {err && <div className="adm-attn" role="alert">Backend error: {err}</div>}
       {compact ? (
         /* THE TRUCK INSTRUMENT — one panel, not a stack of floating cards (owner call). Row 1 is
@@ -305,7 +306,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
                 : <span className="flex gap-2"><Button kind="secondary" compact onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</Button><Button kind="primary" compact onClick={startBroadcast}>Broadcast</Button></span>}
             </div>
           ) : null}
-          <button type="button" className="adm-golink hit-y-44" onClick={() => goPlanTab("route", { setSection })}>{road.length > 1 ? `${road.length - 1} more stop${road.length > 2 ? "s" : ""} ahead · ` : ""}Locations · Plan › Route</button>
+          <button type="button" className="adm-golink hit-y-44" onClick={() => goPlanTab("route", { setSection })}>{road.length > 1 ? `${road.length - 1} more stop${road.length > 2 ? "s" : ""} ahead · ` : ""}Truck stops · Plan › Lists</button>
           {/* The dial's line, where this row used to name it (2026-10-06, the settings round). */}
           {admin && <button type="button" className="adm-golink hit-y-44" onClick={goDial}>Cup-ordering dial ›</button>}
         </div>
