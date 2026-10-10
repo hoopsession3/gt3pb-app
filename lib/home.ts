@@ -21,8 +21,9 @@ export type HomeItem = {
   /** the due day minus today, in whole days: negative is late, 0 is today, null has no date */
   daysOut: number | null;
   critical: boolean;
-  /** mine: your own task · owed: a deadline you can act on · team: somebody else's late task · upkeep: equipment */
-  kind: "mine" | "owed" | "team" | "upkeep";
+  /** mine: your own task · owed: a deadline you can act on · team: somebody else's late task · upkeep: equipment ·
+   *  rule: a compliance rule to confirm with its authority */
+  kind: "mine" | "owed" | "team" | "upkeep" | "rule";
 };
 
 export type HomeSplit<T extends HomeItem = HomeItem> = {
@@ -31,6 +32,7 @@ export type HomeSplit<T extends HomeItem = HomeItem> = {
   moreToday: number;        // due today or late, past the first TODAY_MAX
   stale: T[];               // late by more than STALE_DAYS
   upkeep: T[];              // equipment upkeep due or late, whatever its age: one row on the home
+  rules: T[];               // compliance rules to confirm with the authority: one row on the home, never "due today"
   later: number;            // dated after today, or not dated at all
   total: number;
 };
@@ -48,9 +50,16 @@ export function rankToday(a: HomeItem, b: HomeItem): number {
     || (a.daysOut ?? 0) - (b.daysOut ?? 0);
 }
 
+// COMPLIANCE IS NOT TODAY'S WORK (2026-10-10, Ryan: "the my day still doesn't make sense"). Every one of the
+// six things under "To do · 6 due" on his My Day was a compliance rule nobody had confirmed with its authority
+// — ServSafe, the mobile-setup authorization, the temporary permit — because v_obligations dates a rule with no
+// confirmation "today" (0330: coalesce(verified_on + 365, current_date)). So they were due today every day,
+// and the day's real work could never reach the top three. They are one row now, like equipment: counted,
+// one tap from the list, each opening the rule where it is confirmed.
 export function splitHome<T extends HomeItem>(items: readonly T[]): HomeSplit<T> {
   const upkeep = items.filter((i) => i.kind === "upkeep").sort(rankToday);
-  const rest = items.filter((i) => i.kind !== "upkeep");
+  const rules = items.filter((i) => i.kind === "rule");
+  const rest = items.filter((i) => i.kind !== "upkeep" && i.kind !== "rule");
   const due = rest.filter((i) => homeBucket(i.daysOut) === "today").sort(rankToday);
   const stale = rest.filter((i) => homeBucket(i.daysOut) === "stale").sort(rankToday);
   return {
@@ -59,9 +68,25 @@ export function splitHome<T extends HomeItem>(items: readonly T[]): HomeSplit<T>
     moreToday: Math.max(0, due.length - TODAY_MAX),
     stale,
     upkeep,
+    rules,
     later: rest.filter((i) => homeBucket(i.daysOut) === "later").length,
     total: items.length,
   };
+}
+
+// THE DAY COUNTS DOWN, AND ENDS (2026-10-10, My Day 10). "6 due" never said whether a morning was going well,
+// and an empty list said "Nothing due today." — the same words for a clear day and a finished one. The head
+// counts what was done today beside what is left, and a finished day says so, with what comes next.
+/** The head's words: what is done today beside what is left. */
+export function dayCount(done: number, toGo: number): string {
+  if (toGo > 0) return done > 0 ? `${done} done · ${toGo} to go` : `${toGo} due`;
+  return done > 0 ? `${done} done` : "Clear";
+}
+/** The first dated thing after today — what a finished day points to. Equipment and compliance have rows of their own. */
+export function nextUp<T extends HomeItem>(items: readonly T[]): T | null {
+  const ahead = items.filter((i) => (i.kind === "mine" || i.kind === "owed" || i.kind === "team") && i.daysOut !== null && i.daysOut > 0);
+  ahead.sort((a, b) => (a.daysOut as number) - (b.daysOut as number) || Number(b.critical) - Number(a.critical) || Number(b.kind === "mine") - Number(a.kind === "mine"));
+  return ahead[0] ?? null;
 }
 
 // ── THE NUMBERS ────────────────────────────────────────────────────────────────────────────────
