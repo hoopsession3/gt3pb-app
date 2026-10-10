@@ -8,7 +8,7 @@ import { haptic } from "@/lib/haptics";
 
 // SWIPE BETWEEN TABS (2026-10-05, the gesture round). Ryan: "swipe left to move forward to the next
 // tab". A screen with a row of tabs across its top — the lane's sections (My Day · Live Ops ·
-// Command), Plan's Calendar · Events · Route · Leads · Vendors, Studio's views, the shop's two aisles —
+// Command), Studio's views, the shop's two aisles, and a list Plan opened over its calendar —
 // turns its page with a sideways swipe on the content, the way a paged tab strip does on the phone:
 // the content follows the finger, a third of the way across (or a flick) turns it, and the next tab
 // slides in from the side it was swiped toward. Nothing that way: the content gives like a rubber band
@@ -17,7 +17,7 @@ import { haptic } from "@/lib/haptics";
 // The screen that renders a <SwipePager> hands it the tab rows it owns (`levels`); a component inside
 // the content with a row of its own (Studio's views) offers it with usePagerLevel. Rows nest: `depth`
 // 0 is the outermost row; a swipe moves the innermost row that has a tab that way, and at its end the
-// row around it (lib/gesture pageStep) — swiping on past Plan's last tab goes to the lane's next
+// row around it (lib/gesture pageStep) — swiping on past Studio's last view goes to the lane's next
 // section. A row is moved the way its own tabs move it (`go`), so the
 // address, history and focus behave exactly as a tap does. A strip that scrolls sideways, a field, a
 // map or a dialog keeps its own touches (lib/gesture heldBy), and a swipe from the very edge is the

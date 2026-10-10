@@ -458,11 +458,10 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the calendar" emptyTitle="Nothing here yet">
       {() => (
     <div className="adm-sec cal">
-      {/* "Company calendar" eyebrow cut (2026-07-16, decrowd): the crew header title + the
-          "Calendar" subnav tab the user just tapped already say this twice — a bespoke third
-          banner here was pure repetition. SectionHeader now matches this screen to its
-          EventsAdmin/VendorsAdmin subnav siblings; the tap-to-edit hint is genuine first-run
-          orientation copy (not stated anywhere above), so it stays as its own line. */}
+      {/* "Company calendar" eyebrow cut (2026-07-16, decrowd): a bespoke banner over the header was
+          repetition. Since 2026-10-10 Plan has no "Calendar" tab — Plan is the calendar — so this
+          header is the one place that names it; the tap-to-edit hint is first-run orientation copy
+          (not stated anywhere above), so it stays as its own line. */}
       <SectionHeader label="Calendar" />
       <div className="cal-titlesub">{readOnly ? "everything dated — the whole company, one pane" : "everything dated — tap anything to edit · swipe ‹ › to walk it"}</div>
       {!readOnly && stale > 0 && (

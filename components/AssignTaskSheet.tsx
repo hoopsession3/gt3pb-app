@@ -91,7 +91,7 @@ export default function AssignTaskSheet({
               <div className="brew-spec"><Icon name="check" /> {title}{due ? ` · due ${due}` : ""} · <b>{nameOf(assignee)}</b></div>
               <label className="prod-f" style={{ marginTop: 10 }}><span>Reassign</span><select value={assignee} onChange={(e) => reassign(e.target.value)}>{crewOptions}</select></label>
               <label className="prod-toggle" style={{ marginTop: 12 }}><input type="checkbox" checked={done} onChange={toggleDone} /> Mark it done</label>
-              <div className="oa-window" style={{ marginTop: 10 }}>It&rsquo;s in {assignee ? `${nameOf(assignee)}’s` : "the team’s"} day now — and in Plan &rsaquo; Calendar to manage anytime.</div>
+              <div className="oa-window" style={{ marginTop: 10 }}>It&rsquo;s in {assignee ? `${nameOf(assignee)}’s` : "the team’s"} day now — and on the Plan calendar to manage anytime.</div>
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="btn-pri" onClick={onClose}>Done</button>
               </div>

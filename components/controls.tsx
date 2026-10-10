@@ -19,10 +19,12 @@ export type SegOption<K extends string> = { key: K; label: ReactNode; title?: st
  *  The thumb is measured from the chosen option itself, so options of different widths, a row that
  *  scrolls and the text-size setting all keep it under the right word. Until it has measured, the
  *  chosen option fills itself, so the first paint is already right. */
-export function Segmented<K extends string>({ options, value, onChange, label, kind = "tabs", size, fill, className }: {
+export function Segmented<K extends string>({ options, value, onChange, onReselect, label, kind = "tabs", size, fill, className }: {
   options: SegOption<K>[];
   value: K;
   onChange: (key: K) => void;
+  /** A tap on the option already chosen — a tab bar's tap on its own tab: back to that view's start. */
+  onReselect?: (key: K) => void;
   label: string;
   kind?: "tabs" | "choice";
   size?: "sm";
@@ -68,7 +70,7 @@ export function Segmented<K extends string>({ options, value, onChange, label, k
             const on = o.key === value;
             return (
               <button key={o.key} type="button" role={tabs ? "tab" : "radio"} aria-selected={tabs ? on : undefined} aria-checked={tabs ? undefined : on}
-                className={`k-seg-opt${on ? " on" : ""}`} title={o.title} onClick={() => { if (!on) onChange(o.key); }}>
+                className={`k-seg-opt${on ? " on" : ""}`} title={o.title} onClick={() => { if (!on) onChange(o.key); else onReselect?.(o.key); }}>
                 {o.label}
               </button>
             );
