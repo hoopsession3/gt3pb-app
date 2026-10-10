@@ -76,7 +76,9 @@ await db.exec(`
 
 // The route's row, and a writer shaped like supabase-js: { error } back, never a throw.
 const ROW = { items: ["rise"], total_cents: 1000, paid: false, payment_id: null, customer: "Ana", user_id: null, customer_id: null, status: "new", benefit_code: null };
-const READY = "2026-10-10T15:00:00.000Z";
+// The stop's opening, ahead of every order the suite writes: the next whole hour at least two hours out.
+// It was a fixed "2026-10-10T15:00:00.000Z", which held until that afternoon and then read as made-now.
+const READY = new Date(Math.ceil((Date.now() + 2 * 3600e3) / 3600e3) * 3600e3).toISOString();
 const write = async (row) => {
   const keys = Object.keys(row);
   try {

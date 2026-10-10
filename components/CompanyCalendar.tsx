@@ -737,7 +737,7 @@ function DayView({ dayKey, items, events, readOnly = false, onClose, onAdd, onSa
   const d = new Date(`${dayKey}T00:00:00`);
   const heading = d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const sub: Record<Item["kind"], string> = { event: "event", stop: "on-the-ground op", todo: "to-do", content: "content", task: "task due", brew: "brew day", drop: "pack pickup", delivery: "delivery run", goal: "goal", lead: "booking request", pipe: "pipeline next step", meeting: "meeting" };
-  const goTitle: Record<Item["kind"], string> = { event: "Open full prep", stop: "Open full prep", todo: "Open its hub", content: "Open in Studio", task: "Open its hub", brew: "Open Production", drop: "Open Live Ops", delivery: "Open Live Ops", goal: "Open Goals", lead: "Open Leads", pipe: "Open the pipeline", meeting: "Open in Notes" };
+  const goTitle: Record<Item["kind"], string> = { event: "Open full prep", stop: "Open full prep", todo: "Open its hub", content: "Open in Brand", task: "Open its hub", brew: "Open Production", drop: "Open Live Ops", delivery: "Open Live Ops", goal: "Open Goals", lead: "Open Leads", pipe: "Open the pipeline", meeting: "Open in Notes" };
   const clash = items.some((i) => i.kind === "event") && items.some((i) => i.kind === "stop");
   const brewLate = items.some((i) => i.warn);
   return (
@@ -910,7 +910,7 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
   const remove = async () => {
     if (!supabase || !removable) return;
     if (!(await confirm(kind === "content"
-      ? { title: "Unschedule this from the calendar?", body: "It stays in Studio.", confirmLabel: "Unschedule" }
+      ? { title: "Unschedule this from the calendar?", body: "It stays in Brand.", confirmLabel: "Unschedule" }
       : { title: "Delete this to-do?", confirmLabel: "Delete", danger: true }))) return;
     setSaving(true);
     if (kind === "todo") await deleteTask("todo", id);   // ONE write path (lib/tasks)
@@ -926,7 +926,7 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
     // Was `prep(key)` with the key spelled at each call site — which is how line 578 came to write
     // "event:<id>" while 567 and 698 wrote a bare id, in this same file. Takes the pair now.
     const prep = (k: "event" | "stop", id: string) => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue(k, id)); } catch { /* ignore */ } setSection("prep"); close(); };
-    if (kind === "content") return { label: "Open full editor in Studio", go: () => { setSection("studio"); close(); } };
+    if (kind === "content") return { label: "Open full editor in Brand", go: () => { setSection("studio"); close(); } };
     if (kind === "brew") return { label: "Open in Production", go: () => { setSection("brew"); close(); } };
     if (kind === "goal") return { label: "Open Goals", go: goGoals };
     if (kind === "lead") return { label: "Open Leads", go: () => { goPlanTab("leads", { setSection }); close(); } };

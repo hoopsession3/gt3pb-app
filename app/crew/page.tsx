@@ -932,7 +932,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
       // No post id on the link (an older alert raised before the link format was fixed, or a
       // malformed one) — don't silently fall through to the generic My Day route below, which
       // reads as "Open" teleporting you somewhere unrelated instead of doing nothing useful.
-      toast("Couldn't find that post — it may have been removed. Check Brand → Studio.", "error");
+      toast("Couldn't find that post — it may have been removed. Check Brand.", "error");
       return;
     }
     const d = alertDest(a.category, a.title, a.link);
@@ -5552,8 +5552,8 @@ function SettingsHome({ userId, isAdmin, isOwner }: { userId: string | null; isA
             <SetPart id="set-spend" label="What they cost"><AiSpend /></SetPart>
           </Panel>
         )}
-        {/* The words guests read and the splash. An event manager keeps the brand kit in Studio ›
-            Brand; Studio's line to this editor is drawn for an owner or an admin. */}
+        {/* The words guests read and the splash. An event manager keeps the brand kit in Brand ›
+            Kit; Brand's line to this editor is drawn for an owner or an admin. */}
         {isAdmin && (
           <Panel id="set-brand" title="Brand & customer app" sub="Every line guests read, and the app’s splash" remember={false}>
             <SetPart id="set-copy"><SiteCopyEditor /></SetPart>
@@ -6337,13 +6337,15 @@ export default function AdminPage() {
               (the org chart's reporting tiers, then work streams' ownership grid). Since 2026-10-06 the
               lane owners are Settings › Business › Team & permissions (OrgChart part="lanes"); the
               picture of the people stays here. */}
-          <SectionHeader label="Team structure" />
-          <OrgChart part="people" />
+          {/* THE SAME PEOPLE, ONCE AT REST (2026-10-10, the crew round). Team listed everyone four times — the roster,
+              who's on what, the org chart, the usage report — each open. The roster and who's on what stay open: they
+              are the work. The org chart and the usage report fold to a row each, a tap away, as Money's panels do. */}
           <TeamKpis />
+          <Panel id="team-org" title="Org chart" sub="Who reports where — tap a person to open them"><OrgChart part="people" bare /></Panel>
           {/* Utilization (0267, Ryan: "so you don't have to ask me this no more") — who's actually
               IN the system: active days, sign-ins, actions, last-seen per person, plus the
               anonymous guest pulse. Admin-only data by RLS. */}
-          <UtilizationPanel />
+          <Panel id="team-usage" title="Who's in the system" sub="The last 30 days, person by person, and the guest pulse"><UtilizationPanel bare /></Panel>
           <SectionHeader label="Growth & training" />
           {/* Was a flat link with no state, on a page where everything else shows live numbers — so it
               was the one block the eye skipped, and the Academy had zero progress rows for anybody.

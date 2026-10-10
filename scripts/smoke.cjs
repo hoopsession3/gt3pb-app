@@ -6726,6 +6726,21 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /if \(lateGear > 0 && !lateRef\.current\) \{ lateRef\.current = true; setOpen\(\(o\) => \(\{ \.\.\.o, maint: true \}\)\); \}/.test(pgC)
       && /lateGear > 0 \? <span className="k-count due">\{lateGear\} overdue<\/span> : "service log · what's due"/.test(pgC));
   }
+  {
+    // The crew round, part three (2026-10-10): Team's people once at rest; Brand one name, opening on the board.
+    const pgT = code(read("app/crew/page.tsx")), st = code(read("components/Studio.tsx")), nav = code(read("components/OperatorNav.tsx"));
+    const teamAt = pgT.indexOf('{sec === "team" && isAdmin && ('), team = pgT.slice(teamAt, pgT.indexOf("</Columns>", teamAt));
+    ok("team: the org chart and the usage report fold to a row each, with no header inside the panel's own; the roster and who's on what stay open",
+      /<Panel id="team-org" title="Org chart" sub="[^"]{8,}"><OrgChart part="people" bare \/><\/Panel>/.test(team)
+      && /<Panel id="team-usage" title="Who's in the system" sub="[^"]{8,}"><UtilizationPanel bare \/><\/Panel>/.test(team)
+      && !/<SectionHeader label="Team structure" \/>/.test(team) && /<WorkloadBoard \/>/.test(team)
+      && /\{!bare && <SectionHeader label="Org chart"/.test(code(read("components/OrgChart.tsx"))) && /\{!bare && <SectionHeader label="Utilization"/.test(code(read("components/UtilizationPanel.tsx"))));
+    ok("brand: one name — the section is Brand in More, over the page and in the title bar; the brand kit's tab is the Kit",
+      /studio: "Brand"/.test(nav) && /studio: "Brand"/.test(read("lib/routeTitles.ts")) && /\{ key: "brand", label: "Kit" \}/.test(st)
+      && /\.filter\(\(n\) => n !== g\.label\)\.join\(" · "\)/.test(nav) && !/label="Studio"|"Open in Studio"|in Studio\./.test(code(read("components/CompanyCalendar.tsx"))));
+    ok("brand: a first visit opens on the board of pieces in progress, not a second calendar — and the row reads Board first",
+      /: "board";/.test(st) && /\{ key: "board", label: "Board" \}, \{ key: "calendar", label: "Calendar" \}/.test(st));
+  }
   // ── the brew alarms ring for the person brewing ──
   const bp = code(read("components/BrewPlanner.tsx"));
   ok("brew: a planned batch's Remove is in its menu beside the status, not in red under the gold Start (2026-10-10)",
@@ -8814,16 +8829,16 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("old spots: Team keeps \"Train the AI ›\" for the owner (an admin's line goes to the lane owners), the roster keeps roles and the one door to add someone, the org chart keeps the people — and Settings sends there",
     /\{isOwner && <GoLine to="settings" anchor="set-train">Train the AI<\/GoLine>\}/.test(team)
     && /\{!isOwner && <GoLine to="settings" anchor="set-lanes">Lane owners<\/GoLine>\}/.test(team)
-    && !/<InviteTeammate|<AiTraining|anchor="set-invite"/.test(team) && /<OrgChart part="people" \/>/.test(team)
+    && !/<InviteTeammate|<AiTraining|anchor="set-invite"/.test(team) && /<OrgChart part="people" bare \/>/.test(team)
     && /\{isOwner && <div id="team-members" style=\{\{ scrollMarginTop: 16 \}\}><Members \/><\/div>\}/.test(team)
     && /<AddTeammate promoteFor=\{promoteFor\} onDone=\{membersState\.reload\} \/>/.test(pg)
     && /\{isOwner && <SetPart id="set-invite" label="Add a teammate"><GoLine to="team" anchor="team-members">Add someone, or change a role<\/GoLine><\/SetPart>\}/.test(sh));
   const oc = code(read("components/OrgChart.tsx"));
   ok("old spots: OrgChart draws its two parts in two homes — the people on Team, the lane owners in Settings — and a refused owner pick is said",
-    /export default function OrgChart\(\{ part = "people" \}/.test(oc) && /\{\(\) => part === "people" \? \(/.test(oc)
+    /export default function OrgChart\(\{ part = "people", bare = false \}/.test(oc) && /\{\(\) => part === "people" \? \(/.test(oc)
     && /\.update\(\{ owner_user_id: uid \|\| null \}\)\.eq\("id", id\)\.select\("id"\);/.test(oc) && /if \(error \|\| !data\?\.length\) toast\([\s\S]*?, "error"\);/.test(oc));
   const st = code(read("components/Studio.tsx"));
-  ok("old spots: Studio › Brand keeps \"Copy ›\" through lib/anchors — no timer of its own — for those Settings shows the editor to",
+  ok("old spots: Brand › Kit keeps \"Copy ›\" through lib/anchors — no timer of its own — for those Settings shows the editor to",
     /\{canCopy && <GoLine to="settings" anchor="set-copy">Copy<\/GoLine>\}/.test(st) && /const canCopy = canOf\(profile\)\.admin;/.test(st)
     && !/gt3-mpanel-set-copy/.test(st) && !/getElementById\("set-copy"\)/.test(st) && !/goCopy/.test(st) && /<BrandKit canEdit \/>/.test(st));
   const cal = code(read("components/CompanyCalendar.tsx"));
@@ -9398,7 +9413,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /onClick=\{\(\) => resend\(i\)\}>Send again<\/button>/.test(add2) && /onClick=\{\(\) => cancel\(i\)\}/.test(add2) && /this is not &ldquo;nobody&rdquo;/.test(add2));
   const tAt = crew2.indexOf('{sec === "team" && isAdmin && ('), teamBlk = crew2.slice(tAt, crew2.indexOf("<AcademyCard />", tAt));
   ok("team: the roster comes first with its door on top, and the role pick says the role — no badge repeating it",
-    tAt > 0 && teamBlk.indexOf("<Members />") > 0 && teamBlk.indexOf("<Members />") < teamBlk.indexOf("<WorkloadBoard />") && teamBlk.indexOf("<WorkloadBoard />") < teamBlk.indexOf("<UtilizationPanel />")
+    tAt > 0 && teamBlk.indexOf("<Members />") > 0 && teamBlk.indexOf("<Members />") < teamBlk.indexOf("<WorkloadBoard />") && teamBlk.indexOf("<WorkloadBoard />") < teamBlk.indexOf("<UtilizationPanel bare />")
     && !/tm-badge/.test(crew2) && /className="tm-acts"/.test(crew2));
   // ── the letter ──
   ok("welcome letter: owner-only, inside the owner's company, to a crew member or an open invite — never an address the caller typed",
@@ -10344,6 +10359,16 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       const desc = (read("app/layout.tsx").match(/^\s*description: "([^"]*)"/m) || [])[1] || "", man = read("app/manifest.ts");
       ok("the line every link previews with, and the home-screen app's, names the drinks without \"simmered … to order\"",
         /bone broth/.test(desc) && !/simmer|to order/i.test(desc) && !/simmer|to order/i.test(man));
+      // …and everywhere else the word was: the menu's drink lines, Craft, the AI day plan, Academy and the
+      // event brief, plus the rows the seeds wrote (0362). Comments may say why; no string may say it.
+      const strs = (f) => read(f).replace(/^\s*\/\/.*$/gm, "");
+      const said = ["lib/menu.ts", "lib/copy.ts", "lib/academy.ts", "lib/eventbrief.ts", "components/GenerateDay.tsx", "app/layout.tsx", "app/manifest.ts"]
+        .filter((f) => /simmer/i.test(strs(f)));
+      const m362 = read("supabase/migrations/0362_bone_broth_said_plainly.sql");
+      ok("no drink, lesson, brief or Craft line says \"simmered\" — the app's copy, and the database rows its seeds wrote (0362)",
+        said.length === 0 && /lines: \["Beef Bone Broth", "Pasture-Raised"\]/.test(read("lib/menu.ts"))
+        && /update public\.products\s+set what = 'Pasture-raised '/.test(m362) && /update public\.primal_lessons/.test(m362)
+        && /update public\.primal_lesson_products/.test(m362) && /MUST NOT call the broth "simmered"/.test(m362), said);
     }
     ok("Privacy tells the truth about passwords and deletion; Privacy and Terms lead each paragraph with what it is about",
       !/never store a password/.test(pv.replace(/^\/\/.*$/gm, "")) && /one-way hash/.test(pv) && /then Delete account/.test(pv)

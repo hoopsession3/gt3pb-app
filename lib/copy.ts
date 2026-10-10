@@ -30,7 +30,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "craft.h1_l2", group: "Craft page", label: "Headline line 2", default: "And" },
   { key: "craft.h1_em2", group: "Craft page", label: "Headline emphasis 2", default: "chemistry." },
   { key: "craft.lede", group: "Craft page", label: "Lede", multiline: true,
-    default: "Every drink on our menu is built from whole, recognizable food — chosen on purpose, for what it does for you. Coffee to switch on, coconut and minerals to carry you, slow-simmered broth to rebuild. We treat each one as a craft, because your body runs on what you give it — and it deserves the good stuff." },
+    default: "Every drink on our menu is built from whole, recognizable food — chosen on purpose, for what it does for you. Coffee to switch on, coconut and minerals to carry you, bone broth to rebuild. We treat each one as a craft, because your body runs on what you give it — and it deserves the good stuff." },
   { key: "craft.mol_cap", group: "Craft page", label: "Molecule caption", default: "Caffeine · three methyls, three 3s" },
   // craft.fuel, the philosophy band, retired 2026-10-09: it said the lede again (round 2, "Craft lines").
   // Pillar 1 — Activation
@@ -53,7 +53,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "craft.reb_intro", group: "Craft page", label: "Rebuild — intro", multiline: true,
     default: "When you've spent yourself, you rebuild with real material — collagen, amino acids and minerals drawn out of bones over hours. No bouillon, no filler, no powder." },
   { key: "craft.reb_items", group: "Craft page", label: "Rebuild — ingredients (one per line, Name — fact)", multiline: true,
-    default: "Slow-simmered bone broth · FORGE · HUNT · WILD — Bones and connective tissue simmered for hours into collagen, amino acids like glycine and proline, and minerals — a savory, whole-food source of protein, often ~8–10g a cup.\nPasture-raised beef, bison & ostrich — Cleaner sources, each with a profile: bison leaner with a little more iron and zinc, ostrich lighter still." },
+    default: "Bone broth · FORGE · HUNT · WILD — Bones and connective tissue cooked down for hours into collagen, amino acids like glycine and proline, and minerals — a savory, whole-food source of protein, often ~8–10g a cup.\nPasture-raised beef, bison & ostrich — Cleaner sources, each with a profile: bison leaner with a little more iron and zinc, ostrich lighter still." },
   // The mark + close
   { key: "craft.mark_label", group: "Craft page", label: "The Mark — label", default: "04 · The Mark" },
   { key: "craft.mark_title", group: "Craft page", label: "The Mark — title", default: "Three methyls. Three 3s. GT3." },

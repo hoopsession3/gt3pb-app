@@ -13,7 +13,7 @@
 /** A crew section's name: its heading, its guide's row, the bar's title and a back label to it. Keyed by
  *  components/OperatorSection's OpSection (written out here so this file needs nothing but itself). */
 export const SECTION_TITLE: Readonly<Record<string, string>> = {
-  day: "My Day", now: "Live Ops", ask: "Ask GT3", command: "Command", prep: "Readiness", plan: "Plan", studio: "Studio",
+  day: "My Day", now: "Live Ops", ask: "Ask GT3", command: "Command", prep: "Readiness", plan: "Plan", studio: "Brand",
   brew: "Brew", garage: "Assets", driver: "Delivery", notes: "Notes", money: "Money", catalog: "Catalog",
   customers: "Customers", team: "Team", settings: "Settings",
 };

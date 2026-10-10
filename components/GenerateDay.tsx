@@ -105,9 +105,9 @@ function buildRec(a: Complete): Rec {
     maple: "Our DUSK brew — Ceylon cinnamon and green cardamom over the cold-extraction base — with organic A2 grass-fed goat milk, real maple, and a pinch of sea salt. Rich, naturally sweet and smooth, same caffeine as the rest of the line.",
     tide:  "Whole-food hydration — young coconut water blended with young organic Thai coconut meat and a touch of organic local honey (we always name it). Blended to order, never a powder or concentrate.",
     aide:  "Coconut water and mineral water with organic maple and a pinch of sea salt. Light, clean hydration for the middle of the work — real ingredients, not a powder.",
-    forge: "Slow-simmered beef bone broth, pasture-raised. Deep, rich and mineral-forward — real food for the rebuild after training, not a supplement.",
-    hunt:  "Slow-simmered bison bone broth, pasture-raised. Leaner than beef with a little more iron and zinc — savory fuel for the window after a session.",
-    wild:  "Slow-simmered ostrich bone broth, pasture-raised. Our lightest, leanest broth — easy to sit with when your gut is sensitive.",
+    forge: "Pasture-raised beef bone broth. Deep, rich and mineral-forward — real food for the rebuild after training, not a supplement.",
+    hunt:  "Pasture-raised bison bone broth. Leaner than beef with a little more iron and zinc — savory fuel for the window after a session.",
+    wild:  "Pasture-raised ostrich bone broth. Our lightest, leanest broth — easy to sit with when your gut is sensitive.",
   };
 
   const timing: Record<DrinkId, string> = {
@@ -142,9 +142,9 @@ function buildRec(a: Complete): Rec {
   if (s1 === "flow")
     bits.push("Flow is the deep-work pour — the cacao gives it a richer, steadier feel than a straight cup, with no added sugar.");
   if (s3 === "forge" && lifting)
-    bits.push("After a lift, Forge is the rebuild — slow-simmered beef bone broth, pasture-raised and mineral-rich. Best within the hour while you're winding down.");
+    bits.push("After a lift, Forge is the rebuild — pasture-raised beef bone broth, rich in minerals. Best within the hour while you're winding down.");
   if (a.flags.has("gut"))
-    bits.push("Gut-sensitive day? Wild is the lightest broth we make — slow-simmered ostrich, leaner and easier to sit with than beef or bison.");
+    bits.push("Gut-sensitive day? Wild is the lightest broth we make — ostrich bone broth, leaner and easier to sit with than beef or bison.");
   if (a.flags.has("fatigue"))
     bits.push("Run down? Hunt's bison broth leans a little richer in iron and zinc than beef — a savory way to refuel after the work.");
   if (!s2 && !a.flags.has("dehydrated"))

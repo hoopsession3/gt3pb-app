@@ -39,9 +39,9 @@ export const DATABASES: DbEntry[] = [
   { table: "inventory_items", manage: "full", surface: "Assets → Inventory", note: "Stock + reorder points." },
   { table: "assets", manage: "full", surface: "Assets → Gear", note: "Gear library." },
   { table: "compliance_rules", manage: "full", surface: "Prep → Inspection", note: "Per-jurisdiction; agent proposals approved here." },
-  { table: "content_items", manage: "full", surface: "Studio", note: "Create/edit/schedule/delete content." },
-  { table: "brand_kit", manage: "full", surface: "Studio → Brand", note: "Voice, palette, fonts, logos." },
-  { table: "brand_assets", manage: "full", surface: "Studio → Brand", note: "Logo / asset library." },
+  { table: "content_items", manage: "full", surface: "Brand", note: "Create/edit/schedule/delete content." },
+  { table: "brand_kit", manage: "full", surface: "Brand → Kit", note: "Voice, palette, fonts, logos." },
+  { table: "brand_assets", manage: "full", surface: "Brand → Kit", note: "Logo / asset library." },
   { table: "subscriptions", manage: "full", surface: "Money → Subscribers", note: "Member subs." },
   { table: "profiles", manage: "full", surface: "Team", note: "Name, role, points, credit, founding." },
   // Partial — manageable but bounded by design
@@ -53,7 +53,7 @@ export const DATABASES: DbEntry[] = [
   { table: "event_economics", manage: "partial", surface: "Money → Event P&L", note: "P&L inputs (upsert)." },
   { table: "event_sales", manage: "partial", surface: "Money → Event P&L", note: "Sales inputs (upsert)." },
   { table: "product_economics", manage: "partial", surface: "Money", note: "Cost inputs (update)." },
-  { table: "content_versions", manage: "partial", surface: "Studio (history)", note: "Immutable snapshots — restore, not edit." },
+  { table: "content_versions", manage: "partial", surface: "Brand (history)", note: "Immutable snapshots — restore, not edit." },
   { table: "academy_*", manage: "partial", surface: "Academy", note: "Progress/certs via training flow." },
   // System / external — intentionally not hand-edited
   { table: "field_ops", manage: "system", surface: "Find Us · Route · Plan", note: "The unified stops+events spine (one 'field operation' per occasion). Mirror-maintained from events/stops on every write; is_public (generated) serves the guest Find Us road in one query. Zero hand-edits." },
@@ -124,7 +124,7 @@ export const BUSINESS: BizCapability[] = [
       "Caption engine + one-tap campaign from an event (teaser → day-of → recap)",
       "Brand calendar; Canva template autofill + Webflow publish (config-gated)",
     ],
-    where: "Studio",
+    where: "Brand",
   },
   {
     id: "plan", icon: "🗓️", name: "Plan & Coordinate", status: "live",

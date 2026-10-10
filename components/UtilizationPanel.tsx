@@ -24,7 +24,7 @@ const ago = (iso: string) => {
   return `${Math.round(h / 24)}d ago`;
 };
 
-export default function UtilizationPanel() {
+export default function UtilizationPanel({ bare = false }: { bare?: boolean } = {}) {
   // "I should be able to click on employee and manage everything." These rows were the most
   // person-shaped thing on the screen and the only one you could not tap.
   const [openId, setOpenId] = useState<string | null>(null);
@@ -43,7 +43,8 @@ export default function UtilizationPanel() {
 
   return (
     <div className="adm-sec">
-      <SectionHeader label="Utilization" annotation="last 30 days · who's in the system" />
+      {/* Inside a folded panel (Team, 2026-10-10) the panel's own row names it: no second header. */}
+      {!bare && <SectionHeader label="Utilization" annotation="last 30 days · who's in the system" />}
       <AsyncSection state={state} isEmpty={({ acts, guests }) => acts.length === 0 && guests.length === 0}
         emptyTitle="No activity recorded yet" emptySub="Counting starts with this deploy — the first numbers land today."
         loadingLabel="Loading utilization…" errorTitle="Couldn't load utilization (admin-only data)">

@@ -20,7 +20,7 @@ const NOTIF_CATS: { key: string; label: string }[] = [
   { key: "money", label: "Money & refunds" },
   { key: "brew", label: "Brew ladder" },
   { key: "prep", label: "Prep & tasks" },
-  { key: "content", label: "Studio / content" },
+  { key: "content", label: "Brand / content" },
   { key: "strategy", label: "Pipeline & strategy" },
 ];
 // QUIET HOURS ARE A PICK, NOT A NUMBER (2026-10-04, the form audit). They were two text boxes read

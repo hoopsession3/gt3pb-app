@@ -137,7 +137,7 @@ const ICONS: Record<OpSection, React.ReactNode> = {
   team: <><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 3-5 6-5s6 2 6 5" /><path d="M16 5.2a3 3 0 0 1 0 5.6M21 20c0-2.4-1.8-4-4-4.6" /></>,
   settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 13.5a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></>,
 };
-const LABELS: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask", command: "Command", prep: "Readiness", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Assets", driver: "Delivery", notes: "Notes", money: "Money", catalog: "Catalog", customers: "Customers", team: "Team", settings: "Settings" };
+const LABELS: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask", command: "Command", prep: "Readiness", plan: "Plan", studio: "Brand", brew: "Brew", garage: "Assets", driver: "Delivery", notes: "Notes", money: "Money", catalog: "Catalog", customers: "Customers", team: "Team", settings: "Settings" };
 export const SECTION_LABEL = LABELS;
 
 
@@ -314,7 +314,8 @@ function MoreSheet({ lanes, pins, activeId, onOpen, onSettings, onClose, canPin 
           <button type="button" className="lane-open" onClick={() => onOpen(g)}>
             <span className="cc-dot" style={{ background: g.color ?? "var(--gold2)" }} />
             <b>{g.label}</b>
-            <span className="lane-secs">{g.members.map((m) => SECTION_LABEL[m]).join(" · ")}</span>
+            {/* A lane of one section named as the lane says nothing under it ("Brand · Brand"). */}
+            <span className="lane-secs">{g.members.map((m) => SECTION_LABEL[m]).filter((n) => n !== g.label).join(" · ")}</span>
           </button>
           {canPin && (
             <button type="button" className={`k-chip sm shrink-0${local.includes(g.id) ? " on" : ""}`} onClick={() => toggle(g.id)} aria-pressed={local.includes(g.id)} aria-label={`${local.includes(g.id) ? "Unpin" : "Pin"} ${g.label}`}>

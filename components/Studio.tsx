@@ -45,11 +45,11 @@ type Item = {
 };
 type Version = { id: string; title: string | null; hook: string | null; caption: string | null; hashtags: string[] | null; status: string | null; label: string | null; edited_by: string | null; created_at: string };
 
-// Studio's views, in the order its row shows them — and the order a sideways swipe turns through them.
+// Brand's views, in the order its row shows them — and the order a sideways swipe turns through them.
 type StudioView = "calendar" | "board" | "grid" | "flyer" | "letter" | "brand";
 const STUDIO_VIEWS: readonly { key: StudioView; label: string }[] = [
-  { key: "calendar", label: "Calendar" }, { key: "board", label: "Board" }, { key: "grid", label: "Grid" },
-  { key: "flyer", label: "Flyer" }, { key: "letter", label: "Letter" }, { key: "brand", label: "Brand" },
+  { key: "board", label: "Board" }, { key: "calendar", label: "Calendar" }, { key: "grid", label: "Grid" },
+  { key: "flyer", label: "Flyer" }, { key: "letter", label: "Letter" }, { key: "brand", label: "Kit" },
 ];
 // cls is the grid dot's (.ig-tag); tone is the status tag's (the kit's .k-tag). The dot's names are its own: as
 // .st-review it took the strategy desk's review box too, and an "In review" dot drew 33px wide (2026-10-09).
@@ -103,7 +103,10 @@ export default function Studio() {
   const [brokenCovers, setBrokenCovers] = useState<Set<string>>(new Set());
   const [view, setView] = useState<StudioView>(() => {
     const v = typeof window !== "undefined" ? localStorage.getItem("gt3-studio-view") : null;
-    return v === "board" || v === "brand" || v === "grid" || v === "flyer" || v === "letter" ? v : "calendar";
+    // ONE NAME, AND THE WORK FIRST (2026-10-10, the crew round). It was "Brand" in More, "Studio" over the page and
+    // "Brand" again on the brand kit's tab, and it opened on a second calendar — Plan is the calendar. The section
+    // is Brand, the kit is the Kit, and a first visit opens on the board of pieces in progress.
+    return v === "calendar" || v === "brand" || v === "grid" || v === "flyer" || v === "letter" ? v : "board";
   });
 
   // Swallowed error → [] → a studio that says you have written nothing. Everything below filters

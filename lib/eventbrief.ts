@@ -19,7 +19,7 @@ const PREP: Record<string, (u: number) => string> = {
   bottles: (u) => `Pack ${Math.ceil(u * 1.1)} bottles (units + 10% buffer)`,
   nature_aid: (u) => `~${u} servings · ${Math.ceil(u / 8)} case${u > 8 ? "s" : ""} coconut water + meat`,
   salted_maple: (u) => `${u} servings · cold-brew base + maple/salt build`,
-  broth: (u) => `Simmer ${u} cups · ${Math.max(1, Math.ceil(u / 16))} batch${u > 16 ? "es" : ""}`,
+  broth: (u) => `Cook ${u} cups · ${Math.max(1, Math.ceil(u / 16))} batch${u > 16 ? "es" : ""}`,
 };
 const PREP_DEFAULT = (u: number) => `${u} servings`;
 
@@ -32,7 +32,7 @@ function ingredientNeeds(lines: { key: string; units: number }[]): IngredientNee
   const bottles = sum(["bottles"]);
   if (coffee > 0) out.push({ name: "Coffee beans", qty: `~${(coffee * 0.045).toFixed(1)} lb · 1:13 cold extract` });
   if (coconut > 0) { out.push({ name: "Coconut water + meat", qty: `~${Math.ceil(coconut * 0.9)} servings` }); out.push({ name: "Raw honey", qty: `~${Math.max(1, Math.round(coconut * 0.3))} oz` }); }
-  if (broth > 0) out.push({ name: "Bone broth", qty: `~${(broth * 8 / 128).toFixed(1)} gal slow-simmered` });
+  if (broth > 0) out.push({ name: "Bone broth", qty: `~${(broth * 8 / 128).toFixed(1)} gal` });
   if (bottles > 0) out.push({ name: "Empty bottles + caps", qty: `${Math.ceil(bottles * 1.1)} ea` });
   out.push({ name: "Bottles · lids · ice", qty: "per pack list" });
   return out;
