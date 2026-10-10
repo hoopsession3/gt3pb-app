@@ -144,12 +144,6 @@ export const COPY_META: CopyMeta[] = [
   { key: "truck.tier.limited", group: "Truck", label: "Tagline — most/all items 86'd today", default: "Limited menu today" },
   { key: "truck.stop_note", group: "Truck", label: "Route row — note when a stop has none", multiline: true,
     default: "Full bar on board. Order ahead or save a reminder." },
-  // 2026-07-27: placement #3 of the craft-education audit — Find Us is the guest's real "home"
-  // (/ redirects here for anyone signed out), but its one job is "where/when," so this stays a
-  // single quiet line at the very bottom, not a pitch. Plain text inside a <button>, same
-  // nested-interactive rule as "Book the bar for your event" just above it.
-  { key: "truck.craft_link", group: "Truck", label: "Craft-page teaser button (sits above the closing beat)",
-    default: "What's really in the cup — and why" },
   // ── Shop (/shop) — the merch storefront. Adoption pass 2026-08-10. ──
   { key: "shop.sec_bottles", group: "Shop", label: "Aisle tab — Bottles (pack reserve)", default: "Bottles" },
   { key: "shop.sec_merch", group: "Shop", label: "Aisle tab — Merch (capsule)", default: "Merch" },
@@ -244,22 +238,17 @@ export const COPY_META: CopyMeta[] = [
   //    on the exact page. (Shop/Primal/Book/3MPIRE eyebrows live in those groups above.) ──
   { key: "masthead.today", group: "Home · signed-in", label: "Masthead eyebrow (Today)", default: "Today" },
   { key: "masthead.delivery", group: "Delivery", label: "Masthead eyebrow (Order ahead)", default: "Order ahead" },
-  // ── Find Us · fact rail + chrome (adoption pass 2026-08-10). The fact LABELS (Where/Day/…) and
-  //    the honest fallbacks ("Location TBA"/"Soon"). The third fact label is dynamically selected
-  //    (Starts/Hours/Open) so it renders as plain t(), not inline — see FindUs.tsx. ──
+  // ── Find Us · the facts + chrome (adoption pass 2026-08-10; two rows since Find Us 10, 2026-10-10: Where, and When
+  //    with the day and the hours on one line). The honest fallbacks ("Location TBA"/"Soon"). ──
   { key: "findus.fact_where", group: "Find Us", label: "Fact label — Where", default: "Where" },
-  { key: "findus.fact_day", group: "Find Us", label: "Fact label — Day", default: "Day" },
-  { key: "findus.fact_starts", group: "Find Us", label: "Fact label — Starts (events)", default: "Starts" },
-  { key: "findus.fact_hours", group: "Find Us", label: "Fact label — Hours (stop with a close time)", default: "Hours" },
-  { key: "findus.fact_open", group: "Find Us", label: "Fact label — Open (stop, no close time)", default: "Open" },
+  { key: "findus.fact_when", group: "Find Us", label: "Fact label — When (the day and the hours)", default: "When" },
   { key: "findus.fact_going", group: "Find Us", label: "Fact label — Going (events)", default: "Going" },
   { key: "findus.loc_tba", group: "Find Us", label: "Where value — no location set yet", default: "Location TBA" },
   { key: "findus.day_tba", group: "Find Us", label: "Day value — no date yet", default: "Soon" },
   { key: "findus.directions", group: "Find Us", label: "Directions chip (also on event rows)", default: "Get directions" },
   { key: "findus.preorder", group: "Find Us", label: "Live-stop row — pre-order chip", default: "Pre-order" },
-  { key: "findus.past_events", group: "Find Us", label: "Past-events fold label", default: "Past events" },
   { key: "findus.book_cta", group: "Find Us", label: "Book-the-bar button", default: "Book the bar for your event" },
-  { key: "findus.ping_off", group: "Find Us", label: "Live-ping opt-in — off", default: "Ping me when the truck goes live" },
+  { key: "findus.ping_off", group: "Find Us", label: "Live-ping opt-in — off", default: "Ping me when live" },
   { key: "findus.ping_on", group: "Find Us", label: "Live-ping opt-in — on", default: "On the list — we'll ping you" },
   // ── Drink sheet (the popout over /menu). Pillar tag + section labels + chrome CTAs. The per-drink
   //    d.has/d.no ingredient lists stay in the menu data (lib/menu.ts), not here. ──

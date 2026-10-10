@@ -25,6 +25,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import Skeleton from "@/components/Skeleton";
+import { apiUrl } from "@/lib/native";
 
 // FIND US — the one answer to "where's GT3?", on the field_ops spine. Stops and events used to
 // live on two strangers of pages; they're one chronological road now, each row self-typing:
@@ -162,7 +163,6 @@ export default function FindUs() {
   const t = useSiteCopy();
   const avail = useAvailability();
   const [openStop, setOpenStop] = useState<string | null>(null);
-  const [showPast, setShowPast] = useState(false);
 
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { ops: [], live: null };
@@ -241,9 +241,10 @@ export default function FindUs() {
   // schedule, into a menu whose every drink said the truck was closed. Until the read lands it
   // claims nothing either way (the button it always had, an empty line under it).
   const ordering = useOrderingOpen(true, viewerMarket, `${live?.is_live ?? ""}|${live?.current_stop_id ?? ""}|${roadOps.map((r) => `${r.id}${r.starts_at ?? ""}${r.ends_at ?? ""}`).join()}`).ordering;
-  // past events fold below (stops age out of the query window instead)
+  // NO PAST EVENTS (2026-10-10, Ryan: "why the need for past events?"). An event nobody marked done stayed on the
+  // public road, and this page folded them under "Past events · 2" — each with a live "I'm in", an RSVP to 7/31 and
+  // 8/15. Find Us answers where the truck is and will be; what is over is not on it.
   const upcoming = roadOps.filter((r) => r.kind === "stop" || !r.day || r.day >= today);
-  const past = roadOps.filter((r) => r.kind === "event" && r.day && r.day < today);
   // the hero is the next PLACE TO FIND US — live stop first, else first upcoming stop or event
   const hero = (isLive && upcoming.find((r) => r.id === live?.current_stop_id)) || upcoming[0];
   // THE ROAD STARTS AFTER THE HERO (2026-10-10, round 2: "the next stop is listed twice"). The hero
@@ -251,8 +252,8 @@ export default function FindUs() {
   // and directions — and its row under "On the road" said all of it again, one screen down. A hero
   // stop is not listed twice now. A hero EVENT keeps its row: the RSVP lives on it, and the hero has none.
   const rest = hero?.kind === "stop" ? upcoming.filter((r) => r.id !== hero.id) : upcoming;
-  // With nothing after the hero and nothing past, "On the road" would be a heading over nothing.
-  const showRoad = board.status === "error" || upcoming.length === 0 || rest.length > 0 || past.length > 0;
+  // With nothing after the hero, "On the road" would be a heading over nothing.
+  const showRoad = board.status === "error" || upcoming.length === 0 || rest.length > 0;
   // Humanize the hero's "when" (the one "where's the truck next" answer): relativeDay returns an
   // unambiguous near-term qualifier — "Today" / "This Sat" — which we pair with the numeric date for
   // clarity ("This Sat · 7/18"). Anything a week or more out (or with no date) keeps the original
@@ -271,6 +272,10 @@ export default function FindUs() {
   const heroClose = !hero ? "" : hero.kind === "stop"
     ? (hero.ends_at ? fmt12(clockTime(hero.ends_at)) ?? "" : "")
     : (fmt12(hero.end_time) ?? "");
+  // ONE WHEN (2026-10-10, Find Us 10): the day and the hours were two cells a third of the row wide each — "Tomorrow ·
+  // 10/11" over two lines beside "11:00am – / 2:00pm" over two more. One line says both: "Tomorrow · 10/11 · 11:00am – 2:00pm".
+  const heroHours = heroClose ? `${heroOpen || "—"} – ${heroClose}` : heroOpen;
+  const heroWhenLine = [heroWhen || t("findus.day_tba"), heroHours].filter(Boolean).join(" · ");
   // Only the hero copy (below) is a safe EditableCopy target — see the comment on descFor.
   const heroDesc = hero?.kind === "stop" ? descFor(hero, t, avail) : null;
   // THE WHERE (2026-08-01, Ryan's 4/10 audit: "how would a client know where the truck is?").
@@ -331,10 +336,15 @@ export default function FindUs() {
         </p>
       )}
 
+      {/* THE PLACE, SEEN (2026-10-10, Find Us 10). A page called Find Us had no map since CARTO's tiles began asking for
+          a key (the map went the same morning). Apple's picture of the stop's own pin now (app/api/map): tap it for
+          directions, as the address below. Drawn only for a stop with a pin; if the picture does not come, it is not drawn. */}
+      {hero && heroHasCoords && <StopMap id={hero.id} lat={hero.lat as number} lng={hero.lng as number} label={heroWhere ?? hero.name} onGo={goHero} />}
+
       <div className="k-facts">
         {/* WHERE leads — it's the page's primary question and it was the one fact this row never
-            answered (2026-08-01 audit). Same cell for stops and events; smaller type (.where) so
-            a real street address stays presentable in a third of the row. */}
+            answered (2026-08-01 audit). Same row for stops and events, the whole width now (Find Us 10): the
+            street wrapped to four lines in a third of the row. */}
         {hero && (
           <div className="f"><EditableCopy k="findus.fact_where" value={t("findus.fact_where")} as="div" className="fk" />
             {heroWhere ? (
@@ -348,13 +358,9 @@ export default function FindUs() {
             )}
           </div>
         )}
-        {/* Day stays Day even when live — the masthead eyebrow + pulse dot already announce
-            "Live now"; a Status:Live cell here said it twice and hid the date to do it
-            (2026-07-30 redundancy audit). The "Soon" fallback shares a slot with the live day
-            value, so it's plain t() (dynamically-selected slot), not inline. */}
-        <div className="f"><EditableCopy k="findus.fact_day" value={t("findus.fact_day")} as="div" className="fk" /><div className="fv">{heroWhen || t("findus.day_tba")}</div></div>
-        {/* The third label is chosen dynamically (Starts / Hours / Open) → plain t() per slot. */}
-        <div className="f"><div className="fk">{hero?.kind === "event" ? t("findus.fact_starts") : heroClose ? t("findus.fact_hours") : t("findus.fact_open")}</div><div className="fv">{heroClose ? `${heroOpen || "—"} – ${heroClose}` : heroOpen || "—"}</div></div>
+        {/* When — the day stays the day even when live (the masthead's eyebrow and dot say "Live now"; a Status cell
+            said it twice, 2026-07-30), and the hours ride on its line (heroWhenLine). */}
+        <div className="f"><EditableCopy k="findus.fact_when" value={t("findus.fact_when")} as="div" className="fk" /><div className="fv">{heroWhenLine}</div></div>
         {hero?.kind === "event" && hero.going_count != null && hero.going_count > 0 && (
           <div className="f"><EditableCopy k="findus.fact_going" value={t("findus.fact_going")} as="div" className="fk" /><div className="fv">{hero.going_count}</div></div>
         )}
@@ -437,14 +443,6 @@ export default function FindUs() {
               })}
             </div>}
 
-            {past.length > 0 && (
-              <div style={{ marginTop: 10 }}>
-                <button type="button" className="btn-ter" onClick={() => setShowPast((s) => !s)} aria-expanded={showPast}>
-                  {t("findus.past_events")} · {past.length} <span className={`k-caret${showPast ? " open" : ""}`}>›</span>
-                </button>
-                {showPast && <div className="k-rows">{past.map((r) => <RsvpRow key={r.id} ev={toEventRow(r)} />)}</div>}
-              </div>
-            )}
           </>
         )}
       </AsyncSection>
@@ -453,6 +451,23 @@ export default function FindUs() {
       <FindUsCoda />
       </Fragment>)}
     </section>
+  );
+}
+
+// THE MAP CARD (Find Us 10): Apple's picture of the stop's pin (app/api/map, lib/appleMaps snapshot), its box held at
+// 2:1 before the picture arrives so nothing below it moves; the picture's address carries the pin (`v`), so a moved
+// pin is a new picture and the CDN's copy of the old one is never shown for it. The whole card is the directions
+// button. A picture that does not come (no Maps key, Apple down) takes the card away instead of drawing a hole.
+function StopMap({ id, lat, lng, label, onGo }: { id: string; lat: number; lng: number; label: string; onGo: () => void }) {
+  const [gone, setGone] = useState(false);
+  if (gone) return null;
+  return (
+    <button type="button" onClick={onGo} aria-label={`Map of ${label} — get directions`}
+      className="block w-full mt-4 p-0 overflow-hidden rounded-2xl border border-line bg-well aspect-[2/1] cursor-pointer appearance-none">
+      {/* eslint-disable-next-line @next/next/no-img-element -- an API image, not a static asset; next/image cannot export */}
+      <img src={apiUrl(`/api/map?stop=${encodeURIComponent(id)}&v=${lat.toFixed(5)},${lng.toFixed(5)}`)} alt="" width={600} height={300}
+        decoding="async" className="block w-full h-full object-cover" onError={() => setGone(true)} />
+    </button>
   );
 }
 
@@ -484,19 +499,12 @@ function FindUsCoda() {
     <>
       <SectionHeader label={<EditableCopy k="findus.byo_title" value={t("findus.byo_title")} />} annotation={<EditableCopy k="findus.byo_note" value={t("findus.byo_note")} />} />
       <EditableCopy k="findus.byo_pitch" value={t("findus.byo_pitch")} as="p" style={{ fontSize: 15, color: "var(--cream-m)", margin: "14px 2px 12px" }} multiline />
-      {/* Two places to go, one a line (2026-10-10): side by side they ran together — "…your event →What's
-          really in the cup". The gap is the 44pt reach each one draws past its words, so the two never overlap.
-          Placement #2 of the craft-education audit (2026-07-27): this IS the guest home page (see the redirect
-          in app/page.tsx), but its one job is "where/when" — so the craft link is one quiet line at the very
-          bottom, not a pitch. Plain text, not EditableCopy: the nested-interactive rule. */}
-      <div className="flex flex-col items-start gap-5">
-        <button type="button" className="btn-ter" onClick={() => router.push("/book")}>
-          {t("findus.book_cta")} <b><Icon name="arrowRight" /></b>
-        </button>
-        <button type="button" className="btn-ter" onClick={() => router.push("/craft")}>
-          {t("truck.craft_link")} <b><Icon name="arrowRight" /></b>
-        </button>
-      </div>
+      {/* One place to go (2026-10-10, Find Us 10): booking the bar. The craft link ("What's really in the cup") stood
+          under it since the craft-education audit (2026-07-27); the menu carries its own (menu.craft_link), where the
+          cup is, and Find Us keeps to where and when. Plain text, not EditableCopy: the nested-interactive rule. */}
+      <button type="button" className="btn-ter" onClick={() => router.push("/book")}>
+        {t("findus.book_cta")} <b><Icon name="arrowRight" /></b>
+      </button>
 
       <ClosingBeat />
     </>

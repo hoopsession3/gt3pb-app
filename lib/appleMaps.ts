@@ -93,6 +93,34 @@ export async function resolve(pick: string): Promise<Address | null> {
   };
 }
 
+// A PICTURE OF THE PLACE (2026-10-10, Find Us 10: Ryan, "Feel free to propose a redesign"). Apple's Maps Web
+// Snapshots draw one point as an image — the same Maps key, the request's path and query signed with it (ES256). The
+// snapshot is asked from here and its bytes passed on (app/api/map), so neither the signature nor the key's ids reach a
+// browser. Apple does not say in one place which form of the ES256 signature it reads, so both forms are offered, the
+// JWS form (r‖s, as the token above is signed) first; the first answer that is an image wins, for this instance.
+const SNAPSHOT = "https://snapshot.apple-mapkit.com";
+let sigForm: "ieee-p1363" | "der" | null = null;
+
+/** A map of one point — GT3's red pin with its 3, Apple's muted style — as image bytes, or null. */
+export async function snapshot(o: { lat: number; lng: number; scheme: "dark" | "light" }): Promise<{ body: ArrayBuffer; type: string } | null> {
+  if (!mapsConfigured()) return null;
+  const at = `${o.lat.toFixed(6)},${o.lng.toFixed(6)}`;
+  const p = new URLSearchParams({
+    center: at, z: "15", size: "600x300", scale: "2", t: "mutedStandard", colorScheme: o.scheme, poi: "0", lang: "en-US",
+    annotations: JSON.stringify([{ point: at, color: "B82420", glyphText: "3", markerStyle: "balloon" }]),
+    teamId: process.env.APPLE_MAPS_TEAM_ID ?? "", keyId: process.env.APPLE_MAPS_KEY_ID ?? "",
+  });
+  const path = `/api/v1/snapshot?${p.toString()}`;
+  const key = createPrivateKey(pem(process.env.APPLE_MAPS_PRIVATE_KEY ?? ""));
+  for (const form of sigForm ? [sigForm] : (["ieee-p1363", "der"] as const)) {
+    const signature = b64url(sign("sha256", Buffer.from(path), { key, dsaEncoding: form }));
+    const r = await fetch(`${SNAPSHOT}${path}&signature=${signature}`, { signal: AbortSignal.timeout(8000) });
+    const type = r.headers.get("content-type") ?? "";
+    if (r.ok && type.startsWith("image/")) { sigForm = form; return { body: await r.arrayBuffer(), type }; }
+  }
+  return null;
+}
+
 /** A caller, for the limiter, without keeping their address: a short one-way hash of it. */
 export function callerKey(req: Request): string {
   const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || req.headers.get("x-real-ip") || "unknown";

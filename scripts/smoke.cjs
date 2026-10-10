@@ -10404,8 +10404,25 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("Find Us: the next stop is the hero, and the road starts after it (a hero event keeps its row — the RSVP is on it)",
       /const rest = hero\?\.kind === "stop" \? upcoming\.filter\(\(r\) => r\.id !== hero\.id\) : upcoming;/.test(fu) && /\{rest\.map\(\(r\) => \{/.test(fu) && !/\{upcoming\.map\(/.test(fu)
       && /\{showRoad && <>/.test(fu));
-    ok("Find Us: booking the bar and the craft link are a line each, 20px apart — the 44pt reach of each, never touching",
-      /<div className="flex flex-col items-start gap-5">\s*<button type="button" className="btn-ter" onClick=\{\(\) => router\.push\("\/book"\)\}>/.test(fu));
+    ok("Find Us: its close is one place to go — booking the bar; the craft link is the menu's (Find Us 10, 2026-10-10)",
+      /<button type="button" className="btn-ter" onClick=\{\(\) => router\.push\("\/book"\)\}>/.test(fu) && !/router\.push\("\/craft"\)/.test(fu)
+      && /onClick=\{\(\) => router\.push\("\/craft"\)\}/.test(read("app/menu/page.tsx")) && !/truck\.craft_link/.test(read("lib/copy.ts")));
+    ok("Find Us: no past events — what is over is not on the road, and nothing over can be RSVP'd from it (Ryan: \"why the need for past events?\")",
+      !/past\.length|showPast|findus\.past_events/.test(fu + read("lib/copy.ts")) && /const upcoming = roadOps\.filter\(\(r\) => r\.kind === "stop" \|\| !r\.day \|\| r\.day >= today\);/.test(fu)
+      && /const showRoad = board\.status === "error" \|\| upcoming\.length === 0 \|\| rest\.length > 0;/.test(fu));
+    ok("Find Us: the facts are two rows the page's width — Where, and When with the day and the hours on one line",
+      /const heroWhenLine = \[heroWhen \|\| t\("findus\.day_tba"\), heroHours\]\.filter\(Boolean\)\.join\(" · "\);/.test(fu)
+      && /<EditableCopy k="findus\.fact_when"[^>]*\/><div className="fv">\{heroWhenLine\}<\/div>/.test(fu)
+      && /\.k-facts \.f\{display:flex;align-items:baseline;gap:16px;padding:12px 0;min-width:0\}/.test(read("app/globals.css")) && /\.k-facts \.f\+\.f\{border-top:1px solid var\(--line\)\}/.test(read("app/globals.css"))
+      && !/findus\.fact_(day|starts|hours|open)/.test(fu + read("lib/copy.ts")));
+    const mr = read("app/api/map/route.ts"), am = read("lib/appleMaps.ts");
+    ok("Find Us: a map of the stop — Apple's picture of its own pin, by the row's id (never a point a caller names), its box held at 2:1, the whole card the directions button, gone if the picture does not come",
+      /\{hero && heroHasCoords && <StopMap id=\{hero\.id\} lat=\{hero\.lat as number\} lng=\{hero\.lng as number\} label=\{heroWhere \?\? hero\.name\} onGo=\{goHero\} \/>\}/.test(fu)
+      && /aspect-\[2\/1\]/.test(fu) && /onError=\{\(\) => setGone\(true\)\}/.test(fu) && /\/api\/map\?stop=\$\{encodeURIComponent\(id\)\}&v=\$\{lat\.toFixed\(5\)\},\$\{lng\.toFixed\(5\)\}/.test(fu)
+      && /^\/\/ public: /m.test(mr) && /if \(!isUuid\(id\) \|\| !mapsConfigured\(\) \|\| !supabaseAdmin\) return none\(404\);/.test(mr)
+      && /\.from\("field_ops"\)\.select\("lat, lng"\)\.eq\("id", id\)\.eq\("is_public", true\)/.test(mr) && !/searchParams\.get\("(lat|lng|center)"\)/.test(mr)
+      && /p_bucket: `map:\$\{callerKey\(req\)\}`/.test(mr) && /"cache-control": "public, max-age=3600, s-maxage=86400/.test(mr)
+      && /const SNAPSHOT = "https:\/\/snapshot\.apple-mapkit\.com";/.test(am) && /color: "B82420", glyphText: "3", markerStyle: "balloon"/.test(am));
     ok("driver: the whole run opens in Maps by its addresses — no geocoding, no pins to wait for",
       /rows\.filter\(\(o\) => !doneOf\(o\)\)\.map\(\(o\) => \(\{ address: /.test(dr) && !/geocode|Pinning porches/.test(dr));
     const pr = read("components/PrimalAcademy.tsx"), bk = read("app/book/page.tsx"), pv = read("app/privacy/page.tsx"), tm = read("app/terms/page.tsx");
