@@ -30,6 +30,7 @@ import {
   DELIVERY_PACKS, DELIVERY_PRICING, SALTED_LATTE,
 } from "@/lib/delivery";
 import { money } from "@/lib/money";
+import { weekdayOf } from "@/lib/dates";
 import { useIdemKey } from "./useIdemKey";
 import { isSettled } from "@/lib/settled";
 import { apiUrl } from "@/lib/native";
@@ -79,6 +80,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
   // bulk, Monday 5–8 AM, amber gallon jugs — a purpose-built sheet, never the pack cart).
   const [audience, setAudience] = useState<"home" | "office">("home");
   const [officeOpen, setOfficeOpen] = useState(false);
+  const [howOpen, setHowOpen] = useState(false);
 
   // ── shared cart (survives the mode flip) ──
   const [count, setCount] = useState<number | null>(initialMode === "pickup" ? 6 : null);
@@ -523,25 +525,21 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
       {/* ── DELIVERY START: zone check ── */}
       {mode === "delivery" && step === "start" && (
         <div className="dl-step">
-          <div className="dl-hero">
-            <h2 className="dl-h serif dl-h-xl"><EditableCopy k="funnel.hero_h1" value={t("funnel.hero_h1")} /> <em><EditableCopy k="funnel.hero_em" value={t("funnel.hero_em")} /></em></h2>
-          </div>
+          {/* The line, not a card (2026-10-09, round 2): it sat in a 34px headline inside a box of its
+              own above the first question, with its last word in the action red. Now the same line as
+              every other step's — the question and the ZIP come a screen-third sooner. */}
+          <h2 className="dl-h serif"><EditableCopy k="funnel.hero_h1" value={t("funnel.hero_h1")} /> <em><EditableCopy k="funnel.hero_em" value={t("funnel.hero_em")} /></em></h2>
 
-          {/* Who's it for? — one question, two doors. Never blurs a home order into an office order. */}
-          <div className="aud-fork" role="radiogroup" aria-label="Delivery type">
-            <button type="button" role="radio" aria-checked={audience === "home"} className={`aud${audience === "home" ? " on" : ""}`} onClick={() => setAudience("home")}>
-              <span className="aud-ic">🏠</span><b>{t("funnel.aud_home")}</b><span className="aud-d">{t("funnel.aud_home_sub")}</span>
-            </button>
-            <button type="button" role="radio" aria-checked={audience === "office"} className={`aud${audience === "office" ? " on" : ""}`} onClick={() => { setAudience("office"); void import("./OfficeOrder"); }}>
-              <span className="aud-ic">🏢</span><b>{t("funnel.aud_office")}</b><span className="aud-d">{t("funnel.aud_office_sub")}</span>
-            </button>
-          </div>
-
+          {/* THE ZIP FIRST, THE OFFICE A LINK (2026-10-09, Ryan: "Office link", approved). Every visitor was asked
+              home or office before anything else, as two large cards — and nearly all of them order for home. The
+              ZIP is the first question now; an office is one quiet line under it, and a line back. Never blurs a
+              home order into an office order: the two are still separate flows. */}
           {audience === "office" ? (
             <div className="aud-office">
               <p className="dl-sub">Fresh cold-extract for the whole team — <b>amber gallon jugs</b>, delivered <b>Monday 5–8&nbsp;AM</b>, empties swapped for full each week. 3-gallon minimum.</p>
               <button type="button" className="btn-pri btn-wide mt-0.5" onClick={() => setOfficeOpen(true)}><span>{t("funnel.office_cta")} <Icon name="arrowRight" /></span></button>
               {officeOpen && <OfficeOrder onClose={() => setOfficeOpen(false)} />}
+              <button type="button" className="btn-ter self-start" onClick={() => setAudience("home")}><span aria-hidden="true">‹</span> {t("funnel.home_link")}</button>
             </div>
           ) : (<>
           <EditableCopy k="funnel.zip_lead" value={t("funnel.zip_lead")} as="p" className="dl-sub dl-zlead" />
@@ -565,6 +563,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
               <button type="button" className="btn-sec btn-wide mt-3" onClick={() => switchMode("pickup")}>{t("funnel.switch_pickup")} <Icon name="arrowRight" /></button>
             </div>
           )}
+          <button type="button" className="btn-ter self-start" onClick={() => { setAudience("office"); void import("./OfficeOrder"); }}>{t("funnel.office_link")} <span aria-hidden="true">›</span></button>
           </>)}
         </div>
       )}
@@ -576,15 +575,12 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
               "Order ahead" — the old h2 opened by repeating it verbatim, two lines apart. */}
           {/* serif (2026-08-01 type-voice pass): the one customer headline that spoke system sans —
               Menu, Craft, and Today's pitch are all Fraunces; Reserve now speaks the same house. */}
-          <h2 className="dl-h serif">{mode === "delivery" ? t("funnel.size_h_delivery") : stops.length > 1 ? t("funnel.size_h_pickup_multi") : fillCopy(t("funnel.size_h_pickup"), { day: dayName(drop.sat).split(",")[0] })}</h2>
-          {mode === "pickup" && <EditableCopy k="reserve.fresh" value={t("reserve.fresh")} as="p" className="dl-sub" />}
-
-          {mode === "pickup" && <p className="dl-pricemode">{bringBack ? t("funnel.pricemode_pickup_back") : t("funnel.pricemode_pickup_new")}</p>}
+          {/* ONE LINE, THEN THE CHOICES (2026-10-09, round 2). Three paragraphs stood between this line and
+              the first choice — what the bottles are, which price the tiles showed, and the truck window's
+              prices — about 50 words. Each tile now carries both of its prices, and the three paragraphs
+              are a sheet ("How it works", under the button), one tap away. The day is said in full. */}
+          <h2 className="dl-h serif">{mode === "delivery" ? t("funnel.size_h_delivery") : stops.length > 1 ? t("funnel.size_h_pickup_multi") : fillCopy(t("funnel.size_h_pickup"), { day: weekdayOf(dropDateKey(drop.sat)) })}</h2>
           {mode === "delivery" && <p className="dl-pricemode">{bringBack ? t("funnel.pricemode_del_back") : t("funnel.pricemode_del_new")}</p>}
-          {/* New this round — reserve.window had no render site anywhere (round o's discovery). Added
-              here as an additive note in the same dl-sub style as the fresh line above; this is new
-              visible copy, not a rewire of something that was already on screen. */}
-          {mode === "pickup" && <EditableCopy k="reserve.window" value={t("reserve.window")} as="p" className="dl-sub" multiline />}
           {mode === "delivery" ? (
             <>
               <EditableCopy k="funnel.which_sunday" value={t("funnel.which_sunday")} as="div" className="oa-slabel" />
@@ -649,6 +645,8 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
                 {mode === "pickup" && PACK_TAG[s] && <span className="oa-tag">{PACK_TAG[s]}</span>}
                 <div className="oa-c">{s}</div><div className="oa-u">{t("funnel.bottles_unit")}</div>
                 <div className="oa-p">{mode === "delivery" ? money(quoteDelivery(s, 0, bringBack ? s : 0, "direct").totalCents) : money(packTotal(s, bringBack ? "return" : "new") * 100)}</div>
+                {/* The same pack's other price, so the tile says what the menu says ("$42 bring-back"). */}
+                {mode === "pickup" && <div className="text-caption2 text-cream-muted whitespace-nowrap mt-1">{bringBack ? `${money(packTotal(s, "new") * 100)} new glass` : `${money(packTotal(s, "return") * 100)} bring-back`}</div>}
               </button>
             ))}
           </div>
@@ -657,6 +655,17 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
             : <div className="dl-note">{count ? <>That&rsquo;s <b>{PACK_HINT[count]}</b></> : null}</div>}
           {count != null && (
             <button type="button" className="btn-pri btn-wide" disabled={!count} onClick={() => setStep("build")}>{t("funnel.build_cta")} <Icon name="arrowRight" /></button>
+          )}
+          {mode === "pickup" && <button type="button" className="btn-ter self-center" onClick={() => setHowOpen(true)}>How it works</button>}
+          {howOpen && (
+            <Sheet open onClose={() => setHowOpen(false)} label="How it works" className="paper"
+              header={<div className="flex items-center"><b className="text-subhead font-semibold">How it works</b><CloseButton onClick={() => setHowOpen(false)} /></div>}>
+              <div className="flex flex-col gap-3">
+                <EditableCopy k="reserve.fresh" value={t("reserve.fresh")} as="p" className="dl-sub" multiline />
+                <EditableCopy k="menu.packs_note" value={t("menu.packs_note")} as="p" className="dl-sub" multiline />
+                <EditableCopy k="reserve.window" value={t("reserve.window")} as="p" className="dl-sub" multiline />
+              </div>
+            </Sheet>
           )}
         </div>
       )}
@@ -877,7 +886,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
       {step === "done" && done && (
         <OrderConfirm
           title={done.paid ? t("funnel.done_title_paid") : t("funnel.done_title_reserved")}
-          sub={mode === "delivery" ? t("funnel.done_sub_del") : fillCopy(t("funnel.done_sub_pickup"), { day: dayName(drop.sat).split(",")[0], name: name ? `, ${name.split(" ")[0]}` : "" })}
+          sub={mode === "delivery" ? t("funnel.done_sub_del") : fillCopy(t("funnel.done_sub_pickup"), { day: weekdayOf(dropDateKey(drop.sat)), name: name ? `, ${name.split(" ")[0]}` : "" })}
           totalCents={done.total}
           totalLabel={done.paid ? "paid" : "due at pickup"}
           warn={done.warn}
