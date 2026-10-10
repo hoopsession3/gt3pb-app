@@ -60,9 +60,15 @@ export function isCompletion(u: string): boolean {
   return /^\/v1\/search\?[^\s#]{1,1500}$/.test(u);
 }
 
-/** Up to four US street addresses for what has been typed so far. */
+// Where GT3 delivers and pours — the Carolinas and Georgia (lib/markets: Greenville, Atlanta), as Apple's region hint:
+// north latitude, east longitude, south latitude, west longitude. A hint, not a fence: an address typed out in full
+// anywhere in the US still comes back (the shop ships nationwide), but "600 E 4th St Char" offers Charlotte before
+// Saint Charles, Arkansas (2026-10-10, the first live query).
+const REGION = "36.6,-75.4,30.3,-85.7";
+
+/** Up to four US street addresses for what has been typed so far, those near GT3 first. */
 export async function suggest(q: string): Promise<Suggestion[]> {
-  const p = new URLSearchParams({ q, resultTypeFilter: "Address", limitToCountries: "US", lang: "en-US" });
+  const p = new URLSearchParams({ q, resultTypeFilter: "Address", limitToCountries: "US", lang: "en-US", searchRegion: REGION });
   const j = (await maps(`/v1/searchAutocomplete?${p}`)) as { results?: { displayLines?: string[]; completionUrl?: string }[] };
   return (j.results ?? [])
     .filter((x) => typeof x.completionUrl === "string" && isCompletion(x.completionUrl) && x.displayLines?.[0])

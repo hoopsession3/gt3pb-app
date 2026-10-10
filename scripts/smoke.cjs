@@ -6877,7 +6877,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /e\.key === "ArrowDown"/.test(af) && /e\.key === "Escape"/.test(af) && /onPointerDown=\{\(e\) => e\.preventDefault\(\)\}/.test(af)
       && /if \(open\) listEl\.current\?\.scrollIntoView\(\{ block: "nearest" \}\);/.test(af));
     ok("address: the key stays on the server, a pick can only be Apple's own search path on Apple's own host, and nothing typed is kept",
-      /const API = "https:\/\/maps-api\.apple\.com";/.test(am) && /return \/\^\\\/v1\\\/search\\\?\[\^\\s#\]\{1,1500\}\$\/\.test\(u\);/.test(am)
+      /const API = "https:\/\/maps-api\.apple\.com";/.test(am) && /const REGION = "36\.6,-75\.4,30\.3,-85\.7";/.test(am) && /searchRegion: REGION \}\);/.test(am) && /return \/\^\\\/v1\\\/search\\\?\[\^\\s#\]\{1,1500\}\$\/\.test\(u\);/.test(am)
       && /if \(!isCompletion\(pick\)\) return null;/.test(am) && /fetch\(`\$\{API\}\$\{path\}`/.test(am)
       && !/process\.env\.(NEXT_PUBLIC_)?APPLE_MAPS/.test(af) && !/NEXT_PUBLIC_APPLE_MAPS/.test(am + ar)
       && !/console\.(log|info|warn|error)/.test(am + ar) && /createHash\("sha256"\)\.update\(`gt3-address:\$\{ip\}`\)/.test(am));
