@@ -113,9 +113,24 @@ export default function HomeNumbers({ money, drops, here = "day" }: { money: boo
         errorTitle="Couldn't read this week's numbers"
         errorSub="This is not zero — we could not read them just now."
       >
-        {({ sales, margin, drop }) => (
+        {({ sales, margin, drop }) => {
+          // TWO WEEKS WITH NOTHING SOLD IS ONE LINE (2026-10-10, My Day 10): Sales and Margin each read "$0 ·
+          // Nothing to compare yet", two rows saying one fact. A week with event costs and no sales keeps its
+          // margin row — that one is news.
+          const quiet = !!sales && sales.now === 0 && sales.prev === 0 && (!margin || (margin.now === 0 && margin.prev === 0));
+          return (
           <div className="owed">
-            {sales && (
+            {quiet && (
+              <button type="button" className="owed-row" onClick={() => open("sales")}>
+                <span className="owed-row-b">
+                  <b>Sales · 14 days</b>
+                  <span className={CAUSE}>None recorded — margin starts with the first sale</span>
+                </span>
+                <span className={VALUE}>{moneyRound(0)}</span>
+                <span className="owed-c" aria-hidden="true">›</span>
+              </button>
+            )}
+            {sales && !quiet && (
               <button type="button" className="owed-row" onClick={() => open("sales")}>
                 <span className="owed-row-b">
                   <b>Sales · 7 days</b>
@@ -125,7 +140,7 @@ export default function HomeNumbers({ money, drops, here = "day" }: { money: boo
                 <span className="owed-c" aria-hidden="true">›</span>
               </button>
             )}
-            {margin && (
+            {margin && !quiet && (
               <button type="button" className="owed-row" onClick={() => open("pnl")}>
                 <span className="owed-row-b">
                   <b>Margin · 7 days, est.</b>
@@ -154,7 +169,8 @@ export default function HomeNumbers({ money, drops, here = "day" }: { money: boo
               </button>
             )}
           </div>
-        )}
+          );
+        }}
       </AsyncSection>
     </div>
   );

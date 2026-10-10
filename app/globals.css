@@ -2167,7 +2167,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
    read as the answer. Tabular figures so a column of measurements lines up. */
 .pr strong{font-weight:650;color:var(--cream);font-variant-numeric:tabular-nums}
 .pr em{font-style:italic;color:var(--cream-d)}
-.pr code{font-family:'DM Mono',ui-monospace,monospace;font-size:.9em;
+.pr code{font-family:var(--mono);font-size:.9em;
   background:color-mix(in srgb, var(--brand-cream) 9%, transparent);
   border:1px solid var(--line2);border-radius:var(--r-xs);padding:1px 5px;white-space:nowrap}
 /* Hanging indent, so a wrapped bullet lines up under its own text rather than under the marker —
@@ -2179,7 +2179,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .pr-ol{counter-reset:pr-step}
 .pr-ol>li{counter-increment:pr-step;padding-left:26px}
 .pr-ol>li::before{content:counter(pr-step) ".";position:absolute;left:0;top:0;
-  font-family:'DM Mono',ui-monospace,monospace;font-size:12px;font-weight:500;color:var(--gold2);
+  font-family:var(--mono);font-size:12px;font-weight:500;color:var(--gold2);
   font-variant-numeric:tabular-nums;line-height:1.72}
 .pr-h{margin:3px 0 0;font-family:'Archivo',system-ui,sans-serif;font-weight:600;
   font-size:13px;letter-spacing:.02em;color:var(--gold2);text-wrap:balance}
@@ -3866,7 +3866,7 @@ body:has(.conc-sheet) .rail{display:flex}
 /* month-grid density marks — one dot per category + a count; the tap-through day sheet holds detail */
 .cal-marks{display:flex;align-items:center;gap:3px;padding:1px 3px 4px;min-height:14px}
 .cal-mark{width:6px;height:6px;border-radius:50%;flex:0 0 auto}
-.cal-mark-n{margin-left:auto;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;line-height:1;color:var(--cream-m)}
+.cal-mark-n{margin-left:auto;font-family:var(--mono);font-size:11px;line-height:1;color:var(--cream-m)}
 
 /* Brew card operational rows — coverage, serve-by, stock check */
 .brew-oprow{margin-top:9px;font-family:'Inter';font-size:12px;line-height:1.4;color:var(--cream-m);background:color-mix(in srgb, var(--brand-cream) 5%, transparent);border:1px solid var(--line);border-radius:var(--r-md);padding:7px 10px;font-variant-numeric:tabular-nums}
@@ -3984,10 +3984,10 @@ body:has(.conc-sheet) .rail{display:flex}
 .bd-col.over{outline:1.5px solid var(--gold2)}
 .bd-h{display:flex;align-items:baseline;gap:6px}
 .bd-h b{font-family:'Inter';font-weight:700;font-size:13px;color:var(--cream)}
-.bd-n{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;color:var(--cream-m)}
-.bd-sub{font-size:11px;color:var(--cream-d);margin:2px 0 8px;font-family:'DM Mono',ui-monospace,monospace}
+.bd-n{font-family:var(--mono);font-size:11px;color:var(--cream-m)}
+.bd-sub{font-size:11px;color:var(--cream-d);margin:2px 0 8px;font-family:var(--mono)}
 .bd-card{margin:0 0 7px}
-.bd-date{display:block;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;color:var(--cream-d);margin:0 0 2px 2px}
+.bd-date{display:block;font-family:var(--mono);font-size:11px;color:var(--cream-d);margin:0 0 2px 2px}
 .bd-col .cc-chip{width:100%}
 .bd-empty{font-size:11px;color:var(--cream-d);padding:8px 2px}
 .cal-cards{margin-top:12px}
@@ -3996,7 +3996,7 @@ body:has(.conc-sheet) .rail{display:flex}
 .calcard.warn{border-color:var(--warn)}
 .calcard-d{flex:0 0 36px;text-align:center}
 .calcard-d b{display:block;font-family:'Inter';font-weight:800;font-size:16px;color:var(--cream);line-height:1}
-.calcard-d span{display:block;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;color:var(--cream-m);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.calcard-d span{display:block;font-family:var(--mono);font-size:11px;color:var(--cream-m);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
 .calcard-m{flex:1;min-width:0;background:none;border:none;text-align:left;cursor:pointer;color:var(--cream);padding:0;-webkit-appearance:none;appearance:none}
 .calcard-m b{display:block;font-family:'Inter';font-weight:650;font-size:13px}
 .calcard-m span{display:block;font-size:11px;color:var(--cream-m);margin-top:2px}
@@ -4054,7 +4054,7 @@ body:has(.conc-sheet) .rail{display:flex}
 .liveinst-row.main{border-top:none;flex-wrap:wrap;row-gap:9px}
 .liveinst-state{flex:1 1 auto;min-width:0}
 .liveinst{color:var(--cream)}
-.liveinst-state b{display:block;font-family:'DM Mono',ui-monospace,monospace;font-size:13px;letter-spacing:.16em}
+.liveinst-state b{display:block;font-family:var(--mono);font-size:13px;letter-spacing:.16em}
 .liveinst-state span{display:block;font-size:12px;color:var(--cream-m);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .liveinst-sub{flex:1;min-width:0;font-size:13px;color:var(--cream-m)}
 .liveinst-warn{flex:0 0 auto;font-size:12px;color:var(--warn);font-weight:650}
@@ -4071,17 +4071,17 @@ body:has(.conc-sheet) .rail{display:flex}
 .crm-head{display:flex;align-items:center;gap:11px;width:100%;background:none;border:none;padding:13px 14px;cursor:pointer;text-align:left;color:var(--cream);-webkit-appearance:none;appearance:none}
 .crm-name{flex:1;min-width:0}
 .crm-name b{display:block;font-family:'Inter';font-weight:650;font-size:15px}
-.crm-name span{display:block;font-size:12px;color:var(--cream-m);margin-top:1px;font-family:'DM Mono',ui-monospace,monospace}
+.crm-name span{display:block;font-size:12px;color:var(--cream-m);margin-top:1px;font-family:var(--mono)}
 .crm-badge{flex:0 0 auto;font-family:'Inter';font-weight:650;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:var(--r-4xl);border:1px solid var(--line2);color:var(--cream-m)}
 .crm-badge.member{color:var(--ok);border-color:rgba(127,168,107,.45)}
 .crm-body{padding:2px 14px 13px;border-top:1px solid var(--line)}
 .crm-ord{display:flex;align-items:baseline;gap:9px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:13px;color:var(--cream-m)}
-.crm-ord b{color:var(--cream);font-family:'DM Mono',ui-monospace,monospace;font-size:12px}
+.crm-ord b{color:var(--cream);font-family:var(--mono);font-size:12px}
 .crm-ord .ch{flex:0 0 auto;font-family:'Inter';font-weight:650;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2);min-width:58px}
-.crm-ord .px{margin-left:auto;font-family:'DM Mono',ui-monospace,monospace;color:var(--cream)}
+.crm-ord .px{margin-left:auto;font-family:var(--mono);color:var(--cream)}
 .crm-loy{display:flex;align-items:center;gap:10px;margin-top:11px}
 .crm-loy label{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--cream-m)}
-.crm-loy input{width:74px;background:var(--char2);border:1px solid var(--line2);border-radius:9px;padding:7px 9px;color:var(--cream);font-family:'DM Mono',ui-monospace,monospace;font-size:16px}
+.crm-loy input{width:74px;background:var(--char2);border:1px solid var(--line2);border-radius:9px;padding:7px 9px;color:var(--cream);font-family:var(--mono);font-size:16px}
 .app.crew-day .crm-loy input{background:var(--card);color:var(--cream)}
 .crm-note{font-size:12px;color:var(--cream-d);margin-top:8px}
 .team-crm-link{display:block;width:100%;text-align:left;background:none;border:1px dashed var(--line2);border-radius:var(--r-xl);padding:12px 14px;color:var(--cream-m);font-family:'Inter';font-size:13px;cursor:pointer;margin:4px 0 16px;-webkit-appearance:none;appearance:none}
@@ -4401,7 +4401,7 @@ body:has(.conc-sheet) .rail{display:flex}
 .tvl-connect-rows{display:flex;flex-direction:column;gap:2vmin}
 .tvl-connect-row{display:flex;align-items:baseline;justify-content:space-between;gap:3vmin;border-bottom:1px solid color-mix(in srgb, var(--brand-cream) 10%, transparent);padding-bottom:1.5vmin}
 .tvl-connect-row span{font-family:'Inter';font-size:max(10px,2.2vmin);font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-d)}
-.tvl-connect-row em{font-family:'DM Mono',ui-monospace,monospace;font-style:normal;font-size:3.3vmin;color:var(--gold2,#C8A661)}
+.tvl-connect-row em{font-family:var(--mono);font-style:normal;font-size:3.3vmin;color:var(--gold2,#C8A661)}
 .tvl-connect-qr{flex:0 0 auto;text-align:center}
 .tvl-connect-qr img{width:34vmin;height:34vmin;background:#fff;border-radius:2vmin;padding:1.5vmin;display:block}
 .tvl-connect-qr span{display:block;font-family:'Inter';font-size:max(10px,2vmin);letter-spacing:.05em;color:var(--cream-m);margin-top:2vmin}
@@ -4498,7 +4498,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .adm-lead-opts{display:inline-flex;gap:8px;flex-wrap:wrap}
 
 /* ─────────── membership screen, quieted (owner feedback: one hero, one stat line) ─────────── */
-.memline{display:flex;align-items:baseline;justify-content:center;gap:8px;font-family:'DM Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;color:var(--cream-m);margin:10px 2px 18px}
+.memline{display:flex;align-items:baseline;justify-content:center;gap:8px;font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--cream-m);margin:10px 2px 18px}
 .memline b{color:var(--gold2,#C8A661);font-weight:500}
 .memline-dot{color:var(--cream-d)}
 .hist-row{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line)}
@@ -4509,7 +4509,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 
 /* the drop's summary sentence — replaces the three bare KPI tiles (owner: "doesn't make sense") */
 .dops-sum{font-family:'Inter';font-size:13px;line-height:1.55;color:var(--cream-m);margin:2px 2px 14px}
-.dops-sum b{font-family:'DM Mono',ui-monospace,monospace;font-weight:500;color:var(--gold2,#B8902F)}
+.dops-sum b{font-family:var(--mono);font-weight:500;color:var(--gold2,#B8902F)}
 
 /* checkout upsell, one quiet line (the closed + post-pay states own the full pitch) */
 .co-upsell-line{display:block;width:100%;background:none;border:none;font-family:'Inter';font-size:13px;color:var(--cream-m);text-align:left;padding:10px 2px;cursor:pointer;-webkit-appearance:none;appearance:none}
@@ -4827,12 +4827,12 @@ button.mkpi-tile:active{transform:scale(.98)}
 
 /* one-hero-one-line stat shapes (de-noise sweep, crew) */
 .adm-hud-hero{display:flex;align-items:baseline;gap:8px;margin:4px 2px 2px}
-.adm-hud-hero b{font-family:'DM Mono',ui-monospace,monospace;font-weight:500;font-size:28px;color:var(--gold2,#B8902F)}
+.adm-hud-hero b{font-family:var(--mono);font-weight:500;font-size:28px;color:var(--gold2,#B8902F)}
 .adm-hud-hero span{font-family:'Inter';font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--cream-m)}
 .adm-hud-line{font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream-m);margin:2px 2px 4px}
-.adm-hud-line b{font-family:'DM Mono',ui-monospace,monospace;font-weight:500}
+.adm-hud-line b{font-family:var(--mono);font-weight:500}
 .rpt-hero{display:flex;align-items:baseline;gap:8px;margin:4px 2px 2px}
-.rpt-hero b{font-family:'DM Mono',ui-monospace,monospace;font-weight:500;font-size:28px;color:var(--gold2,#B8902F)}
+.rpt-hero b{font-family:var(--mono);font-weight:500;font-size:28px;color:var(--gold2,#B8902F)}
 .rpt-hero span{font-family:'Inter';font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--cream-m)}
 .rpt-line{font-family:'Inter';font-size:13px;color:var(--cream-m);margin:2px 2px 12px}
 
@@ -4860,7 +4860,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .of-seg button.on span{color:var(--gold2)}
 
 /* ─────────── Sunday delivery flow (/delivery) — Voice 2, house dark shell ─────────── */
-.dl-deadline{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.08em;color:var(--cream-m);border:1px solid var(--line);border-radius:var(--r-lg);padding:8px 12px;margin:4px 0 16px}
+.dl-deadline{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--cream-m);border:1px solid var(--line);border-radius:var(--r-lg);padding:8px 12px;margin:4px 0 16px}
 .dl-deadline b{color:var(--gold2,#C8A661);font-weight:500}
 .dl-step{display:flex;flex-direction:column;gap:12px;animation:stepGlide .42s var(--ease)}
 /* funnel steps settle into place instead of hard-cutting — the 'glide through gears' feel */
@@ -4886,7 +4886,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .dl-ctr-b.lone{align-self:flex-start}
 .dl-ctr-b button{width:44px;height:44px;border-radius:var(--r-lg);background:transparent;border:1.5px solid var(--line2);color:var(--cream);font-size:17px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .dl-ctr-b button:disabled{opacity:.35}
-.dl-ctr-b b{font-family:'DM Mono',ui-monospace,monospace;font-weight:500;font-size:16px;min-width:22px;text-align:center}
+.dl-ctr-b b{font-family:var(--mono);font-weight:500;font-size:16px;min-width:22px;text-align:center}
 .dl-perf{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px}
 .dl-card{display:flex;flex-direction:column;gap:6px;text-align:left;background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:var(--r-2xl);padding:14px;cursor:pointer;-webkit-appearance:none;appearance:none;color:var(--cream)}
 .dl-card.on{border-color:var(--gold2,#C8A661);background:color-mix(in srgb, var(--brand-gold2) 6%, transparent)}
@@ -4897,7 +4897,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .dl-ack{display:flex;align-items:flex-start;gap:10px;font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream);cursor:pointer}
 .dl-ack input{margin-top:2px;accent-color:var(--red,#B82420);width:18px;height:18px;flex:0 0 auto}
 .dl-quote{display:flex;flex-direction:column;gap:4px;font-family:'Inter';font-size:13px;color:var(--cream-m);border:1px solid var(--line);border-radius:var(--r-xl);padding:12px 14px}
-.dl-quote b{font-family:'DM Mono',ui-monospace,monospace;font-weight:500;color:var(--gold2,#C8A661)}
+.dl-quote b{font-family:var(--mono);font-weight:500;color:var(--gold2,#C8A661)}
 .dl-quote-t{border-top:1px solid var(--line);padding-top:6px;margin-top:4px;color:var(--cream)}
 .dl-err{font-family:'Inter';font-size:13px;color:#e08b88;margin:0}
 .dl-back{align-self:flex-start;background:none;border:none;font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m);padding:14px 2px;cursor:pointer;-webkit-appearance:none;appearance:none}
@@ -4973,7 +4973,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 /* payment trust line + pipeline activity trail */
 .dl-trust{margin-top:12px;font-size:12px;line-height:1.5;color:var(--cream-m);text-align:center}
 .dl-trust b{color:var(--cream)}
-.pipe-trail{padding:0 12px 4px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;color:var(--cream-d)}
+.pipe-trail{padding:0 12px 4px;font-family:var(--mono);font-size:11px;color:var(--cream-d)}
 
 /* studio content links — the taxonomy chips (events · stops · plays), removable */
 .studio-links{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 2px}
@@ -5050,7 +5050,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .pipe-meta{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:0 1 auto;min-width:0}
 .pipe-deal{font-size:11px;color:var(--cream-m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
 .pipe-deal.none{color:var(--warn)}
-.pipe-val{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;color:var(--cream)}
+.pipe-val{font-family:var(--mono);font-size:11px;color:var(--cream)}
 .pipe-rep{font-family:'Inter';font-weight:650;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold2)}
 .pipe-next{padding:0 12px 10px;font-size:12px;color:var(--cream-m)}
 .pipe-card.late .pipe-next{color:var(--warn);font-weight:600}
@@ -5094,7 +5094,7 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .goal-lane{margin-bottom:16px}
 .goal-lane-h{display:flex;align-items:center;gap:7px;margin:0 0 8px 2px}
 .goal-lane-h b{font-family:'Inter';font-weight:700;font-size:13px;letter-spacing:.4px;text-transform:uppercase;color:var(--cream-m)}
-.goal-lane-n{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;color:var(--cream-d)}
+.goal-lane-n{font-family:var(--mono);font-size:11px;color:var(--cream-d)}
 .goal-live{flex:0 0 auto;font-family:'Inter';font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ok);border:1px solid rgba(127,168,107,.45);border-radius:var(--r-xl);padding:2px 7px}
 .goal-inits{margin:10px 0 2px;border-top:1px dashed var(--line);padding-top:8px}
 .goal-init{display:flex;align-items:center;gap:8px;padding:4px 0}
@@ -5105,7 +5105,7 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .goal-init-x{flex:0 0 auto;background:none;border:none;color:var(--cream-d);font-size:11px;cursor:pointer;padding:2px 4px;-webkit-appearance:none;appearance:none}
 .goal-init.add{gap:8px}
 .goal-init.add .auth-input{flex:1;padding:8px 10px;font-size:16px}
-.goal-init-who{flex:0 0 auto;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;color:var(--cream-m)}
+.goal-init-who{flex:0 0 auto;font-family:var(--mono);font-size:11px;color:var(--cream-m)}
 .goal-init-meta{display:flex;gap:7px;margin:2px 0 6px 30px}
 .goal-init-meta select,.goal-init-meta input{background-color:var(--char2);border:1px solid var(--line2);border-radius:var(--r-md);padding:5px 8px;color:var(--cream-m);font-family:'Inter';font-size:16px}
 .app.crew-day .goal-init-meta select,.app.crew-day .goal-init-meta input{background-color:var(--card);color:var(--cream)}
@@ -6094,14 +6094,14 @@ button.k-switch::after{content:"";position:absolute;inset:-7px -2px}
    untouched original; files are quiet 📎 rows opening via signed links; the Discuss row keeps the
    "Team + comments" promise the visibility chip has made since 0170. */
 .note-addm{margin-top:12px;padding:10px 12px 11px;border-left:2px solid var(--gold2);background:color-mix(in srgb, var(--brand-gold2) 5%, transparent);border-radius:0 10px 10px 0}
-.note-addm-h{display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--gold2)}
+.note-addm-h{display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:var(--mono);font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--gold2)}
 .note-addm-b{font-family:'Inter';font-size:13px;color:var(--cream);line-height:1.55;margin:6px 0 0;white-space:pre-wrap}
 .note-addm-x{background:none;border:none;padding:2px;color:var(--cream-m);cursor:pointer;line-height:0;-webkit-appearance:none;appearance:none}
 .note-addm-x svg{width:12px;height:12px}
 .note-files{display:flex;flex-direction:column;gap:6px;margin-top:12px}
 .note-file{display:flex;align-items:center;gap:6px}
 .note-file-open{flex:1;min-width:0;display:flex;align-items:center;gap:7px;background:rgba(0,0,0,.22);border:1px solid var(--line2);border-radius:var(--r-lg);padding:8px 11px;cursor:pointer;text-align:left;font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream);-webkit-appearance:none;appearance:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.note-file-open i{font-style:normal;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;color:var(--cream-m);margin-left:auto;padding-left:8px}
+.note-file-open i{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--cream-m);margin-left:auto;padding-left:8px}
 .note-pfiles{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 10px}
 .note-pfiles-hint{font-family:'Inter';font-size:11px;color:var(--cream-m);font-style:italic}
 .note-addbox{margin-top:12px;padding:12px;border:1px solid var(--line2);border-radius:var(--r-xl);background:rgba(0,0,0,.18)}
@@ -6139,16 +6139,16 @@ button.k-switch::after{content:"";position:absolute;inset:-7px -2px}
 .disc-row{display:block;width:100%;text-align:left;background:rgba(0,0,0,.18);border:1px solid var(--line2);border-radius:var(--r-xl);padding:10px 12px;cursor:pointer;-webkit-appearance:none;appearance:none;color:var(--cream)}
 .disc-top{display:flex;align-items:center;gap:8px;min-width:0}
 .disc-title{flex:1;min-width:0;font-family:'Inter';font-weight:650;font-size:13px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.disc-n{display:inline-flex;align-items:center;gap:3px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;color:var(--cream-m)}
+.disc-n{display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-size:11px;color:var(--cream-m)}
 .disc-n svg{width:11px;height:11px}
 .disc-latest{margin-top:4px;font-family:'Inter';font-size:12px;line-height:1.45;color:var(--cream-m);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .disc-latest b{color:var(--cream);font-weight:650}
 .goal-checkin{display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap}
-.goal-checkin-k{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--cream-m)}
+.goal-checkin-k{font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--cream-m)}
 .goal-quiet{font-family:'Inter';font-size:11px;color:var(--cream-m)}
 .goal-card.atrisk{border-color:var(--warn)}
 .cmd-serves{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:2px 0 10px}
-.cmd-serves-k{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--cream-m)}
+.cmd-serves-k{font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--cream-m)}
 .cmd-serves-none{font-family:'Inter';font-size:11px;font-style:italic;color:var(--cream-m)}
 .cmd-risklab{color:var(--warn);font-weight:700}
 .note-decbox{margin-top:12px;padding:12px;border:1px solid var(--line2);border-radius:var(--r-xl);background:rgba(0,0,0,.18);display:flex;flex-direction:column;gap:8px}
@@ -6174,7 +6174,7 @@ button.k-switch::after{content:"";position:absolute;inset:-7px -2px}
 .osr-block{font-family:'Inter';font-weight:600;font-size:13px;color:var(--warn);display:flex;align-items:flex-start;gap:6px;line-height:1.4}
 .osr-block svg{width:13px;height:13px;flex:0 0 auto;margin-top:2px}
 .osr-owes{font-family:'Inter';font-weight:650;font-size:12px;color:var(--gold2)}
-.osr-score{flex:0 0 auto;display:flex;align-items:center;gap:6px;font-family:'DM Mono',ui-monospace,monospace;font-size:15px;color:var(--cream);font-variant-numeric:tabular-nums;padding-top:1px}
+.osr-score{flex:0 0 auto;display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:15px;color:var(--cream);font-variant-numeric:tabular-nums;padding-top:1px}
 .osr-score i{width:8px;height:8px;border-radius:var(--r-pill);background:var(--cream-d)}
 .osr-score small{font-size:11px;color:var(--cream-d)}
 .osr-score.green i{background:var(--ok)}.osr-score.amber i{background:var(--gold2)}.osr-score.red i{background:var(--red)}
@@ -6186,7 +6186,7 @@ button.k-switch::after{content:"";position:absolute;inset:-7px -2px}
 .osr-crit-h b{font-family:'Inter';font-weight:700;font-size:13px}
 .osr-crit-h span{font-family:'Inter';font-size:11px;color:var(--cream-m);line-height:1.4}
 .osr-crit-chips{display:flex;gap:8px}
-.osr-chip{width:44px;height:34px;border-radius:var(--r-lg);border:1px solid var(--line2);background:none;color:var(--cream-m);font-family:'DM Mono',ui-monospace,monospace;font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.osr-chip{width:44px;height:34px;border-radius:var(--r-lg);border:1px solid var(--line2);background:none;color:var(--cream-m);font-family:var(--mono);font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .osr-chip.on{border-color:var(--gold2);color:var(--gold2);background:color-mix(in srgb, var(--brand-gold2) 10%, transparent)}
 .osr-chip.full.on{border-color:#5b9a6b;color:#5b9a6b;background:rgba(91,154,107,.1)}
 .osr-chip.zero.on{border-color:var(--warn);color:var(--warn);background:rgba(200,120,40,.08)}
@@ -6298,7 +6298,7 @@ button.k-switch::after{content:"";position:absolute;inset:-7px -2px}
 .owed-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 2px 6px}
 .owed-head.sub{padding-top:12px}
 .owed-n{display:inline-flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px}
-.owed-k{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.07em;
+.owed-k{font-family:var(--mono);font-size:11px;letter-spacing:.07em;
   text-transform:uppercase;color:var(--gold2)}
 
 .owed-row{display:flex;align-items:center;gap:10px;min-height:44px;padding:9px 12px;
@@ -6319,12 +6319,14 @@ div.owed-row-go{cursor:default}
    tick is as tall as one without. */
 .owed-row > .task-check,.owed-row > .owed-row-go{margin-block:-8px}
 .owed-row-b{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+/* A row's name runs to two lines before it is cut (2026-10-10, My Day 10): one line cut "Event authorization for
+   a temporary/mobile setup — CONFIRM the cur…" at the words that said what to do. The line under it stays one. */
 .owed-row-b b{font-family:'Inter';font-size:13px;font-weight:600;color:var(--cream);
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow-wrap:anywhere}
 .owed-row-b b svg{width:13px;height:13px;color:var(--warn);vertical-align:-2px;margin-right:5px}
 .owed-row-b i{font-style:normal;font-family:'Inter';font-size:12px;color:var(--cream-m);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.owed-age{flex:none;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;
+.owed-age{flex:none;font-family:var(--mono);font-size:11px;
   color:var(--cream-m);white-space:nowrap;font-variant-numeric:tabular-nums}
 .owed-row.late .owed-age,.owed-age.late{color:var(--red-onLight)}
 .owed-c{flex:none;color:var(--cream-m);font-size:15px;line-height:1}
@@ -6360,12 +6362,12 @@ div.owed-row-go{cursor:default}
   -webkit-appearance:none;appearance:none;margin-bottom:7px}
 .tm-open .ev-chev{margin-left:auto}
 .util-name{font-family:'Inter';font-weight:700;font-size:13px;color:var(--cream);display:flex;align-items:center;gap:8px}
-.util-name i{font-style:normal;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--gold2)}
+.util-name i{font-style:normal;font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--gold2)}
 .util-stats{font-family:'Inter';font-size:12px;color:var(--cream-m)}
 .util-stats b{color:var(--cream)}
-.util-last{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;color:var(--cream-m)}
+.util-last{font-family:var(--mono);font-size:11px;color:var(--cream-m)}
 .util-guests{margin-top:12px;display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;font-family:'Inter';font-size:13px;color:var(--cream)}
-.util-guests-k{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--gold2)}
+.util-guests-k{font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--gold2)}
 .util-guests b{font-family:'Archivo Black';font-size:15px}
 .util-guests i{font-style:normal;color:var(--cream-m);font-size:12px}
 .util-guests-note{width:100%;font-size:11px;color:var(--cream-m);font-style:italic}
@@ -6374,7 +6376,7 @@ div.owed-row-go{cursor:default}
 /* A live op breathes — the living element My Day's red LIVE pill carried, kept on the card that
    replaced it (2026-10-04); the global reduced-motion switch stills it. */
 .dayhead-op.live{border-color:#5b9a6b;background:rgba(91,154,107,.08);animation:breathe 2.6s var(--ease) infinite}
-.dayhead-k{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2)}
+.dayhead-k{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2)}
 .dayhead-op.live .dayhead-k{color:#5b9a6b}
 .dayhead-op-t>b{font-family:'Archivo Black';font-size:16px;color:var(--cream)}
 /* 2026-10-04: the op card is the one place today's op is shown, for everybody, and it opens it. */
@@ -7165,7 +7167,7 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
 .app.crew-day .lst-row input{background:var(--card)}
 .lst-row input:focus-visible{outline:2px solid var(--gold2);outline-offset:2px;border-color:var(--gold2)}
 .lst-order{text-align:center;font-variant-numeric:tabular-nums}
-.lst-val{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;color:var(--gold2);
+.lst-val{font-family:var(--mono);font-size:12px;color:var(--gold2);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lst-add{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line2)}
 @media(max-width:560px){

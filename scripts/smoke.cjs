@@ -6174,6 +6174,27 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     H.STALE_DAYS === 14 && split.stale.map((i) => i.key).join() === "e,d" && H.homeBucket(-14) === "today" && H.homeBucket(-15) === "stale");
   ok("one home: equipment is one row however old, and later or undated work waits in All tasks",
     split.upkeep.map((i) => i.key).join() === "i,j" && split.later === 2 && split.total === 11 && H.homeBucket(null) === "later");
+  {
+    // My Day 10 (2026-10-10): compliance rules are one row, never "due today"; the day counts down and ends.
+    const s2 = H.splitHome([it("a", 0), it("r1", 0, false, "rule"), it("r2", null, false, "rule"), it("r3", -40, false, "rule"), it("b", 3), it("c", 1, false, "team")]);
+    ok("one home: a compliance rule is never today's — it folds to one row with the others, whatever its date",
+      s2.rules.map((i) => i.key).join() === "r1,r2,r3" && s2.due.map((i) => i.key).join() === "a" && s2.stale.length === 0 && s2.later === 2 && s2.total === 6);
+    ok("one home: the head counts what is done beside what is left, and a finished day says so",
+      H.dayCount(0, 3) === "3 due" && H.dayCount(2, 3) === "2 done · 3 to go" && H.dayCount(4, 0) === "4 done" && H.dayCount(0, 0) === "Clear");
+    ok("one home: a finished day points at the first dated thing after it — not equipment, not compliance",
+      H.nextUp(s2.rules.concat([it("x", 5), it("y", 2, false, "owed"), it("z", 2, true, "team"), it("u", 1, false, "upkeep")])).key === "z" && H.nextUp([it("p", 0)]) === null);
+    const tl = read("components/TodayList.tsx"), hn = read("components/HomeNumbers.tsx");
+    ok("My Day: compliance rules come in as rules, undated when never confirmed, and open where they are confirmed",
+      /const kind = r\.source === "asset_maintenance" \? "upkeep" : r\.source === "compliance_rules" \? "rule" : "owed";/.test(tl)
+      && /const daysOut = kind === "rule" && Number\(r\.days_out\) >= 0 \? null : Number\(r\.days_out\);/.test(tl)
+      && /\{s\.rules\.length > 0 && <button type="button" className="k-chip sm" onClick=\{\(\) => setSheet\("rules"\)\}/.test(tl) && /\{sheet === "rules" && \(/.test(tl));
+    ok("My Day: the head reads the day's count, done today from both tables' done_at, and an empty list says whether the day is done",
+      /\{dayCount\(doneToday, due\)\}/.test(tl) && /\.eq\("assignee", meId\)\.eq\("done", true\)\.gte\("done_at", since\)/.test(tl)
+      && /\{doneToday > 0 \? "Today's done\." : "Nothing due today\."\}/.test(tl) && /const next = nextUp\(items\);/.test(tl));
+    ok("numbers: two weeks with nothing sold is one line — unless the week had event costs, which keep their margin row",
+      /const quiet = !!sales && sales\.now === 0 && sales\.prev === 0 && \(!margin \|\| \(margin\.now === 0 && margin\.prev === 0\)\);/.test(hn)
+      && /\{sales && !quiet && \(/.test(hn) && /\{margin && !quiet && \(/.test(hn));
+  }
   ok("numbers: a change is said in words, and only against a week that had something to compare with",
     H.pctChange(118, 100) === 18 && H.pctChange(5, 0) === null && H.changeWords(18) === "Up 18% on the week before"
     && H.changeWords(-4) === "Down 4% on the week before" && H.changeWords(0) === "Level with the week before" && H.changeWords(null) === "Nothing to compare yet");
