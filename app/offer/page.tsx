@@ -85,7 +85,7 @@ export default function OfferPage() {
   };
 
   if (!ready) return <section className="screen" />;
-  if (!user) return <SignIn />;
+  if (!user) return <SignIn context={{ title: "Your offer from GT3.", sub: "Sign in with the email it was sent to, to read it and answer it." }} />;
 
   return (
     <section className="screen">
