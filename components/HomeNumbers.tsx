@@ -12,6 +12,7 @@ import { pctChange, changeWords, channelDriver, estMargin, samePoint, paceWords,
 import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "./kit";
 import { useOperatorSection } from "./OperatorNav";
+import { goToDest } from "./CrewKpis";
 
 // THREE NUMBERS, EACH WITH ITS REASON (2026-10-09, One home — round 2 of the UX plan; Ryan chose the
 // three: "Sales, margin, next-drop orders"). Command put twelve figures at equal weight and Money
@@ -21,6 +22,10 @@ import { useOperatorSection } from "./OperatorNav";
 //
 // Who sees what is who could already see it: sales and margin are Money's (admins and owners); the
 // next drop is the pickup board's (anyone who manages). Crew see the day's tasks only.
+//
+// THE SAME THREE OPEN MONEY (2026-10-09, Business opens on Money): Money opened on five tiles with no
+// comparison (components/MoneyKpis, retired). Here, on Money, a number opens its report below instead of
+// the section it is already in, and there is no "See all" to the screen it is on.
 
 type Report = { revenue_cents?: number; by_channel?: Channels; cogs_pct?: number; error?: string };
 type EventPnl = { id: string; kind: string; fixed_cents: number };
@@ -36,7 +41,7 @@ const VALUE = "flex-none text-title3 font-semibold text-cream whitespace-nowrap 
 const CAUSE = "text-caption text-cream-muted";
 const sign = (cents: number) => `${cents > 0 ? "+" : "−"}${moneyRound(Math.abs(cents))}`;
 
-export default function HomeNumbers({ money, drops }: { money: boolean; drops: boolean }) {
+export default function HomeNumbers({ money, drops, here = "day" }: { money: boolean; drops: boolean; here?: "day" | "money" }) {
   const { setSection } = useOperatorSection();
   const loader = useCallback(async (): Promise<Nums> => {
     const out: Nums = { sales: null, margin: null, drop: null };
@@ -93,11 +98,13 @@ export default function HomeNumbers({ money, drops }: { money: boolean; drops: b
   }, [money, drops]);
   const state = useAsyncData<Nums>(loader, [loader]);
   if (!money && !drops) return null;
+  // On My Day a money number opens Money; on Money it opens the report that explains it.
+  const open = (anchor: "sales" | "pnl") => (here === "money" ? goToDest({ anchor }, setSection) : setSection("money"));
 
   return (
     <div className="adm-sec" id="home-numbers">
       {/* The head stays put while the numbers load, so nothing below it moves when they arrive. */}
-      <SectionHeader label="Numbers" right={<button type="button" className="owed-more -my-3.5" onClick={() => setSection("command")}>See all <span aria-hidden="true">›</span></button>} />
+      <SectionHeader label="Numbers" right={here === "day" ? <button type="button" className="owed-more -my-3.5" onClick={() => setSection("command")}>See all <span aria-hidden="true">›</span></button> : undefined} />
       <AsyncSection
         state={state}
         isEmpty={(d) => !d.sales && !d.margin && !d.drop}
@@ -109,7 +116,7 @@ export default function HomeNumbers({ money, drops }: { money: boolean; drops: b
         {({ sales, margin, drop }) => (
           <div className="owed">
             {sales && (
-              <button type="button" className="owed-row" onClick={() => setSection("money")}>
+              <button type="button" className="owed-row" onClick={() => open("sales")}>
                 <span className="owed-row-b">
                   <b>Sales · 7 days</b>
                   <span className={CAUSE}>{changeWords(pctChange(sales.now, sales.prev))}{sales.driver ? ` · ${sales.driver.label} ${sign(sales.driver.deltaCents)}` : ""}</span>
@@ -119,7 +126,7 @@ export default function HomeNumbers({ money, drops }: { money: boolean; drops: b
               </button>
             )}
             {margin && (
-              <button type="button" className="owed-row" onClick={() => setSection("money")}>
+              <button type="button" className="owed-row" onClick={() => open("pnl")}>
                 <span className="owed-row-b">
                   <b>Margin · 7 days, est.</b>
                   <span className={CAUSE}>

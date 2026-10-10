@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-// CUSTOMER KPIs — the glance that opens the Customers section, mirroring MoneyKpis so the tab reads as
-// a dashboard, not a stack of panels. Five live tiles: total customers, members, founding, new this
+// CUSTOMER KPIs — the glance that opens the Customers section, as Money's tiles did (Money opens on the
+// home's three numbers since 2026-10-09), so the tab reads as a dashboard, not a stack of panels. Five live tiles: total customers, members, founding, new this
 // week, and live discount codes. Every query is defensive (fails to "—") so a schema gap can never
 // break the section — the number just goes quiet.
 type Kpi = { k: string; v: string; sub: string };

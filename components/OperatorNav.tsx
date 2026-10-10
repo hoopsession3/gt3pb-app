@@ -2,9 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { useAuth, roleOf } from "./AuthProvider";
-import { useMyAlerts } from "@/lib/useMyAlerts";
-import { useWorkStreams, streamOfCategory, type WorkStream } from "@/lib/streams";
-import { normalizeCategory } from "@/lib/alertKinds";
+import { useWorkStreams, type WorkStream } from "@/lib/streams";
 import Sheet from "./Sheet";
 import BottomNav from "./BottomNav";
 import { supabase } from "@/lib/supabase";
@@ -148,11 +146,11 @@ export default function OperatorNav() {
   const { profile } = useAuth();
   const { section, setSection } = useOperatorSection();
   const role = roleOf(profile);
-  // Unacked-critical badge — same counting rule as My Day's flags and the Now strip (one shared
-  // hook), so the numbers agree. The old query here counted EVERYONE's criticals, including alerts
-  // targeted at someone else.
+  // ONE ALERT NUMBER (2026-10-09, the navigation round). Today's tab carried the unacked criticals, each
+  // lane the count of every unacked flag filed under it (Business read 12, for weeks), and the header's
+  // bell today's alerts: three numbers that never agreed, two of which never reached zero. The bell is
+  // the one count now — what was true today, ringed red when one is critical — and the tabs are places.
   const { user } = useAuth();
-  const { critCount, flags } = useMyAlerts(user?.id ?? null, role !== "member");
   const streams = useWorkStreams();
   const { groupId, setGroupId } = useOperatorSection();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -189,9 +187,6 @@ export default function OperatorNav() {
     setSection("settings");
     setMoreOpen(false);
   };
-  // Lane badges — the same unacked flags My Day shows, rolled up category → lane.
-  const laneCounts: Record<string, number> = {};
-  for (const f of flags) { const lane = streamOfCategory(normalizeCategory(f.category), streams); if (lane) laneCounts[lane.key] = (laneCounts[lane.key] || 0) + 1; }
   // Roving arrow-key nav for the tablist (WAI-ARIA): ←/→ move + activate, Home/End jump to ends. On the desk the
   // list stands up as a sidebar, so ↑/↓ are its arrows (and the list says it is vertical).
   const onNavKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -232,16 +227,11 @@ export default function OperatorNav() {
         return (
           <button key={g.id} role="tab" aria-selected={on} className={`tab${on ? " on" : ""}`} onClick={() => {
             if (!on) { openGroup(g); return; }
-            // ON the lane already (2026-10-04): this tap used to do nothing at all — even with a red
-            // badge on it. A badge counts things waiting, so tapping it shows them (the inbox, where
-            // every one of them lives); with no badge it goes back to the lane's first screen, as a
-            // tab bar does.
-            const waiting = g.id === "today" ? critCount : (laneCounts[g.id] ?? 0);
-            if (waiting > 0) { window.dispatchEvent(new Event("gt3-open-inbox")); return; }
-            // On the lane's first screen already: tapped again, it goes back to the top (2026-10-05).
+            // ON the lane already: it goes back to the lane's first screen, as a tab bar does (2026-10-04),
+            // and from there to the top (2026-10-05). What is waiting is the bell's, in the header.
             if (section !== g.members[0]) setSection(g.members[0]); else scrollToTop();
           }}>
-            <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{g.id === "today" ? ICONS.day : streamIcon(g.icon)}</svg>{g.id === "today" && critCount > 0 && <span className="k-badge crit nav-badge" title={`${critCount} critical alert${critCount === 1 ? "" : "s"} — needs you now`} aria-label={`${critCount} critical alert${critCount === 1 ? "" : "s"} — needs you now`}>{critCount}</span>}{g.id !== "today" && (laneCounts[g.id] ?? 0) > 0 && <span className="k-badge nav-badge" title={`${laneCounts[g.id]} open item${laneCounts[g.id] === 1 ? "" : "s"} in ${g.label}`} aria-label={`${laneCounts[g.id]} open item${laneCounts[g.id] === 1 ? "" : "s"} in ${g.label}`}>{laneCounts[g.id]}</span>}</span>
+            <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{g.id === "today" ? ICONS.day : streamIcon(g.icon)}</svg></span>
             <span className="tl leading-none">{g.label}</span>
           </button>
         );
@@ -297,7 +287,25 @@ function MoreSheet({ lanes, pins, activeId, onOpen, onSettings, onClose, canPin 
           <span className="lane-secs">Links · socials · a code to scan</span>
         </button>
       </div>
-      <div className="lane-legend"><span className="lane-key"><span className="cc-dot" style={{ background: "var(--red-h)" }} />needs you now</span><span className="lane-key"><span className="cc-dot" style={{ background: "var(--gold2)" }} />open items in a lane</span></div>
+      {/* THE GUIDE AND THE CUSTOMER'S VIEW (2026-10-09, the navigation round — Ryan: "Switch + Guide to More",
+          approved). Both stood in the header beside search and the inbox, every screen, all day; both are
+          rows here now. Each is an event the console answers (app/crew): Customer view leaves for the customer
+          app and is remembered (lib/mode), as the switch was; the Guide opens over the screen you are on. The
+          bar itself rides in every page's shell, so it carries neither the router nor the mode. */}
+      <div className="lane-row">
+        <button type="button" className="lane-open" onClick={() => { onClose(); window.dispatchEvent(new Event("gt3-open-guide")); }}>
+          <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} aria-hidden><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><circle cx="12" cy="8" r=".75" fill="currentColor" stroke="none" /></svg>
+          <b>Guide</b>
+          <span className="lane-secs">Start here · what each section is for</span>
+        </button>
+      </div>
+      <div className="lane-row">
+        <button type="button" className="lane-open" onClick={() => { onClose(); window.dispatchEvent(new Event("gt3-customer-view")); }}>
+          <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} aria-hidden><path d="M12 3l9 7v11H3V10z" /><path d="M9 21v-7h6v7" /></svg>
+          <b>Customer view</b>
+          <span className="lane-secs">The app as a customer sees it</span>
+        </button>
+      </div>
       {/* The bar holds MAX_PINS tabs (Today counts) — 4 since 2026-10-08, so with More the bar is an
           iPhone's 5. The words read the number, never a copy of it. */}
       <div className="lane-hint">{full ? `Your bar is full (${MAX_PINS}) — unpin one first.` : local.length === 0 ? "Nothing pinned — your bar shows the standard set for your role. Pin lanes to make it yours." : `Tap a lane to open it. Pin up to ${MAX_PINS} to your bar — unpin anything, it stays here.`}</div>
