@@ -1914,7 +1914,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .rpt-pnl-m.neg{color:#d2554a}
 
 /* ── meeting notes (Plan section) ── */
-.note-intro{max-width:340px;margin-bottom:14px}
 .note-composer{background:var(--card);border:1px solid var(--line);border-radius:var(--r-3xl);padding:14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 6px 16px rgba(0,0,0,.18)}
 .note-row{display:flex;gap:10px}
 .note-row .note-in{flex:1;min-width:0}
@@ -3041,7 +3040,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .eg-list li::before{content:"✓";position:absolute;left:0;top:0;color:var(--ok);font-weight:700}
 
 /* ── Plan sub-nav: the back office (Vendors) sits after a divider ── */
-.subnav-div{flex:0 0 auto;align-self:center;width:1px;height:20px;background:var(--line2);margin:0 4px}
 
 /* ── The Debossed Marque — one faint, edge-cropped GT3 "3" pressed into a few landmark surfaces ──
    Decorative, behind content, pointer-transparent. The locked outline-3 masters, recolored by world.
