@@ -722,7 +722,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .adm-fields select{background-color:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:9px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:16px;min-height:40px;outline:none}
 .adm-left{display:flex;align-items:center;gap:6px;min-height:40px;font-family:'Inter';font-size:13px;color:var(--cream-m);font-variant-numeric:tabular-nums}
 .adm-prep-label{font-family:'Inter';font-weight:650;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2);margin:12px 0 6px}
-.adm-hud .sec{display:flex;align-items:center}
 .adm-ready-bar{margin-top:8px;padding:11px 13px;border-radius:var(--r-xl);background:rgba(0,0,0,.28);border:1px solid var(--line2);font-family:'Inter';font-size:13px;color:var(--cream)}
 .adm-ready-bar.ok{border-color:rgba(63,125,110,.5);background:rgba(63,125,110,.14)}
 .adm-ready-bar.miss{border-color:color-mix(in srgb, var(--brand-red) 40%, transparent)}
@@ -1562,7 +1561,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .office-done p b{color:var(--gold2)}
 
 /* ── CREW · OFFICE ORDERS (Pit Wall) ── */
-.oo{margin-top:14px;border:1px solid var(--line);border-radius:var(--r-3xl);background:var(--card);overflow:hidden}
 .oo-n{font-family:var(--mono);font-size:11px;color:var(--cream-m)}
 
 /* ── OFFICE PORTAL (member self-serve) ── */
@@ -4304,22 +4302,13 @@ body:has(.conc-sheet) .rail{display:flex}
 .mpanel-body > .adm-sec > .studio-top > .k-sec{display:none}
 .mpanel-body > .adm-sec > .studio-top{justify-content:flex-end;margin-bottom:8px}
 
-/* Exception to the hide-rule above: EventHUD's SectionHeader label is ev.title — the LIVE EVENT'S
-   ACTUAL NAME — not a repeat of the "hud" Panel's generic "Event heads-up" title, so hiding it
-   would delete the one piece of info (which event this data is about) that makes the panel useful.
-   Re-show it specifically inside .adm-hud. Specificity (0,5,0) — .mpanel-body + .adm-sec + .adm-hud
-   + .k-sec + :first-child — beats the general rule's (0,4,0) max (.mpanel-body + .adm-sec + .k-sec
-   + :first-child) outright, and this rule also sits later in source order, so it wins either way.
-   display:flex matches .k-sec's own base rule (it needs display:flex for its align-items/
-   justify-content to do anything). */
-.mpanel-body > .adm-sec.adm-hud > .k-sec:first-child{display:flex}
-
 /* NEVER THE CONTROLS (2026-10-04). The rule above hides a wrapped component's first header as a
    duplicate of the panel's title — and with it everything in its right slot. Measured in the code:
    the Sales report's 7d/30d/90d (Sales was stuck on 30d), "+ Add" on Reserve drops and on Customer
    reviews (no way to add either), and Subscribers' "N due soon". The title is the duplicate; the
    controls and counts never were. A first header that carries a right slot keeps it, alone and
-   right-aligned. .adm-hud keeps its whole header by the rule above, so it is left out here. `*`
+   right-aligned. (.adm-hud is left out: it has no header since the live event's name rides on its fold's row,
+   2026-10-10, and the :not() is part of what outranks the hiding rule.) `*`
    covers .adm-sec too, and :not() + :has() outrank the hiding rule's specificity on their own. */
 .mpanel-body > *:not(.adm-hud) > .k-sec:first-child:has(> .k-sec-r),
 .mpanel-body > .k-sec:first-child:has(> .k-sec-r){display:flex;justify-content:flex-end;border-bottom:0;padding-bottom:0;margin:0 0 8px}
@@ -6203,23 +6192,10 @@ button.k-switch::after{content:"";position:absolute;inset:-7px -2px}
 .osr-chip.zero.on{border-color:var(--warn);color:var(--warn);background:rgba(200,120,40,.08)}
 .osr-audit-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .osr-total{margin-right:auto;font-family:'Archivo Black';font-size:15px;color:var(--gold2)}
-.kpib{display:flex;flex-direction:column;gap:7px;margin-top:10px}
-.kpib-row{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.18);border:1px solid var(--line2);border-radius:11px;padding:9px 12px}
-.kpib-l{flex:1;min-width:0;font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream);display:flex;flex-direction:column}
-.kpib-l i{font-style:normal;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-m)}
-.kpib-v{font-family:'DM Mono',ui-monospace,monospace;font-size:13px;color:var(--cream);display:flex;align-items:center;gap:5px}
-.kpib-t{font-style:normal;color:var(--ok)}.kpib-t.down{color:var(--warn)}
-.kpib-in{display:flex;gap:6px}
-.kpib-in input{width:104px;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:7px 10px;color:var(--cream);font-family:'DM Mono',ui-monospace,monospace;font-size:16px;outline:none}
-.kpib-in button{background:color-mix(in srgb, var(--brand-gold2) 10%, transparent);border:1px solid var(--gold2);border-radius:9px;padding:6px 11px;color:var(--gold2);font-family:'Inter';font-weight:700;font-size:11px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.kpib-in button:disabled{opacity:.45;cursor:default}
 /* Day surfaces for rows whose night fill is see-through black (2026-10-07). */
-.app.crew-day .util-row,.app.crew-day .kpib-row{background:var(--ink-onLight-03)}
-.app.crew-day .kpib-in input{background:var(--card)}
+.app.crew-day .util-row{background:var(--ink-onLight-03)}
 .pipe-pri{font-style:normal;font-family:'Archivo Black';font-size:11px;letter-spacing:.05em;border-radius:var(--r-sm);padding:2px 6px;color:#1c1712;background:var(--cream-m)}
 .pipe-pri.p1{background:var(--gold2)}.pipe-pri.p2{background:#b8902f}
-.osr-add{display:flex;gap:8px;align-items:center;margin:10px 0 2px}
-.osr-add .note-in{flex:1;margin:0}
 .osr-remove{margin-top:2px;align-self:flex-start}
 /* ── 0267 do-all round (2026-08-03) — utilization report, day headline, KPI live chips,
    brew taste-ack, pre-revenue staging line. */
@@ -6405,7 +6381,6 @@ div.owed-row-go{cursor:default}
 .dayhead-op-go,.owed-row-go{display:flex;align-items:center;gap:10px;width:100%;min-width:0;min-height:44px;margin:0;padding:0;background:none;border:none;text-align:left;color:inherit;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}
 .dayhead-op-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .dayhead-op .myday-brief{margin:8px 0 0}
-.kpib-live{font-style:normal;margin-left:6px;color:#5b9a6b;letter-spacing:.6px}
 
 /* ── activation economics (0268) — uplift rail · activity desk · loop log · coupon landing ── */
 .pipe-uplift{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--cream-m);padding:2px 12px 8px;letter-spacing:.2px}
