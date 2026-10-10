@@ -83,7 +83,7 @@ p,.entry-why,.gl-uc,.k-sub{text-wrap:pretty}
      Promoted to :root so they resolve everywhere; identical values, so AskGT3's .oa block below is
      now a harmless redundant re-declaration, not a behavior change. */
   --oa-cream:#F5F1E8;--oa-cream-dim:color-mix(in srgb, var(--brand-cream) 60%, transparent);--oa-cream-faint:color-mix(in srgb, var(--brand-cream) 48%, transparent);
-  --oa-gold:#B8902F;--oa-red:#B82420;--oa-red-tint:color-mix(in srgb, var(--brand-red) 15%, transparent);--oa-hair:color-mix(in srgb, var(--brand-cream) 14%, transparent);--oa-green:#7FA86B;
+  --oa-gold:#B8902F;--oa-red:#B82420;--oa-hair:color-mix(in srgb, var(--brand-cream) 14%, transparent);--oa-green:#7FA86B;
   --char:#15120d;--char2:#1a1610;--char3:#100e0a;--card:#191510;--ink:#000;
   /* --gold2 is the de facto PRIMARY gold in practice (468 usages vs 137 for --gold) despite the name —
      --gold reads as the emphasis/deep variant. Not renaming (605 combined call sites depend on current
@@ -291,12 +291,9 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
    SectionHeader (components/kit.tsx) fully replaced this pattern already, this was dead CSS. */
 /* editorial process + pillars (Today / Arrival — typographic, no photos) */
 .pillar{display:flex;gap:14px;align-items:flex-start;padding:15px 2px;border-bottom:1px solid var(--line)}
-.pillar .pdot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;margin-top:6px}
 .pillar .px b{font-family:'Inter';font-weight:600;font-size:15px;letter-spacing:.2px;display:block}
 .pillar .px p{font-family:'Fraunces';font-style:italic;font-size:13px;line-height:1.5;color:var(--cream-m);margin:3px 0 0}
 /* front-door primary "Start your order" CTA */
-.arr-cta{margin-top:22px}
-.arr-order-sub{text-align:center;font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:9px}
 /* subscription pitch (storytelling) */
 .subpitch{margin-top:26px;border-radius:var(--r-4xl);padding:22px;background:linear-gradient(165deg,#1a160f,#100d09);border:1px solid rgba(184,144,47,.3);box-shadow:0 10px 30px rgba(0,0,0,.36)}
 .subpitch .eyb{font-family:'Inter';font-weight:650;letter-spacing:2px;text-transform:uppercase;font-size:11px;color:var(--gold2)}
@@ -1524,14 +1521,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .acs-guest p{margin:9px 0 16px;font-family:'Inter';font-size:15px;color:var(--cream-m);line-height:1.5}
 
 /* ── DELIVERY AUDIENCE FORK (home / office) + OFFICE ORDER SHEET ── */
-.aud-fork{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0 6px}
-.aud{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;cursor:pointer;background:var(--card);border:1px solid var(--line);border-radius:var(--r-3xl);padding:14px 15px;-webkit-appearance:none;appearance:none;transition:transform .14s ease,border-color .14s ease}
-.aud:active{transform:scale(.98)}
-.aud.on{border-color:var(--red);background:linear-gradient(160deg,rgba(224,69,63,.09),var(--card))}
-.aud-ic{font-size:22px;line-height:1}
-.aud b{font-family:'Inter';font-weight:750;font-size:16px;color:var(--cream);margin-top:5px}
-.aud-d{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-m)}
-.aud.on .aud-d{color:var(--red-h,#d64b46)}
 .aud-office{margin-top:10px;display:flex;flex-direction:column;gap:14px}
 /* sheet */
 .office-head{display:flex;align-items:center;width:100%}
@@ -3607,8 +3596,8 @@ body:has(.conc-sheet) .rail{display:flex}
 .oa-tile .oa-c{font-family:'Archivo Black',sans-serif;font-size:28px;line-height:1}
 .oa-tile .oa-u{font-size:11px;letter-spacing:.1em;color:var(--oa-cream-faint);margin-top:5px;font-weight:600}
 .oa-tile .oa-p{font-family:'DM Mono',monospace;font-size:15px;color:var(--oa-gold);margin-top:7px;font-weight:500}
-.oa-tile.sel{border-color:var(--oa-red);border-width:2px;background:var(--oa-red-tint)}
-.oa-tile .oa-tag{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:11px;letter-spacing:.08em;font-weight:700;color:var(--oa-cream);background:var(--oa-red);padding:2px 6px;border-radius:var(--r-4xl);white-space:nowrap;opacity:0;transition:.16s}
+.oa-tile.sel{border-color:var(--gold2);border-width:2px;background:color-mix(in srgb, var(--brand-gold2) 10%, transparent)}
+.oa-tile .oa-tag{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:11px;letter-spacing:.08em;font-weight:700;color:var(--char);background:var(--gold2);padding:2px 6px;border-radius:var(--r-4xl);white-space:nowrap;opacity:0;transition:.16s}
 .oa-tile.sel .oa-tag{opacity:1}
 /* delivery: FREE DELIVERY is a standing incentive, not a selected-state label — always visible */
 .oa-tile .oa-tag.on{opacity:1}
@@ -3810,7 +3799,7 @@ body:has(.conc-sheet) .rail{display:flex}
 .mpack-row:last-of-type{border-bottom:none}
 .mpack-n{font-family:'Inter';font-size:13px;color:#33301f;white-space:nowrap}
 .mpack-n b{font-family:'DM Mono',monospace;font-size:16px;margin-right:4px}
-.mpack-tag{font-style:normal;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#B82420;border:1px solid color-mix(in srgb, var(--brand-red) 35%, transparent);border-radius:var(--r-4xl);padding:2px 7px;margin-left:8px;vertical-align:2px;white-space:nowrap}
+.mpack-tag{font-style:normal;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2);border:1px solid color-mix(in srgb, var(--brand-gold2) 45%, transparent);border-radius:var(--r-4xl);padding:2px 7px;margin-left:8px;vertical-align:2px;white-space:nowrap}
 .mpack-px{font-family:'Inter';font-size:13px;color:#6f6a59;text-align:right}
 .mpack-px b{color:#221f18;font-family:'DM Mono',monospace;font-size:13px}
 .mpack-note{font-family:'Inter';font-size:12px;line-height:1.55;color:#6f6a59;margin:10px 0 12px}
@@ -4883,7 +4872,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .of-seg button:active{transform:scale(.97)}
 .of-seg button b{font-family:'Inter';font-weight:800;font-size:15px;letter-spacing:.01em;color:var(--cream-m)}
 .of-seg button span{font-family:'Inter';font-size:11px;color:var(--cream-d);line-height:1.2}
-.of-seg button.on{background:var(--oa-red-tint);border-color:var(--oa-red);box-shadow:0 0 34px -12px color-mix(in srgb, var(--brand-red) 50%, transparent)}
+.of-seg button.on{background:color-mix(in srgb, var(--brand-gold2) 10%, transparent);border-color:var(--gold2)}
 .of-seg button.on b{color:var(--cream)}
 .of-seg button.on span{color:var(--gold2)}
 
@@ -5175,9 +5164,6 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .app.crew-day .svc-enter-s b{color:var(--cream)}
 
 /* delivery landing — the hero the option deserves */
-.dl-hero{margin:6px 0 18px;padding:20px 18px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(160deg,color-mix(in srgb, var(--brand-gold2) 10%, transparent),color-mix(in srgb, var(--brand-gold2) 2%, transparent))}
-.dl-h-xl{font-size:34px;line-height:1.08;margin-bottom:10px}
-.dl-h-xl em{font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;color:var(--red-h)}
 .dl-zlead{font-weight:600;color:var(--cream)}
 .dl-ziprow-xl .auth-input{font-family:'DM Mono',monospace;font-size:20px;letter-spacing:.18em;text-align:center;padding:15px 10px;min-width:0;width:100%}  /* as tall as the ZIP field beside it, and never under 44 (2026-10-08) */
 
@@ -5186,8 +5172,7 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .oa-day{flex:1;min-width:130px;display:flex;flex-direction:column;gap:3px;align-items:flex-start;text-align:left;background:none;border:1px solid var(--line2);border-radius:var(--r-xl);padding:11px 13px;cursor:pointer;-webkit-appearance:none;appearance:none;color:var(--cream)}
 .oa-day b{font-family:'Inter';font-weight:750;font-size:13px}
 .oa-day span{font-family:'Inter';font-size:11px;color:var(--cream-m)}
-.oa-day.sel{border-color:var(--red);background:color-mix(in srgb, var(--brand-red) 10%, transparent)}
-.oa-day.sel b{color:var(--red-h)}
+.oa-day.sel{border-color:var(--gold2);background:color-mix(in srgb, var(--brand-gold2) 10%, transparent)}
 
 /* your packs — compact rows */
 .mypack-row{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;background:none;border:none;padding:0;cursor:pointer;-webkit-appearance:none;appearance:none;color:var(--cream);font-family:'Inter';font-size:13px;text-align:left}
@@ -6610,8 +6595,6 @@ div.owed-row-go{cursor:default}
   --gold:#86581f; --gold2:#7a5a1e; --bronze:#7d5622; --oa-gold:#7a5a1e;
   --muted:rgba(34,31,24,.66); --ok:#3f6b2f; --warn:#8a5a17; --red-h:#9d1d1a;
   --ink-whisper:rgba(34,31,24,.64);
-  /* 15% brand red reads as loud pink on paper; 8% reads as a considered selection */
-  --oa-red-tint:color-mix(in srgb, var(--brand-red) 8%, transparent);
   --tone-ok:var(--ok); --tone-gold:var(--gold2); --tone-warn:var(--warn); --tone-crit:var(--red-h); --tone-blue:var(--color-info);
   --ink2-onLight-08:rgba(34,31,24,.08);   /* the kit's icon button's wash, in paper's ink (the checkout's − and +) */
 }
@@ -6629,7 +6612,6 @@ div.owed-row-go{cursor:default}
   --ink-whisper:color-mix(in srgb, var(--brand-cream) 50%, transparent);
   --tone-ok:var(--ok); --tone-gold:var(--gold2); --tone-warn:#cf9a4a; --tone-crit:var(--red-h); --tone-blue:#6fa8dc;
 }
-:is(.shop,.menu,.sheet,.sheet2) .oa-tile .oa-tag{--oa-cream:#F5F1E8;--cream:#F5F1E8}
 .shop-stmt{font-family:'Fraunces';font-style:italic;font-size:16px;line-height:1.5;color:#5a5142;margin:14px 0 20px;max-width:52ch}
 .shop-note{margin:24px 0;text-align:center;font-family:'Inter';font-size:15px;color:#5a5142}
 .shop-note.err{color:var(--red)}
