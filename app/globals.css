@@ -688,7 +688,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .tm-acts{display:flex;flex-wrap:wrap;align-items:center;gap:0 20px;margin-top:6px}
 .tm-act{display:inline-flex;align-items:center;gap:6px;min-height:44px;background:none;border:0;padding:0 2px;color:var(--gold2);font-family:'Inter';font-weight:650;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .tm-act svg{width:15px;height:15px}
-.tm-act .ev-chev{font-size:15px}
 .tm-scope{font-style:normal;font-family:'Inter';font-size:11px;color:var(--cream-d);padding-left:2px}
 .tm-loyalty{margin-top:11px;padding-top:12px;border-top:1px solid var(--line)}
 .adm-fields{display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap}
@@ -4250,7 +4249,7 @@ body:has(.conc-sheet) .rail{display:flex}
 .app.crew-day .mpanel{background:var(--card)}
 .mpanel-h{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;background:transparent;border:none;padding:15px 16px;cursor:pointer;-webkit-appearance:none;appearance:none;text-align:left}
 .mpanel-t{font-family:'Inter';font-weight:700;font-size:13px;letter-spacing:.02em;color:var(--cream)}
-.mpanel-chev{flex:0 0 auto;color:var(--cream-m);font-size:20px;line-height:1;transition:transform .18s ease}
+.mpanel-chev{flex:0 0 auto;color:var(--cream-m);font-size:17px;line-height:1;transition:transform .18s ease}
 .mpanel.open .mpanel-chev{transform:rotate(90deg)}
 .mpanel-body{padding:0 14px 14px;animation:mpanelin .22s ease}
 @keyframes mpanelin{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
@@ -6179,7 +6178,7 @@ button.k-switch::after{content:"";position:absolute;inset:-7px -2px}
 .util-row{width:100%;text-align:left;cursor:pointer;-webkit-appearance:none;appearance:none;
   position:relative;padding-right:30px;font:inherit;color:inherit}
 @media (hover:hover){.util-row:hover{border-color:var(--gold2)}}
-.util-go{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--cream-m);font-size:16px}
+.util-go{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--cream-m);font-size:17px}
 
 /* ── ONE PERSON, ONE PLACE (0311) ─────────────────────────────────────────────────────────────
    The centre the fields were missing. Blocks read top to bottom in the order somebody needs them:
@@ -6273,9 +6272,14 @@ button.k-switch::after{content:"";position:absolute;inset:-7px -2px}
 .owed-k{font-family:var(--mono);font-size:11px;letter-spacing:.07em;
   text-transform:uppercase;color:var(--gold2)}
 
-.owed-row{display:flex;align-items:center;gap:10px;min-height:44px;padding:9px 12px;
-  border:1px solid var(--line);border-radius:var(--r-lg);background:var(--card);
+.owed-row{display:flex;align-items:center;gap:10px;min-height:44px;padding:9px 16px;
+  border:1px solid var(--line);border-radius:var(--r-2xl);background:var(--card);
   text-decoration:none;color:inherit}
+/* ONE LIST, ONE CARD (2026-10-10, the system pass): rows in a run are one grouped list, as on iOS — the panel's corner at the
+   ends, a hairline between. */
+.owed-row+.owed-row{margin-top:-2px;border-top-color:transparent;border-top-left-radius:0;border-top-right-radius:0}
+.owed-row:has(+.owed-row){border-bottom-left-radius:0;border-bottom-right-radius:0}
+button.owed-row:active,button.owed-row-go:active{background:var(--ink2-onLight-06)}
 /* Every row is a button now (2026-10-04 — they were <a href> full reloads). The reset the button
    rows below them never had: full width, left-aligned, the page's font rather than the browser's. */
 button.owed-row{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}
@@ -6301,7 +6305,7 @@ div.owed-row-go{cursor:default}
 .owed-age{flex:none;font-family:var(--mono);font-size:11px;
   color:var(--cream-m);white-space:nowrap;font-variant-numeric:tabular-nums}
 .owed-row.late .owed-age,.owed-age.late{color:var(--red-onLight)}
-.owed-c{flex:none;color:var(--cream-m);font-size:15px;line-height:1}
+.owed-c{flex:none;color:var(--cream-m);font-size:17px;line-height:1}
 .owed-more{align-self:flex-start;background:none;border:0;padding:10px 2px;min-height:44px;
   cursor:pointer;font-family:'Inter';font-size:13px;font-weight:650;color:var(--gold2);
   -webkit-appearance:none;appearance:none}

@@ -9385,6 +9385,17 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && !/<button\b/.test(header) && /badge=\{hdrToday\.length\} crit=\{hdrTodayCrit > 0\}/.test(header));
   ok("pills: the lane's sections are the kit's segmented control, the whole row wide",
     /<Segmented fill className=\{`lane-tabs mb-3\.5\$\{switcher \? " hidden! desk:flex!" : ""\}`\} label=\{lane\.label\} value=\{sec\}/.test(crew));
+  // ── THE SYSTEM PASS (2026-10-10, the 9→10 round): one list, one card; one chevron ──
+  ok("system pass: rows in a run are one grouped list, as iOS draws one — the panel's corner (r-2xl) and its 16px inset, rounded at the ends, a hairline between, and a press that shows",
+    /\.owed-row\{display:flex;align-items:center;gap:10px;min-height:44px;padding:9px 16px;\s*border:1px solid var\(--line\);border-radius:var\(--r-2xl\);/.test(css)
+    && /\.owed-row\+\.owed-row\{margin-top:-2px;border-top-color:transparent;border-top-left-radius:0;border-top-right-radius:0\}/.test(css)
+    && /\.owed\{display:flex;flex-direction:column;gap:2px;/.test(css)
+    && /\.owed-row:has\(\+\.owed-row\)\{border-bottom-left-radius:0;border-bottom-right-radius:0\}/.test(css)
+    && /button\.owed-row:active,button\.owed-row-go:active\{background:var\(--ink2-onLight-06\)\}/.test(css)
+    && /\.mpanel\{[^}]*border-radius:var\(--r-2xl\)/.test(css) && /\.mpanel-h\{[^}]*padding:15px 16px;/.test(css));
+  ok("system pass: one chevron — a row's, a panel's, a card's and a utility's › are one size (17px) in one ink",
+    ["owed-c", "mpanel-chev", "ev-chev", "acs-row-c", "util-go"].every((c) => new RegExp(`\\.${c}\\{[^}]*color:var\\(--cream-m\\)`).test(css) && new RegExp(`\\.${c}\\{[^}]*font-size:17px`).test(css))
+    && !/\.tm-act \.ev-chev\{font-size:15px\}/.test(css));
   const retired = ["crew-bell", "crew-jump", "crew-guide", "modesw", "grp-seg", "grp-toggle", "adm-pill"];
   const stillWritten = retired.filter((c) => new RegExp(`["'\`\\s]${c}(["'\`\\s$]|-)`).test(crew + read("components/Owed.tsx") + read("components/ReviewsAdmin.tsx") + read("components/OperatorNav.tsx")));
   ok("pills: no screen writes a retired pill (crew-bell, crew-jump, crew-guide, modesw, grp-seg, grp-toggle, adm-pill), and the stylesheet styles none",
