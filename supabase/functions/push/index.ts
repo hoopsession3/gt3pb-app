@@ -3,8 +3,10 @@
 // INSERT, alerts INSERT, event_tasks UPDATE, profiles INSERT, delivery_orders INSERT,
 // drop_orders INSERT, live_status UPDATE — the customer go-live ping, 0257).
 // Secrets: VAPID_PUBLIC, VAPID_PRIVATE. SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are auto-injected.
-// The iPhone app (2026-10-11): APNS_KEY_ID and APNS_PRIVATE_KEY (an Apple Developer key with Apple Push Notifications
-// service, its .p8's text), and APNS_TEAM_ID (7SC4HB6V2J). Without them an 'apns' row is skipped, never an error.
+// The iPhone app (2026-10-11): APNS_PRIVATE_KEY, the .p8's text of the Apple Developer key "GT3 Push Notifications"
+// (APNs, Production, team-scoped) — a secret, set in the dashboard. Its Key ID (HQ7722ND83) and the team (7SC4HB6V2J)
+// are not secrets — Apple reads both off every token's header — so they are written here, and APNS_KEY_ID /
+// APNS_TEAM_ID override them if a key is ever replaced. Without the private key an 'apns' row is skipped, never an error.
 // Deploy: Supabase dashboard -> Edge Functions -> "push" -> paste -> deploy.
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -41,7 +43,7 @@ async function apnsBearer(): Promise<string | null> {
 }
 
 async function signApns(): Promise<string | null> {
-  const keyId = Deno.env.get("APNS_KEY_ID"), pem = Deno.env.get("APNS_PRIVATE_KEY"), team = Deno.env.get("APNS_TEAM_ID") || "7SC4HB6V2J";
+  const keyId = Deno.env.get("APNS_KEY_ID") || "HQ7722ND83", pem = Deno.env.get("APNS_PRIVATE_KEY"), team = Deno.env.get("APNS_TEAM_ID") || "7SC4HB6V2J";
   if (!keyId || !pem) return null;
   const now = Math.floor(Date.now() / 1000);
   // A key pasted with its line breaks written out as "\n" is the same key.
