@@ -19,7 +19,7 @@ import {
   type Module, type Product, type QuizQ, type Role, type Ack, type AssignmentLike,
 } from "@/lib/academy";
 import { staffAccess } from "@/lib/access";
-import { useBackStep } from "@/components/useBack";
+import { useBackStep } from "@/components/useBackStep";
 import Button from "@/components/Button";
 
 // What a level is held to, as opposed to what it has been taught. Four separate things on purpose:

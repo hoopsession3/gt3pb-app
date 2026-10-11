@@ -6,7 +6,7 @@ import { staffAccess } from "@/lib/access";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import dynamic from "next/dynamic";
 import Icon from "@/components/Icon";
-import { useBackStep } from "@/components/useBack";
+import { useBackStep } from "@/components/useBackStep";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { ARCHITECTURE, ARCH_OVERVIEW, DATABASES, BUSINESS, BUSINESS_OVERVIEW, BUILD_STATS, MANAGE_LABEL, STATUS_LABEL, sotUrl, type ArchLayer, type ArchComponent, type ArchStatus, STATUS_TONE, MANAGE_TONE } from "@/lib/architecture";

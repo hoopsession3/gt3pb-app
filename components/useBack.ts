@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useEffectEvent, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { appHistory } from "@/lib/appHistory";
 import { isTabRoot, titleOf, upOf } from "@/lib/routeTitles";
@@ -43,24 +43,4 @@ export function useBack(): BackWay | null {
   const prev = hist.previous();
   if (prev) return { label: titleOf(prev), go: () => hist.back() };
   return toUp;
-}
-
-/** A view a screen opens inside itself — an Academy lesson, a layer of the system map — is a step: Back (the
- *  bar's ‹, the edge swipe, Android's, the browser's) closes it, and the bar names where that goes
- *  ("‹ Academy"), where the view used to carry a ‹ of its own that scrolled away. `label` null: no step. */
-export function useBackStep(label: string | null, close: () => void): void {
-  const closeNow = useEffectEvent(close);
-  useEffect(() => {
-    if (!label) return;
-    // The view opens at its top, and the screen it was opened from comes back where it was left — as a view
-    // pushed on an iPhone does. (A lesson used to open as far down as its list had been scrolled.)
-    const body = document.getElementById("body");
-    const was = body?.scrollTop ?? 0;
-    if (body) body.scrollTop = 0;
-    const end = appHistory()?.step({ label, back: () => { closeNow(); return true; } });
-    return () => {
-      end?.();
-      if (body) requestAnimationFrame(() => { body.scrollTop = was; });
-    };
-  }, [label]);
 }

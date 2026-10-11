@@ -58,7 +58,8 @@ import { goPlanTab, isPlanTab, planTabFromUrl, stampPlanTab, PLAN_TAB_KEY, PLAN_
 import SwipePager from "@/components/SwipePager";
 import SwipeRow, { type RowAction } from "@/components/SwipeRow";
 import LongPress, { useLongPress, RowMenu, type MenuItem } from "@/components/LongPress";
-import { useBack, useBackStep } from "@/components/useBack";
+import { useBack } from "@/components/useBack";
+import { useBackStep } from "@/components/useBackStep";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
 import { queueOrderStatus, queueCollectCup, isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
@@ -2089,8 +2090,14 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [generating, setGenerating] = useState(false);
   const [assignFor, setAssignFor] = useState<EventTask | null>(null);
   const [showSupplies, setShowSupplies] = useState(false);
-  // Breadcrumb: Prep › <this target>. Clicking the "Prep" root (or the name) steps back to the list.
+  // Breadcrumb: Readiness › <this target>. Clicking the "Readiness" root steps back to the list.
   useCrumb("prep-detail", name ?? (isEvent ? "Event" : "Location"), onBack);
+  // ONE WAY BACK, NAMED FOR WHERE IT GOES (2026-10-11, Ryan: "the bread crumb trail is not flawless"). The detail
+  // is a screen pushed over the list, as on an iPhone: the bar's ‹ says "Readiness" and takes you there, the edge
+  // swipe does the same, the detail opens at its top and the list comes back scrolled where you left it
+  // (components/useBackStep). Its own "‹ All prep" — a third name for the same place, in the page, that scrolled
+  // away with it — is gone; the trail over the title says Readiness › this one.
+  useBackStep(SEC_LABEL.prep, onBack);
   // Recents: remember this event/stop so ⌘K can jump straight back to it later.
   useEffect(() => { if (name) recordRecent(isEvent ? "event" : "stop", target.id, name); }, [name, isEvent, target.id]);
   const [openThread, setOpenThread] = useState<string | null>(null);
@@ -2431,18 +2438,18 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
         if (name === null) {
           return (
             <div className="adm-sec adm-prep">
-              <button className="adm-prep-back" onClick={onBack}>‹ All prep</button>
               <EmptyState title={`${isEvent ? "Event" : "Location"} not found`} sub="It may have been removed." />
             </div>
           );
         }
         return (
     <div className="adm-sec adm-prep">
-      <button className="adm-prep-back" onClick={onBack}>‹ All prep</button>
       <SectionHeader label={name ?? "…"} annotation="prep" right={<>
         {isEvent && ev?.is_live && <span className="k-count due">LIVE</span>}
         {!isEvent && <span className="k-count">Location</span>}
       </>} />
+      {/* the title bar (components/TitleBar) names this one, not the section, once its name has scrolled away */}
+      <div data-large-title data-title={name} aria-hidden className="h-0" />
       {/* Identity / date / place / status — managed right here, so a stop or event is one screen
           end to end. The wrapper id is the scoped "Days to go" KPI tile's drill target. */}
       <div id="prep-target-details">
@@ -2611,15 +2618,24 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       {onHand.length > 0 && (
         <div className="onhand carryin">
           <div className="onhand-h"><Icon name="package" /> On hand now <span>carried in — correct any count</span></div>
-          {onHand.map((o) => (
-            <div key={o.item} className="onhand-row">
-              <span className="onhand-label">{o.item}</span>
-              <span className="onhand-nums">
-                <input type="number" className="onhand-in" defaultValue={o.bal} onBlur={(e) => adjustOnHand(o.item, e.target.value)} aria-label={`On hand ${o.item}`} />
-                <span className="onhand-of">on hand</span>
-              </span>
-            </div>
-          ))}
+          {onHand.map((o) => {
+            // UNDER ZERO IS NOT A COUNT (2026-10-11, Ryan's screenshot: −420, −1.5 and −24 in boxes wider than the
+            // names beside them, each name broken over six lines). A shelf reads below zero when more was logged as
+            // used than was ever logged in, so nobody knows what is on it: the row asks for a count instead of
+            // offering the minus sign as one, and leaving its box empty writes nothing. The box is a number's width
+            // (it took the row and left the name 28px), so a name keeps its line.
+            const unknown = o.bal < 0;
+            return (
+              <div key={o.item} className="onhand-row">
+                <span className="onhand-label">{o.item}{unknown && <span className="block text-caption text-warn">More was used than logged in — count it</span>}</span>
+                <span className="onhand-nums">
+                  <input type="number" inputMode="decimal" min="0" className="onhand-in w-22 tabular-nums" defaultValue={unknown ? "" : o.bal} placeholder={unknown ? "Count" : undefined}
+                    onBlur={(e) => { if (unknown && e.target.value.trim() === "") return; adjustOnHand(o.item, e.target.value); }} aria-label={`On hand ${o.item}`} />
+                  <span className="onhand-of">on hand</span>
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -2633,7 +2649,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
               <div key={t.id} className={`onhand-row${a != null ? " done" : ""}`}>
                 <span className="onhand-label">{t.label}</span>
                 <span className="onhand-nums">
-                  <input type="number" min="0" className="onhand-in" defaultValue={a ?? ""} placeholder="—"
+                  <input type="number" inputMode="decimal" min="0" className="onhand-in w-22 tabular-nums" defaultValue={a ?? ""} placeholder="—"
                     onBlur={(e) => { if ((e.target.value === "" ? null : Number(e.target.value)) !== (a ?? null)) confirmQty(t, e.target.value); }} aria-label={`Confirm actual for ${t.label}`} />
                   <span className="onhand-of">/ {plan}{a != null && <b className={short ? "shy" : "ok"}>{short ? `· ${plan - a} short` : "· on hand"}</b>}</span>
                 </span>

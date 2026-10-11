@@ -5584,7 +5584,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /if \(!all\.count\) return \{ count: null, to: null \};/.test(kpis) && /return \{ count: r\.count \?\? 0, to: r\.count \? undefined : null \};/.test(kpis)
     && /const to = r && r\.to !== undefined \? r\.to : t\.to;/.test(kpis) && /return to \? \(/.test(kpis) && /const lbl = r\?\.label \?\? t\.label;/.test(kpis));
   ok("prep: Complete waits for the day — it sat beside 'Confirmed' three weeks early",
-    /const arrived = !dateVal \|\| dateVal <= localToday\(\);/.test(own) && /\) : isAdmin && arrived \? \(/.test(own));
+    /const arrived = !day \|\| day <= localToday\(\);/.test(own) && /\) : isAdmin && arrived \? \(/.test(own));
   ok("prep: the five tools are one card each — Menu, Brew, Schedule, Load-out, Pack-out — none of them thin text",
     (crewSrc.match(/className="prep-collapse prep-tool"/g) || []).length === 5
     && /<b><Icon name="calendar" \/> Schedule<\/b>/.test(prep) && /<b><Icon name="package" \/> Pack-out plan<\/b>/.test(prep) && /<b><Icon name="coffee" \/> Brew<\/b>/.test(prep)
@@ -5593,10 +5593,36 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("prep: a menu chip that did not save goes back and says so — the write's result was ignored",
     /const \{ error \} = await supabase\.from\(table\)\.update\(patch\)\.eq\("id", ownerId\);\s*if \(error\) \{ setF\(before\); toast\(/.test(crewSrc));
   ok("prep: the controls that measured 22–28px have the 44 every other one there has (Add to calendar is the kit's quiet button, 44 to the thumb)",
-    /\.admin \.adm-prep-back\{min-height:44px\}/.test(css) && /className="btn-ter ml-auto"/.test(read("components/crew/OwnerDetails.tsx"))
+    !/adm-prep-back/.test(css) && /className="btn-ter ml-auto"/.test(read("components/crew/OwnerDetails.tsx"))
     && /<Button type="button" kind="quiet" onClick=\{\(\) => setOpen\(\(o\) => !o\)\} aria-haspopup="menu"/.test(read("components/AddToCalendar.tsx")));
   ok("prep: the screen is painted and held by the design ratchet", /scripts\/fixtures\/prep-target\.html/.test(read("scripts/design.ratchet.mjs"))
     && /export const PREP_TARGET = \{ depth: 2, tap: 44, text: 11 \};/.test(read("scripts/design.ratchet.mjs")));
+  // 2026-10-11, Ryan: "the bread crumb trail is not flawless .. and after you complete an edit or save something you
+  // don't land in good spot". The detail is a pushed screen (iOS hierarchical navigation); an edit is a sheet over a
+  // page that does not move (iOS modality); focus goes back to the control you came from without scrolling.
+  const sheetSrc = code(read("components/Sheet.tsx"));
+  ok("prep: one way back, named for where it goes — the detail is a step (‹ Readiness, the edge swipe, the list's scroll kept), and its in-page ‹ All prep is gone",
+    /useBackStep\(SEC_LABEL\.prep, onBack\);/.test(prep) && /useCrumb\("prep-detail", name \?\? \(isEvent \? "Event" : "Location"\), onBack\);/.test(prep)
+    && /<div data-large-title data-title=\{name\} aria-hidden className="h-0" \/>/.test(prep) && !/All prep/.test(crewSrc) && !/adm-prep-back/.test(crewSrc)
+    && !/adm-prep-back/.test(read("scripts/fixtures/prep-target.html")));
+  ok("prep: Edit details opens a sheet over a page that holds still — Cancel and Save leave it as it was, the record behind it never shows the draft",
+    /<Sheet open onClose=\{closeEdit\} className="dp-form" label=\{`Edit \$\{what\}`\} dirty=\{dirty\} dismissible=\{!saving\}/.test(own)
+    && /const shown = \(edit && kept\?\.page\) \|\| f;/.test(own) && /<LeaveButton className="note-arch" onClick=\{closeEdit\} disabled=\{saving\}>Cancel<\/LeaveButton>/.test(own)
+    && /onClick=\{openEdit\}>Edit details<\/button>/.test(own) && !/ownerdet editing/.test(own) && !/\.ownerdet\.editing/.test(css)
+    && /edited\(f, kept\.form, isEvent \? EVENT_SAVES : STOP_SAVES\)/.test(own));
+  const ub = code(read("components/useBackStep.ts"));
+  ok("steps: the screen a view was opened from comes back where it was — read at the click, before the view's loading line can pull the scroll to 0 (in its own file: the title bar on every page reads useBack, not this)",
+    /let clickAt = \{ t: -Infinity, y: 0 \};/.test(ub) && /document\.addEventListener\("click", \(\) => \{ clickAt = \{ t: performance\.now\(\), y: document\.getElementById\("body"\)\?\.scrollTop \?\? 0 \}; \}, \{ capture: true, passive: true \}\);/.test(ub)
+    && /const was = performance\.now\(\) - clickAt\.t < 1000 \? clickAt\.y : body\?\.scrollTop \?\? 0;/.test(ub) && /requestAnimationFrame\(\(\) => \{ body\.scrollTop = was; \}\);/.test(ub)
+    && !/useBackStep|clickAt/.test(code(read("components/useBack.ts"))) && !/useBackStep/.test(read("components/TitleBar.tsx")));
+  ok("sheets: focus goes back to the control that opened one, and the page under it does not move",
+    /const giveBack = \(el: HTMLElement\) => el\.focus\?\.\(\{ preventScroll: true \}\);/.test(sheetSrc) && !/el\.focus\?\.\(\)/.test(sheetSrc)
+    && (sheetSrc.match(/giveBack\(el\)/g) || []).length === 3);
+  ok("prep: on hand — each box is a number wide, so a name keeps its line; under zero asks for a count, and an empty box writes nothing",
+    (prep.match(/className="onhand-in w-22 tabular-nums"/g) || []).length === 2 && /const unknown = o\.bal < 0;/.test(prep)
+    && /defaultValue=\{unknown \? "" : o\.bal\} placeholder=\{unknown \? "Count" : undefined\}/.test(prep)
+    && /onBlur=\{\(e\) => \{ if \(unknown && e\.target\.value\.trim\(\) === ""\) return; adjustOnHand\(o\.item, e\.target\.value\); \}\}/.test(prep)
+    && /More was used than logged in — count it/.test(prep));
 }
 
 // ── MONEY AT THE WINDOW, AND INVOICES THAT FALL DUE (2026-10-04, 0341) ─────────────────────────────

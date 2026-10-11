@@ -13,6 +13,11 @@ import { FRAME_QUERY, fieldsIn, opensHalf, recedes, stepBack } from "@/lib/sheet
 const SheetMotion = dynamic<SheetMotionProps>(() => import("./SheetMotion"), { ssr: false });
 
 const FOCUSABLE = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
+// Focus goes back to what opened the sheet — and the page stays where it is (2026-10-11, Ryan: "after you complete
+// an edit or save something you don't land in good spot"). A plain focus() scrolls its element into view, so a sheet
+// opened from a row the page had partly scrolled under the title bar moved the page when it closed. The page under a
+// sheet is exactly where it was left, as on an iPhone; the focus ring still says which control you came from.
+const giveBack = (el: HTMLElement) => el.focus?.({ preventScroll: true });
 
 // THE canonical popout. One implementation, so the scroll contract, safe-area, keyboard-awareness,
 // spring-in, and swipe-to-dismiss are guaranteed identical everywhere — no per-sheet drift. Bottom
@@ -155,7 +160,7 @@ export default function Sheet({
     if (restoreRef.current) {
       const el = restoreRef.current;
       restoreRef.current = null;
-      el.focus?.();
+      giveBack(el);
     }
     closeT.current = setTimeout(() => {
       closeT.current = null;
@@ -254,13 +259,13 @@ export default function Sheet({
     if (!el || !el.isConnected) return;
     const now = document.activeElement;
     if (now && now !== document.body && now.isConnected) return;
-    requestAnimationFrame(() => el.focus?.());
+    requestAnimationFrame(() => giveBack(el));
   }, []);
   useEffect(() => {
     if (phase !== "closed" || !restoreRef.current) return;
     const el = restoreRef.current;
     restoreRef.current = null;
-    requestAnimationFrame(() => el.focus?.());
+    requestAnimationFrame(() => giveBack(el));
   }, [phase]);
   const onTab = useEffectEvent((e: KeyboardEvent) => {
     if (e.key !== "Tab" || stack[stack.length - 1] !== me) return;

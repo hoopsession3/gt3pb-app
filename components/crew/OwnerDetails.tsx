@@ -17,6 +17,8 @@ import { localToday } from "@/lib/dates";
 import VenuePick from "@/components/VenuePickLazy";
 import type { VenueFill } from "@/lib/venues";
 import { haptic } from "@/lib/haptics";
+import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
+import { edited } from "@/lib/formGuard";
 
 // OWNER DETAILS — the edit sheet behind a truck stop or an event.
 //
@@ -29,6 +31,11 @@ import { haptic } from "@/lib/haptics";
 // that file, this one referenced only ONE thing declared alongside it (derivedStopStatus, which had
 // already moved to lib/stopRecord in the commit before this).
 
+type Rec = Record<string, string | null>;
+// What save() writes, so leaving the sheet asks "Discard your changes?" only when one of them moved (lib/formGuard).
+const EVENT_SAVES = ["title", "day", "location_text", "vendor_id", "default_buffer_min", "stage"] as const;
+const STOP_SAVES = ["name", "starts_at", "ends_at", "location_text", "address", "vendor_id", "default_buffer_min", "status"] as const;
+
 export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { ownerType: "event" | "stop"; ownerId: string; isAdmin: boolean; onSaved: (name: string) => void; onRemoved: () => void }) {
   const confirm = useConfirm();
   const { toast } = useApp();
@@ -39,8 +46,17 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
   const opsKey = isEvent ? "event_id" : "stop_id";
   const nameCol = isEvent ? "title" : "name";
   const what = isEvent ? "event" : "truck stop";
-  const [f, setF] = useState<Record<string, string | null> | null>(null);
+  const [f, setF] = useState<Rec | null>(null);
   const [edit, setEdit] = useState(false);
+  // EDITING IS A SHEET OVER THE PAGE (2026-10-11, Ryan: "after you complete an edit or save something you don't land
+  // in good spot"). "Edit details" swapped the record for its form in place: a form 1,121px tall, Save at its foot,
+  // so you scrolled down to reach Save, the form folded back to a few lines, and you were left where it had ended —
+  // the record off the top, On hand now in the middle of the screen. Now it opens the way an iPhone's Edit does
+  // (Calendar, Contacts): a sheet with Cancel and Save over a page that does not move, which is exactly as you left
+  // it when the sheet goes — with the new details — and the button you came from has focus again. `f` is the draft
+  // the sheet types into; the page shows `kept.page`, the record as it stood when the sheet opened, until it closes,
+  // and `kept.form` is what the form opened with — what "Discard your changes?" measures against.
+  const [kept, setKept] = useState<{ page: Rec; form: Rec } | null>(null);
   const [saving, setSaving] = useState(false);
   const [wrapping, setWrapping] = useState(false); // capturing the after-action to complete an event
   const [recap, setRecap] = useState("");
@@ -179,7 +195,8 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
     return typeof v === "number" ? v : null;
   };
   // date <-> column: events.day is a plain date; stops.starts_at is a timestamp (preserve time of day)
-  const dateVal = !f ? "" : isEvent ? (f.day || "") : (f.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : "");
+  const dayOf = (r: Rec | null): string => !r ? "" : isEvent ? (r.day || "") : (r.starts_at ? new Date(r.starts_at).toLocaleDateString("en-CA") : "");
+  const dateVal = dayOf(f);
   const onDate = (v: string) => {
     if (isEvent) { set("day", v || null); return; }
     if (!v) { set("starts_at", null); return; }
@@ -255,15 +272,42 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
       }
     }
     const { error } = await supabase.from(table).update(patch).eq("id", ownerId);
-    setSaving(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { setSaving(false); toast(`Couldn't save — ${error.message}`, "error"); return; }
     // Re-sync the local draft with the server row BEFORE leaving edit mode — a skipped
     // stage/status write (guard just above) must not leave the read-only view showing a
     // derived-only default that was never actually persisted (it would otherwise hide the
-    // Complete/recap prompt on a stop nobody has actually completed yet).
+    // Complete/recap prompt on a stop nobody has actually completed yet). The sheet holds, Save
+    // still "Saving…", until that read is back: a second tap cannot save twice.
     await ownerState.reload();
-    setEdit(false); onSaved(nm); toast(isEvent ? "Details saved" : "Saved — address pinned on the map");
+    setSaving(false);
+    setEdit(false); setKept(null); onSaved(nm); toast(isEvent ? "Details saved" : "Saved — address pinned on the map");
   };
+
+  // The sheet opens on the record as it stands. Seed the edit-guard baseline NOW, from what's about to
+  // show in the form — for stops, that's the date-derived default (not the raw column); see
+  // derivedStopStatus above.
+  const openEdit = () => {
+    if (!f) return;
+    const derived = isEvent ? (f.stage ?? null) : derivedStopStatus(f.status ?? null, f.starts_at ?? null, f.completed_at ?? null);
+    origStage.current = derived;
+    const form = !isEvent && derived !== f.status ? { ...f, status: derived } : f;
+    setKept({ page: f, form });
+    setF(form);
+    setEdit(true);
+  };
+  // Cancel, the X, the pull or a tap outside (after "Discard your changes?", when something was typed): the
+  // draft goes back to the record at once, and the read re-seeds the switches the form keeps beside it.
+  const closeEdit = () => {
+    if (kept) setF(kept.page);
+    setPin(undefined);
+    setEdit(false);
+    setKept(null);
+    ownerState.reload();
+  };
+  const was = ownerState.data?.d;
+  const dirty = edit && !!kept && (edited(f, kept.form, isEvent ? EVENT_SAVES : STOP_SAVES) || pin !== undefined
+    || (!isEvent && !!was && (oa !== !!was.order_ahead_enabled || pk !== !!was.pickup_enabled
+      || lead.trim() !== (was.order_ahead_lead_min != null ? String(was.order_ahead_lead_min) : ""))));
 
   return (
     <AsyncSection
@@ -276,27 +320,31 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
     >
       {() => {
         if (!f) return null;
-        if (!edit) {
-    const date = dateVal ? new Date(`${dateVal}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "No date set";
-    const place = f.location_text || f.address || "";
-    const status = isEvent ? f.stage : f.status;
+    // The page shows the record: while the sheet is open, the record as it stood when the sheet opened — never the
+    // draft being typed over it, so Cancel has nothing on the page to undo.
+    const shown = (edit && kept?.page) || f;
+    const day = dayOf(shown);
+    const date = day ? new Date(`${day}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "No date set";
+    const place = shown.location_text || shown.address || "";
+    const status = isEvent ? shown.stage : shown.status;
     const cal = isEvent
-      ? calFromEvent({ id: ownerId, title: f.title ?? "", day: f.day ?? null, location_text: f.location_text })
-      : calFromStop({ id: ownerId, name: f.name ?? "", starts_at: f.starts_at ?? null, location_text: f.location_text, address: f.address });
+      ? calFromEvent({ id: ownerId, title: shown.title ?? "", day: shown.day ?? null, location_text: shown.location_text })
+      : calFromStop({ id: ownerId, name: shown.name ?? "", starts_at: shown.starts_at ?? null, location_text: shown.location_text, address: shown.address });
     const STAGE_LABEL: Record<string, string> = { lead: "Lead", confirmed: "Confirmed", prep: "Prep", live: "Live", done: "Done", upcoming: "Upcoming" };
-    const done = f.completed_at != null || (isEvent ? f.stage === "done" : f.status === "done");
+    const done = shown.completed_at != null || (isEvent ? shown.stage === "done" : shown.status === "done");
     // COMPLETE IS FOR THE DAY IT HAPPENS (2026-10-04, Ryan's prep screen at 10:44 PM). "✓ Complete
     // event" sat beside "Confirmed" on the Dear Deandra Jazz Brunch three weeks out — a green button
     // that, tapped, takes an event nobody has worked yet off every upcoming list. It shows from the
     // day itself (or with no date at all, when there is nothing to wait for).
-    const arrived = !dateVal || dateVal <= localToday();
+    const arrived = !day || day <= localToday();
     return (
+      <>
       <div className="ownerdet">
         <span className="ownerdet-meta"><Icon name="calendar" /> {date}{place ? <> · <Icon name="pin" /> {place}</> : ""}</span>
         <div className="ownerdet-life">
           <span className={`ownerdet-stage st-${status ?? (isEvent ? "confirmed" : "upcoming")}`}>{STAGE_LABEL[status ?? ""] ?? status}</span>
           {done ? (
-            <span className="ownerdet-completed"><Icon name="check" /> Completed{f.completed_at ? ` ${new Date(f.completed_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</span>
+            <span className="ownerdet-completed"><Icon name="check" /> Completed{shown.completed_at ? ` ${new Date(shown.completed_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</span>
           ) : isAdmin && arrived ? (
             <button type="button" className="btn-pri btn-sm" onClick={() => { setRecap(f.recap ?? ""); setWrapping((w) => !w); }}><Icon name="check" /> Complete {isEvent ? "event" : "stop"}</button>
           ) : null}
@@ -318,82 +366,77 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
         {done && !wrapping && (f.recap
           ? <div className="ownerdet-recap"><b>Recap</b> {f.recap}{isAdmin && <button type="button" className="ownerdet-recap-edit" onClick={() => { setRecap(f.recap ?? ""); setWrapping(true); }}>edit</button>}</div>
           : isAdmin && <button type="button" className="btn-pri btn-sm" onClick={() => { setRecap(""); setWrapping(true); }}>Add the after-action note</button>)}
-        <AddToCalendar ev={cal} defaultBuffer={Number(f.default_buffer_min) || 0} />
-        {isAdmin && <button type="button" className="btn-ter ml-auto" onClick={() => {
-          // Seed the edit-guard baseline NOW, from what's about to show in the form — for stops,
-          // that's the date-derived default (not the raw column); see derivedStopStatus above.
-          const derived = isEvent ? (f.stage ?? null) : derivedStopStatus(f.status ?? null, f.starts_at ?? null, f.completed_at ?? null);
-          origStage.current = derived;
-          if (!isEvent && derived !== f.status) setF((p) => (p ? { ...p, status: derived } : p));
-          setEdit(true);
-        }}>Edit details</button>}
+        <AddToCalendar ev={cal} defaultBuffer={Number(shown.default_buffer_min) || 0} />
+        {isAdmin && <button type="button" className="btn-ter ml-auto" onClick={openEdit}>Edit details</button>}
       </div>
-    );
-  }
-  return (
-    <div className="ownerdet editing">
-      <input className="note-in" value={f[nameCol] ?? ""} onChange={(e) => set(nameCol, e.target.value)} placeholder={isEvent ? "Event name" : "Stop name"} aria-label={isEvent ? "Event name" : "Stop name"} />
-      <div className="ownerdet-typehint">{isEvent
-        ? <><Icon name="calendar" /> Event — a booked gig with prep, a crew & a run-of-show. (A quick roll-up-and-serve visit is a Truck stop.)</>
-        : <><Icon name="pin" /> Truck stop — you roll up, serve, and leave. (A booked gig with prep & crew should be an Event.)</>}</div>
-      {dupWarn && <div className="ownerdet-warn" role="status"><Icon name="warning" /> {dupWarn}</div>}
-      <div className="prod-grid" style={{ marginTop: 8 }}>
-        <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
-        {!isEvent && <label className="prod-f"><span>Start time</span><input type="time" value={timeVal} onChange={(e) => onTime(e.target.value)} /></label>}
-        {!isEvent && <label className="prod-f"><span>End time</span><input type="time" value={endTimeVal} onChange={(e) => onEndTime(e.target.value)} /></label>}
-      </div>
-      {/* The venue is picked (components/VenuePick — the same control as the stop sheet and the
-          event card), and what it fills stays editable below it. */}
-      <VenuePick kind={ownerType} source={isEvent ? "an event" : "a truck stop"} onChange={onVenue} style={{ marginTop: 8 }}
-        saved={(ownerState.data?.d.vendor_id as string | null | undefined) ?? null}
-        rec={{ vendor_id: f.vendor_id, name: f[nameCol], location_text: f.location_text, address: f.address, market: f.market, lat: pinOf("lat"), lng: pinOf("lng") }} />
-      <label className="prod-f" style={{ marginTop: 8 }}><span>Where</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>
-      {!isEvent && <label className="prod-f" style={{ marginTop: 8 }}><span>Address (tap-to-map)</span><input value={f.address ?? ""} onChange={(e) => { set("address", e.target.value); setPin(undefined); }} placeholder="123 Peach St, Atlanta GA" /></label>}
-      <label className="prod-f" style={{ marginTop: 8 }}><span>Status</span>
-        {isEvent ? (
-          <select value={f.stage ?? "confirmed"} onChange={(e) => set("stage", e.target.value)}>
-            <option value="lead">Lead</option><option value="confirmed">Confirmed</option><option value="prep">Prep</option><option value="live">Live</option><option value="done">Done</option>
-          </select>
-        ) : (
-          <select value={f.status ?? "upcoming"} onChange={(e) => set("status", e.target.value)}>
-            <option value="upcoming">Upcoming</option><option value="done">Done</option>
-          </select>
-        )}
-      </label>
-      <label className="prod-f" style={{ marginTop: 8 }}><span>Calendar buffer (min) — travel + setup blocked before service</span><input type="number" min={0} step={15} value={f.default_buffer_min ?? ""} onChange={(e) => set("default_buffer_min", e.target.value)} placeholder="e.g. 90" /></label>
-      {!isEvent && (
-        <div className="oa-set">
-          <div className="oa-set-h">Ordering at this stop</div>
-          <div className="oa-toggles">
-            <button type="button" role="switch" aria-checked={oa} className={`oa-toggle${oa ? " on" : ""}`} onClick={() => { if (oa) haptic("toggleOff"); else haptic("toggleOn"); setOa((v) => !v); }}><Icon name="clock" /> Order ahead<span>{oa ? "On" : "Off"}</span></button>
-            <button type="button" role="switch" aria-checked={pk} className={`oa-toggle${pk ? " on" : ""}`} onClick={() => { if (pk) haptic("toggleOff"); else haptic("toggleOn"); setPk((v) => !v); }}><Icon name="package" /> Pickup<span>{pk ? "On" : "Off"}</span></button>
+      {edit && (
+        <Sheet open onClose={closeEdit} className="dp-form" label={`Edit ${what}`} dirty={dirty} dismissible={!saving}
+          header={<div className="flex items-center"><b className="text-subhead font-semibold">Edit {what}</b><CloseButton onClick={closeEdit} /></div>}
+          footer={
+            <div className="flex items-center justify-between">
+              <LeaveButton className="note-arch" onClick={closeEdit} disabled={saving}>Cancel</LeaveButton>
+              <button type="button" className="btn-pri" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save details"}</button>
+            </div>
+          }>
+          <input className="note-in" value={f[nameCol] ?? ""} onChange={(e) => set(nameCol, e.target.value)} placeholder={isEvent ? "Event name" : "Stop name"} aria-label={isEvent ? "Event name" : "Stop name"} />
+          <div className="ownerdet-typehint">{isEvent
+            ? <><Icon name="calendar" /> Event — a booked gig with prep, a crew & a run-of-show. (A quick roll-up-and-serve visit is a Truck stop.)</>
+            : <><Icon name="pin" /> Truck stop — you roll up, serve, and leave. (A booked gig with prep & crew should be an Event.)</>}</div>
+          {dupWarn && <div className="ownerdet-warn" role="status"><Icon name="warning" /> {dupWarn}</div>}
+          <div className="prod-grid mt-2">
+            <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
+            {!isEvent && <label className="prod-f"><span>Start time</span><input type="time" value={timeVal} onChange={(e) => onTime(e.target.value)} /></label>}
+            {!isEvent && <label className="prod-f"><span>End time</span><input type="time" value={endTimeVal} onChange={(e) => onEndTime(e.target.value)} /></label>}
           </div>
-          {/* NAMED WHERE IT LIVES (2026-10-06, the settings round): "the global window" is the
-              cup-ordering dial, an owner's or admin's setting in Settings › Business › Ordering & delivery now —
-              no longer on Route. And "Now" has been called Live Ops for months. */}
-          {oa && <label className="prod-f" style={{ marginTop: 8 }}><span>Order-ahead lead time (min) — blank uses the truck&rsquo;s cup-ordering dial (Settings)</span><input type="number" min={0} step={15} value={lead} onChange={(e) => setLead(e.target.value)} placeholder="e.g. 240" /></label>}
-          <div className="ownerdet-hint">When on, guests can order ahead{pk ? " and choose pickup" : ""} for this stop. Off = the truck’s cup-ordering dial applies.</div>
-        </div>
+          {/* The venue is picked (components/VenuePick — the same control as the stop sheet and the
+              event card), and what it fills stays editable below it. */}
+          <VenuePick kind={ownerType} source={isEvent ? "an event" : "a truck stop"} onChange={onVenue} style={{ marginTop: 8 }}
+            saved={(ownerState.data?.d.vendor_id as string | null | undefined) ?? null}
+            rec={{ vendor_id: f.vendor_id, name: f[nameCol], location_text: f.location_text, address: f.address, market: f.market, lat: pinOf("lat"), lng: pinOf("lng") }} />
+          <label className="prod-f mt-2"><span>Where</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>
+          {!isEvent && <label className="prod-f mt-2"><span>Address (tap-to-map)</span><input value={f.address ?? ""} onChange={(e) => { set("address", e.target.value); setPin(undefined); }} placeholder="123 Peach St, Atlanta GA" /></label>}
+          <label className="prod-f mt-2"><span>Status</span>
+            {isEvent ? (
+              <select value={f.stage ?? "confirmed"} onChange={(e) => set("stage", e.target.value)}>
+                <option value="lead">Lead</option><option value="confirmed">Confirmed</option><option value="prep">Prep</option><option value="live">Live</option><option value="done">Done</option>
+              </select>
+            ) : (
+              <select value={f.status ?? "upcoming"} onChange={(e) => set("status", e.target.value)}>
+                <option value="upcoming">Upcoming</option><option value="done">Done</option>
+              </select>
+            )}
+          </label>
+          <label className="prod-f mt-2"><span>Calendar buffer (min) — travel + setup blocked before service</span><input type="number" min={0} step={15} value={f.default_buffer_min ?? ""} onChange={(e) => set("default_buffer_min", e.target.value)} placeholder="e.g. 90" /></label>
+          {!isEvent && (
+            <div className="oa-set">
+              <div className="oa-set-h">Ordering at this stop</div>
+              <div className="oa-toggles">
+                <button type="button" role="switch" aria-checked={oa} className={`oa-toggle${oa ? " on" : ""}`} onClick={() => { if (oa) haptic("toggleOff"); else haptic("toggleOn"); setOa((v) => !v); }}><Icon name="clock" /> Order ahead<span>{oa ? "On" : "Off"}</span></button>
+                <button type="button" role="switch" aria-checked={pk} className={`oa-toggle${pk ? " on" : ""}`} onClick={() => { if (pk) haptic("toggleOff"); else haptic("toggleOn"); setPk((v) => !v); }}><Icon name="package" /> Pickup<span>{pk ? "On" : "Off"}</span></button>
+              </div>
+              {/* NAMED WHERE IT LIVES (2026-10-06, the settings round): "the global window" is the
+                  cup-ordering dial, an owner's or admin's setting in Settings › Business › Ordering & delivery now —
+                  no longer on Route. And "Now" has been called Live Ops for months. */}
+              {oa && <label className="prod-f mt-2"><span>Order-ahead lead time (min) — blank uses the truck&rsquo;s cup-ordering dial (Settings)</span><input type="number" min={0} step={15} value={lead} onChange={(e) => setLead(e.target.value)} placeholder="e.g. 240" /></label>}
+              <div className="ownerdet-hint">When on, guests can order ahead{pk ? " and choose pickup" : ""} for this stop. Off = the truck’s cup-ordering dial applies.</div>
+            </div>
+          )}
+          {!isEvent && <div className="ownerdet-hint">Go live &amp; broadcast GPS from the Live truck card on Live Ops.</div>}
+          <div className="ownerdet-convert">
+            <span className="ownerdet-convert-l">Wrong type?</span>
+            <button type="button" className="btn-ter ml-auto" onClick={convertType} disabled={saving}>Change to {isEvent ? "truck stop" : "event"} ⇄</button>
+          </div>
+          <div className="ownerdet-danger">
+            <button type="button" className="btn-sec btn-sm flex-1" onClick={archive} disabled={saving}>Archive {what}</button>
+            <button type="button" className="btn-del flex-1 justify-center" onClick={del} disabled={saving}>Delete for good</button>
+          </div>
+        </Sheet>
       )}
-      {!isEvent && <div className="ownerdet-hint">Go live &amp; broadcast GPS from the Live truck card on Live Ops.</div>}
-      <div className="ownerdet-convert">
-        <span className="ownerdet-convert-l">Wrong type?</span>
-        <button type="button" className="btn-ter ml-auto" onClick={convertType} disabled={saving}>Change to {isEvent ? "truck stop" : "event"} ⇄</button>
-      </div>
-      <div className="ownerdet-danger">
-        <button type="button" className="btn-sec btn-sm flex-1" onClick={archive} disabled={saving}>Archive {what}</button>
-        <button type="button" className="btn-del flex-1 justify-center" onClick={del} disabled={saving}>Delete for good</button>
-      </div>
-      <div className="prod-actions" style={{ marginTop: 12 }}>
-        <button type="button" className="note-arch" onClick={() => { setEdit(false); ownerState.reload(); }} disabled={saving}>Cancel</button>
-        <button type="button" className="btn-pri" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save details"}</button>
-      </div>
-    </div>
-        );
+      </>
+    );
       }}
     </AsyncSection>
   );
 }
-
 // INCIDENT LOG — every field problem the Troubleshoot agent logged for this event/stop. Read it back,
 // flip resolved, or delete one. Self-contained; owner-generic.
