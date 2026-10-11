@@ -581,6 +581,192 @@ ok("0327: a healthy heartbeat raises nothing — the check still has to be able 
     `select count(*)::int n from public.schema_migrations where version='0340_three_things_the_inbox_still_said'`)).n === 1);
 }
 
+
+// ── 0369: THE PASS ALERT RINGS UNTIL THE PASS IS CLEAR ─────────────────────────────────────────────
+// 0336 made the pass's alert one line that cannot flood, and left three things wrong with it. Each is shown here
+// first the way 0336 does it, then fixed:
+//   1. a pre-order was counted from when it was placed, so one placed hours ahead of its stop rang ten minutes later;
+//   2. the open line was only ever UPDATED, and a push fans out on INSERT (0157 — recorded in test_pushes above): one
+//      ring, then silence for as long as the tickets waited, until an ack or 0258's sweep 21 days on;
+//   3. it never closed: an empty pass went on saying tickets were waiting.
+// Time passes the way it does above: every stored clock that matters is moved back. The orders table is the 0336
+// block's, with 0343's ready_from added from its own file.
+{
+  await db.exec(readFileSync(join(ROOT, "supabase/migrations/0343_a_pre_order_says_when_it_is_made.sql"), "utf8"));
+  await db.exec(`delete from public.alerts where kind = 'order_stale'; delete from public.orders;`);
+  const pushes = async () => Number((await q1(`select count(*) n from public.test_pushes`)).n);
+  const lines = async () => rows(`select id, title, ack_at, ack_by, created_at from public.alerts
+                                   where kind = 'order_stale' order by created_at, id`);
+  const open = async () => (await lines()).filter((a) => a.ack_at === null);
+  const run = async () => Number((await q1(`select public.alert_stale_orders(10) as n`)).n);
+  const later = (by) => {                                     // minutes, or an interval in words
+    const iv = typeof by === "number" ? `${by} minutes` : by;
+    return db.exec(`
+    update public.orders set created_at = created_at - interval '${iv}', ready_from = ready_from - interval '${iv}';
+    update public.alerts set created_at = created_at - interval '${iv}', last_seen_at = last_seen_at - interval '${iv}',
+                             ack_at = ack_at - interval '${iv}'
+     where kind = 'order_stale';`);
+  };
+  // A ticket placed `ago` minutes ago; `ahead`: placed that many minutes before its stop opens (0343's ready_from).
+  const place = async (ago, ahead = null) => (await q1(`insert into public.orders (status, created_at, ready_from)
+    values ('new', now() - interval '${ago} minutes',
+            ${ahead === null ? "null" : `now() - interval '${ago} minutes' + interval '${ahead} minutes'`}) returning id`)).id;
+  // pg_cron's */5, for `mins` minutes.
+  const cron = async (mins) => { for (let m = 5; m <= mins; m += 5) { await later(5); await run(); } };
+
+  // ── THE THREE, AS 0336 HAS THEM ──────────────────────────────────────────────────────────────
+  const p0 = await pushes();
+  await place(15, 180);                                       // a pre-order: its stop opens in 2h45m
+  ok("0336: a pre-order placed three hours ahead of its stop counts as waiting fifteen minutes after it was placed",
+    (await run()) === 1 && (await open()).length === 1 && (await pushes()) === p0 + 1, await lines());
+  await cron(120);
+  ok("0336: two more hours of it waiting, 24 runs — still the one line, and not one more push: it rang once",
+    (await lines()).length === 1 && (await open()).length === 1 && (await pushes()) === p0 + 1,
+    { lines: (await lines()).length, pushes: (await pushes()) - p0 });
+  await db.exec(`update public.orders set status = 'done'`);
+  ok("0336: the pass cleared, and the line still says a ticket is waiting", (await run()) === 0 && (await open()).length === 1);
+
+  // ── 0369 ─────────────────────────────────────────────────────────────────────────────────────
+  const sql369 = readFileSync(join(ROOT, "supabase/migrations/0369_the_pass_alert_rings_until_the_pass_is_clear.sql"), "utf8");
+  const pApply = await pushes();
+  await db.exec(sql369);
+  ok("0369 applies against a real Postgres", true);
+  const left = await lines();
+  ok("0369: applying it closes the line the cleared pass left open — the producer runs once, as its restatement",
+    (await open()).length === 0 && left.length === 1 && left[0].ack_at !== null, left);
+  ok("0369: …closed by the mechanism (ack_by null), kept for history, and nobody's phone rang for it",
+    left[0]?.ack_by === null && (await pushes()) === pApply, left[0]);
+
+  // ── 1 · LATE FROM WHEN IT IS DUE ─────────────────────────────────────────────────────────────
+  // THE KNOWN PAIR: the alert counts a ticket exactly when the pass's own clock says it is ten minutes in.
+  // lib/ordering.ts is compiled and asked, ticket by ticket, beside the function itself.
+  {
+    const ts = (await import("typescript")).default;
+    const mod = { exports: {} };
+    new Function("module", "exports", "require",
+      ts.transpileModule(readFileSync(join(ROOT, "lib/ordering.ts"), "utf8"),
+        { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText,
+    )(mod, mod.exports, () => ({}));
+    const clockFrom = mod.exports.orderClockFrom;
+    ok("known pair: lib/ordering was compiled and orderClockFrom found", typeof clockFrom === "function");
+    // [placed, ready_from] in minutes ago (null: placed for now; negative: still to come).
+    const cases = [[12, null], [12, -168], [12, 72], [9, 72], [180, 8], [180, 11], [12, 12]];
+    const seen = [];
+    for (const [placed, ready] of cases) {
+      await db.exec(`delete from public.orders`);
+      const o = await q1(`insert into public.orders (status, created_at, ready_from) values ('new',
+        now() - interval '${placed} minutes', ${ready === null ? "null" : `now() - interval '${ready} minutes'`}) returning created_at, ready_from`);
+      const due = Date.parse(clockFrom({ created_at: o.created_at.toISOString(), ready_from: o.ready_from ? o.ready_from.toISOString() : null }));
+      seen.push({ placed, ready, pass: Date.now() - due >= 10 * 60e3, alert: (await run()) === 1 });
+    }
+    ok("known pair: the alert counts a ticket exactly when lib/ordering's orderClockFrom puts it ten minutes in — pre-orders, a ready_from before it was placed, and none",
+      seen.every((s) => s.pass === s.alert) && seen.filter((s) => s.pass).length === 4, seen);
+    await db.exec(`delete from public.alerts where kind = 'order_stale'; delete from public.orders;`);
+  }
+  const p1 = await pushes();
+  await place(15, 180);
+  ok("0369: the same pre-order — placed three hours ahead, fifteen minutes ago — does not ring",
+    (await run()) === 0 && (await lines()).length === 0 && (await pushes()) === p1);
+  await cron(170);                                            // its stop opened five minutes ago
+  ok("0369: …nor on any run until its stop opens, nor five minutes after", (await lines()).length === 0 && (await pushes()) === p1);
+  await cron(5);                                              // due for ten minutes
+  ok("0369: …and once it has been due ten minutes it is waiting like any ticket: one line, one push",
+    (await open()).length === 1 && (await pushes()) === p1 + 1 && /^🧾 1 order waiting on the pass$/.test((await open())[0]?.title ?? ""),
+    await lines());
+
+  // ── 2 · IT RINGS AGAIN WHILE TICKETS WAIT, A QUARTER HOUR APART ─────────────────────────────
+  const p2 = await pushes();
+  const first = (await open())[0];
+  await later(5); await run();                                // five minutes after it rang
+  await place(12);                                            // a second ticket nobody has started
+  await later(5); await run();                                // ten
+  let o = await open();
+  ok("0369: between rings the open line is refreshed, not repeated (0336's dedupe) — one line, now counting two, no push",
+    o.length === 1 && o[0].id === first.id && /2 orders waiting on the pass/.test(o[0].title) && (await pushes()) === p2,
+    { o, pushes: (await pushes()) - p2 });
+  await later(5); await run();                                // fifteen
+  o = await open();
+  const both = await lines();
+  ok("0369: fifteen minutes after it rang and still waiting, it rings again — a fresh line, a fresh push",
+    o.length === 1 && o[0].id !== first.id && (await pushes()) === p2 + 1, { o, pushes: (await pushes()) - p2 });
+  ok("0369: …the line before closed by the mechanism (ack_by null) and kept — two lines, one open, never a pile",
+    both.length === 2 && both[0].id === first.id && both[0].ack_at !== null && both[0].ack_by === null, both);
+  const p3 = await pushes();
+  await cron(60);
+  ok("0369: an hour more of tickets waiting rings four times, a quarter hour apart — never more often, one line open",
+    (await pushes()) === p3 + 4 && (await open()).length === 1 && (await lines()).length === 6,
+    { pushes: (await pushes()) - p3, lines: (await lines()).length });
+
+  // pg_cron starts a run a moment after its minute, so the run fifteen minutes on can find the last ring a hair under
+  // fifteen minutes old. It still rings; a run a whole minute early does not.
+  const pJ = await pushes();
+  await later(5); await run(); await later(5); await run();   // ten minutes after the last ring
+  await later(4); await run();                                // fourteen
+  const notAt14 = (await pushes()) === pJ;
+  await later("59 seconds"); await run();                     // 14:59
+  ok("0369: the run that finds the last ring 14:59 old rings (pg_cron's start-up jitter); at 14:00 it did not",
+    notAt14 && (await pushes()) === pJ + 1 && (await open()).length === 1, { notAt14, pushes: (await pushes()) - pJ });
+
+  // "Got it" on a broadcast is one person's read (0157) and never closes the line, so the next ring is a new line —
+  // and whoever dismissed the last one hears this one.
+  const U = (await q1(`insert into auth.users default values returning id`)).id;
+  const read = (await open())[0];
+  await db.exec(`insert into public.alert_reads (alert_id, user_id) values ('${read.id}', '${U}')`);
+  await cron(15);
+  const next = (await open())[0];
+  ok("0369: whoever tapped Got it on the line hears the next ring — it is a new line, one they have not read",
+    next && next.id !== read.id && Number((await q1(`select count(*) n from public.alert_reads where alert_id = '${next.id}' and user_id = '${U}'`)).n) === 0);
+
+  // 0174's cooldown, as 0336 kept it: a line somebody acknowledged stays down until fifteen minutes after it rang.
+  await later(2);
+  await db.exec(`update public.alerts set ack_at = now(), ack_by = '${U}' where kind = 'order_stale' and ack_at is null`);
+  const p4 = await pushes();
+  await later(3); await run();                                // five minutes after it rang
+  const downAt5 = (await open()).length === 0 && (await pushes()) === p4;
+  await later(5); await run();                                // ten
+  ok("0369: acknowledged, the line does not come back five or ten minutes after it rang — the cooldown, kept",
+    downAt5 && (await open()).length === 0 && (await pushes()) === p4);
+  await later(5); await run();                                // fifteen
+  ok("0369: …and fifteen minutes after it rang, a pass still waiting rings again", (await open()).length === 1 && (await pushes()) === p4 + 1);
+
+  // ── 3 · AN EMPTY PASS CLOSES THE LINE ──────────────────────────────────────────────────────
+  const p5 = await pushes();
+  const was = (await open())[0];
+  await db.exec(`update public.orders set status = 'preparing' where status = 'new'`);
+  ok("0369: the tickets started, the run finds none waiting and closes the line", (await run()) === 0 && (await open()).length === 0);
+  const closed = (await lines()).find((l) => l.id === was.id);
+  ok("0369: …closed by the mechanism (ack_by null) and kept for history, with no push",
+    closed?.ack_at !== null && closed?.ack_by === null && (await pushes()) === p5, closed);
+  await place(20, 120);
+  ok("0369: a pass holding only a pre-order whose stop has not opened is clear: nothing opens",
+    (await run()) === 0 && (await open()).length === 0 && (await pushes()) === p5);
+  await place(11);                                            // backed up again, the last ring moments ago
+  await run();
+  const heldAt0 = (await open()).length === 0 && (await pushes()) === p5;
+  await cron(10);
+  const heldAt10 = (await open()).length === 0 && (await pushes()) === p5;
+  await cron(5);
+  ok("0369: backed up again inside fifteen minutes of the last ring, it waits for the quarter hour and then rings — never two rings closer than that",
+    heldAt0 && heldAt10 && (await open()).length === 1 && (await pushes()) === p5 + 1, { heldAt0, heldAt10, pushes: (await pushes()) - p5 });
+
+  // ── WHO MAY RUN IT, AND RUNNING IT TWICE ──────────────────────────────────────────────────
+  const g = await q1(`select has_function_privilege('anon', 'public.alert_stale_orders(int)', 'execute') a,
+                             has_function_privilege('authenticated', 'public.alert_stale_orders(int)', 'execute') b`);
+  ok("0369: a stranger cannot run it — not anon, not a signed-in browser", g.a === false && g.b === false, g);
+  const def = await q1(`select prosecdef d, coalesce(proconfig::text, '') c from pg_proc where proname = 'alert_stale_orders'`);
+  ok("0369: it runs as its definer with search_path pinned", def.d === true && /search_path=public/.test(def.c), def);
+  const before = { lines: (await lines()).length, pushes: await pushes() };
+  let rerun = null;
+  try { await db.exec(sql369); } catch (e) { rerun = String(e?.message ?? e); }
+  ok("0369 run again: no error, no second changelog line, and no ring — the line just rung is only refreshed",
+    rerun === null
+    && Number((await q1(`select count(*) n from public.changelog where title = 'The pass alert rings until the pass is clear'`)).n) === 1
+    && (await pushes()) === before.pushes && (await lines()).length === before.lines && (await open()).length === 1,
+    { rerun, pushes: (await pushes()) - before.pushes, lines: (await lines()).length - before.lines });
+  ok("0369 recorded itself, once per run", Number((await q1(
+    `select applied_count from public.schema_migrations where version = '0369_the_pass_alert_rings_until_the_pass_is_clear'`)).applied_count) === 2);
+}
+
 console.log(`AN ALERT THAT CRIES WOLF: ${pass} passed, ${fail} failed`);
-console.log(`0157 + 0255 + 0258 + 0327 + 0333 + 0336 + 0340 executed against a real Postgres.\n`);
+console.log(`0157 + 0255 + 0258 + 0327 + 0333 + 0336 + 0340 + 0343 + 0369 executed against a real Postgres.\n`);
 process.exit(fail ? 1 : 0);
