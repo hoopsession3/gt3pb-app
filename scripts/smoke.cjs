@@ -10950,6 +10950,125 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /document\.addEventListener\("pointerdown", onDoc\);/.test(atc) && !/"mousedown"/.test(atc));
 }
 
+// ── WAVE 2 · DEVICES (2026-10-11) ──
+// Who is on the Pass, and can it hear an order. A device with the Pass open checks in once a minute and on any change
+// (components/usePassHeartbeat → lib/heartbeat → 0375 crew_heartbeat); Live Ops' Devices card reads the last ten
+// minutes (components/crew/DevicesCard → 0375 crew_devices); 0376's pass_watchdog rings once when, during service, no
+// device is on the Pass with its feed live. What runs is run by scripts/heartbeat.test.mjs and db.heartbeat.test.mjs;
+// these pins hold the wiring only a source can show.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const root = path.join(__dirname, "..");
+  const read = (f) => fs.readFileSync(path.join(root, f), "utf8");
+  const code = (s) => s.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  const noSqlComments = (s) => s.split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
+  const pg = read("app/crew/page.tsx"), hook = code(read("components/usePassHeartbeat.ts")), hb = code(read("lib/heartbeat.ts"));
+  const card = code(read("components/crew/DevicesCard.tsx")), wake = code(read("lib/useWakeLock.ts")), bridge = code(read("components/NativeBridge.tsx"));
+  const m375 = read("supabase/migrations/0375_a_device_on_the_pass_checks_in_every_minute.sql");
+  const m376 = read("supabase/migrations/0376_nobody_on_the_pass_during_service_is_an_alert.sql");
+
+  // THE MOUNT: beside the wake lock, with the same switch, among AdminPage's hooks (above its first return).
+  const admin = pg.slice(pg.indexOf("export default function AdminPage()"));
+  ok("devices: AdminPage checks in while the Pass is open — usePassHeartbeat(svc), beside useWakeLock(svc), before any return",
+    /import \{ usePassHeartbeat \} from "@\/components\/usePassHeartbeat";/.test(pg) && /\n  useWakeLock\(svc\);\n  usePassHeartbeat\(svc\);/.test(admin)
+    && admin.indexOf("usePassHeartbeat(svc);") > 0 && admin.indexOf("usePassHeartbeat(svc);") < admin.search(/\n  if \([^\n]*\) return/));
+  // Wherever the Pass's own code lives (another workstream is moving it out of the page), it does not check in itself:
+  // the page does, around it. A read that finds no Kitchen is a failure here, not a pass.
+  const kitchen = (pg.match(/\nfunction Kitchen\([\s\S]*?\n}\n/) || [""])[0]
+    + (fs.existsSync(path.join(root, "components/pass"))
+      ? fs.readdirSync(path.join(root, "components/pass")).filter((f) => /\.tsx?$/.test(f)).map((f) => read(`components/pass/${f}`)).join("\n") : "");
+  ok("devices: the Pass's own code is untouched by it — the Pass neither calls the hook nor checks in itself",
+    /Kitchen|kitchen/.test(kitchen) && kitchen.length > 2000 && !/usePassHeartbeat|crew_heartbeat/.test(kitchen), kitchen.length);
+
+  // THE HOOK: hears the Pass from the console's mount, beats only while open and seen, says what AlertsOffLine reads.
+  ok("devices: the hook hears gt3:pass-feed from the moment the console mounts (the Pass may speak as it mounts), not from when it opens",
+    /useEffect\(\(\) => hearPassFeed\(window\), \[\]\);/.test(hook) && /export const PASS_FEED_EVENT = "gt3:pass-feed";/.test(hb)
+    && /target\.addEventListener\(PASS_FEED_EVENT, heard\);/.test(hb));
+  ok("devices: it beats only while the Pass is open and the page is seen, and stops otherwise",
+    /if \(!open \|\| !visible \|\| !supabase\) \{ beats\.stop\(\); return; \}/.test(hook) && /useSyncExternalStore\(onVisibility, visibleNow, \(\) => false\)/.test(hook)
+    && /useEffect\(\(\) => \(\) => beats\.stop\(\), \[beats\]\);/.test(hook) && /surface: PASS_SURFACE,/.test(hook) && /export const PASS_SURFACE = "pass";/.test(hb));
+  ok("devices: alerts on is the answer the alerts-off line reads (DeviceAlerts' permission, AppAlerts' state, NATIVE_PUSH_ON)",
+    /const web = useAlertPermission\(\);/.test(hook) && /const \{ state: native \} = useAppAlerts\(\);/.test(hook)
+    && /alertsOnFrom\(\{ app: APP_BUILD, nativePushOn: NATIVE_PUSH_ON, web, native \}\)/.test(hook)
+    && /return o\.app \? o\.nativePushOn && o\.native === "granted" : o\.web === "granted";/.test(hb));
+  ok("devices: the wake lock is lib/useWakeLock's own record, read-only — held as the browser grants it, let go on its release event",
+    /useSyncExternalStore\(onWakeLock, wakeLockHeld, \(\) => false\)/.test(hook) && /export function wakeLockHeld\(\): boolean \{/.test(wake)
+    && /export function onWakeLock\(fn: \(\) => void\): \(\) => void \{/.test(wake) && /held\.add\(got\);\s*got\.addEventListener\("release", \(\) => \{ held\.delete\(got\); told\(\); \}, \{ once: true \}\);/.test(wake)
+    && !/export (const|let) held|export function setWakeLock/.test(wake));
+  ok("devices: the web names its commit; the iPhone app its version and build — handed over by the bridge, the one file that speaks to Capacitor",
+    /buildOf\(app, process\.env\.NEXT_PUBLIC_BUILD_COMMIT, build\)/.test(hook) && /useSyncExternalStore\(onAppBuild, appBuild, \(\) => null\)/.test(hook)
+    && /import \{ setAppBuild \} from "@\/lib\/heartbeat";/.test(bridge) && /void App\.getInfo\(\)\.then\(\(\{ version, build \}\) => setAppBuild\(`\$\{version\} \(\$\{build\}\)`\), \(\) => \{\}\);/.test(bridge)
+    && !/@capacitor/.test(hook + hb));
+  ok("devices: one beat a minute, two seconds apart at the closest, sent to crew_heartbeat by name",
+    /export const BEAT_MS = 60_000;/.test(hb) && /export const BEAT_GAP_MS = 2_000;/.test(hb) && /await sb\.rpc\("crew_heartbeat", beatArgs\(b\)\)/.test(hb)
+    && /return isMissingFunction\(error\) \? "missing" : "refused";/.test(hb));
+  ok("devices: the install's id is kept in localStorage behind a try, a visit's own when it cannot be",
+    /export const DEVICE_KEY = "gt3-device-id";/.test(hb) && /try \{ return window\.localStorage; \} catch \{ return null; \}/.test(hook)
+    && /const id = \(visitId \?\?= mint\(\)\);/.test(hb));
+
+  // THE CARD: for managers, in Live Ops' left column under the truck, gone under the Pass.
+  const nowSec = (pg.match(/\{sec === "now" && \([\s\S]*?\n      \)\}/) || [""])[0];
+  const left = nowSec.slice(0, nowSec.indexOf("</Column>"));
+  ok("devices: the Devices card is the managers', in Live Ops' left column under the truck instrument, and not drawn under the Pass",
+    /import \{ DevicesCard \} from "@\/components\/crew\/DevicesCard";/.test(pg) && /\{canManage && !svc && <DevicesCard \/>\}/.test(left)
+    && left.indexOf("<LiveControl compact />") > 0 && left.indexOf("<LiveControl compact />") < left.indexOf("<DevicesCard />") && !/<DevicesCard/.test(nowSec.slice(nowSec.indexOf("</Column>"))));
+  ok("devices: the card asks crew_devices every half minute while seen, and again on coming back — not realtime",
+    /await supabase\.rpc\("crew_devices"\)/.test(card) && /window\.setInterval\(\(\) => \{ if \(seen\(\)\) void reload\(\); \}, DEVICES_POLL_MS\)/.test(card)
+    && /document\.addEventListener\("visibilitychange", back\)/.test(card) && /export const DEVICES_POLL_MS = 30_000;/.test(hb) && !/useRealtimeTable/.test(card)
+    && !/supabase_realtime/.test(noSqlComments(m375)));
+  ok("devices: nothing when no device has been seen or 0375 is not pasted; a failed first read says so",
+    /if \(!data \|\| data\.missing \|\| data\.rows\.length === 0\) return null;/.test(card) && /if \(isMissingFunction\(error\)\) return \{ rows: \[\], at: Date\.now\(\), missing: true \};/.test(card)
+    && /if \(status === "error"\) \{/.test(card) && /Couldn't check the devices/.test(card));
+  ok("devices: each row is who · the feed in a word (its tag's tone only repeats it) · the screen · alerts on/off · seen … ago; nothing on it to tap",
+    /<InfoRow key=\{v\.key\} name=\{v\.who\}\s*nameExtra=\{<span className=\{`k-tag\$\{v\.tone === "ok" \? " ok" : v\.tone === "warn" \? " warn" : v\.tone === "crit" \? " crit" : ""\}`\}>\{v\.feed\}<\/span>\}\s*sub=\{v\.line\} meta=\{v\.meta\} \/>/.test(card)
+    && /line: \[SURFACE_WORD\[r\.surface\] \?\? r\.surface, r\.alerts_on \? "alerts on" : "alerts off", seenWords\(ageS\)\]\.join\(" · "\)/.test(hb)
+    && /annotation="seen in the last 10 min"/.test(card) && !/onClick|<button|href=/.test(card));
+  ok("devices: crew code stays out of guest pages — lib/heartbeat is imported by the hook, the card and the app's bridge alone",
+    (() => {
+      const hits = [];
+      (function walk(d) {
+        for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+          const f = path.join(d, e.name);
+          if (e.isDirectory()) { if (!/^(node_modules|\.next|\.smoke|\.git|\.app-build|ios|out|scratch|scripts)$/.test(e.name)) walk(f); }
+          else if (/\.(tsx?|mjs)$/.test(e.name) && /from "@\/lib\/heartbeat"|from "\.\/heartbeat"/.test(fs.readFileSync(f, "utf8"))) hits.push(path.relative(root, f));
+        }
+      })(root);
+      return hits.sort().join() === ["components/NativeBridge.tsx", "components/crew/DevicesCard.tsx", "components/usePassHeartbeat.ts"].sort().join();
+    })());
+
+  // THE DATABASE: the write stamps who and where itself; the watchdog is the cron's, rings once, and says when to paste.
+  const live375 = noSqlComments(m375), live376 = noSqlComments(m376);
+  ok("devices: crew_heartbeat is a definer with search_path pinned, stamps effective_tenant() and auth.uid() itself, and refuses anyone not on the crew",
+    /create or replace function public\.crew_heartbeat\([\s\S]*?language plpgsql security definer set search_path = public as \$\$/.test(live375)
+    && /v_user\s+uuid := auth\.uid\(\);/.test(live375) && /v_tenant uuid := public\.effective_tenant\(\);/.test(live375)
+    && /if v_user is null or not public\.is_staff\(\) then\s*raise exception 'not authorized' using errcode = '42501';/.test(live375)
+    && /revoke all on function public\.crew_heartbeat\(text, text, text, text, text, boolean, boolean\) from public, anon;/.test(live375)
+    && /grant execute on function public\.crew_heartbeat\(text, text, text, text, text, boolean, boolean\) to authenticated;/.test(live375));
+  ok("devices: device_heartbeats — RLS on, the crew read their own business's rows, nobody writes but the function, pruned daily after seven days",
+    /primary key \(tenant_id, device_id, surface\)/.test(live375) && /alter table public\.device_heartbeats enable row level security;/.test(live375)
+    && /create policy "device heartbeats staff read" on public\.device_heartbeats for select using \(\(select public\.is_staff\(\)\)\);/.test(live375)
+    && /create policy "tenant isolation" on public\.device_heartbeats as restrictive for all/.test(live375)
+    && /revoke all on public\.device_heartbeats from public, anon, authenticated;\s*grant select on public\.device_heartbeats to authenticated;/.test(live375)
+    && /perform cron\.schedule\('prune-device-heartbeats', '29 4 \* \* \*', 'select public\.prune_device_heartbeats\(7\)'\)/.test(live375));
+  ok("devices: crew_devices is the managers' — event_manager, admin, owner — over the last ten minutes of their own business",
+    /if not \(public\.is_admin\(\) or exists \(select 1 from public\.profiles p where p\.id = auth\.uid\(\) and p\.role = 'event_manager'\)\) then/.test(live375)
+    && /where h\.tenant_id = public\.effective_tenant\(\)\s*and h\.last_seen > now\(\) - interval '10 minutes'/.test(live375));
+  ok("devices: pass_watchdog — service live and no live Pass beat in five minutes is ONE critical pass_unwatched line through alert_open_once, closed by the mechanism",
+    /select coalesce\(bool_or\(l\.is_live\), false\) into v_truck from public\.live_status l where l\.tenant_id = v_tenant;/.test(live376)
+    && /where e\.is_live and e\.tenant_id = v_tenant/.test(live376)
+    && /h\.surface = 'pass' and h\.feed = 'live'\s*and h\.last_seen > now\(\) - interval '5 minutes'/.test(live376)
+    && /perform public\.alert_open_once\(\s*'pass_unwatched', null, 'critical', 'order', v_title, v_body, '\/crew\?s=now',\s*interval '15 minutes'\);/.test(live376)
+    && /update public\.alerts set ack_at = now\(\)\s*where kind = 'pass_unwatched' and subject_id is null and ack_at is null;/.test(live376));
+  ok("devices: the watchdog is the cron's alone, every minute — and its header says to paste it only after the Pass reports its feed",
+    /revoke all on function public\.pass_watchdog\(\) from public, anon, authenticated;/.test(live376)
+    && /perform cron\.schedule\('pass-watchdog', '\* \* \* \* \*', 'select public\.pass_watchdog\(\)'\)/.test(live376)
+    && /ORDER — READ THIS BEFORE PASTING\. Paste it after 0375, and after the deploy in which the Pass reports its feed/.test(m376)
+    && /-- existing rows: pass_watchdog — /.test(m376));
+  ok("devices: both suites are part of npm test",
+    /node scripts\/heartbeat\.test\.mjs/.test(read("package.json")) && /node scripts\/db\.heartbeat\.test\.mjs/.test(read("package.json")));
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.
