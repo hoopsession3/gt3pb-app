@@ -35,7 +35,7 @@ import { execSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { MEASURE, OBSERVE } from "./design.measure.mjs";
 import { PROD_ROUTE, routeVerdict } from "./design.ratchet.mjs";
-import { migrationFiles, pendingFrom, readLedger } from "./migrations.pending.mjs";
+import { heldMigrations, migrationFiles, pendingFrom, readLedger } from "./migrations.pending.mjs";
 
 const require = createRequire(import.meta.url);
 const APP = (process.env.GT3_APP_URL || "https://app.gt3pb.com").replace(/\/$/, "");
@@ -75,13 +75,30 @@ if (head) ok(`live: production is this tree (${built || "?"} = ${head})`, same(b
 else console.log("  · live: not a git checkout here — the build hash is not compared");
 
 // ── 2. CURRENT ──────────────────────────────────────────────────────────────────────────────────
+// HELD ON PURPOSE (2026-10-11). A migration held back until something outside the database is true (0376 waits for
+// an iPhone build) is named in supabase/held.json, and this check names it instead of failing on it — Production
+// #140–#143 were red for 0376 alone, and a gate that is red for a known reason hides the next unknown one. With the
+// ledger's numbers (/api/migrations `seqs`) the missing one is checked to BE the held one, by name; without them
+// (a production older than the route's numbers) the two integers decide, as they always did.
 try {
+  const files = migrationFiles();
+  const held = heldMigrations(files);
   const ledger = await readLedger([], APP);
-  const verdict = pendingFrom(migrationFiles(), ledger.count, ledger.max_seq);
-  ok(`current: the ledger holds every migration in supabase/migrations (${ledger.count} rows, high-water ${String(ledger.max_seq).padStart(4, "0")})`,
+  const seqs = Array.isArray(ledger.seqs) ? ledger.seqs : null;
+  let verdict = pendingFrom(files, ledger.count, ledger.max_seq, held.map((h) => h.seq), seqs);
+  let applied = verdict.heldApplied ?? [];
+  if (!verdict.exact && !verdict.missing && held.length && verdict.status === "gap") {
+    // Two integers only: a held migration the ledger already counts reads as a gap with it held, and adds up without.
+    const plain = pendingFrom(files, ledger.count, ledger.max_seq);
+    if (plain.status !== "gap") { verdict = plain; applied = held.map((h) => h.seq); }
+  }
+  const stillHeld = held.filter((h) => !applied.includes(h.seq));
+  ok(`current: the ledger holds every migration in supabase/migrations${stillHeld.length ? ` but the ${stillHeld.length} held on purpose` : ""} (${ledger.count} rows, high-water ${String(ledger.max_seq).padStart(4, "0")}${seqs ? ", checked by number" : ""})`,
     verdict.status === "clean",
     verdict.status === "pending" ? `${verdict.pending.length} pending: ${verdict.pending.map((m) => m.file).join(", ")} — paste supabase/APPLY_ALL_PENDING.sql into the SQL editor` : verdict.reason);
-} catch (e) { ok("current: /api/migrations could be read", false, String(e.message)); }
+  for (const h of stillHeld) console.log(`  · held on purpose: ${h.file} — until ${h.until} (supabase/held.json)`);
+  for (const s of applied) console.log(`  · ${files.find((m) => m.seq === s)?.file} is held but the ledger records it — applied; take it out of supabase/held.json`);
+} catch (e) { ok("current: /api/migrations could be read, and supabase/held.json with it", false, String(e.message)); }
 
 // ── 2b. POSTURE — the database's RLS/grants/policies, from the committed snapshot ───────────────
 // scripts/security.audit.mjs judges supabase/schema.security.json. It exits 1 on a finding, 0 on

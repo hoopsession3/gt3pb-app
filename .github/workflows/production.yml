@@ -43,7 +43,11 @@ concurrency:
 
 jobs:
   verify-production:
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, named — not ubuntu-latest (2026-10-11). GitHub moves ubuntu-latest to Ubuntu 26 from
+    # October 19, 2026 (the notice on every run of this workflow), and `playwright install --with-deps`
+    # installs system libraries by distro version: a silent OS change under the gate is how it goes red
+    # for a reason no commit made. Move to 26.04 on purpose, in its own change, with Playwright alongside.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4

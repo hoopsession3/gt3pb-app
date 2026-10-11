@@ -9,10 +9,11 @@
 // files, which is the exact shape of the defect 0328 was written for — so it is checked here rather
 // than assumed. If the header format and the gate's regex ever drift apart, the gate stops seeing
 // the mark, reports "no pending-from line" forever, and the repo learns to ignore it.
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { pendingFrom, pasteHeader, migrationFiles } from "./migrations.pending.mjs";
+import { heldMigrations, ledgerDiff, pendingFrom, pasteHeader, migrationFiles } from "./migrations.pending.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 let pass = 0, fail = 0;
@@ -123,6 +124,85 @@ const f = (...seqs) => seqs.map((s) => ({ file: `${String(s).padStart(4, "0")}_x
   const header = pasteHeader(380, "2026-10-11", 1, "test", ["0376_held_on_purpose.sql"]);
   ok("the header names the held file, and says it is not inside", /^-- held: 0376_held_on_purpose\.sql — NOT in this file/m.test(header), header);
   ok("…and still carries pending-from for the drift gate", /^-- pending-from: 0380$/m.test(header));
+}
+
+// ── THE NUMBERS (2026-10-11): /api/migrations sends `seqs`, so the gap is named and a hold is checked by number ──────
+{
+  const files = f(371, 372, 373, 374, 375, 376, 377, 378, 379, 380);
+  const prod = [371, 372, 373, 374, 375, 377, 378, 379, 380]; // production after 0380: 0376 held
+  {
+    const v = pendingFrom(files, prod.length, 380, [], prod);
+    ok("by number, the hole is named — not just counted", v.status === "gap" && /0376_x\.sql/.test(v.reason), v.reason);
+    ok("…and carried as a list, never as something to paste", v.missing?.map((m) => m.seq).join() === "376" && v.pending === undefined);
+  }
+  {
+    const v = pendingFrom(files, prod.length, 380, [376], prod);
+    ok("by number, the held one IS the missing one: clean", v.status === "clean" && v.exact === true, JSON.stringify(v));
+  }
+  {
+    // Held 0376, but it is 0374 the ledger lacks — same count, so two integers would call this clean.
+    const wrong = [371, 372, 373, 375, 376, 377, 378, 379, 380];
+    ok("two integers cannot tell which one is missing (the blind spot the numbers close)", pendingFrom(files, wrong.length, 380, [376]).status !== "gap");
+    const v = pendingFrom(files, wrong.length, 380, [376], wrong);
+    ok("by number, a different migration missing is a gap that names it", v.status === "gap" && /0374_x\.sql/.test(v.reason) && !/0376/.test(v.reason), v.reason);
+    ok("…and the held one, which the ledger records, is said to be applied", v.heldApplied?.join() === "376", JSON.stringify(v.heldApplied));
+  }
+  {
+    const all = [371, 372, 373, 374, 375, 376, 377, 378, 379, 380];
+    const v = pendingFrom(files, all.length, 380, [376], all);
+    ok("a held migration the ledger records is applied — clean, and said so", v.status === "clean" && v.heldApplied?.join() === "376", JSON.stringify(v));
+  }
+  {
+    const v = pendingFrom(f(1, 2, 3, 4), 3, 3, [], [1, 2, 3]);
+    ok("by number, files after the mark are pending as before", v.status === "pending" && v.pending.map((m) => m.seq).join() === "4");
+    const h = pendingFrom(f(1, 2, 3, 4), 3, 3, [4], [1, 2, 3]);
+    ok("…and a held one after the mark is never in the paste", h.status === "clean" && h.pending.length === 0, JSON.stringify(h));
+  }
+  {
+    const v = pendingFrom(f(1, 2), 3, 9, [], [1, 2, 9]);
+    ok("a number the directory has no file for is the database ahead of this checkout", v.status === "gap" && /number 0009/.test(v.reason), v.reason);
+  }
+  {
+    const pair = [{ file: "0007_a.sql", seq: 7 }, { file: "0007_b.sql", seq: 7 }, { file: "0008_c.sql", seq: 8 }];
+    ok("duplicate numbers: both recorded is clean", pendingFrom(pair, 3, 8, [], [7, 7, 8]).status === "clean");
+    const v = pendingFrom(pair, 2, 8, [], [7, 8]);
+    ok("duplicate numbers: one of the pair missing says it cannot tell which", v.status === "gap" && /one of 0007_a\.sql \/ 0007_b\.sql/.test(v.reason), v.reason);
+  }
+  {
+    // A capped read (fewer numbers than the count) is not trusted: the two integers decide alone.
+    const v = pendingFrom(files, 9, 380, [376], [371, 372]);
+    ok("numbers short of the count fall back to the two integers", v.exact === undefined && v.missing === undefined && v.status === "clean", JSON.stringify(v));
+    ok("an empty ledger with files is still the wrong database, numbers or not", pendingFrom(f(1, 2), 0, null, [], []).status === "gap");
+  }
+  {
+    const d = ledgerDiff(f(1, 2, 3, 5), [1, 3, 4]);
+    ok("ledgerDiff: missing below the mark, above it, and extra", d.missing.map((m) => m.seq).join() === "2" && d.above.map((m) => m.seq).join() === "5" && d.extra.join() === "4" && d.maxSeq === 4, JSON.stringify(d));
+  }
+}
+
+// ── supabase/held.json: the list both the generator and the production gate read ─────────────────────────────────
+{
+  const dir = mkdtempSync(join(tmpdir(), "held-"));
+  const at = (o) => { const p = join(dir, `h${Math.random().toString(36).slice(2)}.json`); writeFileSync(p, JSON.stringify(o)); return p; };
+  const files = f(375, 376, 377);
+  ok("no held file is nothing held", heldMigrations(files, join(dir, "none.json")).length === 0);
+  const one = heldMigrations(files, at({ held: [{ file: "0376_x.sql", until: "build 83 on the phones", since: "2026-10-11" }] }));
+  ok("an entry reads as its file, number and condition", one.length === 1 && one[0].seq === 376 && one[0].until === "build 83 on the phones", JSON.stringify(one));
+  let threw = "";
+  try { heldMigrations(files, at({ held: [{ file: "0399_typo.sql", until: "x" }] })); } catch (e) { threw = e.message; }
+  ok("an entry naming a file that is not here throws — a typo must not hide a real gap", /0399_typo\.sql.*not in supabase\/migrations/.test(threw), threw);
+  threw = "";
+  try { heldMigrations(files, at({ held: [{ file: "0376_x.sql" }] })); } catch (e) { threw = e.message; }
+  ok("an entry that does not say what it waits for throws", /what it waits for/.test(threw), threw);
+  threw = "";
+  const bad = join(dir, "bad.json"); writeFileSync(bad, "{ not json");
+  try { heldMigrations(files, bad); } catch (e) { threw = e.message; }
+  ok("a held file that does not parse throws, never reads as empty", /does not read/.test(threw), threw);
+  rmSync(dir, { recursive: true, force: true });
+
+  // The real list: every entry names a real file and its condition (heldMigrations throws otherwise).
+  const real = heldMigrations();
+  ok("this repo's supabase/held.json reads, every entry a real file with its condition", Array.isArray(real) && real.every((h) => h.file && h.until), JSON.stringify(real));
 }
 
 console.log(fail

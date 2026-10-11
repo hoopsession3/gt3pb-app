@@ -4,7 +4,7 @@ import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
-// public: read-only ledger count and high-water mark, so a release can be checked without a credential; no names, no SQL
+// public: read-only ledger count, high-water mark and applied numbers, so a release can be checked without a credential; no names, no SQL
 // WHAT HAS ACTUALLY BEEN APPLIED TO THIS DATABASE — the read side of 0304's ledger.
 //
 // 0304 built the write side: every migration from 0304 forward ends with record_migration(), and
@@ -22,9 +22,10 @@ export const runtime = "nodejs";
 // ── WHY NUMBERS AND NOT NAMES ──────────────────────────────────────────────────────────────────
 // This route is deliberately unauthenticated, because the thing that needs it is a check running on
 // a laptop or in CI with no session — and a check that requires a credential is a check that gets
-// skipped. So it returns two integers and nothing else. `count` is how many rows the ledger holds;
-// `max_seq` is the highest sequence recorded. Neither says what any migration DID, and nothing here
-// is a secret: it is the shape of the answer, not its contents.
+// skipped. So it returns numbers and nothing else. `count` is how many rows the ledger holds;
+// `max_seq` is the highest sequence recorded; `seqs` (below) the sequence numbers themselves. None
+// says what any migration DID, and nothing here is a secret: it is the shape of the answer, not its
+// contents.
 //
 // Two integers are enough to catch both ways the directory and the database drift apart:
 //
@@ -34,6 +35,15 @@ export const runtime = "nodejs";
 // What two integers CANNOT do is name which one is missing in the gap case. scripts/
 // migrations.pending.mjs refuses to guess there rather than printing a confident wrong list — the
 // same refusal schema.snapshot.mjs makes, for the same reason.
+//
+// ── AND THE NUMBERS (2026-10-11) ───────────────────────────────────────────────────────────────
+// `seqs` is every recorded sequence number, ascending — numbers still, never names. It exists
+// because of a migration held back ON PURPOSE: 0376 waits for an iPhone build while 0377–0380
+// went ahead, and to two integers a held migration and a forgotten one look the same, so the
+// production gate (scripts/verify.prod.mjs) went red on every run until it landed. With the
+// numbers the gate checks that the one missing IS the one held (supabase/held.json) and names
+// anything else. Sent only when the list is whole: a capped read (PostgREST's row limit) would be
+// a confident partial answer, so then it is left out and the two integers decide alone.
 //
 // ── NOT ON /api/health ─────────────────────────────────────────────────────────────────────────
 // It would have been one more field on a route that already round-trips the database. It is not,
@@ -61,10 +71,22 @@ async function get() {
       return NextResponse.json({ ok: false, why: "no count returned" }, { status: 503, headers: noStore });
     }
 
+    // The numbers (above). A failed read here costs only the exact answer, never the two integers.
+    let seqs: number[] | undefined;
+    try {
+      const { data: rows, error: seqErr } = await supabaseAdmin
+        .from("schema_migrations").select("seq").order("seq", { ascending: true }).range(0, 9999);
+      if (!seqErr && rows) {
+        const list = (rows as { seq?: unknown }[]).map((r) => r.seq).filter((n): n is number => Number.isInteger(n));
+        if (list.length === count) seqs = list;
+      }
+    } catch { /* the two integers stand alone */ }
+
     return NextResponse.json({
       ok: true,
       count,
       max_seq: (top as { seq?: number } | null)?.seq ?? null,
+      ...(seqs ? { seqs } : {}),
     }, { headers: noStore });
   } catch {
     // Deliberately no error text: this route is public. The caller learns it could not be answered,
