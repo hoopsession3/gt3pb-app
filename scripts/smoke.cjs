@@ -5949,9 +5949,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const oo = code(read("components/OfficeOrders.tsx")), owedSrc = code(read("components/Owed.tsx")), office = code(read("app/office/page.tsx"));
   ok("office: a delivered order stays while it is still owed, and for the week after — delivery used to take it off the only screen that took its money",
     /\.or\(`status\.neq\.delivered,payment_status\.in\.\(pending,failed\),delivery_date\.gte\.\$\{weekAgo\}`\)/.test(oo) && !/\.neq\("status", "delivered"\)/.test(oo));
-  ok("office: 'Undo jug swap' only where there is a swap — after a delivery — and 'Log delivery' / 'Cancel' only before one",
+  ok("office: 'Undo jug swap' only where there is a swap — after a delivery — and 'Log delivery' / 'Cancel' only before one; a stop not delivered reopens first (the database refuses to log it twice)",
     /\{o\.status === "delivered" && <button type="button" className="btn-ter" onClick=\{\(\) => voidSwap\(o\)\}/.test(oo)
-    && /\{o\.status !== "delivered" && <button type="button" className="btn-sec btn-sm" onClick=\{\(\) => \{ setOpenId\(o\.id\);/.test(oo)
+    && /\{o\.status === "issue"\s*\? <button type="button" className="btn-sec btn-sm" onClick=\{\(\) => reopen\(o\)\}[^\n]*\n\s*: o\.status !== "delivered" && <button type="button" className="btn-sec btn-sm" onClick=\{\(\) => \{ setOpenId\(o\.id\);/.test(oo)
     && /\{o\.status !== "delivered" && <button type="button" className="btn-ter" onClick=\{\(\) => cancel\(o\)\}/.test(oo));
   ok("office: settling moves only from a state that still owes (a second tap cannot make a second invoice), and the invoice write is checked",
     /\.eq\("id", o\.id\)\.in\("payment_status", \["pending", "failed"\]\)\.select\("id"\);/.test(oo)
@@ -10427,7 +10427,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("back: the edge swipe on every screen in the app and a home-screen PWA (a browser tab has its own)", /\{!isShare && \(inAdmin \|\| appOnly\) && <SwipeBack \/>\}/.test(shell));
   ok("links within the app move within it: the footer's Privacy and Terms, the driver run, the playbook's map (a plain <a> loaded the whole site again)",
     /<Link href="\/privacy">Privacy<\/Link><span aria-hidden> · <\/span><Link href="\/terms">Terms<\/Link>/.test(read("components/kit.tsx"))
-    && (read("components/DeliveryOps.tsx").match(/<Link className="(dops-driver-link|btn-sec btn-sm shrink-0)" href="\/driver">/g) || []).length === 2 && /<Link href="\/architecture">/.test(read("app/playbook/page.tsx")));
+    && (read("components/DeliveryOps.tsx").match(/<Link className="(dops-driver-link min-h-11|btn-sec btn-sm shrink-0)" href="\/driver">/g) || []).length === 2 && /<Link href="\/architecture">/.test(read("app/playbook/page.tsx")));
   ok("title bar: the calendars' sticky rows step down under it, and the app's status-bar fade gives way to its hairline",
     /\[\.app:has\(\[data-tbar\]\[data-compact\]\)_&\]:top-\[calc\(env\(safe-area-inset-top,0px\)\+44px\)\]!/.test(read("components/CompanyCalendar.tsx")) && /\[\.app:has\(\[data-tbar\]\[data-compact\]\)_&\]/.test(read("components/BrandCalendar.tsx"))
     && /html:has\(\[data-tbar\]\[data-compact\]\) \.native-bar::after\{opacity:0\}/.test(read("components/NativeBridge.css")));
@@ -10817,7 +10817,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && (mr.match(/<button type="button" className="k-chip" onClick=\{\(\) => cycleTri\(/g) || []).length === 2 && !/\.(ev-chip|menued-tog|menued-site)\b/.test(g));
   ok("recipes: no button draws the browser's grey face — the crash screen's Try again and Reload are the kit's (.act-btn was styled nowhere), the delivery loop's entries are chips, and the audit reads every button for it",
     /<button type="button" className="btn-pri" onClick=\{reset\}>Try again<\/button>\s*<button type="button" className="btn-sec" onClick=\{reload\}>Reload<\/button>/.test(read("app/error.tsx"))
-    && /<button key=\{t\.id\} type="button" className="k-chip sm"/.test(read("components/DeliveryOps.tsx"))
+    && /<button key=\{t\.id\} type="button" className="k-chip sm min-w-11"/.test(read("components/DeliveryOps.tsx"))
     && /export function greyButtonsIn\(root, styled\)/.test(audit) && /const grey = greyButtonsIn\(root, /.test(audit));
   ok("recipes: Studio's calendar's Week · Month is the segmented control, and its bar wraps — on a phone Today ran past the edge",
     /<Segmented label="Calendar view" value=\{view\} onChange=\{setCalView\}/.test(read("components/BrandCalendar.tsx"))
@@ -10953,6 +10953,100 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.
+// ── WAVE 2 · DISPATCH (2026-10-11) ──
+// Due next as one list, the Sunday run's bulk step, a missed porch onto the next run, and the dispatch cards' targets and
+// words. The rules are run by scripts/duenext.test.mjs and scripts/porchrun.test.mjs against the real lib code, and 0378
+// by scripts/db.porchlive.test.mjs; these hold the wiring only the source can show.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const strip = (t) => t.replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const page = strip(rd("app/crew/page.tsx")), list = strip(rd("components/crew/DueList.tsx")), lib = rd("lib/dueNext.ts");
+  const drop = strip(rd("components/DropOps.tsx")), del = strip(rd("components/DeliveryOps.tsx")), off = strip(rd("components/OfficeOrders.tsx"));
+  const drv = strip(rd("components/DriverRun.tsx")), run = rd("lib/porchRun.ts"), minute = rd("lib/useMinute.ts");
+  const dueNext = (page.match(/function DueNext\([\s\S]*?\n\}\n/) || [""])[0];
+
+  // One list, above the cards, fed by them.
+  ok("dispatch: Due next draws one list above its three cards — the cards stay, in the order they are due",
+    dueNext.indexOf("<DueList feeds={feeds} onOpenPass={onOpenPass} />") > 0 && dueNext.indexOf("<DueList") < dueNext.indexOf("{order.map((k) => card[k])}")
+      && /const order = \[\.\.\.DUE_KEYS\]\.sort\(/.test(dueNext) && /const \{ feeds, report: rows \} = useDueFeeds\(\);/.test(dueNext));
+  ok("dispatch: each card hands up the rows it read (onRows) — the list reads no table twice and cannot disagree with its card",
+    /<DropOps key="drop" brief onOpen=\{onOpenPass\} canPlan=\{canPlan\} onDue=\{report\.drop\} onRows=\{rows\.pickup\} \/>/.test(dueNext)
+      && /<DeliveryOps key="porch" onDue=\{report\.porch\} onRows=\{rows\.porch\} \/>/.test(dueNext)
+      && /<OfficeOrders key="office" onDue=\{report\.office\} onRows=\{rows\.office\} \/>/.test(dueNext)
+      && /onRows\?\.\(\{ status: board\.status, day: dropISO, at: dropAt, rows: board\.data\?\.rows \?\? \[\] \}\);/.test(drop)
+      && /onRows\?\.\(\{ status: feedStatus, run: loadFailed \? NONE : rows, earlier: loadFailed \? NONE : earlier \}\);/.test(del)
+      && /onRows\?\.\(\{ status: board\.status, rows: board\.data \? board\.data\.rows\.filter\(\(o\) => o\.status !== "delivered"\) : \[\] \}\);/.test(off));
+  ok("dispatch: the pickup rows are the board's drop — lib/dropDate's day, with its stop's time when it came from one",
+    /const d = await nextDropDay\(supabase\);/.test(drop) && /const at = d\.fromStop \? d\.at\.toISOString\(\) : null;/.test(drop));
+  ok("dispatch: not over all_orders (no due day, no name, no count, no window, no ready_from — and office rows only once due); the one read of its own is the cups placed ahead",
+    !/all_orders/.test(list + strip(lib)) && !/from "@\/lib\/supabase"|from "\.\/supabase"/.test(lib)
+      && (list.match(/supabase\.from\("/g) || []).length === 1
+      && /supabase\.from\("orders"\)\s*\.select\("id, customer, items, status, ready_from, paid, payment_id, payment_status, collected_at"\)\s*\.neq\("status", "void"\)\.neq\("status", "done"\)\.gt\("ready_from", new Date\(\)\.toISOString\(\)\)/.test(list)
+      && /useRealtimeTable\("orders", cups\.reload\);/.test(list));
+  ok("dispatch: the list is handed the clock — late and a cup coming due change nothing in the database — read while rendering, not set from an effect",
+    /const now = useMinute\(\);/.test(list) && /useSyncExternalStore\(subscribe, read, read\)/.test(minute) && !/useEffect|useState/.test(minute)
+      && /const now = useMinute\(\);/.test(del) && /const now = useMinute\(\);/.test(off));
+  ok("dispatch: a read that failed is said, never 'nothing due'; nothing due is said only when every read worked",
+    /\{list\.failed\.length > 0 && \(\s*<p className="load-failed" role="status">/.test(list) && /this is not &ldquo;nothing due&rdquo;/.test(list)
+      && /list\.failed\.length === 0 && <p className="load-failed">Nothing due next\.<\/p>/.test(list) && /const cupFailed = cups\.error !== null;/.test(list));
+
+  // A row opens its card, at the row.
+  ok("dispatch: the cards carry the ids the list opens them by (lib/dueNext DUE_CARD), written in the JSX so a link can name them",
+    /export const DUE_CARD = \{ pickup: "due-pickup", porch: "due-porch", office: "due-office" \} as const;/.test(lib)
+      && /<FoldCard title="Pickup drop" label="Pickup drop" today=\{isDropDay \|\| brewDue\} id="due-pickup"/.test(drop)
+      && (del.match(/<FoldCard title="Sunday delivery" label="Sunday delivery" today(=\{isRunDay\})? id="due-porch"/g) || []).length === 2
+      && /<FoldCard label="Office orders" title="Office route" today=\{itsDay\} id="due-office"/.test(off));
+  ok("dispatch: a tap opens the card, then lands on the row and moves focus there; a cup opens the Pass",
+    /if \(!r\.card\) \{ onOpenPass\(\); return; \}/.test(list) && /window\.dispatchEvent\(new CustomEvent\(OPEN_PANEL_EVENT, \{ detail: r\.card \}\)\);/.test(list)
+      && /scrollToAnchor\(r\.anchor \?\? r\.card\);/.test(list) && /focusWhenThere\(r\.anchor \?\? r\.card\);/.test(list)
+      && (del.match(/id=\{dueAnchor\("porch", o\.id\)\} tabIndex=\{-1\} className="outline-none"/g) || []).length === 2
+      && /id=\{dueAnchor\("office", o\.id\)\} tabIndex=\{-1\} className="outline-none"/.test(off)
+      && /\(e as CustomEvent<string>\)\.detail === DUE_CARD\.porch\) setListOpen\(true\)/.test(del));
+  ok("dispatch: a row is the kit's row button, read aloud whole — when, channel, who, how many, its words",
+    /onClick=\{\(\) => open\(r\)\}\s*ariaLabel=\{dueLabel\(r, today\)\}/.test(list) && /nameExtra=\{<span className="k-tag txt">\{CHANNEL_WORD\[r\.channel\]\}<\/span>\}/.test(list)
+      && /\{r\.flags\.map\(\(f\) => <span key=\{f\.word\} className=\{`k-tag txt\$\{f\.tone === "crit" \? " crit" : f\.tone === "warn" \? " warn" : ""\}`\}>\{f\.word\}<\/span>\)\}/.test(list));
+  ok("dispatch: a held or not-home alert opens the Sunday card (&a=due-porch), and the driver's screen carries none of the console's code",
+    (drv.match(/link: "\/crew\?s=now&a=due-porch" \}\);/g) || []).length === 2 && !/link: "\/crew\?s=now" \}/.test(drv) && !/dueNext|porchRun|useMinute/.test(drv));
+
+  // The Sunday run: all out at once, and a missed porch onto the next run.
+  ok("dispatch: 'Mark all out for delivery' on the run's day only, behind the confirm sheet, through lib/porchRun — one write a porch, failures named, an Undo",
+    /\{isRunDay && toOut\.length > 0 && \(/.test(del) && /if \(!\(await confirm\(\{\s*title: `Mark \$\{plan\.length\} porch/.test(del)
+      && /const res = await markOut\(supabase, plan\.map\(/.test(del) && /const said = outWords\(res\);/.test(del)
+      && /toast\(said\.text, said\.error \? "error" : "success", res\.moved\.length \? \{ action: \{ label: "Undo", run: \(\) => \{ void undoAllOut\(res\.moved\); \} \} \} : undefined\);/.test(del)
+      && /sb\.from\("delivery_orders"\)\.update\(\{ status: "out_for_delivery" \}\)\s*\.eq\("id", p\.id\)\.in\("status", \["received", "brewed"\]\)\.is\("canceled_at", null\)\.select\("id"\)/.test(run));
+  ok("dispatch: no 'all delivered' — a porch's outcome is the driver's, at the door — and the card says why in lib/porchRun",
+    !/all delivered|Mark all delivered/i.test(del + strip(run)) && /WHY THERE IS NO "ALL DELIVERED"\./.test(run));
+  ok("dispatch: a held or not-home porch moves to the next run in one tap — the card's own rule for the run, the label and the tap on one clock — with an Undo",
+    /const d = nextRunDay\(days, today\);/.test(del) && /const \{ day \} = nextRunFor\(o, runDays, now\);/.test(del) && /const when = runDayWords\(nextRunFor\(o, runDays, now\)\.day, etToday\(\)\);/.test(del)
+      && /const res = await moveToRun\(supabase, was, day\);/.test(del) && /\{ action: \{ label: "Undo", run: \(\) => \{ void undoNextRun\(was, day\); \} \} \}/.test(del)
+      && /\{missed\(o\) && nextRunButton\(o\)\}/.test(del) && /<div className="dops-actions">\{nextRunButton\(o\)\}<\/div>/.test(del));
+
+  // Targets of 44pt, states in words.
+  ok("dispatch: every target on the cards is 44pt — the porch list's toggle, Navigate and Call, the batch picker, the Loop entry and its chips, the jug stepper, Queue brew, the driver link",
+    /className=\{`dops-prog min-h-11\$\{allDone \? " done" : ""\}`\}/.test(drop) && /<button type="button" className="min-h-11" onClick=\{queueBrew\}/.test(drop)
+      && /<button type="button" className="dops-prog min-h-11" onClick=\{\(\) => setListOpen\(!showList\)\}/.test(del)
+      && /<a className="dops-nav min-h-11"/.test(del) && (del.match(/<a className="dops-tel min-h-11"/g) || []).length === 2
+      && /className=\{`dops-batchsel min-h-11\$\{o\.batch_id \? " set" : ""\}`\}/.test(del) && /<input className="min-h-11" inputMode="numeric"/.test(del)
+      && /<select className="min-h-11" value=\{whose\}/.test(del) && /className="k-chip sm min-w-11"/.test(del) && /<Link className="dops-driver-link min-h-11" href="\/driver">/.test(del)
+      && (off.match(/<button type="button" className="min-h-11 min-w-11" onClick=\{\(\) => setEmpties/g) || []).length === 2);
+  ok("dispatch: states in words — paid or unpaid per porch (no bare check), not home and late said, an office stop's not delivered and late said, and one that was not delivered can be reopened",
+    /\{o\.payment_status === "paid" \? <>paid <Icon name="check" \/><\/> : <em className="dl-held">\{o\.payment_status === "refunded" \? "refunded" : "unpaid"\}<\/em>\}/.test(del)
+      && /const word = `\$\{notHome\(o\) \? "Not home" : STATUS_LABEL\[o\.status\]\}\$\{late \? " · late" : ""\}`;/.test(del)
+      && /\{notHome\(o\) \? "Not home" : STATUS_LABEL\[o\.status\]\}/.test(del) && !/\{money\(o\.total_cents\)\} <Icon name="check" \/><\/span>/.test(del)
+      && /const said = o\.status === "issue" \? "not delivered" : officeLate\(o, now\) \? "late" : null;/.test(off)
+      && /supabase\.rpc\("office_reopen_delivery", \{ p_order: o\.id, p_reason: why\.trim\(\) \}\)/.test(off));
+
+  // The tests that run the rules, and the migration that lets the run be heard.
+  const pkg = JSON.parse(rd("package.json")).scripts;
+  ok("dispatch: the list's and the run's tests run with the rest; 0378's with the database tests",
+    /node scripts\/duenext\.test\.mjs && node scripts\/porchrun\.test\.mjs/.test(pkg.test) && /node scripts\/db\.porchlive\.test\.mjs/.test(pkg["db:test"]));
+  const m378 = rd("supabase/migrations/0378_the_porch_run_updates_live.sql");
+  ok("dispatch: 0378 puts delivery_orders in the realtime publication — guarded, idempotent, and nothing about who may read it changes",
+    /and not exists \(select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'delivery_orders'\) then\s*alter publication supabase_realtime add table public\.delivery_orders;/.test(m378)
+      && !/grant |policy|security definer/i.test(m378.replace(/--[^\n]*/g, "")) && /select public\.record_migration\('0378_the_porch_run_updates_live'\);/.test(m378));
+}
+
 Promise.all(PENDING).then(() => {
   console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);

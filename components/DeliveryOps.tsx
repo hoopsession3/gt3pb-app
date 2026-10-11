@@ -13,9 +13,14 @@ import FoldCard from "@/components/crew/FoldCard";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
 import { usePrompt } from "@/components/PromptSheet";
+import { useConfirm } from "@/components/ConfirmSheet";
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import Link from "next/link";
+import { OPEN_PANEL_EVENT } from "@/lib/anchors";
+import { useMinute } from "@/lib/useMinute";
+import { DUE_CARD, dueAnchor, notHome, porchLate, type PorchFeed } from "@/lib/dueNext";
+import { markOut, moveToRun, nextRunDay, nextRunFor, outPlan, outWords, runDayWords, undoMove, undoOutWords, unmarkOut, type MissedPorch, type PorchStep } from "@/lib/porchRun";
 
 // SUNDAY DELIVERY OPS — the crew side of the delivery debrief, in DropOps' shape: one summary
 // sentence (units, one hero thought), the Saturday brew totals (incl. Performance combos), and a
@@ -37,6 +42,7 @@ type DOrder = {
   total_cents: number; payment_status: string; status: string;
   driver_outcome: string | null; empties_expected: number; empties_collected: number | null;
   delivery_date: string; canceled_at: string | null;
+  delivery_window?: string | null;   // "5–8 AM" (0139): when the porch is late, and whether today's run can still take one
   driver_note?: string | null;   // the driver's word on an outcome ("Not home — 6:42 AM", components/DriverRun)
   batch_id?: string | null;   // 0261 recall traceability — which brew filled this porch
   customer_id?: string | null;
@@ -48,11 +54,21 @@ const STATUS_LABEL: Record<string, string> = {
   delivered: "Delivered", held_for_pickup: "HELD — pickup", issue: "Issue",
 };
 
-/** onDue: the day of the next run (null: none scheduled), for Live Ops' Due next to put the runs in order. */
-export default function DeliveryOps({ onDue }: { onDue?: (day: string | null) => void } = {}) {
+// What the card hands Due next while a read has failed: nothing — the card shows no porches then either.
+const NONE: DOrder[] = [];
+const missed = (o: DOrder) => o.status === "held_for_pickup" || o.status === "issue";
+
+/** onDue: the day of the next run (null: none scheduled), for Live Ops' Due next to put the runs in order.
+ *  onRows: the run and what it carries from earlier, as this card read them, for Due next's one list (2026-10-11). */
+export default function DeliveryOps({ onDue, onRows }: { onDue?: (day: string | null) => void; onRows?: (feed: PorchFeed) => void } = {}) {
   const { toast } = useApp();
+  const confirm = useConfirm();
+  const now = useMinute();
   const [rows, setRows] = useState<DOrder[]>([]);
   const [date, setDate] = useState<string | null>(null);
+  const [runDays, setRunDays] = useState<string[]>([]);   // every delivery day on the board, today on — where a missed porch can go
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);   // "all", or the porch being moved
   // FROM EARLIER (2026-10-11, the KDS audit). A porch held for pickup or not home left every board the next day —
   // each read here and on the driver's run asks for today on — and nothing moved it to the next run. The last two
   // weeks' undelivered porches stay on this card until somebody settles them.
@@ -80,15 +96,31 @@ export default function DeliveryOps({ onDue }: { onDue?: (day: string | null) =>
     if (error) { setLoadFailed(true); return; }
     setLoadFailed(false);
     const all = (data ?? []) as DOrder[];
-    const d = all[0]?.delivery_date ?? null;
+    // The run is the first day on or after today with a porch on it — written once (lib/porchRun nextRunDay), the rule
+    // a missed porch is moved to the next run by.
+    const days = [...new Set(all.map((o) => o.delivery_date))];
+    const d = nextRunDay(days, today);
     setDate(d);
+    setRunDays(days);
     setRows(all.filter((o) => o.delivery_date === d));
     setEarlier(back.error ? [] : ((back.data ?? []) as DOrder[]));   // the upcoming run is the card; this is its margin
+    setLoaded(true);
   }, []);
 
   useEffect(() => { load(); }, [load]);
   useRealtimeTable("delivery_orders", load);
   useEffect(() => { onDue?.(date); }, [date, onDue]);
+  // Due next's one list is this read — the run and what it carries from earlier — and nothing while it failed.
+  const feedStatus = loadFailed ? "error" : loaded ? "ready" : "loading";
+  useEffect(() => {
+    onRows?.({ status: feedStatus, run: loadFailed ? NONE : rows, earlier: loadFailed ? NONE : earlier });
+  }, [feedStatus, loadFailed, rows, earlier, onRows]);
+  // A row in Due next opens this card at its porch, so the porch list inside opens with it.
+  useEffect(() => {
+    const onOpen = (e: Event) => { if ((e as CustomEvent<string>).detail === DUE_CARD.porch) setListOpen(true); };
+    window.addEventListener(OPEN_PANEL_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_PANEL_EVENT, onOpen);
+  }, []);
 
   // A WRITE THAT FAILED SAYS SO (2026-10-11): the status and the batch were written unchecked, so a refused one
   // looked saved until the board read again and quietly put it back.
@@ -113,6 +145,60 @@ export default function DeliveryOps({ onDue }: { onDue?: (day: string | null) =>
     if (error) toast(`Didn't save the batch — ${error.message}`, "error");
     load();
   };
+  // ALL OUT AT ONCE (2026-10-11, the dispatch round — lib/porchRun says why, and why there is no "all delivered").
+  // The run's porches not out yet, behind the confirm sheet; one write each, each answer read; Undo puts back the ones
+  // still out for delivery.
+  const markAllOut = async () => {
+    if (!supabase || busy) return;
+    const plan = outPlan(rows);
+    if (plan.length === 0) return;
+    if (!(await confirm({
+      title: `Mark ${plan.length} porch${plan.length === 1 ? "" : "es"} out for delivery?`,
+      body: "Each customer's delivery screen will say On the way. Held, not-home and delivered porches stay as they are.",
+      confirmLabel: "Mark them out", cancelLabel: "Not yet",
+    }))) return;
+    setBusy("all");
+    const res = await markOut(supabase, plan.map((o): PorchStep => ({ id: o.id, name: o.name, status: o.status })));
+    setBusy(null);
+    const said = outWords(res);
+    toast(said.text, said.error ? "error" : "success", res.moved.length ? { action: { label: "Undo", run: () => { void undoAllOut(res.moved); } } } : undefined);
+    load();
+  };
+  const undoAllOut = async (moved: PorchStep[]) => {
+    if (!supabase) return;
+    const said = undoOutWords(await unmarkOut(supabase, moved));
+    toast(said.text, said.error ? "error" : "success");
+    load();
+  };
+
+  // HELD, NOT HOME → THE NEXT RUN (2026-10-11, lib/porchRun nextRunFor). One tap; the toast can undo it.
+  const toNextRun = async (o: DOrder) => {
+    if (!supabase || busy) return;
+    const { day } = nextRunFor(o, runDays, now);
+    const was: MissedPorch = { id: o.id, name: o.name, delivery_date: o.delivery_date, status: o.status, driver_outcome: o.driver_outcome, empties_collected: o.empties_collected, driver_note: o.driver_note ?? null };
+    setBusy(o.id);
+    const res = await moveToRun(supabase, was, day);
+    setBusy(null);
+    if (res.ok) toast(`${o.name} — on the run for ${runDayWords(day, etToday())}`, "success", { action: { label: "Undo", run: () => { void undoNextRun(was, day); } } });
+    else toast(res.error ? `Didn't move ${o.name}'s porch — ${res.error}` : `${o.name}'s porch changed meanwhile — nothing moved`, res.error ? "error" : "info");
+    load();
+  };
+  const undoNextRun = async (was: MissedPorch, day: string) => {
+    if (!supabase) return;
+    const res = await undoMove(supabase, was, day);
+    toast(res.ok ? `${was.name} — back as it was` : res.error ? `Couldn't put it back — ${res.error}` : `${was.name}'s porch moved on since — left as it is`, res.ok ? "success" : res.error ? "error" : "info");
+    load();
+  };
+  // The button says where the porch goes before it is tapped, and the tap does that: one rule, on the same minute's clock.
+  const nextRunButton = (o: DOrder) => {
+    const when = runDayWords(nextRunFor(o, runDays, now).day, etToday());
+    return (
+      <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => toNextRun(o)} disabled={!!busy} aria-label={`Move ${o.name}'s porch to the run for ${when}`}>
+        <Icon name="arrowRight" /> Next run · {when}
+      </button>
+    );
+  };
+
   // Outcomes (swap done / fresh / hold / not home) are logged in DRIVER MODE only (/driver) —
   // one writer, so the recorded flow can't drift between two button sets again. This card is the
   // HQ monitor/debrief face: statuses, brew totals, packout, assign.
@@ -132,16 +218,20 @@ export default function DeliveryOps({ onDue }: { onDue?: (day: string | null) =>
   const day = (iso: string, o: Intl.DateTimeFormatOptions) => new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, o);
   const earlierBlock = earlier.length > 0 && (
     <div role="group" aria-label="From earlier runs — not delivered">
-      <p className="dops-sum"><b className="dl-held">{earlier.length} from earlier</b> — not delivered, and not on a run until someone moves {earlier.length === 1 ? "it" : "them"}.</p>
+      <p className="dops-sum"><b className="dl-held">{earlier.length} from earlier</b> — not delivered. Next run puts {earlier.length === 1 ? "it" : "each"} on the next one.</p>
       <div className="k-rows">
+        {/* Each porch carries its id, so a row in Due next lands on it (lib/dueNext dueAnchor); focus lands without a ring. */}
         {earlier.map((o) => (
-          <InfoRow key={o.id} lead={day(o.delivery_date, { weekday: "short" })} leadSub={day(o.delivery_date, { month: "short", day: "numeric" })}
-            name={o.name}
-            nameExtra={<span className="dops-chip new">{STATUS_LABEL[o.status]}</span>}
-            meta={<>
-              {o.driver_note ? <><em>{o.driver_note}</em> · </> : null}{o.pack_size} bottles · {o.address_street}, {o.address_city}
-              {o.phone ? <div className="dops-drive"><a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>Call {o.name.split(" ")[0]}</a></div> : null}
-            </>} />
+          <div key={o.id} id={dueAnchor("porch", o.id)} tabIndex={-1} className="outline-none">
+            <InfoRow lead={day(o.delivery_date, { weekday: "short" })} leadSub={day(o.delivery_date, { month: "short", day: "numeric" })}
+              name={o.name}
+              nameExtra={<span className="dops-chip new">{notHome(o) ? "Not home" : STATUS_LABEL[o.status]}</span>}
+              meta={<>
+                {o.driver_note ? <><em>{o.driver_note}</em> · </> : null}{o.pack_size} bottles · {o.address_street}, {o.address_city}
+                {o.phone ? <div className="dops-drive"><a className="dops-tel min-h-11" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>Call {o.name.split(" ")[0]}</a></div> : null}
+                <div className="dops-actions">{nextRunButton(o)}</div>
+              </>} />
+          </div>
         ))}
       </div>
     </div>
@@ -149,7 +239,7 @@ export default function DeliveryOps({ onDue }: { onDue?: (day: string | null) =>
   if (!date || rows.length === 0) {
     if (!earlierBlock) return null; // quiet until a delivery exists
     return (
-      <FoldCard title="Sunday delivery" label="Sunday delivery" today
+      <FoldCard title="Sunday delivery" label="Sunday delivery" today id="due-porch"
         sub={`No run scheduled · ${earlier.length} from earlier`}>
         {earlierBlock}
       </FoldCard>
@@ -159,7 +249,6 @@ export default function DeliveryOps({ onDue }: { onDue?: (day: string | null) =>
   const bottles = rows.reduce((a, o) => a + o.pack_size, 0);
   const refills = rows.reduce((a, o) => a + o.refill_count, 0);
   const fresh = rows.reduce((a, o) => a + o.new_count + o.performance_count, 0);
-  const revenue = rows.reduce((a, o) => a + o.total_cents, 0);
   const perF = { RISE: 0, FLOW: 0, DUSK: 0 } as Record<string, number>;
   rows.forEach((o) => { perF.RISE += o.rise_count; perF.FLOW += o.flow_count; perF.DUSK += o.dusk_count; });
   // Premium ($14) adds are dynamic (whatever's flagged bulk-orderable) — sum by slug so the crew
@@ -173,51 +262,67 @@ export default function DeliveryOps({ onDue }: { onDue?: (day: string | null) =>
   const isRunDay = date === etToday();
   const showList = listOpen ?? isRunDay;
   const dLabel = dayWithDate(date);
+  // PAID IS SAID, PER PORCH (2026-10-11). Every row drew a check after its price and the line above said the run's total
+  // was "paid on order" — whatever payment_status said. The total counts what is paid; a porch that is not says so.
+  const paidCents = rows.filter((o) => o.payment_status === "paid").reduce((a, o) => a + o.total_cents, 0);
+  const unpaid = rows.length - rows.filter((o) => o.payment_status === "paid").length;
+  const toOut = outPlan(rows);
 
   return (
     // ONE ROW UNTIL ITS DAY (2026-10-10, the Live Ops fold): the run's day, how many porches, and the
     // bottles to make — and the whole working face on the run's day, or on a tap (components/crew/
     // FoldCard). Each porch is a kit InfoRow; the porch list inside still folds until the run.
-    <FoldCard title="Sunday delivery" label="Sunday delivery" today={isRunDay}
+    <FoldCard title="Sunday delivery" label="Sunday delivery" today={isRunDay} id="due-porch"
       sub={`${dLabel} · ${rows.length} porch${rows.length === 1 ? "" : "es"}${earlier.length ? ` · ${earlier.length} from earlier` : ""}`}
       value={`${bottles} bottle${bottles === 1 ? "" : "s"}`}>
       {earlierBlock}
       <p className="dops-sum">
-        <b>{bottles}</b> bottles ({refills} refills · {fresh} fresh) · <b>{money(revenue)}</b> paid on order
+        <b>{bottles}</b> bottles ({refills} refills · {fresh} fresh) · <b>{money(paidCents)}</b> paid on order
+        {unpaid > 0 && <> · <b className="dl-held">{unpaid} unpaid</b></>}
         {heldQueue.length > 0 && <> · <b className="dl-held">{heldQueue.length} held for pickup</b></>}
       </p>
       <div className="dops-brew">Brew: <b>{(["RISE", "FLOW", "DUSK"] as const).filter((f) => perF[f] > 0).map((f) => `${perF[f]}× ${f}`).join(" · ") || "—"}</b>
         {premiumTotal > 0 && <> · Premium: <b>{Object.keys(premiumMix).length ? Object.entries(premiumMix).map(([k, n]) => `${n}× ${k}`).join(" · ") : premiumTotal}</b></>}
       </div>
+      {/* The run's day, with porches not out yet: one tap and the confirm sheet, instead of two taps a porch. */}
+      {isRunDay && toOut.length > 0 && (
+        <button type="button" className="btn-sec btn-wide mb-2" onClick={markAllOut} disabled={!!busy}>
+          <Icon name="truck" /> {busy === "all" ? "Marking them out…" : `Mark all out for delivery · ${toOut.length}`}
+        </button>
+      )}
       <LoopQuickLog porches={rows} />
-      <Link className="dops-driver-link" href="/driver"><Icon name="truck" /> Open the driver run — map &amp; turn-by-turn <Icon name="arrowRight" /></Link>
+      <Link className="dops-driver-link min-h-11" href="/driver"><Icon name="truck" /> Open the driver run — map &amp; turn-by-turn <Icon name="arrowRight" /></Link>
       <button type="button" className="btn-sec btn-sm btn-wide mt-2" onClick={() => setAssign(true)}><Icon name="team" /> Assign this run to a driver <Icon name="arrowRight" /></button>
       <button type="button" className="btn-sec btn-sm btn-wide mt-2" onClick={() => setPackout(true)}><Icon name="package" /> Vehicle packout plan <Icon name="arrowRight" /></button>
       {assign && <AssignTaskSheet defaultTitle={`Sunday delivery run — ${rows.length} porch${rows.length === 1 ? "" : "es"} · ${bottles} bottles`} dueOn={date} category="ops" onClose={() => setAssign(false)} />}
       {packout && <DeliveryPackout bottles={bottles} orders={rows.length} refills={refills} onClose={() => setPackout(false)} />}
-      <button type="button" className="dops-prog" onClick={() => setListOpen(!showList)} aria-expanded={showList}>
+      <button type="button" className="dops-prog min-h-11" onClick={() => setListOpen(!showList)} aria-expanded={showList}>
         <span><b>{doneCount}/{rows.length}</b> porches done</span>
         <span>{showList ? "▾" : "▸"}</span>
       </button>
       {showList && (
         <div className="k-rows">
-          {rows.map((o) => (
-            <div key={o.id} style={o.status === "delivered" ? { opacity: 0.5 } : undefined}>
+          {rows.map((o) => {
+            // States in words (2026-10-11): not home is said, not "Issue"; a porch past its window says late.
+            const late = porchLate(o, now);
+            const word = `${notHome(o) ? "Not home" : STATUS_LABEL[o.status]}${late ? " · late" : ""}`;
+            return (
+            <div key={o.id} id={dueAnchor("porch", o.id)} tabIndex={-1} className="outline-none" style={o.status === "delivered" ? { opacity: 0.5 } : undefined}>
               <InfoRow
                 lead="ZIP"
                 leadSub={o.address_zip}
                 name={o.name}
                 nameExtra={<>
                   {o.refill_count > 0 && <span className="dops-chip ret">SWAP ×{o.refill_count}</span>}
-                  <span className={`dops-chip ${o.status === "held_for_pickup" ? "new" : "ret"}`}>{STATUS_LABEL[o.status]}</span>
+                  <span className={`dops-chip ${missed(o) || late ? "new" : "ret"}`}>{word}</span>
                 </>}
-                trailing={<span className="dops-total">{money(o.total_cents)} <Icon name="check" /></span>}
+                trailing={<span className="dops-total">{money(o.total_cents)} {o.payment_status === "paid" ? <>paid <Icon name="check" /></> : <em className="dl-held">{o.payment_status === "refunded" ? "refunded" : "unpaid"}</em>}</span>}
                 meta={<>
                   <b>{o.pack_size} bottles</b> — {[o.rise_count && `${o.rise_count}× RISE`, o.flow_count && `${o.flow_count}× FLOW`, o.dusk_count && `${o.dusk_count}× DUSK`, o.performance_count && `${Object.entries(o.performance_mix || {}).map(([k, n]) => `${n}× ${prettySlug(k)}`).join(" · ") || `${o.performance_count}× premium`}`].filter(Boolean).join(" · ")}
                   <br />{o.address_street}, {o.address_city} {o.address_zip}{o.access_instructions ? <> · <em>{o.access_instructions}</em></> : null}
                   <div className="dops-drive">
-                    <a className="dops-nav" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${o.address_street}, ${o.address_city} ${o.address_zip}`)}`} target="_blank" rel="noopener noreferrer"><Icon name="compass" /> Navigate</a>
-                    {o.phone ? <a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>Call {o.name.split(" ")[0]}</a> : null}
+                    <a className="dops-nav min-h-11" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${o.address_street}, ${o.address_city} ${o.address_zip}`)}`} target="_blank" rel="noopener noreferrer"><Icon name="compass" /> Navigate</a>
+                    {o.phone ? <a className="dops-tel min-h-11" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>Call {o.name.split(" ")[0]}</a> : null}
                   </div>
                   {/* Was `!==`, which fired the SHORT label on a surplus too (collected > expected —
                       the customer had extra bottles on hand) — reads as a shortfall when it's the
@@ -234,7 +339,7 @@ export default function DeliveryOps({ onDue }: { onDue?: (day: string | null) =>
                       <button type="button" className="btn-sec btn-sm flex-1" onClick={() => setStatus(o, STATUS_NEXT[o.status])}><Icon name="arrowRight" /> {STATUS_LABEL[STATUS_NEXT[o.status]]}</button>
                     )}
                     {batches.length > 0 && (
-                      <select className={`dops-batchsel${o.batch_id ? " set" : ""}`} value={o.batch_id ?? ""} onChange={(e) => setBatch(o.id, e.target.value)} aria-label="Filled from batch" title="Filled from batch — recall traceability">
+                      <select className={`dops-batchsel min-h-11${o.batch_id ? " set" : ""}`} value={o.batch_id ?? ""} onChange={(e) => setBatch(o.id, e.target.value)} aria-label="Filled from batch" title="Filled from batch — recall traceability">
                         <option value="">batch?</option>
                         {batches.map((b) => <option key={b.id} value={b.id}>{(b.recipe_name || "Batch")} · {Number(b.batch_gal)} gal</option>)}
                       </select>
@@ -242,11 +347,13 @@ export default function DeliveryOps({ onDue }: { onDue?: (day: string | null) =>
                     {o.status === "out_for_delivery" && (
                       <Link className="btn-sec btn-sm shrink-0" href="/driver">Log the outcome in driver mode <Icon name="arrowRight" /></Link>
                     )}
+                    {missed(o) && nextRunButton(o)}
                   </div>
                 </>}
               />
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </FoldCard>
@@ -321,9 +428,9 @@ function LoopQuickLog({ porches }: { porches: readonly DOrder[] }) {
   return (
     <div className="dops-loop">
       <span className="dops-loop-l">Loop returns{board.status === "error" ? " · couldn't load" : ""}</span>
-      <input inputMode="numeric" value={n} onChange={(e) => { setN(e.target.value.replace(/\D/g, "")); setMsg(null); }} placeholder="bottles" aria-label="Loop bottles returned" />
+      <input className="min-h-11" inputMode="numeric" value={n} onChange={(e) => { setN(e.target.value.replace(/\D/g, "")); setMsg(null); }} placeholder="bottles" aria-label="Loop bottles returned" />
       {people.length > 0 && (
-        <select value={whose} onChange={(e) => setWhose(e.target.value)} aria-label="Whose bottles">
+        <select className="min-h-11" value={whose} onChange={(e) => setWhose(e.target.value)} aria-label="Whose bottles">
           <option value="">Whose? — not recorded</option>
           {people.map((o) => <option key={o.customer_id as string} value={o.customer_id as string}>{o.name}{o.refill_count > 0 ? " · swap" : ""}</option>)}
         </select>
@@ -334,7 +441,7 @@ function LoopQuickLog({ porches }: { porches: readonly DOrder[] }) {
         <span className="dops-loop-today">
           today:
           {today.map((t) => (
-            <button key={t.id} type="button" className="k-chip sm"
+            <button key={t.id} type="button" className="k-chip sm min-w-11"
                     title={`Void this entry of ${t.returns}`}
                     onClick={() => undo(t.id, t.returns)}>
               {t.returns}<span aria-hidden="true">×</span>

@@ -101,6 +101,7 @@ const PromoEditor = dynamic(() => import("@/components/PromoEditor"), { loading:
 import EightySix from "@/components/EightySix";
 const ReviewsAdmin = dynamic(() => import("@/components/ReviewsAdmin"), { loading: () => <PourFill label="Loading…" /> });
 import DeliveryOps from "@/components/DeliveryOps";
+import DueList, { useDueFeeds } from "@/components/crew/DueList";
 import PackPlan from "@/components/PackPlan";
 const OrgChart = dynamic(() => import("@/components/OrgChart"), { loading: () => <PourFill label="Loading…" /> });
 const WorkloadBoard = dynamic(() => import("@/components/WorkloadBoard"), { loading: () => <PourFill label="Loading…" /> });
@@ -795,6 +796,9 @@ function ServicePulse({ onEnter }: { onEnter: () => void }) {
 // the soonest first. Each card still folds to one row until its day (components/crew/FoldCard) and says its own day;
 // it reports that day here (onDue), so the order follows the calendar rather than the code. A card with nothing
 // scheduled goes last, or hides, as it always has.
+// ONE LIST ABOVE THEM (2026-10-11, the dispatch round): every pack, porch, office stop and cup placed ahead, soonest
+// first, one row each and in words; a row opens its card (components/crew/DueList, lib/dueNext). Each card hands up the
+// rows it read (onRows) — the list reads no table twice and cannot disagree with the card below it.
 type DueKey = "drop" | "porch" | "office";
 const DUE_KEYS: DueKey[] = ["drop", "porch", "office"];
 function DueNext({ canPlan, onOpenPass }: { canPlan: boolean; onOpenPass: () => void }) {
@@ -803,15 +807,17 @@ function DueNext({ canPlan, onOpenPass }: { canPlan: boolean; onOpenPass: () => 
     const at = (k: DueKey) => (day: string | null) => setDue((d) => (d[k] === day ? d : { ...d, [k]: day }));
     return { drop: at("drop"), porch: at("porch"), office: at("office") };
   }, []);
+  const { feeds, report: rows } = useDueFeeds();
   const order = [...DUE_KEYS].sort((a, b) => (due[a] ?? "9999-12-31").localeCompare(due[b] ?? "9999-12-31"));
   const card: Record<DueKey, ReactNode> = {
-    drop: <DropOps key="drop" brief onOpen={onOpenPass} canPlan={canPlan} onDue={report.drop} />,
-    porch: <DeliveryOps key="porch" onDue={report.porch} />,
-    office: <OfficeOrders key="office" onDue={report.office} />,
+    drop: <DropOps key="drop" brief onOpen={onOpenPass} canPlan={canPlan} onDue={report.drop} onRows={rows.pickup} />,
+    porch: <DeliveryOps key="porch" onDue={report.porch} onRows={rows.porch} />,
+    office: <OfficeOrders key="office" onDue={report.office} onRows={rows.office} />,
   };
   return (
     <section aria-label="Due next" className="due-next">
-      <SectionHeader label="Due next" annotation="pickups · porches · office" />
+      <SectionHeader label="Due next" annotation="pickups · porches · office · cups ahead" />
+      <DueList feeds={feeds} onOpenPass={onOpenPass} />
       {order.map((k) => card[k])}
     </section>
   );
