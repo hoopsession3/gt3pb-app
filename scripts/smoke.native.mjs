@@ -1236,7 +1236,13 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       m.top && m.rows.join("|") === "Start|Collect $18|Void order", JSON.stringify(m));
     await page.keyboard.press("Escape"); await page.waitForTimeout(700);
     ok("the Pass: Escape puts the menu away, and the Pass stays", !(await page.$("[data-row-menu]")) && !!(await page.$(".svc-full .adm-order")));
+    // ⋯ is the ticket's menu, the one the long press raises (2026-10-11: it went straight to Void); Void in it still asks.
     await page.locator(".svc-full .adm-order .adm-act-more").first().click().catch(() => {});
+    await page.waitForTimeout(800);
+    const mm = await onTop();
+    ok("the Pass: ⋯ raises the same menu above the Pass — Start, Collect, Void in red last",
+      mm.top && mm.rows.join("|") === "Start|Collect $18|Void order", JSON.stringify(mm));
+    await page.locator("[data-row-menu] .acs-row", { hasText: "Void order" }).first().click().catch(() => {});
     await page.waitForTimeout(800);
     const v = await onTop();
     ok("the Pass: the void's question stands above the Pass, where it can be answered", v.top && /Void Jess/.test(v.label ?? ""), JSON.stringify(v));

@@ -14,13 +14,16 @@ import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, alertWhen, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
-import { localToday, etToday, dayWithDate, relativeDay, ageLabel, evDate, evTime } from "@/lib/dates";
+import { localToday, etToday, dayWithDate, relativeDay, ageLabel, evDate, evTime, clockTime } from "@/lib/dates";
 import { orderClockFrom, waitingToOpen, waitingLabel } from "@/lib/ordering";
 import { prepBucket } from "@/lib/readiness";
 import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
 import { readParam, dropParam } from "@/lib/urlParam";
 import { panelHome } from "@/lib/panelHome";
-import { usePassMuted, setPassMuted } from "@/lib/passSound";
+import { usePassMuted, setPassMuted, setPassUp } from "@/lib/passSound";
+import { setOrderStatus, movedTo, movedLine } from "@/lib/orderStatus";
+import { useWakeLock } from "@/lib/useWakeLock";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { NotifPrefs, NotifPrefsSheet } from "@/components/NotifPrefs";
 import { DeviceAlerts, AlertsOffLine } from "@/components/DeviceAlerts";
 import { PassSound, Appearance } from "@/components/YouPrefs";
@@ -352,32 +355,72 @@ function Kitchen() {
   const muted = usePassMuted();
   const [doneOpen, setDoneOpen] = useState(false);
   const [, setTick] = useState(0);
-  const [err, setErr] = useState("");
-  const [staleAt, setStaleAt] = useState(0); // >0 = board hydrated from the offline snapshot
+  // WHAT THE BOARD IS, AND HOW SURE OF IT THE PASS IS (2026-10-11). It said "The pass is clear" before its first read
+  // had landed, and again under a raw "Backend error"; and a read made after the session had gone came back empty (RLS
+  // shows a signed-out phone no orders), cleared the board, overwrote the board saved for offline, and called that
+  // clear too. boardAt: when the board on screen was read — from the database, or the one this phone saved (0: no
+  // board yet, so the pass is loading, not clear). down: the last read failed — "net" with no signal, "auth" with no
+  // session, "read" for anything else; the board stays, and says how old it is. live: the realtime feed is connected.
+  const [boardAt, setBoardAt] = useState(0);
+  const [down, setDown] = useState<"" | "net" | "auth" | "read">("");
+  const [live, setLive] = useState(true);
   const seeded = useRef(false);
   const mutedRef = useRef(false);
   useEffect(() => { mutedRef.current = muted; }, [muted]);
+  // The Pass is up while this board is: a new order rings here, and not a second time from the shell (lib/passSound).
+  useEffect(() => { setPassUp(true); return () => setPassUp(false); }, []);
+
+  // Ring + buzz + flash when a genuinely new order lands (not on initial seed / own taps).
+  const announceNew = useCallback((row: Order) => {
+    if (!seeded.current) return;
+    if (!mutedRef.current) { chime(); haptic("alert"); }
+    setFlash((p) => new Set(p).add(row.id));
+    setTimeout(() => setFlash((p) => { const n = new Set(p); n.delete(row.id); return n; }), 6000);
+  }, []);
+  // EVERY NEW ORDER RINGS, ONCE (2026-10-11). It rang only for a realtime INSERT, so an order whose insert the feed
+  // missed — a socket asleep in an apron, a reconnect — came in silently with the next reconcile. Now the first time this
+  // board sees an order, from the feed or from a read, it rings if it is new: once per order, never for the board's
+  // first read, and never twice when the feed and a read both bring it.
+  const known = useRef<Set<string>>(new Set());
+  // OVERLAPPING READS LAND IN ORDER (2026-10-11): the reconcile, a return to the screen, a reconnect and a drained queue
+  // can all ask at once. Only the newest read asked for is applied — a slow old answer never puts an older board back.
+  const loadSeq = useRef(0);
 
   // Active board + recently-completed (last 30 min) so picked-up orders linger for
   // review / recall instead of vanishing instantly.
   const load = useCallback(async () => {
     if (!supabase) return;
+    const ask = ++loadSeq.current;
     const recentISO = new Date(Date.now() - RECENT_MS).toISOString();
-    const { data, error } = await supabase.from("orders").select("*").neq("status", "void")
-      .or(`status.neq.done,status_changed_at.gte.${recentISO}`).order("created_at");
-    if (error) {
+    // The session first: with none, nothing this read could say is about the pass (`down` above).
+    const auth = await supabase.auth.getSession();
+    const res = auth.data.session ? await supabase.from("orders").select("*").neq("status", "void")
+      .or(`status.neq.done,status_changed_at.gte.${recentISO}`).order("created_at") : null;
+    if (ask !== loadSeq.current) return;
+    const error = res ? res.error : auth.error;
+    if (!res || error) {
+      const net = isNetworkError(error?.message);
       // No signal on a fresh open → show the last-known board (clearly labeled) instead of an
       // error over a blank pass. Taps still work; writes queue and sync when the signal returns.
-      if (!seeded.current && isNetworkError(error.message)) {
+      if (!seeded.current && net) {
         const snap = readSnapshot<Order[]>("gt3-kds-snap");
-        if (snap && snapshotUsable(snap.at, Date.now())) { setOrders(snap.data); setStaleAt(snap.at); seeded.current = true; return; }
+        if (snap && snapshotUsable(snap.at, Date.now())) {
+          setOrders(snap.data); setBoardAt(snap.at);
+          for (const o of snap.data) known.current.add(o.id);
+          seeded.current = true;
+        }
       }
-      setErr(error.message); return;
+      setDown(net ? "net" : res ? "read" : "auth");
+      return;
     }
-    setErr(""); setStaleAt(0);
-    if (data) { setOrders(data as Order[]); saveSnapshot("gt3-kds-snap", data); }
+    const rows = (res.data ?? []) as Order[];
+    const fresh = seeded.current ? rows.filter((o) => o.status === "new" && !known.current.has(o.id)) : [];
+    for (const o of rows) known.current.add(o.id);
     seeded.current = true;
-  }, []);
+    setOrders(rows); setBoardAt(Date.now()); setDown("");
+    saveSnapshot("gt3-kds-snap", rows);
+    fresh.forEach(announceNew);
+  }, [announceNew]);
   // Merge a single row into state (no refetch). Keeps recently-done; drops voids and
   // stale dones (those fall off on the next reconcile).
   const apply = useCallback((row: Order | null, removed = false) => {
@@ -393,13 +436,6 @@ function Kitchen() {
     });
   }, []);
 
-  // Ring + buzz + flash when a genuinely new order lands (not on initial seed / own taps).
-  const announceNew = useCallback((row: Order) => {
-    if (!seeded.current) return;
-    if (!mutedRef.current) { chime(); haptic("alert"); }
-    setFlash((p) => new Set(p).add(row.id));
-    setTimeout(() => setFlash((p) => { const n = new Set(p); n.delete(row.id); return n; }), 6000);
-  }, []);
   // "I'm OUTSIDE" rings the pass once per order — the customer is at the window, call the name.
   const rungOutside = useRef<Set<string>>(new Set());
   const announceOutside = useCallback((row: Order) => {
@@ -417,18 +453,42 @@ function Kitchen() {
     // When the offline queue drains (OfflineChip replayed it), reconcile immediately so the
     // board swaps from optimistic/snapshot state to server truth.
     const onQueue = () => { if (readQueue().length === 0) load(); };
+    // Back on the screen, read again (2026-10-11): a phone that slept missed every change, and the feed replays none.
+    // The console's own refresh — the pull, and the read after 30s away (lib/realtime) — never reaches the Pass: it is
+    // a dialog, and the pull stands down over one (lib/gesture heldBy), so the Pass keeps its own.
+    const onVis = () => { if (document.visibilityState === "visible") load(); };
     window.addEventListener(OFFLINE_EVENT, onQueue);
-    if (!supabase) return () => { clearInterval(tick); clearInterval(recon); window.removeEventListener(OFFLINE_EVENT, onQueue); };
-    const ch = supabase
-      .channel(`admin-kds-${++kdsChanSeq}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (p) => {
-        const row = (p.eventType === "DELETE" ? p.old : p.new) as Order;
-        apply(row, p.eventType === "DELETE");
-        if (p.eventType === "INSERT" && row?.status === "new") announceNew(row);
-        if (p.eventType === "UPDATE" && row) announceOutside(row);
-      })
-      .subscribe();
-    return () => { clearInterval(tick); clearInterval(recon); window.removeEventListener(OFFLINE_EVENT, onQueue); supabase?.removeChannel(ch); };
+    document.addEventListener("visibilitychange", onVis);
+    const stop = () => { clearInterval(tick); clearInterval(recon); window.removeEventListener(OFFLINE_EVENT, onQueue); document.removeEventListener("visibilitychange", onVis); };
+    if (!supabase) return stop;
+    const sb = supabase;
+    // THE FEED SAYS WHEN IT DROPS, AND CATCHES UP WHEN IT IS BACK (2026-10-11). Realtime rejoins by itself after an error
+    // or a timeout but replays nothing it missed, so the board reads again the moment it is back; until then the Pass
+    // says "Reconnecting…" and the 15-second reconcile carries the board. A channel the server closed is never
+    // rejoined, so a new one is opened.
+    let alive = true, broke = false, retry = 0;
+    let ch: RealtimeChannel | null = null;
+    const join = () => {
+      ch = sb
+        .channel(`admin-kds-${++kdsChanSeq}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (p) => {
+          const row = (p.eventType === "DELETE" ? p.old : p.new) as Order;
+          apply(row, p.eventType === "DELETE");
+          if (p.eventType !== "DELETE" && row?.id) {
+            if (row.status === "new" && !known.current.has(row.id)) announceNew(row);
+            known.current.add(row.id);
+          }
+          if (p.eventType === "UPDATE" && row) announceOutside(row);
+        })
+        .subscribe((status) => {
+          if (!alive) return;
+          if (status === "SUBSCRIBED") { setLive(true); if (broke) { broke = false; load(); } return; }
+          broke = true; setLive(false);
+          if (status === "CLOSED") retry = window.setTimeout(join, 5000);
+        });
+    };
+    join();
+    return () => { alive = false; clearTimeout(retry); stop(); if (ch) sb.removeChannel(ch); };
   }, [load, apply, announceNew, announceOutside]);
 
   // Instant: patch local state synchronously, fire the write, no refetch on success.
@@ -436,23 +496,32 @@ function Kitchen() {
     if (!to || !supabase) return;
     apply({ ...o, status: to, status_changed_at: new Date().toISOString() } as Order, false);
     haptic("medium");
-    // Ready = tell the customer off-app too (SMS/email, env-gated server-side). Fire-and-forget:
-    // the board never waits on a notification provider.
-    if (to === "ready") {
-      void (async () => {
-        try {
-          await authedFetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "order_ready", id: o.id }) });
-        } catch { /* best-effort */ }
-      })();
+    // Definer RPC so a 'server' can advance status without table-wide write access — from the status
+    // this ticket showed when it was tapped (lib/orderStatus: a tap on a board that is behind no longer
+    // lands over an order somebody else moved).
+    const { error } = await setOrderStatus(supabase, o.id, to, o.status);
+    if (!error) {
+      // READY REACHES THE CUSTOMER ONCE (2026-10-11). Told off-app (SMS/email, env-gated server-side)
+      // once the move is saved, and only for a move forward into Ready: it went before the write had
+      // landed, and again on a recall from Picked up — and /api/notify sends whatever it is asked.
+      // Fire-and-forget: the board never waits on a notification provider. A move parked with no
+      // signal sends nothing, now or when the queue replays it (components/offlineReplay), as before.
+      if (to === "ready" && (o.status === "new" || o.status === "preparing")) {
+        void (async () => {
+          try {
+            await authedFetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "order_ready", id: o.id }) });
+          } catch { /* best-effort */ }
+        })();
+      }
+      return;
     }
-    // Definer RPC so a 'server' can advance status without table-wide write access.
-    const { error } = await supabase.rpc("staff_set_order_status", { p_order: o.id, p_status: to });
-    if (error) {
-      // No signal ≠ stop service: keep the optimistic board, park the write for replay
-      // (coalesced per order — the final state wins), and say so calmly.
-      if (isNetworkError(error.message)) { queueOrderStatus(o.id, to); toast("No signal — saved, will sync", "info"); return; }
-      setErr(error.message); toast(`Couldn't update — ${error.message}`, "error"); load();
-    }
+    // No signal ≠ stop service: keep the optimistic board, park the write for replay
+    // (coalesced per order — the final state wins), and say so calmly.
+    if (isNetworkError(error.message)) { queueOrderStatus(o.id, to, o.status); toast("No signal — saved, will sync", "info"); return; }
+    // Somebody moved it first (the other phone, a replay): say where it is and read the board again — news, not an error.
+    const now = movedTo(error);
+    toast(now === null ? `Couldn't update — ${error.message}` : movedLine(o.id, now), now === null ? "error" : "info");
+    load();
   };
   // ── MONEY AT THE WINDOW (2026-10-04, 0341) ─────────────────────────────────────────────────────
   // "UNPAID · collect at pickup" was a sentence with nothing behind it: nothing in the app could
@@ -519,10 +588,15 @@ function Kitchen() {
     if (!(await confirm({ title: `Void ${o.customer ?? "this order"}?`, body, confirmLabel: "Void order", danger: true }))) return;
     if (!supabase) return;
     apply(o, true);
-    const { error } = await supabase.rpc("staff_set_order_status", { p_order: o.id, p_status: "void" });
+    const { error } = await setOrderStatus(supabase, o.id, "void", o.status);
     if (error) {
-      if (isNetworkError(error.message)) { queueOrderStatus(o.id, "void"); toast("No signal — void saved, will sync", "info"); }
-      else { setErr(error.message); toast(`Couldn't void — ${error.message}`, "error"); load(); return; }
+      if (isNetworkError(error.message)) { queueOrderStatus(o.id, "void", o.status); toast("No signal — void saved, will sync", "info"); }
+      else {
+        // Moved on before the void landed (picked up meanwhile): nothing was voided, so there is no refund to flag.
+        const now = movedTo(error);
+        toast(now === null ? `Couldn't void — ${error.message}` : movedLine(o.id, now), now === null ? "error" : "info");
+        load(); return;
+      }
     }
     if (how && how !== "cash") {
       await raiseAlertClient({
@@ -553,14 +627,18 @@ function Kitchen() {
           gap:8px) rather than just justifyContent, so this doesn't lose the vertical centering or
           the pill↔button spacing the two had inside the old SectionHeader's right slot. */}
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+        {/* The feed down while reads still land: a quiet word beside the count, not a banner — the reconcile keeps the board. */}
+        {!live && !down && <span className="k-count soon" role="status">Reconnecting…</span>}
         {active.length > 0 && <span className="k-count">{active.length} active</span>}
         <button type="button" className={`k-chip sm${muted ? " on" : ""}`} onClick={toggleMute} aria-pressed={muted}>{muted ? "🔇 Muted" : <><Icon name="bell" /> Sound</>}</button>
       </div>
 
-      {err && <div className="adm-attn" role="alert">Backend error: {err}</div>}
-      {staleAt > 0 && (
-        <div className="adm-attn" role="alert">
-          <b>Offline</b> — showing the last-known board (from {ago(new Date(staleAt).toISOString())}). Taps still work and will sync when the signal returns.
+      {/* A read that failed says so in words, and how old the board under it is — never a raw "Backend error". */}
+      {down && (
+        <div className="adm-attn" role="status">
+          <b>{down === "auth" ? "Signed out" : "Can't reach the pass"}</b>
+          {boardAt > 0 ? ` — showing the board from ${clockTime(new Date(boardAt).toISOString())}.` : "."}{" "}
+          {down === "auth" ? "Sign in again to see new orders." : down === "net" && boardAt > 0 ? "Taps still work and will sync when the signal returns." : "Reconnecting…"}
         </div>
       )}
       {late.length > 0 && (
@@ -569,8 +647,10 @@ function Kitchen() {
         </div>
       )}
 
+      {/* No board yet: the pass is loading, not clear. */}
+      {boardAt === 0 && !down && <PourFill label="Loading the pass…" />}
       <div aria-live="polite">
-        {STAGES.map((st) => {
+        {boardAt > 0 && STAGES.map((st) => {
           const list = orders.filter((o) => o.status === st.key);
           const isCol = collapsed.has(st.key);
           return (
@@ -596,7 +676,9 @@ function Kitchen() {
                 return (
                   <LongPress key={o.id} title={`${o.customer ?? "Guest"} · #${o.id.slice(0, 4).toUpperCase()}`} items={items}>{(press) => (
                   <div {...press.bind} className={`adm-order pressable st-${o.status}${flash.has(o.id) ? " flash" : ""}`}>
-                    <button className="adm-act-more" onClick={() => voidOrder(o)} aria-label={`Void ${o.customer ?? "order"}`}><Icon name="more" /></button>
+                    {/* ⋯ IS THE TICKET'S MENU (2026-10-11) — the one the long press raises: next, back, the money, and
+                        Void (which still asks). It went straight to Void, the one step that cannot be taken back. */}
+                    <button type="button" className="adm-act-more" onClick={press.show} aria-haspopup="dialog" aria-label={`Actions for ${o.customer ?? "this order"}`}><Icon name="more" /></button>
                     <div className="adm-order-top pr-10">
                       <b>{o.customer ?? "Guest"}</b>
                       <span className={`adm-age ${sev}`}>{waiting && o.ready_from ? waitingLabel(o.ready_from) : ago(orderClockFrom(o))}</span>
@@ -626,7 +708,7 @@ function Kitchen() {
           );
         })}
 
-        {done.length > 0 && (
+        {boardAt > 0 && done.length > 0 && (
           <div className="kds-stage">
             <button type="button" className="kds-stage-h" onClick={() => setDoneOpen((v) => !v)} aria-expanded={doneOpen}>
               <span className={`kds-caret${!doneOpen ? " col" : ""}`} aria-hidden="true">›</span>
@@ -663,7 +745,8 @@ function Kitchen() {
           </div>
         )}
       </div>
-      {active.length === 0 && done.length === 0 && <EmptyState title="The pass is clear" sub="New orders arrive here in realtime." />}
+      {/* Clear only when a board read now says so — not before the first read, and not over a read that failed. */}
+      {boardAt > 0 && !down && active.length === 0 && done.length === 0 && <EmptyState title="The pass is clear" sub="New orders arrive here in realtime." />}
       {collectSheet}
     </div>
   );
@@ -5807,6 +5890,10 @@ export default function AdminPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [svc]);
   useEffect(() => { if (section !== "now") setSvc(false); }, [section]);
+  // THE SCREEN STAYS ON WHILE THE PASS IS OPEN (2026-10-11, lib/useWakeLock): a phone propped by the window dimmed and
+  // locked mid-rush, and a locked phone rings for nobody. Asked again whenever the app comes back; let go on Exit (and
+  // on leaving Live Ops, which closes the Pass, above).
+  useWakeLock(svc);
   // THE PASS OPENS FROM A JUMP (2026-10-06, the settings round) — an order alert's Open, or a link
   // that ends &a=kitchen-pass (jumpTo, near alertDest). The Pass is a screen on Live Ops, so the jump
   // goes to Live Ops and opens it, instead of hunting for an id that exists only once it is open.
@@ -6108,15 +6195,15 @@ export default function AdminPage() {
               (components/crew/FoldCard). */}
           <Columns>
           <Column>
-          {!svc && (
-            <>
-              <ServicePulse onEnter={() => setSvc(true)} />
-              {/* The truck instrument rides directly under the pulse — going live IS the first act
-                  of service, not a panel below the fold. */}
-              {canManage && <LiveControl compact />}
-              <DropOps brief onOpen={() => setSvc(true)} canPlan={canManage} />
-            </>
-          )}
+          {!svc && <ServicePulse onEnter={() => setSvc(true)} />}
+          {/* The truck instrument rides directly under the pulse — going live IS the first act
+              of service, not a panel below the fold.
+              IT STAYS MOUNTED UNDER THE PASS (2026-10-11). Opening the Pass unmounted it, and its cleanup
+              stopped the GPS broadcast: the customers' dot froze the moment service began. Under the Pass
+              it is still drawn, out of reach — inert takes it out of the tab order and away from a screen
+              reader, and the Pass covers it; `contents` leaves Live Ops' layout as it was. */}
+          {canManage && <div className="contents" inert={svc ? true : undefined}><LiveControl compact /></div>}
+          {!svc && <DropOps brief onOpen={() => setSvc(true)} canPlan={canManage} />}
           </Column>
           <Column>
           {!svc && (

@@ -21,3 +21,12 @@ export function usePassMuted(): boolean {
 export function setPassMuted(muted: boolean): void {
   PASS_SOUND.write(muted ? "1" : "0");
 }
+
+// ONE CHIME PER ORDER (2026-10-11). An admin's phone also hears every new order from components/Notifications,
+// wherever it is in the app — a second chime on top of the Pass's own while the Pass was open, and one the pass's mute
+// never reached. That chime asks here first. The Pass says when it is up (app/crew/page.tsx Kitchen).
+let passUp = false;
+export const setPassUp = (up: boolean): void => { passUp = up; };
+
+/** May a new order chime outside the Pass? Not while the Pass is open (it rings its own), and never when muted. */
+export const passRings = (): boolean => !passUp && !passMutedFrom(PASS_SOUND.read());

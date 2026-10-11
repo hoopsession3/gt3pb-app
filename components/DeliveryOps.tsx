@@ -14,6 +14,7 @@ import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
 import { usePrompt } from "@/components/PromptSheet";
 import { useAuth } from "./AuthProvider";
+import { useApp } from "./AppProvider";
 import Link from "next/link";
 
 // SUNDAY DELIVERY OPS — the crew side of the delivery debrief, in DropOps' shape: one summary
@@ -47,6 +48,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function DeliveryOps() {
+  const { toast } = useApp();
   const [rows, setRows] = useState<DOrder[]>([]);
   const [date, setDate] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false); // read failed ≠ no run today
@@ -73,9 +75,12 @@ export default function DeliveryOps() {
   useEffect(() => { load(); }, [load]);
   useRealtimeTable("delivery_orders", load);
 
+  // A WRITE THAT FAILED SAYS SO (2026-10-11): the status and the batch were written unchecked, so a refused one
+  // looked saved until the board read again and quietly put it back.
   const setStatus = async (o: DOrder, status: string) => {
     if (!supabase) return;
-    await supabase.from("delivery_orders").update({ status }).eq("id", o.id);
+    const { error } = await supabase.from("delivery_orders").update({ status }).eq("id", o.id);
+    if (error) toast(`Didn't save ${o.name}'s porch — ${error.message}`, "error");
     load();
   };
   // 0261's delivery side, delivered (the DropOps picker's twin): stamp which brew filled this
@@ -89,7 +94,8 @@ export default function DeliveryOps() {
   }, [date]);
   const setBatch = async (id: string, batchId: string) => {
     if (!supabase) return;
-    await supabase.from("delivery_orders").update({ batch_id: batchId || null }).eq("id", id);
+    const { error } = await supabase.from("delivery_orders").update({ batch_id: batchId || null }).eq("id", id);
+    if (error) toast(`Didn't save the batch — ${error.message}`, "error");
     load();
   };
   // Outcomes (swap done / fresh / hold / not home) are logged in DRIVER MODE only (/driver) —

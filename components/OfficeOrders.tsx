@@ -19,6 +19,7 @@ import FoldCard from "@/components/crew/FoldCard";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
 import { usePrompt } from "@/components/PromptSheet";
+import { useConfirm } from "@/components/ConfirmSheet";
 
 // CREW · OFFICE ORDERS — the operator's control surface for the Monday B2B route (0187). See upcoming
 // office deliveries, log the jug swap (full out / empties in) on delivery, and settle billing
@@ -52,6 +53,7 @@ type Board = { rows: BOrder[]; later: BOrder[]; standingN: number; requests: Req
 
 export default function OfficeOrders() {
   const prompt = usePrompt();
+  const confirm = useConfirm();
   const { toast } = useApp();
   const [openId, setOpenId] = useState<string | null>(null);
   const [empties, setEmpties] = useState<Record<string, number>>({});
@@ -231,10 +233,17 @@ export default function OfficeOrders() {
     setBusyId(null);
   };
 
+  // CANCEL ASKS, AND SAYS WHEN IT DIDN'T (2026-10-11). One tap took a delivery off the route with no question, and the
+  // write was not checked, so a refused one still read "canceled". A canceled delivery leaves the route, the driver's
+  // run and the client's page, and nothing here brings it back — so it asks first, like every step that can't be undone.
   const cancel = async (o: BOrder) => {
-    if (!supabase || busyId) return; setBusyId(o.id);
-    await supabase.from("business_orders").update({ canceled_at: new Date().toISOString(), status: "issue" }).eq("id", o.id);
-    setBusyId(null); toast(`${o.company} — canceled`); reload();
+    if (!supabase || busyId) return;
+    if (!(await confirm({ title: `Cancel ${o.company}'s ${mondayLabel(o.delivery_date)} delivery?`, body: "It comes off the route, the driver's run and their GT3 page. It can't be undone here.", confirmLabel: "Cancel delivery", danger: true }))) return;
+    setBusyId(o.id);
+    const { error } = await supabase.from("business_orders").update({ canceled_at: new Date().toISOString(), status: "issue" }).eq("id", o.id);
+    setBusyId(null);
+    if (error) { toast(`Didn't cancel — ${error.message}`, "error"); return; }
+    toast(`${o.company} — canceled`); reload();
   };
 
   if (board.status === "loading") return null; // quiet during initial load, same as the original gate

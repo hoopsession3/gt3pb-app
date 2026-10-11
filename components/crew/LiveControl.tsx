@@ -22,6 +22,7 @@ import { RecordLink } from "@/components/RecordSheet";
 import { useAuth } from "@/components/AuthProvider";
 import { canOf } from "@/lib/roles";
 import { scrollToAnchor } from "@/lib/anchors";
+import { useWakeLock } from "@/lib/useWakeLock";
 import GoLine from "@/components/GoLine";
 import Button from "../Button";
 
@@ -148,26 +149,21 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
   };
 
   // Continuous broadcast — stream the phone's GPS so the customer dot actually MOVES,
-  // not just a stale one-shot pin. A screen wake lock keeps it alive while open.
+  // not just a stale one-shot pin. The screen stays on while it broadcasts (lib/useWakeLock — the
+  // Pass's hook too, which asks again whenever the app comes back to the screen).
   const watchRef = useRef<number | null>(null);
-  const wakeRef = useRef<{ release: () => Promise<void> } | null>(null);
   const lastWriteRef = useRef(0);
   const [broadcasting, setBroadcasting] = useState(false);
+  useWakeLock(broadcasting);
 
   const stopBroadcast = () => {
     if (watchRef.current != null && typeof navigator !== "undefined") navigator.geolocation.clearWatch(watchRef.current);
     watchRef.current = null;
-    wakeRef.current?.release().catch(() => {});
-    wakeRef.current = null;
     setBroadcasting(false);
   };
 
-  const startBroadcast = async () => {
+  const startBroadcast = () => {
     if (typeof navigator === "undefined" || !navigator.geolocation) { toast("Location isn't available on this device", "error"); return; }
-    try {
-      const wl = (navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<{ release: () => Promise<void> }> } }).wakeLock;
-      wakeRef.current = wl ? await wl.request("screen") : null;
-    } catch { /* wake lock is optional */ }
     watchRef.current = navigator.geolocation.watchPosition(
       async (p) => {
         const now = Date.now();
@@ -182,10 +178,11 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
     toast("Broadcasting live location — the dot moves with you");
   };
 
-  // Stop streaming on unmount (ref-based so it doesn't depend on a memoized callback).
+  // Stop streaming on unmount (ref-based so it doesn't depend on a memoized callback). Opening the
+  // Pass no longer unmounts this (app/crew/page.tsx keeps it under the Pass), so service does not
+  // stop the dot; leaving Live Ops does, as it always has. The wake lock goes with useWakeLock's own cleanup.
   useEffect(() => () => {
     if (watchRef.current != null && typeof navigator !== "undefined") navigator.geolocation.clearWatch(watchRef.current);
-    wakeRef.current?.release().catch(() => {});
   }, []);
   const posLabel = live?.is_live
     ? live?.pos_updated_at

@@ -37,6 +37,8 @@ export type Press = {
   /** Spread on the row's own element, and give it the class `pressable` (app/tailwind.css: on a touch screen
    *  the row's words start no selection and iOS shows no callout, so the press is the row's). */
   bind: HTMLAttributes<HTMLElement> & { "data-long-press"?: "" };
+  /** Raise the same menu without a press — a row's own ⋯ button (the Pass's tickets, 2026-10-11). */
+  show: () => void;
   /** The menu, while it is up. Draw it anywhere: it is a sheet, drawn in the shell. */
   menu: ReactNode;
 };
@@ -47,7 +49,7 @@ export function useLongPress(title: string, items: MenuItem[]): Press {
   const from = useRef<{ x: number; y: number; touch: boolean } | null>(null);
   // The menu rose and the finger is still down.
   const held = useRef(false);
-  if (items.length === 0) return { bind: {}, menu: null };
+  if (items.length === 0) return { bind: {}, show: () => {}, menu: null };
 
   // This row's own: not a field's, not a row inside it, and not the menu's (a sheet drawn elsewhere, whose
   // events still travel React's tree through here).
@@ -105,6 +107,7 @@ export function useLongPress(title: string, items: MenuItem[]): Press {
         if (held.current && e.target instanceof Node && e.currentTarget.contains(e.target)) { e.preventDefault(); e.stopPropagation(); }
       },
     },
+    show: () => setOpen(true),
     menu: open ? <RowMenu title={title} items={items} onClose={close} /> : null,
   };
 }

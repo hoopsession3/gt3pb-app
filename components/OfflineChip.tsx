@@ -2,16 +2,31 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { readQueue, flushQueue, OFFLINE_EVENT } from "./offline";
+import { refusedToast, type Refused } from "@/lib/orderStatus";
+import { useApp } from "./AppProvider";
+import { readQueue, OFFLINE_EVENT } from "./offline";
+import { flushQueue, OFFLINE_REFUSED_EVENT } from "./offlineReplay";
 
 // OFFLINE CHIP — the crew's truth signal for connectivity. Shows the moment the console goes
 // offline ("your taps are being saved"), the queued count, and "syncing" while the queue drains.
 // Also OWNS the replay triggers: online event, tab-visible, and a safety-net interval while
 // anything is queued. Nothing renders when online with an empty queue — the normal state is quiet.
 export default function OfflineChip() {
+  const { toast } = useApp();
   const [online, setOnline] = useState(true);
   const [queued, setQueued] = useState(0);
   const [syncing, setSyncing] = useState(false);
+
+  // WHAT THE REPLAY COULD NOT SAVE IS SAID (2026-10-11, components/offlineReplay): it used to leave the queue without
+  // a word. An order somebody else moved first is news, not a fault — the calm toast; anything else is an error.
+  useEffect(() => {
+    const onRefused = (e: Event) => {
+      const list = (e as CustomEvent<Refused[]>).detail ?? [];
+      if (list.length > 0) toast(refusedToast(list), list.every((r) => r.now !== null) ? "info" : "error");
+    };
+    window.addEventListener(OFFLINE_REFUSED_EVENT, onRefused);
+    return () => window.removeEventListener(OFFLINE_REFUSED_EVENT, onRefused);
+  }, [toast]);
 
   useEffect(() => {
     setOnline(navigator.onLine !== false);

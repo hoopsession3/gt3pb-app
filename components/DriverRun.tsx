@@ -86,34 +86,42 @@ export default function DriverRun() {
     } catch { /* best-effort */ }
   })(); };
 
+  // THE TEXT FOLLOWS THE SAVE (2026-10-11). "Your bottles are on the porch" went to the customer before the outcome
+  // was written, so a save that failed still told them; and hold, not-home and undo were never checked — a refused
+  // hold said "crew alerted" and raised the alert for a porch the board still showed out for delivery. Each one now
+  // reads its own write: the text and the alert go only after it lands, and a failure says so.
   const swapDone = async (o: DOrder) => {
-    if (!supabase || busyId) return; setBusyId(o.id); haptic("success"); notifyDelivered(o);
+    if (!supabase || busyId) return; setBusyId(o.id); haptic("success");
     const { error } = await supabase.from("delivery_orders").update({ driver_outcome: "swap_completed", status: "delivered", empties_collected: Math.max(0, empties[o.id] ?? o.empties_expected) }).eq("id", o.id);
-    if (error) toast("Didn't save — check the porch", "error");
+    if (error) toast("Didn't save — check the porch", "error"); else notifyDelivered(o);
     setBusyId(null); setOpenId(null); reload();
   };
   const deliveredFresh = async (o: DOrder) => {
-    if (!supabase || busyId) return; setBusyId(o.id); haptic("success"); notifyDelivered(o);
+    if (!supabase || busyId) return; setBusyId(o.id); haptic("success");
     const { error } = await supabase.from("delivery_orders").update({ driver_outcome: o.refill_count > 0 ? "delivered_fresh_no_empties" : null, status: "delivered", empties_collected: 0 }).eq("id", o.id);
+    if (!error) notifyDelivered(o);
     setBusyId(null); setOpenId(null); toast(error ? "Didn't save — check the porch" : "Delivered — logged", error ? "error" : undefined); reload();
   };
   const hold = async (o: DOrder) => {
     if (!supabase || busyId) return; setBusyId(o.id); haptic("warning");
-    await supabase.from("delivery_orders").update({ driver_outcome: "held_no_empties", status: "held_for_pickup", empties_collected: 0 }).eq("id", o.id);
+    const { error } = await supabase.from("delivery_orders").update({ driver_outcome: "held_no_empties", status: "held_for_pickup", empties_collected: 0 }).eq("id", o.id);
+    if (error) { setBusyId(null); setOpenId(null); toast("Didn't save — check the porch", "error"); reload(); return; }
     await raiseAlertClient({ severity: "important", category: "order", kind: "delivery_held", subjectId: o.id, title: "Delivery held — pickup queue", body: `${o.name} — no empties out. ${o.pack_size} bottles held at GT3PB for pickup 10 AM – 2 PM. ${o.phone ?? ""}`.trim(), link: "/crew?s=now" });
     setBusyId(null); setOpenId(null); toast("Held for pickup — crew alerted"); reload();
   };
   const notHome = async (o: DOrder) => {
     if (!supabase || busyId) return; setBusyId(o.id); haptic("warning");
     const at = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    await supabase.from("delivery_orders").update({ status: "issue", driver_outcome: null, empties_collected: 0, driver_note: `Not home — ${at}` }).eq("id", o.id);
+    const { error } = await supabase.from("delivery_orders").update({ status: "issue", driver_outcome: null, empties_collected: 0, driver_note: `Not home — ${at}` }).eq("id", o.id);
+    if (error) { setBusyId(null); setOpenId(null); toast("Didn't save — check the porch", "error"); reload(); return; }
     await raiseAlertClient({ severity: "important", category: "order", kind: "delivery_not_home", subjectId: o.id, title: "Delivery — customer not home", body: `${o.name} wasn't home for the ${o.pack_size}-bottle drop${o.refill_count > 0 ? " (swap not completed)" : ""}. ${o.address_street}, ${o.address_city}. ${o.phone ?? ""}`.trim(), link: "/crew?s=now" });
     setBusyId(null); setOpenId(null); toast("Logged — not home; crew alerted"); reload();
   };
   // Roll a stop back to open — undo a mis-tap. Ties to the order: clears the outcome + reopens it.
   const rollback = async (o: DOrder) => {
     if (!supabase) return; haptic("light");
-    await supabase.from("delivery_orders").update({ status: "out_for_delivery", driver_outcome: null, empties_collected: null, driver_note: null }).eq("id", o.id);
+    const { error } = await supabase.from("delivery_orders").update({ status: "out_for_delivery", driver_outcome: null, empties_collected: null, driver_note: null }).eq("id", o.id);
+    if (error) toast("Didn't undo — try again", "error");
     reload();
   };
 

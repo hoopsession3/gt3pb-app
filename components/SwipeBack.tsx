@@ -27,6 +27,10 @@ import { deskNow } from "@/lib/surfaces";
 //
 // NOT FROM THE SIDEBAR (2026-10-09, redesign 5). On the desk the window's left edge is the sidebar, and a drag
 // across a list of sections is not a way back; there the title bar's ‹ and the browser's own swipe stand.
+//
+// NOT OVER A DIALOG (2026-10-11). The Pass is a dialog full screen over Live Ops, and an edge swipe that began on it
+// went back — out of Live Ops, which closed the Pass mid-service. A dialog is its own surface here, as it is to every
+// other gesture (lib/gesture heldBy); the Pass's Exit and Esc are its ways out.
 export default function SwipeBack() {
   const way = useBack();
   const [shown, setShown] = useState(false);
@@ -36,7 +40,7 @@ export default function SwipeBack() {
   useGesture("root", {
     axis: "x",
     capture: true,
-    begin: (_target, x) => x <= BACK.edge && !!way && !sheetOpen() && !deskNow(),
+    begin: (target, x) => x <= BACK.edge && !!way && !sheetOpen() && !deskNow() && !target.closest('[role="dialog"]'),
     take: (d) => d.dx > 0,
     move: (d) => {
       const dx = Math.min(Math.max(d.dx, 0), BACK.max);

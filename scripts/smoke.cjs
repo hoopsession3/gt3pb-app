@@ -232,6 +232,26 @@ ok("pruneStale drops expired ops", qStale.length === 1 && qStale[0].id === "new"
 ok("snapshot fresh is usable", OF.snapshotUsable(1_000, 61_000) === true);
 ok("snapshot too old is not", OF.snapshotUsable(1_000, 1_000 + 3 * 60 * 60 * 1000) === false);
 ok("snapshot from the future is not", OF.snapshotUsable(5_000, 1_000) === false);
+// --- the operator's view travels with a queued tap, and a replay takes out only what it sent (2026-10-11) ---
+const vFirst = OF.orderStatusOp("o7", "preparing", 100, "new");
+ok("orderStatusOp carries what the screen showed (sent as p_from)", vFirst.from === "new" && vFirst.value === "preparing");
+const vCo = OF.enqueueOp(OF.enqueueOp([vFirst], OF.orderStatusOp("o8", "ready", 150, "preparing")), OF.orderStatusOp("o7", "done", 200, "ready"));
+ok("enqueue: a coalesced tap keeps where the FIRST one started — the operator's original view, nothing of it sent yet",
+  vCo.length === 2 && vCo[0].id === "o7" && vCo[0].value === "done" && vCo[0].at === 200 && vCo[0].from === "new" && vCo[1].from === "preparing", vCo);
+ok("enqueue: coalesced onto a tap that never said where it started (queued before p_from), it says nothing either",
+  OF.enqueueOp([OF.orderStatusOp("o9", "preparing", 100)], OF.orderStatusOp("o9", "ready", 200, "preparing"))[0].from === undefined);
+ok("enqueue: money never coalesces with a status, and carries no view", OF.enqueueOp([vFirst], OF.collectCupOp("o7", "cash", 300)).length === 2);
+// The replay sent vFirst; while it was on its way the operator tapped o7 again (it coalesced into its place) and o8.
+const vDuring = OF.enqueueOp(OF.enqueueOp([vFirst], OF.orderStatusOp("o8", "ready", 150, "preparing")), OF.orderStatusOp("o7", "ready", 160, "preparing"));
+const vAfter = OF.settleOp(vDuring, vFirst, true);
+ok("replay: only the op sent leaves — matched by key AND time — so a tap made while it was on its way is kept",
+  vAfter.length === 2 && vAfter[0].id === "o7" && vAfter[0].at === 160 && vAfter[0].value === "ready" && vAfter[1].id === "o8", vAfter);
+ok("replay: the kept tap now starts from what the sent op set (the database is there now)", vAfter[0].from === "preparing" && vAfter[1].from === "preparing", vAfter);
+ok("replay: refused, the kept tap keeps the view it had", OF.settleOp(vDuring, vFirst, false)[0].from === "new");
+const vPlain = OF.settleOp([vFirst, OF.orderStatusOp("o8", "ready", 150), OF.collectCupOp("o7", "cash", 170)], vFirst, true);
+ok("replay: with nothing tapped meanwhile the op sent leaves and the rest stay, in order — the money under its own key untouched",
+  vPlain.map((q) => q.key).join() === "order_status:o8,collect_cup:o7" && vPlain[1].from === undefined, vPlain);
+ok("replay: an op no longer in the queue (pruned, or already settled) takes nothing else with it", OF.settleOp(vPlain, vFirst, true).length === 2);
 
 // --- pre-order window: cups only when there's a truck to make them ---
 const H = 60 * 60 * 1000;
@@ -5710,9 +5730,53 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("money: a collection taken offline is queued under its own key — it never coalesces away the ticket's status, nor the status it",
     col.key === "collect_cup:o1" && col.kind === "collect_cup" && col.value === "cash" && qOff.length === 2
     && OFQ.enqueueOp(qOff, OFQ.collectCupOp("o1", "card_reader", 102)).filter((q) => q.kind === "collect_cup").map((q) => q.value).join() === "card_reader");
-  const offSrc = code(read("components/offline.ts"));
-  ok("money: the replay sends a queued collection to staff_collect_payment as a cup — the rest still to staff_set_order_status",
-    /op\.kind === "collect_cup"\s*\? await supabase\.rpc\("staff_collect_payment", \{ p_kind: "cup", p_id: op\.id, p_via: op\.value \}\)\s*: await supabase\.rpc\("staff_set_order_status"/.test(offSrc));
+  // The replay left components/offline (every page loads it) for components/offlineReplay (the console only) on
+  // 2026-10-11, and a status goes through lib/orderStatus now — with what the ticket showed, as p_from.
+  const offSrc = code(read("components/offlineReplay.ts"));
+  ok("money: the replay sends a queued collection to staff_collect_payment as a cup — the rest still to staff_set_order_status, from what the ticket showed",
+    /op\.kind === "collect_cup"\s*\? await supabase\.rpc\("staff_collect_payment", \{ p_kind: "cup", p_id: op\.id, p_via: op\.value \}\)\s*: await setOrderStatus\(supabase, op\.id, op\.value, op\.from\)/.test(offSrc)
+    && /sb\.rpc\("staff_set_order_status", \{ p_order: id, p_status: status, p_from: from \}\)/.test(read("lib/orderStatus.ts"))
+    && !/flushQueue|staff_set_order_status/.test(code(read("components/offline.ts"))));
+  ok("offline replay: each op is read from storage and only the one sent leaves (settleOp) — a tap made meanwhile is kept",
+    /const op = pruneStale\(readQueue\(\), Date\.now\(\)\)\[0\];/.test(offSrc) && /writeQueue\(settleOp\(pruneStale\(readQueue\(\), Date\.now\(\)\), op, !error\)\);/.test(offSrc)
+    && !/queue\.slice\(1\)/.test(offSrc));
+  ok("offline replay: a refusal is said — one event per replay, a toast on the console — and filed as an app error unless the order had just moved on",
+    /refused\.push\(\{ kind: op\.kind, id: op\.id, value: op\.value, reason: error\.message, now \}\);/.test(offSrc)
+    && /if \(now === null\) reportClientError\(/.test(offSrc) && /new CustomEvent<Refused\[\]>\(OFFLINE_REFUSED_EVENT, \{ detail: refused \}\)/.test(offSrc)
+    && /window\.addEventListener\(OFFLINE_REFUSED_EVENT, onRefused\);/.test(read("components/OfflineChip.tsx"))
+    && /toast\(refusedToast\(list\), list\.every\(\(r\) => r\.now !== null\) \? "info" : "error"\)/.test(read("components/OfflineChip.tsx")));
+  {
+    // ── the pass's status write, from what the ticket showed (lib/orderStatus) ──
+    const OS = require("../.smoke/orderStatus.js");
+    const calls = [];
+    const answers = [];
+    const fake = { rpc: async (fn, args) => { calls.push([fn, args]); return answers.shift() ?? { data: "ready", error: null }; } };
+    PENDING.push((async () => {
+      await OS.setOrderStatus(fake, "o1", "ready", "preparing");
+      await OS.setOrderStatus(fake, "o2", "done");
+      answers.push({ data: null, error: { code: "PGRST202", message: "Could not find the function public.staff_set_order_status(p_from, p_order, p_status) in the schema cache" } });
+      const fell = await OS.setOrderStatus(fake, "o3", "ready", "new");
+      await OS.setOrderStatus(fake, "o4", "done", "ready");
+      ok("status write: p_from goes with what the ticket showed; none, nothing — and a database without it is asked the old way once, then remembered",
+        JSON.stringify(calls) === JSON.stringify([
+          ["staff_set_order_status", { p_order: "o1", p_status: "ready", p_from: "preparing" }],
+          ["staff_set_order_status", { p_order: "o2", p_status: "done" }],
+          ["staff_set_order_status", { p_order: "o3", p_status: "ready", p_from: "new" }],
+          ["staff_set_order_status", { p_order: "o3", p_status: "ready" }],
+          ["staff_set_order_status", { p_order: "o4", p_status: "done" }],
+        ]) && fell.error === null, calls);
+    })());
+    ok("status write: 'order_moved' is where the order is now, any other refusal is not",
+      OS.movedTo({ message: "order_moved", details: "void" }) === "void" && OS.movedTo({ message: "order_moved" }) === ""
+      && OS.movedTo({ message: "not authorized", details: "void" }) === null && OS.movedTo(null) === null);
+    ok("status write: the pass's words — '#AB12 is Picked up now', and a replay's refusals in one toast",
+      OS.movedLine("ab12cdef", "done") === "#AB12 is Picked up now" && OS.movedLine("ab12cdef", "") === "#AB12 has moved on"
+      && OS.refusedToast([{ kind: "order_status", id: "ab12cdef", value: "ready", reason: "order_moved", now: "void" }]) === "Couldn't save offline change: #AB12 → Ready (order is void now)"
+      && OS.refusedToast([
+        { kind: "order_status", id: "ab12cdef", value: "done", reason: "not authorized", now: null },
+        { kind: "collect_cup", id: "cd34ef01", value: "card_reader", reason: "that order was voided — nothing to collect", now: null },
+      ]) === "Couldn't save 2 offline changes: #AB12 → Picked up (not authorized); #CD34 card-reader payment (that order was voided — nothing to collect)");
+  }
 
   // ── the pass ──
   const crewSrc = code(read("app/crew/page.tsx"));
@@ -5732,6 +5796,54 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /how === "cash" \? `They paid \$\{amt\} cash — hand it back\./.test(kit) && /severity: "critical", category: "money", kind: "refund_needed", subjectId: o\.id,/.test(kit)
     && /if \(how && how !== "cash"\) \{/.test(kit));
   ok("pass: the collect sheet is mounted on the board that asks", /\{collectSheet\}\s*<\/div>\s*\);\s*\}\s*$/.test(kit.trimEnd() + "\n"));
+
+  // ── THE PASS, AFTER THE KDS AUDIT (2026-10-11) ──
+  ok("pass: loading until the first read lands, and 'The pass is clear' only when a read says so now — never over a failed one, never a raw 'Backend error'",
+    /\{boardAt === 0 && !down && <PourFill label="Loading the pass…" \/>\}/.test(kit) && /\{boardAt > 0 && STAGES\.map\(/.test(kit)
+    && /\{boardAt > 0 && !down && active\.length === 0 && done\.length === 0 && <EmptyState title="The pass is clear"/.test(kit) && !/Backend error|setErr\(/.test(kit));
+  ok("pass: a read is made only with a session — a signed-out read is not an empty pass, and leaves the board saved for offline alone",
+    /const auth = await supabase\.auth\.getSession\(\);\s*const res = auth\.data\.session \? await supabase\.from\("orders"\)/.test(kit)
+    && /setDown\(net \? "net" : res \? "read" : "auth"\);\s*return;/.test(kit) && kit.indexOf('saveSnapshot("gt3-kds-snap", rows)') > kit.indexOf('setDown(net ? "net"'));
+  ok("pass: a failed read says so in words, with the time of the board it is showing",
+    /<b>\{down === "auth" \? "Signed out" : "Can't reach the pass"\}<\/b>/.test(kit) && /showing the board from \$\{clockTime\(new Date\(boardAt\)\.toISOString\(\)\)\}/.test(kit));
+  ok("pass: overlapping reads land in order — only the newest asked for is applied", /const ask = \+\+loadSeq\.current;/.test(kit) && /if \(ask !== loadSeq\.current\) return;/.test(kit));
+  ok("pass: the feed says when it drops, reads the board again the moment it is back, and the screen coming back reads it too",
+    /\.subscribe\(\(status\) => \{\s*if \(!alive\) return;\s*if \(status === "SUBSCRIBED"\) \{ setLive\(true\); if \(broke\) \{ broke = false; load\(\); \} return; \}\s*broke = true; setLive\(false\);\s*if \(status === "CLOSED"\) retry = window\.setTimeout\(join, 5000\);/.test(kit)
+    && /\{!live && !down && <span className="k-count soon" role="status">Reconnecting…<\/span>\}/.test(kit)
+    && /const onVis = \(\) => \{ if \(document\.visibilityState === "visible"\) load\(\); \};/.test(kit) && /document\.addEventListener\("visibilitychange", onVis\);/.test(kit));
+  ok("pass: every new order rings once — the feed's or the reconcile's, whichever brings it first — and never for the first read",
+    /const fresh = seeded\.current \? rows\.filter\(\(o\) => o\.status === "new" && !known\.current\.has\(o\.id\)\) : \[\];/.test(kit) && /fresh\.forEach\(announceNew\);/.test(kit)
+    && /if \(row\.status === "new" && !known\.current\.has\(row\.id\)\) announceNew\(row\);\s*known\.current\.add\(row\.id\);/.test(kit));
+  ok("pass: a move and a void go from what the ticket showed (p_from), queued offline with it too; a ticket that moved first is a toast and a fresh board, not an error",
+    (kit.match(/await setOrderStatus\(supabase, o\.id, (to|"void"), o\.status\)/g) || []).length === 2 && (kit.match(/queueOrderStatus\(o\.id, (to|"void"), o\.status\)/g) || []).length === 2
+    && (kit.match(/now === null \? `Couldn't (update|void) — \$\{error\.message\}` : movedLine\(o\.id, now\), now === null \? "error" : "info"/g) || []).length === 2
+    && !/rpc\("staff_set_order_status"/.test(kit));
+  ok("pass: Ready reaches the customer once — after the write lands, and only on a move forward into Ready (not a recall from Picked up)",
+    /if \(!error\) \{\s*if \(to === "ready" && \(o\.status === "new" \|\| o\.status === "preparing"\)\) \{/.test(kit)
+    && kit.indexOf('kind: "order_ready"') > kit.indexOf("await setOrderStatus(supabase, o.id, to, o.status)") && (kit.match(/kind: "order_ready"/g) || []).length === 1);
+  ok("pass: ⋯ raises the ticket's menu — the long press's own — and Void in it still asks; it went straight to Void",
+    /<button type="button" className="adm-act-more" onClick=\{press\.show\} aria-haspopup="dialog"/.test(kit) && !/onClick=\{\(\) => voidOrder\(o\)\}/.test(kit)
+    && /show: \(\) => setOpen\(true\),/.test(read("components/LongPress.tsx")) && /if \(!\(await confirm\(\{ title: `Void \$\{o\.customer/.test(kit));
+  ok("pass: opening it keeps the truck's broadcast going (Live truck stays mounted, inert, under it) and keeps the screen on",
+    /\{canManage && <div className="contents" inert=\{svc \? true : undefined\}><LiveControl compact \/><\/div>\}/.test(crewSrc) && /useWakeLock\(svc\);/.test(crewSrc)
+    && /useWakeLock\(broadcasting\);/.test(read("components/crew/LiveControl.tsx")) && !/wakeRef|wakeLock/.test(read("components/crew/LiveControl.tsx"))
+    && /document\.addEventListener\("visibilitychange", onVis\);/.test(read("lib/useWakeLock.ts")) && /catch \{ \/\* refused/.test(read("lib/useWakeLock.ts")));
+  {
+    const PS = require("../.smoke/passSound.js");
+    const before = PS.passRings();
+    PS.setPassUp(true); const whileUp = PS.passRings(); PS.setPassUp(false);
+    PS.PASS_SOUND.write("1"); const whileMuted = PS.passRings(); PS.PASS_SOUND.clear();
+    ok("one chime per order: the shell's chime rings outside the Pass, not while it is up (it rings its own), and never when the pass is muted",
+      before === true && whileUp === false && whileMuted === false && PS.passRings() === true
+      && /import\("@\/lib\/passSound"\)\.then\(\(m\) => \{ if \(m\.passRings\(\)\) chime\(\); \}, \(\) => \{\}\);/.test(read("components/Notifications.tsx"))
+      && /useEffect\(\(\) => \{ setPassUp\(true\); return \(\) => setPassUp\(false\); \}, \[\]\);/.test(kit));
+  }
+  ok("delivery boards: Cancel asks first (the confirm sheet) and says when it didn't; a status, a batch, a hold, not-home and undo are checked; the delivered text follows the save",
+    /if \(!\(await confirm\(\{ title: `Cancel \$\{o\.company\}'s/.test(read("components/OfficeOrders.tsx")) && /if \(error\) \{ toast\(`Didn't cancel — \$\{error\.message\}`, "error"\); return; \}/.test(read("components/OfficeOrders.tsx"))
+    && (code(read("components/DeliveryOps.tsx")).match(/const \{ error \} = await supabase\.from\("delivery_orders"\)\.update\(/g) || []).length === 2
+    && (code(read("components/DriverRun.tsx")).match(/const \{ error \} = await supabase\.from\("delivery_orders"\)\.update\(/g) || []).length === 5
+    && /if \(error\) toast\("Didn't save — check the porch", "error"\); else notifyDelivered\(o\);/.test(read("components/DriverRun.tsx")) && /if \(!error\) notifyDelivered\(o\);/.test(read("components/DriverRun.tsx"))
+    && !/haptic\("success"\); notifyDelivered\(o\);/.test(read("components/DriverRun.tsx")));
   ok("orders export: the paid column is lib/collect's ledger word — it called every unpaid order 'at pickup', picked up or not",
     /paid: ledgerWord\(o\),/.test(crewSrc) && !/paid: o\.paid \? "paid online" : "at pickup"/.test(crewSrc));
   ok("event HUD: a card paid online is not counted twice — once as the order, again as its own Square payment",
@@ -8472,8 +8584,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /toastAction && toastShown && \(/.test(read("components/Toast.tsx")) && /\.toast\{z-index:90\}/.test(read("app/globals.css")) && /\.toast\.has-act\.show\{pointer-events:auto\}/.test(read("app/globals.css")));
 
   // ── the rest of the system ──
-  ok("back: the edge swipe listens first and stands down while a sheet is open — and goes where the title bar's ‹ goes",
-    /useGesture\("root", \{\s+axis: "x",\s+capture: true,\s+begin: \(_target, x\) => x <= BACK\.edge && !!way && !sheetOpen\(\) && !deskNow\(\),/.test(read("components/SwipeBack.tsx"))
+  // …and over a dialog (2026-10-11): the Pass is one, full screen over Live Ops, and a swipe from its edge left Live Ops
+  // and closed it mid-service — the dialog rule every other gesture keeps (lib/gesture heldBy).
+  ok("back: the edge swipe listens first and stands down while a sheet is open, or over a dialog (the Pass) — and goes where the title bar's ‹ goes",
+    /useGesture\("root", \{\s+axis: "x",\s+capture: true,\s+begin: \(target, x\) => x <= BACK\.edge && !!way && !sheetOpen\(\) && !deskNow\(\) && !target\.closest\('\[role="dialog"\]'\),/.test(read("components/SwipeBack.tsx"))
     && /const way = useBack\(\);/.test(read("components/SwipeBack.tsx")) && /if \(!cancelled && backGoes\(d\.dx, d\.vx\)\) way\?\.go\(\);/.test(read("components/SwipeBack.tsx")));
   ok("refresh: the pull reads every live screen again (lib/realtime's loaders), and so does coming back to the app after 30s away",
     /export function refreshLive\(\): Promise<void>/.test(read("lib/realtime.ts")) && /loaders\.add\(cb\);/.test(read("lib/realtime.ts")) && /const RESUME_MS = 30_000;/.test(read("lib/realtime.ts"))
@@ -9497,7 +9611,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("auth: the last profile read asked for is the one that lands — an older one coming back last (a sign-in's, after the name Apple gave was kept) is dropped, and nothing lands after a sign-out",
       /const ask = \+\+profileAsk\.current;/.test(au) && /if \(ask !== profileAsk\.current\) return;[^\n]*\n\s*if \(error\) \{ setProfileStatus\("error"\); return; \}/.test(au)
       && /const ask = profileAsk\.current;/.test(au) && /if \(error \|\| !data \|\| ask !== profileAsk\.current\) return;/.test(au)
-      && /else \{ profileAsk\.current\+\+; setProfile\(null\); setProfileStatus\("ready"\); \}/.test(au));
+      && /else \{ profileAsk\.current\+\+; shown\.current = null; setProfile\(null\); setProfileStatus\("ready"\); \}/.test(au));
+    // 2026-10-11: every auth event — a token refresh, a return to the app — said "loading", and the console went blank
+    // under the person using it; a read that failed said "Couldn't load your account" over the profile still in hand.
+    ok("auth: the same person read again is read quietly — no 'loading', and a failure keeps the profile and 'ready'; another person, or a sign-out, starts over",
+      /const quiet = shown\.current === uid;\s*if \(!quiet\) setProfileStatus\("loading"\);/.test(au)
+      && /if \(quiet && error\) return;[^\n]*\n\s*if \(ask !== profileAsk\.current\) return;/.test(au)
+      && /setProfileStatus\("ready"\);[^\n]*\n\s*shown\.current = uid;/.test(au)
+      && /await supabase\?\.auth\.signOut\(\);\s*shown\.current = null;/.test(au));
     {
       // Asked from the phone's own address: the browser tests are served from http://localhost, where the old rule worked.
       const NL = require("../.smoke/nativeLinks.js");

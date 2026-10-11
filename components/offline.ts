@@ -1,10 +1,12 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { enqueueOp, pruneStale, orderStatusOp, collectCupOp, type OfflineOp } from "@/lib/offline";
 
-// OFFLINE ENGINE — localStorage persistence + replay for lib/offline's pure queue. One queue for
+// OFFLINE ENGINE — localStorage persistence for lib/offline's pure queue. One queue for
 // the whole crew console; writes that fail on the network are parked here and replayed in order
 // when the signal returns ("online" event, visibility, or the safety-net interval). UI listens to
 // OFFLINE_EVENT to show the chip / queued count.
+// THE REPLAY LIVES APART (2026-10-11): components/offlineReplay. This file rides in every page — the
+// customer's order status reads its snapshots — and only the console replays, so what replaying
+// needs loads with the console alone.
 const KEY = "gt3-offline-queue";
 export const OFFLINE_EVENT = "gt3-offline";
 
@@ -16,14 +18,15 @@ export function readQueue(): OfflineOp[] {
   } catch { return []; }
 }
 
-function writeQueue(q: OfflineOp[]): void {
+export function writeQueue(q: OfflineOp[]): void {
   try { localStorage.setItem(KEY, JSON.stringify(q)); } catch { /* ignore */ }
   try { window.dispatchEvent(new Event(OFFLINE_EVENT)); } catch { /* ignore */ }
 }
 
-// Park an order-status write for replay. Coalesces per order (final state wins).
-export function queueOrderStatus(orderId: string, status: string): void {
-  writeQueue(enqueueOp(pruneStale(readQueue(), Date.now()), orderStatusOp(orderId, status, Date.now())));
+// Park an order-status write for replay. Coalesces per order (final state wins). `from`: what the
+// ticket showed when it was tapped, sent with the replay as p_from (lib/orderStatus).
+export function queueOrderStatus(orderId: string, status: string, from?: string): void {
+  writeQueue(enqueueOp(pruneStale(readQueue(), Date.now()), orderStatusOp(orderId, status, Date.now(), from)));
 }
 
 // Park money taken at the window for replay (0341). One per order; a second tap replaces the first.
@@ -35,29 +38,6 @@ export function queueCollectCup(orderId: string, via: string): void {
 export function isNetworkError(message: string | undefined | null): boolean {
   if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
   return /fetch|network|load failed|timed? ?out|connection/i.test(message ?? "");
-}
-
-// Replay the queue in order. Stops at the first still-failing op (keeps it + the rest for the next
-// pass) so a flaky signal can't reorder writes. A definitive server rejection (RLS, bad status)
-// drops that op — replaying it forever would never succeed. Returns how many ops remain.
-let flushing = false;
-export async function flushQueue(supabase: SupabaseClient | null): Promise<number> {
-  if (!supabase || flushing) return readQueue().length;
-  flushing = true;
-  try {
-    let queue = pruneStale(readQueue(), Date.now());
-    while (queue.length > 0) {
-      const op = queue[0];
-      const { error } = op.kind === "collect_cup"
-        ? await supabase.rpc("staff_collect_payment", { p_kind: "cup", p_id: op.id, p_via: op.value })
-        : await supabase.rpc("staff_set_order_status", { p_order: op.id, p_status: op.value });
-      if (error && isNetworkError(error.message)) break;       // still offline — try again later
-      queue = queue.slice(1);                                   // done (or definitively rejected)
-      writeQueue(queue);
-    }
-    writeQueue(queue);
-    return queue.length;
-  } finally { flushing = false; }
 }
 
 // --- read snapshots: last-known data so a fresh open with no signal still orients the crew ---

@@ -65,7 +65,9 @@ export default function Notifications() {
         const names = (o.items || []).map((i: string) => DRINKS[i as DrinkId]?.n ?? i).join(" · ");
         const amt = money(o.total_cents);
         toast(`New order · ${names} · ${amt}`);
-        chime();
+        // ONE CHIME PER ORDER (2026-10-11, lib/passSound): none while the Pass is open — it rings its own — and none
+        // on a phone where the pass is muted. Asked on the first order, not loaded with every page.
+        import("@/lib/passSound").then((m) => { if (m.passRings()) chime(); }, () => {});
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "booking_requests" }, (p) => {
         const b = p.new as any;
