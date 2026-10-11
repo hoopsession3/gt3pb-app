@@ -11,9 +11,9 @@
 --
 -- The line below is what stops that happening again: scripts/drift.check.mjs fails the release
 -- if supabase/migrations/ ever holds a migration numbered above it.
--- pending-from: 0377
+-- pending-from: 0379
 -- generated-at: 2026-10-11
--- pending-count: 6
+-- pending-count: 8
 -- ledger-read-from: https://app.gt3pb.com/api/migrations
 -- ============================================================
 -- 0372_an_alert_already_open_is_counted_not_sent_again.sql
@@ -841,3 +841,42 @@ where not exists (select 1 from public.changelog c where c.title = v.title);
 -- verify:
 --   select exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'delivery_orders');   -- t
 select public.record_migration('0377_the_porch_run_updates_live');
+
+-- ============================================================
+-- 0378_only_got_it_is_a_crew_members_to_write_on_an_alert.sql
+-- ============================================================
+-- ── 0378 — ONLY "GOT IT" IS A CREW MEMBER'S TO WRITE ON AN ALERT ──────────────────────────────────────────────────
+-- 0157's policy "alerts staff update" lets a crew member update an alert of their own business, and Supabase grants
+-- every column of every table to authenticated, so through PostgREST a crew member could rewrite another person's alert
+-- (its title, its body, who it is for) or set escalated_at, which 0373 answers with one more push to every owner. The
+-- app writes two columns from a phone: ack_at and ack_by (lib/useMyAlerts: "Got it", "Got it" on all, and its undo).
+-- So a signed-in person may update those two and nothing else. Everything else that writes an alert is the service role
+-- (the server's raises) or a security definer function (0372's fold, 0373's escalation, 0374's ring), which run as the
+-- table's owner: column grants do not reach them. The policies are unchanged — which rows a person may acknowledge is
+-- still 0157's question. Found by the wave-2 alerts review (2026-10-11).
+-- changelog: none — a permission narrowed to what the app already does; nothing a person sees changes.
+
+revoke update on table public.alerts from anon, authenticated;
+grant update (ack_at, ack_by) on table public.alerts to authenticated;
+
+-- verify:
+--   select has_column_privilege('authenticated', 'public.alerts', 'ack_at', 'UPDATE');   -- t
+--   select has_column_privilege('authenticated', 'public.alerts', 'title', 'UPDATE');    -- f
+--   select has_column_privilege('anon', 'public.alerts', 'ack_at', 'UPDATE');            -- f
+select public.record_migration('0378_only_got_it_is_a_crew_members_to_write_on_an_alert');
+
+-- ============================================================
+-- 0379_the_pass_finds_its_picked_up_orders_by_index.sql
+-- ============================================================
+-- ── 0379 — THE PASS FINDS ITS PICKED-UP ORDERS BY INDEX ──────────────────────────────────────────────────────────
+-- The Pass reads the orders picked up in the last 30 minutes (the Ready lane's recall tray, components/pass) every 15
+-- seconds on every device that has it open, with status = 'done' and status_changed_at after a moment. No index covers
+-- that, so each read walks the whole orders table, and the table only grows. A partial index on the done orders' change
+-- time answers it from the newest end. Small table today; the point is that the read stays the same size as it grows.
+-- changelog: none — a read gets cheaper; nothing a person sees changes.
+
+create index if not exists orders_done_by_change on public.orders (status_changed_at desc) where status = 'done';
+
+-- verify:
+--   select indexdef from pg_indexes where schemaname = 'public' and indexname = 'orders_done_by_change';
+select public.record_migration('0379_the_pass_finds_its_picked_up_orders_by_index');
