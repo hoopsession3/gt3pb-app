@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-11T02:36:24.457Z",
+    "pulled_at": "2026-10-11T21:12:21.633Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
     "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
-    "relations": 214,
-    "columns": 2753
+    "relations": 215,
+    "columns": 2765
   },
   "academy_acknowledgements": [
     "user_id",
@@ -560,6 +560,19 @@
     "note",
     "created_at",
     "tenant_id"
+  ],
+  "checkout_claims": [
+    "idempotency_key",
+    "channel",
+    "card",
+    "amount_cents",
+    "state",
+    "payment_id",
+    "status",
+    "answer",
+    "note",
+    "created_at",
+    "updated_at"
   ],
   "client_errors": [
     "id",
@@ -2046,7 +2059,8 @@
     "auth",
     "created_at",
     "tenant_id",
-    "wants_live"
+    "wants_live",
+    "platform"
   ],
   "rate_limit_hits": [
     "bucket",
