@@ -1903,8 +1903,13 @@ function EventPrep({ sel, setSel }: { sel: PrepTarget | null; setSel: Dispatch<S
   }, []);
   // Auto-open the live event the first time the list loads — never steals a selection the
   // operator already made (prev ?? …), including one set by the deep-link effect below.
+  // ONCE (2026-10-11, the review): this ran on every load of the list — and the list reloads on any change to an
+  // event, a stop or a task (realtime, below) — so backing out of the live event reopened it the next time anything
+  // moved, now with a back step and the page sent to its top. The first load opens it; after that, the list is yours.
+  const autoOpened = useRef(false);
   useEffect(() => {
-    if (!prepState.data) return;
+    if (!prepState.data || autoOpened.current) return;
+    autoOpened.current = true;
     const live = prepState.data.events.find((e) => e.is_live);
     setSelected((prev) => prev ?? (live ? { kind: "event", id: live.id } : null));
   }, [prepState.data]);
@@ -2333,8 +2338,9 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   // stale, and the shelf landed on `actual + want - cur` instead of the number the person typed.
   // It failed silently: the write succeeded and the input showed what they entered.
   const adjustOnHand = async (item: string, v: string) => {
-    if (!supabase) return;
-    const want = v.trim() === "" ? 0 : Number(v);
+    // An empty box is no count at all, never a count of 0 (2026-10-11, the review — the box's blur says the same).
+    if (!supabase || v.trim() === "") return;
+    const want = Number(v);
     if (!Number.isFinite(want)) { toast("That isn't a number", "error"); return; }
     const { data, error } = await supabase.rpc("set_on_hand", {
       p_item: item, p_want: want, p_market: market,
@@ -2630,7 +2636,12 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
                 <span className="onhand-label">{o.item}{unknown && <span className="block text-caption text-warn">More was used than logged in — count it</span>}</span>
                 <span className="onhand-nums">
                   <input type="number" inputMode="decimal" min="0" className="onhand-in w-22 tabular-nums" defaultValue={unknown ? "" : o.bal} placeholder={unknown ? "Count" : undefined}
-                    onBlur={(e) => { if (unknown && e.target.value.trim() === "") return; adjustOnHand(o.item, e.target.value); }} aria-label={`On hand ${o.item}`} />
+                    onBlur={(e) => {
+                      // An empty box is not a count of 0 (2026-10-11, the review): clearing a box to type a new number and
+                      // leaving it set the shelf to 0. It writes nothing now, and a box that had a count shows it again.
+                      if (e.target.value.trim() === "") { if (!unknown) e.target.value = String(o.bal); return; }
+                      adjustOnHand(o.item, e.target.value);
+                    }} aria-label={`On hand ${o.item}`} />
                   <span className="onhand-of">on hand</span>
                 </span>
               </div>

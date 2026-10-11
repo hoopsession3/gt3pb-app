@@ -126,6 +126,19 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
     </div>
   );
 
+  // DELETING STAYS ON SCREEN TO ITS END (2026-10-11, the review): the delete signs this phone out as soon as the server
+  // has erased the account, and with no one signed in the sheet below turned into "Membership · Sign in" — taking the
+  // last step with it: an account made with Apple whose Apple tokens could not be revoked from here is told how to end
+  // Sign in with Apple in Settings, and that was never seen. So the delete is asked first.
+  if (deleting) {
+    return (
+      <Sheet open onClose={onClose} header={head("Delete your account")} className="acs-sheet">
+        <DeleteAccount staff={staff} onKeep={() => setDeleting(false)}
+          onDeleted={() => { onClose(); signOut(); toast("Your account is deleted."); router.push("/"); }} />
+      </Sheet>
+    );
+  }
+
   if (!user) {
     return (
       <Sheet open onClose={onClose} header={head("Membership")} className="acs-sheet">
@@ -141,15 +154,6 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
 
   const usualNames = last ? last.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ") : "";
   const stamps = inCard === 0 && pts > 0 ? "a free pour is ready" : `${toGo} to your free pour`;
-
-  if (deleting) {
-    return (
-      <Sheet open onClose={onClose} header={head("Delete your account")} className="acs-sheet">
-        <DeleteAccount staff={staff} onKeep={() => setDeleting(false)}
-          onDeleted={() => { onClose(); signOut(); toast("Your account is deleted."); router.push("/"); }} />
-      </Sheet>
-    );
-  }
 
   return (
     <Sheet open onClose={onClose} header={head("Your account")} className="acs-sheet">

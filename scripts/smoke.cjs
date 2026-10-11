@@ -5612,17 +5612,38 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /edited\(f, kept\.form, isEvent \? EVENT_SAVES : STOP_SAVES\)/.test(own));
   const ub = code(read("components/useBackStep.ts"));
   ok("steps: the screen a view was opened from comes back where it was — read at the click, before the view's loading line can pull the scroll to 0 (in its own file: the title bar on every page reads useBack, not this)",
-    /let clickAt = \{ t: -Infinity, y: 0 \};/.test(ub) && /document\.addEventListener\("click", \(\) => \{ clickAt = \{ t: performance\.now\(\), y: document\.getElementById\("body"\)\?\.scrollTop \?\? 0 \}; \}, \{ capture: true, passive: true \}\);/.test(ub)
-    && /const was = performance\.now\(\) - clickAt\.t < 1000 \? clickAt\.y : body\?\.scrollTop \?\? 0;/.test(ub) && /requestAnimationFrame\(\(\) => \{ body\.scrollTop = was; \}\);/.test(ub)
+    /let clickAt = \{ t: -Infinity, y: 0, at: "" \};/.test(ub) && /document\.addEventListener\("click", \(\) => \{ clickAt = \{ t: performance\.now\(\), y: document\.getElementById\("body"\)\?\.scrollTop \?\? 0, at: here\(\) \}; \}, \{ capture: true, passive: true \}\);/.test(ub)
+    && /const clicked = performance\.now\(\) - clickAt\.t < 1000;\s*const from = clicked \? clickAt\.at : here\(\);\s*const was = clicked \? clickAt\.y : body\?\.scrollTop \?\? 0;/.test(ub)
     && !/useBackStep|clickAt/.test(code(read("components/useBack.ts"))) && !/useBackStep/.test(read("components/TitleBar.tsx")));
+  // The review (2026-10-11): the click's scroll was put back on whatever screen Back — or a route change — landed on.
+  ok("steps: the place is put back only on the screen it was read on — Back from a view opened on another screen (the calendar's Open prep, a ⌘K recent), or a view closed because its screen was left, leaves the scroll to the screen that comes next",
+    /const here = \(\) => `\$\{location\.pathname\}\$\{location\.search\}`;/.test(ub)
+    && /requestAnimationFrame\(\(\) => \{ if \(here\(\) === from\) body\.scrollTop = was; \}\);/.test(ub) && (ub.match(/body\.scrollTop = was/g) || []).length === 1);
   ok("sheets: focus goes back to the control that opened one, and the page under it does not move",
     /const giveBack = \(el: HTMLElement\) => el\.focus\?\.\(\{ preventScroll: true \}\);/.test(sheetSrc) && !/el\.focus\?\.\(\)/.test(sheetSrc)
     && (sheetSrc.match(/giveBack\(el\)/g) || []).length === 3);
-  ok("prep: on hand — each box is a number wide, so a name keeps its line; under zero asks for a count, and an empty box writes nothing",
+  ok("prep: on hand — each box is a number wide, so a name keeps its line; under zero asks for a count, and an empty box writes nothing (a box that had a count shows it again)",
     (prep.match(/className="onhand-in w-22 tabular-nums"/g) || []).length === 2 && /const unknown = o\.bal < 0;/.test(prep)
     && /defaultValue=\{unknown \? "" : o\.bal\} placeholder=\{unknown \? "Count" : undefined\}/.test(prep)
-    && /onBlur=\{\(e\) => \{ if \(unknown && e\.target\.value\.trim\(\) === ""\) return; adjustOnHand\(o\.item, e\.target\.value\); \}\}/.test(prep)
+    && /if \(e\.target\.value\.trim\(\) === ""\) \{ if \(!unknown\) e\.target\.value = String\(o\.bal\); return; \}\s*adjustOnHand\(o\.item, e\.target\.value\);/.test(prep)
     && /More was used than logged in — count it/.test(prep));
+  // The rest of the review (2026-10-11).
+  ok("prep: an empty box is no count at all — the write takes nothing from it, never a 0",
+    /const adjustOnHand = async \(item: string, v: string\) => \{\s*if \(!supabase \|\| v\.trim\(\) === ""\) return;\s*const want = Number\(v\);/.test(prep)
+    && !/v\.trim\(\) === "" \? 0 : Number\(v\)/.test(prep));
+  ok("prep: the live event opens itself once — backing out of it is not undone the next time the list reloads",
+    /const autoOpened = useRef\(false\);\s*useEffect\(\(\) => \{\s*if \(!prepState\.data \|\| autoOpened\.current\) return;\s*autoOpened\.current = true;/.test(crewSrc));
+  {
+    const fos = code(read("components/FieldOpSheet.tsx")), acs = code(read("components/AccountSheet.tsx"));
+    ok("sheets: the venue the record's own words spell, linked as the sheet opens, is what it opened with — an untouched sheet never asks \"Discard your changes?\", and Save still files it",
+      /const onVenue = \(fill: VenueFill, how: VenueHow\) => \{/.test(own) && /const onVenue = \(fill: VenueFill, how: VenueHow\) => \{/.test(fos)
+      && /if \(how === "match"\) setKept\(\(k\) => k && \{ \.\.\.k, form: \{ \.\.\.k\.form, \.\.\.fill\.text \}, \.\.\.\(fill\.pin !== undefined && \{ pin: fill\.pin \}\) \}\);/.test(own)
+      && /\|\| pin !== kept\.pin/.test(own) && !/\|\| pin !== undefined/.test(own)
+      && /if \(how === "match"\) setLoaded\(\(l\) => l && \{ \.\.\.l, \.\.\.fill\.text \}\);/.test(fos)
+      && /if \(match && !disabled && now\.how === "matched"\) onChange\(venueFill\(kind, rec, null, now\.choice\), "match", now\.choice\);/.test(read("components/VenuePick.tsx")));
+    ok("account: deleting stays on screen to its end — the delete is asked before 'nobody signed in', so Apple's last step is seen",
+      acs.indexOf("if (deleting) {") > 0 && acs.indexOf("if (deleting) {") < acs.indexOf("if (!user) {"));
+  }
 }
 
 // ── MONEY AT THE WINDOW, AND INVOICES THAT FALL DUE (2026-10-04, 0341) ─────────────────────────────
@@ -8203,7 +8224,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("venue pick: loaded with the card or sheet that shows it — every screen imports it through VenuePickLazy; Route's card carries only the contact block",
     /dynamic\(\(\) => import\("\.\/VenuePick"\), \{ ssr: false, loading: \(\) => <div className="venue-loading" aria-busy="true" \/> \}\)/.test(read("components/VenuePickLazy.tsx"))
     && ["components/FieldOpSheet.tsx", "components/crew/OwnerDetails.tsx", "app/crew/page.tsx", "components/CompanyCalendar.tsx", "components/EventCopilot.tsx"]
-      .every((f) => /import VenuePick from "(@\/components|\.)\/VenuePickLazy";/.test(read(f)) && !/from "(@\/components|\.)\/VenuePick"/.test(read(f)))
+      .every((f) => /import VenuePick(?:, \{ type VenueHow \})? from "(@\/components|\.)\/VenuePickLazy";/.test(read(f)) && !/from "(@\/components|\.)\/VenuePick"/.test(read(f)))
+    && /export type \{ VenueHow \} from "\.\/VenuePick";/.test(read("components/VenuePickLazy.tsx")) && !/export \{ VenueHow/.test(read("components/VenuePickLazy.tsx"))
     && /import VenueContact from "@\/components\/VenueContact";/.test(read("components/crew/LocationEditor.tsx")) && !/VenuePick/.test(code(read("components/crew/LocationEditor.tsx")))
     && /\.venue-loading\{min-height:72px\}/.test(read("app/globals.css")));
   ok("quick-add: the three kinds stay on one line at phone width, and the day is said in words under them",
@@ -9034,7 +9056,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("app store: in the iPhone app Outlook's consent runs in the app's own browser sheet, is answered with \"tap Done\", and the status is read again when the sheet closes",
       /authedFetch\(APP_BUILD \? "\/api\/outlook\/connect\?from=app" : "\/api\/outlook\/connect"\)/.test(oc)
       && /window\.addEventListener\(BROWSER_CLOSED_EVENT, \(\) => window\.dispatchEvent\(new Event\(OUTLOOK_CHANGED_EVENT\)\), \{ once: true \}\);\s*window\.open\(j\.url, "_blank"\);/.test(oc)
-      && /const finished = await Browser\.addListener\("browserFinished", \(\) => window\.dispatchEvent\(new Event\(BROWSER_CLOSED_EVENT\)\)\);/.test(read("components/NativeBridge.tsx"))
+      && /const finished = await Browser\.addListener\("browserFinished", \(\) => window\.dispatchEvent\(new Event\(BROWSER_CLOSED_EVENT\)\)\)\.catch\(\(\) => null\);\s*if \(finished\) undo\.push\(\(\) => \{ void finished\.remove\(\); \}\);/.test(read("components/NativeBridge.tsx"))
       && oc.indexOf("if (j.ok && j.url && APP_BUILD)") < oc.indexOf("window.location.href = j.url")
       && /searchParams\.get\("from"\) === "app" \? "app\." : ""\}\$\{randomUUID\(\)\}/.test(cn)
       && /state\?\.startsWith\("app\."\)\s*\? appPage\(note\)/.test(cb) && /"Content-Type": "text\/html; charset=utf-8"/.test(cb)
@@ -9441,9 +9463,40 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /import \{ appleSignInFlow \} from "@\/lib\/appleAuth";/.test(read("components/AppleSignIn.tsx")) && /await appleSignInFlow\(supabase, refreshProfile\);/.test(read("components/AppleSignIn.tsx"))
       && !/apple/i.test(au) && !/from "@\/lib\/deviceActions"/.test(au) && /const refreshProfile = useCallback\(async \(uid\?: string\) => \{\s*const id = uid \?\? user\?\.id;/.test(au));
     ok("apple: stopping Sign in with Apple for GT3 in Settings signs the app out — asked when the app opens and comes back, only on Apple's own \"revoked\"",
-/void appleCredentialState\(appleUser\)\.then\(\(state\) => \{ if \(live && state === "revoked"\) void signOut\(\); \}\);/.test(nbx)
-      && /if \(!appleUser \|\| !deviceReady\) return;/.test(nbx) && /undo\.push\(\(\) => setNativeDevice\(null\)\);\s*setDeviceReady\(true\);/.test(nbx)
+      /void appleCredentialState\(appleUser\)\.then\(\(state\) => \{\s*if \(!live \|\| state !== "revoked" \|\| appleSession\(\) !== uid\) return;/.test(nbx)
+      && /if \(!appleUser \|\| !uid \|\| !deviceReady\) return;/.test(nbx) && /undo\.push\(\(\) => setNativeDevice\(null\)\);\s*setDeviceReady\(true\);/.test(nbx)
       && /const device = nativeDevice\(\);/.test(aa) && !/signInWithApple\(\{ nonce \}\)/.test(read("lib/deviceActions.ts")) && /document\.addEventListener\("visibilitychange", ask\);/.test(nbx));
+    // The review (2026-10-11): an account with an Apple identity that signed in with its email code was signed out on
+    // every return once Sign in with Apple was off for GT3 — and everywhere, the web included.
+    ok("apple: only a session this phone got from Apple ends on Apple's \"revoked\", and only on this phone — an email sign-in to an account with an Apple identity stays signed in",
+      /const session = data\.session;\s*markAppleSession\(session\.user\.id\);/.test(aa)
+      && /export function markAppleSession\(uid: string \| null\): void \{/.test(aa) && /export function appleSession\(\): string \| null \{/.test(aa)
+      && /if \(ready && appleSession\(\) !== uid\) markAppleSession\(null\);/.test(nbx)
+      && /if \(document\.visibilityState !== "visible" \|\| appleSession\(\) !== uid\) return;/.test(nbx)
+      && /markAppleSession\(null\);\s*void supabase\?\.auth\.signOut\(\{ scope: "local" \}\);/.test(nbx)
+      && !/signOut\(\)/.test(nbx) && !/\bsignOut\b[^(]/.test(nbx.replace(/auth\.signOut\(/g, "")));
+    ok("auth: the last profile read asked for is the one that lands — an older one coming back last (a sign-in's, after the name Apple gave was kept) is dropped, and nothing lands after a sign-out",
+      /const ask = \+\+profileAsk\.current;/.test(au) && /if \(ask !== profileAsk\.current\) return;[^\n]*\n\s*if \(error\) \{ setProfileStatus\("error"\); return; \}/.test(au)
+      && /const ask = profileAsk\.current;/.test(au) && /if \(error \|\| !data \|\| ask !== profileAsk\.current\) return;/.test(au)
+      && /else \{ profileAsk\.current\+\+; setProfile\(null\); setProfileStatus\("ready"\); \}/.test(au));
+    {
+      // Asked from the phone's own address: the browser tests are served from http://localhost, where the old rule worked.
+      const NL = require("../.smoke/nativeLinks.js");
+      const PHONE = { protocol: "capacitor:", host: "localhost" }, DEV = { protocol: "http:", host: "localhost:3290" };
+      const WEB = "https://app.gt3pb.com", ONLY = ["/built/", "/c/", "/display"];
+      const at = (url, here = PHONE) => NL.opensOutside(url, here, ONLY, WEB);
+      ok("links: on the iPhone, a page only the web serves opens the web's page — capacitor://localhost/built/… went to the home screen",
+        at("capacitor://localhost/built/gt3-built-k7m9x4q2?from=app#top") === `${WEB}/built/gt3-built-k7m9x4q2?from=app#top` && at("capacitor://localhost/c/ABC") === `${WEB}/c/ABC`,
+        `${at("capacitor://localhost/built/gt3-built-k7m9x4q2?from=app#top")} · ${at("capacitor://localhost/c/ABC")}`);
+      ok("links: the app's own pages stay in the app, on the phone and in the browser test alike",
+        at("capacitor://localhost/menu") === null && at("capacitor://localhost/crew?s=prep") === null && at("http://localhost:3290/menu", DEV) === null
+        && at("http://localhost:3290/built/x", DEV) === `${WEB}/built/x`);
+      ok("links: another site opens in the in-app browser — the web's own address too — and the phone's apps keep theirs (Phone, Mail, Messages, Maps)",
+        at("https://example.com/from-a-link") === "https://example.com/from-a-link" && at(`${WEB}/menu`) === `${WEB}/menu`
+        && at("tel:+15555550100") === null && at("mailto:hello@example.com") === null && at("sms:+15555550100") === null
+        && at("https://maps.apple.com/?q=GT3") === null && at("https://www.google.com/maps/place/x") === null && at("not a url") === null
+        && at("capacitor://elsewhere/built/x") === null);
+    }
     const btn = code(read("components/AppleSignIn.tsx"));
     ok("apple: the button is the iPhone app's alone, first on the form, white in the system font with the system's Apple glyph, busy on its own",
       /<div className="auth-form mt-5">\s*<button type="button" onClick=\{go\} disabled=\{busy\}\s*className="[^"]*bg-white text-black[^"]*\[font-family:-apple-system,system-ui,sans-serif\]/.test(btn)
@@ -9689,7 +9742,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const ap = code(read("components/AuthProvider.tsx"));
   ok("no signing out to become crew: the profile is read again when the app comes back to the screen — at most every 30 seconds, quietly, and a failed read changes nothing",
     /document\.addEventListener\("visibilitychange", onBack\)/.test(ap) && /window\.addEventListener\("focus", onBack\)/.test(ap)
-    && /Date\.now\(\) - lastProfileRead\.current < 30_000/.test(ap) && /if \(error \|\| !data\) return;/.test(ap)
+    && /Date\.now\(\) - lastProfileRead\.current < 30_000/.test(ap) && /if \(error \|\| !data(?: \|\| ask !== profileAsk\.current)?\) return;/.test(ap)
     && /JSON\.stringify\(prev\) === JSON\.stringify\(data\) \? prev :/.test(ap) && !/onBack[\s\S]{0,400}setProfileStatus\("loading"\)/.test(ap));
   const qd = code(read("components/QuickDock.tsx"));
   ok("Ask GT3 in one tap: the guide sends gt3-quick-ask, a link carries ?ask=1 — the dock starts open on Ask and the address forgets it",

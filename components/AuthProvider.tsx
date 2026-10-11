@@ -100,8 +100,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   // When the profile was last read — the quiet re-read on return (below) waits 30 seconds after one.
   const lastProfileRead = useRef(0);
+  // THE LAST READ ASKED FOR IS THE ONE THAT LANDS (2026-10-11, the review): a sign-in's read, then a read asked for
+  // because the row just changed (a name the sign-in kept: refreshProfile) — the older one coming back last put the old row back.
+  const profileAsk = useRef(0);
   const loadProfile = useCallback(async (uid: string) => {
     if (!supabase) return;
+    const ask = ++profileAsk.current;
     setProfileStatus("loading");
     const first = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
     let data = first.data;
@@ -120,6 +124,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     // where it is — dropping a known-good owner to null on a transient refresh is how a working
     // session turns into "Staff only" without anything actually changing. The status carries the
     // failure instead, and callers decide what to say about it.
+    if (ask !== profileAsk.current) return;   // a newer read is on its way, and it sets the status
     if (error) { setProfileStatus("error"); return; }
     setProfile(data as Profile | null);
     setProfileStatus("ready");   // includes a genuine null: asked, answered, no row
@@ -141,8 +146,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const onBack = () => {
       if (document.visibilityState !== "visible" || Date.now() - lastProfileRead.current < 30_000) return;
       lastProfileRead.current = Date.now();
+      const ask = profileAsk.current;
       void sb.from("profiles").select("*").eq("id", uid).maybeSingle().then(({ data, error }) => {
-        if (error || !data) return;
+        if (error || !data || ask !== profileAsk.current) return;   // a full read began since: it has the newer row
         setProfile((prev) => (prev && JSON.stringify(prev) === JSON.stringify(data) ? prev : (data as Profile)));
       });
     };
@@ -181,7 +187,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       setUser(u);
       writeViewerHint(!!u);
       if (u) loadProfile(u.id);
-      else { setProfile(null); setProfileStatus("ready"); }   // signed out: known, not unknown
+      else { profileAsk.current++; setProfile(null); setProfileStatus("ready"); }   // signed out: known, not unknown — and a read still out lands nowhere
       // Utilization (0267): a real sign-in bumps the login counter; INITIAL_SESSION (cold-start
       // session restore) counts as presence, not a login — so "logins" answers "how many times
       // did they actually sign in," not "how many times did the PWA wake up."

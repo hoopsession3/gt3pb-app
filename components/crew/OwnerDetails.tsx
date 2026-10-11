@@ -14,7 +14,7 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { NoteBox } from "@/components/RecordWays";
 import { archiveOwner, cleanRecap, saveRecap, wrapOwner } from "@/lib/wrap";
 import { localToday } from "@/lib/dates";
-import VenuePick from "@/components/VenuePickLazy";
+import VenuePick, { type VenueHow } from "@/components/VenuePickLazy";
 import type { VenueFill } from "@/lib/venues";
 import { haptic } from "@/lib/haptics";
 import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
@@ -56,7 +56,8 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
   // it when the sheet goes — with the new details — and the button you came from has focus again. `f` is the draft
   // the sheet types into; the page shows `kept.page`, the record as it stood when the sheet opened, until it closes,
   // and `kept.form` is what the form opened with — what "Discard your changes?" measures against.
-  const [kept, setKept] = useState<{ page: Rec; form: Rec } | null>(null);
+  // The stop's ordering switches and lead time ride beside the draft (oa, pk, lead), so they are kept with it too.
+  const [kept, setKept] = useState<{ page: Rec; form: Rec; oa: boolean; pk: boolean; lead: string; pin?: { lat: number; lng: number } | null } | null>(null);
   const [saving, setSaving] = useState(false);
   const [wrapping, setWrapping] = useState(false); // capturing the after-action to complete an event
   const [recap, setRecap] = useState("");
@@ -185,9 +186,12 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
 
   const set = (k: string, v: string | null) => setF((p) => ({ ...(p ?? {}), [k]: v }));
   // A venue picked (components/VenuePick): its words into the draft, its pin aside until save.
-  const onVenue = (fill: VenueFill) => {
+  // The venue the record's own words spell, linked as the sheet opens ("match"), is what the sheet opened with, not a
+  // change: an untouched sheet never asks "Discard your changes?" (lib/formGuard). Save still files it (2026-10-11).
+  const onVenue = (fill: VenueFill, how: VenueHow) => {
     setF((p) => ({ ...(p ?? {}), ...fill.text }));
     if (fill.pin !== undefined) setPin(fill.pin);
+    if (how === "match") setKept((k) => k && { ...k, form: { ...k.form, ...fill.text }, ...(fill.pin !== undefined && { pin: fill.pin }) });
   };
   const pinOf = (k: "lat" | "lng"): number | null => {
     if (pin !== undefined) return pin ? pin[k] : null;
@@ -291,23 +295,22 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
     const derived = isEvent ? (f.stage ?? null) : derivedStopStatus(f.status ?? null, f.starts_at ?? null, f.completed_at ?? null);
     origStage.current = derived;
     const form = !isEvent && derived !== f.status ? { ...f, status: derived } : f;
-    setKept({ page: f, form });
+    setKept({ page: f, form, oa, pk, lead });
     setF(form);
     setEdit(true);
   };
   // Cancel, the X, the pull or a tap outside (after "Discard your changes?", when something was typed): the
-  // draft goes back to the record at once, and the read re-seeds the switches the form keeps beside it.
+  // draft and the switches beside it go back to what the sheet opened on, at once — no read to wait for, so a read
+  // that failed cannot leave a cancelled switch to be saved next time, and one that came back late cannot reset a
+  // sheet opened again in the meantime (2026-10-11, the review).
   const closeEdit = () => {
-    if (kept) setF(kept.page);
+    if (kept) { setF(kept.page); setOa(kept.oa); setPk(kept.pk); setLead(kept.lead); }
     setPin(undefined);
     setEdit(false);
     setKept(null);
-    ownerState.reload();
   };
-  const was = ownerState.data?.d;
-  const dirty = edit && !!kept && (edited(f, kept.form, isEvent ? EVENT_SAVES : STOP_SAVES) || pin !== undefined
-    || (!isEvent && !!was && (oa !== !!was.order_ahead_enabled || pk !== !!was.pickup_enabled
-      || lead.trim() !== (was.order_ahead_lead_min != null ? String(was.order_ahead_lead_min) : ""))));
+  const dirty = edit && !!kept && (edited(f, kept.form, isEvent ? EVENT_SAVES : STOP_SAVES) || pin !== kept.pin
+    || (!isEvent && (oa !== kept.oa || pk !== kept.pk || lead.trim() !== kept.lead.trim())));
 
   return (
     <AsyncSection

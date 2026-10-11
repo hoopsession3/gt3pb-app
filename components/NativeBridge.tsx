@@ -6,7 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { BROWSER_CLOSED_EVENT, isNativeApp, lessonHref, nativePlatform, WEB_ORIGIN } from "@/lib/native";
 import { setNativeHaptics, type UIKitStep } from "@/lib/haptics";
 import { saveFromUrl, setNativeDevice, type GT3DevicePlugin } from "@/lib/deviceActions";
-import { appleCredentialState } from "@/lib/appleAuth";
+import { opensOutside as linkOut } from "@/lib/nativeLinks";
+import { appleCredentialState, appleSession, markAppleSession } from "@/lib/appleAuth";
 import { scrollToTop } from "@/lib/appScroll";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./AuthProvider";
@@ -44,8 +45,6 @@ import "./NativeBridge.css";
 //   · A GT3 LINK THAT OPENS THE APP (a Universal Link, once its domain file is live) lands on the same
 //     screen in the app — a lesson on the app's own lesson page, a page only the web serves in the
 //     in-app browser — and a sign-in link completes the sign-in here.
-
-const MAPS = /^https:\/\/(maps\.apple\.com|maps\.google\.|www\.google\.[^/]+\/maps|goo\.gl\/maps)/;
 
 // What ground is painted at the top of the screen? The topmost element there with a solid one says (a
 // sheet's scrim, then the screen, then the shell): its background colour, or the colour a gradient
@@ -91,21 +90,13 @@ const FIELD = "input:not([type=checkbox]):not([type=radio]):not([type=range]), t
 // address. A link to one opens the web's page in the in-app browser, never the app's home screen.
 const WEB_ONLY = (process.env.NEXT_PUBLIC_GT3_WEB_ONLY ?? "").split(",").filter(Boolean);
 
-/** Where a link should open instead of inside the app, or null: the web, in the in-app browser. */
-function opensOutside(url: string): string | null {
-  if (!/^https?:\/\//i.test(url)) return null;             // tel:, mailto:, sms: — the phone's own apps
-  if (MAPS.test(url)) return null;                          // Maps opens the Maps app
-  let u: URL;
-  try { u = new URL(url); } catch { return null; }
-  if (u.origin !== window.location.origin) return u.href;   // another site
-  if (WEB_ONLY.some((p) => u.pathname.startsWith(p))) return `${WEB_ORIGIN}${u.pathname}${u.search}${u.hash}`;
-  return null;
-}
+/** Where a link should open instead of inside the app, or null (lib/nativeLinks): the web, in the in-app browser. */
+const opensOutside = (url: string): string | null => linkOut(url, window.location, WEB_ONLY, WEB_ORIGIN);
 
 export default function NativeBridge() {
   const router = useRouter();
   const pathname = usePathname();
-  const { signInWithUrl, user, signOut } = useAuth();
+  const { signInWithUrl, user, ready } = useAuth();
   // The phone's half is in (the GT3Device bridge is set, below): what asks the phone something waits for it.
   const [deviceReady, setDeviceReady] = useState(false);
   // Set once the plugins are in: looks again at what is under the status bar.
@@ -247,8 +238,10 @@ export default function NativeBridge() {
       document.addEventListener("click", onClick, true);
       undo.push(() => document.removeEventListener("click", onClick, true));
       // The sheet closed: a screen that sent someone out to finish something there (Outlook's consent) reads again.
-      const finished = await Browser.addListener("browserFinished", () => window.dispatchEvent(new Event(BROWSER_CLOSED_EVENT)));
-      undo.push(() => { void finished.remove(); });
+      // A listener that can't be had costs only that: what follows (window.open, the app's links, the launch screen)
+      // never waits on it — the outer catch would have skipped all of it (2026-10-11, the review).
+      const finished = await Browser.addListener("browserFinished", () => window.dispatchEvent(new Event(BROWSER_CLOSED_EVENT))).catch(() => null);
+      if (finished) undo.push(() => { void finished.remove(); });
       const webOpen = window.open;
       window.open = ((url?: string | URL, target?: string, features?: string) => {
         const to = url ? opensOutside(new URL(String(url), window.location.href).href) : null;
@@ -286,20 +279,33 @@ export default function NativeBridge() {
   }, [router, signInWithUrl]);
 
   // STOPPED USING SIGN IN WITH APPLE FOR GT3 IN SETTINGS? Then signed out here too (Apple's TN3194) — asked once the
-  // phone's half is in, and each time the app comes back to the front. Only for an account that signed in with Apple,
-  // and only on Apple's own "revoked". It lives here, in the app's own bridge, so none of it rides in a web page.
+  // phone's half is in, and each time the app comes back to the front. Only on Apple's own "revoked", and only for a
+  // session this phone got from Apple (lib/appleAuth markAppleSession): an account with an Apple identity that signed in
+  // here with its email code stays signed in (2026-10-11, the review — it was signed out on every return). The sign-out
+  // is this phone's alone ("local"): the web, and any other phone, keep their sessions. It lives here, in the app's own
+  // bridge, so none of it rides in a web page.
+  const uid = user?.id ?? null;
   const appleUser = (user?.identities ?? []).find((i) => i.provider === "apple")?.identity_data?.sub as string | undefined;
   useEffect(() => {
-    if (!appleUser || !deviceReady) return;
+    // Nobody signed in, or somebody else: an older Apple session's mark goes with it. (Not before the session is known:
+    // a launch reads no one for a moment.)
+    if (ready && appleSession() !== uid) markAppleSession(null);
+  }, [ready, uid]);
+  useEffect(() => {
+    if (!appleUser || !uid || !deviceReady) return;
     let live = true;
     const ask = () => {
-      if (document.visibilityState !== "visible") return;
-      void appleCredentialState(appleUser).then((state) => { if (live && state === "revoked") void signOut(); });
+      if (document.visibilityState !== "visible" || appleSession() !== uid) return;
+      void appleCredentialState(appleUser).then((state) => {
+        if (!live || state !== "revoked" || appleSession() !== uid) return;
+        markAppleSession(null);
+        void supabase?.auth.signOut({ scope: "local" });
+      });
     };
     ask();
     document.addEventListener("visibilitychange", ask);
     return () => { live = false; document.removeEventListener("visibilitychange", ask); };
-  }, [appleUser, deviceReady, signOut]);
+  }, [appleUser, uid, deviceReady]);
 
   // A new screen: look at what is under the status bar again.
   useEffect(() => { restyle.current?.(); }, [pathname]);

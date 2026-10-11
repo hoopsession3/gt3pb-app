@@ -24,6 +24,7 @@ export async function appleSignInFlow(supabase: SupabaseClient, reloadProfile: (
   const { data, error } = await supabase.auth.signInWithIdToken({ provider: "apple", token: credential.identityToken, nonce });
   if (error || !data.session) return { error: error?.message ?? "Sign in with Apple didn't finish. Try again, or use your email." };
   const session = data.session;
+  markAppleSession(session.user.id);
   const given = credential.givenName?.trim();
   if (given) {
     const { data: prof } = await supabase.from("profiles").select("display_name").eq("id", session.user.id).maybeSingle();
@@ -56,6 +57,21 @@ export async function appleSignIn(nonce: string): Promise<{ outcome: Outcome; cr
   } catch (e) {
     return { outcome: outcomeOf(e) };
   }
+}
+
+// THE SESSION APPLE GAVE, ON THIS PHONE (2026-10-11, the review). Apple's "revoked" is about Sign in with Apple, not
+// about the account: Supabase links an Apple identity to the email account with the same address, so someone who
+// turned Sign in with Apple off for GT3 in Settings and then signed in with their email code still has an Apple
+// identity — and was signed out each time they came back to the app. Only a session this phone got from Apple ends
+// when Apple says so; the mark is that session's user, and it goes with it (components/NativeBridge clears it when
+// nobody, or somebody else, is signed in).
+const APPLE_SESSION = "gt3_apple_session";
+export function markAppleSession(uid: string | null): void {
+  try { if (uid) localStorage.setItem(APPLE_SESSION, uid); else localStorage.removeItem(APPLE_SESSION); } catch { /* storage may be blocked */ }
+}
+/** The user whose session on this phone came from Sign in with Apple, if one did. */
+export function appleSession(): string | null {
+  try { return localStorage.getItem(APPLE_SESSION); } catch { return null; }
 }
 
 /** Whether this Apple user still lets GT3 in — null where nothing can say (the web, or the phone did not answer). */

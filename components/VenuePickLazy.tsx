@@ -10,3 +10,5 @@ import dynamic from "next/dynamic";
 // main, 2026-10-05. The space the pick takes is held while it loads, so the fields under it stay put.
 const VenuePick = dynamic(() => import("./VenuePick"), { ssr: false, loading: () => <div className="venue-loading" aria-busy="true" /> });
 export default VenuePick;
+/** "pick": someone chose; "match": the record's own words resolved, as the sheet opened. A type: nothing loads with it. */
+export type { VenueHow } from "./VenuePick";

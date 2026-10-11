@@ -6,7 +6,7 @@ import { edited } from "@/lib/formGuard";
 import { useApp } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
 import { geocode } from "@/lib/geocode";
-import VenuePick from "@/components/VenuePickLazy";
+import VenuePick, { type VenueHow } from "@/components/VenuePickLazy";
 import type { VenueFill } from "@/lib/venues";
 import { useLocationSuggestions } from "@/components/useLocationSuggestions";
 import Icon from "@/components/Icon";
@@ -112,10 +112,13 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onChanged, on
   }, [table, isEvent, id]);
 
   const set = (k: string, v: string | null) => setF((p) => ({ ...(p ?? {}), [k]: v }));
-  // A venue picked: its words into the form, its pin aside until save.
-  const onVenue = (fill: VenueFill) => {
+  // A venue picked: its words into the form, its pin aside until save. The venue the row's own words spell, linked as
+  // the sheet opens ("match"), is what it opened with — an untouched sheet never asks "Discard your changes?"
+  // (lib/formGuard); Save still files it (2026-10-11, the review).
+  const onVenue = (fill: VenueFill, how: VenueHow) => {
     setF((p) => ({ ...(p ?? {}), ...fill.text }));
     if (fill.pin !== undefined) setPin(fill.pin);
+    if (how === "match") setLoaded((l) => l && { ...l, ...fill.text });
   };
 
   // date/time <-> columns: events.day is a plain date; stops.starts_at is a timestamp.
