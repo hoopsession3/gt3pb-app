@@ -9,6 +9,8 @@ import { subscribePush } from "@/lib/push";
 import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import { edited } from "@/lib/formGuard";
 import Icon from "@/components/Icon";
+import { NATIVE_PUSH_ON } from "@/lib/nativePush";
+import { AppAlertsProfile } from "./AppAlerts";
 
 // Your GT3 profile — photo, name, title, bio. Team culture: a face + a line on who you are, feeding
 // the org chart in Leadership. Avatar goes to the 'avatars' bucket under your own uid folder.
@@ -78,6 +80,7 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
           <label className="prod-f" style={{ marginTop: 8 }}><span>Title</span><input className="note-in" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Lead Operator · Co-Founder" maxLength={60} /></label>
           <label className="prod-f" style={{ marginTop: 8 }}><span>Bio</span><textarea className="note-in" rows={3} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="A line or two — what you bring to the bar." maxLength={600} /></label>
           {/* Notifications — order-ready alerts, managed right where the account lives. */}
+          {NATIVE_PUSH_ON && <AppAlertsProfile />}
           {notifState !== "unsupported" && <div className="prof-notif">
             <div className="prof-notif-t">Order notifications</div>
             {notifState === "granted" ? (

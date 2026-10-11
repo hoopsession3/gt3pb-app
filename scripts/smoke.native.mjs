@@ -149,6 +149,10 @@ const ANSWERS = {
   "GT3Device.signInWithApple": { identityToken: "smoke.apple-identity-token.sig", authorizationCode: "csmoke0123456789.0.mrxv.apple-one-time-code", user: "000123.smokeapple0042.0042", givenName: "Riley" },
   "GT3Device.appleCredentialState": { state: "authorized" },
   "Share.share": { activityType: "com.apple.UIKit.activity.SaveToCameraRoll" },
+  // Alerts (2026-10-11): never asked on this phone, then a yes when the app asks.
+  "PushNotifications.checkPermissions": { receive: "prompt" },
+  "PushNotifications.requestPermissions": { receive: "granted" },
+  "GT3Device.openSettings": { opened: true },
 };
 
 // The phone's side of the bridge, in the page: window.webkit.messageHandlers.bridge is where
@@ -1626,6 +1630,49 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await wp.waitForSelector("#auth-email", { timeout: 8000 }).catch(() => {});
     ok("apple: a plain browser has no Apple sheet, so no Apple button", (await wp.locator("#auth-email").count()) === 1 && (await wp.getByRole("button", { name: "Continue with Apple" }).count()) === 0);
     await web.close();
+  }
+
+  // ── 6c · Alerts in the app (2026-10-11) ──
+  // The smoke build has alerts live (scripts/build.app.mjs SMOKE_FLAGS). Settings › Notifications as the owner: Turn on
+  // asks iOS (answered yes), registers the phone, and the token Apple gives it (fired here as the registration event)
+  // is handed to the database to keep for whoever is signed in (0367 keep_app_push_token); the row then says On. A tapped alert carrying /admin?s=money opens the
+  // console's Money — the old address read as the new one.
+  {
+    const ctx = await phoneContext(MAIN, { owner: true });
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    const kept = [];
+    page.on("request", (r) => {
+      const u = new URL(r.url());
+      if (u.host === BACKEND_HOST && u.pathname === "/rest/v1/rpc/keep_app_push_token" && r.method() === "POST") { try { kept.push(r.postDataJSON()); } catch { kept.push({ unreadable: true }); } }
+    });
+    await page.goto(`${BASE}/crew?s=settings&a=set-notify`, { waitUntil: "load" });
+    const turnOn = page.locator("#set-alerts").getByRole("button", { name: "Turn on" });
+    const offered = await turnOn.waitFor({ timeout: 8000 }).then(() => true, () => false);
+    if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "alerts--off") });
+    if (offered) await turnOn.click();
+    await page.waitForFunction(() => window.__native?.calls.some((c) => c.plugin === "PushNotifications" && c.method === "register"), null, { timeout: 5000 }).catch(() => {});
+    const TOKEN = "ab".repeat(32);
+    await page.evaluate((t) => {
+      for (const id of window.__native.listeners["PushNotifications.registration"] ?? []) window.Capacitor.fromNative({ callbackId: id, pluginId: "PushNotifications", methodName: "addListener", success: true, save: true, data: { value: t } });
+    }, TOKEN);
+    await page.waitForTimeout(900);
+    const row = await page.evaluate(() => (document.getElementById("set-alerts")?.innerText || "").replace(/\s+/g, " "));
+    if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "alerts--on") });
+    const calls = await nativeCalls(page);
+    const one = kept.find((k) => typeof k?.p_token === "string") ?? null;
+    ok("alerts: in the app, Settings offers Turn on, which asks iOS and registers the phone",
+      offered && calls.some((c) => c.plugin === "PushNotifications" && c.method === "requestPermissions") && calls.some((c) => c.plugin === "PushNotifications" && c.method === "register"));
+    ok("alerts: the token Apple gives the phone is handed to the database to keep — never written by the page", one?.p_token === TOKEN && !kept.some((k) => "user_id" in (k ?? {})), JSON.stringify(kept));
+    ok("alerts: the row says On", /\bOn\b/.test(row), row);
+    await page.evaluate(() => {
+      for (const id of window.__native.listeners["PushNotifications.pushNotificationActionPerformed"] ?? []) window.Capacitor.fromNative({ callbackId: id, pluginId: "PushNotifications", methodName: "addListener", success: true, save: true, data: { actionId: "tap", notification: { data: { url: "/admin?s=money" } } } });
+    });
+    await page.waitForURL(/\/crew\?s=money/, { timeout: 6000 }).catch(() => {});
+    ok("alerts: a tapped alert opens the screen it is about — /admin read as /crew", /\/crew\?s=money/.test(page.url()), page.url());
+    ok("alerts: no errors", errors.length === 0, errors.join(" | "));
+    await ctx.close();
   }
 
   // ── 7 · what the phone does for a page: save, share, print, add to the calendar ──

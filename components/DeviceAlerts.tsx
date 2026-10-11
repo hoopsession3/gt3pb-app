@@ -5,6 +5,8 @@ import { subscribePush } from "@/lib/push";
 import { useApp } from "./AppProvider";
 import GoLine from "./GoLine";
 import { APP_BUILD } from "@/lib/native";
+import { NATIVE_PUSH_ON } from "@/lib/nativePush";
+import { AppAlertsRow, AppAlertsOffLine } from "./AppAlerts";
 
 // ALERTS ON THIS DEVICE (2026-10-06, the settings round). "Turn on order alerts" was a full card at
 // the bottom of Live Ops, under the tasks, on every phone that had not said yes yet. It is a setting
@@ -54,11 +56,11 @@ const SAYS: Record<AlertPermission | "unknown", string> = {
 export function DeviceAlerts() {
   const { toast } = useApp();
   const perm = useAlertPermission();
-  // NOT IN THE IPHONE APP (2026-10-11, Ryan's App Store audit). The app has no web notifications to ask for, and its own
-  // are the next part of the app round. The row said "Alerts come to the app in its next update. Until then, the web
-  // app on this phone's Home Screen can ring" — a promise and a pointer to the website, in an App Store app: a
-  // placeholder (App Review 2.1). Until there is something to turn on here, there is no row here.
-  if (APP_BUILD) return null;
+  // IN THE IPHONE APP, THE APP'S OWN (2026-10-11). The app has no web notifications to ask for: its alerts come
+  // through Apple (components/AppAlerts, lib/nativePush). Until they are live (NATIVE_PUSH_ON) there is no row at all —
+  // the row used to say "Alerts come to the app in its next update. Until then, the web app on this phone's Home
+  // Screen can ring", a promise and a pointer to the website, in an App Store app: a placeholder (App Review 2.1).
+  if (APP_BUILD) return NATIVE_PUSH_ON ? <AppAlertsRow /> : null;
   const turnOn = async () => {
     let p: NotificationPermission;
     try { p = await Notification.requestPermission(); }
@@ -88,6 +90,10 @@ export function DeviceAlerts() {
 /** Live Ops: one line, only while alerts are off on this phone. */
 export function AlertsOffLine() {
   const perm = useAlertPermission();
+  if (APP_BUILD) {
+    if (!NATIVE_PUSH_ON) return null;
+    return <AppAlertsOffLine>{(off) => off ? <GoLine to="settings" anchor="set-alerts">Order alerts are off on this phone — turn them on in Settings</GoLine> : null}</AppAlertsOffLine>;
+  }
   if (!alertsOff(perm)) return null;
   return <GoLine to="settings" anchor="set-alerts">Order alerts are off on this phone — turn them on in Settings</GoLine>;
 }

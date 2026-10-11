@@ -26,6 +26,7 @@ import type { CalEvent } from "./ics";
 //   · a pass   → GT3Device.addPass: Wallet's own Add sheet.
 //   · Apple    → GT3Device.signInWithApple: Apple's own sheet; appleCredentialState: is that Apple ID still in.
 //                (asked from lib/appleAuth, which loads only when it is needed — nativeDevice() hands it the phone).
+//   · Settings → GT3Device.openSettings: GT3's own page in the iPhone's Settings, for alerts turned off there.
 // GT3Device is the app's own plugin, native/ios/GT3Device.swift. GT3DevicePlugin below is its contract;
 // scripts/smoke.cjs holds the two to the same methods, and scripts/smoke.native.mjs presses each button
 // on a stand-in iPhone that knows only the methods the Swift declares.
@@ -55,6 +56,8 @@ export type GT3DevicePlugin = {
   addPass(o: { data: string }): Promise<void>;
   signInWithApple(o: { nonce: string }): Promise<AppleCredential>;
   appleCredentialState(o: { user: string }): Promise<{ state: AppleState }>;
+  /** GT3's page in the iPhone's Settings — its notifications (components/AppAlerts, an alert turned off there). */
+  openSettings(): Promise<{ opened: boolean }>;
 };
 
 /** What the iPhone app does instead: GT3Device, and the share sheet (@capacitor/share Share.share). */

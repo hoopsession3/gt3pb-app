@@ -185,6 +185,7 @@ jobs:
       NEXT_PUBLIC_SUB_PRICE_18: ${{ vars.NEXT_PUBLIC_SUB_PRICE_18 }}
       NEXT_PUBLIC_APPLE_WALLET: ${{ vars.NEXT_PUBLIC_APPLE_WALLET }}
       NEXT_PUBLIC_GOOGLE_WALLET: ${{ vars.NEXT_PUBLIC_GOOGLE_WALLET }}
+      NEXT_PUBLIC_NATIVE_PUSH: ${{ vars.NEXT_PUBLIC_NATIVE_PUSH }}
     steps:
       - name: Everything an upload needs is set
         run: |
@@ -256,7 +257,7 @@ jobs:
       # carry them; the export re-signs it for the App Store and keeps them (the App ID allows the capability).
       # Nested code first: codesign will not sign an app whose frameworks are unsigned. Stops the run if the
       # entitlement is not there, rather than shipping a button that cannot work.
-      - name: Give the archive its entitlements (Sign in with Apple)
+      - name: Give the archive its entitlements (Sign in with Apple, alerts)
         run: |
           set -euo pipefail
           APP="$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app"
@@ -269,6 +270,11 @@ jobs:
           cat entitlements.txt
           if ! grep -q "com.apple.developer.applesignin" entitlements.txt; then
             echo "::error::The archive's app does not carry Sign in with Apple (com.apple.developer.applesignin)."
+            exit 1
+          fi
+          # Alerts (2026-10-11): APNs' entitlement, which the App ID's Push Notifications capability lets the export keep.
+          if ! grep -q "aps-environment" entitlements.txt; then
+            echo "::error::The archive's app does not carry alerts (aps-environment)."
             exit 1
           fi
 
@@ -299,6 +305,8 @@ jobs:
             cp "$RUNNER_TEMP/export/DistributionSummary.plist" distribution-summary.plist
             grep -q "com.apple.developer.applesignin" distribution-summary.plist && echo "The App Store build carries Sign in with Apple." \
               || echo "::warning::The export's summary does not list Sign in with Apple."
+            grep -q "aps-environment" distribution-summary.plist && echo "The App Store build carries alerts (APNs)." \
+              || echo "::warning::The export's summary does not list alerts (aps-environment) — is Push Notifications on for the App ID?"
           fi
 
       - name: Forget the key

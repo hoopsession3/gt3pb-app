@@ -8976,7 +8976,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("alerts on this device: the phone's answer is read as it draws (no effect), asked for with one tap, and every answer is said",
     /useSyncExternalStore\(subscribe, readPermission, \(\) => "unknown" as const\)/.test(DA) && /window\.dispatchEvent\(new Event\(ASKED\)\);/.test(DA)
     && /if \(await subscribePush\(true\)\) toast\("Order alerts are on for this phone"\);\s*else toast\(/.test(DA) && ["unknown", "granted", "default", "denied", "unsupported"].every((k) => new RegExp(`\\b${k}: "`).test(DA))
-    && /const perm = useAlertPermission\(\);\s*if \(APP_BUILD\) return null;/.test(DA) && !/next update|web app on this phone/.test(DA)
+    && /const perm = useAlertPermission\(\);\s*if \(APP_BUILD\) return NATIVE_PUSH_ON \? <AppAlertsRow \/> : null;/.test(DA) && !/next update|web app on this phone/.test(DA)
     && /export const alertsOff = \(p: AlertPermission \| "unknown"\): boolean => p === "default" \|\| p === "denied";/.test(DA));
   {
     // 2026-10-11 (0365/0366, the review of the iPhone app's alerts): the page wrote its own row and never read the answer.
@@ -9447,6 +9447,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("device: NativeBridge gives lib/deviceActions the phone's sheets — GT3Device and the share sheet — and takes them back when it goes",
     /import\("@capacitor\/share"\)/.test(nb) && /const device = registerPlugin<GT3DevicePlugin>\("GT3Device"\);/.test(nb)
     && ["keepFile", "printPage", "addEvent", "addPass", "signInWithApple", "appleCredentialState"].every((m) => nb.includes(`${m}: (o) => device.${m}(o),`)) && /share: \(o\) => Share\.share\(o\),/.test(nb)
+    && /openSettings: \(\) => device\.openSettings\(\),/.test(nb)
     && /undo\.push\(\(\) => setNativeDevice\(null\)\);/.test(nb) && !/@capacitor/.test(da));
   const dl = nb.indexOf('if (a.hasAttribute("download")) {'), pd = nb.indexOf("e.preventDefault();", dl), sf = nb.indexOf('void saveFromUrl(a.href, a.getAttribute("download") || undefined);', dl);
   ok("device: in the app a link that saves a file (<a download>, a post's photo) hands an https file to the share sheet instead of going nowhere",
@@ -9458,7 +9459,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const contract = /export type GT3DevicePlugin = \{([\s\S]*?)\n\};/.exec(da)?.[1] ?? "";
   const tsMethods = [...contract.matchAll(/^\s*(\w+)\(/gm)].map((m) => m[1]).sort();
   ok("device: the page and the phone agree on GT3Device — the same methods in lib/deviceActions and native/ios/GT3Device.swift, under the name the page asks for, registered by the app's view controller",
-    swiftMethods.length === 6 && JSON.stringify(swiftMethods) === JSON.stringify(tsMethods) && /public let jsName = "GT3Device"/.test(swift)
+    swiftMethods.length === 7 && JSON.stringify(swiftMethods) === JSON.stringify(tsMethods) && /public let jsName = "GT3Device"/.test(swift)
     && /override func capacitorDidLoad\(\) \{\s*bridge\?\.registerPluginInstance\(GT3DevicePlugin\(\)\)/.test(read("ios/App/App/GT3ViewController.swift"))
     && read("ios/App/App/GT3Device.swift") === swift, { swift: swiftMethods, ts: tsMethods });
   // ── SIGN IN WITH APPLE (2026-10-11, Ryan: "you have permission to do anything") ──
@@ -9532,6 +9533,59 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       er.indexOf("appleManual = !(token && siwaConfigured() && (await revoke(token)") > 0 && er.indexOf("await revoke(token)") < er.indexOf("supabaseAdmin.auth.admin.deleteUser(user.id)")
       && /return NextResponse\.json\(\{ ok: true, appleManual \}\);/.test(er) && /if \(j\.appleManual\) \{ haptic\("success"\); setPhase\(\{ at: "apple" \}\); return; \}/.test(code(read("components/DeleteAccount.tsx")))
       && /aud: APPLE, sub: APPLE_CLIENT_ID/.test(asi) && /token_type_hint: "refresh_token"/.test(asi));
+  }
+  // ── ALERTS IN THE IPHONE APP (2026-10-11): APNs, dark until the web says it can ring ──
+  {
+    const NP = require("../.smoke/nativePush.js"), CS2 = require("../.smoke/crewStart.js");
+    const nb = code(read("components/NativeBridge.tsx")), da = code(read("components/DeviceAlerts.tsx")), aa2 = code(read("components/AppAlerts.tsx"));
+    const fn = read("supabase/functions/push/index.ts"), mig = read("supabase/migrations/0367_alerts_in_the_iphone_app.sql"), cfg = read("scripts/ios.configure.mjs");
+    ok("alerts: a tapped alert opens only an in-app address — /admin read as /crew, another site or //host never",
+      NP.alertTarget("/admin?s=money") === "/crew?s=money" && NP.alertTarget("/admin") === "/crew" && NP.alertTarget("/administer") === "/administer"
+      && NP.alertTarget("/crew?s=day") === "/crew?s=day" && NP.alertTarget("https://evil.example") === null && NP.alertTarget("//evil.example") === null && NP.alertTarget(42) === null
+      && NP.NATIVE_PUSH_ON === false);
+    ok("alerts: dark until it can ring — the app's alerts are the app's build AND the web's NEXT_PUBLIC_NATIVE_PUSH, which the TestFlight build takes from the web",
+      /export const NATIVE_PUSH_ON = APP_BUILD && process\.env\.NEXT_PUBLIC_NATIVE_PUSH === "1";/.test(read("lib/nativePush.ts"))
+      && JSON.parse(read("lib/publicConfig.json")).names.includes("NEXT_PUBLIC_NATIVE_PUSH") && /const SMOKE_FLAGS = \{ NEXT_PUBLIC_NATIVE_PUSH: "1" \};/.test(read("scripts/build.app.mjs")));
+    ok("alerts: only NativeBridge speaks to the push plugin — asks, registers on a yes and on each launch once allowed, keeps the token for whoever is signed in, opens a tapped alert's screen",
+      /if \(NATIVE_PUSH_ON\) void \(async \(\) => \{\s*const \{ PushNotifications \} = await import\("@capacitor\/push-notifications"\);/.test(nb)
+      && /PushNotifications\.addListener\("registration", \(\{ value \}\) => setPushToken\(value\)\)/.test(nb)
+      && /const to = alertTarget\(\(notification\.data as \{ url\?: unknown \} \| undefined\)\?\.url\);\s*if \(to\) router\.push\(to\);/.test(nb)
+      && /if \(answer === "granted"\) await PushNotifications\.register\(\);/.test(nb) && /if \(\(await state\(\)\) === "granted"\) void PushNotifications\.register\(\)/.test(nb)
+      && /if \(pushToken && ready\) void keepAppDevice\(pushToken\);\s*\}, \[pushToken, ready, uid, staff\]\);/.test(nb));
+    // The review (2026-10-11): one errand of its own — a build without the plugin skipped the links, window.open and the
+    // launch screen, silently — and its listeners go if the bridge was torn down before it finished.
+    ok("alerts: the alerts setup can't stop the rest of the bridge — its own errand, caught on its own, nothing after it waiting",
+      /\}\)\(\)\.catch\(\(\) => \{ \/\* alerts are optional; never the app \*\/ \}\);/.test(read("components/NativeBridge.tsx"))
+      && /if \(cancelled\) \{ void registered\.remove\(\); void opened\.remove\(\); return; \}/.test(nb));
+    ok("alerts: the database keeps the phone for whoever is signed in — or nobody — one app install each, browsers untouched; a web row still needs its keys (0367)",
+      /const \{ error \} = await supabase\.rpc\("keep_app_push_token", \{ p_token: token \}\);\s*return !error;/.test(read("lib/nativePush.ts"))
+      && !/from\("push_subscriptions"\)/.test(read("lib/nativePush.ts"))
+      && /add column if not exists platform text not null default 'web';/.test(mig) && /check \(platform in \('web', 'apns'\) and \(platform = 'apns' or \(p256dh is not null and auth is not null\)\)\);/.test(mig)
+      && /where user_id = v_user and endpoint <> v_endpoint and endpoint like 'apns:%';/.test(mig)
+      && /revoke execute on function public\.release_push_device\(text\) from anon;/.test(mig)
+      && /select public\.record_migration\('0367_alerts_in_the_iphone_app'\);/.test(mig));
+    ok("alerts: in the app Settings, the profile and Live Ops draw the app's own switch — and nothing until alerts are live",
+      /if \(APP_BUILD\) return NATIVE_PUSH_ON \? <AppAlertsRow \/> : null;/.test(da) && /if \(!NATIVE_PUSH_ON\) return null;/.test(da)
+      && /\{NATIVE_PUSH_ON && <AppAlertsProfile \/>\}/.test(read("components/ProfileSheet.tsx")) && /const s = await p\.enable\(\);/.test(aa2)
+      && /onClick=\{openSettings\}>Open Settings<\/button>/.test(aa2) && /void nativeDevice\(\)\?\.openSettings\(\)/.test(aa2) && !/Settings ›/.test(aa2));
+    ok("alerts: the first day's \"Turn on alerts\" comes back to the app once alerts are live, and Home Screen never does",
+      CS2.startSteps({ onCrewSide: true, installed: true, app: true, appAlerts: true }).map((x) => x.key).join(",") === "crew,ask,training,alerts,who"
+      && CS2.startSteps({ onCrewSide: true, installed: true, app: true }).map((x) => x.key).join(",") === "crew,ask,training,who"
+      && /appAlerts: NATIVE_PUSH_ON \}\);/.test(read("components/CrewStart.tsx")));
+    ok("alerts: the phone's half — the push plugin (cap sync), APNs' entitlement, the delegate handing iOS's token to Capacitor, banners while open",
+      /"@capacitor\/push-notifications": "\^8\./.test(read("package.json")) && /CapacitorPushNotifications/.test(read("ios/App/CapApp-SPM/Package.swift"))
+      && /"aps-environment": "production"/.test(cfg) && /<key>aps-environment<\/key>\s*<string>production<\/string>/.test(read("ios/App/App/App.entitlements"))
+      && /NotificationCenter\.default\.post\(name: \.capacitorDidRegisterForRemoteNotifications, object: deviceToken\)/.test(read("ios/App/App/AppDelegate.swift"))
+      && /PushNotifications: \{\s*presentationOptions: \["badge", "sound", "alert"\],/.test(read("capacitor.config.ts"))
+      && /grep -q "aps-environment" entitlements\.txt/.test(read(".github/workflows/ios.yml")));
+    ok("alerts: the push function sends an app's row through APNs — ES256 with the team's key, the bundle as topic, a gone token deleted — and skips it quietly when APNs is not set up",
+      /if \(s\.platform === "apns"\) \{\s*const status = await sendApns\(s\.endpoint, \{ title, body: message, url \}\);\s*if \(status === 410\) await supabase\.from\("push_subscriptions"\)\.delete\(\)\.eq\("endpoint", s\.endpoint\);/.test(fn)
+      && /text64\(JSON\.stringify\(\{ alg: "ES256", kid: keyId \}\)\)/.test(fn) && /iss: team, iat: now/.test(fn) && /const APNS_TOPIC = "com\.gt3pb\.app";/.test(fn)
+      && /"apns-push-type": "alert"/.test(fn) && /if \(!keyId \|\| !pem\) return null;/.test(fn) && /if \(r\.status === 400 && reason === "BadDeviceToken"\) return 410;/.test(fn));
+    ok("alerts: one Apple token per send however many phones it goes to (429 TooManyProviderTokenUpdates), made again when Apple calls it expired, and an alert never arrives after its hour",
+      /apnsSigning \?\?= signApns\(\)\.finally\(\(\) => \{ apnsSigning = null; \}\);/.test(fn)
+      && /if \(r\.status === 403 && \(reason === "ExpiredProviderToken" \|\| reason === "InvalidProviderToken"\)\) apnsAuth = null;/.test(fn)
+      && /"apns-expiration": String\(Math\.floor\(Date\.now\(\) \/ 1000\) \+ 3600\)/.test(fn) && /pem\.replace\(\/\\\\n\/g, "\\n"\)/.test(fn));
   }
   ok("device: on iOS 17 and later the New Event sheet opens with no calendar permission; on iOS 15 and 16 the phone asks first, and a refusal says so",
     /if #available\(iOS 17\.0, \*\) \{\s*show\(\)\s*\} else \{\s*store\.requestAccess\(to: \.event\)/.test(swift) && /call\.reject\("Calendar access is off for GT3", "DENIED"\)/.test(swift)
@@ -9752,14 +9806,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const inApp = CS.startSteps({ onCrewSide: true, installed: true, app: true });
   ok("app store: in the iPhone app the first day has four steps — no Home Screen (it is on it) and no alerts (nothing to turn on yet)",
     keys(inApp) === "crew,ask,training,who" && keys(CS.startSteps({ onCrewSide: true, installed: true })) === "crew,ask,training,alerts,home,who"
-    && /app: APP_BUILD \}\);/.test(read("components/CrewStart.tsx")), keys(inApp));
+    && /app: APP_BUILD, appAlerts: NATIVE_PUSH_ON \}\);/.test(read("components/CrewStart.tsx")), keys(inApp));
   const kb0 = CS.startKnowledge();
   ok("app store: Ask GT3 names no other platform and no other browser — it answers inside the iPhone app too (App Review 2.3.10)",
     !/Android|Chrome|Install app/.test(kb0) && /in the GT3 iPhone app there is nothing to install/.test(kb0), kb0);
   const da = code(read("components/DeviceAlerts.tsx")), ps = code(read("components/ProfileSheet.tsx")), ch = code(read("components/ConnectHub.tsx"));
   const cmdk = code(read("components/CommandPalette.tsx")), pa = code(read("components/PrimalAcademy.tsx"));
   ok("app store: no placeholder and no dead button for alerts in the app — Settings shows no row, the profile shows no button that cannot ask",
-    /if \(APP_BUILD\) return null;/.test(da) && !/next update|web app on this phone/.test(da)
+    /if \(APP_BUILD\) return NATIVE_PUSH_ON \? <AppAlertsRow \/> : null;/.test(da) && !/next update|web app on this phone/.test(da)
     && /\{notifState !== "unsupported" && <div className="prof-notif">/.test(ps) && !/useEffect\(/.test(ps));
   ok("app store: the website's QR is not shown inside the app, and the palette drops the member-card scan (the Camera opens Safari) and its keyboard keys on a touch screen",
     /\{qr && !APP_BUILD && \(/.test(ch) && /if \(APP_BUILD\) return;/.test(ch) && /import \{ APP_BUILD \} from "@\/lib\/native";/.test(ch)

@@ -32,6 +32,9 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 const SMOKE = process.argv.includes("--smoke");
 const SMOKE_BACKEND = { NEXT_PUBLIC_SUPABASE_URL: "https://gt3-smoke.supabase.co", NEXT_PUBLIC_SUPABASE_ANON_KEY: "smoke-anon-not-a-key" };
+// The smoke build has the app's alerts live (lib/nativePush NATIVE_PUSH_ON), so scripts/smoke.native.mjs drives them:
+// a real build has them only once the web says APNs is set up (NEXT_PUBLIC_NATIVE_PUSH, lib/publicConfig.json).
+const SMOKE_FLAGS = { NEXT_PUBLIC_NATIVE_PUSH: "1" };
 const WORK = join(ROOT, ".app-build");
 const OUT = join(ROOT, "out");
 
@@ -119,7 +122,7 @@ try {
   const r = spawnSync(next, ["build"], {
     cwd: WORK,
     stdio: "inherit",
-    env: { ...(SMOKE ? withoutPublicValues(process.env) : { ...process.env, ...FROM_WEB }), ...(SMOKE ? SMOKE_BACKEND : {}), NEXT_PUBLIC_GT3_TARGET: "app", NEXT_PUBLIC_GT3_WEB_ONLY: WEB_ONLY.join(","), NEXT_TELEMETRY_DISABLED: "1" },
+    env: { ...(SMOKE ? withoutPublicValues(process.env) : { ...process.env, ...FROM_WEB }), ...(SMOKE ? { ...SMOKE_BACKEND, ...SMOKE_FLAGS } : {}), NEXT_PUBLIC_GT3_TARGET: "app", NEXT_PUBLIC_GT3_WEB_ONLY: WEB_ONLY.join(","), NEXT_TELEMETRY_DISABLED: "1" },
   });
   if (r.status !== 0) throw new Error(`next build exited ${r.status}`);
 

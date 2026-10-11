@@ -101,6 +101,22 @@ put("GT3Device.swift", readFileSync(join(ROOT, "native", "ios", "GT3Device.swift
 const scene = join(APP, "SceneDelegate.swift");
 const sceneText = readFileSync(scene, "utf8");
 stage(scene, sceneText.replace("rootViewController = CAPBridgeViewController()", "rootViewController = GT3ViewController()"), "SceneDelegate.swift");
+// ALERTS (2026-10-11): iOS hands the device token for notifications to the app delegate; Capacitor's push plugin
+// hears it through these two notifications (its documented AppDelegate lines). Added once, after the delegate's
+// last method — idempotent, so a second run changes nothing.
+const delegate = join(APP, "AppDelegate.swift");
+const delegateText = readFileSync(delegate, "utf8");
+const FORWARD = `
+    // ALERTS: the device token iOS gives the app, handed to Capacitor's push plugin (scripts/ios.configure.mjs).
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+    }
+`;
+stage(delegate, delegateText.includes("capacitorDidRegisterForRemoteNotifications") ? delegateText : delegateText.replace(/\n\}\s*$/, `\n${FORWARD}}\n`), "AppDelegate.swift");
 const board = join(APP, "Base.lproj", "Main.storyboard");
 const boardText = readFileSync(board, "utf8");
 stage(board, boardText.replace('customClass="CAPBridgeViewController" customModule="Capacitor"', 'customClass="GT3ViewController" customModule="App" customModuleProvider="target"'), "Base.lproj/Main.storyboard");
@@ -208,8 +224,9 @@ pbx = pbx.replace(/TARGETED_DEVICE_FAMILY = "1,2";/g, 'TARGETED_DEVICE_FAMILY = 
 pbx = pbx.replace(/(\t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;\n)(\t\t\t\tCODE_SIGN_STYLE = Automatic;)/g, "$1\t\t\t\tCODE_SIGN_ENTITLEMENTS = App/App.entitlements;\n$2");
 if (pbx !== before) stage(PBX, pbx, "App.xcodeproj/project.pbxproj");
 
-// ── 7 · Sign in with Apple: the app's one entitlement ────────────────────────────────────────────
-put("App.entitlements", plist.build({ "com.apple.developer.applesignin": ["Default"] }) + "\n");
+// ── 7 · the app's entitlements: Sign in with Apple, and alerts (APNs, the production service — TestFlight and the
+// App Store both use it; the App ID carries Push Notifications for the export to sign it) ─────────────────────────
+put("App.entitlements", plist.build({ "aps-environment": "production", "com.apple.developer.applesignin": ["Default"] }) + "\n");
 
 // ── 5 · the shared scheme ───────────────────────────────────────────────────────────────────────
 const target = /\t\t([0-9A-F]{24}) \/\* App \*\/ = \{\n\t\t\tisa = PBXNativeTarget;/.exec(pbx)?.[1];

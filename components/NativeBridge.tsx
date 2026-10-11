@@ -8,6 +8,8 @@ import { setNativeHaptics, type UIKitStep } from "@/lib/haptics";
 import { saveFromUrl, setNativeDevice, type GT3DevicePlugin } from "@/lib/deviceActions";
 import { opensOutside as linkOut } from "@/lib/nativeLinks";
 import { appleCredentialState, appleSession, markAppleSession } from "@/lib/appleAuth";
+import { NATIVE_PUSH_ON, alertTarget, keepAppDevice, setNativePush, type AppAlertState } from "@/lib/nativePush";
+import { isStaff } from "@/lib/roles";
 import { scrollToTop } from "@/lib/appScroll";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./AuthProvider";
@@ -96,7 +98,9 @@ const opensOutside = (url: string): string | null => linkOut(url, window.locatio
 export default function NativeBridge() {
   const router = useRouter();
   const pathname = usePathname();
-  const { signInWithUrl, user, ready } = useAuth();
+  const { signInWithUrl, user, ready, profile } = useAuth();
+  // The device token Apple gave this phone for alerts (lib/nativePush), kept for whoever is signed in — below.
+  const [pushToken, setPushToken] = useState<string | null>(null);
   // The phone's half is in (the GT3Device bridge is set, below): what asks the phone something waits for it.
   const [deviceReady, setDeviceReady] = useState(false);
   // Set once the plugins are in: looks again at what is under the status bar.
@@ -150,10 +154,46 @@ export default function NativeBridge() {
         addPass: (o) => device.addPass(o),
         signInWithApple: (o) => device.signInWithApple(o),
         appleCredentialState: (o) => device.appleCredentialState(o),
+        openSettings: () => device.openSettings(),
         share: (o) => Share.share(o),
       });
       undo.push(() => setNativeDevice(null));
       setDeviceReady(true);
+
+      // ALERTS (2026-10-11): the phone's own notifications, through Apple (APNs) — a browser's push cannot reach an
+      // app. Only once they are live (lib/nativePush NATIVE_PUSH_ON: the push function holds APNs' key). Asked for
+      // from Settings › Notifications or the profile (components/AppAlerts); registered again on every launch once
+      // allowed, since Apple may hand the phone a new token; a tapped alert opens the screen it is about.
+      // Its own errand: nothing after it waits on it, and nothing in it can stop the rest — the links, window.open, the
+      // launch screen (2026-10-11, the review: a build without the plugin would have skipped them all, silently).
+      if (NATIVE_PUSH_ON) void (async () => {
+        const { PushNotifications } = await import("@capacitor/push-notifications");
+        if (cancelled) return;
+        const said = (r: string): AppAlertState => (r === "granted" ? "granted" : r === "denied" ? "denied" : "prompt");
+        const state = async (): Promise<AppAlertState> => {
+          try { return said((await PushNotifications.checkPermissions()).receive); } catch { return "unavailable"; }
+        };
+        const registered = await PushNotifications.addListener("registration", ({ value }) => setPushToken(value));
+        const opened = await PushNotifications.addListener("pushNotificationActionPerformed", ({ notification }) => {
+          const to = alertTarget((notification.data as { url?: unknown } | undefined)?.url);
+          if (to) router.push(to);
+        });
+        // Left before this errand finished: its listeners go now, as the rest of the bridge's already went.
+        if (cancelled) { void registered.remove(); void opened.remove(); return; }
+        undo.push(() => { void registered.remove(); void opened.remove(); });
+        setNativePush({
+          state,
+          enable: async () => {
+            try {
+              const answer = said((await PushNotifications.requestPermissions()).receive);
+              if (answer === "granted") await PushNotifications.register();
+              return answer;
+            } catch { return "unavailable"; }
+          },
+        });
+        undo.push(() => setNativePush(null));
+        if ((await state()) === "granted") void PushNotifications.register().catch(() => {});
+      })().catch(() => { /* alerts are optional; never the app */ });
 
       // The status bar's text follows the page under it: looked at once the new screen has painted,
       // and again when its entrance has settled.
@@ -306,6 +346,14 @@ export default function NativeBridge() {
     document.addEventListener("visibilitychange", ask);
     return () => { live = false; document.removeEventListener("visibilitychange", ask); };
   }, [appleUser, uid, deviceReady]);
+
+  // This phone, kept for whoever is signed in now — again when someone signs in or out, or joins the crew (lib/nativePush
+  // keepAppDevice, 0367): the order that is ready reaches its own person's phone, a phone someone signed out of is
+  // nobody's, and only the crew's phones hear of new orders (0365). The database does all of it, whoever had the phone.
+  const staff = isStaff(profile);
+  useEffect(() => {
+    if (pushToken && ready) void keepAppDevice(pushToken);
+  }, [pushToken, ready, uid, staff]);
 
   // A new screen: look at what is under the status bar again.
   useEffect(() => { restyle.current?.(); }, [pathname]);

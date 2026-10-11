@@ -1,8 +1,10 @@
-// Supabase Edge Function - sends native Web Push on order / subscription / booking changes.
+// Supabase Edge Function - sends Web Push (browsers) and APNs (the iPhone app) on order / subscription / booking changes.
 // Triggered by Database Webhooks (orders INSERT/UPDATE, subscriptions UPDATE, booking_requests
 // INSERT, alerts INSERT, event_tasks UPDATE, profiles INSERT, delivery_orders INSERT,
 // drop_orders INSERT, live_status UPDATE — the customer go-live ping, 0257).
 // Secrets: VAPID_PUBLIC, VAPID_PRIVATE. SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are auto-injected.
+// The iPhone app (2026-10-11): APNS_KEY_ID and APNS_PRIVATE_KEY (an Apple Developer key with Apple Push Notifications
+// service, its .p8's text), and APNS_TEAM_ID (7SC4HB6V2J). Without them an 'apns' row is skipped, never an error.
 // Deploy: Supabase dashboard -> Edge Functions -> "push" -> paste -> deploy.
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -16,6 +18,64 @@ const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPAB
 
 const DRINKS: Record<string, string> = { rise: "RISE", flow: "FLOW", dusk: "DUSK", tide: "TIDE", forge: "FORGE", hunt: "HUNT", wild: "WILD" };
 const firstName = (full?: string | null) => (full || "").trim().split(/\s+/)[0] || "";
+
+// ── APNs: THE IPHONE APP'S ALERTS (2026-10-11) ──────────────────────────────────────────────────────────────────
+// A phone running the app is kept as an 'apns' row (0367; endpoint 'apns:<token>'). Apple's HTTP/2 API takes a JSON
+// alert per token, authorized by a short ES256 token the team's key signs (iss: the team, kid: the key). Apple asks
+// that the token be reused for up to an hour and not remade more often than every twenty minutes: it is kept for forty,
+// and made ONCE however many phones a send goes to — a new order goes to every crew phone at once, and each send that
+// found no token used to sign its own, which Apple answers with 429 TooManyProviderTokenUpdates (2026-10-11, the
+// review). A token Apple calls expired or invalid is made again on the next send. A phone Apple says is gone (410, or
+// 400 BadDeviceToken) is deleted, as a dead browser endpoint is.
+const APNS_TOPIC = "com.gt3pb.app";
+const APNS_HOST = "https://api.push.apple.com";   // TestFlight and the App Store both use the production service
+let apnsAuth: { token: string; at: number } | null = null;
+let apnsSigning: Promise<string | null> | null = null;
+const b64url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
+const text64 = (s: string) => b64url(new TextEncoder().encode(s));
+
+async function apnsBearer(): Promise<string | null> {
+  if (apnsAuth && Math.floor(Date.now() / 1000) - apnsAuth.at < 40 * 60) return apnsAuth.token;
+  apnsSigning ??= signApns().finally(() => { apnsSigning = null; });
+  return apnsSigning;
+}
+
+async function signApns(): Promise<string | null> {
+  const keyId = Deno.env.get("APNS_KEY_ID"), pem = Deno.env.get("APNS_PRIVATE_KEY"), team = Deno.env.get("APNS_TEAM_ID") || "7SC4HB6V2J";
+  if (!keyId || !pem) return null;
+  const now = Math.floor(Date.now() / 1000);
+  // A key pasted with its line breaks written out as "\n" is the same key.
+  const body = pem.replace(/\\n/g, "\n").replace(/-----[^-]+-----/g, "").replace(/\s+/g, "");
+  const der = Uint8Array.from(atob(body), (c) => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey("pkcs8", der, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+  const signing = `${text64(JSON.stringify({ alg: "ES256", kid: keyId }))}.${text64(JSON.stringify({ iss: team, iat: now }))}`;
+  // WebCrypto's ECDSA signature is already r‖s, the form a JWT carries.
+  const sig = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, new TextEncoder().encode(signing)));
+  apnsAuth = { token: `${signing}.${b64url(sig)}`, at: now };
+  return apnsAuth.token;
+}
+
+/** One alert to one app install. Returns Apple's status, or 0 when APNs is not set up here. An alert that could not
+ *  reach the phone within the hour is dropped, not delivered late ("your order's ready" at midnight is wrong). */
+async function sendApns(endpoint: string, alert: { title: string; body: string; url: string }): Promise<number> {
+  const bearer = await apnsBearer();
+  const token = endpoint.slice("apns:".length);
+  if (!bearer || !/^[0-9a-f]{32,200}$/i.test(token)) return 0;
+  const r = await fetch(`${APNS_HOST}/3/device/${token}`, {
+    method: "POST",
+    headers: {
+      authorization: `bearer ${bearer}`, "apns-topic": APNS_TOPIC, "apns-push-type": "alert", "apns-priority": "10",
+      "apns-expiration": String(Math.floor(Date.now() / 1000) + 3600), "content-type": "application/json",
+    },
+    body: JSON.stringify({ aps: { alert: { title: alert.title.slice(0, 120), body: alert.body.slice(0, 900) }, sound: "default" }, url: alert.url }),
+  });
+  if (r.status === 400 || r.status === 403) {
+    const reason = ((await r.json().catch(() => ({}))) as { reason?: string }).reason;
+    if (r.status === 403 && (reason === "ExpiredProviderToken" || reason === "InvalidProviderToken")) apnsAuth = null;
+    if (r.status === 400 && reason === "BadDeviceToken") return 410;
+  }
+  return r.status;
+}
 
 // deno-lint-ignore no-explicit-any
 async function subsFor(filter: (q: any) => any) {
@@ -289,6 +349,12 @@ Deno.serve(async (req) => {
     const payload = JSON.stringify({ title, body: message, url });
     await Promise.all(targets.map(async (s) => {
       try {
+        // The iPhone app's row: Apple's service, not a browser's (0367).
+        if (s.platform === "apns") {
+          const status = await sendApns(s.endpoint, { title, body: message, url });
+          if (status === 410) await supabase.from("push_subscriptions").delete().eq("endpoint", s.endpoint);
+          return;
+        }
         await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload);
       } catch (e) {
         const code = (e as { statusCode?: number })?.statusCode;

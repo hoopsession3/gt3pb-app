@@ -58,6 +58,12 @@ const config: CapacitorConfig = {
       style: "DARK",
       overlaysWebView: true,
     },
+    // ALERTS (2026-10-11): a notification that lands while the app is open shows as a banner with its sound, as
+    // Messages' does — not silently. components/NativeBridge asks for permission when someone turns alerts on
+    // (Settings › Notifications), registers the phone, and opens a tapped alert's screen.
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert"],
+    },
   },
 };
 

@@ -1,0 +1,106 @@
+"use client";
+
+import { useEffect, useState, type ReactNode } from "react";
+import { useApp } from "./AppProvider";
+import { nativePush, onNativePush, type AppAlertState } from "@/lib/nativePush";
+import { nativeDevice } from "@/lib/deviceActions";
+
+/** GT3's own page in the iPhone's Settings — where alerts turned off there are turned back on (GT3Device.openSettings). */
+const openSettings = () => { void nativeDevice()?.openSettings().catch(() => {}); };
+
+// ALERTS ON THIS IPHONE, IN THE APP (2026-10-11). What the phone says, read when the screen opens, when the phone's
+// half arrives (components/NativeBridge sets it once its plugins are in) and each time the app comes back to the
+// front — someone who turned GT3's notifications on or off in the iPhone's Settings comes back to the right word.
+// Turning on asks iOS (its question appears once; after that the answer is in Settings) and registers the phone
+// (lib/nativePush). Only drawn where alerts are live (NATIVE_PUSH_ON): DeviceAlerts, the profile sheet, Live Ops.
+
+/** What this phone says about GT3's notifications, and the one tap that asks. "unknown" until it has answered. */
+export function useAppAlerts(): { state: AppAlertState | "unknown"; turnOn: () => Promise<AppAlertState | null> } {
+  const [state, setState] = useState<AppAlertState | "unknown">("unknown");
+  useEffect(() => {
+    let live = true;
+    const read = () => {
+      const p = nativePush();
+      if (!p) return;
+      void p.state().then((s) => { if (live) setState(s); });
+    };
+    read();
+    const off = onNativePush(read);
+    const onVisible = () => { if (document.visibilityState === "visible") read(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { live = false; off(); document.removeEventListener("visibilitychange", onVisible); };
+  }, []);
+  const turnOn = async () => {
+    const p = nativePush();
+    if (!p) return null;
+    const s = await p.enable();
+    setState(s);
+    return s;
+  };
+  return { state, turnOn };
+}
+
+const SAYS: Record<AppAlertState | "unknown", string> = {
+  unknown: "Checking this phone…",
+  granted: "On. A push lands the moment a new order reaches the pass — even with the app closed.",
+  prompt: "Off. Get a push the moment a new order lands on the pass — even with the app closed.",
+  denied: "Off for GT3PB in this iPhone's Settings — allow them there, then come back here.",
+  unavailable: "This phone can't take alerts right now.",
+};
+
+/** Settings › You › Notifications, in the app: what this iPhone says, and the one tap that asks it. */
+export function AppAlertsRow() {
+  const { toast } = useApp();
+  const { state, turnOn } = useAppAlerts();
+  const ask = async () => {
+    const s = await turnOn();
+    if (s === "granted") toast("Order alerts are on for this phone");
+    else if (s === "denied") toast("Alerts are off for GT3PB in this iPhone's Settings — allow them there.", "error");
+    else if (s === "unavailable") toast("Couldn't ask this phone for alerts — try again", "error");
+  };
+  return (
+    <div className="pay-row">
+      <div className="pay-row-l">
+        <div className="pay-row-t">Order alerts on this phone</div>
+        <div className="pay-row-s">{SAYS[state]}</div>
+      </div>
+      {state === "prompt" ? <button type="button" className="btn-sec btn-sm" onClick={ask}>Turn on</button>
+        : state === "granted" ? <span className="k-tag ok">On</span>
+        : state === "denied" ? <button type="button" className="btn-sec btn-sm" onClick={openSettings}>Open Settings</button>
+        : null}
+    </div>
+  );
+}
+
+/** Live Ops, in the app: one line while this phone's alerts are off and could be on. */
+export function AppAlertsOffLine({ children }: { children: (off: boolean) => ReactNode }) {
+  const { state } = useAppAlerts();
+  return <>{children(state === "prompt" || state === "denied")}</>;
+}
+
+/** The profile sheet, in the app: a customer's order-ready alerts — the same switch, in their words. */
+export function AppAlertsProfile() {
+  const { toast } = useApp();
+  const { state, turnOn } = useAppAlerts();
+  if (state === "unknown" || state === "unavailable") return null;
+  const ask = async () => {
+    const s = await turnOn();
+    if (s === "granted") toast("Order alerts are on");
+    else if (s === "denied") toast("Alerts are off for GT3PB in this iPhone's Settings — allow them there.", "error");
+  };
+  return (
+    <div className="prof-notif">
+      <div className="prof-notif-t">Order notifications</div>
+      {state === "granted" ? (
+        <div className="prof-notif-s on">On — you&apos;ll get a ping when your order is ready.</div>
+      ) : state === "denied" ? (
+        <>
+          <div className="prof-notif-s">Off for GT3PB in this iPhone&apos;s Settings — allow them there for &ldquo;order ready&rdquo; pings.</div>
+          <button type="button" className="btn-sec btn-wide" onClick={openSettings}>Open Settings</button>
+        </>
+      ) : (
+        <button type="button" className="btn-sec btn-wide" onClick={ask}>Turn on order-ready alerts</button>
+      )}
+    </div>
+  );
+}

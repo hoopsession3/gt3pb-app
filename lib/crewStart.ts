@@ -60,6 +60,8 @@ export type StartFacts = {
   installed?: boolean;
   /** Reading this inside the iPhone app itself (lib/native APP_BUILD). */
   app?: boolean;
+  /** Alerts can be turned on inside the app itself (lib/nativePush NATIVE_PUSH_ON). */
+  appAlerts?: boolean;
 };
 
 const first = (n: string | null | undefined) => (n ?? "").trim().split(/\s+/)[0] || "";
@@ -91,8 +93,9 @@ export function whoToAsk(f: StartFacts): string | null {
 // IN THE IPHONE APP, FOUR (2026-10-11, Ryan: "I challenge when in App Store if certain copy or features are needed
 // … add app to home screen etc, audit for this"). Two steps are the web's: putting the site on the Home Screen
 // (the app is on it — it was showing "Done" for something nobody can do inside the app), and turning on alerts,
-// which in the app has nothing to turn on until its own notifications ship (Settings says nothing there either,
-// components/DeviceAlerts). A step that cannot be done where it is read is not shown there.
+// which in the app has nothing to turn on until its own notifications are live (Settings says nothing there either,
+// components/DeviceAlerts) — and then it comes back (appAlerts). A step that cannot be done where it is read is not
+// shown there.
 export function startSteps(f: StartFacts = {}): StartStep[] {
   const steps: StartStep[] = [
     {
@@ -128,7 +131,7 @@ export function startSteps(f: StartFacts = {}): StartStep[] {
   ];
   const who = whoToAsk(f);
   steps.push({ key: "who", title: "Who to ask", how: who ?? "Ask the owner who brought you on — and the ✦ for anything about the craft." });
-  return f.app ? steps.filter((s) => s.key !== "home" && s.key !== "alerts") : steps;
+  return f.app ? steps.filter((s) => s.key !== "home" && (s.key !== "alerts" || !!f.appAlerts)) : steps;
 }
 
 /**

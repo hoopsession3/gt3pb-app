@@ -27,12 +27,14 @@ import CryptoKit
 ///   · addPass   — Wallet's own Add sheet, for a membership pass.
 ///   · signInWithApple      — Apple's own sheet (Face ID, the Apple ID, Hide My Email). The page hands over a fresh
 ///                            nonce it keeps; Apple is asked with its SHA-256 and signs that into the identity token,
-///                            and Supabase hashes the page's nonce to check it (AuthProvider signInWithApple). Answers the
+///                            and Supabase hashes the page's nonce to check it (lib/appleAuth). Answers the
 ///                            identity token, the one-time authorization code (app/api/auth/apple trades it for the
 ///                            token deleting the account revokes), the Apple user, and the name and email — which
 ///                            Apple tells only the first time this Apple ID signs in to GT3.
 ///   · appleCredentialState — whether that Apple ID still lets GT3 in: someone who stops using Sign in with Apple
 ///                            for GT3 in Settings is signed out of the app (Apple's TN3194).
+///   · openSettings         — GT3's page in the iPhone's Settings (its notifications), for an alert turned off
+///                            there (components/AppAlerts' Open Settings).
 @objc(GT3DevicePlugin)
 public class GT3DevicePlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "GT3DevicePlugin"
@@ -43,7 +45,8 @@ public class GT3DevicePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "addEvent", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "addPass", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "signInWithApple", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "appleCredentialState", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "appleCredentialState", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "openSettings", returnType: CAPPluginReturnPromise)
     ]
 
     private lazy var store = EKEventStore()
@@ -259,6 +262,24 @@ public class GT3DevicePlugin: CAPPlugin, CAPBridgedPlugin {
             case .notFound: call.resolve(["state": "notFound"])
             case .transferred: call.resolve(["state": "transferred"])
             @unknown default: call.resolve(["state": "unknown"])
+            }
+        }
+    }
+
+    /// GT3's own page in the iPhone's Settings — its notifications, from iOS 15.4 — for an alert someone turned off
+    /// there: the one place it can be turned back on (components/AppAlerts' "Open Settings").
+    @objc func openSettings(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            var address = UIApplication.openSettingsURLString
+            if #available(iOS 15.4, *) {
+                address = UIApplication.openNotificationSettingsURLString
+            }
+            guard let url = URL(string: address) else {
+                call.reject("No Settings address on this iPhone")
+                return
+            }
+            UIApplication.shared.open(url, options: [:]) { opened in
+                call.resolve(["opened": opened])
             }
         }
     }
