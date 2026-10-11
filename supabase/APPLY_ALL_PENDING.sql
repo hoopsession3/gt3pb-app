@@ -11,7 +11,7 @@
 --
 -- The line below is what stops that happening again: scripts/drift.check.mjs fails the release
 -- if supabase/migrations/ ever holds a migration numbered above it.
--- pending-from: 0363
+-- pending-from: 0364
 -- generated-at: 2026-10-11
 -- pending-count: 0
 -- ledger-read-from: https://app.gt3pb.com/api/migrations
