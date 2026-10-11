@@ -17,12 +17,29 @@ function reqOrigin(req: Request): string {
 // Top-level redirect, so we return a plain 302 — no bearer is available here; state is the guard.
 // BACK TO WHERE IT WAS PRESSED (2026-10-06, the settings round): Connect lives in Settings ›
 // Integrations now (components/OutlookConnect), so the bounce opens that panel, which reads the note.
+// FROM THE IPHONE APP (2026-10-11): a state that starts "app." was issued to the app (?from=app on /connect), whose
+// consent runs in its own browser sheet. That sheet is answered with a page that says what happened and to tap Done —
+// the app reads the status again when the sheet closes. Redirected to the console instead, the sheet showed the
+// website, signed out. The page is static words: nothing from the request is written into it.
+const APP_PAGE: Record<"connected" | "error", [string, string]> = {
+  connected: ["Outlook is connected.", "Tap Done to go back to GT3."],
+  error: ["Outlook didn't connect.", "Tap Done, then try again from Settings in GT3."],
+};
+const appPage = (note: "connected" | "error") => new Response(
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GT3 · Outlook</title></head>`
+  + `<body style="margin:0;padding:72px 24px;text-align:center;font:17px/1.45 -apple-system,system-ui,sans-serif;background:#F5F1E8;color:#2A2820">`
+  + `<p style="font-size:22px;font-weight:600;margin:0 0 8px">${APP_PAGE[note][0]}</p><p style="margin:0">${APP_PAGE[note][1]}</p></body></html>`,
+  { status: 200, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } },
+);
+
 async function get(req: Request) {
   const origin = reqOrigin(req);
-  const back = (note: string) => new Response(null, { status: 302, headers: { Location: `${origin}/crew?s=settings&a=set-outlook&outlook=${note}` } });
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
+  const back = (note: "connected" | "error") => (state?.startsWith("app.")
+    ? appPage(note)
+    : new Response(null, { status: 302, headers: { Location: `${origin}/crew?s=settings&a=set-outlook&outlook=${note}` } }));
   if (!code || !state || !supabaseAdmin || !outlookConfigured()) return back("error");
 
   const { data: conn } = await supabaseAdmin.from("outlook_connection").select("pending_state").eq("id", 1).maybeSingle();

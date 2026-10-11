@@ -80,6 +80,10 @@ export function whoToAsk(f: StartFacts): string | null {
   return null;
 }
 
+// WHERE THE ✦ IS (2026-10-11, the App Store audit): at the top, beside search — on a phone, in the iPhone app and on the
+// desk since the iPhone chrome round (2026-10-08) moved it there from the bottom right corner, which is where these
+// words still sent people.
+//
 // THE STEPS, IN THE ORDER A FIRST DAY NEEDS THEM. Six, not nine: Today is where the crew side opens
 // (so it is part of the first step, not a second), and a note is the ✦'s second job (so it rides
 // with Ask GT3). Home Screen is a step because the app is used one-handed on a phone all shift.
@@ -100,7 +104,7 @@ export function startSteps(f: StartFacts = {}): StartStep[] {
       go: { kind: "section", section: "day", label: "Open Today" },
     },
     {
-      key: "ask", title: "Ask GT3 — the ✦ at the bottom right",
+      key: "ask", title: "Ask GT3 — the ✦ at the top, beside search",
       how: "Tap the ✦, then Ask GT3. Ask what you'd ask a teammate — how to make a Rise, a ratio, our gear, an inspection. The ✦ also takes a quick note and logs a purchase.",
       go: { kind: "ask", label: "Ask GT3 now" },
     },
@@ -137,7 +141,7 @@ export function startLetterLines(f: StartFacts, origin: string): string[] {
     "Your first day:",
     `1. Open GT3 at ${o}, signed in with this email address. If it was already open on your phone, it switches you over the next time you come back to it — no need to sign out.`,
     "2. Go to the crew side: tap your picture at the top right, then Crew Mode. It opens on Today — your tasks, what's due and today's op.",
-    "3. Meet Ask GT3: tap the ✦ at the bottom right, then Ask GT3. Ask what you'd ask a teammate — how to make a Rise, a ratio, our gear.",
+    "3. Meet Ask GT3: tap the ✦ at the top, beside search, then Ask GT3. Ask what you'd ask a teammate — how to make a Rise, a ratio, our gear.",
     `4. Start your training in the Academy${f.track ? ` — the ${f.track} path` : ""}.`,
     "",
     "Your first-day guide walks through all of it, one tap at a time — alerts and your Home Screen too:",
@@ -155,7 +159,7 @@ export function startKnowledge(): string {
     "HOW THE APP WORKS — for \"how do I…\" questions about the GT3 app itself. Answer from this, and link the place:",
     "- The crew side: tap your picture at the top right, then Crew Mode — it opens on Today (tasks, what's due, today's op), and GT3 remembers the side you were on. Customer, at the top of the crew side, shows the app the way guests see it. [Open Today](/crew?s=day)",
     "- A new role shows up the next time you come back to the app — nobody needs to sign out. If it hasn't after a minute, close the app and open it again.",
-    "- Ask GT3: the ✦ at the bottom right, then Ask GT3. The ✦ also takes a quick note (just for you unless you share it) and logs a purchase. A link to app.gt3pb.com/crew?ask=1 opens Ask GT3 straight away.",
+    "- Ask GT3: the ✦ at the top of the crew side, beside search, then Ask GT3. The ✦ also takes a quick note (just for you unless you share it) and logs a purchase. A link to app.gt3pb.com/crew?ask=1 opens Ask GT3 straight away.",
     "- Training: the Academy — each role has a path of short lessons with a quick check; progress saves. [The Academy](/academy)",
     "- Alerts: Settings › Notifications — what pings you, quiet hours, and the pass's sound on this phone. [Notifications](/crew?s=settings&a=set-notify)",
     "- On a phone: in the GT3 iPhone app there is nothing to install — it is on the Home Screen already. On the web, the browser's Share menu adds app.gt3pb.com to the Home Screen.",

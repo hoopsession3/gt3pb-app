@@ -29,6 +29,9 @@ import { CONNECT_APP } from "./connect";
 /** This bundle was built for the iPhone app (static export). False on the web — fixed at build time. */
 export const APP_BUILD = process.env.NEXT_PUBLIC_GT3_TARGET === "app";
 
+/** window event, in the iPhone app: the in-app browser sheet a link out opened has closed (components/NativeBridge). */
+export const BROWSER_CLOSED_EVENT = "gt3-browser-closed";
+
 /** The web's own address — what a link, a QR or a sign-in email made in the app points at. */
 export const WEB_ORIGIN = CONNECT_APP;
 

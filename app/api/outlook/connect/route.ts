@@ -20,7 +20,9 @@ async function get(req: Request) {
   if (!(await ownerFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (!outlookConfigured()) return NextResponse.json({ ok: false, error: "Outlook isn't configured — set MS_CLIENT_ID and MS_CLIENT_SECRET." }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
-  const state = randomUUID();
+  // From the iPhone app (?from=app): the state says so, and the callback answers the app's browser sheet with a page
+  // that sends the person back to the app instead of to the website's console (components/OutlookConnect).
+  const state = `${new URL(req.url).searchParams.get("from") === "app" ? "app." : ""}${randomUUID()}`;
   await supabaseAdmin.from("outlook_connection").upsert({ id: 1, pending_state: state }, { onConflict: "id" });
   return NextResponse.json({ ok: true, url: authUrl(reqOrigin(req), state) });
 }

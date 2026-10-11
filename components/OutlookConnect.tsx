@@ -7,6 +7,7 @@ import { readParam, dropParam } from "@/lib/urlParam";
 import { useConfirm } from "./ConfirmSheet";
 import AsyncSection from "./AsyncSection";
 import Button from "./Button";
+import { APP_BUILD, BROWSER_CLOSED_EVENT } from "@/lib/native";
 
 // OUTLOOK — the owner's two-way calendar sync (/api/outlook/*, all owner-only).
 //
@@ -63,8 +64,18 @@ export default function OutlookConnect() {
   const connect = async () => {
     setBusy("connect"); setMsg(null);
     try {
-      const r = await authedFetch("/api/outlook/connect");
+      const r = await authedFetch(APP_BUILD ? "/api/outlook/connect?from=app" : "/api/outlook/connect");
       const j = await r.json();
+      // IN THE IPHONE APP, A SHEET (2026-10-11, the App Store audit). The page used to leave for Microsoft's consent
+      // screen — in the app that is Safari, and the way back was the website's console, signed out. Now the consent
+      // opens in the app's own browser sheet; the callback answers it with "Outlook is connected — tap Done"; and
+      // when the sheet closes, this reads the status again. The web goes on leaving and coming back as before.
+      if (j.ok && j.url && APP_BUILD) {
+        window.addEventListener(BROWSER_CLOSED_EVENT, () => window.dispatchEvent(new Event(OUTLOOK_CHANGED_EVENT)), { once: true });
+        window.open(j.url, "_blank");   // components/NativeBridge opens a link out in the app's browser sheet
+        setBusy(null);
+        return;
+      }
       if (j.ok && j.url) { window.location.href = j.url; return; }
       setMsg(j.error || "Couldn't start Outlook connect.");
     } catch { setMsg("Couldn't reach the server — try again."); }

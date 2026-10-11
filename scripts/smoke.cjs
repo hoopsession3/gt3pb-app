@@ -9029,6 +9029,20 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /Location: `\$\{origin\}\/crew\?s=settings&a=set-outlook&outlook=\$\{note\}`/.test(read("app/api/outlook/callback/route.ts"))
     && /useState<string \| null>\(\(\) => RETURNED\[readParam\("outlook"\) \?\? ""\] \?\? null\)/.test(code(read("components/OutlookConnect.tsx")))
     && /useEffect\(\(\) => \{ dropParam\("outlook"\); \}, \[\]\);/.test(code(read("components/OutlookConnect.tsx"))));
+  {
+    const oc = code(read("components/OutlookConnect.tsx")), cb = read("app/api/outlook/callback/route.ts"), cn = read("app/api/outlook/connect/route.ts");
+    ok("app store: in the iPhone app Outlook's consent runs in the app's own browser sheet, is answered with \"tap Done\", and the status is read again when the sheet closes",
+      /authedFetch\(APP_BUILD \? "\/api\/outlook\/connect\?from=app" : "\/api\/outlook\/connect"\)/.test(oc)
+      && /window\.addEventListener\(BROWSER_CLOSED_EVENT, \(\) => window\.dispatchEvent\(new Event\(OUTLOOK_CHANGED_EVENT\)\), \{ once: true \}\);\s*window\.open\(j\.url, "_blank"\);/.test(oc)
+      && /const finished = await Browser\.addListener\("browserFinished", \(\) => window\.dispatchEvent\(new Event\(BROWSER_CLOSED_EVENT\)\)\);/.test(read("components/NativeBridge.tsx"))
+      && oc.indexOf("if (j.ok && j.url && APP_BUILD)") < oc.indexOf("window.location.href = j.url")
+      && /searchParams\.get\("from"\) === "app" \? "app\." : ""\}\$\{randomUUID\(\)\}/.test(cn)
+      && /state\?\.startsWith\("app\."\)\s*\? appPage\(note\)/.test(cb) && /"Content-Type": "text\/html; charset=utf-8"/.test(cb)
+      && /\$\{APP_PAGE\[note\]\[0\]\}<\/p><p style="margin:0">\$\{APP_PAGE\[note\]\[1\]\}/.test(cb) && !/\$\{(code|state|url|origin)/.test(cb.slice(cb.indexOf("const appPage"), cb.indexOf("async function get"))));
+    const chub = code(read("components/ConnectHub.tsx"));
+    ok("app store: Connect's own pages are links — in the app a page only the web serves (/built) opens in the browser sheet instead of a router push to nothing",
+      /<Link key=\{l\.href \+ l\.label\} className="chub-link" href=\{l\.href\} onClick=\{onGo\}>\{inner\}<\/Link>/.test(chub) && !/router\.push/.test(chub) && !/useRouter/.test(chub));
+  }
 
   // ── what a phone keeps for itself has one home each ──
   const keyHomes = (lit) => appFiles.filter((f) => code(read(f)).includes(lit)).map((f) => f.split(path.sep).join("/"));
@@ -9643,7 +9657,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     CS.startSteps({ installed: true }).find((x) => x.key === "home").done === true && /It's there already/.test(CS.startSteps({ installed: true }).find((x) => x.key === "home").how));
   const lines = CS.startLetterLines({ track: "Operator" }, "https://app.gt3pb.com/").join("\n");
   ok("first day, in the letter: no signing out, the picture then Crew Mode, the ✦ then Ask GT3, the path, and the guide's whole link",
-    /no need to sign out/.test(lines) && /tap your picture at the top right, then Crew Mode/.test(lines) && /tap the ✦ at the bottom right, then Ask GT3/.test(lines)
+    /no need to sign out/.test(lines) && /tap your picture at the top right, then Crew Mode/.test(lines) && /tap the ✦ at the top, beside search, then Ask GT3/.test(lines) && !/bottom right/.test(lines)
     && /4\. Start your training in the Academy — the Operator path\./.test(lines) && /\nhttps:\/\/app\.gt3pb\.com\/crew\?guide=start$/.test(lines), lines);
   // THE APP STORE PASS (2026-10-11, Ryan: "I challenge when in App Store if certain copy or features are needed … add app
   // to home screen etc, audit for this"). Inside the iPhone app nothing asks for what only the web can do.
@@ -9666,7 +9680,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     !/Pull to refresh/i.test(pa) && /onClick=\{\(\) => void board\.reload\(\)\}>Try again<\/button>/.test(pa));
   const kb = CS.startKnowledge();
   ok("first day, for Ask GT3: the same steps with in-app links, and nobody's name in a prompt the whole crew shares",
-    /Crew Mode/.test(kb) && /the ✦ at the bottom right, then Ask GT3/.test(kb) && /\[Start here\]\(\/crew\?guide=start\)/.test(kb)
+    /Crew Mode/.test(kb) && /the ✦ at the top of the crew side, beside search, then Ask GT3/.test(kb) && !/bottom right/.test(kb) && CS.startSteps({}).find((x) => x.key === "ask").title === "Ask GT3 — the ✦ at the top, beside search" && /\[Start here\]\(\/crew\?guide=start\)/.test(kb)
     && /\[Notifications\]\(\/crew\?s=settings&a=set-notify\)/.test(kb) && /nobody needs to sign out/.test(kb) && !/Kayla|Ryan|Niño|Atlanta|Greenville/.test(kb), kb);
   const w = WL.crewWelcome({ name: "Niño Reyes", role: "operator", city: "Atlanta", cityLead: "Kayla", track: { label: "Operator", blurb: "x" }, from: "Ryan" });
   ok("first day: the letter's steps ARE lib/crewStart's — one set of words, not two",

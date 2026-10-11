@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
-import { isNativeApp, lessonHref, nativePlatform, WEB_ORIGIN } from "@/lib/native";
+import { BROWSER_CLOSED_EVENT, isNativeApp, lessonHref, nativePlatform, WEB_ORIGIN } from "@/lib/native";
 import { setNativeHaptics, type UIKitStep } from "@/lib/haptics";
 import { saveFromUrl, setNativeDevice, type GT3DevicePlugin } from "@/lib/deviceActions";
 import { appleCredentialState } from "@/lib/appleAuth";
@@ -246,6 +246,9 @@ export default function NativeBridge() {
       };
       document.addEventListener("click", onClick, true);
       undo.push(() => document.removeEventListener("click", onClick, true));
+      // The sheet closed: a screen that sent someone out to finish something there (Outlook's consent) reads again.
+      const finished = await Browser.addListener("browserFinished", () => window.dispatchEvent(new Event(BROWSER_CLOSED_EVENT)));
+      undo.push(() => { void finished.remove(); });
       const webOpen = window.open;
       window.open = ((url?: string | URL, target?: string, features?: string) => {
         const to = url ? opensOutside(new URL(String(url), window.location.href).href) : null;

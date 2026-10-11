@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import QRCode from "qrcode";
 import Gt3Mark from "@/components/Gt3Mark";
 import { useAuth, roleOf } from "@/components/AuthProvider";
@@ -24,7 +24,6 @@ export function ConnectBody({ onGo }: { onGo: () => void }) {
   // (LEADERSHIP_ROLES includes event_manager, who shouldn't see it). Keep this list local.
   const isLeader = ["owner", "admin"].includes(roleOf(profile));
   const groups = isLeader ? [...CONNECT_GROUPS, CONNECT_LEADERSHIP] : CONNECT_GROUPS;
-  const router = useRouter();
   const [group, setGroup] = useState(0); // which intent is expanded
   const [qr, setQr] = useState("");
   // NO QR IN THE IPHONE APP (2026-10-11, the App Store audit): "Scan to keep GT3 in your pocket" asks someone to scan
@@ -60,8 +59,11 @@ export function ConnectBody({ onGo }: { onGo: () => void }) {
                         <span className="chub-go" aria-hidden>{internal ? "›" : <Icon name="externalLink" />}</span>
                       </>
                     );
+                    // A link, not a button that pushes the router (2026-10-11, the App Store audit): in the iPhone app a page
+                    // only the web serves ("What we've built", /built/…) is opened by components/NativeBridge in the app's
+                    // browser sheet — it sees links, and a router push to a page the app does not have landed nowhere.
                     return internal ? (
-                      <button key={l.href + l.label} type="button" className="chub-link" onClick={() => { onGo(); router.push(l.href); }}>{inner}</button>
+                      <Link key={l.href + l.label} className="chub-link" href={l.href} onClick={onGo}>{inner}</Link>
                     ) : (
                       <a key={l.href + l.label} className="chub-link" href={l.href} target="_blank" rel="noopener noreferrer">{inner}</a>
                     );
