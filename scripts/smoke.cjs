@@ -11416,7 +11416,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /bounded\(\) \{\s*local secs=\$1; shift\s*"\$@" &\s*local pid=\$!\s*\( sleep "\$secs"; kill "\$pid" 2>\/dev\/null \|\| true \) &/.test(step));
   ok("ci: a stuck boot is restarted, erased only before its last try, and after three named the runner's — never put down to the app",
     /if \[ "\$try" -eq \$\(\( \$3 - 1 \)\) \]; then echo "Erasing the \$2 simulator for the last try\."; xcrun simctl erase "\$1" \|\| true; fi/.test(step)
-    && step.includes(`boot "$IPHONE" iPhone 3 "" || { echo "::error::the runner's iPhone simulator never finished booting, three times — a runner problem, not the app: re-run the job"; exit 1; }`)
+    && step.includes(`boot "$IPHONE" iPhone 3 "" || { echo "runner=failed" >> "\${GITHUB_OUTPUT:-/dev/null}"; echo "::error::the runner's iPhone simulator never finished booting, three times — a runner problem, not the app: re-run the job"; exit 1; }`)
     && step.indexOf('boot "$IPHONE" iPhone 3') < step.indexOf('launch "$IPHONE" iPhone'));
   ok("ci: an install the simulator's system refuses (LaunchServices, a migration, \"try again later\") is the runner's; one refused for the app's own bundle is the app's — and neither is called a crash",
     /if grep -qiE "LaunchServices\|migrat\|try again later" "\$\{2\}install\.log"; then return 2; fi/.test(step)
@@ -11440,6 +11440,19 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /\n  simulator:\n    runs-on: macos-26\n(?:    #.*\n)*    timeout-minutes: 60\n/.test(wf) && /\n  testflight:\n    needs: simulator\n/.test(wf));
   ok("ci: npm test runs scripts/ios.test.mjs — the project's check proved both ways, and this step run against a stand-in simctl",
     /&& node scripts\/ios\.test\.mjs &&/.test(JSON.parse(read("package.json")).scripts.test));
+}
+
+// ── WAVE 2 · THE BUILD THE RUNNER CANNOT HOLD (2026-10-11) ──
+// Runs #76, #78, #79 and #80 (twice) never reached TestFlight: GitHub's simulator never finished booting, the check had
+// nothing to say about the app, and the upload waited on it anyway. scripts/ios.test.mjs runs the step against a stand-in.
+{
+  const wf = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", ".github/workflows/ios.yml"), "utf8");
+  ok("ci: the launch step names a runner failure to the testflight job, and only a runner failure",
+    /outputs:\s*\n\s*runner: \$\{\{ steps\.launch\.outputs\.runner \}\}/.test(wf) && /id: launch/.test(wf)
+      && (wf.match(/echo "runner=failed" >> "\$\{GITHUB_OUTPUT:-\/dev\/null\}"/g) || []).length === 2);
+  ok("ci: TestFlight goes ahead after a passed check or a runner's failure, never an app's, and says when the check did not run",
+    /if: always\(\) && github\.event_name == 'workflow_dispatch' && inputs\.testflight && \(needs\.simulator\.result == 'success' \|\| needs\.simulator\.outputs\.runner == 'failed'\)/.test(wf)
+      && /if: needs\.simulator\.result != 'success'\s*\n\s*run: echo "::warning::GitHub's simulator never started/.test(wf));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

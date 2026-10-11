@@ -261,7 +261,9 @@ esac
     mkdirSync(state, { recursive: true });
     writeFileSync(join(work, "step.sh"), (s.before ?? "") + STEP);
     // As the runner runs a step: bash --noprofile --norc -eo pipefail {0}.
-    const child = spawn("bash", ["--noprofile", "--norc", "-eo", "pipefail", "step.sh"], { cwd: work, env: { ...process.env, PATH: `${BIN}:${process.env.PATH}`, SIM: state, ...s.env } });
+    const output = join(work, "github_output");
+    writeFileSync(output, "");
+    const child = spawn("bash", ["--noprofile", "--norc", "-eo", "pipefail", "step.sh"], { cwd: work, env: { ...process.env, PATH: `${BIN}:${process.env.PATH}`, SIM: state, GITHUB_OUTPUT: output, ...s.env } });
     let out = "";
     child.stdout.on("data", (d) => { out += d; });
     child.stderr.on("data", (d) => { out += d; });
@@ -270,7 +272,9 @@ esac
       clearTimeout(stop);
       let calls = [];
       try { calls = readFileSync(join(state, "calls.log"), "utf8").trim().split("\n").filter(Boolean); } catch { /* no calls */ }
-      resolve([s.id, { code, out, calls }]);
+      let github = "";
+      try { github = readFileSync(output, "utf8"); } catch { /* none written */ }
+      resolve([s.id, { code, out, calls, github }]);
     });
   }))) : [];
   const R = Object.fromEntries(results);
@@ -279,7 +283,14 @@ esac
   const order = (id, re) => (R[id]?.calls ?? []).findIndex((c) => re.test(c));
   const seen = (id) => ({ code: R[id]?.code, out: (R[id]?.out ?? "").split("\n").filter((l) => /::(error|warning|notice)::/.test(l)), calls: R[id]?.calls?.length });
   const blamed = (id) => said(id, /crashed\?|never let the launch screen go|never started loading|logged an error/);
+  // THE RUNNER'S FAILURE DOES NOT HOLD A BUILD (2026-10-11): the step tells the testflight job, through the step's output,
+  // when the runner — not the app — failed it; an app that fails on a booted simulator says nothing of the kind.
+  const runnerFlag = (id) => /^runner=failed$/m.test(R[id]?.github ?? "");
 
+  ok("sim: a runner that never boots the iPhone, or whose iPhone won't take the app, tells the testflight job so (runner=failed)",
+    runnerFlag("stuck") && runnerFlag("busy"), { stuck: R.stuck?.github, busy: R.busy?.github });
+  ok("sim: …and an app that fails on a booted simulator never does — that still holds the build",
+    !runnerFlag("bad") && !runnerFlag("nosplash") && !runnerFlag("healthy"), { bad: R.bad?.github, nosplash: R.nosplash?.github });
   ok(`sim: ${SCENARIOS[0].what}`, R.healthy?.code === 0 && !said("healthy", /::(error|warning)::/)
     && calls("healthy", /^install IPHONE-17 /).length === 1 && calls("healthy", /^install IPAD-AIR /).length === 1
     && calls("healthy", /^launch --console-pty --terminate-running-process IPAD-AIR com\.gt3pb\.app$/).length === 1

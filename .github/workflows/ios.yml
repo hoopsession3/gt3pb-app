@@ -85,6 +85,13 @@ jobs:
     # 60, not 45 (2026-10-11): a stuck first boot now has three bounded tries before it is named the runner's, and the
     # iPad's own boot follows the iPhone's.
     timeout-minutes: 60
+    # THE RUNNER'S FAILURE IS NOT THE APP'S, AND IT DOES NOT HOLD A BUILD (2026-10-11). Runs #76, #78, #79 and #80 (twice)
+    # never got an app onto TestFlight because GitHub's simulator never finished booting — the check had nothing to say
+    # about the app, and the build waited on it anyway. When the launch step names the runner, it says so here, and the
+    # testflight job goes ahead with a warning that the launch check did not run. An app that fails on a booted simulator
+    # still holds the build.
+    outputs:
+      runner: ${{ steps.launch.outputs.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -140,6 +147,7 @@ jobs:
           PY
 
       - name: Launch it on an iPhone, then an iPad, and read what each says
+        id: launch
         run: |
           set -euo pipefail
           APP=ios/App/build/Build/Products/Debug-iphonesimulator/App.app
@@ -271,10 +279,10 @@ jobs:
           # THE IPHONE: the gate. Three tries, the last from an erased device, and then the run is named the runner's.
           IPHONE=$(pick iPhone "iPhone 17")
           test -n "$IPHONE" || { echo "::error::no iPhone simulator on this runner"; exit 1; }
-          boot "$IPHONE" iPhone 3 "" || { echo "::error::the runner's iPhone simulator never finished booting, three times — a runner problem, not the app: re-run the job"; exit 1; }
+          boot "$IPHONE" iPhone 3 "" || { echo "runner=failed" >> "${GITHUB_OUTPUT:-/dev/null}"; echo "::error::the runner's iPhone simulator never finished booting, three times — a runner problem, not the app: re-run the job"; exit 1; }
           launch "$IPHONE" iPhone ""
           verdict=0; judge iPhone "" || verdict=$?
-          if [ "$verdict" = 2 ]; then echo "::error::the runner's iPhone simulator would not take the app — its system was not ready (simctl's words above): a runner problem, not the app — re-run the job"; exit 1; fi
+          if [ "$verdict" = 2 ]; then echo "runner=failed" >> "${GITHUB_OUTPUT:-/dev/null}"; echo "::error::the runner's iPhone simulator would not take the app — its system was not ready (simctl's words above): a runner problem, not the app — re-run the job"; exit 1; fi
           fail=$verdict
           # Its turn over, the iPhone is shut down, so the iPad's first boot has the runner to itself.
           xcrun simctl shutdown "$IPHONE" || true
@@ -318,7 +326,8 @@ jobs:
 
   testflight:
     needs: simulator
-    if: github.event_name == 'workflow_dispatch' && inputs.testflight
+    # After the launch check passed — or when it could not run because the runner's simulator never started (above).
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.testflight && (needs.simulator.result == 'success' || needs.simulator.outputs.runner == 'failed')
     runs-on: macos-26
     timeout-minutes: 60
     env:
@@ -343,6 +352,9 @@ jobs:
       NEXT_PUBLIC_GOOGLE_WALLET: ${{ vars.NEXT_PUBLIC_GOOGLE_WALLET }}
       NEXT_PUBLIC_NATIVE_PUSH: ${{ vars.NEXT_PUBLIC_NATIVE_PUSH }}
     steps:
+      - name: Said when the launch check could not run
+        if: needs.simulator.result != 'success'
+        run: echo "::warning::GitHub's simulator never started, so this build went to TestFlight without the iPhone launch check — open it on a phone before you send it to testers."
       - name: Everything an upload needs is set
         run: |
           missing=""

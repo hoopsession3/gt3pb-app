@@ -12,7 +12,7 @@
   sheet that "Picked up" opens on an owed ticket: two answers, each saying what it does to the
   count, and the quiet third, handing it over unpaid.
 
-  Same construction as purchase-sheet.html: the DOM class for class as app/crew/page.tsx,
+  Same construction as purchase-sheet.html: the DOM class for class as components/pass/Ticket.tsx,
   components/CollectSheet.tsx and components/Sheet.tsx produce it, styled by the REAL
   app/globals.css, painted in the real Chromium at phone width, day and dark. Every block names its
   source in `data-from`, and scripts/design.ratchet.mjs FAILS if a class used here no longer appears
@@ -31,27 +31,35 @@
      outside it in the app — so the fixture keeps the class the ticket's 44px ⋯ depends on and lets
      the ratchet measure the tickets AND the sheet. -->
 <section class="admin" data-from="app/crew/page.tsx">
-  <div class="adm-sec" style="padding:12px 16px">
-    <div class="adm-order st-ready">
-      <button class="adm-act-more" aria-label="Void Dana">⋯</button>
-      <div class="adm-order-top"><b>Dana</b><span class="adm-age calm">6m</span></div>
-      <div class="adm-items">2× RISE</div>
-      <div class="meta">#A1B2 · $8.50 · <span class="unp">UNPAID · collect at pickup</span> · <span class="kds-stagetime">1m in stage</span></div>
+  <!-- THE TICKET MOVED (2026-10-11, wave 2): the Pass is components/pass — the board's section is ThePass's, each ticket
+       Ticket's, class for class: the number on the top row beside the name, the drinks as lines, ⋯ the ticket's menu. -->
+  <div class="adm-sec" style="padding:12px 16px" data-from="components/pass/ThePass.tsx">
+    <div class="adm-order pressable st-ready" role="group" aria-label="Dana, #A1B2" data-from="components/pass/Ticket.tsx">
+      <button type="button" class="adm-act-more" aria-haspopup="dialog" aria-label="Actions for Dana">⋯</button>
+      <div class="adm-order-top pr-10">
+        <span class="flex min-w-0 flex-wrap items-baseline gap-x-2"><span class="pass-no">#A1B2</span><b class="min-w-0 truncate">Dana</b></span>
+        <span class="adm-age shrink-0 calm">6m</span>
+      </div>
+      <div class="adm-items"><span class="pass-item">2× RISE</span></div>
+      <div class="meta">$8.50 · <span class="unp">UNPAID · collect at pickup</span> · <span class="kds-stagetime">1m in stage</span></div>
       <div class="adm-actions-row">
         <button class="k-icon-btn lg shrink-0" aria-label="Move back a stage">↩</button>
         <button type="button" class="btn-sec shrink-0">Collect $8.50</button>
-        <button class="adm-act done">Picked up</button>
+        <button class="adm-act done" data-from="components/pass/Ticket.tsx lib/passBoard.ts">Picked up</button>
       </div>
     </div>
-    <div class="adm-order st-preparing">
-      <button class="adm-act-more" aria-label="Void Lee">⋯</button>
-      <div class="adm-order-top"><b>Lee</b><span class="adm-age calm">3m</span></div>
-      <div class="adm-items">FLOW</div>
-      <div class="meta">#C3D4 · $4.25 · <span class="kds-paid">PAID · cash</span> · <span class="kds-stagetime">2m in stage</span></div>
+    <div class="adm-order pressable st-preparing" role="group" aria-label="Lee, #C3D4" data-from="components/pass/Ticket.tsx">
+      <button type="button" class="adm-act-more" aria-haspopup="dialog" aria-label="Actions for Lee">⋯</button>
+      <div class="adm-order-top pr-10">
+        <span class="flex min-w-0 flex-wrap items-baseline gap-x-2"><span class="pass-no">#C3D4</span><b class="min-w-0 truncate">Lee</b></span>
+        <span class="adm-age shrink-0 calm">3m</span>
+      </div>
+      <div class="adm-items"><span class="pass-item">FLOW</span></div>
+      <div class="meta">$4.25 · <span class="kds-paid">PAID · cash</span> · <span class="kds-stagetime">2m in stage</span></div>
       <div class="adm-actions-row">
         <button class="k-icon-btn lg shrink-0" aria-label="Move back a stage">↩</button>
         <button type="button" class="btn-sec shrink-0 text-ok border-ok" aria-label="Undo the cash payment from Lee">Cash ✓</button>
-        <button class="adm-act primary">Mark ready</button>
+        <button class="adm-act primary" data-from="components/pass/Ticket.tsx lib/passBoard.ts">Mark ready</button>
       </div>
     </div>
   </div>

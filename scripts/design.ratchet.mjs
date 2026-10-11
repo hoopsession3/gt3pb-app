@@ -577,9 +577,17 @@ export const PROD_ROUTE = {
 // 2026-10-10 (the customer pages): /truck, /events and /driver's stylesheet 93 → 88 KB — the second stylesheet those three
 // loaded was leaflet's, and the map went (Find Us and the driver's run drew CARTO's "API key required" tiles), with the
 // route map's own rules.
+// 2026-10-11 (the KDS program, wave 2): every route's stylesheet +230 bytes and the shell's script +118 (gzip). Built
+// 0c040e6 and this commit and gzipped what each route's HTML references (/truck's two stylesheets 5 806 + 84 958 →
+// 6 199 + 84 795; /shop's script chunk that holds lib/native and lib/ios 8 721 → 8 830): app/globals.css went DOWN
+// (the Pass's window-width rules gave way to its own measure), and the utilities file went up with the Pass's lanes and
+// columns, Due next's list, the Devices card and the iPad's shell; the shell's script carries lib/native's platform name
+// (the iPad lays out as itself; a device on the Pass says "ios") and lib/ios's device word ("this iPad's Settings",
+// "Calendar on this iPad"). Crossed the rounding line upward on /truck, /events and /driver's stylesheet and on
+// /architecture and /shop's script; recorded.
 export const WEIGHT = {
-  "/truck":                    { js: 285, css: 88, chunks: 15 },
-  "/events":                   { js: 285, css: 88, chunks: 15 },
+  "/truck":                    { js: 285, css: 89, chunks: 15 },
+  "/events":                   { js: 285, css: 89, chunks: 15 },
   "/menu":                     { js: 267, css: 90, chunks: 15 },
   "/reserve":                  { js: 292, css: 90, chunks: 16 },
   "/delivery":                 { js: 291, css: 90, chunks: 16 },
@@ -589,14 +597,14 @@ export const WEIGHT = {
   "/academy":                  { js: 325, css: 90, chunks: 16 },
   "/office":                   { js: 282, css: 90, chunks: 15 },
   "/scan":                     { js: 266, css: 90, chunks: 15 },
-  "/architecture":             { js: 276, css: 90, chunks: 15 },
+  "/architecture":             { js: 277, css: 90, chunks: 15 },
   "/playbook":                 { js: 275, css: 90, chunks: 15 },
-  "/driver":                   { js: 280, css: 88, chunks: 15 },
+  "/driver":                   { js: 280, css: 89, chunks: 15 },
   "/agreement":                { js: 274, css: 90, chunks: 15 },
   "/offer":                    { js: 284, css: 90, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 265, css: 90, chunks: 15 },
   "/display":                  { js: 266, css: 90, chunks: 15 },
-  "/shop":                     { js: 296, css: 90, chunks: 16 },
+  "/shop":                     { js: 297, css: 90, chunks: 16 },
   "/primal":                   { js: 268, css: 90, chunks: 15 },
   "/privacy":                  { js: 264, css: 90, chunks: 14 },
   "/terms":                    { js: 264, css: 90, chunks: 14 },
