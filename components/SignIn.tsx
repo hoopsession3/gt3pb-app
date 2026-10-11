@@ -24,6 +24,15 @@ type Intent = "join" | "signin";
 const CODE_LEN = 8;
 const MIN_CODE = 6;
 
+// ONE CODE SCREEN, THREE USES (2026-10-11: the password reset joins them — the "Reset password" email carries the
+// code too). What it says, what its button says, which kind of code it checks, and what a resend sends.
+type CodeStep = "sent" | "confirm" | "reset-sent";
+const CODE_SCREEN: Record<CodeStep, { head: string; then: string; go: string; label: string; kind: "email" | "recovery" }> = {
+  sent: { head: "Check your email.", then: "Enter it here and you’re in.", go: "Sign in", label: "Sign-in code", kind: "email" },
+  confirm: { head: "Confirm your email.", then: "Enter it to finish joining.", go: "Confirm and sign in", label: "Confirmation code", kind: "email" },
+  "reset-sent": { head: "Check your email.", then: "Enter it, then choose a new password.", go: "Continue", label: "Reset code", kind: "recovery" },
+};
+
 // WHERE YOU ARE, AND ONE WAY IN (2026-10-09, round 2 — Ryan: "Join by default", "Link returns you",
 // approved). Seven pages that need an account showed this same screen with the consumer's pitch on it
 // ("Grow your 3MPIRE") or showed nothing, so an office client, a new hire or a crew member scanning a card
@@ -63,7 +72,8 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
   const [resent, setResent] = useState(false);
   const codeRef = useRef<HTMLInputElement>(null);
   // The code field is the screen's one job: it has the caret the moment the screen shows.
-  useEffect(() => { if (step === "sent" || step === "confirm") codeRef.current?.focus(); }, [step]);
+  const cs = step === "form" ? null : CODE_SCREEN[step];
+  useEffect(() => { if (step !== "form") codeRef.current?.focus(); }, [step]);
 
   // password mode
   const [password, setPassword] = useState("");
@@ -93,7 +103,7 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
     if (busy || cooldown > 0) return;
     setBusy(true); setErr(""); setResent(false);
     try {
-      const { error } = await sendCode(email.trim(), name.trim() || undefined);
+      const { error } = step === "reset-sent" ? await resetPassword(email.trim()) : await sendCode(email.trim(), name.trim() || undefined);
       if (error) setErr(error);
       else { setCooldown(30); setOtp(""); setResent(true); codeRef.current?.focus(); }
     } catch {
@@ -107,14 +117,16 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
   const handleVerifyCode = async (token: string = otp) => {
     if (token.length < MIN_CODE || busy) return;
     setBusy(true); setErr("");
-    const { error } = await verifyCode(email.trim(), token);
+    const kind = cs?.kind ?? "email";
+    const { error } = await verifyCode(email.trim(), token, kind);
     setBusy(false);
     if (error) {
       setErr(/expired|invalid/i.test(error)
         ? "That code didn't work — it may be from an older email, or expired. Use the newest one, or resend."
         : error);
       requestAnimationFrame(() => codeRef.current?.select());
-    } else trackFunnel("signup", "signed_in");
+    } else if (kind === "email") trackFunnel("signup", "signed_in");
+    // a reset code's session raises AuthProvider's "Set a new password." over everything (PASSWORD_RECOVERY)
   };
   // Digits only, whatever arrives (a paste with spaces, Mail's suggestion); the whole code sends itself.
   const onCode = (raw: string) => {
@@ -123,14 +135,14 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
     if (d.length === CODE_LEN && d !== otp) void handleVerifyCode(d);
   };
 
-  // ── forgot password → email a reset link ──
+  // ── forgot password → email a reset code (and link); the code screen asks for it ──
   const handleReset = async () => {
     if (!email.trim()) { setErr("Enter your email first, then tap reset."); return; }
     setBusy(true); setErr("");
     rememberReturn(window.location.pathname + window.location.search);
     const { error } = await resetPassword(email.trim());
     setBusy(false);
-    if (error) setErr(error); else setStep("reset-sent");
+    if (error) setErr(error); else { setOtp(""); setResent(false); setCooldown(30); setStep("reset-sent"); }
   };
 
   // ── password sign in / create account ──
@@ -164,24 +176,14 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
       <Image className="auth-logo" src="/gt3-pb-wordmark.png" alt="GT3 Performance Bar" width={440} height={248} priority unoptimized />
       <div className="auth-rule" />
 
-      {/* ── password reset link sent ── */}
-      {step === "reset-sent" && (
+      {/* ── the code: after "email me a code" (sent), after a new password account (confirm) — the Confirm sign up
+          email carries the same code, so a new account finishes here, not in Safari — and after "email me a reset
+          code" (reset-sent), whose code opens "Set a new password." right here (CODE_SCREEN) ── */}
+      {cs && (
         <>
-          <h2 className="auth-headline">Check your email.</h2>
-          <p className="auth-sub">We sent a password-reset link to <b>{email}</b>. Tap it, set a new password, and you&apos;re back in.</p>
-          <p className="auth-paste-hint mt-2">Don&apos;t see it? Check spam / promotions. Open the link in <b>this same browser</b>.</p>
-          {err && <div className="auth-err">{err}</div>}
-          <button type="button" className="btn-pri btn-wide mt-5" onClick={reset}><span>Back to sign in</span></button>
-        </>
-      )}
-
-      {/* ── the code: after "email me a code" (sent), and after a new password account (confirm) — the
-          Confirm sign up email carries the same code, so a new account finishes here, not in Safari ── */}
-      {(step === "sent" || step === "confirm") && (
-        <>
-          <h2 className="auth-headline">{step === "confirm" ? "Confirm your email." : "Check your email."}</h2>
+          <h2 className="auth-headline">{cs.head}</h2>
           <p className="auth-sub" id="auth-code-for">
-            We sent a code to <b>{email}</b>. {step === "confirm" ? "Enter it to finish joining." : "Enter it here and you’re in."}
+            We sent a code to <b>{email}</b>. {cs.then}
           </p>
           <form className="auth-form mt-5" noValidate onSubmit={(e) => { e.preventDefault(); void handleVerifyCode(); }}>
             <input
@@ -194,7 +196,7 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
               enterKeyHint="go"
               pattern="[0-9]*"
               maxLength={10}
-              aria-label={step === "confirm" ? "Confirmation code" : "Sign-in code"}
+              aria-label={cs.label}
               aria-describedby="auth-code-for"
               placeholder={"•".repeat(CODE_LEN)}
               value={otp}
@@ -202,7 +204,7 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
             />
             {err && <div className="auth-err" role="alert">{err}</div>}
             <button className="btn-pri btn-wide mt-3" type="submit" disabled={otp.length < MIN_CODE || busy}>
-              <span>{busy ? "Checking…" : step === "confirm" ? "Confirm and sign in" : "Sign in"}</span>
+              <span>{busy ? "Checking…" : cs.go}</span>
             </button>
           </form>
           <p className="auth-paste-hint mt-3.5" aria-live="polite">
@@ -210,13 +212,13 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
             {!inApp && " Or tap the link in the email."}
           </p>
           <div className="auth-form flex flex-wrap gap-x-5">
-            {step === "sent" && (
+            {step !== "confirm" && (
               <button type="button" className="auth-link min-h-11 inline-flex items-center disabled:opacity-50" disabled={busy || cooldown > 0} onClick={handleResend}>
                 {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend the code"}
               </button>
             )}
             <button type="button" className="auth-link min-h-11 inline-flex items-center" onClick={reset}>
-              {step === "confirm" ? "Back to sign in" : "Use a different email"}
+              {step === "sent" ? "Use a different email" : "Back to sign in"}
             </button>
           </div>
         </>
@@ -292,7 +294,7 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
               </button>
               {!isNew && (
                 <button type="button" className="auth-link hit-44 mt-3" onClick={handleReset} disabled={busy}>
-                  Forgot your password? Email me a reset link
+                  Forgot your password? Email me a reset code
                 </button>
               )}
             </form>

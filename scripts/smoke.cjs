@@ -6066,9 +6066,18 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     si.indexOf('id="auth-code"') > 0 && si.indexOf('id="auth-code"') < si.indexOf("Or tap the link in the email")
     && /\{!inApp && " Or tap the link in the email\."\}/.test(si) && /const \[inApp\] = useState\(\(\) => isNativeApp\(\)\);/.test(si)
     && !/pastedUrl|signInWithUrl|Paste your sign-in URL|isIPhoneLike/.test(si) && /void signInWithUrl\(url\)/.test(read("components/NativeBridge.tsx")));
-  ok("sign-in: a new password account finishes with the same code, here — not \"tap the link, then come back and sign in\"",
-    /\{\(step === "sent" \|\| step === "confirm"\) && \(/.test(si) && !/Tap it to activate your account, then come back and sign in/.test(si)
-    && /step === "confirm" \? "Confirm and sign in" : "Sign in"/.test(si));
+  ok("sign-in: one code screen for three emails — the sign-in, a new password account's confirmation (finished here, not \"tap the link, then come back and sign in\"), and the password reset",
+    /const cs = step === "form" \? null : CODE_SCREEN\[step\];/.test(si) && /\{cs && \(/.test(si)
+    && /confirm: \{ head: "Confirm your email\.", then: "Enter it to finish joining\.", go: "Confirm and sign in"/.test(si)
+    && !/Tap it to activate your account, then come back and sign in/.test(si));
+  // PASSWORD RESET BY CODE (2026-10-11, Ryan: "you have permission to do anything"): the "Reset password" email carries the code too.
+  ok("sign-in: a forgotten password is reset by code, here — the code's session raises \"Set a new password.\", and a resend sends a reset",
+    /"reset-sent": \{ head: "Check your email\.", then: "Enter it, then choose a new password\.", go: "Continue", label: "Reset code", kind: "recovery" \}/.test(si)
+    && /const \{ error \} = await verifyCode\(email\.trim\(\), token, kind\);/.test(si)
+    && /step === "reset-sent" \? await resetPassword\(email\.trim\(\)\) : await sendCode\(/.test(si)
+    && /Forgot your password\? Email me a reset code/.test(si) && !/password-reset link/.test(si)
+    && /const \{ error \} = await supabase\.auth\.verifyOtp\(\{ email, token, type: kind \}\);/.test(auth)
+    && /if \(event === "PASSWORD_RECOVERY"\) setRecovery\(true\);/.test(auth));
   ok("sign-in: a resent code empties the field and says to use the newest email; a wrong or old code says so and selects itself",
     /else \{ setCooldown\(30\); setOtp\(""\); setResent\(true\); codeRef\.current\?\.focus\(\); \}/.test(si)
     && /requestAnimationFrame\(\(\) => codeRef\.current\?\.select\(\)\);/.test(si) && /A new code is on its way — use the newest email\./.test(si));

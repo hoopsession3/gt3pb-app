@@ -59,7 +59,9 @@ interface AuthCtx {
   profile: Profile | null;
   profileStatus: ProfileStatus;
   sendCode: (email: string, displayName?: string) => Promise<{ error?: string }>;
-  verifyCode: (email: string, token: string) => Promise<{ error?: string }>;
+  // "email": the sign-in or sign-up code; "recovery": the password-reset code, whose session raises the
+  // set-a-new-password overlay (supabase-js fires PASSWORD_RECOVERY for it, as for the reset link).
+  verifyCode: (email: string, token: string, kind?: "email" | "recovery") => Promise<{ error?: string }>;
   signInWithUrl: (url: string) => Promise<{ error?: string }>;
   signInWithPassword: (email: string, password: string) => Promise<{ error?: string }>;
   signUp: (email: string, password: string, displayName?: string) => Promise<{ error?: string; confirm?: boolean }>;
@@ -183,8 +185,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       // did they actually sign in," not "how many times did the PWA wake up."
       if (u && event === "SIGNED_IN") import("@/lib/track").then((m) => m.trackUser("login", true), () => {});
       else if (u && event === "INITIAL_SESSION") import("@/lib/track").then((m) => m.trackUser("open"), () => {});
-      // Clicking a reset link signs the user in with a short-lived recovery session and fires this
-      // event — gate the app behind a "set a new password" overlay until they pick one.
+      // A reset link, or the reset code (verifyOtp type "recovery"), signs the user in with a short-lived recovery
+      // session and fires this event — gate the app behind a "set a new password" overlay until they pick one.
       if (event === "PASSWORD_RECOVERY") setRecovery(true);
       // THE PAGE YOU STARTED ON (2026-10-09, lib/returnTo): a sign-in link lands on the front door; the
       // sign-in it completes goes back to the page the link was asked for on, once.
@@ -218,9 +220,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     return error ? { error: error.message } : {};
   }, []);
 
-  const verifyCode = useCallback<AuthCtx["verifyCode"]>(async (email, token) => {
+  const verifyCode = useCallback<AuthCtx["verifyCode"]>(async (email, token, kind = "email") => {
     if (!supabase) return { error: "Sign-in isn't configured yet." };
-    const { error } = await supabase.auth.verifyOtp({ email, token, type: "email" });
+    const { error } = await supabase.auth.verifyOtp({ email, token, type: kind });
     return error ? { error: error.message } : {};
   }, []);
 
@@ -265,8 +267,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     return { confirm: !data.session && !!data.user };
   }, []);
 
-  // Email a password-reset link. Works for anyone with a password OR who only ever used magic links
-  // (Supabase just sets/overwrites the password on completion), so every user can recover access.
+  // Email a password reset — a code and a link (2026-10-11: the "Reset password" template puts {{ .Token }}
+  // above the link; SignIn asks for the code, verifyCode(…, "recovery")). Works for anyone with a password OR
+  // who only ever used a code (Supabase sets or overwrites the password on completion), so everyone can recover.
   const resetPassword = useCallback<AuthCtx["resetPassword"]>(async (email) => {
     if (!supabase) return { error: "Sign-in isn't configured yet." };
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
