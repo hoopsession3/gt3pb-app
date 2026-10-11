@@ -6,10 +6,11 @@
 // out/ is the app's copy of the screens (scripts/build.app.mjs): what `npx cap sync ios` puts inside the
 // iPhone app. This opens it on three iPhones, with the phone's side of Capacitor stood in for: every
 // page as a guest, every crew section as a signed-in owner (in the crew's Day look on two phones and
-// the dark look on the third), a customer's sheet, the crew's first-run guide. It holds the app to what
-// a native app owes the person holding it:
+// the dark look on the third), a customer's sheet, the crew's first-run guide. THE APP RUNS ON AN IPAD
+// (2026-10-11): the crew's screens are opened on an iPad as well, upright and on its side (1b). It holds
+// the app to what a native app owes the person holding it:
 //
-//   1. IT FITS EVERY PHONE. No sideways scroll at 375, 402 or 440 points wide, and nothing a person
+//   1. IT FITS EVERY PHONE. No sideways scroll at 375, 402 or 440 points wide (an iPad's 820 and 1,180 too), and nothing a person
 //      reads or taps lies under the status bar, the Dynamic Island or the home indicator — measured with
 //      each phone's own insets (Chromium's safe-area override: env(safe-area-inset-top) reads 62 here as
 //      it does on an iPhone 17), on each screen as it opens and again scrolled part way, when what is
@@ -69,6 +70,18 @@ export const PHONES = [
   { name: "iPhone 17 Pro Max", width: 440, height: 956, top: 62, bottom: 34, keyboard: 346 },
 ];
 const MAIN = PHONES[1];
+
+// THE APP RUNS ON AN IPAD (2026-10-11, scripts/ios.configure.mjs 4). The 11-inch iPad Air, the iPad a truck most
+// likely has, both ways up: 820 × 1,180 points upright and 1,180 × 820 on its side, its 24pt status bar above and its
+// 20pt home indicator below either way (an iPad has no notch, so nothing at its sides). Its web view says iPad
+// (capacitor.config.ts keeps it in mobile mode) and draws at 2×. Upright is one column; on its side the console is
+// the desk (lib/surfaces DESK_QUERY), which is why both are opened. 1b opens every crew section on each.
+export const TABLETS = [
+  { name: "iPad Air 11 upright", width: 820, height: 1180, top: 24, bottom: 20, ipad: true },
+  { name: "iPad Air 11 on its side", width: 1180, height: 820, top: 24, bottom: 20, ipad: true },
+];
+const IPHONE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
+const IPAD_UA = "Mozilla/5.0 (iPad; CPU OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
 
 // Pages that answer to the inset rule differently, and why. Nothing else may.
 const NOT_A_PHONE_SCREEN = {
@@ -381,6 +394,21 @@ function headerReport() {
   };
 }
 
+// ── THE APP ON AN IPAD: WHERE THE SHELL STANDS (2026-10-11) ───────────────────────────────────
+// Runs IN THE PAGE. The app's box on the glass, its corners and whether a bezel is painted round it; the tab bar's box
+// and which way its list runs; and whether the sections' columns are boxes (the desk) or not (one column).
+function shellReport() {
+  const box = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; };
+  const app = document.querySelector(".app"), nav = document.querySelector(".app > nav.nav");
+  const cs = app ? getComputedStyle(app) : null;
+  return {
+    view: { w: innerWidth, h: innerHeight }, app: box(app), radius: cs ? parseFloat(cs.borderTopLeftRadius) || 0 : null, bezel: cs ? cs.boxShadow !== "none" : null,
+    pad: Math.round(parseFloat(getComputedStyle(document.body).paddingTop) || 0),
+    nav: box(nav), orient: nav?.querySelector('[role="tablist"]')?.getAttribute("aria-orientation") ?? null,
+    cols: [...document.querySelectorAll(".desk-col")].map((c) => getComputedStyle(c).display),
+  };
+}
+
 // THE BRIDGE IS UP (2026-10-11, two flakes in a day). components/NativeBridge sets itself up after the page has drawn,
 // and its last step lets the launch screen go: a tap before that meets no handler, so a click the test meant as the
 // app's went to the browser (a saved photo became a page load) or the launch screen's own call landed in a tap's
@@ -529,7 +557,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     console.log(`NATIVE SMOKE: could not serve out/ on ${BASE} (${e.code || e.message}). Something else holds port ${PORT}; stop it and run again.`);
     process.exit(1);
   }
-  console.log(`NATIVE SMOKE — the smoke build of out/ (${built.toISOString().replace("T", " ").slice(0, 16)} UTC): ${pages.length} screens and ${sections.length} crew sections × ${PHONES.length} iPhones; on the phone: ${plugins.map((p) => p.name).join(", ")}`);
+  console.log(`NATIVE SMOKE — the smoke build of out/ (${built.toISOString().replace("T", " ").slice(0, 16)} UTC): ${pages.length} screens and ${sections.length} crew sections × ${PHONES.length} iPhones, the crew sections × an iPad both ways up; on the phone: ${plugins.map((p) => p.name).join(", ")}`);
 
   const browser = await chromium.launch(existsSync(CHROME) ? { executablePath: CHROME } : {});
   const apiCalls = [];       // what left for the web's API
@@ -543,12 +571,15 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   // unseen; `seed` puts rows in the stand-in's tables; `shell: false` opens the app's pages in a plain
   // browser — no native side at all, the test run lib/native's isNativeApp() tells apart.
   async function phoneContext(phone, { owner = false, theme = null, guide = false, seed = {}, shell = true } = {}) {
-    // A screen that is not a phone (5i: a laptop, an iPad) is opened as itself — no iPhone, and touch only if it has it.
+    // A screen that is not a phone (5i: a laptop, an iPad in a browser) is opened as itself — no iPhone, and touch only
+    // if it has it. An iPad in the app (1b) is the app's: its own web view's words, a finger, 2×.
     const ctx = await browser.newContext({
       viewport: { width: phone.width, height: phone.height },
       ...(phone.desktop
         ? { deviceScaleFactor: 1, isMobile: false, hasTouch: !!phone.touch }
-        : { deviceScaleFactor: 3, isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148" }),
+        : phone.ipad
+          ? { deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: IPAD_UA }
+          : { deviceScaleFactor: 3, isMobile: true, hasTouch: true, userAgent: IPHONE_UA }),
       serviceWorkers: "block",
       acceptDownloads: !shell,
     });
@@ -737,6 +768,70 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       ok(`${phone.name} the crew's first-run guide: nothing under the system's bars`, under.length === 0, findings(under));
       if (SHOTS) await page.screenshot({ path: shotPath(phone, "crew-first-run-guide") });
       ok(`${phone.name} the crew's first-run guide: no errors`, errors.length === 0, errors.join(" | "));
+      await ctx.close();
+    }
+  }));
+
+  // ── 1b · THE APP ON AN IPAD (2026-10-11) ──
+  // The app installs on an iPad now (scripts/ios.configure.mjs, 4). The crew's screens are opened on one both ways up —
+  // every section as the owner (the Day look upright, the dark look on its side) and the first-run guide — and judged
+  // as every iPhone's are: the iPad's insets reached the page, nothing sideways, nothing under the status bar or the
+  // home indicator as it opens or scrolled, the status bar legible over what is under it, no error. Then the shell, on
+  // Money (laid out in columns): the iPad's glass is the frame (components/NativeBridge.css), so the app fills it edge
+  // to edge with no corners and no painted bezel — upright, one column over a tab bar along its foot; on its side, the
+  // desk, its tab bar a sidebar the screen's full height. After the phones, two at a time, so their timings are theirs.
+  await Promise.all(TABLETS.map(async (pad) => {
+    const upright = pad.height > pad.width;
+    {
+      const theme = upright ? null : "dark";
+      const ctx = await phoneContext(pad, { owner: true, theme });
+      const page = await ctx.newPage();
+      await insetsOn(page, pad.top, pad.bottom);
+      const errors = watch(page);
+      for (const section of sections) {
+        errors.length = 0;
+        try { await page.goto(`${BASE}/crew?s=${section}`, { waitUntil: "load", timeout: 30000 }); }
+        catch (e) { ok(`${pad.name} crew ${section}: loads`, false, e.message.split("\n")[0]); continue; }
+        const r = await measure(page, pad, errors, `crew-${section}${theme ? `-${theme}` : ""}`);
+        const walled = /Sign in|Staff only|Crew only|Owners only|isn't configured/i.test(r.text);
+        ok(`${pad.name} crew ${section}: signed in, not the wall`, !walled, r.text.slice(0, 90).replace(/\s+/g, " "));
+        judge(`${pad.name} crew ${section}`, pad, r);
+      }
+      errors.length = 0;
+      await page.goto(`${BASE}/crew?s=money`, { waitUntil: "load" });
+      await page.waitForFunction(BRIDGE_UP, null, { timeout: 8000 }).catch(() => {});
+      await page.waitForTimeout(600); await page.evaluate(SETTLE);
+      const s = await page.evaluate(shellReport);
+      const seen = JSON.stringify(s);
+      if (SHOTS) await page.screenshot({ path: shotPath(pad, "crew-money--shell") });
+      ok(`${pad.name}: the app fills the glass — edge to edge, no corners, no painted bezel, no black room round it`,
+        !!s.app && s.app.x === 0 && s.app.y === 0 && s.app.w === s.view.w && s.app.h === s.view.h && s.radius === 0 && s.bezel === false && s.pad === 0, seen);
+      if (upright) {
+        ok(`${pad.name}: held upright the console is one column over a tab bar along the foot, the screen's full width`,
+          !!s.nav && s.nav.x === 0 && s.nav.w === s.view.w && Math.abs(s.nav.y + s.nav.h - s.view.h) <= 1 && s.orient === "horizontal"
+            && s.cols.length === 2 && s.cols.every((d) => d === "contents"), seen);
+      } else {
+        ok(`${pad.name}: on its side the console is the desk — the tab bar a sidebar at the left edge, 236 wide and the screen's full height, the sections in two columns`,
+          !!s.nav && s.nav.x === 0 && s.nav.y === 0 && s.nav.w === 236 && s.nav.h === s.view.h && s.orient === "vertical"
+            && s.cols.length === 2 && s.cols.every((d) => d === "block"), seen);
+      }
+      ok(`${pad.name}: the shell, no errors`, errors.length === 0, errors.join(" | "));
+      await ctx.close();
+    }
+    // The first-run guide, on the iPad: a sheet stands as a card in the middle of a screen this size.
+    {
+      const ctx = await phoneContext(pad, { owner: true, guide: true });
+      const page = await ctx.newPage();
+      await insetsOn(page, pad.top, pad.bottom);
+      const errors = watch(page);
+      await page.goto(`${BASE}/crew?s=day`, { waitUntil: "load" });
+      const opened = await page.waitForSelector('.sheet2[role="dialog"]', { timeout: 8000 }).then(() => true, () => false);
+      await page.waitForTimeout(400); await page.evaluate(SETTLE);
+      ok(`${pad.name} the crew's first-run guide: it opens`, opened);
+      const under = await page.evaluate(underTheBars, { top: pad.top, bottom: pad.bottom });
+      ok(`${pad.name} the crew's first-run guide: nothing under the system's bars`, under.length === 0, findings(under));
+      if (SHOTS) await page.screenshot({ path: shotPath(pad, "crew-first-run-guide") });
+      ok(`${pad.name} the crew's first-run guide: no errors`, errors.length === 0, errors.join(" | "));
       await ctx.close();
     }
   }));
@@ -1417,10 +1512,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   }
 
   // ── 5i · THE DESK (2026-10-09, redesign 5 — Ryan approved: "From 1024 wide up, the frame goes") ──
-  // Not the iPhone app — it is a phone app held upright and never meets this — but out/ is the same pages, and this is
-  // the harness that signs in: the console and /office on a laptop's screen in a plain browser (1,440 × 900 and
-  // 1,024 × 768), with the tab bar a sidebar and the sections in two columns; and the frame kept on an iPad held upright
-  // (the 13-inch, 1,032 × 1,376) and on a phone, where the columns are not boxes at all.
+  // The web, not the app — in the app an iPad's glass is the frame and the shell fills it (1b) — but out/ is the same
+  // pages, and this is the harness that signs in: the console and /office on a laptop's screen in a plain browser
+  // (1,440 × 900 and 1,024 × 768), with the tab bar a sidebar and the sections in two columns; and the frame kept on an
+  // iPad's browser held upright (the 13-inch, 1,032 × 1,376) and on a phone, where the columns are not boxes at all.
   {
     const DESK = { name: "desk", width: 1440, height: 900, desktop: true };
     const SMALL = { name: "desk 1024", width: 1024, height: 768, desktop: true };

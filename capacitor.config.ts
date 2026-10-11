@@ -1,6 +1,6 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
-// THE IPHONE APP'S SHELL (2026-10-06, the iPhone round).
+// THE IPHONE APP'S SHELL (2026-10-06, the iPhone round) — and the iPad's (2026-10-11: scripts/ios.configure.mjs, 4).
 //
 // The app is the same screens as the web, built as a static export (`npm run build:app` → out/,
 // scripts/build.app.mjs) and bundled inside a native shell, so it opens with no connection and never
@@ -27,7 +27,13 @@ const config: CapacitorConfig = {
     scrollEnabled: false,
     // A long press on a link shows the app's own behaviour, not Safari's link preview.
     allowsLinkPreview: false,
-    // A phone's layout, always.
+    // The page at the device's own width, never iPadOS's desktop mode. THE APP RUNS ON AN IPAD (2026-10-11): left to
+    // "recommended", an iPad's web view takes desktop-class browsing — it tells the page it is a Mac and lays it out
+    // as a laptop's page — so the page could not tell an iPad from a laptop, nor lay itself out for one. "mobile"
+    // keeps the iPad's own user agent and width (820 upright and 1,180 on its side, an 11-inch iPad Air), and the
+    // page's own tests choose its layout: a phone's below 520 × 640, one column upright, the desk on its side
+    // (lib/surfaces; scripts/smoke.native.mjs opens the crew's screens on an iPad both ways). On an iPhone it is the
+    // phone's layout, as it always was.
     preferredContentMode: "mobile",
   },
   plugins: {

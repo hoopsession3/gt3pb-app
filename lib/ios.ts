@@ -7,6 +7,21 @@ export function isIPhoneLike(): boolean {
     && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform ?? "")));
 }
 
+// THE APP RUNS ON AN IPAD (2026-10-11). Words that name the device in someone's hand — "Calendar on this iPhone",
+// "this iPhone's Settings" — said iPhone on an iPad. They say what it is: an iPad's web view says iPad (the app keeps it
+// in mobile mode, capacitor.config.ts), and in iPadOS's desktop mode an iPad says Mac and has a touch screen.
+
+/** "iPad" or "iPhone", from what the web view says of itself. Pure, for tests. */
+export function appleDeviceFrom(userAgent: string, maxTouchPoints: number, platform: string): "iPhone" | "iPad" {
+  return /iPad/.test(userAgent) || (maxTouchPoints > 1 && /Mac/.test(platform)) ? "iPad" : "iPhone";
+}
+
+/** This device's name, for words drawn on the client (a menu once opened, a toast, an answer the phone gave). */
+export function appleDevice(): "iPhone" | "iPad" {
+  if (typeof navigator === "undefined") return "iPhone";
+  return appleDeviceFrom(navigator.userAgent, navigator.maxTouchPoints ?? 0, navigator.platform ?? "");
+}
+
 // NO ZOOM ON A TAPPED FIELD (2026-10-06). Safari on an iPhone zooms into any field whose text is under
 // 16px the moment it is focused, and never zooms back: the page stays at 107–114% and whatever comes
 // next is cut off on the right — the offer letter's preview, opened after typing in the offer, looked

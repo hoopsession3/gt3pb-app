@@ -20,7 +20,8 @@ import CryptoKit
 ///   · keepFile  — a file put where the share sheet can hand it on (@capacitor/share presents the
 ///                 sheet: Save to Files, Save Image, AirDrop, Mail, Messages, Instagram…), written from
 ///                 the page's own bytes, or fetched from an https address — a post's photo, say.
-///   · printPage — the system print panel, of the page as it is: its print styles apply, as in Safari.
+///   · printPage — the system print panel, of the page as it is: its print styles apply, as in Safari. On an
+///                 iPad the panel is a popover from the middle of the page (2026-10-11).
 ///   · addEvent  — the system's own New Event sheet, filled in; one tap saves it to whichever calendar
 ///                 the person picks. From iOS 17 it needs no calendar permission at all (the sheet runs
 ///                 outside the app); on iOS 15 and 16 the phone asks once (NSCalendarsUsageDescription).
@@ -135,12 +136,22 @@ public class GT3DevicePlugin: CAPPlugin, CAPBridgedPlugin {
             let panel = UIPrintInteractionController.shared
             panel.printInfo = info
             panel.printFormatter = webView.viewPrintFormatter()
-            let shown = panel.present(animated: true) { _, completed, error in
+            let done: UIPrintInteractionController.CompletionHandler = { _, completed, error in
                 if let error = error {
                     call.reject("Couldn't print", nil, error)
                     return
                 }
                 call.resolve(["printed": completed])
+            }
+            // AN IPAD'S PRINT PANEL STANDS FROM A PLACE ON THE SCREEN (2026-10-11, the app runs on an iPad). UIKit's
+            // present(animated:) is the iPhone's sheet; an iPad's panel is a popover presented from a rect in a view.
+            // The page does not say where its Print button is, so the panel stands from the middle of the page.
+            let shown: Bool
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                let middle = CGRect(x: webView.bounds.midX, y: webView.bounds.midY, width: 1, height: 1)
+                shown = panel.present(from: middle, in: webView, animated: true, completionHandler: done)
+            } else {
+                shown = panel.present(animated: true, completionHandler: done)
             }
             if !shown {
                 call.reject("This phone can't print right now")

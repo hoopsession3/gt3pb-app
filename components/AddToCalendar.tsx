@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { buildIcs, googleCalUrl, withBuffer, type CalEvent } from "@/lib/ics";
 import { addToCalendar } from "@/lib/deviceActions";
 import { APP_BUILD } from "@/lib/native";
+import { appleDevice } from "@/lib/ios";
 import { useApp } from "@/components/AppProvider";
 import Icon from "@/components/Icon";
 import Button from "./Button";
@@ -69,7 +70,8 @@ export default function AddToCalendar({ ev, label = "Add to calendar", defaultBu
               </div>
             </div>
           )}
-          <button type="button" className="atc-item" role="menuitem" onClick={add}>{APP_BUILD ? <>Calendar <span>on this iPhone</span></> : <>Apple / Outlook <span>.ics file</span></>}</button>
+          {/* Drawn once the menu is opened, in the browser alone, so the device's name never meets a server render. */}
+          <button type="button" className="atc-item" role="menuitem" onClick={add}>{APP_BUILD ? <>Calendar <span>on this {appleDevice()}</span></> : <>Apple / Outlook <span>.ics file</span></>}</button>
           <a className="atc-item" role="menuitem" href={googleCalUrl(out)} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}>Google Calendar <span>opens Google</span></a>
         </div>
       )}
