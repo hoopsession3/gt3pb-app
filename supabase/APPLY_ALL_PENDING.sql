@@ -90,7 +90,7 @@ select public.record_migration('0367_alerts_in_the_iphone_app');
 -- 2026-10-11 (the audit of the kitchen display, "the Pass").
 --
 -- Every move a ticket makes on the pass is one call, staff_set_order_status (0023): the ticket's buttons
--- (app/crew/page.tsx, move and voidOrder) and the offline queue's replay (components/offline.ts, flushQueue) all make
+-- (app/crew/page.tsx, move and voidOrder) and the offline queue's replay (components/offlineReplay.ts, flushQueue) all make
 -- it, by name, with {p_order, p_status}. It set the status it was given, whatever the order's was:
 --
 --   · it never read the order, so nothing about where the order stood could refuse a tap — a voided order could be
@@ -122,11 +122,12 @@ select public.record_migration('0367_alerts_in_the_iphone_app');
 -- error — 0360), with the order's status now in its detail, so a screen can say where the order went. Leaving void
 -- says 'void'.
 --
--- THE CALLERS ARE UNCHANGED. Their two named arguments reach this function with p_from left null. The two-argument
--- function is dropped first: beside this one, a call naming p_order and p_status would fit both, and Postgres (and
--- PostgREST before it) refuses a call that fits two functions. None of the callers sends p_from yet. Until the queue
--- keeps the status each tap was made from, a replayed tap can still move a handed-over order back; what the database
--- alone now refuses is leaving void.
+-- THE CALLERS. Two named arguments still reach this function, with p_from left null — a page loaded before this
+-- release keeps working. The two-argument function is dropped first: beside this one, a call naming p_order and
+-- p_status would fit both, and Postgres (and PostgREST before it) refuses a call that fits two functions. The pass
+-- sends p_from from this release on (lib/orderStatus — the ticket's buttons and the offline replay, which keeps the
+-- status the FIRST of a ticket's queued taps was made from); before this is pasted it answers PGRST202 to that, and
+-- the pass falls back to the two arguments for the rest of the session.
 --
 -- Untouched: the triggers that stamp status_changed_at and derive the status columns (0018, 0155, 0232). They see
 -- the same UPDATE of status as before, and nothing at all when the call changes nothing. EXECUTE is the signed-in
@@ -222,9 +223,13 @@ select public.record_migration('0368_a_voided_order_stays_voided');
 -- moment after its minute — a different moment each time — so the run fifteen minutes on can find the last ring
 -- 14:59.8 old; measured strictly, about half the re-rings would wait for the next run, twenty minutes after the last.
 --
+-- 4. ITS LINK OPENS THE PASS. It said '/admin', which a tapped push opened as the console wherever it was last left;
+--    '/crew?s=now&a=kitchen-pass' is the console's own jump to the Pass (app/crew/page.tsx jumpTo), in the inbox and
+--    from the lock screen alike.
+--
 -- Unchanged on purpose: who is told (no target — leadership's phones, the Teams channel; 0157), how loudly
--- ('important', the 'order' category), the words, the link, the schedule, and what counts as waiting (status 'new',
--- across the whole pass).
+-- ('important', the 'order' category), the words, the schedule, and what counts as waiting (status 'new', across the
+-- whole pass).
 --
 -- The producer runs once at the end, so a line left open over a pass that is already clear closes when this is
 -- applied, and an open line is restated as the cron would restate it within five minutes.
@@ -264,7 +269,7 @@ begin
     'order_stale', null, 'important', 'order',
     '🧾 ' || n || ' order' || case when n = 1 then '' else 's' end || ' waiting on the pass',
     'A ticket has been sitting 10+ minutes in "new" — someone open the kitchen pass.',
-    '/admin',
+    '/crew?s=now&a=kitchen-pass',
     ring_every);
   return n;
 end $$;

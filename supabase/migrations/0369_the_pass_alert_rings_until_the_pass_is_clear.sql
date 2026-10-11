@@ -34,9 +34,13 @@
 -- moment after its minute — a different moment each time — so the run fifteen minutes on can find the last ring
 -- 14:59.8 old; measured strictly, about half the re-rings would wait for the next run, twenty minutes after the last.
 --
+-- 4. ITS LINK OPENS THE PASS. It said '/admin', which a tapped push opened as the console wherever it was last left;
+--    '/crew?s=now&a=kitchen-pass' is the console's own jump to the Pass (app/crew/page.tsx jumpTo), in the inbox and
+--    from the lock screen alike.
+--
 -- Unchanged on purpose: who is told (no target — leadership's phones, the Teams channel; 0157), how loudly
--- ('important', the 'order' category), the words, the link, the schedule, and what counts as waiting (status 'new',
--- across the whole pass).
+-- ('important', the 'order' category), the words, the schedule, and what counts as waiting (status 'new', across the
+-- whole pass).
 --
 -- The producer runs once at the end, so a line left open over a pass that is already clear closes when this is
 -- applied, and an open line is restated as the cron would restate it within five minutes.
@@ -76,7 +80,7 @@ begin
     'order_stale', null, 'important', 'order',
     '🧾 ' || n || ' order' || case when n = 1 then '' else 's' end || ' waiting on the pass',
     'A ticket has been sitting 10+ minutes in "new" — someone open the kitchen pass.',
-    '/admin',
+    '/crew?s=now&a=kitchen-pass',
     ring_every);
   return n;
 end $$;

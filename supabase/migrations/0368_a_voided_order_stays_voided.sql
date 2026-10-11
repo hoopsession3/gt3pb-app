@@ -2,7 +2,7 @@
 -- 2026-10-11 (the audit of the kitchen display, "the Pass").
 --
 -- Every move a ticket makes on the pass is one call, staff_set_order_status (0023): the ticket's buttons
--- (app/crew/page.tsx, move and voidOrder) and the offline queue's replay (components/offline.ts, flushQueue) all make
+-- (app/crew/page.tsx, move and voidOrder) and the offline queue's replay (components/offlineReplay.ts, flushQueue) all make
 -- it, by name, with {p_order, p_status}. It set the status it was given, whatever the order's was:
 --
 --   · it never read the order, so nothing about where the order stood could refuse a tap — a voided order could be
@@ -34,11 +34,12 @@
 -- error — 0360), with the order's status now in its detail, so a screen can say where the order went. Leaving void
 -- says 'void'.
 --
--- THE CALLERS ARE UNCHANGED. Their two named arguments reach this function with p_from left null. The two-argument
--- function is dropped first: beside this one, a call naming p_order and p_status would fit both, and Postgres (and
--- PostgREST before it) refuses a call that fits two functions. None of the callers sends p_from yet. Until the queue
--- keeps the status each tap was made from, a replayed tap can still move a handed-over order back; what the database
--- alone now refuses is leaving void.
+-- THE CALLERS. Two named arguments still reach this function, with p_from left null — a page loaded before this
+-- release keeps working. The two-argument function is dropped first: beside this one, a call naming p_order and
+-- p_status would fit both, and Postgres (and PostgREST before it) refuses a call that fits two functions. The pass
+-- sends p_from from this release on (lib/orderStatus — the ticket's buttons and the offline replay, which keeps the
+-- status the FIRST of a ticket's queued taps was made from); before this is pasted it answers PGRST202 to that, and
+-- the pass falls back to the two arguments for the rest of the session.
 --
 -- Untouched: the triggers that stamp status_changed_at and derive the status columns (0018, 0155, 0232). They see
 -- the same UPDATE of status as before, and nothing at all when the call changes nothing. EXECUTE is the signed-in

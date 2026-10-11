@@ -157,7 +157,9 @@ Deno.serve(async (req) => {
       const names = (record.items ?? []).map((i: string) => DRINKS[i] ?? i).join(" - ");
       title = "New order";
       message = `${record.customer ? record.customer + " - " : ""}${names} - $${(record.total_cents / 100).toFixed(2)}`;
-      url = "/admin";
+      // A tap opens the Pass itself (2026-10-11, the KDS audit): "/admin" opened the console wherever it was last left,
+      // a screen or two from the ticket. &a=kitchen-pass is the console's own jump to the Pass (app/crew/page.tsx jumpTo).
+      url = "/crew?s=now&a=kitchen-pass";
       targets = await subsFor((q) => q.eq("is_admin", true));
 
     } else if (table === "orders" && type === "UPDATE" && record.user_id) {
