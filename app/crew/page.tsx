@@ -21,6 +21,7 @@ import { readParam, dropParam } from "@/lib/urlParam";
 import { panelHome } from "@/lib/panelHome";
 import { useWakeLock } from "@/lib/useWakeLock";
 import { groupItems, readPulse } from "@/lib/passBoard";
+import { usePassHeartbeat } from "@/components/usePassHeartbeat";
 import { useEtDay } from "@/lib/useEtDay";
 import { NotifPrefs, NotifPrefsSheet } from "@/components/NotifPrefs";
 import { DeviceAlerts, AlertsOffLine } from "@/components/DeviceAlerts";
@@ -205,6 +206,7 @@ import { OwnerDetails } from "@/components/crew/OwnerDetails";
 import VenuePick from "@/components/VenuePickLazy";
 import { LocationEditor } from "@/components/crew/LocationEditor";
 import { LiveControl } from "@/components/crew/LiveControl";
+import { DevicesCard } from "@/components/crew/DevicesCard";
 import { staffAccess } from "@/lib/access";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { SECTION_TITLE } from "@/lib/routeTitles";
@@ -5427,6 +5429,7 @@ export default function AdminPage() {
   // locked mid-rush, and a locked phone rings for nobody. Asked again whenever the app comes back; let go on Exit (and
   // on leaving Live Ops, which closes the Pass, above).
   useWakeLock(svc);
+  usePassHeartbeat(svc); // …and the device checks in once a minute: Live Ops' Devices card, 0376's alert (components/usePassHeartbeat)
   // THE DAY TURNS OVER ON A SCREEN LEFT OPEN (2026-10-11, lib/useEtDay). Each card reads "today" when it loads, and a
   // phone kept awake through midnight kept yesterday's until something else changed. When the ET day turns, every live
   // screen reads again (lib/realtime refreshLive: the pickup board finds its drop, the runs their next day) and the page
@@ -5741,6 +5744,8 @@ export default function AdminPage() {
           {/* Whether this phone can ring for an order: one line, only while order alerts are off here — the switch
               is Settings › You › Notifications (2026-10-06). It stays with the service it is about. */}
           <AlertsOffLine />
+          {/* Which devices are on the Pass, and whether each can hear an order (2026-10-11, components/crew/DevicesCard). */}
+          {canManage && !svc && <DevicesCard />}
           </Column>
           <Column>
           {!svc && <DueNext canPlan={canManage} onOpenPass={() => setSvc(true)} />}

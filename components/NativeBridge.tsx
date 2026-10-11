@@ -9,6 +9,7 @@ import { saveFromUrl, setNativeDevice, type GT3DevicePlugin } from "@/lib/device
 import { opensOutside as linkOut } from "@/lib/nativeLinks";
 import { appleCredentialState, appleSession, markAppleSession } from "@/lib/appleAuth";
 import { NATIVE_PUSH_ON, alertTarget, keepAppDevice, setNativePush, type AppAlertState } from "@/lib/nativePush";
+import { setAppBuild } from "@/lib/heartbeat";
 import { isStaff } from "@/lib/roles";
 import { scrollToTop } from "@/lib/appScroll";
 import { supabase } from "@/lib/supabase";
@@ -159,6 +160,11 @@ export default function NativeBridge() {
       });
       undo.push(() => setNativeDevice(null));
       setDeviceReady(true);
+
+      // WHICH BUILD THIS PHONE RUNS (2026-10-11): the app's version and build, for Live Ops' list of the devices on the
+      // Pass (lib/heartbeat). Its own errand: a phone that cannot say leaves the build blank, and nothing waits on it.
+      void App.getInfo().then(({ version, build }) => setAppBuild(`${version} (${build})`), () => {});
+      undo.push(() => setAppBuild(null));
 
       // ALERTS (2026-10-11): the phone's own notifications, through Apple (APNs) — a browser's push cannot reach an
       // app. Only once they are live (lib/nativePush NATIVE_PUSH_ON: the push function holds APNs' key). Asked for
