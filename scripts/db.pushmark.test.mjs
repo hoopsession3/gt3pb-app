@@ -34,6 +34,9 @@ await db.exec(`
   create table auth.users (id uuid primary key);
   insert into auth.users (id) values ('${MEMBER}'), ('${CREW}'), ('${LEGACY}'), ('${LEAVER}');
   create role anon; create role authenticated; create role service_role;
+  -- Supabase's own default (2026-10-11, measured in production after 0366): a function made in public can be run
+  -- by anon, authenticated and service_role by name, so a revoke from PUBLIC alone leaves anon its grant.
+  alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
   grant usage on schema auth to anon, authenticated, service_role;
   create or replace function auth.uid() returns uuid language sql stable as $$
     select nullif(coalesce(current_setting('test.uid', true), ''), '')::uuid $$;

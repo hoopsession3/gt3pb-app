@@ -377,6 +377,12 @@ function headerReport() {
   };
 }
 
+// THE BRIDGE IS UP (2026-10-11, two flakes in a day). components/NativeBridge sets itself up after the page has drawn,
+// and its last step lets the launch screen go: a tap before that meets no handler, so a click the test meant as the
+// app's went to the browser (a saved photo became a page load) or the launch screen's own call landed in a tap's
+// window. On the phone a screen has settled once that step has run; a browser with no phone has nothing to wait for.
+const BRIDGE_UP = () => !window.__native || window.__native.calls.some((c) => c.plugin === "SplashScreen" && c.method === "hide");
+
 const SETTLE = async () => {
   await document.fonts?.ready;
   const ending = document.getAnimations().filter((a) => Number.isFinite(a.effect?.getComputedTiming?.().endTime));
@@ -737,7 +743,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const page = await ctx.newPage();
     await insetsOn(page, MAIN.top, MAIN.bottom);
     const errors = watch(page);
-    const settle = async () => { await page.waitForTimeout(400); await page.evaluate(SETTLE); };
+    const settle = async () => { await page.waitForTimeout(400); await page.evaluate(SETTLE); await page.waitForFunction(BRIDGE_UP, null, { timeout: 8000 }).catch(() => {}); };
 
     // 2 · a reload stays put — on the deepest screens a person reloads
     for (const path of ["/crew", "/menu", "/primal/lesson"]) {
@@ -1660,7 +1666,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       const page = await ctx.newPage();
       await insetsOn(page, MAIN.top, MAIN.bottom);
       const errors = watch(page);
-      const settle = async () => { await page.waitForTimeout(400); await page.evaluate(SETTLE); };
+      const settle = async () => { await page.waitForTimeout(400); await page.evaluate(SETTLE); await page.waitForFunction(BRIDGE_UP, null, { timeout: 8000 }).catch(() => {}); };
       // What the page asked of the phone while `fn` ran (the haptic engine aside).
       const asked = async (fn, wait = 1200) => {
         const n = (await nativeCalls(page)).length;
@@ -1785,7 +1791,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       const ctx = await phoneContext(MAIN, { owner: true, seed, shell: false });
       const page = await ctx.newPage();
       const errors = watch(page);
-      const settle = async () => { await page.waitForTimeout(400); await page.evaluate(SETTLE); };
+      const settle = async () => { await page.waitForTimeout(400); await page.evaluate(SETTLE); await page.waitForFunction(BRIDGE_UP, null, { timeout: 8000 }).catch(() => {}); };
       const download = async (fn) => {
         const got = page.waitForEvent("download", { timeout: 8000 }).catch(() => null);
         await fn();

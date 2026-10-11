@@ -5391,8 +5391,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("chrome: no WHEN pill styled as a status, and its rules left with it",
     !/op-head-when/.test(crew) && !/\.op-head-when\{/.test(css));
   ok("chrome: ‹ is Back only — it no longer turns into 'Exit Crew Mode' beside the Customer switch — and it leads the row, quiet (2026-10-07: it was a 38px red circle at the far right)",
-    /\{backWay && <IconButton icon="chevronLeft" label=\{backWay\.label === "Back" \? "Back" : `Back to \$\{backWay\.label\}`\} onClick=\{backWay\.go\} \/>\}/.test(crew) && !/Exit Crew Mode/.test(crew)
-    && crew.indexOf('<div className="toprow-lead">') < crew.indexOf('icon="chevronLeft"') && crew.indexOf('icon="chevronLeft"') < crew.indexOf('<div className="toprow-actions">'));
+    /\{backWay && <BackButton label=\{backWay\.label\} onClick=\{backWay\.go\} \/>\}/.test(crew) && !/Exit Crew Mode/.test(crew)
+    && crew.indexOf('<div className="toprow-lead">') < crew.indexOf('<BackButton') && crew.indexOf('<BackButton') < crew.indexOf('<div className="toprow-actions">'));
   const nav = code(read("components/OperatorNav.tsx"));
   ok("chrome: tapping the lane you are on does something — the lane's first screen, then its top (what is waiting is the bell's, 2026-10-09)",
     /if \(!on\) \{ openGroup\(g\); return; \}/.test(nav) && !/waiting > 0/.test(nav)
@@ -6149,7 +6149,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const crew = code(read("app/crew/page.tsx")), nav = code(read("components/OperatorNav.tsx")), css = read("app/globals.css");
   const header = crew.slice(crew.indexOf('<div className="toprow">'), crew.indexOf("{guide && <SectionGuide"));
   ok("navigation: three controls in the header — quick actions, search, the inbox — and Back when there is somewhere to go",
-    (header.match(/<IconButton /g) || []).length === 4 && /backWay && <IconButton icon="chevronLeft"/.test(header) && !/<Segmented|icon="info"/.test(header));
+    (header.match(/<IconButton /g) || []).length === 3 && /backWay && <BackButton /.test(header) && !/<Segmented|icon="info"/.test(header));
   ok("navigation: the Crew/Customer switch and the Guide are rows in More — the switch's leaving still remembered, the Guide over the screen you are on",
     /onClick=\{\(\) => \{ onClose\(\); window\.dispatchEvent\(new Event\("gt3-open-guide"\)\); \}\}/.test(nav) && /<b>Guide<\/b>/.test(nav)
     && /onClick=\{\(\) => \{ onClose\(\); window\.dispatchEvent\(new Event\("gt3-customer-view"\)\); \}\}/.test(nav) && /<b>Customer view<\/b>/.test(nav)
@@ -6167,7 +6167,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /<Panel id="spend" title="Spend & budget · what the business spends" sub="[^"]{12,}">/.test(m) && /<Panel id="pay" title="Refunds & payment settings" sub="[^"]{12,}">/.test(m); })());
   ok("navigation: the name is said once — over a lane's row of sections the title names the lane, as its tab does; a lane of one names its section",
     /<h1 className="op-head-t" data-large-title>\{lane\.members\.length >= 2 \? lane\.label : SEC_LABEL\[sec\]\}<\/h1>/.test(crew)
-    && /<Segmented fill className=\{`lane-tabs mb-3\.5\$\{switcher \? " hidden! desk:flex!" : ""\}`\} label=\{lane\.label\} value=\{sec\}/.test(crew));
+    && /<Segmented fill className=\{`lane-tabs mb-3\.5\$\{switcher \|\| inView \? " hidden! desk:flex!" : ""\}`\} label=\{lane\.label\} value=\{sec\}/.test(crew));
   // A LANE TOO LONG FOR ITS ROW (2026-10-10, the 9→10 round): Business's six on a phone ran off both edges ("Te", "ney").
   {
     const css = read("app/globals.css"), lp = read("components/LongPress.tsx"), ic = read("components/Icon.tsx");
@@ -8425,12 +8425,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /export const PLAN_TABS = \["calendar", "events", "vendors", "route", "leads"\] as const;/.test(read("lib/planNav.ts")));
     ok("plan: a list over the calendar is a step — Back, the header's ‹, the edge swipe or a tap on Plan in the lane closes it, back to the calendar",
       /const planOver = sec === "plan" && canManage && planTab !== "calendar";\s+useBackStep\(planOver \? "Plan" : null, \(\) => setPlanTab\("calendar"\)\);/.test(pg)
-      && /\{backWay && <IconButton icon="chevronLeft" label=\{backWay\.label === "Back" \? "Back" : `Back to \$\{backWay\.label\}`\} onClick=\{backWay\.go\} \/>\}/.test(pg)
+      && /\{backWay && <BackButton label=\{backWay\.label\} onClick=\{backWay\.go\} \/>\}/.test(pg)
       && /onReselect=\{\(m\) => \{ if \(m === "plan" && planOver\) setPlanTab\("calendar"\); \}\}/.test(pg)
       && /onClick=\{\(\) => \{ if \(!on\) onChange\(o\.key\); else onReselect\?\.\(o\.key\); \}\}/.test(ctl));
     ok("plan: each list names itself as Lists does — Truck stops on Plan (the Live truck on Live Ops), Venues & suppliers — \"Plan › Leads\" over the title, and the title bar says which",
       /label=\{manage \? "Truck stops" : "Live truck"\}/.test(lc) && /<SectionHeader label="Venues & suppliers"/.test(pg)
-      && /useCrumb\("plan-list", PLAN_LABEL\[tab\], onBack\);\s+return <div data-large-title data-title=\{PLAN_LABEL\[tab\]\} aria-hidden className="h-0" \/>;/.test(pg)
+      && /useCrumb\("plan-list", PLAN_LABEL\[tab\], onBack\);/.test(pg) && /<h1 className="op-head-t desk:hidden mb-3">\{PLAN_LABEL\[tab\]\}<\/h1>\s*<div data-large-title data-title=\{PLAN_LABEL\[tab\]\} aria-hidden className="h-0" \/>/.test(pg)
       && /<PlanCrumb tab=\{planTab\} onBack=\{\(\) => setPlanTab\("calendar"\)\} \/>/.test(pg)
       && !/Plan › Route|Plan › Vendors|Plan &rsaquo; Calendar|Plan → Events\)/.test(lc + code(read("components/StopRecord.tsx")) + read("lib/vendorLink.ts") + read("components/AssignTaskSheet.tsx") + pg));
   }
@@ -9594,10 +9594,27 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const header = crew.slice(crew.indexOf("THE HEADER, ONE KIT"), crew.indexOf("{guide && <SectionGuide"));
   ok("pills: the crew header is the kit's — Back, then quick actions, search and the inbox (the switch and the Guide are More's, 2026-10-09), and nothing hand-made beside them",
     !/<Segmented/.test(header) && !/icon="info"/.test(header)
-    && (header.match(/<IconButton icon="(sparkles|search|bell)"/g) || []).length === 3 && /<IconButton icon="chevronLeft" label=\{backWay\.label === "Back" \? "Back"/.test(header)
+    && (header.match(/<IconButton icon="(sparkles|search|bell)"/g) || []).length === 3 && /<BackButton label=\{backWay\.label\} onClick=\{backWay\.go\} \/>/.test(header)
     && !/<button\b/.test(header) && /badge=\{hdrToday\.length\} crit=\{hdrTodayCrit > 0\}/.test(header));
   ok("pills: the lane's sections are the kit's segmented control, the whole row wide",
-    /<Segmented fill className=\{`lane-tabs mb-3\.5\$\{switcher \? " hidden! desk:flex!" : ""\}`\} label=\{lane\.label\} value=\{sec\}/.test(crew));
+    /<Segmented fill className=\{`lane-tabs mb-3\.5\$\{switcher \|\| inView \? " hidden! desk:flex!" : ""\}`\} label=\{lane\.label\} value=\{sec\}/.test(crew));
+  // 2026-10-11, Ryan: "Is the service page service for just the event? … am I managing one event or am I in a menu?"
+  {
+    const ctl2 = read("components/BackButton.tsx");
+    const pd = crew.slice(crew.indexOf("function PrepDetail("), crew.indexOf("function AssignSheet(") > 0 ? crew.indexOf("function AssignSheet(") : undefined);
+    ok("views: a view a section opens inside itself is its own screen on a phone — the crumb trail, the section's title and the lane's switch step aside while it is open; the desk keeps all three",
+      /function OpViewAware\(\{ children \}: \{ children: \(open: boolean\) => React\.ReactNode \}\) \{\s*const \{ crumbs \} = useCrumbs\(\);\s*return <>\{children\(crumbs\.length > 0\)\}<\/>;/.test(crew)
+      && /<OpViewAware>\{\(inView\) => \(\s*<div className=\{`op-head\$\{inView \? " hidden desk:block" : ""\}`\}>/.test(crew)
+      && /<OpViewAware>\{\(inView\) => \(\s*<Segmented fill/.test(crew));
+    ok("views: the way back is named for where it goes — \"‹ Readiness\" — the kit's back button, leading the row (its own file: pages that draw the segmented control don't carry it)",
+      /export function BackButton\(\{ label, onClick \}: \{ label: string; onClick: \(\) => void \}\)/.test(ctl2)
+      && /aria-label=\{label === "Back" \? "Back" : `Back to \$\{label\}`\}/.test(ctl2) && /<span className="truncate">\{label\}<\/span>/.test(ctl2));
+    ok("views: a stop opened from Readiness is titled with its own name, says what it is, and carries its own numbers under its details — the list's tiles stay with the list",
+      /<header className="desk:hidden mb-3">\s*<h1 className="op-head-t">\{name\}<\/h1>/.test(pd) && /\{isEvent \? "Event" : "Truck stop"\}/.test(pd)
+      && /<div className="hidden desk:block">\s*<SectionHeader label=\{name \?\? "…"\} annotation="prep"/.test(pd) && !/k-count">Location</.test(pd)
+      && pd.indexOf("<OwnerDetails ") < pd.indexOf("<PrepKpis target={target} />") && /\{!prepSel && <PrepKpis \/>\}/.test(crew) && !/<PrepKpis target=\{prepSel\}/.test(crew)
+      && /return \{ count: n, label: n === 1 \? "Day to go" : undefined \};/.test(read("components/CrewKpis.tsx")));
+  }
   // ── THE SYSTEM PASS (2026-10-10, the 9→10 round): one list, one card; one chevron ──
   ok("system pass: rows in a run are one grouped list, as iOS draws one — the panel's corner (r-2xl) and its 16px inset, rounded at the ends, a hairline between, and a press that shows",
     /\.owed-row\{display:flex;align-items:center;gap:10px;min-height:44px;padding:9px 16px;\s*border:1px solid var\(--line\);border-radius:var\(--r-2xl\);/.test(css)

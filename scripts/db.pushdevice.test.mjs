@@ -32,6 +32,9 @@ await db.exec(`
   create table auth.users (id uuid primary key);
   insert into auth.users (id) values ('${KAYLA}'), ('${NINO}');
   create role anon; create role authenticated; create role service_role;
+  -- Supabase's own default (2026-10-11, measured in production after 0366): a function made in public can be run
+  -- by anon, authenticated and service_role by name, so a revoke from PUBLIC alone leaves anon its grant.
+  alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
   grant usage on schema auth to anon, authenticated, service_role;
   create or replace function auth.uid() returns uuid language sql stable as $$
     select nullif(coalesce(current_setting('test.uid', true), ''), '')::uuid $$;
@@ -156,7 +159,14 @@ const priv = await q1(`select has_function_privilege('anon', 'public.keep_push_d
   has_function_privilege('authenticated', 'public.keep_push_device(text,text,text,boolean,boolean)', 'execute') as kau,
   has_function_privilege('anon', 'public.release_push_device(text)', 'execute') as ra,
   has_function_privilege('authenticated', 'public.release_push_device(text)', 'execute') as rau`);
-ok("a guest and a signed-in person may keep a device; only someone signed in may release one", priv.ka && priv.kau && !priv.ra && priv.rau, priv);
+ok("a guest and a signed-in person may keep a device, and someone signed in may release one", priv.ka && priv.kau && priv.rau, priv);
+// 0366 revoked release from PUBLIC only, so anon keeps Supabase's default grant (production says so too). It is
+// harmless — the update is the caller's own row, and nobody signed in owns none — and this says so:
+await db.exec(`reset role; insert into public.push_subscriptions (endpoint, p256dh, auth, user_id) values ('https://push.example/held', 'k', 'a', '${KAYLA}')`);
+await as("anon");
+await db.exec(`select public.release_push_device('https://push.example/held')`);
+ok("a guest calling release lets go of nothing (it is a person's own device, and a guest owns none)", (await row("https://push.example/held"))?.user_id === KAYLA, priv);
+await db.exec(`reset role; delete from public.push_subscriptions where endpoint = 'https://push.example/held'`);
 for (const fn of ["keep_push_device", "release_push_device"]) {
   const p = await q1(`select prosecdef as d, coalesce(proconfig::text, '') as c from pg_proc where proname = '${fn}'`);
   ok(`${fn}: runs as its definer with search_path pinned`, p?.d === true && /search_path=public/.test(p?.c), p);

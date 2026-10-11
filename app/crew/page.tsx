@@ -7,6 +7,7 @@ import { useApp } from "@/components/AppProvider";
 import { SectionHeader, InfoRow, Columns, Column } from "@/components/kit";
 import FoldCard from "@/components/crew/FoldCard";
 import { Segmented, IconButton } from "@/components/controls";
+import { BackButton } from "@/components/BackButton";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
 import { SENIORITY, roleLabel, tierOf, toRole, canOf, type Role, type Tier } from "@/lib/roles";
 import { raiseAlertClient } from "@/lib/clientAlerts";
@@ -60,7 +61,7 @@ import SwipeRow, { type RowAction } from "@/components/SwipeRow";
 import LongPress, { useLongPress, RowMenu, type MenuItem } from "@/components/LongPress";
 import { useBack } from "@/components/useBack";
 import { useBackStep } from "@/components/useBackStep";
-import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
+import { CrumbProvider, Breadcrumbs, useCrumb, useCrumbs } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
 import { queueOrderStatus, queueCollectCup, isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
 import { canCollect, canUndo, collectPayment, undoCollection, collectedPatch, undonePatch, isSettled, paidHow, passWord, ledgerWord, VIA_LABEL, type CollectVia } from "@/lib/collect";
@@ -2450,10 +2451,25 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
         }
         return (
     <div className="adm-sec adm-prep">
-      <SectionHeader label={name ?? "…"} annotation="prep" right={<>
-        {isEvent && ev?.is_live && <span className="k-count due">LIVE</span>}
-        {!isEvent && <span className="k-count">Location</span>}
-      </>} />
+      {/* ITS OWN SCREEN (2026-10-11, Ryan: "Is the service page service for just the event? … am I managing one event
+          or am I in a menu?"). Opened from Readiness, a stop was drawn under the console's "Service", the Readiness ·
+          Live Ops · Delivery switch and a crumb trail — a menu's furniture over one event. On a phone (and in the
+          frame) it is a screen pushed over the list, as on an iPhone: its name is the title, "‹ Readiness" is the way
+          back (the console's row, components/useBackStep), and the switch and the trail step aside while it is open
+          (OpViewAware, below). The desk keeps its trail and the section's title over the canvas; this card's heading
+          is the stop's name there. */}
+      <header className="desk:hidden mb-3">
+        <h1 className="op-head-t">{name}</h1>
+        <p className="mt-1.5 flex items-center gap-2 text-footnote text-cream-dim">
+          {isEvent ? "Event" : "Truck stop"}{isEvent && ev?.is_live && <span className="k-count due">LIVE</span>}
+        </p>
+      </header>
+      <div className="hidden desk:block">
+        <SectionHeader label={name ?? "…"} annotation="prep" right={<>
+          {isEvent && ev?.is_live && <span className="k-count due">LIVE</span>}
+          {!isEvent && <span className="k-count">Truck stop</span>}
+        </>} />
+      </div>
       {/* the title bar (components/TitleBar) names this one, not the section, once its name has scrolled away */}
       <div data-large-title data-title={name} aria-hidden className="h-0" />
       {/* Identity / date / place / status — managed right here, so a stop or event is one screen
@@ -2461,6 +2477,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       <div id="prep-target-details">
         <OwnerDetails ownerType={target.kind} ownerId={target.id} isAdmin={isAdmin} onSaved={(nm) => { setName(nm); load(); }} onRemoved={onBack} />
       </div>
+      {/* This one's numbers, under its name and its details — the list's tiles stay with the list (2026-10-11). */}
+      <PrepKpis target={target} />
       {total > 0 ? (
         <>
           <div className={`adm-ready-bar${ready ? " ok" : critOut.length ? " miss" : ""}`}>
@@ -5672,7 +5690,23 @@ const PLAN_LISTS: readonly { tab: PlanTab; icon: IconName }[] = [{ tab: "events"
  *  back to the calendar; and the title bar names the list once its heading scrolls away. */
 function PlanCrumb({ tab, onBack }: { tab: PlanTab; onBack: () => void }) {
   useCrumb("plan-list", PLAN_LABEL[tab], onBack);
-  return <div data-large-title data-title={PLAN_LABEL[tab]} aria-hidden className="h-0" />;
+  // On a phone a list is its own screen, as a stop opened from Readiness is (OpViewAware, 2026-10-11): its name is the
+  // title under "‹ Plan". The desk keeps "Plan › Truck stops" over the section's title.
+  return (
+    <>
+      <h1 className="op-head-t desk:hidden mb-3">{PLAN_LABEL[tab]}</h1>
+      <div data-large-title data-title={PLAN_LABEL[tab]} aria-hidden className="h-0" />
+    </>
+  );
+}
+
+// A VIEW A SECTION OPENED INSIDE ITSELF (a stop's prep, a Plan list) is its own screen on a phone and in the frame
+// (2026-10-11, Ryan: "am I managing one event or am I in a menu?"): while one is open, the console's crumb trail, its
+// title and the lane's switch step aside — the view names itself, and the row's "‹ Readiness" is the way back. The
+// desk keeps all three over its canvas. A view says it is open the way it always has, with a crumb (components/Crumbs).
+function OpViewAware({ children }: { children: (open: boolean) => React.ReactNode }) {
+  const { crumbs } = useCrumbs();
+  return <>{children(crumbs.length > 0)}</>;
 }
 
 export default function AdminPage() {
@@ -5926,7 +5960,9 @@ export default function AdminPage() {
           {/* Back = the previous section within crew mode, shown only when there is one (2026-10-04).
               With no history it used to become "Exit Crew Mode" — a back arrow that flipped the
               device into the customer app — beside the Customer switch that already does that. */}
-          {backWay && <IconButton icon="chevronLeft" label={backWay.label === "Back" ? "Back" : `Back to ${backWay.label}`} onClick={backWay.go} />}
+          {/* NAMED FOR WHERE IT GOES (2026-10-11): "‹ Readiness", as an iPhone's back button says the screen it returns
+              to — a round ‹ said nothing, and the crumb trail that did is a desktop's (it steps aside on a phone). */}
+          {backWay && <BackButton label={backWay.label} onClick={backWay.go} />}
           {/* THREE CONTROLS (2026-10-09, the navigation round — Ryan: "Switch + Guide to More", approved). The
               Crew/Customer switch and the Guide stood here every day for a choice made once a week: they are
               rows in More now (components/OperatorNav, MoreSheet), and the row holds what is used all day. */}
@@ -5949,8 +5985,10 @@ export default function AdminPage() {
           <AlertsInbox userId={user?.id ?? null} title="Flags & pings for you" onNavigate={() => setInboxOpen(false)} />
         </Sheet>
       )}
-      <div className="op-head">
-        {/* Breadcrumb trail — only appears once a deep view registers a crumb (e.g. Prep › event). */}
+      <OpViewAware>{(inView) => (
+      <div className={`op-head${inView ? " hidden desk:block" : ""}`}>
+        {/* Breadcrumb trail — only appears once a deep view registers a crumb (e.g. Prep › event). The desk's: on a
+            phone the view is its own screen and the row's back says where it goes (OpViewAware). */}
         <Breadcrumbs root={SEC_LABEL[sec]} />
         <div className="op-head-row">
           {/* 2026-07-29 a11y: real per-section h1 (was a div) — AppShell's route-level sr-only h1
@@ -5981,6 +6019,7 @@ export default function AdminPage() {
               still carries each section's "when" (SEC_WHEN); the title no longer pretends to. */}
         </div>
       </div>
+      )}</OpViewAware>
 
       {/* Secondary toggle — the ACTIVE LANE's sections (a section can live in two lanes — prep is
           Service's and Events' — so the tapped tab, tracked as groupId, wins the ambiguity). */}
@@ -5989,9 +6028,11 @@ export default function AdminPage() {
           equally and scrolls when a lane's names will not fit (the larger text sizes). */}
       {/* Past three (the switch, above), the row is the desk's alone. */}
       {lane.members.length >= 2 && (
-        <Segmented fill className={`lane-tabs mb-3.5${switcher ? " hidden! desk:flex!" : ""}`} label={lane.label} value={sec}
-          options={lane.members.map((m: OpSection) => ({ key: m, label: SECTION_LABEL[m] }))} onChange={(m) => inLane(m)}
-          onReselect={(m) => { if (m === "plan" && planOver) setPlanTab("calendar"); }} />
+        <OpViewAware>{(inView) => (
+          <Segmented fill className={`lane-tabs mb-3.5${switcher || inView ? " hidden! desk:flex!" : ""}`} label={lane.label} value={sec}
+            options={lane.members.map((m: OpSection) => ({ key: m, label: SECTION_LABEL[m] }))} onChange={(m) => inLane(m)}
+            onReselect={(m) => { if (m === "plan" && planOver) setPlanTab("calendar"); }} />
+        )}</OpViewAware>
       )}
       {/* The switch's sheet: the lane's sections by the row's names, the one you are in checked. Picking it again
           does what tapping its segment again does (Plan, over a list: back to the calendar). */}
@@ -6117,12 +6158,11 @@ export default function AdminPage() {
 
       {sec === "prep" && canPrep && (
         <>
-          {/* Money template: glance-first KPIs → crew-group dividers → the modules. The strip
-              re-scopes itself to whichever event/stop is drilled into below (Ryan, 2026-07-30:
-              "when a event or truck stop is clicked into the above dashboard should [be]
-              dynamic"), and the global all-prep board bows out while a single target has the
-              floor — its numbers would contradict the scoped tiles right above it. */}
-          <PrepKpis target={prepSel} />
+          {/* Money template: glance-first KPIs → crew-group dividers → the modules. Drilled into one event or stop, its
+              own tiles go with it (Ryan, 2026-07-30: "when a event or truck stop is clicked into the above dashboard
+              should [be] dynamic") — under its name, on its own screen since 2026-10-11 (PrepDetail) — and the global
+              all-prep board bows out while a single target has the floor. */}
+          {!prepSel && <PrepKpis />}
           {/* THE CARDS FIRST (2026-10-10, the crew round). Readiness is opened to ask "are we ready for the next one?",
               and each stop's card answers it — the cards are the glance. The board of every open task sat above them,
               so on a phone the next event was below the whole board. On the desk: the cards on the left, the board on

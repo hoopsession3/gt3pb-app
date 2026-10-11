@@ -188,7 +188,8 @@ export function PrepKpis({ target }: { target?: { kind: "event" | "stop"; id: st
             : (((await db.from("stops").select("starts_at").eq("id", target.id).maybeSingle()).data as { starts_at: string | null } | null)?.starts_at ?? null)?.slice(0, 10);
           if (!iso) return { count: null };
           const today = new Date(); today.setHours(0, 0, 0, 0);
-          return { count: Math.max(0, Math.round((new Date(`${iso}T00:00:00`).getTime() - today.getTime()) / 86400000)) };
+          const n = Math.max(0, Math.round((new Date(`${iso}T00:00:00`).getTime() - today.getTime()) / 86400000));
+          return { count: n, label: n === 1 ? "Day to go" : undefined };   // "1 Days to go" (2026-10-11, Ryan's screenshot)
         },
         to: { anchor: "prep-target-details" },
       },
