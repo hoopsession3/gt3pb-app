@@ -65,9 +65,11 @@ const MIGRATIONS = join(ROOT, "supabase/migrations");
 // live_status, site_copy, stops — and 2 policies let a guest insert, exempted below. The directory
 // is not the database; the snapshot is.)
 export const CEILING = {
-  publicRead: null,    // tables with a world-readable SELECT policy
-  definerExec: null,   // SECURITY DEFINER functions the API roles may call
-  definerView: null,   // owner-run views the API roles may read
+  // First measured 2026-10-11 (snapshot pulled at ledger 0380). Only ever lower these, in the commit whose snapshot
+  // shows fewer; raising one means naming the new member in that commit's message.
+  publicRead: 3,       // tables with a world-readable SELECT policy: live_status, site_copy, stops — the truck's public face
+  definerExec: 162,    // SECURITY DEFINER functions the API roles may call (39 of them triggers, which no one can call)
+  definerView: 1,      // owner-run views the API roles may read: market_live
 };
 
 // ── EXEMPTIONS — in the open, each with its reason; "table" for rls-off, "table.policy" for open-write.
