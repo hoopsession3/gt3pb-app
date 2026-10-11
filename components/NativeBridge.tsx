@@ -303,11 +303,19 @@ export default function NativeBridge() {
         let u: URL;
         try { u = new URL(url); } catch { return; }
         if (u.origin !== WEB_ORIGIN) return;
-        if (/access_token=|refresh_token=|[?&]code=|type=recovery|type=signup|type=magiclink/.test(u.hash + u.search)) { void signInWithUrl(url); return; }
+        // A PASSWORD RESET IS THE RESET'S SCREEN, NOT A SIGN-IN (2026-10-11, the review). The page opens again with the
+        // link's tokens in its address, so the auth client says PASSWORD_RECOVERY and "set a new password" comes up, as
+        // in a browser — a session set from here (signInWithUrl) said only "signed in", and the reset was skipped.
+        if (/type=recovery/.test(u.hash + u.search)) { window.location.replace(`/${u.hash}`); return; }
+        // A sign-in link's tokens ride in the address's hash (the client's implicit flow). A ?code= on a GT3 page is that
+        // page's own (/reserve?code=…): it was read as a sign-in and opened nothing.
+        if (/access_token=|refresh_token=|type=signup|type=magiclink/.test(u.hash + u.search)) { void signInWithUrl(url); return; }
         const lesson = /^\/primal\/l\/([^/]+)\/?$/.exec(u.pathname);
         if (lesson) { router.push(lessonHref(decodeURIComponent(lesson[1]))); return; }
         if (WEB_ONLY.some((p) => u.pathname.startsWith(p))) { void Browser.open({ url: u.href }); return; }
-        router.push(`${u.pathname}${u.search}`);
+        // The console's old address (/admin, in alerts' links and their emails) is read as its new one, as a tapped
+        // alert's is (lib/nativePush alertTarget): the app holds no /admin, and its router showed the home screen.
+        router.push(alertTarget(`${u.pathname}${u.search}${u.hash}`) ?? "/");
       });
       undo.push(() => { void opened.remove(); });
 

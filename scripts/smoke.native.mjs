@@ -838,6 +838,27 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     ok("a GT3 link: a lesson opens on the app's own lesson page", toLesson.at === "/primal/lesson?slug=hydration-basics", JSON.stringify(toLesson));
     const toPartner = await openedBy(`${API_ORIGIN}/built/gt3-built-k7m9x4q2`);
     ok("a GT3 link: a page only the web serves opens from the web, in the in-app browser", toPartner.browser.length === 1 && toPartner.browser[0] === `${API_ORIGIN}/built/gt3-built-k7m9x4q2` && toPartner.at === toLesson.at, JSON.stringify(toPartner));
+    // The review (2026-10-11): the links alerts and their emails carry (/admin…) landed on the home screen; a page's own
+    // ?code= was read as a sign-in and opened nothing; a password reset signed in and skipped the reset.
+    const toConsole = await openedBy(`${API_ORIGIN}/admin?s=money`);
+    ok("a GT3 link: the console's old address opens its new one, as a tapped alert's does", toConsole.at === "/crew?s=money", JSON.stringify(toConsole));
+    await page.goto(`${BASE}/menu`, { waitUntil: "load" }); await settle();
+    const toReserve = await openedBy(`${API_ORIGIN}/reserve?code=GT3PB-3MP`);
+    ok("a GT3 link: a page's own ?code= opens the page — it is not a sign-in", toReserve.at === "/reserve?code=GT3PB-3MP" && toReserve.browser.length === 0, JSON.stringify(toReserve));
+    // The page is opened again at the front door with the link's tokens in its address — the auth client reads them
+    // there and raises its reset screen. (These tokens are made up, so the stand-in signs nobody in, and a signed-out
+    // app's front door moves on to the menu: what is checked is the page the link opened.)
+    await page.goto(`${BASE}/menu`, { waitUntil: "load" }); await settle();
+    const navs = [];
+    const onNav = (f) => { if (f === page.mainFrame()) navs.push(f.url()); };
+    page.on("framenavigated", onNav);
+    await openedBy(`${API_ORIGIN}/#access_token=smoke-not-a-token&refresh_token=smoke-not-either&type=recovery`).catch(() => null);
+    await page.waitForLoadState("load").catch(() => {});
+    page.off("framenavigated", onNav);
+    const reset = navs.map((u) => new URL(u)).find((u) => u.pathname === "/" && /type=recovery/.test(u.hash));
+    ok("a GT3 link: a password reset opens the app's front door with its tokens in the address — the auth client's reset screen, not a plain sign-in",
+      !!reset, JSON.stringify(navs));
+    await page.goto(`${BASE}/menu`, { waitUntil: "load" }); await settle();
 
     // the status bar follows a move between screens: charcoal Find Us, then the cream menu, and back
     await page.goto(`${BASE}/truck`, { waitUntil: "load" }); await settle(); await page.waitForTimeout(450);

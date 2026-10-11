@@ -226,7 +226,13 @@ if (pbx !== before) stage(PBX, pbx, "App.xcodeproj/project.pbxproj");
 
 // ── 7 · the app's entitlements: Sign in with Apple, and alerts (APNs, the production service — TestFlight and the
 // App Store both use it; the App ID carries Push Notifications for the export to sign it) ─────────────────────────
-put("App.entitlements", plist.build({ "aps-environment": "production", "com.apple.developer.applesignin": ["Default"] }) + "\n");
+// Universal links and password AutoFill (2026-10-11): app.gt3pb.com's links open the app, and a password saved for
+// the site is offered in the app — the site says which addresses (app/.well-known/apple-app-site-association).
+put("App.entitlements", plist.build({
+  "aps-environment": "production",
+  "com.apple.developer.applesignin": ["Default"],
+  "com.apple.developer.associated-domains": ["applinks:app.gt3pb.com", "webcredentials:app.gt3pb.com"],
+}) + "\n");
 
 // ── 5 · the shared scheme ───────────────────────────────────────────────────────────────────────
 const target = /\t\t([0-9A-F]{24}) \/\* App \*\/ = \{\n\t\t\tisa = PBXNativeTarget;/.exec(pbx)?.[1];

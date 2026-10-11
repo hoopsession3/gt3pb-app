@@ -41,7 +41,7 @@ const OUT = join(ROOT, "out");
 // What never goes into the copy: version control, dependencies, other builds, the native projects.
 const SKIP_TOP = new Set([".git", "node_modules", ".next", "out", ".app-build", "ios", "android", ".smoke", "coverage", "package-lock.json"]);
 // What the export cannot have (above). Paths relative to the project.
-const LEAVE_OUT = ["app/api", "proxy.ts", "app/manifest.ts", "app/built", "app/c", join("app", "primal", "l")];
+const LEAVE_OUT = ["app/api", "proxy.ts", "app/manifest.ts", "app/built", "app/c", join("app", "primal", "l"), "app/.well-known"];
 // The pages among them, as the addresses a link would use (/built/…, /c/…, /primal/l/…). The app is
 // told them (NEXT_PUBLIC_GT3_WEB_ONLY), so a link to one opens the web's page in the in-app browser
 // instead of landing on the app's home screen (components/NativeBridge). From this one list, so a page

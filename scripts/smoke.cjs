@@ -9534,6 +9534,27 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /return NextResponse\.json\(\{ ok: true, appleManual \}\);/.test(er) && /if \(j\.appleManual\) \{ haptic\("success"\); setPhase\(\{ at: "apple" \}\); return; \}/.test(code(read("components/DeleteAccount.tsx")))
       && /aud: APPLE, sub: APPLE_CLIENT_ID/.test(asi) && /token_type_hint: "refresh_token"/.test(asi));
   }
+  // ── UNIVERSAL LINKS (2026-10-11): app.gt3pb.com's links open the app; a password saved for the site is offered in it ──
+  {
+    const aasa = read("app/.well-known/apple-app-site-association/route.ts");
+    ok("links: the site tells iOS which addresses open the app — all but the server's, the web-only pages, this folder and the TV — and lets its saved passwords into the app",
+      /const APP_ID = "7SC4HB6V2J\.com\.gt3pb\.app";/.test(aasa) && ['"/api/*", exclude: true', '"/built/*", exclude: true', '"/c/*", exclude: true', '"/.well-known/*", exclude: true', '"/display", exclude: true'].every((x) => aasa.includes(`{ "/": ${x}`))
+      && aasa.indexOf('{ "/": "*" }') > aasa.indexOf('"/display", exclude: true') && /webcredentials: \{ apps: \[APP_ID\] \}/.test(aasa)
+      && /^\/\/ public: /m.test(aasa) && /export const GET = route\("well-known\/apple-app-site-association", get\);/.test(aasa) && !/export const (POST|PUT|PATCH|DELETE)/.test(aasa));
+    ok("links: the app names the domain (applinks and webcredentials), its build leaves the file out, and the export stops if the entitlement is lost",
+      /"com\.apple\.developer\.associated-domains": \["applinks:app\.gt3pb\.com", "webcredentials:app\.gt3pb\.com"\]/.test(read("scripts/ios.configure.mjs"))
+      && /<string>applinks:app\.gt3pb\.com<\/string>\s*<string>webcredentials:app\.gt3pb\.com<\/string>/.test(read("ios/App/App/App.entitlements"))
+      && /"app\/\.well-known"\];/.test(read("scripts/build.app.mjs")) && /grep -q "com\.apple\.developer\.associated-domains" entitlements\.txt/.test(read(".github/workflows/ios.yml")));
+    // The review (2026-10-11), before any of it shipped.
+    const nbl = code(read("components/NativeBridge.tsx"));
+    ok("links: a password reset stays in the browser it was asked from — and in the app, opens the reset's own screen, never a plain sign-in",
+      aasa.indexOf('"#": "*type=recovery*", exclude: true') > 0 && aasa.indexOf('"#": "*type=recovery*", exclude: true') < aasa.indexOf('{ "/": "*" }')
+      && /if \(\/type=recovery\/\.test\(u\.hash \+ u\.search\)\) \{ window\.location\.replace\(`\/\$\{u\.hash\}`\); return; \}/.test(nbl)
+      && nbl.indexOf("type=recovery/.test(u.hash") < nbl.indexOf("void signInWithUrl(url)"));
+    ok("links: a page's own ?code= opens the page, and the console's old address opens the new one — the app holds no /admin",
+      /if \(\/access_token=\|refresh_token=\|type=signup\|type=magiclink\/\.test\(u\.hash \+ u\.search\)\) \{ void signInWithUrl\(url\); return; \}/.test(nbl)
+      && !/\[\?&\]code=/.test(nbl) && /router\.push\(alertTarget\(`\$\{u\.pathname\}\$\{u\.search\}\$\{u\.hash\}`\) \?\? "\/"\);/.test(nbl));
+  }
   // ── ALERTS IN THE IPHONE APP (2026-10-11): APNs, dark until the web says it can ring ──
   {
     const NP = require("../.smoke/nativePush.js"), CS2 = require("../.smoke/crewStart.js");
