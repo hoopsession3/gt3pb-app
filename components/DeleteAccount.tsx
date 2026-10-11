@@ -24,7 +24,8 @@ type Phase =
   | { at: "blocked"; blockers: Blocker[] }
   | { at: "ready"; membership: boolean }
   | { at: "deleting"; membership: boolean }
-  | { at: "failed"; message: string };
+  | { at: "failed"; message: string }
+  | { at: "apple" };   // deleted — and Apple could not be told, so the person ends Sign in with Apple themselves
 
 const OFFLINE = "You're offline. Connect, then try again.";
 
@@ -64,6 +65,9 @@ export default function DeleteAccount({ staff, onKeep, onDeleted }: {
       if (!r.ok) { haptic("error"); setPhase({ at: "failed", message: j.error || "We couldn't delete your account just now. Nothing was deleted — try again in a minute." }); return; }
       // The account is gone on the server, and its sessions with it: forget this device's copy too.
       await supabase?.auth.signOut({ scope: "local" }).catch(() => undefined);
+      // Signed in with Apple, and Apple's tokens could not be revoked from here (app/api/account/erase): the one
+      // step left is theirs, in the iPhone's Settings (Apple's TN3194; support.apple.com/102571).
+      if (j.appleManual) { haptic("success"); setPhase({ at: "apple" }); return; }
       onDeleted();
     } catch {
       haptic("error");
@@ -82,6 +86,21 @@ export default function DeleteAccount({ staff, onKeep, onDeleted }: {
         {phase.blockers.map((b) => <p key={b.code} className="dp-hint">{b.message}</p>)}
         <div className="prod-actions cfm-actions">
           <button type="button" className="btn-pri" onClick={onKeep}>Back to your account</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase.at === "apple") {
+    return (
+      <div>
+        <p className="cfm-body" role="status">Your account is deleted.</p>
+        <p className="dp-hint">
+          One last step, because you signed in with Apple: on your iPhone, open Settings, tap your name, then Sign in
+          with Apple. Choose GT3 Performance Bar and tap Delete.
+        </p>
+        <div className="prod-actions cfm-actions">
+          <button type="button" className="btn-pri" onClick={onDeleted}>Done</button>
         </div>
       </div>
     );

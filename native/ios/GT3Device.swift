@@ -3,6 +3,8 @@ import Capacitor
 import EventKit
 import EventKitUI
 import PassKit
+import AuthenticationServices
+import CryptoKit
 
 /// WHAT THE PHONE DOES FOR A PAGE (2026-10-06, the iPhone round, part 3).
 ///
@@ -23,6 +25,14 @@ import PassKit
 ///                 the person picks. From iOS 17 it needs no calendar permission at all (the sheet runs
 ///                 outside the app); on iOS 15 and 16 the phone asks once (NSCalendarsUsageDescription).
 ///   · addPass   — Wallet's own Add sheet, for a membership pass.
+///   · signInWithApple      — Apple's own sheet (Face ID, the Apple ID, Hide My Email). The page hands over a fresh
+///                            nonce it keeps; Apple is asked with its SHA-256 and signs that into the identity token,
+///                            and Supabase hashes the page's nonce to check it (AuthProvider signInWithApple). Answers the
+///                            identity token, the one-time authorization code (app/api/auth/apple trades it for the
+///                            token deleting the account revokes), the Apple user, and the name and email — which
+///                            Apple tells only the first time this Apple ID signs in to GT3.
+///   · appleCredentialState — whether that Apple ID still lets GT3 in: someone who stops using Sign in with Apple
+///                            for GT3 in Settings is signed out of the app (Apple's TN3194).
 @objc(GT3DevicePlugin)
 public class GT3DevicePlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "GT3DevicePlugin"
@@ -31,12 +41,16 @@ public class GT3DevicePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "keepFile", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "printPage", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "addEvent", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "addPass", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "addPass", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "signInWithApple", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "appleCredentialState", returnType: CAPPluginReturnPromise)
     ]
 
     private lazy var store = EKEventStore()
     private var eventCall: CAPPluginCall?
     private var passCall: CAPPluginCall?
+    private var appleCall: CAPPluginCall?
+    private var appleSheet: ASAuthorizationController?
     private var swept = false
 
     // MARK: - a file for the share sheet
@@ -209,6 +223,46 @@ public class GT3DevicePlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    // MARK: - Sign in with Apple
+
+    @objc func signInWithApple(_ call: CAPPluginCall) {
+        guard let nonce = call.getString("nonce"), !nonce.isEmpty else {
+            call.reject("Sign in with Apple needs a nonce")
+            return
+        }
+        DispatchQueue.main.async {
+            if self.appleCall != nil {
+                call.reject("Sign in with Apple is already open")
+                return
+            }
+            let request = ASAuthorizationAppleIDProvider().createRequest()
+            request.requestedScopes = [.fullName, .email]
+            request.nonce = SHA256.hash(data: Data(nonce.utf8)).map { String(format: "%02x", $0) }.joined()
+            let sheet = ASAuthorizationController(authorizationRequests: [request])
+            sheet.delegate = self
+            sheet.presentationContextProvider = self
+            self.appleCall = call
+            self.appleSheet = sheet
+            sheet.performRequests()
+        }
+    }
+
+    @objc func appleCredentialState(_ call: CAPPluginCall) {
+        guard let user = call.getString("user"), !user.isEmpty else {
+            call.reject("Which Apple user?")
+            return
+        }
+        ASAuthorizationAppleIDProvider().getCredentialState(forUserID: user) { state, _ in
+            switch state {
+            case .authorized: call.resolve(["state": "authorized"])
+            case .revoked: call.resolve(["state": "revoked"])
+            case .notFound: call.resolve(["state": "notFound"])
+            case .transferred: call.resolve(["state": "transferred"])
+            @unknown default: call.resolve(["state": "unknown"])
+            }
+        }
+    }
+
     // MARK: -
 
     /// The screen on top: a sheet the app is already showing, or the app itself.
@@ -234,5 +288,42 @@ extension GT3DevicePlugin: PKAddPassesViewControllerDelegate {
         controller.dismiss(animated: true)
         passCall?.resolve()
         passCall = nil
+    }
+}
+
+extension GT3DevicePlugin: ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    public func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        return bridge?.viewController?.view.window ?? bridge?.webView?.window ?? ASPresentationAnchor()
+    }
+
+    public func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        guard let call = appleCall else { return }
+        appleCall = nil
+        appleSheet = nil
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let tokenData = credential.identityToken,
+              let token = String(data: tokenData, encoding: .utf8) else {
+            call.reject("Apple didn't send a sign-in")
+            return
+        }
+        var answer: [String: Any] = ["identityToken": token, "user": credential.user]
+        if let codeData = credential.authorizationCode, let code = String(data: codeData, encoding: .utf8) {
+            answer["authorizationCode"] = code
+        }
+        if let given = credential.fullName?.givenName, !given.isEmpty { answer["givenName"] = given }
+        if let family = credential.fullName?.familyName, !family.isEmpty { answer["familyName"] = family }
+        if let email = credential.email, !email.isEmpty { answer["email"] = email }
+        call.resolve(answer)
+    }
+
+    public func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        guard let call = appleCall else { return }
+        appleCall = nil
+        appleSheet = nil
+        if let failure = error as? ASAuthorizationError, failure.code == .canceled {
+            call.reject("Sign in with Apple was canceled", "CANCELED")
+            return
+        }
+        call.reject("Sign in with Apple didn't finish", nil, error)
     }
 }

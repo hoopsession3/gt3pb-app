@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { trackFunnel } from "@/lib/funnel";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import Mpire from "./Mpire";
 import { useAuth } from "./AuthProvider";
-import { isNativeApp } from "@/lib/native";
+import { APP_BUILD, isNativeApp } from "@/lib/native";
 import { nextOnEnter } from "@/lib/formKeys";
 import { rememberReturn } from "@/lib/returnTo";
 
@@ -21,6 +22,14 @@ type Intent = "join" | "signin";
 // CODE_LEN mirrors Supabase → Authentication → Email → "Email OTP length" (8 on this project). At that many
 // digits the code sends itself; 6 to 10 digits can always be sent by the button, so a changed setting slows
 // nobody down. The copy never names the count, so it cannot go stale.
+const noSubscription = () => () => {};   // whether this is the app never changes while a page is open
+// Sign in with Apple's button is the app's alone (components/AppleSignIn). In the app's build the load starts as this
+// module is read — before the form asks for the button — so it is drawn with the form; the web's build has none of it,
+// not even the import (lib/native APP_BUILD: a build-time constant, so the branch is dropped from the web's bundles).
+const loadApple = () => import("./AppleSignIn");
+const AppleSignIn = APP_BUILD ? dynamic(loadApple, { ssr: false }) : () => null;
+if (APP_BUILD && isNativeApp()) void loadApple();
+
 const CODE_LEN = 8;
 const MIN_CODE = 6;
 
@@ -44,9 +53,10 @@ export type SignInContext = { title: ReactNode; sub: ReactNode };
 
 export default function SignIn({ context }: { context?: SignInContext } = {}) {
   const { sendCode, verifyCode, signInWithPassword, signUp, resetPassword } = useAuth();
-  // In the iPhone app the emailed link can only open Safari, so the app never mentions it. Read once, like
-  // NativeBridge's; nothing drawn before the email is sent depends on it, so it cannot split a hydration.
-  const [inApp] = useState(() => isNativeApp());
+  // In the iPhone app the emailed link can only open Safari, so the app never mentions it, and the form offers Sign in
+  // with Apple. The page is drawn ahead of time with no phone (false); the app's first paint keeps that, then draws
+  // what the phone has — read as React reads an outside value, so the two never split a hydration (React #418).
+  const inApp = useSyncExternalStore(noSubscription, isNativeApp, () => false);
 
   // The first question is WHO you are (new vs returning) — the auth method comes second.
   const [intent, setIntent] = useState<Intent>(context ? "signin" : "join");
@@ -235,6 +245,10 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
               ? <>Free to join — points on every pour, first taste of reserves, order-ahead perks.</>
               : <>Good to see you.</>}
           </p>
+
+          {/* SIGN IN WITH APPLE (2026-10-11): in the iPhone app, first — Apple's sheet, then signed in where you are, no
+              email to wait for (components/AppleSignIn says why it looks like Apple's and not like the kit). */}
+          {inApp && <AppleSignIn onError={setErr} />}
 
           {mode === "passwordless" && (
             <form className="auth-form" onSubmit={handleSendCode}>

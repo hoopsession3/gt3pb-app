@@ -4,6 +4,7 @@ import { userFromRequest } from "@/lib/apiAuth";
 import { SQUARE_BASE, squareHeaders } from "@/lib/squareServer";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { route } from "@/lib/apiRoute";
+import { revoke, siwaConfigured } from "@/lib/appleSignIn";
 
 // DELETE MY ACCOUNT — the route behind "Delete account" in the account menu, on the web and in the
 // iPhone app (App Store Review Guideline 5.1.1(v): an app that lets people make an account must let
@@ -22,7 +23,10 @@ import { route } from "@/lib/apiRoute";
 //   2. cancel a membership at Square, so no charge outlives the account — if Square cannot confirm
 //      it, stop there: nothing is deleted;
 //   3. remove their photos from storage — their avatar and their VIP proof, both in public buckets;
-//   4. delete the account;
+//   4. delete the account — and first, if they signed in with Apple, revoke what Sign in with Apple
+//      gave GT3 (Apple's TN3194; lib/appleSignIn). Best effort: the deletion is owed either way, and
+//      without a token to revoke the answer says so (appleManual), and the sheet says how to stop
+//      using the Apple ID with GT3 from the iPhone's Settings;
 //   5. delete their Square customer profile, which holds their saved card. Best effort: the account
 //      is already gone, so a failure here raises an alert for the crew to finish it by hand.
 
@@ -105,6 +109,16 @@ async function post(req: Request) {
     }
   }
 
+  // 4 · Sign in with Apple, revoked at Apple — read before the account goes, and the token row with it (0363)
+  let appleManual = false;
+  const { data: found } = await supabaseAdmin.auth.admin.getUserById(user.id);
+  if (found.user?.identities?.some((i) => i.provider === "apple")) {
+    // arrives-with: 0363 — until it is applied the read is an error, not a row: no token, so the sheet shows the Settings step
+    const { data: held } = await supabaseAdmin.from("apple_tokens").select("refresh_token").eq("user_id", user.id).maybeSingle();
+    const token = (held?.refresh_token as string | undefined) || "";
+    appleManual = !(token && siwaConfigured() && (await revoke(token).catch(() => false)));
+  }
+
   // 4 · the account — and with it, by 0353's trigger, their data
   const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(user.id);
   if (delErr) {
@@ -131,7 +145,7 @@ async function post(req: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, appleManual });
 }
 
 export const GET = route("account/erase", get);

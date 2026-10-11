@@ -6064,7 +6064,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /if \(token\.length < MIN_CODE \|\| busy\) return;/.test(si) && /disabled=\{otp\.length < MIN_CODE \|\| busy\}/.test(si));
   ok("sign-in: the code is asked before the link is mentioned, the iPhone app never mentions the link (it opens Safari), and the paste-your-URL box is gone",
     si.indexOf('id="auth-code"') > 0 && si.indexOf('id="auth-code"') < si.indexOf("Or tap the link in the email")
-    && /\{!inApp && " Or tap the link in the email\."\}/.test(si) && /const \[inApp\] = useState\(\(\) => isNativeApp\(\)\);/.test(si)
+    && /\{!inApp && " Or tap the link in the email\."\}/.test(si) && /const inApp = useSyncExternalStore\(noSubscription, isNativeApp, \(\) => false\);/.test(si)
     && !/pastedUrl|signInWithUrl|Paste your sign-in URL|isIPhoneLike/.test(si) && /void signInWithUrl\(url\)/.test(read("components/NativeBridge.tsx")));
   ok("sign-in: one code screen for three emails — the sign-in, a new password account's confirmation (finished here, not \"tap the link, then come back and sign in\"), and the password reset",
     /const cs = step === "form" \? null : CODE_SCREEN\[step\];/.test(si) && /\{cs && \(/.test(si)
@@ -9365,7 +9365,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // ── the app's half: NativeBridge, the one file that speaks to Capacitor ──
   ok("device: NativeBridge gives lib/deviceActions the phone's sheets — GT3Device and the share sheet — and takes them back when it goes",
     /import\("@capacitor\/share"\)/.test(nb) && /const device = registerPlugin<GT3DevicePlugin>\("GT3Device"\);/.test(nb)
-    && ["keepFile", "printPage", "addEvent", "addPass"].every((m) => nb.includes(`${m}: (o) => device.${m}(o),`)) && /share: \(o\) => Share\.share\(o\),/.test(nb)
+    && ["keepFile", "printPage", "addEvent", "addPass", "signInWithApple", "appleCredentialState"].every((m) => nb.includes(`${m}: (o) => device.${m}(o),`)) && /share: \(o\) => Share\.share\(o\),/.test(nb)
     && /undo\.push\(\(\) => setNativeDevice\(null\)\);/.test(nb) && !/@capacitor/.test(da));
   const dl = nb.indexOf('if (a.hasAttribute("download")) {'), pd = nb.indexOf("e.preventDefault();", dl), sf = nb.indexOf('void saveFromUrl(a.href, a.getAttribute("download") || undefined);', dl);
   ok("device: in the app a link that saves a file (<a download>, a post's photo) hands an https file to the share sheet instead of going nowhere",
@@ -9377,9 +9377,50 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const contract = /export type GT3DevicePlugin = \{([\s\S]*?)\n\};/.exec(da)?.[1] ?? "";
   const tsMethods = [...contract.matchAll(/^\s*(\w+)\(/gm)].map((m) => m[1]).sort();
   ok("device: the page and the phone agree on GT3Device — the same methods in lib/deviceActions and native/ios/GT3Device.swift, under the name the page asks for, registered by the app's view controller",
-    swiftMethods.length === 4 && JSON.stringify(swiftMethods) === JSON.stringify(tsMethods) && /public let jsName = "GT3Device"/.test(swift)
+    swiftMethods.length === 6 && JSON.stringify(swiftMethods) === JSON.stringify(tsMethods) && /public let jsName = "GT3Device"/.test(swift)
     && /override func capacitorDidLoad\(\) \{\s*bridge\?\.registerPluginInstance\(GT3DevicePlugin\(\)\)/.test(read("ios/App/App/GT3ViewController.swift"))
     && read("ios/App/App/GT3Device.swift") === swift, { swift: swiftMethods, ts: tsMethods });
+  // ── SIGN IN WITH APPLE (2026-10-11, Ryan: "you have permission to do anything") ──
+  {
+    const au = code(read("components/AuthProvider.tsx")), aa = code(read("lib/appleAuth.ts")), si = code(read("components/SignIn.tsx")), cfg = read("scripts/ios.configure.mjs");
+    const nbx = code(read("components/NativeBridge.tsx"));
+    const ent = read("ios/App/App/App.entitlements"), pbx = read("ios/App/App.xcodeproj/project.pbxproj"), wf = read(".github/workflows/ios.yml");
+    const asi = read("lib/appleSignIn.ts"), ar = read("app/api/auth/apple/route.ts"), er = read("app/api/account/erase/route.ts"), mig = read("supabase/migrations/0363_sign_in_with_apple_tokens.sql");
+    ok("apple: the phone asks Apple with the SHA-256 of the page's nonce, for the name and email, and a closed sheet is an answer, not a failure",
+      /request\.requestedScopes = \[\.fullName, \.email\]/.test(swift) && /request\.nonce = SHA256\.hash\(data: Data\(nonce\.utf8\)\)\.map \{ String\(format: "%02x", \$0\) \}\.joined\(\)/.test(swift)
+      && /failure\.code == \.canceled \{\s*call\.reject\("Sign in with Apple was canceled", "CANCELED"\)/.test(swift) && /answer\["authorizationCode"\] = code/.test(swift));
+    ok("apple: the app signs with Sign in with Apple — the entitlement is written by ios.configure, named by both builds, and signed into the archive before the export, which stops without it",
+      /"com\.apple\.developer\.applesignin": \["Default"\]/.test(cfg) && /<key>com\.apple\.developer\.applesignin<\/key>\s*<array>\s*<string>Default<\/string>/.test(ent)
+      && (pbx.match(/CODE_SIGN_ENTITLEMENTS = App\/App\.entitlements;/g) || []).length === 2
+      && /codesign --force --sign - --timestamp=none --entitlements ios\/App\/App\/App\.entitlements "\$APP"/.test(wf) && /grep -q "com\.apple\.developer\.applesignin" entitlements\.txt/.test(wf)
+      && wf.indexOf("Give the archive its entitlements") > wf.indexOf("Archive the Release build") && wf.indexOf("Give the archive its entitlements") < wf.indexOf("Upload to App Store Connect"));
+    ok("apple: a fresh nonce each try, Supabase checks the token against it, and the name Apple gives once replaces only the name made from the email",
+      /const bytes = crypto\.getRandomValues\(new Uint8Array\(32\)\);/.test(aa) && /await supabase\.auth\.signInWithIdToken\(\{ provider: "apple", token: credential\.identityToken, nonce \}\)/.test(aa)
+      && /if \(!current \|\| current === madeUp\) \{/.test(aa) && /fetch\(apiUrl\("\/api\/auth\/apple"\)/.test(aa)
+      && /import \{ appleSignInFlow \} from "@\/lib\/appleAuth";/.test(read("components/AppleSignIn.tsx")) && /await appleSignInFlow\(supabase, refreshProfile\);/.test(read("components/AppleSignIn.tsx"))
+      && !/apple/i.test(au) && !/from "@\/lib\/deviceActions"/.test(au) && /const refreshProfile = useCallback\(async \(uid\?: string\) => \{\s*const id = uid \?\? user\?\.id;/.test(au));
+    ok("apple: stopping Sign in with Apple for GT3 in Settings signs the app out — asked when the app opens and comes back, only on Apple's own \"revoked\"",
+/void appleCredentialState\(appleUser\)\.then\(\(state\) => \{ if \(live && state === "revoked"\) void signOut\(\); \}\);/.test(nbx)
+      && /if \(!appleUser \|\| !deviceReady\) return;/.test(nbx) && /undo\.push\(\(\) => setNativeDevice\(null\)\);\s*setDeviceReady\(true\);/.test(nbx)
+      && /const device = nativeDevice\(\);/.test(aa) && !/signInWithApple\(\{ nonce \}\)/.test(read("lib/deviceActions.ts")) && /document\.addEventListener\("visibilitychange", ask\);/.test(nbx));
+    const btn = code(read("components/AppleSignIn.tsx"));
+    ok("apple: the button is the iPhone app's alone, first on the form, white in the system font with the system's Apple glyph, busy on its own",
+      /<div className="auth-form mt-5">\s*<button type="button" onClick=\{go\} disabled=\{busy\}\s*className="[^"]*bg-white text-black[^"]*\[font-family:-apple-system,system-ui,sans-serif\]/.test(btn)
+      && /\{"\\uF8FF"\}/.test(read("components/AppleSignIn.tsx")) && /"Continue with Apple"/.test(btn) && /const \{ error, cancelled \} = await appleSignInFlow\(supabase, refreshProfile\);/.test(btn)
+      && /\{inApp && <AppleSignIn onError=\{setErr\} \/>\}/.test(si) && si.indexOf("<AppleSignIn onError") < si.indexOf("onSubmit={handleSendCode}"));
+    ok("apple: the button rides in the app's bundle only — the web's build drops even its import (APP_BUILD); the app's loads it lazily, starting as the sign-in module is read",
+      /const loadApple = \(\) => import\("\.\/AppleSignIn"\);\s*const AppleSignIn = APP_BUILD \? dynamic\(loadApple, \{ ssr: false \}\) : \(\) => null;\s*if \(APP_BUILD && isNativeApp\(\)\) void loadApple\(\);/.test(si)
+      && !/import AppleSignIn from/.test(si) && !/signInWithApple/.test(si) && !/Continue with Apple/.test(si));
+    ok("apple: the server keeps the token only for the signed-in person's own Apple identity, and only the server can read it (0363: row level security, no policy, no grant)",
+      /const user = await userFromRequest\(req\);/.test(ar) && /if \(got\.appleUser !== appleId\) return NextResponse\.json\(\{ error: "That sign-in isn't this account's\." \}, \{ status: 403 \}\);/.test(ar)
+      && /p_bucket: `apple-code:\$\{user\.id\}`/.test(ar) && /export const POST = route\("auth\/apple", post\);/.test(ar)
+      && /alter table public\.apple_tokens enable row level security;/.test(mig) && !/create policy/i.test(mig) && /revoke all on table public\.apple_tokens from anon, authenticated;/.test(mig)
+      && /references auth\.users\(id\) on delete cascade/.test(mig) && /select public\.record_migration\('0363_sign_in_with_apple_tokens'\);/.test(mig));
+    ok("apple: deleting an account revokes Sign in with Apple at Apple first, and when it can't, the sheet says how to end it in Settings",
+      er.indexOf("appleManual = !(token && siwaConfigured() && (await revoke(token)") > 0 && er.indexOf("await revoke(token)") < er.indexOf("supabaseAdmin.auth.admin.deleteUser(user.id)")
+      && /return NextResponse\.json\(\{ ok: true, appleManual \}\);/.test(er) && /if \(j\.appleManual\) \{ haptic\("success"\); setPhase\(\{ at: "apple" \}\); return; \}/.test(code(read("components/DeleteAccount.tsx")))
+      && /aud: APPLE, sub: APPLE_CLIENT_ID/.test(asi) && /token_type_hint: "refresh_token"/.test(asi));
+  }
   ok("device: on iOS 17 and later the New Event sheet opens with no calendar permission; on iOS 15 and 16 the phone asks first, and a refusal says so",
     /if #available\(iOS 17\.0, \*\) \{\s*show\(\)\s*\} else \{\s*store\.requestAccess\(to: \.event\)/.test(swift) && /call\.reject\("Calendar access is off for GT3", "DENIED"\)/.test(swift)
     && /if \(err\.code === "DENIED"\) return "denied";/.test(da) && /how === "denied"/.test(code(read("components/AddToCalendar.tsx"))));

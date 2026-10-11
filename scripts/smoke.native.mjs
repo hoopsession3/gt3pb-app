@@ -145,6 +145,9 @@ const ANSWERS = {
   "GT3Device.keepFile": { uri: "file:///private/var/mobile/Containers/Data/Application/SMOKE/tmp/gt3-files/SMOKE/kept" },
   "GT3Device.printPage": { printed: true },
   "GT3Device.addEvent": { added: true },
+  // Apple's sheet, answered with a made-up credential (the identity token goes to the stand-in's token exchange).
+  "GT3Device.signInWithApple": { identityToken: "smoke.apple-identity-token.sig", authorizationCode: "csmoke0123456789.0.mrxv.apple-one-time-code", user: "000123.smokeapple0042.0042", givenName: "Riley" },
+  "GT3Device.appleCredentialState": { state: "authorized" },
   "Share.share": { activityType: "com.apple.UIKit.activity.SaveToCameraRoll" },
 };
 
@@ -1574,6 +1577,49 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       asked("POST") && ["/", "/menu"].includes(after.path) && after.session === null && after.told, JSON.stringify({ posted: asked("POST"), ...after, session: after.session ? "still here" : null }));
     ok("delete account: no errors", errors.length === 0, errors.join(" | "));
     await ctx.close();
+  }
+
+  // ── 6b · Sign in with Apple, in the app (2026-10-11) ──
+  // Signed out on the 3MPIRE page: the button is there (and not in a plain browser); Apple's sheet is asked with a
+  // fresh nonce; the identity token goes to Supabase with that same nonce; the one-time code goes to the web's API;
+  // and the phone is signed in. The stand-in answers Apple's sheet with a made-up credential (ANSWERS) and the token
+  // exchange with its session.
+  {
+    const ctx = await phoneContext(MAIN);
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    const from = apiCalls.length;
+    let exchange = null;
+    page.on("request", (r) => {
+      const u = new URL(r.url());
+      if (u.host === BACKEND_HOST && u.pathname === "/auth/v1/token" && u.searchParams.get("grant_type") === "id_token") { try { exchange = r.postDataJSON(); } catch { exchange = { unreadable: true }; } }
+    });
+    await page.goto(`${BASE}/3mpire`, { waitUntil: "load" });
+    const apple = page.getByRole("button", { name: "Continue with Apple" });
+    const shown = await apple.waitFor({ timeout: 8000 }).then(() => true, () => false);
+    await page.waitForTimeout(700); await page.evaluate(SETTLE);
+    if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "signin--apple") });
+    if (shown) await apple.click();
+    await page.waitForFunction(() => window.__native?.calls.some((c) => c.plugin === "GT3Device" && c.method === "signInWithApple"), null, { timeout: 5000 }).catch(() => {});
+    const asked = (await nativeCalls(page)).find((c) => c.plugin === "GT3Device" && c.method === "signInWithApple")?.options ?? null;
+    await page.waitForFunction(() => !document.querySelector("#auth-email"), null, { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(600);
+    const posted = apiCalls.slice(from).some((c) => c.method === "POST" && new URL(c.url).pathname === "/api/auth/apple");
+    const signedIn = await page.evaluate((key) => !!localStorage.getItem(key), `sb-${BACKEND_HOST.split(".")[0]}-auth-token`);
+    ok("apple: the app's sign-in offers Continue with Apple", shown);
+    ok("apple: Apple's sheet is asked with a fresh nonce, and Supabase gets its identity token with that same nonce",
+      !!asked && /^[0-9a-f]{64}$/.test(asked.nonce ?? "") && exchange?.provider === "apple" && exchange?.id_token === ANSWERS["GT3Device.signInWithApple"].identityToken && exchange?.nonce === asked.nonce,
+      JSON.stringify({ asked, exchange }));
+    ok("apple: the one-time code goes to the web's API, and the phone is signed in, off the sign-in screen", posted && signedIn, JSON.stringify({ posted, signedIn }));
+    ok("apple: no errors", errors.length === 0, errors.join(" | "));
+    await ctx.close();
+    const web = await phoneContext(MAIN, { shell: false });
+    const wp = await web.newPage();
+    await wp.goto(`${BASE}/3mpire`, { waitUntil: "load" });
+    await wp.waitForSelector("#auth-email", { timeout: 8000 }).catch(() => {});
+    ok("apple: a plain browser has no Apple sheet, so no Apple button", (await wp.locator("#auth-email").count()) === 1 && (await wp.getByRole("button", { name: "Continue with Apple" }).count()) === 0);
+    await web.close();
   }
 
   // ── 7 · what the phone does for a page: save, share, print, add to the calendar ──

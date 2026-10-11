@@ -1,4 +1,5 @@
 import { createHash, createPrivateKey, sign } from "node:crypto";
+import { b64url, es256Jwt, pem } from "./appleKey";
 
 // APPLE MAPS, FROM THE SERVER (2026-10-10, Ryan: "When someone types in their address, it goes out and finds it.
 // Prepopulate. Is that any security risk?"). The address fields suggest real addresses as they are typed, and a pick
@@ -20,21 +21,10 @@ export function mapsConfigured(): boolean {
   return Boolean(process.env.APPLE_MAPS_KEY_ID && process.env.APPLE_MAPS_TEAM_ID && process.env.APPLE_MAPS_PRIVATE_KEY);
 }
 
-const b64url = (b: Buffer | string) => Buffer.from(b).toString("base64url");
-
-// The .p8's text, however it was pasted into Vercel: literal \n, lost line breaks, a dropped BEGIN or END line — the
-// key is rebuilt from its own base64, the way the TestFlight job rebuilds the App Store Connect key.
-function pem(text: string): string {
-  const body = text.replace(/\\n/g, "\n").replace(/-----(BEGIN|END)[A-Z ]*-----/g, "").replace(/[^A-Za-z0-9+/=]/g, "");
-  return `-----BEGIN PRIVATE KEY-----\n${(body.match(/.{1,64}/g) ?? []).join("\n")}\n-----END PRIVATE KEY-----\n`;
-}
-
+// The key's text becomes a key in lib/appleKey (pem), which the Sign in with Apple key shares.
 function authToken(): string {
   const now = Math.floor(Date.now() / 1000);
-  const head = b64url(JSON.stringify({ alg: "ES256", kid: process.env.APPLE_MAPS_KEY_ID, typ: "JWT" }));
-  const body = b64url(JSON.stringify({ iss: process.env.APPLE_MAPS_TEAM_ID, iat: now, exp: now + 1800 }));
-  const key = createPrivateKey(pem(process.env.APPLE_MAPS_PRIVATE_KEY ?? ""));
-  return `${head}.${body}.${b64url(sign("sha256", Buffer.from(`${head}.${body}`), { key, dsaEncoding: "ieee-p1363" }))}`;
+  return es256Jwt({ kid: process.env.APPLE_MAPS_KEY_ID, typ: "JWT" }, { iss: process.env.APPLE_MAPS_TEAM_ID, iat: now, exp: now + 1800 }, process.env.APPLE_MAPS_PRIVATE_KEY ?? "");
 }
 
 let held: { token: string; until: number } | null = null;

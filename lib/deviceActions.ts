@@ -24,6 +24,8 @@ import type { CalEvent } from "./ics";
 //   · a print  → GT3Device.printPage: the system print panel, of the page as it is;
 //   · an event → GT3Device.addEvent: the system's own New Event sheet, filled in, one tap to save;
 //   · a pass   → GT3Device.addPass: Wallet's own Add sheet.
+//   · Apple    → GT3Device.signInWithApple: Apple's own sheet; appleCredentialState: is that Apple ID still in.
+//                (asked from lib/appleAuth, which loads only when it is needed — nativeDevice() hands it the phone).
 // GT3Device is the app's own plugin, native/ios/GT3Device.swift. GT3DevicePlugin below is its contract;
 // scripts/smoke.cjs holds the two to the same methods, and scripts/smoke.native.mjs presses each button
 // on a stand-in iPhone that knows only the methods the Swift declares.
@@ -38,12 +40,21 @@ export type Outcome = "done" | "cancelled" | "denied" | "unsupported" | "failed"
 /** An event as the phone's New Event sheet takes it: times in milliseconds since 1970. */
 export type NativeEvent = { title: string; start: number; end: number; allDay: boolean; location?: string; notes?: string; url?: string };
 
+/** What Apple's sheet answers: the identity token Supabase checks, the one-time code the server trades for the token
+ *  that deleting the account revokes, the Apple user — and the name and email, which Apple tells only the first time. */
+export type AppleCredential = { identityToken: string; authorizationCode?: string; user: string; givenName?: string; familyName?: string; email?: string };
+
+/** Whether an Apple ID still lets GT3 in (ASAuthorizationAppleIDProvider's credential state). */
+export type AppleState = "authorized" | "revoked" | "notFound" | "transferred" | "unknown";
+
 /** The app's own plugin, native/ios/GT3Device.swift, as the page calls it. */
 export type GT3DevicePlugin = {
   keepFile(o: { name: string; data?: string; url?: string }): Promise<{ uri: string }>;
   printPage(o: { name?: string }): Promise<{ printed: boolean }>;
   addEvent(o: NativeEvent): Promise<{ added: boolean }>;
   addPass(o: { data: string }): Promise<void>;
+  signInWithApple(o: { nonce: string }): Promise<AppleCredential>;
+  appleCredentialState(o: { user: string }): Promise<{ state: AppleState }>;
 };
 
 /** What the iPhone app does instead: GT3Device, and the share sheet (@capacitor/share Share.share). */
@@ -58,6 +69,12 @@ export function setNativeDevice(device: NativeDevice | null): void {
   native = device;
 }
 
+/** The phone's sheets for a caller of its own (lib/appleAuth, loaded only when Sign in with Apple is pressed) — null on
+ *  the web and before NativeBridge has handed them over. */
+export function nativeDevice(): NativeDevice | null {
+  return APP ? native : null;
+}
+
 // Every app half below asks this first, in lib/native APP_BUILD's own words and in this file: decided
 // when the bundle is built, so the web build drops every app half — and all it alone uses — and a web
 // page carries only the web's ways (components/AppShell says how that was measured).
@@ -65,7 +82,7 @@ const APP = process.env.NEXT_PUBLIC_GT3_TARGET === "app";
 
 // How a refusal reads: the phone's permission off; the person closing the sheet (Capacitor's share says
 // "Share canceled", the browser's an AbortError); anything else is a failure.
-function outcomeOf(e: unknown): Outcome {
+export function outcomeOf(e: unknown): Outcome {
   const err = (e ?? {}) as { code?: string; name?: string; message?: string };
   if (err.code === "DENIED") return "denied";
   if (err.name === "AbortError" || /cancel/i.test(String(err.message ?? e))) return "cancelled";
@@ -231,3 +248,4 @@ export async function addToWallet(pass: Blob): Promise<Outcome> {
   }
   return saveFile("gt3-membership.pkpass", pass);
 }
+

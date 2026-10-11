@@ -249,6 +249,29 @@ jobs:
             archive 2>&1 | tee archive.log | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)" || true
           test -d "$RUNNER_TEMP/App.xcarchive"
 
+      # SIGN IN WITH APPLE (2026-10-11). An app built unsigned carries no entitlements, and the export signs what it
+      # is given: without this step the App Store build would lack com.apple.developer.applesignin and Apple's sheet
+      # would refuse it. So the app inside the archive is signed here, ad hoc, with its entitlements
+      # (ios/App/App/App.entitlements, written by scripts/ios.configure.mjs), as a development-signed archive would
+      # carry them; the export re-signs it for the App Store and keeps them (the App ID allows the capability).
+      # Nested code first: codesign will not sign an app whose frameworks are unsigned. Stops the run if the
+      # entitlement is not there, rather than shipping a button that cannot work.
+      - name: Give the archive its entitlements (Sign in with Apple)
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app"
+          test -d "$APP"
+          if [ -d "$APP/Frameworks" ]; then
+            find "$APP/Frameworks" -maxdepth 1 \( -name "*.framework" -o -name "*.dylib" \) -print0 | xargs -0 -I{} codesign --force --sign - --timestamp=none "{}"
+          fi
+          codesign --force --sign - --timestamp=none --entitlements ios/App/App/App.entitlements "$APP"
+          codesign -d --entitlements - "$APP" > entitlements.txt 2>&1 || true
+          cat entitlements.txt
+          if ! grep -q "com.apple.developer.applesignin" entitlements.txt; then
+            echo "::error::The archive's app does not carry Sign in with Apple (com.apple.developer.applesignin)."
+            exit 1
+          fi
+
       - name: Upload to App Store Connect (TestFlight)
         run: |
           set -o pipefail
@@ -271,6 +294,12 @@ jobs:
             -authenticationKeyPath "$RUNNER_TEMP/asc/AuthKey_$ASC_KEY_ID.p8" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             2>&1 | tee export.log | grep -E "error:|EXPORT (SUCCEEDED|FAILED)|Upload succeeded" || true
           grep -q "EXPORT SUCCEEDED" export.log
+          # What the App Store build was signed with, as the export reports it (when it writes its summary).
+          if [ -f "$RUNNER_TEMP/export/DistributionSummary.plist" ]; then
+            cp "$RUNNER_TEMP/export/DistributionSummary.plist" distribution-summary.plist
+            grep -q "com.apple.developer.applesignin" distribution-summary.plist && echo "The App Store build carries Sign in with Apple." \
+              || echo "::warning::The export's summary does not list Sign in with Apple."
+          fi
 
       - name: Forget the key
         if: always()
@@ -284,4 +313,6 @@ jobs:
           path: |
             archive.log
             export.log
+            entitlements.txt
+            distribution-summary.plist
           if-no-files-found: ignore

@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { isNativeApp, lessonHref, nativePlatform, WEB_ORIGIN } from "@/lib/native";
 import { setNativeHaptics, type UIKitStep } from "@/lib/haptics";
 import { saveFromUrl, setNativeDevice, type GT3DevicePlugin } from "@/lib/deviceActions";
+import { appleCredentialState } from "@/lib/appleAuth";
 import { scrollToTop } from "@/lib/appScroll";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./AuthProvider";
@@ -104,7 +105,9 @@ function opensOutside(url: string): string | null {
 export default function NativeBridge() {
   const router = useRouter();
   const pathname = usePathname();
-  const { signInWithUrl } = useAuth();
+  const { signInWithUrl, user, signOut } = useAuth();
+  // The phone's half is in (the GT3Device bridge is set, below): what asks the phone something waits for it.
+  const [deviceReady, setDeviceReady] = useState(false);
   // Set once the plugins are in: looks again at what is under the status bar.
   const restyle = useRef<(() => void) | null>(null);
   // The status bar's own ground, drawn on a phone only. Known at once: this component is mounted in
@@ -146,16 +149,20 @@ export default function NativeBridge() {
       });
       undo.push(() => setNativeHaptics(null));
 
-      // Save, share, print, add to the calendar or to Wallet: the phone's own sheets (lib/deviceActions).
+      // Save, share, print, add to the calendar or to Wallet, sign in with Apple: the phone's own sheets
+      // (lib/deviceActions).
       const device = registerPlugin<GT3DevicePlugin>("GT3Device");
       setNativeDevice({
         keepFile: (o) => device.keepFile(o),
         printPage: (o) => device.printPage(o),
         addEvent: (o) => device.addEvent(o),
         addPass: (o) => device.addPass(o),
+        signInWithApple: (o) => device.signInWithApple(o),
+        appleCredentialState: (o) => device.appleCredentialState(o),
         share: (o) => Share.share(o),
       });
       undo.push(() => setNativeDevice(null));
+      setDeviceReady(true);
 
       // The status bar's text follows the page under it: looked at once the new screen has painted,
       // and again when its entrance has settled.
@@ -274,6 +281,22 @@ export default function NativeBridge() {
 
     return () => { cancelled = true; for (const u of undo.reverse()) u(); };
   }, [router, signInWithUrl]);
+
+  // STOPPED USING SIGN IN WITH APPLE FOR GT3 IN SETTINGS? Then signed out here too (Apple's TN3194) — asked once the
+  // phone's half is in, and each time the app comes back to the front. Only for an account that signed in with Apple,
+  // and only on Apple's own "revoked". It lives here, in the app's own bridge, so none of it rides in a web page.
+  const appleUser = (user?.identities ?? []).find((i) => i.provider === "apple")?.identity_data?.sub as string | undefined;
+  useEffect(() => {
+    if (!appleUser || !deviceReady) return;
+    let live = true;
+    const ask = () => {
+      if (document.visibilityState !== "visible") return;
+      void appleCredentialState(appleUser).then((state) => { if (live && state === "revoked") void signOut(); });
+    };
+    ask();
+    document.addEventListener("visibilitychange", ask);
+    return () => { live = false; document.removeEventListener("visibilitychange", ask); };
+  }, [appleUser, deviceReady, signOut]);
 
   // A new screen: look at what is under the status bar again.
   useEffect(() => { restyle.current?.(); }, [pathname]);

@@ -27,6 +27,11 @@
 //      share sheet, print, add an event to the calendar, a pass to Wallet; lib/deviceActions is its
 //      page side). GT3ViewController registers it, and Info.plist says why it may save to Photos (the
 //      share sheet's Save Image) and, on iOS 15 and 16, use the calendar.
+//   7. Sign in with Apple (App/App.entitlements, 2026-10-11) — the one capability the app asks for: Apple's sheet
+//      (GT3Device signInWithApple) refuses an app whose signature lacks com.apple.developer.applesignin. The App ID
+//      has the capability (the Apple Developer account, com.gt3pb.app), the target names this file
+//      (CODE_SIGN_ENTITLEMENTS), and the TestFlight job signs it into the archive before the export re-signs it
+//      (.github/workflows/ios.yml), since the archive is built unsigned.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -199,7 +204,12 @@ addFile("GT3ViewController.swift", "sourcecode.swift", "Sources");
 addFile("GT3Device.swift", "sourcecode.swift", "Sources");
 addFile("PrivacyInfo.xcprivacy", "text.xml", "Resources");
 pbx = pbx.replace(/TARGETED_DEVICE_FAMILY = "1,2";/g, 'TARGETED_DEVICE_FAMILY = 1;');
+// 7 · the target signs with the app's entitlements (written below), in Debug and Release alike
+pbx = pbx.replace(/(\t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;\n)(\t\t\t\tCODE_SIGN_STYLE = Automatic;)/g, "$1\t\t\t\tCODE_SIGN_ENTITLEMENTS = App/App.entitlements;\n$2");
 if (pbx !== before) stage(PBX, pbx, "App.xcodeproj/project.pbxproj");
+
+// ── 7 · Sign in with Apple: the app's one entitlement ────────────────────────────────────────────
+put("App.entitlements", plist.build({ "com.apple.developer.applesignin": ["Default"] }) + "\n");
 
 // ── 5 · the shared scheme ───────────────────────────────────────────────────────────────────────
 const target = /\t\t([0-9A-F]{24}) \/\* App \*\/ = \{\n\t\t\tisa = PBXNativeTarget;/.exec(pbx)?.[1];

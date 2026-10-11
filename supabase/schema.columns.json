@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-08T11:55:10.081Z",
+    "pulled_at": "2026-10-11T02:36:24.457Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
     "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
-    "relations": 213,
-    "columns": 2748
+    "relations": 214,
+    "columns": 2753
   },
   "academy_acknowledgements": [
     "user_id",
@@ -219,6 +219,13 @@
     "initiative_emoji",
     "initiative_status",
     "initiative_target"
+  ],
+  "apple_tokens": [
+    "user_id",
+    "apple_user",
+    "refresh_token",
+    "created_at",
+    "updated_at"
   ],
   "asset_maintenance": [
     "id",

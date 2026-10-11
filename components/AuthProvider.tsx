@@ -68,7 +68,9 @@ interface AuthCtx {
   resetPassword: (email: string) => Promise<{ error?: string }>;
   updatePassword: (password: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
+  // Whose profile to read again: the signed-in person's, or — right after a sign-in this provider has not heard about
+  // yet (components/AppleSignIn) — the one named.
+  refreshProfile: (uid?: string) => Promise<void>;
 }
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -294,8 +296,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     setProfile(null);
   }, []);
 
-  const refreshProfile = useCallback(async () => {
-    if (user) await loadProfile(user.id);
+  // SIGN IN WITH APPLE lives in the iPhone app's own code, not here (2026-10-11): the button and its flow in
+  // components/AppleSignIn, the "stopped using it in Settings" sign-out in components/NativeBridge. Every route on the
+  // web carries this provider; not a byte of Apple's sign-in rides in it.
+  const refreshProfile = useCallback(async (uid?: string) => {
+    const id = uid ?? user?.id;
+    if (id) await loadProfile(id);
   }, [user, loadProfile]);
 
   // Memoize the context value so incidental provider re-renders don't re-render the whole admin
