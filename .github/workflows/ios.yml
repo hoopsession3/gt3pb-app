@@ -116,6 +116,13 @@ jobs:
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath ios/App/build CODE_SIGNING_ALLOWED=NO build 2>&1 | tee xcodebuild.log | grep -E "error:|warning: .*GT3|BUILD (SUCCEEDED|FAILED)" || true
+          # A FAILED build still leaves a half-made App.app behind (its folder is made before the code compiles), so the
+          # folder is not proof. Run 81 "passed" this step with a compile error and failed one step later on a missing
+          # Info.plist. The verdict is xcodebuild's own last word, and its errors are the ones printed just above.
+          if ! grep -q "BUILD SUCCEEDED" xcodebuild.log; then
+            echo "::error::The simulator build failed. The compiler's errors are printed above (from xcodebuild.log)."
+            exit 1
+          fi
           test -d ios/App/build/Build/Products/Debug-iphonesimulator/App.app
 
       # THE APP RUNS ON AN IPAD (2026-10-11). What the built app tells iOS, read from the app itself rather than from the
@@ -416,6 +423,11 @@ jobs:
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             archive 2>&1 | tee archive.log | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)" || true
+          # As the simulator build: the verdict is xcodebuild's last word, not a folder that a failed archive leaves too.
+          if ! grep -q "ARCHIVE SUCCEEDED" archive.log; then
+            echo "::error::The archive failed. The compiler's errors are printed above (from archive.log)."
+            exit 1
+          fi
           test -d "$RUNNER_TEMP/App.xcarchive"
 
       # SIGN IN WITH APPLE (2026-10-11). An app built unsigned carries no entitlements, and the export signs what it

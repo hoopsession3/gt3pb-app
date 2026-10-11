@@ -277,12 +277,17 @@ public class GT3DevicePlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    /// GT3's own page in the iPhone's Settings — its notifications, from iOS 15.4 — for an alert someone turned off
-    /// there: the one place it can be turned back on (components/AppAlerts' "Open Settings").
+    /// GT3's own page in the iPhone's Settings — straight to its notifications from iOS 16 — for an alert someone
+    /// turned off there: the one place it can be turned back on (components/AppAlerts' "Open Settings").
+    ///
+    /// iOS 16, NOT 15.4 (2026-10-11): Swift's UIApplication.openNotificationSettingsURLString is marked iOS 16.0 in the
+    /// SDK, and Xcode 26 refuses it behind a 15.4 check ("only available in iOS 16.0 or newer"), which failed every
+    /// simulator build and would fail the TestFlight archive the same way. Before 16 the app's own Settings page opens,
+    /// one row above Notifications.
     @objc func openSettings(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             var address = UIApplication.openSettingsURLString
-            if #available(iOS 15.4, *) {
+            if #available(iOS 16.0, *) {
                 address = UIApplication.openNotificationSettingsURLString
             }
             guard let url = URL(string: address) else {
