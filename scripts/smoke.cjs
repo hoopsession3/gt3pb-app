@@ -5287,7 +5287,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("live ops: the Pass and Due next, nothing else — the event, the tasks and the alert strip live elsewhere",
       /<ServicePulse onEnter=\{\(\) => setSvc\(true\)\} \/>/.test(nowSec) && /<LiveControl compact \/>/.test(nowSec) && /<DueNext canPlan=\{canManage\} onOpenPass=\{\(\) => setSvc\(true\)\} \/>/.test(nowSec)
         && !/<EventHUD|<MyTasks|<AlertsInbox/.test(nowSec) && cmdSec.indexOf("<EventHUD />") > 0 && cmdSec.indexOf("<EventHUD />") < cmdSec.indexOf("<Columns>")
-        && /<AlertsInbox userId=\{user\?\.id \?\? null\} compact \/><Kitchen \/>/.test(svcSrc) && /<IconButton icon="bell"[^\n]*onClick=\{\(\) => setInboxOpen\(true\)\} \/>/.test(svcSrc) && !/<Panel id="hud"/.test(page));
+        && /<ThePass canPlan=\{canManage\} onExit=\{\(\) => setSvc\(false\)\}/.test(svcSrc) && /strip=\{<AlertsInbox userId=\{user\?\.id \?\? null\} compact \/>\}/.test(svcSrc)
+        && /<IconButton icon="bell"[^\n]*onClick=\{\(\) => setInboxOpen\(true\)\} \/>/.test(svcSrc) && !/<Panel id="hud"/.test(page));
     ok("live ops: Due next puts the runs in the order they are due — each card reports its day, none waits on another",
       /const order = \[\.\.\.DUE_KEYS\]\.sort\(\(a, b\) => \(due\[a\] \?\? "9999-12-31"\)\.localeCompare\(due\[b\] \?\? "9999-12-31"\)\);/.test(page)
         && /useEffect\(\(\) => \{ onDue\?\.\(dropISO\); \}, \[dropISO, onDue\]\);/.test(dropSrc) && /useEffect\(\(\) => \{ onDue\?\.\(date\); \}, \[date, onDue\]\);/.test(delSrc)
@@ -5296,7 +5297,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       /\.lt\("delivery_date", today\)\.gte\("delivery_date", since\.toISOString\(\)\.slice\(0, 10\)\)\s*\.in\("status", \["held_for_pickup", "issue"\]\)\.is\("canceled_at", null\)/.test(delSrc)
         && /sub=\{`No run scheduled · \$\{earlier\.length\} from earlier`\}/.test(delSrc) && /o\.driver_note \?/.test(delSrc));
     ok("live ops: the Pass button counts what can be made now — an order placed ahead is said beside it, not counted",
-      /\.or\(`ready_from\.is\.null,ready_from\.lte\.\$\{nowISO\}`\)/.test(page) && /\.gt\("ready_from", nowISO\)/.test(page) && /\{ahead > 0 && <> · \{ahead\} placed ahead<\/>\}/.test(page));
+      /\.or\(`status\.neq\.new,ready_from\.is\.null,ready_from\.lte\.\$\{nowISO\}`\)/.test(read("lib/passBoard.ts")) && /\.eq\("status", "new"\)\.gt\("ready_from", nowISO\)/.test(read("lib/passBoard.ts"))
+      && /readPulse\(supabase, Date\.now\(\)\)/.test(page) && /\{ahead > 0 && <> · \{ahead\} placed ahead<\/>\}/.test(page));
     ok("live ops: only a live event is polled", /if \(!liveId\) return;\s*const recon = setInterval\(load, 15000\);/.test(hud));
     ok("live ops: the drop is one row until drop day — or the brew day, while the brew isn't queued",
       /<FoldCard title="Pickup drop" label="Pickup drop" today=\{isDropDay \|\| brewDue\}/.test(dropSrc)
@@ -5498,7 +5500,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("live ops: the stop the truck instrument names opens its record",
     /<RecordLink kind="stop" id=\{curStop\.id\}>/.test(read("components/crew/LiveControl.tsx")) && /<RecordLink kind="stop" id=\{nextStop\.id\}>/.test(read("components/crew/LiveControl.tsx")));
   ok("the pass: an unpaid ticket says to collect — 'pre-order' named a payment state as an ordering one (the word lives in lib/collect since 0341)",
-    /"UNPAID · collect at pickup"/.test(read("lib/collect.ts")) && /\{passWord\(o\)\}/.test(crew) && !/"pre-order"/.test(crew));
+    /"UNPAID · collect at pickup"/.test(read("lib/collect.ts")) && /\{passWord\(o\)\}/.test(code(read("components/pass/Ticket.tsx")))
+    && !/"pre-order"/.test(crew) && !/"pre-order"/.test(code(read("components/pass/Ticket.tsx"))));
   ok("readiness: a board group's event or stop opens its record; a past one says Wrap up",
     /openRecord\(g\.kind as "event" \| "stop", g\.recId!\)/.test(read("components/PrepBoard.tsx")) && /\{g\.past \? "Wrap up" : "Open"\}/.test(read("components/PrepBoard.tsx")));
   ok("plan: on the crew calendar an event or stop opens its record instead of a row that does nothing",
@@ -5837,10 +5840,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   }
 
   // ── the pass ──
+  // The Pass is its own module since 2026-10-11 (the KDS program, wave 2): the screen and its actions in ThePass, one
+  // ticket in Ticket, the read and the feed in usePassBoard. `kit` is the three, read as one.
   const crewSrc = code(read("app/crew/page.tsx"));
-  const kit = crewSrc.slice(crewSrc.indexOf("function Kitchen("), crewSrc.indexOf("function ServicePulse("));
+  const passScreen = code(read("components/pass/ThePass.tsx")), passTicket = code(read("components/pass/Ticket.tsx")), passHook = code(read("components/pass/usePassBoard.ts"));
+  const kit = [passScreen, passTicket, passHook].join("\n");
   ok("pass: an owed ticket has 'Collect $…' — the kit's secondary, as tall as the recall beside it — and only where the database can record it",
-    /\{canCollect\(o\) && <button type="button" className="btn-sec shrink-0" onClick=\{\(\) => collect\(o\)\}>Collect \{money\(o\.total_cents\)\}<\/button>\}/.test(kit)
+    /\{canCollect\(o\) && <button type="button" className="btn-sec shrink-0" onClick=\{\(\) => act\.collect\(o\)\}>Collect \{money\(o\.total_cents\)\}<\/button>\}/.test(kit)
     && (kit.match(/canCollect\(o\) && <button/g) || []).length === 2);
   ok("pass: 'Picked up' on an owed ticket asks how they paid first — hand-off is when the money is asked about",
     /if \(to === "done" && canCollect\(o\)\) \{\s*const how = await askCollect\(\{ who: o\.customer \?\? "Guest", cents: o\.total_cents, handOff: true \}\);\s*if \(!how\) return;\s*const row = how === "unpaid" \? o : await takeMoney\(o, how\);\s*if \(!row\) return;\s*return move\(row, to\);/.test(kit));
@@ -5853,22 +5859,22 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("pass: voiding a paid order says what the refund is, and a card refund is flagged critical — it said only 'can't be undone'",
     /how === "cash" \? `They paid \$\{amt\} cash — hand it back\./.test(kit) && /severity: "critical", category: "money", kind: "refund_needed", subjectId: o\.id,/.test(kit)
     && /if \(how && how !== "cash"\) \{/.test(kit));
-  ok("pass: the collect sheet is mounted on the board that asks", /\{collectSheet\}\s*<\/div>\s*\);\s*\}\s*$/.test(kit.trimEnd() + "\n"));
+  ok("pass: the collect sheet is mounted on the board that asks", /\{collectSheet\}\s*<\/div>\s*\);\s*\}\s*$/.test(passScreen.trimEnd() + "\n"));
 
   // ── THE PASS, AFTER THE KDS AUDIT (2026-10-11) ──
   ok("pass: loading until the first read lands, and 'The pass is clear' only when a read says so now — never over a failed one, never a raw 'Backend error'",
-    /\{boardAt === 0 && !down && <PourFill label="Loading the pass…" \/>\}/.test(kit) && /\{boardAt > 0 && STAGES\.map\(/.test(kit)
+    /\{boardAt === 0 && !down && <PourFill label="Loading the pass…" \/>\}/.test(kit) && /\{boardAt > 0 && \(\s*<div className="pass-cols">\s*\{STAGES\.map\(/.test(kit)
     && /\{boardAt > 0 && !down && active\.length === 0 && done\.length === 0 && <EmptyState title="The pass is clear"/.test(kit) && !/Backend error|setErr\(/.test(kit));
   ok("pass: a read is made only with a session — a signed-out read is not an empty pass, and leaves the board saved for offline alone",
-    /const auth = await supabase\.auth\.getSession\(\);\s*const res = auth\.data\.session \? await supabase\.from\("orders"\)/.test(kit)
+    /const auth = await supabase\.auth\.getSession\(\);\s*const res = auth\.data\.session \? await readBoard\(supabase, Date\.now\(\), cap\.current\) : null;/.test(kit)
     && /setDown\(net \? "net" : res \? "read" : "auth"\);\s*return;/.test(kit) && kit.indexOf('saveSnapshot("gt3-kds-snap", rows)') > kit.indexOf('setDown(net ? "net"'));
   ok("pass: a failed read says so in words, with the time of the board it is showing",
     /<b>\{down === "auth" \? "Signed out" : "Can't reach the pass"\}<\/b>/.test(kit) && /showing the board from \$\{clockTime\(new Date\(boardAt\)\.toISOString\(\)\)\}/.test(kit));
   ok("pass: overlapping reads land in order — only the newest asked for is applied", /const ask = \+\+loadSeq\.current;/.test(kit) && /if \(ask !== loadSeq\.current\) return;/.test(kit));
   ok("pass: the feed says when it drops, reads the board again the moment it is back, and the screen coming back reads it too",
-    /\.subscribe\(\(status\) => \{\s*if \(!alive\) return;\s*if \(status === "SUBSCRIBED"\) \{ setLive\(true\); if \(broke\) \{ broke = false; load\(\); \} return; \}\s*broke = true; setLive\(false\);\s*if \(status === "CLOSED"\) retry = window\.setTimeout\(join, 5000\);/.test(kit)
+    /\.subscribe\(\(status\) => \{\s*if \(!alive\) return;\s*if \(status === "SUBSCRIBED"\) \{ setLive\(true\); if \(broke\) \{ broke = false; load\(\); void loadHere\(\); \} return; \}\s*broke = true; setLive\(false\);\s*if \(status === "CLOSED"\) retry = window\.setTimeout\(join, 5000\);/.test(kit)
     && /\{!live && !down && <span className="k-count soon" role="status">Reconnecting…<\/span>\}/.test(kit)
-    && /const onVis = \(\) => \{ if \(document\.visibilityState === "visible"\) load\(\); \};/.test(kit) && /document\.addEventListener\("visibilitychange", onVis\);/.test(kit));
+    && /const onVis = \(\) => \{ if \(document\.visibilityState === "visible"\) \{ load\(\); void loadHere\(\); \} \};/.test(kit) && /document\.addEventListener\("visibilitychange", onVis\);/.test(kit));
   ok("pass: every new order rings once — the feed's or the reconcile's, whichever brings it first — and never for the first read",
     /const fresh = seeded\.current \? rows\.filter\(\(o\) => o\.status === "new" && !known\.current\.has\(o\.id\)\) : \[\];/.test(kit) && /fresh\.forEach\(announceNew\);/.test(kit)
     && /if \(row\.status === "new" && !known\.current\.has\(row\.id\)\) announceNew\(row\);\s*known\.current\.add\(row\.id\);/.test(kit));
@@ -6731,10 +6737,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /toast\(error\.message \|\| "That didn't go through — give it another tap", "error"\)/.test(co));
   ok("order bar: an order placed ahead says when it is made, not 'Order received' for hours",
     /o\.status === "new" && o\.ready_from && waitingToOpen\(o\)\s*\? readyWords\(\{ state: "ahead", readyFrom: o\.ready_from \}\)/.test(bar));
-  ok("the pass: late counts only tickets whose clock has started, aged from orderClockFrom, badged until then",
-    /o\.status !== "ready" && !waitingToOpen\(o\) && ageMin\(orderClockFrom\(o\)\) >= 8/.test(crew)
-    && /const sev = waiting \? "calm" : ageSev\(ageMin\(orderClockFrom\(o\)\)\);/.test(crew) && /waitingLabel\(o\.ready_from\)/.test(crew)
-    && !/ageMin\(o\.created_at\)/.test(crew));
+  {
+    const pb = code(read("lib/passBoard.ts")), tk = code(read("components/pass/Ticket.tsx")), tp = code(read("components/pass/ThePass.tsx"));
+    ok("the pass: late counts only tickets whose clock has started, aged from orderClockFrom, badged until then",
+      /o\.status !== "ready" && !waitingToOpen\(o, nowMs\) && ageMin\(orderClockFrom\(o\), nowMs\) >= LATE_MIN/.test(pb) && /const late = lateOf\(active, now\);/.test(tp)
+      && /if \(o\.ready_from && waitingToOpen\(o, nowMs\)\) return \{ text: waitingLabel\(o\.ready_from, nowMs\), sev: "calm", late: false \};/.test(pb)
+      && /const sev = ageSev\(ageMin\(orderClockFrom\(o\), nowMs\)\);/.test(pb) && /const a = ticketAge\(o, useSecond\(\)\);/.test(tk)
+      && ![crew, pb, tk, tp].some((t) => /ageMin\(o\.created_at/.test(t)));
+  }
   ok("copy: the new keys are registered with their defaults (menu.taphint_closed retired with the hint, 2026-10-09)",
     /key: "findus\.cta_menu"[^}]*default: "See the menu"/.test(read("lib/copy.ts")) && /key: "sheet\.closing_cta"/.test(read("lib/copy.ts")) && !/key: "menu\.taphint_closed"/.test(read("lib/copy.ts")));
 
@@ -8861,7 +8871,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // going live, a brew started. A ritual swapped for a plain feel is a moment that no longer says itself.
   const crewPg = code(read("app/crew/page.tsx"));
   ok("haptics: the signatures stay on their moments — alert with the chime (twice), paid on the crew's paid order, live on going live, start on a brew, paid on a pack settling",
-    (crewPg.match(/chime\(\); haptic\("alert"\);/g) || []).length === 2 && (crewPg.match(/haptic\("paid"\)/g) || []).length === 1
+    (code(read("components/pass/usePassBoard.ts")).match(/chime\(\); haptic\("alert"\);/g) || []).length === 2 && (code(read("components/pass/ThePass.tsx")).match(/haptic\("paid"\)/g) || []).length === 1
+    && !/haptic\("alert"\)|haptic\("paid"\)/.test(crewPg)
     && /haptic\("live"\)/.test(code(read("components/crew/LiveControl.tsx"))) && /haptic\("start"\)/.test(code(read("components/AlertAction.tsx")))
     && /isSettled\(cur\); \}\)\) haptic\("paid"\);/.test(code(read("components/MyPacks.tsx"))));
 
@@ -9184,7 +9195,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   // ── links still land: the pay anchor, the aliases, the Pass ──
   ok("links land: Money's pay anchor stays where refund alerts point (/crew?s=money&a=pay), and the alias table leaves it alone",
-    /link: "\/crew\?s=money&a=pay",/.test(pg) && idCount("pay") === 1 && !("money#pay" in PH.PANEL_MOVES)
+    /link: "\/crew\?s=money&a=pay",/.test(code(read("components/pass/ThePass.tsx"))) && idCount("pay") === 1 && !("money#pay" in PH.PANEL_MOVES)
     && JSON.stringify(PH.panelHome("money", "pay")) === JSON.stringify({ section: "money", anchor: "pay" }));
   const J = (x) => JSON.stringify(x);
   ok("links land: a link to a panel that moved goes to its new home in one step — the Catalog's six, the broadcast, and Train the AI",
@@ -9245,7 +9256,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("links land: an order alert opens the Pass — #kitchen-pass is drawn only while the Pass is open, so the jump opens it instead of hunting for it",
     /if \(cat === "order"\) return \{ section: "now", anchor: "kitchen-pass" \};/.test(pg) && /const PASS_ANCHOR = "kitchen-pass";/.test(pg)
     && /function jumpTo\(anchor\?: string\): void \{\s*if \(anchor === PASS_ANCHOR\) \{ window\.dispatchEvent\(new Event\(OPEN_PASS_EVENT\)\); return; \}\s*scrollToAnchor\(anchor\);\s*\}/.test(pg)
-    && /jumpTo\(d\.anchor\);/.test(pg) && !/scrollToAnchor\(d\.anchor\)/.test(pg) && /<div className="adm-sec" id="kitchen-pass">/.test(pg));
+    && /jumpTo\(d\.anchor\);/.test(pg) && !/scrollToAnchor\(d\.anchor\)/.test(pg) && /<div className="adm-sec pass-board" id="kitchen-pass"/.test(code(read("components/pass/ThePass.tsx"))));
   ok("links land: the page answers by going to Live Ops and opening the Pass — and a link waits for ?s=now to land before it is taken",
     /const open = \(\) => \{ setSection\("now"\); setSvc\(true\); \};\s*window\.addEventListener\(OPEN_PASS_EVENT, open\);/.test(pg)
     && /if \(a === PASS_ANCHOR && sec !== "now" && readParam\("s"\) === "now"\) return;\s*consumedAnchorRef\.current = true;\s*dropParam\("a"\);\s*jumpTo\(a\);/.test(pg)
@@ -9287,7 +9298,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /m\?\.addEventListener\?\.\("change", onChange\);/.test(read("lib/theme.ts")) && /const PHONE_DARK = "\(prefers-color-scheme: dark\)";/.test(read("lib/theme.ts")));
   ok("one home: the pass's sound is read and written in lib/passSound only — the Pass's bell and Settings both go through it",
     JSON.stringify(keyHomes('"kds_muted"')) === JSON.stringify(["lib/passSound.ts"])
-    && /const muted = usePassMuted\(\);/.test(pg) && /const toggleMute = \(\) => \{ setPassMuted\(!muted\); unlockAudio\(\); \};/.test(pg)
+    && /const muted = usePassMuted\(\);/.test(code(read("components/pass/usePassBoard.ts"))) && /const toggleMute = \(\) => \{ setPassMuted\(!muted\); unlockAudio\(\); \};/.test(code(read("components/pass/ThePass.tsx")))
     && /if \(muted\) haptic\("toggleOn"\); else haptic\("toggleOff"\);\s*setPassMuted\(!muted\);/.test(code(read("components/YouPrefs.tsx"))));
   const dt = code(read("components/DisplayToggle.tsx"));
   ok("one home: Display & text size is one set of controls — the rail's panel and Settings draw DisplayControls, and both read the one store",
@@ -10504,18 +10515,20 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /onClick=\{\(\) => \{ onClose\(\); it\.run\(\); \}\}/.test(lp) && /haptic\("medium"\);/.test(lp));
   ok("long press: on a touch screen the row's words start no selection and iOS shows no callout, its fields still select, and a mouse still selects",
     /@utility pressable \{\s*-webkit-touch-callout: none;\s*@media \(pointer: coarse\) \{\s*-webkit-user-select: none;\s*user-select: none;\s*& :is\(input, textarea, \[contenteditable\]\) \{ -webkit-user-select: text; user-select: text; \}/.test(read("app/tailwind.css")));
+  // A Pass ticket is components/pass/Ticket since 2026-10-11 (the KDS program, wave 2): the board hands it its actions (`act`).
+  const ticketSrc = read("components/pass/Ticket.tsx"), passScreenSrc = read("components/pass/ThePass.tsx");
   ok("long press: on a Pass ticket — its next stage, back a stage, the money, and Void in red — on the ticket's own element",
-    /<LongPress key=\{o\.id\} title=\{`\$\{o\.customer \?\? "Guest"\} · #\$\{o\.id\.slice\(0, 4\)\.toUpperCase\(\)\}`\} items=\{items\}>\{\(press\) => \(\s*<div \{\.\.\.press\.bind\} className=\{`adm-order pressable/.test(crew)
-    && /\{ key: "next", label: st\.action, icon: "arrowRight", run: \(\) => \{ void advance\(o\); \} \}/.test(crew) && /run: \(\) => \{ void recall\(o\); \}/.test(crew)
-    && /run: \(\) => \{ void collect\(o\); \}/.test(crew) && /run: \(\) => \{ void undoTake\(o\); \}/.test(crew) && /\{ key: "void", label: "Void order", icon: "close", danger: true, run: \(\) => \{ void voidOrder\(o\); \} \}/.test(crew));
+    /<LongPress title=\{`\$\{o\.customer \?\? "Guest"\} · #\$\{o\.id\.slice\(0, 4\)\.toUpperCase\(\)\}`\} items=\{items\}>\{\(press\) => \(\s*<div \{\.\.\.press\.bind\} className=\{`adm-order pressable/.test(ticketSrc)
+    && /\{ key: "next", label: action, icon: "arrowRight", run: \(\) => \{ void act\.advance\(o\); \} \}/.test(ticketSrc) && /run: \(\) => \{ void act\.recall\(o\); \}/.test(ticketSrc)
+    && /run: \(\) => \{ void act\.collect\(o\); \}/.test(ticketSrc) && /run: \(\) => \{ void act\.undoTake\(o\); \}/.test(ticketSrc) && /\{ key: "void", label: "Void order", icon: "close", danger: true, run: \(\) => \{ void act\.voidOrder\(o\); \} \}/.test(ticketSrc));
   ok("the Pass: a sheet opened from it (Collect, the void's question, a ticket's menu) stands above it — it opened behind the Pass before",
     /\.sheet2-scrim\{position:fixed;inset:0;z-index:87;/.test(read("app/globals.css")) && /\.svc-full\{position:fixed;inset:0;z-index:85;/.test(read("app/globals.css")));
   ok("the Pass: its words take the look's ink (a ticket's name was the dark look's cream on the Day look's white), and a ticket's age clears its ••• button",
-    /<div className="svc-full text-cream" role="dialog"/.test(crew) && /<div className="adm-order-top pr-10">/.test(crew));
+    /<div className="svc-full text-cream[^"]*" role="dialog"/.test(passScreenSrc) && /<div className="adm-order-top pr-10">/.test(ticketSrc));
   ok("the Pass: Escape in a sheet over it closes the sheet, and the Pass stays",
     /const onKey = \(e: KeyboardEvent\) => \{ if \(e\.key === "Escape" && !e\.defaultPrevented && !sheetOpen\(\)\) setSvc\(false\); \};/.test(crew));
   ok("long press: a just-completed ticket — bring it back to ready, the money — as on the tray's own buttons",
-    /\{ key: "recall", label: "Bring it back to ready", icon: "chevronLeft", run: \(\) => \{ void recall\(o\); \} \}/.test(crew) && /<div \{\.\.\.press\.bind\} className="adm-order pressable st-done">/.test(crew));
+    /\{ key: "recall", label: "Bring it back to ready", icon: "chevronLeft", run: \(\) => \{ void act\.recall\(o\); \} \}/.test(ticketSrc) && /<div \{\.\.\.press\.bind\} className="adm-order pressable st-done"/.test(ticketSrc));
   ok("long press: on an Inbox flag — Open, Discuss, Snooze for an hour (never a critical), Got it — on its row line, inside the swipe",
     /<div \{\.\.\.press\.bind\} className="alert-row pressable">/.test(crew) && /\{ key: "open", label: "Open", icon: "arrowRight", run: \(\) => gotoAlert\(a\) \}/.test(crew)
     && /\.\.\.\(a\.severity !== "critical" \? \[\{ key: "later", label: "Snooze for an hour", icon: "clock", run: \(\) => \{ void later\(a\); \} \}/.test(crew)
@@ -10948,6 +10961,122 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("menu: Add to calendar's menu closes on Escape, back to the button that opened it, and on a touch outside — not only a mouse's press",
     /if \(e\.key === "Escape"\) \{ e\.preventDefault\(\); setOpen\(false\); ref\.current\?\.querySelector<HTMLButtonElement>\("button"\)\?\.focus\(\); \}/.test(atc)
     && /document\.addEventListener\("pointerdown", onDoc\);/.test(atc) && !/"mousedown"/.test(atc));
+}
+
+// ── WAVE 2 · PASS (2026-10-11) ──
+// The KDS program, wave 2: the Pass is its own module (components/pass — ThePass, Ticket, usePassBoard, clock) on its
+// rules (lib/passBoard, lib/passClock), which scripts/pass.test.mjs runs. What only a reading of the source can hold — the
+// wiring — is held here.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const pg = code(read("app/crew/page.tsx")), tp = code(read("components/pass/ThePass.tsx")), tk = code(read("components/pass/Ticket.tsx"));
+  const hk = code(read("components/pass/usePassBoard.ts")), ck = code(read("components/pass/clock.ts")), pb = code(read("lib/passBoard.ts"));
+  const passAll = [tp, tk, hk, ck].join("\n");
+
+  // ── its own module: the page keeps only the mount ──
+  ok("pass module: app/crew/page.tsx keeps only the mount — no board, no feed, no ticket of its own",
+    /import ThePass from "@\/components\/pass\/ThePass";/.test(pg) && (pg.match(/<ThePass /g) || []).length === 1
+    && !/function Kitchen\(|admin-kds-|kdsChanSeq|setOrderStatus\(|className="kds-stage"|svc-grid/.test(pg));
+  ok("pass module: the screen, the ticket and the board are three files, and the rules are lib's",
+    /export default function ThePass\(/.test(tp) && /function PassBoard\(\)/.test(tp) && /export const Ticket = memo\(function Ticket\(/.test(tk)
+    && /export function usePassBoard\(\)/.test(hk) && /from "@\/lib\/passBoard";/.test(tp) && /from "@\/lib\/passBoard";/.test(hk) && /from "@\/lib\/passBoard";/.test(tk));
+  ok("pass module: lib/passBoard is pure — no React, no client of its own (each read takes the one it is handed)",
+    !/from "react"|@\/lib\/supabase|from "\.\/supabase"|window\.|document\./.test(pb) && !/from "react"/.test(code(read("lib/passClock.ts"))));
+  ok("pass module: its unit test is in npm test", /node scripts\/dropday\.test\.mjs && node scripts\/pass\.test\.mjs/.test(read("package.json")));
+
+  // ── performance: a ticket is drawn when it changes ──
+  ok("pass perf: Ticket and DoneTicket are memoised, and every ticket gets the one `act`, made once from stable callbacks",
+    /export const DoneTicket = memo\(function DoneTicket\(/.test(tk)
+    && /const act = useMemo<TicketActs>\(\(\) => \(\{\s*advance: \(o\) => \{ arm\(o\); return advance\(o\); \},\s*recall: \(o\) => \{ arm\(o\); return recall\(o\); \},\s*collect,\s*undoTake,\s*voidOrder: \(o\) => \{ arm\(o\); return voidOrder\(o\); \},\s*\}\), \[arm, advance, recall, collect, undoTake, voidOrder\]\);/.test(tp)
+    && ["move", "takeMoney", "collect", "undoTake", "advance", "recall", "voidOrder"].every((f) => new RegExp(`const ${f} = useCallback\\(`).test(tp))
+    && /list\.map\(\(o\) => <Ticket key=\{o\.id\} o=\{o\} action=\{action\} flash=\{flash\.has\(o\.id\)\} me=\{me\} admin=\{admin\} act=\{act\} \/>\)/.test(tp)
+    && /<DoneTicket key=\{o\.id\} o=\{o\} me=\{me\} admin=\{admin\} act=\{act\} \/>/.test(tp));
+  ok("pass perf: the second ticks the age labels only — no board-wide tick; the board's own clock strikes when the board changes",
+    !/setTick|setInterval\(\(\) => setTick/.test(passAll) && (tk.match(/useSecond\(\)/g) || []).length >= 2
+    && /const now = useBoardNow\(\(at\) => nextBoardChange\(orders, at\)\);/.test(tp) && /useSyncExternalStore\(onSecond, second, second\)/.test(ck)
+    && /const \[clock\] = useState\(strikeClock\);/.test(ck) && (hk.match(/setInterval\(/g) || []).length === 1 && /setInterval\(\(\) => load\(\), 15000\)/.test(hk));
+  ok("pass perf: a reconcile that changes nothing draws nothing (keepSame), and one change merges without a read (mergeRow)",
+    /setOrders\(\(prev\) => keepSame\(prev, rows\)\);/.test(hk) && /setOrders\(\(prev\) => mergeRow\(prev, row, removed, now\)\);/.test(hk));
+  ok("pass perf: ONE realtime channel for the Pass's own tables — orders, and the live stop and event — and no other subscription",
+    (hk.match(/\.channel\(/g) || []).length === 1 && /\.channel\(`admin-kds-\$\{\+\+kdsChanSeq\}`\)/.test(hk)
+    && ["orders", "live_status", "events"].every((t) => new RegExp(`\\.on\\("postgres_changes", \\{ event: "\\*", schema: "public", table: "${t}" \\}`).test(hk))
+    && !/useRealtimeTable|\.channel\(/.test([tp, tk, ck].join("\n")));
+  ok("pass perf: the board read is bounded — readBoard with the cap, the count of what it left, and the line that says so with the way to the rest",
+    /const res = auth\.data\.session \? await readBoard\(supabase, Date\.now\(\), cap\.current\) : null;/.test(hk) && /setMore\(res\.more\);/.test(hk)
+    && /const showMore = useCallback\(\(\) => \{ cap\.current \+= OPEN_CAP; void load\(\); \}, \[load\]\);/.test(hk)
+    && /\{more > 0 && \(/.test(tp) && /\{moreLine\(more\)\}/.test(tp) && /onClick=\{showMore\}>Show them<\/button>/.test(tp));
+
+  // ── scalability: here, or everywhere ──
+  ok("pass here: the choice is this phone's (lib/devicePref, one home), every order by default",
+    /export const PASS_SCOPE = devicePref\("gt3-pass-scope"\);/.test(hk) && /scopeFrom\(useDevicePref\(PASS_SCOPE\)\)/.test(hk)
+    && !/"gt3-pass-scope"/.test([tp, tk, pg].join("\n")));
+  ok("pass here: offered only while a stop or an event is live, narrowed only then, and what it leaves out is said, one tap from all of it",
+    /\{somewhereLive\(here\) && \(\s*<Segmented kind="choice"/.test(tp) && /const narrowed = scope === "here" && somewhereLive\(here\);/.test(tp)
+    && /narrowed \? all\.filter\(\(o\) => isHere\(o, here\)\) : all/.test(tp) && /\{elsewhere > 0 && \(/.test(tp) && /onClick=\{\(\) => setPassScope\("all"\)\}>Show all<\/button>/.test(tp));
+  ok("pass here: where the truck sells is read when the Pass opens and when the feed returns, and the feed's own changes move it — never a read per GPS ping",
+    /setHere\(\(h\) => hereAfter\(h, "live_status", p\)\)/.test(hk) && /setHere\(\(h\) => hereAfter\(h, "events", p\)\)/.test(hk) && /const r = await readHere\(supabase\);/.test(hk));
+
+  // ── at arm's length: the board's layout is the Pass's own width ──
+  const tw = read("app/tailwind.css"), gl = read("app/globals.css");
+  const util = (name) => (tw.match(new RegExp(`@utility ${name} \\{[\\s\\S]*?\\n\\}`)) || [""])[0];
+  ok("pass wide: the frame is a container (`pass`); from 900 across the lanes stand three abreast and the rail beside them — a phone keeps one column",
+    /<div className="svc-full text-cream pass-frame" role="dialog"/.test(tp) && /container: pass \/ inline-size;/.test(util("pass-frame"))
+    && /grid-template-columns: minmax\(0, 1fr\);\s*@container pass \(width >= 900px\) \{[^}]*grid-template-columns: minmax\(0, 1fr\) clamp\(260px, 28%, 340px\);/.test(util("pass-grid"))
+    && /@container pass \(width >= 900px\) \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/.test(util("pass-cols"))
+    && /<div className="pass-grid">/.test(tp) && /<div className="pass-main">\{strip\}<PassBoard \/><\/div>/.test(tp) && /<aside className="pass-rail" aria-label="Pickups & sold-out">/.test(tp)
+    && /<div className="pass-cols">/.test(tp) && /<div className="kds-stage pass-lane" key=\{st\.key\} data-lane=\{st\.key\}>/.test(tp) && /<div className="pass-list">/.test(tp));
+  ok("pass wide: each lane's list and the rail scroll on their own, under their headings; the board does not scroll as a page",
+    /overflow-y: auto; overscroll-behavior: contain;/.test(util("pass-list")) && /min-height: 0; overflow-y: auto; overscroll-behavior: contain;/.test(util("pass-rail"))
+    && /flex: 1 1 auto; min-height: 0;/.test(util("pass-grid")) && /display: flex;\s*flex-direction: column;/.test(util("pass-frame")));
+  ok("pass wide: the window's old service-mode rules are gone from the house stylesheet (it only shrinks)",
+    !/\.svc-grid|\.svc-rail|\.svc-main/.test(gl) && !/svc-grid|svc-rail|svc-main/.test(tp) && /\.svc-full\{position:fixed;inset:0;z-index:85;/.test(gl));
+  ok("pass type: at arm's length the number 28 (the display face), the name 20, a line per drink at 17, the age 17 — each a step; a phone keeps the kit's",
+    /& \.adm-order-top b \{ font-size: 20px;/.test(util("pass-board")) && /& \.adm-items \{ font-size: 17px; \}/.test(util("pass-board")) && /& \.adm-age \{ font-size: 17px; \}/.test(util("pass-board"))
+    && /& \.pass-item \{ display: block; \}/.test(util("pass-board")) && /& \.pass-sep \{ display: none; \}/.test(util("pass-board"))
+    && /font-family: var\(--mono\); font-size: 13px;[^@]*@container pass \(width >= 900px\) \{ font-family: "Archivo Black"[^}]*font-size: 28px;/.test(util("pass-no"))
+    && [...tw.slice(tw.indexOf("THE PASS AT ARM'S LENGTH")).matchAll(/font-size: (\d+)px/g)].every((m) => [11, 12, 13, 15, 16, 17, 20, 22, 28, 34].includes(Number(m[1])))
+    && /\.adm-order-top b\{font-family:'Inter';font-weight:650;font-size:15px;line-height:1\.2\}/.test(gl) && /\.adm-items\{font-family:'Inter';font-weight:600;font-size:15px;/.test(gl));
+  ok("pass type: the ticket's number is up top beside the name, and its drinks are lib/passBoard's lines",
+    /<span className="pass-no">\{ticketNo\(o\.id\)\}<\/span>/.test(tk) && /itemLines\(items\)\.map\(\(l, i\) => \(/.test(tk) && /<span key=\{l\.key\} className="pass-item">\{i > 0 && <span className="pass-sep"> · <\/span>\}/.test(tk)
+    && /name: DRINKS\[id as DrinkId\]\?\.n \?\? id/.test(pb));
+
+  // ── placed ahead: a lane of its own, and Live Ops counts the same way ──
+  ok("pass scheduled: an order placed ahead waits in Scheduled — under New, folded until opened, by lib/passBoard's lanes",
+    /const lanes = useMemo\(\(\) => passLanes\(orders, now\), \[orders, now\]\);/.test(tp) && /useState<Set<string>>\(\(\) => new Set\(\["scheduled"\]\)\)/.test(tp)
+    && /\{st\.key === "new" && lanes\.scheduled\.length > 0 && \(\s*<div className="kds-stage" data-lane="scheduled">/.test(tp)
+    && /\{!folded\.has\("scheduled"\) && tickets\(lanes\.scheduled, st\.action\)\}/.test(tp) && /readPulse\(supabase, Date\.now\(\)\)/.test(pg));
+
+  // ── 86, and recall: one tap ──
+  ok("pass 86: on a phone the bar's '86 board' opens the 86 board in a sheet; where the rail is beside the board the door is not drawn",
+    /<button type="button" className="btn-ter pass-narrow" onClick=\{\(\) => setEightySix\(true\)\} aria-haspopup="dialog">86 board<\/button>/.test(tp)
+    && /<Sheet open onClose=\{\(\) => setEightySix\(false\)\} label="86 board"/.test(tp) && /<EightySix \/>\s*<\/Sheet>/.test(tp)
+    && /@container pass \(width >= 900px\) \{ display: none; \}/.test(util("pass-narrow")));
+  ok("pass recall: the last picked up stay in reach under Ready, Recall one tap on each — through the move, from the status it showed",
+    /\{st\.key === "ready" && done\.length > 0 && \(/.test(tp) && /\(trayOpen \? done : done\.slice\(0, TRAY_SHOWN\)\)\.map\(\(o\) => <DoneTicket/.test(tp)
+    && /const done = lanes\.done\.filter\(\(o\) => canRecall\(o, now\)\);/.test(tp) && /const recall = useCallback\(\(o: Order\) => move\(o, PREV\[o\.status\]\), \[move\]\);/.test(tp)
+    && /<button type="button" className="btn-sec shrink-0" onClick=\{\(\) => act\.recall\(o\)\} aria-label=\{`Bring \$\{o\.customer \?\? "order"\} back to ready`\}>↩ Recall<\/button>/.test(tk));
+
+  // ── accessibility on the Pass ──
+  ok("pass a11y: each lane's heading is a heading, 44 points tall, with its count in its name",
+    /<div role="heading" aria-level=\{3\}>\s*<button type="button" className="kds-stage-h min-h-11" onClick=\{onFold\} aria-expanded=\{!folded\} aria-label=\{laneName\(lane, n\)\}>/.test(tp));
+  ok("pass a11y: a new order is said politely in one line — the lanes are no live region (every age was read out each second)",
+    (tp.match(/aria-live=/g) || []).length === 1 && !/aria-live=/.test(tk) && /<div className="sr-only" aria-live="polite" aria-atomic="true">\{said\.text && <span key=\{said\.n\}>\{said\.text\}<\/span>\}<\/div>/.test(tp)
+    && /say\(newOrderWords\(row\)\);/.test(hk) && /say\(outsideWords\(row\)\);/.test(hk) && /if \(fresh\.length > 1\) say\(newOrdersWords\(fresh\.length\)\);/.test(hk));
+  ok("pass a11y: no state by colour alone — late says 'late', the money says PAID or UNPAID, placed ahead says when",
+    /\{a\.text\}\{a\.late && <> late<\/>\}/.test(tk) && /return \{ text: ago\(orderClockFrom\(o\), nowMs\), sev, late: sev === "late" \};/.test(pb) && /\{passWord\(o\)\}/.test(tk));
+  ok("pass a11y: focus stays on the board — a ticket is a focusable group, and focus that was on it follows it when it moves",
+    /role="group" aria-label=\{`\$\{o\.customer \?\? "Guest"\}, \$\{ticketNo\(o\.id\)\}`\} tabIndex=\{-1\} data-ticket=\{o\.id\}>/.test(tk)
+    && /<div className="adm-sec pass-board" id="kitchen-pass" ref=\{board\} tabIndex=\{-1\} onFocus=\{onFocus\}>/.test(tp)
+    && /const \{ board, onFocus, arm, land \} = useFollowFocus\(all\);/.test(tp)
+    && (tp.match(/land\(o, laneOf\(o, Date\.now\(\)\)\);\s*apply\(/g) || []).length === 2
+    && /export function useFollowFocus\(/.test(code(read("components/pass/focus.ts"))) && /t\.focus\(\{ preventScroll: false \}\);/.test(code(read("components/pass/focus.ts"))));
+
+  // ── the feed, said out loud ──
+  ok("pass feed: whenever its state changes the Pass says so — gt3:pass-feed, { state, at }",
+    /const feed = feedState\(down, live\);\s*useEffect\(\(\) => \{\s*window\.dispatchEvent\(new CustomEvent\(PASS_FEED_EVENT, \{ detail: \{ state: feed, at: Date\.now\(\) \} \}\)\);\s*\}, \[feed\]\);/.test(hk)
+    && /export const PASS_FEED_EVENT = "gt3:pass-feed";/.test(pb));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

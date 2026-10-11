@@ -35,7 +35,7 @@ import ts from "typescript";
 // ── 1. modal layers that are not a <Sheet>, and why ───────────────────────────────────────────
 export const OWN_OVERLAYS = {
   "components/StoryViewer.tsx": "a product's photos, full screen — it follows the finger down itself (on the engine) and swipes sideways between photos",
-  "app/crew/page.tsx#The Pass": "service mode's working screen, left with Exit or Escape — a stray swipe must not drop the pass mid-rush",
+  "components/pass/ThePass.tsx#The Pass": "service mode's working screen, left with Exit or Escape — a stray swipe must not drop the pass mid-rush",
   "components/CommandPalette.tsx#Jump to": "the ⌘K palette — a keyboard surface anchored at the top, closed by Escape or a tap outside",
   "components/MarketingSplash.tsx#A note from GT3": "the splash — any tap on it lets you through",
   "components/OfferLetterPrint.tsx#Printable offer letter": "a print view of a letter — a page to print, not a popout",

@@ -4911,16 +4911,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 /* Retiring a draft (0308). Quiet, full width, 44px — the same shape as .brew-remove, because it is
    the same idea: taking something off a list is never the primary action on the card it sits in. */
 
-/* service mode: one working surface — pass main, sticky rail (pickups + delivery + 86) */
-.svc-grid{display:grid;grid-template-columns:minmax(0,1fr)}
-@media(min-width:940px){
-  .svc-grid{grid-template-columns:minmax(0,1fr) minmax(320px,380px);gap:0 22px;align-items:start}
-  .svc-rail{position:sticky;top:46px;max-height:calc(100dvh - 64px);overflow-y:auto;border-left:1px solid var(--line);padding-left:18px;overscroll-behavior:contain}
-}
-@media(min-width:1240px){
-  .svc-main .kds-stage{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
-  .svc-main .kds-stage-h,.svc-main .kds-empty,.svc-main .adm-attn{grid-column:1/-1}
-}
+/* service mode's layout — the board, the rail, the lanes side by side — is app/tailwind.css THE PASS AT ARM'S LENGTH */
 /* in service, rush-irrelevant detail goes quiet: how-86-works copy, past drops */
 .svc-full .es-note{display:none}
 .svc-full .dops-hist{display:none}
