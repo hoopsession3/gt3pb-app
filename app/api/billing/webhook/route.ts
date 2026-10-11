@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { raiseAlert } from "@/lib/serverAlerts";
+import { stripeSignatureOk } from "@/lib/webhookSignature";
 import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
@@ -10,18 +10,16 @@ export const runtime = "nodejs";
 // (HMAC-SHA256 over `t.payload`, constant-time compare, 5-minute tolerance) — the same posture as
 // the Square webhook. Dormant until STRIPE_WEBHOOK_SECRET exists. Always answers fast; Stripe
 // retries on non-2xx, so only signature failures reject.
-const TOLERANCE_S = 300;
-
-function verify(payload: string, header: string | null, secret: string): boolean {
-  if (!header) return false;
-  const parts = Object.fromEntries(header.split(",").map((kv) => kv.split("=", 2) as [string, string]));
-  const t = Number(parts.t);
-  const v1 = parts.v1;
-  if (!Number.isFinite(t) || !v1) return false;
-  if (Math.abs(Date.now() / 1000 - t) > TOLERANCE_S) return false;
-  const expected = createHmac("sha256", secret).update(`${parts.t}.${payload}`).digest("hex");
-  try { return timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(v1, "hex")); } catch { return false; }
-}
+//
+// ONE CHECK FOR EVERY WEBHOOK (2026-10-11, lib/webhookSignature). This read only the LAST v1 in the
+// header, and Stripe signs with both secrets while one is being rolled — a real event whose match
+// came first was refused. Every v1 is tried now. A missing or wrong signature is a 401 (it was a
+// 400; Stripe retries either, and 401 is what every other webhook here answers a forgery with).
+//
+// DORMANT IS A DECISION FOR THE OWNER, NOT THIS FILE. With STRIPE_WEBHOOK_SECRET unset this answers
+// 200 and does nothing — no event is read, so no forged event can act — and Stripe stops retrying.
+// Refusing instead (401/503) would start failing deliveries Stripe makes today if the endpoint is
+// registered there; whether it is, is a fact of the Stripe dashboard. Left as it was, and said.
 
 type StripeEvent = {
   id?: string;
@@ -38,8 +36,8 @@ async function post(req: Request) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret || !supabaseAdmin) return NextResponse.json({ ok: true }); // dormant — ack so Stripe doesn't retry forever
   const payload = await req.text();
-  if (!verify(payload, req.headers.get("stripe-signature"), secret)) {
-    return NextResponse.json({ error: "bad signature" }, { status: 400 });
+  if (!stripeSignatureOk(payload, req.headers.get("stripe-signature"), secret)) {
+    return NextResponse.json({ error: "bad signature" }, { status: 401 });
   }
 
   try {

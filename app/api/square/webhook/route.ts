@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { SQUARE_WEBHOOK_SIGNATURE_KEY, SQUARE_WEBHOOK_URL, mapSubStatus } from "@/lib/squareServer";
 import { raiseAlert, raiseAlertOnce } from "@/lib/serverAlerts";
 import { moneyPlain } from "@/lib/money";
+import { squareSignatureOk } from "@/lib/webhookSignature";
 import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs"; // needs node crypto + raw body
@@ -22,10 +22,11 @@ async function post(req: Request) {
   }
 
   const raw = await req.text();
-  const sig = req.headers.get("x-square-hmacsha256-signature") || "";
-  const expected = crypto.createHmac("sha256", SQUARE_WEBHOOK_SIGNATURE_KEY).update(SQUARE_WEBHOOK_URL + raw).digest("base64");
-  const ok = sig.length === expected.length && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
-  if (!ok) return NextResponse.json({ ok: false }, { status: 401 });
+  // lib/webhookSignature (2026-10-11): this compare counted characters and then bytes, so a forged header with one
+  // non-ASCII character threw — a 500, filed as a crash and an alert — instead of the 401 a forgery gets.
+  if (!squareSignatureOk(raw, req.headers.get("x-square-hmacsha256-signature"), SQUARE_WEBHOOK_SIGNATURE_KEY, SQUARE_WEBHOOK_URL)) {
+    return NextResponse.json({ ok: false }, { status: 401 });
+  }
 
   let evt: any;
   try { evt = JSON.parse(raw); } catch { return NextResponse.json({ ok: false }, { status: 400 }); }

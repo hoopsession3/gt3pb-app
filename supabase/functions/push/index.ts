@@ -1,15 +1,22 @@
 // Supabase Edge Function - sends Web Push (browsers) and APNs (the iPhone app) on order / subscription / booking changes.
 // Triggered by Database Webhooks (orders INSERT/UPDATE, subscriptions UPDATE, booking_requests
 // INSERT, alerts INSERT, event_tasks UPDATE, profiles INSERT, delivery_orders INSERT,
-// drop_orders INSERT, live_status UPDATE — the customer go-live ping, 0257).
+// drop_orders INSERT, live_status UPDATE — the customer go-live ping, 0257), and by an alerts UPDATE when a
+// critical nobody picked up is escalated (0373's alerts_push_escalation trigger, through the same door as 0157's).
 // Secrets: VAPID_PUBLIC, VAPID_PRIVATE. SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are auto-injected.
 // The iPhone app (2026-10-11): APNS_PRIVATE_KEY, the .p8's text of the Apple Developer key "GT3 Push Notifications"
 // (APNs, Production, team-scoped) — a secret, set in the dashboard. Its Key ID (HQ7722ND83) and the team (7SC4HB6V2J)
 // are not secrets — Apple reads both off every token's header — so they are written here, and APNS_KEY_ID /
 // APNS_TEAM_ID override them if a key is ever replaced. Without the private key an 'apns' row is skipped, never an error.
-// Deploy: Supabase dashboard -> Edge Functions -> "push" -> paste -> deploy.
+// Deploy: TWO FILES since 2026-10-11 — this one and ./policy.ts beside it (what a severity sends, what a lock screen
+// may show). Supabase dashboard -> Edge Functions -> "push" -> paste index.ts AND add policy.ts -> deploy; or
+// `supabase functions deploy push`, which takes the folder. Deploy it BEFORE pasting 0373 and 0374.
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  alertShown, channelsFor, escalationShown, isEscalation, liveShown, mayEmail, newOrderShown, orderStatusShown,
+  severityOf, signoffShown, subscriptionShown, taskShown, type Shown,
+} from "./policy.ts";
 
 webpush.setVapidDetails(
   "mailto:hello@gt3pb.com",
@@ -18,8 +25,13 @@ webpush.setVapidDetails(
 );
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-const DRINKS: Record<string, string> = { rise: "RISE", flow: "FLOW", dusk: "DUSK", tide: "TIDE", forge: "FORGE", hunt: "HUNT", wild: "WILD" };
 const firstName = (full?: string | null) => (full || "").trim().split(/\s+/)[0] || "";
+
+// ONE BUSINESS AT A TIME (2026-10-11). A row's tenant, as 0134 stamps it — the founding tenant when there is none.
+// The crew's devices and the leadership a broadcast reaches are looked up in THIS tenant: they used to be every
+// tenant's, so a second business's order would have rung the first's phones.
+const FOUNDING = "00000000-0000-0000-0000-000000000001";
+const tenantOf = (r: { tenant_id?: string | null } | null | undefined) => r?.tenant_id || FOUNDING;
 
 // ── APNs: THE IPHONE APP'S ALERTS (2026-10-11) ──────────────────────────────────────────────────────────────────
 // A phone running the app is kept as an 'apns' row (0367; endpoint 'apns:<token>'). Apple's HTTP/2 API takes a JSON
@@ -79,12 +91,14 @@ async function sendApns(endpoint: string, alert: { title: string; body: string; 
   return r.status;
 }
 
-// deno-lint-ignore no-explicit-any
-async function subsFor(filter: (q: any) => any) {
+type Sub = { endpoint: string; p256dh: string | null; auth: string | null; platform: string | null };
+type SubQuery = ReturnType<ReturnType<typeof supabase.from>["select"]>;
+
+async function subsFor(filter: (q: SubQuery) => SubQuery): Promise<Sub[]> {
   const { data } = await filter(supabase.from("push_subscriptions").select("*"));
   // One send per device - dedup by endpoint so a duplicated row can't double-notify.
   const seen = new Set<string>();
-  return (data ?? []).filter((s: { endpoint: string }) => (seen.has(s.endpoint) ? false : (seen.add(s.endpoint), true)));
+  return ((data ?? []) as Sub[]).filter((s) => (seen.has(s.endpoint) ? false : (seen.add(s.endpoint), true)));
 }
 
 async function nameForUser(userId: string) {
@@ -92,22 +106,40 @@ async function nameForUser(userId: string) {
   return firstName(data?.display_name);
 }
 
-// Post an alert card to the Teams channel (best-effort; skipped if no webhook / fyi tier).
+// WHO AN ALERT REACHES (2026-10-11). Its own person when it has one; a broadcast, the leadership of its tenant
+// (event_manager, admin, owner — 0157). An escalation (0373) is sent to those again AND to every admin and owner of
+// the tenant, so a critical nobody picked up reaches the people who answer for the business, not only its lane.
+async function peopleFor(a: { target_user_id?: string | null; tenant_id?: string | null }, escalation = false): Promise<string[]> {
+  const ids = new Set<string>();
+  if (a.target_user_id) ids.add(a.target_user_id);
+  const roles = new Set<string>(a.target_user_id ? [] : ["event_manager", "admin", "owner"]);
+  if (escalation) { roles.add("admin"); roles.add("owner"); }
+  if (roles.size) {
+    const { data } = await supabase.from("profiles").select("id").eq("tenant_id", tenantOf(a)).in("role", [...roles]);
+    for (const p of (data ?? []) as { id: string }[]) ids.add(p.id);
+  }
+  return [...ids];
+}
+
+// Post an alert card to the Teams channel (best-effort; skipped with no webhook, and wherever ./policy.ts says a
+// severity does not post — an fyi).
 async function postTeams(severity: string, ttl: string, body: string) {
   const teams = Deno.env.get("TEAMS_WEBHOOK_URL");
-  if (!teams || severity === "fyi") return;
-  const themeColor = severity === "critical" ? "D2554A" : "A97C3F";
-  const flag = severity === "critical" ? "🔴 " : "🟠 ";
+  if (!teams || !channelsFor(severity).teams) return;
+  const themeColor = severityOf(severity) === "critical" ? "D2554A" : "A97C3F";
+  const flag = severityOf(severity) === "critical" ? "🔴 " : "🟠 ";
   try {
     await fetch(teams, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ "@type": "MessageCard", "@context": "https://schema.org/extensions", themeColor, summary: ttl, title: flag + ttl, text: body || "" }),
     });
-  } catch (_e) { /* never fail on a channel error */ }
+  } catch { /* never fail on a channel error */ }
 }
-// Drop a row in the in-app inbox (service role bypasses RLS — these are system-raised).
-async function insertAlert(a: { severity: string; category: string; title: string; body?: string; link?: string }) {
-  await supabase.from("alerts").insert({ severity: a.severity, category: a.category, title: a.title, body: a.body ?? null, link: a.link ?? "/admin" });
+// Drop a row in the in-app inbox (service role bypasses RLS — these are system-raised). Its fan-out (0157) carries
+// the push and the Teams card, so a caller here sends neither itself — that made two Teams cards per booking.
+async function insertAlert(a: { severity: string; category: string; title: string; body?: string; link?: string; tenant_id?: string | null }) {
+  await supabase.from("alerts").insert({ severity: a.severity, category: a.category, title: a.title, body: a.body ?? null,
+    link: a.link ?? "/admin", tenant_id: tenantOf(a) });
 }
 
 // The ONE Resend send under emailAdmins/emailUser. First address on To, the rest BCC
@@ -124,7 +156,7 @@ async function sendEmail(to: string[], subject: string, body: string) {
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from, to: to.slice(0, 1), ...(to.length > 1 ? { bcc: to.slice(1) } : {}), subject: subject.slice(0, 200), text: body }),
     });
-  } catch (_e) { /* never fail the webhook on a mail-provider hiccup */ }
+  } catch { /* never fail the webhook on a mail-provider hiccup */ }
 }
 
 // Email the owner/manager list (public.admin_emails — 0004). Push needs a subscribed device and
@@ -144,65 +176,51 @@ async function emailUser(userId: string, subject: string, body: string) {
     const { data } = await supabase.auth.admin.getUserById(userId);
     const em = data?.user?.email;
     if (em) { await sendEmail([em], subject, body); return; }
-  } catch (_e) { /* fall through to the admin list */ }
+  } catch { /* fall through to the admin list */ }
   await emailAdmins(subject, body);
 }
 
 Deno.serve(async (req) => {
   try {
     const { table, type, record, old_record } = await req.json();
-    let title = "GT3 Performance Bar", message = "", url = "/";
-    // deno-lint-ignore no-explicit-any
-    let targets: any[] = [];
+    // What the phone shows (./policy.ts — no customer name, phone, address, email or amount, whatever the row
+    // holds) and where a tap opens. The row's own words stay in the app.
+    let shown: Shown | null = null, url = "/";
+    let targets: Sub[] = [];
 
     if (table === "orders" && type === "INSERT") {
-      const names = (record.items ?? []).map((i: string) => DRINKS[i] ?? i).join(" - ");
-      title = "New order";
-      message = `${record.customer ? record.customer + " - " : ""}${names} - $${(record.total_cents / 100).toFixed(2)}`;
+      shown = newOrderShown(record);
       // A tap opens the Pass itself (2026-10-11, the KDS audit): "/admin" opened the console wherever it was last left,
       // a screen or two from the ticket. &a=kitchen-pass is the console's own jump to the Pass (app/crew/page.tsx jumpTo).
       url = "/crew?s=now&a=kitchen-pass";
-      targets = await subsFor((q) => q.eq("is_admin", true));
+      targets = await subsFor((q) => q.eq("is_admin", true).eq("tenant_id", tenantOf(record)));
 
     } else if (table === "orders" && type === "UPDATE" && record.user_id) {
       // Only fire on a real status TRANSITION - this is what stops the duplicate spam
       // when the row is rewritten with the same status (optimistic + reconcile, etc.).
       if (old_record && old_record.status === record.status) return new Response("skip: no transition");
-      const name = firstName(record.customer);
-      const map: Record<string, string> = {
-        preparing: name ? `${name}, we're making your order now.` : "We're making your order now.",
-        ready: name ? `${name}, your order's ready - come grab it at the bar.` : "Your order's ready - come grab it at the bar.",
-        // 'done' intentionally sends nothing - they already have it in hand.
-      };
-      if (!map[record.status]) return new Response("skip");
-      message = map[record.status];
+      shown = orderStatusShown(record);
+      if (!shown) return new Response("skip");
       targets = await subsFor((q) => q.eq("user_id", record.user_id));
 
     } else if (table === "subscriptions" && type === "UPDATE" && record.user_id) {
       if (old_record && old_record.status === record.status) return new Response("skip: no transition");
-      const name = await nameForUser(record.user_id);
-      const map: Record<string, string> = {
-        active: name ? `${name}, your subscription's live - your bottles are ready when you are.` : "Your subscription's live - your bottles are ready when you are.",
-        past_due: name ? `${name}, your subscription payment didn't go through - update your card to keep your bottles coming.` : "Your subscription payment didn't go through - update your card to keep your bottles coming.",
-      };
-      if (!map[record.status]) return new Response("skip");
-      message = map[record.status];
+      shown = subscriptionShown(record);
+      if (!shown) return new Response("skip");
       url = "/3mpire";
       targets = await subsFor((q) => q.eq("user_id", record.user_id));
 
     } else if (table === "booking_requests" && type === "INSERT") {
-      title = "New booking request";
-      message = `${record.name ?? "Someone"}${record.event_date ? " - " + record.event_date : ""}${record.location_text ? " - " + record.location_text : ""}`;
-      url = "/admin";
       // No direct push targets here (2026-07-30, Ryan's screenshot: "Should I have gotten three?").
       // insertAlert below fans out to leadership via the alerts webhook — pushing directly here TOO
-      // meant every booking notified twice from this function alone. One event, one push.
+      // meant every booking notified twice from this function alone. One event, one push. And one Teams card
+      // (2026-10-11): the fan-out posts it, so posting here as well made two.
       // Producer: a new lead → inbox + Teams + email so it's chased before it goes cold. Email is
       // the one channel here that doesn't depend on a subscribed device or a configured webhook —
       // an owner who's away from the crew app for a day still finds out a lead came in, and when.
-      await insertAlert({ severity: "important", category: "booking", title: "New booking lead", body: message });
-      await postTeams("important", "New booking lead", message);
-      await emailAdmins(
+      const message = `${record.name ?? "Someone"}${record.event_date ? " - " + record.event_date : ""}${record.location_text ? " - " + record.location_text : ""}`;
+      await insertAlert({ severity: "important", category: "booking", title: "New booking lead", body: message, tenant_id: record.tenant_id });
+      if (mayEmail("important", true)) await emailAdmins(
         `New booking request${record.name ? ` — ${record.name}` : ""}`,
         [
           `${record.name ?? "Someone"} wants to book GT3PB.`,
@@ -218,15 +236,18 @@ Deno.serve(async (req) => {
           "Manage it: https://app.gt3pb.com/crew?s=plan",
         ].filter((line) => line !== null).join("\n"),
       );
+      return new Response("ok: booking");
 
     } else if (table === "profiles" && type === "INSERT") {
-      // New sign-up (2026-07-30). Low-volume, high-signal: inbox alert + email; push rides the
-      // alert fan-out (the alerts INSERT webhook), so no direct targets here. Teams skips fyi.
+      // New sign-up (2026-07-30): an fyi in the inbox, and it asks for an email. Since 2026-10-11 an fyi gets the inbox
+      // and nothing else (./policy.ts, FYI STAYS QUIET), so the rule refuses the email — no push, no Teams either. A
+      // sign-up the owner wants to hear about is an 'important' one: that one word below brings back the email (asked
+      // for here) with a push and a Teams card.
       const who = record.display_name?.trim() || "Someone new";
       const role = record.role && record.role !== "member" ? ` (${record.role})` : "";
-      message = `${who}${role} just joined.`;
-      await insertAlert({ severity: "fyi", category: "system", title: "New member signed up", body: message, link: "/crew?s=customers" });
-      await emailAdmins("New member signed up", [
+      const severity: string = "fyi";
+      await insertAlert({ severity, category: "system", title: "New member signed up", body: `${who}${role} just joined.`, link: "/crew?s=customers", tenant_id: record.tenant_id });
+      if (mayEmail(severity, true)) await emailAdmins("New member signed up", [
         `${who}${role} just created an account.`,
         "",
         "Customer book: https://app.gt3pb.com/crew?s=customers",
@@ -234,32 +255,28 @@ Deno.serve(async (req) => {
       return new Response("ok: signup");
 
     } else if (table === "delivery_orders" && type === "INSERT") {
-      // New delivery order (2026-07-30): alert (fans out push) + Teams + email. No direct targets —
-      // the alert webhook is the ONE push path (see the booking case's triple-notification note).
-      title = "New delivery order";
-      message = `${record.pack_size ?? "?"}-bottle delivery for ${record.delivery_date ?? "soon"}`;
-      url = "/admin";
-      await insertAlert({ severity: "important", category: "delivery", title, body: message, link: "/crew?s=driver" });
-      await postTeams("important", title, message);
-      await emailAdmins(`New delivery order — ${record.pack_size ?? "?"}-pack`, [
+      // New delivery order (2026-07-30): an email to the owners. The inbox line, its push and its Teams card come
+      // from the route that took the order (app/api/delivery/checkout, 'important' since 2026-10-11). The alert this
+      // inserted beside it carried category 'delivery', which 0232's alerts_category_canon refuses, so it had never
+      // been written since — and its Teams card, posted here directly, was the only one. One event, one of each.
+      const message = `${record.pack_size ?? "?"}-bottle delivery for ${record.delivery_date ?? "soon"}`;
+      if (mayEmail("important", true)) await emailAdmins(`New delivery order — ${record.pack_size ?? "?"}-pack`, [
         message + ".",
         "",
         "Run sheet: https://app.gt3pb.com/crew?s=driver",
       ].join("\n"));
+      return new Response("ok: delivery");
 
     } else if (table === "drop_orders" && type === "INSERT") {
-      // New reserve (2026-07-30): same single-push contract as deliveries — the alert fan-out
-      // carries the push; direct targets here would double it.
-      title = "New reserve";
-      message = `${record.size ?? "?"}-pack reserved for ${record.drop_date ?? "the next drop"}${record.paid ? " · paid" : " · pay at pickup"}`;
-      url = "/admin";
-      await insertAlert({ severity: "important", category: "drop", title, body: message, link: "/crew?s=now" });
-      await postTeams("important", title, message);
-      await emailAdmins(`New reserve — ${record.size ?? "?"}-pack for ${record.drop_date ?? "next drop"}`, [
+      // New reserve (2026-07-30): as deliveries — the email here; the inbox line, push and Teams card from the route
+      // (app/api/reserve, 'important' since 2026-10-11). The alert inserted here said category 'drop', refused by 0232.
+      const message = `${record.size ?? "?"}-pack reserved for ${record.drop_date ?? "the next drop"}${record.paid ? " · paid" : " · pay at pickup"}`;
+      if (mayEmail("important", true)) await emailAdmins(`New reserve — ${record.size ?? "?"}-pack for ${record.drop_date ?? "next drop"}`, [
         message + ".",
         "",
         "Drop board: https://app.gt3pb.com/crew?s=now",
       ].join("\n"));
+      return new Response("ok: reserve");
 
     } else if (table === "event_tasks" && type === "UPDATE" && record.assignee) {
       // Crew assignment → tell the assigned member they're on a task. Fires on a real assignee
@@ -268,27 +285,28 @@ Deno.serve(async (req) => {
       const assigneeChanged = !old_record || old_record.assignee !== record.assignee;
       const becameCritical = !!record.critical && !!old_record && !old_record.critical;
       if (!assigneeChanged && !becameCritical) return new Response("skip: no assignee/critical change");
-      let ctx = " - an event";
-      if (record.event_id) {
-        const { data: e } = await supabase.from("events").select("title").eq("id", record.event_id).maybeSingle();
-        if (e?.title) ctx = ` - ${e.title}`;
-      } else if (record.meeting_note_id) {
-        // follow-up captured from a meeting note (0049)
-        const { data: m } = await supabase.from("meeting_notes").select("title").eq("id", record.meeting_note_id).maybeSingle();
-        ctx = m?.title ? ` - follow-up - ${m.title}` : " - meeting follow-up";
-      }
-      const name = await nameForUser(record.assignee);
-      title = becameCritical && !assigneeChanged ? "Task flagged critical" : "You're on the crew";
-      message = becameCritical && !assigneeChanged
-        ? `Critical now: ${record.label}${ctx}`
-        : `${name ? name + ", you're" : "You're"} on: ${record.label}${ctx}`;
+      shown = taskShown(record, becameCritical && !assigneeChanged);
       url = "/admin";
       targets = await subsFor((q) => q.eq("user_id", record.assignee));
       // Critical tasks EMAIL their owner too (push alone depends on a subscribed device) — both
-      // when a critical task is assigned and when an assigned task turns critical.
+      // when a critical task is assigned and when an assigned task turns critical. The email says what the task is;
+      // the lock screen does not (a label or an event's title can be a client's name).
       if (record.critical) {
+        let ctx = " - an event";
+        if (record.event_id) {
+          const { data: e } = await supabase.from("events").select("title").eq("id", record.event_id).maybeSingle();
+          if (e?.title) ctx = ` - ${e.title}`;
+        } else if (record.meeting_note_id) {
+          // follow-up captured from a meeting note (0049)
+          const { data: m } = await supabase.from("meeting_notes").select("title").eq("id", record.meeting_note_id).maybeSingle();
+          ctx = m?.title ? ` - follow-up - ${m.title}` : " - meeting follow-up";
+        }
+        const name = await nameForUser(record.assignee);
+        const said = becameCritical && !assigneeChanged
+          ? `Critical now: ${record.label}${ctx}`
+          : `${name ? name + ", you're" : "You're"} on: ${record.label}${ctx}`;
         await emailUser(record.assignee, `Critical task — ${record.label}`, [
-          message + ".",
+          said + ".",
           "",
           "Your day: https://app.gt3pb.com/crew?s=day",
         ].join("\n"));
@@ -301,48 +319,58 @@ Deno.serve(async (req) => {
       // guests, not crew — no alert row, no Teams, no email; the push IS the product.
       const wentLive = !!record.is_live && !!old_record && !old_record.is_live;
       if (!wentLive) return new Response("skip: not a go-live flip");
-      let where = "";
+      let stopName: string | null = null;
       if (record.current_stop_id) {
-        const { data: s } = await supabase.from("stops").select("name, location_text").eq("id", record.current_stop_id).maybeSingle();
-        if (s?.name) where = ` at ${s.name}`;
-        else if (s?.location_text) where = ` at ${s.location_text}`;
+        // The stop's name, which the Find Us page shows anyone (stops.name is not null, 0001) — never its street.
+        const { data: s } = await supabase.from("stops").select("name").eq("id", record.current_stop_id).maybeSingle();
+        stopName = s?.name ?? null;
       }
-      title = "GT3 is LIVE";
-      message = `We're pouring${where} — come thru.`;
+      shown = liveShown(stopName);
       url = "/";
-      targets = await subsFor((q) => q.eq("wants_live", true));
+      targets = await subsFor((q) => q.eq("wants_live", true).eq("tenant_id", tenantOf(record)));
 
     } else if (table === "alerts" && type === "INSERT") {
-      // Alert spine (0050) — fan one alert out to the chosen channels by severity.
-      const sev = record.severity || "important";
+      // Alert spine (0050) — fan one alert out to the channels its severity gets (./policy.ts: an fyi gets none).
+      const ch = channelsFor(record.severity);
+      // "Ring this phone" (0374): the person's own test, to their own devices — never Teams, never email.
+      const ownTest = record.kind === "device_test";
+      if (ownTest && !record.target_user_id) return new Response("skip: a device test is someone's own");
+      if (!ch.push && !ownTest) return new Response("ok: fyi stays in the inbox");
       // 1) Teams (classic Incoming Webhook / MessageCard). If you wired a Power Automate
       // "Workflows" webhook instead, it expects an Adaptive Card — say so and I'll switch it.
-      await postTeams(sev, record.title, record.body || "");
+      if (!ownTest) await postTeams(record.severity, record.title, record.body || "");
       // Critical alerts EMAIL as well (2026-07-30, Ryan: "emails on critical notes... owners of
       // those should get"): the alert's own target user when there is one, the admin list when
       // there isn't. Push needs a subscribed device; a critical can't depend on that.
-      if (sev === "critical") {
+      if (!ownTest && mayEmail(record.severity)) {
         const subj = `Critical — ${record.title}`;
         const bodyTxt = [record.body || record.title, "", `Open it: https://app.gt3pb.com${record.link || "/crew?s=day"}`].join("\n");
         if (record.target_user_id) await emailUser(record.target_user_id, subj, bodyTxt);
         else await emailAdmins(subj, bodyTxt);
       }
-      // 2) Web push: to the target user, or all leadership when there's no specific target.
-      title = (sev === "critical" ? "Critical — " : "") + record.title;
-      message = record.body || "";
+      // 2) Push: to the target user, or all leadership of the alert's business when there's no specific target.
+      shown = alertShown(record);
       url = record.link || "/admin";
-      if (record.target_user_id) {
-        targets = await subsFor((q) => q.eq("user_id", record.target_user_id));
-      } else {
-        const { data: leads } = await supabase.from("profiles").select("id").in("role", ["event_manager", "admin", "owner"]);
-        const ids = (leads ?? []).map((p: { id: string }) => p.id);
-        targets = ids.length ? await subsFor((q) => q.in("user_id", ids)) : [];
-      }
+      const ids = await peopleFor(record);
+      targets = ids.length ? await subsFor((q) => q.in("user_id", ids)) : [];
+
+    } else if (table === "alerts" && type === "UPDATE") {
+      // A CRITICAL NOBODY PICKED UP (0373). escalate_unacked_criticals() marks it escalated once it has gone ten
+      // minutes unacknowledged; this sends it again, once, to its own people and every admin and owner of its
+      // business. Acknowledging stops it: one acknowledged between the mark and this send — "Got it" on the row, or
+      // anyone's on a broadcast (alert_reads, 0157) — is not sent.
+      if (!isEscalation(record, old_record)) return new Response("skip: not an escalation");
+      const { data: now } = await supabase.from("alerts").select("ack_at").eq("id", record.id).maybeSingle();
+      const { count: reads } = await supabase.from("alert_reads").select("alert_id", { count: "exact", head: true }).eq("alert_id", record.id);
+      if (!now || now.ack_at || (reads ?? 0) > 0) return new Response("skip: acknowledged");
+      shown = escalationShown(record);
+      url = record.link || "/admin";
+      const ids = await peopleFor(record, true);
+      targets = ids.length ? await subsFor((q) => q.in("user_id", ids)) : [];
 
     } else if (table === "event_approval_request" && Array.isArray(record.approver_ids) && record.approver_ids.length) {
       // Owner/manager prep sign-off request → ping the people who still need to approve.
-      title = "Prep needs your sign-off";
-      message = `Review & approve prep for ${record.title ?? "an event"}`;
+      shown = signoffShown(record);
       url = "/admin";
       targets = await subsFor((q) => q.in("user_id", record.approver_ids));
 
@@ -350,7 +378,11 @@ Deno.serve(async (req) => {
       return new Response("skip");
     }
 
-    const payload = JSON.stringify({ title, body: message, url });
+    if (!shown) return new Response("skip");
+    const title = shown.title, message = shown.body;
+    // tag and ring are the browser's (public/sw.js): one notification per event, and shown even with the app open
+    // for a critical, an escalation and a test. A worker from before reads title, body and url as it always did.
+    const payload = JSON.stringify({ title, body: message, url, tag: shown.tag, ring: shown.ring });
     await Promise.all(targets.map(async (s) => {
       try {
         // The iPhone app's row: Apple's service, not a browser's (0367).
@@ -359,7 +391,7 @@ Deno.serve(async (req) => {
           if (status === 410) await supabase.from("push_subscriptions").delete().eq("endpoint", s.endpoint);
           return;
         }
-        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload);
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh ?? "", auth: s.auth ?? "" } }, payload);
       } catch (e) {
         const code = (e as { statusCode?: number })?.statusCode;
         if (code === 404 || code === 410) await supabase.from("push_subscriptions").delete().eq("endpoint", s.endpoint);

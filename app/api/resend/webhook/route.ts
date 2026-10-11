@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { raiseAlertOnce } from "@/lib/serverAlerts";
+import { svixSignatureOk } from "@/lib/webhookSignature";
 import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs"; // needs node crypto + the raw body
@@ -21,26 +21,12 @@ export const runtime = "nodejs"; // needs node crypto + the raw body
 //
 // Verified BEFORE any write and before the body is trusted, the same order as the Square webhook.
 // There is no separate secret for "test mode": an unverifiable event is simply not ours.
+// Replay window: Svix's own guidance, five minutes; without it a captured event can be replayed
+// for ever, and this one can flip a message to 'bounced'. The check itself is lib/webhookSignature's
+// (2026-10-11), one place for every webhook, run against made-up secrets by scripts/webhooks.test.mjs.
 function verify(raw: string, h: Headers): boolean {
-  const secret = process.env.RESEND_WEBHOOK_SECRET;
-  const id = h.get("svix-id"), ts = h.get("svix-timestamp"), sigHeader = h.get("svix-signature");
-  if (!secret || !id || !ts || !sigHeader) return false;
-
-  // Replay window. Svix's own guidance is five minutes; without this a captured event can be
-  // replayed forever, and this one can flip a message to 'bounced'.
-  const age = Math.abs(Date.now() / 1000 - Number(ts));
-  if (!Number.isFinite(age) || age > 300) return false;
-
-  const key = Buffer.from(secret.replace(/^whsec_/, ""), "base64");
-  const expected = crypto.createHmac("sha256", key).update(`${id}.${ts}.${raw}`).digest("base64");
-  const expectedBuf = Buffer.from(expected);
-  // timingSafeEqual throws on a length mismatch, so the length is compared first — and a mismatch
-  // is a rejection, not an exception that would 500 and make Svix retry a forgery forever.
-  return sigHeader.split(" ").some((part) => {
-    const got = part.startsWith("v1,") ? part.slice(3) : "";
-    const gotBuf = Buffer.from(got);
-    return gotBuf.length === expectedBuf.length && crypto.timingSafeEqual(gotBuf, expectedBuf);
-  });
+  return svixSignatureOk(raw, { id: h.get("svix-id"), timestamp: h.get("svix-timestamp"), signature: h.get("svix-signature") },
+    process.env.RESEND_WEBHOOK_SECRET);
 }
 
 async function post(req: Request) {

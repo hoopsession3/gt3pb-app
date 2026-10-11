@@ -176,8 +176,10 @@ async function post(req: Request) {
       message: `GT3: your ${packSize}-bottle delivery is set for ${slot.deliveryLabel} — ${money(quote.totalCents)}${paid ? " paid" : " due on delivery"}.${quote.refillCount > 0 ? ` Set your ${quote.refillCount} rinsed empties out by 5 AM — no empties, no swap.` : ""} Fresh 7 days from delivery.`,
     });
 
+    // 'important' (2026-10-11): an fyi reaches the inbox only now (supabase/functions/push/policy.ts), and this is the
+    // one line a new delivery gets — the push function's own alert for it was refused by 0232 (category 'delivery').
     await raiseAlert({
-      severity: "fyi", category: "order", title: "New Sunday delivery 🚚",
+      severity: "important", category: "order", title: "New Sunday delivery 🚚",
       body: `${name} — ${packSize} bottles (${quote.refillCount} refill · ${quote.newCount} new${perf ? ` · ${perf} performance` : ""}) · ${money(quote.totalCents)} ${paid ? "paid" : "due on delivery"} · ${slot.deliveryLabel} · ${city} ${zip}.`,
       link: "/crew?s=now",
     });

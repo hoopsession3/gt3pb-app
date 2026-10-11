@@ -9009,7 +9009,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     [...sh.matchAll(/<(?:Panel|SetPart) id="([a-z0-9-]+)"/g)].map((m) => m[1]).every((id) => LAY.settingsGate(id) !== null)
     && [...sh.matchAll(/<SectionHeader label="([^"]+)"/g)].map((m) => m[1]).every((l) => LAY.SETTINGS_LAYOUT.some((s) => s.label === l)));
   ok("settings page: the layout's gates are the ones each panel had — You for everyone, the digest an admin's, invites, Outlook and Train the AI the owner's",
-    ["set-account", "set-notify", "set-alerts", "set-sound", "set-theme", "set-display"].every((id) => LAY.settingsGate(id) === "everyone")
+    ["set-account", "set-notify", "set-alerts", "set-ring", "set-sound", "set-theme", "set-display"].every((id) => LAY.settingsGate(id) === "everyone")
     && LAY.settingsGate("set-digest") === "admin" && ["set-invite", "set-outlook", "set-train"].every((id) => LAY.settingsGate(id) === "owner")
     && ["set-pay", "set-ordering", "set-dial", "set-office", "set-team", "set-lanes", "set-ai", "set-spend", "set-brand", "set-copy", "splash", "set-errors", "set-audit", "set-lists"].every((id) => LAY.settingsGate(id) === "admin")
     && LAY.settingsGate("pay") === null && LAY.settingsGate(undefined) === null);
@@ -9046,9 +9046,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const idCount = (id) => appFiles.reduce((n, f) => n + (read(f).match(new RegExp(`\\bid="${id}"`, "g")) || []).length, 0);
   ok("settings page: every row and part id in it is one element in the whole app — an anchor names exactly one place",
     [...ids, ...partIds].every((id) => idCount(id) === 1), [...ids, ...partIds].filter((id) => idCount(id) !== 1));
-  ok("settings page: You — the account row, then Notifications (this phone's alerts and sound, then what pings you) and Display (the look, then text size)",
+  ok("settings page: You — the account row, then Notifications (this phone's alerts, a test ring and sound, then what pings you) and Display (the look, then text size)",
     /<div id="set-account" className="set-row set-acct"><AccountRow \/><\/div>/.test(sh)
-    && /<Panel id="set-notify" title="Notifications" sub="[^"]+" value=\{v\(g\.notify\)\} remember=\{false\}>\s*<SetPart id="set-alerts"><DeviceAlerts \/><\/SetPart>\s*<SetPart id="set-sound"><PassSound \/><\/SetPart>\s*<SetPart label="What pings you"><NotifPrefs userId=\{userId\} \/><\/SetPart>\s*<\/Panel>/.test(sh)
+    && /<Panel id="set-notify" title="Notifications" sub="[^"]+" value=\{v\(g\.notify\)\} remember=\{false\}>\s*<SetPart id="set-alerts"><DeviceAlerts \/><\/SetPart>\s*<SetPart id="set-ring"><RingThisPhone \/><\/SetPart>\s*<SetPart id="set-sound"><PassSound \/><\/SetPart>\s*<SetPart label="What pings you"><NotifPrefs userId=\{userId\} \/><\/SetPart>\s*<\/Panel>/.test(sh)
     && /<Panel id="set-display" title="Display" sub="[^"]+" value=\{v\(g\.display\)\} remember=\{false\}>\s*<SetPart id="set-theme"><Appearance \/><\/SetPart>\s*<SetPart><DisplayControls \/><\/SetPart>\s*<\/Panel>/.test(sh)
     && !/<div id="set-(alerts|sound|theme)" className="set-row">/.test(sh));
   ok("settings page: a part is one piece of a row — its id where links name it, and the house eyebrow when the piece has no heading of its own",
@@ -10948,6 +10948,131 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("menu: Add to calendar's menu closes on Escape, back to the button that opened it, and on a touch outside — not only a mouse's press",
     /if \(e\.key === "Escape"\) \{ e\.preventDefault\(\); setOpen\(false\); ref\.current\?\.querySelector<HTMLButtonElement>\("button"\)\?\.focus\(\); \}/.test(atc)
     && /document\.addEventListener\("pointerdown", onDoc\);/.test(atc) && !/"mousedown"/.test(atc));
+}
+
+// ── WAVE 2 · ALERTS (2026-10-11) ──
+// The wiring only a source read can hold: the push function decides every channel and every lock-screen line
+// through its rules file (supabase/functions/push/policy.ts — scripts/push.policy.test.mjs runs those), the
+// escalation reaches the push function through 0157's own door, every webhook route asks lib/webhookSignature before
+// it touches anything (scripts/webhooks.test.mjs runs the routes), and "Ring this phone" is wired to 0374 in both
+// doors to the notification settings (scripts/db.alertwave2.test.mjs runs the database half).
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const root = path.join(__dirname, "..");
+  const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
+  const ts = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  const sqlCode = (t) => t.split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
+  const fn = ts(read("supabase/functions/push/index.ts")), pol = read("supabase/functions/push/policy.ts");
+
+  // 1 · one rule for the channels, and nothing else in the function decides them
+  ok("alerts: the push function takes its rules from ./policy.ts — the two files deploy together, and its header says so",
+    /\} from "\.\/policy\.ts";/.test(fn) && /Deploy: TWO FILES since 2026-10-11/.test(read("supabase/functions/push/index.ts")) && !/^\s*import\s/m.test(pol));
+  ok("alerts: no severity is compared in the push function itself — Teams, email and push all ask policy.ts",
+    !/(severity|sev)\s*[!=]==\s*"(fyi|important|critical)"/.test(fn) && !/"fyi"\s*[!=]==/.test(fn)
+    && /if \(!teams \|\| !channelsFor\(severity\)\.teams\) return;/.test(fn) && /if \(!ownTest && mayEmail\(record\.severity\)\) \{/.test(fn)
+    && /if \(!ch\.push && !ownTest\) return new Response\("ok: fyi stays in the inbox"\);/.test(fn));
+  ok("alerts: the sign-up's fyi asks the rule before its email, and the producers' own emails ask it as 'important'",
+    /if \(mayEmail\(severity, true\)\) await emailAdmins\("New member signed up"/.test(fn) && /const severity: string = "fyi";/.test(fn) && (fn.match(/if \(mayEmail\("important", true\)\) await emailAdmins\(/g) || []).length === 3);
+  ok("alerts: a booking's Teams card comes from its alert's fan-out alone — postTeams is called in one place",
+    (fn.match(/await postTeams\(/g) || []).length === 1);
+
+  // 2 · every push is built from policy.ts's words, never from a row's
+  ok("alerts: every branch that sends sets `shown` from policy.ts, and the payload is built from `shown` alone",
+    ["newOrderShown(record)", "orderStatusShown(record)", "subscriptionShown(record)", "taskShown(record, ", "liveShown(stopName)", "alertShown(record)", "escalationShown(record)", "signoffShown(record)"]
+      .every((c) => fn.includes(`shown = ${c}`))
+    && /const title = shown\.title, message = shown\.body;/.test(fn)
+    && /const payload = JSON\.stringify\(\{ title, body: message, url, tag: shown\.tag, ring: shown\.ring \}\);/.test(fn)
+    && /const status = await sendApns\(s\.endpoint, \{ title, body: message, url \}\);/.test(fn)
+    && !/\blet\s+(title|message)\b/.test(fn) && !/\b(title|message)\s*=\s*(\(sev|map\[|record\.(title|body|customer))/.test(fn)
+    && !/\bDRINKS\b|total_cents \/ 100/.test(fn));
+  ok("alerts: a go-live push names the stop and never its street; a task's push names no label or event",
+    /select\("name"\)\.eq\("id", record\.current_stop_id\)/.test(fn) && !/location_text"\)\.eq\("id", record\.current_stop_id/.test(fn)
+    && !/shown = taskShown\([^)]*label/.test(fn));
+
+  // 3 · who is reached: the alert's own business, and an escalation also every admin and owner
+  ok("alerts: the crew's devices and a broadcast's leadership are looked up in the row's own tenant",
+    /subsFor\(\(q\) => q\.eq\("is_admin", true\)\.eq\("tenant_id", tenantOf\(record\)\)\)/.test(fn)
+    && /\.from\("profiles"\)\.select\("id"\)\.eq\("tenant_id", tenantOf\(a\)\)\.in\("role", \[\.\.\.roles\]\)/.test(fn)
+    && /if \(escalation\) \{ roles\.add\("admin"\); roles\.add\("owner"\); \}/.test(fn)
+    && /subsFor\(\(q\) => q\.eq\("wants_live", true\)\.eq\("tenant_id", tenantOf\(record\)\)\)/.test(fn));
+  ok("alerts: an escalation is an alerts UPDATE the function checks again before it sends — acknowledged or read by anyone, nothing goes",
+    /\} else if \(table === "alerts" && type === "UPDATE"\) \{/.test(fn) && /if \(!isEscalation\(record, old_record\)\) return new Response\("skip: not an escalation"\);/.test(fn)
+    && /if \(!now \|\| now\.ack_at \|\| \(reads \?\? 0\) > 0\) return new Response\("skip: acknowledged"\);/.test(fn)
+    && /const ids = await peopleFor\(record, true\);/.test(fn));
+  ok("alerts: a device test goes to its person's devices alone — never Teams, never email",
+    /const ownTest = record\.kind === "device_test";/.test(fn) && /if \(!ownTest\) await postTeams\(record\.severity, record\.title, record\.body \|\| ""\);/.test(fn)
+    && /if \(ownTest && !record\.target_user_id\) return new Response\("skip: a device test is someone's own"\);/.test(fn));
+  {
+    const canon = (/const ALERT_CATEGORIES = \{([\s\S]*?)\} as const;/.exec(read("lib/alertKinds.ts")) || [])[1] || "";
+    const cats = new Set([...canon.matchAll(/^\s*([a-z]+):/gm)].map((m) => m[1]));
+    const used = [...fn.matchAll(/insertAlert\(\{[^}]*category: "([a-z]+)"/g)].map((m) => m[1]);
+    ok("alerts: every alert the push function inserts carries a category 0232's constraint takes — 'delivery' and 'drop' were refused for months",
+      cats.size >= 9 && used.length >= 2 && used.every((c) => cats.has(c)), used);
+  }
+  ok("alerts: a new reservation and a new Sunday delivery are 'important' — the one line, push and Teams card each gets",
+    /severity: "important", category: "order", kind: "reservation_new"/.test(read("app/api/reserve/route.ts"))
+    && /severity: "important", category: "order", title: "New Sunday delivery 🚚"/.test(read("app/api/delivery/checkout/route.ts")));
+
+  // 4 · the database half: the escalation's door is 0157's, and the order of deploy is said where it is pasted
+  {
+    const m372 = read("supabase/migrations/0372_an_alert_already_open_is_counted_not_sent_again.sql");
+    const m373 = read("supabase/migrations/0373_a_critical_nobody_picks_up_rings_the_owners_again.sql");
+    const m374 = read("supabase/migrations/0374_ring_this_phone.sql");
+    ok("alerts: 0373 makes the escalation trigger from 0157's fan-out as the database holds it — no address and no key written in the file",
+      /pg_get_triggerdef\(t\.oid\)/.test(m373) && /t\.tgname = 'alerts_push_fanout'/.test(m373) && /after update of escalated_at on public\.alerts/.test(m373)
+      && !/https?:\/\/|sb_publishable_|Bearer\s/i.test(sqlCode(m373)));
+    ok("alerts: 0373 and 0374 tell whoever pastes them to deploy the push function first",
+      /-- ORDER\. Deploy the push function first/.test(m373) && /-- ORDER\. Deploy the push function first/.test(m374));
+    ok("alerts: the fold is a BEFORE INSERT trigger keyed on tenant, kind, subject and person — and never on a title",
+      /create trigger alerts_fold_repeats before insert on public\.alerts/.test(m372)
+      && /a\.target_user_id is not distinct from new\.target_user_id/.test(m372) && !/\btitle\s+(i?like|=)\s*'/i.test(sqlCode(m372))
+      // a folded raise is never inserted, so the insert policy never sees it: through the API, only the crew folds
+      && /if coalesce\(current_setting\('role', true\), 'none'\) in \('anon', 'authenticated'\)\s+and not exists \(select 1 from public\.profiles p where p\.id = auth\.uid\(\)\s+and p\.role in \('server', 'contractor', 'operator', 'event_manager', 'admin', 'owner'\)\) then\s+return new;/.test(m372)
+      && /role = ANY \(ARRAY\['server'::text, 'contractor'::text, 'operator'::text, 'event_manager'::text, 'admin'::text, 'owner'::text\]\)|role in \('server','contractor','operator','event_manager','admin','owner'\)/.test(read("supabase/migrations/0157_alert_spine.sql")));
+    ok("alerts: ring_my_devices is the signed-in caller's alone (anon's grant revoked by name), and the cron jobs run every minute",
+      /revoke all on function public\.ring_my_devices\(\) from public, anon;/.test(m374) && /grant execute on function public\.ring_my_devices\(\) to authenticated;/.test(m374)
+      && /cron\.schedule\('device-tests-close', '\* \* \* \* \*'/.test(m374) && /cron\.schedule\('escalate-criticals', '\* \* \* \* \*'/.test(m373));
+  }
+
+  // 5 · every inbound webhook asks lib/webhookSignature first, and answers 401
+  {
+    const routeOf = (p) => ts(read(p));
+    const sq = routeOf("app/api/square/webhook/route.ts"), rs = routeOf("app/api/resend/webhook/route.ts"), bl = routeOf("app/api/billing/webhook/route.ts"),
+      nt = routeOf("app/api/notes/inbound/route.ts");
+    const first = (src, check) => src.indexOf(check) > 0 && (src.indexOf("supabaseAdmin.from(") < 0 || src.indexOf(check) < src.indexOf("supabaseAdmin.from("));
+    ok("webhooks: Square — squareSignatureOk over the registered URL and the raw body, 401 on a miss, before the first read or write",
+      /if \(!squareSignatureOk\(raw, req\.headers\.get\("x-square-hmacsha256-signature"\), SQUARE_WEBHOOK_SIGNATURE_KEY, SQUARE_WEBHOOK_URL\)\) \{\s*return NextResponse\.json\(\{ ok: false \}, \{ status: 401 \}\);/.test(sq)
+      && first(sq, "squareSignatureOk(raw"));
+    ok("webhooks: Resend — svixSignatureOk, 401 on a miss, before the first read or write",
+      /return svixSignatureOk\(raw, \{ id: h\.get\("svix-id"\), timestamp: h\.get\("svix-timestamp"\), signature: h\.get\("svix-signature"\) \},\s*process\.env\.RESEND_WEBHOOK_SECRET\);/.test(rs)
+      && /if \(!verify\(raw, req\.headers\)\) return NextResponse\.json\(\{ ok: false \}, \{ status: 401 \}\);/.test(rs) && first(rs, "if (!verify(raw"));
+    ok("webhooks: Stripe — stripeSignatureOk, 401 on a miss (it was 400), before the first read or write; dormant while its secret is unset",
+      /if \(!stripeSignatureOk\(payload, req\.headers\.get\("stripe-signature"\), secret\)\) \{\s*return NextResponse\.json\(\{ error: "bad signature" \}, \{ status: 401 \}\);/.test(bl)
+      && first(bl, "stripeSignatureOk(payload") && /if \(!secret \|\| !supabaseAdmin\) return NextResponse\.json\(\{ ok: true \}\);/.test(bl));
+    ok("webhooks: the inbound-email door compares its token in constant time, 401 on a miss",
+      /if \(!tokenOk\(url\.searchParams\.get\("token"\), secret\)\) return NextResponse\.json\(\{ ok: false \}, \{ status: 401 \}\);/.test(nt) && first(nt, "tokenOk("));
+    const apl = ["fulfillment", "product", "search"].map((r) => routeOf(`app/api/apliiq/${r}/route.ts`));
+    ok("webhooks: every Apliiq door checks verifyApliiq first and answers 401 — and verifyApliiq is lib/webhookSignature's check",
+      apl.every((s) => /if \(!verifyApliiq\(raw, req\.headers\)\) return NextResponse\.json\(\{ ok: false, error: "unauthorized" \}, \{ status: 401 \}\);/.test(s) && first(s, "verifyApliiq("))
+      && /return apliiqSignatureOk\(rawBody, headers\.get\("authorization"\) \|\| headers\.get\("x-apliiq-auth"\), SECRET\);/.test(read("lib/apliiq.ts")));
+    // No second copy of "HMAC, then compare": nothing in the app compares a signature but lib/webhookSignature.
+    const walk = (d, out = []) => { for (const e of fs.readdirSync(path.join(root, d), { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p, out); else if (/\.tsx?$/.test(e.name)) out.push(p); } return out; };
+    const copies = [...walk("app"), ...walk("lib")].filter((f) => f !== path.join("lib", "webhookSignature.ts") && /timingSafeEqual\(/.test(ts(read(f))));
+    ok("webhooks: no file but lib/webhookSignature compares a signature — one check, tested once", copies.length === 0, copies);
+  }
+
+  // 6 · "Ring this phone", in both doors to the notification settings
+  {
+    const rc = ts(read("components/RingThisPhone.tsx")), np = ts(read("components/NotifPrefs.tsx")), pg = ts(read("app/crew/page.tsx"));
+    ok("ring: the button asks the database (0374) and says the database's answer, in words, where a screen reader hears it",
+      /await supabase\.rpc\("ring_my_devices"\)/.test(rc) && /const words = ringWords\(answer\);/.test(rc)
+      && /role="status" aria-live="polite">\{said \? said\.say : RING_IDLE\}<\/div>/.test(rc));
+    ok("ring: in Settings › You › Notifications beside the phone's alerts, and in the inbox's notification sheet",
+      /<SetPart id="set-alerts"><DeviceAlerts \/><\/SetPart>\s*<SetPart id="set-ring"><RingThisPhone \/><\/SetPart>/.test(pg)
+      && /<div className="mb-3"><RingThisPhone \/><\/div>\s*<NotifPrefs userId=\{userId\} \/>/.test(np));
+    ok("ring: no button in the iPhone app until its own alerts are live — App Review's placeholder rule, as DeviceAlerts",
+      /if \(APP_BUILD && !NATIVE_PUSH_ON\) return null;/.test(rc));
+  }
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

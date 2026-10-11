@@ -174,7 +174,9 @@ async function post(req: Request) {
       message: `GT3: your ${size}-pack (${mixSummary(mix)}) is reserved for pickup ${dropDate}${paid ? " — paid ✓" : ` — ${dollars(packTotal(size, glass as GlassPath))} at pickup`}. We brew it fresh for pickup day.${glass === "return" ? " Rinse your empties and bring them along." : ""}`,
     });
 
-    await raiseAlert({ severity: "fyi", category: "order", kind: "reservation_new", subjectId: inserted?.id ?? undefined, title: "New reservation 🎉", body: `${name} reserved a ${size}-pack (${mixSummary(mix)}) for ${dropDate} — ${dollars(packTotal(size, glass as GlassPath))}, ${glass === "return" ? "bringing bottles back" : "new glass"}${paid ? "" : " · pay at pickup"}.` });
+    // 'important' (2026-10-11): an fyi reaches the inbox only now (supabase/functions/push/policy.ts), and this is the
+    // one line a new reservation gets — the push function's own alert for it was refused by 0232 (category 'drop').
+    await raiseAlert({ severity: "important", category: "order", kind: "reservation_new", subjectId: inserted?.id ?? undefined, title: "New reservation 🎉", body: `${name} reserved a ${size}-pack (${mixSummary(mix)}) for ${dropDate} — ${dollars(packTotal(size, glass as GlassPath))}, ${glass === "return" ? "bringing bottles back" : "new glass"}${paid ? "" : " · pay at pickup"}.` });
     return NextResponse.json({ ok: true, id: inserted?.id ?? null, paid, recorded: true });
   } catch {
     return NextResponse.json({ error: "Reservation service unavailable" }, { status: 502 });

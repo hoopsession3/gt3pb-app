@@ -6,6 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import { fmt12 } from "@/lib/dates";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
+import { RingThisPhone } from "@/components/RingThisPhone";
 
 // Notification management (0177) — mute a category's non-critical pings, set a quiet window. Own-row
 // prefs. Criticals always come through; this only quiets the rest.
@@ -131,10 +132,12 @@ export function NotifPrefs({ userId }: { userId: string | null }) {
   );
 }
 
-/** The inbox gear's door to the same controls. */
+/** The inbox gear's door to the same controls — with "Ring this phone" first (2026-10-11): the inbox is where someone
+ *  wonders whether their phone will ring for the next alert. */
 export function NotifPrefsSheet({ userId, onClose }: { userId: string | null; onClose: () => void }) {
   return (
     <Sheet open onClose={onClose} label="Notifications" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Notifications</b><CloseButton onClick={onClose} /></div>}>
+      <div className="mb-3"><RingThisPhone /></div>
       <NotifPrefs userId={userId} />
     </Sheet>
   );
