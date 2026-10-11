@@ -2,6 +2,7 @@
 //
 //   npm run migrations:pending            # ask, and report
 //   npm run migrations:pending -- --write # ask, report, and regenerate supabase/APPLY_ALL_PENDING.sql
+//   npm run migrations:pending -- --held=0376 --write   # …with 0376 held back on purpose (named in the header)
 //
 // ── WHY THIS EXISTS ────────────────────────────────────────────────────────────────────────────
 // On 2026-09-29 three migrations (0326, 0327, 0328) sat unapplied against production for ten hours
@@ -69,7 +70,14 @@ export function migrationFiles(dir = DIR) {
  * number of files at or under `maxSeq` means something in the middle of history never ran, and the
  * files ABOVE maxSeq are then not the whole answer — pasting only those would quietly skip it.
  */
-export function pendingFrom(files, count, maxSeq) {
+export function pendingFrom(files, count, maxSeq, held = []) {
+  // HELD ON PURPOSE (2026-10-11). A migration can be written, shipped and deliberately NOT applied until something
+  // outside the database is true — 0376 waits for the iPhone build that answers its alert to be on the crew's phones,
+  // while 0377–0380 go ahead. Two integers cannot tell a held migration from a forgotten one, so a person names it
+  // (--held=0376): it is left out of the count, left OUT of the paste file (pasting "all pending" must never apply it
+  // early), and named in the file's header instead.
+  const heldSet = new Set(held);
+  if (heldSet.size) files = files.filter((m) => !heldSet.has(m.seq));
   if (!Number.isFinite(maxSeq)) {
     // An empty ledger against a directory full of migrations is not "everything is pending" — it is
     // far more likely to be the wrong database or a ledger table that never got created.
@@ -124,7 +132,7 @@ export async function readLedger(argv, app, doFetch = fetch) {
 }
 
 /** The header that makes the generated file un-stale-able. drift.check.mjs reads `pending-from`. */
-export function pasteHeader(highest, generatedAt, pendingCount, source = "unknown") {
+export function pasteHeader(highest, generatedAt, pendingCount, source = "unknown", heldFiles = []) {
   return [
     "-- ⚠️ NEVER include files from supabase/pending/ in this bundle — those are soak-gated (see",
     "-- supabase/pending/0224_field_ops_contract.sql) and applying them early is irreversible.",
@@ -143,6 +151,7 @@ export function pasteHeader(highest, generatedAt, pendingCount, source = "unknow
     `-- generated-at: ${generatedAt}`,
     `-- pending-count: ${pendingCount}`,
     `-- ledger-read-from: ${source}`,
+    ...heldFiles.map((f) => `-- held: ${f} — NOT in this file; applied by hand once the condition in its header is met`),
     "",
   ].join("\n");
 }
@@ -168,11 +177,19 @@ async function main() {
   }
 
   const { count, max_seq: maxSeq, source } = ledger;
-  const verdict = pendingFrom(files, count, maxSeq);
+  const heldArg = (process.argv.find((a) => a.startsWith("--held=")) || "").slice("--held=".length);
+  const held = heldArg ? heldArg.split(",").map((x) => Number(x.trim())).filter(Number.isFinite) : [];
+  const heldFiles = files.filter((m) => held.includes(m.seq)).map((m) => m.file);
+  if (heldFiles.length !== held.length) {
+    console.log(`MIGRATIONS PENDING: --held names ${held.length} migration(s) but only ${heldFiles.length} exist here. Nothing was written.`);
+    return;
+  }
+  const verdict = pendingFrom(files, count, maxSeq, held);
 
   console.log(`MIGRATIONS PENDING — ${source}`);
   console.log(`  ledger:    ${count} applied, high-water mark ${String(maxSeq ?? 0).padStart(4, "0")}`);
   console.log(`  directory: ${files.length} file(s), highest ${String(highest).padStart(4, "0")}`);
+  for (const f of heldFiles) console.log(`  held:      ${f} (named with --held; left out of the count and of the paste file)`);
 
   if (verdict.status === "gap") {
     console.log(`\n  ✗ REFUSING TO GUESS — ${verdict.reason}.`);
@@ -211,7 +228,7 @@ async function main() {
         "",
       ].join("\n");
 
-  writeFileSync(OUT, pasteHeader(highest, new Date().toISOString().slice(0, 10), verdict.pending.length, source) + body);
+  writeFileSync(OUT, pasteHeader(highest, new Date().toISOString().slice(0, 10), verdict.pending.length, source, heldFiles) + body);
   console.log(`\n  wrote supabase/APPLY_ALL_PENDING.sql — pending-from ${String(highest).padStart(4, "0")}, ${verdict.pending.length} migration(s) inside.`);
 }
 

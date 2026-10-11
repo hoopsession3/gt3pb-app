@@ -110,6 +110,21 @@ const f = (...seqs) => seqs.map((s) => ({ file: `${String(s).padStart(4, "0")}_x
     sorted.every((n, i) => i === 0 || n >= sorted[i - 1]));
 }
 
+// ── HELD ON PURPOSE (2026-10-11): 0376 waits for an iPhone build; 0377–0380 go ahead ─────────────────────────────
+{
+  // production as it stands: 0372–0375 and 0377–0379 applied, 0376 held, 0380 written.
+  const files = f(371, 372, 373, 374, 375, 376, 377, 378, 379, 380);
+  ok("without --held, the hole is a gap the generator refuses to guess at", pendingFrom(files, 8, 379).status === "gap");
+  const v = pendingFrom(files, 8, 379, [376]);
+  ok("with 0376 held, the count adds up", v.status === "pending", v.status);
+  ok("…and the paste holds 0380 only — never the held one", v.pending.map((m) => m.seq).join() === "380", v.pending.map((m) => m.seq).join());
+  ok("a held number that IS in the ledger's count still reads as a mismatch", pendingFrom(files, 9, 379, [376]).status === "gap");
+  ok("holding nothing changes nothing", pendingFrom(f(1, 2, 3), 3, 3, []).status === "clean");
+  const header = pasteHeader(380, "2026-10-11", 1, "test", ["0376_held_on_purpose.sql"]);
+  ok("the header names the held file, and says it is not inside", /^-- held: 0376_held_on_purpose\.sql — NOT in this file/m.test(header), header);
+  ok("…and still carries pending-from for the drift gate", /^-- pending-from: 0380$/m.test(header));
+}
+
 console.log(fail
   ? `MIGRATIONS PENDING: ${pass} passed, ${fail} FAILED`
   : `MIGRATIONS PENDING: ${pass} assertions pass — arithmetic, refusals, and the generator↔gate seam.`);
