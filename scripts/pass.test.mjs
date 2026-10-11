@@ -219,5 +219,86 @@ ok("feed: the event's name", P.PASS_FEED_EVENT === "gt3:pass-feed");
 ok("a placed-ahead ticket is aged from its stop's opening (lib/ordering orderClockFrom), as late counts it",
   O.orderClockFrom(order({ created_at: at(-120), ready_from: at(-9) })) === at(-9) && P.lateOf([order({ created_at: at(-120), ready_from: at(-9) })], T0).length === 1);
 
+// ── at arm's length: the drinks ─────────────────────────────────────────────────────────────────────────────────────
+{
+  const lines = P.itemLines(["flow", "rise", "flow", "maple"]);
+  ok("a line per drink, repeats grouped, in the order first rung, by the menu's name",
+    JSON.stringify(lines.map((l) => [l.qty, l.name])) === JSON.stringify([[2, "FLOW"], [1, "RISE"], [1, "SALTED MAPLE LATTE"]]), lines);
+  ok("one line on a phone: 2× FLOW · RISE · SALTED MAPLE LATTE", P.itemsLine(["flow", "rise", "flow", "maple"]) === "2× FLOW · RISE · SALTED MAPLE LATTE");
+  ok("a string that is not a drink id is shown whole — whatever it carries is on the ticket",
+    P.itemsLine(["flow (oat milk)", "flow (oat milk)", "flow"]) === "2× flow (oat milk) · FLOW");
+  ok("no drinks, no line", P.itemsLine([]) === "" && P.itemLines([]).length === 0);
+}
+
+// ── at arm's length: a ticket's age, in words ───────────────────────────────────────────────────────────────────────
+{
+  const w = P.ticketAge(order({ created_at: at(-120), ready_from: at(30) }), T0);
+  ok("placed ahead and waiting: when it is for, calm, not late", w.text === "for 11:30am" && w.sev === "calm" && w.late === false, w);
+  const l = P.ticketAge(order({ created_at: at(-9) }), T0);
+  ok("9 minutes: 9m, red, and the word 'late' — not told by its colour alone", l.text === "9m" && l.sev === "late" && l.late === true, l);
+  const g = P.ticketAge(order({ created_at: at(-5) }), T0);
+  ok("5 minutes: gold, not yet late", g.text === "5m" && g.sev === "warn" && g.late === false, g);
+  const d = P.ticketAge(order({ created_at: at(-120), ready_from: at(-2) }), T0);
+  ok("its stop opened 2 minutes ago: aged from the opening", d.text === "2m" && d.sev === "calm", d);
+}
+
+// ── the lanes: placed ahead is not new ──────────────────────────────────────────────────────────────────────────────
+{
+  const rows = [
+    order({ id: "walkup", created_at: at(-10) }),                                            // 10:50, made now
+    order({ id: "due", created_at: at(-240), ready_from: at(-5) }),                           // placed 7am for 10:55: due
+    order({ id: "later", created_at: at(-200), ready_from: at(90) }),                         // for 12:30
+    order({ id: "sooner", created_at: at(-100), ready_from: at(30) }),                        // for 11:30
+    order({ id: "early", created_at: at(-60), ready_from: at(30), status: "preparing" }),     // for 11:30, started early
+    order({ id: "making", created_at: at(-8), status: "preparing" }),
+    order({ id: "up", created_at: at(-12), status: "ready" }),
+    order({ id: "gone1", status: "done", status_changed_at: at(-20) }),
+    order({ id: "gone2", status: "done", status_changed_at: at(-2) }),
+  ];
+  const L = P.passLanes(rows, T0);
+  const ids = (k) => L[k].map((o) => o.id).join(",");
+  ok("Scheduled: still new and waiting on its stop, soonest first", ids("scheduled") === "sooner,later", ids("scheduled"));
+  ok("New: oldest clock first — a pre-order that came due sits by its stop's opening, after the guest waiting since 10:50",
+    ids("new") === "walkup,due", ids("new"));
+  ok("started early, a placed-ahead order is in progress like any other", ids("preparing") === "early,making", ids("preparing"));
+  ok("Ready and Just completed (newest first)", ids("ready") === "up" && ids("done") === "gone2,gone1", [ids("ready"), ids("done")]);
+  const at1130 = P.passLanes(rows, T0 + 30 * MIN);
+  ok("the moment its stop opens it moves to New — and the board's clock strikes then",
+    at1130.scheduled.map((o) => o.id).join() === "later" && at1130.new.some((o) => o.id === "sooner")
+    && P.nextBoardChange(rows.filter((o) => o.id === "sooner"), T0) === T0 + 30 * MIN);
+  ok("a pre-order not yet due is never late (the banner counts only started clocks)", P.lateOf(L.scheduled, T0).length === 0);
+  ok("the lane a ticket is in, for focus to fall back to",
+    P.laneOf(rows[2], T0) === "scheduled" && P.laneOf(rows[0], T0) === "new" && P.laneOf(rows[4], T0) === "preparing" && P.laneOf(rows[7], T0) === "done");
+  ok("a heading says its count: 'New, 3 orders', 'In progress, 1 order' — with its own words (Ready, hand off)",
+    P.laneName("new", 3) === "New, 3 orders" && P.laneName("preparing", 1) === "In progress, 1 order" && P.laneName("ready", 2) === "Ready, hand off, 2 orders"
+    && P.laneName("scheduled", 0) === "Scheduled, 0 orders" && P.laneName("done", 4) === "Just completed, 4 orders");
+
+  // Live Ops' count reads the same rule, through the database's filters.
+  const edge = [...rows,
+    order({ id: "atnow", created_at: at(-30), ready_from: at(0) }),                            // due this very instant: on the pass
+    order({ id: "void", status: "void", ready_from: at(30) }),
+    order({ id: "oldpre", created_at: at(-300), ready_from: at(-200), status: "ready" }),
+  ];
+  const E = P.passLanes(edge, T0);
+  const pulse = await P.readPulse(fakeDb({ orders: edge }), T0);
+  ok("Live Ops' count is the Pass's lanes: on the pass = New + In progress + Ready, placed ahead = Scheduled",
+    pulse.pass === E.new.length + E.preparing.length + E.ready.length && pulse.ahead === E.scheduled.length && pulse.ahead === 2 && pulse.pass === 7,
+    { pulse, lanes: { s: E.scheduled.length, n: E.new.length, p: E.preparing.length, r: E.ready.length } });
+  const failing = fakeDb({ orders: edge }); failing.fail.orders = "boom";
+  const pf = await P.readPulse(failing, T0);
+  ok("a count that fails is no count (the button keeps the last one)", pf.pass === null || pf.ahead === null);
+}
+
+// ── recall, one tap from the ticket ─────────────────────────────────────────────────────────────────────────────────
+ok("picked up 29 minutes ago: it can be recalled; 31 minutes ago, it has left the tray", P.canRecall(order({ status: "done", status_changed_at: at(-29) }), T0)
+  && !P.canRecall(order({ status: "done", status_changed_at: at(-31) }), T0));
+ok("only a picked-up order is recalled (↩ on a live ticket is a stage back)", !P.canRecall(order({ status: "ready", status_changed_at: at(-1) }), T0));
+ok("Recall goes to Ready, from Picked up — the move 0368 allows", P.PREV.done === "ready" && P.TRAY_SHOWN === 3);
+
+// ── what the Pass says out loud ─────────────────────────────────────────────────────────────────────────────────────
+ok("a new order, said: name and drinks", P.newOrderWords(order({ customer: "Jess", items: ["rise", "rise", "flow"] })) === "New order: Jess — 2× RISE · FLOW");
+ok("several at once, said once", P.newOrdersWords(3) === "3 new orders");
+ok("a guest at the window, said", P.outsideWords(order({ customer: null })) === "Guest is outside");
+
 console.log(`THE PASS (lib/passBoard, lib/passClock): ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -10,7 +10,7 @@ import { devicePref, useDevicePref } from "@/lib/devicePref";
 import { isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
 import { snapshotUsable } from "@/lib/offline";
 import {
-  readBoard, keepSame, mergeRow, feedState, readHere, hereAfter, scopeFrom,
+  readBoard, keepSame, mergeRow, feedState, readHere, hereAfter, scopeFrom, newOrderWords, newOrdersWords, outsideWords,
   OPEN_CAP, NOWHERE, PASS_FEED_EVENT, type BoardDown, type Here, type Scope,
 } from "@/lib/passBoard";
 import type { Order } from "@/lib/db";
@@ -55,14 +55,20 @@ export function usePassBoard() {
   useEffect(() => { setPassUp(true); return () => setPassUp(false); }, []);
   // How many open tickets a read asks for: OPEN_CAP, and as many again each time "Show them" is tapped.
   const cap = useRef(OPEN_CAP);
+  // A NEW ORDER IS SAID, POLITELY (2026-10-11): one line for a screen reader — the board's only live region (ThePass
+  // draws it; the whole board was one, and read out every ticket's age each second). `n` makes the same words said twice
+  // a new line.
+  const [said, setSaid] = useState<{ text: string; n: number }>({ text: "", n: 0 });
+  const say = useCallback((text: string) => setSaid((s) => ({ text, n: s.n + 1 })), []);
 
   // Ring + buzz + flash when a genuinely new order lands (not on initial seed / own taps).
   const announceNew = useCallback((row: Order) => {
     if (!seeded.current) return;
     if (!mutedRef.current) { chime(); haptic("alert"); }
+    say(newOrderWords(row));
     setFlash((p) => new Set(p).add(row.id));
     setTimeout(() => setFlash((p) => { const n = new Set(p); n.delete(row.id); return n; }), 6000);
-  }, []);
+  }, [say]);
   // EVERY NEW ORDER RINGS, ONCE (2026-10-11). It rang only for a realtime INSERT, so an order whose insert the feed
   // missed — a socket asleep in an apron, a reconnect — came in silently with the next reconcile. Now the first time this
   // board sees an order, from the feed or from a read, it rings if it is new: once per order, never for the board's
@@ -104,7 +110,8 @@ export function usePassBoard() {
     setOrders((prev) => keepSame(prev, rows)); setBoardAt(Date.now()); setDown(""); setMore(res.more);
     saveSnapshot("gt3-kds-snap", rows);
     fresh.forEach(announceNew);
-  }, [announceNew]);
+    if (fresh.length > 1) say(newOrdersWords(fresh.length));
+  }, [announceNew, say]);
   // Where the truck is selling now — read when the Pass opens and when the feed comes back; between those, the feed's own
   // changes say it (lib/passBoard hereAfter). A failed read keeps what the board had.
   const loadHere = useCallback(async () => {
@@ -126,9 +133,10 @@ export function usePassBoard() {
     if (!seeded.current || !row.eta_status || row.eta_status !== "outside" || rungOutside.current.has(row.id)) return;
     rungOutside.current.add(row.id);
     if (!mutedRef.current) { chime(); haptic("alert"); }
+    say(outsideWords(row));
     setFlash((p) => new Set(p).add(row.id));
     setTimeout(() => setFlash((p) => { const n = new Set(p); n.delete(row.id); return n; }), 6000);
-  }, []);
+  }, [say]);
 
   useEffect(() => {
     load();
@@ -188,5 +196,5 @@ export function usePassBoard() {
   // "+N more open orders — Show them": read as many again.
   const showMore = useCallback(() => { cap.current += OPEN_CAP; void load(); }, [load]);
 
-  return { orders, flash, muted, boardAt, down, live, more, here, apply, load, showMore };
+  return { orders, flash, said, muted, boardAt, down, live, more, here, apply, load, showMore };
 }

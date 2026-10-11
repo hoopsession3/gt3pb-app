@@ -5297,7 +5297,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       /\.lt\("delivery_date", today\)\.gte\("delivery_date", since\.toISOString\(\)\.slice\(0, 10\)\)\s*\.in\("status", \["held_for_pickup", "issue"\]\)\.is\("canceled_at", null\)/.test(delSrc)
         && /sub=\{`No run scheduled · \$\{earlier\.length\} from earlier`\}/.test(delSrc) && /o\.driver_note \?/.test(delSrc));
     ok("live ops: the Pass button counts what can be made now — an order placed ahead is said beside it, not counted",
-      /\.or\(`ready_from\.is\.null,ready_from\.lte\.\$\{nowISO\}`\)/.test(page) && /\.gt\("ready_from", nowISO\)/.test(page) && /\{ahead > 0 && <> · \{ahead\} placed ahead<\/>\}/.test(page));
+      /\.or\(`status\.neq\.new,ready_from\.is\.null,ready_from\.lte\.\$\{nowISO\}`\)/.test(read("lib/passBoard.ts")) && /\.eq\("status", "new"\)\.gt\("ready_from", nowISO\)/.test(read("lib/passBoard.ts"))
+      && /readPulse\(supabase, Date\.now\(\)\)/.test(page) && /\{ahead > 0 && <> · \{ahead\} placed ahead<\/>\}/.test(page));
     ok("live ops: only a live event is polled", /if \(!liveId\) return;\s*const recon = setInterval\(load, 15000\);/.test(hud));
     ok("live ops: the drop is one row until drop day — or the brew day, while the brew isn't queued",
       /<FoldCard title="Pickup drop" label="Pickup drop" today=\{isDropDay \|\| brewDue\}/.test(dropSrc)
@@ -5862,7 +5863,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   // ── THE PASS, AFTER THE KDS AUDIT (2026-10-11) ──
   ok("pass: loading until the first read lands, and 'The pass is clear' only when a read says so now — never over a failed one, never a raw 'Backend error'",
-    /\{boardAt === 0 && !down && <PourFill label="Loading the pass…" \/>\}/.test(kit) && /\{boardAt > 0 && STAGES\.map\(/.test(kit)
+    /\{boardAt === 0 && !down && <PourFill label="Loading the pass…" \/>\}/.test(kit) && /\{boardAt > 0 && \(\s*<div className="pass-cols">\s*\{STAGES\.map\(/.test(kit)
     && /\{boardAt > 0 && !down && active\.length === 0 && done\.length === 0 && <EmptyState title="The pass is clear"/.test(kit) && !/Backend error|setErr\(/.test(kit));
   ok("pass: a read is made only with a session — a signed-out read is not an empty pass, and leaves the board saved for offline alone",
     /const auth = await supabase\.auth\.getSession\(\);\s*const res = auth\.data\.session \? await readBoard\(supabase, Date\.now\(\), cap\.current\) : null;/.test(kit)
@@ -6740,7 +6741,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     const pb = code(read("lib/passBoard.ts")), tk = code(read("components/pass/Ticket.tsx")), tp = code(read("components/pass/ThePass.tsx"));
     ok("the pass: late counts only tickets whose clock has started, aged from orderClockFrom, badged until then",
       /o\.status !== "ready" && !waitingToOpen\(o, nowMs\) && ageMin\(orderClockFrom\(o\), nowMs\) >= LATE_MIN/.test(pb) && /const late = lateOf\(active, now\);/.test(tp)
-      && /const sev = waiting \? "calm" : ageSev\(ageMin\(orderClockFrom\(o\), now\)\);/.test(tk) && /waitingLabel\(o\.ready_from, now\)/.test(tk)
+      && /if \(o\.ready_from && waitingToOpen\(o, nowMs\)\) return \{ text: waitingLabel\(o\.ready_from, nowMs\), sev: "calm", late: false \};/.test(pb)
+      && /const sev = ageSev\(ageMin\(orderClockFrom\(o\), nowMs\)\);/.test(pb) && /const a = ticketAge\(o, useSecond\(\)\);/.test(tk)
       && ![crew, pb, tk, tp].some((t) => /ageMin\(o\.created_at/.test(t)));
   }
   ok("copy: the new keys are registered with their defaults (menu.taphint_closed retired with the hint, 2026-10-09)",
@@ -9254,7 +9256,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("links land: an order alert opens the Pass — #kitchen-pass is drawn only while the Pass is open, so the jump opens it instead of hunting for it",
     /if \(cat === "order"\) return \{ section: "now", anchor: "kitchen-pass" \};/.test(pg) && /const PASS_ANCHOR = "kitchen-pass";/.test(pg)
     && /function jumpTo\(anchor\?: string\): void \{\s*if \(anchor === PASS_ANCHOR\) \{ window\.dispatchEvent\(new Event\(OPEN_PASS_EVENT\)\); return; \}\s*scrollToAnchor\(anchor\);\s*\}/.test(pg)
-    && /jumpTo\(d\.anchor\);/.test(pg) && !/scrollToAnchor\(d\.anchor\)/.test(pg) && /<div className="adm-sec" id="kitchen-pass">/.test(code(read("components/pass/ThePass.tsx"))));
+    && /jumpTo\(d\.anchor\);/.test(pg) && !/scrollToAnchor\(d\.anchor\)/.test(pg) && /<div className="adm-sec pass-board" id="kitchen-pass"/.test(code(read("components/pass/ThePass.tsx"))));
   ok("links land: the page answers by going to Live Ops and opening the Pass — and a link waits for ?s=now to land before it is taken",
     /const open = \(\) => \{ setSection\("now"\); setSvc\(true\); \};\s*window\.addEventListener\(OPEN_PASS_EVENT, open\);/.test(pg)
     && /if \(a === PASS_ANCHOR && sec !== "now" && readParam\("s"\) === "now"\) return;\s*consumedAnchorRef\.current = true;\s*dropParam\("a"\);\s*jumpTo\(a\);/.test(pg)
@@ -10526,7 +10528,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("the Pass: Escape in a sheet over it closes the sheet, and the Pass stays",
     /const onKey = \(e: KeyboardEvent\) => \{ if \(e\.key === "Escape" && !e\.defaultPrevented && !sheetOpen\(\)\) setSvc\(false\); \};/.test(crew));
   ok("long press: a just-completed ticket — bring it back to ready, the money — as on the tray's own buttons",
-    /\{ key: "recall", label: "Bring it back to ready", icon: "chevronLeft", run: \(\) => \{ void act\.recall\(o\); \} \}/.test(ticketSrc) && /<div \{\.\.\.press\.bind\} className="adm-order pressable st-done">/.test(ticketSrc));
+    /\{ key: "recall", label: "Bring it back to ready", icon: "chevronLeft", run: \(\) => \{ void act\.recall\(o\); \} \}/.test(ticketSrc) && /<div \{\.\.\.press\.bind\} className="adm-order pressable st-done"/.test(ticketSrc));
   ok("long press: on an Inbox flag — Open, Discuss, Snooze for an hour (never a critical), Got it — on its row line, inside the swipe",
     /<div \{\.\.\.press\.bind\} className="alert-row pressable">/.test(crew) && /\{ key: "open", label: "Open", icon: "arrowRight", run: \(\) => gotoAlert\(a\) \}/.test(crew)
     && /\.\.\.\(a\.severity !== "critical" \? \[\{ key: "later", label: "Snooze for an hour", icon: "clock", run: \(\) => \{ void later\(a\); \} \}/.test(crew)
@@ -10987,9 +10989,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // ── performance: a ticket is drawn when it changes ──
   ok("pass perf: Ticket and DoneTicket are memoised, and every ticket gets the one `act`, made once from stable callbacks",
     /export const DoneTicket = memo\(function DoneTicket\(/.test(tk)
-    && /const act = useMemo<TicketActs>\(\(\) => \(\{ advance, recall, collect, undoTake, voidOrder \}\), \[advance, recall, collect, undoTake, voidOrder\]\);/.test(tp)
+    && /const act = useMemo<TicketActs>\(\(\) => \(\{\s*advance: \(o\) => \{ arm\(o\); return advance\(o\); \},\s*recall: \(o\) => \{ arm\(o\); return recall\(o\); \},\s*collect,\s*undoTake,\s*voidOrder: \(o\) => \{ arm\(o\); return voidOrder\(o\); \},\s*\}\), \[arm, advance, recall, collect, undoTake, voidOrder\]\);/.test(tp)
     && ["move", "takeMoney", "collect", "undoTake", "advance", "recall", "voidOrder"].every((f) => new RegExp(`const ${f} = useCallback\\(`).test(tp))
-    && /<Ticket key=\{o\.id\} o=\{o\} action=\{st\.action\} flash=\{flash\.has\(o\.id\)\} me=\{me\} admin=\{admin\} act=\{act\} \/>/.test(tp));
+    && /list\.map\(\(o\) => <Ticket key=\{o\.id\} o=\{o\} action=\{action\} flash=\{flash\.has\(o\.id\)\} me=\{me\} admin=\{admin\} act=\{act\} \/>\)/.test(tp)
+    && /<DoneTicket key=\{o\.id\} o=\{o\} me=\{me\} admin=\{admin\} act=\{act\} \/>/.test(tp));
   ok("pass perf: the second ticks the age labels only — no board-wide tick; the board's own clock strikes when the board changes",
     !/setTick|setInterval\(\(\) => setTick/.test(passAll) && (tk.match(/useSecond\(\)/g) || []).length >= 2
     && /const now = useBoardNow\(\(at\) => nextBoardChange\(orders, at\)\);/.test(tp) && /useSyncExternalStore\(onSecond, second, second\)/.test(ck)
@@ -11014,6 +11017,61 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /narrowed \? all\.filter\(\(o\) => isHere\(o, here\)\) : all/.test(tp) && /\{elsewhere > 0 && \(/.test(tp) && /onClick=\{\(\) => setPassScope\("all"\)\}>Show all<\/button>/.test(tp));
   ok("pass here: where the truck sells is read when the Pass opens and when the feed returns, and the feed's own changes move it — never a read per GPS ping",
     /setHere\(\(h\) => hereAfter\(h, "live_status", p\)\)/.test(hk) && /setHere\(\(h\) => hereAfter\(h, "events", p\)\)/.test(hk) && /const r = await readHere\(supabase\);/.test(hk));
+
+  // ── at arm's length: the board's layout is the Pass's own width ──
+  const tw = read("app/tailwind.css"), gl = read("app/globals.css");
+  const util = (name) => (tw.match(new RegExp(`@utility ${name} \\{[\\s\\S]*?\\n\\}`)) || [""])[0];
+  ok("pass wide: the frame is a container (`pass`); from 900 across the lanes stand three abreast and the rail beside them — a phone keeps one column",
+    /<div className="svc-full text-cream pass-frame" role="dialog"/.test(tp) && /container: pass \/ inline-size;/.test(util("pass-frame"))
+    && /grid-template-columns: minmax\(0, 1fr\);\s*@container pass \(width >= 900px\) \{[^}]*grid-template-columns: minmax\(0, 1fr\) clamp\(260px, 28%, 340px\);/.test(util("pass-grid"))
+    && /@container pass \(width >= 900px\) \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/.test(util("pass-cols"))
+    && /<div className="pass-grid">/.test(tp) && /<div className="pass-main">\{strip\}<PassBoard \/><\/div>/.test(tp) && /<aside className="pass-rail" aria-label="Pickups & sold-out">/.test(tp)
+    && /<div className="pass-cols">/.test(tp) && /<div className="kds-stage pass-lane" key=\{st\.key\} data-lane=\{st\.key\}>/.test(tp) && /<div className="pass-list">/.test(tp));
+  ok("pass wide: each lane's list and the rail scroll on their own, under their headings; the board does not scroll as a page",
+    /overflow-y: auto; overscroll-behavior: contain;/.test(util("pass-list")) && /min-height: 0; overflow-y: auto; overscroll-behavior: contain;/.test(util("pass-rail"))
+    && /flex: 1 1 auto; min-height: 0;/.test(util("pass-grid")) && /display: flex;\s*flex-direction: column;/.test(util("pass-frame")));
+  ok("pass wide: the window's old service-mode rules are gone from the house stylesheet (it only shrinks)",
+    !/\.svc-grid|\.svc-rail|\.svc-main/.test(gl) && !/svc-grid|svc-rail|svc-main/.test(tp) && /\.svc-full\{position:fixed;inset:0;z-index:85;/.test(gl));
+  ok("pass type: at arm's length the number 28 (the display face), the name 20, a line per drink at 17, the age 17 — each a step; a phone keeps the kit's",
+    /& \.adm-order-top b \{ font-size: 20px;/.test(util("pass-board")) && /& \.adm-items \{ font-size: 17px; \}/.test(util("pass-board")) && /& \.adm-age \{ font-size: 17px; \}/.test(util("pass-board"))
+    && /& \.pass-item \{ display: block; \}/.test(util("pass-board")) && /& \.pass-sep \{ display: none; \}/.test(util("pass-board"))
+    && /font-family: var\(--mono\); font-size: 13px;[^@]*@container pass \(width >= 900px\) \{ font-family: "Archivo Black"[^}]*font-size: 28px;/.test(util("pass-no"))
+    && [...tw.slice(tw.indexOf("THE PASS AT ARM'S LENGTH")).matchAll(/font-size: (\d+)px/g)].every((m) => [11, 12, 13, 15, 16, 17, 20, 22, 28, 34].includes(Number(m[1])))
+    && /\.adm-order-top b\{font-family:'Inter';font-weight:650;font-size:15px;line-height:1\.2\}/.test(gl) && /\.adm-items\{font-family:'Inter';font-weight:600;font-size:15px;/.test(gl));
+  ok("pass type: the ticket's number is up top beside the name, and its drinks are lib/passBoard's lines",
+    /<span className="pass-no">\{ticketNo\(o\.id\)\}<\/span>/.test(tk) && /itemLines\(items\)\.map\(\(l, i\) => \(/.test(tk) && /<span key=\{l\.key\} className="pass-item">\{i > 0 && <span className="pass-sep"> · <\/span>\}/.test(tk)
+    && /name: DRINKS\[id as DrinkId\]\?\.n \?\? id/.test(pb));
+
+  // ── placed ahead: a lane of its own, and Live Ops counts the same way ──
+  ok("pass scheduled: an order placed ahead waits in Scheduled — under New, folded until opened, by lib/passBoard's lanes",
+    /const lanes = useMemo\(\(\) => passLanes\(orders, now\), \[orders, now\]\);/.test(tp) && /useState<Set<string>>\(\(\) => new Set\(\["scheduled"\]\)\)/.test(tp)
+    && /\{st\.key === "new" && lanes\.scheduled\.length > 0 && \(\s*<div className="kds-stage" data-lane="scheduled">/.test(tp)
+    && /\{!folded\.has\("scheduled"\) && tickets\(lanes\.scheduled, st\.action\)\}/.test(tp) && /readPulse\(supabase, Date\.now\(\)\)/.test(pg));
+
+  // ── 86, and recall: one tap ──
+  ok("pass 86: on a phone the bar's '86 board' opens the 86 board in a sheet; where the rail is beside the board the door is not drawn",
+    /<button type="button" className="btn-ter pass-narrow" onClick=\{\(\) => setEightySix\(true\)\} aria-haspopup="dialog">86 board<\/button>/.test(tp)
+    && /<Sheet open onClose=\{\(\) => setEightySix\(false\)\} label="86 board"/.test(tp) && /<EightySix \/>\s*<\/Sheet>/.test(tp)
+    && /@container pass \(width >= 900px\) \{ display: none; \}/.test(util("pass-narrow")));
+  ok("pass recall: the last picked up stay in reach under Ready, Recall one tap on each — through the move, from the status it showed",
+    /\{st\.key === "ready" && done\.length > 0 && \(/.test(tp) && /\(trayOpen \? done : done\.slice\(0, TRAY_SHOWN\)\)\.map\(\(o\) => <DoneTicket/.test(tp)
+    && /const done = lanes\.done\.filter\(\(o\) => canRecall\(o, now\)\);/.test(tp) && /const recall = useCallback\(\(o: Order\) => move\(o, PREV\[o\.status\]\), \[move\]\);/.test(tp)
+    && /<button type="button" className="btn-sec shrink-0" onClick=\{\(\) => act\.recall\(o\)\} aria-label=\{`Bring \$\{o\.customer \?\? "order"\} back to ready`\}>↩ Recall<\/button>/.test(tk));
+
+  // ── accessibility on the Pass ──
+  ok("pass a11y: each lane's heading is a heading, 44 points tall, with its count in its name",
+    /<div role="heading" aria-level=\{3\}>\s*<button type="button" className="kds-stage-h min-h-11" onClick=\{onFold\} aria-expanded=\{!folded\} aria-label=\{laneName\(lane, n\)\}>/.test(tp));
+  ok("pass a11y: a new order is said politely in one line — the lanes are no live region (every age was read out each second)",
+    (tp.match(/aria-live=/g) || []).length === 1 && !/aria-live=/.test(tk) && /<div className="sr-only" aria-live="polite" aria-atomic="true">\{said\.text && <span key=\{said\.n\}>\{said\.text\}<\/span>\}<\/div>/.test(tp)
+    && /say\(newOrderWords\(row\)\);/.test(hk) && /say\(outsideWords\(row\)\);/.test(hk) && /if \(fresh\.length > 1\) say\(newOrdersWords\(fresh\.length\)\);/.test(hk));
+  ok("pass a11y: no state by colour alone — late says 'late', the money says PAID or UNPAID, placed ahead says when",
+    /\{a\.text\}\{a\.late && <> late<\/>\}/.test(tk) && /return \{ text: ago\(orderClockFrom\(o\), nowMs\), sev, late: sev === "late" \};/.test(pb) && /\{passWord\(o\)\}/.test(tk));
+  ok("pass a11y: focus stays on the board — a ticket is a focusable group, and focus that was on it follows it when it moves",
+    /role="group" aria-label=\{`\$\{o\.customer \?\? "Guest"\}, \$\{ticketNo\(o\.id\)\}`\} tabIndex=\{-1\} data-ticket=\{o\.id\}>/.test(tk)
+    && /<div className="adm-sec pass-board" id="kitchen-pass" ref=\{board\} tabIndex=\{-1\} onFocus=\{onFocus\}>/.test(tp)
+    && /const \{ board, onFocus, arm, land \} = useFollowFocus\(all\);/.test(tp)
+    && (tp.match(/land\(o, laneOf\(o, Date\.now\(\)\)\);\s*apply\(/g) || []).length === 2
+    && /export function useFollowFocus\(/.test(code(read("components/pass/focus.ts"))) && /t\.focus\(\{ preventScroll: false \}\);/.test(code(read("components/pass/focus.ts"))));
 
   // ── the feed, said out loud ──
   ok("pass feed: whenever its state changes the Pass says so — gt3:pass-feed, { state, at }",

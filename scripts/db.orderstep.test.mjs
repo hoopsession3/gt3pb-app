@@ -288,5 +288,23 @@ ok("run again: no error, recorded twice, one changelog line, still one function"
   ok("…and running 0368 puts it right: the same call answers 'preparing'", (await tap(SERVER, o, "preparing")).status === "preparing");
 }
 
+// ── RECALL FROM THE TICKET (2026-10-11, the KDS program, wave 2 — components/pass) ─────────────────────────────────────
+// The Pass's Recall is one tap on a picked-up ticket, and it is the ticket's own move, sent from the status the tray
+// showed: done → ready with p_from 'done' (lib/passBoard; components/pass/ThePass recall → move → lib/orderStatus). 0368
+// lets it through; these are the answers a busy pass gets back.
+{
+  const o = await order("done");
+  const r = await tap(SERVER, o, "ready", "done");
+  ok("Recall from the ticket: done → ready, sent from 'done' (what the tray showed)", r.status === "ready" && (await statusOf(o)) === "ready", r);
+  const twice = await tap(SERVER, o, "ready", "done");
+  ok("…the other phone recalled it first: no conflict — it answers 'ready'", twice.status === "ready" && (await statusOf(o)) === "ready", twice);
+  const v = await order("void");
+  const late = await tap(SERVER, v, "ready", "done");
+  ok("…an order voided meanwhile stays void: the recall is refused, detail 'void'", moved(late) && late.detail === "void" && (await statusOf(v)) === "void", late);
+  const on = await order("preparing");
+  const behind = await tap(SERVER, on, "ready", "done");
+  ok("…an order recalled and moved on meanwhile (the tray was behind): refused, and it says where the order is", moved(behind) && behind.detail === "preparing" && (await statusOf(on)) === "preparing", behind);
+}
+
 console.log(`0368 (a voided order stays voided): ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

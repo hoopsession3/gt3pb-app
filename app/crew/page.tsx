@@ -20,7 +20,7 @@ import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
 import { readParam, dropParam } from "@/lib/urlParam";
 import { panelHome } from "@/lib/panelHome";
 import { useWakeLock } from "@/lib/useWakeLock";
-import { groupItems } from "@/lib/passBoard";
+import { groupItems, readPulse } from "@/lib/passBoard";
 import { useEtDay } from "@/lib/useEtDay";
 import { NotifPrefs, NotifPrefsSheet } from "@/components/NotifPrefs";
 import { DeviceAlerts, AlertsOffLine } from "@/components/DeviceAlerts";
@@ -313,18 +313,17 @@ function ServicePulse({ onEnter }: { onEnter: () => void }) {
   // DUE NOW, AND LATER (2026-10-11, the KDS audit). An order placed ahead of a stop (0343 ready_from) counted as on
   // the pass from the moment it was placed, and turned this button red hours before anyone could start it. The
   // count is what can be made now; what is placed ahead is said beside it, quietly.
+  // COUNTED BY THE PASS'S OWN LANES (2026-10-11, the KDS program, wave 2: lib/passBoard readPulse). On the pass is New, In
+  // progress and Ready; placed ahead is the Pass's Scheduled lane. An order placed ahead and started early was neither
+  // here — not on the pass, still "ahead" — while the Pass showed it In progress.
   const load = useCallback(async () => {
     if (!supabase) return;
-    const nowISO = new Date().toISOString();
-    const [o, a, p] = await Promise.all([
-      supabase.from("orders").select("id", { count: "exact", head: true }).neq("status", "void").neq("status", "done")
-        .or(`ready_from.is.null,ready_from.lte.${nowISO}`),
-      supabase.from("orders").select("id", { count: "exact", head: true }).neq("status", "void").neq("status", "done")
-        .gt("ready_from", nowISO),
+    const [o, p] = await Promise.all([
+      readPulse(supabase, Date.now()),
       supabase.from("products").select("id", { count: "exact", head: true }).eq("active", true).eq("sold_out", true),
     ]);
-    if (o.count !== null) setPass(o.count);
-    if (a.count !== null) setAhead(a.count);
+    if (o.pass !== null) setPass(o.pass);
+    if (o.ahead !== null) setAhead(o.ahead);
     if (p.count !== null) setOut(p.count);
   }, []);
   useEffect(() => { load(); const t = window.setInterval(load, 60_000); return () => window.clearInterval(t); }, [load]);

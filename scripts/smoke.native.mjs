@@ -1256,6 +1256,118 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await ctx.close();
   }
 
+  {
+    // THE PASS AT ARM'S LENGTH (2026-10-11, the KDS program, wave 2 — components/pass). On an iPad on its side the lanes stand
+    // in three columns, each scrolling on its own, the rail beside them and the type set to be read from a step back; on a
+    // phone the stacked list, every control on the board and its bar 44 points to the thumb, the 86 board one tap away in the
+    // bar, each lane's heading saying its count; and focus that was on a ticket follows it when it moves. (The rail's own
+    // controls are the pickup board's and the 86 board's, measured where they are drawn.)
+    const at = (m) => new Date(Date.now() - m * 60_000).toISOString();
+    const base = { user_id: null, customer_id: null, total_cents: 1000, paid: true, payment_id: "pay_TEST000001", eta_status: null, eta_at: null, payment_status: "paid", collected_via: null, collected_at: null, collected_by: null, ready_from: null, event_id: null, stop_id: null };
+    const ANA = "5a10e000-0000-4000-8000-0000000000d1";
+    const orders = [
+      { ...base, id: ANA, customer: "Ana", items: ["flow", "flow", "rise"], status: "new", created_at: at(9), status_changed_at: at(9) },
+      { ...base, id: "5a10e000-0000-4000-8000-0000000000d2", customer: "Ben", items: ["tide"], status: "preparing", created_at: at(6), status_changed_at: at(2) },
+      { ...base, id: "5a10e000-0000-4000-8000-0000000000d3", customer: "Cy", items: ["maple"], status: "ready", created_at: at(5), status_changed_at: at(1) },
+      { ...base, id: "5a10e000-0000-4000-8000-0000000000d4", customer: "Di", items: ["rise"], status: "new", created_at: at(120), status_changed_at: at(120), ready_from: new Date(Date.now() + 90 * 60_000).toISOString() },
+    ];
+    const products = [{ id: "5a10e000-0000-4000-8000-0000000000f1", slug: "flow", name: "FLOW", sold_out: false, sold_out_at: null, active: true, sort: 1 }];
+    const open = async (device) => {
+      const ctx = await phoneContext(device, { owner: true, seed: { orders, products } });
+      const page = await ctx.newPage();
+      if (!device.desktop) await insetsOn(page, device.top, device.bottom);
+      const errors = watch(page);
+      await page.goto(`${BASE}/crew?s=now&a=kitchen-pass`, { waitUntil: "load" });
+      await page.waitForSelector(".svc-full .adm-order", { timeout: 8000 }).catch(() => {});
+      await page.waitForTimeout(700); await page.evaluate(SETTLE);
+      return { ctx, page, errors };
+    };
+
+    // ── an iPad on its side ──
+    {
+      const { ctx, page, errors } = await open({ name: "iPad 11 on its side", width: 1180, height: 820, desktop: true, touch: true });
+      const wide = await page.evaluate(() => {
+        const q = (sel) => document.querySelector(sel);
+        const lanes = [...document.querySelectorAll(".svc-full .pass-lane")].map((l) => {
+          const r = l.getBoundingClientRect();
+          return { lane: l.getAttribute("data-lane"), x: Math.round(r.left), right: Math.round(r.right), top: Math.round(r.top), scroll: getComputedStyle(l.querySelector(".pass-list")).overflowY };
+        });
+        const rail = q(".svc-full .pass-rail"), frame = q(".svc-full"), door = q(".svc-full .svc-bar .pass-narrow");
+        const px = (sel) => (q(sel) ? parseFloat(getComputedStyle(q(sel)).fontSize) : 0);
+        return {
+          lanes, railX: rail ? Math.round(rail.getBoundingClientRect().left) : null, railScroll: rail ? getComputedStyle(rail).overflowY : null,
+          pageScrolls: frame.scrollHeight > frame.clientHeight + 1, door: door ? getComputedStyle(door).display : null,
+          no: px(".svc-full .pass-no"), name: px(".svc-full .adm-order-top b"), items: px(".svc-full .adm-items"), age: px(".svc-full .adm-age"),
+          perLine: [...(q(`.svc-full [data-ticket] .adm-items`)?.querySelectorAll(".pass-item") ?? [])].map((i) => getComputedStyle(i).display),
+        };
+      });
+      ok("the Pass on an iPad on its side (1180): New · In progress · Ready side by side, left to right on one line, each list scrolling on its own",
+        wide.lanes.map((l) => l.lane).join() === "new,preparing,ready" && wide.lanes.every((l, i, a) => i === 0 || (l.x >= a[i - 1].right && Math.abs(l.top - a[0].top) <= 1))
+        && wide.lanes.every((l) => l.scroll === "auto"), JSON.stringify(wide.lanes));
+      ok("…the rail beside the lanes, scrolling on its own, and the board does not scroll as a page",
+        wide.railX !== null && wide.railX >= Math.max(...wide.lanes.map((l) => l.right)) && wide.railScroll === "auto" && !wide.pageScrolls, JSON.stringify(wide));
+      ok("…no 86 door in the bar: the rail is on screen", wide.door === "none", wide.door);
+      ok("…at arm's length: the number 28, the name 20, the drinks 17 — a line each", wide.no >= 28 && wide.name >= 20 && wide.items >= 17 && wide.age >= 17
+        && wide.perLine.length === 2 && wide.perLine.every((d) => d === "block"), JSON.stringify(wide));
+      ok("the Pass on an iPad: no errors", errors.length === 0, errors.join(" | "));
+      await ctx.close();
+    }
+
+    // ── a phone ──
+    {
+      const { ctx, page, errors } = await open(MAIN);
+      const narrow = await page.evaluate(() => {
+        const lanes = [...document.querySelectorAll(".svc-full .pass-lane")].map((l) => l.getBoundingClientRect()).map((r) => ({ top: Math.round(r.top), bottom: Math.round(r.bottom) }));
+        const door = document.querySelector(".svc-full .svc-bar .pass-narrow");
+        // Each control on the board and its bar: its own box, or the reach the kit draws round it (an ::after laid over it).
+        const reach = (b) => {
+          const r = b.getBoundingClientRect(), a = getComputedStyle(b, "::after");
+          const over = a.content !== "none" && a.position === "absolute";
+          return { w: Math.max(r.width, over ? parseFloat(a.width) || 0 : 0), h: Math.max(r.height, over ? parseFloat(a.height) || 0 : 0) };
+        };
+        const small = [...document.querySelectorAll(".svc-full .svc-bar button, .svc-full .pass-board button")]
+          .filter((b) => b.getClientRects().length > 0)
+          .map((b) => ({ t: (b.getAttribute("aria-label") || b.textContent || "").trim().slice(0, 28), ...reach(b) }))
+          .filter((b) => b.w < 44 || b.h < 44);
+        const heads = [...document.querySelectorAll('.svc-full [role="heading"][aria-level="3"] > .kds-stage-h')].map((b) => b.getAttribute("aria-label"));
+        const live = [...document.querySelectorAll(".svc-full [aria-live]")].filter((n) => n.querySelector(".adm-order")).length;
+        const polite = !!document.querySelector('.svc-full .pass-board > .sr-only[aria-live="polite"]');
+        const sched = document.querySelector('.svc-full [data-lane="scheduled"] .kds-stage-h');
+        return {
+          stacked: lanes.length === 3 && lanes.every((r, i, a) => i === 0 || r.top >= a[i - 1].bottom - 1), door: door ? getComputedStyle(door).display : null, small, heads, live, polite,
+          scheduled: sched ? { label: sched.getAttribute("aria-label"), open: sched.getAttribute("aria-expanded") } : null,
+          diDrawn: !!document.querySelector('.svc-full [data-ticket="5a10e000-0000-4000-8000-0000000000d4"]'),
+          late: document.querySelector(`.svc-full [data-ticket] .adm-age.late`)?.textContent ?? null,
+        };
+      });
+      ok("the Pass on a phone: the lanes stacked, one under another", narrow.stacked, JSON.stringify(narrow));
+      ok("…every control on the board and in its bar is 44 points to the thumb", narrow.small.length === 0, JSON.stringify(narrow.small));
+      ok("…each lane's heading says its count to a screen reader ('New, 1 order'), and the lanes are no live region",
+        narrow.heads.includes("New, 1 order") && narrow.heads.includes("In progress, 1 order") && narrow.heads.includes("Ready, hand off, 1 order")
+        && narrow.live === 0 && narrow.polite, JSON.stringify(narrow));
+      ok("…an order placed ahead waits in Scheduled, folded, under New", narrow.scheduled?.label === "Scheduled, 1 order" && narrow.scheduled.open === "false" && !narrow.diDrawn, JSON.stringify(narrow.scheduled));
+      ok("…a late ticket says 'late' — not by its colour alone", /^\d+m late$/.test(narrow.late ?? ""), narrow.late);
+      await page.locator(".svc-full .svc-bar .pass-narrow").click().catch(() => {});
+      await page.waitForTimeout(800);
+      const sheet = await page.evaluate(() => {
+        const s = [...document.querySelectorAll(".sheet2")].pop();
+        return s ? { label: s.getAttribute("aria-label"), chips: [...s.querySelectorAll(".k-chip")].map((c) => c.textContent.trim()) } : null;
+      });
+      ok("…the 86 board is one tap away: the bar's door opens it in a sheet, its chips there to tap", narrow.door !== "none" && sheet?.label === "86 board" && sheet.chips.includes("FLOW"), JSON.stringify({ door: narrow.door, sheet }));
+      await page.keyboard.press("Escape"); await page.waitForTimeout(600);
+      // Focus that was on a ticket follows it: Start on Ana's ticket, by keyboard, and focus is on her ticket in In progress.
+      await page.locator(`.svc-full [data-ticket="${ANA}"] .adm-act`).focus().catch(() => {});
+      await page.keyboard.press("Enter"); await page.waitForTimeout(700);
+      const f = await page.evaluate(() => {
+        const a = document.activeElement;
+        return { ticket: a?.closest?.("[data-ticket]")?.getAttribute("data-ticket") ?? null, lane: a?.closest?.("[data-lane]")?.getAttribute("data-lane") ?? null, inPass: !!a?.closest?.(".svc-full") };
+      });
+      ok("…focus stays on the board after a tap: it follows the ticket to In progress", f.inPass && f.ticket === ANA && f.lane === "preparing", JSON.stringify(f));
+      ok("the Pass on a phone: no errors", errors.length === 0, errors.join(" | "));
+      await ctx.close();
+    }
+  }
+
   // ── 5f · THE PHONE'S TEXT SIZE (2026-10-08, the type round — Ryan approved proposal 6) ──
   // Until someone picks a text size in the app, the app takes the one nearest the phone's (lib/phoneText), read from
   // WebKit's body face. Chromium has no such face, so the page's own body size stands in for the phone's here: 17px is

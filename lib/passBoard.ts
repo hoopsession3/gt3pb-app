@@ -4,12 +4,14 @@
 // none of it could be run by a test — a regular expression could only check that it still said what it said. What the
 // board decides lives here now, apart from React and from the network's client (each read takes the client, lib/collect's
 // shape, so a test hands it a stand-in): which orders it reads and how many, how one change lands on it, when it next
-// changes with the time alone, what its feed says about itself, and which orders are "here". scripts/pass.test.mjs runs
-// all of it. The board itself is components/pass (ThePass, Ticket, usePassBoard).
+// changes with the time alone, what its feed says about itself, and which orders are "here" — and, at arm's length, which
+// lane a ticket is in, what its age says in words, what its drinks read, and what may be recalled. scripts/pass.test.mjs
+// runs all of it. The board itself is components/pass (ThePass, Ticket, usePassBoard).
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Order } from "./db";
-import { orderClockFrom, waitingToOpen } from "./ordering";
+import { DRINKS, type DrinkId } from "./menu";
+import { orderClockFrom, waitingToOpen, waitingLabel } from "./ordering";
 
 /** Picked-up orders linger this long, for review and recall. */
 export const RECENT_MS = 30 * 60_000;
@@ -41,6 +43,19 @@ export function groupItems(items: readonly string[]): { id: string; qty: number 
   return [...m.entries()].map(([id, qty]) => ({ id, qty }));
 }
 
+// WHAT A TICKET'S DRINKS SAY (2026-10-11). orders.items is a list of the menu's drink ids — "rise", "rise", "flow" — and
+// nothing else: the cart counts drinks (components/AppProvider), the checkout sends one id per cup and refuses any id the
+// menu does not have (app/api/checkout: "Unknown item"), and order_items is exploded from the same ids (0231). There is no
+// size, milk or note on an order to show. A string that is not a drink id (a row written before 0156 closed the
+// client's insert, or a writer still to come) is shown as it is, whole — whatever it carries is on the ticket.
+/** One line per drink, repeats grouped, in the order first rung: { qty: 2, name: "FLOW" }. */
+export function itemLines(items: readonly string[]): { key: string; qty: number; name: string }[] {
+  return groupItems(items).map(({ id, qty }) => ({ key: id, qty, name: DRINKS[id as DrinkId]?.n ?? id }));
+}
+/** The drinks in one line: "2× RISE · FLOW". */
+export const itemsLine = (items: readonly string[]): string =>
+  itemLines(items).map((l) => `${l.qty > 1 ? `${l.qty}× ` : ""}${l.name}`).join(" · ");
+
 // ── time ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 /** "45s", "8m", "2h" — how long ago `iso` was at `nowMs`. */
 export function ago(iso: string, nowMs: number): string {
@@ -49,6 +64,15 @@ export function ago(iso: string, nowMs: number): string {
 }
 export const ageMin = (iso: string, nowMs: number): number => Math.floor((nowMs - new Date(iso).getTime()) / 60000);
 export const ageSev = (min: number): "late" | "warn" | "calm" => (min >= LATE_MIN ? "late" : min >= WARN_MIN ? "warn" : "calm");
+
+/** A TICKET'S AGE, IN WORDS AND COLOUR (2026-10-11). Placed ahead and waiting on its stop: when it is for ("for 11:00am"),
+ *  calm. Otherwise how long since its clock started, gold from 4 minutes and red from 8 — and from 8 the word "late"
+ *  beside it, so a late ticket is not told by its colour alone. */
+export function ticketAge(o: Pick<Order, "created_at" | "ready_from">, nowMs: number): { text: string; sev: "late" | "warn" | "calm"; late: boolean } {
+  if (o.ready_from && waitingToOpen(o, nowMs)) return { text: waitingLabel(o.ready_from, nowMs), sev: "calm", late: false };
+  const sev = ageSev(ageMin(orderClockFrom(o), nowMs));
+  return { text: ago(orderClockFrom(o), nowMs), sev, late: sev === "late" };
+}
 
 /** The guests to step over and reassure: a ticket not yet ready whose clock has started (lib/ordering: placed ahead, it
  *  starts when its stop opens) and has run past the late line. */
@@ -142,6 +166,70 @@ export async function readBoard(sb: SupabaseClient, nowMs: number, cap: number =
 
 /** The line under the board when the read stopped short: "+12 more open orders". */
 export const moreLine = (more: number): string => `+${more} more open order${more === 1 ? "" : "s"}`;
+
+// ── the lanes ────────────────────────────────────────────────────────────────────────────────────────────────────────
+// PLACED AHEAD IS NOT NEW (2026-10-11). An order placed ahead of a stop (0343 ready_from) sat in New among the orders to
+// make now, by when it was placed — the first ticket on the board at 7am for a stop that opens at 11. It waits in a lane of
+// its own now, Scheduled (folded, soonest first, each saying when it is for), and moves to New the moment its stop opens:
+// the board's clock strikes then (nextBoardChange). In New the oldest clock is first — a pre-order that just came due sits
+// where its stop's opening puts it, not ahead of a guest who has waited since. Live Ops' count reads the same rule
+// (readPulse): "N on the pass" is New + In progress + Ready, "N placed ahead" is Scheduled.
+/** Still new, and waiting on its stop to open. Started early, it is in progress like any other. */
+export const isScheduled = (o: Order, nowMs: number): boolean => o.status === "new" && waitingToOpen(o, nowMs);
+
+export type Lanes = { scheduled: Order[]; new: Order[]; preparing: Order[]; ready: Order[]; done: Order[] };
+const byClock = (a: Order, b: Order): number => Date.parse(orderClockFrom(a)) - Date.parse(orderClockFrom(b)) || byCreated(a, b);
+export function passLanes(orders: readonly Order[], nowMs: number): Lanes {
+  const l: Lanes = { scheduled: [], new: [], preparing: [], ready: [], done: [] };
+  for (const o of orders) {
+    if (o.status === "new") (isScheduled(o, nowMs) ? l.scheduled : l.new).push(o);
+    else if (o.status === "preparing" || o.status === "ready" || o.status === "done") l[o.status].push(o);
+  }
+  l.scheduled.sort((a, b) => Date.parse(a.ready_from ?? "") - Date.parse(b.ready_from ?? "") || byCreated(a, b));
+  l.new.sort(byClock);
+  l.preparing.sort(byCreated);
+  l.ready.sort(byCreated);
+  l.done.sort((a, b) => (a.status_changed_at < b.status_changed_at ? 1 : a.status_changed_at > b.status_changed_at ? -1 : 0));
+  return l;
+}
+
+/** The lane a ticket is in now — where focus goes back to when the ticket leaves the board (components/pass/focus). */
+export const laneOf = (o: Order, nowMs: number): keyof Lanes =>
+  isScheduled(o, nowMs) ? "scheduled" : o.status === "void" ? "new" : o.status;
+
+/** A lane's name as a screen reader hears its heading — the words on it, and the count in it: "New, 3 orders". */
+const SPOKEN: Record<keyof Lanes, string> = { scheduled: "Scheduled", new: "New", preparing: "In progress", ready: "Ready, hand off", done: "Just completed" };
+export const laneName = (lane: keyof Lanes, n: number): string => `${SPOKEN[lane]}, ${n} order${n === 1 ? "" : "s"}`;
+
+// RECALL, ONE TAP FROM THE TICKET (2026-10-11). A picked-up ticket was two taps and a scroll from being brought back: open
+// the folded tray at the foot of the board, then Recall. The last few picked up stay in reach under Ready, each with its
+// Recall; the rest fold. A recall is the ticket's own move, from the status it showed — done → ready, which
+// staff_set_order_status allows (0368: "Recall (done → ready)") — and it never tells the customer "ready" a second time.
+/** The picked-up tickets shown before the tray is opened. */
+export const TRAY_SHOWN = 3;
+/** Picked up in the last half hour: it can be brought back to Ready. */
+export const canRecall = (o: Pick<Order, "status" | "status_changed_at">, nowMs: number): boolean =>
+  o.status === "done" && !!o.status_changed_at && nowMs - new Date(o.status_changed_at).getTime() < RECENT_MS;
+
+/** LIVE OPS' COUNT, BY THE PASS'S LANES: on the pass (New + In progress + Ready) and placed ahead (Scheduled). It counted an
+ *  order placed ahead and started early as neither on the pass nor ahead's equal — it was "ahead" while the Pass showed it
+ *  In progress. Two head counts, nothing read. */
+export async function readPulse(sb: SupabaseClient, nowMs: number): Promise<{ pass: number | null; ahead: number | null }> {
+  const nowISO = new Date(nowMs).toISOString();
+  const [o, a] = await Promise.all([
+    sb.from("orders").select("id", { count: "exact", head: true }).neq("status", "void").neq("status", "done")
+      .or(`status.neq.new,ready_from.is.null,ready_from.lte.${nowISO}`),
+    sb.from("orders").select("id", { count: "exact", head: true }).eq("status", "new").gt("ready_from", nowISO),
+  ]);
+  return { pass: o.error ? null : o.count, ahead: a.error ? null : a.count };
+}
+
+// ── what the Pass says out loud ─────────────────────────────────────────────────────────────────────────────────────
+// A NEW ORDER IS SAID, POLITELY (2026-10-11). The whole board was one polite live region, so a screen reader was told
+// every change on it — each ticket's age, every second. One quiet line says what arrived instead.
+export const newOrderWords = (o: Pick<Order, "customer" | "items">): string => `New order: ${o.customer ?? "Guest"} — ${itemsLine(o.items)}`;
+export const newOrdersWords = (n: number): string => `${n} new orders`;
+export const outsideWords = (o: Pick<Order, "customer">): string => `${o.customer ?? "Guest"} is outside`;
 
 // ── what the feed says about itself ──────────────────────────────────────────────────────────────────────────────────
 /** THE PASS'S FEED, SAID OUT LOUD (2026-10-11). Whenever it changes the Pass tells the rest of the app on PASS_FEED_EVENT

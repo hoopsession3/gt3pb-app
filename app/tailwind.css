@@ -328,3 +328,80 @@
     .app[data-desk] & > .set-adv { grid-area: adv; }
   }
 }
+
+/* ============================================================
+   THE PASS AT ARM'S LENGTH (2026-10-11, the KDS program, wave 2)
+   The Pass (components/pass/ThePass) is the crew's service screen, watched from a step back on a counter. On a phone it is
+   the stacked list it always was — New, In progress, Ready one under another, pickups and the 86 board under them, the 86
+   board also one tap away in its bar. From 900 points across — an iPad on its side, a desk — the three lanes stand side by
+   side, each scrolling on its own under its heading, and the rail stands beside them, scrolling on its own: the board does
+   not scroll as a page. The ticket is set to be read from there: its number at 28 in the display face, the name at 20, a
+   line per drink at 17, its age at 17 — each a step of the type scale.
+   The width asked is the Pass's own (a container query on its frame, `pass`), not the window's: the frame's padding and a
+   phone's safe areas are already out of it. It replaces app/globals.css's service-mode rules, which asked the window — a
+   rail beside from 940 wide with one column of tickets, two tickets abreast from 1,240.
+   ============================================================ */
+@utility pass-frame {
+  container: pass / inline-size;
+  display: flex;
+  flex-direction: column;
+  /* a phone on its side: the notch and the corners are kept clear, the frame's own 16 the least */
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+/* The board and the rail: one column (the rail under the board), or side by side, filling what the bar leaves. */
+@utility pass-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  @container pass (width >= 900px) {
+    flex: 1 1 auto; min-height: 0;
+    grid-template-columns: minmax(0, 1fr) clamp(260px, 28%, 340px); grid-template-rows: minmax(0, 1fr); column-gap: 20px;
+  }
+}
+@utility pass-main {
+  @container pass (width >= 900px) { display: flex; flex-direction: column; min-height: 0; }
+}
+@utility pass-rail {
+  @container pass (width >= 900px) {
+    min-height: 0; overflow-y: auto; overscroll-behavior: contain; border-left: 1px solid var(--line); padding-left: 18px;
+  }
+}
+/* The board (its banners, then the lanes) and its type at arm's length. A ticket's actions wrap: its next step is a row of
+   its own, the width of the lane, in the same place on every ticket. */
+@utility pass-board {
+  @container pass (width >= 900px) {
+    flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+    & .adm-order-top b { font-size: 20px; line-height: 1.2; }
+    & .adm-items { font-size: 17px; }
+    & .pass-item { display: block; }
+    & .pass-sep { display: none; }
+    & .adm-age { font-size: 17px; }
+    & .adm-order .meta { font-size: 15px; }
+    & .kds-stage-name { font-size: 15px; }
+    & .kds-eta { font-size: 13px; }
+    & .adm-actions-row { flex-wrap: wrap; }
+    & .adm-act { flex: 1 1 100%; font-size: 15px; }
+  }
+}
+/* New · In progress · Ready: three lanes, each its heading over a list that scrolls on its own. */
+@utility pass-cols {
+  @container pass (width >= 900px) {
+    flex: 1 1 auto; min-height: 0;
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); column-gap: 12px;
+  }
+}
+@utility pass-lane {
+  @container pass (width >= 900px) { display: flex; flex-direction: column; min-height: 0; }
+}
+@utility pass-list {
+  @container pass (width >= 900px) { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 16px; }
+}
+/* A ticket's number: quiet beside the name on a phone, the first thing read across a counter. */
+@utility pass-no {
+  font-family: var(--mono); font-size: 13px; color: var(--cream-m); white-space: nowrap;
+  @container pass (width >= 900px) { font-family: "Archivo Black", "Inter", system-ui, sans-serif; font-size: 28px; line-height: 1; color: var(--cream); }
+}
+/* What only a phone's Pass needs: the bar's way to the 86 board, there while the rail is under the board. */
+@utility pass-narrow {
+  @container pass (width >= 900px) { display: none; }
+}

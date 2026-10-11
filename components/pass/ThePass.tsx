@@ -11,6 +11,7 @@ import EightySix from "@/components/EightySix";
 import EmptyState from "@/components/EmptyState";
 import Icon from "@/components/Icon";
 import PourFill from "@/components/PourFill";
+import Sheet, { CloseButton } from "@/components/Sheet";
 import { queueOrderStatus, queueCollectCup, isNetworkError } from "@/components/offline";
 import { canCollect, collectPayment, undoCollection, collectedPatch, undonePatch, paidHow, VIA_LABEL, type CollectVia } from "@/lib/collect";
 import { raiseAlertClient } from "@/lib/clientAlerts";
@@ -23,49 +24,82 @@ import { setOrderStatus, movedTo, movedLine } from "@/lib/orderStatus";
 import { setPassMuted } from "@/lib/passSound";
 import { canOf } from "@/lib/roles";
 import { supabase } from "@/lib/supabase";
-import { NEXT, PREV, STAGES, lateOf, nextBoardChange, isHere, somewhereLive, moreLine, elsewhereLine, type Scope } from "@/lib/passBoard";
+import {
+  NEXT, PREV, STAGES, TRAY_SHOWN, lateOf, nextBoardChange, passLanes, laneOf, canRecall, laneName, isHere, somewhereLive,
+  moreLine, elsewhereLine, type Lanes, type Scope,
+} from "@/lib/passBoard";
 import type { Order } from "@/lib/db";
 import { DoneTicket, Ticket, type TicketActs } from "./Ticket";
 import { usePassBoard, usePassScope, setPassScope } from "./usePassBoard";
 import { useBoardNow } from "./clock";
+import { useFollowFocus } from "./focus";
 
 // THE PASS (2026-10-11, the KDS program, wave 2). The crew console's service screen, in a module of its own: it was the
 // Kitchen function and the service-mode block inside app/crew/page.tsx, 6,500 lines that held everything else too. The
 // page keeps only the mount (Live Ops' `svc`: Escape, the wake lock, leaving Live Ops); this file is the screen —
 // the bar, the board and the rail beside it. Ticket.tsx draws one ticket; usePassBoard.ts holds the board and keeps it
 // true; lib/passBoard.ts is the rules, run by scripts/pass.test.mjs.
+//
+// THE BOARD AT ARM'S LENGTH (2026-10-11). On a wide Pass — 900 points across, an iPad on its side or a desk — New, In
+// progress and Ready stand side by side, each scrolling on its own under its heading, with pickups and the 86 board in a
+// rail beside them; the type is set to be read from a step back. A phone keeps the stacked list, the rail under it, and
+// the 86 board one tap away in the bar. The width is the Pass's own (a container query on its frame), not the window's:
+// app/tailwind.css, THE PASS AT ARM'S LENGTH, holds the layout.
 
-/** SERVICE MODE — the KDS as ONE working surface: the pass is the board (tickets flow 2-up
- *  on wide screens), and a sticky rail keeps pickups and the 86 board in reach without ever
- *  leaving the screen — 86ing a flavor mid-rush is a tap, not an exit.
+/** SERVICE MODE — the KDS as ONE working surface: the pass is the board, and the rail keeps pickups and the 86 board in
+ *  reach without ever leaving the screen — 86ing a flavor mid-rush is a tap, not an exit.
  *  Exit with the button or Esc; leaving the Now section exits too.
  *  ITS OWN BELL (2026-10-11, the KDS audit): the Pass covers the header, and with it the bell — a refund
  *  to make or a paid order that didn't record went unseen on the one phone working the pass. The same
  *  count, the same inbox, above the Pass: the page hands it in (`bell`), with today's critical alert strip (`strip`). */
 export default function ThePass({ bell, strip, canPlan, onExit }: { bell: ReactNode; strip: ReactNode; canPlan: boolean; onExit: () => void }) {
+  // 86 ONE TAP AWAY ON A PHONE (2026-10-11). On a phone the rail is under the whole board, so running out of a flavor
+  // meant scrolling past every ticket or leaving the Pass. The bar's "86 board" opens it in a sheet — and goes where the
+  // rail is beside the board (pass-narrow).
+  const [eightySix, setEightySix] = useState(false);
   return (
-    <div className="svc-full text-cream" role="dialog" aria-modal="true" aria-label="The Pass">
+    <div className="svc-full text-cream pass-frame" role="dialog" aria-modal="true" aria-label="The Pass">
       <div className="svc-bar">
         <b>The Pass</b>
         <span className="flex items-center gap-2">
+          <button type="button" className="btn-ter pass-narrow" onClick={() => setEightySix(true)} aria-haspopup="dialog">86 board</button>
           {bell}
           <button type="button" className="btn-ter" onClick={onExit}><Icon name="close" /> Exit</button>
         </span>
       </div>
-      <div className="svc-grid">
+      <div className="pass-grid">
         {/* Today's critical alert, named, one tap to the inbox — the strip that led Live Ops, on the screen the
             crew is working. Nothing at all when there is none. */}
-        <div className="svc-main">{strip}<PassBoard /></div>
-        <aside className="svc-rail" aria-label="Pickups & sold-out">
+        <div className="pass-main">{strip}<PassBoard /></div>
+        <aside className="pass-rail" aria-label="Pickups & sold-out">
           <DropOps canPlan={canPlan} />
           <EightySix />
         </aside>
       </div>
+      {eightySix && (
+        <Sheet open onClose={() => setEightySix(false)} label="86 board"
+          header={<div className="acs-head"><CloseButton onClick={() => setEightySix(false)} className="isheet-x" /></div>}>
+          <EightySix />
+        </Sheet>
+      )}
     </div>
   );
 }
 
-/** The board: the stages, their tickets, and what the board says about itself. */
+/** A lane's heading: its name, its count — in its accessible name too — and the fold. */
+function LaneHead({ lane, label, n, folded, onFold }: { lane: keyof Lanes; label: string; n: number; folded: boolean; onFold: () => void }) {
+  return (
+    <div role="heading" aria-level={3}>
+      <button type="button" className="kds-stage-h min-h-11" onClick={onFold} aria-expanded={!folded} aria-label={laneName(lane, n)}>
+        <span className={`kds-caret${folded ? " col" : ""}`} aria-hidden="true">›</span>
+        <span className="kds-stage-name">{label}</span>
+        <span className="kds-stage-n">{n}</span>
+      </button>
+    </div>
+  );
+}
+
+/** The board: the lanes, their tickets, and what the board says about itself. */
 function PassBoard() {
   const confirm = useConfirm();
   const { toast } = useApp();
@@ -73,7 +107,7 @@ function PassBoard() {
   const me = user?.id ?? null;
   const admin = canOf(profile).admin;
   const [askCollect, collectSheet] = useCollectSheet();
-  const { orders: all, flash, muted, boardAt, down, live, more, here, apply, load, showMore } = usePassBoard();
+  const { orders: all, flash, said, muted, boardAt, down, live, more, here, apply, load, showMore } = usePassBoard();
   const scope: Scope = usePassScope();
   const toggleMute = () => { setPassMuted(!muted); unlockAudio(); };
   // HERE OR EVERYWHERE (2026-10-11). With a stop or an event live, this phone can show only the orders sold there — and
@@ -84,10 +118,13 @@ function PassBoard() {
   // The board's clock strikes only when the board changes with the time — a ticket placed ahead coming due, a ticket
   // turning late (lib/passBoard nextBoardChange) — so the board is not drawn again every second; its labels tick alone.
   const now = useBoardNow((at) => nextBoardChange(orders, at));
+  const lanes = useMemo(() => passLanes(orders, now), [orders, now]);
+  const { board, onFocus, arm, land } = useFollowFocus(all);
 
   // Instant: patch local state synchronously, fire the write, no refetch on success.
   const move = useCallback(async (o: Order, to: Order["status"] | null) => {
     if (!to || !supabase) return;
+    land(o, laneOf(o, Date.now()));
     apply({ ...o, status: to, status_changed_at: new Date().toISOString() } as Order, false);
     haptic("medium");
     // Definer RPC so a 'server' can advance status without table-wide write access — from the status
@@ -116,7 +153,7 @@ function PassBoard() {
     const now = movedTo(error);
     toast(now === null ? `Couldn't update — ${error.message}` : movedLine(o.id, now), now === null ? "error" : "info");
     load();
-  }, [apply, toast, load]);
+  }, [apply, toast, load, land]);
   // ── MONEY AT THE WINDOW (2026-10-04, 0341) ─────────────────────────────────────────────────────
   // "UNPAID · collect at pickup" was a sentence with nothing behind it: nothing in the app could
   // mark a pay-at-pickup order paid. Taking it is instant like a move — the ticket says PAID the
@@ -168,6 +205,7 @@ function PassBoard() {
     }
     return move(o, to);
   }, [askCollect, takeMoney, move]);
+  // ↩ takes a ticket back a stage; on a picked-up ticket it is Recall — done → ready, from the status it showed.
   const recall = useCallback((o: Order) => move(o, PREV[o.status]), [move]);
   // Voiding a paid order is a refund somebody has to make. It used to say only "This can't be
   // undone" — about an order a card had paid for — and flag nobody; the pack board's cancel already
@@ -181,6 +219,7 @@ function PassBoard() {
       : "Nothing was paid. This can't be undone.";
     if (!(await confirm({ title: `Void ${o.customer ?? "this order"}?`, body, confirmLabel: "Void order", danger: true }))) return;
     if (!supabase) return;
+    land(o, laneOf(o, Date.now()));
     apply(o, true);
     const { error } = await setOrderStatus(supabase, o.id, "void", o.status);
     if (error) {
@@ -200,25 +239,34 @@ function PassBoard() {
         link: "/crew?s=money&a=pay",
       });
     }
-  }, [confirm, apply, toast, load]);
-  // Every ticket's buttons, made once: a ticket is drawn again when its order changes, not when the board does.
-  const act = useMemo<TicketActs>(() => ({ advance, recall, collect, undoTake, voidOrder }), [advance, recall, collect, undoTake, voidOrder]);
+  }, [confirm, apply, toast, load, land]);
+  // Every ticket's buttons, made once: a ticket is drawn again when its order changes, not when the board does. Each
+  // first notes whether focus is on the ticket, so it can follow the ticket wherever it goes (./focus).
+  const act = useMemo<TicketActs>(() => ({
+    advance: (o) => { arm(o); return advance(o); },
+    recall: (o) => { arm(o); return recall(o); },
+    collect,
+    undoTake,
+    voidOrder: (o) => { arm(o); return voidOrder(o); },
+  }), [arm, advance, recall, collect, undoTake, voidOrder]);
 
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [doneOpen, setDoneOpen] = useState(false);
-  const toggle = (k: string) => setCollapsed((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  // Scheduled is folded until opened; the tray shows the last few picked up until opened.
+  const [folded, setFolded] = useState<Set<string>>(() => new Set(["scheduled"]));
+  const [trayOpen, setTrayOpen] = useState(false);
+  const toggle = (k: string) => setFolded((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const active = orders.filter((o) => o.status !== "done");
-  const done = orders.filter((o) => o.status === "done").sort((a, b) => (a.status_changed_at < b.status_changed_at ? 1 : -1));
+  const done = lanes.done.filter((o) => canRecall(o, now));
   // A ticket's clock starts when its order can be made (lib/ordering, 0343): placed ahead of a stop,
   // that is the stop's opening — not 7am, three hours before the truck could have made it.
   const late = lateOf(active, now);
+  const tickets = (list: Order[], action: string) => list.map((o) => <Ticket key={o.id} o={o} action={action} flash={flash.has(o.id)} me={me} admin={admin} act={act} />);
 
   return (
-    <div className="adm-sec" id="kitchen-pass">
+    <div className="adm-sec pass-board" id="kitchen-pass" ref={board} tabIndex={-1} onFocus={onFocus}>
       {/* Service mode's .svc-bar already renders "The Pass" directly above the board — a SectionHeader here only
-          repeated it, so it's cut. The mute toggle + active count are real controls (not a title), so they're kept,
-          right-aligned in a bare wrapper that reproduces .k-sec-r's own layout (align-items:center, gap:8px). */}
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+          repeated it, so it's cut. The controls the board has of its own — Here or All, the feed's word, the count, the
+          bell — sit right-aligned, and wrap on a phone rather than run off it. */}
+      <div className="flex flex-wrap justify-end items-center gap-2">
         {somewhereLive(here) && (
           <Segmented kind="choice" size="sm" label="Show orders" value={scope} onChange={setPassScope}
             options={[{ key: "all", label: "All" }, { key: "here", label: "Here", title: "Only what is sold at the live stop or event" }]} />
@@ -257,36 +305,40 @@ function PassBoard() {
 
       {/* No board yet: the pass is loading, not clear. */}
       {boardAt === 0 && !down && <PourFill label="Loading the pass…" />}
-      <div aria-live="polite">
-        {boardAt > 0 && STAGES.map((st) => {
-          const list = orders.filter((o) => o.status === st.key);
-          const isCol = collapsed.has(st.key);
-          return (
-            <div className="kds-stage" key={st.key}>
-              <button type="button" className="kds-stage-h" onClick={() => toggle(st.key)} aria-expanded={!isCol}>
-                <span className={`kds-caret${isCol ? " col" : ""}`} aria-hidden="true">›</span>
-                <span className="kds-stage-name">{st.label}</span>
-                <span className="kds-stage-n">{list.length}</span>
-              </button>
-              {!isCol && list.length === 0 && <div className="kds-empty">Nothing here.</div>}
-              {!isCol && list.map((o) => <Ticket key={o.id} o={o} action={st.action} flash={flash.has(o.id)} me={me} admin={admin} act={act} />)}
-            </div>
-          );
-        })}
-
-        {boardAt > 0 && done.length > 0 && (
-          <div className="kds-stage">
-            <button type="button" className="kds-stage-h" onClick={() => setDoneOpen((v) => !v)} aria-expanded={doneOpen}>
-              <span className={`kds-caret${!doneOpen ? " col" : ""}`} aria-hidden="true">›</span>
-              <span className="kds-stage-name">Just completed</span>
-              <span className="kds-stage-n">{done.length}</span>
-            </button>
-            {doneOpen && done.map((o) => <DoneTicket key={o.id} o={o} me={me} admin={admin} act={act} />)}
-          </div>
-        )}
-      </div>
+      {boardAt > 0 && (
+        <div className="pass-cols">
+          {STAGES.map((st) => {
+            const list = lanes[st.key as "new" | "preparing" | "ready"];
+            const isCol = folded.has(st.key);
+            return (
+              <div className="kds-stage pass-lane" key={st.key} data-lane={st.key}>
+                <LaneHead lane={st.key as keyof Lanes} label={st.label} n={list.length} folded={isCol} onFold={() => toggle(st.key)} />
+                <div className="pass-list">
+                  {!isCol && list.length === 0 && <div className="kds-empty">Nothing here.</div>}
+                  {!isCol && tickets(list, st.action)}
+                  {/* Placed ahead and waiting on its stop: under New, folded, soonest first, each saying when it is for. */}
+                  {st.key === "new" && lanes.scheduled.length > 0 && (
+                    <div className="kds-stage" data-lane="scheduled">
+                      <LaneHead lane="scheduled" label="Scheduled" n={lanes.scheduled.length} folded={folded.has("scheduled")} onFold={() => toggle("scheduled")} />
+                      {!folded.has("scheduled") && tickets(lanes.scheduled, st.action)}
+                    </div>
+                  )}
+                  {/* Picked up in the last half hour, under Ready: the last few in reach, Recall one tap on each. */}
+                  {st.key === "ready" && done.length > 0 && (
+                    <div className="kds-stage" data-lane="done">
+                      <LaneHead lane="done" label="Just completed" n={done.length} folded={!trayOpen} onFold={() => setTrayOpen((v) => !v)} />
+                      {(trayOpen ? done : done.slice(0, TRAY_SHOWN)).map((o) => <DoneTicket key={o.id} o={o} me={me} admin={admin} act={act} />)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
       {/* Clear only when a board read now says so — not before the first read, and not over a read that failed. */}
       {boardAt > 0 && !down && active.length === 0 && done.length === 0 && <EmptyState title="The pass is clear" sub="New orders arrive here in realtime." />}
+      <div className="sr-only" aria-live="polite" aria-atomic="true">{said.text && <span key={said.n}>{said.text}</span>}</div>
       {collectSheet}
     </div>
   );
