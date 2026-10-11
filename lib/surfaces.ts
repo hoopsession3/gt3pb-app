@@ -40,7 +40,8 @@ export const showsCommerce = (s: Surface): boolean => s === "customer";
 // is a sidebar and the page a canvas of two columns up to 1,240 wide (app/globals.css THE DESK, and the `desk:`
 // variant in app/tailwind.css). They are the two places someone works from a big screen for an hour. Every other
 // page keeps the frame, and a phone, or an iPad held upright (the 13-inch is 1,032 wide), keeps the layout it has.
-// The iPhone app is a phone app held upright (ios/: iPhone only, portrait), so it never meets this.
+// The app meets it on an iPad on its side (2026-10-11: the app installs on an iPad, any way up — scripts/ios.configure.mjs);
+// an iPhone stays upright and never does. In the app an iPad's shell fills the glass at any size (components/NativeBridge.css).
 // The query is spelled three times — here, in the stylesheet and in the variant — and scripts/smoke.cjs holds the
 // three to the same words.
 export const DESK_QUERY = "(min-width: 1024px) and (orientation: landscape)";

@@ -14,12 +14,21 @@
 //      SceneDelegate and Main.storyboard both start it.
 //   2. Info.plist — what Apple requires the app to say: why it may use the camera, the microphone,
 //      photos, speech and location (the screens already ask for each; a missing reason is a crash), that
-//      its only encryption is HTTPS, that it is portrait, and that it is an iPhone app.
+//      its only encryption is HTTPS, and which ways up it turns: an iPhone upright, an iPad any way up.
 //   3. PrivacyInfo.xcprivacy — the privacy manifest Apple has required since May 2024: no tracking, the
 //      data the app collects and why, and no "required reason" APIs of its own (Capacitor ships its own
 //      manifest inside its framework).
-//   4. iPhone only (TARGETED_DEVICE_FAMILY 1) — the screens are designed for a phone; an iPad runs the
-//      iPhone app as it is, and no iPad screenshots are owed to the store.
+//   4. iPhone and iPad (TARGETED_DEVICE_FAMILY "1,2"). THE APP RUNS ON AN IPAD (2026-10-11): until today it was
+//      iPhone only, and an iPad ran it as an iPhone app blown up — a phone's screen in the middle of the glass,
+//      upright only. Now it installs as itself: the iPad's own size, any way up, and beside another app (Split View,
+//      Stage Manager, an iPadOS 26 window — the crew's POS on one side and the Pass on the other). So there is no
+//      UIRequiresFullScreen: Apple deprecated it in iPadOS 26, and an app that shares the screen must turn all four
+//      ways (UISupportedInterfaceOrientations~ipad). The screens pick their layout from the width the web view is
+//      given — a phone's under 520 × 640, one column held upright, the desk on its side (lib/surfaces) — and
+//      capacitor.config.ts keeps the web view in mobile mode, so an iPad is never handed a laptop's page. An iPhone
+//      stays upright: on a phone the Pass is read in one column, and a phone on its side would leave about 330pt
+//      under the tab bar and put the Dynamic Island at an edge no screen has been measured against. The App Store
+//      asks for iPad screenshots from now on (13-inch).
 //   5. A shared scheme (App.xcodeproj/xcshareddata/xcschemes/App.xcscheme) — what xcodebuild builds,
 //      runs and archives by name on a machine that has never opened the project in Xcode: CI's Mac.
 //   6. GT3Device (App/GT3Device.swift, copied from native/ios/GT3Device.swift — edit it there) — the
@@ -32,6 +41,10 @@
 //      has the capability (the Apple Developer account, com.gt3pb.app), the target names this file
 //      (CODE_SIGN_ENTITLEMENTS), and the TestFlight job signs it into the archive before the export re-signs it
 //      (.github/workflows/ios.yml), since the archive is built unsigned.
+//   8. What the iPad shows before the page (2026-10-11): the app icon and the launch screen. scripts/ios.assets.mjs
+//      draws both from the brand file and this does not write them, but the iPad depends on how they are made, so
+//      they are held here (step 8, below): an icon set Xcode sizes for every device from one master, and a launch
+//      image that fills any screen either way up.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -47,6 +60,12 @@ const PBX = join(ROOT, "ios", "App", "App.xcodeproj", "project.pbxproj");
 if (!existsSync(PBX)) { console.log("ios.configure — no ios/ project; run `npx cap add ios` first."); process.exit(1); }
 const CHECK = process.argv.includes("--check");
 const changed = [];
+// What this holds but cannot write (step 8): made by scripts/ios.assets.mjs, so a fault there is named, never patched.
+const held = [];
+// WHICH WAYS UP (2026-10-11, header 4): an iPhone held upright, an iPad any way up. Info.plist says it in these words;
+// GT3ViewController says the same in Swift (.portrait, .all), and scripts/smoke.cjs holds the two together.
+const IPHONE_TURNS = ["UIInterfaceOrientationPortrait"];
+const IPAD_TURNS = ["UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown", "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"];
 // Every change goes through here, so --check can say what it would do and do none of it.
 const stage = (path, text, label) => { if (!existsSync(path) || readFileSync(path, "utf8") !== text) { if (!CHECK) writeFileSync(path, text); changed.push(label); } };
 const put = (file, text) => stage(join(APP, file), text, file);
@@ -72,6 +91,14 @@ final class GT3ViewController: CAPBridgeViewController {
     /// node_modules by itself; one that lives in the app is registered here, before the first page loads.
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(GT3DevicePlugin())
+    }
+
+    /// WHICH WAYS UP (2026-10-11, the app runs on an iPad): an iPhone held upright, an iPad any way up — the two lists
+    /// Info.plist keeps (UISupportedInterfaceOrientations, and the iPad's own ~ipad one). Capacitor answers this from
+    /// the plain key alone (CAPBridgeViewController setScreenOrientationDefaults), so its answer would rest on iOS
+    /// handing it the iPad's list under the iPhone's name; it is said here instead, for the device in hand.
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
+        return UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait
     }
 }
 
@@ -152,14 +179,17 @@ const want = {
   UIViewControllerBasedStatusBarAppearance: true,
   // Light text over the launch screen's charcoal, before the app's own view controller sets it.
   UIStatusBarStyle: "UIStatusBarStyleLightContent",
-  UISupportedInterfaceOrientations: ["UIInterfaceOrientationPortrait"],
+  // An iPhone held upright; an iPad any way up (header, 4). The plain key is the iPhone's; ~ipad is the iPad's own.
+  UISupportedInterfaceOrientations: IPHONE_TURNS,
+  "UISupportedInterfaceOrientations~ipad": IPAD_TURNS,
   UIRequiredDeviceCapabilities: ["arm64"],
 };
 let infoChanged = false;
 for (const [k, v] of Object.entries(want)) {
   if (JSON.stringify(info[k]) !== JSON.stringify(v)) { info[k] = v; infoChanged = true; }
 }
-if ("UISupportedInterfaceOrientations~ipad" in info) { delete info["UISupportedInterfaceOrientations~ipad"]; infoChanged = true; }
+// Never full screen only (header, 4): an iPad shares its screen, and iPadOS 26 deprecated the key that refused to.
+for (const k of ["UIRequiresFullScreen", "UIRequiresFullScreen~ipad"]) if (k in info) { delete info[k]; infoChanged = true; }
 if (infoChanged) stage(infoPath, plist.build(info) + "\n", "Info.plist");
 
 // ── 3 · the privacy manifest ─────────────────────────────────────────────────────────────────────
@@ -193,7 +223,7 @@ const manifest = {
 };
 put("PrivacyInfo.xcprivacy", plist.build(manifest) + "\n");
 
-// ── 4 · the project file: the new files, iPhone only ───────────────────────────────────────────
+// ── 4 · the project file: the new files, the iPhone and the iPad ───────────────────────────────
 // Written as Xcode itself writes these lines (compare SceneDelegate's), with ids made from the file's
 // name, so running this again finds them and changes nothing.
 const id = (s) => createHash("sha1").update(`gt3:${s}`).digest("hex").slice(0, 24).toUpperCase();
@@ -219,7 +249,10 @@ const addFile = (name, type, phase) => {
 addFile("GT3ViewController.swift", "sourcecode.swift", "Sources");
 addFile("GT3Device.swift", "sourcecode.swift", "Sources");
 addFile("PrivacyInfo.xcprivacy", "text.xml", "Resources");
-pbx = pbx.replace(/TARGETED_DEVICE_FAMILY = "1,2";/g, 'TARGETED_DEVICE_FAMILY = 1;');
+// The iPhone and the iPad (header, 4), in the app target's Debug and Release alike — written as Xcode writes it. The
+// template sets it in both; if it ever stops, this says so rather than leaving the app on one device without a word.
+if ((pbx.match(/\t\t\t\tTARGETED_DEVICE_FAMILY = [^;]*;\n/g) || []).length !== 2) throw new Error("ios.configure — the app target no longer sets TARGETED_DEVICE_FAMILY in Debug and Release");
+pbx = pbx.replace(/\t\t\t\tTARGETED_DEVICE_FAMILY = [^;]*;\n/g, '\t\t\t\tTARGETED_DEVICE_FAMILY = "1,2";\n');
 // 7 · the target signs with the app's entitlements (written below), in Debug and Release alike
 pbx = pbx.replace(/(\t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;\n)(\t\t\t\tCODE_SIGN_STYLE = Automatic;)/g, "$1\t\t\t\tCODE_SIGN_ENTITLEMENTS = App/App.entitlements;\n$2");
 if (pbx !== before) stage(PBX, pbx, "App.xcodeproj/project.pbxproj");
@@ -307,8 +340,44 @@ stage(join(SCHEMES, "App.xcscheme"), `<?xml version="1.0" encoding="UTF-8"?>
 </Scheme>
 `, "App.xcodeproj/xcshareddata/xcschemes/App.xcscheme");
 
+// ── 8 · what the iPad shows before the page: the icon and the launch screen (2026-10-11) ─────────
+// Held, not written: scripts/ios.assets.mjs makes both from native/brand/3.svg, and gt3-brand-lock keeps the mark to
+// what that file renders — never redrawn here, never approximated at another size.
+//   · The icon set is Xcode's single size: one 1024 × 1024 master, in RGB (Apple refuses an icon with an alpha
+//     channel), which Xcode scales at build time to every size each device asks for — the iPad's 152 and 167 px
+//     among them — so no iPad size is drawn, committed or able to drift from the master. A set of fixed sizes would
+//     need each iPad size added by hand; the iPhone check (.github/workflows/ios.yml) reads the built app for the
+//     iPad's icons all the same.
+//   · The launch screen is one image filling its view (scaleAspectFill) on the app's charcoal, with no constraints —
+//     a 2,732 px square with the glyph at its centre, cropped at the sides of a phone and at the edges of an iPad
+//     either way up — never a layout drawn for one screen's size.
+const pngSize = (file) => {
+  const b = readFileSync(file);
+  return b.length > 26 && b.toString("latin1", 12, 16) === "IHDR" ? { w: b.readUInt32BE(16), h: b.readUInt32BE(20), depth: b[24], type: b[25] } : null;
+};
+const ICONS = join(APP, "Assets.xcassets", "AppIcon.appiconset");
+const iconSet = existsSync(join(ICONS, "Contents.json")) ? JSON.parse(readFileSync(join(ICONS, "Contents.json"), "utf8")) : null;
+const master = iconSet?.images?.length === 1 ? iconSet.images[0] : null;
+if (!master || master.idiom !== "universal" || master.platform !== "ios" || master.size !== "1024x1024" || !master.filename) {
+  held.push("the app icon set is not Xcode's single size (one universal iOS 1024 × 1024 image) — Xcode would not make the iPad's sizes from it");
+} else {
+  const px = existsSync(join(ICONS, master.filename)) ? pngSize(join(ICONS, master.filename)) : null;
+  if (!px || px.w !== 1024 || px.h !== 1024 || px.depth !== 8 || px.type !== 2) held.push(`the app icon's master is not a 1024 × 1024 RGB image without alpha (${px ? `${px.w} × ${px.h}, colour type ${px.type}` : "missing"})`);
+}
+const launchNow = readFileSync(launch, "utf8");
+if (!/<imageView key="view" [^>]*contentMode="scaleAspectFill"[^>]*image="Splash"/.test(launchNow) || /<constraint\b/.test(launchNow)) {
+  held.push("the launch screen is no longer one Splash image filling its view (scaleAspectFill, no constraints) — it would not fit an iPad either way up");
+}
+const SPLASH = join(APP, "Assets.xcassets", "Splash.imageset");
+const splashSet = existsSync(join(SPLASH, "Contents.json")) ? JSON.parse(readFileSync(join(SPLASH, "Contents.json"), "utf8")) : null;
+const splashes = (splashSet?.images ?? []).map((i) => i.filename && existsSync(join(SPLASH, i.filename)) ? pngSize(join(SPLASH, i.filename)) : null);
+if (!splashes.length || splashes.some((s) => !s || s.w !== s.h || s.w < 2732)) held.push("the launch image is not a square of at least 2,732 px at every scale — an iPad's longer side would show its edge");
+
+if (held.length) console.log(`ios.configure — made by scripts/ios.assets.mjs, and not as the iPad needs it:\n  · ${held.join("\n  · ")}`);
 if (CHECK) {
-  console.log(changed.length ? `ios.configure --check — the committed project differs in: ${changed.join(", ")} (run node scripts/ios.configure.mjs and commit)` : "ios.configure --check — the committed project says all of this.");
-  process.exit(changed.length ? 1 : 0);
+  if (changed.length) console.log(`ios.configure --check — the committed project differs in: ${changed.join(", ")} (run node scripts/ios.configure.mjs and commit)`);
+  else if (!held.length) console.log("ios.configure --check — the committed project says all of this.");
+  process.exit(changed.length || held.length ? 1 : 0);
 }
 console.log(changed.length ? `ios.configure — set: ${changed.join(", ")}` : "ios.configure — the project already says all of this.");
+if (held.length) process.exit(1);

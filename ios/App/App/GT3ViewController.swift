@@ -19,6 +19,14 @@ final class GT3ViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(GT3DevicePlugin())
     }
+
+    /// WHICH WAYS UP (2026-10-11, the app runs on an iPad): an iPhone held upright, an iPad any way up — the two lists
+    /// Info.plist keeps (UISupportedInterfaceOrientations, and the iPad's own ~ipad one). Capacitor answers this from
+    /// the plain key alone (CAPBridgeViewController setScreenOrientationDefaults), so its answer would rest on iOS
+    /// handing it the iPad's list under the iPhone's name; it is said here instead, for the device in hand.
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
+        return UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait
+    }
 }
 
 struct ExportRouter: Router {

@@ -9536,7 +9536,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   // ── the iOS project ──
   const check = spawnSync(process.execPath, [path.join(root, "scripts", "ios.configure.mjs"), "--check"], { encoding: "utf8" });
-  ok("iphone: the committed iOS project is exactly what scripts/ios.configure.mjs makes it (router, Info.plist, privacy manifest, iPhone only)", check.status === 0, `${check.stdout}${check.stderr}`.trim());
+  ok("iphone: the committed iOS project is exactly what scripts/ios.configure.mjs makes it (router, Info.plist, privacy manifest, the iPhone and the iPad)", check.status === 0, `${check.stdout}${check.stderr}`.trim());
   const icon = fs.readFileSync(path.join(root, "ios", "App", "App", "Assets.xcassets", "AppIcon.appiconset", "AppIcon-512@2x.png"));
   ok("iphone: the App Store icon is 1024 × 1024 with no alpha channel (Apple refuses one with it)", icon.readUInt32BE(16) === 1024 && icon.readUInt32BE(20) === 1024 && icon[24] === 8 && icon[25] === 2);
   const cc = read("capacitor.config.ts");
@@ -10763,8 +10763,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /<div className="contents desk:grid desk:grid-cols-2 desk:gap-x-3 desk:items-start">/.test(pg) && (read("app/office/page.tsx").match(/className="op-none desk:max-w-130 desk:mx-auto"/g) || []).length === 2);
   ok("desk: Command says GOALS once — Goals draws its own head with the count, and the one above it is gone",
     !/<SectionHeader label="Goals" \/>/.test(pg) && /<SectionHeader label="Goals" right=/.test(read("components/Goals.tsx")));
-  ok("desk: the iPhone app never meets it — iPhone only, held upright", /TARGETED_DEVICE_FAMILY = 1;/.test(read("ios/App/App.xcodeproj/project.pbxproj"))
-    && /<key>UISupportedInterfaceOrientations<\/key>\s*<array>\s*<string>UIInterfaceOrientationPortrait<\/string>\s*<\/array>/.test(read("ios/App/App/Info.plist")));
+  // The app runs on an iPad (2026-10-11, WAVE 2 · IPAD below): the iPhone is still held upright, so only an iPad on its side meets the desk.
+  ok("desk: the app meets it on an iPad on its side and never on an iPhone — the iPhone held upright, the iPad any way up",
+    (read("ios/App/App.xcodeproj/project.pbxproj").match(/TARGETED_DEVICE_FAMILY = "1,2";/g) || []).length === 2
+    && /<key>UISupportedInterfaceOrientations<\/key>\s*<array>\s*<string>UIInterfaceOrientationPortrait<\/string>\s*<\/array>/.test(read("ios/App/App/Info.plist"))
+    && /<key>UISupportedInterfaceOrientations~ipad<\/key>\s*<array>[\s\S]*?UIInterfaceOrientationLandscapeLeft[\s\S]*?<\/array>/.test(read("ios/App/App/Info.plist")));
 }
 
 // ── NO BUTTON IN DISGUISE (2026-10-09, round 7d: redesign 7's last part) ────────────────────────────────────────────
@@ -11321,6 +11324,122 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("ring: no button in the iPhone app until its own alerts are live — App Review's placeholder rule, as DeviceAlerts",
       /if \(APP_BUILD && !NATIVE_PUSH_ON\) return null;/.test(rc));
   }
+}
+
+// ── WAVE 2 · IPAD (2026-10-11) ──────────────────────────────────────────────────────────────────────────────────────
+// The app installs on an iPad as itself (scripts/ios.configure.mjs, 4): both device families, an iPhone held upright and
+// an iPad any way up and beside another app, its icons sized by Xcode from the one master, a launch image that fills any
+// screen, and in the app the iPad's glass as the frame. What a source can be held to is here. What runs: scripts/ios.test.mjs
+// (npm test) proves the project's check refuses each fault and the iPhone check's simulator step names a stuck boot as
+// the runner's; scripts/smoke.native.mjs 1b opens every crew section on an iPad both ways up; .github/workflows/ios.yml
+// reads the built app for what an iPad needs and launches it on an iPad simulator after the iPhone.
+{
+  const fs = require("node:fs"), path = require("node:path"), { pathToFileURL } = require("node:url");
+  const root = path.join(__dirname, "..");
+  const read = (f) => fs.readFileSync(path.join(root, f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const cfg = read("scripts/ios.configure.mjs"), pbx = read("ios/App/App.xcodeproj/project.pbxproj"), info = read("ios/App/App/Info.plist");
+  const vc = read("ios/App/App/GT3ViewController.swift"), dev = read("native/ios/GT3Device.swift"), wf = read(".github/workflows/ios.yml");
+  const turns = (key) => { const m = new RegExp(`<key>${key}</key>\\s*<array>([\\s\\S]*?)</array>`).exec(info); return m ? [...m[1].matchAll(/<string>([^<]+)<\/string>/g)].map((x) => x[1]) : null; };
+  const FOUR = ["UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown", "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"];
+
+  // ── the project ──
+  ok("ipad: the app installs on the iPhone and the iPad — TARGETED_DEVICE_FAMILY \"1,2\" in the app's Debug and Release, and no other value",
+    (pbx.match(/TARGETED_DEVICE_FAMILY = "1,2";/g) || []).length === 2 && (pbx.match(/TARGETED_DEVICE_FAMILY = /g) || []).length === 2);
+  ok("ipad: an iPhone turns upright only, an iPad all four ways, and nothing asks an iPad for its whole screen (UIRequiresFullScreen, deprecated in iPadOS 26)",
+    JSON.stringify(turns("UISupportedInterfaceOrientations")) === JSON.stringify(["UIInterfaceOrientationPortrait"])
+    && JSON.stringify(turns("UISupportedInterfaceOrientations~ipad")) === JSON.stringify(FOUR) && !/UIRequiresFullScreen/.test(info), { iphone: turns("UISupportedInterfaceOrientations"), ipad: turns("UISupportedInterfaceOrientations~ipad") });
+  ok("ipad: ios.configure writes it so — both lists from one place, the full-screen key taken out, the family as Xcode writes it, and a template that stops setting it stopped by name",
+    /const IPHONE_TURNS = \["UIInterfaceOrientationPortrait"\];/.test(cfg)
+    && cfg.includes(`const IPAD_TURNS = ${JSON.stringify(FOUR).replace(/,/g, ", ")};`)
+    && /UISupportedInterfaceOrientations: IPHONE_TURNS,\s*"UISupportedInterfaceOrientations~ipad": IPAD_TURNS,/.test(cfg)
+    && /for \(const k of \["UIRequiresFullScreen", "UIRequiresFullScreen~ipad"\]\) if \(k in info\) \{ delete info\[k\]; infoChanged = true; \}/.test(cfg)
+    && cfg.includes(`'\\t\\t\\t\\tTARGETED_DEVICE_FAMILY = "1,2";\\n'`) && /the app target no longer sets TARGETED_DEVICE_FAMILY in Debug and Release/.test(cfg)
+    && !/TARGETED_DEVICE_FAMILY = 1;/.test(cfg) && !/delete info\["UISupportedInterfaceOrientations~ipad"\]/.test(cfg));
+  ok("ipad: the view controller answers which ways up for the device in hand — .all on an iPad, .portrait on an iPhone — not Capacitor's reading of the iPhone's key",
+    /override var supportedInterfaceOrientations: UIInterfaceOrientationMask \{\s*return UIDevice\.current\.userInterfaceIdiom == \.pad \? \.all : \.portrait\s*\}/.test(vc));
+
+  // ── what the iPad shows before the page ──
+  const icons = JSON.parse(read("ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json")), assets = read("scripts/ios.assets.mjs");
+  ok("ipad: the icon set is Xcode's single size — one universal iOS 1024 master that Xcode sizes for the iPad — and ios.assets draws no iPad size of its own (gt3-brand-lock)",
+    icons.images.length === 1 && icons.images[0].idiom === "universal" && icons.images[0].platform === "ios" && icons.images[0].size === "1024x1024"
+    && /images: \[\{ filename: "AppIcon-512@2x\.png", idiom: "universal", platform: "ios", size: "1024x1024" \}\]/.test(assets)
+    && !/ipad|76x76|83\.5|152|167/i.test(code(assets)) && /held\.push\("the app icon set is not Xcode's single size/.test(cfg), icons.images);
+  const launch = read("ios/App/App/Base.lproj/LaunchScreen.storyboard");
+  const splash = ["splash-2732x2732.png", "splash-2732x2732-1.png", "splash-2732x2732-2.png"].map((f) => fs.readFileSync(path.join(root, "ios", "App", "App", "Assets.xcassets", "Splash.imageset", f)));
+  ok("ipad: the launch screen is one image filling its view on the charcoal, with no constraints — so any screen either way up — and that image a 2,732 px square at every scale",
+    /<imageView key="view" [^>]*contentMode="scaleAspectFill"[^>]*image="Splash"/.test(launch) && !/<constraint\b/.test(launch)
+    && /<color key="backgroundColor" red="0\.0824" green="0\.0784" blue="0\.0588" alpha="1"/.test(launch)
+    && splash.every((b) => b.readUInt32BE(16) === 2732 && b.readUInt32BE(20) === 2732) && /held\.push\("the launch screen is no longer one Splash image filling its view/.test(cfg));
+  ok("ipad: the web view stays in mobile mode — an iPad says iPad and is laid out at its own width, never handed a laptop's page",
+    /preferredContentMode: "mobile",/.test(read("capacitor.config.ts")));
+
+  // ── the phone's own sheets, on an iPad ──
+  ok("ipad: printing stands the panel from the middle of the page on an iPad — UIKit's present(animated:) is the iPhone's sheet",
+    /let shown: Bool\s*if UIDevice\.current\.userInterfaceIdiom == \.pad \{\s*let middle = CGRect\(x: webView\.bounds\.midX, y: webView\.bounds\.midY, width: 1, height: 1\)\s*shown = panel\.present\(from: middle, in: webView, animated: true, completionHandler: done\)\s*\} else \{\s*shown = panel\.present\(animated: true, completionHandler: done\)\s*\}/.test(dev)
+    && !/panel\.present\(animated: true\) \{/.test(dev));
+  ok("ipad: the share sheet anchors its own popover on an iPad (@capacitor/share — an iPad refuses a share sheet without one), so the app's files share there as on a phone",
+    /popover\.sourceView = presenterView/.test(read("node_modules/@capacitor/share/ios/Sources/SharePlugin/SharePlugin.swift")) && /share: \(o\) => Share\.share\(o\),/.test(read("components/NativeBridge.tsx")));
+
+  // ── the shell, in the app ──
+  const nbc = read("components/NativeBridge.css"), SS = require("../.smoke/sheetStage.js");
+  ok("ipad: in the app the iPad's glass is the frame — at the frame's own test, word for word, the shell fills it with no corners, no bezel and no padding round it, and no phone's 480 cap in a narrow window; every rule of it under html[data-native], so never the web",
+    nbc.includes(`@media ${SS.FRAME_QUERY}{\n  html[data-native] body{padding:0}\n  html[data-native] .app{height:100vh;height:100dvh;border-radius:0;box-shadow:none}\n}`)
+    && /^html\[data-native\] \.app\{max-width:none\}$/m.test(nbc) && !/^\s*\.app\{/m.test(nbc) && !/^\s*body\{/m.test(nbc));
+  PENDING.push(import(pathToFileURL(path.join(root, "scripts", "smoke.native.mjs")).href).then(({ TABLETS }) => {
+    const nat = read("scripts/smoke.native.mjs");
+    ok("ipad: smoke.native opens the crew on an 11-inch iPad Air both ways up — 820 × 1,180 and 1,180 × 820, its 24pt status bar and 20pt home indicator, the iPad's own words, at 2×",
+      Array.isArray(TABLETS) && TABLETS.length === 2 && TABLETS.every((t) => t.ipad && t.top === 24 && t.bottom === 20)
+      && TABLETS.some((t) => t.width === 820 && t.height === 1180) && TABLETS.some((t) => t.width === 1180 && t.height === 820)
+      && /const IPAD_UA = "Mozilla\/5\.0 \(iPad; CPU OS 26_0 like Mac OS X\) AppleWebKit\/605\.1\.15 \(KHTML, like Gecko\) Mobile\/15E148";/.test(nat)
+      && /: phone\.ipad\s*\? \{ deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: IPAD_UA \}/.test(nat), TABLETS);
+    ok("ipad: …every crew section and the first-run guide judged as every iPhone's are (insets reached, nothing sideways, nothing under the bars, the status bar legible, no error), then the shell held to the glass — one column upright, the desk on its side",
+      /await Promise\.all\(TABLETS\.map\(async \(pad\) => \{/.test(nat) && /for \(const section of sections\) \{[\s\S]{0,900}?judge\(`\$\{pad\.name\} crew \$\{section\}`, pad, r\);/.test(nat)
+      && /ok\(`\$\{pad\.name\} the crew's first-run guide: nothing under the system's bars`, under\.length === 0, findings\(under\)\);/.test(nat)
+      && /s\.app\.x === 0 && s\.app\.y === 0 && s\.app\.w === s\.view\.w && s\.app\.h === s\.view\.h && s\.radius === 0 && s\.bezel === false && s\.pad === 0/.test(nat)
+      && /s\.nav\.w === 236 && s\.nav\.h === s\.view\.h && s\.orient === "vertical"/.test(nat) && /s\.cols\.every\(\(d\) => d === "contents"\)/.test(nat));
+  }));
+
+  // ── the words that name the device ──
+  const IOS = require("../.smoke/ios.js"), atc = read("components/AddToCalendar.tsx"), aa = read("components/AppAlerts.tsx");
+  ok("ipad: words that name the device say iPad on an iPad — Add to calendar's own calendar and alerts' Settings — drawn on the client only, and \"this iPhone\" nowhere in what they draw",
+    /Calendar <span>on this \{appleDevice\(\)\}<\/span>/.test(atc) && /const itsSettings = \(\) => `this \$\{appleDevice\(\)\}'s Settings`;/.test(aa)
+    && !/this iPhone/.test(code(aa)) && !/this iPhone/.test(code(atc))
+    && IOS.appleDeviceFrom("Mozilla/5.0 (iPad; CPU OS 26_0 like Mac OS X)", 5, "iPad") === "iPad" && IOS.appleDeviceFrom("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", 5, "MacIntel") === "iPad"
+    && IOS.appleDeviceFrom("Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X)", 5, "iPhone") === "iPhone");
+
+  // ── the iPhone check (PR #95's fix, brought to main) ──
+  const step = wf.slice(wf.indexOf("- name: Launch it on an iPhone, then an iPad, and read what each says"), wf.indexOf("- name: Keep the first screens and the logs"));
+  ok("ci: a simulator counts as booted when bootstatus says so cleanly (its words read whatever its exit code) or Apple's Settings opens on it in the next three minutes; each bootstatus held to five",
+    /if bounded 300 xcrun simctl bootstatus "\$1" -b > "\$2" 2>&1 && ! grep -q "Status=4294967295" "\$2"; then return 0; fi/.test(step)
+    && /for i in \$\(seq 1 12\); do\s+if ready "\$1"; then/.test(step) && /ready\(\) \{\s*xcrun simctl launch "\$1" com\.apple\.Preferences > \/dev\/null 2>&1 \|\| return 1/.test(step)
+    && /bounded\(\) \{\s*local secs=\$1; shift\s*"\$@" &\s*local pid=\$!\s*\( sleep "\$secs"; kill "\$pid" 2>\/dev\/null \|\| true \) &/.test(step));
+  ok("ci: a stuck boot is restarted, erased only before its last try, and after three named the runner's — never put down to the app",
+    /if \[ "\$try" -eq \$\(\( \$3 - 1 \)\) \]; then echo "Erasing the \$2 simulator for the last try\."; xcrun simctl erase "\$1" \|\| true; fi/.test(step)
+    && step.includes(`boot "$IPHONE" iPhone 3 "" || { echo "::error::the runner's iPhone simulator never finished booting, three times — a runner problem, not the app: re-run the job"; exit 1; }`)
+    && step.indexOf('boot "$IPHONE" iPhone 3') < step.indexOf('launch "$IPHONE" iPhone'));
+  ok("ci: an install the simulator's system refuses (LaunchServices, a migration, \"try again later\") is the runner's; one refused for the app's own bundle is the app's — and neither is called a crash",
+    /if grep -qiE "LaunchServices\|migrat\|try again later" "\$\{2\}install\.log"; then return 2; fi/.test(step)
+    && /::error::the runner's iPhone simulator would not take the app — its system was not ready/.test(step) && /::error::the \$1 simulator would not install the app on its last go/.test(step)
+    && /if \[ "\$INSTALLED" != 1 \]; then[\s\S]*?return 1\s*fi\s*cat "\$\{2\}app\.log"/.test(step));
+  ok("ci: the boot gets the runner to itself — after the build, never alongside it (#95: alongside, it slowed the runner four to eight times)",
+    !/Start an iPhone booting while the app builds/.test(wf) && !/simctl (boot|bootstatus)/.test(wf.slice(0, wf.indexOf("- name: Build for the simulator")))
+    && wf.indexOf("- name: Build for the simulator") < wf.indexOf("- name: Launch it on an iPhone, then an iPad"));
+  ok("ci: the iPad runs after the iPhone, on a runner given back — two tries, the last erased; a runner that cannot boot it, has none, or took fifteen minutes leaves it unchecked with a warning; the app's faults on it fail the run",
+    /xcrun simctl shutdown "\$IPHONE" \|\| true/.test(step) && /IPAD=\$\(pick iPad "iPad Air 11"\)/.test(step)
+    && /elif ! boot "\$IPAD" iPad 2 ipad-; then\s*echo "::warning::the runner's iPad simulator never finished booting, twice — a runner problem, not the app; the iPad went unchecked this run/.test(step)
+    && /elif \[ "\$SECONDS" -ge 900 \]; then/.test(step) && /verdict=0; judge iPad ipad- \|\| verdict=\$\?/.test(step) && /else fail=\$verdict; fi/.test(step)
+    && /if \[ "\$fail" != 0 \]; then\s*echo "::notice::the iPad waits for a run the iPhone passes"/.test(step));
+  ok("ci: the built app is read for what an iPad needs — both device families, the iPad's four ways up, no full screen, both icons made from the master — between the build and the launch",
+    /- name: The app is built for the iPhone and the iPad/.test(wf) && /sorted\(info\.get\("UIDeviceFamily"\) or \[\]\) == \[1, 2\]/.test(wf)
+    && /icon\("CFBundleIcons~ipad"\) == "AppIcon"/.test(wf) && /not info\.get\("UIRequiresFullScreen"\)/.test(wf)
+    && wf.indexOf("- name: Build for the simulator") < wf.indexOf("- name: The app is built for the iPhone and the iPad")
+    && wf.indexOf("- name: The app is built for the iPhone and the iPad") < wf.indexOf("- name: Launch it on an iPhone, then an iPad"));
+  ok("ci: the run keeps both first screens and every boot log; it has the hour three bounded tries need; and TestFlight still waits for it to pass",
+    ["first-screen.png", "app.log", "boot.log", "ipad-first-screen.png", "ipad-app.log", "ipad-boot.log"].every((f) => new RegExp(`^\\s+${f.replace(/\./g, "\\.")}$`, "m").test(wf))
+    && /\n  simulator:\n    runs-on: macos-26\n(?:    #.*\n)*    timeout-minutes: 60\n/.test(wf) && /\n  testflight:\n    needs: simulator\n/.test(wf));
+  ok("ci: npm test runs scripts/ios.test.mjs — the project's check proved both ways, and this step run against a stand-in simctl",
+    /&& node scripts\/ios\.test\.mjs &&/.test(JSON.parse(read("package.json")).scripts.test));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

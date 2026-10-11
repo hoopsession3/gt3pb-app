@@ -11,6 +11,13 @@
 //
 // The launch screen is the app's ground with the same "3" at its centre, small: what the app opens
 // on, then hands to the first screen (capacitor.config.ts SplashScreen, components/NativeBridge).
+//
+// THE APP RUNS ON AN IPAD (2026-10-11), and nothing more is drawn for it. The icon set is Xcode's single
+// size — one universal 1024 image — so Xcode itself scales this one master to every size each device
+// asks for at build time (the iPad's 152 and 167 px with the iPhone's), and no iPad size is drawn or kept
+// here to drift from it. The launch image is a 2,732 px square filling its view: an iPad shows more of
+// the charcoal around the same glyph, upright or on its side. scripts/ios.configure.mjs --check holds
+// both to that (its step 8), and the iPhone check reads the iPad's icons in the built app.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";

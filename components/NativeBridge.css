@@ -1,6 +1,6 @@
-/* THE IPHONE APP'S OWN STYLES (2026-10-06, the iPhone round). Loaded with components/NativeBridge, so
-   in the app build only: the web never downloads a rule of this file. The shared screens' safe-area
-   padding lives in app/globals.css as it always has (env(safe-area-inset-*) reads 0 on the web). */
+/* THE IPHONE APP'S OWN STYLES (2026-10-06, the iPhone round), and the iPad's (2026-10-11). Loaded with
+   components/NativeBridge, so in the app build only: the web never downloads a rule of this file. The shared
+   screens' safe-area padding lives in app/globals.css as it always has (env(safe-area-inset-*) reads 0 on the web). */
 
 /* THE STATUS BAR'S OWN GROUND. The app draws edge to edge, and a screen scrolls inside <main id="body">,
    so its words would pass under the clock and the Dynamic Island. This band, the status bar's height, is
@@ -18,6 +18,26 @@ html:has([data-tbar][data-compact]) .native-bar::after{opacity:0}
 /* Behind a tall sheet the page steps back (lib/sheetStage): its card's own top shows below the status bar, on the
    dark around it, so the band that paints the screen's ground there steps aside with it. */
 html:has(.app.receded) .native-bar{opacity:0}
+
+/* THE APP RUNS ON AN IPAD (2026-10-11). On the web a screen at least 520 × 640 draws the app in the frame — the
+   phone's column with rounded corners and a painted bezel, centred on black (app/globals.css) — because a phone app on
+   a laptop's screen should look like one. In the app a screen that size is an iPad (no iPhone is 520 wide upright, nor
+   640 tall on its side), and the iPad's own glass is the frame: a bezel painted inside it is a phone mock-up on an
+   iPad, and the black around it is screen thrown away. So here the shell fills the screen, or the window it is given
+   beside another app — edge to edge, no corners, no bezel, as the desk already is on its side — and the page pads
+   itself clear of the status bar and the home indicator exactly as it does on an iPhone (env(safe-area-inset-*)).
+   What is inside does not change: held upright the console is the one column an iPad held upright keeps
+   (lib/surfaces), and on its side it is the desk. The test is the frame's own, word for word (lib/sheetStage
+   FRAME_QUERY), so the two never disagree about which screens these are; scripts/smoke.native.mjs opens the crew's
+   screens on an iPad both ways up and holds the shell to the screen's edges. The phone's 480 cap goes too, at every
+   size: a window narrower than the frame (Split View's third, an iPadOS 26 window) is a phone's layout, and it fills
+   that window rather than standing in it with black at its sides. No iPhone is wider than 440, so a phone never
+   meets either rule. */
+html[data-native] .app{max-width:none}
+@media (min-width: 520px) and (min-height: 640px){
+  html[data-native] body{padding:0}
+  html[data-native] .app{height:100vh;height:100dvh;border-radius:0;box-shadow:none}
+}
 
 /* THE KEYBOARD. The web view itself shrinks above it (capacitor.config.ts, resize "native"), so a tab bar
    kept for its height would sit over the keyboard as an empty band. It leaves the layout instead, as a

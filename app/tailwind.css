@@ -223,8 +223,9 @@
    of panels a hand's width wide, and most of the screen unused. Here the console and /office (lib/surfaces
    deskRoute; the shell says data-desk) fill the window: the tab bar stands at the left as a sidebar, and the page is
    a canvas whose sections are laid in two columns by hand (components/kit Columns). Landscape only, so an iPad held
-   upright — the 13-inch is 1,032 wide — keeps its frame; the iPhone app is a phone app held upright and never meets
-   this. The query is lib/surfaces DESK_QUERY's, word for word (scripts/smoke.cjs holds the spellings together).
+   upright — the 13-inch is 1,032 wide — keeps its one column; the app meets the desk on an iPad on its side and never
+   on an iPhone, which stays upright (2026-10-11, scripts/ios.configure.mjs). The query is lib/surfaces DESK_QUERY's,
+   word for word (scripts/smoke.cjs holds the spellings together).
    Each piece is a utility on the element it lays out — the shell, the sidebar, the columns, Settings' groups —
    and a one-off on a screen is the `desk:` variant (a strip of numbers in one row, Studio's week in seven columns).
    ============================================================ */
