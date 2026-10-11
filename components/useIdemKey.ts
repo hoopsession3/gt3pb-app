@@ -1,7 +1,15 @@
 "use client";
 
 import { useMemo, useRef } from "react";
-import { NO_ATTEMPT, afterAttempt, attemptFor, attemptVerdict, type PayAttempt } from "@/lib/idempotency";
+import type { PayAttempt } from "@/lib/idempotency";
+
+// THE RULES LOAD WITH THE FIRST TAP OF PAY (2026-10-11). The pack funnel draws on /shop's first paint
+// (components/Shop → OrderFunnel), and this hook carried lib/idempotency into that page whole — the attempt
+// rules and every word a declined card can be told — for a tap most visitors never make. begin() is already
+// asynchronous; settle() hands its answer over once the module is in (the same promise, so a settle is
+// applied before the begin that follows it).
+const rules = () => import("@/lib/idempotency");
+const EMPTY: PayAttempt = { sig: "", key: "", token: null };   // lib/idempotency's NO_ATTEMPT, without loading it
 
 // ONE KEY PER CHECKOUT — the holder every card checkout in this app sends its idempotency key from.
 //
@@ -35,12 +43,12 @@ export type CheckoutKey = {
 
 /** The key a reload left behind, if any. Never a card token: those are not written anywhere. */
 function stored(persist?: string): PayAttempt {
-  if (!persist || typeof window === "undefined") return NO_ATTEMPT;
+  if (!persist || typeof window === "undefined") return EMPTY;
   try {
     const parsed = JSON.parse(sessionStorage.getItem(persist) ?? "null");
     if (parsed && typeof parsed.sig === "string" && typeof parsed.key === "string") return { sig: parsed.sig, key: parsed.key, token: null };
   } catch { /* a blocked or cleared store is not a reason to fail a checkout */ }
-  return NO_ATTEMPT;
+  return EMPTY;
 }
 
 export function useIdemKey(persist?: string): CheckoutKey {
@@ -60,6 +68,7 @@ export function useIdemKey(persist?: string): CheckoutKey {
     };
     return {
       async begin(details, tokenize) {
+        const { attemptFor } = await rules();
         const a = attemptFor(ref.current, details);
         if (a !== ref.current) keep(a);
         if (!tokenize) return { key: a.key, token: null };
@@ -74,7 +83,9 @@ export function useIdemKey(persist?: string): CheckoutKey {
       settle(key, status, body) {
         const cur = ref.current;
         if (!cur || !cur.key || cur.key !== key) return;
-        keep(afterAttempt(cur, attemptVerdict(status, body)));
+        void rules().then(({ afterAttempt, attemptVerdict }) => {
+          if (ref.current === cur) keep(afterAttempt(cur, attemptVerdict(status, body)));
+        });
       },
     };
   }, [persist]);
