@@ -28,11 +28,23 @@
 // So the nonce is not something a caller passes inside a details blob and may forget. It is a
 // REQUIRED, SEPARATE ARGUMENT. There is no way to call this and leave it out.
 //
-// ── WHAT STILL DEDUPES ─────────────────────────────────────────────────────────────────────────
-// The ambiguous case — request sent, answer lost, customer taps again — replays the SAME nonce,
-// because no new tokenize() happened. So the signature holds still, the key holds still, and
-// Square replays rather than double-charging. The protection is intact; only the permanent wall
-// is gone.
+// ── WHAT THAT FIX COST, AND WHY THE CARD CHECKOUTS NO LONGER USE IT (2026-10-11) ───────────────
+// This section used to say the ambiguous case — request sent, answer lost, customer taps again —
+// "replays the SAME nonce, because no new tokenize() happened". It did not. Every tap of Pay called
+// tokenize() (Checkout, OrderFunnel, ShopCheckout), so the retry carried a new nonce, therefore a new
+// key, and Square — which dedupes only a key it has seen — charged the card a second time. Signing
+// the nonce traded a permanent wall for a double charge.
+//
+// The card checkouts now hold ONE KEY PER CHECKOUT (attemptFor, below, through components/useIdemKey):
+// signed over what is being bought and nothing about the card, kept for as long as the outcome is
+// open, and sent with the SAME card token again while it is. A key changes only when the cart or
+// the amount does, or once the checkout is settled — paid, or refused by Square. The wall cannot
+// come back: after a decline the key is settled, so a new card goes out under a new key. And the cup
+// checkout's server claims the key before it calls Square (lib/chargeOnce), so a retry that has to
+// carry a new token — a reload drops it — is answered from the first request instead of charged.
+//
+// nextIdem/idemSignature stay as they were for the office sheets, whose "nonce" is a company or an
+// order id: a stable scope, which is what this pair was always right for.
 
 /** What a caller holds between attempts. Persist it or keep it in a ref — both are fine. */
 export type IdemState = { sig: string; key: string };
@@ -75,6 +87,65 @@ export function nextIdem(
   const sig = idemSignature(sourceId, details);
   if (prev && prev.sig === sig && prev.key) return prev;
   return { sig, key: mint() };
+}
+
+// ── ONE KEY PER CHECKOUT (2026-10-11) ──────────────────────────────────────────────────────────
+// What a card checkout holds between taps: the key, what it was signed over, and the card token
+// already sent under it. The token is kept in memory only (components/useIdemKey persists sig and
+// key, never a card token), so it is null after a reload — which the cup checkout's server answers
+// from its claim, and which Square refuses rather than charges anywhere else.
+
+/** What one checkout holds between taps of Pay. */
+export type PayAttempt = { sig: string; key: string; token: string | null };
+
+export const NO_ATTEMPT: PayAttempt = { sig: "", key: "", token: null };
+
+/**
+ * The attempt for these details. The same cart and amount keep the same key — and the token
+ * already sent under it — whatever happened to the card in between. Anything else is a new
+ * checkout: a fresh key, and no token, so the card form is asked for one.
+ *
+ * `details` is what is being bought and what it costs, nothing about who or where: a name fixed
+ * after a lost answer is the same checkout, and a new key there would be a second charge.
+ */
+export function attemptFor(
+  prev: PayAttempt | null | undefined,
+  details: unknown,
+  mint: () => string = () => globalThis.crypto.randomUUID(),
+): PayAttempt {
+  const sig = idemSignature(null, details);
+  if (prev && prev.sig === sig && prev.key) return prev;
+  return { sig, key: mint(), token: null };
+}
+
+/**
+ * What one answer says about the checkout's money.
+ *
+ *   settled  it is over: paid (2xx), or Square refused the card (`declined: true`). The next tap
+ *            is a new checkout — a new key, and a new token from the card form.
+ *   unknown  it may have been charged: no answer at all, a 5xx, or the server saying the first try
+ *            is still being confirmed (`pending: true`). Same key, same token, until it settles.
+ *   refused  turned away before any card was charged (sold out, closed, a name missing, too many
+ *            tries). Same key — nothing was claimed or charged under it — and a fresh token, so a
+ *            card that was changed meanwhile is the one sent.
+ */
+export type AttemptVerdict = "settled" | "unknown" | "refused";
+
+export function attemptVerdict(status: number | null | undefined, body: unknown): AttemptVerdict {
+  const b = (body && typeof body === "object" ? body : {}) as { pending?: unknown; declined?: unknown };
+  if (typeof status !== "number" || !Number.isFinite(status)) return "unknown";
+  if (b.pending === true) return "unknown";
+  if (status >= 200 && status < 300) return "settled";
+  if (b.declined === true) return "settled";
+  if (status >= 500) return "unknown";
+  return "refused";
+}
+
+/** The attempt after an answer: forgotten, kept whole, or kept without its token. */
+export function afterAttempt(a: PayAttempt, verdict: AttemptVerdict): PayAttempt {
+  if (verdict === "settled") return NO_ATTEMPT;
+  if (verdict === "refused") return a.token === null ? a : { ...a, token: null };
+  return a;
 }
 
 /**

@@ -89,7 +89,10 @@ async function post(req: Request) {
   const idemKey = safeIdemKey(body.idempotencyKey);
   try {
     const charge = await chargeCard({ token, locationId, sourceId: body.sourceId, amountCents: total, note: `GT3 shop · ${lineItems.reduce((n, l) => n + l.qty, 0)} item(s)`, idempotencyKey: idemKey, buyerEmail: email });
-    if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
+    // `declined`: Square refused this card and nothing was charged, so the page starts over with a new
+    // key (lib/idempotency.attemptVerdict). An answer that does not say is thrown by chargeCard and
+    // answered by the 502 below, where the page keeps its key and its card token.
+    if (!charge.ok) return NextResponse.json({ error: charge.error, declined: true }, { status: 400 });
     const paymentId = charge.paymentId;
     // Dedupe at the order row — a retried request carries the same idempotency key, so Square returns
     // the same paymentId; the unique index on shop_orders.payment_id is the real backstop.

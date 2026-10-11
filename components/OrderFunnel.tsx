@@ -31,7 +31,7 @@ import {
 } from "@/lib/delivery";
 import { money } from "@/lib/money";
 import { weekdayOf } from "@/lib/dates";
-import { useIdemKey } from "./useIdemKey";
+import { useIdemKey, type Attempt } from "./useIdemKey";
 import { isSettled } from "@/lib/settled";
 import { apiUrl } from "@/lib/native";
 import AddressField from "./AddressField";
@@ -60,6 +60,13 @@ const sunLabel = (key: string) => {
   return days <= 7 ? "this Sunday" : days <= 14 ? "next Sunday" : "the Sunday after";
 };
 const PICKUP_TIERS = PACK_SIZES as readonly number[]; // [3, 6, 12]
+// What a pack checkout's key is signed over: what is being bought and what it costs (lib/idempotency,
+// attemptFor) — never the card token, and not the name or phone, which a customer may fix after a lost
+// answer without it becoming a second order. One literal for the card send and the pay-later send, so
+// the two buttons share the checkout's key: a pay-later tap after a card answer was lost is answered
+// with that reservation (/api/reserve finds it by the key) instead of placing another.
+const pickupSig = (count: number | null, bringBack: boolean | null, mix: Record<Flav, number>, drop: string, code: string | undefined) =>
+  ({ path: "pickup", count, bringBack, mix, drop, code });
 
 // The office order is its own screen, loaded when an office is chosen (2026-10-04): every visitor to
 // /reserve and /delivery downloaded it for a path few of them take. Choosing "For the office" warms
@@ -251,14 +258,20 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
   // Square card — mounted by the shared <PaymentCard> only while step==="pay" is in the tree; React's
   // own mount/unmount lifecycle handles attach/teardown across step changes, so no effect needed here.
   const paymentRef = useRef<PaymentCardHandle>(null);
-  // Persisted, not just in-memory: a customer on slow venue/porch WiFi — exactly this app's
-  // environment — navigates away mid-charge and comes back, and this page REMOUNTS (unlike
-  // Checkout.tsx's sheet, which stays mounted). A plain ref would be empty by then, so the retry
-  // would carry a genuinely new key and Square could not dedupe it — a real double charge.
-  // The key is namespaced per channel by the `path` field in the signature, so a pickup attempt and
-  // a delivery attempt never collide. Everything else about the rule lives in lib/idempotency.ts.
+  // ONE KEY PER CHECKOUT (2026-10-11, lib/idempotency), one holder per mode. Persisted, not just
+  // in-memory: a customer on slow venue/porch WiFi — exactly this app's environment — navigates away
+  // mid-charge and comes back, and this page REMOUNTS (unlike Checkout.tsx's sheet, which stays
+  // mounted). A plain ref would be empty by then, so the retry would carry a genuinely new key and
+  // Square could not dedupe it — a real double charge. The persisting alone was not enough, though:
+  // the key used to be signed over the card token, and every tap of Pay asked the card form for a new
+  // one, so a retry carried a new key anyway. Now the token is not in the signature, and while the
+  // last answer is unknown the SAME token goes out again, so Square replays the first payment instead
+  // of making a second (after a remount the token is gone; Square then refuses the key rather than
+  // charging it, and /api/reserve answers a pack it already holds by the key before it charges).
+  // Pickup and delivery keep separate keys, so flipping the toggle cannot forget either one.
   const IDEM_STORAGE_KEY = "gt3-of-idem";
-  const idemKeyFor = useIdemKey(IDEM_STORAGE_KEY);
+  const idem = useIdemKey(IDEM_STORAGE_KEY);
+  const idemDelivery = useIdemKey(`${IDEM_STORAGE_KEY}-delivery`);
   const [cardReady, setCardReady] = useState(false);
 
   // ── the toggle: preserve the cart, snap count, route sanely ──
@@ -356,19 +369,23 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
   };
 
   // ── submit ──
-  const submitPickup = useCallback(async (sourceId: string | null) => {
+  // `card` is the card send's attempt (payPickupCard); a pay-later send is given this checkout's key
+  // with no card.
+  const submitPickup = useCallback(async (card: Attempt | null) => {
     if (busy) return; // guard a fast double-tap before the button's disabled attribute takes effect
     setErr("");
     if (!name.trim() || !phone.trim()) { setErr("Name and phone are required for the pickup text."); return; }
     if (!count) return;
     setBusy(true);
+    const attempt = card ?? await idem.begin(pickupSig(count, bringBack, mix, dropDateKey(drop.sat), codeState === "ok" ? codeClean : undefined));
     try {
       const res = await authedFetch("/api/reserve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: sourceId ?? undefined, idempotencyKey: idemKeyFor(sourceId, { path: "pickup", name: name.trim(), phone: phone.trim(), count, bringBack, mix, drop: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }), name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }),
+        body: JSON.stringify({ sourceId: attempt.token ?? undefined, idempotencyKey: attempt.key, name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }),
       });
       const data = await res.json(); setBusy(false);
+      idem.settle(attempt.key, res.status, data);
       if (!res.ok) { setErr(data.error || "Something went wrong — try again."); return; }
       haptic("success");
       setDone({ total: totalCents, paid: !!data.paid, ref: (data.id || data.ref || "").toString(), label: dayName(drop.sat) });
@@ -385,31 +402,39 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
       setBusy(false);
       // A network exception here can happen AFTER the server already charged the card (the request
       // reached /api/reserve and Square before the connection dropped) — "nothing was charged" would
-      // be a real lie in that case. The idempotency key (now persisted, see `idem` above) makes a
-      // retry safe either way, so say that instead of asserting something we can't know.
+      // be a real lie in that case. The key and the card token are kept (see `idem` above), so a
+      // retry is the same request again: safe either way, so say that instead of asserting something
+      // we can't know.
+      idem.settle(attempt.key, null, null);
       setErr("Couldn't confirm — safe to try again, you won't be charged twice.");
     }
-  }, [busy, name, phone, count, bringBack, mix, drop, totalCents, codeState, codeClean, replacing, toast, idemKeyFor]);
+  }, [busy, name, phone, count, bringBack, mix, drop, totalCents, codeState, codeClean, replacing, toast, idem]);
 
   const payDelivery = async () => {
     if (busy) return; // guard a fast double-tap before the button's disabled attribute takes effect
     setErr("");
     if (!cardReady || !count || !deliveryQuote) return;
     setBusy(true);
+    let sent: string | null = null;
     try {
-      const result = await paymentRef.current!.tokenize();
-      if (result.status !== "OK" || !result.token) { setErr("Card details look off — check and retry."); setBusy(false); return; }
+      // The key for what is in this delivery and what it costs — not the address, which a customer may
+      // fix after a lost answer without it becoming a second charge — and the card token already sent
+      // under it while the last answer is unknown.
+      const attempt = await idemDelivery.begin({ path: "delivery", count, mix, premiums, refills: bringBack ? refills : 0, slot: slot.deliveryDateKey }, () => paymentRef.current!.tokenize());
+      if (!attempt.token) { setErr("Card details look off — check and retry."); setBusy(false); return; }
+      sent = attempt.key;
       const res = await authedFetch("/api/delivery/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sourceId: result.token, idempotencyKey: idemKeyFor(result.token, { path: "delivery", name, phone, street, city, zip, count, mix, premiums, refills: bringBack ? refills : 0, ack, slot: slot.deliveryDateKey }),
+          sourceId: attempt.token, idempotencyKey: attempt.key,
           name, phone, addressStreet: street, addressCity: city, addressZip: zip,
           accessInstructions: access, packSize: count, riseCount: mix.rise, flowCount: mix.flow, duskCount: mix.dusk,
           perfMix: premiums, refillCount: bringBack ? refills : 0, emptiesAck: ack, deliveryDate: slot.deliveryDateKey,
         }),
       });
       const data = await res.json(); setBusy(false);
+      idemDelivery.settle(attempt.key, res.status, data);
       if (!res.ok) { setErr(data.error || "Payment failed"); return; }
       haptic("success");
       setDone({ total: data.totalCents ?? deliveryQuote.totalCents, label: data.deliveryLabel, warn: data.warn, paid: true });
@@ -420,8 +445,10 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
       setBusy(false);
       // Same reasoning as submitPickup's catch: this can fire after the server already charged the
       // card (response lost after /api/delivery/checkout finished), so "service unavailable" would be
-      // misleading. The idempotency key makes a retry safe regardless.
-      setErr("Couldn't confirm the payment — safe to try again, you won't be charged twice.");
+      // misleading. The key and the card token are kept, so a retry is the same request again and
+      // Square replays it rather than charging twice. Nothing sent: the card form itself failed.
+      if (sent) idemDelivery.settle(sent, null, null);
+      setErr(sent ? "Couldn't confirm the payment — safe to try again, you won't be charged twice." : "Card details look off — check and retry.");
     }
   };
   const payPickupCard = async () => {
@@ -431,9 +458,10 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
     if (!cardReady) return;
     setBusy(true);
     try {
-      const result = await paymentRef.current!.tokenize();
-      if (result.status !== "OK" || !result.token) { setErr("Card details look off — check and retry."); setBusy(false); return; }
-      await submitPickup(result.token);
+      // This checkout's key, and the card token already sent under it while the last answer is unknown.
+      const attempt = await idem.begin(pickupSig(count, bringBack, mix, dropDateKey(drop.sat), codeState === "ok" ? codeClean : undefined), () => paymentRef.current!.tokenize());
+      if (!attempt.token) { setErr("Card details look off — check and retry."); setBusy(false); return; }
+      await submitPickup(attempt);
     } catch {
       // Reached only if tokenize() itself throws, before submitPickup (and any network call) ever
       // runs — "nothing was charged" is accurate here specifically, unlike the messages above.

@@ -12,6 +12,9 @@ import { writeAcrossSkew } from "@/lib/schemaSkew";
 import { toMarket } from "@/lib/markets";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
+import { chargeOnce, claimKey, couldNotConfirm, placeOnce, seenBefore, type Answer, type Stopped } from "@/lib/chargeOnce";
+import { checkoutClaims } from "@/lib/checkoutClaims";
 
 // Square Catalog as a secondary sync — used ONLY for items missing from `products` (a catalog gap),
 // never as the primary source. products.price_cents is the one price authority (0062, and the same
@@ -50,6 +53,8 @@ async function squarePriceMap(token: string): Promise<Record<string, number>> {
   }
 }
 
+const reply = (a: Answer) => NextResponse.json(a.body, { status: a.status });
+
 async function post(req: Request) {
   // Every write into `orders` goes through here now — paid (Square) AND pay-at-pickup (unpaid).
   // Pay-at-pickup used to insert directly from the client (RLS-gated to unpaid rows only); moving
@@ -82,6 +87,30 @@ async function post(req: Request) {
   }
   const customer = typeof body.customer === "string" && body.customer.trim() ? body.customer.trim().slice(0, 80) : null;
   if (!paying && !customer) return NextResponse.json({ error: "Add a name for pickup" }, { status: 400 });
+
+  // ONE KEY, ONE CHARGE (0371, lib/chargeOnce). The page keeps one key per checkout, whichever button
+  // sends it, and this route claims it before Square is called. A key that has been here before is
+  // answered NOW — before the limiter, the stock or the truck's hours are asked again — with what its
+  // first request said, or "still confirming": a retry of an order that went in must hear "order in",
+  // not "sold out" or "closed" because the world moved on while the first answer was lost. Nothing
+  // under a claimed key is ever sent to Square again.
+  // arrives-with: 0371 — before it is pasted lib/checkoutClaims reports the table missing and the
+  // checkout runs without claims, exactly as it did before them; nothing is refused for it.
+  const idemKey = safeIdemKey(body.idempotencyKey);
+  const now = () => Date.now();
+  // A claim whose request died (lib/chargeOnce.answerFor) is told to the crew by the retry that finds it.
+  const stopped = async ({ key, claim }: Stopped) => {
+    const who = customer ? ` Name: ${customer}.` : "";
+    if (claim.card && claim.state === "charged") {
+      await raiseAlert({ severity: "critical", category: "money", title: "Paid order may not have recorded — check the pass", body: `A card payment went through (${claim.payment_id ?? "no payment id"}, ${money(claim.amount_cents ?? 0)}) and the checkout stopped before the order was saved.${who} If it isn't on the pass, add it. Items: ${items.join(", ")}.` });
+    } else if (claim.card) {
+      await raiseAlert({ severity: "critical", category: "money", title: "Checkout charge status unknown — check Square", body: `A checkout stopped while Square was being asked to charge ${money(claim.amount_cents ?? 0)}.${who} A payment, if there is one, carries this key as its reference id: ${key}. Retries are not charged; check Square before taking payment again.` });
+    } else {
+      await raiseAlert({ severity: "important", category: "order", title: "A pre-order may not have saved — check the pass", body: `A pay-at-pickup order stopped while it was being saved.${who} Items: ${items.join(", ")}. If it isn't on the pass, add it.` });
+    }
+  };
+  const seen = await seenBefore(checkoutClaims(supabaseAdmin), idemKey, paying, now, stopped);
+  if ("answer" in seen) return reply(seen.answer);
 
   // Card-testing guard: the guest card path is open by design (walk-up POS, no login), which makes it
   // the natural target for scripted BIN/stolen-card testing. Throttle it with the durable Postgres
@@ -184,84 +213,101 @@ async function post(req: Request) {
     : null;
 
   if (!paying) {
-    // Pay-at-pickup: record unpaid, no Square call — the crew charges in person at the window.
-    const orderRow = { items, total_cents: subtotal, paid: false, payment_id: null, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode };
-    const { error: insErr } = await insertOrder(orderRow);
-    if (insErr) return NextResponse.json({ error: "That didn't go through — give it another tap" }, { status: 500 });
-    // Confirmation email — cup orders carry no phone (a quick on-the-spot order, not a form), so this
-    // is account-email-only and only for signed-in members; guests just have the on-screen confirm.
-    if (user?.id) {
-      await notifyCustomer({ email: await accountEmail(user.id), subject: "GT3 — order in", message: `GT3: your order is in. ${promise.ready} ${promise.pickup}. ${money(subtotal)} at pickup.` });
-    }
-    return NextResponse.json({ ok: true, amount: subtotal, recorded: true, ...promise });
-  }
-
-  const idemKey = safeIdemKey(body.idempotencyKey);
-  let charge: Awaited<ReturnType<typeof chargeCard>>;
-  try {
-    // buyerEmail → Square emails the customer a receipt (enterprise round P3); guests charge as before.
-    charge = await chargeCard({ token: token!, locationId: locationId!, sourceId: sourceId!, amountCents: amount, note: "GT3PB pre-order", idempotencyKey: idemKey, buyerEmail: user?.id ? await accountEmail(user.id) : null });
-  } catch (e) {
-    // chargeCard's own fetch/parse can throw BEFORE returning a result — a dropped connection after
-    // Square already received (and possibly processed) the request is the classic case. Unlike every
-    // failure below, this is a genuine "may have been charged" state, so it gets its own alert (with
-    // what we DO know — the idempotency key — so staff can check Square directly) instead of the
-    // total silence this used to be. Retrying is still safe: the idempotency key is unchanged, so
-    // Square will dedupe a genuine double-send — the message below says so instead of implying
-    // nothing happened (which risked a customer paying a SECOND time by another channel).
-    await raiseAlert({ severity: "critical", category: "money", title: "Checkout charge status unknown — check Square", body: `A card charge may or may not have gone through (idempotency key ${idemKey}, ${money(amount)}${customer ? `, name: ${customer}` : ""}). The request errored before a response came back: ${String(e instanceof Error ? e.message : e).slice(0, 200)}. Check Square by that idempotency key before assuming nothing happened.` });
-    return NextResponse.json({ error: "Couldn't confirm the payment — safe to tap Pay and try again, you won't be charged twice." }, { status: 502 });
-  }
-  if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
-  const paymentId = charge.paymentId;
-
-  try {
-    // Idempotency at the ORDER row: the charge's idempotency key makes a retry return the SAME
-    // paymentId, so if we already recorded an order for it (a retry after a lost response), don't
-    // insert a SECOND paid order → double fulfillment. (A unique index on payment_id backs this in DB.)
-    if (paymentId) {
-      // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by Square, never chosen by the caller — at most one row in the whole table, a stricter key than tenant_id
-      const { data: already } = await supabaseAdmin.from("orders").select("id").eq("payment_id", paymentId).maybeSingle();
-      if (already) return NextResponse.json({ ok: true, paymentId, amount, recorded: true, ...promise });
-    }
-
-    // Record the paid order server-side (paid + payment_id are trustworthy here).
-    // total_cents is the GOODS subtotal (tip excluded) so history + the referral floor
-    // are consistent across paid and pre-order paths.
-    const orderRow = { items, total_cents: subtotal, paid: true, payment_id: paymentId, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode };
-    let { error: insErr } = await insertOrder(orderRow);
-    if (insErr) {
-      // Charge succeeded but recording failed. Retry once — a transient DB blip must not cost the
-      // customer their order record when their money is already taken.
-      ({ error: insErr } = await insertOrder(orderRow));
-    }
-    if (insErr) {
-      // A concurrent request (a fast double-tap before the button visually disables, or a client-side
-      // retry after a slow response) can lose this exact race — Square already deduped the CHARGE via
-      // idempotency key, so the OTHER request's insert succeeding isn't a failure, it's the dedupe
-      // working. Confirm that row is really there before raising a false "didn't record" alert, which
-      // would otherwise have staff double-add an order that's already correctly on the pass.
-      if ((insErr as { code?: string }).code === "23505" && paymentId) {
-        // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by Square, never chosen by the caller — at most one row in the whole table, a stricter key than tenant_id
-        const { data: already2 } = await supabaseAdmin.from("orders").select("id").eq("payment_id", paymentId).maybeSingle();
-        if (already2) return NextResponse.json({ ok: true, paymentId, amount, recorded: true, ...promise });
+    // Pay-at-pickup: record unpaid, no Square call — the crew charges in person at the window. Claimed
+    // like a charge (lib/chargeOnce): a retry after "we're offline" gets this order's answer back
+    // instead of putting a second one on the pass. A refused insert gives the key back.
+    const held = await claimKey(seen.claims, idemKey, { channel: "cups", card: false, amountCents: subtotal }, now, stopped);
+    if ("answer" in held) return reply(held.answer);
+    return reply(await placeOnce({ claims: held.claims, key: idemKey, now, place: async (): Promise<Answer> => {
+      const orderRow = { items, total_cents: subtotal, paid: false, payment_id: null, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode };
+      const { error: insErr } = await insertOrder(orderRow);
+      if (insErr) return { status: 500, body: { error: "That didn't go through — give it another tap" } };
+      // Confirmation email — cup orders carry no phone (a quick on-the-spot order, not a form), so this
+      // is account-email-only and only for signed-in members; guests just have the on-screen confirm.
+      if (user?.id) {
+        await notifyCustomer({ email: await accountEmail(user.id), subject: "GT3 — order in", message: `GT3: your order is in. ${promise.ready} ${promise.pickup}. ${money(subtotal)} at pickup.` });
       }
-      // Still failed, and not a benign race: alert the crew immediately with the payment id + items
-      // so they add it by hand, and hand the customer a reference to show at the window.
-      const ref = (paymentId || "").slice(-6).toUpperCase();
-      await raiseAlert({ severity: "critical", category: "money", title: "Paid order didn't record — add it", body: `A card payment succeeded (${paymentId}) but the order didn't save. ${customer ? `Name: ${customer}. ` : ""}Items: ${items.join(", ")}.${promise.readyFrom ? ` Placed ahead for ${promise.pickup} — the customer was told: "${promise.ready}"` : ""} Add it to the pass and confirm in Square.` });
-      return NextResponse.json({ ok: true, paymentId, amount, recorded: false, ref, warn: `Payment received${ref ? ` — ref ${ref}` : ""}. We've alerted the crew to add your order; show this ref at the window.`, ...promise }, { status: 200 });
-    }
-    if (user?.id) {
-      await notifyCustomer({ email: await accountEmail(user.id), subject: "GT3 — order in", message: `GT3: your order is in. ${promise.ready} ${promise.pickup}. ${money(amount)} paid.` });
-    }
-    return NextResponse.json({ ok: true, paymentId, amount, recorded: true, ...promise });
-  } catch {
-    // The charge is DONE at this point (we have a paymentId) — an exception here means something
-    // broke while RECORDING it, not while paying. "Payment service unavailable" would be actively
-    // wrong (they WERE charged); point them to the crew instead of implying nothing happened.
-    return NextResponse.json({ ok: true, paymentId, amount, recorded: false, warn: "Payment received, but we hit a snag recording your order — show this screen at the window and we'll sort it.", ...promise }, { status: 200 });
+      // `paid` says which kind of order this was, because one key covers the checkout whichever button
+      // was tapped: a retry from Pay can be answered with this pre-order, and must not read as a charge.
+      return { status: 200, body: { ok: true, paid: false, amount: subtotal, recorded: true, ...promise } };
+    } }));
   }
+
+  // buyerEmail → Square emails the customer a receipt (enterprise round P3); guests charge as before.
+  // Read before the claim, so a failure reading it is a failure before anything was claimed or charged.
+  const buyerEmail = user?.id ? await accountEmail(user.id) : null;
+  const held = await claimKey(seen.claims, idemKey, { channel: "cups", card: true, amountCents: amount }, now, stopped);
+  if ("answer" in held) return reply(held.answer);
+
+  // Record the paid order server-side (paid + payment_id are trustworthy here). Its answer is kept on
+  // the claim and said again to every retry of this key.
+  const recordPaid = async (paymentId: string | null): Promise<Answer> => {
+    try {
+      // Idempotency at the ORDER row, the line behind the claim: Square answers a repeated key with the
+      // SAME paymentId, so if an order already carries it — a retry while 0371 is unpasted, when that
+      // replay is the only dedupe there is — don't insert a SECOND paid order → double fulfillment.
+      // (A unique index on payment_id backs this in DB.)
+      if (paymentId) {
+        // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by Square, never chosen by the caller — at most one row in the whole table, a stricter key than tenant_id
+        const { data: already } = await supabaseAdmin!.from("orders").select("id").eq("payment_id", paymentId).maybeSingle();
+        if (already) return { status: 200, body: { ok: true, paid: true, paymentId, amount, recorded: true, ...promise } };
+      }
+
+      // total_cents is the GOODS subtotal (tip excluded) so history + the referral floor
+      // are consistent across paid and pre-order paths.
+      const orderRow = { items, total_cents: subtotal, paid: true, payment_id: paymentId, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode };
+      let { error: insErr } = await insertOrder(orderRow);
+      if (insErr) {
+        // Charge succeeded but recording failed. Retry once — a transient DB blip must not cost the
+        // customer their order record when their money is already taken.
+        ({ error: insErr } = await insertOrder(orderRow));
+      }
+      if (insErr) {
+        // Two requests for one charge reach this insert only without the claim (0371 unpasted): Square
+        // answered both with the same paymentId, so the OTHER insert succeeding isn't a failure, it's the
+        // dedupe working. Confirm that row is really there before raising a false "didn't record" alert,
+        // which would otherwise have staff double-add an order that's already correctly on the pass.
+        if ((insErr as { code?: string }).code === "23505" && paymentId) {
+          // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by Square, never chosen by the caller — at most one row in the whole table, a stricter key than tenant_id
+          const { data: already2 } = await supabaseAdmin!.from("orders").select("id").eq("payment_id", paymentId).maybeSingle();
+          if (already2) return { status: 200, body: { ok: true, paid: true, paymentId, amount, recorded: true, ...promise } };
+        }
+        // Still failed, and not a benign race: alert the crew immediately with the payment, what it was
+        // for, and why it didn't save, and hand the customer a reference to show at the window. The
+        // usual why is the table's own stock check (0129): an item 86'd between this route's check and
+        // the insert, after the card was charged — so the alert says make it, or refund that payment.
+        const ref = (paymentId || "").slice(-6).toUpperCase();
+        const why = String((insErr as { message?: string }).message ?? "").slice(0, 90);
+        await raiseAlert({ severity: "critical", category: "money", title: "Paid order didn't record — add it", body: `A card payment succeeded (${paymentId}, ${money(amount)}) but the order didn't save${why ? `: ${why}` : "."} ${customer ? `Name: ${customer}. ` : ""}Items: ${items.join(", ")}. Add it to the pass — or, if it can't be made, refund that payment in Square.${promise.readyFrom ? ` Placed ahead for ${promise.pickup}.` : ""}` });
+        return { status: 200, body: { ok: true, paid: true, paymentId, amount, recorded: false, ref, warn: `Payment received${ref ? ` — ref ${ref}` : ""}. We've alerted the crew to add your order; show this ref at the window.`, ...promise } };
+      }
+      if (user?.id) {
+        await notifyCustomer({ email: await accountEmail(user.id), subject: "GT3 — order in", message: `GT3: your order is in. ${promise.ready} ${promise.pickup}. ${money(amount)} paid.` });
+      }
+      return { status: 200, body: { ok: true, paid: true, paymentId, amount, recorded: true, ...promise } };
+    } catch {
+      // The charge is DONE at this point (we have a paymentId) — an exception here means something
+      // broke while RECORDING it, not while paying. "Payment service unavailable" would be actively
+      // wrong (they WERE charged); point them to the crew instead of implying nothing happened.
+      return { status: 200, body: { ok: true, paid: true, paymentId, amount, recorded: false, warn: "Payment received, but we hit a snag recording your order — show this screen at the window and we'll sort it.", ...promise } };
+    }
+  };
+
+  return reply(await chargeOnce({
+    claims: held.claims, key: idemKey, now,
+    charge: () => chargeCard({ token: token!, locationId: locationId!, sourceId: sourceId!, amountCents: amount, note: "GT3PB pre-order", idempotencyKey: idemKey, buyerEmail }),
+    record: recordPaid,
+    // chargeCard threw: a dropped connection after Square may already have taken the money, or an answer
+    // that does not say whether it did (a 5xx, a reused key — lib/squareServer.chargeVerdict). This is a
+    // genuine "may have been charged" state, so it gets its own alert, naming the key the payment carries
+    // as its reference id. The claim is now 'unknown': this answer and every retry's are the same words —
+    // the crew has been told, don't pay again — and nothing under this key is sent to Square again. (502,
+    // and `pending`, so the page keeps the key and the card token: lib/idempotency.attemptVerdict.)
+    unknown: async (e) => {
+      await raiseAlert({ severity: "critical", category: "money", title: "Checkout charge status unknown — check Square", body: `A card charge may or may not have gone through (${money(amount)}${customer ? `, name: ${customer}` : ""}). A payment, if there is one, carries this key as its reference id: ${idemKey}. Retries are not charged; check Square before taking payment again. ${errorMessage(e, 80)}` });
+      return { status: 502, body: { ...couldNotConfirm(true).body } };
+    },
+  }));
 }
 
 export const POST = route("checkout", post);
