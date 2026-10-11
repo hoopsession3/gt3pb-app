@@ -28,6 +28,18 @@ async function post(req: Request) {
   const user = await userFromRequest(req);
   if (!user) return NextResponse.json({ error: "Order-ahead is for members — sign in to reserve." }, { status: 401 });
 
+  // ONE KEY, ONE RESERVATION — asked first, on both paths (2026-10-11). The funnel keeps one key per
+  // pack checkout, for the card and the pay-later button alike, so a key that already holds a
+  // reservation is a retry of it: a card answer lost on venue WiFi, a reload that dropped the card
+  // token, a pay-later tap after the card's answer went missing. It is answered with that reservation
+  // — before the drop's cutoff is checked again, and before any card is charged. 0244's unique index
+  // on idempotency_key backs it. Scoped to the caller's own rows: the key is theirs.
+  const idemKey = safeIdemKey(body.idempotencyKey);
+  {
+    const { data: held } = await supabaseAdmin.from("drop_orders").select("id, paid").eq("idempotency_key", idemKey).eq("user_id", user.id).maybeSingle();
+    if (held) return NextResponse.json({ ok: true, id: held.id, paid: held.paid === true, recorded: true });
+  }
+
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 80) : "";
   const phone = typeof body.phone === "string" ? body.phone.trim().slice(0, 40) : "";
   const size = Number(body.size);
@@ -85,8 +97,6 @@ async function post(req: Request) {
   if (glass === "return" && refillIsFree(benefits)) amount = 0;
   else amount = applyOrderBenefits(amount, benefits);   // deepest percent, then amount-off (0268), floored at 0
 
-  const idemKey = safeIdemKey(body.idempotencyKey);
-
   try {
     // Charge only when a card token was supplied; otherwise it's a pay-at-pickup pre-order.
     let paymentId: string | null = null;
@@ -94,7 +104,10 @@ async function post(req: Request) {
     if (wantsCharge) {
       // buyerEmail → Square emails the customer a receipt (enterprise round P3).
       const charge = await chargeCard({ token: token!, locationId: locationId!, sourceId: body.sourceId!, amountCents: amount, note: `GT3PB order-ahead · ${size}-pack · ${glass} · pickup ${dropDate}`, idempotencyKey: idemKey, buyerEmail: await accountEmail(user.id) });
-      if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
+      // `declined`: Square refused this card, nothing was charged — the page starts over with a new key
+      // (lib/idempotency.attemptVerdict). An answer that does not say is thrown (lib/squareServer) and
+      // lands in the 502 below, where the page keeps its key and its card token.
+      if (!charge.ok) return NextResponse.json({ error: charge.error, declined: true }, { status: 400 });
       paymentId = charge.paymentId;
       paid = true;
       // Idempotency at the ORDER row — the same protection /api/checkout has, missing here until now.

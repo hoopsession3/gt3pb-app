@@ -2500,6 +2500,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // hands it to safeIdemKey — that is the other end of this contract and has nothing to answer for.
   // The first draft of this rule flagged all four routes plus every correct call site, which is how
   // a check earns an exemption and then stops meaning anything.
+  //
+  // 2026-10-11 (0371): signing the nonce was the other half of a double charge. Every tap of Pay asked
+  // the card form for a new token, so a retry after a lost answer carried a new key, and Square charged
+  // it as a payment it had never seen. The checkouts keep ONE key per checkout now — useIdemKey's
+  // begin(details, tokenize) gives the key, and the token already sent under it while the outcome is
+  // open — and settle() it with the answer. So the rule became: every key a page sends is an attempt
+  // its holder began (`attempt.key`), the page settles it, and no sender asks the card form for a
+  // token except through begin(), where an unknown outcome gets the SAME token back.
   const ownIdem = [];
   for (const f of files) {
     const rel = f.replace(root + "/", "");
@@ -2509,11 +2517,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       .map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1"))
       .filter((l) => !/^\s*\*/.test(l))
       .join("\n");
-    for (const m of src.matchAll(/idempotencyKey:\s*([A-Za-z_$][\w$]*)/g)) {
-      if (m[1] !== "idemKeyFor") { ownIdem.push(`${rel}: idempotencyKey: ${m[1]}`); break; }
-    }
+    const sends = [...src.matchAll(/idempotencyKey:\s*([A-Za-z_$][\w$.]*)/g)].map((m) => m[1]);
+    if (!sends.length) continue;
+    const own = sends.find((v) => v !== "attempt.key");
+    if (own) { ownIdem.push(`${rel}: idempotencyKey: ${own}`); continue; }
+    if (!/=\s*useIdemKey\(/.test(src) || !/\.begin\(/.test(src) || !/\.settle\(/.test(src)) { ownIdem.push(`${rel}: sends a key without useIdemKey's begin and settle`); continue; }
+    const loose = src.split("\n").find((l) => /\.tokenize\(\)/.test(l) && !/\.begin\(/.test(l));
+    if (loose) ownIdem.push(`${rel}: asks the card form for a token outside the key holder — ${loose.trim().slice(0, 90)}`);
   }
-  ok("payments: every checkout gets its key from useIdemKey — the nonce is not optional",
+  ok("payments: every checkout sends the key its useIdemKey holder began, settles it, and gets card tokens only through it — one key per checkout, not one per token",
     ownIdem.length === 0, ownIdem);
 
   // ── AND THE RECEIPT NOBODY CHECKED ─────────────────────────────────────────────────────────────
@@ -2637,6 +2649,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 // Ryan tried to buy the first flagship cap and got Square's wall printed onto the checkout page:
 // "Different request parameters used for the same idempotency_key: dcbb7295-…". Every assertion
 // here is that failure, or the double-charge protection it must not cost us to fix.
+//
+// 2026-10-11 (0371): the protection was not there. nextIdem signs the nonce, and every tap of Pay asked
+// the card form for a new one, so the "lost response" retry below never happened in the app — the retry
+// carried a new nonce, a new key, and a second charge. nextIdem stays exactly as tested here, for the
+// office sheets, whose "nonce" is a company or an order id. The card checkouts use attemptFor (the last
+// group): one key per checkout, never signed over the card, and the same token sent again while the
+// outcome is open. scripts/chargeonce.test.mjs drives that through a stand-in Square.
 {
   const I = require("../.smoke/idempotency.js");
   let n = 0;
@@ -2652,21 +2671,21 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       first.key !== second.key, [first.key, second.key]);
   }
 
-  // AND THE PROTECTION THAT MUST SURVIVE IT. The ambiguous case — request sent, answer lost, customer
-  // taps again — replays the SAME nonce, because no new tokenize() happened. Key holds, Square
-  // replays instead of charging twice. If this ever fails, the fix above became a double charge.
+  // AND WHAT A STABLE SCOPE KEEPS. The same scope id and the same details keep the same key — the
+  // office sheets' retry rule. (For a card this held only if the page re-sent the SAME nonce, which no
+  // checkout did until 0371; the card checkouts now hold their key through attemptFor, below.)
   {
     const order = { cart: [{ id: "cap", qty: 1 }], ship: { zip: "29651" } };
     const first = I.nextIdem(I.EMPTY_IDEM, "nonce-A", order, mint);
     const retry = I.nextIdem(first, "nonce-A", order, mint);
-    ok("idem: the SAME nonce and the same order keep the SAME key — a lost response still dedupes",
+    ok("idem: the SAME scope and the same order keep the SAME key (nextIdem — the office sheets' rule)",
       first.key === retry.key && retry === first, [first.key, retry.key]);
   }
 
   ok("idem: changing the order mints a new key",
     I.nextIdem(I.nextIdem(I.EMPTY_IDEM, "n", { qty: 1 }, mint), "n", { qty: 2 }, mint).sig !==
     I.nextIdem(I.EMPTY_IDEM, "n", { qty: 1 }, mint).sig);
-  ok("idem: changing the SHIPPING address mints a new key — Shop.tsx signed the cart and not the address",
+  ok("idem: the signature covers every detail it is given — a different shipping address signs differently",
     I.idemSignature("n", { cart: 1, ship: { zip: "29651" } }) !== I.idemSignature("n", { cart: 1, ship: { zip: "29615" } }));
   ok("idem: a pickup attempt and a delivery attempt never collide",
     I.idemSignature("n", { path: "pickup", count: 6 }) !== I.idemSignature("n", { path: "delivery", count: 6 }));
@@ -2701,6 +2720,26 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // worse than a blunt right one.
   ok("payError: an unrecognised message is passed through, not replaced by a vague apology",
     I.payErrorText("Location is not active") === "Location is not active");
+
+  // ONE KEY PER CHECKOUT (0371). What the card checkouts hold between taps, and what an answer does to it.
+  {
+    const cart = { items: ["rise", "flow"], tipCents: 0 };
+    const a = I.attemptFor(I.NO_ATTEMPT, cart, mint);
+    const held = { ...a, token: "nonce-A" };
+    ok("checkout key: a second tap on the same cart keeps the key AND the token already sent under it — no new nonce, no new key",
+      I.attemptFor(held, cart, mint) === held && I.attemptFor(held, { items: ["rise", "flow"], tipCents: 0 }, mint).token === "nonce-A");
+    ok("checkout key: the card is not in the signature", !/nonce-A/.test(I.attemptFor(held, cart, mint).sig));
+    ok("checkout key: a different cart or tip is a new key, with no token", (() => {
+      const b = I.attemptFor(held, { items: ["rise"], tipCents: 0 }, mint), c = I.attemptFor(held, { items: ["rise", "flow"], tipCents: 200 }, mint);
+      return b.key !== a.key && b.token === null && c.key !== a.key && c.token === null;
+    })());
+    ok("checkout key: paid, or declined by Square, settles it — the next tap is a new checkout",
+      I.afterAttempt(held, I.attemptVerdict(200, { ok: true })) === I.NO_ATTEMPT && I.afterAttempt(held, I.attemptVerdict(400, { error: "Card declined.", declined: true })) === I.NO_ATTEMPT);
+    ok("checkout key: no answer, a 5xx, or \"still confirming\" keeps the key and the token",
+      [I.attemptVerdict(null, null), I.attemptVerdict(502, {}), I.attemptVerdict(409, { pending: true })].every((v) => I.afterAttempt(held, v) === held));
+    ok("checkout key: turned away before any charge keeps the key and drops the token",
+      I.afterAttempt(held, I.attemptVerdict(409, { error: "RISE just sold out" })).key === a.key && I.afterAttempt(held, I.attemptVerdict(409, { error: "RISE just sold out" })).token === null);
+  }
 }
 
 // ── PLAN NAV (0316) — the jump that has to survive a page load ───────────────────────────────────

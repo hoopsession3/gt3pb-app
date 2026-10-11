@@ -116,7 +116,10 @@ async function post(req: Request) {
     await raiseAlert({ severity: "critical", category: "money", title: "Delivery charge status unknown — check Square", body: `A card charge may or may not have gone through (idempotency key ${idemKey}, ${money(quote.totalCents)}, ${name}, ${slot.deliveryLabel}). The request errored before a response came back: ${String(e instanceof Error ? e.message : e).slice(0, 200)}. Check Square by that idempotency key before assuming nothing happened.` });
     return NextResponse.json({ error: "Couldn't confirm the payment — safe to try again, you won't be charged twice." }, { status: 502 });
   }
-  if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
+  // `declined`: Square refused this card and nothing was charged, so the page starts over with a new key
+  // (lib/idempotency.attemptVerdict). An answer that does not say — a 5xx, a reused key — is thrown by
+  // chargeCard (lib/squareServer.chargeVerdict) and handled above as "may have been charged".
+  if (!charge.ok) return NextResponse.json({ error: charge.error, declined: true }, { status: 400 });
   const paymentId = charge.paymentId;
   const paid = true;
 

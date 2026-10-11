@@ -44,32 +44,41 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
   const [zip, setZip] = useKnownField(known?.ship?.zip);
   const [email, setEmail] = useState("");
   const ship = { name, street, city, state, zip, email };
-  // Was useMemo(newKey, [cart]): stable across retries but blind to the card nonce, which is
-  // single-use and fresh on every tap of Pay. The second attempt at Ryan's cap order was refused
-  // by Square and every attempt after it would have been too. See lib/idempotency.ts.
-  const idemKeyFor = useIdemKey();
+  // ONE KEY PER CHECKOUT (2026-10-11, lib/idempotency). It was signed over the card nonce, and every
+  // tap of Pay asked the card form for a new one — so a retry after a lost answer went to Square under
+  // a new key and charged again. The cart is the key's signature now (what is bought and what it costs;
+  // an address fixed after a lost answer is the same order, not a second charge), it survives a
+  // remount (sessionStorage), and while the last answer is unknown the same card token goes with it, so
+  // Square replays the first payment and the route finds its order by payment_id. Paid, or refused by
+  // Square, and the next tap is a new checkout.
+  const idem = useIdemKey("gt3-shop-idem");
   const canPay = ready && !busy && cart.length > 0 && ship.name && ship.street && ship.city && ship.state && ship.zip && (isMember || ship.email);
 
   const pay = async () => {
     if (!payRef.current) return;
     setBusy(true); setErr(null);
-    const res = await payRef.current.tokenize();
-    if (res.status !== "OK" || !res.token) { setErr("Card details look off — check and try again."); setBusy(false); return; }
+    const card = payRef.current;
+    const attempt = await idem.begin({ cart }, () => card.tokenize());
+    if (!attempt.token) { setErr("Card details look off — check and try again."); setBusy(false); return; }
     try {
       const r = await authedFetch("/api/shop/checkout", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sourceId: res.token, idempotencyKey: idemKeyFor(res.token, { cart, ship }),
+          sourceId: attempt.token, idempotencyKey: attempt.key,
           items: cart.map((l) => ({ product_id: l.product.id, variant: l.variant, qty: l.qty })),
           ship,
         }),
       });
       const data = await r.json();
+      idem.settle(attempt.key, r.status, data);
       if (!r.ok) { setErr(payErrorText(data.error)); setBusy(false); return; }
       haptic("paid");
       invalidateCustomerKnown();   // the next form starts from this order
       onDone(data.warn, data.emailed === true);
-    } catch { setErr("Something went wrong — you were not charged twice; check your email or try again."); setBusy(false); }
+    } catch {
+      idem.settle(attempt.key, null, null);
+      setErr("Something went wrong — you were not charged twice; check your email or try again."); setBusy(false);
+    }
   };
 
   return (

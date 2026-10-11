@@ -45,14 +45,18 @@ export default function Checkout() {
     fetch(apiUrl("/api/menu")).then((r) => r.json()).then((d) => setPrices(d.prices || {})).catch(() => {});
   }, []);
   const paymentRef = useRef<PaymentCardHandle>(null);
-  // A Square idempotency key that stays stable across "Try again" taps for the SAME order, so an
-  // ambiguous failure (card captured but the response was lost) dedupes at Square on resubmit instead
-  // of charging twice. It regenerates when the order itself changes (items/tip/name) — OR when the
-  // card nonce does (2026-07-30, Ryan's live test: a nonce is single-use, so retrying with a fresh
-  // card mints a fresh nonce; reusing the old key with new params is Square's "Different request
-  // parameters used for the same idempotency_key" wall). The ambiguous-network case still dedupes:
-  // a true resubmit replays the SAME nonce, so the signature — and the key — hold still.
-  const idemKeyFor = useIdemKey();
+  // ONE KEY PER CHECKOUT (2026-10-11, lib/chargeOnce). The key used to be minted per card token, and
+  // every tap of Pay asked the card form for a new token — so a retry after a lost answer went to
+  // Square as a request it had never seen, and the card was charged again. Now what is being bought
+  // and what it costs (the items and the tip) are the key's whole signature: it holds across taps,
+  // across Pay and "pay at the truck", and across a reload (sessionStorage), and while the last answer
+  // is unknown the SAME card token goes out with it. The server claims the key before it calls Square,
+  // so a retry is told what happened to the first try — "order in", or "still confirming" — and is
+  // never charged again. Paid, or refused by Square, and the next tap is a new checkout.
+  const idem = useIdemKey("gt3-co-idem");
+  // Both buttons send through here, one at a time: a tap on either while the other is still answering
+  // is turned away before it reaches the network (`busy` reaches a fast second tap a render late).
+  const sending = useRef(false);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -129,80 +133,17 @@ export default function Checkout() {
       }
     } catch { /* */ }
   };
-  // Pre-orders (pay at the truck) go through /api/checkout now too (no sourceId = pay-at-pickup) —
-  // same availability + ordering-window checks the paid path always had, instead of inserting
-  // directly from the client. `orders` no longer has a client write door at all.
-  const recordPreOrder = async (): Promise<{ error: { message: string } | null; data?: { readyFrom?: string | null; pickup?: string } }> => {
-    try {
-      const res = await authedFetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items, customer, market: viewerMarket }),
-      });
-      const data = await res.json();
-      if (!res.ok) return { error: { message: data?.error || "That didn't go through — try again." } };
-      return { error: null, data };
-    } catch {
-      return { error: { message: "We're offline right now — try again in a moment." } };
-    }
-  };
-
-  // Pay-at-pickup: record the order UNPAID and hand off — the guest pays at the truck. Shared by the
-  // standalone pickup button and the "or pay at pickup" secondary action when card is also offered.
-  // Used to just toast-and-close with no confirmation screen at all; now shows the same OrderConfirm
-  // the paid path gets.
-  const sendPreOrder = async () => {
-    if (busy) return; // guard against a double-tap firing two pre-orders the kitchen makes
-    if (blocked86.length > 0) { toast("Remove the sold-out items first", "error"); return; }
-    if (!customer) { toast("Add a name for pickup", "error"); return; }
-    if (items.length === 0) return;
-    setBusy(true);
-    await enableAlerts();
-    const { error, data } = await recordPreOrder();
-    // The server's own words when it refused (the truck closed between the read and the tap — it
-    // says when it opens); the generic retry only when there are none.
-    if (error) { toast(error.message || "That didn't go through — give it another tap", "error"); setBusy(false); return; }
-    const capturedLines = [...lines], capturedName = customer, capturedTotal = totalCents;
-    const p = promised(data ?? null);
-    trackFunnel("order", "pickup");
-    haptic("success");
-    toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ${p.readyFrom ? "made when we open" : "ready in ~8 min"}`);
-    checkout({ silentToast: true }); // clears cart — this toast already fired above
-    setDone({ paid: false, total: capturedTotal, lines: capturedLines, name: capturedName, ...p });
-    invalidateCustomerKnown();   // the next form starts from this order
-    setBusy(false);
-  };
-
-  const pay = async () => {
-    if (busy) return; // guard a fast double-tap before the button's disabled attribute takes effect
-    setErr("");
-    if (!customer) { setErr("Add a name for pickup"); return; }
-    if (!ready) return;
-    // The weight of committing money — felt once the tap is going to charge, not on a tap the guards
-    // turned away (a missing name buzzes as the error it is).
-    haptic("heavy");
-    setBusy(true);
-    try {
-      await enableAlerts();
-      const result = await paymentRef.current!.tokenize();
-      if (result.status !== "OK") {
-        setErr("Card details look off — check and retry.");
-        setBusy(false);
-        return;
-      }
-      trackFunnel("order", "pay_start");
-      const res = await authedFetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: result.token, items, tipCents, customer, market: viewerMarket, idempotencyKey: idemKeyFor(result.token, { items, tipCents, customer }) }),
-      });
-      const data = await res.json();
-      setBusy(false);
-      if (!res.ok) { setErr(payErrorText(data.error)); return; }
+  // WHAT WENT IN, SAID ONCE (2026-10-11). One key covers this checkout whichever button sent it, so an
+  // answer can belong to the other button: a payment that went through while its answer was lost comes
+  // back when "pay at the truck" is tapped, and a pre-order comes back to Pay. The server says which it
+  // was (`paid`); the confirmation says what happened, not which button was pressed.
+  type Placed = { paid?: boolean; warn?: string; ref?: string; readyFrom?: string | null; pickup?: string };
+  const placed = (data: Placed, byCard: boolean) => {
+    const capturedLines = [...lines], capturedName = customer;
+    const p = promised(data);
+    if (typeof data.paid === "boolean" ? data.paid : byCard) {
       trackFunnel("order", "paid");
       haptic("paid");
-      const capturedLines = [...lines], capturedName = customer;
-      const p = promised(data);
       toast(data.warn || `Paid ${total} — order in. ${p.readyFrom ? readyWords({ state: "ahead", readyFrom: p.readyFrom }) : "Ready in ~8 min."}`);
       checkout({ silentToast: true }); // clears cart — this toast already fired above
       // data.warn/data.ref carry the "charged but not yet recorded" fallback (server alerted the
@@ -212,11 +153,102 @@ export default function Checkout() {
       // toast and only the last one shows), and `done` had nowhere to put it even if it had.
       setDone({ paid: true, total: grandCents, lines: capturedLines, name: capturedName, warn: data.warn, ref: data.ref, ...p });
       invalidateCustomerKnown();
+    } else {
+      trackFunnel("order", "pickup");
+      haptic("success");
+      toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ${p.readyFrom ? "made when we open" : "ready in ~8 min"}`);
+      checkout({ silentToast: true }); // clears cart — this toast already fired above
+      setDone({ paid: false, total: totalCents, lines: capturedLines, name: capturedName, ...p });
+      invalidateCustomerKnown();   // the next form starts from this order
+    }
+  };
+
+  // Pre-orders (pay at the truck) go through /api/checkout now too (no sourceId = pay-at-pickup) —
+  // same availability + ordering-window checks the paid path always had, instead of inserting
+  // directly from the client. `orders` no longer has a client write door at all. They carry the
+  // checkout's key, so a retry after "we're offline" is answered with the first order, not a second.
+  const recordPreOrder = async (): Promise<{ error: { message: string } | null; data?: Placed }> => {
+    const attempt = await idem.begin({ items, tipCents });
+    try {
+      const res = await authedFetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items, customer, market: viewerMarket, idempotencyKey: attempt.key }),
+      });
+      const data = await res.json();
+      idem.settle(attempt.key, res.status, data);
+      if (!res.ok) return { error: { message: data?.error || "That didn't go through — try again." } };
+      return { error: null, data };
     } catch {
+      idem.settle(attempt.key, null, null);
+      return { error: { message: "We're offline right now — try again in a moment." } };
+    }
+  };
+
+  // Pay-at-pickup: record the order UNPAID and hand off — the guest pays at the truck. Shared by the
+  // standalone pickup button and the "or pay at pickup" secondary action when card is also offered.
+  // Used to just toast-and-close with no confirmation screen at all; now shows the same OrderConfirm
+  // the paid path gets.
+  const sendPreOrder = async () => {
+    if (busy || sending.current) return; // guard against a double-tap firing two pre-orders the kitchen makes
+    if (blocked86.length > 0) { toast("Remove the sold-out items first", "error"); return; }
+    if (!customer) { toast("Add a name for pickup", "error"); return; }
+    if (items.length === 0) return;
+    setBusy(true);
+    sending.current = true;
+    try {
+      await enableAlerts();
+      const { error, data } = await recordPreOrder();
+      // The server's own words when it refused (the truck closed between the read and the tap — it
+      // says when it opens); the generic retry only when there are none.
+      if (error) { toast(error.message || "That didn't go through — give it another tap", "error"); return; }
+      placed(data ?? {}, false);
+    } finally {
+      sending.current = false;
       setBusy(false);
-      // We can't tell whether the card was captured before the connection dropped, but the idempotency
-      // key is stable — tapping Pay again replays the SAME charge, so Square won't double-charge.
-      setErr("Couldn't confirm the payment — tap Pay to retry. You won't be charged twice.");
+    }
+  };
+
+  const pay = async () => {
+    if (busy || sending.current) return; // guard a fast double-tap before the button's disabled attribute takes effect
+    setErr("");
+    if (!customer) { setErr("Add a name for pickup"); return; }
+    if (!ready) return;
+    // The weight of committing money — felt once the tap is going to charge, not on a tap the guards
+    // turned away (a missing name buzzes as the error it is).
+    haptic("heavy");
+    setBusy(true);
+    sending.current = true;
+    let sent: string | null = null;
+    try {
+      await enableAlerts();
+      // This checkout's key, and the card token already sent under it while the last answer is
+      // unknown — a fresh one from the card form only when there is none.
+      const attempt = await idem.begin({ items, tipCents }, () => paymentRef.current!.tokenize());
+      if (!attempt.token) {
+        setErr("Card details look off — check and retry.");
+        return;
+      }
+      trackFunnel("order", "pay_start");
+      sent = attempt.key;
+      const res = await authedFetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceId: attempt.token, items, tipCents, customer, market: viewerMarket, idempotencyKey: attempt.key }),
+      });
+      const data = await res.json();
+      idem.settle(attempt.key, res.status, data);
+      if (!res.ok) { setErr(payErrorText(data.error)); return; }
+      placed(data, true);
+    } catch {
+      // Nothing sent: the card form itself failed. Sent and no answer: we can't tell whether the card
+      // was captured before the connection dropped — so the key and the card token are kept, and the
+      // server answers a key it has seen without charging it again. Tapping Pay asks about THIS payment.
+      if (sent) idem.settle(sent, null, null);
+      setErr(sent ? "Couldn't confirm the payment — tap Pay to retry. You won't be charged twice." : "Card details look off — check and retry.");
+    } finally {
+      sending.current = false;
+      setBusy(false);
     }
   };
 
