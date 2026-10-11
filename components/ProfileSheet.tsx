@@ -31,7 +31,10 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
       if (typeof Notification === "undefined") return;
       const p = await Notification.requestPermission();
       setNotifState(p);
-      if (p === "granted") { subscribePush(user?.id ?? null, !!profile?.is_admin); toast("Order alerts are on"); }
+      if (p !== "granted") return;
+      // "On" only once the database has kept this phone (lib/push, 0366).
+      if (await subscribePush(!!profile?.is_admin)) toast("Order alerts are on");
+      else toast("Couldn't save this phone for alerts — try again", "error");
     } catch { /* ignore */ }
   };
 

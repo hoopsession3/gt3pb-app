@@ -14,6 +14,7 @@ import { readEditMode, writeEditMode } from "@/lib/editModeToggle";
 import { showsCommerce, surfaceOf } from "@/lib/surfaces";
 import type { Order } from "@/lib/db";
 import Button from "./Button";
+import { signOutHere } from "@/lib/pushRelease";
 
 // THE account popout — a MENU, reachable from the avatar on every page.
 //
@@ -230,7 +231,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
 
       <HelpRows onClose={onClose} owner={role === "owner"} />
 
-      <button type="button" className="btn-del mt-2" onClick={() => { onClose(); signOut(); toast("Signed out"); }}>Sign out</button>
+      <button type="button" className="btn-del mt-2" onClick={() => { onClose(); void signOutHere(signOut); toast("Signed out"); }}>Sign out</button>
     </Sheet>
   );
 }

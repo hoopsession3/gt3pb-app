@@ -51,7 +51,7 @@ const SAYS: Record<AlertPermission | "unknown", string> = {
 };
 
 /** Settings › You: what this phone says, and the one tap that asks it. */
-export function DeviceAlerts({ userId }: { userId: string | null }) {
+export function DeviceAlerts() {
   const { toast } = useApp();
   const perm = useAlertPermission();
   // NOT IN THE IPHONE APP (2026-10-11, Ryan's App Store audit). The app has no web notifications to ask for, and its own
@@ -64,8 +64,10 @@ export function DeviceAlerts({ userId }: { userId: string | null }) {
     try { p = await Notification.requestPermission(); }
     catch { toast("Couldn't ask this phone for notifications — try again", "error"); return; }
     window.dispatchEvent(new Event(ASKED));
-    if (p === "granted") { subscribePush(userId, true); toast("Order alerts are on for this phone"); } // background push for the kitchen
-    else toast("Couldn't turn them on — this phone said no. Allow notifications for this site in the browser's settings.", "error");
+    if (p !== "granted") { toast("Couldn't turn them on — this phone said no. Allow notifications for this site in the browser's settings.", "error"); return; }
+    // Background push for the kitchen — "on" only once the database has kept this phone (lib/push, 0366).
+    if (await subscribePush(true)) toast("Order alerts are on for this phone");
+    else toast("Couldn't save this phone for alerts — try again", "error");
   };
   return (
     <div className="pay-row">

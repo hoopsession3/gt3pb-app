@@ -523,7 +523,7 @@ function FindUsCoda() {
 // second subscription). Anon subscribers can't read their row back (RLS is owner/admin-only),
 // so the chip's on/off label rides localStorage — a courtesy memory, not an audit.
 function LivePingButton() {
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
   const t = useSiteCopy();
   // Known on the first render, not one after it (2026-10-04): the chip arrived a frame late and
   // wrapped the chip row onto a second line under everything already drawn — the last 0.018 of the
@@ -542,7 +542,8 @@ function LivePingButton() {
         const p = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
         if (p !== "granted") { setState("off"); return; }
       }
-      await subscribePush(user?.id ?? null, !!profile?.is_admin, { wantsLive: turningOn });
+      // "On" only once the database has kept this device (lib/push, 0366): a guest's used to say on and keep nothing.
+      if (!(await subscribePush(!!profile?.is_admin, { wantsLive: turningOn }))) { setState(turningOn ? "off" : "on"); return; }
       try { localStorage.setItem("gt3-live-ping", turningOn ? "1" : "0"); } catch { /* ignore */ }
       setState(turningOn ? "on" : "off");
     } catch {

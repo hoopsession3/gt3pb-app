@@ -38,7 +38,7 @@ export default function Checkout() {
   // screen says what the order says — not what this sheet last read, which can be a minute old.
   const [done, setDone] = useState<{ paid: boolean; total: number; lines: [DrinkId, number][]; name: string; warn?: string; ref?: string; readyFrom: string | null; pickup: string } | null>(null);
   useEffect(() => { if (!open) setDone(null); else trackFunnel("order", "open"); }, [open]);
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
   const [prices, setPrices] = useState<Record<string, number>>({});
   // Prices for the displayed total (the actual charge is computed server-side).
   useEffect(() => {
@@ -125,7 +125,7 @@ export default function Checkout() {
     try {
       if (typeof Notification !== "undefined") {
         if (Notification.permission === "default") await Notification.requestPermission();
-        if (Notification.permission === "granted") subscribePush(user?.id ?? null, !!profile?.is_admin);
+        if (Notification.permission === "granted") subscribePush(!!profile?.is_admin);
       }
     } catch { /* */ }
   };

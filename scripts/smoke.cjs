@@ -8840,7 +8840,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && LAY.settingsHolder("set-notify") === null && LAY.settingsHolder("menu") === null && LAY.settingsHolder(undefined) === null);
   const DRAWS = {
     "set-account": ["<AccountRow />"],
-    "set-notify": ["<DeviceAlerts userId={userId} />", "<PassSound />", "<NotifPrefs userId={userId} />"],
+    "set-notify": ["<DeviceAlerts />", "<PassSound />", "<NotifPrefs userId={userId} />"],
     "set-display": ["<Appearance />", "<DisplayControls />"],
     "set-pay": ["<PaymentSettings />"], "set-ordering": ["<CupOrderingDial />", "<OfficeSettings />"], "set-markets": ["<MarketsPanel />"],
     "set-team": ['<GoLine to="team" anchor="team-members">Add someone, or change a role</GoLine>', '<OrgChart part="lanes" />'], "set-digest": ["<FounderDigest />"],
@@ -8863,7 +8863,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     [...ids, ...partIds].every((id) => idCount(id) === 1), [...ids, ...partIds].filter((id) => idCount(id) !== 1));
   ok("settings page: You — the account row, then Notifications (this phone's alerts and sound, then what pings you) and Display (the look, then text size)",
     /<div id="set-account" className="set-row set-acct"><AccountRow \/><\/div>/.test(sh)
-    && /<Panel id="set-notify" title="Notifications" sub="[^"]+" value=\{v\(g\.notify\)\} remember=\{false\}>\s*<SetPart id="set-alerts"><DeviceAlerts userId=\{userId\} \/><\/SetPart>\s*<SetPart id="set-sound"><PassSound \/><\/SetPart>\s*<SetPart label="What pings you"><NotifPrefs userId=\{userId\} \/><\/SetPart>\s*<\/Panel>/.test(sh)
+    && /<Panel id="set-notify" title="Notifications" sub="[^"]+" value=\{v\(g\.notify\)\} remember=\{false\}>\s*<SetPart id="set-alerts"><DeviceAlerts \/><\/SetPart>\s*<SetPart id="set-sound"><PassSound \/><\/SetPart>\s*<SetPart label="What pings you"><NotifPrefs userId=\{userId\} \/><\/SetPart>\s*<\/Panel>/.test(sh)
     && /<Panel id="set-display" title="Display" sub="[^"]+" value=\{v\(g\.display\)\} remember=\{false\}>\s*<SetPart id="set-theme"><Appearance \/><\/SetPart>\s*<SetPart><DisplayControls \/><\/SetPart>\s*<\/Panel>/.test(sh)
     && !/<div id="set-(alerts|sound|theme)" className="set-row">/.test(sh));
   ok("settings page: a part is one piece of a row — its id where links name it, and the house eyebrow when the piece has no heading of its own",
@@ -8975,9 +8975,27 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const DA = code(read("components/DeviceAlerts.tsx"));
   ok("alerts on this device: the phone's answer is read as it draws (no effect), asked for with one tap, and every answer is said",
     /useSyncExternalStore\(subscribe, readPermission, \(\) => "unknown" as const\)/.test(DA) && /window\.dispatchEvent\(new Event\(ASKED\)\);/.test(DA)
-    && /if \(p === "granted"\) \{ subscribePush\(userId, true\);/.test(DA) && ["unknown", "granted", "default", "denied", "unsupported"].every((k) => new RegExp(`\\b${k}: "`).test(DA))
+    && /if \(await subscribePush\(true\)\) toast\("Order alerts are on for this phone"\);\s*else toast\(/.test(DA) && ["unknown", "granted", "default", "denied", "unsupported"].every((k) => new RegExp(`\\b${k}: "`).test(DA))
     && /const perm = useAlertPermission\(\);\s*if \(APP_BUILD\) return null;/.test(DA) && !/next update|web app on this phone/.test(DA)
     && /export const alertsOff = \(p: AlertPermission \| "unknown"\): boolean => p === "default" \|\| p === "denied";/.test(DA));
+  {
+    // 2026-10-11 (0365/0366, the review of the iPhone app's alerts): the page wrote its own row and never read the answer.
+    const lp = code(read("lib/push.ts")), au2 = code(read("components/AuthProvider.tsx")), fu = code(read("components/FindUs.tsx")), ps = code(read("components/ProfileSheet.tsx"));
+    ok("alerts: a device is kept by the database for whoever is signed in on it — the page no longer writes its own row, or deletes anyone's",
+      /const \{ error \} = await supabase\.rpc\("keep_push_device", \{\s*p_endpoint: j\.endpoint, p_p256dh: j\.keys\.p256dh, p_auth: j\.keys\.auth,\s*p_crew: crew \|\| null, p_wants_live: opts\?\.wantsLive \?\? null,\s*\}\);\s*return !error;/.test(lp)
+      && !/from\("push_subscriptions"\)/.test(lp) && /export async function subscribePush\(crew: boolean, opts\?: \{ wantsLive\?: boolean \}\): Promise<boolean>/.test(lp)
+      && !/\.from\("push_subscriptions"\)\.(upsert|insert|update|delete)/.test(code(read("components/DeviceAlerts.tsx")) + fu + ps + code(read("components/Checkout.tsx"))));
+    ok("alerts: a screen says \"on\" only once the device is kept — a guest's \"truck is live\" said on and kept nothing",
+      /if \(!\(await subscribePush\(!!profile\?\.is_admin, \{ wantsLive: turningOn \}\)\)\) \{ setState\(turningOn \? "off" : "on"\); return; \}/.test(fu)
+      && /if \(await subscribePush\(!!profile\?\.is_admin\)\) toast\("Order alerts are on"\);\s*else toast\(/.test(ps));
+    const pr = code(read("lib/pushRelease.ts"));
+    ok("alerts: signing out lets go of this device first, while still signed in — a second and a half at most, never held up — from the sign-out buttons, not the provider every route carries",
+      /await Promise\.race\(\[releaseThisDevice\(\), new Promise\(\(r\) => setTimeout\(r, 1500\)\)\]\);\s*await signOut\(\);/.test(pr)
+      && /if \(sub\?\.endpoint\) await supabase\.rpc\("release_push_device", \{ p_endpoint: sub\.endpoint \}\);/.test(pr)
+      && /onClick=\{\(\) => \{ onClose\(\); void signOutHere\(signOut\); toast\("Signed out"\); \}\}>Sign out<\/button>/.test(read("components/AccountSheet.tsx"))
+      && /void import\("@\/lib\/pushRelease"\)\.then\(\(m\) => m\.signOutHere\(signOut\), \(\) => signOut\(\)\)/.test(read("app/3mpire/page.tsx"))
+      && !/pushRelease|release_push_device/.test(au2) && !/release_push_device/.test(lp));
+  }
 
   // ── links still land: the pay anchor, the aliases, the Pass ──
   ok("links land: Money's pay anchor stays where refund alerts point (/crew?s=money&a=pay), and the alias table leaves it alone",

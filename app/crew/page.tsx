@@ -5530,7 +5530,7 @@ function SettingsHome({ userId, isAdmin, isOwner }: { userId: string | null; isA
       <SetList>
         <div id="set-account" className="set-row set-acct"><AccountRow /></div>
         <Panel id="set-notify" title="Notifications" sub="Order alerts and sound on this phone, what pings you, quiet hours" value={v(g.notify)} remember={false}>
-          <SetPart id="set-alerts"><DeviceAlerts userId={userId} /></SetPart>
+          <SetPart id="set-alerts"><DeviceAlerts /></SetPart>
           <SetPart id="set-sound"><PassSound /></SetPart>
           <SetPart label="What pings you"><NotifPrefs userId={userId} /></SetPart>
         </Panel>
