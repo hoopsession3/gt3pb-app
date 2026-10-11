@@ -4787,7 +4787,6 @@ button.mkpi-tile:active{transform:scale(.98)}
 .app.crew-day .alerts-strip-t b{color:#1a1610}
 /* Tasks pointer — a CALM secondary pointer, not an alert peer: no red, dashed hairline, transparent
    fill, so Live Ops never shows two identical solid alert strips bracketing neutral panels. */
-.alerts-strip.taskptr{background:transparent;border-style:dashed;border-color:var(--line)}
 
 /* one-hero-one-line stat shapes (de-noise sweep, crew) */
 .adm-hud-hero{display:flex;align-items:baseline;gap:8px;margin:4px 2px 2px}

@@ -14,7 +14,7 @@ import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, alertWhen, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
-import { localToday, etToday, dayWithDate, relativeDay, ageLabel, evDate, evTime, clockTime } from "@/lib/dates";
+import { localToday, etToday, relativeDay, ageLabel, evDate, evTime, clockTime } from "@/lib/dates";
 import { orderClockFrom, waitingToOpen, waitingLabel } from "@/lib/ordering";
 import { prepBucket } from "@/lib/readiness";
 import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
@@ -56,7 +56,7 @@ import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY
 import { useTaskSheet } from "@/components/TaskSheet";
 import { useRecord } from "@/components/RecordSheet";
 import { recordForAlert, TASK_ALERT_KINDS } from "@/lib/records";
-import { owedLine, prepHandoffKey, prepHandoffValue, EVENT_STAGES, isEventStage, stageLabel, type EventStage, eventPiles, newestFirst, dateLine, placeBesideTitle } from "@/lib/eventRecord";
+import { prepHandoffKey, prepHandoffValue, EVENT_STAGES, isEventStage, stageLabel, type EventStage, eventPiles, newestFirst, dateLine, placeBesideTitle } from "@/lib/eventRecord";
 import { WayButtons } from "@/components/RecordWays";
 import { goPlanTab, isPlanTab, planTabFromUrl, stampPlanTab, PLAN_TAB_KEY, PLAN_TAB_EVENT, type PlanTab } from "@/lib/planNav";
 import SwipePager from "@/components/SwipePager";
@@ -757,26 +757,62 @@ function Kitchen() {
 // live counts (orders on the pass, items 86'd) and opens Service mode, where the work happens.
 function ServicePulse({ onEnter }: { onEnter: () => void }) {
   const [pass, setPass] = useState<number | null>(null);
+  const [ahead, setAhead] = useState(0);
   const [out, setOut] = useState(0);
+  // DUE NOW, AND LATER (2026-10-11, the KDS audit). An order placed ahead of a stop (0343 ready_from) counted as on
+  // the pass from the moment it was placed, and turned this button red hours before anyone could start it. The
+  // count is what can be made now; what is placed ahead is said beside it, quietly.
   const load = useCallback(async () => {
     if (!supabase) return;
-    const [o, p] = await Promise.all([
-      supabase.from("orders").select("id", { count: "exact", head: true }).neq("status", "void").neq("status", "done"),
+    const nowISO = new Date().toISOString();
+    const [o, a, p] = await Promise.all([
+      supabase.from("orders").select("id", { count: "exact", head: true }).neq("status", "void").neq("status", "done")
+        .or(`ready_from.is.null,ready_from.lte.${nowISO}`),
+      supabase.from("orders").select("id", { count: "exact", head: true }).neq("status", "void").neq("status", "done")
+        .gt("ready_from", nowISO),
       supabase.from("products").select("id", { count: "exact", head: true }).eq("active", true).eq("sold_out", true),
     ]);
     if (o.count !== null) setPass(o.count);
+    if (a.count !== null) setAhead(a.count);
     if (p.count !== null) setOut(p.count);
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); const t = window.setInterval(load, 60_000); return () => window.clearInterval(t); }, [load]);
   useRealtimeTable(["orders", "products"], load);
   return (
     <button type="button" className={`svc-enter${(pass ?? 0) > 0 ? " hot" : ""}`} onClick={onEnter}>
       <span className="svc-enter-t">▶ The Pass</span>
       <span className="svc-enter-s">
         {pass === null ? "The pass, pickups & the 86 board — one screen"
-          : <>{pass > 0 ? <><b><NumberRoll value={pass} ms={450} /></b> on the pass</> : "The pass is clear"}{out > 0 && <> · <b><NumberRoll value={out} ms={450} /></b> 86&rsquo;d</>} — tap to work</>}
+          : <>{pass > 0 ? <><b><NumberRoll value={pass} ms={450} /></b> on the pass</> : "The pass is clear"}{ahead > 0 && <> · {ahead} placed ahead</>}{out > 0 && <> · <b><NumberRoll value={out} ms={450} /></b> 86&rsquo;d</>} — tap to work</>}
       </span>
     </button>
+  );
+}
+
+// DUE NEXT (2026-10-11, the KDS audit — Ryan: "KDS x Dispatcher deliveries, only — right call?"). Live Ops' second
+// half: what leaves the truck besides the cups — the pickup drop, the Sunday porches, the office route — as one list,
+// the soonest first. Each card still folds to one row until its day (components/crew/FoldCard) and says its own day;
+// it reports that day here (onDue), so the order follows the calendar rather than the code. A card with nothing
+// scheduled goes last, or hides, as it always has.
+type DueKey = "drop" | "porch" | "office";
+const DUE_KEYS: DueKey[] = ["drop", "porch", "office"];
+function DueNext({ canPlan, onOpenPass }: { canPlan: boolean; onOpenPass: () => void }) {
+  const [due, setDue] = useState<Record<DueKey, string | null>>({ drop: null, porch: null, office: null });
+  const report = useMemo(() => {
+    const at = (k: DueKey) => (day: string | null) => setDue((d) => (d[k] === day ? d : { ...d, [k]: day }));
+    return { drop: at("drop"), porch: at("porch"), office: at("office") };
+  }, []);
+  const order = [...DUE_KEYS].sort((a, b) => (due[a] ?? "9999-12-31").localeCompare(due[b] ?? "9999-12-31"));
+  const card: Record<DueKey, ReactNode> = {
+    drop: <DropOps key="drop" brief onOpen={onOpenPass} canPlan={canPlan} onDue={report.drop} />,
+    porch: <DeliveryOps key="porch" onDue={report.porch} />,
+    office: <OfficeOrders key="office" onDue={report.office} />,
+  };
+  return (
+    <section aria-label="Due next" className="due-next">
+      <SectionHeader label="Due next" annotation="pickups · porches · office" />
+      {order.map((k) => card[k])}
+    </section>
   );
 }
 
@@ -1601,8 +1637,7 @@ function MyDay({ userId, isLeader, canGoLive, canBrew, money }: { userId: string
   );
 }
 
-function MyTasks({ userId, chip = false, anchor = true }: { userId: string | null; chip?: boolean; anchor?: boolean }) {
-  const { setSection } = useOperatorSection();
+function MyTasks({ userId, anchor = true }: { userId: string | null; anchor?: boolean }) {
   const { openTask } = useTaskSheet();
   const { toast } = useApp();
   const [tasks, setTasks] = useState<MyTaskRow[]>([]);
@@ -1645,26 +1680,6 @@ function MyTasks({ userId, chip = false, anchor = true }: { userId: string | nul
   const sorted = [...tasks].sort((a, b) => score(a) - score(b) || (a.due_at ?? a.events?.day ?? "9999").localeCompare(b.due_at ?? b.events?.day ?? "9999"));
   const crit = tasks.filter((t) => t.critical).length;
   const over = tasks.filter(isOver).length;
-
-  // Chip face (Live Ops): the full list has ONE home — My Day. During service this is a pointer,
-  // the same pattern the alerts strip uses. Nothing on your plate → the pointer itself is noise.
-  if (chip) {
-    if (err) return (
-      <button type="button" className="alerts-strip taskptr" onClick={() => setSection("day")}>
-        <span className="alerts-strip-i" aria-hidden><Icon name="check" /></span>
-        <span className="alerts-strip-t"><b>Couldn&apos;t check your tasks</b></span>
-        <span className="alerts-strip-go">Open in My Day <Icon name="arrowRight" /></span>
-      </button>
-    );
-    if (empty) return null;
-    return (
-      <button type="button" className="alerts-strip taskptr" onClick={() => setSection("day")}>
-        <span className="alerts-strip-i" aria-hidden><Icon name="check" /></span>
-        <span className="alerts-strip-t"><b>{tasks.length} task{tasks.length === 1 ? "" : "s"} on your plate</b>{over ? ` · ${over} overdue` : crit ? ` · ${crit} critical` : ""}</span>
-        <span className="alerts-strip-go">Open in My Day <Icon name="arrowRight" /></span>
-      </button>
-    );
-  }
 
   if (err) {
     return (
@@ -4272,8 +4287,7 @@ function Members() {
 // ───────────────────────── live event HUD (command center) ─────────────────────────
 // The 3 numbers that matter mid-event, scoped to the live event. Sales = paid app orders
 // + Square POS mirror (event_sales), so walk-up cart sales count too.
-// The next event on the calendar, as v_event_record reads it — enough to say when it is and the one
-// loudest thing it is waiting on (lib/eventRecord owedLine), without opening it.
+// The next event on the calendar, as v_event_record reads it — the panel asks whether it is today.
 type NextEvent = {
   id: string; title: string | null; day: string | null; stage: string | null; phase: string | null;
   tasks: number | null; tasks_open: number | null; tasks_critical_open: number | null;
@@ -4286,7 +4300,10 @@ type NextEvent = {
 //   · "top": the live event's numbers, or today's event that is not live yet, above the Pass;
 //   · "later": the next event on the calendar, one row in the right column until it is today.
 // Each place reads what it needs; only a live event is polled (the $/hr clock, Square walk-ups).
-function EventHUD({ where, onGoEvents }: { where: "top" | "later"; onGoEvents?: () => void }) {
+// THE LIVE EVENT (Command, since 2026-10-11 — it led Live Ops): its sales, pace and plan while it is live; today's
+// event, not live yet, with its "Make it live"; nothing otherwise. Its "Next event" row went with the move: the next
+// event is Readiness' and Plan's, where it already was.
+function EventHUD() {
   const { toast } = useApp();
   const { openRecord } = useRecord();
   const [ev, setEv] = useState<EventRow | null | undefined>(undefined);
@@ -4311,7 +4328,6 @@ function EventHUD({ where, onGoEvents }: { where: "top" | "later"; onGoEvents?: 
       setNext(nxErr ? "error" : ((nx as NextEvent | null) ?? null));
       return;
     }
-    if (where === "later") return;   // the top has it
     const eid = (e as EventRow).id;
     const [{ data: ords }, { data: sales }, { data: cat }, { data: ec }] = await Promise.all([
       supabase.from("orders").select("total_cents, paid, payment_id, created_at").eq("event_id", eid),
@@ -4332,58 +4348,33 @@ function EventHUD({ where, onGoEvents }: { where: "top" | "later"; onGoEvents?: 
     setStats({ cents, orders: o.length + s.length, firstAt: times[0] ?? null });
     setCatalog((cat as ProductEcon[]) ?? []);
     setEcon((ec as EventEcon) ?? null);
-  }, [where]);
+  }, []);
   useEffect(() => { load(); }, [load]);
   // Reconcile every 15s while an event is live, so Square POS walk-ups + the $/hr clock advance even if
   // a realtime event is missed (matches the KDS's reconcile). Nothing live, nothing to poll.
   const liveId = ev?.id ?? null;
   useEffect(() => {
-    if (where !== "top" || !liveId) return;
+    if (!liveId) return;
     const recon = setInterval(load, 15000);
     return () => clearInterval(recon);
-  }, [where, liveId, load]);
-  useRealtimeTable(where === "top" ? ["orders", "event_sales", "events"] : ["events"], load);
-  // Still reading: the top stays out of the way (most days nothing is live, and a placeholder there
-  // would jump away); the row holds its place and says so.
-  if (ev === undefined || (ev === null && next === undefined)) {
-    return where === "later" ? (
-      <FoldCard id="next-event" title="Next event" sub="Checking the calendar…" today={false} label="The next event">
-        <p className="cp-line dim">Checking the calendar…</p>
-      </FoldCard>
-    ) : null;
-  }
+  }, [liveId, load]);
+  useRealtimeTable(["orders", "event_sales", "events"], load);
+  // Still reading: out of the way (most days nothing is live, and a placeholder here would jump away).
+  if (ev === undefined || (ev === null && next === undefined)) return null;
   if (!ev) {
-    // 2026-07-29 audit: the empty state grew a Go to Events button. 2026-10-04, Ryan's Live Ops at 9 PM on
-    // a Saturday: it says what is coming — the next event, when, and the one thing it is waiting on; an
-    // event that is TODAY and not live says so and offers to make it live, because the Square mirror
-    // files a card sale against the live event and against nothing otherwise (0024) — a forgotten switch
-    // is exactly how an event ends up "complete, with nothing recorded as taken". The truck instrument
-    // answers the same question for stops.
-    if (next === undefined) return null;   // (read above — this narrows it)
-    const isToday = !!next && next !== "error" && next.day === localToday();
-    if (where === "top" && !isToday) return null;
-    if (where === "later" && isToday) return null;
-    const goEvents = onGoEvents ? { label: "Go to Events", go: true, onClick: onGoEvents } : null;
+    // An event that is TODAY and not live says so and offers to make it live (2026-10-04), because the Square mirror
+    // files a card sale against the live event and against nothing otherwise (0024) — a forgotten switch is exactly
+    // how an event ends up "complete, with nothing recorded as taken". Anything else: nothing (the next event is
+    // Readiness' and Plan's). The truck instrument answers the same question for stops, on Live Ops.
+    // A read that failed is said (quiet is right for "nothing today", wrong for "we could not find out").
     if (next === "error") {
       return (
-        <FoldCard id="next-event" title="Next event" sub="Couldn't read the calendar just now" today={false} label="The next event">
-          <div className="adm-sec adm-hud">
-            <p className="cp-line">No event live. Couldn&apos;t read what&apos;s next just now.</p>
-            {goEvents && <WayButtons ways={[goEvents]} />}
-          </div>
+        <FoldCard id="hud" title="Today's event" sub="Couldn't check the calendar just now" today={false} label="Today's event">
+          <p className="cp-line dim">Couldn&apos;t check whether an event is on today. If one is, make it live from its page so card sales count toward it.</p>
         </FoldCard>
       );
     }
-    if (next === null) {
-      return (
-        <FoldCard id="next-event" title="Next event" sub="Nothing on the calendar" today={false} label="The next event">
-          <div className="adm-sec adm-hud">
-            <p className="cp-line">Sales and pace show here once an event goes live.</p>
-            {onGoEvents && <WayButtons ways={[{ label: "Plan an event", go: true, onClick: onGoEvents }]} />}
-          </div>
-        </FoldCard>
-      );
-    }
+    if (next === undefined || next === null || next.day !== localToday()) return null;
     const title = next.title?.trim() || "Untitled event";
     const makeLive = async () => {
       if (!supabase || arming) return;
@@ -4394,7 +4385,7 @@ function EventHUD({ where, onGoEvents }: { where: "top" | "later"; onGoEvents?: 
       toast("Event is live — sales now track to it");
       load();
     };
-    return isToday ? (
+    return (
       <FoldCard id="hud" title={title} sub="Today — not live yet" today label="Today's event">
         <div className="adm-sec adm-hud">
           <p className="cp-line">Card sales only count toward an event while it&apos;s live.</p>
@@ -4404,16 +4395,8 @@ function EventHUD({ where, onGoEvents }: { where: "top" | "later"; onGoEvents?: 
           ]} />
         </div>
       </FoldCard>
-    ) : (
-      <FoldCard id="next-event" title="Next event" sub={`${title} · ${next.day ? dayWithDate(next.day) : "no date yet"}`} today={false} label="The next event">
-        <div className="adm-sec adm-hud">
-          <p className="cp-line dim">{owedLine(next)}</p>
-          <WayButtons ways={[{ label: "Open it", go: true, onClick: () => openRecord("event", next.id) }]} />
-        </div>
-      </FoldCard>
     );
   }
-  if (where === "later") return null;
   const hrs = stats.firstAt ? Math.max(0.25, (Date.now() - new Date(stats.firstAt).getTime()) / 3600000) : 0;
   const perHr = hrs ? stats.cents / hrs : 0;
   // plan vs actual — feed the real gross into the projection's cost structure
@@ -6024,14 +6007,6 @@ export default function AdminPage() {
   // swipe turns through a lane's sections either way.
   const switcher = lane.members.length > 3;
 
-  // Overview's jump links map onto the operator sections — and the Plan sub-tab when relevant,
-  // so "Events" actually lands on Plan→Events instead of whatever tab was last open.
-  const goSection = (t: string) => {
-    const map: Record<string, OpSection> = { events: "plan", vendors: "plan", bookings: "plan", money: "money", members: "team", stops: "plan", tasks: "day" };
-    const tab: Record<string, typeof planTab> = { events: "events", vendors: "vendors", stops: "route", bookings: "leads" };
-    if (tab[t]) setPlanTab(tab[t]);
-    setSection(map[t] ?? "prep");
-  };
 
   return (
     <CrumbProvider>
@@ -6154,6 +6129,10 @@ export default function AdminPage() {
           {/* GT3 COMMAND (2026-08-03): the Executive OS lands. The portfolio registry LEADS —
               ten workstreams, Monday-audited — then the war room, then goals, then the twelve
               KPIs. One screen = the state of the company; Plan = the cadence that changes it. */}
+          {/* THE LIVE EVENT, HERE (2026-10-11, the KDS audit): its sales, pace and plan — or today's event, not live
+              yet, with its "Make it live" — the width of the screen, first. It led Live Ops, which is the pass and
+              the runs now; the people who read it are the people who read this screen. */}
+          <EventHUD />
           {/* ON THE DESK (2026-10-09, redesign 5): the portfolio and the war room on the left; goals and the twelve
               numbers on the right. */}
           <Columns>
@@ -6182,17 +6161,16 @@ export default function AdminPage() {
 
       {sec === "now" && (
         <>
-          {/* Now is the GLANCE + DISPATCH screen, and it is today: a critical alert → the live event → the
-              service pulse (live counts, one tap into the working screen) → the truck → the runs, each one
-              row until its day → personal tasks. The boards themselves (pass, pickup checklist, 86) render
-              in ONE place: Service mode. */}
-          <AlertsInbox userId={user?.id ?? null} compact />
-          {/* TODAY FIRST (2026-10-10, the Live Ops fold): a live event's numbers — or today's event, not live
-              yet — above everything, the width of the screen. */}
-          {canManage && <EventHUD where="top" onGoEvents={() => goSection("events")} />}
-          {/* ON THE DESK (2026-10-09, redesign 5): service on the left — the pass, the truck, the drop — and the
-              runs, the next event and your tasks on the right. Each run is one row until its day
-              (components/crew/FoldCard). */}
+          {/* LIVE OPS IS THE PASS AND WHAT IS DUE NEXT (2026-10-11, the KDS audit, approved). Ryan: "This what live
+              ops page suppose to be … KDS x Dispatcher deliveries, only right?" It was ten things, and one of them —
+              the button into the Pass — was about an order in front of you. Now it is two: the Pass (with the truck
+              that is serving it) and Due next, the pickups, porches and office route in the order they are due.
+              What left, and where it lives: the live event's numbers and its "Make it live" → Command (and My Day,
+              which already offered the switch); the next event → Readiness and Plan; your tasks → My Day; today's
+              critical alerts → the header's bell, and in the Pass its own bell and the strip that names a critical one. The alerts-off line
+              stays: it says whether this phone can ring for an order, and only when it can't. The boards themselves (pass, pickup checklist, 86) render in ONE
+              place: Service mode. */}
+          {/* ON THE DESK (2026-10-09, redesign 5): service on the left, dispatch on the right. */}
           <Columns>
           <Column>
           {!svc && <ServicePulse onEnter={() => setSvc(true)} />}
@@ -6203,36 +6181,36 @@ export default function AdminPage() {
               it is still drawn, out of reach — inert takes it out of the tab order and away from a screen
               reader, and the Pass covers it; `contents` leaves Live Ops' layout as it was. */}
           {canManage && <div className="contents" inert={svc ? true : undefined}><LiveControl compact /></div>}
-          {!svc && <DropOps brief onOpen={() => setSvc(true)} canPlan={canManage} />}
+          {/* Whether this phone can ring for an order: one line, only while order alerts are off here — the switch
+              is Settings › You › Notifications (2026-10-06). It stays with the service it is about. */}
+          <AlertsOffLine />
           </Column>
           <Column>
-          {!svc && (
-            <>
-              <DeliveryOps />
-              <OfficeOrders />
-            </>
-          )}
-          {canManage && <EventHUD where="later" onGoEvents={() => goSection("events")} />}
-          <MyTasks userId={user?.id ?? null} chip />
-          {/* Turning order alerts on is Settings › You › Notifications › Alerts on this device now (2026-10-06, the
-              settings round); here, one line, and only while they are off on this phone. */}
-          <AlertsOffLine />
+          {!svc && <DueNext canPlan={canManage} onOpenPass={() => setSvc(true)} />}
           </Column>
           </Columns>
         </>
       )}
       {/* SERVICE MODE — the KDS as ONE working surface: the pass is the board (tickets flow 2-up
-          on wide screens), and a sticky rail keeps pickups, the Sunday run sheet and the 86 board
-          in reach without ever leaving the screen — 86ing a flavor mid-rush is a tap, not an exit.
-          Exit with the button or Esc; leaving the Now section exits too. */}
+          on wide screens), and a sticky rail keeps pickups and the 86 board in reach without ever
+          leaving the screen — 86ing a flavor mid-rush is a tap, not an exit.
+          Exit with the button or Esc; leaving the Now section exits too.
+          ITS OWN BELL (2026-10-11, the KDS audit): the Pass covers the header, and with it the bell — a refund
+          to make or a paid order that didn't record went unseen on the one phone working the pass. The same
+          count, the same inbox, above the Pass. */}
       {svc && sec === "now" && (
         <div className="svc-full text-cream" role="dialog" aria-modal="true" aria-label="The Pass">
           <div className="svc-bar">
             <b>The Pass</b>
-            <button type="button" className="btn-ter" onClick={() => setSvc(false)}><Icon name="close" /> Exit</button>
+            <span className="flex items-center gap-2">
+              <IconButton icon="bell" label={hdrToday.length ? `Inbox — ${hdrToday.length} today` : "Inbox"} badge={hdrToday.length} crit={hdrTodayCrit > 0} onClick={() => setInboxOpen(true)} />
+              <button type="button" className="btn-ter" onClick={() => setSvc(false)}><Icon name="close" /> Exit</button>
+            </span>
           </div>
           <div className="svc-grid">
-            <div className="svc-main"><Kitchen /></div>
+            {/* Today's critical alert, named, one tap to the inbox — the strip that led Live Ops, on the screen the
+                crew is working. Nothing at all when there is none. */}
+            <div className="svc-main"><AlertsInbox userId={user?.id ?? null} compact /><Kitchen /></div>
             <aside className="svc-rail" aria-label="Pickups & sold-out">
               <DropOps canPlan={canManage} />
               <EightySix />

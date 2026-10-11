@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
@@ -49,9 +49,10 @@ type BOrder = {
 };
 // What a client asked GT3 for (0359's company_requests): the crew's to answer, here beside the route.
 type Req = { id: string; kind: string; body: string; status: string; order_id: string | null; created_at: string; companies: { name: string } | null };
-type Board = { rows: BOrder[]; later: BOrder[]; standingN: number; requests: Req[] };
+type Board = { rows: BOrder[]; later: BOrder[]; standingN: number; requests: Req[]; due: string | null };
 
-export default function OfficeOrders() {
+/** onDue: the day this route is next due (an overdue one first), for Live Ops' Due next to put the runs in order. */
+export default function OfficeOrders({ onDue }: { onDue?: (day: string | null) => void } = {}) {
   const prompt = usePrompt();
   const confirm = useConfirm();
   const { toast } = useApp();
@@ -61,7 +62,7 @@ export default function OfficeOrders() {
   const [showLater, setShowLater] = useState(false);
 
   const loader = useCallback(async (): Promise<Board> => {
-    if (!supabase) return { rows: [], later: [], standingN: 0, requests: [] };
+    if (!supabase) return { rows: [], later: [], standingN: 0, requests: [], due: null };
     const weekAgo = addDays(etToday(), -7);
     const [ord, acct, reqs] = await Promise.all([
       supabase.from("business_orders").select("*").is("canceled_at", null)
@@ -90,7 +91,9 @@ export default function OfficeOrders() {
     const route = open.filter((o) => nextDay === null || o.delivery_date <= nextDay);
     const later = open.filter((o) => nextDay !== null && o.delivery_date > nextDay);
     const done = all.filter((o) => o.status === "delivered").sort((a, b) => b.delivery_date.localeCompare(a.delivery_date));
-    return { rows: [...route, ...done], later, standingN: acct.count ?? 0, requests };
+    // Due (2026-10-11, Live Ops' Due next): the route's first day still owed — an overdue one first.
+    const due = open.map((o) => o.delivery_date).sort()[0] ?? null;
+    return { rows: [...route, ...done], later, standingN: acct.count ?? 0, requests, due };
   }, []);
   const board = useAsyncData(loader, []);
   const { reload } = board;
@@ -98,6 +101,8 @@ export default function OfficeOrders() {
   // the realtime publication in 0357 — before that the subscription simply receives nothing).
   useRealtimeTable("business_orders", reload);
   useRealtimeTable("company_requests", reload);
+  const dueDay = board.data?.due ?? null;
+  useEffect(() => { onDue?.(dueDay); }, [dueDay, onDue]);
 
   // A CLIENT ASKED (2026-10-07, 0359). Each request is the crew's to answer: take it (in progress), or
   // close it — done, or declined with the reason — and what is typed here is what the client reads on

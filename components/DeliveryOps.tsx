@@ -37,6 +37,7 @@ type DOrder = {
   total_cents: number; payment_status: string; status: string;
   driver_outcome: string | null; empties_expected: number; empties_collected: number | null;
   delivery_date: string; canceled_at: string | null;
+  driver_note?: string | null;   // the driver's word on an outcome ("Not home — 6:42 AM", components/DriverRun)
   batch_id?: string | null;   // 0261 recall traceability — which brew filled this porch
   customer_id?: string | null;
 };
@@ -47,10 +48,15 @@ const STATUS_LABEL: Record<string, string> = {
   delivered: "Delivered", held_for_pickup: "HELD — pickup", issue: "Issue",
 };
 
-export default function DeliveryOps() {
+/** onDue: the day of the next run (null: none scheduled), for Live Ops' Due next to put the runs in order. */
+export default function DeliveryOps({ onDue }: { onDue?: (day: string | null) => void } = {}) {
   const { toast } = useApp();
   const [rows, setRows] = useState<DOrder[]>([]);
   const [date, setDate] = useState<string | null>(null);
+  // FROM EARLIER (2026-10-11, the KDS audit). A porch held for pickup or not home left every board the next day —
+  // each read here and on the driver's run asks for today on — and nothing moved it to the next run. The last two
+  // weeks' undelivered porches stay on this card until somebody settles them.
+  const [earlier, setEarlier] = useState<DOrder[]>([]);
   const [loadFailed, setLoadFailed] = useState(false); // read failed ≠ no run today
   const [listOpen, setListOpen] = useState<boolean | null>(null);
   const [assign, setAssign] = useState(false);
@@ -61,19 +67,28 @@ export default function DeliveryOps() {
     // the next delivery day with anything on it (today counts — Sunday IS the run);
     // delivery_date is an ET business-day key (lib/delivery.ts), so "today" must be ET too
     const today = etToday();
-    const { data, error } = await supabase.from("delivery_orders").select("*")
-      .gte("delivery_date", today).is("canceled_at", null)
-      .order("delivery_date").order("address_zip").limit(200);
+    const since = new Date(`${today}T12:00:00Z`); since.setUTCDate(since.getUTCDate() - 14);
+    const [{ data, error }, back] = await Promise.all([
+      supabase.from("delivery_orders").select("*")
+        .gte("delivery_date", today).is("canceled_at", null)
+        .order("delivery_date").order("address_zip").limit(200),
+      supabase.from("delivery_orders").select("*")
+        .lt("delivery_date", today).gte("delivery_date", since.toISOString().slice(0, 10))
+        .in("status", ["held_for_pickup", "issue"]).is("canceled_at", null)
+        .order("delivery_date", { ascending: false }).limit(50),
+    ]);
     if (error) { setLoadFailed(true); return; }
     setLoadFailed(false);
     const all = (data ?? []) as DOrder[];
     const d = all[0]?.delivery_date ?? null;
     setDate(d);
     setRows(all.filter((o) => o.delivery_date === d));
+    setEarlier(back.error ? [] : ((back.data ?? []) as DOrder[]));   // the upcoming run is the card; this is its margin
   }, []);
 
   useEffect(() => { load(); }, [load]);
   useRealtimeTable("delivery_orders", load);
+  useEffect(() => { onDue?.(date); }, [date, onDue]);
 
   // A WRITE THAT FAILED SAYS SO (2026-10-11): the status and the batch were written unchecked, so a refused one
   // looked saved until the board read again and quietly put it back.
@@ -112,7 +127,34 @@ export default function DeliveryOps() {
       </p>
     </div>
   );
-  if (!date || rows.length === 0) return null; // quiet until a delivery exists
+  // Undelivered porches from the last two weeks, each with what the driver said: on the run's card, and the card
+  // itself when no run is scheduled — quiet only when there is neither.
+  const day = (iso: string, o: Intl.DateTimeFormatOptions) => new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, o);
+  const earlierBlock = earlier.length > 0 && (
+    <div role="group" aria-label="From earlier runs — not delivered">
+      <p className="dops-sum"><b className="dl-held">{earlier.length} from earlier</b> — not delivered, and not on a run until someone moves {earlier.length === 1 ? "it" : "them"}.</p>
+      <div className="k-rows">
+        {earlier.map((o) => (
+          <InfoRow key={o.id} lead={day(o.delivery_date, { weekday: "short" })} leadSub={day(o.delivery_date, { month: "short", day: "numeric" })}
+            name={o.name}
+            nameExtra={<span className="dops-chip new">{STATUS_LABEL[o.status]}</span>}
+            meta={<>
+              {o.driver_note ? <><em>{o.driver_note}</em> · </> : null}{o.pack_size} bottles · {o.address_street}, {o.address_city}
+              {o.phone ? <div className="dops-drive"><a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>Call {o.name.split(" ")[0]}</a></div> : null}
+            </>} />
+        ))}
+      </div>
+    </div>
+  );
+  if (!date || rows.length === 0) {
+    if (!earlierBlock) return null; // quiet until a delivery exists
+    return (
+      <FoldCard title="Sunday delivery" label="Sunday delivery" today
+        sub={`No run scheduled · ${earlier.length} from earlier`}>
+        {earlierBlock}
+      </FoldCard>
+    );
+  }
 
   const bottles = rows.reduce((a, o) => a + o.pack_size, 0);
   const refills = rows.reduce((a, o) => a + o.refill_count, 0);
@@ -137,8 +179,9 @@ export default function DeliveryOps() {
     // bottles to make — and the whole working face on the run's day, or on a tap (components/crew/
     // FoldCard). Each porch is a kit InfoRow; the porch list inside still folds until the run.
     <FoldCard title="Sunday delivery" label="Sunday delivery" today={isRunDay}
-      sub={`${dLabel} · ${rows.length} porch${rows.length === 1 ? "" : "es"}`}
+      sub={`${dLabel} · ${rows.length} porch${rows.length === 1 ? "" : "es"}${earlier.length ? ` · ${earlier.length} from earlier` : ""}`}
       value={`${bottles} bottle${bottles === 1 ? "" : "s"}`}>
+      {earlierBlock}
       <p className="dops-sum">
         <b>{bottles}</b> bottles ({refills} refills · {fresh} fresh) · <b>{money(revenue)}</b> paid on order
         {heldQueue.length > 0 && <> · <b className="dl-held">{heldQueue.length} held for pickup</b></>}

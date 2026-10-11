@@ -5255,11 +5255,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     const idle = (hud.match(/if \(!ev\) \{[\s\S]*?\n  \}\n/) || [""])[0];
     ok("heads-up: with nothing live it reads the next event — not archived, not done, today or later, soonest first",
       /from\("v_event_record"\)/.test(hud) && /\.is\("archived_at", null\)\.neq\("stage", "done"\)\.gte\("day", localToday\(\)\)/.test(hud) && /\.order\("day", \{ ascending: true \}\)\.limit\(1\)/.test(hud));
-    ok("heads-up: a failed read is said as a failure, never as an empty calendar", /setNext\(nxErr \? "error"/.test(hud) && /Couldn&apos;t read what&apos;s next/.test(idle));
-    ok("heads-up: four honest states — checking, nothing on the calendar, today and not live, next",
-      /sub="Checking the calendar…"/.test(hud) && /sub="Nothing on the calendar"/.test(idle) && /sub="Today — not live yet"/.test(idle) && /sub=\{`\$\{title\} · \$\{next\.day \? dayWithDate\(next\.day\) : "no date yet"\}`\}/.test(idle));
+    ok("heads-up: a failed read is said as a failure, never as an empty calendar", /setNext\(nxErr \? "error"/.test(hud) && /sub="Couldn't check the calendar just now"/.test(idle));
+    // 2026-10-11 (the KDS audit): it leads Command now, not Live Ops, and its "Next event" row went with the move —
+    // the next event is Readiness' and Plan's. Its states: still reading (nothing drawn), couldn't read (said),
+    // today and not live (make it live), live (the numbers); anything else draws nothing.
+    ok("heads-up: its honest states — still reading draws nothing, a failed read is said, today and not live, and quiet otherwise",
+      /if \(ev === undefined \|\| \(ev === null && next === undefined\)\) return null;/.test(hud) && /sub="Today — not live yet"/.test(idle)
+        && /if \(next === undefined \|\| next === null \|\| next\.day !== localToday\(\)\) return null;/.test(idle) && !/where/.test(hud) && !/Next event/.test(hud));
     ok("heads-up: today's event can be made live from here, through the one RPC that owns the rule", /setEventLive\(supabase, next\.id, true\)/.test(idle) && /label: "Make it live"/.test(idle));
-    ok("heads-up: the next event opens its record, and says the one thing it is waiting on", /openRecord\("event", next\.id\)/.test(idle) && /owedLine\(next\)/.test(idle) && /dayWithDate\(next\.day\)/.test(idle));
+    ok("heads-up: today's event opens its record", /openRecord\("event", next\.id\)/.test(idle));
     ok("heads-up: no box inside the panel's box — the idle state draws no EmptyState", !/<EmptyState/.test(idle) && /<WayButtons/.test(idle));
     // ── LIVE OPS SHOWS TODAY (2026-10-10, the Live Ops fold) ──
     // The service glance drew Monday's office route (1,100px on a Saturday), next week's brew sheet and a
@@ -5275,10 +5279,25 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("live ops: a link to a fold opens it, as it opens a <Panel>", /window\.addEventListener\(OPEN_PANEL_EVENT, onOpen\)/.test(fold) && /detail === id\) setAsked\(true\)/.test(fold));
     ok("live ops: one alert number — the strip names today's critical alert and counts nothing else",
       /f\.severity === "critical" && flagIsToday\(f, today\)/.test(strip) && /<b>\{hot\[0\]\.title\}<\/b>/.test(strip) && !/alerts need|mine\.length/.test(strip));
-    ok("live ops: the live event's numbers sit on top, the next event is a row on the right",
-      nowSec.indexOf('<EventHUD where="top"') > 0 && nowSec.indexOf('<EventHUD where="top"') < nowSec.indexOf("<Columns>")
-        && nowSec.indexOf('<EventHUD where="later"') > nowSec.indexOf("<DeliveryOps />") && !/<Panel id="hud"/.test(page));
-    ok("live ops: only a live event is polled", /if \(where !== "top" \|\| !liveId\) return;\s*const recon = setInterval\(load, 15000\);/.test(hud));
+    // 2026-10-11 (the KDS audit, approved — Ryan: "KDS x Dispatcher deliveries, only right?"): Live Ops is the Pass
+    // and what is due next. The live event leads Command; the next event is Readiness' and Plan's; tasks are My Day's;
+    // today's critical alert is the Pass's strip and both bells.
+    const cmdSec = (page.match(/\{sec === "command" && canManage && \([\s\S]*?\n      \)\}/) || [""])[0];
+    const svcSrc = (page.match(/\{svc && sec === "now" && \([\s\S]*?\n      \)\}/) || [""])[0];
+    ok("live ops: the Pass and Due next, nothing else — the event, the tasks and the alert strip live elsewhere",
+      /<ServicePulse onEnter=\{\(\) => setSvc\(true\)\} \/>/.test(nowSec) && /<LiveControl compact \/>/.test(nowSec) && /<DueNext canPlan=\{canManage\} onOpenPass=\{\(\) => setSvc\(true\)\} \/>/.test(nowSec)
+        && !/<EventHUD|<MyTasks|<AlertsInbox/.test(nowSec) && cmdSec.indexOf("<EventHUD />") > 0 && cmdSec.indexOf("<EventHUD />") < cmdSec.indexOf("<Columns>")
+        && /<AlertsInbox userId=\{user\?\.id \?\? null\} compact \/><Kitchen \/>/.test(svcSrc) && /<IconButton icon="bell"[^\n]*onClick=\{\(\) => setInboxOpen\(true\)\} \/>/.test(svcSrc) && !/<Panel id="hud"/.test(page));
+    ok("live ops: Due next puts the runs in the order they are due — each card reports its day, none waits on another",
+      /const order = \[\.\.\.DUE_KEYS\]\.sort\(\(a, b\) => \(due\[a\] \?\? "9999-12-31"\)\.localeCompare\(due\[b\] \?\? "9999-12-31"\)\);/.test(page)
+        && /useEffect\(\(\) => \{ onDue\?\.\(dropISO\); \}, \[dropISO, onDue\]\);/.test(dropSrc) && /useEffect\(\(\) => \{ onDue\?\.\(date\); \}, \[date, onDue\]\);/.test(delSrc)
+        && /useEffect\(\(\) => \{ onDue\?\.\(dueDay\); \}, \[dueDay, onDue\]\);/.test(ooSrc));
+    ok("live ops: a porch held or not home stays on the Sunday card for two weeks, with what the driver said — it left every board the next day",
+      /\.lt\("delivery_date", today\)\.gte\("delivery_date", since\.toISOString\(\)\.slice\(0, 10\)\)\s*\.in\("status", \["held_for_pickup", "issue"\]\)\.is\("canceled_at", null\)/.test(delSrc)
+        && /sub=\{`No run scheduled · \$\{earlier\.length\} from earlier`\}/.test(delSrc) && /o\.driver_note \?/.test(delSrc));
+    ok("live ops: the Pass button counts what can be made now — an order placed ahead is said beside it, not counted",
+      /\.or\(`ready_from\.is\.null,ready_from\.lte\.\$\{nowISO\}`\)/.test(page) && /\.gt\("ready_from", nowISO\)/.test(page) && /\{ahead > 0 && <> · \{ahead\} placed ahead<\/>\}/.test(page));
+    ok("live ops: only a live event is polled", /if \(!liveId\) return;\s*const recon = setInterval\(load, 15000\);/.test(hud));
     ok("live ops: the drop is one row until drop day — or the brew day, while the brew isn't queued",
       /<FoldCard title="Pickup drop" label="Pickup drop" today=\{isDropDay \|\| brewDue\}/.test(dropSrc)
         && /const brewDay = addDays\(dropISO, -1\);/.test(dropSrc) && /const brewDue = bottles > 0 && batches\.length === 0 && etToday\(\) >= brewDay && etToday\(\) <= dropISO;/.test(dropSrc));

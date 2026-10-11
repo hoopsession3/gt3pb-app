@@ -58,7 +58,8 @@ const stageIndex = (s: PackStage | null | undefined) => Math.max(0, PACK_STAGES.
 // Two faces: `brief` is the Now screen's prep face (what to brew, what money, one progress line —
 // tapping it opens Service mode); full is the working face (checklist, upcoming, history) and
 // lives in Service mode only, so the same list never renders on two screens.
-export default function DropOps({ brief = false, onOpen, canPlan = false }: { brief?: boolean; onOpen?: () => void; canPlan?: boolean } = {}) {
+// onDue: the drop's day, for Live Ops' Due next to put the runs in order (2026-10-11).
+export default function DropOps({ brief = false, onOpen, canPlan = false, onDue }: { brief?: boolean; onOpen?: () => void; canPlan?: boolean; onDue?: (day: string | null) => void } = {}) {
   const confirm = useConfirm();
   const { toast } = useApp();
   const { user, profile } = useAuth();
@@ -86,6 +87,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
   }, []);
   const dropISO = drop.iso;
   const satLabel = drop.label;
+  useEffect(() => { onDue?.(dropISO); }, [dropISO, onDue]);
   // Humanized, unambiguous drop date for the heading — "This Sat · Jul 18" inside the week, "Sat,
   // Oct 10" outside it (lib/dates dayWithDate). It was `${relativeDay} · ${date}`, which read "Oct 10
   // · Oct 10's drop" the moment the drop was a week out. satLabel stays the raw weekday label the
