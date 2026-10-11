@@ -86,6 +86,9 @@ export default function DriverRun() {
     } catch { /* best-effort */ }
   })(); };
 
+  // AN ALERT OPENS THE PORCH'S CARD (2026-10-11, the dispatch round): "/crew?s=now" landed at the top of Live Ops, the
+  // Sunday card folded further down; &a=due-porch is that card's id (lib/dueNext DUE_CARD — written out here, so the
+  // driver's screen carries none of the console's code), and the jump opens it.
   // THE TEXT FOLLOWS THE SAVE (2026-10-11). "Your bottles are on the porch" went to the customer before the outcome
   // was written, so a save that failed still told them; and hold, not-home and undo were never checked — a refused
   // hold said "crew alerted" and raised the alert for a porch the board still showed out for delivery. Each one now
@@ -106,7 +109,7 @@ export default function DriverRun() {
     if (!supabase || busyId) return; setBusyId(o.id); haptic("warning");
     const { error } = await supabase.from("delivery_orders").update({ driver_outcome: "held_no_empties", status: "held_for_pickup", empties_collected: 0 }).eq("id", o.id);
     if (error) { setBusyId(null); setOpenId(null); toast("Didn't save — check the porch", "error"); reload(); return; }
-    await raiseAlertClient({ severity: "important", category: "order", kind: "delivery_held", subjectId: o.id, title: "Delivery held — pickup queue", body: `${o.name} — no empties out. ${o.pack_size} bottles held at GT3PB for pickup 10 AM – 2 PM. ${o.phone ?? ""}`.trim(), link: "/crew?s=now" });
+    await raiseAlertClient({ severity: "important", category: "order", kind: "delivery_held", subjectId: o.id, title: "Delivery held — pickup queue", body: `${o.name} — no empties out. ${o.pack_size} bottles held at GT3PB for pickup 10 AM – 2 PM. ${o.phone ?? ""}`.trim(), link: "/crew?s=now&a=due-porch" });
     setBusyId(null); setOpenId(null); toast("Held for pickup — crew alerted"); reload();
   };
   const notHome = async (o: DOrder) => {
@@ -114,7 +117,7 @@ export default function DriverRun() {
     const at = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     const { error } = await supabase.from("delivery_orders").update({ status: "issue", driver_outcome: null, empties_collected: 0, driver_note: `Not home — ${at}` }).eq("id", o.id);
     if (error) { setBusyId(null); setOpenId(null); toast("Didn't save — check the porch", "error"); reload(); return; }
-    await raiseAlertClient({ severity: "important", category: "order", kind: "delivery_not_home", subjectId: o.id, title: "Delivery — customer not home", body: `${o.name} wasn't home for the ${o.pack_size}-bottle drop${o.refill_count > 0 ? " (swap not completed)" : ""}. ${o.address_street}, ${o.address_city}. ${o.phone ?? ""}`.trim(), link: "/crew?s=now" });
+    await raiseAlertClient({ severity: "important", category: "order", kind: "delivery_not_home", subjectId: o.id, title: "Delivery — customer not home", body: `${o.name} wasn't home for the ${o.pack_size}-bottle drop${o.refill_count > 0 ? " (swap not completed)" : ""}. ${o.address_street}, ${o.address_city}. ${o.phone ?? ""}`.trim(), link: "/crew?s=now&a=due-porch" });
     setBusyId(null); setOpenId(null); toast("Logged — not home; crew alerted"); reload();
   };
   // Roll a stop back to open — undo a mis-tap. Ties to the order: clears the outcome + reopens it.

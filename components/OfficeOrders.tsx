@@ -20,6 +20,8 @@ import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
 import { usePrompt } from "@/components/PromptSheet";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { useMinute } from "@/lib/useMinute";
+import { dueAnchor, officeLate, type OfficeFeed } from "@/lib/dueNext";
 
 // CREW · OFFICE ORDERS — the operator's control surface for the Monday B2B route (0187). See upcoming
 // office deliveries, log the jug swap (full out / empties in) on delivery, and settle billing
@@ -51,9 +53,11 @@ type BOrder = {
 type Req = { id: string; kind: string; body: string; status: string; order_id: string | null; created_at: string; companies: { name: string } | null };
 type Board = { rows: BOrder[]; later: BOrder[]; standingN: number; requests: Req[]; due: string | null };
 
-/** onDue: the day this route is next due (an overdue one first), for Live Ops' Due next to put the runs in order. */
-export default function OfficeOrders({ onDue }: { onDue?: (day: string | null) => void } = {}) {
+/** onDue: the day this route is next due (an overdue one first), for Live Ops' Due next to put the runs in order.
+ *  onRows: the route's stops still to deliver, as this card read them, for Due next's one list (2026-10-11). */
+export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string | null) => void; onRows?: (feed: OfficeFeed) => void } = {}) {
   const prompt = usePrompt();
+  const now = useMinute();
   const confirm = useConfirm();
   const { toast } = useApp();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -103,6 +107,10 @@ export default function OfficeOrders({ onDue }: { onDue?: (day: string | null) =
   useRealtimeTable("company_requests", reload);
   const dueDay = board.data?.due ?? null;
   useEffect(() => { onDue?.(dueDay); }, [dueDay, onDue]);
+  // Due next's one list is this route: every stop up to its next day still to deliver, an overdue one first.
+  useEffect(() => {
+    onRows?.({ status: board.status, rows: board.data ? board.data.rows.filter((o) => o.status !== "delivered") : [] });
+  }, [board.status, board.data, onRows]);
 
   // A CLIENT ASKED (2026-10-07, 0359). Each request is the crew's to answer: take it (in progress), or
   // close it — done, or declined with the reason — and what is typed here is what the client reads on
@@ -238,6 +246,21 @@ export default function OfficeOrders({ onDue }: { onDue?: (day: string | null) =
     setBusyId(null);
   };
 
+  // A STOP NOT DELIVERED, REOPENED (2026-10-11, the dispatch round). The driver's "Couldn't deliver" logs the stop, and the
+  // database will not log a logged stop twice ("undo it first") — but only the driver's screen had the undo, so this
+  // route's own Log delivery could never land on it. office_reopen_delivery (0357) is that undo: it puts the stop back on
+  // the run, answers the crew's alert about it, and keeps the reason on the record. Then Log delivery works.
+  const reopen = async (o: BOrder) => {
+    if (!supabase || busyId) return;
+    const why = await prompt({ title: `Reopen ${o.company}'s delivery?`, hint: "It goes back on the run, to log again. Say why — it goes on the record.", defaultValue: "delivering it after all", confirmLabel: "Reopen" });
+    if (!why || !why.trim()) return;
+    setBusyId(o.id);
+    const { error } = await supabase.rpc("office_reopen_delivery", { p_order: o.id, p_reason: why.trim() });
+    setBusyId(null);
+    if (error) { toast(`Couldn't reopen it — ${error.message}`, "error"); return; }
+    toast(`${o.company} — back on the run`); reload();
+  };
+
   // CANCEL ASKS, AND SAYS WHEN IT DIDN'T (2026-10-11). One tap took a delivery off the route with no question, and the
   // write was not checked, so a refused one still read "canceled". A canceled delivery leaves the route, the driver's
   // run and the client's page, and nothing here brings it back — so it asks first, like every step that can't be undone.
@@ -277,7 +300,7 @@ export default function OfficeOrders({ onDue }: { onDue?: (day: string | null) =
           // actions, just one level more involved here. "Delivered & swapped" is the one .btn-pri on this
           // screen (only one order can be open at a time via openId, so it's never rendered more than once
           // at once); a row's actions are compact (.btn-sm, 2026-10-09).
-          <FoldCard label="Office orders" title="Office route" today={itsDay}
+          <FoldCard label="Office orders" title="Office route" today={itsDay} id="due-office"
             sub={day ? `${dayWithDate(day)} · ${route.length} deliver${route.length === 1 ? "y" : "ies"}` : "Nothing on the route yet"}
             value={asked > 0 ? <span className="mpanel-warn">{asked} {asked === 1 ? "request" : "requests"}</span> : gal > 0 ? `${gal} gal` : null}>
             {/* Generate keeps its one word, on the right: at 390px a long button pushed the title onto two
@@ -319,14 +342,18 @@ export default function OfficeOrders({ onDue }: { onDue?: (day: string | null) =
             <div className="k-rows">
               {rows.map((o) => {
                 const open = openId === o.id;
+                // STATES IN WORDS (2026-10-11, the dispatch round): a stop the driver couldn't make said nothing here, and
+                // one past its window read as one on time. The row carries its id, so Due next lands on it.
+                const said = o.status === "issue" ? "not delivered" : officeLate(o, now) ? "late" : null;
                 return (
-                  <div key={o.id}>
+                  <div key={o.id} id={dueAnchor("office", o.id)} tabIndex={-1} className="outline-none">
                     <InfoRow
                       name={o.company}
                       nameExtra={<>{o.standing && <span className="oo-badge">standing</span>}{o.status === "delivered" && <span className="oo-badge done">delivered</span>}</>}
                       trailing={<span className="oo-gal">{Math.round(o.gallons)} gal</span>}
                       meta={<>
                         <div className="oo-meta">
+                          {said && <><span className="mpanel-warn">{said}</span><span className="oo-dot">·</span></>}
                           <span>{mondayLabel(o.delivery_date)} · {windowHours(o.delivery_window)}</span>
                           <span className="oo-dot">·</span>
                           <span className={`oo-pay p-${o.payment_status}`}>{o.payment_status === "paid" ? "paid" : o.payment_status === "invoiced" ? "invoiced" : o.billing_terms === "prepaid" ? "awaiting prepay" : "to invoice"}</span>
@@ -338,7 +365,9 @@ export default function OfficeOrders({ onDue }: { onDue?: (day: string | null) =
 
                         {!open ? (
                           <div className="oo-acts">
-                            {o.status !== "delivered" && <button type="button" className="btn-sec btn-sm" onClick={() => { setOpenId(o.id); setEmpties((e) => ({ ...e, [o.id]: Math.round(o.gallons) })); }}>Log delivery</button>}
+                            {o.status === "issue"
+                              ? <button type="button" className="btn-sec btn-sm" onClick={() => reopen(o)} disabled={busyId === o.id}>Reopen</button>
+                              : o.status !== "delivered" && <button type="button" className="btn-sec btn-sm" onClick={() => { setOpenId(o.id); setEmpties((e) => ({ ...e, [o.id]: Math.round(o.gallons) })); }}>Log delivery</button>}
                             {/* MONEY AFTER THE CUTOFF (0358). With six weeks on the route, a pay link or a net
                                 invoice could be made weeks early: the invoice fell due before the delivery, and a
                                 delivery with a link or an invoice stops following its program (a pause, new
@@ -362,9 +391,9 @@ export default function OfficeOrders({ onDue }: { onDue?: (day: string | null) =
                             <div className="oo-jug">
                               <span className="oo-jug-l">Empty jugs collected</span>
                               <div className="oo-step">
-                                <button type="button" onClick={() => setEmpties((e) => ({ ...e, [o.id]: Math.max(0, (e[o.id] ?? Math.round(o.gallons)) - 1) }))} aria-label="Fewer">−</button>
+                                <button type="button" className="min-h-11 min-w-11" onClick={() => setEmpties((e) => ({ ...e, [o.id]: Math.max(0, (e[o.id] ?? Math.round(o.gallons)) - 1) }))} aria-label="Fewer">−</button>
                                 <span className="oo-jug-v">{empties[o.id] ?? Math.round(o.gallons)}</span>
-                                <button type="button" onClick={() => setEmpties((e) => ({ ...e, [o.id]: (e[o.id] ?? Math.round(o.gallons)) + 1 }))} aria-label="More">+</button>
+                                <button type="button" className="min-h-11 min-w-11" onClick={() => setEmpties((e) => ({ ...e, [o.id]: (e[o.id] ?? Math.round(o.gallons)) + 1 }))} aria-label="More">+</button>
                               </div>
                             </div>
                             <button type="button" className="btn-pri btn-wide" onClick={() => deliver(o, true)} disabled={busyId === o.id}><Icon name="check" /> Delivered &amp; swapped</button>

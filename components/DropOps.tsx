@@ -20,6 +20,7 @@ import { canOf } from "@/lib/roles";
 import { canCollect, canUndo, collectPayment, undoCollection, isSettled, paidHow, type CollectVia } from "@/lib/collect";
 import { useCollectSheet } from "./CollectSheet";
 import FoldCard from "@/components/crew/FoldCard";
+import type { PickupFeed } from "@/lib/dueNext";
 
 // DROP OPS — the order-ahead brew sheet + pickup checklist for Saturday's drop. Lives in the admin
 // "Now" section right under the kitchen pass (and pops out of reservation alerts), so walk-up orders
@@ -59,7 +60,8 @@ const stageIndex = (s: PackStage | null | undefined) => Math.max(0, PACK_STAGES.
 // tapping it opens Service mode); full is the working face (checklist, upcoming, history) and
 // lives in Service mode only, so the same list never renders on two screens.
 // onDue: the drop's day, for Live Ops' Due next to put the runs in order (2026-10-11).
-export default function DropOps({ brief = false, onOpen, canPlan = false, onDue }: { brief?: boolean; onOpen?: () => void; canPlan?: boolean; onDue?: (day: string | null) => void } = {}) {
+// onRows: the drop's packs as this card read them, for Due next's one list (2026-10-11, the dispatch round).
+export default function DropOps({ brief = false, onOpen, canPlan = false, onDue, onRows }: { brief?: boolean; onOpen?: () => void; canPlan?: boolean; onDue?: (day: string | null) => void; onRows?: (feed: PickupFeed) => void } = {}) {
   const confirm = useConfirm();
   const { toast } = useApp();
   const { user, profile } = useAuth();
@@ -75,16 +77,19 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue 
   // the day it opened on: through a route edit, past the drop, past midnight. As a loader of `stops` it is read again
   // when the route changes, when the app comes back after a while, on pull to refresh, and when the crew page's day
   // turns over (lib/realtime refreshLive). A read that fails keeps the day on screen rather than guess the cadence.
-  const [drop, setDrop] = useState<{ iso: string; label: string }>(() => {
+  // `at` is the stop's start when the drop came from one — Due next says the drop's time (2026-10-11); null on the
+  // Saturday rule, which knows the day only.
+  const [drop, setDrop] = useState<{ iso: string; label: string; at: string | null }>(() => {
     const s = boardSaturday();
-    return { iso: dropDateKey(s), label: s.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) };
+    return { iso: dropDateKey(s), label: s.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }), at: null };
   });
   const resolveDrop = useCallback(async () => {
     if (!supabase) return;
     const d = await nextDropDay(supabase);
     if (d.error) return;
     const label = d.at.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-    setDrop((cur) => (cur.iso === d.iso && cur.label === label ? cur : { iso: d.iso, label }));
+    const at = d.fromStop ? d.at.toISOString() : null;
+    setDrop((cur) => (cur.iso === d.iso && cur.label === label && cur.at === at ? cur : { iso: d.iso, label, at }));
   }, []);
   useRealtimeTable("stops", resolveDrop, { loadOnMount: true });
   const dropISO = drop.iso;
@@ -117,6 +122,11 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue 
   const { reload } = board;
   useRealtimeTable("drop_orders", reload);
   useRealtimeTable("brew_batches", reload);
+  // Due next's list is this read — the same drop, the same packs — handed up as it lands (2026-10-11).
+  const dropAt = drop.at;
+  useEffect(() => {
+    onRows?.({ status: board.status, day: dropISO, at: dropAt, rows: board.data?.rows ?? [] });
+  }, [board.status, board.data, dropISO, dropAt, onRows]);
 
   const rows = board.data?.rows ?? [];
   const upcoming = board.data?.upcoming ?? [];
@@ -319,10 +329,10 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue 
               ) : bottles > 0 ? (
                 <div className="dops-plan">
                   <span>Friday&rsquo;s brew: {FLAVORS.filter((f) => perF[f] > 0).map((f) => `${gallonsForBottles(perF[f], null)} gal ${f}`).join(" · ")}</span>
-                  {canPlan && <button type="button" onClick={queueBrew} disabled={busy}>{busy ? "Queuing…" : "Queue brew batches"}</button>}
+                  {canPlan && <button type="button" className="min-h-11" onClick={queueBrew} disabled={busy}>{busy ? "Queuing…" : "Queue brew batches"}</button>}
                 </div>
               ) : null}
-              <button type="button" className={`dops-prog${allDone ? " done" : ""}`} onClick={() => (brief ? onOpen?.() : setListOpen(!showList))} aria-expanded={brief ? undefined : showList}>
+              <button type="button" className={`dops-prog min-h-11${allDone ? " done" : ""}`} onClick={() => (brief ? onOpen?.() : setListOpen(!showList))} aria-expanded={brief ? undefined : showList}>
                 <span>{allDone ? <><Icon name="check" /> All picked up · bottles in</> : <><b>{pickedCount}/{rows.length}</b> picked up{returns.length > 0 ? <> · <b>{bottlesInCount}/{returns.length}</b> bottles in</> : null}</>}</span>
                 <span>{brief ? "checklist in Service ▸" : showList ? "▾" : "▸"}</span>
               </button>
@@ -398,7 +408,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue 
               its day (ITS DAYS, above); in Service mode and the drop sheet it is the titled panel, where
               SectionHeader supplies its own top spacing and the card only pads sides + bottom. */}
           {brief ? (
-            <FoldCard title="Pickup drop" label="Pickup drop" today={isDropDay || brewDue}
+            <FoldCard title="Pickup drop" label="Pickup drop" today={isDropDay || brewDue} id="due-pickup"
               sub={`${dropWhen} · ${rows.length > 0 ? `${rows.length} pack${rows.length === 1 ? "" : "s"}` : "no reservations yet"}`}
               value={bottles > 0 ? `${bottles} bottle${bottles === 1 ? "" : "s"}` : null}>
               {body}
