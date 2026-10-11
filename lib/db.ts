@@ -111,6 +111,11 @@ export interface Order {
   // of a stop and made from its start (lib/ordering orderClockFrom / waitingToOpen). Absent before
   // 0343 is applied, which reads exactly as null.
   ready_from?: string | null;
+  // Where it was sold (2026-10-11, the Pass's "Here"): the live event, stamped as it goes in (0024), or —
+  // with no event live — the stop the truck is live at (0219, stamp_order_event). Both are null for an order
+  // placed with nothing live, and for every order placed ahead: 0343 gives those no stop.
+  event_id?: string | null;
+  stop_id?: string | null;
 }
 
 export interface BookingRequest {

@@ -14,17 +14,14 @@ import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, alertWhen, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
-import { localToday, etToday, relativeDay, ageLabel, evDate, evTime, clockTime } from "@/lib/dates";
-import { orderClockFrom, waitingToOpen, waitingLabel } from "@/lib/ordering";
+import { localToday, etToday, relativeDay, ageLabel, evDate, evTime } from "@/lib/dates";
 import { prepBucket } from "@/lib/readiness";
 import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
 import { readParam, dropParam } from "@/lib/urlParam";
 import { panelHome } from "@/lib/panelHome";
-import { usePassMuted, setPassMuted, setPassUp } from "@/lib/passSound";
-import { setOrderStatus, movedTo, movedLine } from "@/lib/orderStatus";
 import { useWakeLock } from "@/lib/useWakeLock";
+import { groupItems } from "@/lib/passBoard";
 import { useEtDay } from "@/lib/useEtDay";
-import type { RealtimeChannel } from "@supabase/supabase-js";
 import { NotifPrefs, NotifPrefsSheet } from "@/components/NotifPrefs";
 import { DeviceAlerts, AlertsOffLine } from "@/components/DeviceAlerts";
 import { PassSound, Appearance } from "@/components/YouPrefs";
@@ -67,19 +64,17 @@ import { useBack } from "@/components/useBack";
 import { useBackStep } from "@/components/useBackStep";
 import { CrumbProvider, Breadcrumbs, useCrumb, useCrumbs } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
-import { queueOrderStatus, queueCollectCup, isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
-import { canCollect, canUndo, collectPayment, undoCollection, collectedPatch, undonePatch, isSettled, paidHow, passWord, ledgerWord, VIA_LABEL, type CollectVia } from "@/lib/collect";
-import { useCollectSheet } from "@/components/CollectSheet";
-import { snapshotUsable } from "@/lib/offline";
+import { ledgerWord } from "@/lib/collect";
 import MenuRigChips, { MENU_RIG_COLUMNS, type MenuRigPatch, type MenuRigValue } from "@/components/MenuRigChips";
 // ── Code-split (2026-07-29, speed round): every component below renders only inside ONE section
 // (or opens on a tap), so it loads as its own chunk on demand instead of riding in the /crew
-// route's first paint. Daily-path components (My Day, Live Ops' DropOps/DeliveryOps/EightySix,
+// route's first paint. Daily-path components (My Day, Live Ops' DropOps/DeliveryOps, the Pass and its 86 board,
 // PrepBoard, CommandBoard/Goals) stay static imports on purpose — the morning screen and service
 // screen must never wait on a chunk. Once fetched, the SW's cache-first asset rule keeps each
 // chunk available offline. next/dynamic on a default export keeps full prop-type inference.
 const TrailerLoadout = dynamic(() => import("@/components/TrailerLoadout"), { loading: () => <PourFill label="Loading…" /> });
 import DropOps from "@/components/DropOps";
+import ThePass from "@/components/pass/ThePass";
 import OfficeOrders from "@/components/OfficeOrders";
 const SiteCopyEditor = dynamic(() => import("@/components/SiteCopyEditor"), { loading: () => <PourFill label="Loading…" /> });
 const OfficeSettings = dynamic(() => import("@/components/OfficeSettings"), { loading: () => <PourFill label="Loading…" /> });
@@ -98,7 +93,6 @@ import { completeTask, createEventTask, createEventTasks, deleteTask, deleteTask
 import { loadMyTasks, type MyTaskRow } from "@/lib/myTasks";
 const AiTraining = dynamic(() => import("@/components/AiTraining"), { loading: () => <PourFill label="Loading…" /> });
 const PromoEditor = dynamic(() => import("@/components/PromoEditor"), { loading: () => <PourFill label="Loading…" /> });
-import EightySix from "@/components/EightySix";
 const ReviewsAdmin = dynamic(() => import("@/components/ReviewsAdmin"), { loading: () => <PourFill label="Loading…" /> });
 import DeliveryOps from "@/components/DeliveryOps";
 import PackPlan from "@/components/PackPlan";
@@ -190,8 +184,6 @@ const OutlookConnect = dynamic(() => import("@/components/OutlookConnect"), { lo
 const CupOrderingDial = dynamic(() => import("@/components/crew/CupOrderingDial"), { loading: () => <PourFill label="Loading…" /> });
 const ErrorLog = dynamic(() => import("@/components/ErrorLog"), { loading: () => <PourFill label="Loading…" /> });
 import Prose from "@/components/Prose";
-import { chime, unlockAudio } from "@/lib/chime";
-import { haptic } from "@/lib/haptics";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { packListFor } from "@/lib/packlist";
 import { complianceFor } from "@/lib/compliance";
@@ -306,452 +298,10 @@ const dueLabel = (iso: string) => new Date(iso).toLocaleDateString([], { month: 
 
 const STATUSES: BookingRequest["status"][] = ["new", "contacted", "booked", "declined"];
 
-// ───────────────────────── time helpers ─────────────────────────
-function ago(iso: string) {
-  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
-  return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h`;
-}
-function ageMin(iso: string) {
-  return Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-}
-function ageSev(min: number) {
-  return min >= 8 ? "late" : min >= 4 ? "warn" : "calm";
-}
-
 // ───────────────────────── the pass (KDS) ─────────────────────────
-// One ticket, one next action. Oldest-first. Aging colour signals pressure.
-// Void is demoted to a guarded overflow — never under the operator's thumb.
-const NEXT: Record<Order["status"], Order["status"] | null> = { new: "preparing", preparing: "ready", ready: "done", done: null, void: null };
-const PREV: Record<Order["status"], Order["status"] | null> = { new: null, preparing: "new", ready: "preparing", done: "ready", void: null };
-const ACT_CLASS: Record<string, string> = { new: "go", preparing: "primary", ready: "done" };
-// The three live stages of the pass. Tickets move down as the operator advances them.
-const STAGES: { key: Order["status"]; label: string; action: string }[] = [
-  { key: "new", label: "New", action: "Start" },
-  { key: "preparing", label: "In progress", action: "Mark ready" },
-  { key: "ready", label: "Ready · hand off", action: "Picked up" },
-];
-// Group identical drinks → "2× RISE" instead of "RISE · RISE".
-function groupItems(items: string[]) {
-  const m = new Map<string, number>();
-  items.forEach((i) => m.set(i, (m.get(i) ?? 0) + 1));
-  return [...m.entries()].map(([id, qty]) => ({ id, qty }));
-}
-const RECENT_MS = 30 * 60000; // picked-up orders linger 30 min for review / recall
-
-// Kitchen mounts in the Now list AND full-screen Service mode; a fixed channel name races
-// removeChannel on the toggle (realtime channels are keyed by name). Unique per subscription.
-let kdsChanSeq = 0;
-function Kitchen() {
-  const confirm = useConfirm();
-  const { toast } = useApp();
-  const { user, profile } = useAuth();
-  const me = user?.id ?? null;
-  const admin = canOf(profile).admin;
-  const [askCollect, collectSheet] = useCollectSheet();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [flash, setFlash] = useState<Set<string>>(new Set());
-  // The pass's sound is this phone's setting, kept in one home (lib/passSound) — the bell below and
-  // Settings › You › Notifications › Pass sound both change it, and the Pass reads it as it draws (2026-10-06).
-  const muted = usePassMuted();
-  const [doneOpen, setDoneOpen] = useState(false);
-  const [, setTick] = useState(0);
-  // WHAT THE BOARD IS, AND HOW SURE OF IT THE PASS IS (2026-10-11). It said "The pass is clear" before its first read
-  // had landed, and again under a raw "Backend error"; and a read made after the session had gone came back empty (RLS
-  // shows a signed-out phone no orders), cleared the board, overwrote the board saved for offline, and called that
-  // clear too. boardAt: when the board on screen was read — from the database, or the one this phone saved (0: no
-  // board yet, so the pass is loading, not clear). down: the last read failed — "net" with no signal, "auth" with no
-  // session, "read" for anything else; the board stays, and says how old it is. live: the realtime feed is connected.
-  const [boardAt, setBoardAt] = useState(0);
-  const [down, setDown] = useState<"" | "net" | "auth" | "read">("");
-  const [live, setLive] = useState(true);
-  const seeded = useRef(false);
-  const mutedRef = useRef(false);
-  useEffect(() => { mutedRef.current = muted; }, [muted]);
-  // The Pass is up while this board is: a new order rings here, and not a second time from the shell (lib/passSound).
-  useEffect(() => { setPassUp(true); return () => setPassUp(false); }, []);
-
-  // Ring + buzz + flash when a genuinely new order lands (not on initial seed / own taps).
-  const announceNew = useCallback((row: Order) => {
-    if (!seeded.current) return;
-    if (!mutedRef.current) { chime(); haptic("alert"); }
-    setFlash((p) => new Set(p).add(row.id));
-    setTimeout(() => setFlash((p) => { const n = new Set(p); n.delete(row.id); return n; }), 6000);
-  }, []);
-  // EVERY NEW ORDER RINGS, ONCE (2026-10-11). It rang only for a realtime INSERT, so an order whose insert the feed
-  // missed — a socket asleep in an apron, a reconnect — came in silently with the next reconcile. Now the first time this
-  // board sees an order, from the feed or from a read, it rings if it is new: once per order, never for the board's
-  // first read, and never twice when the feed and a read both bring it.
-  const known = useRef<Set<string>>(new Set());
-  // OVERLAPPING READS LAND IN ORDER (2026-10-11): the reconcile, a return to the screen, a reconnect and a drained queue
-  // can all ask at once. Only the newest read asked for is applied — a slow old answer never puts an older board back.
-  const loadSeq = useRef(0);
-
-  // Active board + recently-completed (last 30 min) so picked-up orders linger for
-  // review / recall instead of vanishing instantly.
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const ask = ++loadSeq.current;
-    const recentISO = new Date(Date.now() - RECENT_MS).toISOString();
-    // The session first: with none, nothing this read could say is about the pass (`down` above).
-    const auth = await supabase.auth.getSession();
-    const res = auth.data.session ? await supabase.from("orders").select("*").neq("status", "void")
-      .or(`status.neq.done,status_changed_at.gte.${recentISO}`).order("created_at") : null;
-    if (ask !== loadSeq.current) return;
-    const error = res ? res.error : auth.error;
-    if (!res || error) {
-      const net = isNetworkError(error?.message);
-      // No signal on a fresh open → show the last-known board (clearly labeled) instead of an
-      // error over a blank pass. Taps still work; writes queue and sync when the signal returns.
-      if (!seeded.current && net) {
-        const snap = readSnapshot<Order[]>("gt3-kds-snap");
-        if (snap && snapshotUsable(snap.at, Date.now())) {
-          setOrders(snap.data); setBoardAt(snap.at);
-          for (const o of snap.data) known.current.add(o.id);
-          seeded.current = true;
-        }
-      }
-      setDown(net ? "net" : res ? "read" : "auth");
-      return;
-    }
-    const rows = (res.data ?? []) as Order[];
-    const fresh = seeded.current ? rows.filter((o) => o.status === "new" && !known.current.has(o.id)) : [];
-    for (const o of rows) known.current.add(o.id);
-    seeded.current = true;
-    setOrders(rows); setBoardAt(Date.now()); setDown("");
-    saveSnapshot("gt3-kds-snap", rows);
-    fresh.forEach(announceNew);
-  }, [announceNew]);
-  // Merge a single row into state (no refetch). Keeps recently-done; drops voids and
-  // stale dones (those fall off on the next reconcile).
-  const apply = useCallback((row: Order | null, removed = false) => {
-    if (!row?.id) return;
-    setOrders((prev) => {
-      const without = prev.filter((o) => o.id !== row.id);
-      const isStaleDone = row.status === "done" && !(row.status_changed_at && Date.now() - new Date(row.status_changed_at).getTime() < RECENT_MS);
-      if (!removed && row.status !== "void" && !isStaleDone) {
-        without.push(row);
-        without.sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0));
-      }
-      return without;
-    });
-  }, []);
-
-  // "I'm OUTSIDE" rings the pass once per order — the customer is at the window, call the name.
-  const rungOutside = useRef<Set<string>>(new Set());
-  const announceOutside = useCallback((row: Order) => {
-    if (!seeded.current || !row.eta_status || row.eta_status !== "outside" || rungOutside.current.has(row.id)) return;
-    rungOutside.current.add(row.id);
-    if (!mutedRef.current) { chime(); haptic("alert"); }
-    setFlash((p) => new Set(p).add(row.id));
-    setTimeout(() => setFlash((p) => { const n = new Set(p); n.delete(row.id); return n; }), 6000);
-  }, []);
-
-  useEffect(() => {
-    load();
-    const tick = setInterval(() => setTick((n) => n + 1), 1000);   // live clocks/colours
-    const recon = setInterval(() => load(), 15000);                // reconcile safety net
-    // When the offline queue drains (OfflineChip replayed it), reconcile immediately so the
-    // board swaps from optimistic/snapshot state to server truth.
-    const onQueue = () => { if (readQueue().length === 0) load(); };
-    // Back on the screen, read again (2026-10-11): a phone that slept missed every change, and the feed replays none.
-    // The console's own refresh — the pull, and the read after 30s away (lib/realtime) — never reaches the Pass: it is
-    // a dialog, and the pull stands down over one (lib/gesture heldBy), so the Pass keeps its own.
-    const onVis = () => { if (document.visibilityState === "visible") load(); };
-    window.addEventListener(OFFLINE_EVENT, onQueue);
-    document.addEventListener("visibilitychange", onVis);
-    const stop = () => { clearInterval(tick); clearInterval(recon); window.removeEventListener(OFFLINE_EVENT, onQueue); document.removeEventListener("visibilitychange", onVis); };
-    if (!supabase) return stop;
-    const sb = supabase;
-    // THE FEED SAYS WHEN IT DROPS, AND CATCHES UP WHEN IT IS BACK (2026-10-11). Realtime rejoins by itself after an error
-    // or a timeout but replays nothing it missed, so the board reads again the moment it is back; until then the Pass
-    // says "Reconnecting…" and the 15-second reconcile carries the board. A channel the server closed is never
-    // rejoined, so a new one is opened.
-    let alive = true, broke = false, retry = 0;
-    let ch: RealtimeChannel | null = null;
-    const join = () => {
-      ch = sb
-        .channel(`admin-kds-${++kdsChanSeq}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (p) => {
-          const row = (p.eventType === "DELETE" ? p.old : p.new) as Order;
-          apply(row, p.eventType === "DELETE");
-          if (p.eventType !== "DELETE" && row?.id) {
-            if (row.status === "new" && !known.current.has(row.id)) announceNew(row);
-            known.current.add(row.id);
-          }
-          if (p.eventType === "UPDATE" && row) announceOutside(row);
-        })
-        .subscribe((status) => {
-          if (!alive) return;
-          if (status === "SUBSCRIBED") { setLive(true); if (broke) { broke = false; load(); } return; }
-          broke = true; setLive(false);
-          if (status === "CLOSED") retry = window.setTimeout(join, 5000);
-        });
-    };
-    join();
-    return () => { alive = false; clearTimeout(retry); stop(); if (ch) sb.removeChannel(ch); };
-  }, [load, apply, announceNew, announceOutside]);
-
-  // Instant: patch local state synchronously, fire the write, no refetch on success.
-  const move = async (o: Order, to: Order["status"] | null) => {
-    if (!to || !supabase) return;
-    apply({ ...o, status: to, status_changed_at: new Date().toISOString() } as Order, false);
-    haptic("medium");
-    // Definer RPC so a 'server' can advance status without table-wide write access — from the status
-    // this ticket showed when it was tapped (lib/orderStatus: a tap on a board that is behind no longer
-    // lands over an order somebody else moved).
-    const { error } = await setOrderStatus(supabase, o.id, to, o.status);
-    if (!error) {
-      // READY REACHES THE CUSTOMER ONCE (2026-10-11). Told off-app (SMS/email, env-gated server-side)
-      // once the move is saved, and only for a move forward into Ready: it went before the write had
-      // landed, and again on a recall from Picked up — and /api/notify sends whatever it is asked.
-      // Fire-and-forget: the board never waits on a notification provider. A move parked with no
-      // signal sends nothing, now or when the queue replays it (components/offlineReplay), as before.
-      if (to === "ready" && (o.status === "new" || o.status === "preparing")) {
-        void (async () => {
-          try {
-            await authedFetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "order_ready", id: o.id }) });
-          } catch { /* best-effort */ }
-        })();
-      }
-      return;
-    }
-    // No signal ≠ stop service: keep the optimistic board, park the write for replay
-    // (coalesced per order — the final state wins), and say so calmly.
-    if (isNetworkError(error.message)) { queueOrderStatus(o.id, to, o.status); toast("No signal — saved, will sync", "info"); return; }
-    // Somebody moved it first (the other phone, a replay): say where it is and read the board again — news, not an error.
-    const now = movedTo(error);
-    toast(now === null ? `Couldn't update — ${error.message}` : movedLine(o.id, now), now === null ? "error" : "info");
-    load();
-  };
-  // ── MONEY AT THE WINDOW (2026-10-04, 0341) ─────────────────────────────────────────────────────
-  // "UNPAID · collect at pickup" was a sentence with nothing behind it: nothing in the app could
-  // mark a pay-at-pickup order paid. Taking it is instant like a move — the ticket says PAID the
-  // moment the crew taps and the database answers after — and with no signal the tap is parked and
-  // replayed, because the till does not wait for bars. Returns the row as now painted, or null.
-  const takeMoney = async (o: Order, via: CollectVia): Promise<Order | null> => {
-    if (!supabase) return null;
-    const paidRow = { ...o, ...collectedPatch(o, via, new Date().toISOString(), me) } as Order;
-    apply(paidRow, false);
-    haptic("paid");
-    const res = await collectPayment(supabase, "cup", o.id, via);
-    if (res.error) {
-      if (isNetworkError(res.error)) { queueCollectCup(o.id, via); toast(`No signal — ${VIA_LABEL[via].toLowerCase()} saved, will sync`, "info"); return paidRow; }
-      apply(o, false);
-      toast(`Couldn't record it — ${res.error}`, "error"); load(); return null;
-    }
-    if (res.already) { toast(`${o.customer ?? "Guest"} had already paid — nothing taken`); load(); }
-    return paidRow;
-  };
-  const collect = async (o: Order) => {
-    const how = await askCollect({ who: o.customer ?? "Guest", cents: o.total_cents });
-    if (how === "cash" || how === "card_reader") await takeMoney(o, how);
-  };
-  // A wrong tap is put right by the one who made it, inside the hour (or an admin) — the database's
-  // rule (staff_undo_collection), mirrored by canUndo so the button is only where it will work.
-  const undoTake = async (o: Order) => {
-    if (!supabase) return;
-    const how = o.collected_via === "cash" ? "cash" : "card-reader";
-    if (!(await confirm({ title: `Undo the ${money(o.total_cents)} ${how} payment from ${o.customer ?? "Guest"}?`, body: "Only if it wasn't paid that way. You can collect it again after.", confirmLabel: "Undo it" }))) return;
-    apply({ ...o, ...undonePatch(o) } as Order, false);
-    const res = await undoCollection(supabase, "cup", o.id);
-    if (res.error) {
-      apply(o, false);
-      toast(isNetworkError(res.error) ? "No signal — undo it once you're back online" : `Couldn't undo it — ${res.error}`, "error");
-      return;
-    }
-    toast(res.already ? "Nothing to undo — it wasn't taken at the window" : `${o.customer ?? "Guest"} — back to unpaid`);
-  };
-  // Handing it over is when the money is asked about: an order still owed does not leave the window
-  // without the question. The third answer, handing it over unpaid, is there and says what it is.
-  const advance = async (o: Order) => {
-    const to = NEXT[o.status];
-    if (to === "done" && canCollect(o)) {
-      const how = await askCollect({ who: o.customer ?? "Guest", cents: o.total_cents, handOff: true });
-      if (!how) return;
-      const row = how === "unpaid" ? o : await takeMoney(o, how);
-      if (!row) return;
-      return move(row, to);
-    }
-    return move(o, to);
-  };
-  const recall = (o: Order) => move(o, PREV[o.status]);
-  // Voiding a paid order is a refund somebody has to make. It used to say only "This can't be
-  // undone" — about an order a card had paid for — and flag nobody; the pack board's cancel already
-  // flagged its refunds (and 0242 made those critical so they escalate). Now both say the same.
-  const voidOrder = async (o: Order) => {
-    const how = paidHow(o);
-    const amt = money(o.total_cents);
-    const body = how === "cash" ? `They paid ${amt} cash — hand it back. This can't be undone.`
-      : how === "card_reader" ? `They paid ${amt} on the card reader — refund it in Square; the inbox gets a flag. This can't be undone.`
-      : how ? `They paid ${amt} online — refund it in Square; the inbox gets a flag. This can't be undone.`
-      : "Nothing was paid. This can't be undone.";
-    if (!(await confirm({ title: `Void ${o.customer ?? "this order"}?`, body, confirmLabel: "Void order", danger: true }))) return;
-    if (!supabase) return;
-    apply(o, true);
-    const { error } = await setOrderStatus(supabase, o.id, "void", o.status);
-    if (error) {
-      if (isNetworkError(error.message)) { queueOrderStatus(o.id, "void", o.status); toast("No signal — void saved, will sync", "info"); }
-      else {
-        // Moved on before the void landed (picked up meanwhile): nothing was voided, so there is no refund to flag.
-        const now = movedTo(error);
-        toast(now === null ? `Couldn't void — ${error.message}` : movedLine(o.id, now), now === null ? "error" : "info");
-        load(); return;
-      }
-    }
-    if (how && how !== "cash") {
-      await raiseAlertClient({
-        severity: "critical", category: "money", kind: "refund_needed", subjectId: o.id,
-        title: "Voided a PAID order — refund needed",
-        body: `${o.customer ?? "Guest"} · #${o.id.slice(0, 4).toUpperCase()} · ${amt} paid ${how === "card_reader" ? "on the card reader" : "online"}. Refund it in Square.`,
-        link: "/crew?s=money&a=pay",
-      });
-    }
-  };
-
-  const toggle = (k: string) => setCollapsed((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
-  const toggleMute = () => { setPassMuted(!muted); unlockAudio(); };
-  const active = orders.filter((o) => o.status !== "done");
-  const done = orders.filter((o) => o.status === "done").sort((a, b) => (a.status_changed_at < b.status_changed_at ? 1 : -1));
-  // A ticket's clock starts when its order can be made (lib/ordering, 0343): placed ahead of a stop,
-  // that is the stop's opening — not 7am, three hours before the truck could have made it.
-  const late = active.filter((o) => o.status !== "ready" && !waitingToOpen(o) && ageMin(orderClockFrom(o)) >= 8);
-
-  return (
-    <div className="adm-sec" id="kitchen-pass">
-      {/* Service mode's .svc-bar already renders "The Pass" directly above Kitchen (see AdminPage's
-          svc-bar, ~line 5730) — this SectionHeader only repeated it (case differs), so it's cut,
-          same precedent as ReadinessAgent's redundant "Readiness" header being cut where a
-          crew-group divider directly above already said it. The mute toggle + active count are
-          real controls (not a title), so they're kept, right-aligned in a bare wrapper. Neither
-          .k-count nor the mute has a margin-left:auto of its own, so the wrapper reproduces the rest of .k-sec-r's own layout too (align-items:center,
-          gap:8px) rather than just justifyContent, so this doesn't lose the vertical centering or
-          the pill↔button spacing the two had inside the old SectionHeader's right slot. */}
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-        {/* The feed down while reads still land: a quiet word beside the count, not a banner — the reconcile keeps the board. */}
-        {!live && !down && <span className="k-count soon" role="status">Reconnecting…</span>}
-        {active.length > 0 && <span className="k-count">{active.length} active</span>}
-        <button type="button" className={`k-chip sm${muted ? " on" : ""}`} onClick={toggleMute} aria-pressed={muted}>{muted ? "🔇 Muted" : <><Icon name="bell" /> Sound</>}</button>
-      </div>
-
-      {/* A read that failed says so in words, and how old the board under it is — never a raw "Backend error". */}
-      {down && (
-        <div className="adm-attn" role="status">
-          <b>{down === "auth" ? "Signed out" : "Can't reach the pass"}</b>
-          {boardAt > 0 ? ` — showing the board from ${clockTime(new Date(boardAt).toISOString())}.` : "."}{" "}
-          {down === "auth" ? "Sign in again to see new orders." : down === "net" && boardAt > 0 ? "Taps still work and will sync when the signal returns." : "Reconnecting…"}
-        </div>
-      )}
-      {late.length > 0 && (
-        <div className="adm-attn" role="alert">
-          <b>{late.length} guest{late.length === 1 ? "" : "s"}</b> past 8 min — step over and reassure.
-        </div>
-      )}
-
-      {/* No board yet: the pass is loading, not clear. */}
-      {boardAt === 0 && !down && <PourFill label="Loading the pass…" />}
-      <div aria-live="polite">
-        {boardAt > 0 && STAGES.map((st) => {
-          const list = orders.filter((o) => o.status === st.key);
-          const isCol = collapsed.has(st.key);
-          return (
-            <div className="kds-stage" key={st.key}>
-              <button type="button" className="kds-stage-h" onClick={() => toggle(st.key)} aria-expanded={!isCol}>
-                <span className={`kds-caret${isCol ? " col" : ""}`} aria-hidden="true">›</span>
-                <span className="kds-stage-name">{st.label}</span>
-                <span className="kds-stage-n">{list.length}</span>
-              </button>
-              {!isCol && list.length === 0 && <div className="kds-empty">Nothing here.</div>}
-              {!isCol && list.map((o) => {
-                const waiting = waitingToOpen(o);
-                const sev = waiting ? "calm" : ageSev(ageMin(orderClockFrom(o)));
-                // A LONG PRESS ON A TICKET (2026-10-08, the navigation round, approved): its next step, back a stage,
-                // the money, and Void — the ticket's own buttons, by name, without aiming at a 44pt corner mid-rush.
-                const items: MenuItem[] = [
-                  { key: "next", label: st.action, icon: "arrowRight", run: () => { void advance(o); } },
-                  ...(PREV[o.status] ? [{ key: "back", label: "Move back a stage", icon: "chevronLeft", run: () => { void recall(o); } } satisfies MenuItem] : []),
-                  ...(canCollect(o) ? [{ key: "collect", label: `Collect ${money(o.total_cents)}`, run: () => { void collect(o); } }] : []),
-                  ...(canUndo(o, me, admin) ? [{ key: "undo", label: `Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment`, run: () => { void undoTake(o); } }] : []),
-                  { key: "void", label: "Void order", icon: "close", danger: true, run: () => { void voidOrder(o); } },
-                ];
-                return (
-                  <LongPress key={o.id} title={`${o.customer ?? "Guest"} · #${o.id.slice(0, 4).toUpperCase()}`} items={items}>{(press) => (
-                  <div {...press.bind} className={`adm-order pressable st-${o.status}${flash.has(o.id) ? " flash" : ""}`}>
-                    {/* ⋯ IS THE TICKET'S MENU (2026-10-11) — the one the long press raises: next, back, the money, and
-                        Void (which still asks). It went straight to Void, the one step that cannot be taken back. */}
-                    <button type="button" className="adm-act-more" onClick={press.show} aria-haspopup="dialog" aria-label={`Actions for ${o.customer ?? "this order"}`}><Icon name="more" /></button>
-                    <div className="adm-order-top pr-10">
-                      <b>{o.customer ?? "Guest"}</b>
-                      <span className={`adm-age ${sev}`}>{waiting && o.ready_from ? waitingLabel(o.ready_from) : ago(orderClockFrom(o))}</span>
-                    </div>
-                    <div className="adm-items">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")}</div>
-                    {o.eta_status && (
-                      <span className={`kds-eta ${o.eta_status}`}>
-                        {o.eta_status === "outside" ? <><Icon name="pin" /> OUTSIDE — call the name</> : o.eta_status === "on_way" ? "🏃 On the way" : <><Icon name="clock" /> Running late</>}
-                      </span>
-                    )}
-                    <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={isSettled(o) ? "kds-paid" : "unp"}>{passWord(o)}</span> · <span className="kds-stagetime">{ago(o.status_changed_at)} in stage</span></div>
-                    <div className="adm-actions-row">
-                      {PREV[o.status] && <button className="k-icon-btn lg shrink-0" onClick={() => recall(o)} aria-label="Move back a stage">↩</button>}
-                      {canCollect(o) && <button type="button" className="btn-sec shrink-0" onClick={() => collect(o)}>Collect {money(o.total_cents)}</button>}
-                      {canUndo(o, me, admin) && (
-                        <button type="button" className="btn-sec shrink-0 text-ok border-ok" onClick={() => undoTake(o)} aria-label={`Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment from ${o.customer ?? "Guest"}`}>
-                          {o.collected_via === "cash" ? "Cash" : "Reader"} <Icon name="check" />
-                        </button>
-                      )}
-                      <button className={`adm-act ${ACT_CLASS[o.status]}`} onClick={() => advance(o)}>{st.action}</button>
-                    </div>
-                  </div>
-                  )}</LongPress>
-                );
-              })}
-            </div>
-          );
-        })}
-
-        {boardAt > 0 && done.length > 0 && (
-          <div className="kds-stage">
-            <button type="button" className="kds-stage-h" onClick={() => setDoneOpen((v) => !v)} aria-expanded={doneOpen}>
-              <span className={`kds-caret${!doneOpen ? " col" : ""}`} aria-hidden="true">›</span>
-              <span className="kds-stage-name">Just completed</span>
-              <span className="kds-stage-n">{done.length}</span>
-            </button>
-            {doneOpen && done.map((o) => (
-              <LongPress key={o.id} title={`${o.customer ?? "Guest"} · #${o.id.slice(0, 4).toUpperCase()}`} items={[
-                { key: "recall", label: "Bring it back to ready", icon: "chevronLeft", run: () => { void recall(o); } },
-                ...(canCollect(o) ? [{ key: "collect", label: `Collect ${money(o.total_cents)}`, run: () => { void collect(o); } } satisfies MenuItem] : []),
-                ...(canUndo(o, me, admin) ? [{ key: "undo", label: `Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment`, run: () => { void undoTake(o); } } satisfies MenuItem] : []),
-              ]}>{(press) => (
-              <div {...press.bind} className="adm-order pressable st-done">
-                <div className="adm-order-top">
-                  <b>{o.customer ?? "Guest"}</b>
-                  <span className="adm-age calm">picked up {ago(o.status_changed_at)} ago</span>
-                </div>
-                <div className="adm-items">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")}</div>
-                <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={isSettled(o) ? "kds-paid" : "unp"}>{passWord(o, true)}</span></div>
-                <div className="adm-actions-row">
-                  <button className="k-icon-btn lg shrink-0" onClick={() => recall(o)} aria-label={`Bring ${o.customer ?? "order"} back to ready`}>↩ Recall</button>
-                  {/* Handed over unpaid and settled a minute later — a regular squaring up — is
-                      still money taken at the window, and this tray is where that order still is. */}
-                  {canCollect(o) && <button type="button" className="btn-sec shrink-0" onClick={() => collect(o)}>Collect {money(o.total_cents)}</button>}
-                  {canUndo(o, me, admin) && (
-                    <button type="button" className="btn-sec shrink-0 text-ok border-ok" onClick={() => undoTake(o)} aria-label={`Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment from ${o.customer ?? "Guest"}`}>
-                      {o.collected_via === "cash" ? "Cash" : "Reader"} <Icon name="check" />
-                    </button>
-                  )}
-                </div>
-              </div>
-              )}</LongPress>
-            ))}
-          </div>
-        )}
-      </div>
-      {/* Clear only when a board read now says so — not before the first read, and not over a read that failed. */}
-      {boardAt > 0 && !down && active.length === 0 && done.length === 0 && <EmptyState title="The pass is clear" sub="New orders arrive here in realtime." />}
-      {collectSheet}
-    </div>
-  );
-}
+// THE PASS IS ITS OWN MODULE (2026-10-11, the KDS program, wave 2): components/pass — ThePass (the screen: its bar, the
+// board, the rail), Ticket (one ticket) and usePassBoard (the read, the feed, the reconcile) — on lib/passBoard's rules.
+// Live Ops below keeps only the mount: `svc`, Escape, the wake lock.
 
 // ───────────────────────── service pulse: the glance before the work ─────────────────────────
 // Now doesn't render the boards anymore — it renders their PULSE. One hero button carries the
@@ -6199,32 +5749,13 @@ export default function AdminPage() {
           </Columns>
         </>
       )}
-      {/* SERVICE MODE — the KDS as ONE working surface: the pass is the board (tickets flow 2-up
-          on wide screens), and a sticky rail keeps pickups and the 86 board in reach without ever
-          leaving the screen — 86ing a flavor mid-rush is a tap, not an exit.
-          Exit with the button or Esc; leaving the Now section exits too.
-          ITS OWN BELL (2026-10-11, the KDS audit): the Pass covers the header, and with it the bell — a refund
-          to make or a paid order that didn't record went unseen on the one phone working the pass. The same
-          count, the same inbox, above the Pass. */}
+      {/* SERVICE MODE — the Pass, full screen over Live Ops (components/pass/ThePass: its bar, the board, the rail beside
+          it). Exit with the button or Esc; leaving the Now section exits too. Its own bell, because the Pass covers the
+          header's, and today's critical alert strip, are the page's — handed in. */}
       {svc && sec === "now" && (
-        <div className="svc-full text-cream" role="dialog" aria-modal="true" aria-label="The Pass">
-          <div className="svc-bar">
-            <b>The Pass</b>
-            <span className="flex items-center gap-2">
-              <IconButton icon="bell" label={hdrToday.length ? `Inbox — ${hdrToday.length} today` : "Inbox"} badge={hdrToday.length} crit={hdrTodayCrit > 0} onClick={() => setInboxOpen(true)} />
-              <button type="button" className="btn-ter" onClick={() => setSvc(false)}><Icon name="close" /> Exit</button>
-            </span>
-          </div>
-          <div className="svc-grid">
-            {/* Today's critical alert, named, one tap to the inbox — the strip that led Live Ops, on the screen the
-                crew is working. Nothing at all when there is none. */}
-            <div className="svc-main"><AlertsInbox userId={user?.id ?? null} compact /><Kitchen /></div>
-            <aside className="svc-rail" aria-label="Pickups & sold-out">
-              <DropOps canPlan={canManage} />
-              <EightySix />
-            </aside>
-          </div>
-        </div>
+        <ThePass canPlan={canManage} onExit={() => setSvc(false)}
+          bell={<IconButton icon="bell" label={hdrToday.length ? `Inbox — ${hdrToday.length} today` : "Inbox"} badge={hdrToday.length} crit={hdrTodayCrit > 0} onClick={() => setInboxOpen(true)} />}
+          strip={<AlertsInbox userId={user?.id ?? null} compact />} />
       )}
 
       {sec === "ask" && <OperatorAssistant />}

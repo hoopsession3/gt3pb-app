@@ -842,7 +842,7 @@ end $$;`;
   ok("gesture: a hand-drawn dialog is seen, and fails until it is a Sheet or named",
     G(`return <div className="x" role="dialog" aria-modal="true" aria-label="Y">hi</div>;`).overlays.length === 1 && J(`return <div role="dialog" aria-label="Y" />;`).join() === "overlay");
   ok("gesture: a dialog named with its reason passes (the Pass, full screen over Live Ops)",
-    J(`return <div className="svc-full" role="dialog" aria-modal="true" aria-label="The Pass" />;`, "app/crew/page.tsx").length === 0 && "app/crew/page.tsx#The Pass" in OWN_OVERLAYS);
+    J(`return <div className="svc-full" role="dialog" aria-modal="true" aria-label="The Pass" />;`, "components/pass/ThePass.tsx").length === 0 && "components/pass/ThePass.tsx#The Pass" in OWN_OVERLAYS);
   ok("gesture: the Sheet's own dialogs are the system, not an exception", J(`return <div role="dialog" aria-label="Z" />;`, "components/Sheet.tsx").length === 0);
   // 2. tab rows
   ok("gesture: a tab row that switches nothing on a swipe fails until it pages or is named",
