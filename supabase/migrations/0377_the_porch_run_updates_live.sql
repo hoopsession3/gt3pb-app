@@ -1,4 +1,4 @@
--- ── 0378 — THE PORCH RUN UPDATES LIVE ──────────────────────────────────────────────────────────────────
+-- ── 0377 — THE PORCH RUN UPDATES LIVE ──────────────────────────────────────────────────────────────────
 -- 2026-10-11 (the dispatch round).
 --
 -- Supabase sends a screen a table's changes only when two switches are on: the page subscribes (useRealtimeTable),
@@ -42,4 +42,4 @@ where not exists (select 1 from public.changelog c where c.title = v.title);
 
 -- verify:
 --   select exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'delivery_orders');   -- t
-select public.record_migration('0378_the_porch_run_updates_live');
+select public.record_migration('0377_the_porch_run_updates_live');

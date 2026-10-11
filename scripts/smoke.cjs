@@ -11447,7 +11447,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 // quiet lie the rest of this file exists to refuse.
 // ── WAVE 2 · DISPATCH (2026-10-11) ──
 // Due next as one list, the Sunday run's bulk step, a missed porch onto the next run, and the dispatch cards' targets and
-// words. The rules are run by scripts/duenext.test.mjs and scripts/porchrun.test.mjs against the real lib code, and 0378
+// words. The rules are run by scripts/duenext.test.mjs and scripts/porchrun.test.mjs against the real lib code, and 0377
 // by scripts/db.porchlive.test.mjs; these hold the wiring only the source can show.
 {
   const fs = require("node:fs"), path = require("node:path");
@@ -11531,12 +11531,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   // The tests that run the rules, and the migration that lets the run be heard.
   const pkg = JSON.parse(rd("package.json")).scripts;
-  ok("dispatch: the list's and the run's tests run with the rest; 0378's with the database tests",
+  ok("dispatch: the list's and the run's tests run with the rest; 0377's with the database tests",
     /node scripts\/duenext\.test\.mjs && node scripts\/porchrun\.test\.mjs/.test(pkg.test) && /node scripts\/db\.porchlive\.test\.mjs/.test(pkg["db:test"]));
-  const m378 = rd("supabase/migrations/0378_the_porch_run_updates_live.sql");
-  ok("dispatch: 0378 puts delivery_orders in the realtime publication — guarded, idempotent, and nothing about who may read it changes",
+  const m378 = rd("supabase/migrations/0377_the_porch_run_updates_live.sql");
+  ok("dispatch: 0377 puts delivery_orders in the realtime publication — guarded, idempotent, and nothing about who may read it changes",
     /and not exists \(select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'delivery_orders'\) then\s*alter publication supabase_realtime add table public\.delivery_orders;/.test(m378)
-      && !/grant |policy|security definer/i.test(m378.replace(/--[^\n]*/g, "")) && /select public\.record_migration\('0378_the_porch_run_updates_live'\);/.test(m378));
+      && !/grant |policy|security definer/i.test(m378.replace(/--[^\n]*/g, "")) && /select public\.record_migration\('0377_the_porch_run_updates_live'\);/.test(m378));
 }
 
 Promise.all(PENDING).then(() => {

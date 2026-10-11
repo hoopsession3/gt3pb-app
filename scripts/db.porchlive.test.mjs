@@ -1,4 +1,4 @@
-// THE PORCH RUN UPDATES LIVE — 0378, executed from its file against a real Postgres (2026-10-11, the dispatch round).
+// THE PORCH RUN UPDATES LIVE — 0377, executed from its file against a real Postgres (2026-10-11, the dispatch round).
 //
 // Realtime sends a screen a table's changes only when the page subscribes AND the table is in the supabase_realtime
 // publication. The Sunday card (components/DeliveryOps, and Due next's list built from it), the driver's run
@@ -7,9 +7,9 @@
 //   0. the census the migration's header leans on: the tables migrations added before 0248 are 34 — the number 0248
 //      measured in production's publication — and delivery_orders is not among them, nor added by any migration since;
 //   1. a small database shaped like production: the publication holds orders and business_orders, not delivery_orders;
-//      0378 adds it, and a second run changes nothing — where a bare `alter publication … add table` fails;
-//   2. a database with no realtime publication: 0378 runs, adds nothing, creates nothing;
-//   3. the whole schema (scripts/fixtures/schema.full.mjs, every migration in order): not a member before 0378, a
+//      0377 adds it, and a second run changes nothing — where a bare `alter publication … add table` fails;
+//   2. a database with no realtime publication: 0377 runs, adds nothing, creates nothing;
+//   3. the whole schema (scripts/fixtures/schema.full.mjs, every migration in order): not a member before 0377, a
 //      member after the last.
 // STUBBED in 1 and 2: the three tables carry only an id and a status (their policies are 0139's, 0005's and 0187's,
 // unchanged and not what is under test); changelog and the ledger are the other tests' shapes.
@@ -20,7 +20,7 @@ import { dirname, join } from "node:path";
 import { fullSchema } from "./fixtures/schema.full.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const FILE = "0378_the_porch_run_updates_live";
+const FILE = "0377_the_porch_run_updates_live";
 const sql = readFileSync(join(ROOT, `supabase/migrations/${FILE}.sql`), "utf8");
 let pass = 0, fail = 0;
 const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
@@ -57,7 +57,7 @@ const TITLE = "The Sunday porch run updates on every screen";
   const before = added(all.filter((f) => f < "0248"));
   ok("census: migrations before 0248 added exactly 34 tables — the 34 that 0248 counted in production", before.size === 34, before.size);
   ok("census: delivery_orders is not one of them", !before.has("delivery_orders"));
-  const since = all.filter((f) => f >= "0248" && f < "0378").filter((f) => /delivery_orders/.test(
+  const since = all.filter((f) => f >= "0248" && f < "0377").filter((f) => /delivery_orders/.test(
     [...readFileSync(join(dir, f), "utf8").replace(/--[^\n]*/g, "").matchAll(/alter publication supabase_realtime add table[^;]*;|foreach t in array array\[[^\]]*\]/gi)].map((m) => m[0]).join(" ")));
   ok("census: nor did any migration since add it", since.length === 0, since);
 }
@@ -68,14 +68,14 @@ const TITLE = "The Sunday porch run updates on every screen";
   await db.exec(LEDGER + `
     create publication supabase_realtime;
     alter publication supabase_realtime add table public.orders, public.business_orders;`);
-  ok("before 0378: delivery_orders is not in the publication — the porch run's changes reach no other screen", (await member(db, "delivery_orders")) === false);
+  ok("before 0377: delivery_orders is not in the publication — the porch run's changes reach no other screen", (await member(db, "delivery_orders")) === false);
   ok("adding a table that is already a member is an error in Postgres — why the add is guarded",
     /already member of publication/i.test((await raises(db, "alter publication supabase_realtime add table public.business_orders")) ?? ""));
   const n0 = await members(db);
   await db.exec(sql);
-  console.log("0378 executed against a real Postgres.\n");
-  ok("0378: delivery_orders is in the publication", (await member(db, "delivery_orders")) === true);
-  ok("0378: …and nothing else changed: orders and business_orders still members, one table more",
+  console.log("0377 executed against a real Postgres.\n");
+  ok("0377: delivery_orders is in the publication", (await member(db, "delivery_orders")) === true);
+  ok("0377: …and nothing else changed: orders and business_orders still members, one table more",
     (await member(db, "orders")) && (await member(db, "business_orders")) && (await members(db)) === n0 + 1, { before: n0, after: await members(db) });
   ok("it says so in the changelog, once", Number((await db.query(
     "select count(*) n from public.changelog where title = $1 and category = 'fix' and area = 'Delivery'", [TITLE])).rows[0].n) === 1);
@@ -98,7 +98,7 @@ const TITLE = "The Sunday porch run updates on every screen";
 {
   const db = new PGlite();
   await db.exec(LEDGER);
-  ok("a database without the publication: 0378 runs without error", (await raises(db, sql)) === null);
+  ok("a database without the publication: 0377 runs without error", (await raises(db, sql)) === null);
   ok("…creates no publication and adds nothing", Number((await db.query(`select count(*) n from pg_publication`)).rows[0].n) === 0);
   ok("…and still records itself", (await db.query(`select applied_count from public.schema_migrations where version = '${FILE}'`)).rows[0]?.applied_count === 1);
   await db.close();
@@ -106,8 +106,8 @@ const TITLE = "The Sunday porch run updates on every screen";
 
 // ── 3 · the whole schema, every migration in order ────────────────────────────────────────────────
 {
-  const before = await fullSchema({ before: "0378" });
-  ok("every migration before 0378: delivery_orders was never added",
+  const before = await fullSchema({ before: "0377" });
+  ok("every migration before 0377: delivery_orders was never added",
     (await member(before, "delivery_orders")) === false);
   ok("…while the tables beside it are members (drop_orders, 0119; business_orders, 0357)",
     (await member(before, "drop_orders")) === true && (await member(before, "business_orders")) === true);
@@ -119,5 +119,5 @@ const TITLE = "The Sunday porch run updates on every screen";
   await db.close();
 }
 
-console.log(`0378 (the porch run updates live): ${pass} passed, ${fail} failed`);
+console.log(`0377 (the porch run updates live): ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
