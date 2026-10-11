@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
@@ -21,11 +21,11 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
   const [avatar, setAvatar] = useState(profile?.avatar_url ?? "");
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  // Notification management — reflect the real permission state; enabling re-subscribes push.
-  const [notifState, setNotifState] = useState<NotificationPermission | "unsupported">("default");
-  useEffect(() => {
-    setNotifState(typeof Notification === "undefined" ? "unsupported" : Notification.permission);
-  }, []);
+  // Notification management — reflect the real permission state; enabling re-subscribes push. The sheet opens on a
+  // tap, never in a server render, so the phone's answer is read as it opens. "unsupported" — the iPhone app (its own
+  // alerts are the next part of the app round) and a browser with none — shows no row (2026-10-11, the App Store
+  // audit): "Turn on order-ready alerts" sat there and did nothing when tapped.
+  const [notifState, setNotifState] = useState<NotificationPermission | "unsupported">(() => (typeof Notification === "undefined" ? "unsupported" : Notification.permission));
   const enableNotifs = async () => {
     try {
       if (typeof Notification === "undefined") return;
@@ -75,7 +75,7 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
           <label className="prod-f" style={{ marginTop: 8 }}><span>Title</span><input className="note-in" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Lead Operator · Co-Founder" maxLength={60} /></label>
           <label className="prod-f" style={{ marginTop: 8 }}><span>Bio</span><textarea className="note-in" rows={3} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="A line or two — what you bring to the bar." maxLength={600} /></label>
           {/* Notifications — order-ready alerts, managed right where the account lives. */}
-          <div className="prof-notif">
+          {notifState !== "unsupported" && <div className="prof-notif">
             <div className="prof-notif-t">Order notifications</div>
             {notifState === "granted" ? (
               <div className="prof-notif-s on"><Icon name="check" /> On — you&apos;ll get a ping when your order is ready. Turn off anytime in your phone&apos;s settings for this app.</div>
@@ -84,7 +84,7 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
             ) : (
               <button type="button" className="btn-sec btn-wide" onClick={enableNotifs}><Icon name="bell" /> Turn on order-ready alerts</button>
             )}
-          </div>
+          </div>}
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <LeaveButton className="btn-ter" onClick={onClose}>Cancel</LeaveButton>
             <button type="button" className="btn-pri" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save profile"}</button>

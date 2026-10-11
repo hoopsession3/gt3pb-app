@@ -8953,7 +8953,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const DA = code(read("components/DeviceAlerts.tsx"));
   ok("alerts on this device: the phone's answer is read as it draws (no effect), asked for with one tap, and every answer is said",
     /useSyncExternalStore\(subscribe, readPermission, \(\) => "unknown" as const\)/.test(DA) && /window\.dispatchEvent\(new Event\(ASKED\)\);/.test(DA)
-    && /if \(p === "granted"\) \{ subscribePush\(userId, true\);/.test(DA) && ["unknown", "granted", "default", "denied", "unsupported"].every((k) => new RegExp(`\\b${k}: (APP_BUILD\\s*\\?\\s*)?"`).test(DA))
+    && /if \(p === "granted"\) \{ subscribePush\(userId, true\);/.test(DA) && ["unknown", "granted", "default", "denied", "unsupported"].every((k) => new RegExp(`\\b${k}: "`).test(DA))
+    && /const perm = useAlertPermission\(\);\s*if \(APP_BUILD\) return null;/.test(DA) && !/next update|web app on this phone/.test(DA)
     && /export const alertsOff = \(p: AlertPermission \| "unknown"\): boolean => p === "default" \|\| p === "denied";/.test(DA));
 
   // ── links still land: the pay anchor, the aliases, the Pass ──
@@ -9128,9 +9129,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && SG.digestGlance("off", true).text === "Off" && SG.digestGlance("weekly", true).text === "Weekly" && SG.digestGlance(null, true).text === "Daily"
       && SG.digestGlance("nonsense", true).text === "Daily" && SG.digestGlance("daily", false) === null);
     ok("settings values: notifications say what is muted and the quiet window, by the inbox's own rule (both ends, not the same hour)",
-      SG.notifyGlance([], null, null).text === "All on" && SG.notifyGlance(["order", "money"], null, null).text === "2 muted"
+      SG.notifyGlance([], null, null).text === "Nothing muted" && SG.notifyGlance(["order", "money"], null, null).text === "2 muted"
       && SG.notifyGlance([], 22, 7).text === "Quiet 10pm–7am" && SG.notifyGlance(["brew"], 22, 7).text === "1 muted · quiet 10pm–7am"
-      && SG.notifyGlance([], 9, 9).text === "All on" && SG.notifyGlance([], 22, null).text === "All on" && SG.notifyGlance([], 0, 6).text === "Quiet 12am–6am"
+      && SG.notifyGlance([], 9, 9).text === "Nothing muted" && SG.notifyGlance([], 22, null).text === "Nothing muted" && SG.notifyGlance([], 0, 6).text === "Quiet 12am–6am"
       && SG.notifyGlance(null, 22, 7) === null && SG.hourShort(0) === "12am" && SG.hourShort(12) === "12pm" && SG.hourShort(13) === "1pm" && SG.hourShort(23) === "11pm");
     ok("settings values: text size in words, the lanes counted, and Outlook never \"not connected\" on a read that failed",
       SG.displayGlance({ scale: 0, bold: false, roomy: false }, "day").text === "Day · Standard" && SG.displayGlance({ scale: 2, bold: true, roomy: true }, "dark").text === "Dark · Larger · bold · roomy"
@@ -9644,6 +9645,25 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("first day, in the letter: no signing out, the picture then Crew Mode, the ✦ then Ask GT3, the path, and the guide's whole link",
     /no need to sign out/.test(lines) && /tap your picture at the top right, then Crew Mode/.test(lines) && /tap the ✦ at the bottom right, then Ask GT3/.test(lines)
     && /4\. Start your training in the Academy — the Operator path\./.test(lines) && /\nhttps:\/\/app\.gt3pb\.com\/crew\?guide=start$/.test(lines), lines);
+  // THE APP STORE PASS (2026-10-11, Ryan: "I challenge when in App Store if certain copy or features are needed … add app
+  // to home screen etc, audit for this"). Inside the iPhone app nothing asks for what only the web can do.
+  const inApp = CS.startSteps({ onCrewSide: true, installed: true, app: true });
+  ok("app store: in the iPhone app the first day has four steps — no Home Screen (it is on it) and no alerts (nothing to turn on yet)",
+    keys(inApp) === "crew,ask,training,who" && keys(CS.startSteps({ onCrewSide: true, installed: true })) === "crew,ask,training,alerts,home,who"
+    && /app: APP_BUILD \}\);/.test(read("components/CrewStart.tsx")), keys(inApp));
+  const kb0 = CS.startKnowledge();
+  ok("app store: Ask GT3 names no other platform and no other browser — it answers inside the iPhone app too (App Review 2.3.10)",
+    !/Android|Chrome|Install app/.test(kb0) && /in the GT3 iPhone app there is nothing to install/.test(kb0), kb0);
+  const da = code(read("components/DeviceAlerts.tsx")), ps = code(read("components/ProfileSheet.tsx")), ch = code(read("components/ConnectHub.tsx"));
+  const cmdk = code(read("components/CommandPalette.tsx")), pa = code(read("components/PrimalAcademy.tsx"));
+  ok("app store: no placeholder and no dead button for alerts in the app — Settings shows no row, the profile shows no button that cannot ask",
+    /if \(APP_BUILD\) return null;/.test(da) && !/next update|web app on this phone/.test(da)
+    && /\{notifState !== "unsupported" && <div className="prof-notif">/.test(ps) && !/useEffect\(/.test(ps));
+  ok("app store: the website's QR is not shown inside the app, and the palette drops the member-card scan (the Camera opens Safari) and its keyboard keys on a touch screen",
+    /\{qr && !APP_BUILD && \(/.test(ch) && /if \(APP_BUILD\) return;/.test(ch) && /import \{ APP_BUILD \} from "@\/lib\/native";/.test(ch)
+    && /\.\.\.\(APP_BUILD \? \[\] : \[\{ id: "act:scan"/.test(cmdk) && /<div className="cmdk-foot pointer-coarse:hidden">/.test(cmdk));
+  ok("app store: no gesture that is not there — /primal says Try again, not \"Pull to refresh\" (the pull is the crew console's)",
+    !/Pull to refresh/i.test(pa) && /onClick=\{\(\) => void board\.reload\(\)\}>Try again<\/button>/.test(pa));
   const kb = CS.startKnowledge();
   ok("first day, for Ask GT3: the same steps with in-app links, and nobody's name in a prompt the whole crew shares",
     /Crew Mode/.test(kb) && /the ✦ at the bottom right, then Ask GT3/.test(kb) && /\[Start here\]\(\/crew\?guide=start\)/.test(kb)

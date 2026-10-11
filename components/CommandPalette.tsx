@@ -7,6 +7,7 @@ import { useAuth, roleOf } from "./AuthProvider";
 import { useOperatorSection, sectionsForRole, SECTION_LABEL, type OpSection } from "./OperatorNav";
 import { readTopRecents } from "./recents";
 import type { Recent } from "@/lib/recents";
+import { APP_BUILD } from "@/lib/native";
 
 // COMMAND PALETTE — ⌘K / Ctrl-K quick-jump for the crew console. Type to jump to any role-allowed
 // section or run a quick action, keyboard-first (↑↓ ⏎ esc). The "this is a real product" flourish.
@@ -64,8 +65,11 @@ export default function CommandPalette() {
       .filter((r) => r.kind === "event" || r.kind === "stop")
       .map((r) => ({ id: `rec:${r.key}`, label: r.label, hint: "Recent", run: () => openPrepTarget(r) }));
     const secs: Item[] = sectionsForRole(role).map((s: OpSection) => ({ id: `sec:${s}`, label: SECTION_LABEL[s], hint: "Section", run: () => setSection(s) }));
+    // "Scan a member card" is the web's (2026-10-11, the App Store audit): a member's card is scanned with the phone's
+    // Camera, which opens the link in Safari, not in the iPhone app — so in the app the action led to a page waiting
+    // for a scan that could never arrive there (lib/native APP_BUILD: the app's build, fixed when it is made).
     const actions: Item[] = [
-      { id: "act:scan", label: "Scan a member card", hint: "Action", run: () => router.push("/scan") },
+      ...(APP_BUILD ? [] : [{ id: "act:scan", label: "Scan a member card", hint: "Action", run: () => router.push("/scan") }]),
       { id: "act:cust", label: "Customer view", hint: "Action", run: () => router.push("/") },
     ];
     return [...recentItems, ...secs, ...actions];
@@ -110,7 +114,8 @@ export default function CommandPalette() {
           ))}
           {filtered.length === 0 && <div className="cmdk-empty">No match</div>}
         </div>
-        <div className="cmdk-foot">↑↓ move · ⏎ go · esc close</div>
+        {/* keys, for a keyboard: a touch screen — a phone, the iPhone app — has none of them (2026-10-11, the App Store audit) */}
+        <div className="cmdk-foot pointer-coarse:hidden">↑↓ move · ⏎ go · esc close</div>
       </div>
     </div>
   );

@@ -107,7 +107,9 @@ export default function PrimalAcademy() {
       </div>
 
       {board.status === "loading" && <div className="pr-note">Loading the academy…</div>}
-      {board.status === "error" && <div className="pr-note pr-note-err">Couldn’t load lessons. Pull to refresh, or try again in a moment.</div>}
+      {/* "Pull to refresh" named a gesture this page does not have (2026-10-11, the App Store audit): the pull lives in
+          the crew console alone (components/PullToRefresh). The way to try again is a button, here. */}
+      {board.status === "error" && <div className="pr-note pr-note-err">Couldn’t load lessons. <button type="button" className="btn-ter" onClick={() => void board.reload()}>Try again</button></div>}
       {t && t.total === 0 && board.status === "ready" && (
         <EditableCopy k="primal.empty" value={copy("primal.empty")} as="div" className="pr-note" multiline />
       )}

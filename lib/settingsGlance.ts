@@ -72,7 +72,9 @@ export function notifyGlance(muted: readonly string[] | null, quietStart: number
   if (muted.length && quiet) return { text: `${muted.length} muted · quiet ${quiet}` };
   if (muted.length) return { text: `${muted.length} muted` };
   if (quiet) return { text: `Quiet ${quiet}` };
-  return { text: "All on" };
+  // "Nothing muted", not "All on" (2026-10-11, the App Store audit): this counts the kinds of ping nobody has muted.
+  // It never knew whether this phone can ring — in the iPhone app it cannot yet — so it does not say "on".
+  return { text: "Nothing muted" };
 }
 
 /** Lane owners: how many of the lanes have one. */

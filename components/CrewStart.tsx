@@ -18,7 +18,7 @@ import { useAuth } from "./AuthProvider";
 import { authedFetch } from "@/lib/authedFetch";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { startSteps, whoToAsk, type StartFacts, type StartStep, type StartGo } from "@/lib/crewStart";
-import { isNativeApp } from "@/lib/native";
+import { APP_BUILD, isNativeApp } from "@/lib/native";
 import { haptic } from "@/lib/haptics";
 import Icon from "./Icon";
 import Button from "./Button";
@@ -54,7 +54,7 @@ export default function CrewStart({ onSection, onClose }: {
   const factsFailed = who.status === "error";
   const [installed] = useState(installedNow);
 
-  const steps = startSteps({ ...(facts ?? {}), onCrewSide: true, installed });
+  const steps = startSteps({ ...(facts ?? {}), onCrewSide: true, installed, app: APP_BUILD });
   const firstOpen = steps.find((s) => !s.done)?.key ?? steps[0].key;
   const [open, setOpen] = useState<string>(firstOpen);
 

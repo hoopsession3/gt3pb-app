@@ -46,17 +46,19 @@ const SAYS: Record<AlertPermission | "unknown", string> = {
   granted: "On. A push lands the moment a new order reaches the pass — even with the app in your pocket.",
   default: "Off. Get a push the moment a new order lands on the pass — even with the app in your pocket.",
   denied: "Blocked by this browser. Allow notifications for this site in the browser's settings, then come back here.",
-  // The iPhone app (2026-10-06) has no web notifications to ask for; its own, native alerts are the
-  // next part of the app round. Until then it says so, rather than sending anyone to the Home Screen.
-  unsupported: APP_BUILD
-    ? "Alerts come to the app in its next update. Until then, the web app on this phone's Home Screen can ring."
-    : "This browser can't show notifications. On an iPhone, add the app to your Home Screen first.",
+  // On the web only: the iPhone app shows no row at all (DeviceAlerts, below).
+  unsupported: "This browser can't show notifications. On an iPhone, add GT3 to your Home Screen from Safari's Share menu first.",
 };
 
 /** Settings › You: what this phone says, and the one tap that asks it. */
 export function DeviceAlerts({ userId }: { userId: string | null }) {
   const { toast } = useApp();
   const perm = useAlertPermission();
+  // NOT IN THE IPHONE APP (2026-10-11, Ryan's App Store audit). The app has no web notifications to ask for, and its own
+  // are the next part of the app round. The row said "Alerts come to the app in its next update. Until then, the web
+  // app on this phone's Home Screen can ring" — a promise and a pointer to the website, in an App Store app: a
+  // placeholder (App Review 2.1). Until there is something to turn on here, there is no row here.
+  if (APP_BUILD) return null;
   const turnOn = async () => {
     let p: NotificationPermission;
     try { p = await Notification.requestPermission(); }

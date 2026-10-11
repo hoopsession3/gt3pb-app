@@ -58,6 +58,8 @@ export type StartFacts = {
   onCrewSide?: boolean;
   /** GT3 is running from the Home Screen or as the iPhone app. */
   installed?: boolean;
+  /** Reading this inside the iPhone app itself (lib/native APP_BUILD). */
+  app?: boolean;
 };
 
 const first = (n: string | null | undefined) => (n ?? "").trim().split(/\s+/)[0] || "";
@@ -81,6 +83,12 @@ export function whoToAsk(f: StartFacts): string | null {
 // THE STEPS, IN THE ORDER A FIRST DAY NEEDS THEM. Six, not nine: Today is where the crew side opens
 // (so it is part of the first step, not a second), and a note is the ✦'s second job (so it rides
 // with Ask GT3). Home Screen is a step because the app is used one-handed on a phone all shift.
+//
+// IN THE IPHONE APP, FOUR (2026-10-11, Ryan: "I challenge when in App Store if certain copy or features are needed
+// … add app to home screen etc, audit for this"). Two steps are the web's: putting the site on the Home Screen
+// (the app is on it — it was showing "Done" for something nobody can do inside the app), and turning on alerts,
+// which in the app has nothing to turn on until its own notifications ship (Settings says nothing there either,
+// components/DeviceAlerts). A step that cannot be done where it is read is not shown there.
 export function startSteps(f: StartFacts = {}): StartStep[] {
   const steps: StartStep[] = [
     {
@@ -116,7 +124,7 @@ export function startSteps(f: StartFacts = {}): StartStep[] {
   ];
   const who = whoToAsk(f);
   steps.push({ key: "who", title: "Who to ask", how: who ?? "Ask the owner who brought you on — and the ✦ for anything about the craft." });
-  return steps;
+  return f.app ? steps.filter((s) => s.key !== "home" && s.key !== "alerts") : steps;
 }
 
 /**
@@ -150,7 +158,7 @@ export function startKnowledge(): string {
     "- Ask GT3: the ✦ at the bottom right, then Ask GT3. The ✦ also takes a quick note (just for you unless you share it) and logs a purchase. A link to app.gt3pb.com/crew?ask=1 opens Ask GT3 straight away.",
     "- Training: the Academy — each role has a path of short lessons with a quick check; progress saves. [The Academy](/academy)",
     "- Alerts: Settings › Notifications — what pings you, quiet hours, and the pass's sound on this phone. [Notifications](/crew?s=settings&a=set-notify)",
-    "- Home Screen: iPhone — open app.gt3pb.com in Safari, Share, Add to Home Screen. Android — Chrome, ⋮, Install app.",
+    "- On a phone: in the GT3 iPhone app there is nothing to install — it is on the Home Screen already. On the web, the browser's Share menu adds app.gt3pb.com to the Home Screen.",
     "- Who to ask: your city's lead first, then an owner.",
     `- The first-day guide: [Start here](${START_PATH}). What every section is for: the ⓘ at the top of the crew side.`,
   ].join("\n");

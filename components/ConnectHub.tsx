@@ -8,6 +8,7 @@ import { useAuth, roleOf } from "@/components/AuthProvider";
 import { CONNECT_GROUPS, CONNECT_LEADERSHIP, CONNECT_PRIMARY } from "@/lib/connect";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import Icon from "@/components/Icon";
+import { APP_BUILD } from "@/lib/native";
 
 // CONNECT HUB — a floating, intent-driven "link tree." Pull it up anytime someone asks where to find
 // GT3: it asks what they're here for ("Wanna order?", "Learn the brew?", "Connect?") and drops down
@@ -26,8 +27,11 @@ export function ConnectBody({ onGo }: { onGo: () => void }) {
   const router = useRouter();
   const [group, setGroup] = useState(0); // which intent is expanded
   const [qr, setQr] = useState("");
-
+  // NO QR IN THE IPHONE APP (2026-10-11, the App Store audit): "Scan to keep GT3 in your pocket" asks someone to scan
+  // the website off a phone that is already running the app. The web keeps it — a desk's screen, a friend's phone.
+  // APP_BUILD is fixed when the bundle is made (lib/native), so the web's bundle carries no trace of this.
   useEffect(() => {
+    if (APP_BUILD) return;
     QRCode.toDataURL(CONNECT_PRIMARY, { margin: 1, width: 320, color: { dark: "#15120D", light: "#ffffff" } })
       .then(setQr).catch(() => setQr(""));
   }, []);
@@ -69,7 +73,7 @@ export function ConnectBody({ onGo }: { onGo: () => void }) {
         })}
       </div>
 
-      {qr && (
+      {qr && !APP_BUILD && (
         <div className="chub-qr">
           <img src={qr} alt="Scan for gt3pb.com" width={96} height={96} />
           <span>Scan to keep GT3 in your pocket</span>
