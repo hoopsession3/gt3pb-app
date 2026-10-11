@@ -6,9 +6,9 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { useApp } from "./AppProvider";
 import { SectionHeader, InfoRow } from "@/components/kit";
-import { FLAVORS, nextDrop, dropDateKey, mixSummary, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
+import { FLAVORS, dropDateKey, mixSummary, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
 import { gallonsForBottles, flavorDemand } from "@/lib/brewMath";
-import { nextDropDay } from "@/lib/dropDate";
+import { boardSaturday, nextDropDay } from "@/lib/dropDate";
 import { addDays, dayKey, dayWithDate, etToday } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -69,22 +69,24 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue 
   const [busy, setBusy] = useState(false);
   const [histOpen, setHistOpen] = useState(false);
   const [listOpen, setListOpen] = useState<boolean | null>(null); // null = open on drop day only
-  // The drop = the truck's NEXT scheduled stop (same resolution as the reserve flow + /api/reserve),
-  // falling back to the Saturday cadence when the route is empty — the sheet and the reservations
-  // must always agree on which date "this drop" is.
+  // The drop = the one the board is working (lib/dropDate, shared with the home's number): today's stop all day
+  // until it is marked done, else the truck's next scheduled stop, else this week's Saturday.
+  // READ AGAIN, NOT ONCE (2026-10-11). It was read when the card mounted and never again, so a board left open kept
+  // the day it opened on: through a route edit, past the drop, past midnight. As a loader of `stops` it is read again
+  // when the route changes, when the app comes back after a while, on pull to refresh, and when the crew page's day
+  // turns over (lib/realtime refreshLive). A read that fails keeps the day on screen rather than guess the cadence.
   const [drop, setDrop] = useState<{ iso: string; label: string }>(() => {
-    const s = nextDrop().sat;
+    const s = boardSaturday();
     return { iso: dropDateKey(s), label: s.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) };
   });
-  useEffect(() => {
+  const resolveDrop = useCallback(async () => {
     if (!supabase) return;
-    let liveFlag = true;
-    // lib/dropDate — the one answer to "which day is this drop", shared with the home's number.
-    nextDropDay(supabase).then((d) => {
-      if (liveFlag && d.fromStop) setDrop({ iso: d.iso, label: d.at.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) });
-    });
-    return () => { liveFlag = false; };
+    const d = await nextDropDay(supabase);
+    if (d.error) return;
+    const label = d.at.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    setDrop((cur) => (cur.iso === d.iso && cur.label === label ? cur : { iso: d.iso, label }));
   }, []);
+  useRealtimeTable("stops", resolveDrop, { loadOnMount: true });
   const dropISO = drop.iso;
   const satLabel = drop.label;
   useEffect(() => { onDue?.(dropISO); }, [dropISO, onDue]);

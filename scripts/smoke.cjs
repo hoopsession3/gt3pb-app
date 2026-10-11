@@ -6518,6 +6518,19 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /\.dayhead-op-t>b\{font-family:'Archivo Black'/.test(read("app/globals.css")) && !/\.dayhead-op b\{/.test(read("app/globals.css")));
   ok("one drop day: the home's number and the pickup board ask lib/dropDate which day 'this drop' is",
     /nextDropDay\(sb\)/.test(nums) && /nextDropDay\(supabase\)/.test(dops) && !/\.gte\("starts_at", new Date\(\)\.toISOString\(\)\)/.test(dops));
+  {
+    // THE BOARD HOLDS ITS DROP FOR THE DAY (2026-10-11). It asked for the next stop starting after now, so it turned to
+    // next week's list the minute a drop began, and it read the day once, on mount. scripts/dropday.test.mjs runs the rule.
+    const dd = code(read("lib/dropDate.ts")), crew = code(read("app/crew/page.tsx")), etd = code(read("lib/useEtDay.ts"));
+    ok("the pickup board's drop holds for its whole ET day: from the start of today, this week's Saturday on an empty route, never the ordering rule",
+      /\.gte\("starts_at", etDayStart\(etDayKey\(now\)\)\.toISOString\(\)\)/.test(dd) && /const sat = boardSaturday\(now\);/.test(dd) && !/\bnextDrop\(/.test(dd)
+      && /const s = boardSaturday\(\);/.test(dops) && !/\bnextDrop\(/.test(dops));
+    ok("the pickup board reads its drop again — a loader of stops (route edits, coming back, pull to refresh) that keeps its day when a read fails — not once on mount",
+      /useRealtimeTable\("stops", resolveDrop, \{ loadOnMount: true \}\)/.test(dops) && /if \(d\.error\) return;/.test(dops) && !/let liveFlag/.test(dops));
+    ok("the crew page reads every live screen again when the ET day turns, and the day is checked on coming back",
+      /const etDay = useEtDay\(\);/.test(crew) && /if \(dayWas\.current !== etDay\) \{ dayWas\.current = etDay; void refreshLive\(\); \}/.test(crew)
+      && /etDayStart\(addDays\(etToday\(\), 1\)\)/.test(etd) && /visibilitychange/.test(etd));
+  }
 }
 
 // ── THE CUSTOMER SIDE: ONE ORDERING RULE, AND A PRE-ORDER SAYS WHEN (2026-10-04, 0343) ────────────
