@@ -31,7 +31,12 @@
 // is driven from its own file by scripts/sw.test.mjs — the RSC case, the navigation case, the
 // immutable case, the asset case and the purge — and that test refuses a future edit to this
 // file that does not bump the name again.
-const CACHE = "gt3pb-v26";
+//
+// v27 (2026-10-11, wave 2 · alerts): only the push handler changed — a push names its event (one
+// notification each, so a second order or an escalation rings instead of silently replacing the
+// first) and a critical, an escalation or a person's own test is shown with the app open too. The
+// name is bumped because the rule above says every edit bumps it.
+const CACHE = "gt3pb-v27";
 const SHELL = ["/", "/truck", "/menu", "/events", "/3mpire", "/book", "/crew", "/driver", "/manifest.webmanifest"];
 
 // Page DATA, not a page: Next's router fetches a route's flight payload with these marks whenever
@@ -138,13 +143,20 @@ self.addEventListener("push", (event) => {
   event.waitUntil((async () => {
     // If a window is open + focused, the in-app toast already shows this — don't
     // double it with an OS banner. This is what kept stacking duplicate notifications.
+    // EXCEPT WHAT THE APP DOES NOT SOUND FOR (2026-10-11): an alert has no toast and no chime in the
+    // app — the inbox just reloads — so a critical, an escalation and a person's own "Ring this phone"
+    // test come with `ring` and are shown over an open app as well (supabase/functions/push/policy.ts).
     const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    if (wins.some((c) => c.focused || c.visibilityState === "visible")) return;
+    if (!data.ring && wins.some((c) => c.focused || c.visibilityState === "visible")) return;
     await self.registration.showNotification(data.title || "GT3PB", {
       body: data.body || "",
       icon: data.icon || "/icon-192.png",
       badge: "/icon-192.png",
-      tag: "gt3pb",
+      // ONE NOTIFICATION PER EVENT (2026-10-11). Every push shared the tag "gt3pb", so a second order or
+      // alert replaced the one still showing, without a sound — and an escalation, sent because the first
+      // went unanswered and so was likely still showing, was the quietest of all. The push function names
+      // each event now; a push from a function deployed before that keeps the old tag.
+      tag: typeof data.tag === "string" && data.tag ? data.tag : "gt3pb",
       data: { url: data.url || "/" },
     });
   })());

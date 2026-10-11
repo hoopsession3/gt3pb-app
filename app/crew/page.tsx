@@ -25,6 +25,7 @@ import { usePassHeartbeat } from "@/components/usePassHeartbeat";
 import { useEtDay } from "@/lib/useEtDay";
 import { NotifPrefs, NotifPrefsSheet } from "@/components/NotifPrefs";
 import { DeviceAlerts, AlertsOffLine } from "@/components/DeviceAlerts";
+import { RingThisPhone } from "@/components/RingThisPhone";
 import { PassSound, Appearance } from "@/components/YouPrefs";
 import { DisplayControls } from "@/components/DisplayToggle";
 import { useSettingsGlance, GlanceText, OutlookGlance } from "@/components/SettingsGlance";
@@ -5171,8 +5172,9 @@ function SettingsHome({ userId, isAdmin, isOwner }: { userId: string | null; isA
       <SectionHeader label="You" annotation="you · this phone" />
       <SetList>
         <div id="set-account" className="set-row set-acct"><AccountRow /></div>
-        <Panel id="set-notify" title="Notifications" sub="Order alerts and sound on this phone, what pings you, quiet hours" value={v(g.notify)} remember={false}>
+        <Panel id="set-notify" title="Notifications" sub="Order alerts and a test ring on this phone, sound, what pings you, quiet hours" value={v(g.notify)} remember={false}>
           <SetPart id="set-alerts"><DeviceAlerts /></SetPart>
+          <SetPart id="set-ring"><RingThisPhone /></SetPart>
           <SetPart id="set-sound"><PassSound /></SetPart>
           <SetPart label="What pings you"><NotifPrefs userId={userId} /></SetPart>
         </Panel>

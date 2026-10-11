@@ -41,6 +41,7 @@ export const SETTINGS_LAYOUT: readonly SettingsSection[] = [
     { id: "set-account", gate: "everyone" },                                 // name, photo, sign-in: the account menu's door
     { id: "set-notify", gate: "everyone", parts: [
       { id: "set-alerts", gate: "everyone" },                                // order alerts on this phone
+      { id: "set-ring", gate: "everyone" },                                  // ring this phone: a test alert to your own devices (0374)
       { id: "set-sound", gate: "everyone" },                                 // the pass's chime (the Pass keeps its bell)
     ] },                                                                     // then what pings you & quiet hours
     { id: "set-display", gate: "everyone", parts: [

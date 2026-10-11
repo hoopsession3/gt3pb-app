@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { etToday } from "@/lib/dates";
+import { tokenOk } from "@/lib/webhookSignature";
 import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
@@ -35,8 +36,10 @@ async function post(req: Request) {
   const secret = process.env.NOTES_INBOUND_SECRET;
   if (!supabaseAdmin || !secret) return NextResponse.json({ ok: false }, { status: 503 });
 
+  // Compared in constant time (2026-10-11, lib/webhookSignature): `!==` stops at the first wrong character, and how
+  // long a refusal takes is one more thing a guesser can measure.
   const url = new URL(req.url);
-  if (url.searchParams.get("token") !== secret) return NextResponse.json({ ok: false }, { status: 401 });
+  if (!tokenOk(url.searchParams.get("token"), secret)) return NextResponse.json({ ok: false }, { status: 401 });
 
   // Accept JSON (Postmark) or multipart/form-data (SendGrid/Mailgun).
   let f: Record<string, any> = {};

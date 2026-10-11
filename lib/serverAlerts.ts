@@ -50,6 +50,11 @@ export async function raiseAlert(a: {
 // cannot call TypeScript and this cannot call a cron function. Naming that is the difference between
 // a known pair and the accidental drift this repo keeps finding in pairs of files.
 //
+// THE TABLE HOLDS IT NOW, FOR EVERY PRODUCER (2026-10-11, 0372). A plain raiseAlert of a kind and
+// subject that is already open, for the same person or the team, folds into the open line in the
+// database — counted, its words refreshed, no second push. This still asks first: a webhook's re-run
+// of the same event is not a second raise, so it is not counted as one.
+//
 // Returns whether it actually raised, so a caller can tell "already open" from "written".
 export async function raiseAlertOnce(
   a: Parameters<typeof raiseAlert>[0] & { kind: string; subjectId: string },

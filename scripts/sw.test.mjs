@@ -25,7 +25,7 @@ const ORIGIN = "https://app.gt3pb.com";
 // Any change to sw.js reaches installed clients as a new worker; only a changed CACHE makes the
 // activate step throw the old entries away. So an edit here must bump the name, and the pair below
 // must be re-recorded with it (both values are printed when they differ).
-const RECORDED = { sha: "e302bb623a90a41275d3e1e76fac076f673f6bf1", cache: "gt3pb-v26" };
+const RECORDED = { sha: "95f128ebc8786004e5574c6e076ab76dbd864886", cache: "gt3pb-v27" };
 const blobSha = createHash("sha1").update(`blob ${Buffer.byteLength(SRC)}\0`).update(SRC).digest("hex");
 const cacheName = (SRC.match(/const CACHE = "([^"]+)";/) || [])[1];
 ok("sw: CACHE is declared once, as a plain string", !!cacheName && (SRC.match(/const CACHE = /g) || []).length === 1, cacheName);
@@ -160,6 +160,45 @@ function boot() {
   w.listeners.activate(act); await Promise.all(act.waits);
   ok("activate: every cache but the current one is deleted — the poisoned entries go with it", !(await w.caches.keys()).includes("gt3pb-v25") && (await w.caches.keys()).includes(w.cacheName));
   ok("activate: the worker claims open clients", w.self.clients.claimed === 1);
+}
+
+// ── the push handler (2026-10-11, wave 2 · alerts): one notification per event, and what rings over an open app ──
+// Until now nothing ran the push handler. Every push shared the tag "gt3pb", so a second order or an escalation
+// replaced the notification still showing without a sound; and every push was dropped while the app was on screen,
+// though an alert has no toast or chime in the app. Driven here with the payloads the push function sends.
+{
+  const pushEvent = (payload) => ({ data: payload === undefined ? null : { json: () => JSON.parse(typeof payload === "string" ? payload : JSON.stringify(payload)), text: () => String(payload) }, waits: [], waitUntil(p) { this.waits.push(Promise.resolve(p)); } });
+  const run = async (payload, windows = []) => {
+    const w = boot();
+    const shown = [];
+    w.self.registration.showNotification = async (title, opts) => { shown.push({ title, ...opts }); };
+    w.self.clients.matchAll = async () => windows;
+    const ev = pushEvent(payload);
+    w.listeners.push(ev);
+    await Promise.all(ev.waits);
+    return shown;
+  };
+  const hidden = [{ focused: false, visibilityState: "hidden" }], open = [{ focused: true, visibilityState: "visible" }];
+
+  const a = await run({ title: "New order", body: "2 items · tap to open", url: "/crew?s=now&a=kitchen-pass", tag: "order:o-1", ring: false }, hidden);
+  ok("push: the app in a pocket shows the push as sent — its title, its body, its own tag, the link a tap opens",
+    a.length === 1 && a[0].title === "New order" && a[0].body === "2 items · tap to open" && a[0].tag === "order:o-1" && a[0].data.url === "/crew?s=now&a=kitchen-pass", a);
+  const two = [...(await run({ title: "New order", body: "1 item · tap to open", tag: "order:o-1" }, hidden)), ...(await run({ title: "New order", body: "1 item · tap to open", tag: "order:o-2" }, hidden))];
+  ok("push: two orders are two notifications — two tags, neither replacing the other", two.length === 2 && two[0].tag !== two[1].tag);
+  ok("push: an order is not shown over an open app — the Pass chimes for its own (unchanged)",
+    (await run({ title: "New order", body: "x", tag: "order:o-3", ring: false }, open)).length === 0);
+  const crit = await run({ title: "Critical — A refund is needed", body: "Tap to open.", url: "/crew?s=money", tag: "alert:a-1", ring: true }, open);
+  ok("push: a critical rings over an open app — nothing in the app sounds for an alert", crit.length === 1 && crit[0].tag === "alert:a-1", crit);
+  const again = await run({ title: "Still open — A refund is needed", body: "x", tag: "alert:a-1:again", ring: true }, open);
+  ok("push: an escalation is shown with a tag of its own, so it rings beside the first rather than replacing it", again.length === 1 && again[0].tag === "alert:a-1:again");
+  const test = await run({ title: "Test alert", body: "Alerts reach this phone. Nothing to do.", tag: "test:d-1", ring: true }, open);
+  ok("push: \"Ring this phone\" rings with the settings screen open in front of the person who asked", test.length === 1 && test[0].title === "Test alert");
+  const old = await run({ title: "Old function", body: "no tag here", url: "/" }, hidden);
+  ok("push: a payload from a push function deployed before this keeps the old tag and the old rule", old.length === 1 && old[0].tag === "gt3pb"
+    && (await run({ title: "Old function", body: "x" }, open)).length === 0);
+  ok("push: an empty push shows nothing", (await run(undefined, hidden)).length === 0);
+  const text = await run("not json at all", hidden);
+  ok("push: a payload that is not JSON is shown as text under the brand", text.length === 1 && text[0].title === "GT3PB" && text[0].body === "not json at all", text);
 }
 
 console.log(`THE APP THAT STOPPED UPDATING: ${pass} passed, ${fail} failed`);

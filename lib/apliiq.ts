@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { supabaseAdmin } from "./supabaseAdmin";
 import { buildOrderPayload, type OrderLine, type OrderShip } from "./apliiqOrder";
 import { errorMessage } from "./errorMessage";
+import { apliiqSignatureOk } from "./webhookSignature";
 
 // APLIIQ integration (0271) — print-on-demand fulfillment for the merch line. Two directions:
 // Apliiq calls OUR webhooks (product/search/fulfillment), and we submit orders to THEIR API. Every
@@ -18,27 +19,11 @@ const API_BASE = "https://api.apliiq.com/v1";
 // We re-derive SIG from the parts they send (APPID/RTS/STATE + the raw body we received) and
 // timing-safe compare. Returns false when no secret is configured — inbound calls stay CLOSED until
 // the env is set (safe default). The signed string is faithful to Apliiq's Authentication Guide.
+// The check is lib/webhookSignature's apliiqSignatureOk since 2026-10-11 — one home for every webhook's
+// signature, run against made-up secrets by scripts/webhooks.test.mjs.
 export function verifyApliiq(rawBody: string, headers: Headers): boolean {
-  if (!SECRET) return false;
   // Accept the token whether it arrives under Authorization (with the scheme word) or a bare header.
-  const raw = headers.get("authorization") || headers.get("x-apliiq-auth") || "";
-  const token = raw.replace(/^\s*x-apliiq-auth\s+/i, "").trim();
-  const parts = token.split(":");
-  if (parts.length < 4) return false;
-  const [rts, sig, appid, state] = parts;
-  if (!rts || !sig || !appid || !state) return false;
-  const b64 = rawBody ? Buffer.from(rawBody).toString("base64") : "";
-  const expected = crypto
-    .createHmac("sha256", SECRET)
-    .update(appid + rts + state + b64)
-    .digest("base64");
-  try {
-    const a = Buffer.from(sig);
-    const b = Buffer.from(expected);
-    return a.length === b.length && crypto.timingSafeEqual(a, b);
-  } catch {
-    return false;
-  }
+  return apliiqSignatureOk(rawBody, headers.get("authorization") || headers.get("x-apliiq-auth"), SECRET);
 }
 
 // The signed auth header for OUTBOUND calls to Apliiq's API. Per their Authentication Guide the value
