@@ -689,7 +689,7 @@ function Kitchen() {
                         {o.eta_status === "outside" ? <><Icon name="pin" /> OUTSIDE — call the name</> : o.eta_status === "on_way" ? "🏃 On the way" : <><Icon name="clock" /> Running late</>}
                       </span>
                     )}
-                    <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={isSettled(o) ? "pd" : "unp"}>{passWord(o)}</span> · <span className="kds-stagetime">{ago(o.status_changed_at)} in stage</span></div>
+                    <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={isSettled(o) ? "kds-paid" : "unp"}>{passWord(o)}</span> · <span className="kds-stagetime">{ago(o.status_changed_at)} in stage</span></div>
                     <div className="adm-actions-row">
                       {PREV[o.status] && <button className="k-icon-btn lg shrink-0" onClick={() => recall(o)} aria-label="Move back a stage">↩</button>}
                       {canCollect(o) && <button type="button" className="btn-sec shrink-0" onClick={() => collect(o)}>Collect {money(o.total_cents)}</button>}
@@ -727,7 +727,7 @@ function Kitchen() {
                   <span className="adm-age calm">picked up {ago(o.status_changed_at)} ago</span>
                 </div>
                 <div className="adm-items">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")}</div>
-                <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={isSettled(o) ? "pd" : "unp"}>{passWord(o, true)}</span></div>
+                <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={isSettled(o) ? "kds-paid" : "unp"}>{passWord(o, true)}</span></div>
                 <div className="adm-actions-row">
                   <button className="k-icon-btn lg shrink-0" onClick={() => recall(o)} aria-label={`Bring ${o.customer ?? "order"} back to ready`}>↩ Recall</button>
                   {/* Handed over unpaid and settled a minute later — a regular squaring up — is

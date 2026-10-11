@@ -5847,7 +5847,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("pass: taking money is instant like a move, and with no signal it is parked and replayed — the till does not wait for bars",
     /apply\(paidRow, false\);/.test(kit) && /if \(isNetworkError\(res\.error\)\) \{ queueCollectCup\(o\.id, via\);/.test(kit) && /apply\(o, false\);\s*toast\(`Couldn't record it/.test(kit));
   ok("pass: the money word is lib/collect's — 'PAID · cash', 'PAID · reader' — on the board and in the picked-up tray",
-    /<span className=\{isSettled\(o\) \? "pd" : "unp"\}>\{passWord\(o\)\}<\/span>/.test(kit) && /\{passWord\(o, true\)\}/.test(kit) && !/o\.paid \? "PAID"/.test(kit));
+    /<span className=\{isSettled\(o\) \? "kds-paid" : "unp"\}>\{passWord\(o\)\}<\/span>/.test(kit) && /\{passWord\(o, true\)\}/.test(kit) && !/o\.paid \? "PAID"/.test(kit));
   ok("pass: a collection can be undone by the one who took it, inside the hour, where canUndo says it will work",
     (kit.match(/\{canUndo\(o, me, admin\) && \(/g) || []).length === 2 && /await undoCollection\(supabase, "cup", o\.id\)/.test(kit));
   ok("pass: voiding a paid order says what the refund is, and a card refund is flagged critical — it said only 'can't be undone'",
