@@ -16,7 +16,8 @@ import { useCrew } from "./useCrew";
 import PersonPick, { type PersonValue } from "./PersonPick";
 import { localToday } from "@/lib/dates";
 import { useConfirm } from "@/components/ConfirmSheet";
-import { streamOwner } from "@/lib/portfolio";
+import { streamOwner, portfolioHead, freshnessOf, streamException, riskOrder } from "@/lib/portfolio";
+import { useEtDay } from "@/lib/useEtDay";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // THE WORKSTREAM REGISTRY (0264, 2026-08-03) — "the one place to manage every component and
@@ -43,8 +44,6 @@ const CRITERIA = [
 ] as const;
 
 const dotClass = (h: number, status: string) => status === "parked" ? "park" : h >= 10 ? "green" : h >= 8 ? "amber" : "red";
-const nice = (iso: string | null) => iso ? new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
-const daysSince = (iso: string | null) => iso ? Math.floor((Date.now() - new Date(`${iso}T12:00:00`).getTime()) / 864e5) : null;
 
 export default function OsRegistry() {
   const confirm = useConfirm();
@@ -74,6 +73,9 @@ export default function OsRegistry() {
   const state = useAsyncData(loader, []);
   const { reload } = state;
   useRealtimeTable(["os_workstreams", "workstream_audits"], reload);
+  // The business's day, kept current (lib/useEtDay): how old a score is and how late a next action is are
+  // read against it as the list is drawn, so a screen left open past midnight says the new day's truth.
+  const today = useEtDay();
 
   const openAudit = (w: Ws) => {
     setAuditing(w);
@@ -144,39 +146,51 @@ export default function OsRegistry() {
           };
           // ONE STALE FACT, SAID ONCE (2026-10-07, Ryan: "Ewww"). Every row carried its own "64d" in the
           // warning colour — the same fact, that the Monday audit had not run, nine times down the
-          // screen. It is one line above the rows now: how many are overdue and when the last ran.
-          const lastRun = rows.map((r) => r.last_audited).filter(Boolean).sort().pop() ?? null;
-          const overdue = active.filter((r) => (daysSince(r.last_audited) ?? 99) >= 7).length;
+          // screen. It became one line above the rows: how many were overdue and when the last ran.
+          // DATED IN THE HEAD (2026-10-12, the Command audit, approved). That line still sat under "MEAN 7.0" —
+          // the Aug 2 seed's own average on Oct 12, drawn like a fresh audit's. The number is dated where it is
+          // said now, "7.0 · assessed Aug 2", with how current it is in a word beside it, Current, Due or Stale
+          // (lib/portfolio portfolioHead): the stale fact, said once, in the head. Still no row counts its days;
+          // a stale score is drawn in the quiet ink. The mean is the rule above, unchanged.
+          const head = portfolioHead(mean, rows, today);
+          const fresh = head.state === "current" || head.state === "due";
           return (
             <>
-              <SectionHeader label="The portfolio" annotation="ten workstreams · audited Mondays"
-                right={<span className={`k-tag ${mean >= 8 ? "ok" : "warn"}`}>mean {mean.toFixed(1)}</span>} />
-              {overdue > 0 && (
-                <p className="osr-due flex items-start gap-2 mt-2.5 mb-0.5 px-3 py-2.5 border border-line2 rounded-lg font-sans text-footnote leading-[1.45] text-cream" role="status">
-                  <Icon name="warning" />
-                  <span>{overdue === active.length ? "The Monday audit is overdue" : `${overdue} of ${active.length} workstreams are due an audit`}{lastRun ? ` — last run ${nice(lastRun)}, ${daysSince(lastRun)} days ago` : " — none has been run yet"}.{isAdmin ? " Tap a workstream to score it." : ""}</span>
-                </p>
-              )}
+              <SectionHeader label="The portfolio"
+                right={<>
+                  <span className={`k-tag txt${!fresh ? "" : mean >= 8 ? " ok" : " warn"}`}>{head.state && <span className="sr-only">Portfolio mean </span>}{head.score}</span>
+                  {head.word && <span className={`k-tag txt${head.state === "current" ? " ok" : head.state === "due" ? " gold" : " warn"}`}>{head.word}</span>}
+                </>} />
               {/* THE ROWS ARE THE PAGE'S, NOT CARDS ON IT (2026-10-07). Each was a card filled with a
                   see-through black made for the night console — on the cream day theme every one
                   turned muddy grey — and led with its score in a coin, which read as a rank. The name
-                  leads now, the owner starts the line under it, and the score sits at the end with a
-                  dot that says its band: 10 green, 8–9 gold, below 8 red. Rows sit on the page with a
-                  hairline between them, in both themes. */}
+                  leads now and the score sits at the end with a dot that says its band: 10 green, 8–9
+                  gold, below 8 red. Rows sit on the page with a hairline between them, in both themes.
+                  ONE LINE, ONLY WHEN SOMETHING IS WRONG (2026-10-12, the Command audit, approved). A row
+                  drew its next action, its blocker and the two-week rule on lines of their own; it draws
+                  its owner beside its name now, and at most one line under it — the problem that most
+                  needs a leader (lib/portfolio streamException), from the row as loaded. The blocker is
+                  still written in the audit sheet. The rows come risk first (lib/portfolio riskOrder):
+                  stale or never scored, then an open problem, then the lowest score; parked last. */}
               <div className="osr-rows">
-                {rows.map((w) => (
-                  <button key={w.id} type="button" className={`osr-row${w.status === "parked" ? " parked" : ""}`} onClick={() => isAdmin && openAudit(w)} disabled={!isAdmin} aria-label={`${w.name}, ${w.status === "parked" ? "parked" : `${w.health} of 10`}${isAdmin ? " — audit it" : ""}`}>
-                    <span className="osr-main">
-                      <span className="osr-name">{w.name}{w.status === "blocked" && <i className="osr-flag">blocked</i>}{w.status === "parked" && <i className="osr-flag park">parked by decision</i>}</span>
-                      {w.status !== "parked" && (
-                        <span className="osr-next"><b className="osr-who">{ownerName(w)}</b> · {w.next_action ?? "no next action — that's a 0 on criterion 2"}{w.due ? ` · ${nice(w.due)}` : ""}</span>
-                      )}
-                      {w.blocker && w.status !== "parked" && <span className="osr-block"><Icon name="warning" /> {w.blocker}</span>}
-                      {owesDecision(w) && <span className="osr-owes">⚖ two weeks below 8 — log kill / pause / recover in the ledger (Plan › Operating rhythm)</span>}
-                    </span>
-                    <span className={`osr-score ${dotClass(w.health, w.status)}`} aria-hidden="true">{w.status === "parked" ? "parked" : <><i />{w.health}<small>/10</small></>}</span>
-                  </button>
-                ))}
+                {riskOrder(rows, { today, owes: owesDecision }).map((w) => {
+                  const parked = w.status === "parked";
+                  const age = freshnessOf(w.last_audited, today);
+                  const line = streamException(w, { today, owesDecision: owesDecision(w) });
+                  const who = ownerName(w);
+                  return (
+                    <button key={w.id} type="button" className={`osr-row${parked ? " parked" : ""}`} onClick={() => isAdmin && openAudit(w)} disabled={!isAdmin}
+                      aria-label={`${w.name}${parked ? "" : who ? `, owned by ${who}` : ", no owner"}, ${parked ? "parked by decision" : `${w.health} of 10${age === "stale" ? ", a stale score" : age === "due" ? ", due a new score" : ""}`}${line ? `. ${line.say}` : ""}${isAdmin ? ". Opens its audit" : ""}`}>
+                      <span className="osr-main">
+                        <span className="osr-name">{w.name}{!parked && <span className="osr-next">{who ?? "no owner"}</span>}{w.status === "blocked" && <i className="osr-flag">blocked</i>}{parked && <i className="osr-flag park">parked by decision</i>}</span>
+                        {line && (line.kind === "decision"
+                          ? <span className="osr-owes truncate">⚖ {line.text}</span>
+                          : <span className="osr-block">{line.kind === "blocker" && <Icon name="warning" />}<span className="min-w-0 truncate">{line.text}</span></span>)}
+                      </span>
+                      <span className={`osr-score ${dotClass(w.health, w.status)}${!parked && (age === "stale" || age === "never") ? " text-cream-muted!" : ""}`} aria-hidden="true">{parked ? "parked" : <><i />{w.health}<small>/10</small></>}</span>
+                    </button>
+                  );
+                })}
               </div>
               {/* THE PAGE AT REST IS A READ VIEW (2026-10-10, the Command fold): adding a workstream is the board's
                   name-first create (components/InlineCreate), as an initiative and a milestone are — it was a field

@@ -10206,10 +10206,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const add2 = code(read("components/AddTeammate.tsx")), wr = code(read("app/api/team/welcome/route.ts")), crew2 = code(read("app/crew/page.tsx"));
   ok("command: the portfolio's rows sit on the page — a hairline between them, no card fill, no colour that only the night theme can carry",
     /\.osr-row\{[^}]*background:none;[^}]*border-bottom:1px solid var\(--line\)/.test(css2) && !/\.osr-row\{[^}]*rgba\(0,0,0/.test(css2) && !/\.osr-(dot|when|owner)\b/.test(css2));
-  ok("command: the audit being overdue is said once, above the rows — not as a day count on every row",
-    /const overdue = active\.filter\(\(r\) => \(daysSince\(r\.last_audited\) \?\? 99\) >= 7\)\.length;/.test(osr2) && /<p className="osr-due [^"]*" role="status">/.test(osr2) && !/osr-when|stale \? " stale"/.test(osr2));
+  // DATED IN THE HEAD (2026-10-12, the Command audit): the overdue line under "MEAN 7.0" became the head itself —
+  // "7.0 · assessed Aug 2" and its state in a word (lib/portfolio, pinned in THE COMMAND AUDIT below). Still once.
+  ok("command: how old the scores are is said once, in the portfolio's head — dated, in a word — never as a day count on a row",
+    /const head = portfolioHead\(mean, rows, today\);/.test(osr2) && /\{head\.score\}/.test(osr2) && /\{head\.word\}/.test(osr2)
+    && !/daysSince|osr-due|osr-when|stale \? " stale"|days ago/.test(osr2));
   ok("command: a workstream's name leads its row and its score closes it, with its band's dot",
-    osr2.indexOf('<span className="osr-main">') > 0 && osr2.indexOf('<span className="osr-main">') < osr2.indexOf("className={`osr-score ${dotClass(w.health, w.status)}`}"));
+    osr2.indexOf('<span className="osr-main">') > 0 && osr2.indexOf('<span className="osr-main">') < osr2.indexOf("className={`osr-score ${dotClass(w.health, w.status)}"));
   ok("command: the team's week is one line of counts that opens on a tap — the tasks My Day lists are not listed a second time",
     /className=\{`cmd-week\$\{weekOpen \? " open" : ""\}`\} onClick=\{\(\) => setWeekOpen\(\(o\) => !o\)\} aria-expanded=\{weekOpen\}/.test(cbd)
     && !/label="This week"|label="Done this week"/.test(cbd) && /<b className="text-cream font-bold tabular-nums">\{data\.overdue\.length\}<\/b> overdue/.test(cbd));
@@ -12131,6 +12134,140 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && ownerFns.join() === "0023_roles.sql" && /select coalesce\(\(select role = 'owner' from public\.profiles where id = auth\.uid\(\)\), false\);/.test(rd("supabase/migrations/0023_roles.sql")), ownerFns);
   ok("briefing: the card still says why if the server refuses anyway (a role changed while the page was open)",
     /if \(r\.status === 401 \|\| r\.status === 403\) setErr\("The Chief of Staff briefing is owner-only\. Ask an owner to run it for you\."\);/.test(rd("components/ChiefOfStaff.tsx")));
+}
+
+// ── THE COMMAND AUDIT (2026-10-12, approved) ──
+// Command was 2,979 points tall on an iPhone 17, the portfolio alone ~910, and its "MEAN 7.0" was the Aug 2 seed's own
+// average on Oct 12, drawn like a fresh audit's. Now: the number is dated once with its state in a word; a stream gets
+// one line, only when something is wrong; the streams come risk first; and the rest of Command is a row each that
+// opens as its own screen. lib/portfolio holds the rules; the score, the mean and the bands are 0264's, unchanged.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const PF = require("../.smoke/portfolio.js");
+  const T = "2026-10-12";
+
+  // ── the seed, read from 0264 itself: ten streams, all scored Aug 2 ──
+  const m264 = rd("supabase/migrations/0264_gt3_command_registry.sql");
+  const ins = m264.slice(m264.indexOf("insert into public.os_workstreams"), m264.indexOf("on conflict (name) do nothing;"));
+  const lit = (v) => (v === "null" ? null : v.slice(1, -1).replace(/''/g, "'"));
+  const SEED = [...ins.matchAll(/\(\s*'((?:[^']|'')*)',\s*'((?:[^']|'')*)',\s*(\d+),\s*(null|'(?:[^']|'')*'),\s*(null|'(?:[^']|'')*'),\s*(null|'(?:[^']|'')*'),\s*'(\d{4}-\d{2}-\d{2})',\s*(\d+)\)/g)]
+    .map((m, i) => ({ id: `s${i}`, name: m[1].replace(/''/g, "'"), owner: m[2], health: Number(m[3]), next_action: lit(m[4]), due: lit(m[5]), blocker: lit(m[6]), last_audited: m[7], sort: Number(m[8]), status: "active" }));
+  ok("command audit: the seed is read from 0264 — ten streams, all scored Aug 2", SEED.length === 10 && SEED.every((s) => s.last_audited === "2026-08-02"), SEED.length);
+
+  // ── THE MEAN IS THE SAME RULE, BYTE FOR BYTE (the scoring method does not change) ──
+  // The lines below are OsRegistry's at 9695df5, before this slice. Each is still there, once, as written; the mean they
+  // compute is what the head prints, to one place, exactly as "mean 7.0" printed it.
+  const osrRaw = rd("components/OsRegistry.tsx"), osr = code(osrRaw);
+  // The list's part of the file — the audit sheet's own code (its total, its save) is another round's (w4-audit).
+  const list = osr.slice(osr.indexOf("{({ rows, recent }) => {"), osr.indexOf('<InlineCreate label="+ Workstream"'));
+  const OLD_MEAN = ['const active = rows.filter((r) => r.status !== "parked");', "const mean = active.length ? (active.reduce((s, r) => s + r.health, 0) / active.length) : 0;"];
+  const OLD_RULES = [...OLD_MEAN, "const mine = recent.filter((a) => a.workstream_id === w.id).slice(0, 2);",
+    'return w.status === "active" && mine.length >= 2 && mine.every((a) => a.total < 8);',
+    'const dotClass = (h: number, status: string) => status === "parked" ? "park" : h >= 10 ? "green" : h >= 8 ? "amber" : "red";'];
+  const once = (l) => osrRaw.split("\n").filter((x) => x.trim() === l).length === 1;
+  ok("command audit: the mean, the two-week rule and the bands are OsRegistry's lines from before, unchanged",
+    OLD_RULES.every(once), OLD_RULES.filter((l) => !once(l)));
+  const oldMean = new Function("rows", `${OLD_MEAN.join("\n")}\nreturn mean;`);
+  const meanCases = [SEED, SEED.map((s, i) => (i < 3 ? { ...s, status: "parked" } : s)), [{ status: "active", health: 7 }, { status: "active", health: 8 }],
+    [{ status: "active", health: 10 }, { status: "blocked", health: 3 }, { status: "parked", health: 0 }], [{ status: "active", health: 0, last_audited: null }]];
+  ok("command audit: the head prints the mean the old rule computes — 7.0 for the seed — and computes no other",
+    oldMean(SEED) === 7 && meanCases.every((rows) => PF.portfolioHead(oldMean(rows), rows, T).score.startsWith(`${oldMean(rows).toFixed(1)} · `))
+    && /const head = portfolioHead\(mean, rows, today\);/.test(list) && list.length > 0 && !/\.reduce\(/.test(list.replace(OLD_MEAN[1], "")),
+    meanCases.map((rows) => PF.portfolioHead(oldMean(rows), rows, T).score));
+
+  // ── 1 · A DATED HEADER ──
+  const F = (d) => PF.freshnessOf(d, T);
+  ok("command audit: freshness — within 7 days is Current, 8 to 13 Due, 14 or more Stale (the boundaries 7/8/13/14)",
+    F("2026-10-12") === "current" && F("2026-10-05") === "current" && F("2026-10-04") === "due" && F("2026-09-29") === "due"
+    && F("2026-09-28") === "stale" && F("2026-08-02") === "stale" && F("2026-10-13") === "current",
+    ["2026-10-05", "2026-10-04", "2026-09-29", "2026-09-28"].map(F));
+  ok("command audit: freshness — no score is Never scored, not a date", F(null) === "never" && F(undefined) === "never" && F("") === "never" && F("soon") === "never");
+  ok("command audit: freshness counts calendar days across a clock change — seven days over Nov 1 is still Current, eight is Due",
+    PF.freshnessOf("2026-11-02", "2026-11-09") === "current" && PF.freshnessOf("2026-11-01", "2026-11-09") === "due");
+  ok("command audit: the words are Current, Due and Stale; the boundaries are the constants", PF.FRESHNESS_WORD.current === "Current"
+    && PF.FRESHNESS_WORD.due === "Due" && PF.FRESHNESS_WORD.stale === "Stale" && PF.CURRENT_DAYS === 7 && PF.STALE_DAYS === 14);
+  const H = (mean, rows) => PF.portfolioHead(mean, rows, T);
+  const seedHead = H(7, SEED);
+  ok("command audit: the head's words — \"7.0 · assessed Aug 2\", Stale", seedHead.score === "7.0 · assessed Aug 2" && seedHead.state === "stale" && seedHead.word === "Stale", seedHead);
+  const A = (last_audited, status = "active") => ({ status, last_audited });
+  ok("command audit: a spread of dates is said as one span, and the oldest score decides the word",
+    H(8.5, [A("2026-10-09"), A("2026-10-05")]).score === "8.5 · assessed Oct 5–Oct 9" && H(8.5, [A("2026-10-09"), A("2026-10-05")]).word === "Current"
+    && H(8, [A("2026-10-11"), A("2026-10-02")]).word === "Due" && H(8, [A("2026-10-11"), A("2026-09-20")]).word === "Stale",
+    [H(8.5, [A("2026-10-09"), A("2026-10-05")]), H(8, [A("2026-10-11"), A("2026-10-02")])]);
+  ok("command audit: a parked stream's old score does not age the portfolio; a stream never scored has no date to give",
+    H(9, [A("2026-10-10"), A("2026-01-05", "parked")]).score === "9.0 · assessed Oct 10" && H(9, [A("2026-10-10"), A(null)]).word === "Current");
+  ok("command audit: nothing scored says so, and all parked says that",
+    H(0, [A(null), A(null)]).score === "0.0 · not assessed yet" && H(0, [A(null)]).word === "Never scored"
+    && H(0, [A("2026-10-01", "parked")]).score === "all parked" && H(0, [A("2026-10-01", "parked")]).word === "");
+  ok("command audit: the head draws the score and the word, quiet when stale; a stale score's row is drawn in the quiet ink; no row counts days",
+    /\{head\.state && <span className="sr-only">Portfolio mean <\/span>\}\{head\.score\}/.test(osr) && /\{head\.word && <span className=/.test(osr)
+    && /<span className=\{`k-tag txt\$\{!fresh \? "" : mean >= 8 \? " ok" : " warn"\}`\}>/.test(osr)
+    && /\$\{!parked && \(age === "stale" \|\| age === "never"\) \? " text-cream-muted!" : ""\}/.test(osr)
+    && !/daysSince|days ago|osr-due/.test(osr) && /const today = useEtDay\(\);/.test(osr));
+
+  // ── 2 · ONE LINE, ONLY WHEN SOMETHING IS WRONG ──
+  const X = (w, owesDecision = false) => PF.streamException({ status: "active", last_audited: "2026-10-05", due: null, blocker: null, ...w }, { today: T, owesDecision });
+  ok("command audit: nothing wrong, no line", X({}) === null && X({ due: "2026-10-12" }) === null && X({ due: "2026-10-20" }) === null && X({ blocker: "   " }) === null);
+  ok("command audit: a next action past its date — \"Next action 3 days late\", a day said as a day",
+    X({ due: "2026-10-09" }).text === "Next action 3 days late" && X({ due: "2026-10-11" }).text === "Next action 1 day late" && X({ due: "2026-10-09" }).kind === "late");
+  ok("command audit: a blocker is its own words, folded into the one line — and it outranks a late date",
+    X({ blocker: "  Salted Latte dairy flags open " }).text === "Salted Latte dairy flags open" && X({ blocker: "Waiting on the county", due: "2026-10-01" }).kind === "blocker"
+    && X({ blocker: "  ", due: "2026-10-01" }).kind === "late");
+  ok("command audit: below 8 two audits running outranks a blocker; never scored outranks everything",
+    X({ blocker: "x", due: "2026-10-01" }, true).kind === "decision" && X({ last_audited: null, blocker: "x", due: "2026-10-01" }, true).text === "Never scored");
+  ok("command audit: a parked stream has no line, whatever it holds; a Blocked status with no words has none (its flag says it)",
+    X({ status: "parked", last_audited: null, blocker: "x", due: "2026-10-01" }, true) === null && X({ status: "blocked" }) === null);
+  const lines = Object.fromEntries(SEED.map((s) => [s.name, PF.streamException(s, { today: T, owesDecision: false })]));
+  ok("command audit: the seed's lines — late dates, the blockers as written, and nothing for the three with nothing wrong",
+    lines["Pipeline & Corporate"].text === "Next action 69 days late" && lines["GT3PB App"].text === "Next action 70 days late"
+    && lines["Events"].text === "8/15 Wine Xpress truck stop vs Soul Yoga workshop — assign or move" && lines["Product & Compliance"].text === "Salted Latte dairy flags open"
+    && lines["D2C Delivery Ops"] === null && lines["Webflow / Site"] === null && lines["Flagship / Investor"] === null,
+    Object.fromEntries(Object.entries(lines).map(([k, v]) => [k, v && v.text])));
+  ok("command audit: a row draws one line from the rule, from the row as loaded — the separate next-action, blocker and two-week lines are gone",
+    /const line = streamException\(w, \{ today, owesDecision: owesDecision\(w\) \}\);/.test(osr) && (osr.match(/className="osr-block"/g) || []).length === 1
+    && !/osr-block"><Icon name="warning" \/> \{w\.blocker\}|⚖ two weeks below 8 — log kill \/ pause|no next action — that's a 0/.test(osr)
+    && !/supabase\.from\(/.test(list));
+
+  // ── 3 · RISK FIRST ──
+  const R = (id, o = {}) => ({ id, status: "active", health: 8, last_audited: "2026-10-05", due: null, blocker: null, ...o });
+  const order = (rows, owes = () => false) => PF.riskOrder(rows, { today: T, owes }).map((r) => r.id).join(",");
+  ok("command audit: risk order — the seed: problems first, lowest score first, ties in the list's own order",
+    PF.riskOrder(SEED, { today: T, owes: () => false }).map((s) => s.name).join(" | ")
+      === "Events | Trailer & Venue | Partner / Cooler Program | Print & Brand Assets | Product & Compliance | GT3PB App | Pipeline & Corporate | Flagship / Investor | Webflow / Site | D2C Delivery Ops",
+    PF.riskOrder(SEED, { today: T, owes: () => false }).map((s) => s.name));
+  ok("command audit: risk order — a stale score comes before a fresh one, even a fresh 3 with a blocker", order([R("fresh3", { health: 3, blocker: "x" }), R("stale9", { health: 9, last_audited: "2026-09-01" })]) === "stale9,fresh3");
+  ok("command audit: risk order — never scored leads the stale", order([R("stale", { last_audited: "2026-09-01", health: 2 }), R("staleX", { last_audited: "2026-09-01", health: 5, blocker: "x" }), R("never", { last_audited: null, health: 0 })]) === "never,staleX,stale");
+  ok("command audit: risk order — an open problem before a lower score", order([R("low", { health: 4 }), R("blocker", { health: 9, blocker: "waiting" })]) === "blocker,low");
+  ok("command audit: risk order — a late next action, a Blocked status and the two-week rule are each an open problem",
+    order([R("a", { health: 3 }), R("late", { health: 9, due: "2026-10-01" })]) === "late,a" && order([R("a", { health: 3 }), R("b", { health: 9, status: "blocked" })]) === "b,a"
+    && order([R("a", { health: 3 }), R("b", { health: 7 })], (w) => w.id === "b") === "b,a");
+  ok("command audit: risk order — then the lowest score", order([R("a", { health: 9 }), R("b", { health: 6 }), R("c", { health: 8 })]) === "b,c,a");
+  ok("command audit: risk order — ties keep the list's own order, whichever way it came", order([R("x", { health: 7 }), R("y", { health: 7 }), R("z", { health: 7 })]) === "x,y,z"
+    && order([R("z", { health: 7 }), R("y", { health: 7 }), R("x", { health: 7 })]) === "z,y,x" && order([R("p", { blocker: "a" }), R("q", { blocker: "b" })]) === "p,q");
+  ok("command audit: risk order — Due (8 to 13 days) is not stale", order([R("due5", { last_audited: "2026-10-02", health: 5 }), R("stale9", { last_audited: "2026-09-20", health: 9 }), R("cur6", { health: 6 })]) === "stale9,due5,cur6");
+  ok("command audit: risk order — parked streams keep their place at the end, in their own order, whatever they hold",
+    order([R("p1", { status: "parked", health: 0, last_audited: null }), R("a", { health: 9 }), R("p2", { status: "parked", health: 1, blocker: "x" }), R("b", { health: 9, last_audited: "2026-01-01" })]) === "b,a,p1,p2");
+  const shuffled = PF.riskOrder(SEED, { today: T, owes: () => false });
+  ok("command audit: risk order moves no score — the same rows, the same scores, only the order", shuffled.length === SEED.length
+    && shuffled.every((r) => SEED.includes(r)) && SEED.every((r) => shuffled.includes(r)) && shuffled.reduce((s, r) => s + r.health, 0) === 70
+    && order([]) === "" && /\{riskOrder\(rows, \{ today, owes: owesDecision \}\)\.map\(\(w\) => \{/.test(osr));
+
+  // ── 5 · REACH, ON THE PORTFOLIO ──
+  const css = rd("app/globals.css");
+  const esc = (x) => x.replace(/[.*+?^$()|[\]\\{}]/g, "\\$&");
+  const decl = (sel, prop) => {
+    const m = css.match(new RegExp("(?:^|\\n)" + esc(sel) + "\\{([^}]*)\\}"));
+    const d = m && m[1].match(new RegExp("(?:^|;)" + esc(prop) + ":([^;]+)"));
+    return d ? d[1].trim() : "";
+  };
+  const firstPx = (v) => Number(String(v).split(/\s+/)[0].replace("px", ""));
+  const streamRow = firstPx(decl(".osr-row", "padding")) * 2 + firstPx(decl(".osr-name", "font-size")) * Number(decl(".osr-name", "line-height"));
+  ok("command audit: a stream's row is 44 points or more to the thumb, and so is + Workstream",
+    streamRow >= 44 && /:is\(\.btn-ter,\.btn-del\)\{[^}]*min-height:44px/.test(css), { streamRow });
+  ok("command audit: VoiceOver hears a stream's owner, its score, its one line, and that it opens its audit",
+    /aria-label=\{`\$\{w\.name\}\$\{parked \? "" : who \? `, owned by \$\{who\}` : ", no owner"\}/.test(osr) && /\$\{line \? `\. \$\{line\.say\}` : ""\}\$\{isAdmin \? "\. Opens its audit" : ""\}/.test(osr));
 }
 
 Promise.all(PENDING).then(() => {
