@@ -10,11 +10,13 @@ import { ageLabel } from "@/lib/dates";
 // CHANGE LOG — the admin audit trail (0260, enterprise round P1): who changed which price, copy
 // line, deal, budget, or role — when, with the before → after diff. Read-only by design: the
 // trigger writes it, nobody edits history. The friendly table names keep it owner-readable.
+// Tier changes join it in 0392 (A1 of the account audit): a "customers" line keeps only the tier, so the
+// member it is about is named here, at read time, from their profile.
 type Row = { id: number; actor: string | null; action: string; table_name: string; row_pk: string | null; summary: string | null; created_at: string };
 type Board = { rows: Row[]; names: Record<string, string> };
 
 const TABLE_LABEL: Record<string, string> = {
-  products: "Menu product", deals: "Deal", budgets: "Budget", site_copy: "Copy line", profiles: "Role",
+  products: "Menu product", deals: "Deal", budgets: "Budget", site_copy: "Copy line", profiles: "Role", customers: "Tier",
 };
 const ACTION_LABEL: Record<string, string> = { INSERT: "added", UPDATE: "changed", DELETE: "removed" };
 
@@ -26,11 +28,12 @@ export default function AuditTrail() {
       .order("created_at", { ascending: false }).limit(120);
     if (error) throw new Error(error.message);
     const rows = (data as Row[]) ?? [];
-    const ids = [...new Set(rows.map((r) => r.actor).filter(Boolean))] as string[];
+    const tierRows = rows.filter((r) => r.table_name === "customers" && r.row_pk).map((r) => r.row_pk);
+    const ids = [...new Set([...rows.map((r) => r.actor), ...tierRows].filter(Boolean))] as string[];
     const names: Record<string, string> = {};
     if (ids.length) {
       const { data: profs } = await supabase.from("profiles").select("id, display_name").in("id", ids);
-      for (const p of (profs ?? []) as { id: string; display_name: string | null }[]) names[p.id] = (p.display_name || "").trim().split(/\s+/)[0] || "Staff";
+      for (const p of (profs ?? []) as { id: string; display_name: string | null }[]) names[p.id] = (p.display_name || "").trim().split(/\s+/)[0] || "";
     }
     return { rows, names };
   }, []);
@@ -39,20 +42,20 @@ export default function AuditTrail() {
   const names = board.data?.names ?? {};
 
   return (
-    <AsyncSection state={board} isEmpty={(d) => d.rows.length === 0} emptyTitle="No changes logged yet" emptySub="Edits to menu products, deals, budgets, copy, and roles land here automatically." errorTitle="Couldn't load the change log">
+    <AsyncSection state={board} isEmpty={(d) => d.rows.length === 0} emptyTitle="No changes logged yet" emptySub="Edits to menu products, deals, budgets, copy, roles, and tiers land here automatically." errorTitle="Couldn't load the change log">
       {() => (
         <div className="audit-trail">
           <div className="audit-actions">
             <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => downloadCsv("gt3-change-log.csv", rows.map((r) => ({
-              when: r.created_at, who: r.actor ? (names[r.actor] ?? r.actor) : "system", what: TABLE_LABEL[r.table_name] ?? r.table_name,
-              action: ACTION_LABEL[r.action] ?? r.action, row: r.row_pk ?? "", change: r.summary ?? "",
+              when: r.created_at, who: r.actor ? (names[r.actor] || "Staff") : "system", what: TABLE_LABEL[r.table_name] ?? r.table_name,
+              action: ACTION_LABEL[r.action] ?? r.action, row: r.table_name === "customers" ? ((r.row_pk && names[r.row_pk]) || "a member") : r.row_pk ?? "", change: r.summary ?? "",
             })))}>Export CSV</button>
           </div>
           {rows.map((r) => (
             <div key={r.id} className="audit-row">
               <div className="audit-top">
-                <b>{r.actor ? (names[r.actor] ?? "Staff") : "System"}</b>
-                <span className="audit-what">{ACTION_LABEL[r.action] ?? r.action} · {TABLE_LABEL[r.table_name] ?? r.table_name}{r.row_pk && r.table_name !== "site_copy" ? "" : r.row_pk ? ` · ${r.row_pk}` : ""}</span>
+                <b>{r.actor ? (names[r.actor] || "Staff") : "System"}</b>
+                <span className="audit-what">{ACTION_LABEL[r.action] ?? r.action} · {TABLE_LABEL[r.table_name] ?? r.table_name}{r.table_name === "customers" ? ` · ${(r.row_pk && names[r.row_pk]) || "a member"}` : r.row_pk && r.table_name !== "site_copy" ? "" : r.row_pk ? ` · ${r.row_pk}` : ""}</span>
                 <span className="audit-when">{ageLabel(r.created_at)}</span>
               </div>
               {r.summary && <div className="audit-diff">{r.summary}</div>}

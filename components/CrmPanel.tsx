@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "./AppProvider";
+import { useAuth } from "./AuthProvider";
+import { canOf, roleOf } from "@/lib/roles";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -49,6 +51,12 @@ type UiTier = "member" | "founding" | "founding_vip";
 
 export function CrmDetail({ c }: { c: Customer }) {
   const { toast } = useApp();
+  // Who may change what (0392, A1 of the account audit): a tier — Founding, Founding VIP — is an admin's or the
+  // owner's, and points and credit are the owner's (0229). The database refuses anyone else; this only stops the
+  // card offering a button that would be refused. Everyone on the crew still sees the tier.
+  const { profile } = useAuth();
+  const canTier = canOf(profile).admin;
+  const canLoyalty = roleOf(profile) === "owner";
   const [pts, setPts] = useState("");
   const [credit, setCredit] = useState("");
   const [founding, setFounding] = useState(false);
@@ -177,16 +185,21 @@ export function CrmDetail({ c }: { c: Customer }) {
                     note — Member / Founding / Founding VIP. VIP still only ever exists on top of
                     Founding (0249/0250's design, kept as-is per Ryan); this just gives staff a
                     direct button for it instead of requiring an actual bottle-photo verification. */}
-                <div className="crm-tier-seg" role="radiogroup" aria-label="Member tier and VIP status">
-                  {(["member", "founding", "founding_vip"] as const).map((t) => (
-                    <button key={t} type="button" role="radio" aria-checked={uiTier === t}
-                      className={`k-chip${uiTier === t ? " on" : ""}`}
-                      onClick={() => setUiTier(t)}>
-                      {t === "founding_vip" ? <><Icon name="star" /> Founding VIP</> : t === "founding" ? <><Icon name="star" /> Founding</> : "Member"}
-                    </button>
-                  ))}
-                </div>
+                {canTier ? (
+                  <div className="crm-tier-seg" role="radiogroup" aria-label="Member tier and VIP status">
+                    {(["member", "founding", "founding_vip"] as const).map((t) => (
+                      <button key={t} type="button" role="radio" aria-checked={uiTier === t}
+                        className={`k-chip${uiTier === t ? " on" : ""}`}
+                        onClick={() => setUiTier(t)}>
+                        {t === "founding_vip" ? <><Icon name="star" /> Founding VIP</> : t === "founding" ? <><Icon name="star" /> Founding</> : "Member"}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="k-tag">{uiTier === "founding_vip" ? "★ Founding VIP" : uiTier === "founding" ? "★ Founding" : "Member"}</span>
+                )}
               </div>
+              {!canTier && <div className="crm-note mt-1.5">An admin or the owner changes a tier.</div>}
               {/* Whether this VIP came from an actual bottle-photo verification (VipQueue) or a
                   direct staff grant (0252) is worth keeping visible, not just the flag itself — that
                   was the whole point 0249 built vip_verified for. hasProof checks for a real verified
@@ -201,11 +214,15 @@ export function CrmDetail({ c }: { c: Customer }) {
               {tier === "founding" && perks.length > 0 && (
                 <ul className="crm-perks">{perks.map((pk, i) => <li key={i}><Icon name={pk.requires_vip ? "star" : "check"} /> {pk.label}</li>)}</ul>
               )}
-              <div className="crm-loy">
-                <label>Points<input inputMode="numeric" value={pts} onChange={(e) => setPts(e.target.value)} /></label>
-                <label>Credit $<input inputMode="decimal" value={credit} onChange={(e) => setCredit(e.target.value)} /></label>
-                <button type="button" className="btn-pri ml-auto" onClick={saveLoyalty} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
-              </div>
+              {canLoyalty ? (
+                <div className="crm-loy">
+                  <label>Points<input inputMode="numeric" value={pts} onChange={(e) => setPts(e.target.value)} /></label>
+                  <label>Credit $<input inputMode="decimal" value={credit} onChange={(e) => setCredit(e.target.value)} /></label>
+                  <button type="button" className="btn-pri ml-auto" onClick={saveLoyalty} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+                </div>
+              ) : (
+                <div className="crm-note mt-1.5">{pts || "0"} points · ${credit || "0"} credit</div>
+              )}
               {/* WHERE AN OWNER ACTUALLY LOOKS. Bringing a customer onto the crew shipped in 0299 and
                   lives on the Team roster. Ryan came to THIS card to promote Niño — the screen for
                   acting on a person — and found tier, points, credit and no way to hire, so the

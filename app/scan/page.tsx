@@ -49,7 +49,9 @@ function ScanInner() {
   const isStaff = access === "allow";
   const profileUnknown = access === "wait" || access === "failed";
   const [member, setMember] = useState<Member | null>(null);
-  const [state, setState] = useState<"idle" | "loading" | "notfound" | "added" | "error">("idle");
+  const [state, setState] = useState<"idle" | "loading" | "notfound" | "added" | "error" | "limit">("idle");
+  // Never your own card (0392, A1 of the account audit): the database refuses it, so the screen doesn't offer it.
+  const ownCard = !!code && (code === profile?.referral_code || code === user?.id);
   const [busy, setBusy] = useState(false);
   const [redeem, setRedeem] = useState<Redeem>("idle");
   const [credit, setCredit] = useState<Redeem>("idle");
@@ -79,7 +81,8 @@ function ScanInner() {
     // The stamp is felt either way (2026-10-05, the haptics round): the crew is looking at the guest,
     // not the screen. The failure is said inline below the card, so it buzzes here, not from a toast.
     if (!error && typeof data === "number") { setMember((m) => (m ? { ...m, points: data } : m)); setState("added"); setRedeem("idle"); haptic("success"); }
-    else { setState("error"); haptic("error"); } // don't leave a failed award looking successful
+    // don't leave a failed award looking successful; the 6-in-10-minutes limit (0392) says so in words
+    else { setState(/stamp limit/i.test(error?.message ?? "") ? "limit" : "error"); haptic("error"); }
     setBusy(false);
   };
 
@@ -147,9 +150,14 @@ function ScanInner() {
           </div>
           <div className="scan-foot">{card.free > 0 ? `${freeWords(card.free)} — this one's on us` : `${card.toNext} more till a free cup`}</div>
           {inApp && <div className="h-sub" role="note">In the app today: {inApp} — those stamp themselves at pickup.</div>}
-          <button type="button" className="btn-pri btn-wide" onClick={addStamp} disabled={busy || redeem === "busy"}>{busy ? "Adding…" : <><Icon name="plus" /> Stamp a walk-up cup</>}</button>
+          {ownCard ? (
+            <div className="h-sub" role="note">This is your card — another crew member stamps it.</div>
+          ) : (
+            <button type="button" className="btn-pri btn-wide" onClick={addStamp} disabled={busy || redeem === "busy"}>{busy ? "Adding…" : <><Icon name="plus" /> Stamp a walk-up cup</>}</button>
+          )}
           {state === "added" && <div className="scan-added">Stamp added — now {member.points} points.</div>}
           {state === "error" && <div className="h-sub">That didn&apos;t record — tap to try again.</div>}
+          {state === "limit" && <div className="h-sub" role="status">That&apos;s 6 walk-up stamps for {first} in 10 minutes, the most at once. Try again in a few minutes.</div>}
           {card.free > 0 && redeem !== "ask" && redeem !== "busy" && (
             <button type="button" className="btn-sec btn-wide mt-2.5" onClick={() => setRedeem("ask")}>Redeem a free cup</button>
           )}

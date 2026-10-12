@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
+import { canOf } from "@/lib/roles";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -28,7 +29,10 @@ type VipBoard = { rows: Vip[]; signed: Record<string, string> };
 
 export default function VipQueue() {
   const { toast } = useApp();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  // Verifying a proof grants Founding (or Founding VIP), and a tier is an admin's or the owner's (0392, A1 of the
+  // account audit). The rest of the crew still sees the queue and turns a proof down; the database holds the line.
+  const canVerify = canOf(profile).admin;
   const [busy, setBusy] = useState<string | null>(null);
 
   const loader = useCallback(async (): Promise<VipBoard> => {
@@ -101,9 +105,10 @@ export default function VipQueue() {
                   <b><RecordLink kind="customer" id={v.customer_id}>{v.customers?.name?.trim() || "A member"}</RecordLink></b>
                   <span className="vipq-sub">Submitted {new Date(v.created_at).toLocaleDateString()} · now {v.customers?.tier ?? "guest"}</span>
                   <div className="vipq-acts">
-                    <button type="button" className="btn-pri btn-sm" onClick={() => setAsking({ kind: "verify", v, grant: "founding" })} disabled={busy === v.id}><Icon name="check" /> Verify <Icon name="arrowRight" /> Founding</button>
-                    <button type="button" className="btn-sec btn-sm" onClick={() => setAsking({ kind: "verify", v, grant: "founding_vip" })} disabled={busy === v.id}><Icon name="star" /> Verify <Icon name="arrowRight" /> Founding VIP</button>
+                    {canVerify && <button type="button" className="btn-pri btn-sm" onClick={() => setAsking({ kind: "verify", v, grant: "founding" })} disabled={busy === v.id}><Icon name="check" /> Verify <Icon name="arrowRight" /> Founding</button>}
+                    {canVerify && <button type="button" className="btn-sec btn-sm" onClick={() => setAsking({ kind: "verify", v, grant: "founding_vip" })} disabled={busy === v.id}><Icon name="star" /> Verify <Icon name="arrowRight" /> Founding VIP</button>}
                     <button type="button" className="btn-del" onClick={() => setAsking({ kind: "reject", v })} disabled={busy === v.id}>Reject</button>
+                    {!canVerify && <span className="vipq-sub">An admin or the owner verifies it.</span>}
                   </div>
                 </div>
               </div>

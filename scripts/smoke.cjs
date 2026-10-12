@@ -9174,7 +9174,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /setCodeState\("bad"\); setCodeBenefit\(null\); haptic\("error"\); return;/.test(of) && /setCodeState\("ok"\); haptic\("success"\);/.test(of));
   const scan = code(read("app/scan/page.tsx"));
   ok("scan: a stamp added is success, one that did not record is error — said inline, so felt there",
-    /setState\("added"\); setRedeem\("idle"\); haptic\("success"\); \}/.test(scan) && /else \{ setState\("error"\); haptic\("error"\); \}/.test(scan));
+    /setState\("added"\); setRedeem\("idle"\); haptic\("success"\); \}/.test(scan)
+    && /else \{ setState\(\/stamp limit\/i\.test\(error\?\.message \?\? ""\) \? "limit" : "error"\); haptic\("error"\); \}/.test(scan));
 
   // ── the sheet ──
   const sh = code(read("components/Sheet.tsx")), sm = code(read("components/SheetMotion.tsx"));
@@ -13354,6 +13355,30 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("crew: a visit still ahead offers Cancel this visit, asks the reason first, and Restore uncancels",
     /onCancel && !isCur && stillAhead && !canceling/.test(le) && /placeholder="Why — customers see this \(e\.g\. Rained out\)"/.test(le)
     && /onCancel=\{\(why\) => cancelStop\(s\.id, why\)\}/.test(lc) && /\{ archived_at: null, canceled_at: null, cancel_reason: null \}/.test(lc));
+}
+
+// ── APPROVALS AND TIERS HAVE OWNERS (2026-10-12, A1 of the account audit, approved) ──
+// 0392 makes the database refuse the wrong person (scripts/db.permissions.test.mjs). Here: the screens stop offering
+// what would be refused — a tier picker only to admins and the owner, points and credit only to the owner, Verify in the
+// proof queue only to admins, no stamp on your own card — and the Activity log names whose tier changed.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const crm = code(rd("components/CrmPanel.tsx")), vq = code(rd("components/VipQueue.tsx")), scan = code(rd("app/scan/page.tsx"));
+  const at = code(rd("components/AuditTrail.tsx"));
+  ok("customer card: the tier picker is an admin's, the loyalty edit the owner's; everyone else reads them",
+    /const canTier = canOf\(profile\)\.admin;/.test(crm) && /const canLoyalty = roleOf\(profile\) === "owner";/.test(crm)
+    && /\{canTier \? \(\s*<div className="crm-tier-seg"/.test(crm) && /\{canLoyalty \? \(\s*<div className="crm-loy">/.test(crm)
+    && /An admin or the owner changes a tier\./.test(crm));
+  ok("proof queue: Verify is an admin's; the crew still turns a proof down",
+    /const canVerify = canOf\(profile\)\.admin;/.test(vq) && (vq.match(/\{canVerify && <button/g) || []).length === 2
+    && /<button type="button" className="btn-del" onClick=\{\(\) => setAsking\(\{ kind: "reject", v \}\)\}/.test(vq));
+  ok("scan: your own card offers no stamp, and the 6-in-10-minutes limit is said in words",
+    /const ownCard = !!code && \(code === profile\?\.referral_code \|\| code === user\?\.id\);/.test(scan)
+    && /This is your card — another crew member stamps it\./.test(scan) && /\/stamp limit\/i\.test/.test(scan));
+  ok("Activity log: a tier line names the member, read from their profile, not kept in the log",
+    /customers: "Tier"/.test(at) && /r\.table_name === "customers" && r\.row_pk/.test(at) && /\|\| "a member"/.test(at));
 }
 
 Promise.all(PENDING).then(() => {

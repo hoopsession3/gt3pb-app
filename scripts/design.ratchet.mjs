@@ -601,6 +601,11 @@ export const PROD_ROUTE = {
 // member changes a pack (components/PackChangePay, next/dynamic); before that split the same change cost +1 KB here and
 // on /delivery. /reserve sat 0.11 KB under the line; /delivery moved the same 196 bytes and stayed at 291 (291.39).
 // Built f52b3a4 and this commit, served both, and gzipped what each page's HTML references.
+// 2026-10-12 (A1 of the account audit): /book 267 → 268, with no code added to it. One of its shared chunks kept its
+// length (37 337 bytes raw) and gzips 27 bytes larger (10 610 → 10 637): the build renumbered what is inside it when
+// A1 changed screens /book does not draw (the crew's customer card, proof queue and scan page). By the prerendered
+// HTML /book is 267.25 → 267.28 KB; served, smoke:ui weighs it 268. Built ade3aee and 195440f and gzipped what /book's
+// HTML references.
 export const WEIGHT = {
   "/truck":                    { js: 285, css: 89, chunks: 16 },
   "/events":                   { js: 285, css: 89, chunks: 16 },
@@ -609,7 +614,7 @@ export const WEIGHT = {
   "/delivery":                 { js: 291, css: 90, chunks: 16 },
   "/3mpire":                   { js: 284, css: 90, chunks: 15 },
   "/craft":                    { js: 267, css: 90, chunks: 15 },
-  "/book":                     { js: 267, css: 90, chunks: 15 },
+  "/book":                     { js: 268, css: 90, chunks: 15 },
   "/academy":                  { js: 325, css: 90, chunks: 16 },
   "/office":                   { js: 282, css: 90, chunks: 15 },
   "/scan":                     { js: 267, css: 90, chunks: 15 },
