@@ -11552,6 +11552,21 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && !/grant |policy|security definer/i.test(m378.replace(/--[^\n]*/g, "")) && /select public\.record_migration\('0377_the_porch_run_updates_live'\);/.test(m378));
 }
 
+// ── THE MONEY NUMBERS ARE HONEST (2026-10-12, 0384) ──────────────────────────────────────────────
+// scripts/db.money.test.mjs proves the database half against every migration. These hold the pure halves to their
+// word, and the Money screens to reading a failure as a failure.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const HM = require("../.smoke/home.js");
+
+  ok("money: the shop is a channel of its own, named — a merch week moves the shop, not the walk-ups",
+    HM.CHANNEL_WORDS.shop === "Shop" && HM.channelDriver({ shop: 9000, square_walkup: 100 }, { shop: 9000, square_walkup: 200 })?.channel === "shop");
+  ok("money: 0384's test runs with the database tests, and 0384 records itself",
+    /node scripts\/db\.money\.test\.mjs/.test(JSON.parse(rd("package.json")).scripts["db:test"])
+      && /select public\.record_migration\('0384_the_money_numbers_are_honest',/.test(rd("supabase/migrations/0384_the_money_numbers_are_honest.sql")));
+}
+
 Promise.all(PENDING).then(() => {
   console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);

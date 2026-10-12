@@ -99,6 +99,9 @@ export const CHANNEL_WORDS = {
   packs: "Drop packs",
   delivery: "Delivery",
   office: "Office",
+  // THE SHOP IS A CHANNEL (2026-10-12, 0384). Its Square payments matched no app order, so report_sales filed them as
+  // walk-ups and a good week of merch read here as "Walk-ups +$…". A report from before 0384 has no shop key: zero.
+  shop: "Shop",
 } as const;
 export type Channel = keyof typeof CHANNEL_WORDS;
 export type Channels = Partial<Record<Channel, number>>;
