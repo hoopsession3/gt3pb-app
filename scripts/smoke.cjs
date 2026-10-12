@@ -7054,7 +7054,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /if \(!read\.inputs\) \{\s*return NextResponse\.json\(\{ error: "We couldn't check the truck's schedule/.test(api));
   ok("server: every order row goes through the skew-safe write, with ready_from only when placed ahead",
     !/\.from\("orders"\)\.insert\(orderRow\)/.test(api) && (api.match(/await insertOrder\(orderRow\)/g) || []).length === 3
-    && /writeAcrossSkew\(\(r\) => supabaseAdmin!\.from\("orders"\)\.insert\(r\), promise\.readyFrom \? \{ \.\.\.row, ready_from: promise\.readyFrom \} : row, \["ready_from"\]\)/.test(api));
+    // the tip (0390, H9) arrives the same way: forgiven by name, nothing else
+    && /writeAcrossSkew\(\(r\) => supabaseAdmin!\.from\("orders"\)\.insert\(r\), promise\.readyFrom \? \{ \.\.\.row, ready_from: promise\.readyFrom \} : row, \["ready_from", "tip_cents"\]\)/.test(api));
   ok("server: the email says the promise, and every success answers with it",
     (api.match(/message: `GT3: your order is in\. \$\{promise\.ready\} \$\{promise\.pickup\}\./g) || []).length === 2 && !/ready in ~8 min/.test(api)
     && (api.match(/\.\.\.promise \}/g) || []).length >= 4);
@@ -13299,6 +13300,22 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("member: the card says scan for walk-up cups; the account and the hub say the credit is used at the window",
     /Scan for walk-up cups · app orders stamp themselves/.test(card) && !/Scan at the truck to earn your stamp/.test(card)
     && /credit at the window` : ""/.test(sheet) && (hub.match(/credit · use it at the window/g) || []).length === 2);
+}
+
+// ── A REFUND TAKES ITS STAMPS BACK, AND A CUP KEEPS ITS TIP (2026-10-12, H9 of the customer audit, approved) ──
+// Refunds reached shop orders only, so a refunded cup, pack or delivery kept its stamps; and a cup's tip was kept
+// nowhere. 0390 matches every refund to its order and takes the stamps back when the order's money is all back
+// (scripts/db.refundstamps.test.mjs). Here: the cup checkout keeps the tip with the order, and survives the gap
+// before 0390 is pasted.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const api = code(rd("app/api/checkout/route.ts"));
+  ok("checkout: a paid cup is written with its tip, beside the goods it was always written with",
+    /const orderRow = \{ items, total_cents: subtotal, tip_cents: tip, paid: true, payment_id: paymentId,/.test(api));
+  ok("checkout: before 0390 the order goes in without the tip, and nothing else is forgiven",
+    /writeAcrossSkew\(\(r\) => supabaseAdmin!\.from\("orders"\)\.insert\(r\), promise\.readyFrom \? \{ \.\.\.row, ready_from: promise\.readyFrom \} : row, \["ready_from", "tip_cents"\]\)/.test(api));
 }
 
 Promise.all(PENDING).then(() => {

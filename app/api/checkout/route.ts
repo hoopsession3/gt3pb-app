@@ -134,10 +134,11 @@ async function post(req: Request) {
   // ahead of a stop, it is made from the stop's start (orders.ready_from, 0343); otherwise now.
   const promise = { readyFrom: ordering.readyFrom, ready: readyWords(ordering), pickup: pickupWords(ordering) };
   // 0343 may not be pasted yet when this ships: the order goes in without ready_from rather than not
-  // at all (lib/schemaSkew.writeAcrossSkew — the one column named, nothing else forgiven).
-  // arrives-with: 0343
+  // at all (lib/schemaSkew.writeAcrossSkew — the one column named, nothing else forgiven). The same for the tip (0390,
+  // H9 of the customer audit): kept with the order once 0390 is pasted, and the order goes in without it before.
+  // arrives-with: 0343, 0390
   const insertOrder = (row: Record<string, unknown>) =>
-    writeAcrossSkew((r) => supabaseAdmin!.from("orders").insert(r), promise.readyFrom ? { ...row, ready_from: promise.readyFrom } : row, ["ready_from"]);
+    writeAcrossSkew((r) => supabaseAdmin!.from("orders").insert(r), promise.readyFrom ? { ...row, ready_from: promise.readyFrom } : row, ["ready_from", "tip_cents"]);
 
   // Pay-at-pickup is the owner's dial (live_status.pay_at_pickup, 0147) — server-authoritative now
   // that this path runs through the API at all, matching the subscriptions_enabled pattern (0150).
@@ -230,7 +231,7 @@ async function post(req: Request) {
 
       // total_cents is the GOODS subtotal (tip excluded) so history + the referral floor
       // are consistent across paid and pre-order paths.
-      const orderRow = { items, total_cents: subtotal, paid: true, payment_id: paymentId, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode };
+      const orderRow = { items, total_cents: subtotal, tip_cents: tip, paid: true, payment_id: paymentId, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode };
       let { error: insErr } = await insertOrder(orderRow);
       if (insErr) {
         // Charge succeeded but recording failed. Retry once — a transient DB blip must not cost the
