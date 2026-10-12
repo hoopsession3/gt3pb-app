@@ -576,7 +576,11 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
   // One source of truth for "what needs me" — the same hook drives My Day's flags and the nav
   // badge, so the three counters that used to disagree now agree by construction. Ack semantics
   // live in the hook: row-ack for targeted alerts, per-user read for broadcasts (0157).
-  const { flags: mine, held, critCount: crit, error: readErr, reload, ack, clearAll, clearHeld, snooze, restore, unsnooze } = useMyAlerts(userId);
+  // SOMEBODY HAS IT (2026-10-12, 0383): the first Got it on a team alert is a claim, and a team alert someone
+  // else has comes apart (`claimed`, its words on `claim`: "Max has it"). It is listed after everything still
+  // open and counted nowhere: the number here, Clear all and the service strip are the open ones'.
+  const { flags: open, claimed, held, critCount: crit, error: readErr, reload, ack, clearAll, clearHeld, snooze, restore, unsnooze } = useMyAlerts(userId);
+  const mine = useMemo(() => [...open, ...claimed], [open, claimed]);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [digestOpen, setDigestOpen] = useState(false);
   const streams = useWorkStreams();
@@ -623,7 +627,8 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
   };
 
   const rank = (s: string) => (s === "critical" ? 0 : s === "important" ? 1 : 2);
-  const sorted = [...mine].sort((a, b) => rank(a.severity) - rank(b.severity));
+  const sorted = [...open].sort((a, b) => rank(a.severity) - rank(b.severity));
+  const rows = [...sorted, ...[...claimed].sort((a, b) => rank(a.severity) - rank(b.severity))];
 
   // GOT IT, LATER — AND UNDO (2026-10-05, the gesture round). The ✓ and the clock, and the swipes that
   // stand for them, go through these: the flag goes at once, the toast says so with an Undo that
@@ -631,7 +636,8 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
   // the next read.
   const said = (t: string) => (t.length > 34 ? `${t.slice(0, 33).trimEnd()}…` : t);
   const clear = async (a: MyFlag) => {
-    toast(`Cleared: ${said(a.title)}`, "success", { action: { label: "Undo", run: () => { void restore([a]).then((e) => { if (e) toast(`Couldn't bring it back — ${e}`, "error"); }); } } });
+    // A team alert nobody has is yours once you tap Got it, and the team sees it is (0383).
+    toast(`${!a.target_user_id && !a.claim ? "You have it" : "Cleared"}: ${said(a.title)}`, "success", { action: { label: "Undo", run: () => { void restore([a]).then((e) => { if (e) toast(`Couldn't bring it back — ${e}`, "error"); }); } } });
     const e = await ack(a);
     if (e) toast(`Couldn't clear it — ${e}`, "error");
   };
@@ -641,7 +647,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
     if (e) toast(`Couldn't snooze it — ${e}`, "error");
   };
   const clearEvery = async () => {
-    const all = [...mine];
+    const all = [...open];
     toast(`Cleared ${all.length}`, "success", { action: { label: "Undo", run: () => { void restore(all).then((e) => { if (e) toast(`Couldn't bring them back — ${e}`, "error"); }); } } });
     const e = await clearAll();
     if (e) toast(`Couldn't clear them — ${e}`, "error");
@@ -696,8 +702,8 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
       {dropSheet && <DropSheet onClose={() => setDropSheet(false)} />}
       {reviewPost && <ContentApprovalSheet contentId={reviewPost.id} meName={meName} meId={userId} onClose={() => setReviewPost(null)} onActioned={() => { ack(reviewPost.alert); setReviewPost(null); }} />}
       <SectionHeader label={title} right={<>
-        {mine.length > 0 && <span className={`k-count${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>}
-        {mine.length > 1 && <button type="button" className="btn-ter" onClick={() => clearEvery()}>Clear all</button>}
+        {open.length > 0 && <span className={`k-count${crit ? " due" : ""}`}>{open.length}{crit ? ` · ${crit} critical` : ""}</span>}
+        {open.length > 1 && <button type="button" className="btn-ter" onClick={() => clearEvery()}>Clear all</button>}
         {prefsDoor}
       </>} />
       {prefsSheet}
@@ -716,7 +722,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
               {held.map((a) => (
                 <div key={a.id} className={`digest-item sev-${a.severity}`}>
                   <button type="button" className="digest-item-go" onClick={() => gotoAlert(a)}>
-                    <span className="digest-item-t">{a.title}<span className="alert-when">{ageLabel(a.created_at)}</span></span>
+                    <span className="digest-item-t">{a.title}{a.claim && <span className="k-tag ok txt ml-1.5">{a.claim}</span>}<span className="alert-when">{ageLabel(a.created_at)}</span></span>
                     {a.body && <span className="digest-item-b">{a.body}</span>}
                   </button>
                   <button type="button" className="digest-item-x" onClick={() => ack(a)} aria-label={`Dismiss ${a.title}`}><Icon name="close" /></button>
@@ -730,8 +736,10 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
 
       {/* Each flag swipes the way a Mail row does (components/SwipeRow): left for Later and Got it — a
           long swipe clears it — right to open what it names. A long press raises the same, by name
-          (components/LongPress). The buttons stay; the swipe and the press are the fast ways to them. */}
-      {sorted.map((a) => (
+          (components/LongPress). The buttons stay; the swipe and the press are the fast ways to them.
+          A team alert someone else has comes after the open ones, saying who (0383); Got it on it is
+          yours alone — it leaves your list, and the claim stays theirs. */}
+      {rows.map((a) => (
         <SwipeRow key={a.id} className="alert-swipe"
           lead={canOpen(a) ? [{ key: "open", label: "Open", icon: "arrowRight", tone: "info", run: () => gotoAlert(a) }] : []}
           trail={[
@@ -751,7 +759,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
             {(() => {
               const main = (
                 <>
-                  <span className="alert-title">{a.title}{myLane(a.category) && <span className="myday-lane">your lane</span>}{(a.occurrences ?? 1) > 1 && <span className="k-tag ml-1.5" title={`Happened ${a.occurrences} times${a.last_seen_at ? `, last ${ageLabel(a.last_seen_at)}` : ""}`}>×{a.occurrences}</span>}<span className="alert-when">{ageLabel(alertWhen(a))}</span></span>
+                  <span className="alert-title">{a.title}{myLane(a.category) && <span className="myday-lane">your lane</span>}{a.claim && <span className="k-tag ok txt ml-1.5">{a.claim}</span>}{(a.occurrences ?? 1) > 1 && <span className="k-tag ml-1.5" title={`Happened ${a.occurrences} times${a.last_seen_at ? `, last ${ageLabel(a.last_seen_at)}` : ""}`}>×{a.occurrences}</span>}<span className="alert-when">{ageLabel(alertWhen(a))}</span></span>
                   {a.body && <span className="alert-body">{a.body}</span>}
                 </>
               );

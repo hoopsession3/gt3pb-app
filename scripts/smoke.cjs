@@ -11246,9 +11246,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /\.from\("profiles"\)\.select\("id"\)\.eq\("tenant_id", tenantOf\(a\)\)\.in\("role", \[\.\.\.roles\]\)/.test(fn)
     && /if \(escalation\) \{ roles\.add\("admin"\); roles\.add\("owner"\); \}/.test(fn)
     && /subsFor\(\(q\) => q\.eq\("wants_live", true\)\.eq\("tenant_id", tenantOf\(record\)\)\)/.test(fn));
-  ok("alerts: an escalation is an alerts UPDATE the function checks again before it sends — acknowledged or read by anyone, nothing goes",
+  // 2026-10-12 (0383): "read by anyone" became "claimed" — the first Got it on a team alert, kept on the row — and
+  // reads count only while the row has no claim column (before 0383 is pasted). The rule is ./policy.ts
+  // stillUnanswered, run by scripts/push.policy.test.mjs; this holds the function to asking it, on the whole row.
+  ok("alerts: an escalation is an alerts UPDATE the function checks again before it sends — acknowledged or claimed, nothing goes",
     /\} else if \(table === "alerts" && type === "UPDATE"\) \{/.test(fn) && /if \(!isEscalation\(record, old_record\)\) return new Response\("skip: not an escalation"\);/.test(fn)
-    && /if \(!now \|\| now\.ack_at \|\| \(reads \?\? 0\) > 0\) return new Response\("skip: acknowledged"\);/.test(fn)
+    && /const \{ data: now \} = await supabase\.from\("alerts"\)\.select\("\*"\)\.eq\("id", record\.id\)\.maybeSingle\(\);/.test(fn)
+    && /if \(!stillUnanswered\(now, reads\)\) return new Response\("skip: acknowledged"\);/.test(fn)
     && /const ids = await peopleFor\(record, true\);/.test(fn));
   ok("alerts: a device test goes to its person's devices alone — never Teams, never email",
     /const ownTest = record\.kind === "device_test";/.test(fn) && /if \(!ownTest\) await postTeams\(record\.severity, record\.title, record\.body \|\| ""\);/.test(fn)

@@ -4,7 +4,9 @@
 //
 //   1. Which channels does an alert of this severity get?   channelsFor()
 //   2. What may a phone show on its lock screen?             newOrderShown(), alertShown(), … (every send)
-//   3. Is this change to an alert an escalation?             isEscalation()
+//   3. Is this change to an alert an escalation?             isEscalation(), stillUnanswered()
+//
+// And one it never asked (2026-10-12): 4. Whose phone may this alert ring right now?   whoRings()
 //
 // They live here so a test can run them (scripts/push.policy.test.mjs compiles this file and asks it), and so
 // each has one answer. Nothing here reaches the network, the database or Deno: every input is a plain value the
@@ -242,4 +244,91 @@ export function isEscalation(record: AlertRow, old: AlertRow): boolean {
   if (!record || !old) return false;
   return !old.escalated_at && !!record.escalated_at && record.severity === "critical"
     && !record.ack_at && record.kind !== "device_test";
+}
+
+// SOMEBODY HAS IT (2026-10-12, 0383). Just before an escalation is sent, the row is read again (./index.ts): one
+// acknowledged in the meantime is not sent, nor one somebody has claimed — the first Got it on a team alert, which the
+// database keeps on the alert (claimed_by) and the whole team sees. It used to count any alert_reads row, which anyone
+// signed in could write for an alert they could not even see. Until 0383 is applied the row has no claimed_by, and
+// anyone's Got it (`reads`, the alert's alert_reads rows) is what counts, as it did; a count not read is none.
+export function stillUnanswered(now: Record<string, unknown> | null | undefined, reads: number | null = null): boolean {
+  if (!now || now.ack_at) return false;
+  if ("claimed_by" in now) return !now.claimed_by;
+  return !(typeof reads === "number" && reads > 0);
+}
+
+// ── 4 · A MUTE AND QUIET HOURS HOLD THE PUSH, NOT THE ALERT (2026-10-12) ───────────────────────────────────────
+// Settings › Notifications (components/NotifPrefs; notif_prefs, 0177) promises two things: a muted category's
+// alerts stop pinging you, and during quiet hours non-critical alerts "are held into a morning digest instead of
+// pinging you". Only the inbox kept either (lib/useMyAlerts hides a muted category and holds the rest in a digest).
+// This function never read notif_prefs — ./index.ts had no mention of it — so a muted category, or an important at
+// 3 AM inside someone's quiet hours, rang their phone like any other, to everyone peopleFor() named.
+//
+// Now each person an alert would reach is asked, by these rules, before their devices are:
+//   · a critical always rings, mutes and quiet hours notwithstanding — Settings: "Critical alerts always come
+//     through" — and so does a device test, which is a critical and the person's own;
+//   · an alert in a category the person muted does not ring them (the inbox's rule: the category as written,
+//     0232's closed list);
+//   · nor does one inside their quiet hours: [start, end) in whole hours, across midnight when start is after end
+//     (22 → 7), and no window when either end is unset, out of 0–23, or both are the same hour — lib/useMyAlerts
+//     inQuietHours, the inbox's own rule;
+//   · the hour is read on the clock of the person's market (profiles.market → markets.timezone; the founding
+//     market's, America/New_York, where it is not known or not a zone). Settings says "this phone's clock": a
+//     server cannot read a phone's clock, and the crew's phones keep their market's.
+// Only the push is held. The alert is written, its inbox line shows (in the digest, in quiet hours), and Teams and
+// email are the severity's, as above — a critical is the only alert that emails, and it is never held. A held push
+// is not sent later: the alert waits in the inbox, which is where Settings says it surfaces when quiet hours end.
+// A team alert is asked person by person, so one person's mute or quiet hours never silence another's phone.
+export type NotifPrefsRow = { muted_categories?: unknown; quiet_start?: unknown; quiet_end?: unknown } | null | undefined;
+export type Held = "muted" | "quiet hours";
+
+/** The founding market's zone (markets.timezone's default, 0275). */
+export const MARKET_ZONE = "America/New_York";
+
+const hourClocks = new Map<string, Intl.DateTimeFormat>();
+/** The hour, 0–23, that `at` reads on a time zone's clock. A zone this runtime does not know is the founding
+ *  market's. */
+export function hourOn(at: Date, timeZone: unknown): number {
+  const zone = typeof timeZone === "string" && timeZone.trim() ? timeZone.trim() : MARKET_ZONE;
+  let clock = hourClocks.get(zone);
+  if (!clock) {
+    try { clock = new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", hourCycle: "h23" }); }
+    catch { return zone === MARKET_ZONE ? at.getUTCHours() : hourOn(at, MARKET_ZONE); }
+    hourClocks.set(zone, clock);
+  }
+  const h = Number(clock.formatToParts(at).find((p) => p.type === "hour")?.value);
+  return Number.isInteger(h) ? h % 24 : at.getUTCHours();
+}
+
+const wholeHour = (x: unknown): number | null => (typeof x === "number" && Number.isInteger(x) && x >= 0 && x <= 23 ? x : null);
+
+/** Is `hour` inside a quiet window? lib/useMyAlerts inQuietHours: [start, end), across midnight when start > end;
+ *  no window when either end is unset (or not an hour), or both are the same hour. */
+export function inQuietHours(hour: number, start: unknown, end: unknown): boolean {
+  const s = wholeHour(start), e = wholeHour(end);
+  if (s === null || e === null || s === e) return false;
+  return s < e ? hour >= s && hour < e : hour >= s || hour < e;
+}
+
+/** Why this alert's push is held for one person, or null: it rings them. No prefs is no mute and no quiet hours. */
+export function pushHeld(a: { severity?: unknown; category?: unknown }, prefs: NotifPrefsRow, at: Date, timeZone?: unknown): Held | null {
+  if (severityOf(a.severity) === "critical" || !prefs) return null;
+  const muted = Array.isArray(prefs.muted_categories) ? prefs.muted_categories : [];
+  if (typeof a.category === "string" && muted.includes(a.category)) return "muted";
+  if (inQuietHours(hourOn(at, timeZone), prefs.quiet_start, prefs.quiet_end)) return "quiet hours";
+  return null;
+}
+
+/** An alert's people, asked one by one at `at`: whose devices it rings now, and whose it holds, and why. */
+export function whoRings(
+  a: { severity?: unknown; category?: unknown },
+  people: { id: string; prefs?: NotifPrefsRow; timeZone?: unknown }[],
+  at: Date,
+): { ring: string[]; held: { id: string; why: Held }[] } {
+  const ring: string[] = [], held: { id: string; why: Held }[] = [];
+  for (const p of people) {
+    const why = pushHeld(a, p.prefs, at, p.timeZone);
+    if (why) held.push({ id: p.id, why }); else ring.push(p.id);
+  }
+  return { ring, held };
 }

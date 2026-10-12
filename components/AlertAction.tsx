@@ -68,8 +68,21 @@ export default function AlertAction({ flag, meId, onResolved }: {
       // Capture it and throw so a FAILED write never reports "done" and never acks the alert (the brew
       // reminder would otherwise vanish without the brew ever starting).
       if (kind === "task_assigned" || kind === "task_due") {
-        const { error } = await supabase.from("event_tasks").update({ done: true, done_by: meId, done_at: new Date().toISOString() }).eq("id", flag.subject_id);
+        // A TASK THAT IS GONE IS NOT DONE (2026-10-12). An update that matches no row is not an error to PostgREST,
+        // so "Mark done" on a task someone had deleted said "Done — nice." about nothing, and left the line. It reads
+        // back the row it wrote: none, and the task is not there either, says so and clears the line; there but not
+        // written (not this person's to change) is a failure, and says so the way every failure here does.
+        const { data, error } = await supabase.from("event_tasks").update({ done: true, done_by: meId, done_at: new Date().toISOString() })
+          .eq("id", flag.subject_id).select("id");
         if (error) throw error;
+        if (!data?.length) {
+          const now = await supabase.from("event_tasks").select("id").eq("id", flag.subject_id).maybeSingle();
+          if (now.error) throw now.error;
+          if (now.data) throw new Error("It wasn't marked done.");
+          setMsg("Gone — that task was deleted.");
+          setTimeout(onResolved, 650);
+          return;
+        }
         haptic("success");
       } else if (kind === "brew_start_window" || kind === "brew_start_now" || kind === "brew_at_risk") {
         const startIso = new Date().toISOString();

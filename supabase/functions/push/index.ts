@@ -10,12 +10,13 @@
 // APNS_TEAM_ID override them if a key is ever replaced. Without the private key an 'apns' row is skipped, never an error.
 // Deploy: TWO FILES since 2026-10-11 — this one and ./policy.ts beside it (what a severity sends, what a lock screen
 // may show). Supabase dashboard -> Edge Functions -> "push" -> paste index.ts AND add policy.ts -> deploy; or
-// `supabase functions deploy push`, which takes the folder. Deploy it BEFORE pasting 0373 and 0374.
+// `supabase functions deploy push`, which takes the folder. Deploy it BEFORE pasting 0373 and 0374 — and 0383
+// (2026-10-12: a muted category and quiet hours hold a non-critical alert's push; an escalation asks for the claim).
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   alertShown, channelsFor, escalationShown, isEscalation, liveShown, mayEmail, newOrderShown, orderStatusShown,
-  severityOf, signoffShown, subscriptionShown, taskShown, type Shown,
+  severityOf, signoffShown, stillUnanswered, subscriptionShown, taskShown, whoRings, type NotifPrefsRow, type Shown,
 } from "./policy.ts";
 
 webpush.setVapidDetails(
@@ -119,6 +120,29 @@ async function peopleFor(a: { target_user_id?: string | null; tenant_id?: string
     for (const p of (data ?? []) as { id: string }[]) ids.add(p.id);
   }
   return [...ids];
+}
+
+// WHOSE PHONE IT RINGS NOW (2026-10-12). Each of an alert's people, asked by ./policy.ts whoRings: a category they
+// muted, or their quiet hours on their market's clock, hold a non-critical alert's push to them (notif_prefs, 0177 —
+// Settings › Notifications); a critical rings everyone, as before. Only the push is held: the row, its inbox line,
+// Teams and the email are untouched. A FAILED READ IS NOT A MUTE: if the prefs cannot be read, everyone is pinged, as
+// before this rule; if a market's zone cannot, the founding market's clock is used.
+async function ringingNow(a: { severity?: unknown; category?: unknown }, ids: string[]): Promise<string[]> {
+  if (!ids.length || severityOf(a.severity) === "critical") return ids;
+  const [prefs, people] = await Promise.all([
+    supabase.from("notif_prefs").select("user_id, muted_categories, quiet_start, quiet_end").in("user_id", ids),
+    supabase.from("profiles").select("id, market").in("id", ids),
+  ]);
+  if (prefs.error) return ids;
+  const marketOf = new Map(((people.data ?? []) as { id: string; market: string | null }[]).map((p) => [p.id, p.market ?? ""]));
+  const zoneOf = new Map<string, string>();
+  const markets = [...new Set([...marketOf.values()].filter(Boolean))];
+  if (markets.length) {
+    const { data } = await supabase.from("markets").select("slug, timezone").in("slug", markets);
+    for (const m of (data ?? []) as { slug: string; timezone: string | null }[]) if (m.timezone) zoneOf.set(m.slug, m.timezone);
+  }
+  const prefsOf = new Map(((prefs.data ?? []) as ({ user_id: string } & NonNullable<NotifPrefsRow>)[]).map((p) => [p.user_id, p]));
+  return whoRings(a, ids.map((id) => ({ id, prefs: prefsOf.get(id) ?? null, timeZone: zoneOf.get(marketOf.get(id) ?? "") })), new Date()).ring;
 }
 
 // Post an alert card to the Teams channel (best-effort; skipped with no webhook, and wherever ./policy.ts says a
@@ -348,21 +372,29 @@ Deno.serve(async (req) => {
         if (record.target_user_id) await emailUser(record.target_user_id, subj, bodyTxt);
         else await emailAdmins(subj, bodyTxt);
       }
-      // 2) Push: to the target user, or all leadership of the alert's business when there's no specific target.
+      // 2) Push: to the target user, or all leadership of the alert's business when there's no specific target —
+      // each of them asked first whether this alert may ring them now (ringingNow: their mutes, their quiet hours;
+      // a critical always rings).
       shown = alertShown(record);
       url = record.link || "/admin";
-      const ids = await peopleFor(record);
+      const ids = await ringingNow(record, await peopleFor(record));
       targets = ids.length ? await subsFor((q) => q.in("user_id", ids)) : [];
 
     } else if (table === "alerts" && type === "UPDATE") {
       // A CRITICAL NOBODY PICKED UP (0373). escalate_unacked_criticals() marks it escalated once it has gone ten
       // minutes unacknowledged; this sends it again, once, to its own people and every admin and owner of its
       // business. Acknowledging stops it: one acknowledged between the mark and this send — "Got it" on the row, or
-      // anyone's on a broadcast (alert_reads, 0157) — is not sent.
+      // on a broadcast its claim (0383: the first Got it, kept on the alert; before 0383, anyone's alert_reads row,
+      // 0157) — is not sent (./policy.ts stillUnanswered). The whole row is read, so the claim is seen once its column
+      // exists, and this is right on either side of 0383's paste.
       if (!isEscalation(record, old_record)) return new Response("skip: not an escalation");
-      const { data: now } = await supabase.from("alerts").select("ack_at").eq("id", record.id).maybeSingle();
-      const { count: reads } = await supabase.from("alert_reads").select("alert_id", { count: "exact", head: true }).eq("alert_id", record.id);
-      if (!now || now.ack_at || (reads ?? 0) > 0) return new Response("skip: acknowledged");
+      const { data: now } = await supabase.from("alerts").select("*").eq("id", record.id).maybeSingle();
+      let reads: number | null = null;
+      if (now && !("claimed_by" in now)) {
+        const { count } = await supabase.from("alert_reads").select("alert_id", { count: "exact", head: true }).eq("alert_id", record.id);
+        reads = count ?? 0;
+      }
+      if (!stillUnanswered(now, reads)) return new Response("skip: acknowledged");
       shown = escalationShown(record);
       url = record.link || "/admin";
       const ids = await peopleFor(record, true);
