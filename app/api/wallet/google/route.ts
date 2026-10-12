@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { route } from "@/lib/apiRoute";
+import { cardOf } from "@/lib/loyalty";
 
 // Google Wallet — a "Save to Google Wallet" link is a JWT (RS256) signed with the GT3 service-account
 // key, carrying the member's loyalty object (stamps + a QR barcode of their card code). No pkpass
@@ -30,7 +31,7 @@ async function get(req: Request) {
   const { data: p } = await supabaseAdmin.from("profiles").select("display_name, points, referral_code").eq("id", user.id).maybeSingle();
   const prof = p as { display_name: string | null; points: number | null; referral_code: string | null } | null;
   const code = prof?.referral_code || user.id;
-  const stamps = Math.max(0, prof?.points ?? 0) % 10;
+  const stamps = cardOf(prof?.points).stamps;
   const classId = `${issuerId}.${classSuffix}`;
   const objectId = `${issuerId}.gt3-${user.id.replace(/[^a-zA-Z0-9]/g, "")}`;
   const origin = new URL(req.url).origin;

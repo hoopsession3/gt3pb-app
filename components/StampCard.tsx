@@ -7,6 +7,7 @@ import MemberCard from "@/components/MemberCard";
 import { clickable } from "@/lib/a11y";
 import { fillCopy, useSiteCopy } from "@/lib/copy";
 import Icon from "@/components/Icon";
+import { cardOf, STAMP_GOAL } from "@/lib/loyalty";
 
 // LOYALTY STAMP CARD — every drink earns a stamp; the 10th is on us. Pure view of profiles.points,
 // which the server credits on pickup (migration 0012, +1 per drink). No new data, no client writes.
@@ -18,18 +19,15 @@ import Icon from "@/components/Icon";
 // editable — see the comment on that group in lib/copy.ts: the WHOLE card below is one tap target,
 // so an inline EditableCopy anywhere inside it would nest a second interactive control inside the
 // section's own role="button". Reach it via the Edit pill on the Today masthead instead.
-const GOAL = 10;
-
 export default function StampCard() {
   const { profile } = useAuth();
   const t = useSiteCopy();
   const [cardOpen, setCardOpen] = useState(false);
   if (!profile) return null;
-  const pts = Math.max(0, profile.points || 0);
-  const inCard = pts % GOAL;          // stamps on the current card
-  const free = Math.floor(pts / GOAL); // free drinks earned so far
-  const toGo = GOAL - inCard;
-  const gotFree = inCard === 0 && pts > 0; // just completed a card
+  // lib/loyalty's card (C6): stamps on the card now, and free cups READY — one given at the window is gone (0387).
+  const { stamps: inCard, free, toNext: toGo } = cardOf(profile.points);
+  const GOAL = STAMP_GOAL;
+  const gotFree = inCard === 0 && free > 0; // a full card, nothing on the next one yet
   const near = !gotFree && toGo <= 2;
 
   // free===1 vs 2+ get their own copy key (proper singular/plural, not a baked-in word swap) —

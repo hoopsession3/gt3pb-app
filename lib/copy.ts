@@ -78,10 +78,10 @@ export const COPY_META: CopyMeta[] = [
   // Edit pill added to the Today masthead — see app/page.tsx.
   { key: "stamp.kicker", group: "Loyalty card", label: "Small label, top-left of the card", default: "Your card" },
   { key: "stamp.badge_full", group: "Loyalty card", label: "Top-right badge — card just completed", default: "Card full" },
-  { key: "stamp.badge_earned_one", group: "Loyalty card", label: "Top-right badge — exactly 1 free drink earned so far (uses {count})", default: "{count} free drink earned" },
-  { key: "stamp.badge_earned_other", group: "Loyalty card", label: "Top-right badge — 2+ free drinks earned so far (uses {count})", default: "{count} free drinks earned" },
+  { key: "stamp.badge_earned_one", group: "Loyalty card", label: "Top-right badge — exactly 1 free cup ready to give (uses {count})", default: "{count} free cup ready" },
+  { key: "stamp.badge_earned_other", group: "Loyalty card", label: "Top-right badge — 2+ free cups ready to give (uses {count})", default: "{count} free cups ready" },
   { key: "stamp.badge_default", group: "Loyalty card", label: "Top-right badge — no free drinks earned yet", default: "10th is on us" },
-  { key: "stamp.foot_full", group: "Loyalty card", label: "Footer line — card just completed", default: "Your 10th is on us — mention it at the window." },
+  { key: "stamp.foot_full", group: "Loyalty card", label: "Footer line — a full card, a free cup ready", default: "Your 10th is on us — show your card at the window." },
   { key: "stamp.foot_near", group: "Loyalty card", label: "Footer line — 1-2 stamps from a free drink (uses {count})", default: "So close — just {count} more till a free cup." },
   { key: "stamp.foot_progress", group: "Loyalty card", label: "Footer line — default progress, 3+ stamps to go (uses {count})", default: "{count} more drinks till your next free one." },
   { key: "stamp.open_cta", group: "Loyalty card", label: "Footer, right side — opens the member card", default: "Open your card ›" },

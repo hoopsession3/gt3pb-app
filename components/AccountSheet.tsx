@@ -15,6 +15,7 @@ import { showsCommerce, surfaceOf } from "@/lib/surfaces";
 import type { Order } from "@/lib/db";
 import Button from "./Button";
 import { signOutHere } from "@/lib/pushRelease";
+import { cardOf, freeWords, STAMP_GOAL } from "@/lib/loyalty";
 
 // THE account popout — a MENU, reachable from the avatar on every page.
 //
@@ -30,7 +31,6 @@ import { signOutHere } from "@/lib/pushRelease";
 //
 // For staff, Crew Mode is the FIRST row and the reason they opened this. lib/mode.ts remembers
 // the side they are on, so most days the owner never needs it: the app opens where he left it.
-const GOAL = 10;
 
 // Loaded when someone taps "Delete account", not with every page: the account sheet rides in every
 // route's bundle, and the design ratchet weighs each one (scripts/design.ratchet.mjs).
@@ -100,10 +100,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   const staff = !!user && role !== "member";
   const name = profile?.display_name || user?.email?.split("@")[0] || "Guest";
   const founding = !!profile?.founding_member;
-  const pts = Math.max(0, profile?.points || 0);
-  const inCard = pts % GOAL;
-  const toGo = GOAL - inCard;
-  const free = Math.floor(pts / GOAL);
+  const card = cardOf(profile?.points);
   const credit = (profile?.credit_cents ?? 0) / 100;
   const photo = profile?.avatar_url || "";
 
@@ -154,7 +151,8 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   }
 
   const usualNames = last ? last.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ") : "";
-  const stamps = inCard === 0 && pts > 0 ? "a free pour is ready" : `${toGo} to your free pour`;
+  // The card in lib/loyalty's words (C6): free cups READY — a redeemed one is gone from the count (0387).
+  const stamps = card.free > 0 ? freeWords(card.free) : `${card.toNext} to a free cup`;
 
   return (
     <Sheet open onClose={onClose} header={head("Your account")} className="acs-sheet">
@@ -166,7 +164,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
         <div className="acs-id">
           <div className="acs-name">{name}</div>
           <span className={`k-tag mt-1.5${founding ? " gold fill" : ""}`}>{founding ? <><Icon name="star" /> Founding Member</> : "Member"}</span>
-          <div className="acs-line">{inCard}<i>/{GOAL}</i> · {stamps}{credit > 0 ? ` · $${credit % 1 === 0 ? credit.toFixed(0) : credit.toFixed(2)} credit` : free > 0 ? ` · ${free} free earned` : ""}</div>
+          <div className="acs-line">{card.stamps}<i>/{STAMP_GOAL}</i> · {stamps}{credit > 0 ? ` · $${credit % 1 === 0 ? credit.toFixed(0) : credit.toFixed(2)} credit` : ""}</div>
         </div>
         <span className="acs-row-c" aria-hidden>›</span>
       </button>

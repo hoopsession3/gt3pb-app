@@ -24,6 +24,7 @@ import { money, moneyPlain, moneyRound } from "@/lib/money";
 import { isSettled } from "@/lib/settled";
 import { publicOrigin } from "@/lib/native";
 import { shareLink } from "@/lib/deviceActions";
+import { cardOf, freeWords, STAMP_GOAL } from "@/lib/loyalty";
 
 const RING = 232; // 2πr for r=37, matches prototype stroke-dasharray
 
@@ -140,8 +141,9 @@ function MpireReal() {
   const router = useRouter();
   const t = useSiteCopy();
 
-  const points = profile?.points ?? 0;
-  const freeEarned = Math.floor(points / 10); // lifetime free drinks — derived from the real points column
+  // lib/loyalty's card (C6): stamps now, free cups READY — a redeemed one is gone from the count (0387). "Free earned"
+  // counted every ten points forever.
+  const card = cardOf(profile?.points);
   const credit = moneyPlain(profile?.credit_cents);
   const code = profile?.referral_code || "GT3PB-3MP";
   const creditCents = profile?.credit_cents ?? 0;
@@ -165,9 +167,9 @@ function MpireReal() {
       <MembershipCard />
       <VipVerify />
       <div id="rewards" className="memline acs-anchor">
-        <span><b>{points}</b> pts</span>
+        <span><b>{card.stamps}</b>/{STAMP_GOAL} stamps</span>
         <span className="memline-dot">·</span>
-        <span><b>{freeEarned}</b> free earned</span>
+        <span>{card.free > 0 ? <b>{freeWords(card.free)}</b> : `${card.toNext} to a free cup`}</span>
         {creditCents > 0 && <><span className="memline-dot">·</span><span><b>${credit}</b> credit</span></>}
       </div>
 
@@ -246,9 +248,9 @@ function MpireDemo() {
       </div></div>
 
       <div className="memline">
-        <span><b>142</b> pts</span>
+        <span><b>2</b>/{STAMP_GOAL} stamps</span>
         <span className="memline-dot">·</span>
-        <span><b>14</b> free earned</span>
+        <span><b>{freeWords(1)}</b></span>
         <span className="memline-dot">·</span>
         <span><b>$14.00</b> credit</span>
       </div>

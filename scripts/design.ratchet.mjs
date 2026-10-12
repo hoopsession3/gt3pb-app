@@ -592,6 +592,9 @@ export const PROD_ROUTE = {
 // Turbopack stopped folding the shared group into it past ~60 KB. Moving that read into lib/orderingRead (shared with
 // /book and the menu) kept the split and pushed /book over its line instead, so it stays in Find Us; the bytes are the
 // same, in two files. Recorded.
+// 2026-10-12 (R1b, C6 of the customer audit): /scan 266 → 267. The scan page's own chunk +575 bytes gzipped (2 389 →
+// 2 964; 6 435 → 8 273 raw) for Redeem a free cup — the ask, its three answers — and lib/loyalty's card, which the
+// page reads instead of its own GOAL = 10. Built b790d2a and this commit and gzipped what /scan's HTML references.
 export const WEIGHT = {
   "/truck":                    { js: 285, css: 89, chunks: 16 },
   "/events":                   { js: 285, css: 89, chunks: 16 },
@@ -603,7 +606,7 @@ export const WEIGHT = {
   "/book":                     { js: 267, css: 90, chunks: 15 },
   "/academy":                  { js: 325, css: 90, chunks: 16 },
   "/office":                   { js: 282, css: 90, chunks: 15 },
-  "/scan":                     { js: 266, css: 90, chunks: 15 },
+  "/scan":                     { js: 267, css: 90, chunks: 15 },
   "/architecture":             { js: 277, css: 90, chunks: 15 },
   "/playbook":                 { js: 275, css: 90, chunks: 15 },
   "/driver":                   { js: 280, css: 89, chunks: 15 },

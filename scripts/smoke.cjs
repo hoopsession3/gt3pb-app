@@ -9171,7 +9171,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /setCodeState\("bad"\); setCodeBenefit\(null\); haptic\("error"\); return;/.test(of) && /setCodeState\("ok"\); haptic\("success"\);/.test(of));
   const scan = code(read("app/scan/page.tsx"));
   ok("scan: a stamp added is success, one that did not record is error — said inline, so felt there",
-    /setState\("added"\); haptic\("success"\); \}/.test(scan) && /else \{ setState\("error"\); haptic\("error"\); \}/.test(scan));
+    /setState\("added"\); setRedeem\("idle"\); haptic\("success"\); \}/.test(scan) && /else \{ setState\("error"\); haptic\("error"\); \}/.test(scan));
 
   // ── the sheet ──
   const sh = code(read("components/Sheet.tsx")), sm = code(read("components/SheetMotion.tsx"));
@@ -13140,6 +13140,40 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /const refused = cartRefusal\(uniq, rows, \(slug\) => DRINKS\[slug as DrinkId\]\?\.n \?\? slug\);\s*if \(refused\) return NextResponse\.json\(\{ error: refused \}, \{ status: 409 \}\);/.test(api)
       && api.indexOf("cartRefusal(") < api.indexOf("chargeCard(") && !/blocked\.join/.test(api));
   }
+}
+
+// ── THE CARD, SAID ONCE · A FREE CUP IS REDEEMED ONCE (2026-10-12, C6 of the customer audit, approved) ──
+// The card's numbers were worked out in six places, each with its own GOAL = 10, and "free earned" counted every ten
+// points forever, because nothing recorded a free cup as given. lib/loyalty is the card; 0387 redeem_free_cup the
+// giving (a ledger row of −10, so profiles.points — the ledger's sum — is what is left).
+{
+  const L = require("../.smoke/loyalty.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const c = (p) => { const k = L.cardOf(p); return `${k.stamps}|${k.free}|${k.toNext}`; };
+  ok("card: stamps on the card, free cups ready, stamps to the next — from the ledger's sum",
+    c(0) === "0|0|10" && c(8) === "8|0|2" && c(10) === "0|1|10" && c(19) === "9|1|1" && c(20) === "0|2|10" && c(23) === "3|2|7", [c(0), c(8), c(10), c(19), c(20), c(23)]);
+  ok("card: a balance below zero, missing or fractional is an empty card, never a negative stamp (0229 notes one can go below zero)",
+    c(-3) === "0|0|10" && c(null) === "0|0|10" && c(undefined) === "0|0|10" && c(9.7) === "9|0|1");
+  ok("card: a redemption is ten points off — what was a full card is an empty one, and two free cups are one",
+    c(10 - 10) === "0|0|10" && c(20 - 10) === "0|1|10" && c(23 - 10) === "3|1|7");
+  ok("card: one line on every screen — progress, or the free cups ready, singular and plural",
+    L.cardLine(L.cardOf(8)) === "8/10 · 2 to a free cup" && L.cardLine(L.cardOf(10)) === "1 free cup ready" && L.cardLine(L.cardOf(25)) === "2 free cups ready"
+    && L.freeWords(1) === "1 free cup ready" && L.STAMP_GOAL === 10);
+  const files = ["components/StampCard.tsx", "components/AccountSheet.tsx", "components/MembershipCard.tsx", "app/scan/page.tsx", "app/3mpire/page.tsx", "app/api/wallet/google/route.ts"];
+  ok("card: the six places that worked out the card ask lib/loyalty — no GOAL = 10, no % 10, no \"free earned\" left",
+    files.every((f) => /from "@\/lib\/loyalty"/.test(rd(f)) && !/const GOAL = 10;/.test(rd(f)) && !/% 10\b/.test(rd(f)) && !/free earned/.test(rd(f))),
+    files.filter((f) => !/from "@\/lib\/loyalty"/.test(rd(f)) || /const GOAL = 10;|% 10\b|free earned/.test(rd(f))));
+  const scan = rd("app/scan/page.tsx");
+  ok("redeem: a card with a free cup offers Redeem, which asks first, then calls redeem_free_cup — one tap is never a redemption",
+    /\{card\.free > 0 && redeem !== "ask" && redeem !== "busy" && \(\s*<button type="button" className="btn-sec btn-wide mt-2\.5" onClick=\{\(\) => setRedeem\("ask"\)\}>Redeem a free cup<\/button>/.test(scan)
+    && /onClick=\{giveFreeCup\} disabled=\{redeem === "busy"\}/.test(scan) && /supabase\.rpc\("redeem_free_cup", \{ p_code: code \}\)/.test(scan)
+    && (scan.match(/rpc\("redeem_free_cup"/g) || []).length === 1);
+  ok("redeem: the answer is said — given and what is left; nothing to give; failed, with nothing taken",
+    /Free cup given\./.test(scan) && /No free cup on this card any more/.test(scan) && /Couldn&apos;t redeem — nothing was taken off the card\./.test(scan)
+    && /setRedeem\(\/no free cup\/i\.test\(error\?\.message \?\? ""\) \? "none" : "failed"\);/.test(scan));
+  ok("redeem: the copy says free cups READY — a given one leaves the count",
+    /default: "\{count\} free cup ready"/.test(rd("lib/copy.ts")) && /default: "\{count\} free cups ready"/.test(rd("lib/copy.ts")));
 }
 
 Promise.all(PENDING).then(() => {

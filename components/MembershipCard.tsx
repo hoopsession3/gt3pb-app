@@ -10,12 +10,12 @@ import Icon from "@/components/Icon";
 import { APP_BUILD, publicOrigin } from "@/lib/native";
 import { authedFetch } from "@/lib/authedFetch";
 import { addToWallet } from "@/lib/deviceActions";
+import { cardOf, STAMP_GOAL } from "@/lib/loyalty";
 
 // GT3 MEMBERSHIP CARD — a premium, scannable member card. The QR encodes a link to the operator
 // scan page keyed to this member (referral_code, or user id as fallback), so at the truck a crew
 // member scans it to pull up the account and add a stamp. "Add to Apple Wallet" is wired to
 // /api/wallet/pass and appears once the Apple Pass certs are configured (NEXT_PUBLIC_WALLET_READY).
-const GOAL = 10;
 
 export default function MembershipCard() {
   const { profile, user } = useAuth();
@@ -38,8 +38,7 @@ export default function MembershipCard() {
 
   if (!profile || !user) return null;
   const name = (profile.display_name || user.email?.split("@")[0] || "Member").split(" ")[0];
-  const pts = Math.max(0, profile.points || 0);
-  const inCard = pts % GOAL;
+  const inCard = cardOf(profile.points).stamps;
 
   // Safari opens the downloaded pass in Wallet; the iPhone app hands it to Wallet's own Add sheet
   // (lib/deviceActions addToWallet), where a download would go nowhere.
@@ -73,7 +72,7 @@ export default function MembershipCard() {
       <div className="mp-row">
         <div className="mp-meta">
           <div className="mp-meta-k">Stamps</div>
-          <div className="mp-meta-v">{inCard}<span>/{GOAL}</span></div>
+          <div className="mp-meta-v">{inCard}<span>/{STAMP_GOAL}</span></div>
           <div className="mp-code">#{String(code).slice(0, 8).toUpperCase()}</div>
         </div>
         <div className="mp-qr">{qr ? <img src={qr} alt="Scan at the truck" width={110} height={110} /> : <div className="mp-qr-ph" />}</div>
