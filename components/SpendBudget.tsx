@@ -79,7 +79,7 @@ export default function SpendBudget() {
     // nobody knew, which the receipt rule treats as always owing one — a gap list of everything. Both are failures now.
     if (c.error) throw new Error(c.error.message);
     const rep = r.data as (Report & { error?: string }) | null;
-    if (!rep || rep.error) throw new Error(rep?.error === "unauthorized" ? "This account cannot read spend and budgets." : rep?.error || "The spend report came back empty.");
+    if (!rep || rep.error) throw new Error(rep?.error === "unauthorized" ? "Spend and budgets are for owners and admins." : rep?.error || "The spend report came back empty.");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return { rep, vendors: (v.data as any) ?? [], items: (e.data as ExpenseRow[]) ?? [],
              cats: (c.data as SpendCategory[]) ?? [] };

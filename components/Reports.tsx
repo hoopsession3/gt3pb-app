@@ -11,7 +11,7 @@ import { channelRows, costBasisWords, type Channels } from "@/lib/home";
 import AsyncSection from "./AsyncSection";
 
 // Sales actuals — the first reporting dashboard (MONEY tab). Real revenue + per-event actuals +
-// product mix + daily trend, read from one staff-gated RPC. On-brand bars, no chart dependency.
+// product mix + daily trend, read from one owner-and-admin RPC. On-brand bars, no chart dependency.
 //
 // A FAILED READ IS NOT A QUIET MONTH (2026-10-12). This read the report with a helper that turned any failure into
 // null, and null drew "No sales recorded in the last 30 days" — the sentence for a month with no sales, said about a

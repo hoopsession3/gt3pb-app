@@ -7,6 +7,9 @@
 //      here as the schema's own columns) — and the channels sum to the distinct payments; the shop joins no event;
 //      each channel counts its own orders.
 //   2. The margin says what it rests on (cogs_basis), and an event says whether its costs were saved.
+//   3. Any crew member could read the books. After: owners and admins only; anon cannot call them at all; the service
+//      role keeps EXECUTE; product economics was already admin-only and still is.
+//   4. The snapshot counted every business. After: tenant B's rows are absent from tenant A's snapshot, and B sees B's.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -18,9 +21,9 @@ const F384 = "0384_the_money_numbers_are_honest.sql";
 let pass = 0, fail = 0;
 const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
 
-const T1 = "00000000-0000-0000-0000-000000000001";
+const T1 = "00000000-0000-0000-0000-000000000001", T2 = "3e9e0000-0000-4000-8000-0000000000f2";
 const u = (n) => `3e9e0000-0000-4000-8000-0000000000${n}`;
-const OWNER = u("a1"), MEMBER = u("a5");
+const OWNER = u("a1"), ADMIN = u("a2"), CREW = u("a3"), MANAGER = u("a4"), MEMBER = u("a5"), OWNER_B = u("b1"), MEMBER_B = u("b2");
 
 const t0 = Date.now();
 const db = await fullSchema({ before: "0384" });
@@ -35,12 +38,17 @@ const as = async (uid, sql, params, role) => {
   finally { await root(); }
 };
 const report = async (uid, sql) => { const r = await as(uid, `select ${sql} r`); return r.error ? { error: r.error } : r.rows[0]?.r; };
+const denied = (r) => /permission denied for function/i.test(r?.error || "");
+const refused = (r) => r && !Array.isArray(r) && r.error === "unauthorized";
 
 await db.exec(`
   grant usage on schema public to anon, authenticated, service_role;
   grant select, insert, update, delete on all tables in schema public to anon, authenticated;
 `);
-for (const [id, role, tenant] of [[OWNER, "owner", T1], [MEMBER, "member", T1]]) {
+// A second business, made deliberately (guard_second_tenant asks for the setting, as every multi-tenant test does).
+await db.exec(`begin; set local gt3.allow_second_tenant = 'on'; insert into public.tenants (id, slug, name) values ('${T2}', 'made-up-b', 'Made-up Business B'); commit;`);
+for (const [id, role, tenant] of [[OWNER, "owner", T1], [ADMIN, "admin", T1], [CREW, "server", T1], [MANAGER, "event_manager", T1],
+  [MEMBER, "member", T1], [OWNER_B, "owner", T2], [MEMBER_B, "member", T2]]) {
   await q(`insert into auth.users (id, email) values ($1, $2)`, [id, `${role}-${id.slice(-2)}@example.test`]);
   await q(`update public.profiles set role = $2, tenant_id = $3, display_name = $4 where id = $1`, [id, role, tenant, `Made-up ${role}`]);
 }
@@ -61,7 +69,16 @@ await q(`insert into public.subscriptions (user_id, plan, status, square_subscri
 const distinctPayments = Number((await q(`select coalesce(sum(amount_cents), 0) n from public.event_sales where tenant_id = $1`, [T1]))[0].n);
 ok("the fixture: business A's Square payments are the four made up here, once each", distinctPayments === PAY.walkup + PAY.cup + PAY.shop + PAY.subscription, distinctPayments);
 
+// Business B: a shelf, a subscriber and a buyer who came back — none of it A's.
+await q(`insert into public.inventory_items (name, qty, unit_cost, status, tenant_id) values ('Made-up oat milk', 10, 5.00, 'On Hand', $1)`, [T2]);
+await q(`insert into public.subscriptions (user_id, plan, status, square_subscription_id, tenant_id) values ($1, 'coffee_12', 'active', 'sub-made-up-b', $2)`, [MEMBER_B, T2]);
+for (let i = 0; i < 2; i++) await q(`insert into public.orders (user_id, items, total_cents, paid, tenant_id) values ($1, '{rise}', 700, true, $2)`, [MEMBER_B, T2]);
+
+const REPORTS = ["report_sales(int)", "report_events()", "report_snapshot()", "report_spend(date,text)", "report_product_mix(int)"];
+const can = async (role, f) => (await q(`select has_function_privilege($1, $2, 'execute') ok`, [role, `public.${f}`]))[0].ok;
+
 // ── BEFORE 0384 ─────────────────────────────────────────────────────────────────────────────────────────────────────
+let snapA0;
 {
   const s = await report(OWNER, `public.report_sales(7)`);
   ok("before 0384: the shop's payment is filed as a walk-up (walk-ups = the walk-up + the cap + the subscription)",
@@ -72,10 +89,31 @@ ok("the fixture: business A's Square payments are the four made up here, once ea
   ok("before 0384: …and the per-event P&L", (Array.isArray(ev) ? ev : []).find((r) => r.id === E1)?.actual_cents === PAY.walkup + PAY.cup + PAY.shop, ev);
   ok("before 0384: Sales' one order count is cup orders alone — the average divided all revenue by it",
     s?.order_count === 1 && s?.revenue_cents === distinctPayments && s?.orders_by_channel === undefined, { n: s?.order_count, rev: s?.revenue_cents });
+
+  for (const who of [CREW, MANAGER]) {
+    const name = who === CREW ? "a server" : "an event manager";
+    const r = await report(who, `public.report_sales(7)`), e = await report(who, `public.report_events()`), sn = await report(who, `public.report_snapshot()`);
+    const sp = await report(who, `public.report_spend()`), mix = await as(who, `select * from public.report_product_mix(30)`);
+    ok(`before 0384: ${name} reads revenue, the P&L, the snapshot, spend and the product mix`,
+      r?.revenue_cents === distinctPayments && Array.isArray(e) && sn?.subs !== undefined && sp?.month !== undefined && !mix.error,
+      { sales: r?.error, events: e?.error, snap: sn?.error, spend: sp?.error, mix: mix.error });
+  }
+  ok("before 0384: a signed-in customer is told 'unauthorized'", refused(await report(MEMBER, `public.report_sales(7)`)));
+  const anonCan = []; for (const f of REPORTS) if (await can("anon", f)) anonCan.push(f);
+  ok("before 0384: anon may call every report (PUBLIC's grant) — each answers 'unauthorized'",
+    anonCan.length === REPORTS.length && refused(await report(null, `public.report_sales(7)`)), anonCan);
+
+  snapA0 = await report(OWNER, `public.report_snapshot()`);
+  const snapB0 = await report(OWNER_B, `public.report_snapshot()`);
+  ok("before 0384: business B's owner reads business A's snapshot — the same numbers, every tenant summed",
+    JSON.stringify(snapB0) === JSON.stringify(snapA0) && snapA0?.subs?.active >= 2, { a: snapA0?.subs, b: snapB0?.subs });
+
 }
 
 // ── 0384 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 await db.exec(MIG(F384));
+// The snapshots first, before anything below adds to business A's shelf.
+const snapA1 = await report(OWNER, `public.report_snapshot()`), snapB1 = await report(OWNER_B, `public.report_snapshot()`);
 
 // 1 · every payment in exactly one channel, and the shop joins no event
 {
@@ -127,6 +165,48 @@ await db.exec(MIG(F384));
   ok("2 · …and one with costs saved says that, with them in", saved?.costs_saved === true && saved?.fixed_cents === 4000, saved);
 }
 
+// 3 · owners and admins only
+{
+  for (const who of [OWNER, ADMIN]) {
+    const name = who === OWNER ? "the owner" : "an admin";
+    const r = await report(who, `public.report_sales(7)`), e = await report(who, `public.report_events()`), sn = await report(who, `public.report_snapshot()`);
+    const sp = await report(who, `public.report_spend()`), mix = await as(who, `select * from public.report_product_mix(30)`);
+    ok(`3 · ${name} reads sales, the P&L, the snapshot, spend and the product mix`,
+      r?.revenue_cents === distinctPayments && Array.isArray(e) && sn?.subs !== undefined && /^\d{4}-\d{2}$/.test(sp?.month ?? "") && !mix.error && mix.rows.length >= 1,
+      { sales: r?.error, events: e?.error, snap: sn?.error, spend: sp?.error, mix: mix.error });
+  }
+  for (const [who, name] of [[CREW, "a server"], [MANAGER, "an event manager"], [MEMBER, "a signed-in customer"]]) {
+    const all = [await report(who, `public.report_sales(7)`), await report(who, `public.report_events()`), await report(who, `public.report_snapshot()`), await report(who, `public.report_spend()`)];
+    const mix = await as(who, `select * from public.report_product_mix(30)`);
+    ok(`3 · ${name} is told 'unauthorized' by all four reports, and the product mix refuses`, all.every(refused) && /owners and admins only/.test(mix.error ?? ""), { all, mix: mix.error });
+  }
+  const anonTried = [];
+  for (const sql of [`public.report_sales(7)`, `public.report_events()`, `public.report_snapshot()`, `public.report_spend()`]) anonTried.push(await report(null, sql));
+  const anonMix = await as(null, `select * from public.report_product_mix(30)`);
+  ok("3 · anon cannot call any of them — permission denied, not an answer", anonTried.every(denied) && denied(anonMix), { anonTried, mix: anonMix.error });
+  const kept = [], open = [];
+  for (const f of REPORTS) { if (!(await can("service_role", f))) kept.push(f); if (await can("anon", f)) open.push(f); }
+  ok("3 · the service role keeps EXECUTE on all five (what Supabase's default privileges give it); anon has none", kept.length === 0 && open.length === 0, { kept, open });
+  const server = await as(null, `select public.report_sales(7) r`, [], "service_role");
+  ok("3 · …and a call with no admin behind it is answered like anyone's: 'unauthorized'", !server.error && refused(server.rows[0]?.r), server);
+  const crewEcon = await as(CREW, `select count(*) n from public.product_economics_live`), ownEcon = await as(OWNER, `select count(*) n from public.product_economics_live`);
+  ok("3 · product economics was already the admins' and still is: a server reads no rows, the owner reads them",
+    !crewEcon.error && Number(crewEcon.rows[0]?.n) === 0 && Number(ownEcon.rows[0]?.n) >= 1, { crew: crewEcon, owner: ownEcon.rows[0] });
+}
+
+// 4 · a business's snapshot is its own
+{
+  const a = snapA1, b = snapB1;
+  ok("4 · tenant B's shelf, subscriber, members and buyers are gone from A's snapshot",
+    a?.inventory?.item_count === snapA0.inventory.item_count - 1 && a?.inventory?.value_cents === snapA0.inventory.value_cents - 5000
+      && a?.subs?.active === snapA0.subs.active - 1 && a?.subs?.mrr_cents < snapA0.subs.mrr_cents
+      && a?.loyalty?.members === snapA0.loyalty.members - 2 && a?.loyalty?.buyers === snapA0.loyalty.buyers - 1 && a?.loyalty?.repeat_customers === snapA0.loyalty.repeat_customers - 1,
+    { before: snapA0, after: a });
+  ok("4 · …and B's owner sees B's alone: one shelf worth $50, one subscriber, two members, one buyer who came back",
+    b?.inventory?.item_count === 1 && b?.inventory?.value_cents === 5000 && b?.subs?.active === 1 && b?.subs?.total === 1
+      && b?.loyalty?.members === 2 && b?.loyalty?.buyers === 1 && b?.loyalty?.repeat_customers === 1, b);
+}
+
 // ── WHAT MUST KEEP WORKING ─────────────────────────────────────────────────────────────────────────────────────────
 {
   // The home's three numbers (components/HomeNumbers): the 14- and 7-day reports and the P&L, as the owner.
@@ -134,12 +214,16 @@ await db.exec(MIG(F384));
   const keys = ["days", "revenue_basis", "revenue_cents", "by_channel", "order_count", "cogs_pct", "by_product", "by_event", "by_day"];
   ok("the home's numbers still read: every key report_sales had is there, and the P&L is a list",
     keys.every((k) => k in (r14 ?? {}) && k in (r7 ?? {})) && ["square_walkup", "cup", "packs", "delivery", "office"].every((k) => k in r7.by_channel) && Array.isArray(ev), { r14: Object.keys(r14 ?? {}), ev: ev?.error });
+  const sp = await report(OWNER, `public.report_spend(current_date, 'greenville')`);
+  ok("the call with a city and a month still answers", sp?.market === "greenville" && Array.isArray(sp?.by_category), sp?.error);
 }
 
 // ── A SECOND RUN, AND THE LEDGER ───────────────────────────────────────────────────────────────────────────────────
 {
   ok("0384 run twice: no error", await db.exec(MIG(F384)).then(() => true, (e) => { console.log(e.message); return false; }));
   ok("0384 run twice: one changelog entry", Number((await q(`select count(*) n from public.changelog where title = 'The money numbers say what they are'`))[0].n) === 1);
+  const open = []; for (const f of REPORTS) if (await can("anon", f)) open.push(f);
+  ok("0384 run twice: nothing reopened", open.length === 0, open);
   ok("0384 records itself by its own name",
     (await q(`select 1 from public.schema_migrations where version = '0384_the_money_numbers_are_honest'`)).length === 1);
 }

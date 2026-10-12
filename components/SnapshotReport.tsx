@@ -9,8 +9,9 @@ import { moneyRound } from "@/lib/money";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 
-// Business snapshot — inventory value + low-stock, subscriber health, loyalty. One staff-gated
-// RPC (report_snapshot). On-brand, dependency-free. Lives in the MONEY tab under Sales.
+// Business snapshot — inventory value + low-stock, subscriber health, loyalty. One owner-and-admin
+// RPC (report_snapshot; this business's rows alone since 0384). On-brand, dependency-free. Lives in
+// the MONEY tab under Sales.
 //
 // A FAILED READ IS NOT "NO DATA YET" (2026-10-12). Any failure — the read refused, the network gone — came back as null
 // and drew "No snapshot data yet", the words for a new business, over a business whose numbers simply were not read.

@@ -11584,6 +11584,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const pnl = code(rd("components/EventPnlReport.tsx")), spend = code(rd("components/SpendBudget.tsx")), crew = code(rd("app/crew/page.tsx"));
   ok("money: the report fetchers throw on a failure, the function's own 'unauthorized' included — none returns null for a panel to draw as empty",
     !/return null/.test(reps) && (reps.match(/if \(error\) throw new Error\(error\.message\);/g) || []).length === 3 && /if \(r\.error\) throw/.test(reps) && /if \(s\.error\) throw/.test(reps) && /if \(!Array\.isArray\(data\)\)/.test(reps));
+  ok("money: a report refused says who it is for — owners and admins (0384) — rather than drawing an empty panel",
+    /is for owners and admins\./.test(reps) && /Spend and budgets are for owners and admins\./.test(spend));
   ok("money: Sales and the snapshot load through useAsyncData and say 'this is not zero' when they cannot read",
     /useAsyncData<SalesReport>\(loader, \[loader\]\)/.test(sales) && /errorSub="This is not zero — we could not read the sales report just now\."/.test(sales)
       && /useAsyncData<Snapshot>\(fetchSnapshot, \[\]\)/.test(snap) && /errorSub="This is not zero/.test(snap) && !/No snapshot data yet" \/>/.test(snap));

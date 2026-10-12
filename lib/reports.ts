@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 import type { Channels, CostBasis } from "./home";
 
-// Sales-actuals report — one staff-gated RPC (report_sales) returns everything the MONEY-tab
+// Sales-actuals report — one RPC (report_sales, owners' and admins' since 0384) returns everything the MONEY-tab
 // dashboard needs: real revenue from orders, per-event actuals from the Square mirror, product
 // mix, and a daily trend. Margin uses the blended COGS % from event_economics.
 //
@@ -28,7 +28,7 @@ export interface SalesReport {
 }
 
 /** The function's in-band refusal, in words a person can act on. */
-const refusal = (what: string, e: string) => (e === "unauthorized" ? `This account cannot read ${what}.` : e);
+const refusal = (what: string, e: string) => (e === "unauthorized" ? `${what} is for owners and admins.` : e);
 
 export async function fetchSalesReport(days = 30): Promise<SalesReport> {
   if (!supabase) throw new Error("Supabase client not configured");
@@ -36,7 +36,7 @@ export async function fetchSalesReport(days = 30): Promise<SalesReport> {
   if (error) throw new Error(error.message);
   const r = data as SalesReport | null;
   if (!r || typeof r !== "object") throw new Error("The sales report came back empty.");
-  if (r.error) throw new Error(refusal("the sales report", r.error));
+  if (r.error) throw new Error(refusal("The sales report", r.error));
   return r;
 }
 
@@ -53,7 +53,7 @@ export async function fetchSnapshot(): Promise<Snapshot> {
   if (error) throw new Error(error.message);
   const s = data as Snapshot | null;
   if (!s || typeof s !== "object") throw new Error("The snapshot came back empty.");
-  if (s.error) throw new Error(refusal("the snapshot", s.error));
+  if (s.error) throw new Error(refusal("The snapshot", s.error));
   return s;
 }
 
@@ -77,7 +77,7 @@ export async function fetchEventPnl(): Promise<EventPnlRow[]> {
   // A list is the answer. Anything else is the function refusing ({ error: "unauthorized" }) or nothing at all.
   if (!Array.isArray(data)) {
     const e = (data as { error?: string } | null)?.error;
-    throw new Error(e ? refusal("the P&L", e) : "The P&L came back empty.");
+    throw new Error(e ? refusal("The P&L", e) : "The P&L came back empty.");
   }
   return data as EventPnlRow[];
 }
