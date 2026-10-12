@@ -6556,6 +6556,27 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /ref\.kind === "task" \? \{ done: true, done_by: user\?\.id \?\? null, done_at \} : \{ done: true, done_at \}/.test(cos)
     && /\.update\(patch\)\.eq\("id", ref\.id\)\.eq\("done", false\)/.test(cos) && !/\{ done: true \}/.test(cos)
     && /update\(\{ done: true, done_by: userId \?\? null, done_at \}\)/.test(code(read("lib/tasks.ts"))));
+
+  // G — the rhythm (stops, drop, porches, brews) is on the app's refresh, and reads one day: the market's.
+  const H = require("../.smoke/home.js");
+  const crew = code(read("app/crew/page.tsx"));
+  const myDay = crew.slice(crew.indexOf("function MyDay("), crew.indexOf("function MyTasks("));
+  const rhythm = myDay.slice(myDay.indexOf("const rhythmLoader"), myDay.indexOf("const rhythm = "));
+  ok("my day (G): the refresh set includes the rhythm's four tables — the loader is handed to useRealtimeTable, as DayHeadline's is for events",
+    JSON.stringify(H.RHYTHM_TABLES) === JSON.stringify(["stops", "drop_orders", "delivery_orders", "brew_batches"])
+    && /useRealtimeTable\(RHYTHM_TABLES, rhythmState\.reload\);/.test(myDay)
+    && /useRealtimeTable\(\["events", "event_ops"\], state\.reload\);/.test(code(read("components/DayHeadline.tsx"))), H.RHYTHM_TABLES);
+  {
+    const edt = H.rhythmDay(new Date("2026-10-12T02:30:00Z"));   // 10:30 PM Sunday in Greenville
+    const est = H.rhythmDay(new Date("2026-12-01T04:30:00Z"));   // 11:30 PM Monday, after the clocks went back
+    ok("my day (G): the rhythm's day is the market's — late on a Sunday evening it is still Sunday, its stops between ET midnights, in EDT and in EST",
+      edt.day === "2026-10-11" && edt.from === "2026-10-11T04:00:00.000Z" && edt.to === "2026-10-12T04:00:00.000Z"
+      && est.day === "2026-11-30" && est.from === "2026-11-30T05:00:00.000Z" && est.to === "2026-12-01T05:00:00.000Z", { edt, est });
+  }
+  ok("my day (G): stops, drops, porches and brews all read that one day — the phone's day is not asked",
+    /const \{ day, from, to \} = rhythmDay\(\);/.test(rhythm) && /\.gte\("starts_at", from\)\.lt\("starts_at", to\)/.test(rhythm)
+    && /\.eq\("drop_date", day\)/.test(rhythm) && /\.eq\("delivery_date", day\)/.test(rhythm) && /\.eq\("brew_date", day\)/.test(rhythm)
+    && !/localToday\(\)|etToday\(\)/.test(rhythm));
 }
 
 // ── THE CUSTOMER SIDE: ONE ORDERING RULE, AND A PRE-ORDER SAYS WHEN (2026-10-04, 0343) ────────────

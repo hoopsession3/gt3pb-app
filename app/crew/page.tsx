@@ -44,7 +44,7 @@ import AsyncSection from "@/components/AsyncSection";
 import Owed from "@/components/Owed";  // daily path: the overdue list is on the default screen
 import HomeNumbers from "@/components/HomeNumbers";  // daily path: the home's three numbers
 import TodayList from "@/components/TodayList";      // daily path: the home's Today list
-import { flagIsToday } from "@/lib/home";
+import { flagIsToday, rhythmDay, RHYTHM_TABLES } from "@/lib/home";
 // Daily path too (2026-10-04): today's op card lives here now, for everybody, so it is a static
 // import like the rest of the morning screen — a crew member opening My Day must never wait on a
 // chunk to see where they are working (see "Code-split" below).
@@ -1092,20 +1092,21 @@ function MyDay({ userId, isLeader, canGoLive, canBrew, money }: { userId: string
   const { openRecord } = useRecord();
   const streams = useWorkStreams();
   const laneColor = (cat: string) => streamOfCategory(cat, streams)?.color;
-  // The day's rhythm — the same anchors the company calendar carries. Stops use the operator's
-  // wall-clock day; drop/delivery are BUSINESS days (ET) so a late evening doesn't flip them early.
+  // The day's rhythm — the same anchors the company calendar carries.
   // A FAILED READ IS NOT A QUIET DAY (2026-10-04): these four read .data straight through PostgREST
   // error objects, so a failure drew no stop, no drop, no brew — exactly what an empty day draws.
+  // ONE DAY, ON THE REFRESH (2026-10-12, the My Day audit): stops and brews read the phone's day while
+  // drops and porches read the market's, and the four were read once, on mount — so pull to refresh,
+  // coming back and the day turning never woke them. The market's day for all four (lib/home rhythmDay),
+  // and the loader is registered with the app's refresh on the tables it reads (RHYTHM_TABLES).
   const rhythmLoader = useCallback(async (): Promise<Rhythm> => {
     if (!supabase) return NO_RHYTHM;
-    const d = localToday();
-    const dayStart = new Date(`${d}T00:00:00`);
-    const bd = etToday();
+    const { day, from, to } = rhythmDay();
     const [st, dr, de, br] = await Promise.all([
-      supabase.from("stops").select("id, name, starts_at").is("archived_at", null).neq("status", "done").gte("starts_at", dayStart.toISOString()).lt("starts_at", new Date(dayStart.getTime() + 86400000).toISOString()),
-      supabase.from("drop_orders").select("id", { count: "exact", head: true }).eq("drop_date", bd).is("canceled_at", null),
-      supabase.from("delivery_orders").select("id", { count: "exact", head: true }).eq("delivery_date", bd).is("canceled_at", null),
-      supabase.from("brew_batches").select("id, recipe_name, batch_gal, latest_start_at, status").in("status", ["planned", "brewing"]).eq("brew_date", d),
+      supabase.from("stops").select("id, name, starts_at").is("archived_at", null).neq("status", "done").gte("starts_at", from).lt("starts_at", to),
+      supabase.from("drop_orders").select("id", { count: "exact", head: true }).eq("drop_date", day).is("canceled_at", null),
+      supabase.from("delivery_orders").select("id", { count: "exact", head: true }).eq("delivery_date", day).is("canceled_at", null),
+      supabase.from("brew_batches").select("id, recipe_name, batch_gal, latest_start_at, status").in("status", ["planned", "brewing"]).eq("brew_date", day),
     ]);
     const failed = [st.error, dr.error, de.error, br.error].find(Boolean);
     if (failed) throw new Error(failed.message);
@@ -1117,6 +1118,7 @@ function MyDay({ userId, isLeader, canGoLive, canBrew, money }: { userId: string
     };
   }, []);
   const rhythmState = useAsyncData<Rhythm>(rhythmLoader, []);
+  useRealtimeTable(RHYTHM_TABLES, rhythmState.reload);
   const rhythm = rhythmState.data ?? NO_RHYTHM;
 
 

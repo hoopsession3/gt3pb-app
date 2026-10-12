@@ -7,7 +7,8 @@
 // deleted to get there.
 //
 // The rules live here, apart from the screens, so the smoke suite can hold them to their word.
-import { dayKey } from "./dates";
+import { dayKey, etDayKey, addDays } from "./dates";
+import { etDayStart } from "./etDay";
 
 /** A task more than this many days late is stale: it folds into one row instead of leading the day. */
 export const STALE_DAYS = 14;
@@ -170,4 +171,22 @@ export function topOf<K extends string>(counts: Partial<Record<K, number>>): [K,
 // condition seen again today (0327's last_seen_at). The inbox behind it still lists them all.
 export function flagIsToday(f: { created_at: string; last_seen_at: string | null }, todayKey: string): boolean {
   return dayKey(new Date(f.last_seen_at ?? f.created_at)) === todayKey;
+}
+
+// ── THE DAY'S RHYTHM: ONE DAY, AND ON THE REFRESH (2026-10-12, the My Day audit) ──────────────────
+// The chips under today's op — its stops, the drop, the porches, the brews — were read once, when My Day
+// opened. A stop added, a drop order taken or a brew started from another phone showed nothing until the
+// screen was opened again: pull to refresh, coming back after 30 s and the day turning all skipped it,
+// because only a loader handed to useRealtimeTable is the app's refresh (lib/realtime). And the four
+// reads asked two different days: stops and brews the phone's (localToday), drops and porches the
+// market's (etToday). A phone left on Pacific time read Monday's stops beside Tuesday's drop for three
+// hours every evening. One day now, the market's — the day drop_date and delivery_date are written in —
+// and the four tables wake the loader.
+/** The tables My Day's rhythm reads: registered with the app's refresh, as DayHeadline is for events. */
+export const RHYTHM_TABLES: string[] = ["stops", "drop_orders", "delivery_orders", "brew_batches"];
+
+/** The market's day the rhythm reads (America/New_York), and the instants a stop that starts that day falls between. */
+export function rhythmDay(now: Date = new Date()): { day: string; from: string; to: string } {
+  const day = etDayKey(now);
+  return { day, from: etDayStart(day).toISOString(), to: etDayStart(addDays(day, 1)).toISOString() };
 }
