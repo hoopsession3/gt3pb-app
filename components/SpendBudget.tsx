@@ -74,8 +74,12 @@ export default function SpendBudget() {
     if (r.error) throw new Error(r.error.message);
     if (v.error) throw new Error(v.error.message);
     if (e.error) throw new Error(e.error.message);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rep = r.data && !(r.data as any).error ? (r.data as Report) : null;
+    // A FAILED READ IS NOT AN EMPTY MONTH (2026-10-12). The report's own refusal ({ error: "unauthorized" }) became
+    // rep = null and drew "No spend data yet"; and a failed read of the categories left every purchase in a category
+    // nobody knew, which the receipt rule treats as always owing one — a gap list of everything. Both are failures now.
+    if (c.error) throw new Error(c.error.message);
+    const rep = r.data as (Report & { error?: string }) | null;
+    if (!rep || rep.error) throw new Error(rep?.error === "unauthorized" ? "This account cannot read spend and budgets." : rep?.error || "The spend report came back empty.");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return { rep, vendors: (v.data as any) ?? [], items: (e.data as ExpenseRow[]) ?? [],
              cats: (c.data as SpendCategory[]) ?? [] };
@@ -183,7 +187,8 @@ export default function SpendBudget() {
   };
 
   return (
-    <AsyncSection state={board} isEmpty={(data) => data.rep === null} emptyTitle="No spend data yet" errorTitle="Couldn't load spend & budget">
+    <AsyncSection state={board} isEmpty={(data) => data.rep === null} emptyTitle="No spend data yet" errorTitle="Couldn't load spend & budget"
+      errorSub="This is not zero — we could not read this month's spend and budgets just now.">
       {(data) => {
         const rep = data.rep;
         if (!rep) return null;

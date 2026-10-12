@@ -3578,7 +3578,10 @@ function Subscribers() {
   const [names, setNames] = useState<Record<string, string>>({});
   const subsState = useAsyncData<Subscription[]>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
-    const { data } = await supabase.from("subscriptions").select("*").order("created_at", { ascending: false });
+    // A FAILED READ IS NOT "NO SUBSCRIBERS YET" (2026-10-12): the error went unread, null became [], and the panel
+    // said nobody had subscribed. It is an error now, with Try again.
+    const { data, error } = await supabase.from("subscriptions").select("*").order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
     const rows = (data as Subscription[]) ?? [];
     const ids = [...new Set(rows.map((r) => r.user_id))];
     if (ids.length) {
@@ -3611,6 +3614,7 @@ function Subscribers() {
       emptySub="Members subscribe from their 3MPIRE."
       loadingLabel="Loading subscribers…"
       errorTitle="Couldn't load subscribers"
+      errorSub="This is not an empty list — we could not read the subscriptions just now."
     >
       {(subs) => {
         const ordered = [...subs].sort(
@@ -4073,6 +4077,11 @@ function ProductCatalog() {
       supabase.from("product_economics_live").select("*").order("sort"),
       supabase.from("products").select("name, price_cents, econ_key, active").order("sort"),
     ]);
+    // A FAILED READ IS NOT AN UNSEEDED CATALOG (2026-10-12): neither error was read, so a failed read drew "No catalog
+    // yet — Apply migration 0028 to seed it", sending the owner to re-run a migration over a network blip. Either
+    // failing is an error now, with Try again.
+    if (live.error) throw new Error(live.error.message);
+    if (prods.error) throw new Error(prods.error.message);
     return { rows: (live.data as LiveEcon[]) ?? [], drinks: (prods.data as EconDrink[]) ?? [] };
   }, []);
   const save = async (key: string, patch: Partial<ProductEcon>) => {
@@ -4087,6 +4096,7 @@ function ProductCatalog() {
       emptySub="Apply migration 0028 to seed it."
       loadingLabel="Loading product economics…"
       errorTitle="Couldn't load product economics"
+      errorSub="This is not an empty catalog — we could not read prices and costs just now."
     >
       {({ rows, drinks }) => (
         <div className="adm-sec">
@@ -4582,7 +4592,9 @@ function EventsAdmin() {
 function SubInterest() {
   const subState = useAsyncData<{ pack_size: string | null; email: string | null; created_at: string }[]>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
-    const { data } = await supabase.from("subscription_interest").select("pack_size,email,created_at").order("created_at", { ascending: false }).limit(100);
+    // A FAILED READ IS NOT "NO INTEREST YET" (2026-10-12): the error went unread and null became an empty list.
+    const { data, error } = await supabase.from("subscription_interest").select("pack_size,email,created_at").order("created_at", { ascending: false }).limit(100);
+    if (error) throw new Error(error.message);
     return (data as { pack_size: string | null; email: string | null; created_at: string }[]) ?? [];
   }, []);
   return (
@@ -4593,6 +4605,7 @@ function SubInterest() {
       emptySub="It lands here when people tap “Notify me” on the subscription pitch."
       loadingLabel="Loading subscription interest…"
       errorTitle="Couldn't load subscription interest"
+      errorSub="This is not an empty list — we could not read who asked just now."
     >
       {(rows) => {
         const byPack = (k: string) => rows.filter((r) => r.pack_size === k).length;
@@ -4622,7 +4635,10 @@ function OrdersHistory() {
   const [q, setQ] = useState("");
   const ordersState = useAsyncData<Order[]>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
-    const { data } = await supabase.from("orders").select("*").in("status", ["done", "void"]).order("status_changed_at", { ascending: false }).limit(300);
+    // A FAILED READ IS NOT "NO COMPLETED ORDERS YET" (2026-10-12): the error went unread, null became [], and the
+    // history — and its CSV for the accountant — read as empty. It is an error now, with Try again.
+    const { data, error } = await supabase.from("orders").select("*").in("status", ["done", "void"]).order("status_changed_at", { ascending: false }).limit(300);
+    if (error) throw new Error(error.message);
     return (data as Order[]) ?? [];
   }, []);
   useRealtimeTable("orders", ordersState.reload);
@@ -4634,6 +4650,7 @@ function OrdersHistory() {
       emptySub="They appear here after pickup."
       loadingLabel="Loading order history…"
       errorTitle="Couldn't load order history"
+      errorSub="This is not an empty history — we could not read the orders just now."
     >
       {(rows) => {
         const done = rows.filter((r) => r.status === "done").length;

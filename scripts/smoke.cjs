@@ -11558,10 +11558,29 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 {
   const fs = require("node:fs"), path = require("node:path");
   const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
   const HM = require("../.smoke/home.js");
 
   ok("money: the shop is a channel of its own, named — a merch week moves the shop, not the walk-ups",
     HM.CHANNEL_WORDS.shop === "Shop" && HM.channelDriver({ shop: 9000, square_walkup: 100 }, { shop: 9000, square_walkup: 200 })?.channel === "shop");
+
+  // The screens: a failed read is a failure, said as one.
+  const reps = code(rd("lib/reports.ts")), sales = code(rd("components/Reports.tsx")), snap = code(rd("components/SnapshotReport.tsx"));
+  const spend = code(rd("components/SpendBudget.tsx")), crew = code(rd("app/crew/page.tsx"));
+  ok("money: the report fetchers throw on a failure, the function's own 'unauthorized' included — none returns null for a panel to draw as empty",
+    !/return null/.test(reps) && (reps.match(/if \(error\) throw new Error\(error\.message\);/g) || []).length === 3 && /if \(r\.error\) throw/.test(reps) && /if \(s\.error\) throw/.test(reps) && /if \(!Array\.isArray\(data\)\)/.test(reps));
+  ok("money: Sales and the snapshot load through useAsyncData and say 'this is not zero' when they cannot read",
+    /useAsyncData<SalesReport>\(loader, \[loader\]\)/.test(sales) && /errorSub="This is not zero — we could not read the sales report just now\."/.test(sales)
+      && /useAsyncData<Snapshot>\(fetchSnapshot, \[\]\)/.test(snap) && /errorSub="This is not zero/.test(snap) && !/No snapshot data yet" \/>/.test(snap));
+  ok("money: the console's money panels read their errors — subscribers, subscription interest, order history, product economics",
+    /const \{ data, error \} = await supabase\.from\("subscriptions"\)\.select\("\*"\)/.test(crew) && /const \{ data, error \} = await supabase\.from\("subscription_interest"\)/.test(crew)
+      && /const \{ data, error \} = await supabase\.from\("orders"\)\.select\("\*"\)\.in\("status", \["done", "void"\]\)/.test(crew)
+      && /if \(live\.error\) throw new Error\(live\.error\.message\);\s*if \(prods\.error\) throw new Error\(prods\.error\.message\);/.test(crew));
+  ok("money: and the panels that read in parts read every part — spend's report and categories, the shop's queue, an agreement's integrity and hours, an offer's approvals, history and letter",
+    /if \(c\.error\) throw new Error\(c\.error\.message\);/.test(spend) && /if \(!rep \|\| rep\.error\) throw/.test(spend)
+      && /if \(q\.error\) throw new Error\(q\.error\.message\);/.test(code(rd("components/ShopOrders.tsx")))
+      && /if \(integ\.error\) throw/.test(code(rd("components/OperatorDeal.tsx"))) && /if \(hrs\.error\) throw/.test(code(rd("components/OperatorDeal.tsx")))
+      && /if \(ap\.error\) throw/.test(code(rd("components/OfferLetters.tsx"))) && /if \(ev\.error\) throw/.test(code(rd("components/OfferLetters.tsx"))) && /if \(lt\.error\) throw/.test(code(rd("components/OfferLetters.tsx"))));
   ok("money: 0384's test runs with the database tests, and 0384 records itself",
     /node scripts\/db\.money\.test\.mjs/.test(JSON.parse(rd("package.json")).scripts["db:test"])
       && /select public\.record_migration\('0384_the_money_numbers_are_honest',/.test(rd("supabase/migrations/0384_the_money_numbers_are_honest.sql")));

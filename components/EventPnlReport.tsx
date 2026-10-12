@@ -15,7 +15,8 @@ import { moneyRound } from "@/lib/money";
 // Fetch state via useAsyncData — fetchEventPnl() resolves to null on any failure (no Supabase
 // client, or the report_events RPC erroring); that used to fall through to `if (!rows) return
 // null`, so a failed report silently vanished with no heading, no hint, nothing. Now it's a real
-// error state.
+// error state. Since 2026-10-12 fetchEventPnl throws on a failure itself — the function's own "unauthorized" included,
+// which used to come back as an object, pass for the rows and break .some() — so the loader is the fetch.
 
 
 export default function EventPnlReport() {
@@ -35,17 +36,14 @@ export default function EventPnlReport() {
     openRecord("event", id);
   };
 
-  const loader = useCallback(async (): Promise<EventPnlRow[]> => {
-    const r = await fetchEventPnl();
-    if (r === null) throw new Error("Couldn't load the P&L report");
-    return r;
-  }, []);
+  const loader = useCallback((): Promise<EventPnlRow[]> => fetchEventPnl(), []);
   const board = useAsyncData(loader, []);
 
   return (
     <div className="adm-sec rpt">
       <SectionHeader label="Per-event P&amp;L" annotation="plan vs actual" />
-      <AsyncSection state={board} isEmpty={(data) => data.length === 0} emptyTitle="No events yet" errorTitle="Couldn't load the P&L report">
+      <AsyncSection state={board} isEmpty={(data) => data.length === 0} emptyTitle="No events yet" errorTitle="Couldn't load the P&L report"
+        errorSub="This is not zero — we could not read the events' takings and costs just now.">
         {(rows) => {
           const anyActual = rows.some((r) => r.actual_cents > 0);
           return (

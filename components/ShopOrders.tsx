@@ -53,6 +53,10 @@ export default function ShopOrders() {
       ).order("created_at", { ascending: false }).limit(200),
     ]);
     if (r.error) throw new Error(r.error.message);
+    // A FAILED READ OF THE QUEUE IS NOT AN EMPTY ONE (2026-10-12). Only the rows' read was checked; when the queue's
+    // failed, queue came back null and the head said "Nothing waiting on us." over "0 on us · $0.00 taken" — the words
+    // for a quiet shop, about counts nobody read. Both reads make this panel, so either failing fails it, with Try again.
+    if (q.error) throw new Error(q.error.message);
     return { queue: (q.data as Queue) ?? null, rows: (r.data as Row[]) ?? [] };
   }, []);
   const state = useAsyncData<Data>(loader, []);
@@ -69,6 +73,7 @@ export default function ShopOrders() {
           isEmpty would see a truthy {queue, rows} object and never fire, which is exactly how a
           screen ends up with an unreachable empty state and a live one that looks different. */}
       <AsyncSection state={state} loadingLabel="Loading orders…" errorTitle="Couldn't load the orders"
+                    errorSub="This is not an empty queue — we could not read the shop's orders and totals just now."
                     isEmpty={({ rows }) => rows.length === 0}
                     emptyTitle="The shop is quiet"
                     emptySub="No merch orders yet. When one lands it shows up here — which is new: until today nothing in this console could display a shop order at all.">

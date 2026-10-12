@@ -116,6 +116,11 @@ export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) 
       supabase.from("v_agreement_hours").select("agreement_id, hours_total, hours_on_interim_work, days_worked"),
     ]);
     if (a.error) throw new Error(a.error.message);
+    // A FAILED READ IS NOT A CLEAN BILL (2026-10-12). Only the agreements' read was checked. When the integrity read
+    // failed, a signed agreement said "Matches the terms they signed" — the all-clear, given about a check that never
+    // ran — and when the hours read failed, every agreement said "0 hours · 0 days". Both fail the panel now.
+    if (integ.error) throw new Error(integ.error.message);
+    if (hrs.error) throw new Error(hrs.error.message);
     const extra: Record<string, Extra> = {};
     ((integ.data as any[]) ?? []).forEach((r) => {
       extra[r.id] = { ...(extra[r.id] ?? { hours_total: 0, hours_on_interim_work: 0, days_worked: 0 }), integrity: r.integrity };
