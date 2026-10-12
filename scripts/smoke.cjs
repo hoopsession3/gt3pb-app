@@ -11226,13 +11226,47 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("Find Us: the address in the Where row takes a 44pt tap — a street and a town measured 41 on production (2026-10-10)",
       /<div className="fv where go hit-y-44" \{\.\.\.clickable\(goHero\)\}/.test(fu));
     const mr = read("app/api/map/route.ts"), am = read("lib/appleMaps.ts");
-    ok("Find Us: a map of the stop — Apple's picture of its own pin, by the row's id (never a point a caller names), its box held at 2:1, the whole card the directions button, gone if the picture does not come",
-      /\{hero && heroHasCoords && <StopMap id=\{hero\.id\} lat=\{hero\.lat as number\} lng=\{hero\.lng as number\} label=\{heroWhere \?\? hero\.name\} onGo=\{goHero\} \/>\}/.test(fu)
-      && /aspect-\[2\/1\]/.test(fu) && /onError=\{\(\) => setGone\(true\)\}/.test(fu) && /\/api\/map\?stop=\$\{encodeURIComponent\(id\)\}&v=\$\{lat\.toFixed\(5\)\},\$\{lng\.toFixed\(5\)\}/.test(fu)
+    ok("Find Us: a map of the stop — Apple's picture of its own place, by the row's id (never a point a caller names), its box held at 2:1, the whole card the directions button, gone if the picture does not come",
+      /\{hero && \(heroHasCoords \|\| heroStreet\) && \(\s*<StopMap key=\{hero\.id\} id=\{hero\.id\} at=\{heroHasCoords \? `\$\{\(hero\.lat as number\)\.toFixed\(5\)\},\$\{\(hero\.lng as number\)\.toFixed\(5\)\}` : `a:\$\{heroStreet\}`\}\s*label=\{heroWhere \?\? hero\.name\} live=\{heroLive\} onGo=\{goHero\} \/>/.test(fu)
+      && /aspect-\[2\/1\]/.test(fu) && /onError=\{\(\) => setGone\(true\)\}/.test(fu) && /\/api\/map\?stop=\$\{encodeURIComponent\(id\)\}&pin=none&v=\$\{encodeURIComponent\(at\)\}/.test(fu)
       && /^\/\/ public: /m.test(mr) && /if \(!isUuid\(id\) \|\| !mapsConfigured\(\) \|\| !supabaseAdmin\) return none\(404\);/.test(mr)
-      && /\.from\("field_ops"\)\.select\("lat, lng"\)\.eq\("id", id\)\.eq\("is_public", true\)/.test(mr) && !/searchParams\.get\("(lat|lng|center)"\)/.test(mr)
+      && /\.from\("field_ops"\)\.select\("lat, lng, address, location_text"\)\.eq\("id", id\)\.eq\("is_public", true\)/.test(mr) && !/searchParams\.get\("(lat|lng|center|q|address|street)"\)/.test(mr)
       && /p_bucket: `map:\$\{callerKey\(req\)\}`/.test(mr) && /"cache-control": "public, max-age=3600, s-maxage=86400/.test(mr)
-      && /const SNAPSHOT = "https:\/\/snapshot\.apple-mapkit\.com";/.test(am) && /color: "B82420", glyphText: "3", markerStyle: "balloon"/.test(am));
+      && /const SNAPSHOT = "https:\/\/snapshot\.apple-mapkit\.com";/.test(am));
+    ok("Find Us: the truck is the pin — Apple draws the place alone (pin=none) and the page sets the truck's photo on its centre, point down; a build that does not ask still gets Apple's red pin with its 3",
+      /const pin = u\.searchParams\.get\("pin"\) === "none" \? "none" : "apple";/.test(mr) && /snapshot\(\{ lat, lng, scheme: [^}]*, pin \}\)/.test(mr)
+      && /\.\.\.\(o\.pin === "apple" \? \{ annotations: JSON\.stringify\(\[\{ point: at, color: "B82420", glyphText: "3", markerStyle: "balloon" \}\]\) \} : \{\}\)/.test(am)
+      && /<span aria-hidden="true" className="pointer-events-none absolute left-1\/2 top-1\/2 flex -translate-x-1\/2 -translate-y-full flex-col items-center">/.test(fu)
+      && /<img src="\/brand\/truck-pin\.jpg" alt="" width=\{46\} height=\{46\}/.test(fu) && /className="relative block w-full mt-4 p-0 overflow-hidden rounded-2xl/.test(fu)
+      && /<span className=\{`-mt-2 block size-3 rotate-45 \$\{live \? "bg-ok" : "bg-cream"\}`\} \/>/.test(fu));
+    {
+      // The photo is Ryan's, cropped to the trailer's back door — a small JPEG the iPhone app carries in its bundle.
+      const pinJpg = require("fs").readFileSync(require("path").join(__dirname, "..", "public/brand/truck-pin.jpg"));
+      ok("Find Us: the truck's photo is a JPEG under 40 KB, square, in public/brand", pinJpg[0] === 0xff && pinJpg[1] === 0xd8 && pinJpg.length < 40_000
+        && (() => { for (let i = 2; i < pinJpg.length - 9; i++) if (pinJpg[i] === 0xff && (pinJpg[i + 1] === 0xc0 || pinJpg[i + 1] === 0xc2)) return pinJpg.readUInt16BE(i + 5) === pinJpg.readUInt16BE(i + 7); return false; })());
+    }
+    ok("Find Us: the truck turns the live green and breathes on the map only while it pours at this stop; the pulse holds still for reduced motion, the green does not",
+      /const heroLive = isLive && hero\?\.id === live\?\.current_stop_id;/.test(fu)
+      && /<span className=\{`relative z-1 block size-13 rounded-full p-0\.75 shadow-raised \$\{live \? "bg-ok" : "bg-cream"\}`\}>/.test(fu)
+      && /\{live && <span className="absolute inset-0 rounded-full animate-\[lv_2s_ease-out_infinite\] motion-reduce:animate-none" \/>\}/.test(fu)
+      && /@keyframes lv\{/.test(read("app/globals.css")));
+    {
+      const MP = require("../.smoke/maps.js");
+      ok("map: a stop saved without a pin is drawn where Apple finds its street — a whole US street address, the address column first; never a place name",
+        MP.mapStreet({ address: null, location_text: "202 Scuffletown Rd, Simpsonville, SC 29681" }) === "202 Scuffletown Rd, Simpsonville, SC 29681"
+        && MP.mapStreet({ address: "100 S Main St, Greenville, SC", location_text: "202 Scuffletown Rd, Simpsonville, SC" }) === "100 S Main St, Greenville, SC"
+        && MP.mapStreet({ address: "  ", location_text: " 12B Oak Ave,  Greer, South Carolina 29651-1234 " }) === "12B Oak Ave, Greer, South Carolina 29651-1234"
+        && MP.mapStreet({ address: null, location_text: "Falls Park, Greenville, SC" }) === null
+        && MP.mapStreet({ address: null, location_text: "3 Kings Brewery, Greenville" }) === null
+        && MP.mapStreet({ address: null, location_text: "202 Scuffletown Rd, Simpsonville, Narnia" }) === null
+        && MP.mapStreet({ address: null, location_text: null }) === null && MP.mapStreet({}) === null,
+        [MP.mapStreet({ address: "  ", location_text: " 12B Oak Ave,  Greer, South Carolina 29651-1234 " })]);
+      const fr = read("app/api/map/route.ts");
+      ok("map: the route asks Apple for a street only when the row has no pin, and only the row's own street",
+        /if \(data\.lat == null \|\| data\.lng == null \|\| !Number\.isFinite\(lat\) \|\| !Number\.isFinite\(lng\)\) \{\s*const street = mapStreet\(data\);\s*const found = street \? await placeOf\(street\)\.catch\(\(\) => null\) : null;\s*if \(!found\) return none\(404\);/.test(fr)
+        && /export async function placeOf\(street: string\)/.test(am) && /maps\(`\/v1\/geocode\?\$\{p\}`\)/.test(am)
+        && /const heroStreet = hero && !heroHasCoords \? mapStreet\(hero\) : null;/.test(fu));
+    }
     ok("driver: the whole run opens in Maps by its addresses — no geocoding, no pins to wait for",
       /rows\.filter\(\(o\) => !doneOf\(o\)\)\.map\(\(o\) => \(\{ address: /.test(dr) && !/geocode|Pinning porches/.test(dr));
     const pr = read("components/PrimalAcademy.tsx"), bk = read("app/book/page.tsx"), pv = read("app/privacy/page.tsx"), tm = read("app/terms/page.tsx");

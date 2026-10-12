@@ -7,7 +7,7 @@ import EditCopyPill from "@/components/EditCopyPill";
 import EditableCopy from "@/components/EditableCopy";
 import { Masthead, SectionHeader, InfoRow, ClosingBeat } from "@/components/kit";
 import { RsvpRow } from "@/components/RsvpRow";
-import { openDirections, openAddress } from "@/lib/maps";
+import { openDirections, openAddress, mapStreet } from "@/lib/maps";
 import { subscribePush } from "@/lib/push";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
@@ -286,6 +286,10 @@ export default function FindUs() {
   // the cell says "Location TBA" honestly and the chip simply doesn't render.
   const heroWhere = hero ? ((hero.location_text?.trim() || hero.address?.trim()) || null) : null;
   const heroHasCoords = hero?.lat != null && hero?.lng != null;
+  // A stop saved without a pin is still mapped where Apple finds its street (lib/maps mapStreet, app/api/map).
+  const heroStreet = hero && !heroHasCoords ? mapStreet(hero) : null;
+  // The truck on the map breathes only while it is pouring at this stop.
+  const heroLive = isLive && hero?.id === live?.current_stop_id;
   // Ryan's polish pass ("is it giving 10/10 CSS?"): a raw one-string address wraps wherever it
   // runs out of column — "…Simpsonville, SC / 29681" with an orphaned ZIP. Split it into a
   // DELIBERATE two-line lockup instead: street as the value, city/state as a quiet support line,
@@ -339,9 +343,13 @@ export default function FindUs() {
       )}
 
       {/* THE PLACE, SEEN (2026-10-10, Find Us 10). A page called Find Us had no map since CARTO's tiles began asking for
-          a key (the map went the same morning). Apple's picture of the stop's own pin now (app/api/map): tap it for
-          directions, as the address below. Drawn only for a stop with a pin; if the picture does not come, it is not drawn. */}
-      {hero && heroHasCoords && <StopMap id={hero.id} lat={hero.lat as number} lng={hero.lng as number} label={heroWhere ?? hero.name} onGo={goHero} />}
+          a key (the map went the same morning). Apple's picture of the stop's own place now (app/api/map): tap it for
+          directions, as the address below. Drawn for a stop with a pin, or with a street Apple can find (lib/maps
+          mapStreet — Saturday's stop was saved with no pin, and had no map); if the picture does not come, it is not drawn. */}
+      {hero && (heroHasCoords || heroStreet) && (
+        <StopMap key={hero.id} id={hero.id} at={heroHasCoords ? `${(hero.lat as number).toFixed(5)},${(hero.lng as number).toFixed(5)}` : `a:${heroStreet}`}
+          label={heroWhere ?? hero.name} live={heroLive} onGo={goHero} />
+      )}
 
       <div className="k-facts">
         {/* WHERE leads — it's the page's primary question and it was the one fact this row never
@@ -458,19 +466,34 @@ export default function FindUs() {
   );
 }
 
-// THE MAP CARD (Find Us 10): Apple's picture of the stop's pin (app/api/map, lib/appleMaps snapshot), its box held at
-// 2:1 before the picture arrives so nothing below it moves; the picture's address carries the pin (`v`), so a moved
-// pin is a new picture and the CDN's copy of the old one is never shown for it. The whole card is the directions
-// button. A picture that does not come (no Maps key, Apple down) takes the card away instead of drawing a hole.
-function StopMap({ id, lat, lng, label, onGo }: { id: string; lat: number; lng: number; label: string; onGo: () => void }) {
+// THE MAP CARD (Find Us 10): Apple's picture of the stop's place (app/api/map, lib/appleMaps snapshot), its box held at
+// 2:1 before the picture arrives so nothing below it moves; the picture's address carries the place (`v`: the pin, or the
+// street of a stop saved without one), so a moved stop is a new picture and the CDN's copy of the old one is never shown
+// for it. The whole card is the directions button. A picture that does not come (no Maps key, Apple down, a street Apple
+// cannot find) takes the card away instead of drawing a hole.
+// THE TRUCK IS THE PIN (2026-10-12, Ryan: "for the map icon can we use a real picture of our truck?"). Apple drew a red pin
+// with a 3. Apple draws the place alone now (pin=none), and the pin is the truck: the trailer's back door with its red 3,
+// from Ryan's photo at Topgolf (public/brand/truck-pin.jpg — a photo, not a mark redrawn), in a cream ring with a point.
+// Apple's picture is centred on the stop, so the point sits on the card's centre. While the truck is pouring there the
+// ring and point turn the live green, and a ring breathes around it — the live dot's own pulse (lv); with reduced motion
+// the pulse holds still and the green still says it.
+function StopMap({ id, at, label, live, onGo }: { id: string; at: string; label: string; live: boolean; onGo: () => void }) {
   const [gone, setGone] = useState(false);
   if (gone) return null;
   return (
-    <button type="button" onClick={onGo} aria-label={`Map of ${label} — get directions`}
-      className="block w-full mt-4 p-0 overflow-hidden rounded-2xl border border-line bg-well aspect-[2/1] cursor-pointer appearance-none">
+    <button type="button" onClick={onGo} aria-label={`Map of ${label}${live ? ", where the truck is now" : ""} — get directions`}
+      className="relative block w-full mt-4 p-0 overflow-hidden rounded-2xl border border-line bg-well aspect-[2/1] cursor-pointer appearance-none">
       {/* eslint-disable-next-line @next/next/no-img-element -- an API image, not a static asset; next/image cannot export */}
-      <img src={apiUrl(`/api/map?stop=${encodeURIComponent(id)}&v=${lat.toFixed(5)},${lng.toFixed(5)}`)} alt="" width={600} height={300}
+      <img src={apiUrl(`/api/map?stop=${encodeURIComponent(id)}&pin=none&v=${encodeURIComponent(at)}`)} alt="" width={600} height={300}
         decoding="async" className="block w-full h-full object-cover" onError={() => setGone(true)} />
+      <span aria-hidden="true" className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-full flex-col items-center">
+        <span className={`relative z-1 block size-13 rounded-full p-0.75 shadow-raised ${live ? "bg-ok" : "bg-cream"}`}>
+          {live && <span className="absolute inset-0 rounded-full animate-[lv_2s_ease-out_infinite] motion-reduce:animate-none" />}
+          {/* eslint-disable-next-line @next/next/no-img-element -- a photo in public/brand; next/image cannot export */}
+          <img src="/brand/truck-pin.jpg" alt="" width={46} height={46} decoding="async" draggable={false} className="relative block size-full rounded-full object-cover" />
+        </span>
+        <span className={`-mt-2 block size-3 rotate-45 ${live ? "bg-ok" : "bg-cream"}`} />
+      </span>
     </button>
   );
 }

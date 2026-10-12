@@ -1,3 +1,5 @@
+import { stateCode } from "./usAddress";
+
 // Open native turn-by-turn directions to a coordinate. The universal Google Maps
 // "dir" URL hands off to the Maps app on iOS/Android (or the web) and works
 // cross-platform without an API key.
@@ -16,6 +18,22 @@ export function openAddress(address: string) {
   if (typeof window !== "undefined") {
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}&travelmode=driving`, "_blank", "noopener,noreferrer");
   }
+}
+
+// A STREET, NOT A PLACE NAME (2026-10-12). A stop saved without a pin still gets Find Us's map: Saturday's WineXpress
+// was saved with its street in location_text and no lat/lng, so the page drew no map at all. The map route (app/api/map)
+// asks Apple where that street is, but only for a whole US street address — a number and a street, a town, a state, a
+// ZIP if it has one ("202 Scuffletown Rd, Simpsonville, SC 29681") — where Apple's answer is the door; never a place
+// name ("Falls Park, Greenville, SC"), where it would be a guess. The page asks this too, so it draws a card only where
+// the route will answer. The address column first, as the route reads it.
+const STREET = /^(\d+[A-Za-z]?\s+[^,]+),\s*([^,]+),\s*([A-Za-z. ]+?)(?:\s+\d{5}(?:-\d{4})?)?$/;
+export function mapStreet(row: { address?: string | null; location_text?: string | null }): string | null {
+  for (const t of [row.address, row.location_text]) {
+    const s = (t ?? "").trim().replace(/\s+/g, " ");
+    const m = s.length <= 200 ? STREET.exec(s) : null;
+    if (m && stateCode(m[3])) return s;
+  }
+  return null;
 }
 
 // One tap → the WHOLE run in the native Maps app, in order, as multi-stop driving directions.

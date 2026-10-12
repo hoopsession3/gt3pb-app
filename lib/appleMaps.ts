@@ -91,13 +91,14 @@ export async function resolve(pick: string): Promise<Address | null> {
 const SNAPSHOT = "https://snapshot.apple-mapkit.com";
 let sigForm: "ieee-p1363" | "der" | null = null;
 
-/** A map of one point — GT3's red pin with its 3, Apple's muted style — as image bytes, or null. */
-export async function snapshot(o: { lat: number; lng: number; scheme: "dark" | "light" }): Promise<{ body: ArrayBuffer; type: string } | null> {
+/** A map of one point, Apple's muted style, as image bytes, or null. With pin "apple" Apple draws GT3's red pin with its
+ *  3 on the point; with "none" the place alone, centred on the point, for the page to set the truck's photo on (Find Us). */
+export async function snapshot(o: { lat: number; lng: number; scheme: "dark" | "light"; pin: "apple" | "none" }): Promise<{ body: ArrayBuffer; type: string } | null> {
   if (!mapsConfigured()) return null;
   const at = `${o.lat.toFixed(6)},${o.lng.toFixed(6)}`;
   const p = new URLSearchParams({
     center: at, z: "15", size: "600x300", scale: "2", t: "mutedStandard", colorScheme: o.scheme, poi: "0", lang: "en-US",
-    annotations: JSON.stringify([{ point: at, color: "B82420", glyphText: "3", markerStyle: "balloon" }]),
+    ...(o.pin === "apple" ? { annotations: JSON.stringify([{ point: at, color: "B82420", glyphText: "3", markerStyle: "balloon" }]) } : {}),
     teamId: process.env.APPLE_MAPS_TEAM_ID ?? "", keyId: process.env.APPLE_MAPS_KEY_ID ?? "",
   });
   const path = `/api/v1/snapshot?${p.toString()}`;
@@ -109,6 +110,15 @@ export async function snapshot(o: { lat: number; lng: number; scheme: "dark" | "
     if (r.ok && type.startsWith("image/")) { sigForm = form; return { body: await r.arrayBuffer(), type }; }
   }
   return null;
+}
+
+/** Where a street is — Apple's geocoder, its first answer — or null. For a stop saved without a pin (lib/maps mapStreet). */
+export async function placeOf(street: string): Promise<{ lat: number; lng: number } | null> {
+  const p = new URLSearchParams({ q: street, limitToCountries: "US", lang: "en-US" });
+  const j = (await maps(`/v1/geocode?${p}`)) as { results?: { coordinate?: { latitude?: number; longitude?: number } }[] };
+  const c = j.results?.[0]?.coordinate;
+  const lat = Number(c?.latitude), lng = Number(c?.longitude);
+  return c && c.latitude != null && c.longitude != null && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
 }
 
 /** A caller, for the limiter, without keeping their address: a short one-way hash of it. */
