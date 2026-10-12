@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-11T21:12:21.633Z",
+    "pulled_at": "2026-10-12T21:44:35.056Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
-    "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
-    "relations": 215,
-    "columns": 2765
+    "source": "migrations through 0391 (less the held 0376), built locally with the fallback query; production's own names matched them exactly in the Supabase SQL editor (218 relations, 2806 columns, the same fingerprint), and keep production's column order",
+    "relations": 218,
+    "columns": 2806
   },
   "academy_acknowledgements": [
     "user_id",
@@ -175,7 +175,9 @@
     "kind",
     "subject_id",
     "occurrences",
-    "last_seen_at"
+    "last_seen_at",
+    "claimed_by",
+    "claimed_at"
   ],
   "all_orders": [
     "channel",
@@ -776,6 +778,14 @@
     "edited_by",
     "created_at"
   ],
+  "credit_spends": [
+    "id",
+    "tenant_id",
+    "user_id",
+    "cents",
+    "by_user",
+    "created_at"
+  ],
   "customer_messages": [
     "id",
     "tenant_id",
@@ -874,6 +884,18 @@
     "email",
     "created_at"
   ],
+  "device_heartbeats": [
+    "tenant_id",
+    "device_id",
+    "surface",
+    "user_id",
+    "app",
+    "app_build",
+    "feed",
+    "alerts_on",
+    "wake_lock",
+    "last_seen"
+  ],
   "documents": [
     "id",
     "tenant_id",
@@ -888,6 +910,25 @@
     "created_by",
     "created_at",
     "field_op_id"
+  ],
+  "drop_order_changes": [
+    "key",
+    "drop_order_id",
+    "user_id",
+    "tenant_id",
+    "state",
+    "card",
+    "before",
+    "after",
+    "diff_cents",
+    "charge_payment_id",
+    "refunds",
+    "by_hand_cents",
+    "status",
+    "answer",
+    "outcome",
+    "created_at",
+    "updated_at"
   ],
   "drop_orders": [
     "id",
@@ -1496,7 +1537,8 @@
     "kind",
     "points",
     "note",
-    "created_at"
+    "created_at",
+    "by_user"
   ],
   "maintenance_log": [
     "id",
@@ -1825,7 +1867,8 @@
     "collected_via",
     "collected_at",
     "collected_by",
-    "ready_from"
+    "ready_from",
+    "tip_cents"
   ],
   "os_workstreams": [
     "id",
@@ -2278,7 +2321,9 @@
     "status",
     "reason",
     "created_at",
-    "updated_at"
+    "updated_at",
+    "channel",
+    "channel_order_id"
   ],
   "stop_ops": [
     "stop_id",
@@ -2324,7 +2369,9 @@
     "pickup_enabled",
     "order_ahead_lead_min",
     "recap_asked_at",
-    "market"
+    "market",
+    "canceled_at",
+    "cancel_reason"
   ],
   "strategy_decisions": [
     "id",
