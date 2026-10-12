@@ -77,7 +77,12 @@ import { readFileSync, existsSync } from "node:fs";
 // (`useEffect(() => { setD(p); }, [p])`, components/MenuManager:89 — the one that wiped an open row's edits on every
 // read of the list). Measured on the files themselves: eslint finds that one hit in the old MenuManager and none in
 // the new MenuManager, ProductPage or lib/catalog.
-export const BASELINE = 98;
+//
+// 2026-10-12: 98 → 95, at integration of releases 1 and 2 — measured by running this file at each: 98 at 94be7e2,
+// the last shipped (two had come out in earlier rounds and the line stayed at 100); 97 at 9695df5, release 1 (Money's
+// report loader set its loading flag inside its effect, components/Reports — it reads through one loader now); 95 with
+// release 2's two, the Pass's row and the menu's expander, written above as 100 → 99 → 98 against the stale line.
+export const BASELINE = 95;
 
 const RULE = "react-hooks/set-state-in-effect";
 

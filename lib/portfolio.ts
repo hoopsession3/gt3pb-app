@@ -60,8 +60,8 @@ export function milestoneStream(m: MilestoneStreamRef, streams: readonly Portfol
 // ── HOW OLD THE SCORES ARE, SAID ONCE (2026-10-12, the Command audit, approved) ───────────────────
 // On Oct 12 Command read "MEAN 7.0" — exactly the average of the scores seeded on Aug 2, drawn the way
 // a fresh audit's would be, with one overdue line under it the only sign. The number is dated now, once:
-// "7.0 · assessed Aug 2", and beside it how current it is, in a word — Current (scored within a week),
-// Due (8 to 13 days), Stale (two weeks or more) — read from each stream's last_audited. A mean is as old
+// "7.0 · assessed Aug 2", and beside it how current it is, in a word — Current (scored in the last six days),
+// Due (a week to 13 days), Stale (two weeks or more) — read from each stream's last_audited. A mean is as old
 // as its oldest score, so the oldest decides the word, and a spread of dates is said as one. Parked
 // streams are out of it, as they are out of the mean. A stale score is drawn in the quiet ink on its row
 // (components/OsRegistry); no row counts its own days — ONE STALE FACT, SAID ONCE (2026-10-07) stands.
@@ -69,7 +69,11 @@ export function milestoneStream(m: MilestoneStreamRef, streams: readonly Portfol
 
 /** current · due · stale — and never, for a stream that has not been scored at all. */
 export type Freshness = "current" | "due" | "stale" | "never";
-/** Scored this many days ago or fewer: Current. */
+/** Scored fewer than this many days ago: Current. A score a week old is due again — the Monday audit's own rule
+ *  (0264: every stream, every Monday), so last Monday's scores read Due on this Monday, the day the audit asks for
+ *  them, and the walk (components/OsRegistry dueNow) takes them. (2026-10-12, at integration of the audit and
+ *  Command rounds: the Command round drew a week-old score Current, which would have left this Monday's audit
+ *  with nothing due.) */
 export const CURRENT_DAYS = 7;
 /** Scored this many days ago or more: Stale. Between the two: Due. */
 export const STALE_DAYS = 14;
@@ -87,7 +91,7 @@ export function freshnessOf(lastAudited: string | null | undefined, today: strin
   const day = dayOf(lastAudited);
   if (!day) return "never";
   const age = daysBetween(day, today);
-  return age <= CURRENT_DAYS ? "current" : age < STALE_DAYS ? "due" : "stale";
+  return age < CURRENT_DAYS ? "current" : age < STALE_DAYS ? "due" : "stale";
 }
 
 export type ScoredRow = { status: string; last_audited: string | null };

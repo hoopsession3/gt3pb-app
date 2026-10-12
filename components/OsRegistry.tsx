@@ -70,8 +70,8 @@ export default function OsRegistry() {
   // move the others under the auditor's thumb.
   const [walk, setWalk] = useState<{ ids: string[]; start: number } | null>(null);
   // THE WALK IS THE PAGE'S ORDER, AND "DUE" IS THE HEAD'S WORD (2026-10-12, at integration of the audit and Command
-  // rounds). A stream is due an audit when the head would not call its score Current (lib/portfolio freshnessOf: more
-  // than 7 days old, or never scored), parked ones aside; the walk takes the streams in the order the rows are drawn
+  // rounds). A stream is due an audit when the head would not call its score Current (lib/portfolio freshnessOf: a
+  // week old or more, or never scored — the rule the overdue line counted by), parked ones aside; the walk takes the streams in the order the rows are drawn
   // (riskOrder), so the page, its button and the audit's "1 of N" agree.
   const dueNow = (r: Ws) => r.status !== "parked" && freshnessOf(r.last_audited, today) !== "current";
   const openFlow = (at: Ws | undefined, ordered: Ws[]) => {

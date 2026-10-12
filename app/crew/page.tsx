@@ -3125,7 +3125,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   ]);
   return (
     // The card's id is what "open that note" lands on (lib/noteLink, 2026-10-12).
-    <div id={noteAnchor(note.id)} className={`note-card${open ? " open" : ""}`} style={{ scrollMarginTop: 16 }}>
+    <div id={noteAnchor(note.id)} className={`note-card scroll-mt-4${open ? " open" : ""}`}>
       {press.menu}
       <button {...press.bind} type="button" className="note-head pressable" onClick={onToggle} aria-expanded={open}>
         <div className="note-head-main">
@@ -5147,7 +5147,7 @@ function Panel({ title, sub, value, id, defaultOpen = false, remember = true, ch
   // StrictMode, and is no place for work).
   const toggle = () => { const n = !open; setOpen(n); keep(n); };
   return (
-    <section id={id} className={`mpanel${open ? " open" : ""}`} style={{ scrollMarginTop: 16 }}>
+    <section id={id} className={`mpanel scroll-mt-4${open ? " open" : ""}`}>
       <button type="button" className="mpanel-h" onClick={toggle} aria-expanded={open}>
         {sub
           ? <span className="mpanel-tt"><span className="mpanel-t">{title}</span><span className="mpanel-s">{sub}</span></span>
@@ -6099,7 +6099,7 @@ export default function AdminPage() {
               numbers and training on the right. */}
           <Columns>
           <Column>
-          {isOwner && <div id="team-members" style={{ scrollMarginTop: 16 }}><Members /></div>}
+          {isOwner && <div id="team-members" className="scroll-mt-4"><Members /></div>}
           {/* Who owns each lane is Settings › Business › Team & permissions (2026-10-06); an admin's line goes there. */}
           {!isOwner && <GoLine to="settings" anchor="set-lanes">Lane owners</GoLine>}
           <SectionHeader label="Who's on what" />

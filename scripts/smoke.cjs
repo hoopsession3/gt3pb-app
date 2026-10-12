@@ -9436,7 +9436,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\{isOwner && <GoLine to="settings" anchor="set-train">Train the AI<\/GoLine>\}/.test(team)
     && /\{!isOwner && <GoLine to="settings" anchor="set-lanes">Lane owners<\/GoLine>\}/.test(team)
     && !/<InviteTeammate|<AiTraining|anchor="set-invite"/.test(team) && /<OrgChart part="people" bare \/>/.test(team)
-    && /\{isOwner && <div id="team-members" style=\{\{ scrollMarginTop: 16 \}\}><Members \/><\/div>\}/.test(team)
+    && /\{isOwner && <div id="team-members" className="scroll-mt-4"><Members \/><\/div>\}/.test(team)
     && /<AddTeammate promoteFor=\{promoteFor\} onDone=\{membersState\.reload\} \/>/.test(pg)
     && /\{isOwner && <SetPart id="set-invite" label="Add a teammate"><GoLine to="team" anchor="team-members">Add someone, or change a role<\/GoLine><\/SetPart>\}/.test(sh));
   const oc = code(read("components/OrgChart.tsx"));
@@ -12060,7 +12060,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /setTab\(askedFound\.archived_at \? "archived" : "active"\); setQuery\(""\); setMineOnly\(false\);\s*setOpenId\(askedFound\.id\); setLanding\(\{ id: askedFound\.id \}\);/.test(notes));
   ok("note link: …then lands on it — the ask cleared, the card scrolled to and its header focused",
     /clearNoteAsk\(landing\.id\);\s*scrollToAnchor\(noteAnchor\(landing\.id\)\);\s*focusNoteWhenThere\(landing\.id\);/.test(notes)
-      && /<div id=\{noteAnchor\(note\.id\)\} className=\{`note-card\$\{open \? " open" : ""\}`\} style=\{\{ scrollMarginTop: 16 \}\}>/.test(crew)
+      && /<div id=\{noteAnchor\(note\.id\)\} className=\{`note-card scroll-mt-4\$\{open \? " open" : ""\}`\}>/.test(crew)
       && /\.querySelector<HTMLElement>\("\.note-head"\)/.test(rd("lib/noteLink.ts")) && /className="note-head pressable"/.test(crew));
   ok("note link: the Notes section is still mounted the same way — the ask needs no prop, so nothing else changed shape",
     /\{sec === "notes" && <MeetingNotes \/>\}/.test(crew) && /<OperatingRhythm isAdmin=\{isAdmin\} onOpenNotes=\{\(\) => setSection\("notes"\)\} \/>/.test(crew));
@@ -12525,7 +12525,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     S.map((s) => s.id).join() === "w1,w2,w3,w4" && S[0].total === 8 && S[0].band === "amber" && !S[0].owes
       && S[1].total === 6 && S[1].band === "red" && S[1].owes && S[2].parked && S[2].total === null && !S[2].owes
       && S[3].skipped && S[3].total === null && S[3].band === null && S[3].owes, S);
-  ok("smoke: lib/mondayAudit is compiled for these pins", /lib\/noteLink\.ts lib\/mondayAudit\.ts --outDir/.test(JSON.parse(rd("package.json")).scripts.smoke));
+  ok("smoke: lib/mondayAudit is compiled for these pins — in the one tsc list", ((sm) => (sm.match(/\btsc /g) || []).length === 1 && / lib\/mondayAudit\.ts /.test(sm))(JSON.parse(rd("package.json")).scripts.smoke));
 }
 
 // ── RELEASE 2 · THE MONDAY AUDIT IS THE WHOLE SCREEN, AND WALKS EVERY STREAM DUE (2026-10-12) ──
@@ -12584,15 +12584,16 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /@utility osr-flow \{\s*@media not all and \(min-width: 520px\) and \(min-height: 640px\) \{\s*max-width: none; height: 100%; max-height: none;/.test(tw)
       && /& > \.sheet2-grab \{ display: none; \}\s*& > \.sheet2-head \{ padding-top: calc\(env\(safe-area-inset-top, 0px\) \+ 10px\); \}/.test(tw)
       && /padding-left: env\(safe-area-inset-left, 0px\); padding-right: env\(safe-area-inset-right, 0px\);/.test(tw));
-  ok("monday audit: reached from the overdue line (Start the audit) and from a row, which starts it at that stream; loaded only when opened",
-    /\{isAdmin && <> <button type="button" className="btn-ter" onClick=\{\(\) => openFlow\(\)\}>Start the audit<\/button><\/>\}/.test(osr)
-      && /onClick=\{\(\) => isAdmin && openAudit\(w\)\} disabled=\{!isAdmin\}/.test(osr) && /const openAudit = \(w: Ws\) => openFlow\(w\);/.test(osr)
-      && /const openFlow = \(at\?: Ws\) => \{\s*const q = auditQueue\(state\.data\?\.rows \?\? \[\], dueNow, at\?\.id\);\s*if \(q\.ids\.length\) setWalk\(q\);\s*\};/.test(osr)
+  ok("monday audit: reached from the head's own line (Start the Monday audit · N due) and from a row, which starts it at that stream; loaded only when opened",
+    /\{isAdmin && dueCount > 0 && \(\s*<button type="button" className="btn-ter self-start mt-1" onClick=\{\(\) => openFlow\(undefined, ordered\)\}>\s*Start the Monday audit · \{dueCount\} due ›\s*<\/button>\s*\)\}/.test(osr)
+      && /onClick=\{\(\) => isAdmin && openFlow\(w, ordered\)\} disabled=\{!isAdmin\}/.test(osr)
+      && /const openFlow = \(at: Ws \| undefined, ordered: Ws\[\]\) => \{\s*const q = auditQueue\(ordered, dueNow, at\?\.id\);\s*if \(q\.ids\.length\) setWalk\(q\);\s*\};/.test(osr)
       && /const MondayAudit = dynamic\(\(\) => import\("\.\/MondayAudit"\), \{ ssr: false \}\);/.test(osr)
       && /<MondayAudit rows=\{state\.data\.rows\} recent=\{state\.data\.recent\} ids=\{walk\.ids\} start=\{walk\.start\} onReload=\{reload\} onClose=\{\(\) => setWalk\(null\)\} \/>/.test(osr));
-  ok("monday audit: the walk's streams are the ones the overdue line counts — one rule, said in the same words",
-    /const active = rows\.filter\(\(r\) => r\.status !== "parked"\);/.test(osr) && /const overdue = active\.filter\(\(r\) => \(daysSince\(r\.last_audited\) \?\? 99\) >= 7\)\.length;/.test(osr)
-      && /const dueNow = \(r: Ws\) => r\.status !== "parked" && \(daysSince\(r\.last_audited\) \?\? 99\) >= 7;/.test(osr));
+  ok("monday audit: the walk's streams are the ones the head calls due and the button counts — one rule (a week old or more, or never scored), in the order the rows are drawn",
+    /const dueNow = \(r: Ws\) => r\.status !== "parked" && freshnessOf\(r\.last_audited, today\) !== "current";/.test(osr)
+      && /const ordered = riskOrder\(rows, \{ today, owes: owesDecision \}\);\s*const dueCount = ordered\.filter\(dueNow\)\.length;/.test(osr)
+      && /\{ordered\.map\(\(w\) => \{/.test(osr) && !/daysSince|const overdue =/.test(osr));
   ok("monday audit: who may audit is unchanged — owners and admins: the row opens it for them alone, and so does the line's door",
     /const isAdmin = !!profile\?\.is_admin \|\| \["owner", "admin"\]\.includes\(String\(\(profile as any\)\?\.role \?\? ""\)\);/.test(osr) && (osr.match(/openFlow\(/g) || []).length === 2);
   ok("monday audit: Return in a one-line field saves and moves on, as the twelve's log does — and a held save says why rather than doing nothing",
@@ -12679,13 +12680,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   // ── 1 · A DATED HEADER ──
   const F = (d) => PF.freshnessOf(d, T);
-  ok("command audit: freshness — within 7 days is Current, 8 to 13 Due, 14 or more Stale (the boundaries 7/8/13/14)",
-    F("2026-10-12") === "current" && F("2026-10-05") === "current" && F("2026-10-04") === "due" && F("2026-09-29") === "due"
+  ok("command audit: freshness — up to 6 days is Current, a week to 13 Due, 14 or more Stale (the boundaries 6/7/13/14): last Monday's score is Due on Monday, the audit's day",
+    F("2026-10-12") === "current" && F("2026-10-06") === "current" && F("2026-10-05") === "due" && F("2026-10-04") === "due" && F("2026-09-29") === "due"
     && F("2026-09-28") === "stale" && F("2026-08-02") === "stale" && F("2026-10-13") === "current",
-    ["2026-10-05", "2026-10-04", "2026-09-29", "2026-09-28"].map(F));
+    ["2026-10-06", "2026-10-05", "2026-09-29", "2026-09-28"].map(F));
   ok("command audit: freshness — no score is Never scored, not a date", F(null) === "never" && F(undefined) === "never" && F("") === "never" && F("soon") === "never");
-  ok("command audit: freshness counts calendar days across a clock change — seven days over Nov 1 is still Current, eight is Due",
-    PF.freshnessOf("2026-11-02", "2026-11-09") === "current" && PF.freshnessOf("2026-11-01", "2026-11-09") === "due");
+  ok("command audit: freshness counts calendar days across a clock change — six days over Nov 1 is still Current, seven is Due",
+    PF.freshnessOf("2026-11-03", "2026-11-09") === "current" && PF.freshnessOf("2026-11-02", "2026-11-09") === "due");
   ok("command audit: the words are Current, Due and Stale; the boundaries are the constants", PF.FRESHNESS_WORD.current === "Current"
     && PF.FRESHNESS_WORD.due === "Due" && PF.FRESHNESS_WORD.stale === "Stale" && PF.CURRENT_DAYS === 7 && PF.STALE_DAYS === 14);
   const H = (mean, rows) => PF.portfolioHead(mean, rows, T);
@@ -12693,9 +12694,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("command audit: the head's words — \"7.0 · assessed Aug 2\", Stale", seedHead.score === "7.0 · assessed Aug 2" && seedHead.state === "stale" && seedHead.word === "Stale", seedHead);
   const A = (last_audited, status = "active") => ({ status, last_audited });
   ok("command audit: a spread of dates is said as one span, and the oldest score decides the word",
-    H(8.5, [A("2026-10-09"), A("2026-10-05")]).score === "8.5 · assessed Oct 5–Oct 9" && H(8.5, [A("2026-10-09"), A("2026-10-05")]).word === "Current"
+    H(8.5, [A("2026-10-09"), A("2026-10-06")]).score === "8.5 · assessed Oct 6–Oct 9" && H(8.5, [A("2026-10-09"), A("2026-10-06")]).word === "Current"
+    && H(8.5, [A("2026-10-09"), A("2026-10-05")]).word === "Due"
     && H(8, [A("2026-10-11"), A("2026-10-02")]).word === "Due" && H(8, [A("2026-10-11"), A("2026-09-20")]).word === "Stale",
-    [H(8.5, [A("2026-10-09"), A("2026-10-05")]), H(8, [A("2026-10-11"), A("2026-10-02")])]);
+    [H(8.5, [A("2026-10-09"), A("2026-10-06")]), H(8.5, [A("2026-10-09"), A("2026-10-05")]), H(8, [A("2026-10-11"), A("2026-10-02")])]);
   ok("command audit: a parked stream's old score does not age the portfolio; a stream never scored has no date to give",
     H(9, [A("2026-10-10"), A("2026-01-05", "parked")]).score === "9.0 · assessed Oct 10" && H(9, [A("2026-10-10"), A(null)]).word === "Current");
   ok("command audit: nothing scored says so, and all parked says that",
@@ -12746,13 +12748,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("command audit: risk order — then the lowest score", order([R("a", { health: 9 }), R("b", { health: 6 }), R("c", { health: 8 })]) === "b,c,a");
   ok("command audit: risk order — ties keep the list's own order, whichever way it came", order([R("x", { health: 7 }), R("y", { health: 7 }), R("z", { health: 7 })]) === "x,y,z"
     && order([R("z", { health: 7 }), R("y", { health: 7 }), R("x", { health: 7 })]) === "z,y,x" && order([R("p", { blocker: "a" }), R("q", { blocker: "b" })]) === "p,q");
-  ok("command audit: risk order — Due (8 to 13 days) is not stale", order([R("due5", { last_audited: "2026-10-02", health: 5 }), R("stale9", { last_audited: "2026-09-20", health: 9 }), R("cur6", { health: 6 })]) === "stale9,due5,cur6");
+  ok("command audit: risk order — Due (7 to 13 days) is not stale", order([R("due5", { last_audited: "2026-10-02", health: 5 }), R("stale9", { last_audited: "2026-09-20", health: 9 }), R("cur6", { health: 6 })]) === "stale9,due5,cur6");
   ok("command audit: risk order — parked streams keep their place at the end, in their own order, whatever they hold",
     order([R("p1", { status: "parked", health: 0, last_audited: null }), R("a", { health: 9 }), R("p2", { status: "parked", health: 1, blocker: "x" }), R("b", { health: 9, last_audited: "2026-01-01" })]) === "b,a,p1,p2");
   const shuffled = PF.riskOrder(SEED, { today: T, owes: () => false });
   ok("command audit: risk order moves no score — the same rows, the same scores, only the order", shuffled.length === SEED.length
     && shuffled.every((r) => SEED.includes(r)) && SEED.every((r) => shuffled.includes(r)) && shuffled.reduce((s, r) => s + r.health, 0) === 70
-    && order([]) === "" && /\{riskOrder\(rows, \{ today, owes: owesDecision \}\)\.map\(\(w\) => \{/.test(osr));
+    && order([]) === "" && /const ordered = riskOrder\(rows, \{ today, owes: owesDecision \}\);/.test(osr) && /\{ordered\.map\(\(w\) => \{/.test(osr));
 
   // ── 5 · REACH, ON THE PORTFOLIO ──
   const css = rd("app/globals.css");
