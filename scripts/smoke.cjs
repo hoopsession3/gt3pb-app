@@ -12237,6 +12237,82 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ups.map((u) => `${u.kind}:${u.name}:${u.day}`).join(" | ") === "stop:Wine Express:2026-10-12 | event:Fit Fest:2026-10-17 | event:Undated:null", ups.map((u) => u.name));
 }
 
+// ── THE CATALOG · ONE SHORT ROW PER DRINK, GROUPED, FILTERED, LIVE (2026-10-12) ──
+// Measured on an iPhone 17 with eleven drinks, Menu & products was 1,976 points: four and a half drinks on the first
+// screen behind a four-line paragraph, rows 77 points apart whose way in was the 20-point name, an 86 a screen reader
+// heard as "86", and a list that read once — the crew's 86 from the Pass showed after a reload. lib/catalog is the rule;
+// components/MenuManager the list.
+{
+  const K = require("../.smoke/catalog.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const mm = code(rd("components/MenuManager.tsx"));
+
+  // ── the row: its words, its spoken name, its size ──
+  ok("catalog: a row's way in says its name, line and price — and off the menu when it is; a draft with no name is New item",
+    K.rowSpoken({ name: "RISE", line: "Activation", price_cents: 700, active: true }) === "RISE, Activation, $7"
+    && K.rowSpoken({ name: "  ", line: null, price_cents: 0, active: false }) === "New item, $0, off the menu",
+    K.rowSpoken({ name: "  ", line: null, price_cents: 0, active: false }));
+  ok("catalog: off the menu outranks sold out; 86'd is only ever on the menu",
+    K.availabilityOf({ active: false, sold_out: true }) === "off" && K.availabilityOf({ active: true, sold_out: true }) === "86" && K.availabilityOf({ active: true, sold_out: false }) === "on");
+  ok("catalog: a row is one line about 56 points — name and price are its 56-point way in (the name alone was 20), the page's switch beside them — and the four-line paragraph is one quiet line",
+    /className="k-row py-0 gap-3"/.test(mm) && /className="flex-1 min-w-0 min-h-14 flex items-center/.test(mm) && /aria-label=\{rowSpoken\(p\)\}/.test(mm)
+    && /: <AvailSwitch p=\{p\} onFlip=\{onFlip\} \/>\}/.test(mm) && !/\{p\.sold_out \? "Back on" : "86"\}/.test(mm)
+    && (mm.match(/text-caption text-cream-muted/g) || []).length === 1 && !/Edit every attribute, set each drink/.test(mm)
+    && !/bodyClick=/.test(mm) && !/function ProductRow/.test(mm));
+
+  // ── the 86: the Pass's feel, done at once, undone for a few seconds ──
+  ok("catalog: an 86 is the Pass's feel — toggleOn to 86, toggleOff to bring it back — and the undo plays the way back",
+    /const next = !p\.sold_out;\s*if \(next\) haptic\("toggleOn"\); else haptic\("toggleOff"\);/.test(mm)
+    && /if \(next\) haptic\("toggleOff"\); else haptic\("toggleOn"\);/.test(mm)
+    && /if \(next\) haptic\("toggleOn"\); else haptic\("toggleOff"\);/.test(code(rd("components/EightySix.tsx"))));
+  ok("catalog: the undo window is the action toast's — 5 seconds, open from the 86, shut at the end, never before it",
+    K.UNDO_MS === 5000 && K.undoOpen(1000, 1000) && K.undoOpen(1000, 5999) && !K.undoOpen(1000, 6000) && !K.undoOpen(1000, 999)
+    && K.undoOpen(K.undoStart()) && !K.undoOpen(K.undoStart() - K.UNDO_MS)
+    && /opts\?\.action \? 5000 :/.test(rd("components/AppProvider.tsx")));
+  ok("catalog: an 86 asks nothing first — it is done and the toast holds Undo, which writes back only over what the 86 wrote",
+    /toast\(flipToast\(nameOf\(p\), next\), "success", \{ action: \{ label: "Undo", run: \(\) => \{ void undo\(row, next, at\); \} \} \}\);/.test(mm)
+    && /const at = undoStart\(\);/.test(mm) && /if \(!supabase \|\| !undoOpen\(at\) /.test(mm) && !/Date\.now\(\)/.test(mm)
+    && /\.update\(\{ sold_out: !next \}\)\.eq\("id", row\.id\)\.eq\("sold_out", next\)/.test(mm) && !/confirm\(/.test(mm)
+    && K.flipToast("RISE", true) === "RISE 86'd — sold out on the live menu" && K.flipToast("RISE", false) === "RISE is back on sale");
+
+  // ── grouped by line, filtered, searched ──
+  const P = (name, line, active, sold_out) => ({ id: name, slug: name.toLowerCase(), name, line, active, sold_out });
+  const MENU = [P("RISE", "Activation", true, false), P("FLOW", "Activation", true, true), P("TIDE", "Hydration", true, false), P("FORGE", "Recovery", true, false),
+    P("NATURE’S AIDE", "hydration", true, false), P("OLD BREW", "Activation", false, true), P("Café Draft", "", false, false)];
+  const G = (f, q) => K.shownGroups(MENU, f, q).map((g) => `${g.label}:${g.items.map((x) => x.name).join("+")}`).join(" | ");
+  const SHIFT = [P("A1", "Beta", false, false), P("B1", "Alpha", true, false), P("A2", "beta", true, false)];
+  ok("catalog: grouped by line in the menu's order — one line however it is cased, a product with none under No line, and a line keeps its name and place whatever the filter leaves of it",
+    G("all", "") === "Activation:RISE+FLOW+OLD BREW | Hydration:TIDE+NATURE’S AIDE | Recovery:FORGE | No line:Café Draft"
+    && K.shownGroups(SHIFT, "on", "").map((g) => `${g.label}:${g.items.map((x) => x.name).join("+")}`).join(" | ") === "Beta:A2 | Alpha:B1", G("all", ""));
+  ok("catalog: the filter — On sale is on the menu and not 86'd, 86'd is on the menu and sold out, Off is off the menu whatever its 86",
+    G("on", "") === "Activation:RISE | Hydration:TIDE+NATURE’S AIDE | Recovery:FORGE" && G("86", "") === "Activation:FLOW" && G("off", "") === "Activation:OLD BREW | No line:Café Draft",
+    [G("on", ""), G("86", ""), G("off", "")]);
+  ok("catalog: the search — every word typed, in the name, the line or the slug; any case, accents and curly apostrophes as typed plainly",
+    G("all", "hydration") === "Hydration:TIDE+NATURE’S AIDE" && G("all", "nature's") === "Hydration:NATURE’S AIDE" && G("all", "cafe") === "No line:Café Draft"
+    && G("all", "act  rise") === "Activation:RISE" && G("all", "rise tide") === "" && G("86", "rise") === "" && G("all", "   ") === G("all", ""));
+  const all = K.filterCounts(MENU, ""), act = K.filterCounts(MENU, "act");
+  ok("catalog: a filter's count is the rows it would show, with the search as typed",
+    all.all === 7 && all.on === 4 && all["86"] === 1 && all.off === 2 && act.all === 3 && act.on === 1 && act["86"] === 1 && act.off === 1, [all, act]);
+  ok("catalog: a filter or a search that hides everything says so — it is never an empty menu",
+    K.emptyLine("86", "") === "Nothing is 86'd." && K.emptyLine("all", "zzz") === "Nothing on the menu matches “zzz”." && K.emptyLine("off", "x") === "Nothing on the menu matches “x” under Off.");
+  ok("catalog: the list draws lib/catalog's groups under the kit's filter (a choice, with its counts) and a search with a name",
+    /const groups = useMemo\(\(\) => shownGroups\(products, filter, q\), \[products, filter, q\]\);/.test(mm)
+    && /<Segmented kind="choice" label="Show" fill value=\{filter\}/.test(mm) && /options=\{FILTERS\.map\(/.test(mm)
+    && /<input type="search"[\s\S]*?aria-label="Search the menu"/.test(mm) && /\{emptyLine\(filter, q\)\}/.test(mm) && /<h3 className="m-0 font-mono/.test(mm));
+
+  // ── live ──
+  ok("catalog: the list is live — every change to products reads it again, so the crew's 86 from the Pass shows at once, and it is on the app's refresh (lib/realtime)",
+    /useRealtimeTable\("products", reload\);/.test(mm) && /loaders\.add\(cb\);/.test(rd("lib/realtime.ts")));
+  const row = (o) => ({ id: "p", sold_out: false, updated_at: "2026-10-12T14:03:22.123456+00:00", ...o });
+  ok("catalog: the newest version of a row is the one on screen — the list's, or the answer to this screen's own write, whichever is later — with an 86 on its way on top",
+    K.freshest(row({}), row({ updated_at: "2026-10-12T14:05:00+00:00", sold_out: true })).sold_out === true
+    && K.freshest(row({ updated_at: "2026-10-12T14:06:00+00:00" }), row({ updated_at: "2026-10-12T14:05:00+00:00", sold_out: true })).sold_out === false
+    && K.shownRow(row({}), { p: true }, {}).sold_out === true && K.shownRow(row({}), {}, {}).sold_out === false
+    && /const products = useMemo\(\(\) => \(board\.data \?\? \[\]\)\.map\(\(p\) => shownRow\(p, pending, held\)\), \[board\.data, pending, held\]\);/.test(mm));
+}
+
 Promise.all(PENDING).then(() => {
   console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);

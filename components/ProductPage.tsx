@@ -23,9 +23,8 @@ import {
 // opened in place under its row, its Save the one primary on the screen, its recipe read on open — and lost on the
 // next read of the list, because the row copied every reload into its draft (`useEffect(() => { setD(p); }, [p])`), so
 // an 86 on ANY other row wiped what was being typed here. The page holds four things, in the order they are reached for:
-//   availability   its switch ("On sale" / "86'd", heard with the drink's name), the current 86 from the product
-//                  (sold_out_at / sold_out_by, 0130), and the last few 86s from the change log (0260) — what the data
-//                  holds, nothing inferred;
+//   availability   the same switch as the row, the current 86 from the product (sold_out_at / sold_out_by, 0130), and the
+//                  last few 86s from the change log (0260) — what the data holds, nothing inferred;
 //   details        the expander's fields and its two refusals, unchanged (lib/catalog invalid);
 //   where it is sold   on the menu (cups, at the truck and in the app), the delivery pack builder (bulk_orderable and its
 //                  tier), and the event and stop menus that pour it (event_menu_items, 0173);
@@ -393,10 +392,10 @@ export default function ProductPage({ p, gone, onClose, onFlip, onSaved, onDelet
   );
 }
 
-/** The page's availability switch: "On sale" or "86'd" beside the kit's switch, one 44-point target.
+/** The row's availability switch, and the page's: "On sale" or "86'd" beside the kit's switch, one 44-point target.
  *  VoiceOver hears the product and its state as the name ("RISE, on sale") and what a double-tap does as the hint
  *  ("Double-tap to 86.") — the hint is a hidden element the switch is described by, so swiping past it reads nothing
- *  twice. On is "on sale". */
+ *  twice. On is "on sale"; the feel of an 86 is the Pass's (MenuManager flip). */
 export function AvailSwitch({ p, onFlip }: { p: CatalogProduct; onFlip: () => void }) {
   const hintId = useId();
   const said = switchSpoken(nameOf(p), p.sold_out);

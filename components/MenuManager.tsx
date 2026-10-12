@@ -1,27 +1,45 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
-import { SectionHeader, InfoRow } from "@/components/kit";
+import { SectionHeader } from "@/components/kit";
+import { Segmented } from "@/components/controls";
 import { useAsyncData } from "@/lib/useAsyncData";
-import AsyncSection from "./AsyncSection";
+import { useRealtimeTable } from "@/lib/realtime";
+import { haptic } from "@/lib/haptics";
 import { money } from "@/lib/money";
-import { nameOf, type CatalogProduct } from "@/lib/catalog";
-import Button from "./Button";
-import ProductPage from "./ProductPage";
+import {
+  FILTERS, availabilityOf, emptyLine, filterCounts, flipToast, nameOf, rowSpoken, shownGroups, shownRow, undoOpen, undoStart,
+  type CatalogFilter, type CatalogProduct,
+} from "@/lib/catalog";
+import AsyncSection from "./AsyncSection";
+import ProductPage, { AvailSwitch } from "./ProductPage";
 
 // MENU / PRODUCT manager — the catalog as a managed, relational record. Edit every attribute
 // (name, line, price, description, ingredients), set the recipe (which inventory items a serving
 // consumes), and toggle active. Price here is what the app charges — card AND cash. Fetch state via
 // useAsyncData — a failed load is a real error now, not a silent "No products yet."
 //
-// A DRINK OPENS ITS OWN PAGE (2026-10-12, the Catalog round, approved). A row used to expand in place into a form whose
-// draft the next read of this list overwrote (`useEffect(() => { setD(p); }, [p])` — an 86 on any other row wiped what
-// was being typed), whose save won over anybody's newer change without a word, and whose recipe, when it failed to
-// read, looked like no recipe at all. Tapping a row opens components/ProductPage now: the same fields and refusals,
-// where the drink is sold, its recipe and cost, and its 86s — and the page keeps what is typed, asks before saving over
-// somebody else's change, and says when the recipe could not be read. The rules are lib/catalog's.
+// A LIST TO WORK FROM, A PAGE TO EDIT ON (2026-10-12, the Catalog round, approved). Measured on an iPhone 17 with
+// eleven drinks, this panel ran 1,976 points: four and a half drinks fit on the first screen, behind a four-line
+// paragraph, each drink a card 77 points tall whose way in was its name — 20 points of text — and whose 86 a screen
+// reader heard as "86". Now each drink is one row about 56 points tall: its name and its price open its page
+// (components/ProductPage — the expander's fields, where it is sold, its recipe and cost, its 86s), and its
+// availability switch says "On sale" or "86'd" out loud ("RISE, on sale. Double-tap to 86."). The rows sit under
+// their line, with a filter and a search above them; the paragraph is one quiet line. The rules — the words, the
+// filter, the version check, the undo window — are lib/catalog's, run by scripts/smoke.cjs (THE CATALOG).
+//
+// LIVE (2026-10-12). The list read once, so an 86 called from the Pass stayed on sale here until a reload. It reads
+// again on every change to products (lib/realtime — which also puts it on the app's refresh: pull to refresh, and
+// coming back to the app), and an open product keeps what was typed into it across those reads (ProductPage).
+
+/** The map without one key — an 86 that has landed (or failed) is no longer on its way. */
+const without = <T,>(m: Readonly<Record<string, T>>, id: string): Record<string, T> => {
+  const next = { ...m };
+  delete next[id];
+  return next;
+};
 
 export default function MenuManager() {
   const { toast } = useApp();
@@ -29,8 +47,15 @@ export default function MenuManager() {
   // The row as it was when its page opened: if somebody deletes it while the page is open, the page stays, says so,
   // and keeps what was typed, instead of vanishing with it.
   const [opened, setOpened] = useState<CatalogProduct | null>(null);
+  const [filter, setFilter] = useState<CatalogFilter>("all");
+  const [q, setQ] = useState("");
+  // An 86 on its way to the database (shown at once, the way the Pass's board does), and the rows this screen's own
+  // writes answered with — newer than the list until it reads again (lib/catalog freshest: the newest version wins).
+  const [pending, setPending] = useState<Record<string, boolean>>({});
+  const [held, setHeld] = useState<Record<string, CatalogProduct>>({});
+  // A second tap while the first is still on its way is the same tap (read in the handlers only, never while drawing).
+  const flying = useRef(new Set<string>());
 
-  // The inventory read moved to the product's page, with the recipe it prices (components/ProductPage).
   const loader = useCallback(async (): Promise<CatalogProduct[]> => {
     if (!supabase) return [];
     const { data, error } = await supabase.from("products").select("*").order("sort");
@@ -39,7 +64,13 @@ export default function MenuManager() {
   }, []);
   const board = useAsyncData(loader, []);
   const { reload } = board;
-  const products = board.data ?? [];
+  // The crew's 86 from the Pass, the 4am reset, another owner's save: each reads the list again, here and now.
+  useRealtimeTable("products", reload);
+
+  const products = useMemo(() => (board.data ?? []).map((p) => shownRow(p, pending, held)), [board.data, pending, held]);
+  const groups = useMemo(() => shownGroups(products, filter, q), [products, filter, q]);
+  const counts = useMemo(() => filterCounts(products, q), [products, q]);
+  const shown = groups.reduce((n, g) => n + g.items.length, 0);
   const live = openId ? products.find((p) => p.id === openId) ?? null : null;
   const page = live ?? (openId ? opened : null);
 
@@ -50,22 +81,52 @@ export default function MenuManager() {
     // they're named, priced (> $0) and switched on, so a stray "+ New" click can't put junk on the live menu.
     const { data, error } = await supabase.from("products").insert({ slug, name: "", line: "Activation", price_cents: 0, active: false, sort: (products.at(-1)?.sort ?? 0) + 1 }).select("*").single();
     if (error || !data) { toast(`Couldn't add an item — ${error?.message ?? "nothing came back"}`, "error"); return; }
+    // A filter on "On sale" would hide the draft it just made; show everything, and open it.
+    setFilter("all"); setQ("");
     await reload();
     setOpened(data as CatalogProduct); setOpenId((data as CatalogProduct).id);
   };
   const open = (p: CatalogProduct) => { setOpened(p); setOpenId(p.id); };
   const close = () => { setOpenId(null); setOpened(null); };
-  const deleted = () => { close(); void reload(); };
 
+  // The undo writes back only over what the 86 wrote: if the Pass changed it again in those seconds, it is theirs.
+  const undo = async (row: CatalogProduct, next: boolean, at: number) => {
+    if (!supabase || !undoOpen(at) || flying.current.has(row.id)) return;
+    flying.current.add(row.id);
+    if (next) haptic("toggleOff"); else haptic("toggleOn");
+    setPending((m) => ({ ...m, [row.id]: !next }));
+    const { data, error } = await supabase.from("products").update({ sold_out: !next }).eq("id", row.id).eq("sold_out", next).select("*");
+    const back = (data as CatalogProduct[] | null)?.[0];
+    flying.current.delete(row.id);
+    setPending((m) => without(m, row.id));
+    if (error) { toast(`Couldn't undo — ${error.message}`, "error"); return; }
+    if (!back) { toast(`${nameOf(row)} changed again since — nothing to undo`, "info"); void reload(); return; }
+    setHeld((m) => ({ ...m, [back.id]: back }));
+  };
   // 86 / un-86 in one tap, right from the list — the live menu and every open cart update in
   // realtime, and both checkout paths refuse the item at the database until it's flipped back.
-  const toggle86 = async (p: CatalogProduct) => {
-    if (!supabase) return;
+  //
+  // DONE, THEN UNDONE IF IT WAS A SLIP (2026-10-12). An 86 is frequent and reversible, so it does not ask first: the
+  // switch flips under the finger with the Pass's own feel (components/EightySix: an 86 is toggleOn, back on sale is
+  // toggleOff), the write goes, and the toast holds an Undo for the window lib/catalog names (UNDO_MS).
+  const flip = async (p: CatalogProduct) => {
+    if (!supabase || flying.current.has(p.id)) return;
+    flying.current.add(p.id);
     const next = !p.sold_out;
-    const { error } = await supabase.from("products").update({ sold_out: next }).eq("id", p.id);
-    if (error) toast(`Error: ${error.message}`, "error");
-    else { toast(next ? `${nameOf(p)} 86'd — marked SOLD OUT on the live menu` : `${nameOf(p)} is back on the menu`); void reload(); }
+    if (next) haptic("toggleOn"); else haptic("toggleOff");
+    setPending((m) => ({ ...m, [p.id]: next }));
+    const { data, error } = await supabase.from("products").update({ sold_out: next }).eq("id", p.id).select("*");
+    const row = (data as CatalogProduct[] | null)?.[0];
+    flying.current.delete(p.id);
+    setPending((m) => without(m, p.id));
+    if (error || !row) { toast(`Couldn't ${next ? "86" : "put back"} ${nameOf(p)} — ${error?.message ?? "the change didn't save"}`, "error"); return; }
+    setHeld((m) => ({ ...m, [row.id]: row }));
+    const at = undoStart();
+    toast(flipToast(nameOf(p), next), "success", { action: { label: "Undo", run: () => { void undo(row, next, at); } } });
   };
+  const adopt = (row: CatalogProduct) => setHeld((m) => ({ ...m, [row.id]: row }));
+  const deleted = () => { close(); void reload(); };
+  const showAll = () => { setFilter("all"); setQ(""); };
 
   return (
     <>
@@ -75,6 +136,9 @@ export default function MenuManager() {
           <div className="adm-sec">
             <div className="studio-top">
               <SectionHeader label="Menu & products" />
+              {/* The search shares the row "+ New item" was alone on (2026-10-12) — the base field, 44pt and 16px. */}
+              <input type="search" className="flex-1 appearance-none" value={q} onChange={(e) => setQ(e.target.value)}
+                placeholder="Search the menu" aria-label="Search the menu" enterKeyHint="search" autoComplete="off" />
               {/* "+New item" just opens a blank draft — it doesn't commit anything, so it's not
                   the primary action (see ProductPage's Save for that). .btn-sec, same tier Studio.tsx
                   uses for its own deliberate-but-not-committing actions. Kept inside .studio-top
@@ -83,58 +147,48 @@ export default function MenuManager() {
                   `.mpanel-body > .adm-sec > .studio-top > .k-sec{display:none}` hides the dupe
                   SectionHeader title but relies on the button staying a SIBLING of .k-sec, not a
                   child of it — moving the button inside SectionHeader's `right` would hide it too. */}
-              <button type="button" className="btn-sec btn-sm" onClick={create}>+ New item</button>
+              <button type="button" className="btn-sec btn-sm shrink-0" onClick={create}>+ New item</button>
             </div>
-            <div className="h-sub">The catalog the app charges from — card &amp; cash. Edit every attribute, set each drink&apos;s recipe (the inventory a serving uses), toggle what&apos;s on the menu.</div>
-            {products.map((p) => <ProductRow key={p.id} p={p} onOpen={() => open(p)} on86={() => { void toggle86(p); }} />)}
+            {/* The four-line paragraph, as one quiet line (2026-10-12): the panel's own sub says what the list is. */}
+            <p className="m-0 mb-3 text-caption text-cream-muted">The app charges these prices, card and cash.</p>
+            <Segmented kind="choice" label="Show" fill value={filter} onChange={(k) => { haptic("selection"); setFilter(k); }}
+              options={FILTERS.map((f) => ({ key: f.key, label: <>{f.label}{counts[f.key] > 0 && <span className="k-seg-n">{counts[f.key]}</span>}</> }))} />
+            <p className="sr-only" role="status">{`${shown} of ${products.length} shown`}</p>
+            {groups.length === 0 ? (
+              <p className="cp-line dim mt-3">{emptyLine(filter, q)}{" "}<button type="button" className="btn-ter" onClick={showAll}>Show everything</button></p>
+            ) : groups.map((g) => (
+              <section key={g.key || "none"} className="mt-4">
+                <h3 className="m-0 font-mono text-caption2 font-medium uppercase tracking-eyebrow text-cream-muted">{g.label}</h3>
+                <div className="k-rows">
+                  {g.items.map((p) => <MenuRow key={p.id} p={p} onOpen={() => open(p)} onFlip={() => { void flip(p); }} />)}
+                </div>
+              </section>
+            ))}
           </div>
         )}
       </AsyncSection>
       {/* Outside the list's own states, keyed by the product: a read of the list never remounts the page. */}
       {page && (
         <ProductPage key={page.id} p={page} gone={!live && board.status === "ready"} onClose={close}
-          onFlip={(p) => { void toggle86(p); }} onSaved={() => { void reload(); }} onDeleted={deleted} />
+          onFlip={(p) => { void flip(p); }} onSaved={adopt} onDeleted={deleted} />
       )}
     </>
   );
 }
 
-function ProductRow({ p, onOpen, on86 }: { p: CatalogProduct; onOpen: () => void; on86: () => void }) {
+/** One product, one row about 56 points tall: the name and the price open its page (a 56-point target, where the name
+ *  alone was 20); the switch beside them 86es it. A product off the menu says "Off" where the switch would be. */
+function MenuRow({ p, onOpen, onFlip }: { p: CatalogProduct; onOpen: () => void; onFlip: () => void }) {
   return (
-    <div className="prod">
-      {/* Collapsed summary as a kit InfoRow: name (+ the timing dot) on the left; off/sold-out
-          badges as nameExtra; line + price + the 86 quick-toggle grouped as trailing, preserving
-          the original single-line, right-aligned arrangement (.prod-head used margin-left:auto to
-          push line+price to the right of the same row). bodyClick (not onClick) because trailing
-          holds its OWN interactive button (86/Back on) — onClick would wrap the entire row,
-          86-button included, in one outer <button>, nesting buttons and double-firing clicks.
-          Wrapped in .k-rows purely so the existing `.k-rows>.k-row:last-child{border-bottom:0}`
-          rule zeroes this row's border. The body opens the drink's page (2026-10-12). */}
-      <div className="k-rows">
-        <InfoRow
-          bodyClick={onOpen}
-          ariaLabel={p.name ? `${p.name} — open its page` : "Open the new item's page"}
-          name={<>
-            {/* was `p.timing ? undefined : undefined` — both branches identical, so the live timing
-                field never rendered anything. Daypart colors match the customer pillars. */}
-            <span className="prod-dot" data-on={p.timing || undefined} style={{ background: { BEFORE: "#B8902F", DURING: "#3f7d6e", AFTER: "#B82420" }[(p.timing || "").trim().toUpperCase()] }} />
-            {p.name}
-          </>}
-          nameExtra={<>
-            {!p.active && <span className="prod-off">off</span>}
-            {p.active && p.sold_out && <span className="prod-86tag">SOLD OUT{p.sold_out_at ? ` · ${new Date(p.sold_out_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}</span>}
-          </>}
-          trailing={<>
-            <span className="prod-line">{p.line}</span>
-            <span className="prod-px">{money(p.price_cents)}</span>
-            {p.active && (
-              <Button type="button" kind="secondary" compact className="shrink-0" onClick={on86}>
-                {p.sold_out ? "Back on" : "86"}
-              </Button>
-            )}
-          </>}
-        />
-      </div>
+    <div className="k-row py-0 gap-3">
+      <button type="button" onClick={onOpen} aria-label={rowSpoken(p)}
+        className="flex-1 min-w-0 min-h-14 flex items-center gap-3 p-0 border-0 bg-transparent text-left text-cream [font:inherit] cursor-pointer appearance-none transition-opacity active:opacity-70">
+        <span className="flex-1 min-w-0 line-clamp-2 break-words font-bold text-callout">{nameOf(p)}</span>
+        <span className="prod-px shrink-0">{money(p.price_cents)}</span>
+      </button>
+      {availabilityOf(p) === "off"
+        ? <span className="w-30 shrink-0 flex justify-end" aria-hidden="true"><span className="k-tag txt">Off</span></span>
+        : <AvailSwitch p={p} onFlip={onFlip} />}
     </div>
   );
 }

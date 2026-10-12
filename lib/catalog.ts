@@ -7,14 +7,15 @@
 // row's unsaved edits; the last save won with no word to whoever it overwrote; and a recipe that failed to read
 // looked exactly like a drink with no recipe.
 //
-// What the product's page decides lives here, apart from React and the network, so a test can run it
-// (scripts/smoke.cjs, THE CATALOG): what its availability switch says and what VoiceOver hears, whether a save would land
-// on somebody else's newer change (products.updated_at is the version — 0062's touch trigger moves it on every write,
-// an 86 included), what the change log (0260's admin_audit) says about a drink's 86s, and which event and stop menus
-// pour it. The page is components/ProductPage; the list it opens from is components/MenuManager.
+// What the screen decides lives here, apart from React and the network, so a test can run it (scripts/smoke.cjs,
+// THE CATALOG): what a row's switch says and what VoiceOver hears, which products a filter and a search show and
+// under which line, whether a save would land on somebody else's newer change (products.updated_at is the version —
+// 0062's touch trigger moves it on every write, an 86 included), how long an 86 can be undone, what the change log
+// (0260's admin_audit) says about a drink's 86s, and which event and stop menus pour it. The screen is
+// components/MenuManager (the list) and components/ProductPage (one product).
 
 import { clockTime, etDayKey, etWhen } from "./dates";
-import { moneyPlain } from "./money";
+import { money, moneyPlain } from "./money";
 
 /** A products row, as the Catalog reads it (select *). */
 export type CatalogProduct = {
@@ -26,9 +27,16 @@ export type CatalogProduct = {
 };
 
 // ── THE SWITCH ───────────────────────────────────────────────────────────────────────────────────────────────────────
-// A row's 86 is a button whose whole name is "86". A drink's page has an availability switch: on is "On sale", off is
+// A row's 86 was a button whose whole name was "86". It is the row's availability switch now: on is "On sale", off is
 // "86'd", and a product off the menu altogether has no switch (an 86 is "sold out today"; off the menu is active =
 // false, set on the product's page and saved — 0130's split).
+
+/** What a product is to somebody who wants one: on sale, 86'd for the day, or off the menu altogether. */
+export type Availability = "on" | "86" | "off";
+export function availabilityOf(p: { active: boolean; sold_out: boolean }): Availability {
+  if (!p.active) return "off";
+  return p.sold_out ? "86" : "on";
+}
 
 /** A draft that has no name yet is still somebody's row ("+ New item" makes it blank on purpose). */
 export const nameOf = (p: { name?: string | null }): string => (p.name ?? "").trim() || "New item";
@@ -47,6 +55,90 @@ export function switchSpoken(name: string, soldOut: boolean): { label: string; h
 export function spokenLine(name: string, soldOut: boolean): string {
   const s = switchSpoken(name, soldOut);
   return `${s.label}. ${s.hint}`;
+}
+
+/** The row's own button, which opens the product: name, line, price — and "off the menu" when it is, since an off
+ *  row has no switch to say so. */
+export function rowSpoken(p: { name?: string | null; line?: string | null; price_cents: number; active: boolean }): string {
+  return [nameOf(p), (p.line ?? "").trim(), money(p.price_cents), p.active ? "" : "off the menu"].filter(Boolean).join(", ");
+}
+
+/** The toast an 86 or an un-86 leaves, with Undo beside it. */
+export const flipToast = (name: string, to86: boolean): string =>
+  (to86 ? `${name} 86'd — sold out on the live menu` : `${name} is back on sale`);
+
+// ── THE UNDO ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+// An 86 is frequent and it is undone by a second tap, so it does not ask first: it is done, and the toast holds an
+// Undo. The toast keeps an action on screen for 5 seconds (components/AppProvider, "a toast with something to do
+// stays long enough to reach for it"); the undo honours the same window, so an Undo tapped on a toast that outlived
+// it does nothing. And it is conditional on the row still holding what the 86 wrote — if the Pass flipped it back in
+// those seconds, the undo changes nothing and says so.
+// The clock is read here, where the window is defined, and only from a tap — the one that 86'd and the one on Undo.
+export const UNDO_MS = 5000;
+/** The moment an 86 landed: when its undo window opens. */
+export const undoStart = (): number => Date.now();
+/** True while an Undo for an 86 that landed at `at` may still act. */
+export const undoOpen = (at: number, now: number = Date.now()): boolean => now >= at && now - at < UNDO_MS;
+
+// ── THE FILTER AND THE SEARCH ────────────────────────────────────────────────────────────────────────────────────────
+export type CatalogFilter = "all" | "on" | "86" | "off";
+export const FILTERS: readonly { key: CatalogFilter; label: string }[] = [
+  { key: "all", label: "All" }, { key: "on", label: "On sale" }, { key: "86", label: "86'd" }, { key: "off", label: "Off" },
+];
+export const inFilter = (p: { active: boolean; sold_out: boolean }, f: CatalogFilter): boolean =>
+  f === "all" || availabilityOf(p) === f;
+
+/** Words as a search compares them: no accents, one apostrophe, one case, single spaces. */
+export function searchKey(s: string | null | undefined): string {
+  return (s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[\u2018\u2019`]/g, "'")
+    .toLowerCase().replace(/\s+/g, " ").trim();
+}
+/** Every word typed must appear in the product's name, line or slug — "salted latte" finds SALTED MAPLE LATTE. */
+export function matchesSearch(p: { name?: string | null; line?: string | null; slug?: string | null }, q: string): boolean {
+  const words = searchKey(q).split(" ").filter(Boolean);
+  if (!words.length) return true;
+  const hay = searchKey([p.name, p.line, p.slug].join(" "));
+  return words.every((w) => hay.includes(w));
+}
+
+export type LineGroup<T> = { key: string; label: string; items: T[] };
+/** The products a filter and a search show, under their line — lines in the order the menu first reaches them
+ *  (products.sort), the products in theirs. One line however it is cased, named and placed as the whole menu first
+ *  has it, whatever the filter leaves; a product with no line is under "No line". */
+export function shownGroups<T extends { active: boolean; sold_out: boolean; name?: string | null; line?: string | null; slug?: string | null }>(
+  products: readonly T[], f: CatalogFilter, q: string,
+): LineGroup<T>[] {
+  const lines = new Map<string, { label: string; at: number }>();
+  for (const p of products) {
+    const label = (p.line ?? "").trim();
+    const key = searchKey(label);
+    if (!lines.has(key)) lines.set(key, { label: label || "No line", at: lines.size });
+  }
+  const byKey = new Map<string, LineGroup<T>>();
+  for (const p of products) {
+    if (!inFilter(p, f) || !matchesSearch(p, q)) continue;
+    const key = searchKey((p.line ?? "").trim());
+    let g = byKey.get(key);
+    if (!g) { g = { key, label: lines.get(key)?.label ?? "No line", items: [] }; byKey.set(key, g); }
+    g.items.push(p);
+  }
+  return [...byKey.values()].sort((a, b) => (lines.get(a.key)?.at ?? 0) - (lines.get(b.key)?.at ?? 0));
+}
+/** A filter's count is the rows it would show — with the search as typed. */
+export function filterCounts(products: readonly { active: boolean; sold_out: boolean; name?: string | null; line?: string | null; slug?: string | null }[], q: string): Record<CatalogFilter, number> {
+  const n: Record<CatalogFilter, number> = { all: 0, on: 0, "86": 0, off: 0 };
+  for (const p of products) {
+    if (!matchesSearch(p, q)) continue;
+    n.all++;
+    n[availabilityOf(p)]++;
+  }
+  return n;
+}
+/** What an empty list says, so a filter or a search that hides everything is never mistaken for an empty menu. */
+export function emptyLine(f: CatalogFilter, q: string): string {
+  const typed = q.trim();
+  if (typed) return `Nothing on the menu matches “${typed}”${f === "all" ? "" : ` under ${FILTERS.find((x) => x.key === f)?.label}`}.`;
+  return f === "86" ? "Nothing is 86'd." : f === "off" ? "Nothing is off the menu." : f === "on" ? "Nothing is on sale." : "No products yet.";
 }
 
 // ── THE VERSION ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -72,6 +164,24 @@ export function sameVersion(a: string | null | undefined, b: string | null | und
   if (x == null || y == null) return !!a && a === b;
   return x === y;
 }
+/** True when `a` is a later version than `b`. */
+export function isNewer(a: string | null | undefined, b: string | null | undefined): boolean {
+  const x = versionMicros(a), y = versionMicros(b);
+  return x != null && (y == null || x > y);
+}
+/** The row to show: the list's, unless this screen holds a newer one of its own (the answer to its own write, before
+ *  the list has read again). Whichever is newer wins — somebody else's later change included. */
+export function freshest<T extends { updated_at: string | null }>(listed: T, held: T | null | undefined): T {
+  return held && isNewer(held.updated_at, listed.updated_at) ? held : listed;
+}
+/** A list row as the screen shows it: the freshest version, with an 86 still on its way to the database on top. */
+export function shownRow<T extends { id: string; sold_out: boolean; updated_at: string | null }>(
+  p: T, pending: Readonly<Record<string, boolean>>, held: Readonly<Record<string, T>>,
+): T {
+  const row = freshest(p, held[p.id]);
+  return p.id in pending ? { ...row, sold_out: pending[p.id] } : row;
+}
+
 // ── THE PAGE'S DRAFT ─────────────────────────────────────────────────────────────────────────────────────────────────
 // The fields a product's page edits — the inline expander's, every one (2026-10-12: the same fields and the same two
 // validations). The draft holds what is typed as typed: the comma lists used to be re-split on every keystroke, so a
