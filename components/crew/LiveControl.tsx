@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "@/components/AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -11,7 +12,7 @@ import InlineCreate from "@/components/InlineCreate";
 import Icon from "@/components/Icon";
 import type { Stop, LiveStatus, Vendor } from "@/lib/db";
 import { haptic } from "@/lib/haptics";
-import { clockTime, dayWithDate, nextWeekdayAt } from "@/lib/dates";
+import { dayWithDate, nextWeekdayAt } from "@/lib/dates";
 import { isStopAhead, isStopPast, roadAhead, stopIsDue } from "@/lib/road";
 import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { goPlanTab } from "@/lib/planNav";
@@ -28,6 +29,9 @@ import Button from "../Button";
 import { mayGoLive, stopName, truckAction, truckSays, type TruckRead } from "@/lib/liveOps";
 import { useMinute } from "@/lib/useMinute";
 import { StatusRow } from "@/components/crew/StatusRow";
+
+// Go live's checks, loaded with the first tap on Go live (it opens on a tap, as the console's other sheets do).
+const GoLiveSheet = dynamic(() => import("@/components/crew/GoLiveSheet"), { ssr: false });
 
 // LIVE CONTROL — the truck's live status board: where it is, whether it is open, what is next.
 //
@@ -57,6 +61,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
   const canLive = mayGoLive(profile);
   const now = useMinute();
   const [open, setOpen] = useState(false);              // the row's fold, on Live Ops
+  const [asking, setAsking] = useState<Stop | null>(null); // Go live's checks, open for this stop
   const goDial = () => { setSection("settings"); scrollToAnchor("set-dial"); };
   const openPrep = (id: string) => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue("stop", id)); } catch { /* ignore */ } setSection("prep"); };
   const [stops, setStops] = useState<Stop[]>([]);
@@ -279,22 +284,14 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
   // a guest can never disagree about where the truck goes next (lib/road, 2026-10-04).
   const road = roadAhead(active, live?.is_live ? live.current_stop_id : null);
   const nextStop = live?.is_live ? null : road[0] ?? null;
-  const nextWhen = nextStop
-    ? nextStop.starts_at ? `${dayWithDate(new Date(nextStop.starts_at))} · ${clockTime(nextStop.starts_at)}` : "no date yet"
-    : "";
-  // Go live is one tap when the stop is today (or underway); anything else — next Saturday, or no
-  // date at all — asks first, because going live is the one action in this panel a guest sees.
-  const goLiveNext = async () => {
-    if (!nextStop) return;
-    if (!stopIsDue(nextStop.starts_at) && !(await confirm({
-      title: `Go live at ${nextStop.name} now?`,
-      body: nextStop.starts_at
-        ? `It's on the road for ${nextWhen}. Guests see the truck live there the moment you do.`
-        : "It has no date yet. Guests see the truck live there the moment you do.",
-      confirmLabel: "Go live now",
-    }))) return;
-    goLive(nextStop.id);
-  };
+  // GO LIVE ASKS FIRST, EVERY TIME (2026-10-12, the Live Ops round — the owner approved the pre-flight). It went live in
+  // one tap when the stop was due, and asked "Go live at X now?" when it was not. It opens Go live's checks now — is the
+  // stop due, is a phone on the Pass and can it ring, is the stop on the map, and how many people will be told
+  // (components/crew/GoLiveSheet, lib/liveOps preflight) — for any stop, from this row and from the Route list's "Go live
+  // at this location", and goes live from there (goLive above: its haptic plays once, on the sheet's confirm). Only for
+  // who the database lets go live.
+  const askGoLive = (s: Stop | null | undefined) => { if (s && canLive) setAsking(s); };
+  const checks = asking && <GoLiveSheet stop={asking} onClose={() => setAsking(null)} onGo={() => { void goLive(asking.id); }} />;
 
   if (compact) {
     const truck = { read, live: !!live?.is_live, at: curStop ?? null, next: nextStop, nowMs: now };
@@ -308,8 +305,8 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
       : act === "go-offline"
         ? <Button kind="secondary" compact className="shrink-0" onClick={pause} aria-label={`Go offline${curStop ? ` — closes out ${stopName(curStop)}` : ""}`}>Go offline</Button>
         : act === "go-live"
-          ? <Button kind={nextStop && stopIsDue(nextStop.starts_at) ? "primary" : "secondary"} compact className="shrink-0"
-              onClick={goLiveNext} aria-label={`Go live at ${stopName(nextStop)}`}>Go live</Button>
+          ? <Button kind={nextStop && stopIsDue(nextStop.starts_at) ? "primary" : "secondary"} compact className="shrink-0" aria-haspopup="dialog"
+              onClick={() => askGoLive(nextStop)} aria-label={`Go live at ${stopName(nextStop)} — shows what is ready first`}>Go live</Button>
           : act === "plan"
             ? <Button kind="secondary" compact className="shrink-0" onClick={() => goPlanTab("route", { setSection })}>Plan the next stop</Button>
             : null;
@@ -343,6 +340,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
             {admin && <button type="button" className="adm-golink hit-y-44" onClick={goDial}>Cup-ordering dial ›</button>}
           </div>
         </StatusRow>
+        {checks}
       </>
     );
   }
@@ -352,6 +350,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
       {/* On Plan it is the list Lists opens as Truck stops (2026-10-10), and says so; on Live Ops it is the instrument. */}
       <SectionHeader label={manage ? "Truck stops" : "Live truck"} right={!compact ? <InlineCreate label="+ Add location" placeholder="Location name" onCreate={addStop} /> : undefined} />
       {err && <div className="adm-attn" role="alert">Backend error: {err}</div>}
+      {checks}
       {/* The card holds the status (outside Route) and Go offline (while live). With the dial gone
           it would be an empty box on Route whenever the truck is offline, so it is drawn only when
           it has something in it. */}
@@ -427,7 +426,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
                   isCur={Boolean(s.id === live?.current_stop_id && live?.is_live)}
                   open={openStopId === s.id}
                   onToggle={() => setOpenStopId(openStopId === s.id ? null : s.id)}
-                  onGoLive={canLive ? goLive : undefined}
+                  onGoLive={canLive ? (id) => askGoLive(stops.find((x) => x.id === id)) : undefined}
                   onGoOffline={canLive ? pause : undefined}
                   onArchive={() => archiveStop(s.id)}
                   onChanged={load}

@@ -5212,8 +5212,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     const lc = code(read("components/crew/LiveControl.tsx")), fu = code(read("components/FindUs.tsx"));
     ok("road: the truck instrument reads the road, not the first row in `sort` order",
       !/active\[0\]/.test(lc) && /roadAhead\(active, live\?\.is_live \? live\.current_stop_id : null\)/.test(lc));
-    ok("road: Go live is offered only for a stop on the road, and asks first unless it is due",
-      /onClick=\{goLiveNext\}/.test(lc) && /stopIsDue\(nextStop\.starts_at\)/.test(lc) && /title: `Go live at \$\{nextStop\.name\} now\?`/.test(lc));
+    // 2026-10-12 (the Live Ops round, approved): Go live asked "Go live at X now?" only when the stop was not due; it
+    // opens Go live's checks now, for every stop (components/crew/GoLiveSheet, lib/liveOps preflight, which asks
+    // stopIsDue).
+    ok("road: Go live is offered only for a stop on the road, and opens its checks first — is the stop due, among them",
+      /onClick=\{\(\) => askGoLive\(nextStop\)\}/.test(lc) && /const checks = asking && <GoLiveSheet stop=\{asking\}/.test(lc)
+        && /const due = stopIsDue\(p\.stop\.starts_at, new Date\(p\.nowMs\)\);/.test(code(read("lib/liveOps.ts"))) && !/title: `Go live at \$\{nextStop\.name\} now\?`/.test(lc));
     // 2026-10-12 (the Live Ops round): the words for an empty road are lib/liveOps truckSays' — the row's line, not the
     // instrument's.
     ok("road: with nothing on the road it says so, and offers to plan the next stop instead of Go live",
@@ -12276,6 +12280,43 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /tapLabel=\{failed \? `\$\{says\.text\}\. Tries again\.` : `\$\{says\.text\}\. \$\{open \? "Hides" : "Shows"\} the stop, the map dot and the stops list\.`\}/.test(compact)
       && /aria-label=\{`Go live at \$\{stopName\(nextStop\)\}/.test(compact) && /aria-label=\{tapLabel\} aria-expanded=\{expanded\}/.test(row)
       && /aria-label=\{`Phones on the Pass/.test(rows));
+
+  // GO LIVE, CHECKED FIRST (approved item 5).
+  const sheet = code(rd("components/crew/GoLiveSheet.tsx"));
+  const pin = { lat: 34.85, lng: -82.39 };
+  const ready = LO.preflight({ stop: { ...stopAt(-1, 3), ...pin }, nowMs: NOW, phones: { onPass: 1, ringing: 1, ringingAlertsOn: 1 }, heard: 12 });
+  ok("go live: every check a yes — the stop due with its window, a phone on the Pass, its alerts on, its map pin — and it says it tells 12 people",
+    ready.allOk && ready.checks.map((c) => `${c.key}:${c.word}`).join() === "due:Yes,pass:Yes,alerts:Yes,map:Yes" && ready.checks[0].says === "Today 1:00pm–5:00pm"
+      && ready.confirm === "Go live and tell 12 people" && ready.tells === "Going live tells 12 people who asked on Find Us to hear when the truck is live.", ready);
+  const notYet = LO.preflight({ stop: { name: "Wine Express", starts_at: "2026-10-17T11:00:00-04:00", lat: null, lng: null }, nowMs: NOW, phones: { onPass: 1, ringing: 1, ringingAlertsOn: 0 }, heard: 1 });
+  ok("go live: a check that is not a yes is a no in words, and the button stays — Go live anyway",
+    !notYet.allOk && notYet.confirm === "Go live anyway" && notYet.checks.map((c) => `${c.key}:${c.word}:${c.says}`).join("|")
+      === "due:No:It's on the road for Sat 11:00am|pass:Yes:1 phone connected|alerts:No:It rings only while the Pass is open on its screen|map:No:No pin yet — Find Us shows its address only"
+      && notYet.tells === "Going live tells 1 person who asked on Find Us to hear when the truck is live.", notYet.checks);
+  const deaf = LO.preflight({ stop: { ...stopAt(-1, 3), ...pin }, nowMs: NOW, phones: { onPass: 0, ringing: 0, ringingAlertsOn: 0 }, heard: 0 });
+  ok("go live: nobody on the Pass is two noes; nobody asked to hear is said, and the button never says 'tell 0 people'",
+    deaf.checks[1].says === "Nobody has the Pass open" && deaf.checks[2].says === "There's no phone on the Pass to ring" && deaf.confirm === "Go live anyway"
+      && LO.preflight({ stop: { ...stopAt(-1, 3), ...pin }, nowMs: NOW, phones: { onPass: 1, ringing: 1, ringingAlertsOn: 1 }, heard: 0 }).confirm === "Go live" && deaf.tells === "Nobody has asked on Find Us to hear when the truck is live yet.");
+  const blind = LO.preflight({ stop: { name: "X", starts_at: null, ...pin }, nowMs: NOW, phones: "failed", heard: "failed" });
+  ok("go live: a read that did not answer is 'Not known', never a yes — and a count that did not answer is never 0",
+    blind.checks.map((c) => c.word).join() === "No,Not known,Not known,Yes" && blind.checks[1].says === "Couldn't check the phones" && blind.confirm === "Go live anyway"
+      && blind.tells === "Couldn't count who asked on Find Us to hear — they're still told."
+      && LO.preflight({ stop: { ...stopAt(-1, 3), ...pin }, nowMs: NOW, phones: null, heard: null }).checks[1].word === "Checking");
+  ok("go live: the row's Go live and Route's Go live at this location open the checks, for who may go live — and VoiceOver hears that it shows what is ready first",
+    /compact className="shrink-0" aria-haspopup="dialog"\s*onClick=\{\(\) => askGoLive\(nextStop\)\} aria-label=\{`Go live at \$\{stopName\(nextStop\)\} — shows what is ready first`\}/.test(compact)
+      && /onGoLive=\{canLive \? \(id\) => askGoLive\(stops\.find\(\(x\) => x\.id === id\)\) : undefined\}/.test(lc)
+      && /const askGoLive = \(s: Stop \| null \| undefined\) => \{ if \(s && canLive\) setAsking\(s\); \};/.test(lc));
+  ok("go live: the sheet asks the database for the number (live_ping_count, 0385), reads the phones as the Devices card does, and its confirm closes it and goes live once",
+    /await supabase\.rpc\("live_ping_count"\)/.test(sheet) && /const devices = useDevices\(true\);/.test(sheet) && /const pf = preflight\(\{/.test(sheet)
+      && /<Button kind="primary" wide onClick=\{\(\) => \{ onClose\(\); onGo\(\); \}\}>\{pf\.confirm\}<\/Button>/.test(sheet) && !/haptic\(/.test(sheet)
+      && (lc.match(/haptic\("live"\)/g) || []).length === 1 && /onGo=\{\(\) => \{ void goLive\(asking\.id\); \}\}/.test(lc)
+      && /const GoLiveSheet = dynamic\(\(\) => import\("@\/components\/crew\/GoLiveSheet"\), \{ ssr: false \}\);/.test(lc));
+  ok("go live: the count is the push function's own audience — wants_live of the business — for owners and admins, and no one's subscription",
+    /where s\.wants_live and s\.tenant_id = public\.effective_tenant\(\)\);/.test(noSql(rd("supabase/migrations/0385_going_live_says_how_many_will_hear.sql")))
+      && /if not public\.is_admin\(\) then\s*raise exception 'not authorized' using errcode = '42501';/.test(noSql(rd("supabase/migrations/0385_going_live_says_how_many_will_hear.sql")))
+      && /revoke all on function public\.live_ping_count\(\) from public, anon, authenticated;\s*grant execute on function public\.live_ping_count\(\) to authenticated;/.test(rd("supabase/migrations/0385_going_live_says_how_many_will_hear.sql"))
+      && /q\.eq\("wants_live", true\)\.eq\("tenant_id", tenantOf\(record\)\)/.test(rd("supabase/functions/push/index.ts"))
+      && /node scripts\/db\.liveping\.test\.mjs/.test(JSON.parse(rd("package.json")).scripts["db:test"]));
 
   ok("smoke: lib/liveOps and lib/heartbeat are compiled for these pins", /lib\/liveOps\.ts lib\/heartbeat\.ts/.test(JSON.parse(rd("package.json")).scripts.smoke));
 }

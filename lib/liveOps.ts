@@ -7,10 +7,12 @@
 // and kept whatever it last knew when a later read failed.
 //
 // Now the truck and the Pass are one row each (components/crew/LiveControl, components/crew/LiveOpsRows): a dot, one
-// line saying the state in words, and the one action it needs. What each row says in each state and who may go live are
-// decided here — pure, no React, no Supabase, no clock it was not handed — so scripts/smoke.cjs runs every state.
+// line saying the state in words, and the one action it needs. What each row says in each state, who may go live and
+// what Go live checks first are decided here — pure, no React, no Supabase, no clock it was not handed — so
+// scripts/smoke.cjs runs every state.
 import { clockTime, etDayKey } from "./dates";
 import { dueDay } from "./dueNext";
+import { stopIsDue } from "./road";
 
 // ── WHO MAY GO LIVE: THE DATABASE'S OWN TEST ─────────────────────────────────────────────────────────────────────────
 // Go live, Go offline and the truck's map dot call admin_set_live (0124), admin_set_offline (0022) and
@@ -139,4 +141,70 @@ export function passSays(p: PassIn): RowSays & { trouble: boolean } {
   parts.push(...trouble);
   const tone: RowTone = p.read === "failed" ? "fail" : isTrouble ? "warn" : busy ? "busy" : "idle";
   return { tone, text: parts.join(" · "), trouble: isTrouble };
+}
+
+// ── GO LIVE, CHECKED FIRST ───────────────────────────────────────────────────────────────────────────────────────────
+// Go live opens a sheet (components/crew/GoLiveSheet) that says, each in words with a plain yes or no:
+//   due     the stop is due now — its day is today, or it started inside lib/road's grace (stopIsDue) — and its window;
+//   pass    a phone has the Pass open with its orders feed connected (lib/heartbeat passPhones: ringing);
+//   alerts  that phone's order alerts are on, so a new order reaches it with the Pass out of sight;
+//   map     the stop has its map pin. The map guests see is Find Us's picture of the stop's own pin (components/FindUs
+//           StopMap); the truck's moving dot (live_status.truck_lat/lng) is drawn by no customer page since the route map
+//           went (b6af016, 2026-10-10), and going offline clears it, so before going live it is never set and a check of
+//           it could only ever say no.
+// Then what going live does: "Go live and tell N people", N being how many asked on Find Us to hear when the truck goes
+// live (0257's wants_live; the push function pings them on the flip, supabase/functions/push) — counted by the database
+// (live_ping_count, 0385), which never shows anyone's subscription. The checks inform and never block: with one that is
+// not a yes, the button says "Go live anyway".
+export type CheckKey = "due" | "pass" | "alerts" | "map";
+/** One check: its question, its answer in a word (the tag on its row), and what is true, in a sentence. */
+export type Check = { key: CheckKey; ok: boolean | null; title: string; word: "Yes" | "No" | "Checking" | "Not known"; says: string };
+export type PreflightIn = {
+  stop: StopLite; nowMs: number;
+  /** lib/heartbeat passPhones' counts; null while the phones are read, "failed" when that read did not answer. */
+  phones: { onPass: number; ringing: number; ringingAlertsOn: number } | "failed" | null;
+  /** live_ping_count's answer; null while it is asked, "failed" when it did not answer (or 0385 is not pasted yet). */
+  heard: number | "failed" | null;
+};
+
+const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
+const yes = (key: CheckKey, title: string, says: string): Check => ({ key, ok: true, title, word: "Yes", says });
+const no = (key: CheckKey, title: string, says: string): Check => ({ key, ok: false, title, word: "No", says });
+const unknown = (key: CheckKey, title: string, failed: boolean): Check =>
+  ({ key, ok: null, title, word: failed ? "Not known" : "Checking", says: failed ? "Couldn't check the phones" : "" });
+
+export const CHECK_TITLE: Record<CheckKey, string> = {
+  due: "The stop is due now",
+  pass: "A phone is on the Pass",
+  alerts: "Its order alerts are on",
+  map: "Its map pin is set",
+};
+
+export function preflight(p: PreflightIn): { checks: Check[]; allOk: boolean; confirm: string; tells: string } {
+  const T = CHECK_TITLE;
+  const due = stopIsDue(p.stop.starts_at, new Date(p.nowMs));
+  const ends = clockTime(p.stop.ends_at);
+  const span = `${whenWords(p.stop.starts_at, p.nowMs)}${ends ? `–${ends}` : ""}`;
+  const checks: Check[] = [
+    due ? yes("due", T.due, span) : no("due", T.due, p.stop.starts_at ? `It's on the road for ${span}` : "It has no date yet"),
+  ];
+  const ph = p.phones;
+  if (ph === null || ph === "failed") {
+    checks.push(unknown("pass", T.pass, ph === "failed"), unknown("alerts", T.alerts, ph === "failed"));
+  } else {
+    checks.push(ph.ringing > 0 ? yes("pass", T.pass, `${phones(ph.ringing)} connected`)
+      : no("pass", T.pass, ph.onPass > 0 ? `${ph.onPass} on the Pass, none connected` : "Nobody has the Pass open"));
+    checks.push(ph.ringingAlertsOn > 0 ? yes("alerts", T.alerts, "A new order reaches it even with the Pass out of sight")
+      : no("alerts", T.alerts, ph.ringing === 0 ? "There's no phone on the Pass to ring" : "It rings only while the Pass is open on its screen"));
+  }
+  const pinned = Number.isFinite(p.stop.lat ?? NaN) && Number.isFinite(p.stop.lng ?? NaN);
+  checks.push(pinned ? yes("map", T.map, "Find Us shows it on the map") : no("map", T.map, "No pin yet — Find Us shows its address only"));
+
+  const allOk = checks.every((c) => c.ok === true);
+  const n = p.heard;
+  const tells = typeof n === "number"
+    ? n > 0 ? `Going live tells ${people(n)} who asked on Find Us to hear when the truck is live.` : "Nobody has asked on Find Us to hear when the truck is live yet."
+    : n === "failed" ? "Couldn't count who asked on Find Us to hear — they're still told." : "Counting who asked on Find Us to hear…";
+  const confirm = !allOk ? "Go live anyway" : typeof n === "number" && n > 0 ? `Go live and tell ${people(n)}` : "Go live";
+  return { checks, allOk, confirm, tells };
 }
