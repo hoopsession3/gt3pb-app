@@ -13441,8 +13441,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("join: the offer first and what comes with it, one main button, the password a quieter way, Terms and Privacy where the account is made",
     /"Every 10th cup is on us\."/.test(si) && /const PERKS = \["A stamp on every cup", "Order ahead, skip the line", "First taste of new reserves"\];/.test(si)
     && /intent === "join" \? "Join free" : "Email me a sign-in code"/.test(si) && /className="auth-link min-h-11 inline-flex items-center text-cream-muted"/.test(si)
-    && /By \{intent === "join" \? "joining" : "continuing"\} you agree to the <Link className="text-cream underline decoration-line2 underline-offset-4" href="\/terms">Terms<\/Link> and <Link className="text-cream underline decoration-line2 underline-offset-4" href="\/privacy">Privacy<\/Link>\./.test(si)
+    && /By \{intent === "join" \? "joining" : "continuing"\} you agree to the <Link className="text-cream underline decoration-line2 underline-offset-4 hit-44" href="\/terms">Terms<\/Link> and <Link className="text-cream underline decoration-line2 underline-offset-4 hit-44" href="\/privacy">Privacy<\/Link>\./.test(si)
     && !/gt3-pb-wordmark\.png/.test(si) && !/so we can greet you/.test(si));
+  // A LINK IN THE FINE PRINT IS STILL A TARGET (2026-10-12): verify:prod measured the Terms link on /3mpire at 15px — floor 44.
+  // The local build draws /3mpire's demo (no Supabase), never the sign-in form, so the design ratchet could not see it; this
+  // pin is the check that can. Every link inside the sign-in's fine print takes hit-44.
+  ok("sign-in: every link in the fine print takes a 44×44 tap (hit-44), the floor the production measure holds /3mpire to",
+    (() => { const fine = si.match(/<p className="auth-fine">[\s\S]*?<\/p>/g) || []; const links = fine.join("").match(/<Link [^>]*>/g) || [];
+      return fine.length > 0 && links.length >= 2 && links.every((l) => /\bhit-44\b/.test(l)); })());
   // The review of A2 (2026-10-12, fresh eyes before ship): each finding, held.
   ok("account sheet: the rows only some people have are asked once the profile is known; a failed read says it couldn't check, and checks again",
     /if \(!supabase \|\| !userId \|\| \(access !== "allow" && access !== "deny"\)\) return;/.test(acs)

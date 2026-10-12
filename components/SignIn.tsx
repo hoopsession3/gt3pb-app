@@ -341,9 +341,11 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
           </div>
 
           {/* Where an account can be made, its Terms and Privacy (the account audit, #7) — joining, and signing in too: an
-              emailed code or Apple makes the account when there is none (AuthProvider sendCode, shouldCreateUser). */}
+              emailed code or Apple makes the account when there is none (AuthProvider sendCode, shouldCreateUser).
+              Each link takes a 44×44 tap (hit-44) around words drawn at 12px: production's measure found Terms 15px
+              tall on /3mpire (2026-10-12). The local build shows /3mpire's demo, not this form, so the smoke pins it. */}
           {!context && (
-            <p className="auth-fine">By {intent === "join" ? "joining" : "continuing"} you agree to the <Link className="text-cream underline decoration-line2 underline-offset-4" href="/terms">Terms</Link> and <Link className="text-cream underline decoration-line2 underline-offset-4" href="/privacy">Privacy</Link>.{compact ? "" : " Or browse the menu and the truck first."}</p>
+            <p className="auth-fine">By {intent === "join" ? "joining" : "continuing"} you agree to the <Link className="text-cream underline decoration-line2 underline-offset-4 hit-44" href="/terms">Terms</Link> and <Link className="text-cream underline decoration-line2 underline-offset-4 hit-44" href="/privacy">Privacy</Link>.{compact ? "" : " Or browse the menu and the truck first."}</p>
           )}
         </>
       )}
