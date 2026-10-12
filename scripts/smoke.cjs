@@ -5397,11 +5397,16 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && !forWho("server", row("academy_certifications", { owner_user_id: uid, route: "/crew?s=team" }))
     && JSON.stringify(O.obligationGo(row("academy_certifications", { owner_user_id: me }), V("server"))) === JSON.stringify({ kind: "page", href: "/academy" })
     && JSON.stringify(O.obligationGo(row("academy_certifications", { owner_user_id: uid }), V("owner"))) === JSON.stringify({ kind: "person", id: uid }));
-  ok("needs you is yours: an operator gets the permit re-check (Prep is hers); a manager gets the initiative and every to-do but his own; the owner gets everything",
+  // ONLY WHAT'S YOURS (2026-10-12, the My Day audit, approved). "A door they can open" kept every
+  // workstream, initiative and goal — and, for a manager, everybody's to-dos — for anyone who opens
+  // Command. The door still counts (obligationReach); the row has to be the viewer's as well.
+  ok("needs you is yours: an operator gets the permit re-check (Prep is hers); a manager gets no initiative and nobody's to-do; the owner gets what his role's one tap answers, and the rest only when it is his",
     forWho("operator", row("compliance_rules", { route: "/crew?s=prep" })) && !forWho("operator", row("initiatives"))
-    && forWho("manager", row("initiatives")) && forWho("manager", row("todos", { owner_user_id: uid })) && !forWho("manager", row("todos", { owner_user_id: me })) && !forWho("manager", row("offer_letters"))
-    && ["asset_maintenance", "todos", "initiatives", "goals", "os_workstreams", "offer_letters", "operator_agreements", "square_disputes", "invoices", "compliance_rules"]
-      .every((s) => forWho("owner", row(s, { route: s === "invoices" ? "/crew?s=money" : s === "compliance_rules" ? "/crew?s=prep" : "/crew?s=command" }))));
+    && !forWho("manager", row("initiatives")) && !forWho("manager", row("todos", { owner_user_id: uid })) && !forWho("manager", row("todos", { owner_user_id: me })) && !forWho("manager", row("offer_letters"))
+    && ["asset_maintenance", "invoices", "compliance_rules"].every((s) => forWho("owner", row(s, { route: s === "invoices" ? "/crew?s=money" : s === "compliance_rules" ? "/crew?s=prep" : "/crew?s=garage" })))
+    && ["todos", "event_tasks", "initiatives", "goals", "os_workstreams", "offer_letters", "operator_agreements", "square_disputes"].every((s) => !forWho("owner", row(s, { owner_user_id: uid })) && !forWho("owner", row(s)))
+    && forWho("owner", row("goals", { owner_user_id: me })) && forWho("owner", row("os_workstreams", { owner_user_id: me }))
+    && !forWho("server", row("os_workstreams", { owner_user_id: me })));
   ok("needs you: the one-tap answers — two any staff member may give, and an invoice's \"Paid\", which is an owner's or admin's (0341 mark_invoice_paid)",
     JSON.stringify(Object.keys(O.OBLIGATION_WAYS).sort()) === JSON.stringify(["asset_maintenance", "invoices", "todos"])
     && O.OBLIGATION_WAYS.asset_maintenance === "staff" && O.OBLIGATION_WAYS.todos === "staff" && O.OBLIGATION_WAYS.invoices === "admin");
@@ -5488,13 +5493,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /<button type="button" className="alert-main alert-main-go" onClick=\{\(\) => gotoAlert\(a\)\}>/.test(crew) && /\{canOpen\(a\) && \(/.test(crew));
 
   // ── Needs you ──
+  // The team's seven left this panel for Command's team's week (2026-10-12, "only what's yours"), so the one
+  // number for late is this viewer's rows; their "Show the other" now lives on Command, a door to each task.
   ok("needs you: one number for late — '11 overdue · 7 tasks past due' read as if the seven were among the eleven",
-    /const lateCount = late\.length \+ tasks\.length;/.test(owed) && /<span className="k-count due">\{lateCount\} late<\/span>/.test(owed) && !/tasks past due/.test(owed)
+    /const lateCount = late\.length;/.test(owed) && /<span className="k-count due">\{lateCount\} late<\/span>/.test(owed) && !/tasks past due/.test(owed)
     && /from "@\/lib\/dayWords"/.test(owed) && !/const ageWord =/.test(owed) && !/const localYMD =/.test(owed));
   ok("needs you: every row is a button to what it names — no <a href> full reloads; '+N more' expands instead of being text",
     /onClick=\{\(\) => go\(r\)\}/.test(owed) && !/href=\{r\.route\}/.test(owed) && /owner_user_id"\)/.test(owed)
-    && /setAllTasks\(true\)/.test(owed) && /setAllLow\(true\)/.test(owed) && !/more late\.<\/div>/.test(owed) && !/more below reorder point\.<\/div>/.test(owed)
-    && /openTask\(t\.id, "event"\)/.test(owed));
+    && /setAllLow\(true\)/.test(owed) && !/more late\.<\/div>/.test(owed) && !/more below reorder point\.<\/div>/.test(owed)
+    && /onClick=\{\(\) => setAllOverdue\(true\)\}/.test(code(read("components/CommandBoard.tsx"))) && !/\+\{ov\.more\} more overdue/.test(read("components/CommandBoard.tsx")));
 
   // ── elsewhere in the console ──
   ok("live ops: the stop the truck instrument names opens its record",
@@ -5624,10 +5631,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /if \(res\.error === null\) \{/.test(owed));
   ok("needs you: a row with an answer keeps its door when the viewer has one, and is plain text when they do not — no chevron to nowhere",
     /\{canGo\(r\)\s*\? <button type="button" className="owed-row-go" onClick=\{\(\) => go\(r\)\}>\{body\}<span className="owed-c" aria-hidden="true">›<\/span><\/button>\s*: <div className="owed-row-go">\{body\}<\/div>\}/.test(owed));
-  ok("needs you: the list is the viewer's — obligationFor in the loader, and team tasks, bookings and restock only for whoever can act on them",
-    /const rows = \(\(ob\.data as Row\[\]\) \?\? \[\]\)\.filter\(\(r\) => obligationFor\(r, v\)\);/.test(owed) && /if \(wantTeam \|\| wantStock\) try \{/.test(owed)
-    && /if \(!wantTeam\) \{ tasks = \[\]; bookings = 0; \}/.test(owed) && /if \(!wantStock\) low = \[\];/.test(owed)
-    && /const wantTeam = manage, wantStock = sectionsForRole\(role\)\.includes\("garage"\);/.test(owed) && /useAsyncData<Data>\(loader, \[loader\]\)/.test(owed));
+  ok("needs you: the list is the viewer's — obligationFor in the loader, and bookings and restock only for whoever can act on them (the team's late tasks are Command's since 2026-10-12)",
+    /const rows = listed\.filter\(\(r\) => obligationFor\(r, v\)\);/.test(owed) && /if \(wantBookings \|\| wantStock\) try \{/.test(owed)
+    && /if \(!wantBookings\) bookings = 0;/.test(owed) && /if \(!wantStock\) low = \[\];/.test(owed)
+    && /const wantBookings = manage, wantStock = sectionsForRole\(role\)\.includes\("garage"\);/.test(owed) && /useAsyncData<Data>\(loader, \[loader\]\)/.test(owed)
+    && !/from\("event_tasks"\)|from\("stops"\)|Team tasks late|TEAM_LEAD/.test(owed));
   ok("needs you: an initiative row opens the initiative's own sheet", /if \(to\.kind === "initiative"\) \{ setInitId\(to\.id\); return; \}/.test(owed) && /<InitiativeSheet id=\{initId\}/.test(owed));
   ok("assets: due is the governing entry's date — the same rule as My Day — and never the earliest date ever set",
     /const due = governing\(mine\);\s*const nextDue = due\?\.next_due_on \?\? null;/.test(am) && !/\.sort\(\)\[0\]/.test(am));
@@ -6217,16 +6225,20 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("one place: a to-do assigned to you is in My tasks and not in Needs you — for anyone, manager or not",
     !O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: me }, V(true))
     && !O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: me }, V(false)));
-  ok("one place: somebody else's to-do, or nobody's, is a manager's to triage in Needs you",
-    O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: other }, V(true))
-    && O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: null }, V(true))
+  // ONLY WHAT'S YOURS (2026-10-12, the My Day audit, approved): everybody else's to-dos and late tasks
+  // left Needs you — they were a manager's to triage here, without a name. The team's week on Command
+  // lists them, naming who each waits on, and opens the task.
+  ok("one place: somebody else's to-do, or nobody's, is not in Needs you — for a manager either; Command's team's week lists it",
+    !O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: other }, V(true))
+    && !O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: null }, V(true))
     && !O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: other }, V(false)));
-  ok("one place: the team's late tasks skip yours — they are in My tasks, right above",
-    /\.select\("id, label, event_id, stop_id, due_at, critical, assignee"\)/.test(owed) && /if \(meId && t\.assignee === meId\) continue;/.test(owed));
-  ok("one place: the team list leads with its three most urgent, unfolded — critical first, then the latest — under its own head",
-    /tasks\.sort\(\(a, b\) => Number\(b\.critical\) - Number\(a\.critical\) \|\| \(b\.late \?\? 0\) - \(a\.late \?\? 0\)\);/.test(owed)
-    && /const TEAM_LEAD = 3;/.test(read("components/Owed.tsx")) && /: tasks\.slice\(0, TEAM_LEAD\)\)\.map\(/.test(owed)
-    && /<span className="owed-k">Team tasks late<\/span>/.test(owed) && /\{t\.critical && <Icon name="warning" \/>\}/.test(owed));
+  const board = code(read("components/CommandBoard.tsx"));
+  ok("one place: the team's late tasks are Command's — read with who they wait on, named on each row, every one a door to its task",
+    !/Team tasks late|TEAM_LEAD|owed\.tasks/.test(owed + code(read("components/TodayList.tsx")))
+    && /supabase\.from\("todos"\)\.select\("id, title, due_on, assignee"\)\.eq\("done", false\)\.not\("due_on", "is", null\)\.lt\("due_on", today\)/.test(board)
+    && /supabase\.from\("event_tasks"\)\.select\("id, label, due_at, assignee"\)\.eq\("done", false\)\.not\("due_at", "is", null\)\.lt\("due_at", today\)/.test(board)
+    && /sub=\{whoOf\(w\)\}/.test(board) && /onClick=\{\(\) => openTask\(w\.id, w\.src === "task" \? "event" : "todo"\)\}/.test(board)
+    && /const whoOf = \(w: Work\) => \(!w\.who \? "Nobody's yet" : data\.names\[w\.who\] \?\? "Someone on the crew"\);/.test(board));
   ok("my tasks: a failed read says so — it said 'Nothing on your plate — you're clear for today' about a list it never saw",
     /const \{ data, error \} = await supabase\s*\.from\("all_tasks"\)/.test(code(read("lib/myTasks.ts"))) && /if \(error\) return \{ rows: \[\], error: error\.message \};/.test(code(read("lib/myTasks.ts")))
     && /const \{ rows, error \} = await loadMyTasks\(userId\);/.test(mine) && /if \(error\) \{ setErr\(error\); setLoaded\(true\); return; \}/.test(mine)
@@ -6433,33 +6445,38 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
   const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
   const it = (key, daysOut, critical = false, kind = "mine") => ({ key, title: key, sub: "", daysOut, critical, kind });
+  // The rank (2026-10-12, the My Day audit) replaced "critical first, then your own, then the latest": six fixed
+  // tiers — here h is critical and late (2), a due today (3), c, b and k late by a fortnight or less (4, yours
+  // first, then the earliest due), f due in two days (5); d and e are more than two weeks late (6, to decide).
   const split = H.splitHome([
     it("a", 0), it("b", -3), it("c", -14), it("d", -15), it("e", -99), it("f", 2), it("g", null),
-    it("h", -1, true, "team"), it("i", -40, false, "upkeep"), it("j", 0, false, "upkeep"), it("k", -10, false, "owed"),
+    it("h", -1, true), it("i", -40, false, "upkeep"), it("j", 0, false, "upkeep"), it("k", -10, false, "owed"),
   ]);
-  ok("one home: at most three due today — critical first, then your own, then the latest — and a count of the rest",
-    H.TODAY_MAX === 3 && split.today.map((i) => i.key).join() === "h,c,b" && split.moreToday === 2 && split.due.map((i) => i.key).join() === "h,c,b,a,k");
-  ok("one home: more than two weeks late folds into one row — fourteen days late is still today's",
-    H.STALE_DAYS === 14 && split.stale.map((i) => i.key).join() === "e,d" && H.homeBucket(-14) === "today" && H.homeBucket(-15) === "stale");
-  ok("one home: equipment is one row however old, and later or undated work waits in All tasks",
-    split.upkeep.map((i) => i.key).join() === "i,j" && split.later === 2 && split.total === 11 && H.homeBucket(null) === "later");
+  ok("one home: at most three of yours lead, in the fixed rank — and a count of the rest that is due",
+    H.TODAY_MAX === 3 && split.shown.map((i) => i.key).join() === "h,a,c" && split.next.map((i) => i.key).join() === "h,a,c,b,k,f"
+    && split.moreToday === 2 && split.due.map((i) => i.key).join() === "h,a,c,b,k", split.next.map((i) => i.key));
+  ok("one home: more than two weeks late is to decide, newest first — fourteen days late is still today's",
+    H.STALE_DAYS === 14 && split.stale.map((i) => i.key).join() === "d,e" && split.moreStale === 2 && H.homeBucket(-14) === "today" && H.homeBucket(-15) === "stale");
+  ok("one home: equipment is one row however old; undated work waits in All tasks, and due in two days is no longer 'later'",
+    split.upkeep.map((i) => i.key).join() === "i,j" && split.later === 1 && split.total === 11 && H.homeBucket(null) === "later");
   {
     // My Day 10 (2026-10-10): compliance rules are one row, never "due today"; the day counts down and ends.
-    const s2 = H.splitHome([it("a", 0), it("r1", 0, false, "rule"), it("r2", null, false, "rule"), it("r3", -40, false, "rule"), it("b", 3), it("c", 1, false, "team")]);
+    const s2 = H.splitHome([it("a", 0), it("r1", 0, false, "rule"), it("r2", null, false, "rule"), it("r3", -40, false, "rule"), it("b", 3), it("c", 1, false, "owed")]);
     ok("one home: a compliance rule is never today's — it folds to one row with the others, whatever its date",
-      s2.rules.map((i) => i.key).join() === "r1,r2,r3" && s2.due.map((i) => i.key).join() === "a" && s2.stale.length === 0 && s2.later === 2 && s2.total === 6);
+      s2.rules.map((i) => i.key).join() === "r1,r2,r3" && s2.due.map((i) => i.key).join() === "a" && s2.stale.length === 0 && s2.later === 1 && s2.total === 6
+      && s2.next.map((i) => i.key).join() === "a,c");
     ok("one home: the head counts what is done beside what is left, and a finished day says so",
       H.dayCount(0, 3) === "3 due" && H.dayCount(2, 3) === "2 done · 3 to go" && H.dayCount(4, 0) === "4 done" && H.dayCount(0, 0) === "Clear");
     ok("one home: a finished day points at the first dated thing after it — not equipment, not compliance",
-      H.nextUp(s2.rules.concat([it("x", 5), it("y", 2, false, "owed"), it("z", 2, true, "team"), it("u", 1, false, "upkeep")])).key === "z" && H.nextUp([it("p", 0)]) === null);
+      H.nextUp(s2.rules.concat([it("x", 5), it("y", 2, false, "owed"), it("z", 2, true), it("u", 1, false, "upkeep")])).key === "z" && H.nextUp([it("p", 0)]) === null);
     const tl = read("components/TodayList.tsx"), hn = read("components/HomeNumbers.tsx");
     ok("My Day: compliance rules come in as rules, undated when never confirmed, and open where they are confirmed",
       /const kind = r\.source === "asset_maintenance" \? "upkeep" : r\.source === "compliance_rules" \? "rule" : "owed";/.test(tl)
       && /const daysOut = kind === "rule" && Number\(r\.days_out\) >= 0 \? null : Number\(r\.days_out\);/.test(tl)
       && /\{s\.rules\.length > 0 && <button type="button" className="k-chip sm" onClick=\{\(\) => setSheet\("rules"\)\}/.test(tl) && /\{sheet === "rules" && \(/.test(tl));
-    ok("My Day: the head reads the day's count, done today from both tables' done_at, and an empty list says whether the day is done",
-      /\{dayCount\(doneToday, due\)\}/.test(tl) && /\.eq\("assignee", meId\)\.eq\("done", true\)\.gte\("done_at", since\)/.test(tl)
-      && /\{doneToday > 0 \? "Today's done\." : "Nothing due today\."\}/.test(tl) && /const next = nextUp\(items\);/.test(tl));
+    ok("My Day: the head reads the day (lib/home dayHead), done today from both tables' done_at, and a list with nothing ranked or to decide says whether the day is done",
+      /const head = loaded && split \? dayHead\(\{/.test(tl) && /\{head\.words\}/.test(tl) && /\.eq\("assignee", meId\)\.eq\("done", true\)\.gte\("done_at", since\)/.test(tl)
+      && /\{doneToday > 0 \? "Today's done\." : "Nothing due today\."\}/.test(tl) && /const next = nextUp\(items\);/.test(tl) && /\{s\.shown\.length === 0 && \(\(\) => \{/.test(tl));
     ok("numbers: two weeks with nothing sold is one line — unless the week had event costs, which keep their margin row",
       /const quiet = !!sales && sales\.now === 0 && sales\.prev === 0 && \(!margin \|\| \(margin\.now === 0 && margin\.prev === 0\)\);/.test(hn)
       && /\{sales && !quiet && \(/.test(hn) && /\{margin && !quiet && \(/.test(hn));
@@ -6500,8 +6517,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const missed = items\.length - took;/.test(today) && /didn't save, try again/.test(today));
   ok("one home: a deadline opens what Needs you opens — the same router, shared, not copied",
     /export function useObligationGo\(/.test(owed) && /useObligationGo\(viewer, \(\) => state\.reload\(\)\)/.test(today) && /useObligationGo\(viewer, \(\) => state\.reload\(\)\)/.test(owed));
-  ok("one home: each number is shown to whoever could already see it — money to admins, the drop to managers, none to crew",
-    /<HomeNumbers money=\{money\} drops=\{isLeader\} \/>/.test(myDay) && /money=\{isAdmin\}/.test(crew) && /if \(!money && !drops\) return null;/.test(nums));
+  // The numbers left My Day (2026-10-12, the My Day audit, approved): Money is their one home, and its gate is Money's.
+  ok("one home: the three numbers are Money's alone — none on My Day, for any role — and a caller that may see neither draws nothing",
+    !/<HomeNumbers /.test(myDay) && (crew.match(/<HomeNumbers /g) || []).length === 1 && /<HomeNumbers money drops here="money" \/>/.test(crew)
+    && /<MyDay userId=\{user\?\.id \?\? null\} canGoLive=\{isAdmin\} canBrew=\{canManage \|\| role === "operator"\} \/>/.test(crew) && /if \(!money && !drops\) return null;/.test(nums));
   ok("one home: each number says its change and its cause, and a failed read is not zero",
     /changeWords\(pctChange\(sales\.now, sales\.prev\)\)/.test(nums) && /sales\.driver \?/.test(nums) && /paceWords\(drop\.packs, drop\.then\)/.test(nums)
     && /errorSub="This is not zero — we could not read them just now\."/.test(nums) && (nums.match(/if \(failed\) throw new Error\(failed\.message\);/g) || []).length === 2);
@@ -6511,16 +6530,19 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /<ChiefOfStaff \/>/.test(cmdSec)
     && /\.\.\.\(manage \? \[\{ key: "file" as const, label: "File" \}\] : \[\]\)/.test(qd) && /mode === "file" && manage \? <><SmartIntake \/><DocsFiled \/><\/>/.test(qd)
     && /const SmartIntake = dynamic\(\(\) => import\("\.\/SmartIntake"\)/.test(qd) && /const DocsFiled = dynamic\(\(\) => import\("\.\/DocsFiled"\)/.test(qd));
-  ok("one home: on a phone Today comes right under the day — the numbers beside it on a desk, after it on a phone, and only for who has them",
-    myDay.indexOf("<TodayList ") > 0 && myDay.indexOf("<TodayList ") < myDay.indexOf("<HomeNumbers ") && /\{\(money \|\| isLeader\) && \(/.test(myDay));
-  ok("today round: what else is waiting is one line of chips, one tap each — equipment, the stale, bookings, restock, all tasks — the late in the warning colour",
+  ok("one home: on a phone Today comes right under the day — the op, its stops, drops and brews, then To do",
+    myDay.indexOf("<DayHeadline ") > 0 && myDay.indexOf("<DayHeadline ") < myDay.indexOf('className="myday-rhythm"') && myDay.indexOf('className="myday-rhythm"') < myDay.indexOf("<TodayList ")
+    && !/money|isLeader/.test(myDay.slice(0, myDay.indexOf(") {"))));
+  // The stale left the line of chips for the list itself (2026-10-12): one row, "N to decide", into the same sheet.
+  ok("today round: what else is waiting is one line of chips, one tap each — equipment, compliance, bookings, restock, all tasks — the late in the warning colour; the stale are the list's own row",
     /<div className="flex flex-wrap gap-2 pt-3" role="group" aria-label="Also waiting">/.test(today)
       && /className=\{`k-chip sm\$\{upkeepLate \? " warn" : ""\}`\} onClick=\{\(\) => setSheet\("upkeep"\)\}/.test(today)
-      && /onClick=\{\(\) => setSheet\("stale"\)\}/.test(today) && /onClick=\{\(\) => goPlanTab\("leads", \{ setSection \}\)\}/.test(today)
+      && /fold\("decide", [^\n]*\(\) => setSheet\("stale"\)\)/.test(today) && /onClick=\{\(\) => goPlanTab\("leads", \{ setSection \}\)\}/.test(today)
       && /onClick=\{\(\) => setSheet\("all"\)\} aria-label=\{`All tasks, \$\{s\.total\}`\}>All tasks · \{s\.total\} ›<\/button>/.test(today)
-      && !/fold\("(upkeep|stale|bookings|restock|all)"/.test(today));
-  ok("one home: the head's count is the rows it shows plus the one row that opens the rest — and it is a count, not an alarm",
-    /fold\("due", `\$\{s\.moreToday\} more due today`/.test(today) && /sheet === "due" &&/.test(today) && /k-count\$\{due \? "" : " ok"\}/.test(today));
+      && !/fold\("(upkeep|stale|bookings|restock|all)"/.test(today) && !/STALE_SHORT|weeks late · \{/.test(today));
+  ok("one home: the head's count is the due rows it shows plus the one row that opens the rest — a count in the kit's chip: plain, the warning amber to decide, green only when clear",
+    /fold\("due", `\$\{s\.moreToday\} more due today`/.test(today) && /sheet === "due" &&/.test(today) && /\{s\.due\.map\(\(i\) => row\(i, today\)\)\}/.test(today)
+    && /className=\{`k-count\$\{TONE\[head\.tone\]\}`\}/.test(today) && /const TONE = \{ plain: "", warn: " soon", ok: " ok" \} as const;/.test(read("components/TodayList.tsx")));
   ok("the op card: Make it live is the screen's one primary, and the display face is the event's name alone (it drew Wear and Details)",
     /<Button kind="primary" compact onClick=\{\(\) => makeLive\(op\.id\)\}/.test(code(read("components/DayHeadline.tsx")))
     && /\.dayhead-op-t>b\{font-family:'Archivo Black'/.test(read("app/globals.css")) && !/\.dayhead-op b\{/.test(read("app/globals.css")));
@@ -6538,6 +6560,247 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("the crew page reads every live screen again when the ET day turns, and the day is checked on coming back",
       /const etDay = useEtDay\(\);/.test(crew) && /if \(dayWas\.current !== etDay\) \{ dayWas\.current = etDay; void refreshLive\(\); \}/.test(crew)
       && /etDayStart\(addDays\(etToday\(\), 1\)\)/.test(etd) && /visibilitychange/.test(etd));
+  }
+}
+
+// ── MY DAY SAYS WHAT'S TRUE (2026-10-12, the My Day audit, approved A–I) ─────────────────────────
+// Rebuilt on a phone as an owner — nothing due in the fortnight, eleven things more than two weeks late,
+// one dated task ahead, three compliance rules, one piece of equipment — My Day said "Clear" in the green
+// done style, "Nothing due today.", and folded the eleven into a chip; six of them were not his. These pin
+// the head's four states, the fixed rank of what's next, what counts as yours, the refresh and the day.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+
+  // H — a Done on the Chief of Staff's briefing is a Done: stamped, so the head counts it.
+  const cos = code(read("components/ChiefOfStaff.tsx"));
+  ok("my day (H): the Chief of Staff's Done stamps done_at (and done_by on an event task) like lib/tasks completeTask — and still only closes what is open",
+    /const done_at = new Date\(\)\.toISOString\(\);/.test(cos)
+    && /ref\.kind === "task" \? \{ done: true, done_by: user\?\.id \?\? null, done_at \} : \{ done: true, done_at \}/.test(cos)
+    && /\.update\(patch\)\.eq\("id", ref\.id\)\.eq\("done", false\)/.test(cos) && !/\{ done: true \}/.test(cos)
+    && /update\(\{ done: true, done_by: userId \?\? null, done_at \}\)/.test(code(read("lib/tasks.ts"))));
+
+  // G — the rhythm (stops, drop, porches, brews) is on the app's refresh, and reads one day: the market's.
+  const H = require("../.smoke/home.js");
+  const crew = code(read("app/crew/page.tsx"));
+  const myDay = crew.slice(crew.indexOf("function MyDay("), crew.indexOf("function MyTasks("));
+  const rhythm = myDay.slice(myDay.indexOf("const rhythmLoader"), myDay.indexOf("const rhythm = "));
+  ok("my day (G): the refresh set includes the rhythm's four tables — the loader is handed to useRealtimeTable, as DayHeadline's is for events",
+    JSON.stringify(H.RHYTHM_TABLES) === JSON.stringify(["stops", "drop_orders", "delivery_orders", "brew_batches"])
+    && /useRealtimeTable\(RHYTHM_TABLES, rhythmState\.reload\);/.test(myDay)
+    && /useRealtimeTable\(\["events", "event_ops"\], state\.reload\);/.test(code(read("components/DayHeadline.tsx"))), H.RHYTHM_TABLES);
+  {
+    const edt = H.rhythmDay(new Date("2026-10-12T02:30:00Z"));   // 10:30 PM Sunday in Greenville
+    const est = H.rhythmDay(new Date("2026-12-01T04:30:00Z"));   // 11:30 PM Monday, after the clocks went back
+    ok("my day (G): the rhythm's day is the market's — late on a Sunday evening it is still Sunday, its stops between ET midnights, in EDT and in EST",
+      edt.day === "2026-10-11" && edt.from === "2026-10-11T04:00:00.000Z" && edt.to === "2026-10-12T04:00:00.000Z"
+      && est.day === "2026-11-30" && est.from === "2026-11-30T05:00:00.000Z" && est.to === "2026-12-01T05:00:00.000Z", { edt, est });
+  }
+  ok("my day (G): stops, drops, porches and brews all read that one day — the phone's day is not asked",
+    /const \{ day, from, to \} = rhythmDay\(\);/.test(rhythm) && /\.gte\("starts_at", from\)\.lt\("starts_at", to\)/.test(rhythm)
+    && /\.eq\("drop_date", day\)/.test(rhythm) && /\.eq\("delivery_date", day\)/.test(rhythm) && /\.eq\("brew_date", day\)/.test(rhythm)
+    && !/localToday\(\)|etToday\(\)/.test(rhythm));
+
+  // B — only what's yours. The sections each role opens are read from their one home (OperatorNav).
+  {
+    const O = require("../.smoke/obligations.js");
+    const nav = read("components/OperatorNav.tsx");
+    const secsOf = (r) => (new RegExp(`\\b${r}: \\[([^\\]]*)\\]`).exec(nav)?.[1] ?? "").match(/"([a-z]+)"/g)?.map((x) => x.slice(1, -1)) ?? [];
+    const ryan = "aaaaaaaa-1111-4111-8111-111111111111", kayla = "bbbbbbbb-2222-4222-8222-222222222222";
+    const as = (role) => ({ id: ryan, sections: secsOf(role), manage: ["event_manager", "admin", "owner"].includes(role) });
+    const r = (source, owner = null, route = "/crew?s=command") => ({ source, subject_id: "cccccccc-3333-4333-8333-333333333333", route, owner_user_id: owner });
+    const keeps = (role, row) => O.obligationFor(row, as(role));
+    ok("my day (B): for the owner — his own workstream stays, Kayla's goes, an initiative with no owner goes, equipment stays, a team task and anybody's to-do go",
+      keeps("owner", r("os_workstreams", ryan)) && !keeps("owner", r("os_workstreams", kayla)) && !keeps("owner", r("initiatives"))
+      && keeps("owner", r("asset_maintenance", null, "/crew?s=garage")) && !keeps("owner", r("event_tasks", kayla)) && !keeps("owner", r("todos", kayla)) && !keeps("owner", r("todos")));
+    ok("my day (B): for the owner — his goal stays and Kayla's goes; the compliance rules his role confirms and the invoices it marks paid stay; her certificate and a dispute nobody owns go",
+      keeps("owner", r("goals", ryan)) && !keeps("owner", r("goals", kayla)) && !keeps("owner", r("goals"))
+      && keeps("owner", r("compliance_rules", null, "/crew?s=prep")) && keeps("owner", r("invoices", null, "/crew?s=money"))
+      && keeps("owner", r("academy_certifications", ryan, "/crew?s=team")) && !keeps("owner", r("academy_certifications", kayla, "/crew?s=team"))
+      && !keeps("owner", r("square_disputes", null, "/crew?s=money&a=shoporders")));
+    ok("my day (B): for a server — equipment and her own certificate stay; no compliance rule, invoice, initiative or team task, and not even a workstream of hers, which she cannot open",
+      keeps("server", r("asset_maintenance", null, "/crew?s=garage")) && keeps("server", r("academy_certifications", ryan, "/crew?s=team"))
+      && !keeps("server", r("compliance_rules", null, "/crew?s=prep")) && !keeps("server", r("invoices", null, "/crew?s=money"))
+      && !keeps("server", r("initiatives")) && !keeps("server", r("event_tasks", kayla)) && !keeps("server", r("os_workstreams", ryan)));
+    ok("my day (B): for an event manager — his own workstream and the compliance rules stay; Kayla's workstream, an initiative, an invoice, her to-do and her late task go",
+      keeps("event_manager", r("os_workstreams", ryan)) && keeps("event_manager", r("compliance_rules", null, "/crew?s=prep")) && keeps("event_manager", r("asset_maintenance", null, "/crew?s=garage"))
+      && !keeps("event_manager", r("os_workstreams", kayla)) && !keeps("event_manager", r("initiatives")) && !keeps("event_manager", r("invoices", null, "/crew?s=money"))
+      && !keeps("event_manager", r("todos", kayla)) && !keeps("event_manager", r("event_tasks", kayla)));
+    const owed = code(read("components/Owed.tsx")), tl = code(read("components/TodayList.tsx"));
+    ok("my day (B): a goal's owner is read beside the list (v_obligations writes none), and a failure fails the list rather than hiding a goal",
+      /const g = await supabase\.from\("goals"\)\.select\("id, owner_user_id"\)\.in\("id", goalIds\);\s*if \(g\.error\) throw new Error\(g\.error\.message\);/.test(owed)
+      && /for \(const r of listed\) if \(r\.source === "goals"\) r\.owner_user_id = ownerOf\.get\(r\.subject_id\) \?\? null;/.test(owed)
+      && owed.indexOf("ownerOf.get(") < owed.indexOf("listed.filter((r) => obligationFor(r, v))"));
+    ok("my day (B): To do is built from your plate and the deadlines that are yours — no team rows, no third feed",
+      /for \(const t of mine\.rows\) \{/.test(tl) && /for \(const r of owed\.rows\) \{/.test(tl) && !/kind: "team"|owed\.tasks|"Not attached to an event or stop"/.test(tl));
+  }
+
+  // F — the numbers are off My Day, and nothing points at a block that is not there.
+  {
+    const walk = (dir) => fs.readdirSync(path.join(__dirname, "..", dir), { withFileTypes: true })
+      .flatMap((e) => (e.isDirectory() ? walk(`${dir}/${e.name}`) : /\.(tsx?|md)$/.test(e.name) ? [`${dir}/${e.name}`] : []));
+    const files = ["app", "components", "lib"].flatMap(walk);
+    const guide = (k) => (new RegExp(`const ${k}: Record<OpSection, [^>]+> = \\{[\\s\\S]*?\\n  day: ([^\\n]+)`).exec(read("app/crew/page.tsx"))?.[1] ?? "");
+    ok("my day (F): the Numbers block is off My Day and on Money alone — no anchor, no ?s=day&a= link and no line of the Guide points at it",
+      !/<HomeNumbers /.test(myDay) && /<HomeNumbers money drops here="money" \/>/.test(crew)
+      && files.filter((f) => /home-numbers/.test(read(f))).join() === "components/HomeNumbers.tsx"
+      && !files.some((f) => /s=day&a=/.test(read(f))) && ["SEC_SUB", "SEC_MORE", "SEC_INSIDE"].every((k) => guide(k) && !/number/i.test(guide(k))),
+      ["SEC_SUB", "SEC_MORE", "SEC_INSIDE"].map(guide));
+  }
+
+  // A — the head's four states, from a list of HomeItems through splitHome, as the screen computes them.
+  {
+    const it = (key, daysOut, extra = {}) => ({ key, title: key, sub: "", daysOut, critical: false, kind: "mine", ...extra });
+    const headOf = (items, done = 0, more = 0, unread = false) => {
+      const s = H.splitHome(items);
+      return H.dayHead({ done, due: s.due.length, decide: s.stale.length, waiting: s.upkeep.length + s.rules.length + more, unread });
+    };
+    const same = (h, words, tone) => h.words === words && h.tone === tone;
+    // The audit's morning, once only what's his is left: nothing due in the fortnight, five of his more than two
+    // weeks late, one dated task ahead, three rules never confirmed, one piece of equipment.
+    const audit = [it("s1", -15), it("s2", -20), it("s3", -33, { kind: "owed" }), it("s4", -60), it("s5", -99), it("ahead", 5),
+      it("r1", null, { kind: "rule" }), it("r2", null, { kind: "rule" }), it("r3", null, { kind: "rule" }), it("u1", -3, { kind: "upkeep" })];
+    ok("my day (A): something due today or late by two weeks or less — the count as before, plain",
+      same(headOf([it("a", 0), it("b", -14), it("u", -40, { kind: "upkeep" })]), "2 due", "plain") && same(headOf([it("a", 0), it("b", -3)], 1), "1 done · 2 to go", "plain")
+      && same(headOf([it("a", -1), it("old", -40)]), "1 due", "plain"));
+    ok("my day (A): nothing due but work of yours more than two weeks late — 'Nothing due · 5 to decide', in the warning tone, never the green done style (the audit's morning said 'Clear')",
+      same(headOf(audit), "Nothing due · 5 to decide", "warn") && same(headOf(audit, 4), "4 done · 5 to decide", "warn"), headOf(audit));
+    ok("my day (A): nothing due or to decide, only equipment, compliance, bookings or restock waiting — 'Nothing due', plain; and a part that could not be read is not 'Clear'",
+      same(headOf([it("u", -3, { kind: "upkeep" }), it("ahead", 5)]), "Nothing due", "plain") && same(headOf([it("r", null, { kind: "rule" })]), "Nothing due", "plain")
+      && same(headOf([], 0, 2), "Nothing due", "plain") && same(headOf([], 0, 0, true), "Nothing due", "plain") && same(headOf([it("u", -3, { kind: "upkeep" })], 3), "3 done", "plain"));
+    ok("my day (A): nothing waiting at all — 'Clear', green; a done day says how much, still green; a task days off is not waiting",
+      same(headOf([]), "Clear", "ok") && same(headOf([it("ahead", 5), it("undated", null)]), "Clear", "ok") && same(headOf([], 4), "4 done", "ok"));
+  }
+
+  // C — what's next, by the fixed rank: twelve-plus cases, each its own pin.
+  {
+    const it = (key, daysOut, extra = {}) => ({ key, title: key, sub: "", daysOut, critical: false, kind: "mine", ...extra });
+    const op = (daysOut, name = "ISI Elite Training") => ({ op: { name, daysOut } });
+    const tier = (i) => H.homeTier(i);
+    const order = (...items) => items.slice().sort(H.rankHome).map((i) => i.key).join();
+    const cases = [
+      ["an event 3 days off is tier 1, even with nothing dated", tier(it("x", null, op(3))) === 1],
+      ["an event today is tier 1; 4 days off is not — and then nothing near ranks it", tier(it("x", 0, op(0))) === 1 && tier(it("x", 4, op(4))) === null],
+      ["an event already past ranks the task by its own date", tier(it("x", -2, op(-2))) === 4 && tier(it("x", -20, op(-20))) === 6],
+      ["critical and due today, or late by up to two weeks, is tier 2", tier(it("x", 0, { critical: true })) === 2 && tier(it("x", -14, { critical: true })) === 2],
+      ["critical and more than two weeks late is to decide — critical never lifts it", tier(it("x", -15, { critical: true })) === 6],
+      ["due today is tier 3; late by 1 to 14 days is tier 4", tier(it("x", 0)) === 3 && tier(it("x", -1)) === 4 && tier(it("x", -14)) === 4],
+      ["late by 15 days or more is tier 6, to decide", tier(it("x", -15)) === 6 && tier(it("x", -99)) === 6],
+      ["due in 1 or 2 days is tier 5; in 3 days it waits, unranked", tier(it("x", 1)) === 5 && tier(it("x", 2)) === 5 && tier(it("x", 3)) === null],
+      ["undated with no event near, equipment and compliance are not ranked", tier(it("x", null)) === null && tier(it("u", -40, { kind: "upkeep" })) === null && tier(it("r", 0, { kind: "rule" })) === null],
+      ["age never lifts a tier: 14 days late stays under due today, 40 days late under due in two days",
+        order(it("late14", -14), it("old40", -40), it("in2", 2), it("today", 0)) === "today,late14,in2,old40"],
+      ["the tiers in order, one of each", order(it("t6", -30), it("t5", 1), it("t4", -2), it("t3", 0), it("t2", -1, { critical: true }), it("t1", 2, op(2))) === "t1,t2,t3,t4,t5,t6"],
+      ["assigned to you before what you own, inside a tier — even when what you own is older", order(it("owned", -10, { kind: "owed" }), it("assigned", -2)) === "assigned,owned"],
+      ["then the earliest due first", order(it("late3", -3), it("late9", -9)) === "late9,late3" && order(it("in2", 2), it("in1", 1)) === "in1,in2"],
+      ["tier 6 newest-due first", order(it("d99", -99), it("d15", -15), it("d40", -40)) === "d15,d40,d99"],
+    ];
+    for (const [name, cond] of cases) ok(`my day (C): ${name}`, !!cond);
+    const mon = "2026-10-12";   // a Monday
+    const words = (i, today = mon) => H.reasonWords(i, today);
+    ok("my day (C): each row's reason in words — 'for Sat · ISI Elite Training', 'critical', 'due today', '3 days late', 'due Wed', 'to decide'",
+      words(it("x", null, op(3)), "2026-10-14") === "for Sat · ISI Elite Training" && words(it("x", 0, op(0))) === "for today · ISI Elite Training"
+      && words(it("x", 1, op(1))) === "for tomorrow · ISI Elite Training" && words(it("x", -3, { critical: true })) === "critical"
+      && words(it("x", 0)) === "due today" && words(it("x", -3)) === "3 days late" && words(it("x", -1)) === "1 day late"
+      && words(it("x", 2)) === "due Wed" && words(it("x", 1)) === "due tomorrow" && words(it("x", -40)) === "to decide"
+      && words(it("u", -3, { kind: "upkeep" })) === null && words(it("x", 9)) === null,
+      [words(it("x", null, op(3)), "2026-10-14"), words(it("x", 2))]);
+    ok("my day (C): the age beside a row only when its reason has not said when — critical and to decide say it, due today and due Wed do not, a task dated by its event does not",
+      H.ageWords(it("x", -3, { critical: true })) === "3 days late" && H.ageWords(it("x", -40)) === "40 days late" && H.ageWords(it("x", 0)) === null
+      && H.ageWords(it("x", -3)) === null && H.ageWords(it("x", 2)) === null && H.ageWords(it("x", 2, op(2))) === null
+      && H.ageWords(it("x", -2, op(1))) === "2 days late" && H.ageWords(it("u", -5, { kind: "upkeep" })) === "5 days late" && H.ageWords(it("x", null, op(1))) === null);
+    ok("my day (C): the rank's constants — three rows, an event three days off, due within two, stale past fourteen",
+      H.TODAY_MAX === 3 && H.OP_DAYS === 3 && H.SOON_DAYS === 2 && H.STALE_DAYS === 14);
+    // D — with nothing nearer, the newest to decide leads, the rest one row; with something nearer, all of them are the row.
+    const only = H.splitHome([it("d15", -15), it("d40", -40), it("d99", -99), it("u", -3, { kind: "upkeep" })]);
+    const both = H.splitHome([it("today", 0), it("d15", -15), it("d40", -40)]);
+    ok("my day (D): nothing nearer — the newest more than two weeks late leads as 'To decide', and the rest is one row (2 more); something nearer — the to-decide are all the row",
+      only.shown.map((i) => i.key).join() === "d15" && only.moreStale === 2 && only.next.length === 0 && only.due.length === 0
+      && both.shown.map((i) => i.key).join() === "today" && both.moreStale === 2 && both.stale.map((i) => i.key).join() === "d15,d40");
+    ok("my day (C): 'Next: … in N days' stays for a list with nothing ranked and nothing to decide — the first dated thing ahead",
+      H.splitHome([it("ahead", 5)]).shown.length === 0 && H.nextUp([it("ahead", 5), it("later", 9)]).key === "ahead");
+  }
+
+  // D and I on the screen — the to-decide row, its sheet as it was, nothing written without a tap, and the count.
+  {
+    const tl = code(read("components/TodayList.tsx"));
+    const loader = tl.slice(tl.indexOf("const loader = useCallback("), tl.indexOf("const state = useAsyncData<Data>("));
+    ok("my day (D): the rest to decide is one row, 'N more to decide' when the newest leads, opening the stale sheet with its bulk Done and Move to next week unchanged",
+      /\{s\.moreStale > 0 && fold\("decide", `\$\{s\.moreStale\} \$\{leadsToDecide \? "more " : ""\}to decide`, STALE_LABEL, \(\) => setSheet\("stale"\)\)\}/.test(tl)
+      && /const leadsToDecide = s\.next\.length === 0 && s\.shown\.length > 0;/.test(tl)
+      && /onClick=\{\(\) => bulk\(tickable, "done"\)\}>Mark \{tickable\.length\} done<\/button>/.test(tl) && /onClick=\{\(\) => bulk\(tickable, "later"\)\}>Move \{tickable\.length\} to next week<\/button>/.test(tl)
+      && /\{s\.shown\.map\(\(i\) => row\(i, today\)\)\}/.test(tl));
+    ok("my day (D): nothing is closed, moved or reassigned without a tap — the loader writes nothing; the writes are the tick and the two bulk buttons",
+      !/completeTask|updateTask|logDone|\.update\(|\.insert\(|\.delete\(|\.upsert\(/.test(loader)
+      && (tl.match(/\bbulk\(/g) || []).length === 3 && (tl.match(/onClick=\{\(\) => bulk\(/g) || []).length === 3
+      && (tl.match(/\btick\(/g) || []).length === 1 && /onClick=\{\(\) => tick\(i\)\}/.test(tl));
+    ok("my day (C): a row says its reason first, in sentence case, then what it is — unless a tier-1 reason already names its event — and its age only when the reason has not said when",
+      /const reason = reasonWords\(i, today\), age = ageWords\(i\);/.test(tl) && /const sub = homeTier\(i\) === 1 && i\.subIsOp \? null : i\.sub;/.test(tl)
+      && /<i>\{\[reason && sentence\(reason\), sub\]\.filter\(Boolean\)\.join\(" · "\)\}<\/i>/.test(tl) && /\{age && <span className="owed-age">\{age\}<\/span>\}/.test(tl)
+      && /const op = t\.op\?\.day \? \{ name: t\.op\.name, daysOut: daysBetween\(today, t\.op\.day\) \} : null;/.test(tl));
+    ok("my day (I): 'All tasks' stays the door to both full lists, and its count is every item on the list — all of them yours",
+      H.splitHome([{ key: "a", title: "a", sub: "", daysOut: 0, critical: false, kind: "mine" }, { key: "u", title: "u", sub: "", daysOut: -3, critical: false, kind: "upkeep" }]).total === 2
+      && /aria-label=\{`All tasks, \$\{s\.total\}`\}>All tasks · \{s\.total\} ›<\/button>/.test(tl) && /\{sheet === "all" && \(/.test(tl));
+    const mt = code(read("lib/myTasks.ts"));
+    ok("my day (C): a task's event or stop rides with it from either table — plainly named, with its id and day — so a to-do for Saturday's event is tier 1 too",
+      /op_name != null/.test(mt) && /id: r\.event_id \?\? r\.stop_id \?\? r\.field_op_id \?\? null/.test(mt)
+      && /critical: false, warn: false, events: null, meeting_notes: null, goals: null, op: opOf\(r\),/.test(mt) && /source: "event" as const, op: opOf\(r\),/.test(mt));
+  }
+
+  // E — Coming up: one line per commitment of yours in the next seven days, at most three, each opening its record.
+  {
+    const mon = "2026-10-12";   // a Monday; the window is Tue 13 to Mon 19
+    const evA = { kind: "event", id: "A", name: "ISI Elite Training", day: "2026-10-17", role: null };
+    const evB = { kind: "event", id: "B", name: "Fall Fest", day: "2026-10-20", role: "manager" };          // day 8: out
+    const evToday = { kind: "event", id: "T", name: "Greenville Fit Fest", day: mon, role: null };          // today: the op card's
+    const stS = { kind: "stop", id: "S", name: "Swamp Rabbit stop", day: "2026-10-14", role: "manager" };  // a crewed stop (event_staff.stop_id)
+    const task = (id, day, op = null, source = "event") => ({ id, source, title: id, day, op });
+    const opOf = (kind, id, name, day) => ({ kind, id, name, day });
+    const tasks = [
+      task("t1", "2026-10-17", opOf("event", "A", "ISI Elite Training", "2026-10-17")),       // A's — counted on A's line
+      task("t2", "2026-10-15", opOf("stop", "X", "Main St stop", "2026-10-15")),              // a stop they are not crewing, but have work for
+      task("t3", "2026-10-13", null, "todo"),                                                  // tomorrow, on its own
+      task("t4", "2026-10-25"),                                                                // past the window
+      task("t5", null),                                                                         // undated
+      task("t6", mon),                                                                          // today's — To do's
+      task("t7", "2026-10-16", opOf("event", "B", "Fall Fest", "2026-10-20")),                // dated in the window, its event is not
+      task("t8", "2026-10-19"),                                                                // day 7: in
+    ];
+    const c = H.comingUp(mon, tasks, [evA, evB, evToday, stS]);
+    const keys = (r) => r.lines.map((l) => `${l.kind}:${l.id}`).join();
+    ok("my day (E): seven days from tomorrow, in day order, at most three lines — and how many in all",
+      H.COMING_DAYS === 7 && H.COMING_MAX === 3 && c.total === 6 && keys(c) === "task:t3,op:S,op:X", { total: c.total, keys: keys(c) });
+    const rest = H.comingUp(mon, tasks.filter((t) => ["t1", "t7", "t8"].includes(t.id)), [evA, evB, evToday]);
+    ok("my day (E): an event they are crewing is a line, their tasks for it counted on it; a task dated in the week whose event is not is its own line; day 7 is in, day 8 is not, and today's is the op card's",
+      keys(rest) === "task:t7,op:A,task:t8" && rest.total === 3 && rest.lines[1].tasks === 1 && rest.lines[1].staffed === true, keys(rest));
+    ok("my day (E): a task past the window, one with no date, and today's are not lines",
+      H.comingUp(mon, tasks.filter((t) => ["t4", "t5", "t6"].includes(t.id)), []).total === 0);
+    const lineA = H.comingUp(mon, [tasks[0]], [evA]).lines[0], lineX = H.comingUp(mon, [tasks[1]], []).lines[0];
+    ok("my day (E): a crewed event's line counts the viewer's tasks for it; a stop shows through a task when nobody crews it, and through the crew list when they do",
+      lineA.kind === "op" && lineA.staffed === true && lineA.tasks === 1 && lineX.kind === "op" && lineX.op === "stop" && lineX.staffed === false && lineX.tasks === 1
+      && c.lines[1].kind === "op" && c.lines[1].op === "stop" && c.lines[1].staffed === true);
+    ok("my day (E): each line in words — when (tomorrow, the weekday, a week out the date) and what it is to you",
+      JSON.stringify(H.comingWords(lineA, mon)) === JSON.stringify({ when: "Sat", sub: "Event · you're on the crew · 1 task of yours" })
+      && H.comingWords(c.lines[0], mon).when === "Tomorrow" && H.comingWords(c.lines[0], mon).sub === "To-do"
+      && H.comingWords(c.lines[1], mon).sub === "Truck stop · you're managing it" && H.comingWhen("2026-10-19", mon) === "Mon, Oct 19"
+      && H.comingWords({ kind: "task", id: "t7", source: "event", title: "t7", day: "2026-10-16", opName: "Fall Fest" }, mon).sub === "Task · for Fall Fest",
+      [H.comingWords(lineA, mon), H.comingWords(c.lines[1], mon)]);
+    const cu = code(read("components/ComingUp.tsx")), mdCrew = code(read("app/crew/page.tsx"));
+    const md = mdCrew.slice(mdCrew.indexOf("function MyDay("), mdCrew.indexOf("function MyTasks("));
+    ok("my day (E): Coming up reads your plate (lib/myTasks), your crew rows and the events and stops on them in the window — every read throws, so a failed week is not an empty one",
+      /loadMyTasks\(meId\),\s*sb\.from\("event_staff"\)\.select\("event_id, stop_id, role_label"\)\.eq\("user_id", meId\),/.test(cu)
+      && /if \(mine\.error\) throw new Error\(mine\.error\);/.test(cu) && /if \(crew\.error\) throw new Error\(crew\.error\.message\);/.test(cu)
+      && /sb\.from\("events"\)\.select\("id, title, day"\)\.in\("id", evIds\)\.is\("archived_at", null\)\.gte\("day", from\)\.lte\("day", to\)/.test(cu)
+      && /const failed = \[ev\?\.error, st\?\.error\]\.find\(Boolean\);\s*if \(failed\) throw new Error\(failed\.message\);/.test(cu)
+      && /errorSub="This is not the same as nothing coming up — we could not read it just now\."/.test(cu));
+    ok("my day (E): read only — no write anywhere in it — each line opens its record or its task, and it is on the app's refresh",
+      !/\.update\(|\.insert\(|\.delete\(|\.upsert\(|\.rpc\(|completeTask|updateTask/.test(cu)
+      && /onClick=\{\(\) => \(l\.kind === "op" \? openRecord\(l\.op, l\.id\) : openTask\(l\.id, l\.source\)\)\}/.test(cu)
+      && /\{ table: "event_staff", filter: `user_id=eq\.\$\{meId\}` \}, "events", "stops",/.test(cu) && /\], state\.reload, \{ enabled: !!meId \}\);/.test(cu));
+    ok("my day (E): it sits beside the day on a desk and after To do on a phone, for every role, a static import like the rest of the morning screen",
+      md.indexOf("<TodayList ") > 0 && md.indexOf("<TodayList ") < md.indexOf("<ComingUp />") && (mdCrew.match(/<ComingUp /g) || []).length === 1
+      && /^import ComingUp from "@\/components\/ComingUp";/m.test(read("app/crew/page.tsx")));
   }
 }
 
@@ -9227,11 +9490,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: "/crew?s=settings&a=cust-codes" })) === JSON.stringify({ kind: "section", section: "catalog", anchor: "cust-codes" })
     && JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: "/crew?s=money&a=pay" })) === JSON.stringify({ kind: "section", section: "money", anchor: "pay" }));
   const V = (r) => ({ id: "me", sections: roleLine(r), manage: ["event_manager", "admin", "owner"].includes(r) });
-  const forR = (r, route) => O.obligationFor({ source: "brand_new", subject_id: "x", route, owner_user_id: null }, V(r));
+  // The row is the viewer's own (2026-10-12: a row nobody owns is nobody's My Day — lib/obligations
+  // "only what's yours"), so what is tested here is the door: obligationReach, inside obligationFor.
+  const forR = (r, route) => O.obligationFor({ source: "brand_new", subject_id: "x", route, owner_user_id: "me" }, V(r))
+    && O.obligationReach({ source: "brand_new", subject_id: "x", route, owner_user_id: null }, V(r));
   ok("links land: Settings opens for every role, but a row on one of its admin parts is still the admins' — a server is not sent to a menu she cannot see",
     !forR("server", "/crew?s=money&a=menu") && !forR("event_manager", "/crew?s=customers&a=cust-codes") && forR("owner", "/crew?s=money&a=menu") && forR("admin", "/crew?s=settings&a=set-dial")
     && forR("server", "/crew?s=settings&a=set-alerts") && !forR("operator", "/crew?s=settings") && !forR("server", "/crew?s=settings&a=set-office")
-    && forR("admin", "/crew?s=catalog&a=plans") && !forR("operator", "/crew?s=catalog&a=plans"));
+    && forR("admin", "/crew?s=catalog&a=plans") && !forR("operator", "/crew?s=catalog&a=plans")
+    && !O.obligationFor({ source: "brand_new", subject_id: "x", route: "/crew?s=money&a=menu", owner_user_id: null }, V("owner")));
   const anc = code(read("lib/anchors.ts"));
   ok("links land: a jump to a part opens the row that holds it first — the copy editor's groups too",
     /import \{ settingsHolder \} from "\.\/settingsLayout";/.test(anc) && /const holder = settingsHolder\(anchor\);/.test(anc)

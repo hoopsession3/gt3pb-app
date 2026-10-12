@@ -44,7 +44,8 @@ import AsyncSection from "@/components/AsyncSection";
 import Owed from "@/components/Owed";  // daily path: the overdue list is on the default screen
 import HomeNumbers from "@/components/HomeNumbers";  // daily path: the home's three numbers
 import TodayList from "@/components/TodayList";      // daily path: the home's Today list
-import { flagIsToday } from "@/lib/home";
+import ComingUp from "@/components/ComingUp";        // daily path: the home's next seven days
+import { flagIsToday, rhythmDay, RHYTHM_TABLES } from "@/lib/home";
 // Daily path too (2026-10-04): today's op card lives here now, for everybody, so it is a static
 // import like the rest of the morning screen — a crew member opening My Day must never wait on a
 // chunk to see where they are working (see "Code-split" below).
@@ -223,7 +224,7 @@ const SEC_WHEN: Record<OpSection, string> = {
   plan: "Booking ahead", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", driver: "Delivery days", notes: "Any time", money: "The books", catalog: "Changing what we sell", customers: "Your regulars", team: "People & roles", settings: "Changing how it works",
 };
 const SEC_SUB: Record<OpSection, string> = {
-  day: "Your tasks, flags, needs-you & what's on today.",
+  day: "Your tasks, flags, needs-you, what's on today & what's coming.",
   command: "The shared board — initiatives, this week, blockers, done, money & goals.",
   now: "The pass, pack pickups & the 86 board — live service.",
   ask: "Recipes, gear, stock & how-to — from the GT3 playbook.",
@@ -241,7 +242,7 @@ const SEC_SUB: Record<OpSection, string> = {
   settings: "Your account, notifications & display — and how the business runs.",
 };
 const SEC_MORE: Record<OpSection, string> = {
-  day: "Your personal launchpad — the console's one glance screen. Everything assigned to you, everything flagged for your attention, and (for leadership) the needs-you list: booking replies, past-due team tasks and restock lows.",
+  day: "Your personal launchpad — the console's one glance screen. Everything assigned to you, everything flagged for your attention, the deadlines that are yours, and (for leadership) booking replies and restock lows — then what's coming: the events, stops and dated tasks of yours in the next seven days. The team's late work is on Command, with who each task is waiting on.",
   command: "The shared war room both founders see — the digital version of the magnetic board. Your initiatives (a dated program like the Aug-1 launch) with a countdown and milestone progress, then This Week, Blockers, Done and Money in one glance. This is where you answer “are we on track?” together, instead of over text. Company goals live here too — owners, progress and check-ins — so the scoreboard and the steering wheel share one screen.",
   now: "The glance before the work. Alerts land here, the service pulse shows what's waiting (orders on the pass, items 86'd), and one tap opens The Pass — the working screen with the pass board, pickup checklist and 86 board. Prep lives here too: the drop's brew sheet and Sunday delivery.",
   prep: "Get ready before you roll. Build the pack list, check stock and readiness, and sign off that the truck's loaded for the next event or stop.",
@@ -263,7 +264,7 @@ const SEC_MORE: Record<OpSection, string> = {
   settings: "How the app and the business behave, by category — the way a phone's Settings reads. You — your account, notifications and display — is everyone's. Owners and admins see Business under it: payments & checkout, ordering & delivery, locations & markets, team & permissions, reports, integrations like Outlook, the AI, and the brand guests see. Advanced is about the software itself: the activity log, app health and the lists every picker offers. What the business sells is the Catalog, and a broadcast is Customers › Messages. Each thing's old spot keeps a line that brings you to it. Edits go live instantly, no deploy.",
 };
 const SEC_INSIDE: Record<OpSection, string[]> = {
-  day: ["Your open tasks & due dates", "Alerts flagged for you — with discussion threads", "Needs you (leadership): booking replies, past-due tasks, restock", "What's on the calendar today", "Day-of brief — dress code & call time"],
+  day: ["Your open tasks & due dates", "Alerts flagged for you — with discussion threads", "Needs you — the deadlines that are yours; booking replies & restock for leadership", "What's on the calendar today", "Coming up — your next 7 days: events & stops you're on, dated tasks", "Day-of brief — dress code & call time"],
   command: ["The portfolio — ten workstreams, one owner each, audited every Monday /10", "Initiatives — a dated program with countdown & milestone progress + the goals it serves", "This week — everything due across both task lists", "Blockers — incidents, overdue work & at-risk goals", "Done this week — momentum at a glance", "Goals — owners, live numbers, one-tap check-ins", "The twelve — the Playbook's KPI board, Monday entry"],
   now: ["Service pulse — live counts, one tap into the working screen", "The Pass — the pass board (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Delivery run — run sheet, brew totals & packout (outcomes are logged in driver mode)", "Live truck: go live, GPS broadcast (locations live in Plan › Lists › Truck stops; the cup-ordering dial in Settings)", "Alerts & your tasks — pointers into My Day"],
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Crew assignments & sign-off", "Load-out & gear moved to Production › Assets"],
@@ -1093,7 +1094,7 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
 type Rhythm = { stops: { id: string; name: string | null; starts_at: string | null }[]; dropPacks: number; porches: number; brews: { id: string; recipe_name: string; batch_gal: number; warn: boolean }[] };
 const NO_RHYTHM: Rhythm = { stops: [], dropPacks: 0, porches: 0, brews: [] };
 
-function MyDay({ userId, isLeader, canGoLive, canBrew, money }: { userId: string | null; isLeader: boolean; canGoLive: boolean; canBrew: boolean; money: boolean }) {
+function MyDay({ userId, canGoLive, canBrew }: { userId: string | null; canGoLive: boolean; canBrew: boolean }) {
   // Flags ride the one shared hook (same source as the Now strip + nav badge). Crew see their own
   // pings + broadcasts now too — the old isLeader gate predates the staff-wide alerts RLS (0157).
   const { flags, error: flagsErr, reload: reloadFlags } = useMyAlerts(userId);
@@ -1101,20 +1102,21 @@ function MyDay({ userId, isLeader, canGoLive, canBrew, money }: { userId: string
   const { openRecord } = useRecord();
   const streams = useWorkStreams();
   const laneColor = (cat: string) => streamOfCategory(cat, streams)?.color;
-  // The day's rhythm — the same anchors the company calendar carries. Stops use the operator's
-  // wall-clock day; drop/delivery are BUSINESS days (ET) so a late evening doesn't flip them early.
+  // The day's rhythm — the same anchors the company calendar carries.
   // A FAILED READ IS NOT A QUIET DAY (2026-10-04): these four read .data straight through PostgREST
   // error objects, so a failure drew no stop, no drop, no brew — exactly what an empty day draws.
+  // ONE DAY, ON THE REFRESH (2026-10-12, the My Day audit): stops and brews read the phone's day while
+  // drops and porches read the market's, and the four were read once, on mount — so pull to refresh,
+  // coming back and the day turning never woke them. The market's day for all four (lib/home rhythmDay),
+  // and the loader is registered with the app's refresh on the tables it reads (RHYTHM_TABLES).
   const rhythmLoader = useCallback(async (): Promise<Rhythm> => {
     if (!supabase) return NO_RHYTHM;
-    const d = localToday();
-    const dayStart = new Date(`${d}T00:00:00`);
-    const bd = etToday();
+    const { day, from, to } = rhythmDay();
     const [st, dr, de, br] = await Promise.all([
-      supabase.from("stops").select("id, name, starts_at").is("archived_at", null).neq("status", "done").gte("starts_at", dayStart.toISOString()).lt("starts_at", new Date(dayStart.getTime() + 86400000).toISOString()),
-      supabase.from("drop_orders").select("id", { count: "exact", head: true }).eq("drop_date", bd).is("canceled_at", null),
-      supabase.from("delivery_orders").select("id", { count: "exact", head: true }).eq("delivery_date", bd).is("canceled_at", null),
-      supabase.from("brew_batches").select("id, recipe_name, batch_gal, latest_start_at, status").in("status", ["planned", "brewing"]).eq("brew_date", d),
+      supabase.from("stops").select("id, name, starts_at").is("archived_at", null).neq("status", "done").gte("starts_at", from).lt("starts_at", to),
+      supabase.from("drop_orders").select("id", { count: "exact", head: true }).eq("drop_date", day).is("canceled_at", null),
+      supabase.from("delivery_orders").select("id", { count: "exact", head: true }).eq("delivery_date", day).is("canceled_at", null),
+      supabase.from("brew_batches").select("id, recipe_name, batch_gal, latest_start_at, status").in("status", ["planned", "brewing"]).eq("brew_date", day),
     ]);
     const failed = [st.error, dr.error, de.error, br.error].find(Boolean);
     if (failed) throw new Error(failed.message);
@@ -1126,6 +1128,7 @@ function MyDay({ userId, isLeader, canGoLive, canBrew, money }: { userId: string
     };
   }, []);
   const rhythmState = useAsyncData<Rhythm>(rhythmLoader, []);
+  useRealtimeTable(RHYTHM_TABLES, rhythmState.reload);
   const rhythm = rhythmState.data ?? NO_RHYTHM;
 
 
@@ -1143,6 +1146,11 @@ function MyDay({ userId, isLeader, canGoLive, canBrew, money }: { userId: string
           week's three numbers, each with its change and its cause; beside it, at most three things due
           today, with the equipment, the stale and the full lists each folded to one row. A phone reads
           them in this order. My tasks and Needs you are whole, one tap down, in "All tasks". */}
+      {/* THE NUMBERS LEFT MY DAY (2026-10-12, the My Day audit, approved). Sales over the fortnight, margin and
+          the next drop's packs stood beside the day for whoever holds Money or manages — the figures Money
+          opens on, Command's board and Live Ops' Due next say again — on the screen whose questions are what
+          needs me, what next and what's coming. They are Money's alone now (components/HomeNumbers, here=
+          "money"); nothing linked into them here: no anchor, no ?s=day link, no line of the Guide. */}
       <Columns>
       <Column>
       <DayHeadline canGoLive={canGoLive} />
@@ -1185,13 +1193,6 @@ function MyDay({ userId, isLeader, canGoLive, canBrew, money }: { userId: string
           day itself, so a phone reaches it on the first screen (2026-10-09: the numbers stood above it
           and left two of its rows above the tab bar). */}
       <TodayList allTasks={<><MyTasks userId={userId} anchor={false} /><Owed /></>} />
-      </Column>
-      {(money || isLeader) && (
-      <Column>
-      {/* THE WEEK IN THREE NUMBERS — sales and margin for whoever holds Money, the next drop for
-          whoever manages; nothing for crew, whose home is the day's work. Beside the day on a desk,
-          under it on a phone: glanced at once, after what is due. */}
-      <HomeNumbers money={money} drops={isLeader} />
       {/* LEAD THE WEEK LEFT MY DAY (2026-10-09, One home; Ryan: "whats the lead the week, gtm briefing &
           intake, any operational purposes?"). A chip that folded three tools a leader reaches for weekly or
           less: a go-to-market card of fixed text whose anchor was Aug 1 (retired — Command's initiatives
@@ -1199,7 +1200,13 @@ function MyDay({ userId, isLeader, canGoLive, canBrew, money }: { userId: string
           Command now, where the week is led), and Smart intake with what it filed (Quick actions › File,
           from every screen — a permit arrives in the hand, not at My Day). A daily screen holds the day. */}
       </Column>
-      )}
+      <Column>
+      {/* COMING UP (2026-10-12, the My Day audit, approved): what's coming, the third question My Day had
+          no answer to — one line per commitment of yours in the next seven days (an event or stop you're
+          on, one you have work for, a dated task), each opening its record. Read only; Plan is the record.
+          Beside the day on a desk, after To do on a phone. */}
+      <ComingUp />
+      </Column>
       </Columns>
     </>
   );
@@ -5743,7 +5750,7 @@ export default function AdminPage() {
           {/* P3 (2026-08-03): a leader's day opens with the headline — today's op + top 3 due —
               before the plates. MyDay renders it now (2026-10-04), under the greeting, so the
               greeting opens the screen and today's op has one card for everybody. */}
-          <MyDay userId={user?.id ?? null} isLeader={canManage} canGoLive={isAdmin} canBrew={canManage || role === "operator"} money={isAdmin} />
+          <MyDay userId={user?.id ?? null} canGoLive={isAdmin} canBrew={canManage || role === "operator"} />
         </>
       )}
       {sec === "command" && canManage && (

@@ -16,13 +16,19 @@
   (2026-10-10, the Today round: they were a row each). The numbers are made up for the double, the way
   the names in it are.
 
+  WHAT'S TRUE (2026-10-12, the My Day audit, approved): the same owner on a Monday, with what is his alone —
+  the team's late tasks are Command's now. To do leads with three of his in the fixed rank, each saying why
+  ("For Sat · ISI Elite Training", "Critical", "Due today"), the rest of today in one row, and the work more
+  than two weeks late in one row, "5 to decide" (it was a chip). The week's numbers are Money's alone; the
+  second column is Coming up — the next seven days of his, a line each.
+
   Before (2026-10-04): Ryan's 10:13 PM screenshot and "Strategically look for where something is
   unnecessary information or should have operational functionality" — the greeting and the motto
   went, the op card became one button with "Make it live" beside it, and a row that could be answered
   where it was listed led with My tasks' tick.
 
   Same construction as purchase-sheet.html: the DOM class for class as app/crew/page.tsx,
-  components/DayHeadline.tsx, components/RecordWays.tsx, components/HomeNumbers.tsx, components/TodayList.tsx
+  components/DayHeadline.tsx, components/RecordWays.tsx, components/TodayList.tsx, components/ComingUp.tsx
   and components/kit.tsx
   produce it, styled by the REAL app/globals.css and painted in the real Chromium at phone width, in
   the day theme and then the dark one. Every block names its source in `data-from`, and
@@ -44,7 +50,7 @@
       <div class="dayhead-op">
         <button type="button" class="dayhead-op-go">
           <span class="dayhead-op-t">
-            <span class="dayhead-k">Today's op · Sat, Oct 3</span>
+            <span class="dayhead-k">Today's op · Mon, Oct 12</span>
             <b>Greenville Fit Fest</b>
             <span class="myday-brief">
               <span class="myday-brief-row"><b>Wear</b><span>Black GT3 tee, cap</span></span>
@@ -57,55 +63,57 @@
       </div>
     </div>
 
-    <!-- At most three due today, critical first, then the latest — the three the headline once
-         repeated as "Top 3" lead here, once. Everything else is one row away. -->
+    <!-- Up to three of his, in the fixed rank, each saying why it stands there (2026-10-12); the rest of today
+         one row; the work more than two weeks late one row; then the line of chips. -->
     <div class="adm-sec" id="my-day-tasks" data-from="components/TodayList.tsx">
-      <div class="k-sec" data-from="components/kit.tsx"><span class="k-sec-lbl"><h2 class="l">To do</h2></span><span class="k-sec-r"><span class="k-count" data-from="components/TodayList.tsx">9 due</span></span></div>
+      <div class="k-sec" data-from="components/kit.tsx"><span class="k-sec-lbl"><h2 class="l">To do</h2></span><span class="k-sec-r"><span class="k-count" data-from="components/TodayList.tsx">4 due</span></span></div>
       <div class="owed">
-        <button type="button" class="owed-row late">
-          <span class="owed-row-b"><b><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.3 2.25h17.76a1.5 1.5 0 0 0 1.3-2.25L13.71 3.86a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9.5v4"/></svg></span>Quality-test the current batch — go / no-go on this week's sampling</b><i>event · Greenville Fit Fest</i></span>
-          <span class="owed-age">4 days late</span>
-          <span class="owed-c" aria-hidden="true">›</span>
-        </button>
-        <button type="button" class="owed-row late">
-          <span class="owed-row-b"><b><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.3 2.25h17.76a1.5 1.5 0 0 0 1.3-2.25L13.71 3.86a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9.5v4"/></svg></span>Upstate Spine sample drop + dual-track options sheet (via Sarah)</b><i>Not attached to an event or stop</i></span>
-          <span class="owed-age">1 day late</span>
-          <span class="owed-c" aria-hidden="true">›</span>
-        </button>
-        <button type="button" class="owed-row late">
-          <span class="owed-row-b"><b><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.3 2.25h17.76a1.5 1.5 0 0 0 1.3-2.25L13.71 3.86a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9.5v4"/></svg></span>Decide the loyalty mechanic — locked pilot (5 returns) vs session float (10)</b><i>Not attached to an event or stop</i></span>
-          <span class="owed-age">1 day late</span>
+        <div class="owed-row">
+          <button type="button" class="task-check" aria-label="Mark done: Pack the sampler cups and the nitro tap"><span class="task-box" aria-hidden="true"></span></button>
+          <button type="button" class="owed-row-go"><span class="owed-row-b"><b>Pack the sampler cups and the nitro tap</b><i>For Sat · ISI Elite Training</i></span><span class="owed-c" aria-hidden="true">›</span></button>
+        </div>
+        <div class="owed-row late">
+          <button type="button" class="task-check" aria-label="Mark done: Quality-test the current batch"><span class="task-box" aria-hidden="true"></span></button>
+          <button type="button" class="owed-row-go"><span class="owed-row-b"><b><span class="k-ic" aria-hidden="true" data-from="components/Icon.tsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.3 2.25h17.76a1.5 1.5 0 0 0 1.3-2.25L13.71 3.86a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9.5v4"/></svg></span>Quality-test the current batch — go / no-go on this week's sampling</b><i>Critical · To-do · Production</i></span><span class="owed-age">1 day late</span><span class="owed-c" aria-hidden="true">›</span></button>
+        </div>
+        <div class="owed-row">
+          <button type="button" class="task-check" aria-label="Mark done: Send the Upstate Spine options sheet"><span class="task-box" aria-hidden="true"></span></button>
+          <button type="button" class="owed-row-go"><span class="owed-row-b"><b>Send the Upstate Spine options sheet</b><i>Due today · To-do · Sales</i></span><span class="owed-c" aria-hidden="true">›</span></button>
+        </div>
+        <button type="button" class="owed-row">
+          <span class="owed-row-b"><b>2 more due today</b><i>Every one due, in the same order</i></span>
           <span class="owed-c" aria-hidden="true">›</span>
         </button>
         <button type="button" class="owed-row">
-          <span class="owed-row-b"><b>6 more due today</b><i>Every one, in the same order</i></span>
+          <span class="owed-row-b"><b>5 to decide</b><i>More than 2 weeks late</i></span>
           <span class="owed-c" aria-hidden="true">›</span>
         </button>
         <div class="flex flex-wrap gap-2 pt-3" role="group" aria-label="Also waiting" data-from="components/TodayList.tsx">
-          <button type="button" class="k-chip sm warn">Equipment · 4 ›</button>
-          <button type="button" class="k-chip sm">2+ weeks late · 12 ›</button>
+          <button type="button" class="k-chip sm warn">Equipment · 1 ›</button>
+          <button type="button" class="k-chip sm">Compliance · 3 ›</button>
           <button type="button" class="k-chip sm warn">Restock · 4 ›</button>
-          <button type="button" class="k-chip sm">All tasks · 32 ›</button>
+          <button type="button" class="k-chip sm">All tasks · 16 ›</button>
         </div>
       </div>
     </div>
 
-    <div class="adm-sec" id="home-numbers" data-from="components/HomeNumbers.tsx">
-      <div class="k-sec" data-from="components/kit.tsx"><span class="k-sec-lbl"><h2 class="l">Numbers</h2></span><span class="k-sec-r"><button type="button" class="owed-more -my-3.5" data-from="components/HomeNumbers.tsx">See all <span aria-hidden="true">›</span></button></span></div>
+    <!-- Coming up (2026-10-12): his next seven days, a line each, opening its record. Read only. -->
+    <div class="adm-sec" id="coming-up" data-from="components/ComingUp.tsx">
+      <div class="k-sec" data-from="components/kit.tsx"><span class="k-sec-lbl"><h2 class="l">Coming up</h2></span><span class="k-sec-r"><span class="k-count" data-from="components/ComingUp.tsx">5 this week</span></span></div>
       <div class="owed">
         <button type="button" class="owed-row">
-          <span class="owed-row-b"><b>Sales · 7 days</b><span class="text-caption text-cream-muted">Up 18% on the week before · Drop packs +$210</span></span>
-          <span class="flex-none text-title3 font-semibold text-cream whitespace-nowrap tabular-nums">$1,240</span>
+          <span class="owed-row-b"><b>Book the Swamp Rabbit permit</b><i>To-do</i></span>
+          <span class="owed-age">Tomorrow</span>
           <span class="owed-c" aria-hidden="true">›</span>
         </button>
         <button type="button" class="owed-row">
-          <span class="owed-row-b"><b>Margin · 7 days, est.</b><span class="text-caption text-cream-muted">Up 10% on the week before · after $150 in event costs</span></span>
-          <span class="flex-none text-title3 font-semibold text-cream whitespace-nowrap tabular-nums">$718<small class="text-footnote font-normal text-cream-muted"> · 58%</small></span>
+          <span class="owed-row-b"><b>Swamp Rabbit stop</b><i>Truck stop · you're on the crew</i></span>
+          <span class="owed-age">Wed</span>
           <span class="owed-c" aria-hidden="true">›</span>
         </button>
         <button type="button" class="owed-row">
-          <span class="owed-row-b"><b>Next drop · This Sat · Oct 10</b><span class="text-caption text-cream-muted">3 more than the last drop had by now · most asked: FLOW</span></span>
-          <span class="flex-none text-title3 font-semibold text-cream whitespace-nowrap tabular-nums">14 packs</span>
+          <span class="owed-row-b"><b>ISI Elite Training</b><i>Event · you're managing it · 2 tasks of yours</i></span>
+          <span class="owed-age">Sat</span>
           <span class="owed-c" aria-hidden="true">›</span>
         </button>
       </div>

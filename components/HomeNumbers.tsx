@@ -27,6 +27,10 @@ import { goToDest } from "./CrewKpis";
 // THE SAME THREE OPEN MONEY (2026-10-09, Business opens on Money): Money opened on five tiles with no
 // comparison (components/MoneyKpis, retired). Here, on Money, a number opens its report below instead of
 // the section it is already in, and there is no "See all" to the screen it is on.
+//
+// AND ONLY MONEY (2026-10-12, the My Day audit, approved): My Day stopped drawing them — they said again
+// what Money opens on, what Command's board and Live Ops' Due next say, on a screen about what needs you.
+// Money is their one caller; here="day" (a number opens Money, "See all" opens Command) has none today.
 
 // THE MARGIN SAYS WHAT IT RESTS ON (2026-10-12, 0384): "ingredients at 30% of sales" read the same whether 30% was
 // measured from costed recipes or assumed because none were. report_sales says which (cogs_basis), and the cause says it.

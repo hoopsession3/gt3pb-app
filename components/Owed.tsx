@@ -19,9 +19,8 @@ import { fetchInventory, rollupLowStock, type InvItem } from "@/lib/inventory";
 import { goPlanTab } from "@/lib/planNav";
 import { useTaskSheet } from "./TaskSheet";
 import AsyncSection from "./AsyncSection";
-import Icon from "./Icon";
 import { dayKey, localToday } from "@/lib/dates";
-import { daysBetween, dueWord } from "@/lib/dayWords";
+import { dueWord } from "@/lib/dayWords";
 
 // WHAT NEEDS YOU — one panel, because My Day was carrying two.
 //
@@ -65,6 +64,14 @@ import { daysBetween, dueWord } from "@/lib/dayWords";
 // bug directly below — no event, no stop, no row — and they would have been missing with a
 // perfect query. The swallow was real and the column was wrong; the thing I pointed at as proof
 // of them was not. Both fixed here, separately, because they are separate faults.
+//
+// ── THE TEAM'S LATE TASKS LEFT (2026-10-12, the My Day audit, approved: "only what's yours") ────
+// The team feed — everybody else's past-due event tasks, for anyone who manages — is gone from this
+// panel and from My Day's To do. In the audit's rebuild six of the eleven late things on the owner's
+// My Day were somebody else's, and these rows said "Not attached to an event or stop" with no name.
+// Everybody's late work is the team's week on Command now (components/CommandBoard), each row naming
+// who it waits on and opening the task. What stays is this viewer's: the deadlines lib/obligations
+// obligationFor keeps, booking replies for a manager, restock for whoever opens Assets.
 
 type Row = {
   source: string; subject_id: string; area: string; kind: string;
@@ -72,27 +79,17 @@ type Row = {
   severity: "overdue" | "soon" | "upcoming"; route: string; market: string | null;
   owner_user_id: string | null;
 };
-// `owner` is nullable, and that turned out to be the whole point. Both this panel and the NeedsYou
-// it replaced pushed a task ONLY when it had an event or a stop to name — so a past-due task
-// attached to neither was skipped by both, silently, forever. Measured in production: all SEVEN
-// past-due tasks are exactly that shape. They were visible on Command and nowhere on My Day.
-type Task = { id: string; label: string; owner: { kind: "event" | "stop"; id: string; name: string } | null; late: number | null; critical: boolean };
-// The team's late tasks lead with this many, unfolded. They were all folded behind one line, while the
-// headline above listed the three most urgent of them again as "Top 3" — the same tasks, twice. The
-// headline's list is gone (components/DayHeadline); its three are here, once (2026-10-04).
-const TEAM_LEAD = 3;
-type Data = { rows: Row[]; tasks: Task[]; low: InvItem[]; bookings: number; extrasFailed: boolean };
-export type { Row as OwedRow, Task as OwedTask, Data as OwedData };
+type Data = { rows: Row[]; low: InvItem[]; bookings: number; extrasFailed: boolean };
+export type { Row as OwedRow, Data as OwedData };
 
 const SHOW = 5;
 
 // THE READ, ON ITS OWN (2026-10-09, One home). The home's Today list reads exactly what this panel
-// reads — the same deadlines, the same team list with its "behind its event or stop" rule, the same
-// viewer filter — so it calls this rather than a copy that could drift. Nothing in it changed.
+// reads — the same deadlines, the same viewer filter — so it calls this rather than a copy that could
+// drift. (2026-10-12: the team's late tasks left it; see the header.)
 export async function loadOwed(meId: string | null, role: string, manage: boolean): Promise<Data> {
-  if (!supabase) return { rows: [], tasks: [], low: [], bookings: 0, extrasFailed: false };
+  if (!supabase) return { rows: [], low: [], bookings: 0, extrasFailed: false };
   const today = dayKey(new Date());
-  const nowIso = new Date().toISOString();
 
   // The list itself. This one throws.
   const ob = await supabase.from("v_obligations")
@@ -101,69 +98,53 @@ export async function loadOwed(meId: string | null, role: string, manage: boolea
     .order("due_on", { ascending: true })
     .limit(100);
   if (ob.error) throw new Error(ob.error.message);
+  const listed = (ob.data as Row[]) ?? [];
 
-  // The three softer feeds. Anything that fails here returns empty rather than taking the panel
+  // A GOAL'S OWNER (2026-10-12, "only what's yours"). v_obligations writes null for a goal's owner
+  // (0320) though goals carry owner_user_id, and a goal is kept now for its owner alone — so the owners
+  // of the goals on the list are read here, by id. It is part of the list: a failure fails the panel,
+  // rather than a goal of yours going quietly missing. A view that carried the owner would retire it.
+  const goalIds = listed.filter((r) => r.source === "goals").map((r) => r.subject_id);
+  if (goalIds.length) {
+    const g = await supabase.from("goals").select("id, owner_user_id").in("id", goalIds);
+    if (g.error) throw new Error(g.error.message);
+    const ownerOf = new Map(((g.data as { id: string; owner_user_id: string | null }[]) ?? []).map((x) => [x.id, x.owner_user_id]));
+    for (const r of listed) if (r.source === "goals") r.owner_user_id = ownerOf.get(r.subject_id) ?? null;
+  }
+
+  // The two softer feeds. Anything that fails here returns empty rather than taking the panel
   // with it — see the header.
   //
-  // And only for whoever can act on them (2026-10-04): past-due TEAM tasks and new booking
-  // requests are a manager's to triage (a server's own tasks are in My tasks, and the leads tab is
-  // a manager's), and the restock line goes to Assets, which only the roles that open Assets can.
-  // A server's My Day listed all three, and two of them tapped through to a screen she cannot open.
-  const wantTeam = manage, wantStock = sectionsForRole(role).includes("garage");
-  let tasks: Task[] = [], low: InvItem[] = [], bookings = 0, extrasFailed = false;
-  if (wantTeam || wantStock) try {
-    const [b, evs, st, tk, inv] = await Promise.all([
+  // And only for whoever can act on them (2026-10-04): new booking requests are a manager's to
+  // triage (the leads tab is a manager's), and the restock line goes to Assets, which only the roles
+  // that open Assets can. A server's My Day listed both, and they tapped through to screens she
+  // cannot open. (The team's late tasks were the third; they are Command's now — 2026-10-12.)
+  const wantBookings = manage, wantStock = sectionsForRole(role).includes("garage");
+  let low: InvItem[] = [], bookings = 0, extrasFailed = false;
+  if (wantBookings || wantStock) try {
+    const [b, evs, inv] = await Promise.all([
       supabase.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
       supabase.from("events").select("*").order("day"),
-      supabase.from("stops").select("id, name, starts_at, status, archived_at").order("starts_at"),
-      supabase.from("event_tasks").select("id, label, event_id, stop_id, due_at, critical, assignee").eq("done", false).eq("kind", "task"),
       fetchInventory(),
     ]);
     // CHECKED FIRST, BEFORE ANYTHING READS .data. PostgREST returns an error OBJECT rather than
     // throwing, so a bad column name looks exactly like success with no rows. That is how this
     // shipped broken: "kind" was selected from events, which has no such column, PostgREST
     // rejected the whole query, and seven past-due tasks rendered as silence.
-    const softErr = [b.error, evs.error, st.error, tk.error].find(Boolean);
+    const softErr = [b.error, evs.error].find(Boolean);
     if (softErr) throw new Error(softErr.message);
     bookings = b.count ?? 0;
-
     const allEv = ((evs.data as { id: string; title: string | null; day: string | null; archived_at: string | null }[]) ?? []).filter((e) => !e.archived_at);
-    const allSt = ((st.data as { id: string; name: string | null; starts_at: string | null; status: string | null; archived_at: string | null }[]) ?? []).filter((x) => !x.archived_at);
-    const evName = new Map(allEv.map((e) => [e.id, e.title ?? "Event"]));
-    const stName = new Map(allSt.map((x) => [x.id, x.name ?? "Stop"]));
-    const evDay = new Map(allEv.map((e) => [e.id, e.day]));
-    const stDay = new Map(allSt.map((x) => [x.id, x.starts_at ? dayKey(new Date(x.starts_at)) : null]));
-    const dueEv = new Set(allEv.filter((e) => e.day && e.day < today).map((e) => e.id));
-    const dueSt = new Set(allSt.filter((x) => x.status === "done" || (x.starts_at && dayKey(new Date(x.starts_at)) < today)).map((x) => x.id));
-
-    const daysLate = (ymd: string | null | undefined) => (ymd ? daysBetween(ymd, today) : null);
-
-    for (const t of ((tk.data as { id: string; label: string; event_id: string | null; stop_id: string | null; due_at: string | null; critical: boolean | null; assignee: string | null }[]) ?? [])) {
-      // ONE TASK, ONE PLACE (2026-10-04): a task assigned to you is in My tasks, right above. The team
-      // list is everybody else's.
-      if (meId && t.assignee === meId) continue;
-      const isPast = t.due_at ? t.due_at < nowIso : ((t.event_id && dueEv.has(t.event_id)) || (t.stop_id && dueSt.has(t.stop_id)));
-      if (!isPast) continue;
-      const own = t.due_at ? dayKey(new Date(t.due_at)) : (t.event_id ? evDay.get(t.event_id) : t.stop_id ? stDay.get(t.stop_id) : null);
-      const owner = t.event_id ? { kind: "event" as const, id: t.event_id, name: evName.get(t.event_id) ?? "Event" }
-                  : t.stop_id ? { kind: "stop" as const, id: t.stop_id, name: stName.get(t.stop_id) ?? "Stop" }
-                  : null;
-      tasks.push({ id: t.id, label: t.label, owner, late: daysLate(own), critical: !!t.critical });
-    }
-    // Critical first, then the latest — the order the headline's top three used, so the three that
-    // lead here are the three it used to show.
-    tasks.sort((a, b) => Number(b.critical) - Number(a.critical) || (b.late ?? 0) - (a.late ?? 0));
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     low = inv.enabled ? rollupLowStock(inv.items, allEv.filter((e) => e.day && e.day >= today) as any) : [];
-  } catch { extrasFailed = true; tasks = []; low = []; bookings = 0; }
-  if (!wantTeam) { tasks = []; bookings = 0; }
+  } catch { extrasFailed = true; low = []; bookings = 0; }
+  if (!wantBookings) bookings = 0;
   if (!wantStock) low = [];
 
-  // "Needs you" means you: only the rows this viewer can act on (lib/obligations obligationFor).
+  // "Needs you" means you: only the rows that are this viewer's (lib/obligations obligationFor).
   const v: Viewer = { id: meId, sections: sectionsForRole(role), manage };
-  const rows = ((ob.data as Row[]) ?? []).filter((r) => obligationFor(r, v));
-  return { rows, tasks, low, bookings, extrasFailed };
+  const rows = listed.filter((r) => obligationFor(r, v));
+  return { rows, low, bookings, extrasFailed };
 }
 // The day key and the "N days late" wording were private copies here; lib/dates and lib/dayWords
 // own them now, so My Day's top three and this panel cannot say lateness two ways.
@@ -203,7 +184,6 @@ export function useObligationGo(viewer: Viewer, onSaved?: () => void) {
 
 export default function Owed({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
-  const [openTasks, setOpenTasks] = useState(false);
   const { setSection } = useOperatorSection();
   const { user, profile } = useAuth();
   const { toast } = useApp();
@@ -219,8 +199,6 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
   const loader = useCallback((): Promise<Data> => loadOwed(meId, role, manage), [meId, role, manage]);
   const state = useAsyncData<Data>(loader, [loader]);
 
-  const { openTask } = useTaskSheet();
-  const [allTasks, setAllTasks] = useState(false);
   const [allLow, setAllLow] = useState(false);
   const { go, canGo, sheet: initiativeSheet } = useObligationGo(viewer, () => state.reload());
 
@@ -275,7 +253,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
   return (
     <AsyncSection
       state={state}
-      isEmpty={(d) => !d.extrasFailed && d.rows.length === 0 && d.tasks.length === 0 && d.low.length === 0 && d.bookings === 0}
+      isEmpty={(d) => !d.extrasFailed && d.rows.length === 0 && d.low.length === 0 && d.bookings === 0}
       // An empty attention list is the system working, and should read that way rather than as an
       // absence of data.
       emptyTitle="Nothing waiting on you"
@@ -284,7 +262,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
       errorTitle="Couldn't check what's overdue"
       errorSub="This is not the same as nothing being overdue — we could not read it just now."
     >
-      {({ rows, tasks, low, bookings, extrasFailed }) => {
+      {({ rows, low, bookings, extrasFailed }) => {
         const late = rows.filter((r) => r.severity === "overdue");
         const soon = rows.filter((r) => r.severity === "soon");
         const shown = open ? rows : rows.slice(0, compact ? 3 : SHOW);
@@ -292,8 +270,8 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
         // addition; the point of merging them is that they do not have to. And it has to be ONE
         // number for one idea: "11 overdue · 7 tasks past due" (Ryan's My Day, 2026-10-04) read as if
         // the seven were among the eleven — two words for late, and a sum left to the reader. The
-        // split is still one glance down: the rows, then "7 team tasks late".
-        const lateCount = late.length + tasks.length;
+        // team's seven are Command's since 2026-10-12, so late is this viewer's rows alone.
+        const lateCount = late.length;
 
         return (
           <div className="owed">
@@ -354,43 +332,8 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
               <button type="button" className="owed-more" onClick={() => setOpen(false)}>Show fewer</button>
             )}
 
-            {/* ── team tasks ──────────────────────────────────────────────────────────────────
-                Same row shape as everything above, deliberately. They used to sit in a second box
-                with their own look, which is what made one screen read as two. */}
-            {tasks.length > 0 && (
-              <>
-                <div className="owed-head sub">
-                  <span className="owed-k">Team tasks late</span>
-                  <span className="k-count due">{tasks.length}</span>
-                </div>
-                {(openTasks ? (allTasks ? tasks : tasks.slice(0, 8)) : tasks.slice(0, TEAM_LEAD)).map((t) => (
-                  // The task itself opens (2026-10-04) — it is what is late, and its sheet completes,
-                  // reassigns and re-dates it. It used to open its event's whole prep checklist.
-                  <button key={t.id} type="button" className="owed-row late" onClick={() => openTask(t.id, "event")}>
-                    <span className="owed-row-b">
-                      <b>{t.critical && <Icon name="warning" />}{t.label}</b>
-                      {/* A task with no event or stop is not a broken row — it is a task somebody
-                          wrote down on its own. Say that, and open the task itself rather than a
-                          prep screen it does not belong to. */}
-                      <i>{t.owner ? `${t.owner.kind} · ${t.owner.name}` : "not attached to an event or stop"}</i>
-                    </span>
-                    <span className="owed-age">{t.late != null && t.late > 0 ? dueWord(-t.late) : "late"}</span>
-                    <span className="owed-c" aria-hidden="true">›</span>
-                  </button>
-                ))}
-                {!openTasks && tasks.length > TEAM_LEAD && (
-                  <button type="button" className="owed-more" onClick={() => setOpenTasks(true)} aria-expanded={false}>
-                    Show the other {tasks.length - TEAM_LEAD} <span aria-hidden="true">›</span>
-                  </button>
-                )}
-                {openTasks && !allTasks && tasks.length > 8 && (
-                  <button type="button" className="owed-more" onClick={() => setAllTasks(true)}>Show the other {tasks.length - 8} <span aria-hidden="true">›</span></button>
-                )}
-                {openTasks && (
-                  <button type="button" className="owed-more" onClick={() => { setOpenTasks(false); setAllTasks(false); }} aria-expanded>Show fewer</button>
-                )}
-              </>
-            )}
+            {/* ── the team's late tasks are not here (2026-10-12) ─────────────────────────────
+                Everybody else's late work is the team's week on Command, by name — see the header. */}
 
             {/* ── the two that are not deadlines ──────────────────────────────────────────────
                 A booking with no reply and stock under its reorder point are both "waiting on
@@ -408,8 +351,8 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
                 the overdue list above still stands on its own, and this says what is missing. */}
             {extrasFailed && (
               <p className="pnl-note" role="status">
-                Team tasks, restock and booking replies couldn&rsquo;t be read just now — the overdue
-                list above is still current.
+                Restock and booking replies couldn&rsquo;t be read just now — the overdue list above is
+                still current.
               </p>
             )}
 

@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useRealtimeTable } from "@/lib/realtime";
 import { loadMyTasks, myTaskDay, type MyTaskRow } from "@/lib/myTasks";
-import { splitHome, STALE_DAYS, dayCount, nextUp, type HomeItem } from "@/lib/home";
+import { splitHome, STALE_DAYS, dayHead, nextUp, reasonWords, ageWords, homeTier, type HomeItem } from "@/lib/home";
 import { completeTask, updateTask } from "@/lib/tasks";
 import { logDone } from "@/lib/upkeep";
 import { roleOf, canOf } from "@/lib/roles";
@@ -37,16 +37,33 @@ import { loadOwed, useObligationGo, type OwedData, type OwedRow } from "./Owed";
 //   · the booking and restock lines, when there are any
 //   · "All tasks", which opens the two full panels exactly as they were
 // Nothing is deleted to make it calm; everything folded is one tap away.
+//
+// ONLY WHAT'S YOURS (2026-10-12, the My Day audit, approved). For anyone who manages, this list also
+// carried other people's late tasks ("Not attached to an event or stop", no name) and, through Needs
+// you's rule, every workstream, initiative and goal of the company's: in the audit's rebuild six of
+// the eleven late things here were not the owner's. The rows are yours now — your tasks, deadlines that
+// are yours (lib/obligations obligationFor), equipment and the compliance rules your role confirms.
+// Everybody's late work is the team's week on Command, by name (components/CommandBoard).
+//
+// WHAT'S TRUE, AND WHAT'S NEXT (2026-10-12, the My Day audit, approved). The head said "Clear", green,
+// over eleven things more than two weeks late, and the list said "Nothing due today." while they sat in a
+// chip. The head has four states now (lib/home dayHead); the list leads with up to three of your things
+// in a fixed rank, each saying why it is there — "for Sat · ISI Elite Training", "critical", "due today",
+// "3 days late", "due Wed" (lib/home homeTier, reasonWords) — and with nothing nearer, the newest thing
+// more than two weeks late leads as "To decide", the rest of them one row that opens the sheet it always
+// opened. Ticking, opening, the sheets and their bulk Done and Move are as they were.
 
 type Mine = { kind: "mine"; row: MyTaskRow };
 type Owe = { kind: "owed" | "upkeep" | "rule"; row: OwedRow };
-type Team = { kind: "team"; id: string };
-type Ref = Mine | Owe | Team;
-type Item = HomeItem & { ref: Ref };
-type Data = { items: Item[]; owed: OwedData; doneToday: number };
+type Ref = Mine | Owe;
+// `subIsOp`: the row's second line is its event's own line, which a tier-1 reason already names.
+type Item = HomeItem & { ref: Ref; subIsOp?: boolean };
+type Data = { items: Item[]; owed: OwedData; doneToday: number; today: string };
 
 const STALE_LABEL = `More than ${STALE_DAYS / 7} weeks late`;
-const STALE_SHORT = `${STALE_DAYS / 7}+ weeks late`;
+// The head's tone, in the kit's count chip: plain, the warning amber, or the done green.
+const TONE = { plain: "", warn: " soon", ok: " ok" } as const;
+const sentence = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 
 function mineSub(t: MyTaskRow): string {
   if (t.source === "todo") return `To-do${t.category ? ` · ${t.category}` : ""}`;
@@ -83,7 +100,10 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
     const items: Item[] = [];
     for (const t of mine.rows) {
       const day = myTaskDay(t);
-      items.push({ key: `mine:${t.source ?? "event"}:${t.id}`, title: t.label, sub: mineSub(t), daysOut: day ? daysBetween(today, day) : null, critical: !!t.critical, kind: "mine", ref: { kind: "mine", row: t } });
+      // The event or stop it belongs to, and how far off — the rank's first question (lib/home homeTier).
+      const op = t.op?.day ? { name: t.op.name, daysOut: daysBetween(today, t.op.day) } : null;
+      items.push({ key: `mine:${t.source ?? "event"}:${t.id}`, title: t.label, sub: mineSub(t), daysOut: day ? daysBetween(today, day) : null, critical: !!t.critical, kind: "mine", op,
+        subIsOp: t.source !== "todo" && !t.meeting_notes && !t.goals, ref: { kind: "mine", row: t } });
     }
     for (const r of owed.rows) {
       // A compliance rule nobody ever confirmed is dated today by v_obligations (0330), every day: it is
@@ -92,10 +112,7 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
       const daysOut = kind === "rule" && Number(r.days_out) >= 0 ? null : Number(r.days_out);
       items.push({ key: `owed:${r.source}:${r.subject_id}`, title: r.title, sub: `${r.kind} · ${r.detail}`, daysOut, critical: false, kind, ref: { kind, row: r } });
     }
-    for (const t of owed.tasks) {
-      items.push({ key: `team:${t.id}`, title: t.label, sub: t.owner ? `${t.owner.kind} · ${t.owner.name}` : "Not attached to an event or stop", daysOut: t.late != null ? -t.late : null, critical: t.critical, kind: "team", ref: { kind: "team", id: t.id } });
-    }
-    return { items, owed, doneToday: doneTodos + doneEvent };
+    return { items, owed, doneToday: doneTodos + doneEvent, today };
   }, [meId, role, manage]);
   const state = useAsyncData<Data>(loader, [loader]);
   useRealtimeTable({ table: "event_tasks", filter: `assignee=eq.${meId}` }, state.reload, { enabled: !!meId });
@@ -120,7 +137,6 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
   const open = (i: Item) => {
     const r = i.ref;
     if (r.kind === "mine") openTask(r.row.id, r.row.source === "todo" ? "todo" : "event");
-    else if (r.kind === "team") openTask(r.id, "event");
     else if (canGo(r.row)) go(r.row);
     else setSheet("all");   // its answer (a payment, say) lives on the full panel
   };
@@ -151,16 +167,20 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
     state.reload();
   };
 
-  const row = (i: Item) => {
+  // A row says why it stands where it does, first, in words (lib/home reasonWords) — then what it is, unless
+  // the reason already named it — and its age beside it when the reason has not said when (ageWords).
+  const row = (i: Item, today: string) => {
     const canTick = !!tickOf(i);
     const late = i.daysOut !== null && i.daysOut < 0;
+    const reason = reasonWords(i, today), age = ageWords(i);
+    const sub = homeTier(i) === 1 && i.subIsOp ? null : i.sub;
     const body = (
       <>
         <span className="owed-row-b">
           <b>{i.critical && <Icon name="warning" />}{i.title}</b>
-          <i>{i.sub}</i>
+          <i>{[reason && sentence(reason), sub].filter(Boolean).join(" · ")}</i>
         </span>
-        {i.daysOut !== null && <span className="owed-age">{dueWord(i.daysOut)}</span>}
+        {age && <span className="owed-age">{age}</span>}
       </>
     );
     if (!canTick) return (
@@ -187,14 +207,20 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
     <div className="flex items-center"><b className="text-subhead">{title}</b><CloseButton onClick={() => setSheet(null)} /></div>
   );
 
-  // The head stays put while the list loads; its count arrives with the list.
-  const head = state.data ? splitHome(state.data.items) : null;
-  const due = head ? head.today.length + head.moreToday : null;
-  const doneToday = state.data?.doneToday ?? 0;
+  // The head stays put while the list loads; its words arrive with the list. Four states (lib/home dayHead):
+  // what is due counts as before; with nothing due it says what is left to decide, or what else is waiting —
+  // equipment, compliance, bookings, restock, or a part that could not be read — and "Clear" only when nothing is.
+  const loaded = state.data;
+  const split = loaded ? splitHome(loaded.items) : null;
+  const head = loaded && split ? dayHead({
+    done: loaded.doneToday, due: split.due.length, decide: split.stale.length,
+    waiting: split.upkeep.length + split.rules.length + loaded.owed.bookings + loaded.owed.low.length, unread: loaded.owed.extrasFailed,
+  }) : null;
+  const doneToday = loaded?.doneToday ?? 0;
   return (
     <div className="adm-sec" id="my-day-tasks">
       {/* "To do", not "Today" (2026-10-09, the navigation round): the screen's title names the lane, Today, now. */}
-      <SectionHeader label="To do" right={due === null ? undefined : <span className={`k-count${due ? "" : " ok"}`}>{dayCount(doneToday, due)}</span>} />
+      <SectionHeader label="To do" right={head ? <span className={`k-count${TONE[head.tone]}`}>{head.words}</span> : undefined} />
       <AsyncSection
         state={state}
         isEmpty={(d) => d.items.length === 0 && d.owed.bookings === 0 && d.owed.low.length === 0 && !d.owed.extrasFailed}
@@ -204,15 +230,17 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
         errorTitle="Couldn't check today's work"
         errorSub="This is not the same as nothing being due — we could not read it just now."
       >
-        {({ items, owed }) => {
+        {({ items, owed, today }) => {
           const s = splitHome(items);
           const upkeepLate = s.upkeep.filter((i) => (i.daysOut ?? 0) < 0).length;
+          const leadsToDecide = s.next.length === 0 && s.shown.length > 0;
           return (
             <div className="owed">
-              {s.today.map((i) => row(i))}
-              {/* A finished day says so, and points at what comes next — "Nothing due today." said the same of a
-                  clear morning and a done one. */}
-              {s.today.length === 0 && (() => {
+              {/* Up to three of yours, by the fixed rank — or, with nothing nearer, the newest to decide. */}
+              {s.shown.map((i) => row(i, today))}
+              {/* Nothing ranked and nothing to decide: a finished day says so, and points at what comes next —
+                  "Nothing due today." said the same of a clear morning and a done one. */}
+              {s.shown.length === 0 && (() => {
                 const next = nextUp(items);
                 return (
                   <>
@@ -221,26 +249,30 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
                   </>
                 );
               })()}
-              {/* The rest of today, counted where it opens: the head's number is these rows plus this one's. */}
-              {s.moreToday > 0 && fold("due", `${s.moreToday} more due today`, "The full list, critical first", () => setSheet("due"))}
+              {/* The rest of what is due, counted where it opens: the head's number is the due rows above plus this one's. */}
+              {s.moreToday > 0 && fold("due", `${s.moreToday} more due today`, "Every one due, in the same order", () => setSheet("due"))}
+              {/* THE REST TO DECIDE (2026-10-12): one row, into the sheet that has always held them — its bulk Done and
+                  Move to next week as they were. "More" when the newest of them leads the list above. */}
+              {s.moreStale > 0 && fold("decide", `${s.moreStale} ${leadsToDecide ? "more " : ""}to decide`, STALE_LABEL, () => setSheet("stale"))}
 
               {/* WAITING, ON ONE LINE (2026-10-10, the Today round). Five rows stood under the three things due —
                   equipment, the stale, bookings, restock, all tasks — each a full-width door, each asking whether to
                   look. They are one line of chips now: what is waiting and how much, one tap each, the late in the
-                  warning colour. Each opens what its row opened; the sheets say the rest. */}
+                  warning colour. Each opens what its row opened; the sheets say the rest. (2026-10-12: the stale left
+                  the line for the list itself, as the row "N to decide" — a decision is the list's, not a chip's.
+                  "All tasks" counts only what is yours: everything here is.) */}
               <div className="flex flex-wrap gap-2 pt-3" role="group" aria-label="Also waiting">
                 {s.upkeep.length > 0 && <button type="button" className={`k-chip sm${upkeepLate ? " warn" : ""}`} onClick={() => setSheet("upkeep")}
                   aria-label={`Equipment upkeep, ${s.upkeep.length}${upkeepLate ? `, ${upkeepLate} past ${upkeepLate === 1 ? "its" : "their"} service date` : ""}`}>Equipment · {s.upkeep.length} ›</button>}
                 {s.rules.length > 0 && <button type="button" className="k-chip sm" onClick={() => setSheet("rules")}
                   aria-label={`Compliance, ${s.rules.length} ${s.rules.length === 1 ? "rule" : "rules"} to confirm with the authority`}>Compliance · {s.rules.length} ›</button>}
-                {s.stale.length > 0 && <button type="button" className="k-chip sm" onClick={() => setSheet("stale")} aria-label={`${STALE_LABEL}, ${s.stale.length}`}>{STALE_SHORT} · {s.stale.length} ›</button>}
                 {owed.bookings > 0 && <button type="button" className="k-chip sm" onClick={() => goPlanTab("leads", { setSection })}
                   aria-label={`${owed.bookings} booking ${owed.bookings === 1 ? "request" : "requests"} to answer`}>Bookings · {owed.bookings} ›</button>}
                 {owed.low.length > 0 && <button type="button" className="k-chip sm warn" onClick={() => setSection("garage")} aria-label={`Restock, ${owed.low.length} low`}>Restock · {owed.low.length} ›</button>}
                 <button type="button" className="k-chip sm" onClick={() => setSheet("all")} aria-label={`All tasks, ${s.total}`}>All tasks · {s.total} ›</button>
               </div>
               {owed.extrasFailed && (
-                <p className="pnl-note" role="status">Team tasks, restock and booking replies couldn&rsquo;t be read just now — the rest is current.</p>
+                <p className="pnl-note" role="status">Restock and booking replies couldn&rsquo;t be read just now — the rest is current.</p>
               )}
 
               {sheet === "all" && (
@@ -248,15 +280,15 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
               )}
               {sheet === "due" && (
                 <Sheet open onClose={() => setSheet(null)} label="Due today" header={sheetHead(`Due today · ${s.due.length}`)}>
-                  <div className="owed">{s.due.map((i) => row(i))}</div>
+                  <div className="owed">{s.due.map((i) => row(i, today))}</div>
                 </Sheet>
               )}
               {sheet === "stale" && (
                 <Sheet open onClose={() => setSheet(null)} label={STALE_LABEL} header={sheetHead(STALE_LABEL)}>
                   <p className="pnl-note">Each was due more than {STALE_DAYS} days ago. Done, moved, or opened to decide.</p>
-                  <div className="owed">{s.stale.map((i) => row(i))}</div>
+                  <div className="owed">{s.stale.map((i) => row(i, today))}</div>
                   {(() => {
-                    const tickable = s.stale.filter((i) => i.kind !== "team" && !!tickOf(i));
+                    const tickable = s.stale.filter((i) => !!tickOf(i));
                     if (!tickable.length) return null;
                     return (
                       <div className="flex flex-wrap gap-2 mt-4">
@@ -270,12 +302,12 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
               {sheet === "rules" && (
                 <Sheet open onClose={() => setSheet(null)} label="Compliance to confirm" header={sheetHead(`Compliance · ${s.rules.length} to confirm`)}>
                   <p className="pnl-note">Each is a rule nobody has confirmed with its authority, or confirmed more than a year ago. Open one to confirm it — with whom, and when.</p>
-                  <div className="owed">{s.rules.map((i) => row(i))}</div>
+                  <div className="owed">{s.rules.map((i) => row(i, today))}</div>
                 </Sheet>
               )}
               {sheet === "upkeep" && (
                 <Sheet open onClose={() => setSheet(null)} label="Equipment upkeep" header={sheetHead("Equipment upkeep")}>
-                  <div className="owed">{s.upkeep.map((i) => row(i))}</div>
+                  <div className="owed">{s.upkeep.map((i) => row(i, today))}</div>
                   {s.upkeep.length > 1 && (
                     <div className="flex flex-wrap gap-2 mt-4">
                       <button type="button" className="btn-pri" disabled={!!busy} onClick={() => bulk(s.upkeep, "done")}>Log all {s.upkeep.length} done today</button>

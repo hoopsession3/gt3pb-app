@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import AssignTaskSheet from "./AssignTaskSheet";
 import Icon from "@/components/Icon";
+import { useAuth } from "./AuthProvider";
 import { errorMessage } from "@/lib/errorMessage";
 
 // CHIEF OF STAFF — the executive-assistant briefing. Pick a horizon (week / month / quarter) and it
@@ -20,6 +21,7 @@ const URG: Record<string, string> = { high: "#c4453c", medium: "#e0892b", low: "
 const STAT: Record<string, { c: string; t: string }> = { good: { c: "#6aa05c", t: "On track" }, watch: { c: "#e0892b", t: "Watch" }, behind: { c: "#c4453c", t: "Behind" } };
 
 export default function ChiefOfStaff() {
+  const { user } = useAuth();
   const [period, setPeriod] = useState<"week" | "month" | "quarter">("week");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -30,12 +32,18 @@ export default function ChiefOfStaff() {
   // Close the SOURCE record a priority points at (a real todo / event_task), so ✓ Done on the
   // briefing actually completes the overdue item — not just a cosmetic check. Scoped by id + still-open
   // so a stale/hallucinated ref is a harmless no-op.
+  //
+  // IT IS STAMPED LIKE EVERY OTHER DONE (2026-10-12, the My Day audit). An event task closed here wrote
+  // done and nothing else: no done_at, so My Day's head ("2 done · 1 to go", counted from done_at) never
+  // saw it, and no done_by. It writes the columns lib/tasks completeTask writes now — the still-open scope
+  // stays, so a ref the briefing invented, or one already done, changes nothing and moves no date.
   const complete = async (ref: { kind: string; id: string }) => {
     if (!supabase) return;
     const key = `${ref.kind}:${ref.id}`;
     setDoneRefs((s) => new Set(s).add(key));
     const table = ref.kind === "task" ? "event_tasks" : "todos";
-    const patch = ref.kind === "task" ? { done: true } : { done: true, done_at: new Date().toISOString() };
+    const done_at = new Date().toISOString();
+    const patch = ref.kind === "task" ? { done: true, done_by: user?.id ?? null, done_at } : { done: true, done_at };
     const { error } = await supabase.from(table).update(patch).eq("id", ref.id).eq("done", false);
     if (error) setDoneRefs((s) => { const n = new Set(s); n.delete(key); return n; });
   };
