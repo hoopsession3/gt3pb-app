@@ -11559,7 +11559,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const fs = require("node:fs"), path = require("node:path");
   const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
   const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
-  const HM = require("../.smoke/home.js"), ECM = require("../.smoke/economics.js");
+  const HM = require("../.smoke/home.js"), SPM = require("../.smoke/spend.js"), ECM = require("../.smoke/economics.js");
 
   ok("money: the shop is a channel of its own, named — a merch week moves the shop, not the walk-ups",
     HM.CHANNEL_WORDS.shop === "Shop" && HM.channelDriver({ shop: 9000, square_walkup: 100 }, { shop: 9000, square_walkup: 200 })?.channel === "shop");
@@ -11578,6 +11578,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && HM.ingredientWords(0.27, { products: 9, costed: 3, assumed: false }) === "ingredients at 27% of sales · 3 of 9 products costed"
       && HM.ingredientWords(0.3) === "ingredients at 30% of sales");
   ok("money: the default plan in words, from its own numbers", ECM.planWords() === "35% of guests buy · 1.2 items each · ingredients at 30% · crew at $18/hr", ECM.planWords());
+  ok("money: a budget's month is the business's — 9 pm Eastern on 31 October is October, after midnight it is November, and in winter too",
+    SPM.businessMonthStart(new Date("2026-11-01T01:00:00Z")) === "2026-10-01" && SPM.businessMonthStart(new Date("2026-11-01T04:30:00Z")) === "2026-11-01"
+      && SPM.businessMonthStart(new Date("2027-01-01T00:30:00Z")) === "2026-12-01");
 
   // The screens: a failed read is a failure, said as one.
   const reps = code(rd("lib/reports.ts")), sales = code(rd("components/Reports.tsx")), snap = code(rd("components/SnapshotReport.tsx"));
@@ -11594,6 +11597,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("money: an event's net says it is an estimate, on the P&L and on the live card, and names the default plan when that is what it stands on",
     /\{moneyRound\(r\.margin_cents\)\} est\. net/.test(pnl) && /r\.costs_saved === false/.test(pnl)
       && /% of plan · est\. net <b/.test(crew) && /\{hasPlan && !econ && <p className="cp-line dim">Estimated on the default plan: \{planWords\(\)\}/.test(crew));
+  ok("money: Spend & budget cuts its month in Eastern time — the budget it saves, the list it reads, and the report it asks for by name",
+    /const month = businessMonthStart\(\);/.test(spend) && !/toISOString\(\)\.slice\(0, 10\)/.test(spend) && /supabase\.rpc\("report_spend", \{ p_month: monthStart \}\)/.test(spend)
+      && /const monthStart = businessMonthStart\(\);/.test(spend) && /const month = monthKey\(businessMonthStart\(\)\);/.test(spend));
   ok("money: the console's money panels read their errors — subscribers, subscription interest, order history, product economics",
     /const \{ data, error \} = await supabase\.from\("subscriptions"\)\.select\("\*"\)/.test(crew) && /const \{ data, error \} = await supabase\.from\("subscription_interest"\)/.test(crew)
       && /const \{ data, error \} = await supabase\.from\("orders"\)\.select\("\*"\)\.in\("status", \["done", "void"\]\)/.test(crew)

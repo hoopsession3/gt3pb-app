@@ -1,6 +1,6 @@
 -- ── 0384 — THE MONEY NUMBERS ARE HONEST ─────────────────────────────────────────────────────────────────────────────
--- 2026-10-12. Release 1 of the money audit, approved by the owner on 2026-10-11. Findings in what Money reads, all from
--- the code. Paste into Supabase → SQL Editor → Run. Idempotent: a second run changes nothing.
+-- 2026-10-12. Release 1 of the money audit, approved by the owner on 2026-10-11. Five findings in what Money reads, all
+-- from the code. Paste into Supabase → SQL Editor → Run. Idempotent: a second run changes nothing.
 --
 -- 1. A SHOP PAYMENT WAS A WALK-UP. report_sales counts a Square payment as a walk-up when it matches no app order's
 --    payment id (0216, 0220). The match looked in orders, drop_orders, delivery_orders and business_orders and never in
@@ -39,10 +39,19 @@
 --    subscribers, MRR, members and repeat buyers summed every tenant's rows. It reads the caller's tenant now
 --    (effective_tenant()), as report_sales, report_events and report_spend have since 0216.
 --
+-- 5. A BUDGET SAVED IN THE EVENING STARTED NEXT MONTH. Spend & budget dated a budget with the UTC date of the first of
+--    the month at the moment it was saved (components/SpendBudget.tsx: new Date(), setDate(1), toISOString()), so one
+--    saved after 8 pm Eastern (7 pm in winter) was dated the 2nd — and report_spend, which takes the latest budget dated
+--    on or before the 1st, applied it from the month after. report_spend's month defaulted to current_date, UTC's, so from
+--    8 pm on the last day of a month the panel read the next month. The panel now cuts the month in Eastern time
+--    (lib/spend businessMonthStart) and asks for it by name; report_spend's default is business_day() (0348); and the
+--    budgets the bug dated the 2nd move to the 1st of their month — unless one is already dated the 1st for the same
+--    category and city, which then stays the one in force, as it is today.
+--
 -- Each function is its latest definition (report_sales 0358, report_events 0220, report_snapshot 0048, report_spend 0292,
 -- report_product_mix 0231) with only the lines above changed. Same signatures, same return types; the payloads gain keys
--- and lose none. The app half ships in the same change: lib/reports, lib/home, lib/economics, components/Reports,
--- SnapshotReport, EventPnlReport, SpendBudget, HomeNumbers and the console's live event card. Paste this before
+-- and lose none. The app half ships in the same change: lib/reports, lib/home, lib/spend, lib/economics, components/
+-- Reports, SnapshotReport, EventPnlReport, SpendBudget, HomeNumbers and the console's live event card. Paste this before
 -- the deploy that reads it; pasted after, nothing breaks — the screens read the new keys when they are there.
 -- scripts/db.money.test.mjs runs this file against every migration before it and shows each finding first.
 -- changelog: below.
@@ -212,9 +221,10 @@ begin
   );
 end; $$;
 
--- ── 4 · report_spend: owners and admins ──────────────────────────────────────────────────────────────────────────
--- 0292's function but is_admin().
-create or replace function public.report_spend(p_month date default current_date, p_market text default null)
+-- ── 4 · report_spend: the month is the business's, Eastern ───────────────────────────────────────────────────────
+-- 0292's function but the default month (business_day(), not current_date) and is_admin(). A default is evaluated by
+-- the caller, so business_day() must stay callable by authenticated — it is: a plain function, PUBLIC's grant untouched.
+create or replace function public.report_spend(p_month date default public.business_day(), p_market text default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   mstart date := date_trunc('month', p_month)::date;
@@ -301,12 +311,30 @@ grant execute on function public.report_snapshot() to authenticated, service_rol
 grant execute on function public.report_spend(date, text) to authenticated, service_role;
 grant execute on function public.report_product_mix(int) to authenticated, service_role;
 
+-- ── 7 · the budgets the evening dated the 2nd ────────────────────────────────────────────────────────────────────
+-- existing rows: budgets — a row dated after the 1st of its month only ever came from finding 5 (the panel offers no
+-- other day; 0292 dated the older rows 2000-01-01), and was meant for the month it was saved in. Moved to that 1st,
+-- one per category, city and month (the latest, if somehow two), and only where no budget is already dated that 1st:
+-- that one is what the month has been reading, and it stays in force.
+update public.budgets b
+   set effective_from = date_trunc('month', b.effective_from)::date,
+       updated_at     = now()
+ where b.id in (
+         select distinct on (x.tenant_id, x.market, x.category, date_trunc('month', x.effective_from)) x.id
+           from public.budgets x
+          where x.effective_from <> date_trunc('month', x.effective_from)::date
+          order by x.tenant_id, x.market, x.category, date_trunc('month', x.effective_from), x.effective_from desc, x.updated_at desc)
+   and not exists (
+         select 1 from public.budgets f
+          where f.tenant_id = b.tenant_id and f.market is not distinct from b.market and f.category = b.category
+            and f.effective_from = date_trunc('month', b.effective_from)::date);
+
 -- ── what changed ─────────────────────────────────────────────────────────────────────────────────────────────────
 insert into public.changelog (title, category, area, summary, shipped_on, highlight)
 select v.title, v.category, v.area, v.summary, v.shipped_on::date, v.highlight
 from (values
   ('The money numbers say what they are','fix','Money',
-   'Shop and program sales are their own line in Sales instead of being counted as walk-ups, and one paid during an event no longer counts toward that event. Each channel''s average order is its own revenue over its own orders — the average used to divide all revenue by cup orders alone. A margin says how much of the menu has a known cost, or that 30% is assumed, and an event''s net says it is an estimate and what it assumed. A panel that could not read its numbers says so, with Try again, instead of showing nothing or $0. Sales, the snapshot, the event P&L and spend are for owners and admins only, and the snapshot counts this business alone.',
+   'Shop and program sales are their own line in Sales instead of being counted as walk-ups, and one paid during an event no longer counts toward that event. Each channel''s average order is its own revenue over its own orders — the average used to divide all revenue by cup orders alone. A margin says how much of the menu has a known cost, or that 30% is assumed, and an event''s net says it is an estimate and what it assumed. A panel that could not read its numbers says so, with Try again, instead of showing nothing or $0. Sales, the snapshot, the event P&L and spend are for owners and admins only, and the snapshot counts this business alone. A budget saved in the evening starts this month, not next.',
    '2026-10-12', false)
 ) as v(title, category, area, summary, shipped_on, highlight)
 where not exists (select 1 from public.changelog c where c.title = v.title);
@@ -320,5 +348,7 @@ where not exists (select 1 from public.changelog c where c.title = v.title);
 --   select prosrc like '%''orders_by_channel''%' and prosrc like '%''cogs_basis''%' from pg_proc where proname = 'report_sales';     -- t
 --   select prosrc like '%''costs_saved''%' from pg_proc where proname = 'report_events';                                       -- t
 --   select prosrc like '%and tenant_id = tid%' from pg_proc where proname = 'report_snapshot';                         -- t
+--   select pg_get_function_arguments('public.report_spend(date, text)'::regprocedure) like '%business_day()%';           -- t
+--   select count(*) from public.budgets where effective_from <> date_trunc('month', effective_from)::date;               -- 0, or the few behind a budget already dated the 1st
 select public.record_migration('0384_the_money_numbers_are_honest',
-  'report_sales: shop channel (shop_orders total less refunds, canceled out) and shop_orders in both walk-up matches and by_event, orders_by_channel, cogs_basis {products, costed, assumed}; report_events: shop payments join no event, costs_saved; report_snapshot: effective_tenant() on every table; all five report_* gate on is_admin(), EXECUTE revoked from public and anon, granted to authenticated and service_role.');
+  'report_sales: shop channel (shop_orders total less refunds, canceled out) and shop_orders in both walk-up matches and by_event, orders_by_channel, cogs_basis {products, costed, assumed}; report_events: shop payments join no event, costs_saved; report_snapshot: effective_tenant() on every table; report_spend: default month business_day(); all five report_* gate on is_admin(), EXECUTE revoked from public and anon, granted to authenticated and service_role; budgets dated after the 1st of their month (the UTC cut) moved to the 1st where none is already dated there.');

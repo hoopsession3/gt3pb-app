@@ -10,6 +10,8 @@
 //   3. Any crew member could read the books. After: owners and admins only; anon cannot call them at all; the service
 //      role keeps EXECUTE; product economics was already admin-only and still is.
 //   4. The snapshot counted every business. After: tenant B's rows are absent from tenant A's snapshot, and B sees B's.
+//   5. A budget saved in the evening started next month. After: the evening's budgets start their own month, and the
+//      report's default month is the business day's (Eastern), not UTC's.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -74,6 +76,13 @@ await q(`insert into public.inventory_items (name, qty, unit_cost, status, tenan
 await q(`insert into public.subscriptions (user_id, plan, status, square_subscription_id, tenant_id) values ($1, 'coffee_12', 'active', 'sub-made-up-b', $2)`, [MEMBER_B, T2]);
 for (let i = 0; i < 2; i++) await q(`insert into public.orders (user_id, items, total_cents, paid, tenant_id) values ($1, '{rise}', 700, true, $2)`, [MEMBER_B, T2]);
 
+// Budgets in business A for September: one saved in the evening (dated the 2nd by the UTC cut), and for marketing one
+// saved in the morning (the 1st) and changed that evening (the 2nd).
+for (const [cat, cents, from] of [["supplies", 50000, "2026-09-02"], ["marketing", 20000, "2026-09-01"], ["marketing", 30000, "2026-09-02"]]) {
+  await q(`insert into public.budgets (category, market, monthly_limit_cents, effective_from, tenant_id) values ($1, 'greenville', $2, $3, $4)`, [cat, cents, from, T1]);
+}
+const budget = (rep, cat) => (rep?.by_category ?? []).find((c) => c.category === cat)?.budget_cents;
+
 const REPORTS = ["report_sales(int)", "report_events()", "report_snapshot()", "report_spend(date,text)", "report_product_mix(int)"];
 const can = async (role, f) => (await q(`select has_function_privilege($1, $2, 'execute') ok`, [role, `public.${f}`]))[0].ok;
 
@@ -108,6 +117,10 @@ let snapA0;
   ok("before 0384: business B's owner reads business A's snapshot — the same numbers, every tenant summed",
     JSON.stringify(snapB0) === JSON.stringify(snapA0) && snapA0?.subs?.active >= 2, { a: snapA0?.subs, b: snapB0?.subs });
 
+  const sep0 = await report(OWNER, `public.report_spend('2026-09-15', 'greenville')`);
+  ok("before 0384: the budget saved on a September evening (dated the 2nd) is not September's", budget(sep0, "supplies") === 0, sep0?.by_category);
+  const args = (await q(`select pg_get_function_arguments('public.report_spend(date, text)'::regprocedure) a`))[0].a;
+  ok("before 0384: report_spend's month defaults to current_date — the database's day, which is UTC's", /DEFAULT CURRENT_DATE/i.test(args), args);
 }
 
 // ── 0384 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -207,6 +220,26 @@ const snapA1 = await report(OWNER, `public.report_snapshot()`), snapB1 = await r
       && b?.loyalty?.members === 2 && b?.loyalty?.buyers === 1 && b?.loyalty?.repeat_customers === 1, b);
 }
 
+// 5 · the evening's budget starts its own month, and the month is Eastern
+{
+  const sep = await report(OWNER, `public.report_spend('2026-09-15', 'greenville')`);
+  ok("5 · the budget saved on a September evening is September's now", budget(sep, "supplies") === 50000, sep?.by_category);
+  ok("5 · …and where the 1st already had one, that stays in force and the evening's waits, as it did", budget(sep, "marketing") === 20000, sep?.by_category);
+  const dates = (await q(`select category, effective_from::text d from public.budgets where tenant_id = $1 and market = 'greenville' and effective_from >= '2026-09-01' order by 1, 2`, [T1])).map((r) => `${r.category} ${r.d}`);
+  ok("5 · the rows: supplies moved to the 1st; marketing's two kept their days", JSON.stringify(dates) === JSON.stringify(["marketing 2026-09-01", "marketing 2026-09-02", "supplies 2026-09-01"]), dates);
+  const args = (await q(`select pg_get_function_arguments('public.report_spend(date, text)'::regprocedure) a`))[0].a;
+  ok("5 · report_spend's month defaults to the business day — Eastern, lib/dates.etToday's", /DEFAULT business_day\(\)/i.test(args), args);
+  ok("5 · …which the signed-in caller may evaluate (a default runs as the caller)", await can("authenticated", "business_day()"));
+  // 9 pm Eastern on 31 October: UTC's current_date is already 1 November. Pin the business day there.
+  const real = (await q(`select pg_get_functiondef('public.business_day()'::regprocedure) d`))[0].d;
+  await db.exec(`create or replace function public.business_day() returns date language sql stable set search_path = public as $$ select date '2026-10-31' $$;`);
+  const lastNight = await report(OWNER, `public.report_spend()`);
+  ok("5 · at 9 pm Eastern on 31 October the panel's report is October's", lastNight?.month === "2026-10", lastNight?.month);
+  await db.exec(real);
+  const today = (await q(`select to_char(public.business_day(), 'YYYY-MM') m`))[0].m;
+  ok("5 · …and the clock put back, it reads the business day's month again", (await report(OWNER, `public.report_spend()`))?.month === today);
+}
+
 // ── WHAT MUST KEEP WORKING ─────────────────────────────────────────────────────────────────────────────────────────
 {
   // The home's three numbers (components/HomeNumbers): the 14- and 7-day reports and the P&L, as the owner.
@@ -220,7 +253,9 @@ const snapA1 = await report(OWNER, `public.report_snapshot()`), snapB1 = await r
 
 // ── A SECOND RUN, AND THE LEDGER ───────────────────────────────────────────────────────────────────────────────────
 {
+  const before = JSON.stringify(await q(`select id, effective_from::text from public.budgets order by id`));
   ok("0384 run twice: no error", await db.exec(MIG(F384)).then(() => true, (e) => { console.log(e.message); return false; }));
+  ok("0384 run twice: no budget moves again", JSON.stringify(await q(`select id, effective_from::text from public.budgets order by id`)) === before);
   ok("0384 run twice: one changelog entry", Number((await q(`select count(*) n from public.changelog where title = 'The money numbers say what they are'`))[0].n) === 1);
   const open = []; for (const f of REPORTS) if (await can("anon", f)) open.push(f);
   ok("0384 run twice: nothing reopened", open.length === 0, open);

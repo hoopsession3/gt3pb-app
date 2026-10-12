@@ -6,6 +6,7 @@
 // here has to be as willing to report a problem as a clean bill.
 
 import { moneyRound } from "./money";
+import { etDayKey } from "./dates";
 
 export type CategorySlug = string;
 
@@ -41,6 +42,15 @@ export const monthKey = (d: string | Date): string => {
   const s = typeof d === "string" ? d : d.toISOString().slice(0, 10);
   return s.slice(0, 7);
 };
+
+// THE MONTH IS THE BUSINESS'S (2026-10-12, 0384). Spend & budget dated a budget by setting a Date to the 1st and keeping
+// its UTC date — which after 8 pm Eastern (7 pm in winter) is the 2nd — and report_spend, taking the latest budget dated
+// on or before the 1st, applied it from the following month. The month is cut in Eastern time, the business day
+// (lib/dates etDayKey), which is also what report_spend's own default reads since 0384 (business_day()).
+/** The first day of the business month an instant falls in, Eastern time: "2026-10-01" at 9 pm on 31 October. */
+export function businessMonthStart(now: Date = new Date()): string {
+  return `${etDayKey(now).slice(0, 7)}-01`;
+}
 
 /** A voided expense is not spend. Every total in this module goes through here first. */
 export const isOpen = (e: ExpenseRow): boolean => !e.voided_at;

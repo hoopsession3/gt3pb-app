@@ -11,10 +11,9 @@ import EmptyState from "@/components/EmptyState";
 import Icon from "@/components/Icon";
 import { downloadCsv } from "@/lib/csv";
 import { FOUNDING_MARKET, type Market } from "@/lib/markets";
-import { receiptGaps, totals, headline, monthLabel, monthKey, categoryLabel, categoryOrder,
+import { receiptGaps, totals, headline, monthLabel, monthKey, categoryLabel, categoryOrder, businessMonthStart,
          type SpendCategory, type ExpenseRow as SpendRow, type BudgetRow } from "@/lib/spend";
 import { moneyPlain, moneyRound } from "@/lib/money";
-import { localToday } from "@/lib/dates";
 import { attachReceipt as fileReceipt } from "@/lib/receipts";
 import { usePrompt } from "@/components/PromptSheet";
 import Button from "./Button";
@@ -60,9 +59,11 @@ export default function SpendBudget() {
     if (!supabase) return { rep: null, vendors: [], items: [], cats: [] };
     // spent_on, not created_at: the list and report_spend() must agree on what "this month" means.
     // A receipt logged on the 1st for a purchase on the 30th belongs to the month it was spent in.
-    const monthStart = `${monthKey(localToday())}-01`;
+    // ONE MONTH, THE BUSINESS'S (2026-10-12, 0384): the report is asked for it by name. Its default was current_date —
+    // UTC's — so from 8 pm on the last day of a month the totals were next month's under this month's list.
+    const monthStart = businessMonthStart();
     const [r, v, e, c] = await Promise.all([
-      supabase.rpc("report_spend"),
+      supabase.rpc("report_spend", { p_month: monthStart }),
       supabase.from("vendors").select("id, name").is("archived_at", null).order("name"),
       // 0292: receipt_path, market and voided_at are what make the gap list and the per-city
       // totals possible; without them this panel can only ever show a company-wide guess.
@@ -93,7 +94,7 @@ export default function SpendBudget() {
 
   // The honest read of the month, computed from the same tested module the tests use rather than
   // re-derived in JSX. gaps is the list an accountant would ask for.
-  const month = monthKey(localToday());   // local, not UTC: at 9 PM on the 31st it is still this month
+  const month = monthKey(businessMonthStart());   // Eastern, not UTC: at 9 PM on the 31st it is still this month
   const spendRows = items as unknown as SpendRow[];
   const gaps = receiptGaps(spendRows, cats);
   const sum = totals(month, spendRows, [] as BudgetRow[], cats, null);
@@ -123,8 +124,11 @@ export default function SpendBudget() {
     // effective_from), so a budget belongs to a month instead of being rewritten in place. Upserting
     // against the retired constraint would have failed outright the moment 0292 landed. A change
     // saved today takes effect from the first of this month and leaves earlier months alone.
-    const from = new Date(); from.setDate(1);
-    const month = from.toISOString().slice(0, 10);
+    // A BUDGET SAVED IN THE EVENING STARTS THIS MONTH (2026-10-12, 0384). This set a Date to the 1st and kept its UTC
+    // date, which after 8 pm Eastern (7 pm in winter) is the 2nd — and report_spend, taking the latest budget dated on
+    // or before the 1st, applied it from the next month. The month is the business's, cut in Eastern time; 0384 moved
+    // the budgets the evening had dated the 2nd.
+    const month = businessMonthStart();
 
     // CLEARING THE FIELD MEANS THERE IS NO BUDGET, NOT A BUDGET OF ZERO.
     //
