@@ -11727,6 +11727,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("transcript: and every row it files names it — under the service role the 0134 stamp has no caller to read",
     tStmts.filter((c) => /\.insert\(/.test(c)).length === 6 && tStmts.filter((c) => /\.insert\(/.test(c)).every((c) => /\.insert\(\{\s*tenant_id: tenant,/.test(c)));
   const chief = code(rd("app/api/agents/chief/route.ts")), cStmts = stmts(chief, "db");
+  // The gate that holds them there is scripts/api.audit.mjs's AGENT DOOR (its rules are tested in scripts/audits.test.mjs);
+  // the strategy and briefing routes owe it nothing.
+  const audit = rd("scripts/api.audit.mjs"), debt = (audit.match(/export const AGENT_DOOR_DEBT = \{([\s\S]*?)\n\};/) || ["", ""])[1];
+  ok("door: the agent door runs with the API audit, and none of the strategy or briefing routes is in its debt",
+    /export function agentDoor\(src, rel\)/.test(audit) && /export function roleCheckOf\(src\)/.test(audit) && debt.length > 0
+      && !/stratsession|weekreview|session-extract|chief/.test(debt) && /node scripts\/api\.audit\.mjs/.test(JSON.parse(rd("package.json")).scripts.audit)
+      && /agentDoor, roleCheckOf/.test(rd("scripts/audits.test.mjs")));
   ok("briefing: the owner's tenant is resolved and refused when absent, and all eleven reads name it",
     /if \(!\(await ownerFromRequest\(req\)\)\) return[^\n]*\n\s*const tenant = await tenantFromRequest\(req\);\s*if \(!tenant\) return NextResponse\.json\(\{ ok: false, error: "no tenant on this session" \}, \{ status: 401 \}\);/.test(chief)
       && cStmts.length === 11 && cStmts.every((c) => /\.select\("[^"]*"\)\.eq\("tenant_id", tenant\)/.test(c)), cStmts.filter((c) => !/\.eq\("tenant_id", tenant\)/.test(c)).map((c) => c.slice(0, 40)));

@@ -12,7 +12,7 @@ import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate
 import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn, rendersRawCrewOption, peelsErrorMessageByHand } from "./dupe.audit.mjs";
 import { selectsIn, topLevelParts, columnsOf, ageLine, pendingMigrations, arrivingColumns, arrivingRelations, declaresArrival } from "./columns.audit.mjs";
 import { definitionsToSchema, refuseReason, projectRef } from "./schema.snapshot.mjs";
-import { classify as classifyRoute, unwrapped, boundOf } from "./api.audit.mjs";
+import { classify as classifyRoute, unwrapped, boundOf, agentDoor, roleCheckOf, chainEnd, relationsOf, AGENT_DOOR_DEBT } from "./api.audit.mjs";
 import { reassemble } from "./security.snapshot.mjs";
 import { judge, staleBecause, expand } from "./security.audit.mjs";
 import { darkWellCounts, selectClassShorthands, undefinedTokens } from "./design.ratchet.mjs";
@@ -517,6 +517,71 @@ ok("wrapper: a bare handler in a comment does not count",
   unwrapped(`// export async function POST(req) — the old shape\nasync function post() {}\nexport const POST = route("x", post);`).length === 0);
 ok("wrapper: export const runtime/maxDuration are not handlers",
   unwrapped(`export const runtime = "nodejs";\nexport const maxDuration = 60;`).length === 0);
+
+// ── api.audit: the agent door (2026-10-12) ─────────────────────────────────────────────────────
+// Shapes lifted from app/api/agents, three of them exactly as they stood before release 1: the strategy session's
+// Promise.all, the Chief of Staff's alias, the weekly review's all_tasks view. Each is the thing
+// scripts/service-role.audit.mjs read as clean.
+{
+  const REL = relationsOf(
+    { $snapshot: {}, comments: ["id", "tenant_id"], goals: ["id", "tenant_id"], gtm_drafts: ["id", "tenant_id"], events: ["id", "tenant_id"],
+      meeting_notes: ["id", "tenant_id"], agent_jobs: ["id", "tenant_id"], all_tasks: ["id", "done"], os_workstreams: ["name"] },
+    { t: { comments: ["r"], goals: ["r"], gtm_drafts: ["r"], events: ["r"], meeting_notes: ["r"], agent_jobs: ["r"], all_tasks: ["v"], os_workstreams: ["r"] } });
+  const ROUTE = (body) => `import { route } from "@/lib/apiRoute";\n\nasync function post(req: Request) {\n${body}\n}\n\nexport const POST = route("agents/x", post);\n`;
+  const GUARD = `  if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });\n`
+    + `  const tenant = await tenantFromRequest(req);\n  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });\n`;
+  const verdicts = (body) => agentDoor(ROUTE(body), REL).accesses.map((a) => `${a.table}:${a.verdict}`).join(" ");
+
+  const promiseAll = GUARD + `  const [thrQ, goalsQ, gtmQ, evQ] = await Promise.all([
+    supabaseAdmin.from("comments").select("strategy_key, body, created_at").not("strategy_key", "is", null).gte("created_at", d30).order("created_at", { ascending: false }).limit(200),
+    supabaseAdmin.from("goals").select("title, unit, target_value, current_value, updated_at, checkin_status").eq("tenant_id", tenant).eq("status", "active"),
+    supabaseAdmin.from("gtm_drafts").select("name, category, status").in("status", ["draft", "proposed"]).order("updated_at", { ascending: false }).limit(10),
+    supabaseAdmin.from("events").select("id").eq("tenant_id", tenant),
+  ]);`;
+  ok("door: the strategy session's Promise.all as it stood — the NEXT line's tenant filter is not this read's",
+    verdicts(promiseAll) === "comments:unscoped goals:scoped gtm_drafts:unscoped events:scoped", verdicts(promiseAll));
+  ok("door: …and every one of the four is counted — none swallowed by the 400 characters before it",
+    agentDoor(ROUTE(promiseAll), REL).accesses.length === 4);
+  ok("door: a name the service role is given whole is the service role — the Chief of Staff's `const db = supabaseAdmin`",
+    verdicts(`  if (!(await ownerFromRequest(req))) return no();\n  const db = supabaseAdmin;\n  const [e] = await Promise.all([\n    db.from("events").select("title, day").gte("day", from).order("day"),\n  ]);`) === "events:unscoped"
+      && /resolves no tenant/.test(agentDoor(ROUTE(`  const db = supabaseAdmin;\n  await db.from("events").select("id");`), REL).unscoped[0]?.why ?? ""));
+  ok("door: the weekly review's all_tasks — a view with no tenant_id is every business's rows; a TABLE with none is listed, not failed",
+    verdicts(GUARD + `  const [a, b] = await Promise.all([\n    supabaseAdmin.from("all_tasks").select("id", { count: "exact", head: true }).eq("done", false).lt("due", today),\n    supabaseAdmin.from("os_workstreams").select("name").order("sort"),\n  ]);`)
+      === "all_tasks:unscoped os_workstreams:no-tenant-column");
+  ok("door: a chain that names the tenant on its continuation line is scoped",
+    verdicts(GUARD + `  const { data } = await supabaseAdmin.from("meeting_notes").select("id, title")\n    .eq("tenant_id", tenant).eq("source", "strategy").limit(1).maybeSingle();`) === "meeting_notes:scoped");
+  ok("door: a tenant filter in a comment is not a filter",
+    verdicts(GUARD + `  const { data } = await supabaseAdmin.from("events").select("id")\n    // .eq("tenant_id", tenant)\n    .eq("id", id).maybeSingle();`) === "events:unscoped");
+  ok("door: a tenant taken from the request body is not the caller's",
+    verdicts(`  if (!(await staffFromRequest(req))) return no();\n  const body = await req.json();\n  const tenant = body.tenant;\n  await supabaseAdmin.from("events").select("id").eq("tenant_id", tenant);`) === "events:unscoped");
+  ok("door: a tenant resolved but never refused does not count",
+    verdicts(`  if (!(await staffFromRequest(req))) return no();\n  const tenant = await tenantFromRequest(req);\n  await supabaseAdmin.from("events").select("id").eq("tenant_id", tenant);`) === "events:unscoped");
+  ok("door: a // scoped-by: line with its reason proves a read (eventprep's agent_jobs); a bare marker does not",
+    verdicts(GUARD + `  // scoped-by: jobId is not client-supplied — this route inserts the row and hands back its id\n  await supabaseAdmin.from("agent_jobs").update({ status: "done" }).eq("id", jobId);`) === "agent_jobs:proven"
+      && verdicts(GUARD + `  // scoped-by: yes\n  await supabaseAdmin.from("agent_jobs").update({ status: "done" }).eq("id", jobId);`) === "agent_jobs:unscoped");
+  ok("door: a table named by a variable needs its proof — the review's revenue helper had one to give",
+    verdicts(GUARD + `  const { data } = await filter(supabaseAdmin!.from(table).select("total_cents"));`) === "(table):unscoped"
+      && verdicts(GUARD + `  // scoped-by: revenue() is the only caller, and its filters begin with the caller's tenant\n  const { data } = await filter(supabaseAdmin!.from(table).select("total_cents"));`) === "(table):proven");
+  ok("door: an insert is not a read", verdicts(GUARD + `  await supabaseAdmin.from("meeting_notes").insert({ title }).select("id").single();`) === "meeting_notes:write");
+  ok("door: a relation production's snapshot has not seen is held to the rule, not waved through",
+    verdicts(GUARD + `  await supabaseAdmin.from("brand_new_table").select("id");`) === "brand_new_table:unscoped");
+  ok("door: a comma or a brace in a string or a template does not end a chain",
+    verdicts(GUARD + "  await supabaseAdmin.from(\"events\").select(\"id, title\").or(`state.eq.${state},state.is.null`).eq(\"tenant_id\", tenant);") === "events:scoped"
+      && chainEnd('x.from("a").select("b, c").eq("d", `${e ? `f` : "g"}`), next', 0) === 'x.from("a").select("b, c").eq("d", `${e ? `f` : "g"}`)'.length);
+
+  ok("door: the house guard as the handler's first statement passes — inline, or named as event-build does",
+    roleCheckOf(ROUTE(GUARD)).guard === "staffFromRequest"
+      && roleCheckOf(ROUTE(`  const staff = await staffFromRequest(req);\n  if (!staff) return NextResponse.json({ ok: false, error: "Staff only" }, { status: 403 });`)).ok
+      && roleCheckOf(ROUTE(`  if (!(await ownerFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });`)).guard === "ownerFromRequest");
+  ok("door: a session alone is who is calling, not whether they may",
+    (() => { const r = roleCheckOf(ROUTE(`  const user = await userFromRequest(req);\n  if (!user) return no();`)); return !r.ok && /not whether they may/.test(r.why); })());
+  ok("door: a role checked after a read is too late",
+    (() => { const r = roleCheckOf(ROUTE(`  const { data } = await supabaseAdmin.from("events").select("id");\n  if (!(await staffFromRequest(req))) return no();`)); return !r.ok && /not as the handler's first statement/.test(r.why); })());
+  ok("door: a guard in a comment is no guard", (() => { const r = roleCheckOf(ROUTE(`  // if (!(await staffFromRequest(req))) return no();\n  return ok();`)); return !r.ok && r.why === "checks no role at all"; })());
+  ok("door: a handler outside route() cannot be read, and fails", roleCheckOf(`export async function POST(req) {\n  if (!(await staffFromRequest(req))) return no();\n}`).ok === false);
+  ok("door: the debt is whole numbers per route, each above zero — a route that owes nothing is not listed",
+    Object.values(AGENT_DOOR_DEBT).every((n) => Number.isInteger(n) && n > 0) && Object.keys(AGENT_DOOR_DEBT).every((k) => k.startsWith("app/api/agents/") && k.endsWith("/route.ts")));
+}
 
 // ── dupe.audit: a thrown value's message has one home ─────────────────────────────────────────
 ok("errmsg: the plain idiom is a copy", peelsErrorMessageByHand(`catch (e: any) { return bad(String(e?.message ?? e).slice(0, 300)); }`, "app/api/x/route.ts"));
