@@ -8,7 +8,10 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
-import LaunchReadiness from "./LaunchReadiness";
+import LaunchReadiness, { useLaunchReadiness, type LaunchVerdict } from "./LaunchReadiness";
+import { CommandFold } from "./CommandFold";
+import { useOperatorSection } from "./OperatorNav";
+import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { useTaskSheet } from "./TaskSheet";
 import { completeInitiative } from "@/lib/tasks";
 import { SectionHeader, InfoRow } from "@/components/kit";
@@ -30,6 +33,11 @@ const MilestoneSheet = dynamic(() => import("./MilestoneSheet"), { ssr: false })
 // Reads across BOTH task engines (todos + event_tasks) + incidents + initiatives via useAsyncData — a
 // failed query now surfaces as a real error state (AsyncSection) instead of silently rendering "Nothing
 // blocked 🟢" on a request that actually errored. Admins (the owners) manage initiatives + milestones.
+// ONE ROW FOR THE LAUNCH (2026-10-12, the Command audit, approved). At rest the board is the team's week
+// and one row, Initiatives: how the soonest one stands, its milestones and the launch's verdict, in a line
+// (components/CommandFold). The row opens the initiatives and the launch's gates as their own screen, as
+// they were. The Blockers block is gone into the lines where each blocker is acted on: a stream's on its
+// row in the portfolio, a goal at risk on the Goals row, an open blocking incident in the team's week.
 type Initiative = { id: string; title: string; summary: string | null; target_date: string | null; status: string; emoji: string | null };
 // workstream_id (0350) is the portfolio workstream the milestone is filed to; workstream keeps the
 // words — the stream's name, written by the database when the link is set, or words from before.
@@ -37,8 +45,9 @@ type Milestone = { id: string; initiative_id: string; title: string; due_on: str
 // `who` is the assignee (2026-10-12): the overdue list names the person each late task waits on.
 type Work = { id: string; title: string; due: string | null; src: "todo" | "task"; who: string | null };
 type WorkRow = { id: string; title?: string | null; label?: string | null; due_on?: string | null; due_at?: string | null; assignee?: string | null };
-type Incident = { id: string; problem: string; severity: string; created_at: string };
-// 0263 — programs ↔ outcomes: the goals an initiative serves, and at-risk goals on the Blockers line.
+// event_id / stop_id (2026-10-12): an open blocking incident opens the prep page whose log resolves it.
+type Incident = { id: string; problem: string; severity: string; created_at: string; event_id: string | null; stop_id: string | null };
+// 0263 — programs ↔ outcomes: the goals an initiative serves (an at-risk goal is named on Command's Goals row since 2026-10-12).
 type GoalLite = { id: string; title: string; checkin_status: string | null; current_value: number; target_value: number; unit: string | null };
 type BoardData = {
   inits: Initiative[]; miles: Milestone[]; links: { initiative_id: string; milestone_id: string }[];
@@ -61,6 +70,8 @@ const countdown = (iso: string | null) => { if (!iso) return ""; const d = daysT
 const dnice = (iso: string | null) => iso ? new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
 const localYMD = (iso: string) => { const d = new Date(iso); const p = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
 const toWork = (rows: readonly WorkRow[] | null, src: "todo" | "task"): Work[] => (rows ?? []).map((r) => ({ id: r.id, title: r.title ?? r.label ?? "—", due: r.due_on ?? (r.due_at ? localYMD(String(r.due_at)) : null), src, who: r.assignee ?? null }));
+// The launch's verdict, in the Initiatives row's words (components/LaunchReadiness decides it).
+const VERDICT_WORDS: Record<LaunchVerdict, string | null> = { "no-go": "readiness: no-go", "at-risk": "readiness at risk", go: "readiness: go", none: null };
 
 export default function CommandBoard() {
   const confirm = useConfirm();
@@ -68,6 +79,16 @@ export default function CommandBoard() {
   const { user, profile } = useAuth();
   const isAdmin = !!profile?.is_admin;
   const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
+  const { setSection } = useOperatorSection();
+  // The launch's gates (components/LaunchReadiness): read once, for the Initiatives row's verdict and its screen.
+  const launch = useLaunchReadiness();
+  // An open blocking incident is resolved in its event's or stop's incident log, on its prep page (Readiness).
+  const openPrep = (i: Incident) => {
+    const id = i.event_id ?? i.stop_id;
+    if (!id) return;
+    try { localStorage.setItem(prepHandoffKey, prepHandoffValue(i.event_id ? "event" : "stop", id)); } catch { /* ignore */ }
+    setSection("prep");
+  };
   const [manage, setManage] = useState<Milestone | null>(null);   // milestone open in the manage sheet
   // The initiative itself, opened (2026-10-04): its date, status and name had no editor anywhere —
   // only Finish, which completes every task under it. components/InitiativeSheet is that editor.
@@ -117,7 +138,7 @@ export default function CommandBoard() {
       supabase.from("initiative_milestone_links").select("initiative_id, milestone_id"),
       supabase.from("todos").select("id, title, due_on").eq("done", false).not("due_on", "is", null).gte("due_on", today).lte("due_on", wk),
       supabase.from("event_tasks").select("id, label, due_at").eq("done", false).not("due_at", "is", null).gte("due_at", today).lte("due_at", `${wk}T23:59:59`),
-      supabase.from("incident_log").select("id, problem, severity, created_at").eq("resolved", false).eq("severity", "blocker").order("created_at", { ascending: false }),
+      supabase.from("incident_log").select("id, problem, severity, created_at, event_id, stop_id").eq("resolved", false).eq("severity", "blocker").order("created_at", { ascending: false }),
       // The two overdue buckets had no lower date bound and no limit, so they could only grow
       // for the life of the install. Oldest-first with a cap: the point of an overdue list is
       // the oldest thing on it, and 200 of them is already a different conversation.
@@ -251,10 +272,96 @@ export default function CommandBoard() {
         // Who a late task is waiting on, in words: their name, nobody yet, or — when this role cannot read
         // names — someone on the crew. Never a guess.
         const whoOf = (w: Work) => (!w.who ? "Nobody's yet" : data.names[w.who] ?? "Someone on the crew");
+        // The Initiatives row's one line: the soonest initiative (the list is by date, the late first), how its
+        // date stands, its open milestones, and the launch's verdict when it is the launch being gated.
+        const lead = data.inits[0] ?? null;
+        const leadMs = lead ? (milesByInit.get(lead.id) ?? []) : [];
+        const leadOpen = leadMs.filter((m) => !m.done).length;
+        const leadDays = lead?.target_date ? daysTo(lead.target_date) : null;
+        const leadWhen = leadDays == null ? "no date" : leadDays < 0 ? `${-leadDays} day${leadDays === -1 ? "" : "s"} past its date`
+          : leadDays === 0 ? "due today" : leadDays === 1 ? "due tomorrow" : `${leadDays} days left`;
+        const leadName = lead ? `${lead.emoji ? `${lead.emoji} ` : ""}${lead.title} — ` : "";
+        const leadRest = [leadMs.length ? `${leadOpen} of ${leadMs.length} milestone${leadMs.length === 1 ? "" : "s"} open` : null,
+          lead && launch.launch?.id === lead.id ? VERDICT_WORDS[launch.verdict] : null].filter(Boolean).map((s) => ` · ${s}`).join("");
         return (
           <div className="cmd">
-            {/* ── Initiatives · the launch ── */}
-            <SectionHeader label="Initiatives" annotation="the launch" />
+            {/* ── The team's week — one line; the lists open on a tap ── */}
+            <SectionHeader label="The team's week" annotation="across the crew" />
+            <button type="button" className={`cmd-week${weekOpen ? " open" : ""}`} onClick={() => setWeekOpen((o) => !o)} aria-expanded={weekOpen}>
+              <span><b className="text-cream font-bold tabular-nums">{data.week.length}</b> due in the next 7 days</span>
+              <span className={data.overdue.length ? "late" : undefined}><b className="text-cream font-bold tabular-nums">{data.overdue.length}</b> overdue</span>
+              <span><b className="text-cream font-bold tabular-nums">{data.done.length}</b> done this week</span>
+              {data.incidents.length > 0 && <span className="late"><b className="text-cream font-bold tabular-nums">{data.incidents.length}</b> blocking</span>}
+              <span className={`ml-auto ev-chev${weekOpen ? " open" : ""}`} aria-hidden="true">›</span>
+            </button>
+            {weekOpen && (
+              <div className="flex flex-col gap-3.5 mb-2.5">
+                {/* AN OPEN BLOCKING INCIDENT IS THE WEEK'S (2026-10-12, the Command audit). It sat in a Blockers block of
+                    its own, a row that opened nothing. It is counted in the line above, listed first here, and opens
+                    the prep page whose incident log resolves it. */}
+                {data.incidents.length > 0 && (
+                  <div className="k-rows">
+                    <div className="font-sans font-bold text-caption tracking-[.06em] uppercase text-cream-muted px-0.5 pt-0.5 pb-1.5">Blocking</div>
+                    {data.incidents.map((i) => (
+                      <InfoRow
+                        key={i.id}
+                        name={<><Icon name="warning" /> {i.problem}</>}
+                        sub={`Logged ${dnice(localYMD(i.created_at))}${i.event_id ? " at an event" : i.stop_id ? " at a truck stop" : ""}`}
+                        onClick={i.event_id || i.stop_id ? () => openPrep(i) : undefined}
+                        ariaLabel={i.event_id || i.stop_id ? `Blocking: ${i.problem} — opens the ${i.event_id ? "event" : "stop"}'s prep, where it is resolved` : undefined}
+                      />
+                    ))}
+                  </div>
+                )}
+                {ov.shown.length > 0 && (
+                  <div className="k-rows">
+                    <div className="font-sans font-bold text-caption tracking-[.06em] uppercase text-cream-muted px-0.5 pt-0.5 pb-1.5">Overdue</div>
+                    {ov.shown.map((w) => (
+                      <InfoRow
+                        key={`ov-${w.src}-${w.id}`}
+                        name={w.title}
+                        sub={whoOf(w)}
+                        trailing={<span className="cmd-row-due late">{dnice(w.due)} · overdue</span>}
+                        onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")}
+                        ariaLabel={`Open task: ${w.title} — ${whoOf(w)}`}
+                      />
+                    ))}
+                    {ov.more > 0 && (
+                      <button type="button" className="owed-more" onClick={() => setAllOverdue(true)}>
+                        Show the other {ov.more} overdue <span aria-hidden="true">›</span>
+                      </button>
+                    )}
+                    {data.namesErr && <p className="pnl-note" role="status">Who each one is waiting on couldn&rsquo;t be read just now — the list is still current.</p>}
+                  </div>
+                )}
+                <div className="k-rows">
+                  <div className="font-sans font-bold text-caption tracking-[.06em] uppercase text-cream-muted px-0.5 pt-0.5 pb-1.5">Due in the next 7 days</div>
+                  {wk.shown.length === 0 ? <div className="cmd-more">Nothing due in the next 7 days</div> : wk.shown.map((w) => (
+                    <InfoRow
+                      key={`${w.src}-${w.id}`}
+                      name={w.title}
+                      trailing={<span className="cmd-row-due">{dnice(w.due)}</span>}
+                      onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")}
+                      ariaLabel={`Open task: ${w.title}`}
+                    />
+                  ))}
+                  {wk.more > 0 && <div className="cmd-more">+{wk.more} more</div>}
+                </div>
+                {dn.shown.length > 0 && (
+                  <div className="k-rows">
+                    <div className="font-sans font-bold text-caption tracking-[.06em] uppercase text-cream-muted px-0.5 pt-0.5 pb-1.5">Done this week</div>
+                    {dn.shown.map((w) => <InfoRow key={`dn-${w.src}-${w.id}`} name={<span className="line-through text-cream-dim">{w.title}</span>} />)}
+                    {dn.more > 0 && <div className="cmd-more">+{dn.more} more done</div>}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Initiatives · the launch — one row; the initiatives and the launch's gates are its own screen ── */}
+            <CommandFold id="initiatives" title="Initiatives" count={data.inits.length}
+              status={lead ? <>{leadName}<span className={leadDays != null && leadDays < 0 ? "text-warn" : undefined}>{leadWhen}</span>{leadRest}</> : "None active"}
+              label={`Initiatives, ${data.inits.length} active${lead ? ` — ${leadName}${leadWhen}${leadRest}` : ""}. Opens the initiatives and the launch's readiness`}>
+            <div className="cmd">
             {data.inits.length === 0 && !isAdmin && <EmptyState title="No active initiatives" />}
             {data.inits.map((it) => {
               const ms = (milesByInit.get(it.id) ?? []).slice().sort((a, b) => a.sort - b.sort);
@@ -354,73 +461,12 @@ export default function CommandBoard() {
             {isAdmin && <InlineCreate label="+ New initiative" placeholder="Initiative name" className="btn-ter self-start mt-1 mb-2" onCreate={createInit} />}
 
             {/* ── Launch readiness · go/no-go ── */}
-            <LaunchReadiness />
+            <LaunchReadiness state={launch} />
+            </div>
+            </CommandFold>
 
-            {/* ── Blockers — the company's: an incident, a goal flagged at risk ── */}
-            <SectionHeader label="Blockers" annotation="clear these first" />
-            {data.incidents.length === 0 && data.goals.filter((g) => g.checkin_status === "at_risk").length === 0 ? <EmptyState title="Nothing blocked" /> : (
-              <div className="k-rows">
-                {/* 0263 — a goal its owner flagged at risk IS a blocker; it sits with the rest. */}
-                {data.goals.filter((g) => g.checkin_status === "at_risk").map((g) => (
-                  <InfoRow key={`risk-${g.id}`} name={<>🎯 {g.title} — <span className="cmd-risklab">at risk</span></>} trailing={<span className="cmd-row-due late">check-in</span>} onClick={() => document.getElementById("goals")?.scrollIntoView({ behavior: "smooth" })} ariaLabel={`At-risk goal: ${g.title}`} />
-                ))}
-                {data.incidents.map((i) => <InfoRow key={i.id} name={<><Icon name="warning" /> {i.problem}</>} />)}
-              </div>
-            )}
-
-            {/* ── The team's week — one line; the lists open on a tap ── */}
-            <SectionHeader label="The team's week" annotation="across the crew" />
-            <button type="button" className={`cmd-week${weekOpen ? " open" : ""}`} onClick={() => setWeekOpen((o) => !o)} aria-expanded={weekOpen}>
-              <span><b className="text-cream font-bold tabular-nums">{data.week.length}</b> due in the next 7 days</span>
-              <span className={data.overdue.length ? "late" : undefined}><b className="text-cream font-bold tabular-nums">{data.overdue.length}</b> overdue</span>
-              <span><b className="text-cream font-bold tabular-nums">{data.done.length}</b> done this week</span>
-              <span className={`ml-auto ev-chev${weekOpen ? " open" : ""}`} aria-hidden="true">›</span>
-            </button>
-            {weekOpen && (
-              <div className="flex flex-col gap-3.5 mb-2.5">
-                {ov.shown.length > 0 && (
-                  <div className="k-rows">
-                    <div className="font-sans font-bold text-caption tracking-[.06em] uppercase text-cream-muted px-0.5 pt-0.5 pb-1.5">Overdue</div>
-                    {ov.shown.map((w) => (
-                      <InfoRow
-                        key={`ov-${w.src}-${w.id}`}
-                        name={w.title}
-                        sub={whoOf(w)}
-                        trailing={<span className="cmd-row-due late">{dnice(w.due)} · overdue</span>}
-                        onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")}
-                        ariaLabel={`Open task: ${w.title} — ${whoOf(w)}`}
-                      />
-                    ))}
-                    {ov.more > 0 && (
-                      <button type="button" className="owed-more" onClick={() => setAllOverdue(true)}>
-                        Show the other {ov.more} overdue <span aria-hidden="true">›</span>
-                      </button>
-                    )}
-                    {data.namesErr && <p className="pnl-note" role="status">Who each one is waiting on couldn&rsquo;t be read just now — the list is still current.</p>}
-                  </div>
-                )}
-                <div className="k-rows">
-                  <div className="font-sans font-bold text-caption tracking-[.06em] uppercase text-cream-muted px-0.5 pt-0.5 pb-1.5">Due in the next 7 days</div>
-                  {wk.shown.length === 0 ? <div className="cmd-more">Nothing due in the next 7 days</div> : wk.shown.map((w) => (
-                    <InfoRow
-                      key={`${w.src}-${w.id}`}
-                      name={w.title}
-                      trailing={<span className="cmd-row-due">{dnice(w.due)}</span>}
-                      onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")}
-                      ariaLabel={`Open task: ${w.title}`}
-                    />
-                  ))}
-                  {wk.more > 0 && <div className="cmd-more">+{wk.more} more</div>}
-                </div>
-                {dn.shown.length > 0 && (
-                  <div className="k-rows">
-                    <div className="font-sans font-bold text-caption tracking-[.06em] uppercase text-cream-muted px-0.5 pt-0.5 pb-1.5">Done this week</div>
-                    {dn.shown.map((w) => <InfoRow key={`dn-${w.src}-${w.id}`} name={<span className="line-through text-cream-dim">{w.title}</span>} />)}
-                    {dn.more > 0 && <div className="cmd-more">+{dn.more} more done</div>}
-                  </div>
-                )}
-              </div>
-            )}
+            {/* ── Blockers ── no block of their own (2026-10-12, the Command audit): each is said on the line where it is
+                acted on — a stream's under its stream, a goal at risk on the Goals row, an open incident in the week. */}
 
             {/* ── Money ── no pointer here (2026-10-10, the Command fold). It read "Money — the live glance · Money ›"
                 between the team's week and the next column, and Money is one tap away anyway: Business opens on it

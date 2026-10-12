@@ -13,9 +13,17 @@ import { SectionHeader } from "@/components/kit";
 // ready / at-risk / blocked; the verdict rolls up (any critical blocked → NO-GO, any at-risk → AT
 // RISK, all ready → GO). Reads readiness_checks (0207) for the nearest launch initiative. Admins tap
 // a row to cycle its status. General — any initiative with checks gets a board.
+// THE VERDICT ON THE ROW (2026-10-12, the Command audit): the board opens from Command's Initiatives row
+// now (components/CommandFold), and that row says the launch's verdict — so the reads are a hook the row
+// and the board share (components/CommandBoard holds it): one load for both, and the same verdict.
 type Init = { id: string; title: string; target_date: string | null; emoji: string | null };
 type Status = "ready" | "at_risk" | "blocked";
 type Check = { id: string; initiative_id: string; label: string; category: string | null; status: Status; critical: boolean; note: string | null; sort: number };
+export type LaunchVerdict = "go" | "at-risk" | "no-go" | "none";
+export type Launch = {
+  loaded: boolean; launch: Init | null; rows: Check[]; verdict: LaunchVerdict; isAdmin: boolean;
+  cycle: (c: Check) => Promise<void>; addCheck: (label: string) => Promise<void>;
+};
 
 const daysTo = (iso: string) => Math.round((new Date(`${iso}T12:00:00`).getTime() - Date.now()) / 864e5);
 const NEXT: Record<Status, Status> = { ready: "at_risk", at_risk: "blocked", blocked: "ready" };
@@ -23,7 +31,7 @@ const ST: Record<Status, { t: string; c: string }> = {
   ready: { t: "Ready", c: " ok" }, at_risk: { t: "At risk", c: " warn" }, blocked: { t: "Blocked", c: " crit" },
 };
 
-export default function LaunchReadiness() {
+export function useLaunchReadiness(): Launch {
   const { profile } = useAuth();
   const { toast } = useApp();
   const isAdmin = !!profile?.is_admin;
@@ -65,10 +73,16 @@ export default function LaunchReadiness() {
     if (error) toast(`Couldn't add — ${error.message}`, "error"); else load();
   };
 
+  const crit = rows.filter((r) => r.critical);
+  const verdict: LaunchVerdict =
+    crit.some((r) => r.status === "blocked") ? "no-go" : crit.some((r) => r.status === "at_risk") ? "at-risk" : crit.length ? "go" : "none";
+  return { loaded, launch, rows, verdict, isAdmin, cycle, addCheck };
+}
+
+export default function LaunchReadiness({ state }: { state: Launch }) {
+  const { loaded, launch, rows, verdict, isAdmin, cycle, addCheck } = state;
   if (!loaded || !launch) return null;
   const crit = rows.filter((r) => r.critical);
-  const verdict: "go" | "at-risk" | "no-go" | "none" =
-    crit.some((r) => r.status === "blocked") ? "no-go" : crit.some((r) => r.status === "at_risk") ? "at-risk" : crit.length ? "go" : "none";
   const V = { go: { t: "GO", c: " ok" }, "at-risk": { t: "AT RISK", c: " warn" }, "no-go": { t: "NO-GO", c: " crit" }, none: { t: "—", c: "" } }[verdict];
   const readyN = crit.filter((r) => r.status === "ready").length;
   const cd = launch.target_date != null ? daysTo(launch.target_date) : null;

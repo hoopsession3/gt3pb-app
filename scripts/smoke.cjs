@@ -10219,8 +10219,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("command: an initiative two weeks past its date folds to its line, its progress and the question it raises — its milestones a tap away, nothing removed",
     /const folded = !!it\.target_date && daysTo\(it\.target_date\) < -14 && !unfolded\.has\(it\.id\);/.test(cbd) && /Show the milestones/.test(cbd) && /Fold it back/.test(cbd)
     && /onClick=\{\(\) => finishInit\(it\)\}/.test(cbd));
-  ok("command: Blockers are the company's — an incident or a goal at risk",
-    /data\.incidents\.length === 0 && data\.goals\.filter\(\(g\) => g\.checkin_status === "at_risk"\)\.length === 0 \? <EmptyState title="Nothing blocked" \/>/.test(cbd));
+  // THE BLOCKERS BLOCK FOLDED (2026-10-12, the Command audit): each blocker is said on the line where it is acted on.
+  ok("command: Blockers have no block of their own — an open blocking incident is the team's week's and opens its prep, a goal at risk is named on the Goals row",
+    !/label="Blockers"|title="Nothing blocked"/.test(cbd) && /\{data\.incidents\.length > 0 && <span className="late">/.test(cbd)
+    && /onClick=\{i\.event_id \|\| i\.stop_id \? \(\) => openPrep\(i\) : undefined\}/.test(cbd)
+    && /<span className="cmd-risklab">At risk:<\/span>/.test(code(read("components/Goals.tsx"))));
   ok("command: Team's activity rows have a day surface, and the night keeps its own; the KPI rows are the kit's rows",
     /\.app\.crew-day \.util-row\{background:var\(--ink-onLight-03\)\}/.test(css2) && /<select className="max-w-\[120px\] font-semibold"/.test(cbd)
       && /<div className="k-rows">/.test(code(read("components/KpiBoard.tsx"))));
@@ -11043,8 +11046,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ["components/CustomerKpis.tsx", "components/CrewKpis.tsx"].every((f) => /className="mkpi desk:grid-cols-none desk:grid-flow-col desk:auto-cols-fr"/.test(read(f)))
     && /<div className="calw desk:grid desk:grid-cols-7 desk:gap-2">/.test(read("components/BrandCalendar.tsx"))
     && /<div className="contents desk:grid desk:grid-cols-2 desk:gap-x-3 desk:items-start">/.test(pg) && (read("app/office/page.tsx").match(/className="op-none desk:max-w-130 desk:mx-auto"/g) || []).length === 2);
-  ok("desk: Command says GOALS once — Goals draws its own head with the count, and the one above it is gone",
-    !/<SectionHeader label="Goals" \/>/.test(pg) && /<SectionHeader label="Goals" right=/.test(read("components/Goals.tsx")));
+  // Since 2026-10-12 (the Command audit) Goals' head is its row, the count beside it, and its screen's title once opened.
+  ok("desk: Command says GOALS once — Goals' row says it with the count, its screen's title once opened, and no head stands above either",
+    !/<SectionHeader label="Goals"/.test(pg + read("components/Goals.tsx")) && /<CommandFold id="goals" title="Goals" count=\{board\.status === "ready" \? active\.length : null\}/.test(read("components/Goals.tsx")));
   // The app runs on an iPad (2026-10-11, WAVE 2 · IPAD below): the iPhone is still held upright, so only an iPad on its side meets the desk.
   ok("desk: the app meets it on an iPad on its side and never on an iPhone — the iPhone held upright, the iPad any way up",
     (read("ios/App/App.xcodeproj/project.pbxproj").match(/TARGETED_DEVICE_FAMILY = "1,2";/g) || []).length === 2
@@ -12268,6 +12272,65 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     streamRow >= 44 && /:is\(\.btn-ter,\.btn-del\)\{[^}]*min-height:44px/.test(css), { streamRow });
   ok("command audit: VoiceOver hears a stream's owner, its score, its one line, and that it opens its audit",
     /aria-label=\{`\$\{w\.name\}\$\{parked \? "" : who \? `, owned by \$\{who\}` : ", no owner"\}/.test(osr) && /\$\{line \? `\. \$\{line\.say\}` : ""\}\$\{isAdmin \? "\. Opens its audit" : ""\}/.test(osr));
+}
+
+// ── THE COMMAND AUDIT · THE REST FOLDS (2026-10-12, approved) ──
+// Under today's event, the portfolio and the team's week, Command drew every initiative and milestone, the launch's
+// gates, a Blockers block, the briefing, every goal card and all twelve numbers in full. Each is a row now that opens
+// its own screen (components/CommandFold), and the Blockers block is said on the lines where each blocker is acted on.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const osr = code(rd("components/OsRegistry.tsx"));
+  // ── 4 · ONE ROW EACH, ITS OWN SCREEN ──
+  const crew = code(rd("app/crew/page.tsx")), cmd = crew.slice(crew.indexOf('{sec === "command" && canManage && ('), crew.indexOf('{sec === "now" && ('));
+  const at = (s) => cmd.indexOf(s);
+  ok("command audit: today's event stays on top; the portfolio, the week and Initiatives, the briefing (owner), Goals and the twelve follow, inside Command's views",
+    at("<CommandViews back={SEC_LABEL.command}>") > 0 && at("<CommandViews") < at("<EventHUD />") && at("<EventHUD />") < at("<OsRegistry />") && at("<OsRegistry />") < at("<CommandBoard />")
+    && at("<CommandBoard />") < at('{profile?.role === "owner" && <ChiefOfStaff />}') && at("<ChiefOfStaff />") < at("<Goals />") && at("<Goals />") < at("<KpiBoard />") && at("<KpiBoard />") < at("</CommandViews>"));
+  const fold = code(rd("components/CommandFold.tsx"));
+  ok("command audit: a row is the kit's InfoRow — its name, its line, its count and a chevron — and its label is what VoiceOver says",
+    /<InfoRow name=\{title\} sub=\{status\} onClick=\{openIt\} ariaLabel=\{label\}/.test(fold) && /\{count != null && <span className="k-count">\{count\}<\/span>\}<span className="ev-chev" aria-hidden="true">›<\/span>/.test(fold));
+  ok("command audit: a row opens its own screen — Command's page hidden under it, still mounted; the title, the crumb, Back and a swipe toward Command",
+    /<div ref=\{home\} hidden=\{!!open\}>\{children\}<\/div>/.test(fold) && /createPortal\(<div id=\{id\}>\{children\}<\/div>, ctx\.slot\)/.test(fold)
+    && /useCrumb\("command-view", title, onBack\);/.test(fold) && /useBackStep\(back, onBack\);/.test(fold)
+    && /usePagerLevel\(\{ keys: \["command", id\], current: id, go: \(k\) => \{ if \(k === "command"\) onBack\(\); \}, depth: 1 \}\);/.test(fold)
+    && /<h1 ref=\{h\} tabIndex=\{-1\} className="op-head-t desk:hidden mb-3 focus:outline-none">\{title\}<\/h1>/.test(fold) && /data-large-title data-title=\{title\}/.test(fold));
+  ok("command audit: a link to a row's id opens it, as a link to a panel does; a link to anything else on Command closes the view first",
+    (fold.match(/window\.addEventListener\(OPEN_PANEL_EVENT, onOpen\)/g) || []).length === 2 && /<div id=\{isOpen \? undefined : id\}>/.test(fold)
+    && /home\.current\?\.contains\(document\.getElementById\(id\)\)\) close\(\);/.test(fold));
+  const goals = code(rd("components/Goals.tsx")), kpi = code(rd("components/KpiBoard.tsx")), cos = code(rd("components/ChiefOfStaff.tsx")), board = code(rd("components/CommandBoard.tsx"));
+  const opens = (src, id, title, says) => new RegExp(`<CommandFold id="${id}" title="${title}"`).test(src) && src.includes(says);
+  ok("command audit: initiatives, goals, the twelve and the briefing are a row each, and each says what it opens",
+    opens(board, "initiatives", "Initiatives", ". Opens the initiatives and the launch's readiness") && opens(goals, "goals", "Goals", ". Opens the goals board")
+    && opens(kpi, "cmd-kpis", "The twelve", ". Opens the KPI board") && opens(cos, "chief", "Chief of Staff", ". Opens the briefing"));
+  ok("command audit: the Initiatives row's line says the soonest one's date, its open milestones and the launch's verdict; the gates open with it",
+    /const lead = data\.inits\[0\] \?\? null;/.test(board) && /lead && launch\.launch\?\.id === lead\.id \? VERDICT_WORDS\[launch\.verdict\] : null/.test(board)
+    && board.indexOf('<CommandFold id="initiatives"') < board.indexOf("<LaunchReadiness state={launch} />") && board.indexOf("<LaunchReadiness state={launch} />") < board.indexOf("</CommandFold>")
+    && /const launch = useLaunchReadiness\(\);/.test(board) && /export function useLaunchReadiness\(\): Launch \{/.test(code(rd("components/LaunchReadiness.tsx"))));
+  ok("command audit: Goals' row names the goals at risk (the Blockers block's), else the quiet ones by lib/rhythm's rule; the twelve's says live and by hand",
+    /const atRisk = active\.filter\(\(g\) => g\.checkin_status === "at_risk"\);/.test(goals) && /quietDays\(g\) !== null/.test(goals)
+    && /`\$\{MARKET_LABEL\[market\]\} · \$\{liveN\} live, \$\{KPIS\.length - liveN\} by hand/.test(kpi) && /const rows: Row\[\] = rowsOf\(data\);/.test(kpi));
+  ok("command audit: the briefing stays owner-only, and its line is the briefing already run when there is one",
+    /\{profile\?\.role === "owner" && <ChiefOfStaff \/>\}/.test(cmd) && /b\?\.headline \? String\(b\.headline\)/.test(cos) && !/cos-eyebrow/.test(cos));
+  ok("command audit: links into Command still land — the calendar's goals and the initiative's board open their rows",
+    (code(rd("components/CompanyCalendar.tsx")).match(/setSection\("command"\); scrollToAnchor\("goals"\);/g) || []).length === 2 && !/getElementById\("goals"\)/.test(code(rd("components/CompanyCalendar.tsx")))
+    && /onBoard=\{\(\) => \{ onClose\(\); setSection\("command"\); scrollToAnchor\("initiatives"\); \}\}/.test(code(rd("components/InitiativeSheet.tsx")))
+    && /anchor: "goals"/.test(rd("lib/obligations.ts")) && /anchor: "os-registry"/.test(rd("lib/obligations.ts")) && /<div className="adm-sec" id="os-registry">/.test(osr));
+
+  // ── REACH ──
+  const css = rd("app/globals.css");
+  const esc = (x) => x.replace(/[.*+?^$()|[\]\\{}]/g, "\\$&");
+  const decl = (sel, prop) => {
+    const m = css.match(new RegExp("(?:^|\\n)" + esc(sel) + "\\{([^}]*)\\}"));
+    const d = m && m[1].match(new RegExp("(?:^|;)" + esc(prop) + ":([^;]+)"));
+    return d ? d[1].trim() : "";
+  };
+  const firstPx = (v) => Number(String(v).split(/\s+/)[0].replace("px", ""));
+  const foldRow = firstPx(decl(".k-row", "padding")) * 2 + firstPx(decl(".k-nm", "font-size"));
+  ok("command audit: a fold's row and the team's week are 44 points or more to the thumb",
+    foldRow >= 44 && /\.cmd-week\{[^}]*min-height:44px/.test(css), { foldRow });
 }
 
 Promise.all(PENDING).then(() => {

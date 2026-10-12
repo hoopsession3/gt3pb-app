@@ -10,7 +10,7 @@ import { METRIC_SOURCES, computeMetric } from "@/lib/goalMetrics";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { updateTask, deleteTask, createEventTask } from "@/lib/tasks";
 import { StrategyThread } from "./StrategyCollab";
-import { SectionHeader } from "@/components/kit";
+import { CommandFold } from "./CommandFold";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
@@ -136,8 +136,9 @@ export default function Goals() {
   };
 
   // 0263 exec-rhythm P4 — the one-tap weekly check-in, separate from the hit/missed LIFECYCLE:
-  // this is "how's it going this week". At-risk rolls straight onto the Command Board's Blockers
-  // line; either answer quiets the Monday nudge. Tapping the lit chip again clears it.
+  // this is "how's it going this week". At-risk is named on Command's Goals row (2026-10-12; it was
+  // the Command Board's Blockers line); either answer quiets the Monday nudge. Tapping the lit chip
+  // again clears it.
   const checkIn = async (g: Goal, s: "on_track" | "at_risk") => {
     if (!supabase) return;
     const next = g.checkin_status === s ? null : s;
@@ -145,7 +146,7 @@ export default function Goals() {
       checkin_status: next, checkin_at: next ? new Date().toISOString() : null, checkin_by: next ? user?.id ?? null : null,
     }).eq("id", g.id);
     if (error) toast(`Couldn't check in — ${error.message}`, "error");
-    else if (next === "at_risk") toast("Flagged at risk — it's on the Command Board's blockers now");
+    else if (next === "at_risk") toast("Flagged at risk — Command's Goals row names it now");
     else if (next === "on_track") toast("Checked in — on track");
     reload();
   };
@@ -409,10 +410,20 @@ export default function Goals() {
     );
   };
 
+  // ONE ROW ON COMMAND (2026-10-12, the Command audit, approved): Goals is its name, how many, and how they stand
+  // in a line — the ones at risk by name (they were the Blockers block's), else how many have gone a week without
+  // moving (lib/rhythm's rule, the card's) — and the board below opens as its own screen (components/CommandFold),
+  // titled Goals there once: ONE "GOALS" (2026-10-09) still holds. A link to #goals opens it.
+  const atRisk = active.filter((g) => g.checkin_status === "at_risk");
+  const quiet = active.filter((g) => g.checkin_status !== "at_risk" && quietDays(g) !== null).length;
+  const standing = board.status === "loading" ? "Reading the goals…" : board.status === "error" ? "Couldn't read the goals — open it to try again"
+    : active.length === 0 ? "None active" : atRisk.length ? `At risk: ${atRisk.map((g) => g.title).join(", ")}`
+    : quiet ? `None at risk · ${quiet} quiet a week+` : "None at risk";
   return (
-    <div className="adm-sec" id="goals">
-      <SectionHeader label="Goals" right={active.length > 0 && <span className="k-count">{active.length}</span>} />
-
+    <CommandFold id="goals" title="Goals" count={board.status === "ready" ? active.length : null}
+      status={atRisk.length && board.status === "ready" ? <><span className="cmd-risklab">At risk:</span> {atRisk.map((g) => g.title).join(", ")}</> : standing}
+      label={`Goals${board.status === "ready" ? `, ${active.length} active` : ""} — ${standing}. Opens the goals board`}>
+    <div className="adm-sec">
       <AsyncSection state={board} isEmpty={(data) => data.rows.length === 0} emptyTitle="No goals yet" emptySub="Put a number on the wall." errorTitle="Couldn't load the board" loadingLabel="Loading the board…">
         {() => (
           <>
@@ -479,5 +490,6 @@ export default function Goals() {
         <button type="button" className="btn-ter self-start mt-2" onClick={() => setAdding(true)}>+ New goal</button>
       ))}
     </div>
+    </CommandFold>
   );
 }

@@ -7,6 +7,7 @@ import AssignTaskSheet from "./AssignTaskSheet";
 import Icon from "@/components/Icon";
 import { useAuth } from "./AuthProvider";
 import { errorMessage } from "@/lib/errorMessage";
+import { CommandFold } from "./CommandFold";
 
 // CHIEF OF STAFF — the executive-assistant briefing. Pick a horizon (week / month / quarter) and it
 // reads the whole org and tells you what to focus on and in what order: headline, ranked priorities,
@@ -64,10 +65,18 @@ export default function ChiefOfStaff() {
   const pick = (p: "week" | "month" | "quarter") => { setPeriod(p); setRes(null); };
 
   const b = res?.briefing;
+  // ONE ROW ON COMMAND (2026-10-12, the Command audit, approved). The briefing stood open under the board, its
+  // full-width button the screen's one primary. It is an owner's row now (app/crew/page.tsx keeps the owner-only
+  // gate) — its line says what it does, or the headline of the briefing already run — and opens as its own screen
+  // (components/CommandFold), titled Chief of Staff there, so its card no longer names itself. A briefing run
+  // is still there after Back.
+  const forWhat = period === "week" ? "week" : period;
+  const standing = busy ? "Reading everything…" : err ? err : b?.headline ? String(b.headline) : `Brief & lead the ${forWhat} — what needs you, in order`;
   return (
+    <CommandFold id="chief" title="Chief of Staff" count={b?.priorities?.length ? b.priorities.length : null} status={standing}
+      label={`Chief of Staff — ${standing}. Opens the briefing`}>
     <div className="cos">
       <div className="cos-head">
-        <div className="cos-eyebrow"><Icon name="compass" /> Chief of Staff</div>
         <div className="cos-toggle">
           {PERIODS.map((p) => <button key={p.key} type="button" className={`cos-tg${period === p.key ? " on" : ""}`} onClick={() => pick(p.key)}>{p.label}</button>)}
         </div>
@@ -147,5 +156,6 @@ export default function ChiefOfStaff() {
         <AssignTaskSheet defaultTitle={assignTitle} onClose={() => setAssignTitle(null)} onCreated={() => setAssignTitle(null)} />
       )}
     </div>
+    </CommandFold>
   );
 }
