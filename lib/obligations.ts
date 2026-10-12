@@ -144,6 +144,13 @@ export function obligationFor(r: ObligationRow, v: Viewer): boolean {
       return v.sections.includes("prep");            // whoever preps events — they are the ones who call the county
     case "invoices":
       return v.sections.includes("money");           // "Paid" is the people who handle money's — owners and admins
+    case "square_disputes":
+    case "offer_letters":
+    case "operator_agreements":
+      // MONEY'S OWN DEADLINES ARE MONEY'S PEOPLE'S (2026-10-12). None of these carries an owner in the data, so the
+      // strict "only what's yours" rule above would show them to nobody — and a chargeback answered late is lost in
+      // full. Whoever Money opens for (owners and admins) owns them, the way invoices are read.
+      return v.sections.includes("money");
     case "todos":
     case "event_tasks":
       // Yours are on your plate — My tasks is the one home for a task assigned to you (2026-10-04, "one

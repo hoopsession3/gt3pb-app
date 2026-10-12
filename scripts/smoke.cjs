@@ -5404,7 +5404,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     forWho("operator", row("compliance_rules", { route: "/crew?s=prep" })) && !forWho("operator", row("initiatives"))
     && !forWho("manager", row("initiatives")) && !forWho("manager", row("todos", { owner_user_id: uid })) && !forWho("manager", row("todos", { owner_user_id: me })) && !forWho("manager", row("offer_letters"))
     && ["asset_maintenance", "invoices", "compliance_rules"].every((s) => forWho("owner", row(s, { route: s === "invoices" ? "/crew?s=money" : s === "compliance_rules" ? "/crew?s=prep" : "/crew?s=garage" })))
-    && ["todos", "event_tasks", "initiatives", "goals", "os_workstreams", "offer_letters", "operator_agreements", "square_disputes"].every((s) => !forWho("owner", row(s, { owner_user_id: uid })) && !forWho("owner", row(s)))
+    // money's own deadlines are the money people's (2026-10-12, at integration — lib/obligations "MONEY'S OWN DEADLINES")
+    && ["offer_letters", "operator_agreements", "square_disputes"].every((s) => forWho("owner", row(s, { route: "/crew?s=money" })))
+    && ["todos", "event_tasks", "initiatives", "goals", "os_workstreams"].every((s) => !forWho("owner", row(s, { owner_user_id: uid })) && !forWho("owner", row(s)))
     && forWho("owner", row("goals", { owner_user_id: me })) && forWho("owner", row("os_workstreams", { owner_user_id: me }))
     && !forWho("server", row("os_workstreams", { owner_user_id: me })));
   ok("needs you: the one-tap answers — two any staff member may give, and an invoice's \"Paid\", which is an owner's or admin's (0341 mark_invoice_paid)",
@@ -6614,11 +6616,18 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("my day (B): for the owner — his own workstream stays, Kayla's goes, an initiative with no owner goes, equipment stays, a team task and anybody's to-do go",
       keeps("owner", r("os_workstreams", ryan)) && !keeps("owner", r("os_workstreams", kayla)) && !keeps("owner", r("initiatives"))
       && keeps("owner", r("asset_maintenance", null, "/crew?s=garage")) && !keeps("owner", r("event_tasks", kayla)) && !keeps("owner", r("todos", kayla)) && !keeps("owner", r("todos")));
-    ok("my day (B): for the owner — his goal stays and Kayla's goes; the compliance rules his role confirms and the invoices it marks paid stay; her certificate and a dispute nobody owns go",
+    ok("my day (B): for the owner — his goal stays and Kayla's goes; the compliance rules his role confirms and the invoices it marks paid stay; her certificate goes",
       keeps("owner", r("goals", ryan)) && !keeps("owner", r("goals", kayla)) && !keeps("owner", r("goals"))
       && keeps("owner", r("compliance_rules", null, "/crew?s=prep")) && keeps("owner", r("invoices", null, "/crew?s=money"))
-      && keeps("owner", r("academy_certifications", ryan, "/crew?s=team")) && !keeps("owner", r("academy_certifications", kayla, "/crew?s=team"))
-      && !keeps("owner", r("square_disputes", null, "/crew?s=money&a=shoporders")));
+      && keeps("owner", r("academy_certifications", ryan, "/crew?s=team")) && !keeps("owner", r("academy_certifications", kayla, "/crew?s=team")));
+    // MONEY'S OWN DEADLINES (2026-10-12, at integration): a dispute, an offer letter and an operator agreement carry no
+    // owner in the data, so "only yours" would show them to nobody — and a chargeback answered late is lost in full.
+    // They are the money people's: kept for whoever Money opens for, and for nobody else.
+    ok("my day (B): a chargeback deadline, an offer letter and an operator agreement stay for the people who handle money, and for no one else",
+      keeps("owner", r("square_disputes", null, "/crew?s=money&a=shoporders")) && keeps("owner", r("offer_letters", null, "/crew?s=money&a=offers"))
+      && keeps("owner", r("operator_agreements", null, "/crew?s=money&a=operators"))
+      && !keeps("server", r("square_disputes", null, "/crew?s=money&a=shoporders")) && !keeps("event_manager", r("square_disputes", null, "/crew?s=money&a=shoporders"))
+      && !keeps("event_manager", r("offer_letters", null, "/crew?s=money&a=offers")) && !keeps("server", r("operator_agreements", null, "/crew?s=money&a=operators")));
     ok("my day (B): for a server — equipment and her own certificate stay; no compliance rule, invoice, initiative or team task, and not even a workstream of hers, which she cannot open",
       keeps("server", r("asset_maintenance", null, "/crew?s=garage")) && keeps("server", r("academy_certifications", ryan, "/crew?s=team"))
       && !keeps("server", r("compliance_rules", null, "/crew?s=prep")) && !keeps("server", r("invoices", null, "/crew?s=money"))
