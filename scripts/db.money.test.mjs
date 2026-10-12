@@ -4,7 +4,9 @@
 // Each finding is shown first on the schema as production has it, then closed, then what must keep working is run:
 //   1. A shop payment was a walk-up and joined the live event. After: every payment in exactly one channel — a walk-up,
 //      a cup order, a shop order, and a subscription's payment (which nothing stored can tell from a walk-up, shown
-//      here as the schema's own columns) — and the channels sum to the distinct payments; the shop joins no event.
+//      here as the schema's own columns) — and the channels sum to the distinct payments; the shop joins no event;
+//      each channel counts its own orders.
+//   2. The margin says what it rests on (cogs_basis), and an event says whether its costs were saved.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -68,6 +70,8 @@ ok("the fixture: business A's Square payments are the four made up here, once ea
   ok("before 0384: …and joins the live event's takings in Revenue by event", day?.cents === PAY.walkup + PAY.cup + PAY.shop, s?.by_event);
   const ev = await report(OWNER, `public.report_events()`);
   ok("before 0384: …and the per-event P&L", (Array.isArray(ev) ? ev : []).find((r) => r.id === E1)?.actual_cents === PAY.walkup + PAY.cup + PAY.shop, ev);
+  ok("before 0384: Sales' one order count is cup orders alone — the average divided all revenue by it",
+    s?.order_count === 1 && s?.revenue_cents === distinctPayments && s?.orders_by_channel === undefined, { n: s?.order_count, rev: s?.revenue_cents });
 }
 
 // ── 0384 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -83,6 +87,8 @@ await db.exec(MIG(F384));
   ok("1 · the channels sum to the distinct payments, and so does revenue", sum === distinctPayments && s?.revenue_cents === distinctPayments, { sum, rev: s?.revenue_cents, distinctPayments });
   const days = (s?.by_day ?? []).reduce((a, d) => a + Number(d.cents), 0);
   ok("1 · …and the days sum to revenue", days === s?.revenue_cents, { days, rev: s?.revenue_cents });
+  ok("1 · each channel counts its own orders — what an average is divided by",
+    JSON.stringify(s?.orders_by_channel) === JSON.stringify({ cup: 1, shop: 1, packs: 0, office: 0, delivery: 0, square_walkup: 2 }), s?.orders_by_channel);
   const day = (s?.by_event ?? []).find((e) => e.event === "Made-up market day");
   ok("1 · the cap joins no event: the market day took the walk-up and the cup", day?.cents === PAY.walkup + PAY.cup, s?.by_event);
   const ev = await report(OWNER, `public.report_events()`);
@@ -97,6 +103,28 @@ await db.exec(MIG(F384));
   const r2 = await report(OWNER, `public.report_sales(7)`);
   ok("1 · a refund recorded on the shop order comes off the shop's line", r2?.by_channel?.shop === PAY.shop - 1200 && r2?.by_channel?.square_walkup === PAY.walkup + PAY.subscription, r2?.by_channel);
   await q(`update public.shop_orders set refund_amount_cents = null where payment_id = 'sq-made-up-shop'`);
+}
+
+// 2 · estimates say what they rest on
+{
+  const menu = Number((await q(`select count(*) n from public.products where active and price_cents > 0 and tenant_id = $1`, [T1]))[0].n);
+  const s0 = await report(OWNER, `public.report_sales(7)`);
+  ok("2 · with no recipe anywhere the margin's 30% is said to be assumed", s0?.cogs_pct === 0.3 && JSON.stringify(s0?.cogs_basis) === JSON.stringify({ costed: 0, assumed: true, products: menu }), { pct: s0?.cogs_pct, basis: s0?.cogs_basis, menu });
+  // One drink with every ingredient costed, one with an ingredient nobody has priced.
+  const [p1, p2] = (await q(`select id from public.products where active and price_cents > 0 and tenant_id = $1 order by sort, id limit 2`, [T1])).map((r) => r.id);
+  const priced = (await q(`insert into public.inventory_items (name, qty, unit_cost, status, tenant_id) values ('Made-up cold brew', 5, 1.50, 'On Hand', $1) returning id`, [T1]))[0].id;
+  const unpriced = (await q(`insert into public.inventory_items (name, qty, status, tenant_id) values ('Made-up maple', 5, 'On Hand', $1) returning id`, [T1]))[0].id;
+  await q(`insert into public.product_components (product_id, inventory_item_id, qty_per_serving, tenant_id) values ($1, $3, 1, $4), ($2, $3, 1, $4), ($2, $5, 1, $4)`, [p1, p2, priced, T1, unpriced]);
+  const s1 = await report(OWNER, `public.report_sales(7)`);
+  ok("2 · with recipes it is an estimate, and says one of the menu is fully costed — not the drink missing an ingredient's price",
+    s1?.cogs_pct !== 0.3 && JSON.stringify(s1?.cogs_basis) === JSON.stringify({ costed: 1, assumed: false, products: menu }), { pct: s1?.cogs_pct, basis: s1?.cogs_basis });
+  const ev = await report(OWNER, `public.report_events()`);
+  const row = () => (Array.isArray(ev) ? ev : []).find((r) => r.id === E1);
+  ok("2 · an event with no saved costs says so (its net is the blend and nothing else)", row()?.costs_saved === false && row()?.fixed_cents === 0, row());
+  await q(`insert into public.event_economics (event_id, booth_cents, tenant_id) values ($1, 4000, $2)`, [E1, T1]);
+  const ev2 = await report(OWNER, `public.report_events()`);
+  const saved = (Array.isArray(ev2) ? ev2 : []).find((r) => r.id === E1);
+  ok("2 · …and one with costs saved says that, with them in", saved?.costs_saved === true && saved?.fixed_cents === 4000, saved);
 }
 
 // ── WHAT MUST KEEP WORKING ─────────────────────────────────────────────────────────────────────────────────────────

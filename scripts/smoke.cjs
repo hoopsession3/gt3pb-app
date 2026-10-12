@@ -11559,19 +11559,39 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const fs = require("node:fs"), path = require("node:path");
   const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
   const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
-  const HM = require("../.smoke/home.js");
+  const HM = require("../.smoke/home.js"), ECM = require("../.smoke/economics.js");
 
   ok("money: the shop is a channel of its own, named — a merch week moves the shop, not the walk-ups",
     HM.CHANNEL_WORDS.shop === "Shop" && HM.channelDriver({ shop: 9000, square_walkup: 100 }, { shop: 9000, square_walkup: 200 })?.channel === "shop");
 
+  // An average is one channel's: its revenue over its own orders, never all revenue over the cups.
+  const rows = HM.channelRows({ square_walkup: 50000, cup: 9000, packs: 0, shop: 3200 }, { square_walkup: 20, cup: 10, packs: 0, shop: 1 });
+  ok("money: each channel is averaged over its own orders, biggest first, and an empty channel is not listed",
+    rows.map((r) => `${r.channel}:${r.avgCents}`).join() === "square_walkup:2500,cup:900,shop:3200", rows);
+  const older = HM.channelRows({ square_walkup: 50000, cup: 9000 }, { cup: 10 });
+  ok("money: a report that counts only cups gives only cups an average — no channel borrows another's count",
+    older.find((r) => r.channel === "cup")?.avgCents === 900 && older.find((r) => r.channel === "square_walkup")?.avgCents === null, older);
+  ok("money: the margin says what it rests on — costed products, or the 30% assumed — and an older report says nothing it cannot",
+    HM.costBasisWords({ products: 9, costed: 3, assumed: false }, 0.27) === "estimate · 3 of 9 products costed"
+      && HM.costBasisWords({ products: 9, costed: 0, assumed: true }, 0.3) === "assumed 30%" && HM.costBasisWords(undefined, 0.3) === ""
+      && HM.ingredientWords(0.3, { products: 9, costed: 0, assumed: true }) === "ingredients at 30% of sales, assumed"
+      && HM.ingredientWords(0.27, { products: 9, costed: 3, assumed: false }) === "ingredients at 27% of sales · 3 of 9 products costed"
+      && HM.ingredientWords(0.3) === "ingredients at 30% of sales");
+  ok("money: the default plan in words, from its own numbers", ECM.planWords() === "35% of guests buy · 1.2 items each · ingredients at 30% · crew at $18/hr", ECM.planWords());
+
   // The screens: a failed read is a failure, said as one.
   const reps = code(rd("lib/reports.ts")), sales = code(rd("components/Reports.tsx")), snap = code(rd("components/SnapshotReport.tsx"));
-  const spend = code(rd("components/SpendBudget.tsx")), crew = code(rd("app/crew/page.tsx"));
+  const pnl = code(rd("components/EventPnlReport.tsx")), spend = code(rd("components/SpendBudget.tsx")), crew = code(rd("app/crew/page.tsx"));
   ok("money: the report fetchers throw on a failure, the function's own 'unauthorized' included — none returns null for a panel to draw as empty",
     !/return null/.test(reps) && (reps.match(/if \(error\) throw new Error\(error\.message\);/g) || []).length === 3 && /if \(r\.error\) throw/.test(reps) && /if \(s\.error\) throw/.test(reps) && /if \(!Array\.isArray\(data\)\)/.test(reps));
   ok("money: Sales and the snapshot load through useAsyncData and say 'this is not zero' when they cannot read",
     /useAsyncData<SalesReport>\(loader, \[loader\]\)/.test(sales) && /errorSub="This is not zero — we could not read the sales report just now\."/.test(sales)
       && /useAsyncData<Snapshot>\(fetchSnapshot, \[\]\)/.test(snap) && /errorSub="This is not zero/.test(snap) && !/No snapshot data yet" \/>/.test(snap));
+  ok("money: Sales' average is per channel (channelRows), never all revenue over cup orders",
+    /channelRows\(rep\.by_channel \?\? \{\}, counts\)/.test(sales) && !/const aov = /.test(sales) && /rep\.orders_by_channel \?\? \{ cup: rep\.order_count \}/.test(sales));
+  ok("money: an event's net says it is an estimate, on the P&L and on the live card, and names the default plan when that is what it stands on",
+    /\{moneyRound\(r\.margin_cents\)\} est\. net/.test(pnl) && /r\.costs_saved === false/.test(pnl)
+      && /% of plan · est\. net <b/.test(crew) && /\{hasPlan && !econ && <p className="cp-line dim">Estimated on the default plan: \{planWords\(\)\}/.test(crew));
   ok("money: the console's money panels read their errors — subscribers, subscription interest, order history, product economics",
     /const \{ data, error \} = await supabase\.from\("subscriptions"\)\.select\("\*"\)/.test(crew) && /const \{ data, error \} = await supabase\.from\("subscription_interest"\)/.test(crew)
       && /const \{ data, error \} = await supabase\.from\("orders"\)\.select\("\*"\)\.in\("status", \["done", "void"\]\)/.test(crew)

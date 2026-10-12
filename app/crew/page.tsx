@@ -190,7 +190,7 @@ import Prose from "@/components/Prose";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { packListFor } from "@/lib/packlist";
 import { complianceFor } from "@/lib/compliance";
-import { projectEvent, reconcile, DEFAULT_ECON, type EventEcon, type ProductEcon, type Projection, econBreakdown, econBreakdownLabel, type EconDrink } from "@/lib/economics";
+import { projectEvent, reconcile, DEFAULT_ECON, planWords, type EventEcon, type ProductEcon, type Projection, econBreakdown, econBreakdownLabel, type EconDrink } from "@/lib/economics";
 import { buildBrief } from "@/lib/eventbrief";
 import { fetchInventory, inventoryForEvent, type InventoryResp } from "@/lib/inventory";
 import { fetchAssets, type AssetsResp } from "@/lib/assets";
@@ -3968,13 +3968,18 @@ function EventHUD() {
   const hasPlan = proj.revenueCents > 0;
   const pctOfPlan = hasPlan ? Math.round((stats.cents / proj.revenueCents) * 100) : 0;
   const netUp = recon.actualNetCents >= 0;
+  // THE NET IS AN ESTIMATE, AND SAYS WHAT IT ASSUMED (2026-10-12). It is sales less ingredients at the plan's cost ratio,
+  // the crew at its rate for the hours planned and the fixed costs saved — and for an event with no saved economics, the
+  // default plan (lib/economics DEFAULT_ECON). It printed "net $312" as if counted; it says "est. net", and names the
+  // default plan when that is what it stands on.
   return (
     // One hero mid-service — sales — and one quiet line. The full plan-vs-actual story (ROI, break-even,
     // plan totals) lives in Money → Per-event P&L, not on the Now screen.
     <FoldCard id="hud" title={ev.title} sub="Live now" today label="The live event">
       <div className="adm-sec adm-hud">
         <div className="adm-hud-hero"><b>{moneyRound(stats.cents)}</b><span>in sales</span></div>
-        <p className="adm-hud-line">{stats.orders} order{stats.orders === 1 ? "" : "s"} · {moneyRound(perHr)}/hr{hasPlan && <> · {pctOfPlan}% of plan · net <b className={netUp ? "ok" : "red"}>{moneyRound(recon.actualNetCents)}</b></>}</p>
+        <p className="adm-hud-line">{stats.orders} order{stats.orders === 1 ? "" : "s"} · {moneyRound(perHr)}/hr{hasPlan && <> · {pctOfPlan}% of plan · est. net <b className={netUp ? "ok" : "red"}>{moneyRound(recon.actualNetCents)}</b></>}</p>
+        {hasPlan && !econ && <p className="cp-line dim">Estimated on the default plan: {planWords()}. Save this event&apos;s economics to use its own.</p>}
       </div>
     </FoldCard>
   );

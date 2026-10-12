@@ -17,6 +17,11 @@ import { moneyRound } from "@/lib/money";
 // null`, so a failed report silently vanished with no heading, no hint, nothing. Now it's a real
 // error state. Since 2026-10-12 fetchEventPnl throws on a failure itself — the function's own "unauthorized" included,
 // which used to come back as an object, pass for the rows and break .some() — so the loader is the fetch.
+//
+// THE NET IS AN ESTIMATE, AND SAYS WHAT IT ASSUMED (2026-10-12, 0384). Every row's net is sales less ingredients at a
+// cost percentage and less the fixed costs saved for the event — and for an event with no saved costs that is the menu's
+// blended percentage and nothing else, no booth, no travel, no permit. It printed "$412 net" either way. It reads
+// "est. net" now, and a row with no saved costs names what stood in for them (report_events' costs_saved).
 
 
 export default function EventPnlReport() {
@@ -46,6 +51,7 @@ export default function EventPnlReport() {
         errorSub="This is not zero — we could not read the events' takings and costs just now.">
         {(rows) => {
           const anyActual = rows.some((r) => r.actual_cents > 0);
+          const anyAssumed = rows.some((r) => r.costs_saved === false);
           return (
             <div className="rpt-block">
               {/* Kit InfoRow replaces the ad-hoc .rpt-pnl button: event → name, the tap-through
@@ -61,16 +67,20 @@ export default function EventPnlReport() {
               <div className="k-rows">
                 {rows.map((r, i) => {
                   const id = r.id;
+                  // No saved costs: the net is the menu's blend and nothing fixed — say so on the row it is true of.
+                  const assumed = r.costs_saved === false
+                    ? ` · no costs saved: ingredients at ${Math.round(r.cogs_pct * 100)}%, nothing for booth, travel or permit`
+                    : "";
                   return (
                     <InfoRow
                       key={i}
                       name={r.event}
                       nameExtra={id ? <span className="rpt-pnl-go" aria-hidden>›</span> : null}
-                      meta={`${r.orders} orders · ${Math.round((1 - r.cogs_pct) * 100)}% gross${r.fixed_cents > 0 ? ` · ${moneyRound(r.fixed_cents)} fixed` : ""}`}
+                      meta={`${r.orders} orders · ${Math.round((1 - r.cogs_pct) * 100)}% gross${r.fixed_cents > 0 ? ` · ${moneyRound(r.fixed_cents)} fixed` : ""}${assumed}`}
                       trailing={
                         <div className="rpt-pnl-r">
                           <div className="rpt-pnl-rev">{moneyRound(r.actual_cents)}</div>
-                          <div className={`rpt-pnl-m${r.margin_cents >= 0 ? "" : " neg"}`}>{moneyRound(r.margin_cents)} net</div>
+                          <div className={`rpt-pnl-m${r.margin_cents >= 0 ? "" : " neg"}`}>{moneyRound(r.margin_cents)} est. net</div>
                         </div>
                       }
                       onClick={id ? () => openEvent(id, r.kind) : undefined}
@@ -79,8 +89,9 @@ export default function EventPnlReport() {
                 })}
               </div>
               <div className="rpt-foot">{anyActual
-                ? "Actual revenue (Square) − COGS − fixed event costs (booth / transport / permit / consumables)."
-                : "Actuals fill in from Square as you sell at each event; costs come from each event's economics."}</div>
+                ? "Est. net = actual sales (Square) − ingredients at the event's cost % − the fixed costs saved for it (booth / transport / permit / consumables). Crew time is not in it."
+                : "Actuals fill in from Square as you sell at each event; costs come from each event's economics."}
+                {anyAssumed ? " An event with no saved costs uses the menu's blended ingredient cost and nothing fixed — save its economics to replace them." : ""}</div>
             </div>
           );
         }}

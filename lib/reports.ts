@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import type { Channels, CostBasis } from "./home";
 
 // Sales-actuals report — one staff-gated RPC (report_sales) returns everything the MONEY-tab
 // dashboard needs: real revenue from orders, per-event actuals from the Square mirror, product
@@ -14,6 +15,12 @@ export interface SalesReport {
   revenue_cents: number;
   order_count: number;
   cogs_pct: number;
+  /** each channel's money: walk-ups, cups, packs, delivery, office — and the shop, since 0384 */
+  by_channel?: Channels;
+  /** each channel's own orders, counted by the rule its money is (0384); absent from an older report */
+  orders_by_channel?: Channels;
+  /** what cogs_pct rests on (0384); absent from an older report */
+  cogs_basis?: CostBasis;
   by_product: { key: string; n: number; cents: number }[];
   by_event: { event: string; cents: number; orders: number }[];
   by_day: { day: string; cents: number }[];
@@ -59,6 +66,8 @@ export interface EventPnlRow {
   cogs_pct: number;
   fixed_cents: number;
   margin_cents: number;
+  /** false when the event has no saved economics, so its net is the menu's blend and nothing else (0384) */
+  costs_saved?: boolean;
 }
 
 export async function fetchEventPnl(): Promise<EventPnlRow[]> {

@@ -7,6 +7,7 @@ import { moneyRound } from "@/lib/money";
 import { supabase } from "@/lib/supabase";
 import { Segmented } from "@/components/controls";
 import { useAsyncData } from "@/lib/useAsyncData";
+import { channelRows, costBasisWords, type Channels } from "@/lib/home";
 import AsyncSection from "./AsyncSection";
 
 // Sales actuals — the first reporting dashboard (MONEY tab). Real revenue + per-event actuals +
@@ -16,6 +17,10 @@ import AsyncSection from "./AsyncSection";
 // null, and null drew "No sales recorded in the last 30 days" — the sentence for a month with no sales, said about a
 // month nobody could read. It loads through useAsyncData now: a failure is "Couldn't read sales — this is not zero",
 // with Try again, and a range that fails after another loaded says so above the numbers it is still showing.
+//
+// EACH NUMBER SAYS WHAT IT IS (2026-10-12, 0384). The average was all revenue over cup orders alone; each channel now
+// shows its own orders and its own average (lib/home channelRows). The margin is an estimate and says what it rests on:
+// how many of the menu's products are costed, or that 30% is assumed (lib/home costBasisWords).
 
 const DRINKS: Record<string, string> = { rise: "RISE", flow: "FLOW", dusk: "DUSK", tide: "TIDE", forge: "FORGE", hunt: "HUNT", wild: "WILD" };
 const label = (k: string) => DRINKS[k] || (k || "—").toUpperCase();
@@ -69,10 +74,15 @@ export default function Reports() {
       >
         {(rep) => {
           const rev = rep.revenue_cents ?? 0;
-          const orders = rep.order_count ?? 0;
-          const aov = orders > 0 ? rev / orders : 0;
           const cogs = rep.cogs_pct ?? 0.3;
           const margin = Math.round(rev * (1 - cogs));
+          const basis = costBasisWords(rep.cogs_basis, cogs);
+          // Each channel beside its own orders. A report from before 0384 counts cup orders alone, so only cups get an
+          // average from it — never all revenue over the cups.
+          const counts: Channels = rep.orders_by_channel ?? { cup: rep.order_count };
+          const channels = channelRows(rep.by_channel ?? {}, counts);
+          const orders = rep.orders_by_channel ? channels.reduce((n, c) => n + (c.orders ?? 0), 0) : null;
+          const chMax = Math.max(1, ...channels.map((c) => c.cents));
           const evMax = Math.max(1, ...(rep.by_event ?? []).map((e) => e.cents));
           const prMax = Math.max(1, ...(rep.by_product ?? []).map((p) => p.n));
           const dayMax = Math.max(1, ...(rep.by_day ?? []).map((d) => d.cents));
@@ -87,8 +97,30 @@ export default function Reports() {
               )}
               {/* revenue is the hero; the rest is one quiet line (zero-tiles never render) */}
               <div className="rpt-hero"><b>{moneyRound(rev)}</b><span>revenue · {rep.days}d</span></div>
-              <p className="rpt-line">{orders.toLocaleString()} orders · {usd2(aov)} avg · est. margin {moneyRound(margin)} at {Math.round((1 - cogs) * 100)}%</p>
+              {/* "estimate · 3 of 9 products costed" or "assumed 30%" says what kind of estimate; a report from before
+                  0384 cannot say, and the line keeps its "est." */}
+              <p className="rpt-line">
+                {orders !== null ? `${orders.toLocaleString()} orders · ` : ""}{basis ? "margin" : "est. margin"} {moneyRound(margin)} at {Math.round((1 - cogs) * 100)}%{basis ? ` · ${basis}` : ""}
+              </p>
               {cash && cash.cents > 0 && <p className="rpt-line">{usd2(cash.cents)} of it cash at the window · {cash.n} pre-order{cash.n === 1 ? "" : "s"}</p>}
+
+              {channels.length > 0 && (
+                <div className="rpt-block">
+                  <div className="rpt-bh">By channel · each average from its own orders</div>
+                  {channels.map((c) => (
+                    <div key={c.channel} className="rpt-bar">
+                      <div className="rpt-bar-l"><span>{c.label}</span><b>{moneyRound(c.cents)}</b></div>
+                      <div className="rpt-track"><div className="rpt-fill" style={{ width: `${Math.max(3, (Math.max(0, c.cents) / chMax) * 100)}%` }} /></div>
+                      {c.orders !== null && (
+                        <div className="rpt-sub">
+                          {c.orders.toLocaleString()} {c.channel === "square_walkup" ? (c.orders === 1 ? "sale" : "sales") : (c.orders === 1 ? "order" : "orders")}
+                          {c.avgCents !== null ? ` · ${usd2(c.avgCents)} avg` : ""}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {(rep.by_event?.length ?? 0) > 0 && (
                 <div className="rpt-block">
@@ -126,7 +158,11 @@ export default function Reports() {
                   </div>
                 </div>
               )}
-              <div className="rpt-foot">Live from orders + Square. Margin = revenue × (1 − blended COGS {Math.round(cogs * 100)}%); set exact costs in Product economics.</div>
+              <div className="rpt-foot">
+                Live from orders + Square. Each channel&apos;s average is its own revenue over its own orders. The margin is an
+                estimate: revenue × (1 − the menu&apos;s blended ingredient cost, {Math.round(cogs * 100)}%){basis ? ` — ${basis}` : ""}.
+                A drink is costed when every ingredient in its recipe has a unit cost in inventory; the COGS calculator shows which.
+              </div>
             </>
           );
         }}
