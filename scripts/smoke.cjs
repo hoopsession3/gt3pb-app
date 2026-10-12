@@ -6101,8 +6101,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       /sb\.rpc\("report_sales", \{ p_days: 7 \}\)/.test(read("components/HomeNumbers.tsx"))
       && /sum\("business_orders", \(q\) => q\.eq\("payment_status", "paid"\)\.is\("canceled_at", null\)\.gte\("delivery_date", day6\(\)\)\.lte\("delivery_date", etToday\(\)\)\)/.test(digestRoute)
       && /supabaseAdmin\.from\("business_orders"\)\.select\("payment_id"\)\.not\("payment_id", "is", null\),/.test(digestRoute)
-      && /const onDay = \(q: any\) => q\.eq\("tenant_id", tenant\)\.gte\("delivery_date", fromISO\.slice\(0, 10\)\)\.lt\("delivery_date", toISO\.slice\(0, 10\)\);/.test(review)
-      && /revenue\(tenant, d7\.toISOString\(\), now\.toISOString\(\)\)/.test(review) && /revenue\(tenant, d14\.toISOString\(\), d7\.toISOString\(\)\)/.test(review)
+      // 2026-10-12: the review's windows are business days (lib/rhythm.rhythmWeek) — the delivery day is the day key itself,
+      // not the UTC date cut from an instant.
+      && /const onDay = \(q: any\) => q\.eq\("tenant_id", tenant\)\.gte\("delivery_date", from\)\.lt\("delivery_date", to\);/.test(review)
+      && /revenue\(tenant, wk\.from, wk\.next\)/.test(review) && /revenue\(tenant, wk\.priorFrom, wk\.from\)/.test(review)
       && !/business_orders[^\n]*gte\("created_at"/.test(digestRoute));
     ok("office revenue: the crew's route is the next delivery day with later weeks folded under it, no pay link or invoice before a delivery's cutoff, and the client sees what's coming up soonest first",
       /const nextDay = open\.map\(\(o\) => o\.delivery_date\)\.filter\(\(d\) => d >= today\)\.sort\(\)\[0\] \?\? null;/.test(crewOffice3)
@@ -7906,7 +7908,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("calendar: the not-configured styles left with it", !/\.ol-bar\.quiet/.test(cssP) && !/\.ol-state\.off/.test(cssP));
   const rh = code(read("components/OperatingRhythm.tsx"));
   ok("rhythm: both cards say when, and how long ago — from the meeting's own date, not cut out of a title",
-    /const ago = agoWord\(daysBetween\(l\.met_on\.slice\(0, 10\), localToday\(\)\)\);/.test(rh) && (rh.match(/\{latestLine\(p\.(review|strategy)\)\}/g) || []).length === 2
+    // 2026-10-12: to the business day (useEtDay), not the phone's — the routes that write these notes date them in Eastern.
+    /const ago = agoWord\(daysBetween\(l\.met_on\.slice\(0, 10\), today\)\);/.test(rh) && (rh.match(/\{latestLine\(p\.(review|strategy), today\)\}/g) || []).length === 2
     && !/title\.replace\("Weekly Operating Review · ", ""\)/.test(rh) && /`Latest: \$\{nice\(l\.met_on\)\}\$\{ago \? ` · \$\{ago\}` : ""\} — open in Notes`/.test(rh));
 
   // ── the record sheet these rows open ──
@@ -11578,6 +11581,39 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("transcript: an open item with a day is filed through followUpDueAt — no Eastern offset written by hand",
     /due_at: due \? followUpDueAt\(due\) : null/.test(se) && !/T17:00:00-0[45]:00/.test(se) && /import \{ followUpDueAt \} from "@\/lib\/rhythm";/.test(se));
   ok("smoke: lib/etDay and lib/rhythm are compiled for these pins", /lib\/etDay\.ts lib\/rhythm\.ts/.test(JSON.parse(rd("package.json")).scripts.smoke));
+}
+
+// ── RELEASE 1 · THE REVIEW, THE SESSION, THE TRANSCRIPT AND THE CARD KEEP ONE EASTERN BUSINESS DAY (2026-10-12) ──
+// The review and the session cut the day in UTC (a day ahead from 8pm Eastern), the transcript in Eastern, the card on
+// the phone's clock. All four read lib/dates.etToday now, and the windows are lib/rhythm's, cut at Eastern midnight.
+{
+  const RH = require("../.smoke/rhythm.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const w = RH.rhythmWeek("2026-10-12");
+  ok("one day: a rhythm's week is the seven business days ending today, and the seven before",
+    w.from === "2026-10-06" && w.next === "2026-10-13" && w.priorFrom === "2026-09-29" && w.priorTo === "2026-10-05" && w.ahead7 === "2026-10-19" && w.ahead14 === "2026-10-26", w);
+  ok("one day: …and it starts at Eastern midnight — 04:00Z under EDT, 05:00Z once the clocks go back",
+    w.fromAt === "2026-10-06T04:00:00.000Z" && RH.rhythmWeek("2026-11-03").fromAt === "2026-10-28T04:00:00.000Z" && RH.rhythmWeek("2026-11-08").fromAt === "2026-11-02T05:00:00.000Z",
+    [w.fromAt, RH.rhythmWeek("2026-11-03").fromAt, RH.rhythmWeek("2026-11-08").fromAt]);
+  ok("one day: 9pm Eastern on Oct 11 (01:00Z Oct 12) was Oct 11 — a day ago on Oct 12, where a UTC cut said today",
+    RH.businessDaysSince("2026-10-12T01:00:00Z", "2026-10-12") === 1 && RH.businessDaysSince("2026-10-12T04:30:00Z", "2026-10-12") === 0, RH.businessDaysSince("2026-10-12T01:00:00Z", "2026-10-12"));
+  ok("one day: whole days across a clock change, and no instant is no answer",
+    RH.businessDaysSince("2026-10-25T16:00:00Z", "2026-11-08") === 14 && RH.businessDaysSince(null, "2026-10-12") === null && RH.businessDaysSince("not a date", "2026-10-12") === null);
+  ok("one day: dayStartIso is the instant a business day begins", RH.dayStartIso("2026-12-01") === "2026-12-01T05:00:00.000Z" && RH.dayStartIso("2026-07-04") === "2026-07-04T04:00:00.000Z");
+  const review = code(rd("app/api/agents/weekreview/route.ts")), session = code(rd("app/api/agents/stratsession/route.ts"));
+  const transcript = code(rd("app/api/agents/session-extract/route.ts")), card = code(rd("components/OperatingRhythm.tsx"));
+  const utcCut = /toISOString\(\)\.slice\(0, 10\)|864e5/;
+  ok("one day: the review is dated and windowed on the business day — no UTC slice, no 24-hour arithmetic",
+    /const today = etToday\(\);\s*const wk = rhythmWeek\(today\);/.test(review) && !utcCut.test(review)
+      && /\.gte\("met_on", wk\.from\)/.test(review) && /\.gte\("day", wk\.from\)\.lte\("day", wk\.ahead14\)/.test(review) && /daysBetween\(today, i\.target_date\)/.test(review));
+  ok("one day: the session too — its one-a-day check, its overdue milestones and its 'since' dates are Eastern",
+    /const today = etToday\(\);/.test(session) && !utcCut.test(session) && /\.eq\("met_on", today\)/.test(session)
+      && /\(since \$\{niceAt\(b\.created_at\)\}\)/.test(session) && /\(\$\{niceAt\(d\.created_at\)\}\)/.test(session) && /const niceAt = \(iso: string\) => nice\(etDayKey\(new Date\(iso\)\)\);/.test(session));
+  ok("one day: the transcript files its note on the business day, as it did", /const today = etToday\(\);/.test(transcript) && /met_on: today/.test(transcript) && !utcCut.test(transcript));
+  ok("one day: the card counts to the business day, kept current — not the phone's day",
+    /const today = useEtDay\(\);/.test(card) && !/localToday|Date\.now\(\)|864e5/.test(card) && /\}, \[today\]\);\s*const state = useAsyncData\(loader, \[today\]\);/.test(card));
 }
 
 Promise.all(PENDING).then(() => {

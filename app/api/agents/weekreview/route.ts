@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { staffFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { moneyRound } from "@/lib/money";
+import { etToday } from "@/lib/dates";
+import { daysBetween } from "@/lib/dayWords";
+import { etDayStart } from "@/lib/etDay";
+import { rhythmWeek } from "@/lib/rhythm";
 import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
@@ -19,7 +23,11 @@ export const maxDuration = 60;
 // note's own thread, and follow-ups ride ✦ Suggest onto the ONE task spine. One review per week
 // (dedupe on source+met_on window): a second tap opens the existing one.
 
-const day = (d: Date) => d.toISOString().slice(0, 10);
+// THE BUSINESS DAY, NOT UTC'S (2026-10-12). `day` was `d.toISOString().slice(0, 10)`: from 8pm Eastern in summer
+// (7pm in winter) today was tomorrow, so a review assembled that evening was dated tomorrow, its week started a day
+// late, and its "Nd to" counted from the wrong day. Every day here is the Eastern business day (lib/dates.etToday),
+// and the week is lib/rhythm's — the seven business days ending today, cut at Eastern midnight — the week the
+// strategy session, the transcript and the card on Plan count too.
 const nice = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
 async function sum(table: string, filter: (q: any) => any): Promise<number> {
@@ -31,10 +39,13 @@ async function sum(table: string, filter: (q: any) => any): Promise<number> {
 // The 0208 founder-digest revenue formula, windowed — for one tenant: R-002's rule (the service role
 // bypasses RLS, so every read names its tenant) had missed this function. An office order counts on
 // its delivery day (0358): deliveries are scheduled six weeks ahead, so the night one was made says
-// nothing about the week it was earned in.
-async function revenue(tenant: string, fromISO: string, toISO: string): Promise<number> {
-  const win = (q: any) => q.eq("tenant_id", tenant).gte("created_at", fromISO).lt("created_at", toISO);
-  const onDay = (q: any) => q.eq("tenant_id", tenant).gte("delivery_date", fromISO.slice(0, 10)).lt("delivery_date", toISO.slice(0, 10));
+// nothing about the week it was earned in. The window is business days [from, to) — day keys for the
+// delivery day, and the instants those days begin in Eastern time for created_at (2026-10-12: it was two
+// instants, and the delivery day was the UTC date of each, a day late from 8pm).
+async function revenue(tenant: string, from: string, to: string): Promise<number> {
+  const fromAt = etDayStart(from).toISOString(), toAt = etDayStart(to).toISOString();
+  const win = (q: any) => q.eq("tenant_id", tenant).gte("created_at", fromAt).lt("created_at", toAt);
+  const onDay = (q: any) => q.eq("tenant_id", tenant).gte("delivery_date", from).lt("delivery_date", to);
   return (await sum("orders", (q) => win(q.eq("paid", true).neq("status", "void"))))
        + (await sum("drop_orders", (q) => win(q.eq("paid", true).is("canceled_at", null))))
        + (await sum("delivery_orders", (q) => win(q.eq("payment_status", "paid").is("canceled_at", null))))
@@ -51,37 +62,35 @@ async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
   const caller = await userFromRequest(req);
 
-  const now = new Date();
-  const today = day(now);
-  const d7 = new Date(now.getTime() - 7 * 864e5), d14 = new Date(now.getTime() - 14 * 864e5);
-  const ahead14 = day(new Date(now.getTime() + 14 * 864e5)), ahead7 = day(new Date(now.getTime() + 7 * 864e5));
+  const today = etToday();
+  const wk = rhythmWeek(today);
 
   // One review per week — a second tap opens the standing one instead of forking the record.
   const { data: existing } = await supabaseAdmin.from("meeting_notes").select("id, title").eq("tenant_id", tenant)
-    .eq("source", "review").gte("met_on", day(new Date(now.getTime() - 6 * 864e5))).limit(1).maybeSingle();
+    .eq("source", "review").gte("met_on", wk.from).limit(1).maybeSingle();
   if (existing) return NextResponse.json({ ok: true, note_id: existing.id, title: existing.title, existing: true });
 
   const [revThis, revPrior, goalsQ, initsQ, milesQ, eventsQ, incOpenQ, incFixedQ, decQ, overdueQ, next7Q, doneQ, portQ, actsQ] = await Promise.all([
-    revenue(tenant, d7.toISOString(), now.toISOString()),
-    revenue(tenant, d14.toISOString(), d7.toISOString()),
+    revenue(tenant, wk.from, wk.next),
+    revenue(tenant, wk.priorFrom, wk.from),
     supabaseAdmin.from("goals").select("title, unit, target_value, current_value, updated_at, checkin_status").eq("tenant_id", tenant).eq("status", "active"),
     supabaseAdmin.from("initiatives").select("id, title, emoji, target_date").eq("tenant_id", tenant).neq("status", "done"),
     supabaseAdmin.from("initiative_milestones").select("initiative_id, title, due_on, done, done_at").eq("tenant_id", tenant),
-    supabaseAdmin.from("events").select("title, day").eq("tenant_id", tenant).is("archived_at", null).gte("day", day(d7)).lte("day", ahead14),
+    supabaseAdmin.from("events").select("title, day").eq("tenant_id", tenant).is("archived_at", null).gte("day", wk.from).lte("day", wk.ahead14),
     supabaseAdmin.from("incident_log").select("problem, severity").eq("tenant_id", tenant).eq("resolved", false),
-    supabaseAdmin.from("incident_log").select("id", { count: "exact", head: true }).eq("tenant_id", tenant).eq("resolved", true).gte("created_at", d7.toISOString()),
-    supabaseAdmin.from("strategy_decisions").select("key, decision").eq("tenant_id", tenant).gte("created_at", d7.toISOString()),
+    supabaseAdmin.from("incident_log").select("id", { count: "exact", head: true }).eq("tenant_id", tenant).eq("resolved", true).gte("created_at", wk.fromAt),
+    supabaseAdmin.from("strategy_decisions").select("key, decision").eq("tenant_id", tenant).gte("created_at", wk.fromAt),
     supabaseAdmin.from("all_tasks").select("id", { count: "exact", head: true }).eq("done", false).lt("due", today),
-    supabaseAdmin.from("all_tasks").select("id", { count: "exact", head: true }).eq("done", false).gte("due", today).lte("due", ahead7),
-    supabaseAdmin.from("all_tasks").select("id", { count: "exact", head: true }).eq("done", true).gte("done_at", d7.toISOString()),
+    supabaseAdmin.from("all_tasks").select("id", { count: "exact", head: true }).eq("done", false).gte("due", today).lte("due", wk.ahead7),
+    supabaseAdmin.from("all_tasks").select("id", { count: "exact", head: true }).eq("done", true).gte("done_at", wk.fromAt),
     supabaseAdmin.from("os_workstreams").select("name, owner, status, health, next_action, blocker, last_audited").order("sort"),
     // Activation ledger (0268) — soft: absent table (pre-migration) degrades to no section.
     supabaseAdmin.from("account_activities").select("opportunity_id, on_date, cost_cents, revenue_cents").eq("tenant_id", tenant),
   ]);
 
   const goals = (goalsQ.data ?? []) as any[];
-  const moved = goals.filter((g) => g.updated_at >= d7.toISOString());
-  const quiet = goals.filter((g) => g.updated_at < d7.toISOString() && g.checkin_status !== "at_risk");
+  const moved = goals.filter((g) => g.updated_at >= wk.fromAt);
+  const quiet = goals.filter((g) => g.updated_at < wk.fromAt && g.checkin_status !== "at_risk");
   const atRisk = goals.filter((g) => g.checkin_status === "at_risk");
   const inits = (initsQ.data ?? []) as any[];
   const miles = (milesQ.data ?? []) as any[];
@@ -95,9 +104,9 @@ async function post(req: Request) {
   const gLine = (g: any) => `**${g.title}** — ${Number(g.current_value).toLocaleString()} / ${Number(g.target_value).toLocaleString()}${g.unit ? ` ${g.unit}` : ""}`;
   const initLine = (i: any) => {
     const mine = miles.filter((m) => m.initiative_id === i.id);
-    const hit = mine.filter((m) => m.done && m.done_at && m.done_at >= d7.toISOString()).map((m) => m.title);
+    const hit = mine.filter((m) => m.done && m.done_at && m.done_at >= wk.fromAt).map((m) => m.title);
     const next = mine.filter((m) => !m.done).sort((a, b) => (a.due_on ?? "9999").localeCompare(b.due_on ?? "9999"))[0];
-    const dl = i.target_date ? ` · ${Math.round((new Date(`${i.target_date}T12:00:00`).getTime() - now.getTime()) / 864e5)}d to ${nice(i.target_date)}` : "";
+    const dl = i.target_date ? ` · ${daysBetween(today, i.target_date)}d to ${nice(i.target_date)}` : "";
     return `${i.emoji ? `${i.emoji} ` : ""}**${i.title}**${dl}${hit.length ? ` · hit this week: ${hit.join(", ")}` : ""}${next ? ` · next: ${next.title}${next.due_on ? ` (${nice(next.due_on)})` : ""}` : ""}`;
   };
 
@@ -114,7 +123,7 @@ async function post(req: Request) {
   // on the pipeline card carries the precise live figure.
   const acts = ((actsQ?.data ?? []) as any[]);
   const spendAll = acts.reduce((s, a) => s + (a.cost_cents ?? 0), 0);
-  const spendWk = acts.filter((a) => a.on_date >= day(d7)).reduce((s, a) => s + (a.cost_cents ?? 0), 0);
+  const spendWk = acts.filter((a) => a.on_date >= wk.from).reduce((s, a) => s + (a.cost_cents ?? 0), 0);
   const actRevAll = acts.reduce((s, a) => s + (a.revenue_cents ?? 0), 0);
   const actLine = spendAll > 0
     ? `- **Activation capital:** ${moneyRound(spendAll)} deployed of the ~$6.0K Phase-1 plan${spendWk > 0 ? ` (${moneyRound(spendWk)} this week)` : ""} · activation revenue ${moneyRound(actRevAll)} — per-account payback lives on the pipeline cards`

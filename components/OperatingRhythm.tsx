@@ -12,8 +12,9 @@ import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { useOperatorSection } from "@/components/OperatorNav";
 import { scrollToAnchor } from "@/lib/anchors";
-import { localToday } from "@/lib/dates";
 import { agoWord, daysBetween } from "@/lib/dayWords";
+import { useEtDay } from "@/lib/useEtDay";
+import { businessDaysSince } from "@/lib/rhythm";
 
 // OPERATING RHYTHM (2026-08-02 exec-rhythm P1–P3) — the review step of plan → execute → REVIEW →
 // adjust, installed as a surface. Two rituals, one ledger:
@@ -31,8 +32,11 @@ const nice = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleD
 // "Aug 2 · 9 weeks ago" (2026-10-05). The review card said "Latest: Aug 2" on Oct 5 — a weekly
 // ritual nine weeks stopped, said as a date, reads as one that just happened. Both cards say it the
 // same way now, from the meeting's own date: the review's used to be cut out of its title.
-const latestLine = (l: NonNullable<Latest>) => {
-  const ago = agoWord(daysBetween(l.met_on.slice(0, 10), localToday()));
+// ON THE BUSINESS DAY (2026-10-12): "how long ago" counted to the PHONE's day (localToday) while the review and the
+// session that wrote these notes dated them by UTC's — so the same evening could read "yesterday" for a note
+// assembled minutes before. Both routes and this card count Eastern business days now (lib/rhythm says why).
+const latestLine = (l: NonNullable<Latest>, today: string) => {
+  const ago = agoWord(daysBetween(l.met_on.slice(0, 10), today));
   return `Latest: ${nice(l.met_on)}${ago ? ` · ${ago}` : ""} — open in Notes`;
 };
 
@@ -60,9 +64,10 @@ export default function OperatingRhythm({ isAdmin, onOpenNotes }: { isAdmin: boo
     setExtracting(false);
   };
 
+  // The business day, kept current (lib/useEtDay): what "ago" and "quiet" count to, and a re-read when it turns.
+  const today = useEtDay();
   const loader = useCallback(async (): Promise<Pulse> => {
     if (!supabase) return { review: null, strategy: null, atRisk: 0, quiet: 0 };
-    const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
     const [r, s, g] = await Promise.all([
       supabase.from("meeting_notes").select("id, title, met_on").eq("source", "review").is("archived_at", null).order("met_on", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("meeting_notes").select("id, title, met_on").eq("source", "strategy").is("archived_at", null).order("met_on", { ascending: false }).limit(1).maybeSingle(),
@@ -73,10 +78,10 @@ export default function OperatingRhythm({ isAdmin, onOpenNotes }: { isAdmin: boo
       review: (r.data as Latest) ?? null,
       strategy: (s.data as Latest) ?? null,
       atRisk: goals.filter((x) => x.checkin_status === "at_risk").length,
-      quiet: goals.filter((x) => x.checkin_status !== "at_risk" && x.updated_at < weekAgo).length,
+      quiet: goals.filter((x) => x.checkin_status !== "at_risk" && (businessDaysSince(x.updated_at, today) ?? 0) >= 7).length,
     };
-  }, []);
-  const state = useAsyncData(loader, []);
+  }, [today]);
+  const state = useAsyncData(loader, [today]);
   const { reload } = state;
   useRealtimeTable(["meeting_notes", "goals"], reload);
 
@@ -106,13 +111,13 @@ export default function OperatingRhythm({ isAdmin, onOpenNotes }: { isAdmin: boo
         <div className="rhythm-card">
           <div className="rhythm-k">Weekly Operating Review</div>
           <p className="rhythm-sub">The week that was — revenue, goals moved or stalled, events run, incidents, decisions — plus the week ahead. Retro: keep · change · start.</p>
-          {p?.review && <button type="button" className="rhythm-last" onClick={onOpenNotes}>{latestLine(p.review)} <Icon name="arrowRight" /></button>}
+          {p?.review && <button type="button" className="rhythm-last" onClick={onOpenNotes}>{latestLine(p.review, today)} <Icon name="arrowRight" /></button>}
           {isAdmin && <button type="button" className="btn-pri mt-auto" onClick={() => assemble("review")} disabled={busy !== null}>{busy === "review" ? "Assembling…" : <><Icon name="sparkles" /> Assemble this week&rsquo;s review</>}</button>}
         </div>
         <div className="rhythm-card">
           <div className="rhythm-k">Strategy Session</div>
           <p className="rhythm-sub">The agenda nobody has to remember: open threads, goals needing a call, plays on the table, program hygiene, aging blockers. Close every call with ⚖ Log a decision.</p>
-          {p?.strategy && <button type="button" className="rhythm-last" onClick={onOpenNotes}>{latestLine(p.strategy)} <Icon name="arrowRight" /></button>}
+          {p?.strategy && <button type="button" className="rhythm-last" onClick={onOpenNotes}>{latestLine(p.strategy, today)} <Icon name="arrowRight" /></button>}
           {isAdmin && <button type="button" className="btn-pri mt-auto" onClick={() => assemble("session")} disabled={busy !== null}>{busy === "session" ? "Assembling…" : <><Icon name="sparkles" /> Start a strategy session</>}</button>}
           {isAdmin && <button type="button" className="rhythm-last" onClick={() => setExtractOpen(true)}>⇣ Had the session already? Paste the transcript — extract &amp; file</button>}
         </div>
