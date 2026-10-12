@@ -3,6 +3,8 @@
 //
 //   1  a finished task's alerts clear themselves — done anywhere, deleted, given to someone else, its date pushed out —
 //      and a late task shows one line, not its assigned line and its past-due line side by side
+//   2  "Got it" on a team alert is a claim everyone who can see the alert sees ("<first name> has it"), the escalation
+//      counts the claim and nothing else, and nobody's reads are shown to anybody
 //
 // Each defect is shown first on the schema as production has it, then fixed, then everything that must keep working is
 // run. Pushes are counted at the one door they all go through: supabase_functions.http_request, the trigger function
@@ -90,6 +92,19 @@ const sweep = () => db.exec(`select public.task_due_alerts()`);                 
 const byMechanism = (ls) => ls.length > 0 && ls.every((l) => l.ack_at !== null && l.ack_by === null);
 const PAST = () => new Date(Date.now() - 2 * 3600_000).toISOString(), FUTURE = () => new Date(Date.now() + 2 * 86400_000).toISOString();
 
+// A team critical as the server raises one (service role: no target, the business's own), each about its own subject.
+const teamCritical = async (title = "Voided a PAID order — refund needed", kind = "refund_needed") =>
+  (await q1(`insert into public.alerts (severity, category, kind, subject_id, title, link, tenant_id)
+    values ('critical', 'money', $1, gen_random_uuid(), $2, '/crew', $3) returning id`, [kind, title, T1])).id;
+// "Got it" on a team alert, as lib/useMyAlerts writes it: the person's own read. Taken back is its Undo.
+const gotIt = (uid, id) => as(uid, `insert into public.alert_reads (alert_id, user_id) values ($1, $2) returning alert_id`, [id, uid]);
+const takeBack = (uid, id) => as(uid, `delete from public.alert_reads where user_id = $1 and alert_id = $2 returning alert_id`, [uid, id]);
+const age = (id, by) => db.query(`update public.alerts set created_at = created_at - $2::interval where id = $1`, [id, by]);
+const esc = () => num(`select public.escalate_unacked_criticals() n`);                  // the cron, every minute
+const escPushes = (id) => num(`select count(*) n from public.test_pushes where alert_id = $1 and op = 'UPDATE' and trig = 'alerts_push_escalation'`, [id]);
+const claimOf = (id) => q1(`select claimed_by, claimed_at, escalated_at, ack_at from public.alerts where id = $1`, [id]);
+const namesFor = (uid, ids) => as(uid, `select alert_id, first_name from public.alert_claimants($1::uuid[]) order by alert_id`, [ids]);
+
 // ── BEFORE 0383: the defects, on the schema as production has it ─────────────────────────────────────────────────
 const old = {};
 {
@@ -135,6 +150,35 @@ const old = {};
   old.true = await task("Made-up: wash the jugs", BEA, PAST());
   await assigned(old.true, BEA);
 }
+{
+  // A team critical Sam picks up. The owners are not paged — and nobody can see that it was Sam.
+  old.samHas = await teamCritical();
+  const g = await gotIt(SAM, old.samHas);
+  ok("before 0383: Sam taps Got it on a team critical (his own read, 0157)", !g.error && g.rows.length === 1, g.error);
+  await age(old.samHas, "11 minutes");
+  ok("before 0383: eleven minutes on, the owners are not paged — the escalation counts Sam's read as somebody having it",
+    (await esc()) === 0 && (await escPushes(old.samHas)) === 0);
+  const ownerSees = await as(OWNER, `select id from public.alerts where id = $1 and ack_at is null`, [old.samHas]);
+  const ownerReads = await as(OWNER, `select user_id from public.alert_reads where alert_id = $1`, [old.samHas]);
+  ok("before 0383: …while the owner's inbox still lists it as nobody's, and nothing the owner can read says who has it",
+    ownerSees.rows.length === 1 && !ownerReads.error && ownerReads.rows.length === 0
+    && (await num(`select count(*) n from information_schema.columns where table_name = 'alerts' and column_name = 'claimed_by'`)) === 0, { ownerSees, ownerReads });
+
+  // A customer's "read" of a team critical they cannot even see.
+  old.memberRead = await teamCritical("A card dispute was opened", "chargeback_open");
+  const sees = await as(MEMBER, `select id from public.alerts where id = $1`, [old.memberRead]);
+  const r = await gotIt(MEMBER, old.memberRead);
+  await age(old.memberRead, "11 minutes");
+  ok("before 0383: a signed-in customer cannot see a team critical, yet may write a read of it by its id…", sees.rows.length === 0 && !r.error && r.rows.length === 1, { sees, r });
+  ok("before 0383: …and that read keeps the owners from being paged, as a crew member's would", (await esc()) === 0 && (await escPushes(old.memberRead)) === 0);
+
+  // Bea picked one up an hour ago, and Sam after her.
+  old.beaHas = await teamCritical("A Square refund isn't recorded here", "refund_unrecorded");
+  await gotIt(BEA, old.beaHas);
+  await gotIt(SAM, old.beaHas);
+  await db.query(`update public.alert_reads set read_at = read_at - interval '1 hour' where alert_id = $1 and user_id = $2`, [old.beaHas, BEA]);
+  await age(old.beaHas, "11 minutes");
+}
 
 // ── 0383 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 {
@@ -155,6 +199,17 @@ const old = {};
   ok("0383: a line still true is left alone — and so is the one-line rule's: Bea's late task shows its past-due line",
     (await openFor(old.true, BEA)).length === 1 && (await openFor(old.true, BEA))[0].kind === "task_due", await lines(old.true));
   ok("0383: applying it rang nobody — closing a line is an UPDATE, and an UPDATE does not fan out", (await pushes()) === pPaste, { before: p0, paste: pPaste, after: await pushes() });
+
+  // The team alerts already picked up: claimed by the earliest read by someone who can see them.
+  const sam = await claimOf(old.samHas), bea = await claimOf(old.beaHas), mem = await claimOf(old.memberRead);
+  ok("0383: the team critical Sam picked up before the paste is his claim now — what the escalation already counted, made visible",
+    sam.claimed_by === SAM && sam.claimed_at !== null, sam);
+  ok("0383: …one two people picked up is the first one's (Bea's, an hour before Sam's)", bea.claimed_by === BEA, bea);
+  ok("0383: …and the customer's read claimed nothing: they cannot see it", mem.claimed_by === null, mem);
+  const n = await esc();
+  ok("0383: the next escalation run sends the critical only the customer had \"read\" — once, through the door — and not the ones somebody has",
+    n === 1 && (await escPushes(old.memberRead)) === 1 && (await escPushes(old.samHas)) === 0 && (await escPushes(old.beaHas)) === 0,
+    { n, member: await escPushes(old.memberRead), sam: await escPushes(old.samHas), bea: await escPushes(old.beaHas) });
 }
 
 // ── AFTER 0383: a task tells its alerts ──────────────────────────────────────────────────────────────────────────────
@@ -248,6 +303,101 @@ const old = {};
   ok("after 0383: …addressed to her, as before, and it rang once", mine[0].target_user_id === BEA && (await pushes()) === p + 1);
   ok("after 0383: …and a line addressed to someone else (the team's Flag) is not hers to close", (await openFor(t, null)).length === 1);
 }
+// ── AFTER 0383: "Got it" on a team alert is a claim everyone sees ────────────────────────────────────────────────────
+{
+  const w = await teamCritical();
+  const p = await pushes();
+  const g = await gotIt(MANAGER, w);
+  const c = await claimOf(w);
+  ok("after 0383: Max taps Got it on a team critical — the same write as before, his own read — and it is his claim",
+    !g.error && c.claimed_by === MANAGER && c.claimed_at !== null, { g, c });
+  ok("after 0383: …claiming rang nobody (an update of claimed_by, not of escalated_at)", (await pushes()) === p);
+  const samRow = await as(SAM, `select claimed_by from public.alerts where id = $1`, [w]);
+  const samName = await namesFor(SAM, [w]), ownerName = await namesFor(OWNER, [w]);
+  ok("after 0383: Sam, a server — who may not read Max's profile — sees on the alert that Max has it: his first name, from the database",
+    samRow.rows[0]?.claimed_by === MANAGER && !samName.error && samName.rows.length === 1 && samName.rows[0].first_name === "Max", { samRow, samName });
+  ok("after 0383: …and so does the owner", ownerName.rows.length === 1 && ownerName.rows[0].first_name === "Max", ownerName);
+  const otherName = await namesFor(OTHER, [w]), memberName = await namesFor(MEMBER, [w]), anonName = await namesFor(null, [w]);
+  ok("after 0383: another business's owner and a customer are told nothing, and a guest may not ask",
+    !otherName.error && otherName.rows.length === 0 && !memberName.error && memberName.rows.length === 0 && /permission denied/i.test(anonName.error ?? ""),
+    { otherName, memberName, anonName });
+  const reads = await as(OWNER, `select user_id from public.alert_reads where alert_id = $1`, [w]);
+  ok("after 0383: nobody's reads are shown to anybody — the owner still reads none of Max's", !reads.error && reads.rows.length === 0, reads);
+
+  await gotIt(SAM, w);
+  ok("after 0383: Sam's Got it after Max's is Sam's own — the claim stays Max's", (await claimOf(w)).claimed_by === MANAGER);
+  await age(w, "11 minutes");
+  ok("after 0383: eleven minutes on, a claimed critical is not sent to the owners", (await esc()) === 0 && (await escPushes(w)) === 0);
+
+  // Undo.
+  const u1 = await takeBack(MANAGER, w);
+  ok("after 0383: Max takes his Got it back (Undo) — the claim passes to the earliest Got it still standing: Sam's",
+    !u1.error && u1.rows.length === 1 && (await claimOf(w)).claimed_by === SAM, await claimOf(w));
+  const u2 = await takeBack(SAM, w);
+  ok("after 0383: Sam takes his back too — nobody has it", !u2.error && (await claimOf(w)).claimed_by === null && (await claimOf(w)).claimed_at === null, await claimOf(w));
+  ok("after 0383: …so the owners are paged: sent again once, through the door", (await esc()) === 1 && (await escPushes(w)) === 1);
+
+  // The same thing raised again while it is open (0372) keeps its claim.
+  const k = await teamCritical("A Square refund isn't recorded here", "refund_unrecorded");
+  await gotIt(BEA, k);
+  const subj = (await q1(`select subject_id from public.alerts where id = $1`, [k])).subject_id;
+  const p2 = await pushes();
+  await db.query(`insert into public.alerts (severity, category, kind, subject_id, title, body, tenant_id)
+    values ('critical', 'money', 'refund_unrecorded', $1, 'A Square refund isn''t recorded here', 'the latest words', $2)`, [subj, T1]);
+  const folded = await q1(`select claimed_by, occurrences, body from public.alerts where id = $1`, [k]);
+  ok("after 0383: raised again while open, the line counts it (0372) and is still Bea's — no new line, no ring",
+    folded.claimed_by === BEA && Number(folded.occurrences) === 2 && folded.body === "the latest words" && (await pushes()) === p2, folded);
+}
+{
+  // Reads that claim nothing.
+  const v = await teamCritical("A card dispute was opened", "chargeback_open");
+  const byMember = await gotIt(MEMBER, v), byOther = await gotIt(OTHER, v);
+  ok("after 0383: a customer's read and another business's owner's read of a team critical claim nothing",
+    !byMember.error && !byOther.error && (await claimOf(v)).claimed_by === null, { byMember, byOther, claim: await claimOf(v) });
+  await age(v, "11 minutes");
+  ok("after 0383: …and stop nothing: the owners are paged", (await esc()) === 1 && (await escPushes(v)) === 1);
+  const closed = await teamCritical();
+  await db.query(`update public.alerts set ack_at = now() where id = $1`, [closed]);
+  await gotIt(SAM, closed);
+  ok("after 0383: a read of a team alert already closed claims nothing", (await claimOf(closed)).claimed_by === null);
+  const forged = await as(MANAGER, `insert into public.alerts (severity, category, kind, subject_id, title, claimed_by, claimed_at)
+    values ('critical', 'money', 'refund_needed', gen_random_uuid(), 'Made-up refund', $1, now()) returning id`, [OWNER]);
+  ok("after 0383: an alert raised with a claim already on it is written as nobody's — \"<name> has it\" is only said of a Got it",
+    !forged.error && (await claimOf(forged.rows[0]?.id)).claimed_by === null, { forged, claim: forged.rows[0] && await claimOf(forged.rows[0].id) });
+  const write = await as(SAM, `update public.alerts set claimed_by = $2 where id = $1 returning id`, [v, SAM]);
+  ok("after 0383: nobody writes a claim through the API — only Got it makes one (0378's column grant)", /permission denied/i.test(write.error ?? ""), write);
+}
+{
+  // A personal alert works as before.
+  const t = await task("Made-up: sign for the delivery", SAM);
+  await assigned(t, SAM);
+  const mine = (await openFor(t, SAM))[0];
+  const read = await gotIt(SAM, mine.id);
+  ok("after 0383: a read of a personal alert claims nothing — it is nobody's but its person's", !read.error && (await claimOf(mine.id)).claimed_by === null);
+  const ack = await as(SAM, `update public.alerts set ack_at = now(), ack_by = $2 where id = $1 returning id`, [mine.id, SAM]);
+  const after = await q1(`select ack_at, ack_by, claimed_by from public.alerts where id = $1`, [mine.id]);
+  ok("after 0383: Got it on a personal alert still acknowledges the row — ack_at and ack_by, as lib/useMyAlerts writes them",
+    !ack.error && ack.rows.length === 1 && after.ack_by === SAM && after.claimed_by === null, { ack, after });
+  const undo = await as(SAM, `update public.alerts set ack_at = null, ack_by = null where id = $1 returning id`, [mine.id]);
+  ok("after 0383: …and its Undo still works", !undo.error && undo.rows.length === 1 && (await claimOf(mine.id)).ack_at === null, undo);
+}
+{
+  const g = await q1(`select has_function_privilege('anon', 'public.alert_claimants(uuid[])', 'execute') a,
+                             has_function_privilege('authenticated', 'public.alert_claimants(uuid[])', 'execute') b,
+                             (select prosecdef from pg_proc where proname = 'alert_claimants') d,
+                             (select coalesce(proconfig::text, '') from pg_proc where proname = 'alert_claimants') c,
+                             has_function_privilege('anon', 'public.team_alert_seen_by(uuid,uuid)', 'execute') e,
+                             has_function_privilege('authenticated', 'public.team_alert_seen_by(uuid,uuid)', 'execute') f,
+                             (select prosecdef from pg_proc where proname = 'team_alert_seen_by') h,
+                             has_function_privilege('authenticated', 'public.alert_claim_on_read()', 'execute') i,
+                             (select prosecdef from pg_proc where proname = 'alert_claim_on_read') j,
+                             has_function_privilege('authenticated', 'public.alert_claim_starts_empty()', 'execute') k,
+                             has_function_privilege('authenticated', 'public.escalate_unacked_criticals()', 'execute') l`);
+  ok("0383: the claimant's name is the signed-in crew's to ask (definer, search_path pinned), a guest's to ask never; who-sees-what is nobody's to ask about someone else (invoker, closed); the triggers are nobody's to call; the escalation stays the cron's",
+    !g.a && g.b && g.d === true && /search_path=public/.test(g.c) && !g.e && !g.f && g.h === false && !g.i && g.j === true && !g.k && !g.l, g);
+  const probe = await as(SAM, `select public.team_alert_seen_by($1, $2) s`, [(await q1(`select id from public.alerts limit 1`)).id, OWNER]);
+  ok("0383: …so a signed-in person cannot ask what someone else's role or business lets them see", /permission denied/i.test(probe.error ?? ""), probe);
+}
 {
   const g = await q1(`select has_function_privilege('anon', 'public.task_alerts_follow_the_task()', 'execute') a,
                              has_function_privilege('authenticated', 'public.task_alerts_follow_the_task()', 'execute') b,
@@ -267,13 +417,17 @@ const old = {};
 
 // ── A SECOND RUN, AND THE LEDGER ───────────────────────────────────────────────────────────────────────────────────
 {
-  const before = { rows: await num(`select count(*) n from public.alerts`), open: await num(`select count(*) n from public.alerts where ack_at is null`), pushes: await pushes() };
+  const claims = `select count(*) n from public.alerts where claimed_by is not null`;
+  const before = { rows: await num(`select count(*) n from public.alerts`), open: await num(`select count(*) n from public.alerts where ack_at is null`),
+    claimed: await num(claims), pushes: await pushes() };
   let rerun = null;
   try { await db.exec(MIG(F383)); } catch (e) { rerun = String(e.message || e); }
-  ok("0383 run twice: no error, no line closed or opened, nothing rang, one changelog line",
+  ok("0383 run twice: no error, no line closed or opened, no claim made or lost, nothing rang, each changelog line once",
     rerun === null && (await num(`select count(*) n from public.alerts`)) === before.rows && (await num(`select count(*) n from public.alerts where ack_at is null`)) === before.open
-    && (await pushes()) === before.pushes
-    && (await num(`select count(*) n from public.changelog where title = 'A finished task''s alerts clear themselves'`)) === 1, rerun);
+    && (await num(claims)) === before.claimed && (await pushes()) === before.pushes
+    && (await num(`select count(*) n from public.changelog where title in ('A finished task''s alerts clear themselves', '"Got it" on a team alert shows who has it')`)) === 2, rerun);
+  ok("0383 run twice: one trigger each on event_tasks, alert_reads and alerts",
+    (await num(`select count(*) n from pg_trigger where tgname in ('event_tasks_alerts_follow', 'alert_reads_claim', 'alerts_claim_starts_empty')`)) === 3);
   ok("0383 records itself by its own name, once per run",
     (await num(`select applied_count n from public.schema_migrations where version = '0383_the_alerts_tell_the_truth'`)) === 2);
 }

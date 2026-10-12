@@ -243,3 +243,14 @@ export function isEscalation(record: AlertRow, old: AlertRow): boolean {
   return !old.escalated_at && !!record.escalated_at && record.severity === "critical"
     && !record.ack_at && record.kind !== "device_test";
 }
+
+// SOMEBODY HAS IT (2026-10-12, 0383). Just before an escalation is sent, the row is read again (./index.ts): one
+// acknowledged in the meantime is not sent, nor one somebody has claimed — the first Got it on a team alert, which the
+// database keeps on the alert (claimed_by) and the whole team sees. It used to count any alert_reads row, which anyone
+// signed in could write for an alert they could not even see. Until 0383 is applied the row has no claimed_by, and
+// anyone's Got it (`reads`, the alert's alert_reads rows) is what counts, as it did; a count not read is none.
+export function stillUnanswered(now: Record<string, unknown> | null | undefined, reads: number | null = null): boolean {
+  if (!now || now.ack_at) return false;
+  if ("claimed_by" in now) return !now.claimed_by;
+  return !(typeof reads === "number" && reads > 0);
+}

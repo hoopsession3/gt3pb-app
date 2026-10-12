@@ -40,7 +40,44 @@
 -- past-due line for the same person and task. Nothing is deleted and nothing rings (an UPDATE does not fan out). It is
 -- not run here: its next run, within ten minutes, raises what is due, as it would have.
 --
--- Idempotent: a second run finds no line to close and writes the changelog once.
+-- ── 2 · "GOT IT" ON A TEAM ALERT IS A CLAIM EVERYONE SEES ─────────────────────────────────────────────────────────────
+-- FOUND. "Got it" on a team alert (a broadcast: no target_user_id) is one person's alert_reads row (0157). It takes the
+-- line out of that person's inbox and nobody else's, and the escalation counts it as "somebody has it" (0373, 0380):
+-- ten minutes on, a critical one person tapped is not sent to the owners again. Nobody else could see who that was —
+-- alert_reads is readable by its own person only (0157, "own reads") — so the line stayed in every other inbox, counted
+-- on every other bell, while the owners' phones stayed quiet on the strength of a tap none of them could see. And the
+-- read is anyone's to write: its policy asks that it be the writer's own, not that the alert be one they can see, so a
+-- signed-in customer's read of a team critical, by its id, kept the owners from being paged as well as a crew member's.
+-- WHAT. The first Got it on a team alert is a claim, held on the alert itself (claimed_by, claimed_at), where everyone
+-- who can see the alert sees it:
+--   · alert_claim_on_read(), after a read is written: the first read of an open team alert by someone who can see it —
+--     0157's staff read (its role list word for word, as 0372 keeps it) or 0084's brew read, in the alert's own business
+--     (0134) — claims it; a later read is that person's own, as before. However the read is written — Got it, Clear
+--     all, the quiet-hours digest's Mark all read, a phone still on yesterday's app — it claims the same way, so the
+--     app and the database cannot disagree about what counts.
+--   · after a read is taken back (Undo): if it was the claimant's, the claim passes to the earliest read still standing
+--     by someone who can see the alert, or to nobody.
+--   · alert_claimants(alert ids): the claimant's first name, for the team alerts the caller can see. It is the
+--     database's answer because a server may not read another person's profile (0003); nothing about anyone's reads is
+--     shown — alert_reads stays its own person's.
+--   · the inbox (lib/useMyAlerts, app/crew/page.tsx) lists a team alert someone else has after everything still open,
+--     saying "<first name> has it", and does not count it: not on the bell, not in the critical count, not on the
+--     service strip. The person who claimed it no longer sees it, as before.
+--   · escalate_unacked_criticals counts the claim, not any read: a claimed critical is not sent again, and a read by
+--     someone who cannot see the alert claims nothing and stops nothing.
+--   · a new alert is nobody's: a claim written with the alert is dropped (alerts_claim_starts_empty), so "<name> has
+--     it" is only ever said of someone who said Got it.
+--   · a personal alert is untouched: Got it on one acknowledges the row (ack_at, ack_by), as before, and is no claim.
+-- An open team alert somebody already tapped Got it on is claimed by the earliest read by someone who can see it —
+-- what the escalation already counted, made visible. Nothing rings: a claim is an UPDATE of claimed_by, and only an
+-- update of escalated_at goes to the push function (0373).
+--
+-- ORDER. Deploy the push function (supabase/functions/push) before this, as 0373 and 0374 asked: its escalation check
+-- reads the claim once the column exists and alert_reads until then, so it is right on either side of the paste. The
+-- function from before, left running after the paste, still counts any read: a critical whose only read is by someone
+-- who cannot see it would be marked escalated here and skipped there — once, for good.
+--
+-- Idempotent: a second run finds no line to close and no read to claim, and writes the changelog once.
 -- changelog: below.
 
 -- ── 1 · the task tells its alerts ─────────────────────────────────────────────────────────────────────────────────────
@@ -141,12 +178,153 @@ update public.alerts a set ack_at = now()
                 where d.kind = 'task_due' and d.ack_at is null
                   and d.subject_id = a.subject_id and d.target_user_id = a.target_user_id);
 
+-- ── 2 · the claim, on the alert ───────────────────────────────────────────────────────────────────────────────────────
+alter table public.alerts add column if not exists claimed_by uuid references auth.users(id) on delete set null;
+alter table public.alerts add column if not exists claimed_at timestamptz;
+comment on column public.alerts.claimed_by is
+  'A team alert''s claim (0383): the first person who tapped Got it on it and can see it — written only by alert_claim_on_read from alert_reads, shown to the team as "<first name> has it" (alert_claimants), and counted by escalate_unacked_criticals as somebody having it. Null on a personal alert, and on a team alert nobody has.';
+comment on column public.alerts.claimed_at is 'When the claim was made: the claimant''s Got it (alert_reads.read_at), 0383.';
+
+-- Who sees a team alert: 0157's "alerts staff read" for a broadcast (its role list word for word, as 0372 keeps it) or
+-- 0084's "alerts brew staff read" (is_staff: not a member, or a legacy admin), in the alert's own business (0134's
+-- tenant isolation, the person's tenant or the founding one). Never a device test (0374: always someone's own).
+-- Asked about a person the caller names, so nobody calls it through the API — only the definer functions below.
+create or replace function public.team_alert_seen_by(p_alert uuid, p_user uuid) returns boolean
+  language sql stable set search_path = public as $$
+  select exists (
+    select 1
+      from public.alerts a
+      join public.profiles p on p.id = p_user
+     where a.id = p_alert
+       and a.target_user_id is null
+       and a.kind is distinct from 'device_test'
+       and a.tenant_id = coalesce(p.tenant_id, '00000000-0000-0000-0000-000000000001'::uuid)
+       and (p.role in ('server', 'contractor', 'operator', 'event_manager', 'admin', 'owner')
+            or (a.category = 'brew' and (p.role is distinct from 'member' or coalesce(p.is_admin, false))))
+  )
+$$;
+revoke execute on function public.team_alert_seen_by(uuid, uuid) from public, anon, authenticated;
+
+-- The first Got it claims; taking it back passes the claim to the earliest Got it still standing, or to nobody.
+create or replace function public.alert_claim_on_read() returns trigger
+  language plpgsql security definer set search_path = public as $$
+declare
+  v_next uuid;
+  v_at   timestamptz;
+begin
+  if tg_op = 'INSERT' then
+    update public.alerts a
+       set claimed_by = new.user_id, claimed_at = new.read_at
+     where a.id = new.alert_id
+       and a.claimed_by is null
+       and a.ack_at is null
+       and public.team_alert_seen_by(a.id, new.user_id);
+    return new;
+  end if;
+
+  if exists (select 1 from public.alerts a where a.id = old.alert_id and a.claimed_by = old.user_id) then
+    select r.user_id, r.read_at into v_next, v_at
+      from public.alert_reads r
+     where r.alert_id = old.alert_id and r.user_id <> old.user_id
+       and public.team_alert_seen_by(r.alert_id, r.user_id)
+     order by r.read_at, r.user_id
+     limit 1;
+    update public.alerts a set claimed_by = v_next, claimed_at = v_at
+     where a.id = old.alert_id and a.claimed_by = old.user_id;
+  end if;
+  return old;
+end $$;
+revoke execute on function public.alert_claim_on_read() from public, anon, authenticated;
+
+comment on function public.alert_claim_on_read() is
+  'AFTER INSERT OR DELETE on alert_reads (0383): the first read of an open team alert by someone who can see it (team_alert_seen_by) claims it (alerts.claimed_by, claimed_at); the claimant''s read taken back passes the claim to the earliest read still standing by someone who can see it, or clears it.';
+
+drop trigger if exists alert_reads_claim on public.alert_reads;
+create trigger alert_reads_claim after insert or delete on public.alert_reads
+  for each row execute function public.alert_claim_on_read();
+
+-- A new alert is nobody's: the claim is made by a Got it, never written with the alert.
+create or replace function public.alert_claim_starts_empty() returns trigger
+  language plpgsql set search_path = public as $$
+begin
+  new.claimed_by := null;
+  new.claimed_at := null;
+  return new;
+end $$;
+revoke execute on function public.alert_claim_starts_empty() from public, anon, authenticated;
+
+drop trigger if exists alerts_claim_starts_empty on public.alerts;
+create trigger alerts_claim_starts_empty before insert on public.alerts
+  for each row execute function public.alert_claim_starts_empty();
+
+-- The claimant's first name, for the team alerts the caller can see. Their reads, and anyone else's, stay their own.
+create or replace function public.alert_claimants(p_alerts uuid[])
+returns table (alert_id uuid, first_name text)
+  language sql stable security definer set search_path = public as $$
+  select a.id, nullif((regexp_split_to_array(btrim(coalesce(p.display_name, '')), '\s+'))[1], '')
+    from public.alerts a
+    join public.profiles p on p.id = a.claimed_by
+   where a.id = any (p_alerts)
+     and public.team_alert_seen_by(a.id, auth.uid())
+$$;
+revoke execute on function public.alert_claimants(uuid[]) from public, anon;
+grant execute on function public.alert_claimants(uuid[]) to authenticated, service_role;
+
+comment on function public.alert_claimants(uuid[]) is
+  'The inbox''s "<first name> has it" (0383): for each of the given team alerts the caller can see (team_alert_seen_by) that somebody has claimed, the claimant''s first name. Nothing else about anyone; alert_reads stays its own person''s.';
+
+-- The escalation counts the claim (0373's, otherwise word for word).
+create or replace function public.escalate_unacked_criticals() returns int
+  language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  -- A cron job's, across every business: each escalation names its own tenant, and the push function sends it only
+  -- to that tenant's people. Somebody has it (0383): the claim, which the team sees — not any read, which anyone
+  -- signed in could write.
+  with due as (
+    select a.id
+      from public.alerts a
+     where a.severity = 'critical'
+       and a.ack_at is null
+       and a.escalated_at is null
+       and a.kind is distinct from 'device_test'
+       and (a.target_user_id is null or a.escalate_after_min is not null)
+       and a.created_at <= now() - interval '10 minutes'
+       and a.created_at >  now() - interval '12 hours'
+       and a.claimed_by is null
+     order by a.created_at
+     limit 50
+     for update skip locked
+  )
+  update public.alerts a set escalated_at = now() from due where a.id = due.id;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke execute on function public.escalate_unacked_criticals() from public, anon, authenticated;
+
+comment on function public.escalate_unacked_criticals() is
+  'Every minute (pg_cron escalate-criticals, 0373): marks escalated_at on a critical nobody has acknowledged ten minutes after it was raised (ack_at null and, since 0383, nobody has claimed it — alerts.claimed_by) — every broadcast, and a targeted one that carries escalate_after_min; never a device_test; within twelve hours of being raised. alerts_push_escalation hands the mark to the push function, which sends it once more to its people and every admin and owner of its tenant. Inserts nothing.';
+
+-- The team alerts somebody already tapped Got it on: claimed by the earliest read by someone who can see them.
+update public.alerts a
+   set claimed_by = c.user_id, claimed_at = c.read_at
+  from (select distinct on (r.alert_id) r.alert_id, r.user_id, r.read_at
+          from public.alert_reads r
+          join public.alerts x on x.id = r.alert_id
+         where x.target_user_id is null and x.ack_at is null and x.claimed_by is null
+           and public.team_alert_seen_by(r.alert_id, r.user_id)
+         order by r.alert_id, r.read_at, r.user_id) c
+ where a.id = c.alert_id and a.claimed_by is null;
+
 insert into public.changelog (title, category, area, summary, shipped_on, highlight)
 select v.title, v.category, v.area, v.summary, v.shipped_on::date, v.highlight
 from (values
   ('A finished task''s alerts clear themselves','fix','Alerts',
    'When a task is marked done — anywhere, not only from its alert — or deleted, its "assigned to you" and "past due" alerts clear on their own, and when it is given to someone else, the alerts of the person who had it clear. Pushing a late task''s date into the future clears its past-due alert. A late task shows one line in the inbox instead of two. Nothing new rings.',
-   '2026-10-12', false)
+   '2026-10-12', false),
+  ('"Got it" on a team alert shows who has it','fix','Alerts',
+   'Tapping Got it on an alert for the whole team picks it up for you, and everyone else sees "<your first name> has it" on it: it stays in their inbox, below what still needs someone, and no longer counts on their bell. Undo it and it is the next person''s who tapped it, or nobody''s. The owners are sent a critical again only when nobody has it — before, one person''s tap stopped that without anyone else seeing who. Alerts for you alone work as before.',
+   '2026-10-12', true)
 ) as v(title, category, area, summary, shipped_on, highlight)
 where not exists (select 1 from public.changelog c where c.title = v.title);
 
@@ -159,4 +337,11 @@ where not exists (select 1 from public.changelog c where c.title = v.title);
 --      and not exists (select 1 from public.event_tasks t where t.id = a.subject_id);                                        -- 0
 --   select has_function_privilege('authenticated', 'public.task_alerts_follow_the_task()', 'execute');                     -- f
 --   select has_function_privilege('anon', 'public.task_due_alerts()', 'execute');                                          -- f
+--   select tgname from pg_trigger where tgrelid = 'public.alert_reads'::regclass and tgname = 'alert_reads_claim';          -- one row
+--   select has_function_privilege('authenticated', 'public.alert_claimants(uuid[])', 'execute'),
+--          has_function_privilege('anon', 'public.alert_claimants(uuid[])', 'execute'),
+--          has_function_privilege('authenticated', 'public.team_alert_seen_by(uuid,uuid)', 'execute');                     -- t, f, f
+--   select count(*) from public.alerts a
+--    where a.target_user_id is null and a.ack_at is null and a.claimed_by is null
+--      and exists (select 1 from public.alert_reads r where r.alert_id = a.id and public.team_alert_seen_by(a.id, r.user_id));   -- 0
 select public.record_migration('0383_the_alerts_tell_the_truth');

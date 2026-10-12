@@ -43,3 +43,16 @@ export function normalizeCategory(raw: string | null | undefined): AlertCategory
 export function alertWhen(a: { created_at: string; last_seen_at?: string | null; occurrences?: number | null }): string {
   return (a.occurrences ?? 1) > 1 && a.last_seen_at ? a.last_seen_at : a.created_at;
 }
+
+// ── WHO HAS A TEAM ALERT (2026-10-12, 0383) ───────────────────────────────────────────────────
+// "Got it" on a team alert (no target) used to be one person's private read: it left their inbox,
+// stopped the owners being paged (0373), and said nothing to anyone else, whose bell kept counting it.
+// The first Got it is a claim now, kept on the alert (claimed_by) where the whole team can read it.
+// The inbox lists a team alert someone else has with these words, after what still needs someone,
+// and does not count it. Null: nobody has it, it is yours (and so out of your inbox already), or it
+// was never the team's — a personal alert is acknowledged, not claimed. The name is the database's
+// (alert_claimants); without it the words still say what is true: "Someone has it".
+export function claimWords(a: { target_user_id?: string | null; claimed_by?: string | null; claimed_name?: string | null }, me: string | null): string | null {
+  if (a.target_user_id || !a.claimed_by || a.claimed_by === me) return null;
+  return `${a.claimed_name?.trim() || "Someone"} has it`;
+}

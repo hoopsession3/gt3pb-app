@@ -164,6 +164,16 @@ const shape = (s) => !!s && typeof s.title === "string" && s.title.length > 0 &&
     P.isEscalation({ ...base, kind: "device_test", escalated_at: at }, { ...base, kind: "device_test", escalated_at: null }) === false);
   ok("escalation: an insert (no old row) or an update that did not touch escalated_at is not one",
     P.isEscalation({ ...base, escalated_at: at }, null) === false && P.isEscalation({ ...base, escalated_at: null }, { ...base, escalated_at: null }) === false);
+
+  // Just before it is sent, the row as it is now (0383).
+  ok("escalation, just before it is sent: a row that could not be read, or was acknowledged meanwhile, is not sent",
+    P.stillUnanswered(null) === false && P.stillUnanswered(undefined, 0) === false && P.stillUnanswered({ ack_at: at, claimed_by: null }) === false);
+  ok("escalation, just before it is sent: a team alert somebody has claimed is not sent — whatever the reads say",
+    P.stillUnanswered({ ack_at: null, claimed_by: "u-sam" }, 0) === false && P.stillUnanswered({ ack_at: null, claimed_by: "u-sam" }) === false);
+  ok("escalation, just before it is sent: once the claim exists only the claim counts — reads that claimed nothing (a customer's, another business's) stop nothing",
+    P.stillUnanswered({ ack_at: null, claimed_by: null }, 3) === true);
+  ok("escalation, before 0383 is applied (no claimed_by on the row): anyone's Got it counts, as it did — and a count not read is none",
+    P.stillUnanswered({ ack_at: null }, 1) === false && P.stillUnanswered({ ack_at: null }, 0) === true && P.stillUnanswered({ ack_at: null }, null) === true);
 }
 
 // ── 4 · RING THIS PHONE: what the button says (lib/ringPhone, over 0374 ring_my_devices's answers) ──────────────

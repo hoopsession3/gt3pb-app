@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { useRealtimeTable } from "./realtime";
+import { claimWords } from "./alertKinds";
 
 // THE one answer to "what needs me?" — the audit found three surfaces counting alerts three
 // different ways (the My Day flags list, the Now screen strip, and the nav badge, which counted
@@ -14,6 +15,8 @@ import { useRealtimeTable } from "./realtime";
 //   RLS enforces the middle clause for crew; leadership sees broadcasts + their own the same way.
 // - "Got it" on a TARGETED alert sets ack_at (the row is mine; the escalation ladder reads it).
 //   "Got it" on a BROADCAST records a per-user read — it disappears for me, stays for the team.
+//   Since 0383 the first such read is a CLAIM the database keeps on the alert (claimed_by): the team
+//   sees "<first name> has it" on it, and it is listed apart (`claimed`) and no longer counted for them.
 export type MyFlag = {
   id: string;
   severity: "critical" | "important" | "fyi";
@@ -32,6 +35,11 @@ export type MyFlag = {
   // a second copy of the thing you were trying to stop — the flood, invisible.
   occurrences: number | null;
   last_seen_at: string | null; // when this condition was last true, as opposed to first noticed
+  // 0383: on a team alert, who has it — the first person who tapped Got it, kept by the database (absent
+  // before 0383) — and, on one someone else has, what the inbox says of it: "Max has it" (lib/alertKinds
+  // claimWords, with the first name only the database may tell a server: alert_claimants).
+  claimed_by?: string | null;
+  claim?: string | null;
 };
 
 // Quiet hours: is the local clock currently inside [start, end)? Wrap-aware (22→7 spans midnight).
@@ -45,6 +53,7 @@ function inQuietHours(now: Date, start: number | null | undefined, end: number |
 export function useMyAlerts(userId: string | null, enabled = true) {
   const [flags, setFlags] = useState<MyFlag[]>([]);
   const [held, setHeld] = useState<MyFlag[]>([]);       // non-criticals held by quiet hours (the digest)
+  const [claimed, setClaimed] = useState<MyFlag[]>([]); // team alerts someone else has (0383): shown, not counted
   const [quietActive, setQuietActive] = useState(false);
   // A FAILED READ IS NOT "NOTHING NEEDS YOU" (2026-10-04). All four reads below used to destructure
   // `data` alone, so a refused alerts read set the list to empty — the bell went quiet and My Day,
@@ -54,11 +63,14 @@ export function useMyAlerts(userId: string | null, enabled = true) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!supabase || !userId) { setFlags([]); setHeld([]); setQuietActive(false); return; }
+    if (!supabase || !userId) { setFlags([]); setHeld([]); setClaimed([]); setQuietActive(false); return; }
     const nowIso = new Date().toISOString();
     const [al, rd, pf, sz] = await Promise.all([
+      // EVERY COLUMN, SO THE CLAIM ARRIVES WITH ITS MIGRATION (2026-10-12). claimed_by is 0383's, and a list
+      // naming it would fail this whole read — the bell, My Day, the inbox — on a database still before 0383
+      // (migrations are pasted by hand, after the deploy). "*" reads it once it exists and nothing until then.
       supabase.from("alerts")
-        .select("id, severity, title, body, category, link, target_user_id, created_by, kind, subject_id, created_at, occurrences, last_seen_at")
+        .select("*")
         .or(`target_user_id.eq.${userId},target_user_id.is.null`)
         .is("ack_at", null)
         .order("created_at", { ascending: false })
@@ -81,6 +93,7 @@ export function useMyAlerts(userId: string | null, enabled = true) {
     const seen = new Set<string>();
     const shown: MyFlag[] = [];
     const digest: MyFlag[] = [];
+    const taken: MyFlag[] = [];
     for (const f of ((alerts as MyFlag[]) ?? [])) {
       if (readIds.has(f.id)) continue;
       const k = `${f.title}|${f.body ?? ""}`;
@@ -92,12 +105,23 @@ export function useMyAlerts(userId: string | null, enabled = true) {
       if (f.severity !== "critical") {
         if (f.category && muted.has(f.category)) continue;
         if (snoozed.has(f.id)) continue;
-        if (quiet) { digest.push(f); continue; }
       }
+      // SOMEBODY HAS IT (2026-10-12, 0383): a team alert someone else claimed is listed, with who, and
+      // counted nowhere — not on the bell, not as a critical, not on the service strip.
+      if (claimWords(f, userId)) { taken.push(f); continue; }
+      if (f.severity !== "critical" && quiet) { digest.push(f); continue; }
       shown.push(f);
+    }
+    // Who has each: a first name only the database may give a server (alert_claimants, 0383). Without
+    // its answer the line still says the truth — "Someone has it" — so a failure here is not a failed read.
+    if (taken.length) {
+      const { data: who, error: whoErr } = await supabase.rpc("alert_claimants", { p_alerts: taken.map((f) => f.id) });
+      const names = new Map(whoErr ? [] : ((who ?? []) as { alert_id: string; first_name: string | null }[]).map((w) => [w.alert_id, w.first_name]));
+      for (const f of taken) f.claim = claimWords({ ...f, claimed_name: names.get(f.id) }, userId);
     }
     setFlags(shown);
     setHeld(digest);
+    setClaimed(taken);
   }, [userId]);
 
   useEffect(() => { if (enabled) load(); }, [load, enabled]);
@@ -120,6 +144,7 @@ export function useMyAlerts(userId: string | null, enabled = true) {
   const ack = useCallback(async (f: MyFlag): Promise<string | null> => {
     setFlags((cur) => cur.filter((x) => x.id !== f.id));
     setHeld((cur) => cur.filter((x) => x.id !== f.id));
+    setClaimed((cur) => cur.filter((x) => x.id !== f.id));
     if (!supabase || !userId) return null;
     const { error } = f.target_user_id === userId
       ? await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).eq("id", f.id)
@@ -145,7 +170,10 @@ export function useMyAlerts(userId: string | null, enabled = true) {
   // alone, my read taken back if they were broadcasts, a snooze lifted. On the screen at once, in the
   // order the inbox reads them; the read that follows is the truth.
   const putBack = useCallback((fs: MyFlag[]) => {
-    setFlags((cur) => [...cur, ...fs.filter((f) => !cur.some((x) => x.id === f.id))].sort((x, y) => y.created_at.localeCompare(x.created_at)));
+    const into = (cur: MyFlag[], add: MyFlag[]) => [...cur, ...add.filter((f) => !cur.some((x) => x.id === f.id))].sort((x, y) => y.created_at.localeCompare(x.created_at));
+    // One someone else has goes back where it was listed — apart, and not counted (0383).
+    setFlags((cur) => into(cur, fs.filter((f) => !f.claim)));
+    setClaimed((cur) => into(cur, fs.filter((f) => f.claim)));
   }, []);
   const restore = useCallback(async (fs: MyFlag[]): Promise<string | null> => {
     if (!supabase || !userId || !fs.length) return null;
@@ -162,6 +190,7 @@ export function useMyAlerts(userId: string | null, enabled = true) {
   const snooze = useCallback(async (f: MyFlag, forMs: number): Promise<string | null> => {
     if (f.severity === "critical") return null;
     setFlags((cur) => cur.filter((x) => x.id !== f.id));
+    setClaimed((cur) => cur.filter((x) => x.id !== f.id));
     if (!supabase || !userId) return null;
     const { error } = await supabase.from("alert_snoozes").upsert({ alert_id: f.id, user_id: userId, until: new Date(Date.now() + forMs).toISOString() });
     if (error) { await load(); return error.message; }
@@ -187,5 +216,5 @@ export function useMyAlerts(userId: string | null, enabled = true) {
   }, [held, userId]);
 
   const critCount = flags.filter((f) => f.severity === "critical").length;
-  return { flags, held, quietActive, critCount, error, ack, clearAll, clearHeld, snooze, restore, unsnooze, reload: load };
+  return { flags, held, claimed, quietActive, critCount, error, ack, clearAll, clearHeld, snooze, restore, unsnooze, reload: load };
 }

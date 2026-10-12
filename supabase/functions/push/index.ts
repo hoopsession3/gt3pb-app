@@ -15,7 +15,7 @@ import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   alertShown, channelsFor, escalationShown, isEscalation, liveShown, mayEmail, newOrderShown, orderStatusShown,
-  severityOf, signoffShown, subscriptionShown, taskShown, type Shown,
+  severityOf, signoffShown, stillUnanswered, subscriptionShown, taskShown, type Shown,
 } from "./policy.ts";
 
 webpush.setVapidDetails(
@@ -358,11 +358,17 @@ Deno.serve(async (req) => {
       // A CRITICAL NOBODY PICKED UP (0373). escalate_unacked_criticals() marks it escalated once it has gone ten
       // minutes unacknowledged; this sends it again, once, to its own people and every admin and owner of its
       // business. Acknowledging stops it: one acknowledged between the mark and this send — "Got it" on the row, or
-      // anyone's on a broadcast (alert_reads, 0157) — is not sent.
+      // on a broadcast its claim (0383: the first Got it, kept on the alert; before 0383, anyone's alert_reads row,
+      // 0157) — is not sent (./policy.ts stillUnanswered). The whole row is read, so the claim is seen once its column
+      // exists, and this is right on either side of 0383's paste.
       if (!isEscalation(record, old_record)) return new Response("skip: not an escalation");
-      const { data: now } = await supabase.from("alerts").select("ack_at").eq("id", record.id).maybeSingle();
-      const { count: reads } = await supabase.from("alert_reads").select("alert_id", { count: "exact", head: true }).eq("alert_id", record.id);
-      if (!now || now.ack_at || (reads ?? 0) > 0) return new Response("skip: acknowledged");
+      const { data: now } = await supabase.from("alerts").select("*").eq("id", record.id).maybeSingle();
+      let reads: number | null = null;
+      if (now && !("claimed_by" in now)) {
+        const { count } = await supabase.from("alert_reads").select("alert_id", { count: "exact", head: true }).eq("alert_id", record.id);
+        reads = count ?? 0;
+      }
+      if (!stillUnanswered(now, reads)) return new Response("skip: acknowledged");
       shown = escalationShown(record);
       url = record.link || "/admin";
       const ids = await peopleFor(record, true);
