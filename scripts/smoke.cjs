@@ -10222,18 +10222,24 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const add2 = code(read("components/AddTeammate.tsx")), wr = code(read("app/api/team/welcome/route.ts")), crew2 = code(read("app/crew/page.tsx"));
   ok("command: the portfolio's rows sit on the page — a hairline between them, no card fill, no colour that only the night theme can carry",
     /\.osr-row\{[^}]*background:none;[^}]*border-bottom:1px solid var\(--line\)/.test(css2) && !/\.osr-row\{[^}]*rgba\(0,0,0/.test(css2) && !/\.osr-(dot|when|owner)\b/.test(css2));
-  ok("command: the audit being overdue is said once, above the rows — not as a day count on every row",
-    /const overdue = active\.filter\(\(r\) => \(daysSince\(r\.last_audited\) \?\? 99\) >= 7\)\.length;/.test(osr2) && /<p className="osr-due [^"]*" role="status">/.test(osr2) && !/osr-when|stale \? " stale"/.test(osr2));
+  // DATED IN THE HEAD (2026-10-12, the Command audit): the overdue line under "MEAN 7.0" became the head itself —
+  // "7.0 · assessed Aug 2" and its state in a word (lib/portfolio, pinned in THE COMMAND AUDIT below). Still once.
+  ok("command: how old the scores are is said once, in the portfolio's head — dated, in a word — never as a day count on a row",
+    /const head = portfolioHead\(mean, rows, today\);/.test(osr2) && /\{head\.score\}/.test(osr2) && /\{head\.word\}/.test(osr2)
+    && !/daysSince|osr-due|osr-when|stale \? " stale"|days ago/.test(osr2));
   ok("command: a workstream's name leads its row and its score closes it, with its band's dot",
-    osr2.indexOf('<span className="osr-main">') > 0 && osr2.indexOf('<span className="osr-main">') < osr2.indexOf("className={`osr-score ${dotClass(w.health, w.status)}`}"));
+    osr2.indexOf('<span className="osr-main">') > 0 && osr2.indexOf('<span className="osr-main">') < osr2.indexOf("className={`osr-score ${dotClass(w.health, w.status)}"));
   ok("command: the team's week is one line of counts that opens on a tap — the tasks My Day lists are not listed a second time",
     /className=\{`cmd-week\$\{weekOpen \? " open" : ""\}`\} onClick=\{\(\) => setWeekOpen\(\(o\) => !o\)\} aria-expanded=\{weekOpen\}/.test(cbd)
     && !/label="This week"|label="Done this week"/.test(cbd) && /<b className="text-cream font-bold tabular-nums">\{data\.overdue\.length\}<\/b> overdue/.test(cbd));
   ok("command: an initiative two weeks past its date folds to its line, its progress and the question it raises — its milestones a tap away, nothing removed",
     /const folded = !!it\.target_date && daysTo\(it\.target_date\) < -14 && !unfolded\.has\(it\.id\);/.test(cbd) && /Show the milestones/.test(cbd) && /Fold it back/.test(cbd)
     && /onClick=\{\(\) => finishInit\(it\)\}/.test(cbd));
-  ok("command: Blockers are the company's — an incident or a goal at risk",
-    /data\.incidents\.length === 0 && data\.goals\.filter\(\(g\) => g\.checkin_status === "at_risk"\)\.length === 0 \? <EmptyState title="Nothing blocked" \/>/.test(cbd));
+  // THE BLOCKERS BLOCK FOLDED (2026-10-12, the Command audit): each blocker is said on the line where it is acted on.
+  ok("command: Blockers have no block of their own — an open blocking incident is the team's week's and opens its prep, a goal at risk is named on the Goals row",
+    !/label="Blockers"|title="Nothing blocked"/.test(cbd) && /\{data\.incidents\.length > 0 && <span className="late">/.test(cbd)
+    && /onClick=\{i\.event_id \|\| i\.stop_id \? \(\) => openPrep\(i\) : undefined\}/.test(cbd)
+    && /<span className="cmd-risklab">At risk:<\/span>/.test(code(read("components/Goals.tsx"))));
   ok("command: Team's activity rows have a day surface, and the night keeps its own; the KPI rows are the kit's rows",
     /\.app\.crew-day \.util-row\{background:var\(--ink-onLight-03\)\}/.test(css2) && /<select className="max-w-\[120px\] font-semibold"/.test(cbd)
       && /<div className="k-rows">/.test(code(read("components/KpiBoard.tsx"))));
@@ -11058,8 +11064,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ["components/CustomerKpis.tsx", "components/CrewKpis.tsx"].every((f) => /className="mkpi desk:grid-cols-none desk:grid-flow-col desk:auto-cols-fr"/.test(read(f)))
     && /<div className="calw desk:grid desk:grid-cols-7 desk:gap-2">/.test(read("components/BrandCalendar.tsx"))
     && /<div className="contents desk:grid desk:grid-cols-2 desk:gap-x-3 desk:items-start">/.test(pg) && (read("app/office/page.tsx").match(/className="op-none desk:max-w-130 desk:mx-auto"/g) || []).length === 2);
-  ok("desk: Command says GOALS once — Goals draws its own head with the count, and the one above it is gone",
-    !/<SectionHeader label="Goals" \/>/.test(pg) && /<SectionHeader label="Goals" right=/.test(read("components/Goals.tsx")));
+  // Since 2026-10-12 (the Command audit) Goals' head is its row, the count beside it, and its screen's title once opened.
+  ok("desk: Command says GOALS once — Goals' row says it with the count, its screen's title once opened, and no head stands above either",
+    !/<SectionHeader label="Goals"/.test(pg + read("components/Goals.tsx")) && /<CommandFold id="goals" title="Goals" count=\{board\.status === "ready" \? active\.length : null\}/.test(read("components/Goals.tsx")));
   // The app runs on an iPad (2026-10-11, WAVE 2 · IPAD below): the iPhone is still held upright, so only an iPad on its side meets the desk.
   ok("desk: the app meets it on an iPad on its side and never on an iPhone — the iPhone held upright, the iPad any way up",
     (read("ios/App/App.xcodeproj/project.pbxproj").match(/TARGETED_DEVICE_FAMILY = "1,2";/g) || []).length === 2
@@ -12623,6 +12630,199 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /const audits = \[\.\.\.mine, \.\.\.recent\.filter\(\(a\) => !mine\.some\(\(m\) => m\.workstream_id === a\.workstream_id && m\.week_of === a\.week_of\)\)\];/.test(maud)
       && /`\$\{l\.total\} of 10 · \$\{l\.band\}`/.test(maud) && /⚖ Below 8 two weeks running owes the ledger a kill, pause or recover decision\./.test(maud)
       && /className=\{`osr-score\$\{l\.band === "green" \? " green" : l\.band === "amber" \? " amber" : " red"\}`\}/.test(maud));
+}
+
+// ── THE COMMAND AUDIT (2026-10-12, approved) ──
+// Command was 2,979 points tall on an iPhone 17, the portfolio alone ~910, and its "MEAN 7.0" was the Aug 2 seed's own
+// average on Oct 12, drawn like a fresh audit's. Now: the number is dated once with its state in a word; a stream gets
+// one line, only when something is wrong; the streams come risk first; and the rest of Command is a row each that
+// opens as its own screen. lib/portfolio holds the rules; the score, the mean and the bands are 0264's, unchanged.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const PF = require("../.smoke/portfolio.js");
+  const T = "2026-10-12";
+
+  // ── the seed, read from 0264 itself: ten streams, all scored Aug 2 ──
+  const m264 = rd("supabase/migrations/0264_gt3_command_registry.sql");
+  const ins = m264.slice(m264.indexOf("insert into public.os_workstreams"), m264.indexOf("on conflict (name) do nothing;"));
+  const lit = (v) => (v === "null" ? null : v.slice(1, -1).replace(/''/g, "'"));
+  const SEED = [...ins.matchAll(/\(\s*'((?:[^']|'')*)',\s*'((?:[^']|'')*)',\s*(\d+),\s*(null|'(?:[^']|'')*'),\s*(null|'(?:[^']|'')*'),\s*(null|'(?:[^']|'')*'),\s*'(\d{4}-\d{2}-\d{2})',\s*(\d+)\)/g)]
+    .map((m, i) => ({ id: `s${i}`, name: m[1].replace(/''/g, "'"), owner: m[2], health: Number(m[3]), next_action: lit(m[4]), due: lit(m[5]), blocker: lit(m[6]), last_audited: m[7], sort: Number(m[8]), status: "active" }));
+  ok("command audit: the seed is read from 0264 — ten streams, all scored Aug 2", SEED.length === 10 && SEED.every((s) => s.last_audited === "2026-08-02"), SEED.length);
+
+  // ── THE MEAN IS THE SAME RULE, BYTE FOR BYTE (the scoring method does not change) ──
+  // The lines below are OsRegistry's at 9695df5, before this slice. Each is still there, once, as written; the mean they
+  // compute is what the head prints, to one place, exactly as "mean 7.0" printed it.
+  const osrRaw = rd("components/OsRegistry.tsx"), osr = code(osrRaw);
+  // The list's part of the file — the audit sheet's own code (its total, its save) is another round's (w4-audit).
+  const list = osr.slice(osr.indexOf("{({ rows, recent }) => {"), osr.indexOf('<InlineCreate label="+ Workstream"'));
+  const OLD_MEAN = ['const active = rows.filter((r) => r.status !== "parked");', "const mean = active.length ? (active.reduce((s, r) => s + r.health, 0) / active.length) : 0;"];
+  const OLD_RULES = [...OLD_MEAN, "const mine = recent.filter((a) => a.workstream_id === w.id).slice(0, 2);",
+    'return w.status === "active" && mine.length >= 2 && mine.every((a) => a.total < 8);',
+    'const dotClass = (h: number, status: string) => status === "parked" ? "park" : h >= 10 ? "green" : h >= 8 ? "amber" : "red";'];
+  const once = (l) => osrRaw.split("\n").filter((x) => x.trim() === l).length === 1;
+  ok("command audit: the mean, the two-week rule and the bands are OsRegistry's lines from before, unchanged",
+    OLD_RULES.every(once), OLD_RULES.filter((l) => !once(l)));
+  const oldMean = new Function("rows", `${OLD_MEAN.join("\n")}\nreturn mean;`);
+  const meanCases = [SEED, SEED.map((s, i) => (i < 3 ? { ...s, status: "parked" } : s)), [{ status: "active", health: 7 }, { status: "active", health: 8 }],
+    [{ status: "active", health: 10 }, { status: "blocked", health: 3 }, { status: "parked", health: 0 }], [{ status: "active", health: 0, last_audited: null }]];
+  ok("command audit: the head prints the mean the old rule computes — 7.0 for the seed — and computes no other",
+    oldMean(SEED) === 7 && meanCases.every((rows) => PF.portfolioHead(oldMean(rows), rows, T).score.startsWith(`${oldMean(rows).toFixed(1)} · `))
+    && /const head = portfolioHead\(mean, rows, today\);/.test(list) && list.length > 0 && !/\.reduce\(/.test(list.replace(OLD_MEAN[1], "")),
+    meanCases.map((rows) => PF.portfolioHead(oldMean(rows), rows, T).score));
+
+  // ── 1 · A DATED HEADER ──
+  const F = (d) => PF.freshnessOf(d, T);
+  ok("command audit: freshness — within 7 days is Current, 8 to 13 Due, 14 or more Stale (the boundaries 7/8/13/14)",
+    F("2026-10-12") === "current" && F("2026-10-05") === "current" && F("2026-10-04") === "due" && F("2026-09-29") === "due"
+    && F("2026-09-28") === "stale" && F("2026-08-02") === "stale" && F("2026-10-13") === "current",
+    ["2026-10-05", "2026-10-04", "2026-09-29", "2026-09-28"].map(F));
+  ok("command audit: freshness — no score is Never scored, not a date", F(null) === "never" && F(undefined) === "never" && F("") === "never" && F("soon") === "never");
+  ok("command audit: freshness counts calendar days across a clock change — seven days over Nov 1 is still Current, eight is Due",
+    PF.freshnessOf("2026-11-02", "2026-11-09") === "current" && PF.freshnessOf("2026-11-01", "2026-11-09") === "due");
+  ok("command audit: the words are Current, Due and Stale; the boundaries are the constants", PF.FRESHNESS_WORD.current === "Current"
+    && PF.FRESHNESS_WORD.due === "Due" && PF.FRESHNESS_WORD.stale === "Stale" && PF.CURRENT_DAYS === 7 && PF.STALE_DAYS === 14);
+  const H = (mean, rows) => PF.portfolioHead(mean, rows, T);
+  const seedHead = H(7, SEED);
+  ok("command audit: the head's words — \"7.0 · assessed Aug 2\", Stale", seedHead.score === "7.0 · assessed Aug 2" && seedHead.state === "stale" && seedHead.word === "Stale", seedHead);
+  const A = (last_audited, status = "active") => ({ status, last_audited });
+  ok("command audit: a spread of dates is said as one span, and the oldest score decides the word",
+    H(8.5, [A("2026-10-09"), A("2026-10-05")]).score === "8.5 · assessed Oct 5–Oct 9" && H(8.5, [A("2026-10-09"), A("2026-10-05")]).word === "Current"
+    && H(8, [A("2026-10-11"), A("2026-10-02")]).word === "Due" && H(8, [A("2026-10-11"), A("2026-09-20")]).word === "Stale",
+    [H(8.5, [A("2026-10-09"), A("2026-10-05")]), H(8, [A("2026-10-11"), A("2026-10-02")])]);
+  ok("command audit: a parked stream's old score does not age the portfolio; a stream never scored has no date to give",
+    H(9, [A("2026-10-10"), A("2026-01-05", "parked")]).score === "9.0 · assessed Oct 10" && H(9, [A("2026-10-10"), A(null)]).word === "Current");
+  ok("command audit: nothing scored says so, and all parked says that",
+    H(0, [A(null), A(null)]).score === "0.0 · not assessed yet" && H(0, [A(null)]).word === "Never scored"
+    && H(0, [A("2026-10-01", "parked")]).score === "all parked" && H(0, [A("2026-10-01", "parked")]).word === "");
+  ok("command audit: the head draws the score and the word, quiet when stale; a stale score's row is drawn in the quiet ink; no row counts days",
+    /\{head\.state && <span className="sr-only">Portfolio mean <\/span>\}\{head\.score\}/.test(osr) && /\{head\.word && <span className=/.test(osr)
+    && /<span className=\{`k-tag txt\$\{!fresh \? "" : mean >= 8 \? " ok" : " warn"\}`\}>/.test(osr)
+    && /\$\{!parked && \(age === "stale" \|\| age === "never"\) \? " text-cream-muted!" : ""\}/.test(osr)
+    && !/daysSince|days ago|osr-due/.test(osr) && /const today = useEtDay\(\);/.test(osr));
+
+  // ── 2 · ONE LINE, ONLY WHEN SOMETHING IS WRONG ──
+  const X = (w, owesDecision = false) => PF.streamException({ status: "active", last_audited: "2026-10-05", due: null, blocker: null, ...w }, { today: T, owesDecision });
+  ok("command audit: nothing wrong, no line", X({}) === null && X({ due: "2026-10-12" }) === null && X({ due: "2026-10-20" }) === null && X({ blocker: "   " }) === null);
+  ok("command audit: a next action past its date — \"Next action 3 days late\", a day said as a day",
+    X({ due: "2026-10-09" }).text === "Next action 3 days late" && X({ due: "2026-10-11" }).text === "Next action 1 day late" && X({ due: "2026-10-09" }).kind === "late");
+  ok("command audit: a blocker is its own words, folded into the one line — and it outranks a late date",
+    X({ blocker: "  Salted Latte dairy flags open " }).text === "Salted Latte dairy flags open" && X({ blocker: "Waiting on the county", due: "2026-10-01" }).kind === "blocker"
+    && X({ blocker: "  ", due: "2026-10-01" }).kind === "late");
+  ok("command audit: below 8 two audits running outranks a blocker; never scored outranks everything",
+    X({ blocker: "x", due: "2026-10-01" }, true).kind === "decision" && X({ last_audited: null, blocker: "x", due: "2026-10-01" }, true).text === "Never scored");
+  ok("command audit: a parked stream has no line, whatever it holds; a Blocked status with no words has none (its flag says it)",
+    X({ status: "parked", last_audited: null, blocker: "x", due: "2026-10-01" }, true) === null && X({ status: "blocked" }) === null);
+  const lines = Object.fromEntries(SEED.map((s) => [s.name, PF.streamException(s, { today: T, owesDecision: false })]));
+  ok("command audit: the seed's lines — late dates, the blockers as written, and nothing for the three with nothing wrong",
+    lines["Pipeline & Corporate"].text === "Next action 69 days late" && lines["GT3PB App"].text === "Next action 70 days late"
+    && lines["Events"].text === "8/15 Wine Xpress truck stop vs Soul Yoga workshop — assign or move" && lines["Product & Compliance"].text === "Salted Latte dairy flags open"
+    && lines["D2C Delivery Ops"] === null && lines["Webflow / Site"] === null && lines["Flagship / Investor"] === null,
+    Object.fromEntries(Object.entries(lines).map(([k, v]) => [k, v && v.text])));
+  ok("command audit: a row draws one line from the rule, from the row as loaded — the separate next-action, blocker and two-week lines are gone",
+    /const line = streamException\(w, \{ today, owesDecision: owesDecision\(w\) \}\);/.test(osr) && (osr.match(/className="osr-block"/g) || []).length === 1
+    && !/osr-block"><Icon name="warning" \/> \{w\.blocker\}|⚖ two weeks below 8 — log kill \/ pause|no next action — that's a 0/.test(osr)
+    && !/supabase\.from\(/.test(list));
+
+  // ── 3 · RISK FIRST ──
+  const R = (id, o = {}) => ({ id, status: "active", health: 8, last_audited: "2026-10-05", due: null, blocker: null, ...o });
+  const order = (rows, owes = () => false) => PF.riskOrder(rows, { today: T, owes }).map((r) => r.id).join(",");
+  ok("command audit: risk order — the seed: problems first, lowest score first, ties in the list's own order",
+    PF.riskOrder(SEED, { today: T, owes: () => false }).map((s) => s.name).join(" | ")
+      === "Events | Trailer & Venue | Partner / Cooler Program | Print & Brand Assets | Product & Compliance | GT3PB App | Pipeline & Corporate | Flagship / Investor | Webflow / Site | D2C Delivery Ops",
+    PF.riskOrder(SEED, { today: T, owes: () => false }).map((s) => s.name));
+  ok("command audit: risk order — a stale score comes before a fresh one, even a fresh 3 with a blocker", order([R("fresh3", { health: 3, blocker: "x" }), R("stale9", { health: 9, last_audited: "2026-09-01" })]) === "stale9,fresh3");
+  ok("command audit: risk order — never scored leads the stale", order([R("stale", { last_audited: "2026-09-01", health: 2 }), R("staleX", { last_audited: "2026-09-01", health: 5, blocker: "x" }), R("never", { last_audited: null, health: 0 })]) === "never,staleX,stale");
+  ok("command audit: risk order — an open problem before a lower score", order([R("low", { health: 4 }), R("blocker", { health: 9, blocker: "waiting" })]) === "blocker,low");
+  ok("command audit: risk order — a late next action, a Blocked status and the two-week rule are each an open problem",
+    order([R("a", { health: 3 }), R("late", { health: 9, due: "2026-10-01" })]) === "late,a" && order([R("a", { health: 3 }), R("b", { health: 9, status: "blocked" })]) === "b,a"
+    && order([R("a", { health: 3 }), R("b", { health: 7 })], (w) => w.id === "b") === "b,a");
+  ok("command audit: risk order — then the lowest score", order([R("a", { health: 9 }), R("b", { health: 6 }), R("c", { health: 8 })]) === "b,c,a");
+  ok("command audit: risk order — ties keep the list's own order, whichever way it came", order([R("x", { health: 7 }), R("y", { health: 7 }), R("z", { health: 7 })]) === "x,y,z"
+    && order([R("z", { health: 7 }), R("y", { health: 7 }), R("x", { health: 7 })]) === "z,y,x" && order([R("p", { blocker: "a" }), R("q", { blocker: "b" })]) === "p,q");
+  ok("command audit: risk order — Due (8 to 13 days) is not stale", order([R("due5", { last_audited: "2026-10-02", health: 5 }), R("stale9", { last_audited: "2026-09-20", health: 9 }), R("cur6", { health: 6 })]) === "stale9,due5,cur6");
+  ok("command audit: risk order — parked streams keep their place at the end, in their own order, whatever they hold",
+    order([R("p1", { status: "parked", health: 0, last_audited: null }), R("a", { health: 9 }), R("p2", { status: "parked", health: 1, blocker: "x" }), R("b", { health: 9, last_audited: "2026-01-01" })]) === "b,a,p1,p2");
+  const shuffled = PF.riskOrder(SEED, { today: T, owes: () => false });
+  ok("command audit: risk order moves no score — the same rows, the same scores, only the order", shuffled.length === SEED.length
+    && shuffled.every((r) => SEED.includes(r)) && SEED.every((r) => shuffled.includes(r)) && shuffled.reduce((s, r) => s + r.health, 0) === 70
+    && order([]) === "" && /\{riskOrder\(rows, \{ today, owes: owesDecision \}\)\.map\(\(w\) => \{/.test(osr));
+
+  // ── 5 · REACH, ON THE PORTFOLIO ──
+  const css = rd("app/globals.css");
+  const esc = (x) => x.replace(/[.*+?^$()|[\]\\{}]/g, "\\$&");
+  const decl = (sel, prop) => {
+    const m = css.match(new RegExp("(?:^|\\n)" + esc(sel) + "\\{([^}]*)\\}"));
+    const d = m && m[1].match(new RegExp("(?:^|;)" + esc(prop) + ":([^;]+)"));
+    return d ? d[1].trim() : "";
+  };
+  const firstPx = (v) => Number(String(v).split(/\s+/)[0].replace("px", ""));
+  const streamRow = firstPx(decl(".osr-row", "padding")) * 2 + firstPx(decl(".osr-name", "font-size")) * Number(decl(".osr-name", "line-height"));
+  ok("command audit: a stream's row is 44 points or more to the thumb, and so is + Workstream",
+    streamRow >= 44 && /:is\(\.btn-ter,\.btn-del\)\{[^}]*min-height:44px/.test(css), { streamRow });
+  ok("command audit: VoiceOver hears a stream's owner, its score, its one line, and that it opens its audit",
+    /aria-label=\{`\$\{w\.name\}\$\{parked \? "" : who \? `, owned by \$\{who\}` : ", no owner"\}/.test(osr) && /\$\{line \? `\. \$\{line\.say\}` : ""\}\$\{isAdmin \? "\. Opens its audit" : ""\}/.test(osr));
+}
+
+// ── THE COMMAND AUDIT · THE REST FOLDS (2026-10-12, approved) ──
+// Under today's event, the portfolio and the team's week, Command drew every initiative and milestone, the launch's
+// gates, a Blockers block, the briefing, every goal card and all twelve numbers in full. Each is a row now that opens
+// its own screen (components/CommandFold), and the Blockers block is said on the lines where each blocker is acted on.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const osr = code(rd("components/OsRegistry.tsx"));
+  // ── 4 · ONE ROW EACH, ITS OWN SCREEN ──
+  const crew = code(rd("app/crew/page.tsx")), cmd = crew.slice(crew.indexOf('{sec === "command" && canManage && ('), crew.indexOf('{sec === "now" && ('));
+  const at = (s) => cmd.indexOf(s);
+  ok("command audit: today's event stays on top; the portfolio, the week and Initiatives, the briefing (owner), Goals and the twelve follow, inside Command's views",
+    at("<CommandViews back={SEC_LABEL.command}>") > 0 && at("<CommandViews") < at("<EventHUD />") && at("<EventHUD />") < at("<OsRegistry />") && at("<OsRegistry />") < at("<CommandBoard />")
+    && at("<CommandBoard />") < at('{profile?.role === "owner" && <ChiefOfStaff />}') && at("<ChiefOfStaff />") < at("<Goals />") && at("<Goals />") < at("<KpiBoard />") && at("<KpiBoard />") < at("</CommandViews>"));
+  const fold = code(rd("components/CommandFold.tsx"));
+  ok("command audit: a row is the kit's InfoRow — its name, its line, its count and a chevron — and its label is what VoiceOver says",
+    /<InfoRow name=\{title\} sub=\{status\} onClick=\{openIt\} ariaLabel=\{label\}/.test(fold) && /\{count != null && <span className="k-count">\{count\}<\/span>\}<span className="ev-chev" aria-hidden="true">›<\/span>/.test(fold));
+  ok("command audit: a row opens its own screen — Command's page hidden under it, still mounted; the title, the crumb, Back and a swipe toward Command",
+    /<div ref=\{home\} hidden=\{!!open\}>\{children\}<\/div>/.test(fold) && /createPortal\(<div id=\{id\}>\{children\}<\/div>, ctx\.slot\)/.test(fold)
+    && /useCrumb\("command-view", title, onBack\);/.test(fold) && /useBackStep\(back, onBack\);/.test(fold)
+    && /usePagerLevel\(\{ keys: \["command", id\], current: id, go: \(k\) => \{ if \(k === "command"\) onBack\(\); \}, depth: 1 \}\);/.test(fold)
+    && /<h1 ref=\{h\} tabIndex=\{-1\} className="op-head-t desk:hidden mb-3 focus:outline-none">\{title\}<\/h1>/.test(fold) && /data-large-title data-title=\{title\}/.test(fold));
+  ok("command audit: a link to a row's id opens it, as a link to a panel does; a link to anything else on Command closes the view first",
+    (fold.match(/window\.addEventListener\(OPEN_PANEL_EVENT, onOpen\)/g) || []).length === 2 && /<div id=\{isOpen \? undefined : id\}>/.test(fold)
+    && /home\.current\?\.contains\(document\.getElementById\(id\)\)\) close\(\);/.test(fold));
+  const goals = code(rd("components/Goals.tsx")), kpi = code(rd("components/KpiBoard.tsx")), cos = code(rd("components/ChiefOfStaff.tsx")), board = code(rd("components/CommandBoard.tsx"));
+  const opens = (src, id, title, says) => new RegExp(`<CommandFold id="${id}" title="${title}"`).test(src) && src.includes(says);
+  ok("command audit: initiatives, goals, the twelve and the briefing are a row each, and each says what it opens",
+    opens(board, "initiatives", "Initiatives", ". Opens the initiatives and the launch's readiness") && opens(goals, "goals", "Goals", ". Opens the goals board")
+    && opens(kpi, "cmd-kpis", "The twelve", ". Opens the KPI board") && opens(cos, "chief", "Chief of Staff", ". Opens the briefing"));
+  ok("command audit: the Initiatives row's line says the soonest one's date, its open milestones and the launch's verdict; the gates open with it",
+    /const lead = data\.inits\[0\] \?\? null;/.test(board) && /lead && launch\.launch\?\.id === lead\.id \? VERDICT_WORDS\[launch\.verdict\] : null/.test(board)
+    && board.indexOf('<CommandFold id="initiatives"') < board.indexOf("<LaunchReadiness state={launch} />") && board.indexOf("<LaunchReadiness state={launch} />") < board.indexOf("</CommandFold>")
+    && /const launch = useLaunchReadiness\(\);/.test(board) && /export function useLaunchReadiness\(\): Launch \{/.test(code(rd("components/LaunchReadiness.tsx"))));
+  ok("command audit: Goals' row names the goals at risk (the Blockers block's), else the quiet ones by lib/rhythm's rule; the twelve's says live and by hand",
+    /const atRisk = active\.filter\(\(g\) => g\.checkin_status === "at_risk"\);/.test(goals) && /quietDays\(g\) !== null/.test(goals)
+    && /`\$\{MARKET_LABEL\[market\]\} · \$\{liveN\} live, \$\{KPIS\.length - liveN\} by hand/.test(kpi) && /const rows: Row\[\] = rowsOf\(data\);/.test(kpi));
+  ok("command audit: the briefing stays owner-only, and its line is the briefing already run when there is one",
+    /\{profile\?\.role === "owner" && <ChiefOfStaff \/>\}/.test(cmd) && /b\?\.headline \? String\(b\.headline\)/.test(cos) && !/cos-eyebrow/.test(cos));
+  ok("command audit: links into Command still land — the calendar's goals and the initiative's board open their rows",
+    (code(rd("components/CompanyCalendar.tsx")).match(/setSection\("command"\); scrollToAnchor\("goals"\);/g) || []).length === 2 && !/getElementById\("goals"\)/.test(code(rd("components/CompanyCalendar.tsx")))
+    && /onBoard=\{\(\) => \{ onClose\(\); setSection\("command"\); scrollToAnchor\("initiatives"\); \}\}/.test(code(rd("components/InitiativeSheet.tsx")))
+    && /anchor: "goals"/.test(rd("lib/obligations.ts")) && /anchor: "os-registry"/.test(rd("lib/obligations.ts")) && /<div className="adm-sec" id="os-registry">/.test(osr));
+
+  // ── REACH ──
+  const css = rd("app/globals.css");
+  const esc = (x) => x.replace(/[.*+?^$()|[\]\\{}]/g, "\\$&");
+  const decl = (sel, prop) => {
+    const m = css.match(new RegExp("(?:^|\\n)" + esc(sel) + "\\{([^}]*)\\}"));
+    const d = m && m[1].match(new RegExp("(?:^|;)" + esc(prop) + ":([^;]+)"));
+    return d ? d[1].trim() : "";
+  };
+  const firstPx = (v) => Number(String(v).split(/\s+/)[0].replace("px", ""));
+  const foldRow = firstPx(decl(".k-row", "padding")) * 2 + firstPx(decl(".k-nm", "font-size"));
+  ok("command audit: a fold's row and the team's week are 44 points or more to the thumb",
+    foldRow >= 44 && /\.cmd-week\{[^}]*min-height:44px/.test(css), { foldRow });
 }
 
 Promise.all(PENDING).then(() => {

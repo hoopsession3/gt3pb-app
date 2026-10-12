@@ -3124,7 +3124,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .cos{background:linear-gradient(160deg,#19150f,#120f0a);border:1px solid var(--gold2);border-radius:var(--r-3xl);padding:15px;margin-bottom:16px}
 .app.crew-day .cos{background:var(--card);border-color:var(--line2)}
 .cos-head{display:flex;align-items:center;gap:10px;margin-bottom:11px;flex-wrap:wrap}
-.cos-eyebrow{font-family:'Inter';font-weight:800;font-size:13px;color:var(--gold2)}
 .cos-toggle{margin-left:auto;display:flex;gap:4px;background:rgba(0,0,0,.25);border-radius:9px;padding:3px}
 .app.crew-day .cos-toggle{background:rgba(34,31,24,.06)}
 .cos-tg{background:none;border:none;border-radius:7px;padding:6px 11px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:12px;cursor:pointer}
@@ -4579,7 +4578,7 @@ button.mkpi-tile:active{transform:scale(.98)}
 /* 0350: a milestone's words that link to no workstream — the chip says so, dashed like any unset field. */
 .cmd-ws.loose,.app.crew-day .cmd-ws.loose{background:none;border:1px dashed var(--line2);padding:1px 5px}
 /* Command: the team's week in one line (2026-10-07). */
-.cmd-week{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;width:100%;text-align:left;background:none;border:1px solid var(--line2);border-radius:var(--r-lg);padding:12px 14px;margin:4px 0 10px;cursor:pointer;color:var(--cream-m);font-family:'Inter';font-size:13px;-webkit-appearance:none;appearance:none}
+.cmd-week{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;width:100%;min-height:44px;text-align:left;background:none;border:1px solid var(--line2);border-radius:var(--r-lg);padding:12px 14px;margin:4px 0 10px;cursor:pointer;color:var(--cream-m);font-family:'Inter';font-size:13px;-webkit-appearance:none;appearance:none}
 .cmd-week .late b{color:var(--warn)}
 .cmd-week:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
 .app.crew-day .cmd-mile-due.late,.app.crew-day .cmd-row-due.late{color:var(--red)}
@@ -6081,7 +6080,6 @@ button.k-switch::after{content:"";position:absolute;inset:-7px -2px}
 @media (hover:hover){.osr-row:hover:not(:disabled){background:var(--ink-onLight-03)}}
 .osr-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
 .osr-name{font-family:'Inter';font-weight:700;font-size:15px;line-height:1.3;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
-.osr-who{font-weight:650;color:var(--cream)}
 .osr-flag{font-style:normal;font-family:'Inter';font-weight:700;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--warn)}
 .osr-flag.park{color:var(--cream-m)}
 .osr-next{font-family:'Inter';font-size:13px;color:var(--cream-m);line-height:1.45}
@@ -6093,7 +6091,6 @@ button.k-switch::after{content:"";position:absolute;inset:-7px -2px}
 .osr-score small{font-size:11px;color:var(--cream-d)}
 .osr-score.green i{background:var(--ok)}.osr-score.amber i{background:var(--gold2)}.osr-score.red i{background:var(--red)}
 .osr-score.park{font-family:'Inter';font-size:12px;color:var(--cream-m)}
-.osr-due svg{width:14px;height:14px;flex:0 0 auto;margin-top:2px;color:var(--warn)}
 .osr-audit{display:flex;flex-direction:column;gap:13px}
 .osr-total{margin-right:auto;font-family:'Archivo Black';font-size:15px;color:var(--gold2)}
 /* Day surfaces for rows whose night fill is see-through black (2026-10-07). */

@@ -12,6 +12,7 @@ import { CAL_CAT as CAT } from "@/lib/calendarTokens";
 import { brewStartOverdue, BATCH_OVER_IN } from "@/lib/brewMath";
 import { etToday, fmt12, timeRange, sortTime, byClock, dayWithDate } from "@/lib/dates";
 import { goPlanTab, type PlanTab } from "@/lib/planNav";
+import { scrollToAnchor } from "@/lib/anchors";
 import { useWorkStreams } from "@/lib/streams";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useRecord } from "./RecordSheet";
@@ -313,8 +314,10 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
     });
     for (const c of content) if (c.scheduled_for && pass("content")) push(key(new Date(c.scheduled_for)), { id: c.id, title: c.title || "Content", cat: "content", kind: "content", go: () => setSection("studio") });
     for (const t of todos) if (t.due_on && pass(t.category)) push(t.due_on, { id: t.id, title: t.title, cat: CAT[t.category] ? t.category : "ops", kind: "todo", done: t.done, go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.meeting_note_id) setSection("plan"); }, toggle: () => toggleTodo(t) });
-    // Goals render ON Command since the 2026-07-29 merge — jump there and land on the #goals block.
-    const goGoals = () => { setSection("command"); setTimeout(() => document.getElementById("goals")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120); };
+    // Goals render ON Command since the 2026-07-29 merge — jump there and land on the #goals block. Since 2026-10-12
+    // that is a row that opens the goals as their own screen (components/CommandFold): the jump opens it, as a link to
+    // a panel does (lib/anchors) — a bare scroll stopped on the closed row.
+    const goGoals = () => { setSection("command"); scrollToAnchor("goals"); };
     for (const t of prepTasks) if (t.due_at && pass("task")) push(key(new Date(t.due_at)), { id: t.id, title: t.label, cat: "task", kind: "task", go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.stop_id) openStopPrep(t.stop_id); else if (t.meeting_note_id) setSection("notes"); else if (t.goal_id) goGoals(); } });
     for (const g of goals) if (g.due_date && pass("goal")) push(g.due_date, { id: g.id, title: g.title, cat: "goal", kind: "goal", meta: g.status === "hit" ? "Hit" : g.horizon, go: goGoals });
     // The sales/relationship rhythm (2026-08-01) — read-only rollups; the rows live on Plan › Leads
@@ -922,7 +925,7 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
   // The interoperability door: every kind's editor carries a one-tap jump to its full surface.
   const jump = (() => {
     const close = onClose;
-    const goGoals = () => { setSection("command"); setTimeout(() => document.getElementById("goals")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120); close(); };
+    const goGoals = () => { setSection("command"); scrollToAnchor("goals"); close(); };
     // Was `prep(key)` with the key spelled at each call site — which is how line 578 came to write
     // "event:<id>" while 567 and 698 wrote a bare id, in this same file. Takes the pair now.
     const prep = (k: "event" | "stop", id: string) => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue(k, id)); } catch { /* ignore */ } setSection("prep"); close(); };

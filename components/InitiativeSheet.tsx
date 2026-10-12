@@ -6,6 +6,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { useOperatorSection } from "./OperatorNav";
+import { scrollToAnchor } from "@/lib/anchors";
 import { canOf } from "@/lib/roles";
 import { localToday } from "@/lib/dates";
 import { daysBetween, dueWord } from "@/lib/dayWords";
@@ -58,7 +59,7 @@ export default function InitiativeSheet({ id, onClose, onSaved }: { id: string; 
         loadingLabel="Loading…" errorTitle="Couldn't load this initiative">
         {(it) => (
           <InitiativeBody key={it!.id} it={it!} canEdit={can.admin} canOpenBoard={can.manage}
-            onBoard={() => { onClose(); setSection("command"); }}
+            onBoard={() => { onClose(); setSection("command"); scrollToAnchor("initiatives"); }}
             onSaved={(msg) => { toast(msg); onSaved?.(); onClose(); }} />
         )}
       </AsyncSection>

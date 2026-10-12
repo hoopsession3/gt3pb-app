@@ -126,6 +126,7 @@ const Changelog = dynamic(() => import("@/components/Changelog"), { loading: () 
 // row — the avatar's own menu and sheets (components/AccountPill useAccountDoor), so it has one home.
 const AccountRow = dynamic(() => import("@/components/AccountRow"), { loading: () => <PourFill label="Loading…" /> });
 import CommandBoard from "@/components/CommandBoard";
+import { CommandViews } from "@/components/CommandFold";
 // Free-text times from before the field became type="time" still have to render. Anything the
 // input can accept is handed through; anything it cannot (a bare "9", "9am", "2 pm") is normalised
 // where that is unambiguous and otherwise left for the person to re-enter, rather than silently
@@ -5740,18 +5741,22 @@ export default function AdminPage() {
           {/* GT3 COMMAND (2026-08-03): the Executive OS lands. The portfolio registry LEADS —
               ten workstreams, Monday-audited — then the war room, then goals, then the twelve
               KPIs. One screen = the state of the company; Plan = the cadence that changes it. */}
+          {/* THE REST FOLDS (2026-10-12, the Command audit, approved): under today's event, the portfolio and the team's
+              week, the initiatives, the briefing, the goals and the twelve are a row each that opens as its own screen
+              (components/CommandFold) — 2,979 points of Command on an iPhone 17 were three and a half screens. */}
+          <CommandViews back={SEC_LABEL.command}>
           {/* THE LIVE EVENT, HERE (2026-10-11, the KDS audit): its sales, pace and plan — or today's event, not live
               yet, with its "Make it live" — the width of the screen, first. It led Live Ops, which is the pass and
               the runs now; the people who read it are the people who read this screen. */}
           <EventHUD />
-          {/* ON THE DESK (2026-10-09, redesign 5): the portfolio and the war room on the left; goals and the twelve
-              numbers on the right. */}
+          {/* ON THE DESK (2026-10-09, redesign 5): the portfolio on the left; the team's week and the rows on the right
+              (2026-10-12: the war room is a line and a row now, and sits with the rest of the rows). */}
           <Columns>
           <Column>
           <OsRegistry />
-          <CommandBoard />
           </Column>
           <Column>
+          <CommandBoard />
           {/* THE WEEK, LED FROM HERE (2026-10-09): the Chief of Staff briefing came from My Day's "Lead the
               week" fold — on demand, owner-run, and about the period, so it sits with the goals it ranks.
               ONLY FOR WHO CAN RUN IT (2026-10-12): Command is open to admins and event managers, and the full-width
@@ -5767,11 +5772,13 @@ export default function AdminPage() {
               it — same title, progress, owner — as a non-tappable horizon grid, and the horizon
               already sits on each card as its tier chip. One list, one home.
               ONE "GOALS" (2026-10-09): Goals draws its own head, with the count — this one stood above it, so the
-              screen said GOALS twice and a screen reader heard two headings of the same name. */}
+              screen said GOALS twice and a screen reader heard two headings of the same name. Since 2026-10-12 that
+              head is its row (the count beside it), and its screen's title once it is opened. */}
           <Goals />
           <KpiBoard />
           </Column>
           </Columns>
+          </CommandViews>
         </>
       )}
 

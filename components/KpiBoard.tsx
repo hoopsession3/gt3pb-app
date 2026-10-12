@@ -9,6 +9,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
+import { CommandFold } from "./CommandFold";
 import { etToday, weekStartKey } from "@/lib/dates";
 import { toMarket, MARKET_LABEL } from "@/lib/markets";
 
@@ -144,6 +145,14 @@ function changeOf(k: { key: string; unit: string }, latest?: Snap, prior?: Snap)
   const text = k.unit === "$" ? `${sign}$${a}` : k.unit === "%" ? `${sign}${a} pts` : `${sign}${a}`;
   return { text, good: LOWER_IS_BETTER.has(k.key) ? d < 0 : d > 0 };
 }
+/** The twelve as the board draws them — what each shows, live or as logged — and the row on Command reads them too. */
+function rowsOf({ snaps, live }: BoardData): Row[] {
+  return KPIS.map((k) => {
+    const isLive = live[k.key] !== undefined;
+    const mine = snaps.filter((s) => s.metric === k.key);
+    return { ...k, isLive, shown: isLive ? live[k.key] : mine[0]?.value, change: isLive ? null : changeOf(k, mine[0], mine[1]) };
+  });
+}
 
 export default function KpiBoard() {
   const { user, profile } = useAuth();
@@ -194,17 +203,23 @@ export default function KpiBoard() {
     toast(rows.length === 1 ? "Logged" : `Logged ${rows.length}`); state.reload();
   };
 
+  // ONE ROW ON COMMAND (2026-10-12, the Command audit, approved): the twelve are a row — this city's, how many
+  // compute themselves and how many are logged by hand, and how many show no number — and the board opens as its
+  // own screen (components/CommandFold), titled "The twelve" there; its head is the city and Log numbers.
+  const summary = state.data ? rowsOf(state.data) : null;
+  const liveN = summary ? summary.filter((r) => r.isLive).length : 0;
+  const blankN = summary ? summary.filter((r) => r.shown === undefined).length : 0;
+  const standing = state.status === "loading" ? "Reading the numbers…" : state.status === "error" || !summary ? "Couldn't read the numbers — open it to try again"
+    : `${MARKET_LABEL[market]} · ${liveN} live, ${KPIS.length - liveN} by hand${blankN ? ` · ${blankN} with no number` : ""}`;
   return (
-    <div className="adm-sec" id="cmd-kpis">
-      <SectionHeader label="The twelve" annotation={MARKET_LABEL[market]}
+    <CommandFold id="cmd-kpis" title="The twelve" count={KPIS.length} status={standing}
+      label={`The twelve — ${standing}. Opens the KPI board`}>
+    <div className="adm-sec">
+      <SectionHeader label={MARKET_LABEL[market]}
         right={isAdmin ? <button type="button" className="btn-ter" onClick={() => setLogging(true)}>Log numbers</button> : undefined} />
       <AsyncSection state={state} isEmpty={() => false} emptyTitle="—" loadingLabel="Loading KPIs…" errorTitle="Couldn't load KPIs">
-        {({ snaps, live }) => {
-          const rows: Row[] = KPIS.map((k) => {
-            const isLive = live[k.key] !== undefined;
-            const mine = snaps.filter((s) => s.metric === k.key);
-            return { ...k, isLive, shown: isLive ? live[k.key] : mine[0]?.value, change: isLive ? null : changeOf(k, mine[0], mine[1]) };
-          });
+        {(data) => {
+          const rows: Row[] = rowsOf(data);
           const manual = rows.filter((r) => !r.isLive);
           return (
             <>
@@ -236,5 +251,6 @@ export default function KpiBoard() {
         }}
       </AsyncSection>
     </div>
+    </CommandFold>
   );
 }
