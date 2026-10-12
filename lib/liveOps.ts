@@ -9,8 +9,8 @@
 // Now the truck and the Pass are one row each (components/crew/LiveControl, components/crew/LiveOpsRows): a dot, one
 // line saying the state in words, and the one action it needs. An alert that is hurting service right now leads the
 // screen as one line. What each row says in each state, which alerts are service's, who may go live, what Go live checks
-// first and where the pickup drop sits in Due next are decided here — pure, no React, no Supabase, no clock it was not
-// handed — so scripts/smoke.cjs runs every state.
+// first, where the pickup drop sits in Due next, and where an alert may send its reader are decided here — pure, no
+// React, no Supabase, no clock it was not handed — so scripts/smoke.cjs runs every state.
 import { clockTime, etDayKey } from "./dates";
 import { dueDay } from "./dueNext";
 import { flagIsToday } from "./home";
@@ -182,6 +182,15 @@ export function exceptionSays(list: readonly FlagLike[]): { title: string; more:
   const more = list.length > 1 ? `and ${list.length - 1} more` : "";
   const opens = exceptionOpens(first);
   return { title: first.title, more, opens, label: `${first.title}${more ? `, ${more}` : ""}. Opens ${opens === "pass" ? "the Pass" : "your inbox, on the alert"}.` };
+}
+
+// ── WHERE AN ALERT MAY SEND ITS READER ───────────────────────────────────────────────────────────────────────────────
+// An alert's Open went to the section that owns it (alertDest, app/crew/page.tsx) whoever was reading, and a section the
+// reader's role cannot open falls back to My Day (AdminPage: `allowed.includes(section) ? section : "day"`) — a server's
+// "Paid order didn't record" landed on My Day. A section the reader can open (components/OperatorNav sectionsForRole) is
+// a destination; any other is none, so the alert opens its record, or stays in the inbox, where its words are.
+export function alertHome<D extends { section: string }>(dest: D | null | undefined, allowed: readonly string[]): D | null {
+  return dest && allowed.includes(dest.section) ? dest : null;
 }
 
 // ── GO LIVE, CHECKED FIRST ───────────────────────────────────────────────────────────────────────────────────────────

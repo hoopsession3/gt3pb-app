@@ -211,6 +211,7 @@ import VenuePick from "@/components/VenuePickLazy";
 import { LocationEditor } from "@/components/crew/LocationEditor";
 import { LiveControl } from "@/components/crew/LiveControl";
 import { PassRow, ExceptionLine } from "@/components/crew/LiveOpsRows";
+import { alertHome } from "@/lib/liveOps";
 import { staffAccess } from "@/lib/access";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { SECTION_TITLE } from "@/lib/routeTitles";
@@ -572,10 +573,17 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
   const [reviewPost, setReviewPost] = useState<{ id: string; alert: MyFlag } | null>(null);
   const { openRecord } = useRecord();
   const { openTask } = useTaskSheet();
+  // AN ALERT OPENS ONLY WHERE ITS READER CAN GO (2026-10-12, the Live Ops round, approved). Open went to the section that
+  // owns the alert whoever was reading, and a section the reader's role cannot open falls back to My Day (AdminPage's
+  // `sec`): a server's "Paid order didn't record" (Money's) landed on My Day. The home counts only when this role can
+  // open it (components/OperatorNav sectionsForRole, lib/liveOps alertHome); otherwise the alert opens its record or
+  // task, or stays here in the inbox, its words the content — Open is not drawn.
+  const reachable = sectionsForRole(roleOf(profile));
+  const destOf = (a: MyFlag) => alertHome(alertDest(a.category, a.title, a.link), reachable);
   // Whether Open has anywhere to go — the record or task an alert names, or the screen that owns it.
   const canOpen = (a: MyFlag) => !!recordForAlert(a.kind, a.subject_id)
     || (!!a.kind && TASK_ALERT_KINDS.includes(a.kind) && !!a.subject_id)
-    || alertIsReservation(a.title) || alertIsContentReview(a.title) || alertDest(a.category, a.title, a.link) != null;
+    || alertIsReservation(a.title) || alertIsContentReview(a.title) || destOf(a) != null;
   const gotoAlert = (a: MyFlag) => {
     // An alert that names a ROW opens that row. The 0174 contract has carried subject_id since
     // before anything could open one, so every shop-order ping has known exactly which order it
@@ -595,8 +603,8 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
       toast("Couldn't find that post — it may have been removed. Check Brand.", "error");
       return;
     }
-    const d = alertDest(a.category, a.title, a.link);
-    if (!d) return;              // homeless alert — the card is the content; Open isn't rendered for these
+    const d = destOf(a);
+    if (!d) return;              // homeless alert, or a home this role can't open — the card is the content; Open isn't rendered for these
     onNavigate?.();              // close the inbox sheet FIRST — else the destination renders behind it
     if (d.planTab && isPlanTab(d.planTab)) { goPlanTab(d.planTab, { setSection }); } else { setSection(d.section); }
     jumpTo(d.anchor);            // a panel is scrolled to and opened; the Pass is opened (jumpTo)

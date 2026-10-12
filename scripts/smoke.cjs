@@ -12368,6 +12368,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /ariaLabel=\{`\$\{row\.says\}\. \$\{open \? "Hides" : "Shows"\} it here\.`\}/.test(code(rd("components/crew/FoldCard.tsx")))
       && /el\?\.querySelector<HTMLElement>\(":scope > button\.k-row"\) \?\? el/.test(list));
 
+  // ALERT LINKS A READER CAN FOLLOW (approved item 4).
+  ok("roles: an alert's home counts only when the reader's role can open it — otherwise its record, or the inbox it is in",
+    LO.alertHome({ section: "money" }, ["day", "now", "plan", "notes", "driver", "settings"]) === null && LO.alertHome({ section: "now", anchor: "kitchen-pass" }, ["day", "now"]).anchor === "kitchen-pass"
+      && LO.alertHome(null, ["now"]) === null
+      && /const reachable = sectionsForRole\(roleOf\(profile\)\);\s*const destOf = \(a: MyFlag\) => alertHome\(alertDest\(a\.category, a\.title, a\.link\), reachable\);/.test(page)
+      && /alertIsReservation\(a\.title\) \|\| alertIsContentReview\(a\.title\) \|\| destOf\(a\) != null;/.test(page) && /const d = destOf\(a\);\s*if \(!d\) return;/.test(page));
+
   ok("smoke: lib/liveOps and lib/heartbeat are compiled for these pins", /lib\/liveOps\.ts lib\/heartbeat\.ts/.test(JSON.parse(rd("package.json")).scripts.smoke));
 }
 
