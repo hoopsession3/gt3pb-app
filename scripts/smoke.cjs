@@ -13085,6 +13085,35 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && K.freshest(row({ updated_at: "2026-10-12T14:06:00+00:00" }), row({ updated_at: "2026-10-12T14:05:00+00:00", sold_out: true })).sold_out === false
     && K.shownRow(row({}), { p: true }, {}).sold_out === true && K.shownRow(row({}), {}, {}).sold_out === false
     && /const products = useMemo\(\(\) => \(board\.data \?\? \[\]\)\.map\(\(p\) => shownRow\(p, pending, held\)\), \[board\.data, pending, held\]\);/.test(mm));
+
+  // ── what Pay refuses (C3 of the customer audit, 2026-10-12) ──
+  // A missing products row used to fail open, so a drink deleted in the Catalog stayed on sale; a drink off the menu was
+  // refused as "just sold out". Now: no row, or off the menu → "isn't on the menu any more"; 86'd → the words Pay always
+  // said, byte for byte; a failed read waits (503) rather than selling what it could not check.
+  const N = (s) => ({ rise: "RISE", flow: "FLOW", tide: "TIDE", maple: "SALTED MAPLE LATTE" })[s] ?? s;
+  const on = (slug, o = {}) => ({ slug, sold_out: false, active: true, ...o });
+  ok("pay: a cart of drinks on the menu is refused nothing — and a null active is on the menu, as the storefront reads it",
+    K.cartRefusal(["rise", "flow", "rise"], [on("rise"), on("flow", { active: null })], N) === null);
+  ok("pay: a drink with no products row — deleted in the Catalog — isn't on the menu any more (C3)",
+    K.cartRefusal(["rise", "maple"], [on("rise")], N) === "SALTED MAPLE LATTE isn't on the menu any more — remove it and try again.",
+    K.cartRefusal(["rise", "maple"], [on("rise")], N));
+  ok("pay: off the menu is said as off the menu, not as sold out — the wrong reason Pay used to give",
+    K.cartRefusal(["tide"], [on("tide", { active: false, sold_out: true })], N) === "TIDE isn't on the menu any more — remove it and try again.");
+  ok("pay: an 86 says what Pay always said, byte for byte; two of them, them",
+    K.cartRefusal(["rise"], [on("rise", { sold_out: true })], N) === "RISE just sold out — remove it and try again."
+    && K.cartRefusal(["rise", "flow"], [on("rise", { sold_out: true }), on("flow", { sold_out: true })], N) === "RISE · FLOW just sold out — remove them and try again.");
+  ok("pay: both reasons at once are both said, once each",
+    K.cartRefusal(["rise", "maple", "flow", "tide"], [on("rise", { sold_out: true }), on("flow"), on("tide", { active: false })], N)
+      === "SALTED MAPLE LATTE · TIDE aren't on the menu any more, and RISE just sold out — remove them and try again.",
+    K.cartRefusal(["rise", "maple", "flow", "tide"], [on("rise", { sold_out: true }), on("flow"), on("tide", { active: false })], N));
+  {
+    const api = code(rd("app/api/checkout/route.ts"));
+    ok("pay: the server asks cartRefusal before any charge — a failed products read is a 503, a refusal a 409, and nothing fails open",
+      /const \{ data: avail, error: availErr \} = await supabaseAdmin\.from\("products"\)\.select\("slug, sold_out, active, price_cents"\)\.in\("slug", uniq\);/.test(api)
+      && /if \(availErr\) return NextResponse\.json\(\{ error: MENU_UNCHECKED \}, \{ status: 503 \}\);/.test(api)
+      && /const refused = cartRefusal\(uniq, rows, \(slug\) => DRINKS\[slug as DrinkId\]\?\.n \?\? slug\);\s*if \(refused\) return NextResponse\.json\(\{ error: refused \}, \{ status: 409 \}\);/.test(api)
+      && api.indexOf("cartRefusal(") < api.indexOf("chargeCard(") && !/blocked\.join/.test(api));
+  }
 }
 
 Promise.all(PENDING).then(() => {

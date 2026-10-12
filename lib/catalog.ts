@@ -358,3 +358,24 @@ export function upcomingMenus(rows: readonly MenuLink[] | null | undefined, toda
 // open, nothing. A failed read says so now, in these words, with Try again.
 export const RECIPE_READ_FAILED = "Couldn't read the recipe — this is not an empty recipe.";
 export const RECIPE_REREAD_FAILED = "Couldn't read the recipe again — what is shown may be out of date.";
+
+// ── WHAT PAY REFUSES (2026-10-12, C3 of the customer audit, approved) ───────────────────────────────────────────────
+// Checkout let a drink through when its products row was missing, on purpose — "a catalog gap must not brick checkout" —
+// and priced it from Square or the code. So a drink deleted in the Catalog stayed on sale, and a drink taken off the
+// menu (active = false) was refused as "just sold out", the wrong reason. The Catalog is the menu's authority: a drink
+// is sold only while it has a row that is on the menu, and Pay says which reason is true. The 86 words are the ones
+// Pay always said, byte for byte. A cart of good drinks is refused nothing (null).
+export type CartRow = { slug: string; sold_out: boolean | null; active: boolean | null };
+export function cartRefusal(slugs: readonly string[], rows: readonly CartRow[], nameOf: (slug: string) => string): string | null {
+  const bySlug = new Map(rows.map((r) => [r.slug, r]));
+  const uniq = [...new Set(slugs)];
+  const gone = uniq.filter((s) => { const r = bySlug.get(s); return !r || r.active === false; }).map(nameOf);
+  const out = uniq.filter((s) => { const r = bySlug.get(s); return !!r && r.active !== false && !!r.sold_out; }).map(nameOf);
+  if (!gone.length && !out.length) return null;
+  const said: string[] = [];
+  if (gone.length) said.push(`${gone.join(" · ")} ${gone.length === 1 ? "isn't" : "aren't"} on the menu any more`);
+  if (out.length) said.push(`${out.join(" · ")} just sold out`);
+  return `${said.join(", and ")} — remove ${gone.length + out.length === 1 ? "it" : "them"} and try again.`;
+}
+/** A products read that failed is not an empty menu: Pay waits rather than sell what it could not check. */
+export const MENU_UNCHECKED = "We couldn't check the menu — give it another tap in a moment.";

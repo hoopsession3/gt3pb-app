@@ -8,6 +8,7 @@ import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { readyWords, refusalWords, pickupWords, type Ordering } from "@/lib/ordering";
 import { orderingFrom, readOrdering } from "@/lib/orderingRead";
+import { cartRefusal, MENU_UNCHECKED, type CartRow } from "@/lib/catalog";
 import { writeAcrossSkew } from "@/lib/schemaSkew";
 import { toMarket } from "@/lib/markets";
 import { money } from "@/lib/money";
@@ -129,18 +130,19 @@ async function post(req: Request) {
   }
 
   // Availability is enforced HERE, not just on the screen: a stale cart or tampered client can't
-  // buy an 86'd or delisted item. Checked before any charge. Missing product rows fail open (a
-  // catalog gap must not brick checkout). Same query also carries price_cents — the one price
-  // authority — so this single read covers both jobs.
+  // buy an 86'd or delisted item. Checked before any charge. A drink is sold only while it has a
+  // products row on the menu (C3, 2026-10-12): a missing row used to fail open — "a catalog gap must
+  // not brick checkout" — which kept a drink deleted in the Catalog on sale. A failed read is not an
+  // empty menu: it waits (503). Same query also carries price_cents — the one price authority — so
+  // this single read covers both jobs.
   const productPrices: Record<string, number> = {};
   {
     const uniq = [...new Set(items)];
-    const { data: avail } = await supabaseAdmin.from("products").select("slug, sold_out, active, price_cents").in("slug", uniq);
-    const rows = (avail ?? []) as { slug: string; sold_out: boolean | null; active: boolean | null; price_cents: number | null }[];
-    const blocked = rows.filter((p) => p.sold_out || p.active === false).map((p) => DRINKS[p.slug as DrinkId]?.n ?? p.slug);
-    if (blocked.length) {
-      return NextResponse.json({ error: `${blocked.join(" · ")} just sold out — remove ${blocked.length === 1 ? "it" : "them"} and try again.` }, { status: 409 });
-    }
+    const { data: avail, error: availErr } = await supabaseAdmin.from("products").select("slug, sold_out, active, price_cents").in("slug", uniq);
+    if (availErr) return NextResponse.json({ error: MENU_UNCHECKED }, { status: 503 });
+    const rows = (avail ?? []) as (CartRow & { price_cents: number | null })[];
+    const refused = cartRefusal(uniq, rows, (slug) => DRINKS[slug as DrinkId]?.n ?? slug);
+    if (refused) return NextResponse.json({ error: refused }, { status: 409 });
     for (const p of rows) if (typeof p.price_cents === "number" && p.price_cents > 0) productPrices[p.slug] = p.price_cents;
   }
 
