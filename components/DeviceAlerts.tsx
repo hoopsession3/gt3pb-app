@@ -6,7 +6,7 @@ import { useApp } from "./AppProvider";
 import GoLine from "./GoLine";
 import { APP_BUILD } from "@/lib/native";
 import { NATIVE_PUSH_ON } from "@/lib/nativePush";
-import { AppAlertsRow, AppAlertsOffLine } from "./AppAlerts";
+import { AppAlertsRow, AppAlertsOffLine, useAppAlerts } from "./AppAlerts";
 
 // ALERTS ON THIS DEVICE (2026-10-06, the settings round). "Turn on order alerts" was a full card at
 // the bottom of Live Ops, under the tasks, on every phone that had not said yes yet. It is a setting
@@ -85,6 +85,17 @@ export function DeviceAlerts() {
         : null}
     </div>
   );
+}
+
+/** THIS PHONE CAN'T RING (2026-10-12, the Live Ops round): the question AlertsOffLine below answers with a line, as a
+ *  yes or no — so the Pass's row on Live Ops can say it in words (lib/liveOps passSays), with the line one tap away.
+ *  Off here and able to be on: in the browser, not asked yet or blocked; in the iPhone app, once its alerts are live
+ *  (NATIVE_PUSH_ON), not asked yet or turned off in the phone's Settings. Both answers are read, each where it can be
+ *  (the app's answer is null on the web), so no hook is called on one build and not the other. */
+export function useAlertsOffHere(): boolean {
+  const perm = useAlertPermission();
+  const { state } = useAppAlerts();
+  return APP_BUILD ? NATIVE_PUSH_ON && (state === "prompt" || state === "denied") : alertsOff(perm);
 }
 
 /** Live Ops: one line, only while alerts are off on this phone. */

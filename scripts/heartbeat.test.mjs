@@ -215,15 +215,17 @@ function fakeClock(start = 1_760_000_000_000) {
   const row = { device_id: "7d1e0c2a-5b6f-4c8d-9e0f-1a2b3c4d5e6f", surface: "pass", user_id: "u", display_name: "Sam", role: "server",
     app: "web", app_build: "0c040e6", feed: "live", alerts_on: true, wake_lock: true, last_seen: "2026-10-11T15:00:00Z", seen_s: 12 };
   const v = H.deviceView(row, 12);
-  ok("a device on the Pass, hearing: who, Live (in its tone), and the rest in words",
-    v.who === "Sam" && v.feed === "Live" && v.tone === "ok" && v.hearing === true && v.line === "Pass · alerts on · seen 12 s ago"
+  // 2026-10-12 (the Live Ops round, approved): a device is connected or reconnecting — "Live" is the truck's word on the
+  // same screen, so a phone's feed says Connected (and Not connected, where it said Down).
+  ok("a device on the Pass, hearing: who, Connected (in its tone), and the rest in words",
+    v.who === "Sam" && v.feed === "Connected" && v.tone === "ok" && v.hearing === true && v.line === "Pass · alerts on · seen 12 s ago"
     && v.meta === "Web 0c040e6 · screen stays on" && v.key === `${row.device_id}:pass`, v);
-  const words = [["reconnecting", "Reconnecting", "warn"], ["down", "Down", "crit"], ["signed-out", "Signed out", "crit"], ["unknown", "Unknown", ""], ["garbage", "Unknown", ""]]
+  const words = [["reconnecting", "Reconnecting", "warn"], ["down", "Not connected", "crit"], ["signed-out", "Signed out", "crit"], ["unknown", "Unknown", ""], ["garbage", "Unknown", ""]]
     .map(([feed, word, tone]) => { const x = H.deviceView({ ...row, feed }, 12); return x.feed === word && x.tone === tone && x.hearing === false; });
   ok("each feed in its word — the tone only repeats it — and none of them is hearing", words.every(Boolean), words);
   const away = H.deviceView(row, H.AWAY_AFTER_S + 1);
   ok("two beats missed: Away, whatever it last said, and not hearing", away.feed === "Away" && away.tone === "warn" && away.hearing === false && away.line.endsWith("seen 2 min ago"), away);
-  ok("still there at the edge", H.deviceView(row, H.AWAY_AFTER_S).feed === "Live");
+  ok("still there at the edge", H.deviceView(row, H.AWAY_AFTER_S).feed === "Connected");
   const app = H.deviceView({ ...row, app: "ios", app_build: "1.0 (42)", alerts_on: false, wake_lock: false, display_name: "  ", role: "event_manager", surface: "live_ops" }, 75);
   ok("the app, its build; alerts off; a screen that can sleep; no name — the role, in lib/roles' word; another screen",
     app.meta === "iPhone app 1.0 (42) · screen can sleep" && app.line === "Live Ops · alerts off · seen 1 min ago" && app.who === "Event Manager", app);

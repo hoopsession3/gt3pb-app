@@ -20,11 +20,11 @@ import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
 import { readParam, dropParam } from "@/lib/urlParam";
 import { panelHome } from "@/lib/panelHome";
 import { useWakeLock } from "@/lib/useWakeLock";
-import { groupItems, readPulse } from "@/lib/passBoard";
+import { groupItems } from "@/lib/passBoard";
 import { usePassHeartbeat } from "@/components/usePassHeartbeat";
 import { useEtDay } from "@/lib/useEtDay";
 import { NotifPrefs, NotifPrefsSheet } from "@/components/NotifPrefs";
-import { DeviceAlerts, AlertsOffLine } from "@/components/DeviceAlerts";
+import { DeviceAlerts } from "@/components/DeviceAlerts";
 import { RingThisPhone } from "@/components/RingThisPhone";
 import { PassSound, Appearance } from "@/components/YouPrefs";
 import { DisplayControls } from "@/components/DisplayToggle";
@@ -210,7 +210,7 @@ import { OwnerDetails } from "@/components/crew/OwnerDetails";
 import VenuePick from "@/components/VenuePickLazy";
 import { LocationEditor } from "@/components/crew/LocationEditor";
 import { LiveControl } from "@/components/crew/LiveControl";
-import { DevicesCard } from "@/components/crew/DevicesCard";
+import { PassRow } from "@/components/crew/LiveOpsRows";
 import { staffAccess } from "@/lib/access";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { SECTION_TITLE } from "@/lib/routeTitles";
@@ -310,40 +310,11 @@ const STATUSES: BookingRequest["status"][] = ["new", "contacted", "booked", "dec
 // Live Ops below keeps only the mount: `svc`, Escape, the wake lock.
 
 // ───────────────────────── service pulse: the glance before the work ─────────────────────────
-// Now doesn't render the boards anymore — it renders their PULSE. One hero button carries the
-// live counts (orders on the pass, items 86'd) and opens Service mode, where the work happens.
-function ServicePulse({ onEnter }: { onEnter: () => void }) {
-  const [pass, setPass] = useState<number | null>(null);
-  const [ahead, setAhead] = useState(0);
-  const [out, setOut] = useState(0);
-  // DUE NOW, AND LATER (2026-10-11, the KDS audit). An order placed ahead of a stop (0343 ready_from) counted as on
-  // the pass from the moment it was placed, and turned this button red hours before anyone could start it. The
-  // count is what can be made now; what is placed ahead is said beside it, quietly.
-  // COUNTED BY THE PASS'S OWN LANES (2026-10-11, the KDS program, wave 2: lib/passBoard readPulse). On the pass is New, In
-  // progress and Ready; placed ahead is the Pass's Scheduled lane. An order placed ahead and started early was neither
-  // here — not on the pass, still "ahead" — while the Pass showed it In progress.
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const [o, p] = await Promise.all([
-      readPulse(supabase, Date.now()),
-      supabase.from("products").select("id", { count: "exact", head: true }).eq("active", true).eq("sold_out", true),
-    ]);
-    if (o.pass !== null) setPass(o.pass);
-    if (o.ahead !== null) setAhead(o.ahead);
-    if (p.count !== null) setOut(p.count);
-  }, []);
-  useEffect(() => { load(); const t = window.setInterval(load, 60_000); return () => window.clearInterval(t); }, [load]);
-  useRealtimeTable(["orders", "products"], load);
-  return (
-    <button type="button" className={`svc-enter${(pass ?? 0) > 0 ? " hot" : ""}`} onClick={onEnter}>
-      <span className="svc-enter-t">▶ The Pass</span>
-      <span className="svc-enter-s">
-        {pass === null ? "The pass, pickups & the 86 board — one screen"
-          : <>{pass > 0 ? <><b><NumberRoll value={pass} ms={450} /></b> on the pass</> : "The pass is clear"}{ahead > 0 && <> · {ahead} placed ahead</>}{out > 0 && <> · <b><NumberRoll value={out} ms={450} /></b> 86&rsquo;d</>} — tap to work</>}
-      </span>
-    </button>
-  );
-}
+// THE PASS'S ROW (2026-10-12, the Live Ops round, approved). The pulse was a gold hero button — "▶ The Pass" over "The
+// pass is clear · 2 86'd — tap to work" — and this phone's alerts-off line and the Devices card were two more blocks
+// under the truck. It is one row now, components/crew/LiveOpsRows PassRow: "Pass clear · 2 86'd · 2 phones can ring" or
+// "3 on the Pass · 1 ahead", the phones' trouble in words on it and their rows one tap away; a tap opens the Pass.
+// Counted as it was (lib/passBoard readPulse: the Pass's own lanes), and a count that did not answer is said.
 
 // DUE NEXT (2026-10-11, the KDS audit — Ryan: "KDS x Dispatcher deliveries, only — right call?"). Live Ops' second
 // half: what leaves the truck besides the cups — the pickup drop, the Sunday porches, the office route — as one list,
@@ -5802,12 +5773,19 @@ export default function AdminPage() {
               What left, and where it lives: the live event's numbers and its "Make it live" → Command (and My Day,
               which already offered the switch); the next event → Readiness and Plan; your tasks → My Day; today's
               critical alerts → the header's bell, and in the Pass its own bell and the strip that names a critical one. The alerts-off line
-              stays: it says whether this phone can ring for an order, and only when it can't. The boards themselves (pass, pickup checklist, 86) render in ONE
+              stays: it says whether this phone can ring for an order, and only when it can't (since 2026-10-12, as words on
+              the Pass's row — below). The boards themselves (pass, pickup checklist, 86) render in ONE
               place: Service mode. */}
+          {/* AT A GLANCE (2026-10-12, the Live Ops round — the owner approved its six items). Measured on an iPhone 17 on a
+              quiet day: about 425 points of status cards before Due next — the Pass's hero button, the truck's ~195-point
+              card, the alerts-off line, the Devices card. Now: one row for the Pass and one for the truck, each a dot, its
+              state in words and its one action — the alerts-off line and the Devices card are words on the Pass's row,
+              their detail one tap away. What each says, and why, is lib/liveOps; the rows are components/crew/LiveOpsRows
+              and LiveControl. */}
           {/* ON THE DESK (2026-10-09, redesign 5): service on the left, dispatch on the right. */}
           <Columns>
           <Column>
-          {!svc && <ServicePulse onEnter={() => setSvc(true)} />}
+          {!svc && <PassRow canManage={canManage} onOpenPass={() => setSvc(true)} />}
           {/* The truck instrument rides directly under the pulse — going live IS the first act
               of service, not a panel below the fold.
               IT STAYS MOUNTED UNDER THE PASS (2026-10-11). Opening the Pass unmounted it, and its cleanup
@@ -5815,11 +5793,6 @@ export default function AdminPage() {
               it is still drawn, out of reach — inert takes it out of the tab order and away from a screen
               reader, and the Pass covers it; `contents` leaves Live Ops' layout as it was. */}
           {canManage && <div className="contents" inert={svc ? true : undefined}><LiveControl compact /></div>}
-          {/* Whether this phone can ring for an order: one line, only while order alerts are off here — the switch
-              is Settings › You › Notifications (2026-10-06). It stays with the service it is about. */}
-          <AlertsOffLine />
-          {/* Which devices are on the Pass, and whether each can hear an order (2026-10-11, components/crew/DevicesCard). */}
-          {canManage && !svc && <DevicesCard />}
           </Column>
           <Column>
           {!svc && <DueNext canPlan={canManage} onOpenPass={() => setSvc(true)} />}

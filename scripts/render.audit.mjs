@@ -67,7 +67,12 @@ import { readFileSync, existsSync } from "node:fs";
 // Kitchen (lib/passSound); the phone's notification permission (components/DeviceAlerts, which
 // replaced the crew page's EnableAlerts); and the calendar's Outlook bar, whose status and returned
 // ?outlook= word were two effects (components/OutlookConnect's useOutlookStatus, lib/urlParam).
-export const BASELINE = 100;
+//
+// 2026-10-12: 100 → 99 (the Live Ops round). The Pass's card on Live Ops (app/crew/page.tsx ServicePulse) loaded its
+// count in an effect and kept the last number when a read failed; the Pass's row that replaced it reads through
+// useAsyncData (components/crew/LiveOpsRows PassRow). Measured by linting the crew page at 9695df5 and after (23 → 22
+// hits); the truck's loader (components/crew/LiveControl) keeps its one, a data-load as before.
+export const BASELINE = 99;
 
 const RULE = "react-hooks/set-state-in-effect";
 

@@ -5214,8 +5214,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       !/active\[0\]/.test(lc) && /roadAhead\(active, live\?\.is_live \? live\.current_stop_id : null\)/.test(lc));
     ok("road: Go live is offered only for a stop on the road, and asks first unless it is due",
       /onClick=\{goLiveNext\}/.test(lc) && /stopIsDue\(nextStop\.starts_at\)/.test(lc) && /title: `Go live at \$\{nextStop\.name\} now\?`/.test(lc));
+    // 2026-10-12 (the Live Ops round): the words for an empty road are lib/liveOps truckSays' — the row's line, not the
+    // instrument's.
     ok("road: with nothing on the road it says so, and offers to plan the next stop instead of Go live",
-      /"nothing on the road"/.test(lc) && />Plan the next stop</.test(lc));
+      /"Off the road · no stop ahead"/.test(read("lib/liveOps.ts")) && /return t\.next \? "go-live" : "plan";/.test(read("lib/liveOps.ts")) && />Plan the next stop</.test(lc));
     ok("road: going offline names the next stop by the same rule", /roadAhead\(stops\.filter\(\(s\) => s\.id !== finished\?\.id\)\)\[0\]/.test(lc));
     ok("road: the live panel's grace is lib/stopRecord's — no second 8 * 3600 * 1000", !/8 \* 3600 \* 1000/.test(lc));
     ok("road: the public Find Us page asks the same rule for its stops", /isStopAhead\(r, liveId\)/.test(fu) && !/8 \* 3600 \* 1000/.test(fu));
@@ -5284,8 +5286,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     // today's critical alert is the Pass's strip and both bells.
     const cmdSec = (page.match(/\{sec === "command" && canManage && \([\s\S]*?\n      \)\}/) || [""])[0];
     const svcSrc = (page.match(/\{svc && sec === "now" && \([\s\S]*?\n      \)\}/) || [""])[0];
+    // 2026-10-12 (the Live Ops round): the Pass's hero button is its row (components/crew/LiveOpsRows PassRow).
     ok("live ops: the Pass and Due next, nothing else — the event, the tasks and the alert strip live elsewhere",
-      /<ServicePulse onEnter=\{\(\) => setSvc\(true\)\} \/>/.test(nowSec) && /<LiveControl compact \/>/.test(nowSec) && /<DueNext canPlan=\{canManage\} onOpenPass=\{\(\) => setSvc\(true\)\} \/>/.test(nowSec)
+      /<PassRow canManage=\{canManage\} onOpenPass=\{\(\) => setSvc\(true\)\} \/>/.test(nowSec) && /<LiveControl compact \/>/.test(nowSec) && /<DueNext canPlan=\{canManage\} onOpenPass=\{\(\) => setSvc\(true\)\} \/>/.test(nowSec)
         && !/<EventHUD|<MyTasks|<AlertsInbox/.test(nowSec) && cmdSec.indexOf("<EventHUD />") > 0 && cmdSec.indexOf("<EventHUD />") < cmdSec.indexOf("<Columns>")
         && /<ThePass canPlan=\{canManage\} onExit=\{\(\) => setSvc\(false\)\}/.test(svcSrc) && /strip=\{<AlertsInbox userId=\{user\?\.id \?\? null\} compact \/>\}/.test(svcSrc)
         && /<IconButton icon="bell"[^\n]*onClick=\{\(\) => setInboxOpen\(true\)\} \/>/.test(svcSrc) && !/<Panel id="hud"/.test(page));
@@ -5298,7 +5301,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
         && /sub=\{`No run scheduled · \$\{earlier\.length\} from earlier`\}/.test(delSrc) && /o\.driver_note \?/.test(delSrc));
     ok("live ops: the Pass button counts what can be made now — an order placed ahead is said beside it, not counted",
       /\.or\(`status\.neq\.new,ready_from\.is\.null,ready_from\.lte\.\$\{nowISO\}`\)/.test(read("lib/passBoard.ts")) && /\.eq\("status", "new"\)\.gt\("ready_from", nowISO\)/.test(read("lib/passBoard.ts"))
-      && /readPulse\(supabase, Date\.now\(\)\)/.test(page) && /\{ahead > 0 && <> · \{ahead\} placed ahead<\/>\}/.test(page));
+      // 2026-10-12: the count is the Pass's row's now (components/crew/LiveOpsRows), its words lib/liveOps passSays'.
+      && /readPulse\(supabase, Date\.now\(\)\)/.test(code(read("components/crew/LiveOpsRows.tsx"))) && /if \(p\.ahead > 0\) parts\.push\(`\$\{p\.ahead\} ahead`\);/.test(read("lib/liveOps.ts")));
     ok("live ops: only a live event is polled", /if \(!liveId\) return;\s*const recon = setInterval\(load, 15000\);/.test(hud));
     ok("live ops: the drop is one row until drop day — or the brew day, while the brew isn't queued",
       /<FoldCard title="Pickup drop" label="Pickup drop" today=\{isDropDay \|\| brewDue\}/.test(dropSrc)
@@ -5506,8 +5510,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /onClick=\{\(\) => setAllOverdue\(true\)\}/.test(code(read("components/CommandBoard.tsx"))) && !/\+\{ov\.more\} more overdue/.test(read("components/CommandBoard.tsx")));
 
   // ── elsewhere in the console ──
-  ok("live ops: the stop the truck instrument names opens its record",
-    /<RecordLink kind="stop" id=\{curStop\.id\}>/.test(read("components/crew/LiveControl.tsx")) && /<RecordLink kind="stop" id=\{nextStop\.id\}>/.test(read("components/crew/LiveControl.tsx")));
+  // 2026-10-12 (the Live Ops round): the stop the truck's row names — the live one, or the next — opens its record from
+  // a whole row in the fold, 44 points tall; in the line it was a 66×15-point link.
+  ok("live ops: the stop the truck's row names opens its record, from a row 44 points tall",
+    /const named = \(live\?\.is_live \? curStop : nextStop\) \?\? null;/.test(read("components/crew/LiveControl.tsx"))
+      && /<RecordLink kind="stop" id=\{named\.id\} className="[^"]*\bmin-h-11\b[^"]*">/.test(read("components/crew/LiveControl.tsx")));
   ok("the pass: an unpaid ticket says to collect — 'pre-order' named a payment state as an ordering one (the word lives in lib/collect since 0341)",
     /"UNPAID · collect at pickup"/.test(read("lib/collect.ts")) && /\{passWord\(o\)\}/.test(code(read("components/pass/Ticket.tsx")))
     && !/"pre-order"/.test(crew) && !/"pre-order"/.test(code(read("components/pass/Ticket.tsx"))));
@@ -9440,8 +9447,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\{admin && <GoLine to="settings" anchor="set-dial">Cup-ordering dial<\/GoLine>\}/.test(lc)
     && /\{admin && <button type="button" className="adm-golink(?: hit-y-44)?" onClick=\{goDial\}>Cup-ordering dial ›<\/button>\}/.test(lc)
     && /const goDial = \(\) => \{ setSection\("settings"\); scrollToAnchor\("set-dial"\); \};/.test(lc) && /const admin = canOf\(profile\)\.admin;/.test(lc));
+  // 2026-10-12 (the Live Ops round): the line is words on the Pass's row ("this phone can't ring", useAlertsOffHere),
+  // and the line itself one tap away, in the row's Phones sheet.
   ok("old spots: Live ops keeps one line while order alerts are off on this phone — the card that asked is Settings › You now",
-    /<AlertsOffLine \/>/.test(block('{sec === "now" && (')) && !/EnableAlerts|Turn on order alerts/.test(pg)
+    /<AlertsOffLine \/>/.test(code(read("components/crew/LiveOpsRows.tsx"))) && /const thisPhoneOff = useAlertsOffHere\(\);/.test(code(read("components/crew/LiveOpsRows.tsx")))
+    && !/<AlertsOffLine/.test(block('{sec === "now" && (')) && !/EnableAlerts|Turn on order alerts/.test(pg)
     && /if \(!alertsOff\(perm\)\) return null;\s*return <GoLine to="settings" anchor="set-alerts">/.test(code(read("components/DeviceAlerts.tsx"))));
   const DA = code(read("components/DeviceAlerts.tsx"));
   ok("alerts on this device: the phone's answer is read as it draws (no effect), asked for with one tap, and every answer is said",
@@ -10900,8 +10910,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /\.k-sec-r\{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;flex:none;max-width:100%;margin-left:auto\}/.test(g));
   ok("buttons: an archived row's name wraps beside its buttons instead of being cut to fit them",
     /\.ev-arch-name\{flex:1;min-width:0;[^}]*overflow-wrap:anywhere\}/.test(g) && !/\.ev-arch-name\{[^}]*text-overflow:ellipsis/.test(g));
-  ok("buttons: the Live instrument's actions are compact and keep their place at the row's end",
-    (read("components/crew/LiveControl.tsx").match(/compact className="ml-auto shrink-0"/g) || []).length === 3);
+  // 2026-10-12 (the Live Ops round): the instrument is the truck's row; its one action — Try again, Go offline, Go live
+  // or Plan the next stop — is the kit's compact button at the row's end (components/crew/StatusRow), and does not shrink.
+  ok("buttons: the truck row's actions are compact and keep their place at the row's end",
+    (read("components/crew/LiveControl.tsx").match(/compact className="shrink-0"/g) || []).length === 4);
   const audit = read("scripts/css.audit.mjs");
   ok("buttons: the CSS audit holds the set (rule 10) — retired recipes, restyles by rule or utility, and the recipes still outside the kit, which only fall",
     /export const RETIRED_BUTTONS = \[/.test(audit) && /export function buttonRestylesIn\(/.test(audit) && /BUTTON_LOOK_UTILITY\.test\(/.test(audit) && /buttonRecipes: 0,/.test(audit));
@@ -11325,10 +11337,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /name: DRINKS\[id as DrinkId\]\?\.n \?\? id/.test(pb));
 
   // ── placed ahead: a lane of its own, and Live Ops counts the same way ──
+  // 2026-10-12 (the Live Ops round): Live Ops' count moved from the crew page's Pass card into the Pass's row
+  // (components/crew/LiveOpsRows PassRow) — the same readPulse, read from where it lives now.
   ok("pass scheduled: an order placed ahead waits in Scheduled — under New, folded until opened, by lib/passBoard's lanes",
     /const lanes = useMemo\(\(\) => passLanes\(orders, now\), \[orders, now\]\);/.test(tp) && /useState<Set<string>>\(\(\) => new Set\(\["scheduled"\]\)\)/.test(tp)
     && /\{st\.key === "new" && lanes\.scheduled\.length > 0 && \(\s*<div className="kds-stage" data-lane="scheduled">/.test(tp)
-    && /\{!folded\.has\("scheduled"\) && tickets\(lanes\.scheduled, st\.action\)\}/.test(tp) && /readPulse\(supabase, Date\.now\(\)\)/.test(pg));
+    && /\{!folded\.has\("scheduled"\) && tickets\(lanes\.scheduled, st\.action\)\}/.test(tp) && /readPulse\(supabase, Date\.now\(\)\)/.test(code(read("components/crew/LiveOpsRows.tsx"))));
 
   // ── 86, and recall: one tap ──
   ok("pass 86: on a phone the bar's '86 board' opens the 86 board in a sheet; where the rail is beside the board the door is not drawn",
@@ -11421,9 +11435,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // THE CARD: for managers, in Live Ops' left column under the truck, gone under the Pass.
   const nowSec = (pg.match(/\{sec === "now" && \([\s\S]*?\n      \)\}/) || [""])[0];
   const left = nowSec.slice(0, nowSec.indexOf("</Column>"));
-  ok("devices: the Devices card is the managers', in Live Ops' left column under the truck instrument, and not drawn under the Pass",
-    /import \{ DevicesCard \} from "@\/components\/crew\/DevicesCard";/.test(pg) && /\{canManage && !svc && <DevicesCard \/>\}/.test(left)
-    && left.indexOf("<LiveControl compact />") > 0 && left.indexOf("<LiveControl compact />") < left.indexOf("<DevicesCard />") && !/<DevicesCard/.test(nowSec.slice(nowSec.indexOf("</Column>"))));
+  // 2026-10-12 (the Live Ops round, approved): the card is words on the Pass's row ("2 phones can ring", "1 reconnecting"),
+  // its rows one tap away in the row's Phones sheet — the managers', as crew_devices is — and nothing under the Pass.
+  const rowsSrc = code(read("components/crew/LiveOpsRows.tsx"));
+  ok("devices: the Devices card is the managers', one tap from the Pass's row in Live Ops' left column, and not drawn under the Pass",
+    /import \{ DevicesCard, useDevices \} from "@\/components\/crew\/DevicesCard";/.test(rowsSrc) && /\{canManage && <DevicesCard \/>\}/.test(rowsSrc)
+    && /const devices = useDevices\(canManage\);/.test(rowsSrc) && /\{!svc && <PassRow canManage=\{canManage\}/.test(left)
+    && !/<DevicesCard/.test(nowSec) && !/DevicesCard/.test(pg));
   ok("devices: the card asks crew_devices every half minute while seen, and again on coming back — not realtime",
     /await supabase\.rpc\("crew_devices"\)/.test(card) && /window\.setInterval\(\(\) => \{ if \(seen\(\)\) void reload\(\); \}, DEVICES_POLL_MS\)/.test(card)
     && /document\.addEventListener\("visibilitychange", back\)/.test(card) && /export const DEVICES_POLL_MS = 30_000;/.test(hb) && !/useRealtimeTable/.test(card)
@@ -12131,6 +12149,135 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && ownerFns.join() === "0023_roles.sql" && /select coalesce\(\(select role = 'owner' from public\.profiles where id = auth\.uid\(\)\), false\);/.test(rd("supabase/migrations/0023_roles.sql")), ownerFns);
   ok("briefing: the card still says why if the server refuses anyway (a role changed while the page was open)",
     /if \(r\.status === 401 \|\| r\.status === 403\) setErr\("The Chief of Staff briefing is owner-only\. Ask an owner to run it for you\."\);/.test(rd("components/ChiefOfStaff.tsx")));
+}
+
+// ── LIVE OPS AT A GLANCE (2026-10-12, the Live Ops round — the owner approved its six items) ──
+// Measured on an iPhone 17 on a quiet day: ~425 points of status cards before Due next, OFFLINE before the truck had been
+// read (and kept when a read failed), Go live and Make it live drawn for event managers the database refuses, "Nothing
+// due next." over the drop, a 66×15-point venue link. lib/liveOps holds the rules; these run each state, and hold the
+// wiring only the source can show.
+{
+  const LO = require("../.smoke/liveOps.js"), HB = require("../.smoke/heartbeat.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const noSql = (s) => s.split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
+  const lc = code(rd("components/crew/LiveControl.tsx")), rows = code(rd("components/crew/LiveOpsRows.tsx")), row = code(rd("components/crew/StatusRow.tsx"));
+  const dev = code(rd("components/crew/DevicesCard.tsx")), page = code(rd("app/crew/page.tsx")), lib = code(rd("lib/liveOps.ts"));
+  const nowSec = (page.match(/\{sec === "now" && \([\s\S]*?\n      \)\}/) || [""])[0];
+  const compact = (lc.match(/if \(compact\) \{[\s\S]*?\n  \}\n/) || [""])[0];
+  const H = 3600_000;
+  const NOW = Date.parse("2026-10-12T14:00:00-04:00");   // a Monday, 2pm Eastern
+  const stopAt = (startH, endH) => ({ name: "Wine Express", starts_at: new Date(NOW + startH * H).toISOString(), ends_at: endH == null ? null : new Date(NOW + endH * H).toISOString() });
+
+  // THE TRUCK'S ROW (approved item 1) — off the road, live, a read that failed; never OFFLINE.
+  const truck = (o) => LO.truckSays({ read: "ready", live: false, nowMs: NOW, ...o });
+  ok("truck: before its first read it is checking — not OFFLINE", truck({ read: "loading" }).text === "Checking the truck…" && truck({ read: "loading" }).tone === "idle");
+  ok("truck: a read that failed is said, whatever the truck last was — never OFFLINE",
+    truck({ read: "failed" }).text === "Couldn't read the truck" && truck({ read: "failed", live: true, at: stopAt(-1, 2) }).text === "Couldn't read the truck" && truck({ read: "failed" }).tone === "fail");
+  ok("truck: off the road names the next stop, its day and its time",
+    truck({ next: { name: "Wine Express", starts_at: "2026-10-17T11:00:00-04:00" } }).text === "Off the road · next: Wine Express · Sat 11:00am"
+      && truck({ next: { name: "Wine Express", starts_at: null } }).text === "Off the road · next: Wine Express · no date yet", truck({ next: { name: "Wine Express", starts_at: "2026-10-17T11:00:00-04:00" } }));
+  ok("truck: with nothing on the road, it says so", truck({}).text === "Off the road · no stop ahead");
+  ok("truck: live names the stop and its minutes — left, past its close (warn), in, or not yet started",
+    truck({ live: true, at: stopAt(-1, 42 / 60) }).text === "Live at Wine Express · 42 min left" && truck({ live: true, at: stopAt(-1, 42 / 60) }).tone === "on"
+      && truck({ live: true, at: stopAt(-3, -12 / 60) }).text === "Live at Wine Express · closed 12 min ago" && truck({ live: true, at: stopAt(-3, -12 / 60) }).tone === "warn"
+      && truck({ live: true, at: stopAt(-40 / 60, null) }).text === "Live at Wine Express · 40 min in"
+      && truck({ live: true, at: stopAt(10 / 60, 3) }).text === "Live at Wine Express · starts in 10 min"
+      && truck({ live: true, at: stopAt(-1, 2.5) }).text === "Live at Wine Express · 2 h 30 min left",
+    [truck({ live: true, at: stopAt(-1, 42 / 60) }).text, truck({ live: true, at: stopAt(-3, -12 / 60) }).text, truck({ live: true, at: stopAt(-40 / 60, null) }).text]);
+  ok("truck: the words are live or off the road — the row never says OFFLINE or LIVE in capitals",
+    !/OFFLINE|"LIVE"/.test(compact) && !/OFFLINE/.test(lib) && /<StatusRow label="The truck" says=\{says\}/.test(compact) && /const says = truckSays\(truck\);/.test(compact));
+  ok("truck: every read says how it went — the stops or live_status not answering, the first time or any later, is a failed read; no row is a truck off the road",
+    /const failed = s\.error \?\? l\.error;\s*if \(failed\) \{ setErr\(failed\.message\); setRead\("failed"\); return; \}/.test(lc)
+      && /setRead\("ready"\);\s*setStops\(\(s\.data as Stop\[\] \| null\) \?\? \[\]\);\s*setLive\(\(l\.data as LiveStatus \| null\) \?\? null\);/.test(lc)
+      && /const \[read, setRead\] = useState<TruckRead>\("loading"\);/.test(lc) && !/if \(l\) setLive/.test(lc));
+  ok("truck: a failed read's row is Try again — on its button and on its line — and folds nothing open",
+    /act === "retry"\s*\? <Button kind="secondary" compact className="shrink-0" onClick=\{\(\) => \{ void load\(\); \}\} aria-label="Read the truck again">Try again<\/Button>/.test(compact)
+      && /onTap=\{\(\) => \{ if \(failed\) void load\(\); else setOpen\(\(o\) => !o\); \}\}/.test(compact) && /expanded=\{failed \? undefined : open\}/.test(compact)
+      && LO.truckAction({ read: "failed", live: true, nowMs: NOW }, false) === "retry");
+  ok("truck: live, a tap folds open what the instrument held — the stop's record, the map dot and its broadcast, the stops list, the dial: nothing removed",
+    /<RecordLink kind="stop" id=\{named\.id\}/.test(compact) && /onClick=\{pinHere\}/.test(compact) && /onClick=\{startBroadcast\}/.test(compact) && /onClick=\{stopBroadcast\}/.test(compact)
+      && /Truck stops · Plan › Lists<\/button>/.test(compact) && /\{admin && <button type="button" className="adm-golink hit-y-44" onClick=\{goDial\}>Cup-ordering dial ›<\/button>\}/.test(compact)
+      && /Map dot off —/.test(compact) && /<div id="truck-more"/.test(compact));
+  ok("truck: it stays mounted under the Pass, inert, so a broadcast goes on (the 2026-10-11 decision stands)",
+    /\{canManage && <div className="contents" inert=\{svc \? true : undefined\}><LiveControl compact \/><\/div>\}/.test(nowSec) && /useWakeLock\(broadcasting\);/.test(lc));
+
+  // THE PASS'S ROW (approved item 1) — clear, busy, the phones' trouble in words.
+  const phones = (o) => ({ onPass: 0, ringing: 0, reconnecting: 0, notConnected: 0, ...o });
+  const pass = (o) => LO.passSays({ read: "ready", pass: 0, ahead: 0, out: 0, phones: null, thisPhoneOff: false, ...o });
+  ok("pass: clear — Pass clear · N 86'd · N phones can ring",
+    pass({ out: 2, phones: phones({ onPass: 2, ringing: 2 }) }).text === "Pass clear · 2 86'd · 2 phones can ring" && pass({ out: 2, phones: phones({ onPass: 2, ringing: 2 }) }).tone === "idle"
+      && pass({ phones: phones({ onPass: 1, ringing: 1 }) }).text === "Pass clear · 1 phone can ring" && pass({}).text === "Pass clear",
+    pass({ out: 2, phones: phones({ onPass: 2, ringing: 2 }) }));
+  ok("pass: busy — N on the Pass · N ahead, and the phones only when something is wrong with them",
+    pass({ pass: 3, ahead: 1, out: 2, phones: phones({ onPass: 2, ringing: 2 }) }).text === "3 on the Pass · 1 ahead" && pass({ pass: 3, ahead: 1, phones: phones({ onPass: 2, ringing: 2 }) }).tone === "busy"
+      && pass({ pass: 3, phones: phones({ onPass: 1, ringing: 1 }) }).text === "3 on the Pass");
+  ok("pass: device trouble is words on the row — reconnecting, not connected, no phone can ring, this phone can't ring — and its tone is warn",
+    pass({ pass: 3, phones: phones({ onPass: 1, reconnecting: 1 }) }).text === "3 on the Pass · no phone can ring · 1 reconnecting"
+      && pass({ out: 2, phones: phones({ onPass: 3, ringing: 2, notConnected: 1 }) }).text === "Pass clear · 2 86'd · 2 phones can ring · 1 not connected"
+      && pass({ out: 2, phones: phones({}), thisPhoneOff: true }).text === "Pass clear · 2 86'd · no phone on the Pass · this phone can't ring"
+      && pass({ pass: 2, phones: phones({}) }).text === "2 on the Pass · no phone on the Pass"
+      && [pass({ pass: 3, phones: phones({ onPass: 1, reconnecting: 1 }) }), pass({ thisPhoneOff: true }), pass({ pass: 2, phones: phones({}) })].every((x) => x.tone === "warn" && x.trouble),
+    [pass({ pass: 3, phones: phones({ onPass: 1, reconnecting: 1 }) }).text, pass({ out: 2, phones: phones({}), thisPhoneOff: true }).text]);
+  ok("pass: a quiet day off service is not trouble — nobody on the Pass is said, plainly", pass({ out: 2, phones: phones({}) }).text === "Pass clear · 2 86'd · no phone on the Pass" && !pass({ out: 2, phones: phones({}) }).trouble);
+  ok("pass: a count that did not answer is said, and so is a phones read that did not", pass({ read: "failed" }).text === "Couldn't count the Pass" && pass({ read: "failed" }).tone === "fail"
+    && pass({ phones: "failed" }).text === "Pass clear · couldn't check the phones" && pass({ read: "loading" }).text === "Checking the Pass…");
+  const dev1 = (feed, seen_s = 10, alerts_on = true, surface = "pass") => ({ device_id: `d-${feed}-${seen_s}`, surface, feed, alerts_on, seen_s });
+  const counted = HB.passPhones([dev1("live"), dev1("live", 10, false), dev1("reconnecting"), dev1("down"), dev1("signed-out"), dev1("unknown"), dev1("live", 400), dev1("live", 10, true, "driver")]);
+  ok("pass: a phone can ring when it has the Pass open and connected (0376's test); one gone quiet left the Pass; a feed not said yet is neither ringing nor trouble",
+    counted.onPass === 6 && counted.ringing === 2 && counted.ringingAlertsOn === 1 && counted.reconnecting === 1 && counted.notConnected === 2
+      && HB.passPhones([dev1("live", 100)], 60).onPass === 0 && HB.passPhones([dev1("live", 100)], 50).ringing === 1, counted);
+  ok("pass: a device is connected or reconnecting — no more Live or Down for a phone",
+    HB.feedWord("live") === "Connected" && HB.feedWord("reconnecting") === "Reconnecting" && HB.feedWord("down") === "Not connected" && HB.feedWord("signed-out") === "Signed out");
+  ok("pass: the row reads the Pass's own count (readPulse) and the 86 board, again on a change and every minute; a tap opens the Pass; its phones are the managers' to read, this phone's alerts everyone's",
+    /readPulse\(supabase, Date\.now\(\)\)/.test(rows) && /useRealtimeTable\(\["orders", "products"\], reload\);/.test(rows) && /window\.setInterval\(\(\) => \{ void reload\(\); \}, 60_000\)/.test(rows)
+      && /<StatusRow label="The Pass" says=\{says\} tapLabel=\{`\$\{says\.text\}\. Opens the Pass\.`\} onTap=\{onOpenPass\} action=\{action\} \/>/.test(rows)
+      && /const devices = useDevices\(canManage\);/.test(rows) && /phones: !canManage \? null : devices\.failed \? "failed" : devices\.phones,/.test(rows)
+      && /const read: ReadState = pulse\.error \? "failed" : pulse\.data \? "ready" : "loading";/.test(rows));
+  ok("pass: the alerts-off line and the Devices card are one tap away — the row's Phones sheet — and are no longer blocks of Live Ops",
+    /aria-haspopup="dialog" onClick=\{\(\) => setPhonesOpen\(true\)\}/.test(rows) && /<AlertsOffLine \/>\s*\{canManage && <DevicesCard \/>\}/.test(rows)
+      && !/<AlertsOffLine|<DevicesCard|<ServicePulse/.test(nowSec) && /export function useAlertsOffHere\(\): boolean \{/.test(code(rd("components/DeviceAlerts.tsx"))));
+  ok("pass: the phones are one read (useDevices) — asked only for a manager, whom crew_devices answers — and a later read that fails is said over the last answer",
+    /export function useDevices\(enabled: boolean = true\): Devices \{/.test(dev) && /useAsyncData\(enabled \? readDevices : readNothing, \[enabled\]\)/.test(dev)
+      && /failed: error !== null,/.test(dev) && /\{failed && <p className="load-failed" role="status">Couldn&rsquo;t check again just now — these are from the last answer\.<\/p>\}/.test(dev));
+
+  // CONTROLS BY ROLE (approved item 4) — the database's own test.
+  const is035 = rd("supabase/migrations/0035_admin_guard_fix.sql");
+  const isAdminDefs = fs.readdirSync(path.join(__dirname, "..", "supabase/migrations")).filter((f) => /create or replace function public\.is_admin\(\)/.test(rd(`supabase/migrations/${f}`)));
+  const lastDef = (fn) => fs.readdirSync(path.join(__dirname, "..", "supabase/migrations")).sort().filter((f) => new RegExp(`create or replace function public\\.${fn}\\(`).test(rd(`supabase/migrations/${f}`))).pop();
+  const guarded = (fn) => { const f = lastDef(fn); const body = (noSql(rd(`supabase/migrations/${f}`)).split(new RegExp(`create or replace function public\\.${fn}\\(`))[1] || "").split("$$;")[0]; return /if not public\.is_admin\(\) then raise exception 'not authorized'; end if;/.test(body); };
+  ok("roles: is_admin() is owner or admin, or the legacy flag (0035, last defined there) — and go live, go offline, the map dot and make it live each ask it",
+    isAdminDefs.sort().pop() === "0035_admin_guard_fix.sql" && /where id = auth\.uid\(\) and \(role in \('admin','owner'\) or is_admin = true\)/.test(is035)
+      && ["admin_set_live", "admin_set_offline", "admin_set_truck_pos", "admin_set_event_live"].every(guarded)
+      && lastDef("admin_set_live") === "0124_set_live_where.sql" && lastDef("admin_set_event_live") === "0024_event_object.sql",
+    { isAdminDefs, live: lastDef("admin_set_live"), offline: lastDef("admin_set_offline"), pos: lastDef("admin_set_truck_pos") });
+  ok("roles: mayGoLive is that test, read off the stored profile — owners and admins, and an event manager with the flag; not an event manager, the crew or a member",
+    LO.mayGoLive({ role: "owner" }) && LO.mayGoLive({ role: "admin" }) && LO.mayGoLive({ role: "event_manager", is_admin: true }) && LO.mayGoLive({ role: null, is_admin: true })
+      && ["event_manager", "operator", "contractor", "server", "member"].every((r) => !LO.mayGoLive({ role: r, is_admin: false })) && !LO.mayGoLive(null) && !LO.mayGoLive(undefined));
+  ok("roles: Go live, Go offline and Plan the next stop are drawn for who may — an event manager sees the truck's state and no action but Try again",
+    ["go-live", "go-offline", "plan"].every((a) => [{ live: false, next: { name: "x" } }, { live: true }, { live: false }].some((t) => LO.truckAction({ read: "ready", nowMs: NOW, ...t }, true) === a))
+      && [{ live: false, next: { name: "x" } }, { live: true }, { live: false }].every((t) => LO.truckAction({ read: "ready", nowMs: NOW, ...t }, false) === null)
+      && /const canLive = mayGoLive\(profile\);/.test(lc) && /const act = truckAction\(truck, canLive\);/.test(compact));
+  ok("roles: the map dot's Pin once and Broadcast, Route's Go live at this location and its Go offline follow the same test",
+    /\{canLive && \(broadcasting/.test(compact) && /onGoLive=\{canLive \? /.test(lc)
+      && /onGoOffline=\{canLive \? pause : undefined\}/.test(lc) && /\{live\?\.is_live && canLive && <Button kind="secondary" compact onClick=\{pause\}>Go offline<\/Button>\}/.test(lc));
+
+  // REACH (approved item 6) — every target 44 points, and VoiceOver names that say what a control does.
+  ok("reach: a status row is 52 points, its line a 44-point button, its action the kit's compact button (36 points reaching 44)",
+    /<div className="flex items-center gap-2 pr-3 min-h-13">/.test(row) && /className="flex flex-1 min-w-0 items-center gap-2\.5 self-stretch min-h-11 /.test(row)
+      && /\.btn-sm::after\{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px\}/.test(rd("app/globals.css")) && /\.btn-sm\{position:relative;min-height:var\(--btn-h-sm\)/.test(rd("app/globals.css"))
+      && (compact.match(/<Button [^>]*\bcompact\b/g) || []).length >= 6 && !/<button(?![^>]*(min-h-11|hit-y-44))[^>]*>/.test(compact.replace(/<Button\b/g, "<Kit")));
+  ok("reach: the venue link is a whole row — no inline record link in the truck's row — and the kit's list rows and quiet buttons are 44 points or more",
+    (compact.match(/<RecordLink /g) || []).length === 1 && /<RecordLink kind="stop" id=\{named\.id\} className="[^"]*\bmin-h-11\b/.test(compact)
+      && /\.k-row\{display:flex;align-items:center;gap:16px;padding:15px 0;/.test(rd("app/globals.css"))
+      && /:is\(\.btn-ter,\.btn-del\)\{display:inline-flex;align-items:center;gap:6px;min-height:44px;/.test(rd("app/globals.css")));
+  ok("reach: VoiceOver hears what each control does — the row's state and where a tap goes, Go live's stop, Phones' purpose",
+    /tapLabel=\{failed \? `\$\{says\.text\}\. Tries again\.` : `\$\{says\.text\}\. \$\{open \? "Hides" : "Shows"\} the stop, the map dot and the stops list\.`\}/.test(compact)
+      && /aria-label=\{`Go live at \$\{stopName\(nextStop\)\}/.test(compact) && /aria-label=\{tapLabel\} aria-expanded=\{expanded\}/.test(row)
+      && /aria-label=\{`Phones on the Pass/.test(rows));
+
+  ok("smoke: lib/liveOps and lib/heartbeat are compiled for these pins", /lib\/liveOps\.ts lib\/heartbeat\.ts/.test(JSON.parse(rd("package.json")).scripts.smoke));
 }
 
 Promise.all(PENDING).then(() => {
