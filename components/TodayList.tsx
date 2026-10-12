@@ -169,9 +169,12 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
 
   // A row says why it stands where it does, first, in words (lib/home reasonWords) — then what it is, unless
   // the reason already named it — and its age beside it when the reason has not said when (ageWords).
+  // A DECISION IS NOT AN ALARM (2026-10-12, at integration, the My Day audit's rule: no urgency from age alone). What is
+  // late by two weeks or less is still today's to do, and draws in the late red; what is later than that leads as "To
+  // decide" in the plain ink, its age said beside it — as the row of the rest to decide below it always was.
   const row = (i: Item, today: string) => {
     const canTick = !!tickOf(i);
-    const late = i.daysOut !== null && i.daysOut < 0;
+    const late = i.daysOut !== null && i.daysOut < 0 && homeTier(i) !== 6;
     const reason = reasonWords(i, today), age = ageWords(i);
     const sub = homeTier(i) === 1 && i.subIsOp ? null : i.sub;
     const body = (

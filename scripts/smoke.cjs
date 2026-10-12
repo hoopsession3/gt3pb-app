@@ -6760,6 +6760,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       /const reason = reasonWords\(i, today\), age = ageWords\(i\);/.test(tl) && /const sub = homeTier\(i\) === 1 && i\.subIsOp \? null : i\.sub;/.test(tl)
       && /<i>\{\[reason && sentence\(reason\), sub\]\.filter\(Boolean\)\.join\(" · "\)\}<\/i>/.test(tl) && /\{age && <span className="owed-age">\{age\}<\/span>\}/.test(tl)
       && /const op = t\.op\?\.day \? \{ name: t\.op\.name, daysOut: daysBetween\(today, t\.op\.day\) \} : null;/.test(tl));
+    ok("my day (D): a thing to decide is not drawn as an alarm — the late red is for what is late by two weeks or less; one more than two weeks late leads in the plain ink, its age beside it",
+      /const late = i\.daysOut !== null && i\.daysOut < 0 && homeTier\(i\) !== 6;/.test(tl) && /className=\{`owed-row\$\{late \? " late" : ""\}`\}/.test(tl)
+      && H.homeTier({ key: "s", title: "s", sub: "", daysOut: -30, critical: false, kind: "mine" }) === 6 && H.homeTier({ key: "l", title: "l", sub: "", daysOut: -3, critical: false, kind: "mine" }) === 4);
     ok("my day (I): 'All tasks' stays the door to both full lists, and its count is every item on the list — all of them yours",
       H.splitHome([{ key: "a", title: "a", sub: "", daysOut: 0, critical: false, kind: "mine" }, { key: "u", title: "u", sub: "", daysOut: -3, critical: false, kind: "upkeep" }]).total === 2
       && /aria-label=\{`All tasks, \$\{s\.total\}`\}>All tasks · \{s\.total\} ›<\/button>/.test(tl) && /\{sheet === "all" && \(/.test(tl));
@@ -12574,6 +12577,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("monday audit: each score is the kit's segmented control, a radio group at its large size — 44 points tall, where the chips stood 34 — and a second tap clears it",
     lgH >= 44 && /min-width:52px/.test(lgRule) && /size\?: "sm" \| "lg";/.test(ctl) && /\.k-seg\{[^}]*padding:3px/.test(g)
       && /<Segmented kind="choice" size="lg" label=\{/.test(maud) && /onChange=\{pick\} onReselect=\{pick\}/.test(maud) && !/osr-chip/.test(g + maud + osr), lgRule);
+  ok("monday audit: Skip is a 44-point target both ways — the word alone measured 40 wide on an iPhone 17",
+    /<LeaveButton className="btn-ter min-w-11" onClick=\{skip\} disabled=\{saving\}>Skip<\/LeaveButton>/.test(maud));
   ok("monday audit: the criteria have one home — the list keeps no copy of the sheet's, and the walk draws the lib's, one row each",
     !/const CRITERIA = \[/.test(osrRaw + maudRaw) && /CRITERIA\.map\(\(c\) => <Criterion key=\{c\.key\}/.test(maud) && /<p className="m-0 mt-0\.5 font-sans text-footnote leading-snug text-cream-muted">\{c\.hint\}<\/p>/.test(maud));
   ok("monday audit: each rule said once — the next action and the blocker are named, not ruled again, and 'parked by decision' is said beside Status alone",

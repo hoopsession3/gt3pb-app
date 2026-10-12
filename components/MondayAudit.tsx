@@ -266,7 +266,8 @@ export default function MondayAudit({ rows, recent, ids, start, onReload, onClos
       <div className="note-lux-head gap-3">
         <span className="note-lux-eyb">Monday audit</span>
         <span className="ml-auto flex items-center gap-4">
-          {!summary && <LeaveButton className="btn-ter" onClick={skip} disabled={saving}>Skip</LeaveButton>}
+          {/* 44 points across as well as tall: "Skip" alone is 40 wide (2026-10-12, measured at integration). */}
+          {!summary && <LeaveButton className="btn-ter min-w-11" onClick={skip} disabled={saving}>Skip</LeaveButton>}
           <CloseButton onClick={close} label="Close the audit" />
         </span>
       </div>
