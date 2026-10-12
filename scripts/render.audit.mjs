@@ -72,7 +72,12 @@ import { readFileSync, existsSync } from "node:fs";
 // count in an effect and kept the last number when a read failed; the Pass's row that replaced it reads through
 // useAsyncData (components/crew/LiveOpsRows PassRow). Measured by linting the crew page at 9695df5 and after (23 → 22
 // hits); the truck's loader (components/crew/LiveControl) keeps its one, a data-load as before.
-export const BASELINE = 99;
+//
+// 2026-10-12: 99 → 98 (the Catalog round, at integration with Live Ops). The menu's expander went, and with it its sync-to-prop effect
+// (`useEffect(() => { setD(p); }, [p])`, components/MenuManager:89 — the one that wiped an open row's edits on every
+// read of the list). Measured on the files themselves: eslint finds that one hit in the old MenuManager and none in
+// the new MenuManager, ProductPage or lib/catalog.
+export const BASELINE = 98;
 
 const RULE = "react-hooks/set-state-in-effect";
 

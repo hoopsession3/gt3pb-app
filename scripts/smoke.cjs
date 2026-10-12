@@ -4313,7 +4313,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // argue its way onto this list.
   const NOT_A_MEASURING_SURFACE = {
     "components/CogsCalculator.tsx": "cost per line — a money view; nobody weighs from it",
-    "components/MenuManager.tsx": "per-serving config an owner types; not a prep instruction",
+    // The recipe rows moved from the menu list's expander to the product's own page (2026-10-12, the Catalog round).
+    "components/ProductPage.tsx": "per-serving config an owner types; not a prep instruction",
     "components/BrewPlanner.tsx": "shortfall text + the sizing hint, both about STOCK not measuring",
     "app/crew/page.tsx": "inventory on hand and reorder points — stock levels, not a recipe",
   };
@@ -8053,7 +8054,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("two cities, one name: a listed shelf says its city only when another city stocks that name",
     CG.shelfLabel(INV[0], INV) === "Org Ethiopia Coffee (bulk) — Greenville" && CG.shelfLabel(INV[2], INV) === "Agave — Atlanta" && CG.shelfLabel(INV[4], INV) === "Water",
     [CG.shelfLabel(INV[0], INV), CG.shelfLabel(INV[4], INV)]);
-  const cc = code(read("components/CogsCalculator.tsx")), mm2 = code(read("components/MenuManager.tsx"));
+  // A drink's recipe and its ingredient picker are on the product's page since 2026-10-12 (the Catalog round), not in the
+  // menu list's expander — the same select, the same picker, the same rows.
+  const cc = code(read("components/CogsCalculator.tsx")), mm2 = code(read("components/ProductPage.tsx"));
   ok("two cities, one name: the COGS calculator prices a batch through costByName, reading each shelf's city",
     /select\("id, name, unit_cost, unit, market"\)/.test(cc) && /const invByName = useMemo\(\(\) => costByName\(inv\), \[inv\]\);/.test(cc) && !/new Map\(inv\.map\(\(x\) => \[x\.name/.test(cc));
   ok("two cities, one name: the menu's ingredient picker and a drink's recipe rows say whose shelf a repeated name is",
@@ -10908,8 +10911,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const cs = read("components/ConfirmSheet.tsx");
   ok("buttons: a question's yes is the kit's primary, and red words when the step cannot be undone (as iOS draws an alert's)",
     /className=\{opts\.danger \? "btn-del" : "btn-pri"\} autoFocus/.test(cs) && /className="btn-ter" onClick=\{\(\) => settle\(false\)\}/.test(cs));
+  // A drink's Delete is on its own page since 2026-10-12 (the Catalog round), where the expander's was.
   ok("buttons: Delete is red words wherever it was gold words",
-    ["components/MenuManager.tsx", "components/PlanEditor.tsx", "components/LessonsManager.tsx"].every((f) => /className="btn-del" onClick=\{del\}>Delete</.test(read(f)))
+    ["components/ProductPage.tsx", "components/PlanEditor.tsx", "components/LessonsManager.tsx"].every((f) => /className="btn-del" onClick=\{del\}>Delete</.test(read(f)))
     && /className="btn-del ml-auto" onClick=\{\(\) => del\(a\)\}>Delete</.test(read("components/MaintenanceLog.tsx"))
     && /<Button type="button" kind="destructive" onClick=\{\(\) => remove\(r\.id, r\.name\)\}>Delete<\/Button>/.test(read("app/crew/page.tsx")) && !/style=\{\{ color: "#e07a76" \}\}/.test(read("app/crew/page.tsx")));
   ok("buttons: the splash's button is the kit's primary, rising in with the rest and still settling under the finger (its entrance does not hold the end state)",
@@ -12823,6 +12827,182 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const foldRow = firstPx(decl(".k-row", "padding")) * 2 + firstPx(decl(".k-nm", "font-size"));
   ok("command audit: a fold's row and the team's week are 44 points or more to the thumb",
     foldRow >= 44 && /\.cmd-week\{[^}]*min-height:44px/.test(css), { foldRow });
+}
+
+// ── THE CATALOG · A DRINK OPENS ITS OWN PAGE (2026-10-12) ──
+// Measured on an iPhone 17 with eleven drinks: a drink's details were an expander under its row whose draft the next
+// read of the list overwrote (MenuManager ~:89, `useEffect(() => { setD(p); }, [p])` — an 86 on another row wiped what
+// was being typed), whose save won over anybody's newer change without a word, and whose recipe, when it failed to read,
+// looked like no recipe (~:94, :119 dropped the error). lib/catalog is the rule; components/ProductPage the page.
+{
+  const K = require("../.smoke/catalog.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const mm = code(rd("components/MenuManager.tsx")), pp = code(rd("components/ProductPage.tsx"));
+
+  // ── the switch the page shares with the row ──
+  ok("catalog: the switch reads On sale or 86'd, and VoiceOver hears the product, its state, and what a double-tap does",
+    K.switchWords(false) === "On sale" && K.switchWords(true) === "86'd"
+    && K.spokenLine("RISE", false) === "RISE, on sale. Double-tap to 86."
+    && K.spokenLine("RISE", true) === "RISE, 86'd, sold out today. Double-tap to put it back on sale."
+    && K.switchSpoken("RISE", false).label === "RISE, on sale" && K.switchSpoken("RISE", false).hint === "Double-tap to 86.",
+    [K.spokenLine("RISE", false), K.spokenLine("RISE", true)]);
+  ok("catalog: the switch is one — role switch, on is on sale, its name and hint from lib/catalog (the hint hidden, read as the description), the kit's track, one 44-point target",
+    /<button type="button" role="switch" aria-checked=\{!p\.sold_out\} aria-label=\{said\.label\} aria-describedby=\{hintId\} onClick=\{onFlip\}/.test(pp)
+    && /className="w-30 shrink-0 min-h-11 /.test(pp) && /<span id=\{hintId\} hidden>\{said\.hint\}<\/span>/.test(pp)
+    && /<span className=\{`k-switch\$\{p\.sold_out \? "" : " on"\}`\} aria-hidden="true">/.test(pp)
+    && /\? <AvailSwitch p=\{p\} onFlip=\{\(\) => onFlip\(p\)\} \/>/.test(pp));
+  ok("catalog: every target on the page reaches 44 — the form's switches are rows, the recipe's Remove and Add the kit's buttons",
+    /className="w-full min-h-11 mt-2 flex items-center gap-3/.test(pp) && /<SwitchRow label="On the menu" on=\{draft\.active\}/.test(pp)
+    && /<SwitchRow label="Available for bulk \/ delivery pack" on=\{draft\.bulk_orderable\}/.test(pp)
+    && /className="btn-ter shrink-0" onClick=\{\(\) => \{ void rmComponent\(c\); \}\}/.test(pp) && /className="btn-sec btn-sm shrink-0" onClick=\{\(\) => \{ void addComponent\(\); \}\}/.test(pp)
+    && !/insp-yes|insp-no|type="checkbox"/.test(pp));
+
+  // ── the version, and a save over somebody else's change ──
+  const row = (o) => ({ id: "p", slug: "rise", name: "RISE", line: "Activation", price_cents: 700, active: true, sort: 1, sold_out: false, sold_out_at: null, sold_out_by: null,
+    what: "x", why: null, ingredients: ["a", "b"], excludes: [], timing: "BEFORE", bulk_orderable: false, bulk_tier: "premium", updated_at: "2026-10-12T14:03:22.123456+00:00", ...o });
+  const base = row({});
+  ok("catalog: a version is read to the microsecond, however PostgREST or Postgres spells it",
+    K.versionMicros("2026-10-12T14:03:22.123456+00:00") === Date.parse("2026-10-12T14:03:22Z") * 1000 + 123456
+    && K.sameVersion("2026-10-12T14:03:22.12+00:00", "2026-10-12 14:03:22.120000+00") && K.sameVersion("2026-10-12T10:03:22.5-04:00", "2026-10-12T14:03:22.500Z")
+    && !K.sameVersion("2026-10-12T14:03:22.123456+00:00", "2026-10-12T14:03:22.123457+00:00") && K.versionMicros("not a time") === null && !K.sameVersion(null, null));
+  ok("catalog: the stale-version check — the same version saves; a newer 86 is saved over; a newer change to what the page shows asks; a deleted row is gone",
+    K.saveVerdict(base, row({})) === "save"
+    && K.saveVerdict(base, row({ updated_at: "2026-10-12T14:05:00.000001+00:00", sold_out: true, sold_out_at: "2026-10-12T14:05:00+00:00" })) === "rebase"
+    && K.saveVerdict(base, row({ updated_at: "2026-10-12T14:05:00+00:00", price_cents: 800 })) === "ask"
+    && K.saveVerdict(base, row({ updated_at: "2026-10-12T14:03:22.123457+00:00", what: "y" })) === "ask"
+    && K.saveVerdict(base, row({ updated_at: "2026-10-12T14:05:00+00:00", what: " x " })) === "rebase"
+    && K.saveVerdict(base, null) === "gone");
+  const typed = { ...K.draftOf(base), what: "new words" };
+  ok("catalog: the question says who changed what and what each answer does — and a save writes only what this page changed",
+    K.conflictWords("RISE", base, row({ updated_at: "2026-10-12T14:05:00+00:00", price_cents: 800 }), typed).title === "Someone changed RISE since you opened it"
+    && /^They changed the price\. Save anyway keeps theirs and adds your edits; Reload shows theirs and drops your edits\.$/.test(K.conflictWords("RISE", base, row({ updated_at: "z", price_cents: 800 }), typed).body)
+    && /Save anyway puts your description over theirs/.test(K.conflictWords("RISE", base, row({ updated_at: "z", what: "theirs" }), typed).body)
+    && JSON.stringify(K.patchOf(typed, base)) === JSON.stringify({ what: "new words" }) && JSON.stringify(K.patchOf(K.draftOf(base), base)) === "{}");
+  ok("catalog: the page saves on the version it opened, writes only what changed, and asks — Reload or Save anyway — over somebody else's change",
+    /const patch = patchOf\(draft, base\);/.test(pp)
+    && /\.update\(patch\)\.eq\("id", p\.id\)\.eq\("updated_at", against\.updated_at\)\.select\("\*"\)/.test(pp)
+    && /const verdict = saveVerdict\(against, latest\);/.test(pp) && /if \(verdict === "ask"\) \{ haptic\("warning"\); setConflict\(latest\); return; \}/.test(pp)
+    && />Reload<\/button>/.test(pp) && /"Save anyway"/.test(pp));
+  ok("catalog: an open page keeps what is typed across a read — a newer row moves the version, and replaces the draft only when nothing is typed",
+    /if \(seen !== p\) \{\s*setSeen\(p\);\s*const news = changedFields\(valuesOf\(draftOf\(p\)\), valuesOf\(draftOf\(base\)\)\)\.length > 0;\s*if \(!news\) setBase\(p\);\s*else if \(!dirty\) \{ setBase\(p\); setDraft\(draftOf\(p\)\); \}\s*\}/.test(pp)
+    && !/setD\(p\)/.test(mm + pp) && /<ProductPage key=\{page\.id\}/.test(mm) && /dirty=\{dirty && !gone\}/.test(pp));
+  ok("catalog: the draft keeps what is typed — a comma at the end stays, a price can be half-typed — and saves what the expander saved, with its two refusals",
+    K.draftOf(base).ingredients === "a, b" && K.valuesOf({ ...K.draftOf(base), ingredients: "a, b," }).ingredients.join("|") === "a|b"
+    && K.priceCents("7.") === 700 && K.priceCents("$7.50") === 750 && K.priceCents("abc") === 0
+    && K.invalid({ name: " ", active: false, price_cents: 0 }) === "Give it a name first"
+    && K.invalid({ name: "X", active: true, price_cents: 0 }) === "Set a price above $0 before putting it on the menu" && K.invalid({ name: "X", active: false, price_cents: 0 }) === null);
+
+  // ── a recipe that did not read, and the recipe on the refresh ──
+  ok("catalog: a recipe that did not read says so, with Try again — it is never shown as an empty recipe",
+    K.RECIPE_READ_FAILED === "Couldn't read the recipe — this is not an empty recipe."
+    && /if \(c\.error\) throw new Error\(c\.error\.message\);\s*if \(i\.error\) throw new Error\(i\.error\.message\);/.test(pp)
+    && /recipe\.status === "error" \? \(\s*<p className="cp-line" role="alert">\{RECIPE_READ_FAILED\}\{" "\}\s*<button type="button" className="btn-ter" onClick=\{\(\) => \{ void recipe\.reload\(\); \}\}>Try again<\/button><\/p>/.test(pp)
+    && /\{recipe\.error && \(\s*<p className="cp-line" role="alert">\{RECIPE_REREAD_FAILED\}/.test(pp) && !/if \(!error\) setComps/.test(mm + pp));
+  ok("catalog: the open page's recipe reads again on a change to product_components, and with the app's refresh (lib/realtime)",
+    /useRealtimeTable\("product_components", recipe\.reload\);/.test(pp));
+
+  // ── the 86s on record, and where it is sold ──
+  const A = (at, actor, was86, is86) => ({ created_at: at, actor, was86, is86 });
+  const flips = K.flipsFrom([A("2026-10-11T18:14:00.120000+00:00", "u1", false, true), A("2026-10-12T08:00:01.123456+00:00", null, true, false),
+    A("2026-10-10T12:00:00+00:00", "u1", null, null), A("2026-10-10T13:00:00+00:00", "u1", true, true)]);
+  ok("catalog: the 86 history is the change log's — flips only, newest first; the 4am reset named as such, a person by name",
+    flips.length === 2 && flips[0].to86 === false && flips[1].to86 === true
+    && K.flipWho(flips[0], {}) === "the daily reset" && K.flipWho(flips[1], { u1: "Ryan" }) === "Ryan" && K.flipWho(flips[1], {}) === "Staff"
+    && K.flipWho({ at: "2026-10-12T15:00:00Z", actor: null, to86: false }, {}) === "the system"
+    && K.flipLine(flips[1], { u1: "Ryan" }, Date.parse("2026-10-11T22:00:00Z")) === "86'd today at 2:14pm · Ryan", K.flipLine(flips[1], { u1: "Ryan" }, Date.parse("2026-10-11T22:00:00Z")));
+  ok("catalog: the current 86 is the product's own stamp, and every 86 clears at the 08:00 UTC reset, said on the Eastern clock",
+    K.soldOutLine({ sold_out: true, sold_out_at: "2026-10-12T18:14:00Z", sold_out_by: "u1" }, { u1: "Ryan" }, Date.parse("2026-10-12T20:00:00Z")) === "86'd today at 2:14pm by Ryan."
+    && K.soldOutLine({ sold_out: false, sold_out_at: null, sold_out_by: null }, {}) === null
+    && K.resetLine(Date.parse("2026-10-12T15:00:00Z")) === "Every 86 clears at 4:00am." && K.resetLine(Date.parse("2026-12-01T15:00:00Z")) === "Every 86 clears at 3:00am."
+    && K.nextResetAt(Date.parse("2026-10-12T07:59:00Z")) === "2026-10-12T08:00:00.000Z");
+  ok("catalog: the page reads its 86s from the change log's own before and after, and its event menus by slug — and says when either could not be read",
+    /\.from\("admin_audit"\)\s*\.select\("created_at, actor, was86:old_row->sold_out, is86:new_row->sold_out"\)\s*\.eq\("table_name", "products"\)\.eq\("row_pk", p\.id\)\.ilike\("summary", "%sold_out: %"\)/.test(pp)
+    && /\.from\("event_menu_items"\)\s*\.select\("event_id, stop_id, events\(title, day, archived_at, completed_at\), stops\(name, starts_at, archived_at, completed_at\)"\)\s*\.eq\("product_slug", p\.slug\)/.test(pp)
+    && /Couldn&apos;t read the 86 history/.test(pp) && /Couldn&apos;t read the event menus/.test(pp));
+  const E = (id, title, day, extra = {}) => ({ event_id: id, stop_id: null, events: { title, day, archived_at: null, completed_at: null, ...extra } });
+  const S = (id, name, starts_at) => ({ event_id: null, stop_id: id, stops: { name, starts_at, archived_at: null, completed_at: null } });
+  const ups = K.upcomingMenus([E("e1", "Fit Fest", "2026-10-17"), E("e2", "Old one", "2026-10-01"), E("e3", "Archived", "2026-10-20", { archived_at: "2026-10-02T00:00:00Z" }),
+    S("s1", "Wine Express", "2026-10-13T01:00:00Z"), E("e4", "Undated", null), E("e5", "Done", "2026-10-15", { completed_at: "2026-10-12T00:00:00Z" })], "2026-10-12");
+  ok("catalog: where it is sold — the event and stop menus still to come, soonest first (a stop's day is the business's), undated last",
+    ups.map((u) => `${u.kind}:${u.name}:${u.day}`).join(" | ") === "stop:Wine Express:2026-10-12 | event:Fit Fest:2026-10-17 | event:Undated:null", ups.map((u) => u.name));
+}
+
+// ── THE CATALOG · ONE SHORT ROW PER DRINK, GROUPED, FILTERED, LIVE (2026-10-12) ──
+// Measured on an iPhone 17 with eleven drinks, Menu & products was 1,976 points: four and a half drinks on the first
+// screen behind a four-line paragraph, rows 77 points apart whose way in was the 20-point name, an 86 a screen reader
+// heard as "86", and a list that read once — the crew's 86 from the Pass showed after a reload. lib/catalog is the rule;
+// components/MenuManager the list.
+{
+  const K = require("../.smoke/catalog.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const mm = code(rd("components/MenuManager.tsx"));
+
+  // ── the row: its words, its spoken name, its size ──
+  ok("catalog: a row's way in says its name, line and price — and off the menu when it is; a draft with no name is New item",
+    K.rowSpoken({ name: "RISE", line: "Activation", price_cents: 700, active: true }) === "RISE, Activation, $7"
+    && K.rowSpoken({ name: "  ", line: null, price_cents: 0, active: false }) === "New item, $0, off the menu",
+    K.rowSpoken({ name: "  ", line: null, price_cents: 0, active: false }));
+  ok("catalog: off the menu outranks sold out; 86'd is only ever on the menu",
+    K.availabilityOf({ active: false, sold_out: true }) === "off" && K.availabilityOf({ active: true, sold_out: true }) === "86" && K.availabilityOf({ active: true, sold_out: false }) === "on");
+  ok("catalog: a row is one line about 56 points — name and price are its 56-point way in (the name alone was 20), the page's switch beside them — and the four-line paragraph is one quiet line",
+    /className="k-row py-0 gap-3"/.test(mm) && /className="flex-1 min-w-0 min-h-14 flex items-center/.test(mm) && /aria-label=\{rowSpoken\(p\)\}/.test(mm)
+    && /: <AvailSwitch p=\{p\} onFlip=\{onFlip\} \/>\}/.test(mm) && !/\{p\.sold_out \? "Back on" : "86"\}/.test(mm)
+    && (mm.match(/text-caption text-cream-muted/g) || []).length === 1 && !/Edit every attribute, set each drink/.test(mm)
+    && !/bodyClick=/.test(mm) && !/function ProductRow/.test(mm));
+
+  // ── the 86: the Pass's feel, done at once, undone for a few seconds ──
+  ok("catalog: an 86 is the Pass's feel — toggleOn to 86, toggleOff to bring it back — and the undo plays the way back",
+    /const next = !p\.sold_out;\s*if \(next\) haptic\("toggleOn"\); else haptic\("toggleOff"\);/.test(mm)
+    && /if \(next\) haptic\("toggleOff"\); else haptic\("toggleOn"\);/.test(mm)
+    && /if \(next\) haptic\("toggleOn"\); else haptic\("toggleOff"\);/.test(code(rd("components/EightySix.tsx"))));
+  ok("catalog: the undo window is the action toast's — 5 seconds, open from the 86, shut at the end, never before it",
+    K.UNDO_MS === 5000 && K.undoOpen(1000, 1000) && K.undoOpen(1000, 5999) && !K.undoOpen(1000, 6000) && !K.undoOpen(1000, 999)
+    && K.undoOpen(K.undoStart()) && !K.undoOpen(K.undoStart() - K.UNDO_MS)
+    && /opts\?\.action \? 5000 :/.test(rd("components/AppProvider.tsx")));
+  ok("catalog: an 86 asks nothing first — it is done and the toast holds Undo, which writes back only over what the 86 wrote",
+    /toast\(flipToast\(nameOf\(p\), next\), "success", \{ action: \{ label: "Undo", run: \(\) => \{ void undo\(row, next, at\); \} \} \}\);/.test(mm)
+    && /const at = undoStart\(\);/.test(mm) && /if \(!supabase \|\| !undoOpen\(at\) /.test(mm) && !/Date\.now\(\)/.test(mm)
+    && /\.update\(\{ sold_out: !next \}\)\.eq\("id", row\.id\)\.eq\("sold_out", next\)/.test(mm) && !/confirm\(/.test(mm)
+    && K.flipToast("RISE", true) === "RISE 86'd — sold out on the live menu" && K.flipToast("RISE", false) === "RISE is back on sale");
+
+  // ── grouped by line, filtered, searched ──
+  const P = (name, line, active, sold_out) => ({ id: name, slug: name.toLowerCase(), name, line, active, sold_out });
+  const MENU = [P("RISE", "Activation", true, false), P("FLOW", "Activation", true, true), P("TIDE", "Hydration", true, false), P("FORGE", "Recovery", true, false),
+    P("NATURE’S AIDE", "hydration", true, false), P("OLD BREW", "Activation", false, true), P("Café Draft", "", false, false)];
+  const G = (f, q) => K.shownGroups(MENU, f, q).map((g) => `${g.label}:${g.items.map((x) => x.name).join("+")}`).join(" | ");
+  const SHIFT = [P("A1", "Beta", false, false), P("B1", "Alpha", true, false), P("A2", "beta", true, false)];
+  ok("catalog: grouped by line in the menu's order — one line however it is cased, a product with none under No line, and a line keeps its name and place whatever the filter leaves of it",
+    G("all", "") === "Activation:RISE+FLOW+OLD BREW | Hydration:TIDE+NATURE’S AIDE | Recovery:FORGE | No line:Café Draft"
+    && K.shownGroups(SHIFT, "on", "").map((g) => `${g.label}:${g.items.map((x) => x.name).join("+")}`).join(" | ") === "Beta:A2 | Alpha:B1", G("all", ""));
+  ok("catalog: the filter — On sale is on the menu and not 86'd, 86'd is on the menu and sold out, Off is off the menu whatever its 86",
+    G("on", "") === "Activation:RISE | Hydration:TIDE+NATURE’S AIDE | Recovery:FORGE" && G("86", "") === "Activation:FLOW" && G("off", "") === "Activation:OLD BREW | No line:Café Draft",
+    [G("on", ""), G("86", ""), G("off", "")]);
+  ok("catalog: the search — every word typed, in the name, the line or the slug; any case, accents and curly apostrophes as typed plainly",
+    G("all", "hydration") === "Hydration:TIDE+NATURE’S AIDE" && G("all", "nature's") === "Hydration:NATURE’S AIDE" && G("all", "cafe") === "No line:Café Draft"
+    && G("all", "act  rise") === "Activation:RISE" && G("all", "rise tide") === "" && G("86", "rise") === "" && G("all", "   ") === G("all", ""));
+  const all = K.filterCounts(MENU, ""), act = K.filterCounts(MENU, "act");
+  ok("catalog: a filter's count is the rows it would show, with the search as typed",
+    all.all === 7 && all.on === 4 && all["86"] === 1 && all.off === 2 && act.all === 3 && act.on === 1 && act["86"] === 1 && act.off === 1, [all, act]);
+  ok("catalog: a filter or a search that hides everything says so — it is never an empty menu",
+    K.emptyLine("86", "") === "Nothing is 86'd." && K.emptyLine("all", "zzz") === "Nothing on the menu matches “zzz”." && K.emptyLine("off", "x") === "Nothing on the menu matches “x” under Off.");
+  ok("catalog: the list draws lib/catalog's groups under the kit's filter (a choice, with its counts) and a search with a name",
+    /const groups = useMemo\(\(\) => shownGroups\(products, filter, q\), \[products, filter, q\]\);/.test(mm)
+    && /<Segmented kind="choice" label="Show" fill value=\{filter\}/.test(mm) && /options=\{FILTERS\.map\(/.test(mm)
+    && /<input type="search"[\s\S]*?aria-label="Search the menu"/.test(mm) && /\{emptyLine\(filter, q\)\}/.test(mm) && /<h3 className="m-0 font-mono/.test(mm));
+
+  // ── live ──
+  ok("catalog: the list is live — every change to products reads it again, so the crew's 86 from the Pass shows at once, and it is on the app's refresh (lib/realtime)",
+    /useRealtimeTable\("products", reload\);/.test(mm) && /loaders\.add\(cb\);/.test(rd("lib/realtime.ts")));
+  const row = (o) => ({ id: "p", sold_out: false, updated_at: "2026-10-12T14:03:22.123456+00:00", ...o });
+  ok("catalog: the newest version of a row is the one on screen — the list's, or the answer to this screen's own write, whichever is later — with an 86 on its way on top",
+    K.freshest(row({}), row({ updated_at: "2026-10-12T14:05:00+00:00", sold_out: true })).sold_out === true
+    && K.freshest(row({ updated_at: "2026-10-12T14:06:00+00:00" }), row({ updated_at: "2026-10-12T14:05:00+00:00", sold_out: true })).sold_out === false
+    && K.shownRow(row({}), { p: true }, {}).sold_out === true && K.shownRow(row({}), {}, {}).sold_out === false
+    && /const products = useMemo\(\(\) => \(board\.data \?\? \[\]\)\.map\(\(p\) => shownRow\(p, pending, held\)\), \[board\.data, pending, held\]\);/.test(mm));
 }
 
 Promise.all(PENDING).then(() => {
