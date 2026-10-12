@@ -274,6 +274,40 @@ for (const e of readdirSync(SUPA, { withFileTypes: true })) {
   }
 }
 
+// ── EIGHTH RULE, added at 0381: closing a function to the API roles closes it to PUBLIC too ─────────
+// Postgres grants EXECUTE on every new function to PUBLIC, and anon and authenticated are members of PUBLIC — so
+// "revoke execute on function f from anon, authenticated" leaves both of them able to call f. 0133, 0136, 0138, 0139,
+// 0151, 0152, 0216, 0229, 0242 and 0341 each wrote exactly that and believed the door shut. The first security snapshot
+// of production (2026-10-11) found credit_wallet, the loyalty ledger's writer, callable by anyone holding the anon key
+// the app ships — revoked from anon and authenticated by name in 0229, open through PUBLIC all along. 0381 closed it.
+// From 0381 on, a revoke on a function that names anon or authenticated must name public as well. Read over the whole
+// file, quotes included, so a revoke built inside a DO block's format() string is held to the same rule.
+const REVOKE_FLOOR = 381;
+const halfRevokes = [];
+for (const f of readdirSync(DIR).filter((x) => x.endsWith(".sql")).sort()) {
+  const seq = Number(f.slice(0, 4));
+  if (!Number.isFinite(seq) || seq < REVOKE_FLOOR) continue;
+  const sql = readFileSync(join(DIR, f), "utf8").split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
+  for (const m of sql.matchAll(/revoke\s+(?:all(?:\s+privileges)?|execute)\s+on\s+(?:all\s+)?functions?\b[^;]*?\bfrom\s+([^;']*)/gi)) {
+    const roles = m[1].toLowerCase();
+    if (/\b(anon|authenticated)\b/.test(roles) && !/\bpublic\b/.test(roles)) {
+      halfRevokes.push(`${f} — ${m[0].replace(/\s+/g, " ").slice(0, 100)}`);
+    }
+  }
+}
+
+if (halfRevokes.length) {
+  console.error(`REVOKE GATE: ${halfRevokes.length} revoke(s) close a function to anon or authenticated and leave PUBLIC's grant:`);
+  for (const m of halfRevokes) console.error(`  ✗ ${m}`);
+  console.error(
+    `\nanon and authenticated are members of PUBLIC, and every function is granted to PUBLIC when it is made, so ` +
+    `this revoke changes nothing: both can still call it. Name public too, and grant back whoever should keep it:\n` +
+    `    revoke execute on function public.<name>(<args>) from public, anon, authenticated;\n` +
+    `    grant execute on function public.<name>(<args>) to service_role;   -- and/or authenticated`
+  );
+  process.exit(1);
+}
+
 if (staleFiles.length) {
   console.error(`PASTE-FILE GATE: ${staleFiles.length} loose SQL file(s) claim to be current and are not:`);
   for (const m of staleFiles) console.error(`  ✗ ${m}`);
@@ -363,3 +397,4 @@ console.log("VIEW GATE: every view created from 0312 honours RLS, is closed to t
 console.log("WHOLE-TABLE GATE: every UPDATE/DELETE from 0315 names its rows, or declares it means all of them — clean.");
 console.log(`PASTE-FILE GATE: every loose .sql under supabase/ says what it is current as of, and none is behind ${String(highestMigration).padStart(4, "0")} — clean.`);
 console.log("PASTE-FILE GATE: every migration the paste file carries is its file, verbatim — clean.");
+console.log("REVOKE GATE: every function revoke from 0381 that names anon or authenticated names public too — clean.");
