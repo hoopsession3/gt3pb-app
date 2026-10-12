@@ -1,0 +1,82 @@
+import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { staffFromRequest, callerClient } from "@/lib/apiAuth";
+import { raiseAlert } from "@/lib/serverAlerts";
+import { notifyCustomer, accountEmail } from "@/lib/notify";
+import { isMissingFunction } from "@/lib/schemaSkew";
+import { isUuid } from "@/lib/uuid";
+import { cupWords, packWords, crewWords, type CanceledStop } from "@/lib/stopCancel";
+import { route } from "@/lib/apiRoute";
+
+// CALL A STOP OFF, AND TELL THE PEOPLE WHO ORDERED FOR IT (0391, 2026-10-12 — H5 of the customer audit, release C1,
+// approved; texting customers is decision 7). The cancel is the database's, as the caller: cancel_stop checks they are
+// an owner or admin (the stops' writers), archives the stop (every reader drops it, and 0386 turns the live switch off
+// if it named it), and marks it canceled with the reason. Then this tells:
+//   · each cup order placed for it and not yet picked up — canceled, and told; a paid one is the crew's to refund,
+//     and the one line to the crew names each with its Square reference (no money moves here);
+//   · each pack for its day when no other stop is left that day — told to move it or cancel it (theirs to choose).
+// A second call changes nothing and tells nobody again.
+
+async function post(req: Request) {
+  if (!supabaseAdmin) return NextResponse.json({ error: "Canceling isn't switched on yet." }, { status: 503 });
+  if (!(await staffFromRequest(req))) return NextResponse.json({ error: "Crew only." }, { status: 403 });
+  const sb = callerClient(req);
+  if (!sb) return NextResponse.json({ error: "Sign in again to cancel a visit." }, { status: 401 });
+
+  let body: { id?: unknown; reason?: unknown };
+  try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  const id = isUuid(body.id) ? body.id : "";
+  const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 140) : "";
+  if (!id) return NextResponse.json({ error: "Bad request" }, { status: 400 });
+
+  const { data, error } = await sb.rpc("cancel_stop", { p_stop: id, p_reason: reason || null });
+  if (error) {
+    if (isMissingFunction(error)) return NextResponse.json({ error: "Canceling isn't switched on yet." }, { status: 503 });
+    if (error.code === "42501") return NextResponse.json({ error: "Only an owner or an admin can cancel a visit." }, { status: 403 });
+    return NextResponse.json({ error: "Couldn't cancel it — try again." }, { status: 500 });
+  }
+  const res = data as { day: string | null; cups: number; packs: number; already: boolean } | null;
+  if (!res) return NextResponse.json({ error: "That visit isn't on the schedule." }, { status: 404 });
+  if (res.already) return NextResponse.json({ ok: true, already: true, cups: 0, packs: 0 });
+
+  // arrives-with: 0391 — read only after cancel_stop answered, which is there only once 0391 is.
+  // scoped-by: the stop id is the one cancel_stop just accepted from an owner or admin, by their own token.
+  const { data: stopRow } = await supabaseAdmin.from("stops").select("name, starts_at, cancel_reason").eq("id", id).maybeSingle();
+  const stop = (stopRow as CanceledStop | null) ?? { name: null, starts_at: null, cancel_reason: reason || null };
+
+  // The cup orders placed for it, still to be picked up: canceled with it, and told.
+  // scoped-by: orders.stop_id = this stop, which an owner or admin just canceled through the database's own check.
+  const { data: cupRows } = await supabaseAdmin.from("orders").select("id, user_id, items, paid, total_cents, payment_id")
+    .eq("stop_id", id).in("status", ["new", "preparing", "ready"]);
+  const cups = (cupRows ?? []) as { id: string; user_id: string | null; items: string[] | null; paid: boolean; total_cents: number; payment_id: string | null }[];
+  if (cups.length) {
+    // scoped-by: the ids just read for this stop.
+    await supabaseAdmin.from("orders").update({ status: "void" }).in("id", cups.map((c) => c.id)).in("status", ["new", "preparing", "ready"]);
+  }
+  for (const c of cups) {
+    const email = await accountEmail(c.user_id);
+    if (email) {
+      await notifyCustomer({ email, subject: "GT3 — your order is canceled", message: cupWords(stop, { cups: c.items?.length || 1, paid: c.paid }) });
+    }
+  }
+
+  // The packs for its day, when no other stop is left that day: told to move or cancel.
+  let packs: { user_id: string | null; phone: string | null; size: number; paid: boolean }[] = [];
+  if (res.packs > 0 && res.day) {
+    // scoped-by: drop_date = the canceled stop's own day, and cancel_stop counted them (no other stop that day).
+    const { data: packRows } = await supabaseAdmin.from("drop_orders").select("user_id, phone, size, paid")
+      .eq("drop_date", res.day).is("canceled_at", null).eq("picked_up", false);
+    packs = (packRows ?? []) as typeof packs;
+    for (const p of packs) {
+      await notifyCustomer({ phone: p.phone, email: await accountEmail(p.user_id), subject: "GT3 — your pickup day changed", message: packWords(stop, { size: p.size, paid: p.paid }) });
+    }
+  }
+
+  const paidCups = cups.filter((c) => c.paid).map((c) => ({ ref: (c.payment_id || c.id).slice(-6).toUpperCase(), cents: c.total_cents }));
+  const line = crewWords(stop, { cups: cups.length, paidCups, packs: packs.length });
+  await raiseAlert({ severity: paidCups.length ? "critical" : "important", category: paidCups.length ? "money" : "order", kind: "stop_canceled",
+    subjectId: id, title: line.title, body: line.body, link: "/crew?s=now" });
+  return NextResponse.json({ ok: true, cups: cups.length, paid: paidCups.length, packs: packs.length });
+}
+
+export const POST = route("crew/stops/cancel", post);

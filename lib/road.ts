@@ -32,6 +32,17 @@ export const STOP_DONE_GRACE_MS = 8 * 3600 * 1000;
 export const isStopPast = (startsAt: string | null | undefined): boolean =>
   !!startsAt && Date.now() - new Date(startsAt).getTime() > STOP_DONE_GRACE_MS;
 
+// ── ITS END TIME, WHEN IT HAS ONE (2026-10-12, H5 of the customer audit, approved) ──────────────────────────────
+// A 7–10am stop led Find Us — "Next stop", directions and all — until 3pm, because the road ignored the end time the
+// crew set and waited out the grace from the start. A stop with an end time is over at its end; one without keeps the
+// grace, as lib/ordering already closes its orders 8 hours in (lib/liveOps says "no close time, so orders closed at 8 h").
+/** Has this stop run its course: past its end time when it has one, else its start plus the grace? */
+export function isStopOver(s: { starts_at?: string | null; ends_at?: string | null }, now: number = Date.now()): boolean {
+  const end = s.ends_at ? new Date(s.ends_at).getTime() : NaN;
+  if (Number.isFinite(end)) return now > end;
+  return !!s.starts_at && now - new Date(s.starts_at).getTime() > STOP_DONE_GRACE_MS;
+}
+
 // ── the road ahead: one rule (2026-10-04) ───────────────────────────────────────────────────────
 // Saturday, 9 PM. Ryan's Live Ops read "OFFLINE · next · Wine Express — Five Forks" over a red Go
 // live button, and the public Find Us page, the same minute, read "Nothing scheduled yet". Both
@@ -44,19 +55,19 @@ export const isStopPast = (startsAt: string | null | undefined): boolean =>
 // ("Mirrors /truck: 8h grace, done/completed visits excluded"), and FindUs, written another way.
 // It lives here now, and the instrument, the route list and the public road all ask it.
 export type RoadStop = {
-  id: string; starts_at?: string | null; status?: string | null;
+  id: string; starts_at?: string | null; ends_at?: string | null; status?: string | null;
   completed_at?: string | null; archived_at?: string | null;
 };
 
 /**
- * Still on the road: not archived, not closed (done, or stamped complete), and not more than the
- * grace past its start. The live stop is on it however late it runs; an undated stop is on it
- * (somebody has to give it a date, and it should be in front of them while they do).
+ * Still on the road: not archived, not closed (done, or stamped complete), and not over — past its end time, or the
+ * grace past its start when it has no end (isStopOver). The live stop is on it however late it runs; an undated stop
+ * is on it (somebody has to give it a date, and it should be in front of them while they do).
  */
 export function isStopAhead(s: RoadStop, liveStopId?: string | null): boolean {
   if (s.archived_at || s.status === "done" || s.completed_at) return false;
   if (liveStopId && s.id === liveStopId) return true;
-  return !isStopPast(s.starts_at);
+  return !isStopOver(s);
 }
 
 const startMs = (s: RoadStop): number => {

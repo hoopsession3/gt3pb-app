@@ -30,7 +30,7 @@ export const stopStatusLabel = (s: string | null | undefined): string =>
 // should not download this file's crew vocabulary to do it (2026-10-04: importing this file there cost
 // /truck 2 KB and a chunk). Re-exported, not copied: every caller of isStopPast and friends keeps its
 // import, and there is still one grace, one boundary, one rule.
-export { STOP_DONE_GRACE_MS, isStopPast, isStopAhead, roadAhead, stopIsDue, type RoadStop } from "./road";
+export { STOP_DONE_GRACE_MS, isStopPast, isStopOver, isStopAhead, roadAhead, stopIsDue, type RoadStop } from "./road";
 import { isStopPast } from "./road";
 
 /**

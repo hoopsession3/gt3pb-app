@@ -19,6 +19,7 @@ import { closedWords, liveSwitchOn, readyWords, type NamedStop } from "@/lib/ord
 import { useAvailability } from "@/lib/availability";
 import { localToday, relativeDay, fmt12, clockTime, etDayKey, weekdayOf } from "@/lib/dates";
 import { isStopAhead } from "@/lib/road";
+import { canceledLine } from "@/lib/stopCancel";
 import { clickable } from "@/lib/a11y";
 import type { LiveStatus, EventRow } from "@/lib/db";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -57,7 +58,9 @@ type FieldOp = {
 };
 // `named`: the stop the live switch names, as its own row (C1) — see fetchRoad.
 type Named = NamedStop & { market?: string | null };
-type Board = { ops: FieldOp[]; live: LiveStatus | null; named?: Named | null };
+// A stop called off (0391): archived, so off the road, and said here in its place until it would have been over.
+type Canceled = { id: string; name: string | null; starts_at: string | null; ends_at: string | null; cancel_reason: string | null; market?: string | null };
+type Board = { ops: FieldOp[]; live: LiveStatus | null; named?: Named | null; canceled?: Canceled[] };
 const NO_OPS: FieldOp[] = [];
 
 // ── stop label helpers (from the truck page — hand-set labels win, else derive) ─────────────────
@@ -135,9 +138,14 @@ async function fetchRoad(): Promise<Board> {
   // added to `field_ops` later doesn't silently reach this public customer road unreviewed. (The
   // venue POC contact columns this comment used to warn about — poc_name/phone/email/service_dates —
   // were dropped from the table entirely in migration 0240; there's nothing left to leak.)
-  const [{ data: fo, error: e1 }, { data: l, error: e2 }] = await Promise.all([
+  const [{ data: fo, error: e1 }, { data: l, error: e2 }, { data: cx }] = await Promise.all([
     supabase!.from("field_ops").select("id, kind, name, public_title, day, starts_at, ends_at, start_time, end_time, day_label, when_label, time_label, location_text, address, lat, lng, member_only, going_count, capacity, blurb, menu_tier, notes, note, status, completed_at, archived_at, is_public, published_at, market").eq("is_public", true),
     supabase!.from("live_status").select("*").maybeSingle(),
+    // Called off lately or ahead (0391; stops are public). An error — 0391 not pasted yet — is no canceled stops,
+    // never a page that cannot load.
+    // arrives-with: 0391 — until it is pasted this read errors on its own, is not checked, and the road reads as before.
+    supabase!.from("stops").select("id, name, starts_at, ends_at, cancel_reason, market").not("canceled_at", "is", null)
+      .gte("starts_at", new Date(Date.now() - 12 * 3600 * 1000).toISOString()).order("starts_at", { ascending: true }).limit(5),
   ]);
   if (e1) throw new Error(e1.message);
   if (e2) throw new Error(e2.message);
@@ -169,7 +177,7 @@ async function fetchRoad(): Promise<Board> {
       ? isStopAhead(r, liveId)
       : r.status !== "done" && !r.completed_at)
     .sort((a, b) => sortKey(a) - sortKey(b));
-  return { ops, live: lstat, named };
+  return { ops, live: lstat, named, canceled: (cx as Canceled[] | null) ?? [] };
 }
 
 export default function FindUs() {
@@ -266,6 +274,11 @@ export default function FindUs() {
   const upcoming = roadOps.filter((r) => r.kind === "stop" || !r.day || r.day >= today);
   // the hero is the next PLACE TO FIND US — live stop first, else first upcoming stop or event
   const hero = (isLive && upcoming.find((r) => r.id === live?.current_stop_id)) || upcoming[0];
+  // A CANCELED STOP SAYS SO (H5, 0391): the soonest one called off that would still be on before this page's next
+  // stop — not over yet, and starting no later — is said above it, with the reason. It was a row that vanished.
+  const heroStartMs = hero?.starts_at ? Date.parse(hero.starts_at) : Number.POSITIVE_INFINITY;
+  const canceledNext = (road?.canceled ?? []).find((c) => rowInMarket(c, viewerMarket) && !!c.starts_at
+    && Date.parse(c.ends_at ?? c.starts_at) > nowMs && Date.parse(c.starts_at) <= heroStartMs) ?? null;
   // THE ROAD STARTS AFTER THE HERO (2026-10-10, round 2: "the next stop is listed twice"). The hero
   // is the next stop — its name, its line (the stop's own note first, descFor), where, when, the menu
   // and directions — and its row under "On the road" said all of it again, one screen down. A hero
@@ -352,6 +365,7 @@ export default function FindUs() {
         </div>
       )}
 
+      {canceledNext && <p className="k-sub" role="status"><span className="k-tag crit">Canceled</span> {canceledLine(canceledNext)}</p>}
       <h1 className="k-title lg">{hero?.name ?? (board.status === "error" ? "Couldn't load" : board.status === "ready" ? t("findus.no_stops") : "…")}</h1>
       {hero && (
         <p className="k-sub">

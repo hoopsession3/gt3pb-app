@@ -195,7 +195,7 @@ async function post(req: Request) {
     const held = await claimKey(seen.claims, idemKey, { channel: "cups", card: false, amountCents: subtotal }, now, stopped);
     if ("answer" in held) return reply(held.answer);
     return reply(await placeOnce({ claims: held.claims, key: idemKey, now, place: async (): Promise<Answer> => {
-      const orderRow = { items, total_cents: subtotal, paid: false, payment_id: null, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode };
+      const orderRow = { items, total_cents: subtotal, paid: false, payment_id: null, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode, stop_id: ordering.stop?.id ?? null };
       const { error: insErr } = await insertOrder(orderRow);
       if (insErr) return { status: 500, body: { error: "That didn't go through — give it another tap" } };
       // Confirmation email — cup orders carry no phone (a quick on-the-spot order, not a form), so this
@@ -231,7 +231,8 @@ async function post(req: Request) {
 
       // total_cents is the GOODS subtotal (tip excluded) so history + the referral floor
       // are consistent across paid and pre-order paths.
-      const orderRow = { items, total_cents: subtotal, tip_cents: tip, paid: true, payment_id: paymentId, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode };
+      // stop_id: the stop the order is for (0219's column; 0391 — a canceled stop tells the orders placed for it).
+      const orderRow = { items, total_cents: subtotal, tip_cents: tip, paid: true, payment_id: paymentId, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode, stop_id: ordering.stop?.id ?? null };
       let { error: insErr } = await insertOrder(orderRow);
       if (insErr) {
         // Charge succeeded but recording failed. Retry once — a transient DB blip must not cost the

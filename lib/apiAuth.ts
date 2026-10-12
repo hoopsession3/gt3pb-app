@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "./supabaseAdmin";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // Verify the caller's Supabase access token (sent as Authorization: Bearer <jwt>)
 // and return their user id and verified email. Server-only. Returns null if missing/invalid.
@@ -58,6 +58,21 @@ export async function tenantFromRequest(req: Request): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+// THE CALLER, AS THEMSELVES (2026-10-12, 0391). A client on the anon key with the caller's own token, so a definer
+// function's own check (is_admin(), is_staff()) decides what they may do — the database is the gate, not this route.
+// Null with no session or no keys.
+export function callerClient(req: Request): SupabaseClient | null {
+  const auth = req.headers.get("authorization") || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!token || !url || !anon) return null;
+  return createClient(url, anon, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 // Owner-only gate — same shape as staffFromRequest but keys off is_owner().

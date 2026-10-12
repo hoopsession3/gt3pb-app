@@ -29,6 +29,7 @@ import Button from "../Button";
 import { mayGoLive, stopName, truckAction, truckSays, type TruckRead } from "@/lib/liveOps";
 import { useMinute } from "@/lib/useMinute";
 import { StatusRow } from "@/components/crew/StatusRow";
+import { authedFetch } from "@/lib/authedFetch";
 
 // Go live's checks, loaded with the first tap on Go live (it opens on a tap, as the console's other sheets do).
 const GoLiveSheet = dynamic(() => import("@/components/crew/GoLiveSheet"), { ssr: false });
@@ -261,9 +262,24 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
     load();
   };
   const restoreStop = async (id: string) => {
-    await supabase!.from("stops").update({ archived_at: null }).eq("id", id);
+    // A canceled visit (0391) comes back uncanceled too — only sent when the row carries the columns.
+    const was = stops.find((x) => x.id === id);
+    await supabase!.from("stops").update(was?.canceled_at ? { archived_at: null, canceled_at: null, cancel_reason: null } : { archived_at: null }).eq("id", id);
     toast("Location restored");
     load();
+  };
+  // CALL A VISIT OFF (0391, H5 of the customer audit): the server cancels it as you (owners and admins), tells the cup
+  // orders placed for it and the packs for its day, and gives you the paid ones to refund in Square.
+  const cancelStop = async (id: string, reason: string): Promise<boolean> => {
+    const res = await authedFetch("/api/crew/stops/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, reason }) });
+    const d = await res.json().catch(() => ({})) as { error?: string; already?: boolean; cups?: number; paid?: number; packs?: number };
+    if (!res.ok) { toast(d.error || "Couldn't cancel it — try again.", "error"); return false; }
+    haptic("success");
+    const told = [d.cups ? `${d.cups} cup ${d.cups === 1 ? "order" : "orders"}` : "", d.packs ? `${d.packs} ${d.packs === 1 ? "pack" : "packs"}` : ""].filter(Boolean).join(" and ");
+    toast(d.already ? "Already canceled." : `Visit canceled${told ? ` — ${told} told` : ""}${d.paid ? `. Refund ${d.paid} in Square (it's in your alerts).` : "."}`);
+    setOpenStopId(null);
+    load();
+    return true;
   };
   const deleteStop = async (id: string, nm: string) => {
     if (!(await confirm({ title: `Delete ${nm}?`, body: "This removes the record.", confirmLabel: "Delete", danger: true }))) return;
@@ -429,6 +445,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
                   onGoLive={canLive ? (id) => askGoLive(stops.find((x) => x.id === id)) : undefined}
                   onGoOffline={canLive ? pause : undefined}
                   onArchive={() => archiveStop(s.id)}
+                  onCancel={(why) => cancelStop(s.id, why)}
                   onChanged={load}
                   venue={g.vendor}
                   onOpenPrep={() => openPrep(s.id)}
@@ -489,7 +506,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
           </button>
           {showArchStops && archived.map((s) => (
             <div className="ev-arch-row" key={s.id}>
-              <span className="ev-arch-name">{s.name || "Untitled location"}</span>
+              <span className="ev-arch-name">{s.name || "Untitled location"}{s.canceled_at ? ` · canceled${s.cancel_reason ? ` — ${s.cancel_reason}` : ""}` : ""}</span>
               <Button kind="secondary" compact onClick={() => restoreStop(s.id)}>Restore</Button>
               <Button kind="destructive" onClick={() => deleteStop(s.id, s.name)}>Delete</Button>
             </div>

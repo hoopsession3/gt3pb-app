@@ -5254,7 +5254,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("road: the public Find Us page asks the same rule for its stops", /isStopAhead\(r, liveId\)/.test(fu) && !/8 \* 3600 \* 1000/.test(fu));
     ok("road: …from lib/road, the small home — not lib/stopRecord, whose crew vocabulary a guest should not download",
       /import \{ isStopAhead \} from "@\/lib\/road";/.test(fu) && !/from "@\/lib\/stopRecord"/.test(fu)
-        && /export \{ STOP_DONE_GRACE_MS, isStopPast, isStopAhead, roadAhead, stopIsDue, type RoadStop \} from "\.\/road";/.test(read("lib/stopRecord.ts")));
+        // isStopOver (H5, 2026-10-12): a stop is over at its end time — re-exported with the rest
+        && /export \{ STOP_DONE_GRACE_MS, isStopPast, isStopOver, isStopAhead, roadAhead, stopIsDue, type RoadStop \} from "\.\/road";/.test(read("lib/stopRecord.ts")));
     ok("day said once: the drop heading, the route rows, the pack label and the inbox all use lib/dates",
       /dayWithDate\(dropISO\)/.test(code(read("components/DropOps.tsx"))) && /dayWithDate\(new Date\(next\.starts_at/.test(lc)
         && /nearDay\(p\.drop_date\)/.test(code(read("components/MyPacks.tsx"))) && /nearDay\(iso\) \|\| iso/.test(code(read("components/MemberInbox.tsx"))));
@@ -13316,6 +13317,43 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const orderRow = \{ items, total_cents: subtotal, tip_cents: tip, paid: true, payment_id: paymentId,/.test(api));
   ok("checkout: before 0390 the order goes in without the tip, and nothing else is forgiven",
     /writeAcrossSkew\(\(r\) => supabaseAdmin!\.from\("orders"\)\.insert\(r\), promise\.readyFrom \? \{ \.\.\.row, ready_from: promise\.readyFrom \} : row, \["ready_from", "tip_cents"\]\)/.test(api));
+}
+
+// ── A STOP ENDS AT ITS END TIME · A CANCELED STOP SAYS SO (2026-10-12, H5 of the customer audit, approved) ──
+// A 7–10am stop led Find Us until 3pm (the road waited out 8 hours from the start), and a stop called off just vanished
+// with nobody who ordered for it told. lib/road ends a stop at its end time; 0391's cancel_stop calls one off with a
+// reason (scripts/db.stopcancel.test.mjs); the server tells the cup orders placed for it (the checkout now writes
+// which stop an order is for) and the packs for its day; Find Us says it in the stop's place.
+{
+  const R = require("../.smoke/road.js"), SC = require("../.smoke/stopCancel.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const at = Date.parse("2026-10-17T15:00:00Z");   // 11am ET
+  const sevenToTen = { id: "s", starts_at: "2026-10-17T11:00:00Z", ends_at: "2026-10-17T14:00:00Z" };
+  ok("road: a stop with an end time is over at its end — not 8 hours after it began", R.isStopOver(sevenToTen, at) === true && R.isStopOver(sevenToTen, Date.parse("2026-10-17T13:59:00Z")) === false);
+  ok("road: one with no end keeps the grace from its start", R.isStopOver({ starts_at: "2026-10-17T11:00:00Z" }, at) === false && R.isStopOver({ starts_at: "2026-10-17T11:00:00Z" }, Date.parse("2026-10-17T19:01:00Z")) === true);
+  const stop = { name: "WineXpress", starts_at: "2026-10-17T11:00:00Z", cancel_reason: "Rained out" };
+  ok("cancel: the cup text says canceled, why, and who refunds a paid one",
+    SC.cupWords(stop, { cups: 2, paid: true }) === "GT3: we've had to cancel WineXpress on Sat 10/17 — Rained out. Your order of 2 cups is canceled — the crew is refunding your card in full, nothing for you to do."
+    && /nothing was charged\.$/.test(SC.cupWords(stop, { cups: 1, paid: false })));
+  ok("cancel: the pack text says move it or cancel it", /Your 6-pack for that day can move to another pickup day in the app \(Your packs\), or be canceled there for a refund\.$/.test(SC.packWords(stop, { size: 6, paid: true })));
+  ok("cancel: Find Us's line, and the crew's with the refunds to make",
+    SC.canceledLine(stop) === "WineXpress · Sat 10/17 — Rained out"
+    && /Refund 1 paid order in Square, in full \(the tip too\): ABC123 — \$20 of drinks\./.test(SC.crewWords(stop, { cups: 2, paidCups: [{ ref: "ABC123", cents: 2000 }], packs: 0 }).body));
+  const api = code(rd("app/api/crew/stops/cancel/route.ts")), co = code(rd("app/api/checkout/route.ts")), fu = code(rd("components/FindUs.tsx"));
+  const le = code(rd("components/crew/LocationEditor.tsx")), lc = code(rd("components/crew/LiveControl.tsx"));
+  ok("route: crew only; the cancel is the database's, as the caller; then the cups canceled and told, packs only when it counted them",
+    api.indexOf("staffFromRequest(req)") < api.indexOf('sb.rpc("cancel_stop"') && /const sb = callerClient\(req\);/.test(api)
+    && api.indexOf('sb.rpc("cancel_stop"') < api.indexOf('from("orders")') && /\.update\(\{ status: "void" \}\)/.test(api)
+    && /if \(res\.packs > 0 && res\.day\) \{/.test(api) && /if \(res\.already\) return NextResponse\.json/.test(api) && /export const POST = route\("crew\/stops\/cancel", post\);/.test(api));
+  ok("checkout: every cup order says which stop it is for", (co.match(/stop_id: ordering\.stop\?\.id \?\? null/g) || []).length === 2);
+  ok("Find Us: canceled stops are read beside the road (an error is none), and the next one said above the stop",
+    /\.from\("stops"\)\.select\("id, name, starts_at, ends_at, cancel_reason, market"\)\.not\("canceled_at", "is", null\)/.test(fu)
+    && /canceled: \(cx as Canceled\[\] \| null\) \?\? \[\]/.test(fu) && /<span className="k-tag crit">Canceled<\/span> \{canceledLine\(canceledNext\)\}/.test(fu));
+  ok("crew: a visit still ahead offers Cancel this visit, asks the reason first, and Restore uncancels",
+    /onCancel && !isCur && stillAhead && !canceling/.test(le) && /placeholder="Why — customers see this \(e\.g\. Rained out\)"/.test(le)
+    && /onCancel=\{\(why\) => cancelStop\(s\.id, why\)\}/.test(lc) && /\{ archived_at: null, canceled_at: null, cancel_reason: null \}/.test(lc));
 }
 
 Promise.all(PENDING).then(() => {

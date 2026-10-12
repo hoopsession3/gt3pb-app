@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useMinute } from "@/lib/useMinute";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "@/components/AppProvider";
 import Icon from "@/components/Icon";
@@ -53,9 +54,11 @@ async function moveUpcomingVisits(venue: Vendor | Stop, address: string, geo: { 
   return n ? ` — ${n} upcoming ${n === 1 ? "visit" : "visits"} moved with it` : " — no upcoming visits were at the old address";
 }
 
-export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive, isCur, onGoLive, onGoOffline, venue, onOpenPrep, nameOverride }: {
+export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive, onCancel, isCur, onGoLive, onGoOffline, venue, onOpenPrep, nameOverride }: {
   kind: "stop" | "vendor"; row: Stop | Vendor; isCur?: boolean; open: boolean; onToggle: () => void;
   onArchive: () => void; onChanged: () => void;
+  /** Call this visit off with the reason customers are told (0391). True when it was. */
+  onCancel?: (reason: string) => Promise<boolean>;
   // onGoOffline is optional on top of onGoLive: without it the live banner below just stays a status
   // readout (today's Go-offline-only-from-elsewhere behavior); with it, the banner itself becomes the
   // one-tap way to end service on the live stop — see the ev-golive button.
@@ -82,6 +85,21 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
   const [busy, setBusy] = useState(false);
   const [editAddr, setEditAddr] = useState(false);
   const [editFacts, setEditFacts] = useState(false); // FieldOpSheet — quick core-facts editor
+  // Calling the visit off (0391): asked here, with the reason the customers are told, before anything happens.
+  const [canceling, setCanceling] = useState(false);
+  const [cancelWhy, setCancelWhy] = useState("");
+  const [cancelBusy, setCancelBusy] = useState(false);
+  // A visit still to come (or today's, not wrapped): one already done is not called off. The minute, read while
+  // rendering (lib/useMinute), not Date.now() in a render.
+  const minute = useMinute();
+  const stillAhead = !!stop && !stop.completed_at && (!stop.starts_at || new Date(stop.starts_at).getTime() > minute - 12 * 3600 * 1000);
+  const confirmCancel = async () => {
+    if (!onCancel || cancelBusy) return;
+    setCancelBusy(true);
+    const done = await onCancel(cancelWhy.trim());
+    setCancelBusy(false);
+    if (done) { setCanceling(false); setCancelWhy(""); }
+  };
   const hasCoords = row.lat != null && row.lng != null;
 
   // every update carries a WHERE (id) — safe with the safeupdate guard
@@ -256,6 +274,19 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
             </div>
           )}
 
+          {canceling && (
+            <div className="ev-group" role="group" aria-label="Cancel this visit">
+              <div className="ev-group-h">Cancel this visit</div>
+              <input className="ev-input" value={cancelWhy} onChange={(e) => setCancelWhy(e.target.value)} maxLength={140}
+                placeholder="Why — customers see this (e.g. Rained out)" aria-label="Why the visit is canceled" />
+              <div className="h-sub">Find Us will say it&apos;s canceled. Cup orders placed for it are canceled and told — the paid ones come to you to refund in Square — and packs for the day are told to move or cancel.</div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="btn-del" onClick={confirmCancel} disabled={cancelBusy}>{cancelBusy ? "Canceling…" : "Cancel the visit and tell them"}</button>
+                <button type="button" className="btn-ter" onClick={() => setCanceling(false)} disabled={cancelBusy}>Keep it</button>
+              </div>
+            </div>
+          )}
+
           <div className="ev-card-foot">
             {/* One door to the hub, not three. Used to also duplicate the Location group's button above,
                 plus a second footer button styled and labeled as if "Wrap up in the hub" were a distinct
@@ -263,6 +294,7 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
                 no differentiating state, so the green "complete" styling and check icon promised something
                 that never happened. */}
             {kind === "stop" && onOpenPrep && <Button kind="secondary" compact className="mr-auto" onClick={onOpenPrep}>Full prep — menu, staffing, run-of-show ›</Button>}
+            {kind === "stop" && onCancel && !isCur && stillAhead && !canceling && <button type="button" className="btn-ter" onClick={() => setCanceling(true)}>Cancel this visit</button>}
             {kind === "vendor" && <button className="btn-sec btn-sm" onClick={onArchive}>Archive</button>}
             {kind === "vendor" && <button className="ev-delete" onClick={remove}>Delete</button>}
           </div>

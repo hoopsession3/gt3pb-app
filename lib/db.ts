@@ -27,6 +27,8 @@ export interface Stop {
   order_ahead_lead_min?: number | null;
   rig?: "cart_only" | "trailer_only" | "trailer_plus_cart" | null; // stop-parity rig (0095/0110)
   completed_at?: string | null; // stop wrap-up (0125)
+  canceled_at?: string | null;  // called off (0391, cancel_stop) — archived too
+  cancel_reason?: string | null; // what the customers were told
 }
 
 // Vendor / venue — one relational record shared by truck stops and events (0034).
