@@ -95,6 +95,28 @@ export function deliverySlotChoices(nowMs: number): [DeliverySlot, DeliverySlot]
   return [nextDeliverySlot(nowMs), nextDeliverySlot(nowMs + 7 * DAY)];
 }
 
+// ── A SUNDAY THAT CLOSED WHILE THE PAGE WAS OPEN (2026-10-12, C4 of the customer audit, approved) ──
+// The page offers its two Sundays when it opens. The server used to take a pick that was no longer on offer as "the
+// coming slot" — so a customer who chose this Sunday and paid after Friday 6 PM was charged for NEXT Sunday, and told
+// nothing. A pick the server no longer offers is refused before any charge, in words that say what to do, with the two
+// Sundays on offer now so the page can show them (pickup already refuses a drop that closed: /api/reserve).
+export const SUNDAY_CLOSED = "That Sunday just closed — pick the next one.";
+const etDateKey = (ms: number): string => { const p = etParts(ms); return `${p.y}-${String(p.mo).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`; };
+/** The Sunday picked, if it is still on offer. No pick is the coming slot, as it always was; a pick no longer on offer
+ *  — its Friday cutoff passed, or a key the server never offered — is null. Except the RETRY of a send whose answer was
+ *  lost (the same key and card token again): it keeps the Sunday it was sent for while that Sunday is still ahead. The
+ *  first send may have been charged for it, and Square replays a key only for the same request — refusing the retry
+ *  would leave a charge nobody hears about, and a second one when the customer picks the next Sunday. */
+export function pickedSlot(key: unknown, nowMs: number, retry = false): DeliverySlot | null {
+  const choices = deliverySlotChoices(nowMs);
+  if (key == null || key === "") return choices[0];
+  const onOffer = choices.find((c) => c.deliveryDateKey === key) ?? null;
+  if (onOffer || !retry) return onOffer;
+  // The Sunday that closed was on offer three days before now (Friday 6 PM is two days before it), and is not past.
+  const closed = deliverySlotChoices(nowMs - 3 * DAY).find((c) => c.deliveryDateKey === key) ?? null;
+  return closed && closed.deliveryDateKey >= etDateKey(nowMs) ? closed : null;
+}
+
 // ── Zone (ZIP allowlist), PER MARKET. Verify each list against that market's real route radius
 // before its first order. Greenville's list is byte-identical to the single-market build, and
 // zipInZone() called with no market still resolves to exactly this list — so every caller written

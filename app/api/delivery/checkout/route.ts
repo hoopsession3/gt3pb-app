@@ -7,7 +7,7 @@ import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
 import {
-  quoteDelivery, deliverySlotChoices, zipInZone, perfTotal, maxRefills,
+  quoteDelivery, deliverySlotChoices, pickedSlot, SUNDAY_CLOSED, zipInZone, perfTotal, maxRefills,
   DELIVERY_PACKS, type PerfMix,
 } from "@/lib/delivery";
 
@@ -20,6 +20,7 @@ import {
 type Body = {
   sourceId?: string;
   idempotencyKey?: string; // stable per checkout attempt — see squareServer.safeIdemKey
+  retry?: boolean;        // the same key and card token again, after an answer that never came (components/useIdemKey)
   name?: string; phone?: string;
   addressStreet?: string; addressCity?: string; addressZip?: string; accessInstructions?: string;
   packSize?: number;
@@ -97,9 +98,13 @@ async function post(req: Request) {
 
   // Server-authoritative money + date.
   const quote = quoteDelivery(packSize, perf, refills, "direct");
-  // The customer picks which Sunday (this one or next); anything else falls back to the coming slot.
-  const choices = deliverySlotChoices(Date.now());
-  const slot = choices.find((c) => c.deliveryDateKey === b.deliveryDate) ?? choices[0];
+  // The customer picks which Sunday (this one or next). A pick that is no longer on offer — its Friday
+  // cutoff passed while the page was open — is refused before any charge, with the Sundays on offer now
+  // (C4, 2026-10-12): it used to fall back to the coming slot and charge for a Sunday never shown. The
+  // retry of a send whose answer was lost keeps its Sunday while it is ahead: that send may be charged.
+  const slotNow = Date.now();
+  const slot = pickedSlot(b.deliveryDate, slotNow, b.retry === true);
+  if (!slot) return NextResponse.json({ error: SUNDAY_CLOSED, slotClosed: true, choices: deliverySlotChoices(slotNow) }, { status: 409 });
 
   const idemKey = safeIdemKey(b.idempotencyKey);
   let charge: Awaited<ReturnType<typeof chargeCard>>;

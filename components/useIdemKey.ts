@@ -33,8 +33,9 @@ const EMPTY: PayAttempt = { sig: "", key: "", token: null };   // lib/idempotenc
 
 export type Tokenize = () => Promise<{ status: string; token?: string }>;
 
-/** One send: the key, and the card token that goes with it (null for a pay-later send). */
-export type Attempt = { key: string; token: string | null; cardRefused?: boolean };
+/** One send: the key, and the card token that goes with it (null for a pay-later send). `retry`: the same key and token
+ *  again, because the last answer never came — the first send may have been charged. */
+export type Attempt = { key: string; token: string | null; cardRefused?: boolean; retry?: boolean };
 
 export type CheckoutKey = {
   begin: (details: unknown, tokenize?: Tokenize) => Promise<Attempt>;
@@ -72,7 +73,7 @@ export function useIdemKey(persist?: string): CheckoutKey {
         const a = attemptFor(ref.current, details);
         if (a !== ref.current) keep(a);
         if (!tokenize) return { key: a.key, token: null };
-        if (a.token) return { key: a.key, token: a.token };
+        if (a.token) return { key: a.key, token: a.token, retry: true };
         const r = await tokenize();
         if (r.status !== "OK" || !r.token) return { key: a.key, token: null, cardRefused: true };
         // Held against THIS key only: if the cart changed while the card form was answering, the token

@@ -100,7 +100,9 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
   useEffect(() => { if (user && !glassTouched.current) setBringBack(true); }, [user]);
 
   // ── delivery-only ──
-  const choices = useMemo(() => deliverySlotChoices(Date.now()), []);
+  // The two Sundays on offer when the page opened — replaced by the server's when the one picked closed while the
+  // page was open (C4: "That Sunday just closed — pick the next one.").
+  const [choices, setChoices] = useState(() => deliverySlotChoices(Date.now()));
   const [when, setWhen] = useState(0);
   const slot = choices[when];
   // Same-day awareness: before payment we check the customer's record for anything already booked
@@ -431,11 +433,21 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
           name, phone, addressStreet: street, addressCity: city, addressZip: zip,
           accessInstructions: access, packSize: count, riseCount: mix.rise, flowCount: mix.flow, duskCount: mix.dusk,
           perfMix: premiums, refillCount: bringBack ? refills : 0, emptiesAck: ack, deliveryDate: slot.deliveryDateKey,
+          retry: attempt.retry === true,
         }),
       });
       const data = await res.json(); setBusy(false);
       idemDelivery.settle(attempt.key, res.status, data);
-      if (!res.ok) { setErr(data.error || "Payment failed"); return; }
+      if (!res.ok) {
+        // The Sunday picked closed while the page was open: nothing was charged; show the Sundays on offer now, the
+        // coming one picked, and say so (C4).
+        if (data.slotClosed && Array.isArray(data.choices) && data.choices.length === 2 && data.choices.every((c: { deliveryDateKey?: unknown }) => typeof c?.deliveryDateKey === "string")) {
+          setChoices(data.choices as typeof choices);
+          setWhen(0);
+        }
+        setErr(data.error || "Payment failed");
+        return;
+      }
       haptic("success");
       setDone({ total: data.totalCents ?? deliveryQuote.totalCents, label: data.deliveryLabel, warn: data.warn, paid: true });
       invalidateCustomerKnown();

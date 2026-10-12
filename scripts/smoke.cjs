@@ -333,6 +333,32 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("delivery: Fri 6:00 PM ET → next Sunday", D.nextDeliverySlot(T("2026-07-10T22:00:00Z")).deliveryDateKey === "2026-07-19");
   ok("delivery: Saturday → next Sunday", D.nextDeliverySlot(T("2026-07-11T15:00:00Z")).deliveryDateKey === "2026-07-19");
   ok("delivery: Sunday orders for the following Sunday", D.nextDeliverySlot(T("2026-07-12T15:00:00Z")).deliveryDateKey === "2026-07-19");
+  // 2026-10-12 (C4 of the customer audit, approved): a Sunday that closed while the page was open is refused, never
+  // charged as the next one — except the retry of a send whose answer was lost, inside half an hour of its cutoff.
+  {
+    const before = T("2026-07-10T21:59:00Z"), after = T("2026-07-10T22:00:00Z");   // Fri 5:59 / 6:00 PM ET
+    ok("delivery: the Sunday picked is the one charged while it is on offer; no pick is the coming slot, as before",
+      D.pickedSlot("2026-07-12", before).deliveryDateKey === "2026-07-12" && D.pickedSlot("2026-07-19", after).deliveryDateKey === "2026-07-19"
+      && D.pickedSlot(undefined, after).deliveryDateKey === "2026-07-19" && D.pickedSlot("", before).deliveryDateKey === "2026-07-12");
+    ok("delivery: this Sunday picked, paid after Friday 6 PM, is refused — not charged for next Sunday (C4)",
+      D.pickedSlot("2026-07-12", after) === null && D.pickedSlot("2026-08-30", before) === null && D.pickedSlot({}, before) === null
+      && D.SUNDAY_CLOSED === "That Sunday just closed — pick the next one.");
+    ok("delivery: the retry of a lost answer keeps its Sunday while that Sunday is ahead — not after, and not a Sunday never offered",
+      D.pickedSlot("2026-07-12", after, true).deliveryDateKey === "2026-07-12"
+      && D.pickedSlot("2026-07-12", T("2026-07-11T15:00:00Z"), true).deliveryDateKey === "2026-07-12"        // Saturday
+      && D.pickedSlot("2026-07-12", T("2026-07-12T10:00:00Z"), true).deliveryDateKey === "2026-07-12"        // Sunday, 6 AM ET
+      && D.pickedSlot("2026-07-12", T("2026-07-13T15:00:00Z"), true) === null                               // Monday after
+      && D.pickedSlot("2026-08-30", after, true) === null && D.pickedSlot("2026-07-12", after, false) === null);
+    const fs = require("node:fs"), path = require("node:path");
+    const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+    const api = rd("app/api/delivery/checkout/route.ts"), fn = rd("components/OrderFunnel.tsx"), ik = rd("components/useIdemKey.ts");
+    ok("delivery: the server refuses a closed Sunday with the Sundays on offer, before any charge; the page shows them, the coming one picked",
+      /const slot = pickedSlot\(b\.deliveryDate, slotNow, b\.retry === true\);\s*if \(!slot\) return NextResponse\.json\(\{ error: SUNDAY_CLOSED, slotClosed: true, choices: deliverySlotChoices\(slotNow\) \}, \{ status: 409 \}\);/.test(api)
+      && api.indexOf("pickedSlot(") < api.indexOf("chargeCard(") && !/\?\? choices\[0\];/.test(api)
+      && /const \[choices, setChoices\] = useState\(\(\) => deliverySlotChoices\(Date\.now\(\)\)\);/.test(fn)
+      && /setChoices\(data\.choices as typeof choices\);\s*setWhen\(0\);/.test(fn) && /retry: attempt\.retry === true,/.test(fn)
+      && /if \(a\.token\) return \{ key: a\.key, token: a\.token, retry: true \};/.test(ik));
+  }
 
   // --- money invariants: cross-cutting guards so a pricing edit can't quietly leak revenue ---
   ok("money: bigger pickup pack never costs less in total", OA.packTotal(12, "return") > OA.packTotal(6, "return") && OA.packTotal(6, "return") > OA.packTotal(3, "return"));
