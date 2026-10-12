@@ -43,10 +43,14 @@ async function post(req: Request) {
     .eq("source", "strategy").eq("met_on", today).limit(1).maybeSingle();
   if (existing) return NextResponse.json({ ok: true, note_id: existing.id, title: existing.title, existing: true });
 
+  // EVERY READ NAMES THE BUSINESS (2026-10-12). The agenda's open threads (comments, 0051) and its plays on the
+  // table (gtm_drafts, 0140) both carry tenant_id, and were read across every business: another market's playbook
+  // threads and draft plays would have been on this one's agenda. scripts/service-role.audit.mjs counted both as
+  // filtered: inside Promise.all its 400-character window reached the NEXT line's tenant filter.
   const [thrQ, goalsQ, gtmQ, initsQ, milesQ, incQ, decQ] = await Promise.all([
-    supabaseAdmin.from("comments").select("strategy_key, body, created_at").not("strategy_key", "is", null).gte("created_at", d30).order("created_at", { ascending: false }).limit(200),
+    supabaseAdmin.from("comments").select("strategy_key, body, created_at").eq("tenant_id", tenant).not("strategy_key", "is", null).gte("created_at", d30).order("created_at", { ascending: false }).limit(200),
     supabaseAdmin.from("goals").select("title, unit, target_value, current_value, updated_at, checkin_status").eq("tenant_id", tenant).eq("status", "active"),
-    supabaseAdmin.from("gtm_drafts").select("name, category, status").in("status", ["draft", "proposed"]).order("updated_at", { ascending: false }).limit(10),
+    supabaseAdmin.from("gtm_drafts").select("name, category, status").eq("tenant_id", tenant).in("status", ["draft", "proposed"]).order("updated_at", { ascending: false }).limit(10),
     supabaseAdmin.from("initiatives").select("id, title, emoji").eq("tenant_id", tenant).neq("status", "done"),
     supabaseAdmin.from("initiative_milestones").select("initiative_id, title, due_on, done").eq("tenant_id", tenant).eq("done", false),
     supabaseAdmin.from("incident_log").select("problem, severity, created_at").eq("tenant_id", tenant).eq("resolved", false),
@@ -90,8 +94,11 @@ async function post(req: Request) {
   ].join("\n").replace(/\n{3,}/g, "\n\n");
 
   const title = `Strategy Session · ${nice(today)}`;
+  // The note names its business too (2026-10-12). 0134's stamp_tenant() fills tenant_id from current_tenant(), which
+  // is null under the service role, so an agenda written here landed on the founding tenant whoever asked — and the
+  // one-a-day check above, which reads by the caller's tenant, would never have found it again.
   const { data: note, error } = await supabaseAdmin.from("meeting_notes").insert({
-    title, met_on: today, source: "strategy", visibility: "team",
+    tenant_id: tenant, title, met_on: today, source: "strategy", visibility: "team",
     summary: md, created_by: caller?.id ?? null,
   }).select("id").single();
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });

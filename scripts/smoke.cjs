@@ -11686,6 +11686,22 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\{sec === "notes" && <MeetingNotes \/>\}/.test(crew) && /<OperatingRhythm isAdmin=\{isAdmin\} onOpenNotes=\{\(\) => setSection\("notes"\)\} \/>/.test(crew));
 }
 
+// ── RELEASE 1 · THE STRATEGY SESSION NAMES THE BUSINESS ON EVERY READ (2026-10-12) ──
+// Its open threads (comments) and its plays on the table (gtm_drafts) were read across every business; the note it
+// writes was stamped with the founding tenant (current_tenant() is null under the service role).
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const s = code(fs.readFileSync(path.join(__dirname, "..", "app/api/agents/stratsession/route.ts"), "utf8"));
+  const reads = s.split("supabaseAdmin.from(").slice(1).map((c) => c.split(/,\n|;\n/)[0]);
+  ok("strategy session: every one of its reads names the caller's business", reads.length === 9 && reads.filter((c) => !/\.insert\(/.test(c)).every((c) => /\.eq\("tenant_id", tenant\)/.test(c)),
+    reads.filter((c) => !/\.insert\(/.test(c) && !/\.eq\("tenant_id", tenant\)/.test(c)).map((c) => c.slice(0, 60)));
+  ok("strategy session: its threads and its plays on the table among them",
+    /from\("comments"\)\.select\("strategy_key, body, created_at"\)\.eq\("tenant_id", tenant\)/.test(s) && /from\("gtm_drafts"\)\.select\("name, category, status"\)\.eq\("tenant_id", tenant\)/.test(s));
+  ok("strategy session: the agenda it writes is that business's — the one-a-day check can find it again",
+    /from\("meeting_notes"\)\.insert\(\{\s*tenant_id: tenant, title, met_on: today, source: "strategy"/.test(s) && /\.eq\("source", "strategy"\)\.eq\("met_on", today\)/.test(s));
+}
+
 Promise.all(PENDING).then(() => {
   console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
