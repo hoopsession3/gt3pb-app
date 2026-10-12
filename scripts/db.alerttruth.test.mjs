@@ -425,7 +425,8 @@ const old = {};
   ok("0383 run twice: no error, no line closed or opened, no claim made or lost, nothing rang, each changelog line once",
     rerun === null && (await num(`select count(*) n from public.alerts`)) === before.rows && (await num(`select count(*) n from public.alerts where ack_at is null`)) === before.open
     && (await num(claims)) === before.claimed && (await pushes()) === before.pushes
-    && (await num(`select count(*) n from public.changelog where title in ('A finished task''s alerts clear themselves', '"Got it" on a team alert shows who has it')`)) === 2, rerun);
+    && (await num(`select count(*) n from public.changelog where title in ('A finished task''s alerts clear themselves', '"Got it" on a team alert shows who has it',
+      'Muted categories and quiet hours stop the ping too')`)) === 3, rerun);
   ok("0383 run twice: one trigger each on event_tasks, alert_reads and alerts",
     (await num(`select count(*) n from pg_trigger where tgname in ('event_tasks_alerts_follow', 'alert_reads_claim', 'alerts_claim_starts_empty')`)) === 3);
   ok("0383 records itself by its own name, once per run",

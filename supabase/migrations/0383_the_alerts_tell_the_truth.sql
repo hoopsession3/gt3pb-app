@@ -72,12 +72,23 @@
 -- what the escalation already counted, made visible. Nothing rings: a claim is an UPDATE of claimed_by, and only an
 -- update of escalated_at goes to the push function (0373).
 --
--- ORDER. Deploy the push function (supabase/functions/push) before this, as 0373 and 0374 asked: its escalation check
--- reads the claim once the column exists and alert_reads until then, so it is right on either side of the paste. The
--- function from before, left running after the paste, still counts any read: a critical whose only read is by someone
--- who cannot see it would be marked escalated here and skipped there — once, for good.
+-- ── 3 · A MUTE AND QUIET HOURS HOLD THE PUSH; A CRITICAL STILL RINGS — the push function's, no database change ────────
+-- FOUND. Settings › Notifications promises that a muted category stops pinging you and that during quiet hours
+-- non-critical alerts are held "instead of pinging you" (components/NotifPrefs). Only the inbox kept the promise: the
+-- push function never read notif_prefs (0177), so a muted category, or an important at 3 AM inside someone's quiet
+-- hours, rang their phone like any other.
+-- WHAT. supabase/functions/push asks each person an alert would reach (policy.ts whoRings): a category they muted, or
+-- their quiet hours on their market's clock (profiles.market → markets.timezone), hold a non-critical alert's push to
+-- them; a critical always rings; a team alert is asked person by person. The row, its inbox line, Teams and the email
+-- are unchanged. Its changelog line is written here, so the app says so when this ships — after the function does.
 --
--- Idempotent: a second run finds no line to close and no read to claim, and writes the changelog once.
+-- ORDER. Deploy the push function (supabase/functions/push, both files) before this, as 0373 and 0374 asked. Its
+-- escalation check reads the claim once the column exists and alert_reads until then, so it is right on either side of
+-- the paste; the function from before, left running after the paste, still counts any read — a critical whose only
+-- read is by someone who cannot see it would be marked escalated here and skipped there, once, for good. And the
+-- changelog below says pushes keep mutes and quiet hours, which is true from the deploy.
+--
+-- Idempotent: a second run finds no line to close and no read to claim, and writes each changelog line once.
 -- changelog: below.
 
 -- ── 1 · the task tells its alerts ─────────────────────────────────────────────────────────────────────────────────────
@@ -324,7 +335,10 @@ from (values
    '2026-10-12', false),
   ('"Got it" on a team alert shows who has it','fix','Alerts',
    'Tapping Got it on an alert for the whole team picks it up for you, and everyone else sees "<your first name> has it" on it: it stays in their inbox, below what still needs someone, and no longer counts on their bell. Undo it and it is the next person''s who tapped it, or nobody''s. The owners are sent a critical again only when nobody has it — before, one person''s tap stopped that without anyone else seeing who. Alerts for you alone work as before.',
-   '2026-10-12', true)
+   '2026-10-12', true),
+  ('Muted categories and quiet hours stop the ping too','fix','Alerts',
+   'A category you mute in Settings › Notifications no longer buzzes your phone, and during your quiet hours other alerts wait in your inbox instead of pinging you — as Settings always said. Before, only the inbox listened; the phone rang anyway. Quiet hours run on your city''s clock and cross midnight (10pm–7am works). Critical alerts always come through, and an alert for the whole team is checked person by person, so your quiet hours never silence a teammate''s phone.',
+   '2026-10-12', false)
 ) as v(title, category, area, summary, shipped_on, highlight)
 where not exists (select 1 from public.changelog c where c.title = v.title);
 

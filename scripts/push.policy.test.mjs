@@ -204,5 +204,98 @@ const shape = (s) => !!s && typeof s.title === "string" && s.title.length > 0 &&
   ok("ring: an answer that is not a count is not a send", R.ringWords({ data: null, error: null }).sent === false && R.ringWords({ data: "1", error: null }).sent === false);
 }
 
+// ── 5 · A MUTE AND QUIET HOURS HOLD THE PUSH, NOT THE ALERT (policy.ts 4, 2026-10-12) ────────────────────────────
+// Everyone's clock below is read from one instant. 03:30 UTC on 12 Oct 2026 is 11:30 PM the night before in New York
+// (EDT) and 8:30 PM in Los Angeles; 03:30 UTC on 15 Jan is 10:30 PM in New York (EST) — the same rule across a clock
+// change. The quiet window is the one the Settings picker offers as its default: 10:00pm to 7:00am.
+{
+  const NIGHT = new Date("2026-10-12T03:30:00Z"), WINTER = new Date("2026-01-15T03:30:00Z"), EVENING = new Date("2026-10-12T01:59:00Z");
+  const NY = "America/New_York", LA = "America/Los_Angeles";
+  ok("clock: 03:30 UTC in October is 11 PM in New York (EDT) and 8 PM in Los Angeles; in January, 10 PM in New York (EST)",
+    P.hourOn(NIGHT, NY) === 23 && P.hourOn(NIGHT, LA) === 20 && P.hourOn(WINTER, NY) === 22, [P.hourOn(NIGHT, NY), P.hourOn(NIGHT, LA), P.hourOn(WINTER, NY)]);
+  ok("clock: midnight is hour 0, never 24", P.hourOn(new Date("2026-10-12T04:00:00Z"), NY) === 0, P.hourOn(new Date("2026-10-12T04:00:00Z"), NY));
+  ok("clock: a market with no zone, or one this runtime does not know, reads the founding market's clock",
+    P.MARKET_ZONE === NY && P.hourOn(NIGHT, null) === 23 && P.hourOn(NIGHT, "") === 23 && P.hourOn(NIGHT, "Not/A_Zone") === 23);
+
+  ok("quiet hours 10pm–7am, across midnight: 10 PM, 11 PM, midnight and 6 AM are inside; 7 AM (the end is not in it) and 9 PM are not",
+    [22, 23, 0, 6].every((h) => P.inQuietHours(h, 22, 7)) && ![7, 21, 12].some((h) => P.inQuietHours(h, 22, 7)));
+  ok("quiet hours within a day, 1pm–3pm: 1 PM and 2 PM inside, 3 PM and noon not",
+    P.inQuietHours(13, 13, 15) && P.inQuietHours(14, 13, 15) && !P.inQuietHours(15, 13, 15) && !P.inQuietHours(12, 13, 15));
+  ok("quiet hours: no window when an end is unset, both are the same hour, or an end is not an hour of the day",
+    !P.inQuietHours(23, null, 7) && !P.inQuietHours(23, 22, null) && !P.inQuietHours(22, 22, 22) && !P.inQuietHours(23, 22, 25)
+    && !P.inQuietHours(23, -1, 7) && !P.inQuietHours(23, 22.5, 7) && !P.inQuietHours(23, "22", "7"));
+  // The inbox's own rule (lib/useMyAlerts inQuietHours), compiled from its file and asked the same 24 × 24 × 24
+  // questions: the push holds exactly when the inbox holds.
+  const inbox = (() => {
+    const src = readFileSync(join(ROOT, "lib/useMyAlerts.ts"), "utf8");
+    const fn = /function inQuietHours\([\s\S]*?\n\}\n/.exec(src)?.[0];
+    if (!fn) return null;
+    const out = ts.transpileModule(`${fn}\nmodule.exports = inQuietHours;`, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+    const mod = { exports: {} };
+    new Function("module", "exports", out)(mod, mod.exports);
+    return mod.exports;
+  })();
+  const disagree = [];
+  if (inbox) for (let s = 0; s < 24; s++) for (let e = 0; e < 24; e++) for (let h = 0; h < 24; h++) {
+    if (inbox({ getHours: () => h }, s, e) !== P.inQuietHours(h, s, e)) disagree.push([s, e, h]);
+  }
+  ok("quiet hours: the push and the inbox (lib/useMyAlerts) agree on every hour of every window — 13,824 questions",
+    inbox !== null && disagree.length === 0 && inbox({ getHours: () => 0 }, null, 7) === P.inQuietHours(0, null, 7), disagree.slice(0, 4));
+
+  const quiet = { muted_categories: [], quiet_start: 22, quiet_end: 7 };
+  const imp = { severity: "important", category: "order" };
+  ok("muted: an important in a category the person muted does not ring them; in one they did not mute, it does",
+    P.pushHeld(imp, { muted_categories: ["order"] }, EVENING, NY) === "muted"
+    && P.pushHeld({ ...imp, category: "money" }, { muted_categories: ["order"] }, EVENING, NY) === null);
+  ok("quiet hours: an important at 11:30 PM inside a 10pm–7am window does not ring; at 9:59 PM, before it opens, it does",
+    P.pushHeld(imp, quiet, NIGHT, NY) === "quiet hours" && P.pushHeld(imp, quiet, EVENING, NY) === null);
+  ok("quiet hours: …the window is the person's market's clock — the same instant is 8:30 PM in Los Angeles, and rings there",
+    P.pushHeld(imp, quiet, NIGHT, LA) === null);
+  ok("quiet hours: …and holds across midnight and the clock change — 12:30 AM in October, 10:30 PM in January",
+    P.pushHeld(imp, quiet, new Date("2026-10-12T04:30:00Z"), NY) === "quiet hours" && P.pushHeld(imp, quiet, WINTER, NY) === "quiet hours");
+  ok("a critical always rings: in quiet hours, in a muted category, and both at once",
+    P.pushHeld({ severity: "critical", category: "order" }, quiet, NIGHT, NY) === null
+    && P.pushHeld({ severity: "critical", category: "order" }, { muted_categories: ["order"] }, EVENING, NY) === null
+    && P.pushHeld({ severity: "critical", category: "order" }, { ...quiet, muted_categories: ["order"] }, NIGHT, NY) === null);
+  ok("a device test rings in quiet hours — it is a critical, and the person's own (0374)",
+    P.pushHeld({ severity: "critical", category: "system", kind: "device_test" }, { ...quiet, muted_categories: ["system"] }, NIGHT, NY) === null);
+  ok("no prefs is no mute and no quiet hours; a mute list that is not a list mutes nothing",
+    P.pushHeld(imp, null, NIGHT, NY) === null && P.pushHeld(imp, undefined, NIGHT, NY) === null
+    && P.pushHeld(imp, { muted_categories: "order" }, EVENING, NY) === null);
+
+  // A team alert, asked person by person.
+  const people = [
+    { id: "muted-it", prefs: { muted_categories: ["order"] }, timeZone: NY },
+    { id: "asleep-in-greenville", prefs: quiet, timeZone: NY },
+    { id: "awake-in-la", prefs: quiet, timeZone: LA },
+    { id: "no-prefs" },
+    { id: "muted-other", prefs: { muted_categories: ["money"], quiet_start: null, quiet_end: null }, timeZone: NY },
+  ];
+  const team = P.whoRings(imp, people, NIGHT);
+  ok("a team alert is asked person by person: the one who muted its category and the one in quiet hours are held; the rest ring",
+    team.ring.join() === "awake-in-la,no-prefs,muted-other"
+    && JSON.stringify(team.held) === JSON.stringify([{ id: "muted-it", why: "muted" }, { id: "asleep-in-greenville", why: "quiet hours" }]), team);
+  const loud = P.whoRings({ severity: "critical", category: "order" }, people, NIGHT);
+  ok("…and the same team critical rings every one of them", loud.ring.length === people.length && loud.held.length === 0, loud);
+  ok("one person: a personal alert to someone in quiet hours rings nobody — and still nothing is written about it but its row",
+    P.whoRings(imp, [people[1]], NIGHT).ring.length === 0);
+
+  // Settings' mutes are the alert vocabulary's categories, so a mute can match (components/NotifPrefs).
+  const np = readFileSync(join(ROOT, "components/NotifPrefs.tsx"), "utf8");
+  const keys = [...(/const NOTIF_CATS[\s\S]*?\];/.exec(np)?.[0] ?? "").matchAll(/key: "([a-z]+)"/g)].map((m) => m[1]);
+  ok("Settings' mutes are categories alerts carry (lib/alertKinds, 0232) — a mute that matches nothing would promise silence and keep ringing",
+    keys.length >= 6 && keys.every((k) => P.CATEGORY_WORDS[k]), keys);
+
+  // The function asks before it sends. It cannot run here (Deno, the network), so its wiring is read.
+  const fn = readFileSync(join(ROOT, "supabase/functions/push/index.ts"), "utf8");
+  ok("the push function asks whoRings for every alert's people before it looks up their devices",
+    /const ids = await ringingNow\(record, await peopleFor\(record\)\);\s*targets = ids\.length \? await subsFor/.test(fn)
+    && /return whoRings\(a, ids\.map\(/.test(fn));
+  ok("…a critical skips the question, and a prefs read that fails pings everyone — a failed read is not a mute",
+    /if \(!ids\.length \|\| severityOf\(a\.severity\) === "critical"\) return ids;/.test(fn) && /if \(prefs\.error\) return ids;/.test(fn));
+  ok("…the clock is the person's market's: profiles.market, then markets.timezone",
+    /from\("profiles"\)\.select\("id, market"\)\.in\("id", ids\)/.test(fn) && /from\("markets"\)\.select\("slug, timezone"\)\.in\("slug", markets\)/.test(fn));
+}
+
 console.log(`WHAT A PUSH SAYS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
