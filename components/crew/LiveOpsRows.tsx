@@ -5,15 +5,18 @@ import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useRealtimeTable } from "@/lib/realtime";
 import { readPulse } from "@/lib/passBoard";
-import { passSays, type ReadState } from "@/lib/liveOps";
+import { localToday } from "@/lib/dates";
+import { passSays, serviceExceptions, exceptionSays, type ReadState } from "@/lib/liveOps";
+import type { MyFlag } from "@/lib/useMyAlerts";
 import { AlertsOffLine, useAlertsOffHere } from "@/components/DeviceAlerts";
 import { DevicesCard, useDevices } from "@/components/crew/DevicesCard";
 import { StatusRow } from "@/components/crew/StatusRow";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Button from "@/components/Button";
+import Icon from "@/components/Icon";
 
-// LIVE OPS' ROWS (2026-10-12, the Live Ops round, approved). The Pass's row; the truck's row is
-// components/crew/LiveControl's. What each says is lib/liveOps'.
+// LIVE OPS' ROWS (2026-10-12, the Live Ops round, approved). The Pass's row and the line that leads the screen when
+// service is hurting; the truck's row is components/crew/LiveControl's. What each says is lib/liveOps'.
 
 // ── THE PASS ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 // It was "▶ The Pass" over "The pass is clear · 2 86'd — tap to work", a gold hero button; under the truck a line when
@@ -71,5 +74,24 @@ export function PassRow({ onOpenPass, canManage }: { onOpenPass: () => void; can
         </Sheet>
       )}
     </>
+  );
+}
+
+// ── THE EXCEPTION LINE ───────────────────────────────────────────────────────────────────────────────────────────────
+// One row at the top of Live Ops, only while an alert is hurting service right now — tickets past their promise, no
+// phone on the Pass that can ring, a paid cup order that didn't record (lib/liveOps serviceExceptions says which, and
+// why nothing else). The critical tint and words of the Pass's own strip; a tap opens the Pass, or for the paid order
+// with no record, the inbox, where its words are. It reads the header bell's list — handed in, not read twice — so the
+// two cannot disagree. Nothing at all otherwise: silence is the signal.
+export function ExceptionLine({ flags, onOpenPass }: { flags: readonly MyFlag[]; onOpenPass: () => void }) {
+  const s = exceptionSays(serviceExceptions(flags, localToday()));
+  if (!s) return null;
+  const go = () => { if (s.opens === "pass") onOpenPass(); else window.dispatchEvent(new Event("gt3-open-inbox")); };
+  return (
+    <button type="button" className="alerts-strip crit min-h-11" onClick={go} aria-label={s.label}>
+      <span className="alerts-strip-i" aria-hidden><Icon name="warning" /></span>
+      <span className="alerts-strip-t"><b>{s.title}</b>{s.more ? ` · ${s.more}` : ""}</span>
+      <span className="alerts-strip-go" aria-hidden>{s.opens === "pass" ? "The Pass" : "Open"} <Icon name="arrowRight" /></span>
+    </button>
   );
 }

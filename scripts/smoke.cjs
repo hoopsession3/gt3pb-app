@@ -12318,6 +12318,36 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /q\.eq\("wants_live", true\)\.eq\("tenant_id", tenantOf\(record\)\)/.test(rd("supabase/functions/push/index.ts"))
       && /node scripts\/db\.liveping\.test\.mjs/.test(JSON.parse(rd("package.json")).scripts["db:test"]));
 
+  // THE EXCEPTION LINE (approved item 2) — only what hurts service now.
+  const flag = (o) => ({ kind: null, title: "x", severity: "important", created_at: "2026-10-12T13:00:00-04:00", last_seen_at: null, ...o });
+  ok("exceptions: tickets past their promise, no phone on the Pass that can ring, and a paid cup order that didn't record qualify",
+    LO.isServiceException(flag({ kind: "order_stale" })) && LO.isServiceException(flag({ kind: "pass_unwatched" })) && LO.isServiceException(flag({ title: "Paid order didn't record — add it", severity: "critical" }))
+      && JSON.stringify(LO.EXCEPTION_KINDS) === JSON.stringify(["order_stale", "pass_unwatched"]));
+  ok("exceptions: merch, a reservation or a porch that didn't record, money, admin and every other alert do not",
+    ["Paid shop order didn't record — add it", "Paid reservation didn't record — add it", "Paid DELIVERY didn't record — add it", "Canceled a PAID reservation — refund needed"].every((t) => !LO.isServiceException(flag({ title: t, severity: "critical", kind: t.startsWith("Paid shop") ? "ops_incident" : null })))
+      && ["shop_order_stalled", "refund_needed", "task_assigned", "heartbeat_stale", "ops_incident", "office_not_delivered", "order_ready"].every((k) => !LO.isServiceException(flag({ kind: k, severity: "critical" }))));
+  ok("exceptions: the titles they are named by are the producers' own — 0369's, 0376's, and /api/checkout's paid cup order",
+    /'order_stale', null, 'important', 'order'/.test(rd("supabase/migrations/0369_the_pass_alert_rings_until_the_pass_is_clear.sql"))
+      && /kind = 'pass_unwatched'/.test(rd("supabase/migrations/0376_nobody_on_the_pass_during_service_is_an_alert.sql"))
+      && /title: "Paid order didn't record — add it"/.test(rd("app/api/checkout/route.ts")) && LO.PAID_ORDER_UNRECORDED === "Paid order didn't record — add it");
+  const ex = LO.serviceExceptions([
+    flag({ kind: "order_stale", title: "3 tickets waiting", last_seen_at: "2026-10-12T13:55:00-04:00" }),
+    flag({ title: "Paid order didn't record — add it", severity: "critical" }),
+    flag({ kind: "pass_unwatched", title: "Nobody is on the Pass", severity: "critical", last_seen_at: "2026-10-12T13:58:00-04:00" }),
+    flag({ kind: "pass_unwatched", title: "Nobody is on the Pass (Saturday)", severity: "critical", created_at: "2026-10-10T12:00:00-04:00", last_seen_at: "2026-10-10T13:00:00-04:00" }),
+    flag({ kind: "refund_needed", title: "Refund", severity: "critical" }),
+  ], "2026-10-12");
+  ok("exceptions: today's only (the bell's rule), a critical first then the newest; the line names the first and counts the rest",
+    ex.map((f) => f.title).join("|") === "Nobody is on the Pass|Paid order didn't record — add it|3 tickets waiting"
+      && JSON.stringify(LO.exceptionSays(ex)) === JSON.stringify({ title: "Nobody is on the Pass", more: "and 2 more", opens: "pass", label: "Nobody is on the Pass, and 2 more. Opens the Pass." })
+      && LO.exceptionSays([]) === null, ex.map((f) => f.title));
+  ok("exceptions: a tap opens the Pass for the Pass's own alerts, and the inbox — on the alert — for the paid order with no record",
+    LO.exceptionOpens(flag({ kind: "order_stale" })) === "pass" && LO.exceptionOpens(flag({ kind: "pass_unwatched" })) === "pass" && LO.exceptionOpens(flag({ title: "Paid order didn't record — add it" })) === "inbox"
+      && /const go = \(\) => \{ if \(s\.opens === "pass"\) onOpenPass\(\); else window\.dispatchEvent\(new Event\("gt3-open-inbox"\)\); \};/.test(rows));
+  ok("exceptions: one row at the top of Live Ops, over both columns, from the header bell's own list; critical tint; nothing under the Pass",
+    /\{!svc && <ExceptionLine flags=\{hdrFlags\} onOpenPass=\{\(\) => setSvc\(true\)\} \/>\}/.test(nowSec) && nowSec.indexOf("<ExceptionLine") < nowSec.indexOf("<Columns>")
+      && /<button type="button" className="alerts-strip crit min-h-11" onClick=\{go\} aria-label=\{s\.label\}>/.test(rows) && /const \{ flags: hdrFlags \} = useMyAlerts\(user\?\.id \?\? null\);/.test(page));
+
   ok("smoke: lib/liveOps and lib/heartbeat are compiled for these pins", /lib\/liveOps\.ts lib\/heartbeat\.ts/.test(JSON.parse(rd("package.json")).scripts.smoke));
 }
 

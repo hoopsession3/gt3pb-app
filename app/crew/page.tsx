@@ -210,7 +210,7 @@ import { OwnerDetails } from "@/components/crew/OwnerDetails";
 import VenuePick from "@/components/VenuePickLazy";
 import { LocationEditor } from "@/components/crew/LocationEditor";
 import { LiveControl } from "@/components/crew/LiveControl";
-import { PassRow } from "@/components/crew/LiveOpsRows";
+import { PassRow, ExceptionLine } from "@/components/crew/LiveOpsRows";
 import { staffAccess } from "@/lib/access";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { SECTION_TITLE } from "@/lib/routeTitles";
@@ -5778,10 +5778,13 @@ export default function AdminPage() {
               place: Service mode. */}
           {/* AT A GLANCE (2026-10-12, the Live Ops round — the owner approved its six items). Measured on an iPhone 17 on a
               quiet day: about 425 points of status cards before Due next — the Pass's hero button, the truck's ~195-point
-              card, the alerts-off line, the Devices card. Now: one row for the Pass and one for the truck, each a dot, its
-              state in words and its one action — the alerts-off line and the Devices card are words on the Pass's row,
-              their detail one tap away. What each says, and why, is lib/liveOps; the rows are components/crew/LiveOpsRows
-              and LiveControl. */}
+              card, the alerts-off line, the Devices card. Now: one line at the top only while an alert is hurting service
+              (tickets past their promise, no phone on the Pass that can ring, a paid order that didn't record), then one
+              row for the Pass and one for the truck, each a dot, its state in words and its one action — the alerts-off
+              line and the Devices card are words on the Pass's row, their detail one tap away. What each says, and why,
+              is lib/liveOps; the rows are components/crew/LiveOpsRows and LiveControl. The exception line reads the
+              header bell's own list (hdrFlags), so the two cannot disagree; under the Pass, the Pass's strip says it. */}
+          {!svc && <ExceptionLine flags={hdrFlags} onOpenPass={() => setSvc(true)} />}
           {/* ON THE DESK (2026-10-09, redesign 5): service on the left, dispatch on the right. */}
           <Columns>
           <Column>

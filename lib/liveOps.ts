@@ -7,11 +7,13 @@
 // and kept whatever it last knew when a later read failed.
 //
 // Now the truck and the Pass are one row each (components/crew/LiveControl, components/crew/LiveOpsRows): a dot, one
-// line saying the state in words, and the one action it needs. What each row says in each state, who may go live and
-// what Go live checks first are decided here — pure, no React, no Supabase, no clock it was not handed — so
-// scripts/smoke.cjs runs every state.
+// line saying the state in words, and the one action it needs. An alert that is hurting service right now leads the
+// screen as one line. What each row says in each state, which alerts are service's, who may go live and what Go live
+// checks first are decided here — pure, no React, no Supabase, no clock it was not handed — so scripts/smoke.cjs runs
+// every state.
 import { clockTime, etDayKey } from "./dates";
 import { dueDay } from "./dueNext";
+import { flagIsToday } from "./home";
 import { stopIsDue } from "./road";
 
 // ── WHO MAY GO LIVE: THE DATABASE'S OWN TEST ─────────────────────────────────────────────────────────────────────────
@@ -141,6 +143,45 @@ export function passSays(p: PassIn): RowSays & { trouble: boolean } {
   parts.push(...trouble);
   const tone: RowTone = p.read === "failed" ? "fail" : isTrouble ? "warn" : busy ? "busy" : "idle";
   return { tone, text: parts.join(" · "), trouble: isTrouble };
+}
+
+// ── THE EXCEPTION LINE: ONLY WHAT IS HURTING SERVICE NOW ─────────────────────────────────────────────────────────────
+// One row at the top of Live Ops, and only for an alert that affects service right now:
+//   order_stale       tickets past their promise (alert_stale_orders, 0369) — opens the Pass;
+//   pass_unwatched    no phone on the Pass that can ring (pass_watchdog, 0376) — opens the Pass, where a phone picks it up;
+//   a paid cup order that didn't record — /api/checkout raises it with no kind, because the order it is about does not
+//                     exist (app/api/checkout/route.ts, "Paid order didn't record — add it"), so its title is its only
+//                     name. Its words (the payment, the items) are in the alert, and there is no record to open: it
+//                     opens the inbox, on the alert.
+// Merch (a paid shop order that didn't record), a reservation or a porch that didn't (Saturday's and Sunday's, not the
+// window's now), money, admin and every other alert stay in the bell and in Money. It reads the bell's own list (the
+// open alerts lib/useMyAlerts gives the header: one a teammate has claimed is not counted there, and not here) and,
+// like the bell, what was true today (lib/home flagIsToday). A critical leads; then the newest.
+export const EXCEPTION_KINDS: readonly string[] = ["order_stale", "pass_unwatched"];
+export const PAID_ORDER_UNRECORDED = "Paid order didn't record — add it";
+export type FlagLike = { kind?: string | null; title: string; severity: string; created_at: string; last_seen_at?: string | null };
+
+export const isServiceException = (f: FlagLike): boolean =>
+  (!!f.kind && EXCEPTION_KINDS.includes(f.kind)) || f.title.trim() === PAID_ORDER_UNRECORDED;
+
+/** Where a tap on the line goes: the Pass for the Pass's own alerts, the inbox for the one with no record. */
+export const exceptionOpens = (f: FlagLike): "pass" | "inbox" => (f.kind && EXCEPTION_KINDS.includes(f.kind) ? "pass" : "inbox");
+
+export function serviceExceptions<T extends FlagLike>(flags: readonly T[], todayKey: string): T[] {
+  const rank = (s: string) => (s === "critical" ? 0 : s === "important" ? 1 : 2);
+  const when = (f: FlagLike) => f.last_seen_at ?? f.created_at;
+  return flags
+    .filter((f) => isServiceException(f) && flagIsToday({ created_at: f.created_at, last_seen_at: f.last_seen_at ?? null }, todayKey))
+    .sort((a, b) => rank(a.severity) - rank(b.severity) || when(b).localeCompare(when(a)));
+}
+
+/** The line's words and its accessible name: the leading alert's title, how many more, and where a tap goes. */
+export function exceptionSays(list: readonly FlagLike[]): { title: string; more: string; opens: "pass" | "inbox"; label: string } | null {
+  const first = list[0];
+  if (!first) return null;
+  const more = list.length > 1 ? `and ${list.length - 1} more` : "";
+  const opens = exceptionOpens(first);
+  return { title: first.title, more, opens, label: `${first.title}${more ? `, ${more}` : ""}. Opens ${opens === "pass" ? "the Pass" : "your inbox, on the alert"}.` };
 }
 
 // ── GO LIVE, CHECKED FIRST ───────────────────────────────────────────────────────────────────────────────────────────
