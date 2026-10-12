@@ -106,8 +106,11 @@ const ids = {};
              values ($1, 'Six Weeks Co', '5 Elm St', 'Greenville', '29601', true, 4, 'greenville', '${T1}') returning program_id`, [CLIENT])).program_id;
   const made = await as(db, OWNER, `select public.generate_office_deliveries() n`);
   const got = (await db.query(`select scheduled_for::text d from public.business_orders where program_id = $1 order by 1`, [acct])).rows.map((r) => r.d);
-  const want = (await db.query(`select d::date::text d from generate_series(current_date + 1, current_date + 42, interval '1 day') d
+  const want = (await db.query(`select d::date::text d from generate_series(public.office_local_today('greenville') + 1, public.office_local_today('greenville') + 42, interval '1 day') d
                                  where extract(isodow from d) = 1 and public.office_cutoff(d::date, 'greenville') > now() order by 1`)).rows.map((r) => r.d);
+  // THE MARKET'S DAY, NOT THE DATABASE'S (2026-10-12). The generator counts its six weeks from the market's own date
+  // (office_local_today), and the database's current_date is UTC's: from 8 pm to midnight Eastern the two differ by a
+  // day, and on a Sunday evening the 42nd day lands on a Monday the generator rightly leaves out — this test then failed.
   ok("4 · the crew's button makes every Monday in the next six weeks whose cutoff is ahead — not just next week's",
     made.error === null && want.length >= 5 && JSON.stringify(got) === JSON.stringify(want), { made: made.error, got, want, today });
 }
