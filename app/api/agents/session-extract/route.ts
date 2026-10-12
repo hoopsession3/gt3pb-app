@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { etToday } from "@/lib/dates";
+import { followUpDueAt } from "@/lib/rhythm";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
 
@@ -116,12 +117,14 @@ async function post(req: Request) {
   }
 
   // 3 · open items → the note's follow-ups (dated at 5pm ET when a date was stated)
+  // 5pm on the truck's clock in every season (2026-10-12): this was `${due}T17:00:00-04:00`, Eastern Daylight Time,
+  // so all winter a follow-up came due at 4pm. lib/rhythm.followUpDueAt finds the offset the day actually has.
   let items = 0;
   for (const [i, o] of ((out.open_items ?? []) as any[]).filter((o) => o?.label?.trim()).entries()) {
     const due = okDate(o.due);
     const { error } = await supabaseAdmin.from("event_tasks").insert({
       meeting_note_id: noteId, label: o.label.trim().slice(0, 300), kind: "task", section: "Follow-up",
-      critical: !!o.critical, due_at: due ? `${due}T17:00:00-04:00` : null, sort: 500 + i,
+      critical: !!o.critical, due_at: due ? followUpDueAt(due) : null, sort: 500 + i,
     });
     if (!error) items++;
   }

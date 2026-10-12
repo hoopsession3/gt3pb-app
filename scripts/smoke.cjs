@@ -11552,6 +11552,34 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && !/grant |policy|security definer/i.test(m378.replace(/--[^\n]*/g, "")) && /select public\.record_migration\('0377_the_porch_run_updates_live'\);/.test(m378));
 }
 
+// ── RELEASE 1 · A FOLLOW-UP IS DUE AT 5PM EASTERN IN EVERY SEASON (2026-10-12) ──
+// The transcript filed a follow-up as `${day}T17:00:00-04:00`, which is 4pm from November to March. lib/etDay.etAt is
+// the truck's clock on a business day, DST-correct like etDayStart beside it; lib/rhythm.followUpDueAt is the rule.
+{
+  const ET = require("../.smoke/etDay.js"), RH = require("../.smoke/rhythm.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  ok("follow-ups: due at 5pm Eastern in July — 21:00Z under EDT", RH.followUpDueAt("2026-07-15") === "2026-07-15T21:00:00.000Z", RH.followUpDueAt("2026-07-15"));
+  ok("follow-ups: …and in December — 22:00Z under EST, not the 4pm a fixed -04:00 gave", RH.followUpDueAt("2026-12-15") === "2026-12-15T22:00:00.000Z", RH.followUpDueAt("2026-12-15"));
+  ok("follow-ups: on the day the clocks go forward (Mar 8) 5pm is already EDT, on the day they go back (Nov 1) already EST",
+    RH.followUpDueAt("2026-03-08") === "2026-03-08T21:00:00.000Z" && RH.followUpDueAt("2026-11-01") === "2026-11-01T22:00:00.000Z",
+    [RH.followUpDueAt("2026-03-08"), RH.followUpDueAt("2026-11-01")]);
+  ok("follow-ups: the hour is one constant, 17", RH.FOLLOW_UP_HOUR === 17);
+  const clock = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const reads = (d) => clock.format(d).replace(",", "");
+  const days = ["2026-01-15", "2026-03-07", "2026-03-08", "2026-03-09", "2026-07-04", "2026-10-31", "2026-11-01", "2026-11-02", "2026-12-31"];
+  ok("etAt: reads back as the hour asked, on the day asked, either side of both clock changes",
+    days.every((k) => [0, 9, 13, 17, 23].every((h) => reads(ET.etAt(k, h, 5)) === `${k} ${String(h).padStart(2, "0")}:05`)),
+    days.flatMap((k) => [0, 9, 13, 17, 23].map((h) => reads(ET.etAt(k, h, 5)))).filter((s) => !s.endsWith(":05")).slice(0, 3));
+  ok("etAt: midnight is etDayStart's instant", ["2026-03-08", "2026-07-04", "2026-11-01", "2026-12-01"].every((k) => ET.etAt(k, 0).getTime() === ET.etDayStart(k).getTime()));
+  ok("etAt: 2:30am on Mar 8 is not on the wall; it comes back as the hour after (3:30 EDT, 07:30Z)", ET.etAt("2026-03-08", 2, 30).toISOString() === "2026-03-08T07:30:00.000Z", ET.etAt("2026-03-08", 2, 30).toISOString());
+  const se = code(rd("app/api/agents/session-extract/route.ts"));
+  ok("transcript: an open item with a day is filed through followUpDueAt — no Eastern offset written by hand",
+    /due_at: due \? followUpDueAt\(due\) : null/.test(se) && !/T17:00:00-0[45]:00/.test(se) && /import \{ followUpDueAt \} from "@\/lib\/rhythm";/.test(se));
+  ok("smoke: lib/etDay and lib/rhythm are compiled for these pins", /lib\/etDay\.ts lib\/rhythm\.ts/.test(JSON.parse(rd("package.json")).scripts.smoke));
+}
+
 Promise.all(PENDING).then(() => {
   console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
