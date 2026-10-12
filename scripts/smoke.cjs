@@ -6515,8 +6515,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const missed = items\.length - took;/.test(today) && /didn't save, try again/.test(today));
   ok("one home: a deadline opens what Needs you opens — the same router, shared, not copied",
     /export function useObligationGo\(/.test(owed) && /useObligationGo\(viewer, \(\) => state\.reload\(\)\)/.test(today) && /useObligationGo\(viewer, \(\) => state\.reload\(\)\)/.test(owed));
-  ok("one home: each number is shown to whoever could already see it — money to admins, the drop to managers, none to crew",
-    /<HomeNumbers money=\{money\} drops=\{isLeader\} \/>/.test(myDay) && /money=\{isAdmin\}/.test(crew) && /if \(!money && !drops\) return null;/.test(nums));
+  // The numbers left My Day (2026-10-12, the My Day audit, approved): Money is their one home, and its gate is Money's.
+  ok("one home: the three numbers are Money's alone — none on My Day, for any role — and a caller that may see neither draws nothing",
+    !/<HomeNumbers /.test(myDay) && (crew.match(/<HomeNumbers /g) || []).length === 1 && /<HomeNumbers money drops here="money" \/>/.test(crew)
+    && /<MyDay userId=\{user\?\.id \?\? null\} canGoLive=\{isAdmin\} canBrew=\{canManage \|\| role === "operator"\} \/>/.test(crew) && /if \(!money && !drops\) return null;/.test(nums));
   ok("one home: each number says its change and its cause, and a failed read is not zero",
     /changeWords\(pctChange\(sales\.now, sales\.prev\)\)/.test(nums) && /sales\.driver \?/.test(nums) && /paceWords\(drop\.packs, drop\.then\)/.test(nums)
     && /errorSub="This is not zero — we could not read them just now\."/.test(nums) && (nums.match(/if \(failed\) throw new Error\(failed\.message\);/g) || []).length === 2);
@@ -6526,8 +6528,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /<ChiefOfStaff \/>/.test(cmdSec)
     && /\.\.\.\(manage \? \[\{ key: "file" as const, label: "File" \}\] : \[\]\)/.test(qd) && /mode === "file" && manage \? <><SmartIntake \/><DocsFiled \/><\/>/.test(qd)
     && /const SmartIntake = dynamic\(\(\) => import\("\.\/SmartIntake"\)/.test(qd) && /const DocsFiled = dynamic\(\(\) => import\("\.\/DocsFiled"\)/.test(qd));
-  ok("one home: on a phone Today comes right under the day — the numbers beside it on a desk, after it on a phone, and only for who has them",
-    myDay.indexOf("<TodayList ") > 0 && myDay.indexOf("<TodayList ") < myDay.indexOf("<HomeNumbers ") && /\{\(money \|\| isLeader\) && \(/.test(myDay));
+  ok("one home: on a phone Today comes right under the day — the op, its stops, drops and brews, then To do",
+    myDay.indexOf("<DayHeadline ") > 0 && myDay.indexOf("<DayHeadline ") < myDay.indexOf('className="myday-rhythm"') && myDay.indexOf('className="myday-rhythm"') < myDay.indexOf("<TodayList ")
+    && !/money|isLeader/.test(myDay.slice(0, myDay.indexOf(") {"))));
   // The stale left the line of chips for the list itself (2026-10-12): one row, "N to decide", into the same sheet.
   ok("today round: what else is waiting is one line of chips, one tap each — equipment, compliance, bookings, restock, all tasks — the late in the warning colour; the stale are the list's own row",
     /<div className="flex flex-wrap gap-2 pt-3" role="group" aria-label="Also waiting">/.test(today)
@@ -6629,6 +6632,19 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && owed.indexOf("ownerOf.get(") < owed.indexOf("listed.filter((r) => obligationFor(r, v))"));
     ok("my day (B): To do is built from your plate and the deadlines that are yours — no team rows, no third feed",
       /for \(const t of mine\.rows\) \{/.test(tl) && /for \(const r of owed\.rows\) \{/.test(tl) && !/kind: "team"|owed\.tasks|"Not attached to an event or stop"/.test(tl));
+  }
+
+  // F — the numbers are off My Day, and nothing points at a block that is not there.
+  {
+    const walk = (dir) => fs.readdirSync(path.join(__dirname, "..", dir), { withFileTypes: true })
+      .flatMap((e) => (e.isDirectory() ? walk(`${dir}/${e.name}`) : /\.(tsx?|md)$/.test(e.name) ? [`${dir}/${e.name}`] : []));
+    const files = ["app", "components", "lib"].flatMap(walk);
+    const guide = (k) => (new RegExp(`const ${k}: Record<OpSection, [^>]+> = \\{[\\s\\S]*?\\n  day: ([^\\n]+)`).exec(read("app/crew/page.tsx"))?.[1] ?? "");
+    ok("my day (F): the Numbers block is off My Day and on Money alone — no anchor, no ?s=day&a= link and no line of the Guide points at it",
+      !/<HomeNumbers /.test(myDay) && /<HomeNumbers money drops here="money" \/>/.test(crew)
+      && files.filter((f) => /home-numbers/.test(read(f))).join() === "components/HomeNumbers.tsx"
+      && !files.some((f) => /s=day&a=/.test(read(f))) && ["SEC_SUB", "SEC_MORE", "SEC_INSIDE"].every((k) => guide(k) && !/number/i.test(guide(k))),
+      ["SEC_SUB", "SEC_MORE", "SEC_INSIDE"].map(guide));
   }
 
   // A — the head's four states, from a list of HomeItems through splitHome, as the screen computes them.

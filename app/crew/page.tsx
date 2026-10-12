@@ -1084,7 +1084,7 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
 type Rhythm = { stops: { id: string; name: string | null; starts_at: string | null }[]; dropPacks: number; porches: number; brews: { id: string; recipe_name: string; batch_gal: number; warn: boolean }[] };
 const NO_RHYTHM: Rhythm = { stops: [], dropPacks: 0, porches: 0, brews: [] };
 
-function MyDay({ userId, isLeader, canGoLive, canBrew, money }: { userId: string | null; isLeader: boolean; canGoLive: boolean; canBrew: boolean; money: boolean }) {
+function MyDay({ userId, canGoLive, canBrew }: { userId: string | null; canGoLive: boolean; canBrew: boolean }) {
   // Flags ride the one shared hook (same source as the Now strip + nav badge). Crew see their own
   // pings + broadcasts now too — the old isLeader gate predates the staff-wide alerts RLS (0157).
   const { flags, error: flagsErr, reload: reloadFlags } = useMyAlerts(userId);
@@ -1136,6 +1136,11 @@ function MyDay({ userId, isLeader, canGoLive, canBrew, money }: { userId: string
           week's three numbers, each with its change and its cause; beside it, at most three things due
           today, with the equipment, the stale and the full lists each folded to one row. A phone reads
           them in this order. My tasks and Needs you are whole, one tap down, in "All tasks". */}
+      {/* THE NUMBERS LEFT MY DAY (2026-10-12, the My Day audit, approved). Sales over the fortnight, margin and
+          the next drop's packs stood beside the day for whoever holds Money or manages — the figures Money
+          opens on, Command's board and Live Ops' Due next say again — on the screen whose questions are what
+          needs me, what next and what's coming. They are Money's alone now (components/HomeNumbers, here=
+          "money"); nothing linked into them here: no anchor, no ?s=day link, no line of the Guide. */}
       <Columns>
       <Column>
       <DayHeadline canGoLive={canGoLive} />
@@ -1178,13 +1183,6 @@ function MyDay({ userId, isLeader, canGoLive, canBrew, money }: { userId: string
           day itself, so a phone reaches it on the first screen (2026-10-09: the numbers stood above it
           and left two of its rows above the tab bar). */}
       <TodayList allTasks={<><MyTasks userId={userId} anchor={false} /><Owed /></>} />
-      </Column>
-      {(money || isLeader) && (
-      <Column>
-      {/* THE WEEK IN THREE NUMBERS — sales and margin for whoever holds Money, the next drop for
-          whoever manages; nothing for crew, whose home is the day's work. Beside the day on a desk,
-          under it on a phone: glanced at once, after what is due. */}
-      <HomeNumbers money={money} drops={isLeader} />
       {/* LEAD THE WEEK LEFT MY DAY (2026-10-09, One home; Ryan: "whats the lead the week, gtm briefing &
           intake, any operational purposes?"). A chip that folded three tools a leader reaches for weekly or
           less: a go-to-market card of fixed text whose anchor was Aug 1 (retired — Command's initiatives
@@ -1192,7 +1190,6 @@ function MyDay({ userId, isLeader, canGoLive, canBrew, money }: { userId: string
           Command now, where the week is led), and Smart intake with what it filed (Quick actions › File,
           from every screen — a permit arrives in the hand, not at My Day). A daily screen holds the day. */}
       </Column>
-      )}
       </Columns>
     </>
   );
@@ -5691,7 +5688,7 @@ export default function AdminPage() {
           {/* P3 (2026-08-03): a leader's day opens with the headline — today's op + top 3 due —
               before the plates. MyDay renders it now (2026-10-04), under the greeting, so the
               greeting opens the screen and today's op has one card for everybody. */}
-          <MyDay userId={user?.id ?? null} isLeader={canManage} canGoLive={isAdmin} canBrew={canManage || role === "operator"} money={isAdmin} />
+          <MyDay userId={user?.id ?? null} canGoLive={isAdmin} canBrew={canManage || role === "operator"} />
         </>
       )}
       {sec === "command" && canManage && (

@@ -26,6 +26,10 @@ import { goToDest } from "./CrewKpis";
 // THE SAME THREE OPEN MONEY (2026-10-09, Business opens on Money): Money opened on five tiles with no
 // comparison (components/MoneyKpis, retired). Here, on Money, a number opens its report below instead of
 // the section it is already in, and there is no "See all" to the screen it is on.
+//
+// AND ONLY MONEY (2026-10-12, the My Day audit, approved): My Day stopped drawing them — they said again
+// what Money opens on, what Command's board and Live Ops' Due next say, on a screen about what needs you.
+// Money is their one caller; here="day" (a number opens Money, "See all" opens Command) has none today.
 
 type Report = { revenue_cents?: number; by_channel?: Channels; cogs_pct?: number; error?: string };
 type EventPnl = { id: string; kind: string; fixed_cents: number };
