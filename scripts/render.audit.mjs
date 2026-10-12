@@ -67,7 +67,12 @@ import { readFileSync, existsSync } from "node:fs";
 // Kitchen (lib/passSound); the phone's notification permission (components/DeviceAlerts, which
 // replaced the crew page's EnableAlerts); and the calendar's Outlook bar, whose status and returned
 // ?outlook= word were two effects (components/OutlookConnect's useOutlookStatus, lib/urlParam).
-export const BASELINE = 100;
+//
+// 2026-10-12: 100 → 99 (the Catalog round). The menu's expander went, and with it its sync-to-prop effect
+// (`useEffect(() => { setD(p); }, [p])`, components/MenuManager:89 — the one that wiped an open row's edits on every
+// read of the list). Measured on the files themselves: eslint finds that one hit in the old MenuManager and none in
+// the new MenuManager, ProductPage or lib/catalog.
+export const BASELINE = 99;
 
 const RULE = "react-hooks/set-state-in-effect";
 
