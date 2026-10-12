@@ -6443,33 +6443,38 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
   const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
   const it = (key, daysOut, critical = false, kind = "mine") => ({ key, title: key, sub: "", daysOut, critical, kind });
+  // The rank (2026-10-12, the My Day audit) replaced "critical first, then your own, then the latest": six fixed
+  // tiers — here h is critical and late (2), a due today (3), c, b and k late by a fortnight or less (4, yours
+  // first, then the earliest due), f due in two days (5); d and e are more than two weeks late (6, to decide).
   const split = H.splitHome([
     it("a", 0), it("b", -3), it("c", -14), it("d", -15), it("e", -99), it("f", 2), it("g", null),
-    it("h", -1, true, "team"), it("i", -40, false, "upkeep"), it("j", 0, false, "upkeep"), it("k", -10, false, "owed"),
+    it("h", -1, true), it("i", -40, false, "upkeep"), it("j", 0, false, "upkeep"), it("k", -10, false, "owed"),
   ]);
-  ok("one home: at most three due today — critical first, then your own, then the latest — and a count of the rest",
-    H.TODAY_MAX === 3 && split.today.map((i) => i.key).join() === "h,c,b" && split.moreToday === 2 && split.due.map((i) => i.key).join() === "h,c,b,a,k");
-  ok("one home: more than two weeks late folds into one row — fourteen days late is still today's",
-    H.STALE_DAYS === 14 && split.stale.map((i) => i.key).join() === "e,d" && H.homeBucket(-14) === "today" && H.homeBucket(-15) === "stale");
-  ok("one home: equipment is one row however old, and later or undated work waits in All tasks",
-    split.upkeep.map((i) => i.key).join() === "i,j" && split.later === 2 && split.total === 11 && H.homeBucket(null) === "later");
+  ok("one home: at most three of yours lead, in the fixed rank — and a count of the rest that is due",
+    H.TODAY_MAX === 3 && split.shown.map((i) => i.key).join() === "h,a,c" && split.next.map((i) => i.key).join() === "h,a,c,b,k,f"
+    && split.moreToday === 2 && split.due.map((i) => i.key).join() === "h,a,c,b,k", split.next.map((i) => i.key));
+  ok("one home: more than two weeks late is to decide, newest first — fourteen days late is still today's",
+    H.STALE_DAYS === 14 && split.stale.map((i) => i.key).join() === "d,e" && split.moreStale === 2 && H.homeBucket(-14) === "today" && H.homeBucket(-15) === "stale");
+  ok("one home: equipment is one row however old; undated work waits in All tasks, and due in two days is no longer 'later'",
+    split.upkeep.map((i) => i.key).join() === "i,j" && split.later === 1 && split.total === 11 && H.homeBucket(null) === "later");
   {
     // My Day 10 (2026-10-10): compliance rules are one row, never "due today"; the day counts down and ends.
-    const s2 = H.splitHome([it("a", 0), it("r1", 0, false, "rule"), it("r2", null, false, "rule"), it("r3", -40, false, "rule"), it("b", 3), it("c", 1, false, "team")]);
+    const s2 = H.splitHome([it("a", 0), it("r1", 0, false, "rule"), it("r2", null, false, "rule"), it("r3", -40, false, "rule"), it("b", 3), it("c", 1, false, "owed")]);
     ok("one home: a compliance rule is never today's — it folds to one row with the others, whatever its date",
-      s2.rules.map((i) => i.key).join() === "r1,r2,r3" && s2.due.map((i) => i.key).join() === "a" && s2.stale.length === 0 && s2.later === 2 && s2.total === 6);
+      s2.rules.map((i) => i.key).join() === "r1,r2,r3" && s2.due.map((i) => i.key).join() === "a" && s2.stale.length === 0 && s2.later === 1 && s2.total === 6
+      && s2.next.map((i) => i.key).join() === "a,c");
     ok("one home: the head counts what is done beside what is left, and a finished day says so",
       H.dayCount(0, 3) === "3 due" && H.dayCount(2, 3) === "2 done · 3 to go" && H.dayCount(4, 0) === "4 done" && H.dayCount(0, 0) === "Clear");
     ok("one home: a finished day points at the first dated thing after it — not equipment, not compliance",
-      H.nextUp(s2.rules.concat([it("x", 5), it("y", 2, false, "owed"), it("z", 2, true, "team"), it("u", 1, false, "upkeep")])).key === "z" && H.nextUp([it("p", 0)]) === null);
+      H.nextUp(s2.rules.concat([it("x", 5), it("y", 2, false, "owed"), it("z", 2, true), it("u", 1, false, "upkeep")])).key === "z" && H.nextUp([it("p", 0)]) === null);
     const tl = read("components/TodayList.tsx"), hn = read("components/HomeNumbers.tsx");
     ok("My Day: compliance rules come in as rules, undated when never confirmed, and open where they are confirmed",
       /const kind = r\.source === "asset_maintenance" \? "upkeep" : r\.source === "compliance_rules" \? "rule" : "owed";/.test(tl)
       && /const daysOut = kind === "rule" && Number\(r\.days_out\) >= 0 \? null : Number\(r\.days_out\);/.test(tl)
       && /\{s\.rules\.length > 0 && <button type="button" className="k-chip sm" onClick=\{\(\) => setSheet\("rules"\)\}/.test(tl) && /\{sheet === "rules" && \(/.test(tl));
-    ok("My Day: the head reads the day's count, done today from both tables' done_at, and an empty list says whether the day is done",
-      /\{dayCount\(doneToday, due\)\}/.test(tl) && /\.eq\("assignee", meId\)\.eq\("done", true\)\.gte\("done_at", since\)/.test(tl)
-      && /\{doneToday > 0 \? "Today's done\." : "Nothing due today\."\}/.test(tl) && /const next = nextUp\(items\);/.test(tl));
+    ok("My Day: the head reads the day (lib/home dayHead), done today from both tables' done_at, and a list with nothing ranked or to decide says whether the day is done",
+      /const head = loaded && split \? dayHead\(\{/.test(tl) && /\{head\.words\}/.test(tl) && /\.eq\("assignee", meId\)\.eq\("done", true\)\.gte\("done_at", since\)/.test(tl)
+      && /\{doneToday > 0 \? "Today's done\." : "Nothing due today\."\}/.test(tl) && /const next = nextUp\(items\);/.test(tl) && /\{s\.shown\.length === 0 && \(\(\) => \{/.test(tl));
     ok("numbers: two weeks with nothing sold is one line — unless the week had event costs, which keep their margin row",
       /const quiet = !!sales && sales\.now === 0 && sales\.prev === 0 && \(!margin \|\| \(margin\.now === 0 && margin\.prev === 0\)\);/.test(hn)
       && /\{sales && !quiet && \(/.test(hn) && /\{margin && !quiet && \(/.test(hn));
@@ -6523,14 +6528,16 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /const SmartIntake = dynamic\(\(\) => import\("\.\/SmartIntake"\)/.test(qd) && /const DocsFiled = dynamic\(\(\) => import\("\.\/DocsFiled"\)/.test(qd));
   ok("one home: on a phone Today comes right under the day — the numbers beside it on a desk, after it on a phone, and only for who has them",
     myDay.indexOf("<TodayList ") > 0 && myDay.indexOf("<TodayList ") < myDay.indexOf("<HomeNumbers ") && /\{\(money \|\| isLeader\) && \(/.test(myDay));
-  ok("today round: what else is waiting is one line of chips, one tap each — equipment, the stale, bookings, restock, all tasks — the late in the warning colour",
+  // The stale left the line of chips for the list itself (2026-10-12): one row, "N to decide", into the same sheet.
+  ok("today round: what else is waiting is one line of chips, one tap each — equipment, compliance, bookings, restock, all tasks — the late in the warning colour; the stale are the list's own row",
     /<div className="flex flex-wrap gap-2 pt-3" role="group" aria-label="Also waiting">/.test(today)
       && /className=\{`k-chip sm\$\{upkeepLate \? " warn" : ""\}`\} onClick=\{\(\) => setSheet\("upkeep"\)\}/.test(today)
-      && /onClick=\{\(\) => setSheet\("stale"\)\}/.test(today) && /onClick=\{\(\) => goPlanTab\("leads", \{ setSection \}\)\}/.test(today)
+      && /fold\("decide", [^\n]*\(\) => setSheet\("stale"\)\)/.test(today) && /onClick=\{\(\) => goPlanTab\("leads", \{ setSection \}\)\}/.test(today)
       && /onClick=\{\(\) => setSheet\("all"\)\} aria-label=\{`All tasks, \$\{s\.total\}`\}>All tasks · \{s\.total\} ›<\/button>/.test(today)
-      && !/fold\("(upkeep|stale|bookings|restock|all)"/.test(today));
-  ok("one home: the head's count is the rows it shows plus the one row that opens the rest — and it is a count, not an alarm",
-    /fold\("due", `\$\{s\.moreToday\} more due today`/.test(today) && /sheet === "due" &&/.test(today) && /k-count\$\{due \? "" : " ok"\}/.test(today));
+      && !/fold\("(upkeep|stale|bookings|restock|all)"/.test(today) && !/STALE_SHORT|weeks late · \{/.test(today));
+  ok("one home: the head's count is the due rows it shows plus the one row that opens the rest — a count in the kit's chip: plain, the warning amber to decide, green only when clear",
+    /fold\("due", `\$\{s\.moreToday\} more due today`/.test(today) && /sheet === "due" &&/.test(today) && /\{s\.due\.map\(\(i\) => row\(i, today\)\)\}/.test(today)
+    && /className=\{`k-count\$\{TONE\[head\.tone\]\}`\}/.test(today) && /const TONE = \{ plain: "", warn: " soon", ok: " ok" \} as const;/.test(read("components/TodayList.tsx")));
   ok("the op card: Make it live is the screen's one primary, and the display face is the event's name alone (it drew Wear and Details)",
     /<Button kind="primary" compact onClick=\{\(\) => makeLive\(op\.id\)\}/.test(code(read("components/DayHeadline.tsx")))
     && /\.dayhead-op-t>b\{font-family:'Archivo Black'/.test(read("app/globals.css")) && !/\.dayhead-op b\{/.test(read("app/globals.css")));
@@ -6622,6 +6629,105 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && owed.indexOf("ownerOf.get(") < owed.indexOf("listed.filter((r) => obligationFor(r, v))"));
     ok("my day (B): To do is built from your plate and the deadlines that are yours — no team rows, no third feed",
       /for \(const t of mine\.rows\) \{/.test(tl) && /for \(const r of owed\.rows\) \{/.test(tl) && !/kind: "team"|owed\.tasks|"Not attached to an event or stop"/.test(tl));
+  }
+
+  // A — the head's four states, from a list of HomeItems through splitHome, as the screen computes them.
+  {
+    const it = (key, daysOut, extra = {}) => ({ key, title: key, sub: "", daysOut, critical: false, kind: "mine", ...extra });
+    const headOf = (items, done = 0, more = 0, unread = false) => {
+      const s = H.splitHome(items);
+      return H.dayHead({ done, due: s.due.length, decide: s.stale.length, waiting: s.upkeep.length + s.rules.length + more, unread });
+    };
+    const same = (h, words, tone) => h.words === words && h.tone === tone;
+    // The audit's morning, once only what's his is left: nothing due in the fortnight, five of his more than two
+    // weeks late, one dated task ahead, three rules never confirmed, one piece of equipment.
+    const audit = [it("s1", -15), it("s2", -20), it("s3", -33, { kind: "owed" }), it("s4", -60), it("s5", -99), it("ahead", 5),
+      it("r1", null, { kind: "rule" }), it("r2", null, { kind: "rule" }), it("r3", null, { kind: "rule" }), it("u1", -3, { kind: "upkeep" })];
+    ok("my day (A): something due today or late by two weeks or less — the count as before, plain",
+      same(headOf([it("a", 0), it("b", -14), it("u", -40, { kind: "upkeep" })]), "2 due", "plain") && same(headOf([it("a", 0), it("b", -3)], 1), "1 done · 2 to go", "plain")
+      && same(headOf([it("a", -1), it("old", -40)]), "1 due", "plain"));
+    ok("my day (A): nothing due but work of yours more than two weeks late — 'Nothing due · 5 to decide', in the warning tone, never the green done style (the audit's morning said 'Clear')",
+      same(headOf(audit), "Nothing due · 5 to decide", "warn") && same(headOf(audit, 4), "4 done · 5 to decide", "warn"), headOf(audit));
+    ok("my day (A): nothing due or to decide, only equipment, compliance, bookings or restock waiting — 'Nothing due', plain; and a part that could not be read is not 'Clear'",
+      same(headOf([it("u", -3, { kind: "upkeep" }), it("ahead", 5)]), "Nothing due", "plain") && same(headOf([it("r", null, { kind: "rule" })]), "Nothing due", "plain")
+      && same(headOf([], 0, 2), "Nothing due", "plain") && same(headOf([], 0, 0, true), "Nothing due", "plain") && same(headOf([it("u", -3, { kind: "upkeep" })], 3), "3 done", "plain"));
+    ok("my day (A): nothing waiting at all — 'Clear', green; a done day says how much, still green; a task days off is not waiting",
+      same(headOf([]), "Clear", "ok") && same(headOf([it("ahead", 5), it("undated", null)]), "Clear", "ok") && same(headOf([], 4), "4 done", "ok"));
+  }
+
+  // C — what's next, by the fixed rank: twelve-plus cases, each its own pin.
+  {
+    const it = (key, daysOut, extra = {}) => ({ key, title: key, sub: "", daysOut, critical: false, kind: "mine", ...extra });
+    const op = (daysOut, name = "ISI Elite Training") => ({ op: { name, daysOut } });
+    const tier = (i) => H.homeTier(i);
+    const order = (...items) => items.slice().sort(H.rankHome).map((i) => i.key).join();
+    const cases = [
+      ["an event 3 days off is tier 1, even with nothing dated", tier(it("x", null, op(3))) === 1],
+      ["an event today is tier 1; 4 days off is not — and then nothing near ranks it", tier(it("x", 0, op(0))) === 1 && tier(it("x", 4, op(4))) === null],
+      ["an event already past ranks the task by its own date", tier(it("x", -2, op(-2))) === 4 && tier(it("x", -20, op(-20))) === 6],
+      ["critical and due today, or late by up to two weeks, is tier 2", tier(it("x", 0, { critical: true })) === 2 && tier(it("x", -14, { critical: true })) === 2],
+      ["critical and more than two weeks late is to decide — critical never lifts it", tier(it("x", -15, { critical: true })) === 6],
+      ["due today is tier 3; late by 1 to 14 days is tier 4", tier(it("x", 0)) === 3 && tier(it("x", -1)) === 4 && tier(it("x", -14)) === 4],
+      ["late by 15 days or more is tier 6, to decide", tier(it("x", -15)) === 6 && tier(it("x", -99)) === 6],
+      ["due in 1 or 2 days is tier 5; in 3 days it waits, unranked", tier(it("x", 1)) === 5 && tier(it("x", 2)) === 5 && tier(it("x", 3)) === null],
+      ["undated with no event near, equipment and compliance are not ranked", tier(it("x", null)) === null && tier(it("u", -40, { kind: "upkeep" })) === null && tier(it("r", 0, { kind: "rule" })) === null],
+      ["age never lifts a tier: 14 days late stays under due today, 40 days late under due in two days",
+        order(it("late14", -14), it("old40", -40), it("in2", 2), it("today", 0)) === "today,late14,in2,old40"],
+      ["the tiers in order, one of each", order(it("t6", -30), it("t5", 1), it("t4", -2), it("t3", 0), it("t2", -1, { critical: true }), it("t1", 2, op(2))) === "t1,t2,t3,t4,t5,t6"],
+      ["assigned to you before what you own, inside a tier — even when what you own is older", order(it("owned", -10, { kind: "owed" }), it("assigned", -2)) === "assigned,owned"],
+      ["then the earliest due first", order(it("late3", -3), it("late9", -9)) === "late9,late3" && order(it("in2", 2), it("in1", 1)) === "in1,in2"],
+      ["tier 6 newest-due first", order(it("d99", -99), it("d15", -15), it("d40", -40)) === "d15,d40,d99"],
+    ];
+    for (const [name, cond] of cases) ok(`my day (C): ${name}`, !!cond);
+    const mon = "2026-10-12";   // a Monday
+    const words = (i, today = mon) => H.reasonWords(i, today);
+    ok("my day (C): each row's reason in words — 'for Sat · ISI Elite Training', 'critical', 'due today', '3 days late', 'due Wed', 'to decide'",
+      words(it("x", null, op(3)), "2026-10-14") === "for Sat · ISI Elite Training" && words(it("x", 0, op(0))) === "for today · ISI Elite Training"
+      && words(it("x", 1, op(1))) === "for tomorrow · ISI Elite Training" && words(it("x", -3, { critical: true })) === "critical"
+      && words(it("x", 0)) === "due today" && words(it("x", -3)) === "3 days late" && words(it("x", -1)) === "1 day late"
+      && words(it("x", 2)) === "due Wed" && words(it("x", 1)) === "due tomorrow" && words(it("x", -40)) === "to decide"
+      && words(it("u", -3, { kind: "upkeep" })) === null && words(it("x", 9)) === null,
+      [words(it("x", null, op(3)), "2026-10-14"), words(it("x", 2))]);
+    ok("my day (C): the age beside a row only when its reason has not said when — critical and to decide say it, due today and due Wed do not, a task dated by its event does not",
+      H.ageWords(it("x", -3, { critical: true })) === "3 days late" && H.ageWords(it("x", -40)) === "40 days late" && H.ageWords(it("x", 0)) === null
+      && H.ageWords(it("x", -3)) === null && H.ageWords(it("x", 2)) === null && H.ageWords(it("x", 2, op(2))) === null
+      && H.ageWords(it("x", -2, op(1))) === "2 days late" && H.ageWords(it("u", -5, { kind: "upkeep" })) === "5 days late" && H.ageWords(it("x", null, op(1))) === null);
+    ok("my day (C): the rank's constants — three rows, an event three days off, due within two, stale past fourteen",
+      H.TODAY_MAX === 3 && H.OP_DAYS === 3 && H.SOON_DAYS === 2 && H.STALE_DAYS === 14);
+    // D — with nothing nearer, the newest to decide leads, the rest one row; with something nearer, all of them are the row.
+    const only = H.splitHome([it("d15", -15), it("d40", -40), it("d99", -99), it("u", -3, { kind: "upkeep" })]);
+    const both = H.splitHome([it("today", 0), it("d15", -15), it("d40", -40)]);
+    ok("my day (D): nothing nearer — the newest more than two weeks late leads as 'To decide', and the rest is one row (2 more); something nearer — the to-decide are all the row",
+      only.shown.map((i) => i.key).join() === "d15" && only.moreStale === 2 && only.next.length === 0 && only.due.length === 0
+      && both.shown.map((i) => i.key).join() === "today" && both.moreStale === 2 && both.stale.map((i) => i.key).join() === "d15,d40");
+    ok("my day (C): 'Next: … in N days' stays for a list with nothing ranked and nothing to decide — the first dated thing ahead",
+      H.splitHome([it("ahead", 5)]).shown.length === 0 && H.nextUp([it("ahead", 5), it("later", 9)]).key === "ahead");
+  }
+
+  // D and I on the screen — the to-decide row, its sheet as it was, nothing written without a tap, and the count.
+  {
+    const tl = code(read("components/TodayList.tsx"));
+    const loader = tl.slice(tl.indexOf("const loader = useCallback("), tl.indexOf("const state = useAsyncData<Data>("));
+    ok("my day (D): the rest to decide is one row, 'N more to decide' when the newest leads, opening the stale sheet with its bulk Done and Move to next week unchanged",
+      /\{s\.moreStale > 0 && fold\("decide", `\$\{s\.moreStale\} \$\{leadsToDecide \? "more " : ""\}to decide`, STALE_LABEL, \(\) => setSheet\("stale"\)\)\}/.test(tl)
+      && /const leadsToDecide = s\.next\.length === 0 && s\.shown\.length > 0;/.test(tl)
+      && /onClick=\{\(\) => bulk\(tickable, "done"\)\}>Mark \{tickable\.length\} done<\/button>/.test(tl) && /onClick=\{\(\) => bulk\(tickable, "later"\)\}>Move \{tickable\.length\} to next week<\/button>/.test(tl)
+      && /\{s\.shown\.map\(\(i\) => row\(i, today\)\)\}/.test(tl));
+    ok("my day (D): nothing is closed, moved or reassigned without a tap — the loader writes nothing; the writes are the tick and the two bulk buttons",
+      !/completeTask|updateTask|logDone|\.update\(|\.insert\(|\.delete\(|\.upsert\(/.test(loader)
+      && (tl.match(/\bbulk\(/g) || []).length === 3 && (tl.match(/onClick=\{\(\) => bulk\(/g) || []).length === 3
+      && (tl.match(/\btick\(/g) || []).length === 1 && /onClick=\{\(\) => tick\(i\)\}/.test(tl));
+    ok("my day (C): a row says its reason first, in sentence case, then what it is — unless a tier-1 reason already names its event — and its age only when the reason has not said when",
+      /const reason = reasonWords\(i, today\), age = ageWords\(i\);/.test(tl) && /const sub = homeTier\(i\) === 1 && i\.subIsOp \? null : i\.sub;/.test(tl)
+      && /<i>\{\[reason && sentence\(reason\), sub\]\.filter\(Boolean\)\.join\(" · "\)\}<\/i>/.test(tl) && /\{age && <span className="owed-age">\{age\}<\/span>\}/.test(tl)
+      && /const op = t\.op\?\.day \? \{ name: t\.op\.name, daysOut: daysBetween\(today, t\.op\.day\) \} : null;/.test(tl));
+    ok("my day (I): 'All tasks' stays the door to both full lists, and its count is every item on the list — all of them yours",
+      H.splitHome([{ key: "a", title: "a", sub: "", daysOut: 0, critical: false, kind: "mine" }, { key: "u", title: "u", sub: "", daysOut: -3, critical: false, kind: "upkeep" }]).total === 2
+      && /aria-label=\{`All tasks, \$\{s\.total\}`\}>All tasks · \{s\.total\} ›<\/button>/.test(tl) && /\{sheet === "all" && \(/.test(tl));
+    const mt = code(read("lib/myTasks.ts"));
+    ok("my day (C): a task's event or stop rides with it from either table — plainly named, with its id and day — so a to-do for Saturday's event is tier 1 too",
+      /op_name != null/.test(mt) && /id: r\.event_id \?\? r\.stop_id \?\? r\.field_op_id \?\? null/.test(mt)
+      && /critical: false, warn: false, events: null, meeting_notes: null, goals: null, op: opOf\(r\),/.test(mt) && /source: "event" as const, op: opOf\(r\),/.test(mt));
   }
 }
 

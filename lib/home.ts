@@ -7,8 +7,9 @@
 // deleted to get there.
 //
 // The rules live here, apart from the screens, so the smoke suite can hold them to their word.
-import { dayKey, etDayKey, addDays } from "./dates";
+import { dayKey, etDayKey, addDays, weekdayOf } from "./dates";
 import { etDayStart } from "./etDay";
+import { dueWord } from "./dayWords";
 
 /** A task more than this many days late is stale: it folds into one row instead of leading the day. */
 export const STALE_DAYS = 14;
@@ -22,33 +23,103 @@ export type HomeItem = {
   /** the due day minus today, in whole days: negative is late, 0 is today, null has no date */
   daysOut: number | null;
   critical: boolean;
-  /** mine: your own task · owed: a deadline you can act on · team: somebody else's late task · upkeep: equipment ·
-   *  rule: a compliance rule to confirm with its authority */
-  kind: "mine" | "owed" | "team" | "upkeep" | "rule";
+  /** mine: a task assigned to you · owed: a deadline that is yours (lib/obligations obligationFor) · upkeep:
+   *  equipment · rule: a compliance rule to confirm with its authority. ("team", somebody else's late task,
+   *  left with "only what's yours", 2026-10-12: the team's late work is Command's.) */
+  kind: "mine" | "owed" | "upkeep" | "rule";
+  /** the event or stop it belongs to — its name, and its day minus today — when it belongs to one (2026-10-12) */
+  op?: { name: string; daysOut: number } | null;
 };
 
 export type HomeSplit<T extends HomeItem = HomeItem> = {
-  today: T[];        // at most TODAY_MAX, in rank order
-  due: T[];          // every item due today or late by STALE_DAYS or less, in rank order
-  moreToday: number;        // due today or late, past the first TODAY_MAX
-  stale: T[];               // late by more than STALE_DAYS
-  upkeep: T[];              // equipment upkeep due or late, whatever its age: one row on the home
-  rules: T[];               // compliance rules to confirm with the authority: one row on the home, never "due today"
-  later: number;            // dated after today, or not dated at all
-  total: number;
+  next: T[];          // tiers 1–5, in rank order: what the list leads with
+  shown: T[];         // the rows the list leads with: at most TODAY_MAX of next — or, with next empty, the first to decide
+  due: T[];           // of next, everything due today or late: the head's count and the "due" sheet, in rank order
+  moreToday: number;  // due, but not among shown
+  stale: T[];         // tier 6: late by more than STALE_DAYS, newest-due first — "to decide"
+  moreStale: number;  // stale, but not among shown: the one "N more to decide" row
+  upkeep: T[];        // equipment upkeep due or late, whatever its age: one row on the home
+  rules: T[];         // compliance rules to confirm with the authority: one row on the home, never "due today"
+  later: number;      // not ranked: dated more than SOON_DAYS ahead with no event near, or not dated at all
+  total: number;      // every item — all of them the viewer's (2026-10-12): the count on "All tasks"
 };
 
-/** Where one item goes on the home. Equipment is decided by splitHome, not here. */
+/** Where one item goes on the home by its date alone. Equipment is decided by splitHome, not here. */
 export function homeBucket(daysOut: number | null): "today" | "stale" | "later" {
   if (daysOut === null || daysOut > 0) return "later";
   return daysOut < -STALE_DAYS ? "stale" : "today";
 }
 
-/** Today's order: critical first, then your own before the team's and the deadlines, then the latest. */
-export function rankToday(a: HomeItem, b: HomeItem): number {
-  return Number(b.critical) - Number(a.critical)
-    || Number(b.kind === "mine") - Number(a.kind === "mine")
-    || (a.daysOut ?? 0) - (b.daysOut ?? 0);
+// ── WHAT'S NEXT, BY A FIXED RANK (2026-10-12, the My Day audit, approved) ─────────────────────────
+// "Next:" appeared only when nothing was due today, and only from things dated after it: the late were
+// never named, a task due in two days was invisible until its day, and a critical task with no date of
+// its own fell into "later" even with its event three days off. The list leads with the viewer's work
+// in six tiers, fixed and explainable, and each row says in words which tier put it there:
+//   1  belongs to an event or stop OP_DAYS days away or less         "for Sat · ISI Elite Training"
+//   2  critical, and due today or late by STALE_DAYS or less          "critical"
+//   3  due today                                                      "due today"
+//   4  late by STALE_DAYS or less                                     "3 days late"
+//   5  due in the next SOON_DAYS days                                 "due Wed"
+//   6  late by more than STALE_DAYS — a decision now, not a chore      "to decide"
+// Inside a tier, a task assigned to you comes before a deadline you own, then the earliest due; tier 6
+// newest-due first (the freshest of the old is the likeliest still to matter). Age orders a tier and
+// never lifts anything out of one: forty days late stays under something due in two days. Equipment and
+// compliance rules are not ranked — they keep their own rows (2026-10-10).
+export const OP_DAYS = 3;
+export const SOON_DAYS = 2;
+export type Tier = 1 | 2 | 3 | 4 | 5 | 6;
+
+/** The tier an item stands in, or null when it is not ranked (equipment, a rule, or nothing near). */
+export function homeTier(i: HomeItem): Tier | null {
+  if (i.kind === "upkeep" || i.kind === "rule") return null;
+  if (i.op && i.op.daysOut >= 0 && i.op.daysOut <= OP_DAYS) return 1;
+  const d = i.daysOut;
+  if (d === null || d > SOON_DAYS) return null;
+  if (homeBucket(d) === "stale") return 6;
+  if (d <= 0 && i.critical) return 2;
+  if (d === 0) return 3;
+  if (d < 0) return 4;
+  return 5;
+}
+
+const FAR = 1e6;
+/** The fixed order: tier; then assigned to you before what you own; then the earliest due — tier 6 newest-due first. */
+export function rankHome(a: HomeItem, b: HomeItem): number {
+  const ta = homeTier(a) ?? 7, tb = homeTier(b) ?? 7;
+  if (ta !== tb) return ta - tb;
+  const assigned = Number(b.kind === "mine") - Number(a.kind === "mine");
+  if (assigned) return assigned;
+  const da = a.daysOut ?? a.op?.daysOut ?? FAR, db = b.daysOut ?? b.op?.daysOut ?? FAR;
+  return ta === 6 ? db - da : da - db;
+}
+
+/** "today" · "tomorrow" · "Sat" — a day up to a week ahead, in words a phone's row has room for. */
+function aheadWord(daysOut: number, today: string): string {
+  if (daysOut === 0) return "today";
+  if (daysOut === 1) return "tomorrow";
+  return weekdayOf(addDays(today, daysOut), "short");
+}
+
+/** Why a row stands where it does, in words: the tier that put it there. Null for what is not ranked. */
+export function reasonWords(i: HomeItem, today: string): string | null {
+  switch (homeTier(i)) {
+    case 1: return `for ${aheadWord(i.op!.daysOut, today)} · ${i.op!.name}`;
+    case 2: return "critical";
+    case 3: return "due today";
+    case 4: return dueWord(i.daysOut as number);
+    case 5: return `due ${aheadWord(i.daysOut as number, today)}`;
+    case 6: return "to decide";
+    default: return null;
+  }
+}
+
+/** The age beside a row ("3 days late"), unless its reason already says when — tiers 3 to 5, or tier 1 dated by its event. */
+export function ageWords(i: HomeItem): string | null {
+  if (i.daysOut === null) return null;
+  const t = homeTier(i);
+  if (t === 3 || t === 4 || t === 5) return null;
+  if (t === 1 && i.daysOut === i.op?.daysOut) return null;
+  return dueWord(i.daysOut);
 }
 
 // COMPLIANCE IS NOT TODAY'S WORK (2026-10-10, Ryan: "the my day still doesn't make sense"). Every one of the
@@ -57,20 +128,29 @@ export function rankToday(a: HomeItem, b: HomeItem): number {
 // confirmation "today" (0330: coalesce(verified_on + 365, current_date)). So they were due today every day,
 // and the day's real work could never reach the top three. They are one row now, like equipment: counted,
 // one tap from the list, each opening the rule where it is confirmed.
+//
+// THE REST TO DECIDE IS ONE ROW (2026-10-12, the My Day audit, approved). The work more than two weeks late
+// sat in a chip, "2+ weeks late · 11", beside the equipment's. When nothing nearer is waiting the newest of it
+// leads the list, "To decide", and the rest is one row — "10 more to decide" — that opens the sheet it always
+// opened, with its bulk Done and Move to next week. Nothing is closed, moved or reassigned without a tap.
 export function splitHome<T extends HomeItem>(items: readonly T[]): HomeSplit<T> {
-  const upkeep = items.filter((i) => i.kind === "upkeep").sort(rankToday);
+  const upkeep = items.filter((i) => i.kind === "upkeep").sort((a, b) => (a.daysOut ?? 0) - (b.daysOut ?? 0));
   const rules = items.filter((i) => i.kind === "rule");
-  const rest = items.filter((i) => i.kind !== "upkeep" && i.kind !== "rule");
-  const due = rest.filter((i) => homeBucket(i.daysOut) === "today").sort(rankToday);
-  const stale = rest.filter((i) => homeBucket(i.daysOut) === "stale").sort(rankToday);
+  const ranked = items.filter((i) => homeTier(i) !== null).sort(rankHome);
+  const next = ranked.filter((i) => homeTier(i) !== 6);
+  const stale = ranked.filter((i) => homeTier(i) === 6);
+  const shown = next.length ? next.slice(0, TODAY_MAX) : stale.slice(0, 1);
+  const due = next.filter((i) => i.daysOut !== null && i.daysOut <= 0);
   return {
-    today: due.slice(0, TODAY_MAX),
+    next,
+    shown,
     due,
-    moreToday: Math.max(0, due.length - TODAY_MAX),
+    moreToday: due.filter((i) => !shown.includes(i)).length,
     stale,
+    moreStale: stale.filter((i) => !shown.includes(i)).length,
     upkeep,
     rules,
-    later: rest.filter((i) => homeBucket(i.daysOut) === "later").length,
+    later: items.filter((i) => i.kind !== "upkeep" && i.kind !== "rule" && homeTier(i) === null).length,
     total: items.length,
   };
 }
@@ -83,9 +163,28 @@ export function dayCount(done: number, toGo: number): string {
   if (toGo > 0) return done > 0 ? `${done} done · ${toGo} to go` : `${toGo} due`;
   return done > 0 ? `${done} done` : "Clear";
 }
+
+// THE HEAD SAYS WHAT'S TRUE (2026-10-12, the My Day audit, approved). It said "Clear", in the green done
+// style, over eleven things more than two weeks late: it counted only what was due today or late by two
+// weeks or less, and called everything else nothing. Four states now, each in its own tone:
+//   due today, or late by STALE_DAYS or less        "3 due" · "1 done · 2 to go"        plain, as before
+//   nothing due, but work of yours older than that   "Nothing due · 11 to decide"       warning — never green
+//   nothing due or to decide; equipment, compliance,  "Nothing due"                      plain
+//     bookings or restock waiting (or not readable)
+//   nothing waiting at all                           "Clear"                            green
+// A day with work done says so in place of "Nothing due": "4 done · 11 to decide", "4 done".
+export type HeadTone = "plain" | "warn" | "ok";
+export function dayHead(h: { done: number; due: number; decide: number; waiting: number; unread?: boolean }): { words: string; tone: HeadTone } {
+  if (h.due > 0) return { words: dayCount(h.done, h.due), tone: "plain" };
+  const lead = h.done > 0 ? `${h.done} done` : "Nothing due";
+  if (h.decide > 0) return { words: `${lead} · ${h.decide} to decide`, tone: "warn" };
+  if (h.waiting > 0 || h.unread) return { words: lead, tone: "plain" };
+  return { words: dayCount(h.done, 0), tone: "ok" };
+}
+
 /** The first dated thing after today — what a finished day points to. Equipment and compliance have rows of their own. */
 export function nextUp<T extends HomeItem>(items: readonly T[]): T | null {
-  const ahead = items.filter((i) => (i.kind === "mine" || i.kind === "owed" || i.kind === "team") && i.daysOut !== null && i.daysOut > 0);
+  const ahead = items.filter((i) => (i.kind === "mine" || i.kind === "owed") && i.daysOut !== null && i.daysOut > 0);
   ahead.sort((a, b) => (a.daysOut as number) - (b.daysOut as number) || Number(b.critical) - Number(a.critical) || Number(b.kind === "mine") - Number(a.kind === "mine"));
   return ahead[0] ?? null;
 }
