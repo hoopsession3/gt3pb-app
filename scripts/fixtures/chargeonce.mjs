@@ -197,6 +197,9 @@ export function cardPage(I, { old = false } = {}) {
     get tokensMinted() { return tokens; },
     /** A reload: sessionStorage gives the key back; a card token is never written anywhere. */
     reload() { state = { ...state, token: null }; },
+    /** The app closed and opened again (C7, 2026-10-12): sessionStorage went with its process, localStorage did not —
+     *  so a durable key comes back (components/useIdemKey `durable`) and a session key does not. Never a card token. */
+    restart({ durable }) { state = durable ? { ...state, token: null } : I.NO_ATTEMPT; },
     begin(details, card = true) {
       if (old) {
         // Before 2026-10-11: a new token on every tap, and the key signed over it (Checkout.tsx's idemKeyFor).
@@ -457,6 +460,38 @@ export async function branches({ C, SQ, I, store, ok, memory = false }) {
       late.status === 409 && /couldn't confirm your payment/.test(late.body.error) && route.alerts.filter((x) => x.kind === "stopped" && x.was === "started").length === 1, { late: late.body, alerts: route.alerts });
     const later = await route.serve({ key: a.key, token: a.token, items: CART.items, amount: CART.amount });
     ok("9 · …and not told again; Square never asked", /couldn't confirm/.test(later.body.error) && route.alerts.filter((x) => x.kind === "stopped").length === 1 && sq.calls.length === 0);
+  }
+
+  // ── 13 · the answer is lost; the app is closed and opened again (C7 of the customer audit, 2026-10-12) ─────
+  // The cart survives a restart (localStorage) and a session key did not: the retry was a new checkout. The cup
+  // checkout keeps its key beside the cart now, and the tip that is half its signature (components/Checkout).
+  {
+    const TIPPED = { ...CART, tip: 300, amount: 2300 };
+    {
+      const { sq, route, page } = fresh();
+      const first = await tap(page, route, TIPPED, { lose: true });
+      page.restart({ durable: false });
+      const retry = await tap(page, route, TIPPED);
+      ok("13 · restart, the key in sessionStorage: a new key, and the card charged twice — the bug, reproduced",
+        retry.key !== first.key && sq.payments.length === 2 && route.orders.length === 2, { payments: sq.payments.length });
+    }
+    {
+      const { sq, route, page } = fresh();
+      const first = await tap(page, route, TIPPED, { lose: true });
+      page.restart({ durable: true });
+      const retry = await tap(page, route, TIPPED);
+      ok("13 · restart, the key kept beside the cart and the tip with it: the same key, answered from the claim — one payment",
+        retry.key === first.key && retry.token !== first.token && retry.status === 200 && same(retry.body, first.served.body)
+          && sq.calls.length === 1 && sq.payments.length === 1 && route.orders.length === 1, { payments: sq.payments.length, body: retry.body });
+    }
+    {
+      const { sq, route, page } = fresh();
+      const first = await tap(page, route, TIPPED, { lose: true });
+      page.restart({ durable: true });
+      const retry = await tap(page, route, { ...CART, tip: 0, amount: 2000 });
+      ok("13 · …why the tip is kept: back at \"No tip\" the signature is new, so the key is — and the card is charged again",
+        retry.key !== first.key && sq.payments.length === 2, { payments: sq.payments.length });
+    }
   }
 
   if (!memory) return;

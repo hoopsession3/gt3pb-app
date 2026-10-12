@@ -27,9 +27,9 @@ const EMPTY: PayAttempt = { sig: "", key: "", token: null };   // lib/idempotenc
 //
 // `persist` writes the key — never the card token — through sessionStorage, so reloading the app keeps
 // the checkout's key: the cup checkout's server answers it from its claim (lib/chargeOnce) instead of
-// charging it again. Best-effort by design — a private window that throws on sessionStorage must still
-// be able to buy something, and the fallback (an in-memory key) is correct, just unable to survive a
-// reload.
+// charging it again. `durable` writes it through localStorage instead, beside the cart (below).
+// Best-effort by design — a private window that throws on either store must still be able to buy
+// something, and the fallback (an in-memory key) is correct, just unable to survive a reload.
 
 export type Tokenize = () => Promise<{ status: string; token?: string }>;
 
@@ -42,19 +42,39 @@ export type CheckoutKey = {
   settle: (key: string, status: number | null, body: unknown) => void;
 };
 
-/** The key a reload left behind, if any. Never a card token: those are not written anywhere. */
-function stored(persist?: string): PayAttempt {
+// DURABLE (2026-10-12, C7 of the customer audit, approved): the cart survives the app being closed — it is kept in
+// localStorage — and the key that stops a double charge did not: sessionStorage goes with the app's process. Pay, the
+// answer lost, the app closed, the cart still there, Pay again: a new key, and Square charged the card again. A checkout
+// whose server claims its key (the cup checkout, lib/chargeOnce) keeps the key where the cart is, so a retry after a
+// restart is answered from the first request. A durable key is forgotten after two hours: a lost answer is retried in
+// minutes, and the same cart much later is a new order — the claim would answer it with the old one's "order in".
+export const DURABLE_KEY_MS = 2 * 60 * 60 * 1000;
+const storage = (durable: boolean): Storage | null => {
+  try { return durable ? window.localStorage : window.sessionStorage; } catch { return null; }
+};
+
+/** The key a reload (or, durable, a restart) left behind, if any. Never a card token: those are not written anywhere. */
+function stored(persist?: string, durable = false): PayAttempt {
   if (!persist || typeof window === "undefined") return EMPTY;
   try {
-    const parsed = JSON.parse(sessionStorage.getItem(persist) ?? "null");
-    if (parsed && typeof parsed.sig === "string" && typeof parsed.key === "string") return { sig: parsed.sig, key: parsed.key, token: null };
+    const st = storage(durable);
+    const parsed = JSON.parse(st?.getItem(persist) ?? "null");
+    if (parsed && typeof parsed.sig === "string" && typeof parsed.key === "string") {
+      if (durable && !(typeof parsed.at === "number" && Date.now() - parsed.at < DURABLE_KEY_MS)) { st?.removeItem(persist); return EMPTY; }
+      return { sig: parsed.sig, key: parsed.key, token: null };
+    }
   } catch { /* a blocked or cleared store is not a reason to fail a checkout */ }
   return EMPTY;
 }
 
-export function useIdemKey(persist?: string): CheckoutKey {
+/** Whether a checkout's key is being held — what the page restores alongside it (the cup checkout's tip). */
+export function holdsKey(persist: string, durable = false): boolean {
+  return stored(persist, durable).key !== "";
+}
+
+export function useIdemKey(persist?: string, durable = false): CheckoutKey {
   const ref = useRef<PayAttempt | null>(null);
-  if (ref.current === null) ref.current = stored(persist);
+  if (ref.current === null) ref.current = stored(persist, durable);
   // Stable identity: a caller that wraps its pay handler in useCallback can list this in its deps
   // without re-creating the handler every render. All the state lives in the ref.
   return useMemo<CheckoutKey>(() => {
@@ -63,8 +83,9 @@ export function useIdemKey(persist?: string): CheckoutKey {
       ref.current = next;
       if (!keyChanged || !persist || typeof window === "undefined") return;
       try {
-        if (next.key) sessionStorage.setItem(persist, JSON.stringify({ sig: next.sig, key: next.key }));
-        else sessionStorage.removeItem(persist);
+        const st = storage(durable);
+        if (next.key) st?.setItem(persist, JSON.stringify(durable ? { sig: next.sig, key: next.key, at: Date.now() } : { sig: next.sig, key: next.key }));
+        else st?.removeItem(persist);
       } catch { /* ignore */ }
     };
     return {
@@ -89,5 +110,5 @@ export function useIdemKey(persist?: string): CheckoutKey {
         });
       },
     };
-  }, [persist]);
+  }, [persist, durable]);
 }

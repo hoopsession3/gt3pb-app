@@ -22,11 +22,24 @@ import Sheet from "./Sheet";
 import OrderConfirm from "./OrderConfirm";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import Icon from "@/components/Icon";
-import { useIdemKey } from "./useIdemKey";
+import { holdsKey, useIdemKey } from "./useIdemKey";
 import { payErrorText } from "@/lib/idempotency";
 import { haptic } from "@/lib/haptics";
 import { apiUrl } from "@/lib/native";
 import { Segmented } from "@/components/controls";
+
+// THE TIP SIGNS THE KEY (2026-10-12, C7 of the customer audit, approved). What is bought and what it costs — the items
+// and the tip — are the checkout key's whole signature (lib/idempotency attemptFor), and the key is kept beside the cart
+// now, through an app restart (components/useIdemKey, durable). A restart put the tip back to "No tip": a new signature,
+// a new key, and a retry of a payment whose answer was lost was charged as a new checkout. So the tip is kept as the key
+// is used and comes back with it while the key is held; it is forgotten once the order is placed. No key held: no tip,
+// as always — the guest opts in.
+const CO_IDEM = "gt3-co-idem", CO_TIP = "gt3-co-tip";
+const TIPS: readonly number[] = [0, 0.15, 0.2, 0.25];
+function restoredTip(): number {
+  if (typeof window === "undefined" || !holdsKey(CO_IDEM, true)) return 0;
+  try { const t = Number(localStorage.getItem(CO_TIP)); return TIPS.includes(t) ? t : 0; } catch { return 0; }
+}
 
 export default function Checkout() {
   const { cart, inc, dec, toast, checkout, coOpen: open, closeCheckout: onClose } = useApp();
@@ -53,7 +66,7 @@ export default function Checkout() {
   // is unknown the SAME card token goes out with it. The server claims the key before it calls Square,
   // so a retry is told what happened to the first try — "order in", or "still confirming" — and is
   // never charged again. Paid, or refused by Square, and the next tap is a new checkout.
-  const idem = useIdemKey("gt3-co-idem");
+  const idem = useIdemKey(CO_IDEM, true);
   // Both buttons send through here, one at a time: a tap on either while the other is still answering
   // is turned away before it reaches the network (`busy` reaches a fast second tap a render late).
   const sending = useRef(false);
@@ -99,7 +112,9 @@ export default function Checkout() {
 
   // Tip (card path only; pre-orders tip in person). Default to NO tip so selecting card never
   // silently marks the price up — the guest opts in.
-  const [tipPct, setTipPct] = useState(0);
+  const [tipPct, setTipPct] = useState(restoredTip);
+  // Kept as the key is used — the tip that signed THIS key, not whatever the buttons say later.
+  const keepTip = () => { try { localStorage.setItem(CO_TIP, String(tipPct)); } catch { /* the key still holds; only a restart's tip is lost */ } };
   const tipCents = Math.round(totalCents * tipPct);
   const grandCents = totalCents + tipCents;
   // The string three places below print. It was "19.99" with a "$" glued on at each site, which is
@@ -139,6 +154,7 @@ export default function Checkout() {
   // was (`paid`); the confirmation says what happened, not which button was pressed.
   type Placed = { paid?: boolean; warn?: string; ref?: string; readyFrom?: string | null; pickup?: string };
   const placed = (data: Placed, byCard: boolean) => {
+    try { localStorage.removeItem(CO_TIP); } catch { /* ignore */ }
     const capturedLines = [...lines], capturedName = customer;
     const p = promised(data);
     if (typeof data.paid === "boolean" ? data.paid : byCard) {
@@ -168,6 +184,7 @@ export default function Checkout() {
   // directly from the client. `orders` no longer has a client write door at all. They carry the
   // checkout's key, so a retry after "we're offline" is answered with the first order, not a second.
   const recordPreOrder = async (): Promise<{ error: { message: string } | null; data?: Placed }> => {
+    keepTip();
     const attempt = await idem.begin({ items, tipCents });
     try {
       const res = await authedFetch("/api/checkout", {
@@ -224,6 +241,7 @@ export default function Checkout() {
       await enableAlerts();
       // This checkout's key, and the card token already sent under it while the last answer is
       // unknown — a fresh one from the card form only when there is none.
+      keepTip();
       const attempt = await idem.begin({ items, tipCents }, () => paymentRef.current!.tokenize());
       if (!attempt.token) {
         setErr("Card details look off — check and retry.");
@@ -337,7 +355,7 @@ export default function Checkout() {
                   <div className="co-line"><span>Subtotal</span><span>{money(totalCents)}</span></div>
                   <div className="spec-label" style={{ marginTop: 16 }}>Add a tip</div>
                   <Segmented label="Tip" kind="choice" fill className="mt-0.5 mb-1.5" value={String(tipPct)} onChange={(k) => setTipPct(Number(k))}
-                    options={[0, 0.15, 0.2, 0.25].map((p) => ({ key: String(p), label: p === 0 ? "No tip" : `${Math.round(p * 100)}%` }))} />
+                    options={TIPS.map((p) => ({ key: String(p), label: p === 0 ? "No tip" : `${Math.round(p * 100)}%` }))} />
                   <div className="spec-label" style={{ marginTop: 16 }}>Card</div>
                   <div className="sq-wrap">
                     <PaymentCard ref={paymentRef} className="sq-card" tone="paper" onReady={setReady} onError={(m) => setErr(m ?? "")} />
