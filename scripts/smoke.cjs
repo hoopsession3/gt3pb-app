@@ -11645,6 +11645,47 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("quiet: no other number decides it in these four places", ![review, session, card, goals].some((s) => /\bd14\b|\bweekAgo\b|>= 7 \?|>= 14\b/.test(s)));
 }
 
+// ── RELEASE 1 · "OPEN IN NOTES" OPENS THAT NOTE (2026-10-12) ──
+// The Plan card's "Latest … — open in Notes", an assembled review or session and a filed transcript switched to Notes
+// and stopped at the top of the list. Each knows its note's id; lib/noteLink carries it across the switch and the
+// Notes list opens, scrolls to and focuses that note.
+{
+  const NL = require("../.smoke/noteLink.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  ok("note link: nothing is asked for at first, and asking for no note asks for nothing", NL.pendingNoteAsk() === null && (NL.askOpenNote(null), NL.askOpenNote(""), NL.pendingNoteAsk() === null));
+  const heard = [];
+  const stop = NL.onNoteAsk((id) => heard.push(id));
+  NL.askOpenNote("n-1");
+  ok("note link: an ask is kept for the list that mounts next, and a mounted list hears it", NL.pendingNoteAsk() === "n-1" && heard.join() === "n-1");
+  NL.askOpenNote("n-2"); NL.clearNoteAsk("n-1");
+  ok("note link: clearing an older ask leaves the newer one standing; clearing it forgets it", NL.pendingNoteAsk() === "n-2" && (NL.clearNoteAsk("n-2"), NL.pendingNoteAsk() === null));
+  stop(); NL.askOpenNote("n-3"); NL.clearNoteAsk("n-3");
+  ok("note link: an unmounted list stops hearing", heard.join() === "n-1,n-2");
+  ok("note link: a note's card is addressed as note-<id>", NL.noteAnchor("abc") === "note-abc");
+  const card = code(rd("components/OperatingRhythm.tsx")), crew = code(rd("app/crew/page.tsx"));
+  ok("note link: every way from the rhythm card to Notes names its note — the latest review, the latest session, an assembled one, a filed transcript",
+    /const openNote = \(id: string \| null \| undefined\) => \{ askOpenNote\(id\); onOpenNotes\(\); \};/.test(card)
+      && /onClick=\{\(\) => openNote\(p\.review\?\.id\)\}/.test(card) && /onClick=\{\(\) => openNote\(p\.strategy\?\.id\)\}/.test(card)
+      && /reload\(\); openNote\(j\.note_id\);/.test(card) && /setExtractOpen\(false\); setTranscript\(""\); openNote\(j\.note_id\);/.test(card)
+      && (card.match(/onOpenNotes\(\)/g) || []).length === 1 && !/onClick=\{onOpenNotes\}/.test(card));
+  ok("note link: the three routes hand the card the note's id, new or standing",
+    ["weekreview", "stratsession"].every((r) => { const s = code(rd(`app/api/agents/${r}/route.ts`)); return /note_id: existing\.id, title: existing\.title, existing: true/.test(s) && /note_id: \(note as any\)\.id, title, existing: false/.test(s); })
+      && /note_id: noteId, title: out\.title/.test(code(rd("app/api/agents/session-extract/route.ts"))));
+  const notes = crew.slice(crew.indexOf("function MeetingNotes()"), crew.indexOf("function MeetingNoteCard("));
+  ok("note link: the Notes list takes the ask once its notes are read — the note's shelf shown, nothing filtering it out, the note opened",
+    /const \[askedNote, setAskedNote\] = useState<string \| null>\(pendingNoteAsk\);/.test(notes) && /useEffect\(\(\) => onNoteAsk\(setAskedNote\), \[\]\);/.test(notes)
+      && /const askedFound = askedNote \? notesState\.data\?\.find\(\(n\) => n\.id === askedNote\) \?\? null : null;/.test(notes)
+      && /setTab\(askedFound\.archived_at \? "archived" : "active"\); setQuery\(""\); setMineOnly\(false\);\s*setOpenId\(askedFound\.id\); setLanding\(\{ id: askedFound\.id \}\);/.test(notes));
+  ok("note link: …then lands on it — the ask cleared, the card scrolled to and its header focused",
+    /clearNoteAsk\(landing\.id\);\s*scrollToAnchor\(noteAnchor\(landing\.id\)\);\s*focusNoteWhenThere\(landing\.id\);/.test(notes)
+      && /<div id=\{noteAnchor\(note\.id\)\} className=\{`note-card\$\{open \? " open" : ""\}`\} style=\{\{ scrollMarginTop: 16 \}\}>/.test(crew)
+      && /\.querySelector<HTMLElement>\("\.note-head"\)/.test(rd("lib/noteLink.ts")) && /className="note-head pressable"/.test(crew));
+  ok("note link: the Notes section is still mounted the same way — the ask needs no prop, so nothing else changed shape",
+    /\{sec === "notes" && <MeetingNotes \/>\}/.test(crew) && /<OperatingRhythm isAdmin=\{isAdmin\} onOpenNotes=\{\(\) => setSection\("notes"\)\} \/>/.test(crew));
+}
+
 Promise.all(PENDING).then(() => {
   console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);

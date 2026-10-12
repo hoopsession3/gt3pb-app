@@ -89,6 +89,7 @@ const BroadcastEditor = dynamic(() => import("@/components/BroadcastEditor"), { 
 const MaintenanceLog = dynamic(() => import("@/components/MaintenanceLog"), { loading: () => <PourFill label="Loading…" /> });
 import OpsPlan from "@/components/OpsPlan";
 import NoteAttach from "@/components/NoteAttach";
+import { noteAnchor, pendingNoteAsk, clearNoteAsk, onNoteAsk, focusNoteWhenThere } from "@/lib/noteLink";
 import Goals from "@/components/Goals";
 import { useLocationSuggestions } from "@/components/useLocationSuggestions";
 import { completeTask, createEventTask, createEventTasks, deleteTask, deleteTasks, deleteTasksForParent, type NewEventTask, type TaskParent } from "@/lib/tasks";
@@ -2656,6 +2657,28 @@ function MeetingNotes() {
   }, []);
   useRealtimeTable("meeting_notes", load);
 
+  // OPEN THAT NOTE (2026-10-12, lib/noteLink). The Plan card's "open in Notes", an assembled review or strategy
+  // session and a filed transcript each name one note, and used to land here with it closed somewhere down the
+  // list. The asked-for note is taken once the notes are read: shown on its shelf (Active or Archived, with the
+  // search and Mine cleared so nothing hides it), opened — adjusted while rendering, as the house does
+  // (components/MerchManager) — then scrolled to and focused from an effect. A note not read yet (one just written
+  // arrives with the next reload) stays asked for until it is.
+  const [askedNote, setAskedNote] = useState<string | null>(pendingNoteAsk);
+  useEffect(() => onNoteAsk(setAskedNote), []);
+  const [landing, setLanding] = useState<{ id: string } | null>(null);
+  const askedFound = askedNote ? notesState.data?.find((n) => n.id === askedNote) ?? null : null;
+  if (askedFound) {
+    setAskedNote(null);
+    setTab(askedFound.archived_at ? "archived" : "active"); setQuery(""); setMineOnly(false);
+    setOpenId(askedFound.id); setLanding({ id: askedFound.id });
+  }
+  useEffect(() => {
+    if (!landing) return;
+    clearNoteAsk(landing.id);
+    scrollToAnchor(noteAnchor(landing.id));
+    focusNoteWhenThere(landing.id);
+  }, [landing]);
+
   const save = async () => {
     if (!supabase || !cTitle.trim() || saving) return;
     setSaving(true);
@@ -3103,7 +3126,8 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     ...(isAdmin ? [{ key: "delete", label: "Delete note", icon: "close", danger: true, run: onDelete } satisfies MenuItem] : []),
   ]);
   return (
-    <div className={`note-card${open ? " open" : ""}`}>
+    // The card's id is what "open that note" lands on (lib/noteLink, 2026-10-12).
+    <div id={noteAnchor(note.id)} className={`note-card${open ? " open" : ""}`} style={{ scrollMarginTop: 16 }}>
       {press.menu}
       <button {...press.bind} type="button" className="note-head pressable" onClick={onToggle} aria-expanded={open}>
         <div className="note-head-main">
