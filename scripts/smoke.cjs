@@ -11739,6 +11739,38 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && cStmts.length === 11 && cStmts.every((c) => /\.select\("[^"]*"\)\.eq\("tenant_id", tenant\)/.test(c)), cStmts.filter((c) => !/\.eq\("tenant_id", tenant\)/.test(c)).map((c) => c.slice(0, 40)));
 }
 
+// ── RELEASE 1 · NEEDS SORTING SHOWS EACH SUBJECT'S WORST PROBLEM, IN A WORD, AND UPDATES LIVE (2026-10-12) ──
+// The mark took the first row's severity (the view's order, no order), was colour alone and aria-hidden, and the list
+// read once when the panel opened. lib/eventRecord.worstSeverity and SEVERITY_WORD are the rule; ScheduleGaps reads
+// again through lib/realtime on the tables v_schedule_gaps diagnoses from.
+{
+  const E = require("../.smoke/eventRecord.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const sev = (...s) => s.map((severity) => ({ severity }));
+  ok("needs sorting: a subject's mark is its WORST problem, whatever order the view returned them in",
+    E.worstSeverity(sev("low", "high", "medium")) === "high" && E.worstSeverity(sev("high", "low")) === "high" && E.worstSeverity(sev("low", "medium")) === "medium" && E.worstSeverity(sev("low")) === "low");
+  ok("needs sorting: no problem, or only a severity the view never emits, is no mark", E.worstSeverity([]) === null && E.worstSeverity(sev("weird", null)) === null && E.worstSeverity(sev("weird", "low")) === "low");
+  ok("needs sorting: every severity has its own word", E.SEVERITY_WORD.high === "Urgent" && E.SEVERITY_WORD.medium === "Important" && E.SEVERITY_WORD.low === "Minor");
+  const sg = code(rd("components/ScheduleGaps.tsx"));
+  ok("needs sorting: the row's mark and its word are the subject's worst — not its first row's, and never colour alone",
+    /for \(const g of byId\.values\(\)\) \{ g\.rows = sortGaps\(g\.rows\); g\.worst = worstSeverity\(g\.rows\); \}/.test(sg)
+      && /<span className=\{`evg-sev\$\{g\.worst \? ` sev-\$\{g\.worst\}` : ""\}`\} aria-hidden="true" \/>/.test(sg)
+      && /\{g\.worst && <>\{" "\}<span className=\{`k-tag txt\$\{TONE\[g\.worst\]\}`\}>\{SEVERITY_WORD\[g\.worst\]\}<\/span><\/>\}/.test(sg)
+      && /const TONE: Record<GapSeverity, string> = \{ high: " crit", medium: " warn", low: "" \};/.test(sg)
+      && !/first\.severity/.test(sg) && /severityRank\(a\.worst\) - severityRank\(b\.worst\)/.test(sg) && !/const SEV_RANK/.test(sg));
+  const tables = (sg.match(/export const SCHEDULE_GAP_TABLES = \[([^\]]*)\];/) || ["", ""])[1].match(/"(\w+)"/g)?.map((s) => s.slice(1, -1)) ?? [];
+  ok("needs sorting: the list reads again on a change to the tables its diagnoses come from — and with every refresh (lib/realtime)",
+    /useRealtimeTable\(SCHEDULE_GAP_TABLES, state\.reload\);/.test(sg)
+      && tables.join() === "events,event_ops,event_tasks,event_sales,stops,stop_ops,vendors,live_status"
+      && /loaders\.add\(cb\);/.test(rd("lib/realtime.ts")) && /export function refreshLive\(\)/.test(rd("lib/realtime.ts")), tables);
+  const views = ["0348_tonight_is_not_the_past", "0315_a_stop_is_a_visit_not_a_name", "0316_a_list_that_says_what_it_found", "0324_one_schedule_one_list"]
+    .map((f) => rd(`supabase/migrations/${f}.sql`)).join("\n");
+  ok("needs sorting: each table it listens to is one those views read", tables.length === 8 && tables.every((t) => new RegExp(`(from|join) public\\.${t}\\b`).test(views)),
+    tables.filter((t) => !new RegExp(`(from|join) public\\.${t}\\b`).test(views)));
+}
+
 Promise.all(PENDING).then(() => {
   console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
