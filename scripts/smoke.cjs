@@ -5397,11 +5397,16 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && !forWho("server", row("academy_certifications", { owner_user_id: uid, route: "/crew?s=team" }))
     && JSON.stringify(O.obligationGo(row("academy_certifications", { owner_user_id: me }), V("server"))) === JSON.stringify({ kind: "page", href: "/academy" })
     && JSON.stringify(O.obligationGo(row("academy_certifications", { owner_user_id: uid }), V("owner"))) === JSON.stringify({ kind: "person", id: uid }));
-  ok("needs you is yours: an operator gets the permit re-check (Prep is hers); a manager gets the initiative and every to-do but his own; the owner gets everything",
+  // ONLY WHAT'S YOURS (2026-10-12, the My Day audit, approved). "A door they can open" kept every
+  // workstream, initiative and goal — and, for a manager, everybody's to-dos — for anyone who opens
+  // Command. The door still counts (obligationReach); the row has to be the viewer's as well.
+  ok("needs you is yours: an operator gets the permit re-check (Prep is hers); a manager gets no initiative and nobody's to-do; the owner gets what his role's one tap answers, and the rest only when it is his",
     forWho("operator", row("compliance_rules", { route: "/crew?s=prep" })) && !forWho("operator", row("initiatives"))
-    && forWho("manager", row("initiatives")) && forWho("manager", row("todos", { owner_user_id: uid })) && !forWho("manager", row("todos", { owner_user_id: me })) && !forWho("manager", row("offer_letters"))
-    && ["asset_maintenance", "todos", "initiatives", "goals", "os_workstreams", "offer_letters", "operator_agreements", "square_disputes", "invoices", "compliance_rules"]
-      .every((s) => forWho("owner", row(s, { route: s === "invoices" ? "/crew?s=money" : s === "compliance_rules" ? "/crew?s=prep" : "/crew?s=command" }))));
+    && !forWho("manager", row("initiatives")) && !forWho("manager", row("todos", { owner_user_id: uid })) && !forWho("manager", row("todos", { owner_user_id: me })) && !forWho("manager", row("offer_letters"))
+    && ["asset_maintenance", "invoices", "compliance_rules"].every((s) => forWho("owner", row(s, { route: s === "invoices" ? "/crew?s=money" : s === "compliance_rules" ? "/crew?s=prep" : "/crew?s=garage" })))
+    && ["todos", "event_tasks", "initiatives", "goals", "os_workstreams", "offer_letters", "operator_agreements", "square_disputes"].every((s) => !forWho("owner", row(s, { owner_user_id: uid })) && !forWho("owner", row(s)))
+    && forWho("owner", row("goals", { owner_user_id: me })) && forWho("owner", row("os_workstreams", { owner_user_id: me }))
+    && !forWho("server", row("os_workstreams", { owner_user_id: me })));
   ok("needs you: the one-tap answers — two any staff member may give, and an invoice's \"Paid\", which is an owner's or admin's (0341 mark_invoice_paid)",
     JSON.stringify(Object.keys(O.OBLIGATION_WAYS).sort()) === JSON.stringify(["asset_maintenance", "invoices", "todos"])
     && O.OBLIGATION_WAYS.asset_maintenance === "staff" && O.OBLIGATION_WAYS.todos === "staff" && O.OBLIGATION_WAYS.invoices === "admin");
@@ -5488,13 +5493,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /<button type="button" className="alert-main alert-main-go" onClick=\{\(\) => gotoAlert\(a\)\}>/.test(crew) && /\{canOpen\(a\) && \(/.test(crew));
 
   // ── Needs you ──
+  // The team's seven left this panel for Command's team's week (2026-10-12, "only what's yours"), so the one
+  // number for late is this viewer's rows; their "Show the other" now lives on Command, a door to each task.
   ok("needs you: one number for late — '11 overdue · 7 tasks past due' read as if the seven were among the eleven",
-    /const lateCount = late\.length \+ tasks\.length;/.test(owed) && /<span className="k-count due">\{lateCount\} late<\/span>/.test(owed) && !/tasks past due/.test(owed)
+    /const lateCount = late\.length;/.test(owed) && /<span className="k-count due">\{lateCount\} late<\/span>/.test(owed) && !/tasks past due/.test(owed)
     && /from "@\/lib\/dayWords"/.test(owed) && !/const ageWord =/.test(owed) && !/const localYMD =/.test(owed));
   ok("needs you: every row is a button to what it names — no <a href> full reloads; '+N more' expands instead of being text",
     /onClick=\{\(\) => go\(r\)\}/.test(owed) && !/href=\{r\.route\}/.test(owed) && /owner_user_id"\)/.test(owed)
-    && /setAllTasks\(true\)/.test(owed) && /setAllLow\(true\)/.test(owed) && !/more late\.<\/div>/.test(owed) && !/more below reorder point\.<\/div>/.test(owed)
-    && /openTask\(t\.id, "event"\)/.test(owed));
+    && /setAllLow\(true\)/.test(owed) && !/more late\.<\/div>/.test(owed) && !/more below reorder point\.<\/div>/.test(owed)
+    && /onClick=\{\(\) => setAllOverdue\(true\)\}/.test(code(read("components/CommandBoard.tsx"))) && !/\+\{ov\.more\} more overdue/.test(read("components/CommandBoard.tsx")));
 
   // ── elsewhere in the console ──
   ok("live ops: the stop the truck instrument names opens its record",
@@ -5624,10 +5631,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /if \(res\.error === null\) \{/.test(owed));
   ok("needs you: a row with an answer keeps its door when the viewer has one, and is plain text when they do not — no chevron to nowhere",
     /\{canGo\(r\)\s*\? <button type="button" className="owed-row-go" onClick=\{\(\) => go\(r\)\}>\{body\}<span className="owed-c" aria-hidden="true">›<\/span><\/button>\s*: <div className="owed-row-go">\{body\}<\/div>\}/.test(owed));
-  ok("needs you: the list is the viewer's — obligationFor in the loader, and team tasks, bookings and restock only for whoever can act on them",
-    /const rows = \(\(ob\.data as Row\[\]\) \?\? \[\]\)\.filter\(\(r\) => obligationFor\(r, v\)\);/.test(owed) && /if \(wantTeam \|\| wantStock\) try \{/.test(owed)
-    && /if \(!wantTeam\) \{ tasks = \[\]; bookings = 0; \}/.test(owed) && /if \(!wantStock\) low = \[\];/.test(owed)
-    && /const wantTeam = manage, wantStock = sectionsForRole\(role\)\.includes\("garage"\);/.test(owed) && /useAsyncData<Data>\(loader, \[loader\]\)/.test(owed));
+  ok("needs you: the list is the viewer's — obligationFor in the loader, and bookings and restock only for whoever can act on them (the team's late tasks are Command's since 2026-10-12)",
+    /const rows = listed\.filter\(\(r\) => obligationFor\(r, v\)\);/.test(owed) && /if \(wantBookings \|\| wantStock\) try \{/.test(owed)
+    && /if \(!wantBookings\) bookings = 0;/.test(owed) && /if \(!wantStock\) low = \[\];/.test(owed)
+    && /const wantBookings = manage, wantStock = sectionsForRole\(role\)\.includes\("garage"\);/.test(owed) && /useAsyncData<Data>\(loader, \[loader\]\)/.test(owed)
+    && !/from\("event_tasks"\)|from\("stops"\)|Team tasks late|TEAM_LEAD/.test(owed));
   ok("needs you: an initiative row opens the initiative's own sheet", /if \(to\.kind === "initiative"\) \{ setInitId\(to\.id\); return; \}/.test(owed) && /<InitiativeSheet id=\{initId\}/.test(owed));
   ok("assets: due is the governing entry's date — the same rule as My Day — and never the earliest date ever set",
     /const due = governing\(mine\);\s*const nextDue = due\?\.next_due_on \?\? null;/.test(am) && !/\.sort\(\)\[0\]/.test(am));
@@ -6215,16 +6223,20 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("one place: a to-do assigned to you is in My tasks and not in Needs you — for anyone, manager or not",
     !O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: me }, V(true))
     && !O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: me }, V(false)));
-  ok("one place: somebody else's to-do, or nobody's, is a manager's to triage in Needs you",
-    O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: other }, V(true))
-    && O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: null }, V(true))
+  // ONLY WHAT'S YOURS (2026-10-12, the My Day audit, approved): everybody else's to-dos and late tasks
+  // left Needs you — they were a manager's to triage here, without a name. The team's week on Command
+  // lists them, naming who each waits on, and opens the task.
+  ok("one place: somebody else's to-do, or nobody's, is not in Needs you — for a manager either; Command's team's week lists it",
+    !O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: other }, V(true))
+    && !O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: null }, V(true))
     && !O.obligationFor({ source: "todos", subject_id: "t", route: "/crew?s=day", owner_user_id: other }, V(false)));
-  ok("one place: the team's late tasks skip yours — they are in My tasks, right above",
-    /\.select\("id, label, event_id, stop_id, due_at, critical, assignee"\)/.test(owed) && /if \(meId && t\.assignee === meId\) continue;/.test(owed));
-  ok("one place: the team list leads with its three most urgent, unfolded — critical first, then the latest — under its own head",
-    /tasks\.sort\(\(a, b\) => Number\(b\.critical\) - Number\(a\.critical\) \|\| \(b\.late \?\? 0\) - \(a\.late \?\? 0\)\);/.test(owed)
-    && /const TEAM_LEAD = 3;/.test(read("components/Owed.tsx")) && /: tasks\.slice\(0, TEAM_LEAD\)\)\.map\(/.test(owed)
-    && /<span className="owed-k">Team tasks late<\/span>/.test(owed) && /\{t\.critical && <Icon name="warning" \/>\}/.test(owed));
+  const board = code(read("components/CommandBoard.tsx"));
+  ok("one place: the team's late tasks are Command's — read with who they wait on, named on each row, every one a door to its task",
+    !/Team tasks late|TEAM_LEAD|owed\.tasks/.test(owed + code(read("components/TodayList.tsx")))
+    && /supabase\.from\("todos"\)\.select\("id, title, due_on, assignee"\)\.eq\("done", false\)\.not\("due_on", "is", null\)\.lt\("due_on", today\)/.test(board)
+    && /supabase\.from\("event_tasks"\)\.select\("id, label, due_at, assignee"\)\.eq\("done", false\)\.not\("due_at", "is", null\)\.lt\("due_at", today\)/.test(board)
+    && /sub=\{whoOf\(w\)\}/.test(board) && /onClick=\{\(\) => openTask\(w\.id, w\.src === "task" \? "event" : "todo"\)\}/.test(board)
+    && /const whoOf = \(w: Work\) => \(!w\.who \? "Nobody's yet" : data\.names\[w\.who\] \?\? "Someone on the crew"\);/.test(board));
   ok("my tasks: a failed read says so — it said 'Nothing on your plate — you're clear for today' about a list it never saw",
     /const \{ data, error \} = await supabase\s*\.from\("all_tasks"\)/.test(code(read("lib/myTasks.ts"))) && /if \(error\) return \{ rows: \[\], error: error\.message \};/.test(code(read("lib/myTasks.ts")))
     && /const \{ rows, error \} = await loadMyTasks\(userId\);/.test(mine) && /if \(error\) \{ setErr\(error\); setLoaded\(true\); return; \}/.test(mine)
@@ -6577,6 +6589,40 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const \{ day, from, to \} = rhythmDay\(\);/.test(rhythm) && /\.gte\("starts_at", from\)\.lt\("starts_at", to\)/.test(rhythm)
     && /\.eq\("drop_date", day\)/.test(rhythm) && /\.eq\("delivery_date", day\)/.test(rhythm) && /\.eq\("brew_date", day\)/.test(rhythm)
     && !/localToday\(\)|etToday\(\)/.test(rhythm));
+
+  // B — only what's yours. The sections each role opens are read from their one home (OperatorNav).
+  {
+    const O = require("../.smoke/obligations.js");
+    const nav = read("components/OperatorNav.tsx");
+    const secsOf = (r) => (new RegExp(`\\b${r}: \\[([^\\]]*)\\]`).exec(nav)?.[1] ?? "").match(/"([a-z]+)"/g)?.map((x) => x.slice(1, -1)) ?? [];
+    const ryan = "aaaaaaaa-1111-4111-8111-111111111111", kayla = "bbbbbbbb-2222-4222-8222-222222222222";
+    const as = (role) => ({ id: ryan, sections: secsOf(role), manage: ["event_manager", "admin", "owner"].includes(role) });
+    const r = (source, owner = null, route = "/crew?s=command") => ({ source, subject_id: "cccccccc-3333-4333-8333-333333333333", route, owner_user_id: owner });
+    const keeps = (role, row) => O.obligationFor(row, as(role));
+    ok("my day (B): for the owner — his own workstream stays, Kayla's goes, an initiative with no owner goes, equipment stays, a team task and anybody's to-do go",
+      keeps("owner", r("os_workstreams", ryan)) && !keeps("owner", r("os_workstreams", kayla)) && !keeps("owner", r("initiatives"))
+      && keeps("owner", r("asset_maintenance", null, "/crew?s=garage")) && !keeps("owner", r("event_tasks", kayla)) && !keeps("owner", r("todos", kayla)) && !keeps("owner", r("todos")));
+    ok("my day (B): for the owner — his goal stays and Kayla's goes; the compliance rules his role confirms and the invoices it marks paid stay; her certificate and a dispute nobody owns go",
+      keeps("owner", r("goals", ryan)) && !keeps("owner", r("goals", kayla)) && !keeps("owner", r("goals"))
+      && keeps("owner", r("compliance_rules", null, "/crew?s=prep")) && keeps("owner", r("invoices", null, "/crew?s=money"))
+      && keeps("owner", r("academy_certifications", ryan, "/crew?s=team")) && !keeps("owner", r("academy_certifications", kayla, "/crew?s=team"))
+      && !keeps("owner", r("square_disputes", null, "/crew?s=money&a=shoporders")));
+    ok("my day (B): for a server — equipment and her own certificate stay; no compliance rule, invoice, initiative or team task, and not even a workstream of hers, which she cannot open",
+      keeps("server", r("asset_maintenance", null, "/crew?s=garage")) && keeps("server", r("academy_certifications", ryan, "/crew?s=team"))
+      && !keeps("server", r("compliance_rules", null, "/crew?s=prep")) && !keeps("server", r("invoices", null, "/crew?s=money"))
+      && !keeps("server", r("initiatives")) && !keeps("server", r("event_tasks", kayla)) && !keeps("server", r("os_workstreams", ryan)));
+    ok("my day (B): for an event manager — his own workstream and the compliance rules stay; Kayla's workstream, an initiative, an invoice, her to-do and her late task go",
+      keeps("event_manager", r("os_workstreams", ryan)) && keeps("event_manager", r("compliance_rules", null, "/crew?s=prep")) && keeps("event_manager", r("asset_maintenance", null, "/crew?s=garage"))
+      && !keeps("event_manager", r("os_workstreams", kayla)) && !keeps("event_manager", r("initiatives")) && !keeps("event_manager", r("invoices", null, "/crew?s=money"))
+      && !keeps("event_manager", r("todos", kayla)) && !keeps("event_manager", r("event_tasks", kayla)));
+    const owed = code(read("components/Owed.tsx")), tl = code(read("components/TodayList.tsx"));
+    ok("my day (B): a goal's owner is read beside the list (v_obligations writes none), and a failure fails the list rather than hiding a goal",
+      /const g = await supabase\.from\("goals"\)\.select\("id, owner_user_id"\)\.in\("id", goalIds\);\s*if \(g\.error\) throw new Error\(g\.error\.message\);/.test(owed)
+      && /for \(const r of listed\) if \(r\.source === "goals"\) r\.owner_user_id = ownerOf\.get\(r\.subject_id\) \?\? null;/.test(owed)
+      && owed.indexOf("ownerOf.get(") < owed.indexOf("listed.filter((r) => obligationFor(r, v))"));
+    ok("my day (B): To do is built from your plate and the deadlines that are yours — no team rows, no third feed",
+      /for \(const t of mine\.rows\) \{/.test(tl) && /for \(const r of owed\.rows\) \{/.test(tl) && !/kind: "team"|owed\.tasks|"Not attached to an event or stop"/.test(tl));
+  }
 }
 
 // ── THE CUSTOMER SIDE: ONE ORDERING RULE, AND A PRE-ORDER SAYS WHEN (2026-10-04, 0343) ────────────
@@ -9264,11 +9310,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: "/crew?s=settings&a=cust-codes" })) === JSON.stringify({ kind: "section", section: "catalog", anchor: "cust-codes" })
     && JSON.stringify(O.obligationGo({ source: "brand_new", subject_id: "x", route: "/crew?s=money&a=pay" })) === JSON.stringify({ kind: "section", section: "money", anchor: "pay" }));
   const V = (r) => ({ id: "me", sections: roleLine(r), manage: ["event_manager", "admin", "owner"].includes(r) });
-  const forR = (r, route) => O.obligationFor({ source: "brand_new", subject_id: "x", route, owner_user_id: null }, V(r));
+  // The row is the viewer's own (2026-10-12: a row nobody owns is nobody's My Day — lib/obligations
+  // "only what's yours"), so what is tested here is the door: obligationReach, inside obligationFor.
+  const forR = (r, route) => O.obligationFor({ source: "brand_new", subject_id: "x", route, owner_user_id: "me" }, V(r))
+    && O.obligationReach({ source: "brand_new", subject_id: "x", route, owner_user_id: null }, V(r));
   ok("links land: Settings opens for every role, but a row on one of its admin parts is still the admins' — a server is not sent to a menu she cannot see",
     !forR("server", "/crew?s=money&a=menu") && !forR("event_manager", "/crew?s=customers&a=cust-codes") && forR("owner", "/crew?s=money&a=menu") && forR("admin", "/crew?s=settings&a=set-dial")
     && forR("server", "/crew?s=settings&a=set-alerts") && !forR("operator", "/crew?s=settings") && !forR("server", "/crew?s=settings&a=set-office")
-    && forR("admin", "/crew?s=catalog&a=plans") && !forR("operator", "/crew?s=catalog&a=plans"));
+    && forR("admin", "/crew?s=catalog&a=plans") && !forR("operator", "/crew?s=catalog&a=plans")
+    && !O.obligationFor({ source: "brand_new", subject_id: "x", route: "/crew?s=money&a=menu", owner_user_id: null }, V("owner")));
   const anc = code(read("lib/anchors.ts"));
   ok("links land: a jump to a part opens the row that holds it first — the copy editor's groups too",
     /import \{ settingsHolder \} from "\.\/settingsLayout";/.test(anc) && /const holder = settingsHolder\(anchor\);/.test(anc)

@@ -48,6 +48,21 @@ import { settingsGate } from "./settingsLayout";
 // Settings gathered the menu, the plans, the codes and the perks out of Money and Customers, each
 // panel keeping its id. A route written before that names the old section, and the jump used to give
 // up at the top of it. The answer goes through lib/panelHome now, so it lands on the panel's new home.
+//
+// ── ONLY WHAT'S YOURS (2026-10-12, the My Day audit, approved) ─────────────────────────────────
+// "A door they can open" was still too wide. For anyone who opens Command it kept every workstream's
+// next action — Kayla's included — every initiative (they have no owner) and every goal, as if each
+// were the viewer's; a manager got everybody else's to-dos too, and Needs you's own feed added the
+// team's late event tasks with no name on them. Rebuilt on a phone as the owner, six of the eleven
+// late things on his My Day were somebody else's. A row is kept now only when it is the viewer's:
+//   · theirs by its owner (owner_user_id: their certificate or training, their workstream, their goal);
+//   · or one whose one tap anyone in their role may give — equipment upkeep (all staff), a compliance
+//     rule (whoever preps, as before), an invoice's "Paid" (whoever handles money, as before);
+// and, as before, only with a door they can open (obligationReach). Tasks and to-dos are never kept
+// here: yours are on your plate (lib/myTasks), and everyone's late work is Command's — the team's
+// week names who each task waits on (components/CommandBoard). An initiative has no owner, so it is
+// nobody's My Day; Command lists it. Nothing is closed, moved or reassigned by this: it decides only
+// which list a row is read on.
 
 export type ObligationRow = { source: string; subject_id: string; route: string | null; owner_user_id?: string | null };
 
@@ -107,31 +122,34 @@ export const OBLIGATION_WAYS: Record<string, "staff" | "admin"> = {
   invoices: "admin",            // "Paid" — mark_invoice_paid is is_admin() (0341)
 };
 
-/** Is this row the viewer's to act on? See the header: "Needs you" is not "needs somebody". */
-export function obligationFor(r: ObligationRow, v: Viewer): boolean {
-  const mine = !!v.id && r.owner_user_id === v.id;
-  switch (r.source) {
-    case "asset_maintenance":
-      return true;                                   // its one tap is anybody's on staff
-    case "todos":
-      // Yours is on your plate — My tasks is the one home for a task assigned to you (2026-10-04, "one
-      // task, one place"). A manager triages the company's others here.
-      return !mine && v.manage;
-    case "academy_certifications":
-    case "academy_assignments":
-      return mine || v.sections.includes("team");    // yours, or the admin who runs the team
-    case "invoices":
-      return v.sections.includes("money");           // the people who handle money — owners and admins
-    case "compliance_rules":
-      return v.sections.includes("prep");            // whoever preps events — they are the ones who call the county
-  }
+/** Can the viewer open where this row goes? The door, apart from whose the row is. */
+export function obligationReach(r: ObligationRow, v: Viewer): boolean {
   const to = obligationGo(r, v);
   if (to.kind === "initiative") return v.sections.includes("command");
   // Settings opens for every role since the settings round (2026-10-06), but only its first section,
   // You, is everyone's: a row that lands on any other panel there — a moved menu, code or plan — is
   // for the people who see that panel. Owner and admin open the same sections, so "an owner's or an
-  // admin's" is read the way invoices read it above: whoever Money opens for.
+  // admin's" is read the way invoices read it: whoever Money opens for.
   if (to.kind === "section" && to.section === "settings") return settingsGate(to.anchor) === "everyone" || v.sections.includes("money");
   if (to.kind === "section") return v.sections.includes(to.section);
   return true;
+}
+
+/** Is this row the viewer's? See the header: "Needs you" is not "needs somebody" — only what's yours (2026-10-12). */
+export function obligationFor(r: ObligationRow, v: Viewer): boolean {
+  switch (r.source) {
+    case "asset_maintenance":
+      return true;                                   // its one tap is anybody's on staff
+    case "compliance_rules":
+      return v.sections.includes("prep");            // whoever preps events — they are the ones who call the county
+    case "invoices":
+      return v.sections.includes("money");           // "Paid" is the people who handle money's — owners and admins
+    case "todos":
+    case "event_tasks":
+      // Yours are on your plate — My tasks is the one home for a task assigned to you (2026-10-04, "one
+      // task, one place"); somebody else's, or nobody's, is the team's week on Command (2026-10-12).
+      return false;
+  }
+  const mine = !!v.id && r.owner_user_id === v.id;
+  return mine && obligationReach(r, v);
 }

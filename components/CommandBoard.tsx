@@ -34,7 +34,9 @@ type Initiative = { id: string; title: string; summary: string | null; target_da
 // workstream_id (0350) is the portfolio workstream the milestone is filed to; workstream keeps the
 // words — the stream's name, written by the database when the link is set, or words from before.
 type Milestone = { id: string; initiative_id: string; title: string; due_on: string | null; done: boolean; workstream: string | null; workstream_id?: string | null; sort: number };
-type Work = { id: string; title: string; due: string | null; src: "todo" | "task" };
+// `who` is the assignee (2026-10-12): the overdue list names the person each late task waits on.
+type Work = { id: string; title: string; due: string | null; src: "todo" | "task"; who: string | null };
+type WorkRow = { id: string; title?: string | null; label?: string | null; due_on?: string | null; due_at?: string | null; assignee?: string | null };
 type Incident = { id: string; problem: string; severity: string; created_at: string };
 // 0263 — programs ↔ outcomes: the goals an initiative serves, and at-risk goals on the Blockers line.
 type GoalLite = { id: string; title: string; checkin_status: string | null; current_value: number; target_value: number; unit: string | null };
@@ -45,8 +47,11 @@ type BoardData = {
   // The portfolio a milestone is filed to (0350). A failed read is said in the pick, not thrown:
   // the board is the launch, and one list it can do without must not take it down.
   streams: PortfolioStream[]; streamsErr: string | null; linkable: boolean;
+  // Who the late tasks wait on, by id (2026-10-12). Soft like the portfolio: a failed read is said
+  // under the list, and the rows still open their tasks.
+  names: Record<string, string>; namesErr: string | null;
 };
-const EMPTY_BOARD: BoardData = { inits: [], miles: [], links: [], week: [], incidents: [], overdue: [], done: [], goals: [], goalLinks: [], streams: [], streamsErr: null, linkable: false };
+const EMPTY_BOARD: BoardData = { inits: [], miles: [], links: [], week: [], incidents: [], overdue: [], done: [], goals: [], goalLinks: [], streams: [], streamsErr: null, linkable: false, names: {}, namesErr: null };
 
 const todayKey = localToday;
 const weekAheadKey = () => addDays(localToday(), 7);
@@ -55,7 +60,7 @@ const daysTo = (iso: string) => Math.round((new Date(`${iso}T12:00:00`).getTime(
 const countdown = (iso: string | null) => { if (!iso) return ""; const d = daysTo(iso); return d > 1 ? `${d} days left` : d === 1 ? "tomorrow" : d === 0 ? "today" : `${-d}d overdue`; };
 const dnice = (iso: string | null) => iso ? new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
 const localYMD = (iso: string) => { const d = new Date(iso); const p = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
-const toWork = (rows: any[], src: "todo" | "task"): Work[] => rows.map((r) => ({ id: r.id, title: r.title ?? r.label ?? "—", due: r.due_on ?? (r.due_at ? localYMD(String(r.due_at)) : null), src }));
+const toWork = (rows: readonly WorkRow[] | null, src: "todo" | "task"): Work[] => (rows ?? []).map((r) => ({ id: r.id, title: r.title ?? r.label ?? "—", due: r.due_on ?? (r.due_at ? localYMD(String(r.due_at)) : null), src, who: r.assignee ?? null }));
 
 export default function CommandBoard() {
   const confirm = useConfirm();
@@ -82,7 +87,14 @@ export default function CommandBoard() {
   // week listed the same tasks My Day lists — for a two-founder crew, Command and My Day read as the
   // same screen twice. Command says the counts in one line and opens the lists on a tap; My Day stays
   // where you do them.
+  //
+  // THE TEAM'S LATE WORK IS HERE, BY NAME (2026-10-12, the My Day audit, approved). My Day kept other
+  // people's late tasks for anyone who manages — "Not attached to an event or stop", with no name — and
+  // in the audit's rebuild six of the eleven late things on the owner's My Day were somebody else's. My
+  // Day is yours now; this count is where a manager finds everybody's. Its list names who each task is
+  // waiting on and opens the task, and it is the whole list: "+N more overdue" was a line, not a door.
   const [weekOpen, setWeekOpen] = useState(false);
+  const [allOverdue, setAllOverdue] = useState(false);
 
   // 0350 adds initiative_milestones.workstream_id. Until it is pasted the milestones are asked for
   // again without it, and the board knows (linkable: false): the pick is still offered and a
@@ -109,8 +121,8 @@ export default function CommandBoard() {
       // The two overdue buckets had no lower date bound and no limit, so they could only grow
       // for the life of the install. Oldest-first with a cap: the point of an overdue list is
       // the oldest thing on it, and 200 of them is already a different conversation.
-      supabase.from("todos").select("id, title, due_on").eq("done", false).not("due_on", "is", null).lt("due_on", today).order("due_on").limit(200),
-      supabase.from("event_tasks").select("id, label, due_at").eq("done", false).not("due_at", "is", null).lt("due_at", today).order("due_at").limit(200),
+      supabase.from("todos").select("id, title, due_on, assignee").eq("done", false).not("due_on", "is", null).lt("due_on", today).order("due_on").limit(200),
+      supabase.from("event_tasks").select("id, label, due_at, assignee").eq("done", false).not("due_at", "is", null).lt("due_at", today).order("due_at").limit(200),
       supabase.from("todos").select("id, title, due_on, done_at").eq("done", true).gte("done_at", wago),
       supabase.from("event_tasks").select("id, label, due_at, done_at").eq("done", true).gte("done_at", wago),
     ]);
@@ -123,19 +135,28 @@ export default function CommandBoard() {
     ]);
     const firstErr = [ini, mil, lnk, tThis, eThis, inc, tOver, eOver, tDone, eDone].find((r) => r.error)?.error;
     if (firstErr) throw new Error(firstErr.message);
+    const overdue = [...toWork(tOver.data as WorkRow[] | null, "todo"), ...toWork(eOver.data as WorkRow[] | null, "task")].sort((a, b) => (a.due ?? "").localeCompare(b.due ?? ""));
+    // The names of the people the late tasks wait on — only theirs, by id. Profiles answer an owner or
+    // an admin (0003); for anyone else the row says "someone on the crew" rather than guess.
+    const ids = [...new Set(overdue.map((w) => w.who).filter((x): x is string => !!x))];
+    const ppl = ids.length ? await supabase.from("profiles").select("id, display_name").in("id", ids) : null;
+    const names: Record<string, string> = {};
+    for (const p of ((ppl?.data as { id: string; display_name: string | null }[] | null) ?? [])) if (p.display_name?.trim()) names[p.id] = p.display_name.trim();
     return {
       inits: (ini.data as Initiative[]) ?? [],
       miles: (mil.data as Milestone[]) ?? [],
       links: (lnk.data as { initiative_id: string; milestone_id: string }[]) ?? [],
       goals: (gls.data as GoalLite[]) ?? [],
       goalLinks: (glnk.data as { initiative_id: string; goal_id: string }[]) ?? [],
-      week: [...toWork(tThis.data ?? [], "todo"), ...toWork(eThis.data ?? [], "task")].sort((a, b) => (a.due ?? "").localeCompare(b.due ?? "")),
+      week: [...toWork(tThis.data as WorkRow[] | null, "todo"), ...toWork(eThis.data as WorkRow[] | null, "task")].sort((a, b) => (a.due ?? "").localeCompare(b.due ?? "")),
       incidents: (inc.data as Incident[]) ?? [],
-      overdue: [...toWork(tOver.data ?? [], "todo"), ...toWork(eOver.data ?? [], "task")].sort((a, b) => (a.due ?? "").localeCompare(b.due ?? "")),
-      done: [...toWork(tDone.data ?? [], "todo"), ...toWork(eDone.data ?? [], "task")],
+      overdue,
+      done: [...toWork(tDone.data as WorkRow[] | null, "todo"), ...toWork(eDone.data as WorkRow[] | null, "task")],
       streams: pf.error ? [] : ((pf.data as PortfolioStream[]) ?? []),
       streamsErr: pf.error ? pf.error.message : null,
       linkable: mil.linkable,
+      names,
+      namesErr: ppl?.error ? ppl.error.message : null,
     };
   }, [milesRead]);
   const board = useAsyncData(loader, []);
@@ -155,8 +176,9 @@ export default function CommandBoard() {
     if (error) toast(`Couldn't unlink — ${error.message}`, "error"); else reload();
   };
 
-  const miles = board.data?.miles ?? [];
-  const links = board.data?.links ?? [];
+  // Memoised so the two maps below re-derive when the board does, not on every render.
+  const miles = useMemo(() => board.data?.miles ?? [], [board.data]);
+  const links = useMemo(() => board.data?.links ?? [], [board.data]);
   const mById = useMemo(() => new Map(miles.map((m) => [m.id, m])), [miles]);
   // Placement now comes from the many-to-many links (a milestone can sit under several initiatives).
   // Any milestone with no link at all still shows under its created-under initiative_id (defensive).
@@ -225,7 +247,10 @@ export default function CommandBoard() {
     <AsyncSection state={board} isEmpty={() => false} loadingLabel="Loading the board…" errorTitle="Couldn't load the board" emptyTitle="Nothing here yet">
       {(data) => {
         const cap = (a: Work[], n = 8) => ({ shown: a.slice(0, n), more: Math.max(0, a.length - n) });
-        const wk = cap(data.week), ov = cap(data.overdue), dn = cap(data.done, 6);
+        const wk = cap(data.week), ov = cap(data.overdue, allOverdue ? data.overdue.length : 8), dn = cap(data.done, 6);
+        // Who a late task is waiting on, in words: their name, nobody yet, or — when this role cannot read
+        // names — someone on the crew. Never a guess.
+        const whoOf = (w: Work) => (!w.who ? "Nobody's yet" : data.names[w.who] ?? "Someone on the crew");
         return (
           <div className="cmd">
             {/* ── Initiatives · the launch ── */}
@@ -360,12 +385,18 @@ export default function CommandBoard() {
                       <InfoRow
                         key={`ov-${w.src}-${w.id}`}
                         name={w.title}
+                        sub={whoOf(w)}
                         trailing={<span className="cmd-row-due late">{dnice(w.due)} · overdue</span>}
                         onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")}
-                        ariaLabel={`Open task: ${w.title}`}
+                        ariaLabel={`Open task: ${w.title} — ${whoOf(w)}`}
                       />
                     ))}
-                    {ov.more > 0 && <div className="cmd-more">+{ov.more} more overdue</div>}
+                    {ov.more > 0 && (
+                      <button type="button" className="owed-more" onClick={() => setAllOverdue(true)}>
+                        Show the other {ov.more} overdue <span aria-hidden="true">›</span>
+                      </button>
+                    )}
+                    {data.namesErr && <p className="pnl-note" role="status">Who each one is waiting on couldn&rsquo;t be read just now — the list is still current.</p>}
                   </div>
                 )}
                 <div className="k-rows">

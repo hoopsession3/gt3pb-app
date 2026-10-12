@@ -37,11 +37,17 @@ import { loadOwed, useObligationGo, type OwedData, type OwedRow } from "./Owed";
 //   · the booking and restock lines, when there are any
 //   · "All tasks", which opens the two full panels exactly as they were
 // Nothing is deleted to make it calm; everything folded is one tap away.
+//
+// ONLY WHAT'S YOURS (2026-10-12, the My Day audit, approved). For anyone who manages, this list also
+// carried other people's late tasks ("Not attached to an event or stop", no name) and, through Needs
+// you's rule, every workstream, initiative and goal of the company's: in the audit's rebuild six of
+// the eleven late things here were not the owner's. The rows are yours now — your tasks, deadlines that
+// are yours (lib/obligations obligationFor), equipment and the compliance rules your role confirms.
+// Everybody's late work is the team's week on Command, by name (components/CommandBoard).
 
 type Mine = { kind: "mine"; row: MyTaskRow };
 type Owe = { kind: "owed" | "upkeep" | "rule"; row: OwedRow };
-type Team = { kind: "team"; id: string };
-type Ref = Mine | Owe | Team;
+type Ref = Mine | Owe;
 type Item = HomeItem & { ref: Ref };
 type Data = { items: Item[]; owed: OwedData; doneToday: number };
 
@@ -92,9 +98,6 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
       const daysOut = kind === "rule" && Number(r.days_out) >= 0 ? null : Number(r.days_out);
       items.push({ key: `owed:${r.source}:${r.subject_id}`, title: r.title, sub: `${r.kind} · ${r.detail}`, daysOut, critical: false, kind, ref: { kind, row: r } });
     }
-    for (const t of owed.tasks) {
-      items.push({ key: `team:${t.id}`, title: t.label, sub: t.owner ? `${t.owner.kind} · ${t.owner.name}` : "Not attached to an event or stop", daysOut: t.late != null ? -t.late : null, critical: t.critical, kind: "team", ref: { kind: "team", id: t.id } });
-    }
     return { items, owed, doneToday: doneTodos + doneEvent };
   }, [meId, role, manage]);
   const state = useAsyncData<Data>(loader, [loader]);
@@ -120,7 +123,6 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
   const open = (i: Item) => {
     const r = i.ref;
     if (r.kind === "mine") openTask(r.row.id, r.row.source === "todo" ? "todo" : "event");
-    else if (r.kind === "team") openTask(r.id, "event");
     else if (canGo(r.row)) go(r.row);
     else setSheet("all");   // its answer (a payment, say) lives on the full panel
   };
@@ -240,7 +242,7 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
                 <button type="button" className="k-chip sm" onClick={() => setSheet("all")} aria-label={`All tasks, ${s.total}`}>All tasks · {s.total} ›</button>
               </div>
               {owed.extrasFailed && (
-                <p className="pnl-note" role="status">Team tasks, restock and booking replies couldn&rsquo;t be read just now — the rest is current.</p>
+                <p className="pnl-note" role="status">Restock and booking replies couldn&rsquo;t be read just now — the rest is current.</p>
               )}
 
               {sheet === "all" && (
@@ -256,7 +258,7 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
                   <p className="pnl-note">Each was due more than {STALE_DAYS} days ago. Done, moved, or opened to decide.</p>
                   <div className="owed">{s.stale.map((i) => row(i))}</div>
                   {(() => {
-                    const tickable = s.stale.filter((i) => i.kind !== "team" && !!tickOf(i));
+                    const tickable = s.stale.filter((i) => !!tickOf(i));
                     if (!tickable.length) return null;
                     return (
                       <div className="flex flex-wrap gap-2 mt-4">
