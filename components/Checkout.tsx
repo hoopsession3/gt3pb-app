@@ -23,6 +23,7 @@ import OrderConfirm from "./OrderConfirm";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import Icon from "@/components/Icon";
 import { holdsKey, useIdemKey } from "./useIdemKey";
+import type { CupLine } from "@/lib/cupPrice";
 import { payErrorText } from "@/lib/idempotency";
 import { haptic } from "@/lib/haptics";
 import { apiUrl } from "@/lib/native";
@@ -98,6 +99,27 @@ export default function Checkout() {
   const items = lines.flatMap(([id, q]) => Array(q).fill(id)) as DrinkId[]; // flat list for the charge + order record
   const priceOf = (id: DrinkId) => prices?.[id] ?? Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
   const totalCents = items.reduce((s, id) => s + priceOf(id), 0);
+  // THE SERVER'S PRICE, BEFORE PAY (C2, 2026-10-12). /api/checkout/quote prices this cart the way the charge will — a
+  // member's perks applied and named, a price the owner changed after the menu loaded — and the button shows that amount
+  // and sends it; the charge refuses any other (lib/cupPrice). Until the quote answers, the menu's prices, as before, and
+  // a refusal's new amount replaces it (priceChanged): the card is never charged an amount the button did not say.
+  const itemsKey = items.join(",");
+  const [quote, setQuote] = useState<{ key: string; subtotalCents: number; lines: CupLine[] } | null>(null);
+  useEffect(() => {
+    if (!open || !itemsKey) return;
+    let alive = true;
+    authedFetch("/api/checkout/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: itemsKey.split(",") }) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d && typeof d.subtotalCents === "number" && Array.isArray(d.lines)) setQuote({ key: itemsKey, subtotalCents: d.subtotalCents, lines: d.lines }); })
+      .catch(() => { /* the menu's prices stand; the charge still refuses an amount it would not take */ });
+    return () => { alive = false; };
+  }, [open, itemsKey]);
+  const priced = quote && quote.key === itemsKey ? quote : null;
+  const lineOf = (id: DrinkId) => priced?.lines.find((l) => l.slug === id) ?? null;
+  const subtotalCents = priced ? priced.subtotalCents : totalCents;
+  const repriced = (d: { priceChanged?: boolean; subtotalCents?: unknown; lines?: unknown }) => {
+    if (d?.priceChanged && typeof d.subtotalCents === "number" && Array.isArray(d.lines)) setQuote({ key: itemsKey, subtotalCents: d.subtotalCents, lines: d.lines as CupLine[] });
+  };
   // A cart line that sold out mid-order blocks submission (the server refuses it anyway — this is
   // the polite version: name the item, let them remove it, keep the rest of the order alive).
   const { soldOut } = useAvailability();
@@ -115,8 +137,8 @@ export default function Checkout() {
   const [tipPct, setTipPct] = useState(restoredTip);
   // Kept as the key is used — the tip that signed THIS key, not whatever the buttons say later.
   const keepTip = () => { try { localStorage.setItem(CO_TIP, String(tipPct)); } catch { /* the key still holds; only a restart's tip is lost */ } };
-  const tipCents = Math.round(totalCents * tipPct);
-  const grandCents = totalCents + tipCents;
+  const tipCents = Math.round(subtotalCents * tipPct);
+  const grandCents = subtotalCents + tipCents;
   // The string three places below print. It was "19.99" with a "$" glued on at each site, which is
   // how the same total could read one way here and another on the receipt.
   const total = money(grandCents);
@@ -152,7 +174,7 @@ export default function Checkout() {
   // answer can belong to the other button: a payment that went through while its answer was lost comes
   // back when "pay at the truck" is tapped, and a pre-order comes back to Pay. The server says which it
   // was (`paid`); the confirmation says what happened, not which button was pressed.
-  type Placed = { paid?: boolean; warn?: string; ref?: string; readyFrom?: string | null; pickup?: string };
+  type Placed = { paid?: boolean; warn?: string; ref?: string; readyFrom?: string | null; pickup?: string; amount?: number };
   const placed = (data: Placed, byCard: boolean) => {
     try { localStorage.removeItem(CO_TIP); } catch { /* ignore */ }
     const capturedLines = [...lines], capturedName = customer;
@@ -167,14 +189,15 @@ export default function Checkout() {
       // screen shows it, not just a toast that auto-dismisses in a few seconds. Previously this was
       // dropped entirely: the toast above never even rendered (React batches it with checkout()'s own
       // toast and only the last one shows), and `done` had nowhere to put it even if it had.
-      setDone({ paid: true, total: grandCents, lines: capturedLines, name: capturedName, warn: data.warn, ref: data.ref, ...p });
+      // What was charged, as the server says it — not what this screen worked out (C2).
+      setDone({ paid: true, total: typeof data.amount === "number" ? data.amount : grandCents, lines: capturedLines, name: capturedName, warn: data.warn, ref: data.ref, ...p });
       invalidateCustomerKnown();
     } else {
       trackFunnel("order", "pickup");
       haptic("success");
       toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ${p.readyFrom ? "made when we open" : "ready in ~8 min"}`);
       checkout({ silentToast: true }); // clears cart — this toast already fired above
-      setDone({ paid: false, total: totalCents, lines: capturedLines, name: capturedName, ...p });
+      setDone({ paid: false, total: typeof data.amount === "number" ? data.amount : subtotalCents, lines: capturedLines, name: capturedName, ...p });
       invalidateCustomerKnown();   // the next form starts from this order
     }
   };
@@ -190,11 +213,11 @@ export default function Checkout() {
       const res = await authedFetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items, customer, market: viewerMarket, idempotencyKey: attempt.key }),
+        body: JSON.stringify({ items, customer, market: viewerMarket, idempotencyKey: attempt.key, expectedCents: subtotalCents }),
       });
       const data = await res.json();
       idem.settle(attempt.key, res.status, data);
-      if (!res.ok) return { error: { message: data?.error || "That didn't go through — try again." } };
+      if (!res.ok) { repriced(data); return { error: { message: data?.error || "That didn't go through — try again." } }; }
       return { error: null, data };
     } catch {
       idem.settle(attempt.key, null, null);
@@ -252,11 +275,11 @@ export default function Checkout() {
       const res = await authedFetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: attempt.token, items, tipCents, customer, market: viewerMarket, idempotencyKey: attempt.key }),
+        body: JSON.stringify({ sourceId: attempt.token, items, tipCents, customer, market: viewerMarket, idempotencyKey: attempt.key, expectedCents: grandCents }),
       });
       const data = await res.json();
       idem.settle(attempt.key, res.status, data);
-      if (!res.ok) { setErr(payErrorText(data.error)); return; }
+      if (!res.ok) { repriced(data); setErr(payErrorText(data.error)); return; }
       placed(data, true);
     } catch {
       // Nothing sent: the card form itself failed. Sent and no answer: we can't tell whether the card
@@ -316,8 +339,9 @@ export default function Checkout() {
                     <b>{q}</b>
                     <button type="button" className="k-icon-btn" aria-label={`Add one ${DRINKS[id].n}`} onClick={() => inc(id)} disabled={busy}>+</button>
                     {DRINKS[id].n}
+                    {lineOf(id)?.perk && <em className="ml-1.5 not-italic text-caption2 text-gold2">{lineOf(id)!.perk}</em>}
                   </span>
-                  <span>{money(priceOf(id) * q)}</span>
+                  <span>{money((lineOf(id)?.cents ?? priceOf(id)) * q)}</span>
                 </div>
               ))}
 
@@ -352,7 +376,7 @@ export default function Checkout() {
                 </div>
               ) : squareClientReady ? (
                 <>
-                  <div className="co-line"><span>Subtotal</span><span>{money(totalCents)}</span></div>
+                  <div className="co-line"><span>Subtotal</span><span>{money(subtotalCents)}</span></div>
                   <div className="spec-label" style={{ marginTop: 16 }}>Add a tip</div>
                   <Segmented label="Tip" kind="choice" fill className="mt-0.5 mb-1.5" value={String(tipPct)} onChange={(k) => setTipPct(Number(k))}
                     options={TIPS.map((p) => ({ key: String(p), label: p === 0 ? "No tip" : `${Math.round(p * 100)}%` }))} />
@@ -380,7 +404,7 @@ export default function Checkout() {
               ) : payLater.on ? (
                 <>
                   {blocked86.length > 0 && <div className="co-86">{blocked86.join(" · ")} just sold out — remove {blocked86.length === 1 ? "it" : "them"} with the − button to continue.</div>}
-                  <div className="co-line co-total"><span>Total</span><span>{money(totalCents)}</span></div>
+                  <div className="co-line co-total"><span>Total</span><span>{money(subtotalCents)}</span></div>
                   <div className="honest" style={{ marginTop: 16 }}>
                     This is a <b>pre-order</b>{" "}— we&apos;ll have it ready and you pay at the truck.
                   </div>

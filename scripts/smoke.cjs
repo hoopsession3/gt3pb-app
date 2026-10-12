@@ -13176,6 +13176,49 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /default: "\{count\} free cup ready"/.test(rd("lib/copy.ts")) && /default: "\{count\} free cups ready"/.test(rd("lib/copy.ts")));
 }
 
+// ── THE AMOUNT ON THE BUTTON IS THE AMOUNT ON THE CARD (2026-10-12, C2 of the customer audit, approved) ──
+// The server priced a cart its own way (products, Square, the code's price; a member's perks) and the screen its own
+// (the menu's prices, read once, no perks): a reprice mid-session charged more than Pay said, a founding member less.
+// lib/cupPrice is the one pricing; /api/checkout/quote shows it before Pay; the charge refuses any amount it was not
+// shown, before the claim and the card.
+{
+  const CP = require("../.smoke/cupPrice.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const latte = { scope: "tier", tier: "founding", code: null, kind: "price_override", target: "maple", value_cents: 800, percent: null, label: "Founding price" };
+  const tenOff = { scope: "code", tier: null, code: "TEN", kind: "percent_off", target: "rise", value_cents: null, percent: 10, label: "TEN" };
+  const p = CP.priceCups(["rise", "maple", "rise"], { rise: 1000, maple: 1400 }, {}, []);
+  ok("price: each line at its price, the cart's order kept, quantities folded — the subtotal is the sum",
+    p.subtotal === 3400 && p.lines.map((l) => `${l.slug}×${l.qty}@${l.cents}`).join(",") === "rise×2@1000,maple×1@1400" && p.lines.every((l) => l.perk === null), p);
+  ok("price: products first, then Square, then the code's own price — as the charge always took them",
+    CP.priceCups(["rise"], {}, { rise: 950 }, []).subtotal === 950 && CP.priceCups(["rise"], { rise: 1000 }, { rise: 950 }, []).subtotal === 1000
+    && CP.priceCups(["rise"], {}, {}, []).subtotal === CP.pxCents("rise"));
+  const m = CP.priceCups(["maple", "rise"], { rise: 1000, maple: 1400 }, {}, [latte, tenOff]);
+  ok("price: a member's perks are applied and named on the line they lower — the founding latte, a code's ten percent",
+    m.subtotal === 800 + 900 && m.lines[0].perk === "Founding price" && m.lines[0].baseCents === 1400 && m.lines[1].perk === "TEN" && m.lines[1].cents === 900, m);
+  ok("price: a slug the menu does not know is named, never priced", JSON.stringify(CP.priceCups(["rise", "ghost"], {}, {}, [])) === JSON.stringify({ unknown: "ghost" }));
+  ok("price: the tip is whole cents, capped at the subtotal, none on a pay-later send or a bad number",
+    CP.tipCentsFor(true, 250.4, 2000) === 250 && CP.tipCentsFor(true, 5000, 2000) === 2000 && CP.tipCentsFor(false, 250, 2000) === 0
+    && CP.tipCentsFor(true, -5, 2000) === 0 && CP.tipCentsFor(true, "250", 2000) === 0 && CP.tipCentsFor(true, NaN, 2000) === 0);
+  ok("price: a refusal says the amount it is now, and which tap sends it",
+    CP.priceChangedWords(2300, true) === "The price changed — your total is now $23. Tap Pay again to pay it."
+    && CP.priceChangedWords(1050, false) === "The price changed — your total is now $10.50. Tap again to send it.");
+  const api = code(rd("app/api/checkout/route.ts")), quote = code(rd("app/api/checkout/quote/route.ts")), co = code(rd("components/Checkout.tsx"));
+  ok("charge: it prices with lib/cupPrice and refuses an amount it was not shown — after a retry is answered, before the claim and the card",
+    /const priced = priceCups\(items, productPrices, squarePrices, benefits\);/.test(api)
+    && /if \(expected !== null && expected !== due\) \{\s*return NextResponse\.json\(\{ error: priceChangedWords\(due, paying\), priceChanged: true, subtotalCents: subtotal, amountCents: due, lines: priced\.lines \}, \{ status: 409 \}\);/.test(api)
+    && api.indexOf("seenBefore(") < api.indexOf("expected !== due") && api.indexOf("expected !== due") < api.indexOf("claimKey(") && !/priceForSlug\(/.test(api));
+  ok("quote: the same reads the charge makes — products (refused in the same words), Square, the caller's perks — and the same pricing",
+    /cartRefusal\(uniq, rows, \(slug\) => DRINKS\[slug as DrinkId\]\?\.n \?\? slug\)/.test(quote) && /if \(availErr\) return NextResponse\.json\(\{ error: MENU_UNCHECKED \}, \{ status: 503 \}\);/.test(quote)
+    && /await squarePriceMap\(token\)/.test(quote) && /benefitsForUser\(user\?\.id \?\? null, code\)/.test(quote) && /priceCups\(items, productPrices, squarePrices, benefits\)/.test(quote)
+    && /export const POST = route\("checkout\/quote", post\);/.test(quote));
+  ok("page: it shows the server's price, sends the amount it showed from both buttons, takes a refusal's new amount, and confirms what was charged",
+    /authedFetch\("\/api\/checkout\/quote"/.test(co) && /const subtotalCents = priced \? priced\.subtotalCents : totalCents;/.test(co)
+    && /expectedCents: grandCents \}/.test(co) && /expectedCents: subtotalCents \}/.test(co) && (co.match(/repriced\(data\);/g) || []).length === 2
+    && /total: typeof data\.amount === "number" \? data\.amount : grandCents/.test(co) && /<span>Subtotal<\/span><span>\{money\(subtotalCents\)\}<\/span>/.test(co));
+}
+
 Promise.all(PENDING).then(() => {
   console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);

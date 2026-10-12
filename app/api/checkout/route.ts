@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { DRINKS, type DrinkId } from "@/lib/menu";
-import { SQUARE_BASE, SQUARE_VERSION, chargeCard, safeIdemKey } from "@/lib/squareServer";
+import { chargeCard, safeIdemKey } from "@/lib/squareServer";
+import { squarePriceMap } from "@/lib/squareCatalog";
+import { priceCups, priceChangedWords, tipCentsFor } from "@/lib/cupPrice";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
-import { benefitsForUser, priceForSlug, acceptedCode } from "@/lib/benefits";
+import { benefitsForUser, acceptedCode } from "@/lib/benefits";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { readyWords, refusalWords, pickupWords, type Ordering } from "@/lib/ordering";
@@ -17,43 +19,6 @@ import { errorMessage } from "@/lib/errorMessage";
 import { chargeOnce, claimKey, couldNotConfirm, placeOnce, seenBefore, type Answer, type Stopped } from "@/lib/chargeOnce";
 import { checkoutClaims } from "@/lib/checkoutClaims";
 
-// Square Catalog as a secondary sync — used ONLY for items missing from `products` (a catalog gap),
-// never as the primary source. products.price_cents is the one price authority (0062, and the same
-// order MenuManager writes to + /api/menu already serves to the client) — Square used to be checked
-// first here, which meant a reprice via Money > Menu could silently charge the OLD Square/hardcoded
-// price. lib/menu.ts's px stays as the final fallback (revenue continuity beats a hard fail if both
-// products and Square are unreachable) but is never preferred over a real price.
-//
-// Square has no concept of our slugs, so its items are matched back to one by DISPLAY NAME. For 7 of
-// 10 items the lowercased name happens to equal the slug (rise, flow, dusk, tide, forge, hunt, wild),
-// which used to mask this bug: kingme ("KING ME"), maple ("SALTED MAPLE LATTE"), and aide ("NATURE'S
-// AIDE") don't match their slug — so a name-keyed map silently missed the live Square price for those
-// 3 below (line 141 looks this map up BY SLUG) and fell through to the stale lib/menu.ts price instead,
-// whenever this fallback actually fired.
-const NAME_TO_SLUG: Record<string, DrinkId> = Object.fromEntries(
-  (Object.keys(DRINKS) as DrinkId[]).map((slug) => [DRINKS[slug].n.toLowerCase(), slug])
-) as Record<string, DrinkId>;
-
-async function squarePriceMap(token: string): Promise<Record<string, number>> {
-  try {
-    const res = await fetch(`${SQUARE_BASE}/v2/catalog/list?types=ITEM`, {
-      headers: { Authorization: `Bearer ${token}`, "Square-Version": SQUARE_VERSION },
-      next: { revalidate: 60 },
-    });
-    const data = await res.json();
-    const m: Record<string, number> = {};
-    for (const o of data?.objects ?? []) {
-      const n = o?.item_data?.name?.toLowerCase();
-      const a = o?.item_data?.variations?.[0]?.item_variation_data?.price_money?.amount;
-      const slug = n ? NAME_TO_SLUG[n] : undefined;
-      if (slug && typeof a === "number") m[slug] = a;
-    }
-    return m;
-  } catch {
-    return {};
-  }
-}
-
 const reply = (a: Answer) => NextResponse.json(a.body, { status: a.status });
 
 async function post(req: Request) {
@@ -66,7 +31,7 @@ async function post(req: Request) {
     return NextResponse.json({ error: "Checkout isn't switched on yet." }, { status: 503 });
   }
 
-  let body: { sourceId?: string; items?: DrinkId[]; tipCents?: number; customer?: string; code?: string; idempotencyKey?: string };
+  let body: { sourceId?: string; items?: DrinkId[]; tipCents?: number; customer?: string; code?: string; idempotencyKey?: string; expectedCents?: number };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   // A literal `null` body (e.g. body: 'null') is valid JSON — req.json() resolves to it without
   // throwing, so it slips past the try/catch above. Destructuring `null` next would throw a raw
@@ -193,20 +158,28 @@ async function post(req: Request) {
   // per-slug price. Server-resolved from the caller's tier — never trusts a client-sent discount.
   const benefitUser = await userFromRequest(req);
   const benefits = await benefitsForUser(benefitUser?.id ?? null, body.code);
-  let subtotal = 0;
-  for (const id of items) {
-    if (!DRINKS[id]) return NextResponse.json({ error: `Unknown item: ${id}` }, { status: 400 });
-    const base = productPrices[id] ?? squarePrices[id] ?? Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
-    subtotal += priceForSlug(benefits, id, base);
-  }
+  // lib/cupPrice — the one pricing the quote (/api/checkout/quote) runs too, so the page shows what this charges.
+  const priced = priceCups(items, productPrices, squarePrices, benefits);
+  if ("unknown" in priced) return NextResponse.json({ error: `Unknown item: ${priced.unknown}` }, { status: 400 });
+  const subtotal = priced.subtotal;
   // Which code to RECORD on the order (0268): only one that can actually reprice this channel.
   // amount_off is order-level (packs) — validating it here without a discount would inflate the
   // coupon-redemption KPI with rows where nothing was redeemed.
   const cupsCode = acceptedCode(benefits.filter((b) => b.scope !== "code" || b.kind !== "amount_off"), body.code);
   // Tip is additive and capped at the subtotal as a fat-finger guard. Pay-at-pickup has no tip yet
   // (nothing charged here to attach it to) — the field is ignored on that path.
-  const tip = paying && typeof tipCents === "number" && Number.isFinite(tipCents) && tipCents > 0 ? Math.min(Math.round(tipCents), subtotal) : 0;
+  const tip = tipCentsFor(paying, tipCents, subtotal);
   const amount = subtotal + tip;
+
+  // THE AMOUNT ON THE BUTTON IS THE AMOUNT ON THE CARD (C2, 2026-10-12). The page sends what it showed — its quote
+  // from /api/checkout/quote, the tip on top — and this route charges nothing else: a price changed or a perk applied
+  // since, and it refuses before the claim and the card, with the amount it is now and the lines, which the page shows
+  // before the next tap. A page that sends no amount (an app build from before this) is charged as it always was.
+  const expected = typeof body.expectedCents === "number" && Number.isFinite(body.expectedCents) ? Math.round(body.expectedCents) : null;
+  const due = paying ? amount : subtotal;
+  if (expected !== null && expected !== due) {
+    return NextResponse.json({ error: priceChangedWords(due, paying), priceChanged: true, subtotalCents: subtotal, amountCents: due, lines: priced.lines }, { status: 409 });
+  }
 
   // Canonical customer link (0151) + who's ordering — shared by both branches below.
   const user = await userFromRequest(req); // null for guest checkout
