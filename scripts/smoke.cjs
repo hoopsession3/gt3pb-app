@@ -7511,7 +7511,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("book the bar: who is asking starts from what we know, and the request is filed under a city",
     ["useKnownField(known?.fullName)", "useKnownField(known?.email)", "useKnownField(known?.phone)"].every((x) => bk.includes(x)) && /market: known\?\.market \?\? viewerMarket,/.test(bk));
   const inval = ["components/Checkout.tsx", "components/OrderFunnel.tsx", "components/ShopCheckout.tsx", "components/OfficeOrder.tsx"].map((f) => (code(read(f)).match(/invalidateCustomerKnown\(\)/g) || []).length);
-  ok("known: every placed order refreshes it, so the next form starts from that order", JSON.stringify(inval) === JSON.stringify([2, 2, 1, 1]), inval);
+  // OrderFunnel's third: a pack changed in place (0388, 2026-10-12) refreshes it too — the name and phone it carried.
+  ok("known: every placed order refreshes it, so the next form starts from that order", JSON.stringify(inval) === JSON.stringify([2, 3, 1, 1]), inval);
 
   // ── the office route keeps the city and the door (0346) ──
   const office = code(read("app/api/office/route.ts"));
@@ -13217,6 +13218,65 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /authedFetch\("\/api\/checkout\/quote"/.test(co) && /const subtotalCents = priced \? priced\.subtotalCents : totalCents;/.test(co)
     && /expectedCents: grandCents \}/.test(co) && /expectedCents: subtotalCents \}/.test(co) && (co.match(/repriced\(data\);/g) || []).length === 2
     && /total: typeof data\.amount === "number" \? data\.amount : grandCents/.test(co) && /<span>Subtotal<\/span><span>\{money\(subtotalCents\)\}<\/span>/.test(co));
+}
+
+// ── A PACK IS CHANGED IN PLACE (2026-10-12, C5 of the customer audit, approved) ──
+// "Change the pack" placed a second reservation and canceled the first: a paid pack was charged again in full and the
+// first payment waited on a crew alert. Now /api/reserve/change changes the pack itself and moves only the difference
+// (lib/packChange, 0388 — its every branch in scripts/db.packchange.test.mjs). Here: the pack a request describes, read
+// one way by both routes (lib/packOrder); the words a change answers with; and the order the route and the page keep.
+{
+  const PO = require("../.smoke/packOrder.js"), PC = require("../.smoke/packChange.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const good = { name: " Jordan ", phone: "+18645550100", size: 6, glass: "new", mix: { RISE: 4, FLOW: 2, junk: 9 } };
+  const p = PO.packPick(good);
+  ok("pack: a good request is the pack, trimmed, its mix from the three flavors only",
+    p.pick && p.pick.name === "Jordan" && p.pick.size === 6 && p.pick.glass === "new" && JSON.stringify(p.pick.mix) === JSON.stringify({ RISE: 4, FLOW: 2, DUSK: 0 }), p);
+  ok("pack: the refusals /api/reserve always gave, word for word",
+    PO.packPick({ ...good, name: "" }).error === "Name and phone are required for the pickup text."
+    && PO.packPick({ ...good, size: 5 }).error === "Pick a pack size (3, 6, or 12)."
+    && PO.packPick({ ...good, mix: { RISE: 1 } }).error === "Your flavor picks must add up to the pack size."
+    && PO.packPick({ ...good, glass: "anything" }).pick.glass === "return");
+  ok("pack: the days on offer are the stops', and the Saturday rule when there are none",
+    PO.offeredDays([{ starts_at: "2026-10-24T14:00:00Z" }]).has("2026-10-24") && PO.offeredDays([]).size === 1);
+  ok("pack: a requested day is a day key, from a key or an instant", PO.requestedDay("2026-10-24") === "2026-10-24" && PO.requestedDay("2026-10-25T01:30:00Z") === "2026-10-24");
+  const founding = { scope: "tier", tier: "founding", code: null, kind: "free_refill", target: "straight_brew", value_cents: null, percent: null, label: "Free refills" };
+  const tenPct = { scope: "code", tier: null, code: "TEN", kind: "percent_off", target: null, value_cents: null, percent: 10, label: "TEN" };
+  ok("pack: the price is the grid, then the member's perks — a free refill zeroes a bring-back pack, a code takes its percent",
+    PO.packCents(6, "return", [founding]) === 0 && PO.packCents(6, "new", [founding]) > 0
+    && PO.packCents(6, "new", [tenPct]) === Math.round(PO.packCents(6, "new", []) * 0.9));
+  const cut = PO.packDayCutoff(new Map(), "2026-10-24");
+  ok("pack: a pack whose stop left the schedule closes three days before, at 6pm", cut.getDate() === 21 && cut.getHours() === 18, String(cut));
+  ok("change: the difference a paid pack moves; pay at pickup moves nothing unless paid now",
+    PC.diffFor({ paid: true, total_cents: 6000 }, 3000, false) === -3000 && PC.diffFor({ paid: false, total_cents: 3000 }, 6000, false) === 0
+    && PC.diffFor({ paid: false, total_cents: 3000 }, 6000, true) === 6000);
+  const c = { key: "k-0001", drop_order_id: "P", user_id: "U", state: "done", card: false, before: { size: 12, glass: "return", mix: {}, drop_date: "2026-10-24", total_cents: 6000, paid: true },
+    after: { size: 6, glass: "return", mix: {}, drop_date: "2026-10-24", total_cents: 3000, name: "Jordan", phone: "+1", benefit_code: null },
+    diff_cents: -3000, charge_payment_id: null, refunds: [{ payment_id: "pay", refund_id: "r", cents: 2000, status: "PENDING" }], by_hand_cents: 1000, status: null, answer: null, note: null, updated_at: "" };
+  const a = PC.doneAnswer(c);
+  ok("change: done says what went back and what the crew is sending", a.status === 200 && a.body.refundedCents === 2000 && a.body.refundPendingCents === 1000 && /sending \$10 back/.test(a.body.warn), a);
+  ok("change: the text names the pack, the day and the money", PC.customerWords(c) === "GT3: your pack is now a 6-pack for pickup 2026-10-24. $20 is going back to the card you paid with. The crew is sending the other $10 back by hand.");
+  ok("change: a refusal keeps the key only while something may have happened",
+    PC.stillConfirming().body.pending === true && PC.couldNotConfirm({ diff_cents: 500, key: "k" }).body.pending === true
+    && PC.anotherChange().body.declined === true && PC.packMoved().body.declined === true && PC.refusal({ refused: "repriced", diff: 4500 }).body.priceChanged === true);
+  const reserve = code(rd("app/api/reserve/route.ts")), change = code(rd("app/api/reserve/change/route.ts")), funnel = code(rd("components/OrderFunnel.tsx"));
+  const pay = code(rd("components/PackChangePay.tsx"));
+  ok("reserve: a new pack is read and priced by lib/packOrder — no second copy of the rules in the route",
+    /const asked = packPick\(body\);/.test(reserve) && /offeredDays\(nextStops/.test(reserve) && /requestedDay\(body\.dropDate\)/.test(reserve) && /packCents\(size, glass, benefits\)/.test(reserve)
+    && !/mixComplete\(/.test(reserve) && !/refillIsFree\(/.test(reserve));
+  ok("change route: a key seen before is answered first; then the pack, the day, the pack's own drop; a quote writes nothing; the shown difference is required",
+    change.indexOf('from("drop_order_changes")') < change.indexOf("packPick(body)") && change.indexOf("packPick(body)") < change.indexOf("packDayCutoff(")
+    && change.indexOf("if (quote)") < change.indexOf("const expected =") && /if \(expected === null\) return NextResponse\.json/.test(change)
+    && /changePack\(\{ store, money, tell, now: Date\.now, key, order: id, user: user\.id, \.\.\.a \}\)/.test(change)
+    && /export const POST = route\("reserve\/change", post\);/.test(change));
+  ok("page: a change goes to /api/reserve/change with the difference it was quoted — no second reservation, no cancel after it",
+    /authedFetch\("\/api\/reserve\/change", \{ method: "POST", headers: \{ "Content-Type": "application\/json" \}, body: JSON\.stringify\(\{ \.\.\.body, quote: true \}\) \}\)/.test(pay)
+    && /const expectedDiffCents = changeQuote\.paid \? changeQuote\.diffCents : card \? changeQuote\.newCents : 0;/.test(pay)
+    && /useIdemKey\("gt3-of-idem-change"\)/.test(pay) && !/cancel_any_order/.test(funnel));
+  ok("page: the change's Pay step loads only when a pack is changed — /reserve and /delivery carry none of it",
+    /const PackChangePay = dynamic\(\(\) => import\("\.\/PackChangePay"\)\);/.test(funnel) && !/changeQuote|submitChange/.test(funnel));
 }
 
 Promise.all(PENDING).then(() => {

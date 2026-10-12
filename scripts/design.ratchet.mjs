@@ -595,11 +595,17 @@ export const PROD_ROUTE = {
 // 2026-10-12 (R1b, C6 of the customer audit): /scan 266 → 267. The scan page's own chunk +575 bytes gzipped (2 389 →
 // 2 964; 6 435 → 8 273 raw) for Redeem a free cup — the ask, its three answers — and lib/loyalty's card, which the
 // page reads instead of its own GOAL = 10. Built b790d2a and this commit and gzipped what /scan's HTML references.
+// 2026-10-12 (R1c, C5 of the customer audit): /reserve 292 → 293. +196 bytes gzipped (299 406 → 299 602) in the order
+// funnel for a pack changed in place: the change it sends (one memo), the props of its Pay step, and the receipt's
+// charged / refunded / being-refunded rows. The Pay step itself — the quote, the sends, the card — loads only when a
+// member changes a pack (components/PackChangePay, next/dynamic); before that split the same change cost +1 KB here and
+// on /delivery. /reserve sat 0.11 KB under the line; /delivery moved the same 196 bytes and stayed at 291 (291.39).
+// Built f52b3a4 and this commit, served both, and gzipped what each page's HTML references.
 export const WEIGHT = {
   "/truck":                    { js: 285, css: 89, chunks: 16 },
   "/events":                   { js: 285, css: 89, chunks: 16 },
   "/menu":                     { js: 267, css: 90, chunks: 15 },
-  "/reserve":                  { js: 292, css: 90, chunks: 16 },
+  "/reserve":                  { js: 293, css: 90, chunks: 16 },
   "/delivery":                 { js: 291, css: 90, chunks: 16 },
   "/3mpire":                   { js: 284, css: 90, chunks: 15 },
   "/craft":                    { js: 267, css: 90, chunks: 15 },

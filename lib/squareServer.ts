@@ -107,6 +107,45 @@ export async function chargeCard(opts: {
   return { ok: false, error: data?.errors?.[0]?.detail || "Payment declined" };
 }
 
+/** Square answered a refund, and the answer does not say whether the money went back. */
+export class RefundUnknown extends Error {
+  constructor(message: string) { super(message); this.name = "RefundUnknown"; }
+}
+
+// Square's limit on a refund's reason (RefundPayment: "Max Length 192").
+const REASON_MAX = 192;
+
+// MONEY GOING BACK (2026-10-12, 0388 — a pack changed to a cheaper one, lib/packChange). POST /v2/refunds, part or all
+// of one payment, under a key the caller keeps for this refund alone. The same three answers as a charge
+// (chargeVerdict): made, refused (any other 4xx: nothing went back), and unknown (a 5xx, a 408 or 409,
+// IDEMPOTENCY_KEY_REUSED) — thrown, like a dropped connection, so the caller's "not confirmed" branch takes it. Square
+// answers a refund PENDING and completes it on its own, so PENDING is a refund made; REJECTED or FAILED in the answer
+// is a refusal.
+export async function refundPayment(opts: {
+  token: string; paymentId: string; amountCents: number; idempotencyKey: string; reason: string;
+}): Promise<{ ok: true; refundId: string | null; status: string } | { ok: false; error: string }> {
+  const res = await fetch(`${SQUARE_BASE}/v2/refunds`, {
+    method: "POST",
+    headers: squareHeaders(opts.token),
+    body: JSON.stringify({
+      idempotency_key: opts.idempotencyKey,
+      payment_id: opts.paymentId,
+      amount_money: { amount: opts.amountCents, currency: "USD" },
+      reason: opts.reason.slice(0, REASON_MAX),
+    }),
+  });
+  const data = await res.json();
+  const verdict = chargeVerdict(res.status, data);
+  if (verdict === "unknown") {
+    const said = String(data?.errors?.[0]?.code || data?.errors?.[0]?.detail || "");
+    throw new RefundUnknown(`Square answered ${res.status}${said ? ` (${said})` : ""}`);
+  }
+  if (verdict === "declined") return { ok: false, error: data?.errors?.[0]?.detail || "Refund refused" };
+  const status = String(data?.refund?.status ?? "PENDING");
+  if (status === "REJECTED" || status === "FAILED") return { ok: false, error: `Square ${status.toLowerCase()} the refund` };
+  return { ok: true, refundId: data?.refund?.id ?? null, status };
+}
+
 // One Square Subscription Plan Variation per coffee pack (6 / 12 / 18). The owner
 // creates three plan variations in Square (each with its cadence + price) and sets these.
 export const SQUARE_PLAN_BY_PACK: Record<string, string> = {

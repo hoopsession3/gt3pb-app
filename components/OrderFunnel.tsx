@@ -68,6 +68,10 @@ const PICKUP_TIERS = PACK_SIZES as readonly number[]; // [3, 6, 12]
 const pickupSig = (count: number | null, bringBack: boolean | null, mix: Record<Flav, number>, drop: string, code: string | undefined) =>
   ({ path: "pickup", count, bringBack, mix, drop, code });
 
+// A PACK CHANGED IN PLACE (0388, 2026-10-12 — C5 of the customer audit). Its Pay step is its own screen, loaded when a
+// member changes a pack: every visitor to /reserve and /delivery carried it for a path few take.
+const PackChangePay = dynamic(() => import("./PackChangePay"));
+
 // The office order is its own screen, loaded when an office is chosen (2026-10-04): every visitor to
 // /reserve and /delivery downloaded it for a path few of them take. Choosing "For the office" warms
 // it, so the sheet opens at once.
@@ -150,7 +154,8 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
   // felt from here once each time one appears, as the drinks checkout does (2026-10-05, the haptics
   // round). What this screen says with toast() already buzzes from AppProvider.
   useEffect(() => { if (err) haptic("error"); }, [err]);
-  const [done, setDone] = useState<{ total: number; label?: string; warn?: string; paid: boolean; ref?: string } | null>(null);
+  // `change`: the pack was changed in place, and what moved — charged, refunded, or being refunded by the crew.
+  const [done, setDone] = useState<{ total: number; label?: string; warn?: string; paid: boolean; ref?: string; change?: { charged: number; refunded: number; pending: number } } | null>(null);
 
   // ── discount code (0176 member_benefits, scope='code'). The server reprices authoritatively; this
   // is a live PREVIEW so the customer sees the code land before they pay. Percent-off and free-refill
@@ -394,11 +399,6 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
       invalidateCustomerKnown();   // the next form starts from this order
       trackFunnel("reserve", "done");
       setStep("done");
-      if (replacing && supabase) {
-        const old = replacing; setReplacing(null);
-        const { data: ok } = await supabase.rpc("cancel_any_order", { p_channel: "pickup", p_id: old.id });
-        toast(ok === true ? "Pack updated — your old reservation was canceled" : "New pack is in, but the old one couldn't be canceled — cancel it under Your pack.", ok === true ? undefined : "error");
-      }
       setPacksKey((k) => k + "x");
     } catch {
       setBusy(false);
@@ -410,7 +410,15 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
       idem.settle(attempt.key, null, null);
       setErr("Couldn't confirm — safe to try again, you won't be charged twice.");
     }
-  }, [busy, name, phone, count, bringBack, mix, drop, totalCents, codeState, codeClean, replacing, toast, idem]);
+  }, [busy, name, phone, count, bringBack, mix, drop, totalCents, codeState, codeClean, idem]);
+
+  // ── a pack changed in place (0388) ──
+  // The change as the server reads it: the pack that is changing, what it becomes, the code it is priced with.
+  const changeBody = useMemo(() => (mode === "pickup" && replacing && count ? {
+    id: replacing.id, name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath,
+    mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat),
+    code: codeState === "ok" ? codeClean : undefined,
+  } : null), [mode, replacing, count, name, phone, bringBack, mix, drop, codeState, codeClean]);
 
   const payDelivery = async () => {
     if (busy) return; // guard a fast double-tap before the button's disabled attribute takes effect
@@ -532,6 +540,31 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
   // nobody designed, not the mechanical swap everywhere else got. Trade-off worth flagging: the
   // pickup line loses the bold emphasis on the two dynamic values below, since EditableCopy can only
   // show flat text — the live countdown/pickup-day VALUES are unchanged, just no longer bolded.
+  // The discount code, on Pay for a new pack and for a change alike (a change is priced with the code the pack was
+  // reserved with unless another is entered here).
+  const codeBox = mode === "pickup" ? (
+    <div className="oa-code">
+      {!codeOpen && codeState !== "ok" ? (
+        <button type="button" className="oa-code-toggle hit-44" onClick={() => setCodeOpen(true)}>{t("funnel.have_code")}</button>
+      ) : codeState === "ok" && codeBenefit ? (
+        <div className="oa-code-ok">
+          <span className="oa-code-tag">{codeClean}</span>
+          <span className="oa-code-lbl">{codeDiscountCents > 0 ? `${money(codeDiscountCents)} off applied` : codeBenefit.label}</span>
+          <button type="button" className="oa-code-x" onClick={clearCode} aria-label="Remove code"><Icon name="close" /></button>
+        </div>
+      ) : (
+        <div className="oa-code-in">
+          <input className="auth-input" value={code} onChange={(e) => { setCode(e.target.value); if (codeState !== "idle") setCodeState("idle"); }}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); checkCode(); } }}
+            placeholder={t("funnel.code_ph")} aria-label="Discount code" autoCapitalize="characters" />
+          <button type="button" className="btn-sec shrink-0" onClick={checkCode} disabled={!codeClean || codeState === "checking"}>{codeState === "checking" ? "…" : t("funnel.code_apply")}</button>
+        </div>
+      )}
+      {codeState === "bad" && <p className="oa-code-bad">That code isn&rsquo;t valid — check it and try again.</p>}
+      {codeState === "ok" && codeDiscountCents === 0 && <p className="oa-code-note">Saved — this one applies to cups at the bar, not this pack.</p>}
+    </div>
+  ) : null;
+
   const pickupCutoffVal = countdown ? `in ${countdown}` : dayName(drop.cutoff);
   const pickupPickupVal = `${dayName(drop.sat)}${stop?.name ? ` · ${stop.name}` : ""}`;
   const deadline = mode === "delivery"
@@ -554,7 +587,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
           <MyPacks onChange={startChange} refreshKey={packsKey} collapsible />
           {replacing && (
             <div className="oa-editing">
-              Editing your {replacing.size}-pack for {packDayLabel(replacing)} — reserving again replaces it.
+              Changing your {replacing.size}-pack for {packDayLabel(replacing)} — only the difference is charged or refunded.
               <button type="button" onClick={() => setReplacing(null)}>Keep it as is</button>
             </div>
           )}
@@ -869,8 +902,24 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
         </div>
       )}
 
+      {/* ── PAY: a pack changed in place (0388) — the difference, as the server prices it (components/PackChangePay) ── */}
+      {step === "pay" && changeBody && (
+        <PackChangePay body={changeBody} bottles={count ?? 0} dayLabel={dayName(drop.sat)} codeBox={codeBox}
+          sig={{ ...pickupSig(count, bringBack, mix, changeBody.dropDate, changeBody.code), path: "change", change: changeBody.id }}
+          checkoutOff={<EditableCopy k="funnel.checkout_off" value={t("funnel.checkout_off")} as="p" className="dl-sub" />}
+          onDone={(d) => {
+            setDone({ ...d, label: dayName(drop.sat) });
+            invalidateCustomerKnown();
+            trackFunnel("reserve", "done");
+            setReplacing(null);
+            setStep("done");
+            setPacksKey((k) => k + "x");
+          }}
+          onRefresh={(message) => { setPacksKey((k) => k + "x"); setReplacing(null); setStep("size"); toast(message, "error"); }} />
+      )}
+
       {/* ── PAY ── */}
-      {step === "pay" && (
+      {step === "pay" && !changeBody && (
         <div className="dl-step">
           <EditableCopy k="funnel.pay_h" value={t("funnel.pay_h")} as="h2" className="dl-h" />
           <div className="dl-quote">
@@ -878,28 +927,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
             <span className="dl-quote-t">{codeDiscountCents > 0 ? <><s className="dl-was">{money(baseTotalCents)}</s> <b>{money(totalCents)}</b></> : <>total <b>{money(totalCents)}</b></>}</span>
           </div>
 
-          {mode === "pickup" && (
-            <div className="oa-code">
-              {!codeOpen && codeState !== "ok" ? (
-                <button type="button" className="oa-code-toggle hit-44" onClick={() => setCodeOpen(true)}>{t("funnel.have_code")}</button>
-              ) : codeState === "ok" && codeBenefit ? (
-                <div className="oa-code-ok">
-                  <span className="oa-code-tag">{codeClean}</span>
-                  <span className="oa-code-lbl">{codeDiscountCents > 0 ? `${money(codeDiscountCents)} off applied` : codeBenefit.label}</span>
-                  <button type="button" className="oa-code-x" onClick={clearCode} aria-label="Remove code"><Icon name="close" /></button>
-                </div>
-              ) : (
-                <div className="oa-code-in">
-                  <input className="auth-input" value={code} onChange={(e) => { setCode(e.target.value); if (codeState !== "idle") setCodeState("idle"); }}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); checkCode(); } }}
-                    placeholder={t("funnel.code_ph")} aria-label="Discount code" autoCapitalize="characters" />
-                  <button type="button" className="btn-sec shrink-0" onClick={checkCode} disabled={!codeClean || codeState === "checking"}>{codeState === "checking" ? "…" : t("funnel.code_apply")}</button>
-                </div>
-              )}
-              {codeState === "bad" && <p className="oa-code-bad">That code isn&rsquo;t valid — check it and try again.</p>}
-              {codeState === "ok" && codeDiscountCents === 0 && <p className="oa-code-note">Saved — this one applies to cups at the bar, not this pack.</p>}
-            </div>
-          )}
+          {codeBox}
 
           {squareClientReady ? (
             <>
@@ -933,10 +961,11 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
       {/* ── DONE ── */}
       {step === "done" && done && (
         <OrderConfirm
-          title={done.paid ? t("funnel.done_title_paid") : t("funnel.done_title_reserved")}
+          title={done.change ? "Pack changed" : done.paid ? t("funnel.done_title_paid") : t("funnel.done_title_reserved")}
           sub={mode === "delivery" ? t("funnel.done_sub_del") : fillCopy(t("funnel.done_sub_pickup"), { day: weekdayOf(dropDateKey(drop.sat)), name: name ? `, ${name.split(" ")[0]}` : "" })}
-          totalCents={done.total}
-          totalLabel={done.paid ? "paid" : "due at pickup"}
+          // A change's big number is what moved — charged, or on its way back — and the pack's total when nothing did.
+          totalCents={done.change ? (done.change.charged || done.change.refunded + done.change.pending || done.total) : done.total}
+          totalLabel={done.change?.charged ? "charged" : done.change && done.change.refunded + done.change.pending > 0 ? "back to your card" : done.paid ? "paid" : "due at pickup"}
           warn={done.warn}
           // Sourced from the copy system now (reserve.confirm_return / reserve.confirm_new) instead
           // of duplicated here — this text used to be hand-typed and happened to match those keys'
@@ -958,7 +987,10 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
               : [
                   ...(done.ref ? [{ label: "Order", value: `#${done.ref.slice(0, 6).toUpperCase()}` }] : []),
                   { label: "Pickup", value: `${done.label}${stop?.name ? ` · ${stop.name}` : ""}` },
-                  { label: done.paid ? "Paid" : "Pay at pickup", value: money(done.total) },
+                  ...(done.change?.charged ? [{ label: "Charged", value: money(done.change.charged) }] : []),
+                  ...(done.change?.refunded ? [{ label: "Refunded", value: money(done.change.refunded) }] : []),
+                  ...(done.change?.pending ? [{ label: "The crew is refunding", value: money(done.change.pending) }] : []),
+                  { label: done.change ? (done.paid ? "Pack total" : "Pay at pickup") : done.paid ? "Paid" : "Pay at pickup", value: money(done.total) },
                 ]),
           ]}
           ctaLabel={mode === "delivery" ? t("funnel.done_cta_del") : t("funnel.done_cta_pickup")}

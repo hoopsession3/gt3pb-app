@@ -3,9 +3,10 @@ import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
-import { benefitsForUser, refillIsFree, applyOrderBenefits, acceptedCode } from "@/lib/benefits";
+import { benefitsForUser, acceptedCode } from "@/lib/benefits";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
-import { PRICING, FLAVORS, isPackSize, packTotal, toCents, mixComplete, mixSummary, nextDrop, dropForStop, dropDateKey, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
+import { packTotal, mixSummary, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
+import { packPick, offeredDays, requestedDay, packCents } from "@/lib/packOrder";
 import { route } from "@/lib/apiRoute";
 
 // ORDER-AHEAD reserve — records a one-off Saturday-drop reservation. Price + cutoff are recomputed
@@ -40,25 +41,16 @@ async function post(req: Request) {
     if (held) return NextResponse.json({ ok: true, id: held.id, paid: held.paid === true, recorded: true });
   }
 
-  const name = typeof body.name === "string" ? body.name.trim().slice(0, 80) : "";
-  const phone = typeof body.phone === "string" ? body.phone.trim().slice(0, 40) : "";
-  const size = Number(body.size);
-  const glass = body.glass === "new" ? "new" : "return";
   // A card token means "charge now"; no token means a pre-order (reserve now, pay at pickup). The
   // charge path needs Square configured; the pre-order path just needs the DB — so the reserve flow
   // is never a dead end.
   const wantsCharge = !!body.sourceId;
   if (wantsCharge && (!token || !locationId)) return NextResponse.json({ error: "Card checkout isn't switched on yet." }, { status: 503 });
-  if (!name || !phone) return NextResponse.json({ error: "Name and phone are required for the pickup text." }, { status: 400 });
-  if (!isPackSize(size)) return NextResponse.json({ error: "Pick a pack size (3, 6, or 12)." }, { status: 400 });
-
-  // Rebuild the mix from trusted flavor keys only, and require it to total the pack size.
-  const mix: Mix = { RISE: 0, FLOW: 0, DUSK: 0 };
-  for (const f of FLAVORS) { const n = Math.max(0, Math.floor(Number(body.mix?.[f] ?? 0))); mix[f] = n; }
-  if (!mixComplete(mix, size)) return NextResponse.json({ error: "Your flavor picks must add up to the pack size." }, { status: 400 });
-  if (!PRICING.allowFlavorMix && FLAVORS.filter((f) => mix[f] > 0).length > 1) {
-    return NextResponse.json({ error: "This drop is single-flavor — pick one flavor for the whole pack." }, { status: 400 });
-  }
+  // The pack itself — name, phone, size, glass, and the mix rebuilt from trusted flavor keys only, totaling the pack
+  // size. Read in lib/packOrder, which /api/reserve/change reads the same way.
+  const asked = packPick(body);
+  if ("error" in asked) return NextResponse.json({ error: asked.error }, { status: asked.status });
+  const { name, phone, size, glass, mix } = asked.pick;
 
   // Pickup day is the customer's CHOICE — among the truck's real upcoming stops (server-
   // authoritative; the Saturday cadence is the fallback when the route is empty). The client's
@@ -67,17 +59,10 @@ async function post(req: Request) {
   const { data: nextStops } = await supabaseAdmin.from("stops").select("starts_at")
     .is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
     .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(6);
-  const offered = new Map<string, Date>(); // dropDate key → its order cutoff
-  for (const st of nextStops ?? []) {
-    const at = (st as { starts_at: string }).starts_at;
-    offered.set(dropDateKey(new Date(at)), dropForStop(at).cutoff);
-  }
-  if (offered.size === 0) { const fb = nextDrop(); offered.set(dropDateKey(fb.sat), fb.cutoff); }
+  const offered = offeredDays(nextStops as { starts_at: string }[] | null); // dropDate key → its order cutoff
   // Accept a plain day key or a full ISO instant; an instant resolves through the same ET
   // day-key rule the offered map uses (post-8pm-ET stops are otherwise off by one UTC day).
-  const raw = String(body.dropDate ?? "");
-  const parsed = new Date(raw);
-  const requested = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : Number.isNaN(parsed.getTime()) ? raw.slice(0, 10) : dropDateKey(parsed);
+  const requested = requestedDay(body.dropDate);
   const cutoff = offered.get(requested);
   if (!cutoff) {
     return NextResponse.json({ error: "That pickup day just changed — refresh to see the current stops." }, { status: 409 });
@@ -88,14 +73,13 @@ async function post(req: Request) {
   const dropDate = requested;
 
   // Authoritative total — recomputed from the pricing grid, never the client amount.
-  let amount = toCents(packTotal(size, glass as GlassPath));
   // Member benefits (0176): the caller's tier perks plus any code they present, resolved server-side
   // (the client can't forge them). A founding member bringing bottles back gets straight-brew refills
   // free (order-ahead packs are always straight brew, so the refill benefit zeroes a return pack); a
-  // percent-off code discounts the whole order (new or return). Best benefit wins.
+  // percent-off code discounts the whole order (new or return). Best benefit wins (lib/packOrder.packCents:
+  // deepest percent, then amount-off (0268), floored at 0).
   const benefits = await benefitsForUser(user.id, (body as { code?: string }).code);
-  if (glass === "return" && refillIsFree(benefits)) amount = 0;
-  else amount = applyOrderBenefits(amount, benefits);   // deepest percent, then amount-off (0268), floored at 0
+  const amount = packCents(size, glass, benefits);
 
   try {
     // Charge only when a card token was supplied; otherwise it's a pay-at-pickup pre-order.
