@@ -5734,8 +5734,13 @@ export default function AdminPage() {
           </Column>
           <Column>
           {/* THE WEEK, LED FROM HERE (2026-10-09): the Chief of Staff briefing came from My Day's "Lead the
-              week" fold — on demand, owner-run, and about the period, so it sits with the goals it ranks. */}
-          <ChiefOfStaff />
+              week" fold — on demand, owner-run, and about the period, so it sits with the goals it ranks.
+              ONLY FOR WHO CAN RUN IT (2026-10-12): Command is open to admins and event managers, and the full-width
+              "Brief & lead my week" answered every one of them "owner-only". /api/agents/chief admits ownerFromRequest
+              alone — is_owner() (0023): profiles.role = 'owner', nothing else — so the card shows on exactly that,
+              the profile's stored role. Not isOwner above: roleOf reads a legacy is_admin as owner, and is_owner()
+              does not. */}
+          {profile?.role === "owner" && <ChiefOfStaff />}
           {/* Goals moved home 2026-07-29 (was its own section): "are we on track?" and "where are
               we steering?" are the same leadership conversation — one screen answers both now.
               Goals keeps its id="goals" anchor, so strategy alerts land right on it.

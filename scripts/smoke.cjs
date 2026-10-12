@@ -11771,6 +11771,26 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     tables.filter((t) => !new RegExp(`(from|join) public\\.${t}\\b`).test(views)));
 }
 
+// ── RELEASE 1 · "BRIEF & LEAD MY WEEK" SHOWS ONLY TO WHO CAN RUN IT (2026-10-12) ──
+// Command is open to admins and event managers; the briefing route admits owners alone, so the full-width button
+// answered them "owner-only". The card's gate is the route's own check, read the same way: profiles.role = 'owner'.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const crew = code(rd("app/crew/page.tsx")), cmd = crew.slice(crew.indexOf('{sec === "command" && canManage && ('), crew.indexOf('{sec === "now" && ('));
+  ok("briefing: on Command the Chief of Staff card is drawn only for a stored role of owner — not roleOf's legacy is_admin owner",
+    /\{profile\?\.role === "owner" && <ChiefOfStaff \/>\}/.test(cmd) && (crew.match(/<ChiefOfStaff \/>/g) || []).length === 1 && !/isOwner && <ChiefOfStaff/.test(crew));
+  const chief = code(rd("app/api/agents/chief/route.ts")), auth = rd("lib/apiAuth.ts");
+  const ownerFns = fs.readdirSync(path.join(__dirname, "..", "supabase/migrations")).filter((f) => /create or replace function public\.is_owner\(\)/.test(rd(`supabase/migrations/${f}`)));
+  ok("briefing: …which is exactly the route's check — ownerFromRequest first, is_owner(), and is_owner() is profiles.role = 'owner' (0023, never redefined)",
+    /async function post\(req: Request\) \{\s*if \(!\(await ownerFromRequest\(req\)\)\) return/.test(chief) && !/staffFromRequest|leadershipFromRequest/.test(chief)
+      && /export async function ownerFromRequest[\s\S]*?sb\.rpc\("is_owner"\)/.test(auth)
+      && ownerFns.join() === "0023_roles.sql" && /select coalesce\(\(select role = 'owner' from public\.profiles where id = auth\.uid\(\)\), false\);/.test(rd("supabase/migrations/0023_roles.sql")), ownerFns);
+  ok("briefing: the card still says why if the server refuses anyway (a role changed while the page was open)",
+    /if \(r\.status === 401 \|\| r\.status === 403\) setErr\("The Chief of Staff briefing is owner-only\. Ask an owner to run it for you\."\);/.test(rd("components/ChiefOfStaff.tsx")));
+}
+
 Promise.all(PENDING).then(() => {
   console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
