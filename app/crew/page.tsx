@@ -324,6 +324,9 @@ const STATUSES: BookingRequest["status"][] = ["new", "contacted", "booked", "dec
 // ONE LIST ABOVE THEM (2026-10-11, the dispatch round): every pack, porch, office stop and cup placed ahead, soonest
 // first, one row each and in words; a row opens its card (components/crew/DueList, lib/dueNext). Each card hands up the
 // rows it read (onRows) — the list reads no table twice and cannot disagree with the card below it.
+// THE DROP IS A ROW OF THE LIST (2026-10-12, the Live Ops round, approved): its card sat under the list, so on a quiet
+// day "Nothing due next." stood over "Pickup drop · This Sat · no reservations yet". The list draws it among its rows, by
+// its day (components/crew/DueList `drop`); the porches and the office route stay cards under it, in the order due.
 type DueKey = "drop" | "porch" | "office";
 const DUE_KEYS: DueKey[] = ["drop", "porch", "office"];
 function DueNext({ canPlan, onOpenPass }: { canPlan: boolean; onOpenPass: () => void }) {
@@ -342,8 +345,8 @@ function DueNext({ canPlan, onOpenPass }: { canPlan: boolean; onOpenPass: () => 
   return (
     <section aria-label="Due next" className="due-next">
       <SectionHeader label="Due next" annotation="pickups · porches · office · cups ahead" />
-      <DueList feeds={feeds} onOpenPass={onOpenPass} />
-      {order.map((k) => card[k])}
+      <DueList feeds={feeds} onOpenPass={onOpenPass} drop={card.drop} />
+      {order.filter((k) => k !== "drop").map((k) => card[k])}
     </section>
   );
 }

@@ -9,7 +9,7 @@ import { SectionHeader, InfoRow } from "@/components/kit";
 import { FLAVORS, dropDateKey, mixSummary, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
 import { gallonsForBottles, flavorDemand } from "@/lib/brewMath";
 import { boardSaturday, nextDropDay } from "@/lib/dropDate";
-import { addDays, dayKey, dayWithDate, etToday } from "@/lib/dates";
+import { addDays, clockTime, dayKey, dayWithDate, etToday } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
@@ -20,7 +20,7 @@ import { canOf } from "@/lib/roles";
 import { canCollect, canUndo, collectPayment, undoCollection, isSettled, paidHow, type CollectVia } from "@/lib/collect";
 import { useCollectSheet } from "./CollectSheet";
 import FoldCard from "@/components/crew/FoldCard";
-import type { PickupFeed } from "@/lib/dueNext";
+import { dueLead, type PickupFeed } from "@/lib/dueNext";
 
 // DROP OPS — the order-ahead brew sheet + pickup checklist for Saturday's drop. Lives in the admin
 // "Now" section right under the kitchen pass (and pops out of reservation alerts), so walk-up orders
@@ -294,6 +294,8 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
   // brew is the day before, queueBrew below). Any other day it says when, how many packs, and how many
   // bottles that makes, and opens on a tap.
   const brewDay = addDays(dropISO, -1);
+  const packWords = rows.length > 0 ? `${rows.length} pack${rows.length === 1 ? "" : "s"}` : "no reservations yet";
+  const bottleWords = `${bottles} bottle${bottles === 1 ? "" : "s"}`;
   const brewDue = bottles > 0 && batches.length === 0 && etToday() >= brewDay && etToday() <= dropISO;
 
   return (
@@ -403,14 +405,20 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
           </>
         );
         return (
-        <div className="dops zone-pickup">
+        <div className={`dops zone-pickup${brief ? " mt-0" : ""}`}>
           {/* The drop block is a card (the crew console's .mpanel). On Live Ops it is a fold, one row until
               its day (ITS DAYS, above); in Service mode and the drop sheet it is the titled panel, where
               SectionHeader supplies its own top spacing and the card only pads sides + bottom. */}
+          {/* A ROW OF DUE NEXT (2026-10-12, the Live Ops round, approved): the drop's card sat under Due next's list, so on a
+              quiet day "Nothing due next." stood over "Pickup drop · This Sat · no reservations yet". On Live Ops it is a
+              row of that list now (components/crew/DueList places it by its day), its day in the lead column like the
+              rows beside it; the same fold opens its working face under it. */}
           {brief ? (
             <FoldCard title="Pickup drop" label="Pickup drop" today={isDropDay || brewDue} id="due-pickup"
-              sub={`${dropWhen} · ${rows.length > 0 ? `${rows.length} pack${rows.length === 1 ? "" : "s"}` : "no reservations yet"}`}
-              value={bottles > 0 ? `${bottles} bottle${bottles === 1 ? "" : "s"}` : null}>
+              row={{ lead: dueLead(dropISO, etToday()), leadSub: drop.at ? clockTime(drop.at) : undefined, tag: <span className="k-tag txt">Drop</span>,
+                says: `Pickup drop, ${dropWhen}${drop.at ? ` at ${clockTime(drop.at)}` : ""} · ${packWords}${bottles > 0 ? ` · ${bottleWords}` : ""}` }}
+              sub={packWords}
+              value={bottles > 0 ? bottleWords : null}>
               {body}
             </FoldCard>
           ) : (

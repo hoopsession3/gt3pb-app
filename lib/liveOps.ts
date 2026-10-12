@@ -8,9 +8,9 @@
 //
 // Now the truck and the Pass are one row each (components/crew/LiveControl, components/crew/LiveOpsRows): a dot, one
 // line saying the state in words, and the one action it needs. An alert that is hurting service right now leads the
-// screen as one line. What each row says in each state, which alerts are service's, who may go live and what Go live
-// checks first are decided here — pure, no React, no Supabase, no clock it was not handed — so scripts/smoke.cjs runs
-// every state.
+// screen as one line. What each row says in each state, which alerts are service's, who may go live, what Go live checks
+// first and where the pickup drop sits in Due next are decided here — pure, no React, no Supabase, no clock it was not
+// handed — so scripts/smoke.cjs runs every state.
 import { clockTime, etDayKey } from "./dates";
 import { dueDay } from "./dueNext";
 import { flagIsToday } from "./home";
@@ -248,4 +248,20 @@ export function preflight(p: PreflightIn): { checks: Check[]; allOk: boolean; co
     : n === "failed" ? "Couldn't count who asked on Find Us to hear — they're still told." : "Counting who asked on Find Us to hear…";
   const confirm = !allOk ? "Go live anyway" : typeof n === "number" && n > 0 ? `Go live and tell ${people(n)}` : "Go live";
   return { checks, allOk, confirm, tells };
+}
+
+// ── THE PICKUP DROP, A ROW OF DUE NEXT ───────────────────────────────────────────────────────────────────────────────
+// The drop's own card sat under Due next's list, so on a quiet day "Nothing due next." stood directly over "Pickup drop ·
+// This Sat · no reservations yet". The card is a row of the list now (components/crew/DueList), in the list's order —
+// lib/dueNext byDue's day, then a timed row before one due sometime that day, then the time — and ahead of its own packs,
+// which share its day and time. This is where it goes among the rows the list shows.
+export function dropSlot(rows: readonly { day: string; at: number | null }[], drop: { day: string | null; at: number | null }): number {
+  if (!drop.day) return rows.length;
+  const d = drop.day;
+  const before = (r: { day: string; at: number | null }) =>
+    r.day !== d ? r.day < d
+      : (r.at === null) !== (drop.at === null) ? r.at !== null
+      : r.at !== null && drop.at !== null && r.at < drop.at;
+  const i = rows.findIndex((r) => !before(r));
+  return i === -1 ? rows.length : i;
 }

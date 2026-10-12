@@ -11777,8 +11777,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const dueNext = (page.match(/function DueNext\([\s\S]*?\n\}\n/) || [""])[0];
 
   // One list, above the cards, fed by them.
-  ok("dispatch: Due next draws one list above its three cards — the cards stay, in the order they are due",
-    dueNext.indexOf("<DueList feeds={feeds} onOpenPass={onOpenPass} />") > 0 && dueNext.indexOf("<DueList") < dueNext.indexOf("{order.map((k) => card[k])}")
+  // 2026-10-12 (the Live Ops round, approved): the drop's card is a row of the list (`drop`), so "Nothing due next." never
+  // stands over it; the porches and the office route stay cards under the list, in the order they are due.
+  ok("dispatch: Due next draws one list above its cards — the drop a row of it, the porches and the office route cards under it, in the order they are due",
+    dueNext.indexOf("<DueList feeds={feeds} onOpenPass={onOpenPass} drop={card.drop} />") > 0
+      && dueNext.indexOf("<DueList") < dueNext.indexOf('{order.filter((k) => k !== "drop").map((k) => card[k])}')
       && /const order = \[\.\.\.DUE_KEYS\]\.sort\(/.test(dueNext) && /const \{ feeds, report: rows \} = useDueFeeds\(\);/.test(dueNext));
   ok("dispatch: each card hands up the rows it read (onRows) — the list reads no table twice and cannot disagree with its card",
     /<DropOps key="drop" brief onOpen=\{onOpenPass\} canPlan=\{canPlan\} onDue=\{report\.drop\} onRows=\{rows\.pickup\} \/>/.test(dueNext)
@@ -12347,6 +12350,23 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("exceptions: one row at the top of Live Ops, over both columns, from the header bell's own list; critical tint; nothing under the Pass",
     /\{!svc && <ExceptionLine flags=\{hdrFlags\} onOpenPass=\{\(\) => setSvc\(true\)\} \/>\}/.test(nowSec) && nowSec.indexOf("<ExceptionLine") < nowSec.indexOf("<Columns>")
       && /<button type="button" className="alerts-strip crit min-h-11" onClick=\{go\} aria-label=\{s\.label\}>/.test(rows) && /const \{ flags: hdrFlags \} = useMyAlerts\(user\?\.id \?\? null\);/.test(page));
+
+  // DUE NEXT (approved item 3) — the drop is a row of the list.
+  const list = code(rd("components/crew/DueList.tsx"));
+  ok("due next: the drop goes among the rows by its day and time, ahead of its own packs",
+    LO.dropSlot([{ day: "2026-10-12", at: 1 }, { day: "2026-10-17", at: null }, { day: "2026-10-18", at: 5 }], { day: "2026-10-17", at: null }) === 1
+      && LO.dropSlot([], { day: "2026-10-17", at: null }) === 0 && LO.dropSlot([{ day: "2026-10-17", at: 100 }, { day: "2026-10-17", at: null }], { day: "2026-10-17", at: 100 }) === 0
+      && LO.dropSlot([{ day: "2026-10-17", at: 50 }], { day: "2026-10-17", at: 100 }) === 1 && LO.dropSlot([{ day: "2026-10-17", at: null }], { day: "2026-10-17", at: 100 }) === 0
+      && LO.dropSlot([{ day: "2026-10-12", at: 1 }], { day: null, at: null }) === 1);
+  ok("due next: the list draws the drop from the start, among its rows, and says 'Nothing due next.' only of a list with no drop in it",
+    /if \(!drop && list\.rows\.length === 0 && list\.failed\.length === 0 && list\.loading\.length > 0\) return null;/.test(list)
+      && /\{list\.rows\.length === 0 && !drop \? \(/.test(list) && /\{drop && <div role="listitem" key="drop">\{drop\}<\/div>\}/.test(list)
+      && /const dropAt = drop \? dropSlot\(shown, \{ day: feeds\.pickup\.day, at: feeds\.pickup\.at \? Date\.parse\(feeds\.pickup\.at\) : null \}\) : -1;/.test(list));
+  ok("due next: the drop's fold is a row of the list on Live Ops — its day in the lead column, its tag, the same fold and id; Service mode keeps its titled panel",
+    /row=\{\{ lead: dueLead\(dropISO, etToday\(\)\), leadSub: drop\.at \? clockTime\(drop\.at\) : undefined, tag: <span className="k-tag txt">Drop<\/span>,/.test(code(rd("components/DropOps.tsx")))
+      && /if \(row\) \{[\s\S]*?<InfoRow lead=\{row\.lead\} leadSub=\{row\.leadSub\} name=\{title\} nameExtra=\{row\.tag\}/.test(code(rd("components/crew/FoldCard.tsx")))
+      && /ariaLabel=\{`\$\{row\.says\}\. \$\{open \? "Hides" : "Shows"\} it here\.`\}/.test(code(rd("components/crew/FoldCard.tsx")))
+      && /el\?\.querySelector<HTMLElement>\(":scope > button\.k-row"\) \?\? el/.test(list));
 
   ok("smoke: lib/liveOps and lib/heartbeat are compiled for these pins", /lib\/liveOps\.ts lib\/heartbeat\.ts/.test(JSON.parse(rd("package.json")).scripts.smoke));
 }
