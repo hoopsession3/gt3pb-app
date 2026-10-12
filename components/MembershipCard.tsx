@@ -75,9 +75,10 @@ export default function MembershipCard() {
           <div className="mp-meta-v">{inCard}<span>/{STAMP_GOAL}</span></div>
           <div className="mp-code">#{String(code).slice(0, 8).toUpperCase()}</div>
         </div>
-        <div className="mp-qr">{qr ? <img src={qr} alt="Scan at the truck" width={110} height={110} /> : <div className="mp-qr-ph" />}</div>
+        <div className="mp-qr">{qr ? <img src={qr} alt="Scan at the window for a walk-up cup" width={110} height={110} /> : <div className="mp-qr-ph" />}</div>
       </div>
-      <div className="mp-foot">Scan at the truck to earn your stamp · 10th is on us</div>
+      {/* One purchase, one stamp (H8, 2026-10-12): an app order stamps itself at pickup; the scan is for a walk-up cup. */}
+      <div className="mp-foot">Scan for walk-up cups · app orders stamp themselves</div>
       <button type="button" className="mp-flex" onClick={() => setFlexOpen(true)}><Icon name="star" /> Show off your status <Icon name="externalLink" /></button>
       <MemberCard open={flexOpen} onClose={() => setFlexOpen(false)} />
       {(appleReady || googleReady) && (

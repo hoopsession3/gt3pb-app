@@ -11,6 +11,7 @@ import Icon from "@/components/Icon";
 import { staffAccess } from "@/lib/access";
 import { haptic } from "@/lib/haptics";
 import { cardOf, freeWords, STAMP_GOAL } from "@/lib/loyalty";
+import { money } from "@/lib/money";
 // The sign-in is for a visitor who is signed out — staff signed in never download it (2026-10-09).
 const SignIn = dynamic(() => import("@/components/SignIn"));
 
@@ -22,7 +23,16 @@ const SignIn = dynamic(() => import("@/components/SignIn"));
 // a free cup on it says so and offers Redeem a free cup, which asks first — it takes ten points off the card, for
 // good — and then records it (0387 redeem_free_cup: one ledger row of −10, with who gave it; two phones cannot give
 // two cups for one). The card is lib/loyalty's: free cups READY, not "earned so far".
-type Member = { display_name: string | null; points: number; founding_member: boolean };
+//
+// ONE PURCHASE, ONE STAMP · CREDIT AT THE WINDOW (2026-10-12, H8 of the customer audit; the owner chose the window for
+// credit). An app order stamps itself at pickup, so the screen says what the member ordered in the app today and the
+// button stamps a walk-up cup (0389 member_card; award_manual_point now signed by who stamped). Referral credit is
+// shown and taken off in one tap after an ask, like a free cup (0389 spend_credit: all of it, the profile locked first).
+// Before 0389 is pasted the screen reads member_by_code, as it did, with neither line.
+type Member = {
+  display_name: string | null; points: number; founding_member: boolean;
+  credit_cents?: number; orders_today?: number; cups_today?: number; packs_today?: number;
+};
 type Redeem = "idle" | "ask" | "busy" | "done" | "none" | "failed";
 
 export default function ScanPage() {
@@ -42,11 +52,20 @@ function ScanInner() {
   const [state, setState] = useState<"idle" | "loading" | "notfound" | "added" | "error">("idle");
   const [busy, setBusy] = useState(false);
   const [redeem, setRedeem] = useState<Redeem>("idle");
+  const [credit, setCredit] = useState<Redeem>("idle");
+  const [spent, setSpent] = useState(0);
 
   const load = async () => {
     if (!supabase || !code) return;
     setState("loading");
-    const { data, error } = await supabase.rpc("member_by_code", { p_code: code });
+    const card = await supabase.rpc("member_card", { p_code: code });
+    if (!card.error) {
+      const m = (card.data as Member | null) ?? null;
+      setMember(m);
+      setState(m ? "idle" : "notfound");
+      return;
+    }
+    const { data, error } = await supabase.rpc("member_by_code", { p_code: code });   // before 0389
     const m = (data as Member[] | null)?.[0] ?? null;
     setMember(m);
     setState(error || !m ? "notfound" : "idle");
@@ -70,6 +89,14 @@ function ScanInner() {
     const { data, error } = await supabase.rpc("redeem_free_cup", { p_code: code });
     if (!error && typeof data === "number") { setMember((m) => (m ? { ...m, points: data } : m)); setRedeem("done"); setState("idle"); haptic("success"); }
     else { setRedeem(/no free cup/i.test(error?.message ?? "") ? "none" : "failed"); haptic("error"); }
+  };
+
+  const takeCredit = async () => {
+    if (!supabase || !code || credit === "busy") return; // a second tap waits for the first answer
+    setCredit("busy");
+    const { data, error } = await supabase.rpc("spend_credit", { p_code: code });
+    if (!error && typeof data === "number") { setSpent(data); setMember((m) => (m ? { ...m, credit_cents: 0 } : m)); setCredit("done"); haptic("success"); }
+    else { setCredit(/no credit|not that much/i.test(error?.message ?? "") ? "none" : "failed"); haptic("error"); }
   };
 
   // "Staff only" is only honest once we know. While the profile is unknown, say that instead —
@@ -97,6 +124,12 @@ function ScanInner() {
   const inCard = card.stamps, GOAL = STAMP_GOAL;
   const name = member?.display_name?.trim() || "Member";
   const first = name.split(" ")[0];
+  const creditCents = member?.credit_cents ?? 0;
+  // What the member ordered in the app today — those stamp themselves at pickup, so the stamp below is a walk-up's.
+  const inApp = [
+    member?.cups_today ? `${member.cups_today} ${member.cups_today === 1 ? "cup" : "cups"}` : "",
+    member?.packs_today ? (member.packs_today === 1 ? "a pack pickup" : `${member.packs_today} pack pickups`) : "",
+  ].filter(Boolean).join(" · ");
 
   return (
     <section className="screen scanpg">
@@ -113,7 +146,8 @@ function ScanInner() {
             {Array.from({ length: GOAL }).map((_, i) => <span key={i} className={`scan-dot${i < inCard ? " on" : ""}${i === GOAL - 1 ? " gift" : ""}`} />)}
           </div>
           <div className="scan-foot">{card.free > 0 ? `${freeWords(card.free)} — this one's on us` : `${card.toNext} more till a free cup`}</div>
-          <button type="button" className="btn-pri btn-wide" onClick={addStamp} disabled={busy || redeem === "busy"}>{busy ? "Adding…" : <><Icon name="plus" /> Add a stamp</>}</button>
+          {inApp && <div className="h-sub" role="note">In the app today: {inApp} — those stamp themselves at pickup.</div>}
+          <button type="button" className="btn-pri btn-wide" onClick={addStamp} disabled={busy || redeem === "busy"}>{busy ? "Adding…" : <><Icon name="plus" /> Stamp a walk-up cup</>}</button>
           {state === "added" && <div className="scan-added">Stamp added — now {member.points} points.</div>}
           {state === "error" && <div className="h-sub">That didn&apos;t record — tap to try again.</div>}
           {card.free > 0 && redeem !== "ask" && redeem !== "busy" && (
@@ -129,6 +163,19 @@ function ScanInner() {
           {redeem === "done" && <div className="scan-added" role="status">Free cup given. {card.free > 0 ? `${freeWords(card.free)} still.` : `${card.toNext} more till the next one.`}</div>}
           {redeem === "none" && <div className="h-sub" role="status">No free cup on this card any more — it may have just been given.</div>}
           {redeem === "failed" && <div className="h-sub" role="status">Couldn&apos;t redeem — nothing was taken off the card. Try again.</div>}
+          {creditCents > 0 && credit !== "ask" && credit !== "busy" && (
+            <button type="button" className="btn-sec btn-wide mt-2.5" onClick={() => setCredit("ask")}>Use {money(creditCents)} credit</button>
+          )}
+          {(credit === "ask" || credit === "busy") && (
+            <div className="mt-2.5 flex flex-col gap-2" role="group" aria-label="Use credit">
+              <div className="h-sub">Take {money(creditCents)} off {first}&apos;s order? Ring it up {money(creditCents)} less.</div>
+              <button type="button" className="btn-pri btn-wide" onClick={takeCredit} disabled={credit === "busy"}>{credit === "busy" ? "Using…" : `Use ${money(creditCents)} — ring it up less`}</button>
+              <button type="button" className="btn-ter self-center" onClick={() => setCredit("idle")} disabled={credit === "busy"}>Keep it for later</button>
+            </div>
+          )}
+          {credit === "done" && <div className="scan-added" role="status">Credit used — ring it up {money(spent)} less.</div>}
+          {credit === "none" && <div className="h-sub" role="status">No credit on this card any more — it may have just been used.</div>}
+          {credit === "failed" && <div className="h-sub" role="status">Couldn&apos;t use the credit — nothing was taken off. Try again.</div>}
         </div>
       )}
       <ClosingBeat />

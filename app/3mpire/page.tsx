@@ -170,7 +170,8 @@ function MpireReal() {
         <span><b>{card.stamps}</b>/{STAMP_GOAL} stamps</span>
         <span className="memline-dot">·</span>
         <span>{card.free > 0 ? <b>{freeWords(card.free)}</b> : `${card.toNext} to a free cup`}</span>
-        {creditCents > 0 && <><span className="memline-dot">·</span><span><b>${credit}</b> credit</span></>}
+        {/* Spent at the window (0389, H8): the crew sees it on the scan screen and takes it off. */}
+        {creditCents > 0 && <><span className="memline-dot">·</span><span><b>${credit}</b> credit · use it at the window</span></>}
       </div>
 
       <ReviewPrompt />
@@ -252,7 +253,7 @@ function MpireDemo() {
         <span className="memline-dot">·</span>
         <span><b>{freeWords(1)}</b></span>
         <span className="memline-dot">·</span>
-        <span><b>$14.00</b> credit</span>
+        <span><b>$14.00</b> credit · use it at the window</span>
       </div>
 
       <ReferralCard code="RYAN-3MP" />

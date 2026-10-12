@@ -13279,6 +13279,28 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const PackChangePay = dynamic\(\(\) => import\("\.\/PackChangePay"\)\);/.test(funnel) && !/changeQuote|submitChange/.test(funnel));
 }
 
+// ── ONE PURCHASE, ONE STAMP · CREDIT AT THE WINDOW (2026-10-12, H8 of the customer audit; the owner chose the window) ──
+// An app order stamps itself at pickup, and the card said to scan for a stamp too — one cup, two stamps. Referral
+// credit was shown and could not be spent. Now the scan screen says what the member ordered in the app today and
+// stamps a walk-up cup; credit is taken off there in one tap after an ask (0389 — scripts/db.window.test.mjs); and the
+// member's card, account and hub say where each happens.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const scan = code(rd("app/scan/page.tsx")), card = code(rd("components/MembershipCard.tsx")), sheet = code(rd("components/AccountSheet.tsx")), hub = code(rd("app/3mpire/page.tsx"));
+  ok("scan: the member is read with today's app orders (member_card), and member_by_code as before when 0389 is not there yet",
+    scan.indexOf('rpc("member_card"') > -1 && scan.indexOf('rpc("member_card"') < scan.indexOf('rpc("member_by_code"') && /if \(!card\.error\) \{/.test(scan));
+  ok("scan: the app orders are named, and the stamp is a walk-up cup's",
+    /In the app today: \{inApp\} — those stamp themselves at pickup\./.test(scan) && /Stamp a walk-up cup/.test(scan) && !/> Add a stamp</.test(scan));
+  ok("scan: credit is offered when there is some, asked first, taken off once, and the crew told what to ring up",
+    /\{creditCents > 0 && credit !== "ask" && credit !== "busy" && \(/.test(scan) && /rpc\("spend_credit", \{ p_code: code \}\)/.test(scan)
+    && /if \(!supabase \|\| !code \|\| credit === "busy"\) return;/.test(scan) && /Credit used — ring it up \{money\(spent\)\} less\./.test(scan));
+  ok("member: the card says scan for walk-up cups; the account and the hub say the credit is used at the window",
+    /Scan for walk-up cups · app orders stamp themselves/.test(card) && !/Scan at the truck to earn your stamp/.test(card)
+    && /credit at the window` : ""/.test(sheet) && (hub.match(/credit · use it at the window/g) || []).length === 2);
+}
+
 Promise.all(PENDING).then(() => {
   console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
