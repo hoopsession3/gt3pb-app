@@ -16,6 +16,8 @@ import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import { useCrew } from "./useCrew";
 import PersonPick, { type PersonValue } from "./PersonPick";
+import { useEtDay } from "@/lib/useEtDay";
+import { quietGoalDays } from "@/lib/rhythm";
 
 // GOALS — the true tracker (0163/0164). Three layers, top down:
 //   lane → goal → moves.
@@ -147,7 +149,11 @@ export default function Goals() {
     else if (next === "on_track") toast("Checked in — on track");
     reload();
   };
-  const quietDays = (g: Goal) => { const d = Math.floor((Date.now() - new Date(g.updated_at).getTime()) / 864e5); return d >= 7 ? d : null; };
+  // QUIET IS ONE RULE (2026-10-12): lib/rhythm's — a week of business days, the number the Plan card, the review and
+  // the strategy session's agenda use (the agenda said fourteen). Counted to the business day, kept current, rather
+  // than to the phone's clock read while drawing.
+  const today = useEtDay();
+  const quietDays = (g: Goal) => quietGoalDays(g.updated_at, today);
 
   // The fields nothing else here can touch: title, description, target, unit, due date. Owner/lane/
   // horizon/progress already had their own controls — this is the rest of "edit a goal."

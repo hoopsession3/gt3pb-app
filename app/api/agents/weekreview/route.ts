@@ -5,7 +5,7 @@ import { moneyRound } from "@/lib/money";
 import { etToday } from "@/lib/dates";
 import { daysBetween } from "@/lib/dayWords";
 import { etDayStart } from "@/lib/etDay";
-import { rhythmWeek } from "@/lib/rhythm";
+import { isQuietGoal, rhythmWeek } from "@/lib/rhythm";
 import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
@@ -89,8 +89,9 @@ async function post(req: Request) {
   ]);
 
   const goals = (goalsQ.data ?? []) as any[];
-  const moved = goals.filter((g) => g.updated_at >= wk.fromAt);
-  const quiet = goals.filter((g) => g.updated_at < wk.fromAt && g.checkin_status !== "at_risk");
+  // Quiet is lib/rhythm's one rule — the agenda, the card and a goal's own card say it the same way (2026-10-12).
+  const moved = goals.filter((g) => g.updated_at && !isQuietGoal(g.updated_at, today));
+  const quiet = goals.filter((g) => isQuietGoal(g.updated_at, today) && g.checkin_status !== "at_risk");
   const atRisk = goals.filter((g) => g.checkin_status === "at_risk");
   const inits = (initsQ.data ?? []) as any[];
   const miles = (milesQ.data ?? []) as any[];

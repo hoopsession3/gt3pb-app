@@ -14,7 +14,7 @@ import { useOperatorSection } from "@/components/OperatorNav";
 import { scrollToAnchor } from "@/lib/anchors";
 import { agoWord, daysBetween } from "@/lib/dayWords";
 import { useEtDay } from "@/lib/useEtDay";
-import { businessDaysSince } from "@/lib/rhythm";
+import { isQuietGoal } from "@/lib/rhythm";
 
 // OPERATING RHYTHM (2026-08-02 exec-rhythm P1–P3) — the review step of plan → execute → REVIEW →
 // adjust, installed as a surface. Two rituals, one ledger:
@@ -78,7 +78,7 @@ export default function OperatingRhythm({ isAdmin, onOpenNotes }: { isAdmin: boo
       review: (r.data as Latest) ?? null,
       strategy: (s.data as Latest) ?? null,
       atRisk: goals.filter((x) => x.checkin_status === "at_risk").length,
-      quiet: goals.filter((x) => x.checkin_status !== "at_risk" && (businessDaysSince(x.updated_at, today) ?? 0) >= 7).length,
+      quiet: goals.filter((x) => x.checkin_status !== "at_risk" && isQuietGoal(x.updated_at, today)).length,
     };
   }, [today]);
   const state = useAsyncData(loader, [today]);

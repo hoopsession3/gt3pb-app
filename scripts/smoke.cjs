@@ -11616,6 +11616,35 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const today = useEtDay\(\);/.test(card) && !/localToday|Date\.now\(\)|864e5/.test(card) && /\}, \[today\]\);\s*const state = useAsyncData\(loader, \[today\]\);/.test(card));
 }
 
+// ── RELEASE 1 · A QUIET GOAL IS A WEEK, EVERYWHERE (2026-10-12) ──
+// Seven days on the Plan card, in the review and on a goal's own card; fourteen in the strategy session's agenda. One
+// constant and one rule now (lib/rhythm), on the business day, and the four places read it.
+{
+  const RH = require("../.smoke/rhythm.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  ok("quiet: one constant, a week", RH.QUIET_GOAL_DAYS === 7);
+  ok("quiet: six business days unmoved is not quiet; seven is, and says how many",
+    RH.quietGoalDays("2026-10-06T14:00:00Z", "2026-10-12") === null && RH.quietGoalDays("2026-10-05T14:00:00Z", "2026-10-12") === 7
+      && RH.quietGoalDays("2026-09-01T12:00:00Z", "2026-10-12") === 41 && RH.isQuietGoal("2026-10-05T14:00:00Z", "2026-10-12") && !RH.isQuietGoal("2026-10-12T03:59:00Z", "2026-10-12"),
+    [RH.quietGoalDays("2026-10-06T14:00:00Z", "2026-10-12"), RH.quietGoalDays("2026-10-05T14:00:00Z", "2026-10-12")]);
+  ok("quiet: moved at 9pm Eastern on Oct 5 (01:00Z Oct 6) was moved on Oct 5 — a week by Oct 12", RH.quietGoalDays("2026-10-06T01:00:00Z", "2026-10-12") === 7);
+  ok("quiet: a goal with no date it moved is not called quiet", RH.quietGoalDays(null, "2026-10-12") === null && RH.isQuietGoal(undefined, "2026-10-12") === false);
+  const review = code(rd("app/api/agents/weekreview/route.ts")), session = code(rd("app/api/agents/stratsession/route.ts"));
+  const card = code(rd("components/OperatingRhythm.tsx")), goals = code(rd("components/Goals.tsx"));
+  ok("quiet: the review says it through the rule — and 'moved this week' is its other side",
+    /const quiet = goals\.filter\(\(g\) => isQuietGoal\(g\.updated_at, today\) && g\.checkin_status !== "at_risk"\);/.test(review)
+      && /const moved = goals\.filter\(\(g\) => g\.updated_at && !isQuietGoal\(g\.updated_at, today\)\);/.test(review));
+  ok("quiet: the session's agenda too — a week, in the words the card uses, not 'Quiet 2+ weeks'",
+    /const stale = goals\.filter\(\(g\) => isQuietGoal\(g\.updated_at, today\) && g\.checkin_status !== "at_risk"\);/.test(session)
+      && /💤 Quiet a week\+: /.test(session) && !/Quiet 2\+ weeks/.test(session));
+  ok("quiet: the Plan card counts by the rule", /quiet: goals\.filter\(\(x\) => x\.checkin_status !== "at_risk" && isQuietGoal\(x\.updated_at, today\)\)\.length,/.test(card) && /quiet a week\+/.test(card));
+  ok("quiet: a goal's own chip on Command counts by the rule, to the business day kept current — not Date.now() while drawing",
+    /const today = useEtDay\(\);\s*const quietDays = \(g: Goal\) => quietGoalDays\(g\.updated_at, today\);/.test(goals) && !/Date\.now\(\)|864e5/.test(goals));
+  ok("quiet: no other number decides it in these four places", ![review, session, card, goals].some((s) => /\bd14\b|\bweekAgo\b|>= 7 \?|>= 14\b/.test(s)));
+}
+
 Promise.all(PENDING).then(() => {
   console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);

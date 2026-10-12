@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { addDays, etDayKey, etToday } from "@/lib/dates";
-import { businessDaysSince, dayStartIso } from "@/lib/rhythm";
+import { businessDaysSince, dayStartIso, isQuietGoal } from "@/lib/rhythm";
 import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
@@ -11,7 +11,8 @@ export const maxDuration = 60;
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // STRATEGY SESSION KIT (2026-08-02 exec-rhythm P2) — "Start a strategy session" builds the agenda
 // nobody has to remember. DETERMINISTIC: every agenda block is a live read — open strategy threads,
-// goals gone quiet 14+ days or flagged at risk, GTM plays sitting in draft/proposed, program
+// goals gone quiet (lib/rhythm.QUIET_GOAL_DAYS — a week, as the card and the review say; it was
+// 14 days here until 2026-10-12) or flagged at risk, GTM plays sitting in draft/proposed, program
 // hygiene (undated + overdue milestones), blockers older than a week, and the decisions made since
 // last time. The agenda lands as a MEETING NOTE (source 'strategy'): discuss on its thread, capture
 // with addenda, and close every call with ⚖ Log a decision — append-only, follow-up attached.
@@ -60,7 +61,7 @@ async function post(req: Request) {
   }
   const goals = (goalsQ.data ?? []) as any[];
   const atRisk = goals.filter((g) => g.checkin_status === "at_risk");
-  const stale = goals.filter((g) => (businessDaysSince(g.updated_at, today) ?? 0) >= 14 && g.checkin_status !== "at_risk");
+  const stale = goals.filter((g) => isQuietGoal(g.updated_at, today) && g.checkin_status !== "at_risk");
   const gtm = (gtmQ.data ?? []) as any[];
   const initName = new Map(((initsQ.data ?? []) as any[]).map((i) => [i.id, `${i.emoji ? `${i.emoji} ` : ""}${i.title}`]));
   const openMiles = (milesQ.data ?? []) as any[];
@@ -73,7 +74,7 @@ async function post(req: Request) {
   const sections: string[] = [];
   let n = 0;
   if (threads.size) sections.push(`## ${++n} · Open strategy threads\n${[...threads.entries()].slice(0, 8).map(([k, t]) => `- **${k}** — ${t.n} comment${t.n === 1 ? "" : "s"} this month · latest: “${t.latest}”`).join("\n")}\n_Threads live on the Playbook — settle them here, log the call._`);
-  if (atRisk.length || stale.length) sections.push(`## ${++n} · Goals needing a call\n${[...atRisk.map((g) => `- 🔴 At risk: ${gLine(g)}`), ...stale.map((g) => `- 💤 Quiet 2+ weeks: ${gLine(g)}`)].join("\n")}\n_Rescue it, re-scope it, or archive it — a goal nobody moves is a decision waiting._`);
+  if (atRisk.length || stale.length) sections.push(`## ${++n} · Goals needing a call\n${[...atRisk.map((g) => `- 🔴 At risk: ${gLine(g)}`), ...stale.map((g) => `- 💤 Quiet a week+: ${gLine(g)}`)].join("\n")}\n_Rescue it, re-scope it, or archive it — a goal nobody moves is a decision waiting._`);
   if (gtm.length) sections.push(`## ${++n} · Plays on the table\n${gtm.map((p) => `- **${p.name}** (${p.category}, ${p.status}) — adopt, revise, or retire?`).join("\n")}`);
   if (undated.length || overdueMiles.length) sections.push(`## ${++n} · Program hygiene\n${[...overdueMiles.map((m) => `- ⏰ Overdue: **${m.title}**${initName.get(m.initiative_id) ? ` · ${initName.get(m.initiative_id)}` : ""} (was ${nice(m.due_on)})`), ...undated.map((m) => `- 📅 No date: **${m.title}**${initName.get(m.initiative_id) ? ` · ${initName.get(m.initiative_id)}` : ""}`)].slice(0, 10).join("\n")}`);
   if (oldBlockers.length) sections.push(`## ${++n} · Blockers older than a week\n${oldBlockers.map((b) => `- ${b.problem} (since ${niceAt(b.created_at)})`).join("\n")}`);

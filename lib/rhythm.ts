@@ -47,6 +47,20 @@ export function rhythmWeek(today: string): RhythmWeek {
 /** The instant a business day began, as the ISO a timestamp column compares with. */
 export const dayStartIso = (day: string): string => etDayStart(day).toISOString();
 
+// ── WHEN A GOAL IS QUIET ──────────────────────────────────────────────────────────────────────────────────────────
+// "Quiet" was seven days on the Plan card ("quiet a week+") and in the review ("Quiet for a week"), seven on a goal's
+// own card on Command ("quiet 9d"), and fourteen in the strategy session's agenda ("Quiet 2+ weeks") — so the card
+// could count two quiet goals over an agenda that listed neither. One number now, a week, and one rule applying it.
+/** Business days a goal can go unmoved before it is quiet. */
+export const QUIET_GOAL_DAYS = 7;
+/** How many business days a goal has gone unmoved, once that is QUIET_GOAL_DAYS or more; null while it is not quiet. */
+export function quietGoalDays(updatedAt: string | null | undefined, today: string): number | null {
+  const n = businessDaysSince(updatedAt, today);
+  return n !== null && n >= QUIET_GOAL_DAYS ? n : null;
+}
+/** A goal nobody has moved for QUIET_GOAL_DAYS business days or more. */
+export const isQuietGoal = (updatedAt: string | null | undefined, today: string): boolean => quietGoalDays(updatedAt, today) !== null;
+
 // ── WHEN A FOLLOW-UP IS DUE ───────────────────────────────────────────────────────────────────────────────────────
 // A transcript's open item that names a day is due at the end of the working day, 5pm on the truck's clock. It was
 // written `${day}T17:00:00-04:00`, which is 5pm only while Eastern Daylight Time lasts: from the first Sunday of
