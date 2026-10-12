@@ -6539,6 +6539,25 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   }
 }
 
+// ── MY DAY SAYS WHAT'S TRUE (2026-10-12, the My Day audit, approved A–I) ─────────────────────────
+// Rebuilt on a phone as an owner — nothing due in the fortnight, eleven things more than two weeks late,
+// one dated task ahead, three compliance rules, one piece of equipment — My Day said "Clear" in the green
+// done style, "Nothing due today.", and folded the eleven into a chip; six of them were not his. These pin
+// the head's four states, the fixed rank of what's next, what counts as yours, the refresh and the day.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+
+  // H — a Done on the Chief of Staff's briefing is a Done: stamped, so the head counts it.
+  const cos = code(read("components/ChiefOfStaff.tsx"));
+  ok("my day (H): the Chief of Staff's Done stamps done_at (and done_by on an event task) like lib/tasks completeTask — and still only closes what is open",
+    /const done_at = new Date\(\)\.toISOString\(\);/.test(cos)
+    && /ref\.kind === "task" \? \{ done: true, done_by: user\?\.id \?\? null, done_at \} : \{ done: true, done_at \}/.test(cos)
+    && /\.update\(patch\)\.eq\("id", ref\.id\)\.eq\("done", false\)/.test(cos) && !/\{ done: true \}/.test(cos)
+    && /update\(\{ done: true, done_by: userId \?\? null, done_at \}\)/.test(code(read("lib/tasks.ts"))));
+}
+
 // ── THE CUSTOMER SIDE: ONE ORDERING RULE, AND A PRE-ORDER SAYS WHEN (2026-10-04, 0343) ────────────
 // The fourth of Ryan's four. "Can I order a cup?" had three answers — the phone's (the city's
 // switch, the stop's own lead), the server's (the singleton, the global lead) and Find Us' (none:
