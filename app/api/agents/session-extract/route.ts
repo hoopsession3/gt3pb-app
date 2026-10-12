@@ -96,9 +96,13 @@ async function post(req: Request) {
   const today = etToday();
   const okDate = (s: any) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
 
+  // EVERY ROW FILED HERE NAMES THE BUSINESS (2026-10-12). Under the service role 0134's stamp_tenant() has no caller
+  // to read (current_tenant() is null) and files a row under the founding tenant — so the note, the decisions, the
+  // follow-ups, the events, the accounts and the activities below name `tenant` themselves, the business the dedupe
+  // reads (decisions, events) and the resolver's book (vendors) are read by.
   // 1 · the session note — the record everything below hangs off
   const { data: note, error: ne } = await supabaseAdmin.from("meeting_notes").insert({
-    title: String(out.title).slice(0, 160), met_on: today, source: "strategy", visibility: "team",
+    tenant_id: tenant, title: String(out.title).slice(0, 160), met_on: today, source: "strategy", visibility: "team",
     summary: String(out.summary_md).slice(0, 12000), body: text, created_by: caller?.id ?? null,
   }).select("id").single();
   if (ne) return NextResponse.json({ ok: false, error: ne.message }, { status: 500 });
@@ -110,7 +114,7 @@ async function post(req: Request) {
     const { data: dup } = await supabaseAdmin.from("strategy_decisions").select("id").eq("tenant_id", tenant).eq("decision", d.decision.trim()).limit(1).maybeSingle();
     if (dup) continue;
     const { error } = await supabaseAdmin.from("strategy_decisions").insert({
-      key: String(d.key || "session").slice(0, 60), decision: d.decision.trim().slice(0, 500),
+      tenant_id: tenant, key: String(d.key || "session").slice(0, 60), decision: d.decision.trim().slice(0, 500),
       why: d.why?.trim()?.slice(0, 500) || null, author_name: "Session", author_id: caller?.id ?? null, note_id: noteId,
     });
     if (!error) dec++;
@@ -123,7 +127,7 @@ async function post(req: Request) {
   for (const [i, o] of ((out.open_items ?? []) as any[]).filter((o) => o?.label?.trim()).entries()) {
     const due = okDate(o.due);
     const { error } = await supabaseAdmin.from("event_tasks").insert({
-      meeting_note_id: noteId, label: o.label.trim().slice(0, 300), kind: "task", section: "Follow-up",
+      tenant_id: tenant, meeting_note_id: noteId, label: o.label.trim().slice(0, 300), kind: "task", section: "Follow-up",
       critical: !!o.critical, due_at: due ? followUpDueAt(due) : null, sort: 500 + i,
     });
     if (!error) items++;
@@ -134,14 +138,16 @@ async function post(req: Request) {
   for (const c of ((out.calendar ?? []) as any[]).filter((c) => c?.title?.trim() && okDate(c.day))) {
     const { data: dup } = await supabaseAdmin.from("events").select("id").eq("tenant_id", tenant).eq("title", c.title.trim()).eq("day", c.day).limit(1).maybeSingle();
     if (dup) continue;
-    const { error } = await supabaseAdmin.from("events").insert({ title: c.title.trim().slice(0, 160), day: c.day, location_text: c.location?.trim()?.slice(0, 160) || null });
+    const { error } = await supabaseAdmin.from("events").insert({ tenant_id: tenant, title: c.title.trim().slice(0, 160), day: c.day, location_text: c.location?.trim()?.slice(0, 160) || null });
     if (!error) evs++;
   }
 
   // 5 · pipeline moves — resolver rules (0226 spirit): exact / space-insensitive / containment.
   // A uniquely matched vendor updates its open account (or opens one at the stated stage).
   // No match = SKIPPED and reported — the extractor never mints accounts from a heard name.
-  const { data: vends } = await supabaseAdmin.from("vendors").select("id, name").is("archived_at", null);
+  // The book is this business's (2026-10-12): it was every business's vendors, so a name heard in one market's
+  // session could match — and move — another market's account. The account reads and the update are scoped the same.
+  const { data: vends } = await supabaseAdmin.from("vendors").select("id, name").eq("tenant_id", tenant).is("archived_at", null);
   const flat = (s: string) => s.toLowerCase().replace(/\s+/g, "");
   const vendorHit = (nm: string) => {
     const hits = ((vends ?? []) as any[]).filter((v) =>
@@ -159,9 +165,9 @@ async function post(req: Request) {
     if (m.next_move?.trim()) patch.next_step = m.next_move.trim().slice(0, 300);
     const at = okDate(m.next_move_at); if (at) patch.next_step_at = at;
     if (stage === "live") patch.won_at = new Date().toISOString();
-    const { data: opp } = await supabaseAdmin.from("opportunities").select("id").eq("vendor_id", vid).neq("stage", "lost").limit(1).maybeSingle();
-    if (opp) { const { error } = await supabaseAdmin.from("opportunities").update(patch).eq("id", (opp as any).id); if (!error) moves++; }
-    else { const { error } = await supabaseAdmin.from("opportunities").insert({ vendor_id: vid, stage: stage ?? "lead", ...patch, source: "manual" }); if (!error) moves++; }
+    const { data: opp } = await supabaseAdmin.from("opportunities").select("id").eq("tenant_id", tenant).eq("vendor_id", vid).neq("stage", "lost").limit(1).maybeSingle();
+    if (opp) { const { error } = await supabaseAdmin.from("opportunities").update(patch).eq("tenant_id", tenant).eq("id", (opp as any).id); if (!error) moves++; }
+    else { const { error } = await supabaseAdmin.from("opportunities").insert({ tenant_id: tenant, vendor_id: vid, stage: stage ?? "lead", ...patch, source: "manual" }); if (!error) moves++; }
   }
 
   // 6 · activities that already happened → the uplift ledger (0268). Same resolver, same rule:
@@ -173,10 +179,10 @@ async function post(req: Request) {
     const nm = a.account.trim();
     const vid = vendorHit(nm);
     if (!vid) { if (!skipped.includes(nm)) skipped.push(nm); continue; }
-    const { data: opp } = await supabaseAdmin.from("opportunities").select("id").eq("vendor_id", vid).neq("stage", "lost").limit(1).maybeSingle();
+    const { data: opp } = await supabaseAdmin.from("opportunities").select("id").eq("tenant_id", tenant).eq("vendor_id", vid).neq("stage", "lost").limit(1).maybeSingle();
     if (!opp) { if (!skipped.includes(nm)) skipped.push(nm); continue; }
     const { error } = await supabaseAdmin.from("account_activities").insert({
-      opportunity_id: (opp as any).id, type: a.type, on_date: okDate(a.date) ?? today,
+      tenant_id: tenant, opportunity_id: (opp as any).id, type: a.type, on_date: okDate(a.date) ?? today,
       sampled: cnt(a.sampled), buyers: cnt(a.buyers), bottles: cnt(a.bottles),
       revenue_cents: cents(a.revenue), cost_cents: cents(a.cost),
       note: a.note?.trim()?.slice(0, 240) || null, created_by: caller?.id ?? null,

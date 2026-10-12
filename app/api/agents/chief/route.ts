@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ownerFromRequest } from "@/lib/apiAuth";
+import { ownerFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
@@ -61,6 +61,12 @@ const TOOL: ToolDef = {
 
 async function post(req: Request) {
   if (!(await ownerFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // THE BRIEFING NAMES THE BUSINESS (2026-10-12). The service role bypasses RLS, and none of the eleven reads below
+  // said whose events, stops, batches, tasks, incidents, content, bookings, gear or stock it wanted: an owner's
+  // briefing would have ranked another market's overdue work as theirs the day a second business existed. Nothing
+  // counted it, because they run through `db`, an alias scripts/service-role.audit.mjs's pattern never matched.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
 
@@ -76,17 +82,17 @@ async function post(req: Request) {
 
   const db = supabaseAdmin;
   const [events, stops, brews, todos, critTasks, incidents, content, bookings, maint, lowStock, noteFollowups] = await Promise.all([
-    db.from("events").select("title, day, stage, location_text").is("archived_at", null).gte("day", from).lte("day", to).order("day"),
-    db.from("stops").select("name, starts_at, status").not("starts_at", "is", null).neq("status", "done").gte("starts_at", fromTs).lte("starts_at", toTs).order("starts_at"),
-    db.from("brew_batches").select("recipe_name, batch_gal, ready_at, status, event_id").not("status", "in", BATCH_OVER_IN).order("ready_at", { nullsFirst: false }),
-    db.from("todos").select("id, title, due_on, category, done").eq("done", false).not("due_on", "is", null).lte("due_on", to).order("due_on"),
-    db.from("event_tasks").select("id, label, critical, done").eq("done", false).eq("critical", true).limit(25),
-    db.from("incident_log").select("problem, severity, created_at, resolved").eq("resolved", false).order("created_at", { ascending: false }).limit(15),
-    db.from("content_items").select("title, scheduled_for, status").is("archived_at", null).not("scheduled_for", "is", null).neq("status", "published").gte("scheduled_for", fromTs).lte("scheduled_for", toTs).order("scheduled_for"),
-    db.from("booking_requests").select("name, event_date, status, created_at").eq("status", "new").order("created_at", { ascending: false }).limit(15),
-    db.from("asset_maintenance").select("summary, next_due_on, assets(name)").not("next_due_on", "is", null).lte("next_due_on", to).order("next_due_on"),
-    db.from("inventory_items").select("name, qty, reorder_point, status").in("status", ["low", "critical"]).limit(30),
-    db.from("event_tasks").select("label, done, meeting_note_id").eq("done", false).not("meeting_note_id", "is", null).limit(20),
+    db.from("events").select("title, day, stage, location_text").eq("tenant_id", tenant).is("archived_at", null).gte("day", from).lte("day", to).order("day"),
+    db.from("stops").select("name, starts_at, status").eq("tenant_id", tenant).not("starts_at", "is", null).neq("status", "done").gte("starts_at", fromTs).lte("starts_at", toTs).order("starts_at"),
+    db.from("brew_batches").select("recipe_name, batch_gal, ready_at, status, event_id").eq("tenant_id", tenant).not("status", "in", BATCH_OVER_IN).order("ready_at", { nullsFirst: false }),
+    db.from("todos").select("id, title, due_on, category, done").eq("tenant_id", tenant).eq("done", false).not("due_on", "is", null).lte("due_on", to).order("due_on"),
+    db.from("event_tasks").select("id, label, critical, done").eq("tenant_id", tenant).eq("done", false).eq("critical", true).limit(25),
+    db.from("incident_log").select("problem, severity, created_at, resolved").eq("tenant_id", tenant).eq("resolved", false).order("created_at", { ascending: false }).limit(15),
+    db.from("content_items").select("title, scheduled_for, status").eq("tenant_id", tenant).is("archived_at", null).not("scheduled_for", "is", null).neq("status", "published").gte("scheduled_for", fromTs).lte("scheduled_for", toTs).order("scheduled_for"),
+    db.from("booking_requests").select("name, event_date, status, created_at").eq("tenant_id", tenant).eq("status", "new").order("created_at", { ascending: false }).limit(15),
+    db.from("asset_maintenance").select("summary, next_due_on, assets(name)").eq("tenant_id", tenant).not("next_due_on", "is", null).lte("next_due_on", to).order("next_due_on"),
+    db.from("inventory_items").select("name, qty, reorder_point, status").eq("tenant_id", tenant).in("status", ["low", "critical"]).limit(30),
+    db.from("event_tasks").select("label, done, meeting_note_id").eq("tenant_id", tenant).eq("done", false).not("meeting_note_id", "is", null).limit(20),
   ]);
 
   const todayStr = from;

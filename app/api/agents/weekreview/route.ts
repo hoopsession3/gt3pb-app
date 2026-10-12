@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { staffFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { moneyRound } from "@/lib/money";
-import { etToday } from "@/lib/dates";
+import { addDays, etToday } from "@/lib/dates";
 import { daysBetween } from "@/lib/dayWords";
 import { etDayStart } from "@/lib/etDay";
-import { isQuietGoal, rhythmWeek } from "@/lib/rhythm";
+import { dayStartIso, isQuietGoal, rhythmWeek } from "@/lib/rhythm";
 import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
@@ -32,6 +32,8 @@ const nice = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleD
 
 async function sum(table: string, filter: (q: any) => any): Promise<number> {
   try {
+    // scoped-by: revenue() below is the only caller, and both of its filters (win, onDay) begin with
+    // .eq("tenant_id", tenant) — the caller's tenant, resolved and refused when absent in post().
     const { data } = await filter(supabaseAdmin!.from(table).select("total_cents"));
     return (data ?? []).reduce((s: number, r: any) => s + (Number(r.total_cents) || 0), 0);
   } catch { return 0; }
@@ -64,13 +66,19 @@ async function post(req: Request) {
 
   const today = etToday();
   const wk = rhythmWeek(today);
+  // THE TASK COUNTS NAME THE BUSINESS (2026-10-12). They were read from all_tasks — a view (0210, 0237) with no
+  // tenant_id column over event_tasks and todos, so under the service role every business's tasks were counted.
+  // They are read from the two tables it unions, each by the caller's tenant, and summed; and an event task is due
+  // on its Eastern day (the view cast due_at to a UTC date).
+  const todayAt = dayStartIso(today), dueByAt = dayStartIso(addDays(wk.ahead7, 1));
+  const taskCount = async (...reads: PromiseLike<{ count: number | null }>[]) => (await Promise.all(reads)).reduce((s, r) => s + (r.count ?? 0), 0);
 
   // One review per week — a second tap opens the standing one instead of forking the record.
   const { data: existing } = await supabaseAdmin.from("meeting_notes").select("id, title").eq("tenant_id", tenant)
     .eq("source", "review").gte("met_on", wk.from).limit(1).maybeSingle();
   if (existing) return NextResponse.json({ ok: true, note_id: existing.id, title: existing.title, existing: true });
 
-  const [revThis, revPrior, goalsQ, initsQ, milesQ, eventsQ, incOpenQ, incFixedQ, decQ, overdueQ, next7Q, doneQ, portQ, actsQ] = await Promise.all([
+  const [revThis, revPrior, goalsQ, initsQ, milesQ, eventsQ, incOpenQ, incFixedQ, decQ, overdue, dueNext, doneCt, portQ, actsQ] = await Promise.all([
     revenue(tenant, wk.from, wk.next),
     revenue(tenant, wk.priorFrom, wk.from),
     supabaseAdmin.from("goals").select("title, unit, target_value, current_value, updated_at, checkin_status").eq("tenant_id", tenant).eq("status", "active"),
@@ -80,9 +88,16 @@ async function post(req: Request) {
     supabaseAdmin.from("incident_log").select("problem, severity").eq("tenant_id", tenant).eq("resolved", false),
     supabaseAdmin.from("incident_log").select("id", { count: "exact", head: true }).eq("tenant_id", tenant).eq("resolved", true).gte("created_at", wk.fromAt),
     supabaseAdmin.from("strategy_decisions").select("key, decision").eq("tenant_id", tenant).gte("created_at", wk.fromAt),
-    supabaseAdmin.from("all_tasks").select("id", { count: "exact", head: true }).eq("done", false).lt("due", today),
-    supabaseAdmin.from("all_tasks").select("id", { count: "exact", head: true }).eq("done", false).gte("due", today).lte("due", wk.ahead7),
-    supabaseAdmin.from("all_tasks").select("id", { count: "exact", head: true }).eq("done", true).gte("done_at", wk.fromAt),
+    taskCount(   // overdue right now
+      supabaseAdmin.from("event_tasks").select("id", { count: "exact", head: true }).eq("tenant_id", tenant).eq("done", false).lt("due_at", todayAt),
+      supabaseAdmin.from("todos").select("id", { count: "exact", head: true }).eq("tenant_id", tenant).eq("done", false).lt("due_on", today)),
+    taskCount(   // due today and the seven days after
+      supabaseAdmin.from("event_tasks").select("id", { count: "exact", head: true }).eq("tenant_id", tenant).eq("done", false).gte("due_at", todayAt).lt("due_at", dueByAt),
+      supabaseAdmin.from("todos").select("id", { count: "exact", head: true }).eq("tenant_id", tenant).eq("done", false).gte("due_on", today).lte("due_on", wk.ahead7)),
+    taskCount(   // finished this week
+      supabaseAdmin.from("event_tasks").select("id", { count: "exact", head: true }).eq("tenant_id", tenant).eq("done", true).gte("done_at", wk.fromAt),
+      supabaseAdmin.from("todos").select("id", { count: "exact", head: true }).eq("tenant_id", tenant).eq("done", true).gte("done_at", wk.fromAt)),
+    // os_workstreams has no tenant_id column (0264): the portfolio registry is one list for the platform until it does.
     supabaseAdmin.from("os_workstreams").select("name, owner, status, health, next_action, blocker, last_audited").order("sort"),
     // Activation ledger (0268) — soft: absent table (pre-migration) degrades to no section.
     supabaseAdmin.from("account_activities").select("opportunity_id, on_date, cost_cents, revenue_cents").eq("tenant_id", tenant),
@@ -99,7 +114,6 @@ async function post(req: Request) {
   const coming = ((eventsQ.data ?? []) as any[]).filter((e) => e.day >= today);
   const blockers = ((incOpenQ.data ?? []) as any[]).filter((i) => i.severity === "blocker");
   const decisions = (decQ.data ?? []) as any[];
-  const overdue = overdueQ.count ?? 0, dueNext = next7Q.count ?? 0, doneCt = doneQ.count ?? 0;
 
   const delta = revPrior > 0 ? Math.round(((revThis - revPrior) / revPrior) * 100) : null;
   const gLine = (g: any) => `**${g.title}** — ${Number(g.current_value).toLocaleString()} / ${Number(g.target_value).toLocaleString()}${g.unit ? ` ${g.unit}` : ""}`;
@@ -170,8 +184,10 @@ async function post(req: Request) {
   ].join("\n").replace(/\n{3,}/g, "\n\n");
 
   const title = `Weekly Operating Review · ${nice(today)}`;
+  // Named, as the strategy session's is (2026-10-12): under the service role 0134's stamp_tenant() has no caller to
+  // read and files the note under the founding tenant, where the one-review-a-week check above would never find it.
   const { data: note, error } = await supabaseAdmin.from("meeting_notes").insert({
-    title, met_on: today, source: "review", visibility: "team",
+    tenant_id: tenant, title, met_on: today, source: "review", visibility: "team",
     summary: md, created_by: caller?.id ?? null,
   }).select("id").single();
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });

@@ -11702,6 +11702,36 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /from\("meeting_notes"\)\.insert\(\{\s*tenant_id: tenant, title, met_on: today, source: "strategy"/.test(s) && /\.eq\("source", "strategy"\)\.eq\("met_on", today\)/.test(s));
 }
 
+// ── RELEASE 1 · THE REVIEW, THE TRANSCRIPT AND THE BRIEFING NAME THE BUSINESS TOO (2026-10-12) ──
+// The weekly review counted every business's tasks through all_tasks (a view with no tenant_id); the transcript's
+// resolver matched account names against every business's vendors and moved what it found; the Chief of Staff's eleven
+// reads named nobody, through a `db` alias the service-role audit's pattern never matched.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const stmts = (src, client) => src.split(new RegExp(`\\b${client}!?\\.from\\(`)).slice(1).map((c) => c.split(/;\n|,\n/)[0]);
+  const rawReview = rd("app/api/agents/weekreview/route.ts"), review = code(rawReview);
+  ok("review: no count reads all_tasks; six read event_tasks or todos, each for the caller's business, an event task due on its Eastern day",
+    !/from\("all_tasks"\)/.test(review) && (review.match(/from\("(event_tasks|todos)"\)\.select\("id", \{ count: "exact", head: true \}\)\.eq\("tenant_id", tenant\)/g) || []).length === 6
+      && /\.lt\("due_at", todayAt\)/.test(review) && /\.gte\("due_at", todayAt\)\.lt\("due_at", dueByAt\)/.test(review) && /const todayAt = dayStartIso\(today\), dueByAt = dayStartIso\(addDays\(wk\.ahead7, 1\)\);/.test(review));
+  ok("review: the revenue helper's one table-by-name read states its proof; every other read names the business but the portfolio registry, which has no tenant_id",
+    /\/\/ scoped-by: revenue\(\) below is the only caller, and both of its filters \(win, onDay\) begin with/.test(rawReview)
+      && stmts(review, "supabaseAdmin").filter((c) => !/^\s*table\)/.test(c) && !/^"os_workstreams"/.test(c)).every((c) => /\.insert\(/.test(c) || /\.eq\("tenant_id", tenant\)/.test(c))
+      && /tenant_id: tenant, title, met_on: today, source: "review"/.test(review));
+  const transcript = code(rd("app/api/agents/session-extract/route.ts")), tStmts = stmts(transcript, "supabaseAdmin");
+  ok("transcript: every read and the account update name the caller's business — the vendor book first",
+    tStmts.length === 12 && tStmts.filter((c) => !/\.insert\(/.test(c)).every((c) => /\.eq\("tenant_id", tenant\)/.test(c))
+      && /from\("vendors"\)\.select\("id, name"\)\.eq\("tenant_id", tenant\)/.test(transcript) && /\.update\(patch\)\.eq\("tenant_id", tenant\)\.eq\("id", /.test(transcript),
+    tStmts.filter((c) => !/\.insert\(/.test(c) && !/\.eq\("tenant_id", tenant\)/.test(c)).map((c) => c.slice(0, 50)));
+  ok("transcript: and every row it files names it — under the service role the 0134 stamp has no caller to read",
+    tStmts.filter((c) => /\.insert\(/.test(c)).length === 6 && tStmts.filter((c) => /\.insert\(/.test(c)).every((c) => /\.insert\(\{\s*tenant_id: tenant,/.test(c)));
+  const chief = code(rd("app/api/agents/chief/route.ts")), cStmts = stmts(chief, "db");
+  ok("briefing: the owner's tenant is resolved and refused when absent, and all eleven reads name it",
+    /if \(!\(await ownerFromRequest\(req\)\)\) return[^\n]*\n\s*const tenant = await tenantFromRequest\(req\);\s*if \(!tenant\) return NextResponse\.json\(\{ ok: false, error: "no tenant on this session" \}, \{ status: 401 \}\);/.test(chief)
+      && cStmts.length === 11 && cStmts.every((c) => /\.select\("[^"]*"\)\.eq\("tenant_id", tenant\)/.test(c)), cStmts.filter((c) => !/\.eq\("tenant_id", tenant\)/.test(c)).map((c) => c.slice(0, 40)));
+}
+
 Promise.all(PENDING).then(() => {
   console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
