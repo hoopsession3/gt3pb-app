@@ -194,6 +194,24 @@ export function sortGaps<T extends { severity?: string | null; gap?: string | nu
     String(a.gap ?? "").localeCompare(String(b.gap ?? "")));
 }
 
+// ── HOW BAD, AND IN A WORD (2026-10-12) ──────────────────────────────────────────────────────────
+// Plan › Needs sorting gathers a subject's problems under one row and marks the row with one colour. The
+// mark took the FIRST problem's severity — the order v_schedule_gaps happened to return, which is no
+// order — so a venue the public page names wrongly (high) could be marked grey because its missing recap
+// (low) came back first. And the mark was colour alone, hidden from a screen reader. A row is marked by
+// its worst problem now, and says it in a word as well as a colour.
+/** The worst severity among a subject's problems; null when none carries one the view emits. */
+export function worstSeverity(rows: readonly { severity?: string | null }[]): GapSeverity | null {
+  let worst: GapSeverity | null = null;
+  for (const r of rows) {
+    const s = r.severity;
+    if ((s === "high" || s === "medium" || s === "low") && (worst === null || SEVERITY_RANK[s] < SEVERITY_RANK[worst])) worst = s;
+  }
+  return worst;
+}
+/** A severity in a word — on the row beside its colour, and in what a screen reader says for it. */
+export const SEVERITY_WORD: Record<GapSeverity, string> = { high: "Urgent", medium: "Important", low: "Minor" };
+
 // ── what an event is waiting on ──────────────────────────────────────────────────────────────────
 export type EventCounts = {
   stage?: string | null; phase?: string | null;

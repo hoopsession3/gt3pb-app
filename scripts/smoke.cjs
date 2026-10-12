@@ -6101,8 +6101,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       /sb\.rpc\("report_sales", \{ p_days: 7 \}\)/.test(read("components/HomeNumbers.tsx"))
       && /sum\("business_orders", \(q\) => q\.eq\("payment_status", "paid"\)\.is\("canceled_at", null\)\.gte\("delivery_date", day6\(\)\)\.lte\("delivery_date", etToday\(\)\)\)/.test(digestRoute)
       && /supabaseAdmin\.from\("business_orders"\)\.select\("payment_id"\)\.not\("payment_id", "is", null\),/.test(digestRoute)
-      && /const onDay = \(q: any\) => q\.eq\("tenant_id", tenant\)\.gte\("delivery_date", fromISO\.slice\(0, 10\)\)\.lt\("delivery_date", toISO\.slice\(0, 10\)\);/.test(review)
-      && /revenue\(tenant, d7\.toISOString\(\), now\.toISOString\(\)\)/.test(review) && /revenue\(tenant, d14\.toISOString\(\), d7\.toISOString\(\)\)/.test(review)
+      // 2026-10-12: the review's windows are business days (lib/rhythm.rhythmWeek) — the delivery day is the day key itself,
+      // not the UTC date cut from an instant.
+      && /const onDay = \(q: any\) => q\.eq\("tenant_id", tenant\)\.gte\("delivery_date", from\)\.lt\("delivery_date", to\);/.test(review)
+      && /revenue\(tenant, wk\.from, wk\.next\)/.test(review) && /revenue\(tenant, wk\.priorFrom, wk\.from\)/.test(review)
       && !/business_orders[^\n]*gte\("created_at"/.test(digestRoute));
     ok("office revenue: the crew's route is the next delivery day with later weeks folded under it, no pay link or invoice before a delivery's cutoff, and the client sees what's coming up soonest first",
       /const nextDay = open\.map\(\(o\) => o\.delivery_date\)\.filter\(\(d\) => d >= today\)\.sort\(\)\[0\] \?\? null;/.test(crewOffice3)
@@ -7906,7 +7908,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("calendar: the not-configured styles left with it", !/\.ol-bar\.quiet/.test(cssP) && !/\.ol-state\.off/.test(cssP));
   const rh = code(read("components/OperatingRhythm.tsx"));
   ok("rhythm: both cards say when, and how long ago — from the meeting's own date, not cut out of a title",
-    /const ago = agoWord\(daysBetween\(l\.met_on\.slice\(0, 10\), localToday\(\)\)\);/.test(rh) && (rh.match(/\{latestLine\(p\.(review|strategy)\)\}/g) || []).length === 2
+    // 2026-10-12: to the business day (useEtDay), not the phone's — the routes that write these notes date them in Eastern.
+    /const ago = agoWord\(daysBetween\(l\.met_on\.slice\(0, 10\), today\)\);/.test(rh) && (rh.match(/\{latestLine\(p\.(review|strategy), today\)\}/g) || []).length === 2
     && !/title\.replace\("Weekly Operating Review · ", ""\)/.test(rh) && /`Latest: \$\{nice\(l\.met_on\)\}\$\{ago \? ` · \$\{ago\}` : ""\} — open in Notes`/.test(rh));
 
   // ── the record sheet these rows open ──
@@ -11616,6 +11619,242 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("money: 0384's test runs with the database tests, and 0384 records itself",
     /node scripts\/db\.money\.test\.mjs/.test(JSON.parse(rd("package.json")).scripts["db:test"])
       && /select public\.record_migration\('0384_the_money_numbers_are_honest',/.test(rd("supabase/migrations/0384_the_money_numbers_are_honest.sql")));
+}
+
+// ── RELEASE 1 · A FOLLOW-UP IS DUE AT 5PM EASTERN IN EVERY SEASON (2026-10-12) ──
+// The transcript filed a follow-up as `${day}T17:00:00-04:00`, which is 4pm from November to March. lib/etDay.etAt is
+// the truck's clock on a business day, DST-correct like etDayStart beside it; lib/rhythm.followUpDueAt is the rule.
+{
+  const ET = require("../.smoke/etDay.js"), RH = require("../.smoke/rhythm.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  ok("follow-ups: due at 5pm Eastern in July — 21:00Z under EDT", RH.followUpDueAt("2026-07-15") === "2026-07-15T21:00:00.000Z", RH.followUpDueAt("2026-07-15"));
+  ok("follow-ups: …and in December — 22:00Z under EST, not the 4pm a fixed -04:00 gave", RH.followUpDueAt("2026-12-15") === "2026-12-15T22:00:00.000Z", RH.followUpDueAt("2026-12-15"));
+  ok("follow-ups: on the day the clocks go forward (Mar 8) 5pm is already EDT, on the day they go back (Nov 1) already EST",
+    RH.followUpDueAt("2026-03-08") === "2026-03-08T21:00:00.000Z" && RH.followUpDueAt("2026-11-01") === "2026-11-01T22:00:00.000Z",
+    [RH.followUpDueAt("2026-03-08"), RH.followUpDueAt("2026-11-01")]);
+  ok("follow-ups: the hour is one constant, 17", RH.FOLLOW_UP_HOUR === 17);
+  const clock = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const reads = (d) => clock.format(d).replace(",", "");
+  const days = ["2026-01-15", "2026-03-07", "2026-03-08", "2026-03-09", "2026-07-04", "2026-10-31", "2026-11-01", "2026-11-02", "2026-12-31"];
+  ok("etAt: reads back as the hour asked, on the day asked, either side of both clock changes",
+    days.every((k) => [0, 9, 13, 17, 23].every((h) => reads(ET.etAt(k, h, 5)) === `${k} ${String(h).padStart(2, "0")}:05`)),
+    days.flatMap((k) => [0, 9, 13, 17, 23].map((h) => reads(ET.etAt(k, h, 5)))).filter((s) => !s.endsWith(":05")).slice(0, 3));
+  ok("etAt: midnight is etDayStart's instant", ["2026-03-08", "2026-07-04", "2026-11-01", "2026-12-01"].every((k) => ET.etAt(k, 0).getTime() === ET.etDayStart(k).getTime()));
+  ok("etAt: 2:30am on Mar 8 is not on the wall; it comes back as the hour after (3:30 EDT, 07:30Z)", ET.etAt("2026-03-08", 2, 30).toISOString() === "2026-03-08T07:30:00.000Z", ET.etAt("2026-03-08", 2, 30).toISOString());
+  const se = code(rd("app/api/agents/session-extract/route.ts"));
+  ok("transcript: an open item with a day is filed through followUpDueAt — no Eastern offset written by hand",
+    /due_at: due \? followUpDueAt\(due\) : null/.test(se) && !/T17:00:00-0[45]:00/.test(se) && /import \{ followUpDueAt \} from "@\/lib\/rhythm";/.test(se));
+  ok("smoke: lib/etDay and lib/rhythm are compiled for these pins", /lib\/etDay\.ts lib\/rhythm\.ts/.test(JSON.parse(rd("package.json")).scripts.smoke));
+}
+
+// ── RELEASE 1 · THE REVIEW, THE SESSION, THE TRANSCRIPT AND THE CARD KEEP ONE EASTERN BUSINESS DAY (2026-10-12) ──
+// The review and the session cut the day in UTC (a day ahead from 8pm Eastern), the transcript in Eastern, the card on
+// the phone's clock. All four read lib/dates.etToday now, and the windows are lib/rhythm's, cut at Eastern midnight.
+{
+  const RH = require("../.smoke/rhythm.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const w = RH.rhythmWeek("2026-10-12");
+  ok("one day: a rhythm's week is the seven business days ending today, and the seven before",
+    w.from === "2026-10-06" && w.next === "2026-10-13" && w.priorFrom === "2026-09-29" && w.priorTo === "2026-10-05" && w.ahead7 === "2026-10-19" && w.ahead14 === "2026-10-26", w);
+  ok("one day: …and it starts at Eastern midnight — 04:00Z under EDT, 05:00Z once the clocks go back",
+    w.fromAt === "2026-10-06T04:00:00.000Z" && RH.rhythmWeek("2026-11-03").fromAt === "2026-10-28T04:00:00.000Z" && RH.rhythmWeek("2026-11-08").fromAt === "2026-11-02T05:00:00.000Z",
+    [w.fromAt, RH.rhythmWeek("2026-11-03").fromAt, RH.rhythmWeek("2026-11-08").fromAt]);
+  ok("one day: 9pm Eastern on Oct 11 (01:00Z Oct 12) was Oct 11 — a day ago on Oct 12, where a UTC cut said today",
+    RH.businessDaysSince("2026-10-12T01:00:00Z", "2026-10-12") === 1 && RH.businessDaysSince("2026-10-12T04:30:00Z", "2026-10-12") === 0, RH.businessDaysSince("2026-10-12T01:00:00Z", "2026-10-12"));
+  ok("one day: whole days across a clock change, and no instant is no answer",
+    RH.businessDaysSince("2026-10-25T16:00:00Z", "2026-11-08") === 14 && RH.businessDaysSince(null, "2026-10-12") === null && RH.businessDaysSince("not a date", "2026-10-12") === null);
+  ok("one day: dayStartIso is the instant a business day begins", RH.dayStartIso("2026-12-01") === "2026-12-01T05:00:00.000Z" && RH.dayStartIso("2026-07-04") === "2026-07-04T04:00:00.000Z");
+  const review = code(rd("app/api/agents/weekreview/route.ts")), session = code(rd("app/api/agents/stratsession/route.ts"));
+  const transcript = code(rd("app/api/agents/session-extract/route.ts")), card = code(rd("components/OperatingRhythm.tsx"));
+  const utcCut = /toISOString\(\)\.slice\(0, 10\)|864e5/;
+  ok("one day: the review is dated and windowed on the business day — no UTC slice, no 24-hour arithmetic",
+    /const today = etToday\(\);\s*const wk = rhythmWeek\(today\);/.test(review) && !utcCut.test(review)
+      && /\.gte\("met_on", wk\.from\)/.test(review) && /\.gte\("day", wk\.from\)\.lte\("day", wk\.ahead14\)/.test(review) && /daysBetween\(today, i\.target_date\)/.test(review));
+  ok("one day: the session too — its one-a-day check, its overdue milestones and its 'since' dates are Eastern",
+    /const today = etToday\(\);/.test(session) && !utcCut.test(session) && /\.eq\("met_on", today\)/.test(session)
+      && /\(since \$\{niceAt\(b\.created_at\)\}\)/.test(session) && /\(\$\{niceAt\(d\.created_at\)\}\)/.test(session) && /const niceAt = \(iso: string\) => nice\(etDayKey\(new Date\(iso\)\)\);/.test(session));
+  ok("one day: the transcript files its note on the business day, as it did", /const today = etToday\(\);/.test(transcript) && /met_on: today/.test(transcript) && !utcCut.test(transcript));
+  ok("one day: the card counts to the business day, kept current — not the phone's day",
+    /const today = useEtDay\(\);/.test(card) && !/localToday|Date\.now\(\)|864e5/.test(card) && /\}, \[today\]\);\s*const state = useAsyncData\(loader, \[today\]\);/.test(card));
+}
+
+// ── RELEASE 1 · A QUIET GOAL IS A WEEK, EVERYWHERE (2026-10-12) ──
+// Seven days on the Plan card, in the review and on a goal's own card; fourteen in the strategy session's agenda. One
+// constant and one rule now (lib/rhythm), on the business day, and the four places read it.
+{
+  const RH = require("../.smoke/rhythm.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  ok("quiet: one constant, a week", RH.QUIET_GOAL_DAYS === 7);
+  ok("quiet: six business days unmoved is not quiet; seven is, and says how many",
+    RH.quietGoalDays("2026-10-06T14:00:00Z", "2026-10-12") === null && RH.quietGoalDays("2026-10-05T14:00:00Z", "2026-10-12") === 7
+      && RH.quietGoalDays("2026-09-01T12:00:00Z", "2026-10-12") === 41 && RH.isQuietGoal("2026-10-05T14:00:00Z", "2026-10-12") && !RH.isQuietGoal("2026-10-12T03:59:00Z", "2026-10-12"),
+    [RH.quietGoalDays("2026-10-06T14:00:00Z", "2026-10-12"), RH.quietGoalDays("2026-10-05T14:00:00Z", "2026-10-12")]);
+  ok("quiet: moved at 9pm Eastern on Oct 5 (01:00Z Oct 6) was moved on Oct 5 — a week by Oct 12", RH.quietGoalDays("2026-10-06T01:00:00Z", "2026-10-12") === 7);
+  ok("quiet: a goal with no date it moved is not called quiet", RH.quietGoalDays(null, "2026-10-12") === null && RH.isQuietGoal(undefined, "2026-10-12") === false);
+  const review = code(rd("app/api/agents/weekreview/route.ts")), session = code(rd("app/api/agents/stratsession/route.ts"));
+  const card = code(rd("components/OperatingRhythm.tsx")), goals = code(rd("components/Goals.tsx"));
+  ok("quiet: the review says it through the rule — and 'moved this week' is its other side",
+    /const quiet = goals\.filter\(\(g\) => isQuietGoal\(g\.updated_at, today\) && g\.checkin_status !== "at_risk"\);/.test(review)
+      && /const moved = goals\.filter\(\(g\) => g\.updated_at && !isQuietGoal\(g\.updated_at, today\)\);/.test(review));
+  ok("quiet: the session's agenda too — a week, in the words the card uses, not 'Quiet 2+ weeks'",
+    /const stale = goals\.filter\(\(g\) => isQuietGoal\(g\.updated_at, today\) && g\.checkin_status !== "at_risk"\);/.test(session)
+      && /💤 Quiet a week\+: /.test(session) && !/Quiet 2\+ weeks/.test(session));
+  ok("quiet: the Plan card counts by the rule", /quiet: goals\.filter\(\(x\) => x\.checkin_status !== "at_risk" && isQuietGoal\(x\.updated_at, today\)\)\.length,/.test(card) && /quiet a week\+/.test(card));
+  ok("quiet: a goal's own chip on Command counts by the rule, to the business day kept current — not Date.now() while drawing",
+    /const today = useEtDay\(\);\s*const quietDays = \(g: Goal\) => quietGoalDays\(g\.updated_at, today\);/.test(goals) && !/Date\.now\(\)|864e5/.test(goals));
+  ok("quiet: no other number decides it in these four places", ![review, session, card, goals].some((s) => /\bd14\b|\bweekAgo\b|>= 7 \?|>= 14\b/.test(s)));
+}
+
+// ── RELEASE 1 · "OPEN IN NOTES" OPENS THAT NOTE (2026-10-12) ──
+// The Plan card's "Latest … — open in Notes", an assembled review or session and a filed transcript switched to Notes
+// and stopped at the top of the list. Each knows its note's id; lib/noteLink carries it across the switch and the
+// Notes list opens, scrolls to and focuses that note.
+{
+  const NL = require("../.smoke/noteLink.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  ok("note link: nothing is asked for at first, and asking for no note asks for nothing", NL.pendingNoteAsk() === null && (NL.askOpenNote(null), NL.askOpenNote(""), NL.pendingNoteAsk() === null));
+  const heard = [];
+  const stop = NL.onNoteAsk((id) => heard.push(id));
+  NL.askOpenNote("n-1");
+  ok("note link: an ask is kept for the list that mounts next, and a mounted list hears it", NL.pendingNoteAsk() === "n-1" && heard.join() === "n-1");
+  NL.askOpenNote("n-2"); NL.clearNoteAsk("n-1");
+  ok("note link: clearing an older ask leaves the newer one standing; clearing it forgets it", NL.pendingNoteAsk() === "n-2" && (NL.clearNoteAsk("n-2"), NL.pendingNoteAsk() === null));
+  stop(); NL.askOpenNote("n-3"); NL.clearNoteAsk("n-3");
+  ok("note link: an unmounted list stops hearing", heard.join() === "n-1,n-2");
+  ok("note link: a note's card is addressed as note-<id>", NL.noteAnchor("abc") === "note-abc");
+  const card = code(rd("components/OperatingRhythm.tsx")), crew = code(rd("app/crew/page.tsx"));
+  ok("note link: every way from the rhythm card to Notes names its note — the latest review, the latest session, an assembled one, a filed transcript",
+    /const openNote = \(id: string \| null \| undefined\) => \{ askOpenNote\(id\); onOpenNotes\(\); \};/.test(card)
+      && /onClick=\{\(\) => openNote\(p\.review\?\.id\)\}/.test(card) && /onClick=\{\(\) => openNote\(p\.strategy\?\.id\)\}/.test(card)
+      && /reload\(\); openNote\(j\.note_id\);/.test(card) && /setExtractOpen\(false\); setTranscript\(""\); openNote\(j\.note_id\);/.test(card)
+      && (card.match(/onOpenNotes\(\)/g) || []).length === 1 && !/onClick=\{onOpenNotes\}/.test(card));
+  ok("note link: the three routes hand the card the note's id, new or standing",
+    ["weekreview", "stratsession"].every((r) => { const s = code(rd(`app/api/agents/${r}/route.ts`)); return /note_id: existing\.id, title: existing\.title, existing: true/.test(s) && /note_id: \(note as any\)\.id, title, existing: false/.test(s); })
+      && /note_id: noteId, title: out\.title/.test(code(rd("app/api/agents/session-extract/route.ts"))));
+  const notes = crew.slice(crew.indexOf("function MeetingNotes()"), crew.indexOf("function MeetingNoteCard("));
+  ok("note link: the Notes list takes the ask once its notes are read — the note's shelf shown, nothing filtering it out, the note opened",
+    /const \[askedNote, setAskedNote\] = useState<string \| null>\(pendingNoteAsk\);/.test(notes) && /useEffect\(\(\) => onNoteAsk\(setAskedNote\), \[\]\);/.test(notes)
+      && /const askedFound = askedNote \? notesState\.data\?\.find\(\(n\) => n\.id === askedNote\) \?\? null : null;/.test(notes)
+      && /setTab\(askedFound\.archived_at \? "archived" : "active"\); setQuery\(""\); setMineOnly\(false\);\s*setOpenId\(askedFound\.id\); setLanding\(\{ id: askedFound\.id \}\);/.test(notes));
+  ok("note link: …then lands on it — the ask cleared, the card scrolled to and its header focused",
+    /clearNoteAsk\(landing\.id\);\s*scrollToAnchor\(noteAnchor\(landing\.id\)\);\s*focusNoteWhenThere\(landing\.id\);/.test(notes)
+      && /<div id=\{noteAnchor\(note\.id\)\} className=\{`note-card\$\{open \? " open" : ""\}`\} style=\{\{ scrollMarginTop: 16 \}\}>/.test(crew)
+      && /\.querySelector<HTMLElement>\("\.note-head"\)/.test(rd("lib/noteLink.ts")) && /className="note-head pressable"/.test(crew));
+  ok("note link: the Notes section is still mounted the same way — the ask needs no prop, so nothing else changed shape",
+    /\{sec === "notes" && <MeetingNotes \/>\}/.test(crew) && /<OperatingRhythm isAdmin=\{isAdmin\} onOpenNotes=\{\(\) => setSection\("notes"\)\} \/>/.test(crew));
+}
+
+// ── RELEASE 1 · THE STRATEGY SESSION NAMES THE BUSINESS ON EVERY READ (2026-10-12) ──
+// Its open threads (comments) and its plays on the table (gtm_drafts) were read across every business; the note it
+// writes was stamped with the founding tenant (current_tenant() is null under the service role).
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const s = code(fs.readFileSync(path.join(__dirname, "..", "app/api/agents/stratsession/route.ts"), "utf8"));
+  const reads = s.split("supabaseAdmin.from(").slice(1).map((c) => c.split(/,\n|;\n/)[0]);
+  ok("strategy session: every one of its reads names the caller's business", reads.length === 9 && reads.filter((c) => !/\.insert\(/.test(c)).every((c) => /\.eq\("tenant_id", tenant\)/.test(c)),
+    reads.filter((c) => !/\.insert\(/.test(c) && !/\.eq\("tenant_id", tenant\)/.test(c)).map((c) => c.slice(0, 60)));
+  ok("strategy session: its threads and its plays on the table among them",
+    /from\("comments"\)\.select\("strategy_key, body, created_at"\)\.eq\("tenant_id", tenant\)/.test(s) && /from\("gtm_drafts"\)\.select\("name, category, status"\)\.eq\("tenant_id", tenant\)/.test(s));
+  ok("strategy session: the agenda it writes is that business's — the one-a-day check can find it again",
+    /from\("meeting_notes"\)\.insert\(\{\s*tenant_id: tenant, title, met_on: today, source: "strategy"/.test(s) && /\.eq\("source", "strategy"\)\.eq\("met_on", today\)/.test(s));
+}
+
+// ── RELEASE 1 · THE REVIEW, THE TRANSCRIPT AND THE BRIEFING NAME THE BUSINESS TOO (2026-10-12) ──
+// The weekly review counted every business's tasks through all_tasks (a view with no tenant_id); the transcript's
+// resolver matched account names against every business's vendors and moved what it found; the Chief of Staff's eleven
+// reads named nobody, through a `db` alias the service-role audit's pattern never matched.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const stmts = (src, client) => src.split(new RegExp(`\\b${client}!?\\.from\\(`)).slice(1).map((c) => c.split(/;\n|,\n/)[0]);
+  const rawReview = rd("app/api/agents/weekreview/route.ts"), review = code(rawReview);
+  ok("review: no count reads all_tasks; six read event_tasks or todos, each for the caller's business, an event task due on its Eastern day",
+    !/from\("all_tasks"\)/.test(review) && (review.match(/from\("(event_tasks|todos)"\)\.select\("id", \{ count: "exact", head: true \}\)\.eq\("tenant_id", tenant\)/g) || []).length === 6
+      && /\.lt\("due_at", todayAt\)/.test(review) && /\.gte\("due_at", todayAt\)\.lt\("due_at", dueByAt\)/.test(review) && /const todayAt = dayStartIso\(today\), dueByAt = dayStartIso\(addDays\(wk\.ahead7, 1\)\);/.test(review));
+  ok("review: the revenue helper's one table-by-name read states its proof; every other read names the business but the portfolio registry, which has no tenant_id",
+    /\/\/ scoped-by: revenue\(\) below is the only caller, and both of its filters \(win, onDay\) begin with/.test(rawReview)
+      && stmts(review, "supabaseAdmin").filter((c) => !/^\s*table\)/.test(c) && !/^"os_workstreams"/.test(c)).every((c) => /\.insert\(/.test(c) || /\.eq\("tenant_id", tenant\)/.test(c))
+      && /tenant_id: tenant, title, met_on: today, source: "review"/.test(review));
+  const transcript = code(rd("app/api/agents/session-extract/route.ts")), tStmts = stmts(transcript, "supabaseAdmin");
+  ok("transcript: every read and the account update name the caller's business — the vendor book first",
+    tStmts.length === 12 && tStmts.filter((c) => !/\.insert\(/.test(c)).every((c) => /\.eq\("tenant_id", tenant\)/.test(c))
+      && /from\("vendors"\)\.select\("id, name"\)\.eq\("tenant_id", tenant\)/.test(transcript) && /\.update\(patch\)\.eq\("tenant_id", tenant\)\.eq\("id", /.test(transcript),
+    tStmts.filter((c) => !/\.insert\(/.test(c) && !/\.eq\("tenant_id", tenant\)/.test(c)).map((c) => c.slice(0, 50)));
+  ok("transcript: and every row it files names it — under the service role the 0134 stamp has no caller to read",
+    tStmts.filter((c) => /\.insert\(/.test(c)).length === 6 && tStmts.filter((c) => /\.insert\(/.test(c)).every((c) => /\.insert\(\{\s*tenant_id: tenant,/.test(c)));
+  const chief = code(rd("app/api/agents/chief/route.ts")), cStmts = stmts(chief, "db");
+  // The gate that holds them there is scripts/api.audit.mjs's AGENT DOOR (its rules are tested in scripts/audits.test.mjs);
+  // the strategy and briefing routes owe it nothing.
+  const audit = rd("scripts/api.audit.mjs"), debt = (audit.match(/export const AGENT_DOOR_DEBT = \{([\s\S]*?)\n\};/) || ["", ""])[1];
+  ok("door: the agent door runs with the API audit, and none of the strategy or briefing routes is in its debt",
+    /export function agentDoor\(src, rel\)/.test(audit) && /export function roleCheckOf\(src\)/.test(audit) && debt.length > 0
+      && !/stratsession|weekreview|session-extract|chief/.test(debt) && /node scripts\/api\.audit\.mjs/.test(JSON.parse(rd("package.json")).scripts.audit)
+      && /agentDoor, roleCheckOf/.test(rd("scripts/audits.test.mjs")));
+  ok("briefing: the owner's tenant is resolved and refused when absent, and all eleven reads name it",
+    /if \(!\(await ownerFromRequest\(req\)\)\) return[^\n]*\n\s*const tenant = await tenantFromRequest\(req\);\s*if \(!tenant\) return NextResponse\.json\(\{ ok: false, error: "no tenant on this session" \}, \{ status: 401 \}\);/.test(chief)
+      && cStmts.length === 11 && cStmts.every((c) => /\.select\("[^"]*"\)\.eq\("tenant_id", tenant\)/.test(c)), cStmts.filter((c) => !/\.eq\("tenant_id", tenant\)/.test(c)).map((c) => c.slice(0, 40)));
+}
+
+// ── RELEASE 1 · NEEDS SORTING SHOWS EACH SUBJECT'S WORST PROBLEM, IN A WORD, AND UPDATES LIVE (2026-10-12) ──
+// The mark took the first row's severity (the view's order, no order), was colour alone and aria-hidden, and the list
+// read once when the panel opened. lib/eventRecord.worstSeverity and SEVERITY_WORD are the rule; ScheduleGaps reads
+// again through lib/realtime on the tables v_schedule_gaps diagnoses from.
+{
+  const E = require("../.smoke/eventRecord.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const sev = (...s) => s.map((severity) => ({ severity }));
+  ok("needs sorting: a subject's mark is its WORST problem, whatever order the view returned them in",
+    E.worstSeverity(sev("low", "high", "medium")) === "high" && E.worstSeverity(sev("high", "low")) === "high" && E.worstSeverity(sev("low", "medium")) === "medium" && E.worstSeverity(sev("low")) === "low");
+  ok("needs sorting: no problem, or only a severity the view never emits, is no mark", E.worstSeverity([]) === null && E.worstSeverity(sev("weird", null)) === null && E.worstSeverity(sev("weird", "low")) === "low");
+  ok("needs sorting: every severity has its own word", E.SEVERITY_WORD.high === "Urgent" && E.SEVERITY_WORD.medium === "Important" && E.SEVERITY_WORD.low === "Minor");
+  const sg = code(rd("components/ScheduleGaps.tsx"));
+  ok("needs sorting: the row's mark and its word are the subject's worst — not its first row's, and never colour alone",
+    /for \(const g of byId\.values\(\)\) \{ g\.rows = sortGaps\(g\.rows\); g\.worst = worstSeverity\(g\.rows\); \}/.test(sg)
+      && /<span className=\{`evg-sev\$\{g\.worst \? ` sev-\$\{g\.worst\}` : ""\}`\} aria-hidden="true" \/>/.test(sg)
+      && /\{g\.worst && <>\{" "\}<span className=\{`k-tag txt\$\{TONE\[g\.worst\]\}`\}>\{SEVERITY_WORD\[g\.worst\]\}<\/span><\/>\}/.test(sg)
+      && /const TONE: Record<GapSeverity, string> = \{ high: " crit", medium: " warn", low: "" \};/.test(sg)
+      && !/first\.severity/.test(sg) && /severityRank\(a\.worst\) - severityRank\(b\.worst\)/.test(sg) && !/const SEV_RANK/.test(sg));
+  const tables = (sg.match(/export const SCHEDULE_GAP_TABLES = \[([^\]]*)\];/) || ["", ""])[1].match(/"(\w+)"/g)?.map((s) => s.slice(1, -1)) ?? [];
+  ok("needs sorting: the list reads again on a change to the tables its diagnoses come from — and with every refresh (lib/realtime)",
+    /useRealtimeTable\(SCHEDULE_GAP_TABLES, state\.reload\);/.test(sg)
+      && tables.join() === "events,event_ops,event_tasks,event_sales,stops,stop_ops,vendors,live_status"
+      && /loaders\.add\(cb\);/.test(rd("lib/realtime.ts")) && /export function refreshLive\(\)/.test(rd("lib/realtime.ts")), tables);
+  const views = ["0348_tonight_is_not_the_past", "0315_a_stop_is_a_visit_not_a_name", "0316_a_list_that_says_what_it_found", "0324_one_schedule_one_list"]
+    .map((f) => rd(`supabase/migrations/${f}.sql`)).join("\n");
+  ok("needs sorting: each table it listens to is one those views read", tables.length === 8 && tables.every((t) => new RegExp(`(from|join) public\\.${t}\\b`).test(views)),
+    tables.filter((t) => !new RegExp(`(from|join) public\\.${t}\\b`).test(views)));
+}
+
+// ── RELEASE 1 · "BRIEF & LEAD MY WEEK" SHOWS ONLY TO WHO CAN RUN IT (2026-10-12) ──
+// Command is open to admins and event managers; the briefing route admits owners alone, so the full-width button
+// answered them "owner-only". The card's gate is the route's own check, read the same way: profiles.role = 'owner'.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const crew = code(rd("app/crew/page.tsx")), cmd = crew.slice(crew.indexOf('{sec === "command" && canManage && ('), crew.indexOf('{sec === "now" && ('));
+  ok("briefing: on Command the Chief of Staff card is drawn only for a stored role of owner — not roleOf's legacy is_admin owner",
+    /\{profile\?\.role === "owner" && <ChiefOfStaff \/>\}/.test(cmd) && (crew.match(/<ChiefOfStaff \/>/g) || []).length === 1 && !/isOwner && <ChiefOfStaff/.test(crew));
+  const chief = code(rd("app/api/agents/chief/route.ts")), auth = rd("lib/apiAuth.ts");
+  const ownerFns = fs.readdirSync(path.join(__dirname, "..", "supabase/migrations")).filter((f) => /create or replace function public\.is_owner\(\)/.test(rd(`supabase/migrations/${f}`)));
+  ok("briefing: …which is exactly the route's check — ownerFromRequest first, is_owner(), and is_owner() is profiles.role = 'owner' (0023, never redefined)",
+    /async function post\(req: Request\) \{\s*if \(!\(await ownerFromRequest\(req\)\)\) return/.test(chief) && !/staffFromRequest|leadershipFromRequest/.test(chief)
+      && /export async function ownerFromRequest[\s\S]*?sb\.rpc\("is_owner"\)/.test(auth)
+      && ownerFns.join() === "0023_roles.sql" && /select coalesce\(\(select role = 'owner' from public\.profiles where id = auth\.uid\(\)\), false\);/.test(rd("supabase/migrations/0023_roles.sql")), ownerFns);
+  ok("briefing: the card still says why if the server refuses anyway (a role changed while the page was open)",
+    /if \(r\.status === 401 \|\| r\.status === 403\) setErr\("The Chief of Staff briefing is owner-only\. Ask an owner to run it for you\."\);/.test(rd("components/ChiefOfStaff.tsx")));
 }
 
 Promise.all(PENDING).then(() => {

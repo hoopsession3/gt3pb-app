@@ -10,3 +10,16 @@ export function etDayStart(key: string): Date {
   const edt = new Date(`${k}T00:00:00-04:00`);
   return etDayKey(edt) === k ? edt : new Date(`${k}T00:00:00-05:00`);
 }
+
+// THE INSTANT THE TRUCK'S CLOCK READS hh:mm ON AN ET BUSINESS DAY (2026-10-12). A session transcript filed its
+// follow-ups as due `${day}T17:00:00-04:00`: Eastern Daylight Time, so from the first Sunday of November to the second
+// Sunday of March every one came due at 4pm. Same reasoning as etDayStart above: one of the two offsets is right, and
+// the right one is the one that reads back as that hour on that day. A clock change happens at 2am, so an afternoon is
+// never inside one; a time inside the spring-forward gap does not exist on the wall and comes back as the hour after.
+const ET_CLOCK = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hourCycle: "h23", hour: "2-digit", minute: "2-digit" });
+export function etAt(key: string, hour: number, minute = 0): Date {
+  const k = String(key).slice(0, 10);
+  const hm = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  const edt = new Date(`${k}T${hm}:00-04:00`);
+  return etDayKey(edt) === k && ET_CLOCK.format(edt) === hm ? edt : new Date(`${k}T${hm}:00-05:00`);
+}

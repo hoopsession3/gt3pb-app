@@ -3,10 +3,11 @@
 import { useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
+import { useRealtimeTable } from "@/lib/realtime";
 import AsyncSection from "./AsyncSection";
 import Icon from "./Icon";
 import { useRecord } from "./RecordSheet";
-import { gapFix, stageLabel } from "@/lib/eventRecord";
+import { gapFix, stageLabel, severityRank, sortGaps, worstSeverity, SEVERITY_WORD, type GapSeverity } from "@/lib/eventRecord";
 import { isGuestFacing, nameDriftAdvice, stopGapFix, stopStatusLabel } from "@/lib/stopRecord";
 import { relativeDay } from "@/lib/dates";
 
@@ -45,10 +46,22 @@ type Row = {
   canonical_name: string | null;
 };
 
-type Group = { key: string; kind: Row["kind"]; subject: string; rows: Row[]; worst: number };
+type Group = { key: string; kind: Row["kind"]; subject: string; rows: Row[]; worst: GapSeverity | null };
 
-const SEV_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
-const rank = (s: string) => SEV_RANK[s] ?? 3;
+// A ROW SHOWS ITS WORST PROBLEM, IN A WORD TOO (2026-10-12). The mark beside a subject took its FIRST row's severity
+// — whatever order the view returned — so a venue the public page names wrongly could be marked grey because its
+// missing recap came back first; and the mark was colour alone, aria-hidden. lib/eventRecord.worstSeverity picks the
+// mark, and SEVERITY_WORD says it on the row, where a screen reader reads it with the subject.
+const TONE: Record<GapSeverity, string> = { high: " crit", medium: " warn", low: "" };
+
+// WHAT IT READS, SO IT CAN BE READ AGAIN (2026-10-12). The list read once, when the panel opened: fix a stop from
+// its record sheet and the row stayed; somebody else fix one and it stayed until the page was reloaded. These are
+// the tables v_schedule_gaps' diagnoses come from (0314–0316, 0324, 0348) — an event's own row, its recap and
+// took-nothing (event_ops), its critical prep (event_tasks), its takings (event_sales); a stop's own row, its recap
+// (stop_ops), its venue's name and address (vendors), the live flag (live_status). Registered with lib/realtime,
+// a change to any of them, a pull to refresh or coming back to the app reads the list again. event_ops and
+// stop_ops are not in the realtime publication, so a recap written on another phone arrives with the next refresh.
+export const SCHEDULE_GAP_TABLES = ["events", "event_ops", "event_tasks", "event_sales", "stops", "stop_ops", "vendors", "live_status"];
 
 // Each kind keeps its own words. A stop's status vocabulary is not an event's stage vocabulary, and
 // flattening them into one set of labels would be the same mistake as flattening the two lists.
@@ -68,6 +81,7 @@ export default function ScheduleGaps() {
     return (data as Row[]) ?? [];
   }, []);
   const state = useAsyncData<Row[]>(loader, []);
+  useRealtimeTable(SCHEDULE_GAP_TABLES, state.reload);
 
   return (
     <AsyncSection
@@ -86,13 +100,14 @@ export default function ScheduleGaps() {
         const byId = new Map<string, Group>();
         for (const r of rows) {
           const key = `${r.kind}:${r.subject_id}`;
-          const g = byId.get(key) ?? { key, kind: r.kind, subject: r.subject ?? "—", rows: [], worst: 9 };
+          const g = byId.get(key) ?? { key, kind: r.kind, subject: r.subject ?? "—", rows: [], worst: null };
           g.rows.push(r);
-          g.worst = Math.min(g.worst, rank(r.severity));
           byId.set(key, g);
         }
+        // Each subject's problems worst first (lib/eventRecord.sortGaps, the record sheet's order), and its mark the worst.
+        for (const g of byId.values()) { g.rows = sortGaps(g.rows); g.worst = worstSeverity(g.rows); }
         const groups = [...byId.values()].sort((a, b) =>
-          a.worst - b.worst ||
+          severityRank(a.worst) - severityRank(b.worst) ||
           (a.rows[0].on_date ?? "").localeCompare(b.rows[0].on_date ?? "") ||
           a.subject.localeCompare(b.subject));
 
@@ -114,11 +129,12 @@ export default function ScheduleGaps() {
                 return (
                   <button type="button" key={g.key} className="so-row"
                           onClick={() => openRecord(g.kind, first.subject_id)}>
-                    <span className={`evg-sev sev-${first.severity}`} aria-hidden="true" />
+                    <span className={`evg-sev${g.worst ? ` sev-${g.worst}` : ""}`} aria-hidden="true" />
                     <span className="so-row-b">
                       <b>
                         {g.subject}
                         {/* The space matters: without it the accessible name reads as one token. */}
+                        {g.worst && <>{" "}<span className={`k-tag txt${TONE[g.worst]}`}>{SEVERITY_WORD[g.worst]}</span></>}
                         {g.rows.some((r) => v.guestFacing(r.gap)) && <>{" "}<span className="str-guest">guests see this</span></>}
                       </b>
                       {g.rows.map((r) => {
