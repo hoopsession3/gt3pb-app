@@ -6,8 +6,8 @@ import { userFromRequest } from "@/lib/apiAuth";
 import { benefitsForUser, priceForSlug, acceptedCode } from "@/lib/benefits";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
-import { orderingNow, readyWords, refusalWords, pickupWords, type Ordering } from "@/lib/ordering";
-import { readOrdering } from "@/lib/orderingRead";
+import { readyWords, refusalWords, pickupWords, type Ordering } from "@/lib/ordering";
+import { orderingFrom, readOrdering } from "@/lib/orderingRead";
 import { writeAcrossSkew } from "@/lib/schemaSkew";
 import { toMarket } from "@/lib/markets";
 import { money } from "@/lib/money";
@@ -160,7 +160,7 @@ async function post(req: Request) {
     if (!read.inputs) {
       return NextResponse.json({ error: "We couldn't check the truck's schedule — give it another tap in a moment." }, { status: 503 });
     }
-    ordering = orderingNow(nowMs, read.inputs.isLive, read.inputs.stops, read.inputs.liveStopId);
+    ordering = orderingFrom(read.inputs, nowMs);
     if (!ordering.open) return NextResponse.json({ error: refusalWords(ordering, nowMs) }, { status: 409 });
   }
   // What the customer was promised, said once for the screen, the email and the crew's pass: placed

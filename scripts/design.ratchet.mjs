@@ -585,9 +585,16 @@ export const PROD_ROUTE = {
 // (the iPad lays out as itself; a device on the Pass says "ios") and lib/ios's device word ("this iPad's Settings",
 // "Calendar on this iPad"). Crossed the rounding line upward on /truck, /events and /driver's stylesheet and on
 // /architecture and /shop's script; recorded.
+// 2026-10-12 (R1a, C1 of the customer audit): /truck and /events 15 → 16 chunks, the same 285 KB of script. Built ec54904
+// and this commit and listed the files each page's HTML references: one 59 724-byte chunk (Find Us, with a 36 846-byte
+// group it shares with the Join page — the sign-in form, next/image's helpers, the state names lib/usAddress reads) is
+// two now, 23 419 + 36 846 bytes, because Find Us grew 541 bytes raw reading the stop the live switch names, and
+// Turbopack stopped folding the shared group into it past ~60 KB. Moving that read into lib/orderingRead (shared with
+// /book and the menu) kept the split and pushed /book over its line instead, so it stays in Find Us; the bytes are the
+// same, in two files. Recorded.
 export const WEIGHT = {
-  "/truck":                    { js: 285, css: 89, chunks: 15 },
-  "/events":                   { js: 285, css: 89, chunks: 15 },
+  "/truck":                    { js: 285, css: 89, chunks: 16 },
+  "/events":                   { js: 285, css: 89, chunks: 16 },
   "/menu":                     { js: 267, css: 90, chunks: 15 },
   "/reserve":                  { js: 292, css: 90, chunks: 16 },
   "/delivery":                 { js: 291, css: 90, chunks: 16 },

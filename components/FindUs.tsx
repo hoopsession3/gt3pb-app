@@ -15,7 +15,7 @@ import { useSiteCopy } from "@/lib/copy";
 import { marketsPresent, rowInMarket, shouldOfferMarketChoice, MARKET_LABEL } from "@/lib/markets";
 import { useViewerMarket } from "@/components/useViewerMarket";
 import { useOrderingOpen } from "@/components/useOrderingOpen";
-import { closedWords, readyWords } from "@/lib/ordering";
+import { closedWords, liveSwitchOn, readyWords, type NamedStop } from "@/lib/ordering";
 import { useAvailability } from "@/lib/availability";
 import { localToday, relativeDay, fmt12, clockTime, etDayKey, weekdayOf } from "@/lib/dates";
 import { isStopAhead } from "@/lib/road";
@@ -55,7 +55,9 @@ type FieldOp = {
   status: string | null; completed_at: string | null; archived_at: string | null;
   is_public: boolean;
 };
-type Board = { ops: FieldOp[]; live: LiveStatus | null };
+// `named`: the stop the live switch names, as its own row (C1) — see fetchRoad.
+type Named = NamedStop & { market?: string | null };
+type Board = { ops: FieldOp[]; live: LiveStatus | null; named?: Named | null };
 const NO_OPS: FieldOp[] = [];
 
 // ── stop label helpers (from the truck page — hand-set labels win, else derive) ─────────────────
@@ -140,7 +142,19 @@ async function fetchRoad(): Promise<Board> {
   if (e1) throw new Error(e1.message);
   if (e2) throw new Error(e2.message);
   const lstat = l as LiveStatus | null;
-  const liveId = lstat?.is_live ? lstat.current_stop_id : null;
+  const raw = (fo as FieldOp[]) ?? [];
+  // THE STOP THE SWITCH NAMES (C1, 2026-10-12): its own row, closed out or not — this read has every public stop,
+  // archived ones included; one that isn't public is read by id. lib/ordering's liveSwitchOn, the rule the order button
+  // asks, says whether the switch is still a truck pouring — and only then is that stop on the road "however late it
+  // runs" (lib/road). A switch left on at a stop archived outside Live Ops kept this page saying Live, with nobody there.
+  const pointed = lstat?.is_live ? lstat.current_stop_id : null;
+  let named: Named | null = pointed ? raw.find((r) => r.id === pointed && r.kind === "stop") ?? null : null;
+  if (pointed && !named) {
+    const { data: s, error: e3 } = await supabase!.from("stops").select("starts_at, ends_at, archived_at, status, completed_at, market").eq("id", pointed).maybeSingle();
+    if (e3) throw new Error(e3.message);
+    named = (s as Named | null) ?? null;
+  }
+  const liveId = liveSwitchOn(Date.now(), !!lstat?.is_live, pointed, named) ? pointed : null;
   // the road AHEAD: hide completed/past (8h grace for stops through their evening; events
   // stay through their whole day) — the live stop always shows. Publish gate (0270): RLS already
   // hides unpublished events from guests; this mirrors it client-side so a STAFF preview of Find Us
@@ -148,14 +162,14 @@ async function fetchRoad(): Promise<Board> {
   // A stop's half of that is lib/stopRecord's isStopAhead — the same rule the crew's Live truck
   // instrument reads, so "next stop" cannot mean one thing to a guest and another to the crew
   // (2026-10-04: this page said "Nothing scheduled yet" while the instrument offered Go live).
-  const ops = ((fo as FieldOp[]) ?? [])
+  const ops = raw
     .filter((r) => (r.kind === "stop" || r.published_at))
     .map((r) => (r.public_title ? { ...r, name: r.public_title } : r))   // guest-facing name wins on the public road
     .filter((r) => r.kind === "stop"
       ? isStopAhead(r, liveId)
       : r.status !== "done" && !r.completed_at)
     .sort((a, b) => sortKey(a) - sortKey(b));
-  return { ops, live: lstat };
+  return { ops, live: lstat, named };
 }
 
 export default function FindUs() {
@@ -218,8 +232,9 @@ export default function FindUs() {
   //     page: the menu, checkout and /api/checkout went on taking orders through the last hour; and
   //   • the truck stops reading "Live" 45 min before it — this page's own display rule.
   // Ordering closes FIRST, then the truck goes offline — never the reverse. No close time set →
-  // neither fires (the manual is_live flag stands and ordering stays open). Both are computed at
-  // render (re-evaluated on the poll), so no cron has to write a flag on the tick.
+  // both wait for lib/road's 8 hours from the start (C1, 2026-10-12: before, the switch stood for as
+  // long as it was left on). Both are computed at render (re-evaluated on the poll), so no cron has
+  // to write a flag on the tick.
   const LIVE_OFF_BEFORE_MS = 45 * 60_000;
   const nowMs = Date.now();
   // MARKET (0279) — the audit's step 02. This road used to be every public stop everywhere, sorted
@@ -235,7 +250,11 @@ export default function FindUs() {
   const roadOps = ops.filter((r) => rowInMarket(r, viewerMarket));
   const liveStop = live?.is_live ? roadOps.find((r) => r.id === live.current_stop_id) : undefined;
   const liveEndsMs = liveStop?.ends_at ? new Date(liveStop.ends_at).getTime() : null;
-  const isLive = Boolean(live?.is_live) && (liveEndsMs == null || nowMs < liveEndsMs - LIVE_OFF_BEFORE_MS);
+  // IS THE SWITCH A TRUCK POURING HERE (C1): the order button's rule — a switch whose stop is closed out, ended, or
+  // another city's is not this city's truck — then this page's own wind-down, 45 minutes before a close time.
+  const named = road?.named ?? null;
+  const switchOn = liveSwitchOn(nowMs, Boolean(live?.is_live), live?.current_stop_id ?? null, named && rowInMarket(named, viewerMarket) ? named : null);
+  const isLive = switchOn && (liveEndsMs == null || nowMs < liveEndsMs - LIVE_OFF_BEFORE_MS);
   // CAN A CUP BE ORDERED — the rule the menu, the drink sheet, checkout and the server ask
   // (lib/ordering). This page used to ask nothing: "PRE-ORDER · SKIP THE LINE" with no stop on the
   // schedule, into a menu whose every drink said the truck was closed. Until the read lands it

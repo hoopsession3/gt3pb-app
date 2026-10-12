@@ -12,7 +12,10 @@
 //   · the city's stops that may still be on the road: not archived, not done, not wrapped, started
 //     inside the last day. lib/ordering decides which are over — by the close time when there is
 //     one, by lib/road's 8-hour grace when there is not — so a nine-hour stop still under way is not
-//     dropped by the query before the rule sees it.
+//     dropped by the query before the rule sees it;
+//   · and, when the switch names a stop that road does not have, that stop's own row (C1, 2026-10-12):
+//     archived, done, a day old or another city's, it is no truck pouring here (lib/ordering
+//     liveSwitchOn).
 //
 // A FAILED READ IS NOT AN EMPTY ROAD. A stops error returns { error } — never "nothing scheduled",
 // which on the phone would say "cup orders open with the next stop" about a schedule it could not
@@ -20,11 +23,17 @@
 // the phone keeps its last answer and lets the server decide.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { orderingStop, preorderLeadMs, type OrderingStop, type StopRow } from "./ordering";
+import { orderingNow, orderingStop, preorderLeadMs, type NamedStop, type Ordering, type OrderingStop, type StopRow } from "./ordering";
 import type { Market } from "./markets";
 
-export type OrderingInputs = { isLive: boolean; liveStopId: string | null; stops: OrderingStop[] };
+// `named` (C1, 2026-10-12): the stop the live switch names, read by id when the road does not have it — the road drops
+// a stop once it is archived, done or a day old, which is exactly when a switch left on is wrong. null = no such stop in
+// this city; absent = the switch names none, or the road has it. lib/ordering's liveSwitchOn judges it.
+export type OrderingInputs = { isLive: boolean; liveStopId: string | null; stops: OrderingStop[]; named?: NamedStop | null };
 export type OrderingRead = { inputs: OrderingInputs; error: null } | { inputs: null; error: string };
+
+/** The rule over a read — the one call the phone and the server make, so neither can forget an input. */
+export const orderingFrom = (i: OrderingInputs, nowMs: number): Ordering => orderingNow(nowMs, i.isLive, i.stops, i.liveStopId, i.named);
 
 const LOOK_BACK_MS = 24 * 60 * 60 * 1000;
 type Flags = { is_live?: boolean | null; preorder_lead_h?: number | null; current_stop_id?: string | null };
@@ -46,5 +55,15 @@ export async function readOrdering(sb: SupabaseClient, market: Market, nowMs: nu
   const lead = preorderLeadMs(flags?.preorder_lead_h);
   const stops = ((road.data ?? []) as StopRow[]).map((r) => orderingStop(r, lead)).filter((s): s is OrderingStop => s !== null);
   const isLive = !!flags?.is_live;
-  return { inputs: { isLive, liveStopId: isLive ? ((single.data as Flags | null)?.current_stop_id ?? null) : null, stops }, error: null };
+  const liveStopId = isLive ? ((single.data as Flags | null)?.current_stop_id ?? null) : null;
+  if (!liveStopId || stops.some((s) => s.id === liveStopId)) return { inputs: { isLive, liveStopId, stops }, error: null };
+  // The switch names a stop the road does not have: its own row says whether it is still a stop. This city's only — a
+  // pointer to another city's stop is that city's truck, not a truck pouring here. (The pointer is the company's one
+  // row, live_status: the day a second city runs its own truck on its own switch (markets.is_live, 0285) the pointer
+  // has to be per city too.) A failed read is an error, as above: the server refuses rather than charge on a switch it
+  // could not check.
+  const r = await sb.from("stops").select("starts_at, ends_at, archived_at, status, completed_at")
+    .eq("id", liveStopId).eq("market", market).maybeSingle();
+  if (r.error) return { inputs: null, error: r.error.message };
+  return { inputs: { isLive, liveStopId, stops, named: (r.data as NamedStop | null) ?? null }, error: null };
 }

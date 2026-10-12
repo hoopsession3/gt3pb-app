@@ -6851,7 +6851,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const stop = (id, s, e, lead = 4 * H, extra = {}) => ({ id, name: `Stop ${id}`, starts_at: iso(s), ends_at: e == null ? null : iso(e), where: "Five Forks", leadMs: lead, pickup: false, ...extra });
   const A = stop("A", T, T + 4 * H);                            // 11:00–3:00
   const B = stop("B", T + 6 * H, T + 9 * H);                    // 5:00–8:00, same day
-  const at = (now, live, stops, ptr = null) => O.orderingNow(now, live, stops, ptr);
+  const at = (now, live, stops, ptr = null, named) => O.orderingNow(now, live, stops, ptr, named);
   const st = (o) => `${o.state}/${o.open}/${o.stop ? o.stop.id : "-"}`;
 
   // ── the states ──
@@ -6879,8 +6879,34 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("ordering: …and is closing when the next one's window has not opened", st(at(T + 3.5 * H, false, [A, stop("C", T + 9 * H, null)])) === "closing/false/A");
   ok("ordering: a live switch left on past the stop's close time is not a truck pouring",
     st(at(T + 5 * H, true, [A], "A")) === "none/false/-" && st(at(T + 5 * H, true, [A, B], "A")) === "ahead/true/B");
-  ok("ordering: …but with no close time the switch is the crew's word, as on Find Us",
-    at(T + 9 * H, true, [stop("N", T, null)], "N").state === "live");
+  // 2026-10-12 (C1 of the customer audit, approved): with no close time the switch WAS the crew's word for as long as
+  // it was left on — a forgotten Go offline kept cup orders open, and charging, with nobody at the truck. A stop with no
+  // close time ends where lib/road ends every other one: 8 hours from its start, inclusive.
+  ok("ordering: with no close time a live switch ends at lib/road's 8 hours, like every other stop (C1)",
+    st(at(T + 8 * H, true, [stop("N", T, null)], "N")) === "live/true/N" && st(at(T + 8 * H + 1, true, [stop("N", T, null)], "N")) === "none/false/-");
+  // ── the stop the switch names, when the road does not have it (C1) ──
+  const gone = (extra) => ({ starts_at: iso(T), ends_at: null, archived_at: null, status: "live", completed_at: null, ...extra });
+  ok("ordering: a switch whose stop was archived, marked done or stamped complete is no truck pouring (C1)",
+    st(at(T + H, true, [], "G", gone({ archived_at: iso(T + 30 * M), status: "upcoming" }))) === "none/false/-"
+    && st(at(T + H, true, [], "G", gone({ status: "done" }))) === "none/false/-"
+    && st(at(T + H, true, [], "G", gone({ completed_at: iso(T + 30 * M), status: "upcoming" }))) === "none/false/-"
+    && st(at(T + H, true, [A], "G", gone({ archived_at: iso(T) }))) === "started/true/A");
+  ok("ordering: …but a stop stamped complete and gone live at again is a stop — Go live sets it 'live' and leaves its completed_at (0124)",
+    st(at(T + H, true, [], "G", gone({ completed_at: iso(T + 30 * M), status: "live" }))) === "live/true/-"
+    && st(at(T + H, true, [], "G", gone({ completed_at: iso(T + 30 * M), status: "done" }))) === "none/false/-");
+  ok("ordering: the concierge says OPEN only when the order button would — the same rule, on the same row",
+    /const open = liveSwitchOn\(Date\.now\(\), !!\(ls\.data as any\)\.is_live, \(ls\.data as any\)\.current_stop_id \?\? null, named\);/.test(code(read("app/api/concierge/route.ts")))
+    && /live = open\s*\? `The truck is OPEN now/.test(code(read("app/api/concierge/route.ts"))));
+  ok("ordering: …nor one this city has no row for — deleted, or another city's (the reader reads it as null)",
+    st(at(T, true, [], "X", null)) === "none/false/-" && st(at(T - 5 * H, true, [A], "X", null)) === "early/false/A");
+  ok("ordering: a named stop a day old with no close time is over; one whose close time is still ahead stands",
+    st(at(T + 30 * H, true, [], "D", gone({}))) === "none/false/-"
+    && st(at(T + 30 * H, true, [], "D", gone({ ends_at: iso(T + 48 * H) }))) === "live/true/-");
+  ok("ordering: an undated stop is on the road until somebody dates it — its switch stands; no stop named stands",
+    st(at(T, true, [], "U", gone({ starts_at: null }))) === "live/true/-" && st(at(T, true, [])) === "live/true/-"
+    && O.liveSwitchOn(T, true, null, null) && !O.liveSwitchOn(T, false, "U", gone({ starts_at: null })));
+  ok("ordering: a caller that read no row keeps the switch as it stands — the readers of record always read it",
+    st(at(T, true, [], "X")) === "live/true/-" && O.liveSwitchOn(T, true, "X", undefined));
   ok("ordering: with no close time the grace is lib/road's 8 hours, inclusive",
     st(at(T + 8 * H, false, [stop("N", T, null)])) === "started/true/N" && st(at(T + 8 * H + 1, false, [stop("N", T, null)])) === "none/false/-"
     && O.PREORDER_TAIL_MS === require("../.smoke/road.js").STOP_DONE_GRACE_MS);
@@ -6976,8 +7002,19 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const fu = code(read("components/FindUs.tsx")), menu = code(read("app/menu/page.tsx")), sheet = code(read("components/DrinkSheet.tsx"));
   const co = code(read("components/Checkout.tsx")), bar = code(read("components/OrderStatus.tsx")), crew = code(read("app/crew/page.tsx"));
   ok("one rule: the phone and the server read with lib/orderingRead and decide with lib/ordering",
-    /readOrdering\(supabase!, market\)/.test(hook) && /orderingNow\(now, inputs\.isLive, inputs\.stops, inputs\.liveStopId\)/.test(hook)
-    && /readOrdering\(supabaseAdmin, toMarket\(/.test(api) && /orderingNow\(nowMs, read\.inputs\.isLive, read\.inputs\.stops, read\.inputs\.liveStopId\)/.test(api));
+    /readOrdering\(supabase!, market\)/.test(hook) && /orderingFrom\(inputs, now\)/.test(hook)
+    && /readOrdering\(supabaseAdmin, toMarket\(/.test(api) && /orderingFrom\(read\.inputs, nowMs\)/.test(api)
+    && /export const orderingFrom = \(i: OrderingInputs, nowMs: number\): Ordering => orderingNow\(nowMs, i\.isLive, i\.stops, i\.liveStopId, i\.named\);/.test(read("lib/orderingRead.ts"))
+    && !/orderingNow\(/.test(hook) && !/orderingNow\(/.test(api));
+  // 2026-10-12 (C1): the switch names a stop the road does not have → that stop's own row, this city's only, and a failed
+  // read is an error (the server refuses). Find Us asks the same rule of the same row, so Live and the order button agree.
+  ok("one rule: the stop the switch names is read by id, this city's only, and a failed read refuses (C1)",
+    /select\("starts_at, ends_at, archived_at, status, completed_at"\)\s*\.eq\("id", liveStopId\)\.eq\("market", market\)\.maybeSingle\(\);/.test(read("lib/orderingRead.ts"))
+    && /if \(r\.error\) return \{ inputs: null, error: r\.error\.message \};/.test(read("lib/orderingRead.ts"))
+    && /select\("starts_at, ends_at, archived_at, status, completed_at, market"\)\.eq\("id", pointed\)\.maybeSingle\(\);\s*if \(e3\) throw new Error\(e3\.message\);/.test(fu)
+    && /const liveId = liveSwitchOn\(Date\.now\(\), !!lstat\?\.is_live, pointed, named\) \? pointed : null;/.test(fu)
+    && /const switchOn = liveSwitchOn\(nowMs, Boolean\(live\?\.is_live\), live\?\.current_stop_id \?\? null, named && rowInMarket\(named, viewerMarket\) \? named : null\);/.test(fu)
+    && /const isLive = switchOn && \(liveEndsMs == null \|\| nowMs < liveEndsMs - LIVE_OFF_BEFORE_MS\);/.test(fu));
   ok("one rule: no second copy — the server no longer reads the singleton's switch or calls preorderWindow",
     !/preorderWindow\(/.test(api) && !/preorderWindow\(/.test(hook) && !/select\("is_live, preorder_lead_h"\)\.maybeSingle\(\)/.test(api)
     && !/ORDERS_CLOSE_BEFORE/.test(fu) && /export const ORDERS_CLOSE_BEFORE_END_MS = 60 \* 60 \* 1000;/.test(read("lib/ordering.ts")));
@@ -12240,6 +12277,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     truck({ live: true, at: stopAt(-1, 42 / 60) }).text === "Live at Wine Express · 42 min left" && truck({ live: true, at: stopAt(-1, 42 / 60) }).tone === "on"
       && truck({ live: true, at: stopAt(-3, -12 / 60) }).text === "Live at Wine Express · closed 12 min ago" && truck({ live: true, at: stopAt(-3, -12 / 60) }).tone === "warn"
       && truck({ live: true, at: stopAt(-40 / 60, null) }).text === "Live at Wine Express · 40 min in"
+      // C1 (2026-10-12): with no close time, past lib/road's 8 hours customers see the stop over and orders closed — the
+      // crew is told so, in warn, at the same moment (lib/ordering liveSwitchOn); at 8 hours exactly it is still on.
+      && truck({ live: true, at: stopAt(-9, null) }).text === "Live at Wine Express · 9 h in · no close time, so orders closed at 8 h"
+      && truck({ live: true, at: stopAt(-9, null) }).tone === "warn" && truck({ live: true, at: stopAt(-8, null) }).tone === "on"
       && truck({ live: true, at: stopAt(10 / 60, 3) }).text === "Live at Wine Express · starts in 10 min"
       && truck({ live: true, at: stopAt(-1, 2.5) }).text === "Live at Wine Express · 2 h 30 min left",
     [truck({ live: true, at: stopAt(-1, 42 / 60) }).text, truck({ live: true, at: stopAt(-3, -12 / 60) }).text, truck({ live: true, at: stopAt(-40 / 60, null) }).text]);

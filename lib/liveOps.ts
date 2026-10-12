@@ -14,7 +14,7 @@
 import { clockTime, etDayKey } from "./dates";
 import { dueDay } from "./dueNext";
 import { flagIsToday } from "./home";
-import { stopIsDue } from "./road";
+import { STOP_DONE_GRACE_MS, stopIsDue } from "./road";
 
 // ── WHO MAY GO LIVE: THE DATABASE'S OWN TEST ─────────────────────────────────────────────────────────────────────────
 // Go live, Go offline and the truck's map dot call admin_set_live (0124), admin_set_offline (0022) and
@@ -52,8 +52,9 @@ export function spanWords(minutes: number): string {
 
 /** THE LIVE STOP'S MINUTES. live_status keeps no time the truck went live (0019, 0022), so the minutes are the stop's
  *  own: before its start (live early) "starts in 10 min"; then until its end, "42 min left" — and "closed 12 min ago"
- *  once that has passed with the truck still live, which is `late`; with no end, "40 min in" since the start. Neither
- *  time: nothing. */
+ *  once that has passed with the truck still live, which is `late`; with no end, "40 min in" since the start — and,
+ *  past lib/road's 8 hours, `late` with why: customers see the stop over and cup orders closed there (C1, 2026-10-12,
+ *  lib/ordering liveSwitchOn), so the crew is told what the customer is. Neither time: nothing. */
 export function liveClock(s: StopLite | null | undefined, nowMs: number): { words: string; late: boolean } {
   const start = at(s?.starts_at), end = at(s?.ends_at);
   if (Number.isFinite(start) && start > nowMs) return { words: `starts in ${spanWords(Math.ceil((start - nowMs) / 60_000))}`, late: false };
@@ -62,7 +63,10 @@ export function liveClock(s: StopLite | null | undefined, nowMs: number): { word
       ? { words: `${spanWords(Math.ceil((end - nowMs) / 60_000))} left`, late: false }
       : { words: `closed ${spanWords(Math.max(1, Math.floor((nowMs - end) / 60_000)))} ago`, late: true };
   }
-  if (Number.isFinite(start)) return { words: `${spanWords(Math.max(1, Math.floor((nowMs - start) / 60_000)))} in`, late: false };
+  if (Number.isFinite(start)) {
+    const words = `${spanWords(Math.max(1, Math.floor((nowMs - start) / 60_000)))} in`;
+    return nowMs - start > STOP_DONE_GRACE_MS ? { words: `${words} · no close time, so orders closed at 8 h`, late: true } : { words, late: false };
+  }
   return { words: "", late: false };
 }
 

@@ -6,6 +6,7 @@ import { ownerCorrections, logConvo } from "@/lib/agentKnowledge";
 import { claimSafe, CLAIM_FALLBACK } from "@/lib/claimGuard";
 import { etTimeLabel, etToday } from "@/lib/dates";
 import { money } from "@/lib/money";
+import { liveSwitchOn, type NamedStop } from "@/lib/ordering";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
 
@@ -107,12 +108,18 @@ async function post(req: Request) {
     prices = (pr.data ?? []).map((p: any) => `- ${p.name ?? p.slug}: ${money(p.price_cents)}`).join("\n");
     if (ls.data) {
       let where = "";
+      // The switch is a truck pouring only while the stop it names is still a stop (C1, lib/ordering liveSwitchOn) — the
+      // rule the order button asks, so the concierge never says OPEN where Pay says closed. A stop it could not read is
+      // the switch as it stands.
+      let named: NamedStop | null | undefined;
       if ((ls.data as any).current_stop_id) {
-        const { data: s } = await supabaseAdmin.from("stops").select("name, location_text").eq("id", (ls.data as any).current_stop_id).maybeSingle();
+        const { data: s, error: se } = await supabaseAdmin.from("stops").select("name, location_text, starts_at, ends_at, archived_at, status, completed_at").eq("id", (ls.data as any).current_stop_id).maybeSingle();
+        named = se ? undefined : ((s as NamedStop | null) ?? null);
         if (s) where = `${(s as any).name}${(s as any).location_text ? ` — ${(s as any).location_text}` : ""}`;
       }
+      const open = liveSwitchOn(Date.now(), !!(ls.data as any).is_live, (ls.data as any).current_stop_id ?? null, named);
       let next = "";
-      if (!(ls.data as any).is_live) {
+      if (!open) {
         // The truck's own schedule, not a hand-typed ETA field — the next stop that hasn't
         // started yet, in date order, same source of truth the Truck page reads.
         const { data: n } = await supabaseAdmin.from("stops").select("name, starts_at")
@@ -126,7 +133,7 @@ async function post(req: Request) {
           next = `${(n as any).name}, ${etTimeLabel(new Date((n as any).starts_at))}`;
         }
       }
-      live = (ls.data as any).is_live
+      live = open
         ? `The truck is OPEN now${where ? ` at ${where}` : ""}.`
         : `The truck is not currently open${next ? `. Next: ${next}` : ""}.`;
     }

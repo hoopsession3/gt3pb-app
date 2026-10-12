@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { orderingNow, type Ordering, type OrderingStop } from "@/lib/ordering";
-import { readOrdering, type OrderingInputs } from "@/lib/orderingRead";
+import { type Ordering, type OrderingStop } from "@/lib/ordering";
+import { orderingFrom, readOrdering, type OrderingInputs } from "@/lib/orderingRead";
 import { FOUNDING_MARKET, type Market } from "@/lib/markets";
 
 // IS THE TRUCK TAKING CUP ORDERS? — every ordering surface asks here (Find Us, the menu, the drink
@@ -51,7 +51,7 @@ export function useOrderingOpen(active: boolean, market: Market = FOUNDING_MARKE
     document.addEventListener("visibilitychange", onVis);
     return () => { alive = false; clearInterval(reread); clearInterval(tick); document.removeEventListener("visibilitychange", onVis); };
   }, [active, market, refreshKey]);
-  const o = inputs ? orderingNow(now, inputs.isLive, inputs.stops, inputs.liveStopId) : null;
+  const o = inputs ? orderingFrom(inputs, now) : null;
   return {
     open: o ? o.open : true, checked: o !== null, ordering: o, stops: inputs?.stops ?? [],
     nextAt: o?.stop?.starts_at ?? null, nextName: o?.stop?.name ?? null, pickup: !!o?.stop?.pickup,

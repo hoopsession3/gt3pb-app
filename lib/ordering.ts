@@ -102,17 +102,48 @@ const result = (state: OrderingState, stop: OrderingStop | null, extra: Partial<
   state, open: state === "live" || state === "started" || state === "ahead", stop, opensAt: null, readyFrom: null, ...extra,
 });
 
+// ── IS THE SWITCH A TRUCK POURING? (2026-10-12, C1 of the customer audit, approved) ─────────────────
+// The switch used to be believed whenever the stop it was flipped at was no longer read. The read drops a stop once it
+// is archived, done or a day old — exactly when a switch left on is wrong — so a forgotten "Go offline", or a live stop
+// archived outside Live Ops, reopened cup orders with no truck there, and the card was charged. Now the switch is the
+// crew's word only while the stop it names is still a stop:
+//   · gone — archived, done, stamped complete (unless the crew went live at it again: Go live sets it 'live' and
+//     leaves its completed_at), or no such row in this city — the switch is off;
+//   · ended — past its close time, or, with none, past lib/road's 8 hours from its start (the same `over` every other
+//     stop is judged by: a stop with no close time does not run longer because a switch was left on) — off;
+//   · undated — on the road until somebody dates it (lib/road) — the switch stands;
+//   · no stop named at all — an unscheduled pour, as it always was — the switch stands.
+// Find Us asks this too, so the page stops saying Live when the order button stops taking orders.
+
+/** The stop the live switch names (live_status.current_stop_id), as read: the road's own row, or the row read by id
+ *  when the road does not have it. null = no such stop in this city. */
+export type NamedStop = {
+  starts_at?: string | null; ends_at?: string | null;
+  archived_at?: string | null; status?: string | null; completed_at?: string | null;
+};
+
+/** `named` undefined = not read (a caller that only knows the road): the switch as it stands. Every reader of
+ *  record — lib/orderingRead for the phone and the server, and Find Us — reads it. */
+export function liveSwitchOn(nowMs: number, isLive: boolean, liveStopId: string | null, named: NamedStop | null | undefined): boolean {
+  if (!isLive) return false;
+  if (!liveStopId || named === undefined) return true;
+  if (!named || named.archived_at || named.status === "done" || (named.completed_at && named.status !== "live")) return false;
+  if (!named.starts_at) return true;
+  const p = span({ id: liveStopId, name: null, starts_at: named.starts_at, ends_at: named.ends_at ?? null, where: null, leadMs: 0, pickup: false });
+  return !p || !over(p, nowMs);
+}
+
 /**
  * Can a cup be ordered online now? `stops` are the city's stops still on the road (lib/road), any
- * order; `liveStopId` is live_status.current_stop_id — trusted only when it is one of them.
+ * order; `liveStopId` is live_status.current_stop_id — trusted only when it is one of them; `named`
+ * is that stop's row when it is not (lib/orderingRead reads it by id — see liveSwitchOn).
  */
-export function orderingNow(nowMs: number, isLive: boolean, stops: readonly OrderingStop[], liveStopId: string | null = null): Ordering {
+export function orderingNow(nowMs: number, isLive: boolean, stops: readonly OrderingStop[], liveStopId: string | null = null, named?: NamedStop | null): Ordering {
   const all = stops.map(span).filter((p): p is Span => p !== null);
   const pointer = liveStopId ? all.find((p) => p.s.id === liveStopId) ?? null : null;
-  // A live switch left on past the close time of the stop it was flipped at is not a truck pouring:
-  // Find Us stops saying Live 45 minutes before that close, and nobody is there to make a cup. Only
-  // a real close time does this — with none, the switch is the crew's word, as on Find Us.
-  const live = isLive && !(pointer && pointer.hasEnd && nowMs >= pointer.end);
+  // A switch left on past the end of the stop it was flipped at is not a truck pouring: nobody is
+  // there to make a cup. The road's own row when it has it, else the stop read by id.
+  const live = liveSwitchOn(nowMs, isLive, liveStopId, pointer ? pointer.s : named);
   const road = all.filter((p) => !over(p, nowMs)).sort((a, b) => a.start - b.start);
   const underWay = road.filter((p) => p.start <= nowMs);
   const next = road.find((p) => p.start > nowMs) ?? null;
