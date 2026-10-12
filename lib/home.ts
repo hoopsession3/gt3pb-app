@@ -6,14 +6,18 @@
 // what's next (at most three things due today). Everything else is one tap down, and nothing is
 // deleted to get there.
 //
+// 2026-10-12 (the My Day audit, approved): the numbers went to Money alone, and the home's questions are
+// the person's — what needs me, what should I do next, what's coming — answered by the head's four states,
+// the fixed rank and Coming up, below. Only what's yours is on it (lib/obligations obligationFor).
+//
 // The rules live here, apart from the screens, so the smoke suite can hold them to their word.
-import { dayKey, etDayKey, addDays, weekdayOf } from "./dates";
+import { dayKey, etDayKey, addDays, weekdayOf, dayFromKey } from "./dates";
 import { etDayStart } from "./etDay";
-import { dueWord } from "./dayWords";
+import { dueWord, daysBetween } from "./dayWords";
 
 /** A task more than this many days late is stale: it folds into one row instead of leading the day. */
 export const STALE_DAYS = 14;
-/** The home shows at most this many things due today. */
+/** The home leads with at most this many rows (since 2026-10-12, in the fixed rank below). */
 export const TODAY_MAX = 3;
 
 export type HomeItem = {
@@ -187,6 +191,68 @@ export function nextUp<T extends HomeItem>(items: readonly T[]): T | null {
   const ahead = items.filter((i) => (i.kind === "mine" || i.kind === "owed") && i.daysOut !== null && i.daysOut > 0);
   ahead.sort((a, b) => (a.daysOut as number) - (b.daysOut as number) || Number(b.critical) - Number(a.critical) || Number(b.kind === "mine") - Number(a.kind === "mine"));
   return ahead[0] ?? null;
+}
+
+// ── COMING UP (2026-10-12, the My Day audit, approved) ───────────────────────────────────────────
+// My Day answered "what needs me" and "what next", and "what's coming?" nowhere: a task due in two days
+// was invisible until its day, and an event someone was crewing on Saturday showed nowhere on their home
+// until Saturday's op card. Coming up is one line per commitment in the next COMING_DAYS days that
+// involves the viewer — an event or stop they are on the crew of (event_staff), an event or stop they
+// have work for (their tasks for it are counted on its line, not listed), or a dated task of theirs
+// that belongs to neither — each opening its record. At most COMING_MAX lines; read only: Plan is still
+// the record, and nothing here writes. Today's own are the op card's and To do's, so the window starts
+// tomorrow.
+//
+// The approved brief said stops have no crew list, so a stop would show only through a task. They do —
+// event_staff.stop_id, 0094, staffed from Prep like an event — so a stop someone is crewing shows the same
+// way an event does. Where nobody crews stops, nothing changes.
+export const COMING_DAYS = 7;
+export const COMING_MAX = 3;
+type OpKind = "event" | "stop";
+export type ComingTask = { id: string; source: "event" | "todo"; title: string; day: string | null; op: { kind: OpKind; id: string | null; name: string; day: string | null } | null };
+export type ComingStaff = { kind: OpKind; id: string; name: string; day: string | null; role: string | null };
+export type ComingLine =
+  | { kind: "op"; op: OpKind; id: string; title: string; day: string; staffed: boolean; role: string | null; tasks: number }
+  | { kind: "task"; id: string; source: "event" | "todo"; title: string; day: string; opName: string | null };
+
+/** The commitments of the next COMING_DAYS days that involve the viewer: the first COMING_MAX in day order, and how many in all. */
+export function comingUp(today: string, tasks: readonly ComingTask[], staffed: readonly ComingStaff[]): { lines: ComingLine[]; total: number } {
+  const last = addDays(today, COMING_DAYS);
+  const inWindow = (d: string | null): d is string => !!d && d > today && d <= last;
+  const ops = new Map<string, Extract<ComingLine, { kind: "op" }>>();
+  for (const s of staffed) {
+    if (inWindow(s.day)) ops.set(`${s.kind}:${s.id}`, { kind: "op", op: s.kind, id: s.id, title: s.name, day: s.day, staffed: true, role: s.role, tasks: 0 });
+  }
+  const own: ComingLine[] = [];
+  for (const t of tasks) {
+    const op = t.op;
+    if (op && op.id && inWindow(op.day)) {
+      const key = `${op.kind}:${op.id}`;
+      const line = ops.get(key) ?? { kind: "op" as const, op: op.kind, id: op.id, title: op.name, day: op.day, staffed: false, role: null, tasks: 0 };
+      line.tasks++;
+      ops.set(key, line);
+    } else if (inWindow(t.day)) own.push({ kind: "task", id: t.id, source: t.source, title: t.title, day: t.day, opName: op?.name ?? null });
+  }
+  const all = [...ops.values(), ...own].sort((a, b) => a.day.localeCompare(b.day) || Number(b.kind === "op") - Number(a.kind === "op") || a.title.localeCompare(b.title));
+  return { lines: all.slice(0, COMING_MAX), total: all.length };
+}
+
+const WHEN_FMT = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" });
+/** "Tomorrow" · "Sat" inside the week · "Mon, Oct 19" a week out, when "Mon" would read as today. */
+export function comingWhen(day: string, today: string): string {
+  const n = daysBetween(today, day);
+  if (n === 1) return "Tomorrow";
+  if (n > 1 && n < 7) return weekdayOf(day, "short");
+  return WHEN_FMT.format(dayFromKey(day));
+}
+
+/** A Coming up line in words: when, and what it is to you. */
+export function comingWords(l: ComingLine, today: string): { when: string; sub: string } {
+  const when = comingWhen(l.day, today);
+  if (l.kind === "task") return { when, sub: [l.source === "todo" ? "To-do" : "Task", l.opName ? `for ${l.opName}` : null].filter(Boolean).join(" · ") };
+  const crew = !l.staffed ? null : l.role === "manager" ? "you're managing it" : l.role ? `you're on the crew · ${l.role}` : "you're on the crew";
+  const work = l.tasks ? `${l.tasks} ${l.tasks === 1 ? "task" : "tasks"} of yours` : null;
+  return { when, sub: [l.op === "stop" ? "Truck stop" : "Event", crew, work].filter(Boolean).join(" · ") };
 }
 
 // ── THE NUMBERS ────────────────────────────────────────────────────────────────────────────────

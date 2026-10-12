@@ -6745,6 +6745,61 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       /op_name != null/.test(mt) && /id: r\.event_id \?\? r\.stop_id \?\? r\.field_op_id \?\? null/.test(mt)
       && /critical: false, warn: false, events: null, meeting_notes: null, goals: null, op: opOf\(r\),/.test(mt) && /source: "event" as const, op: opOf\(r\),/.test(mt));
   }
+
+  // E — Coming up: one line per commitment of yours in the next seven days, at most three, each opening its record.
+  {
+    const mon = "2026-10-12";   // a Monday; the window is Tue 13 to Mon 19
+    const evA = { kind: "event", id: "A", name: "ISI Elite Training", day: "2026-10-17", role: null };
+    const evB = { kind: "event", id: "B", name: "Fall Fest", day: "2026-10-20", role: "manager" };          // day 8: out
+    const evToday = { kind: "event", id: "T", name: "Greenville Fit Fest", day: mon, role: null };          // today: the op card's
+    const stS = { kind: "stop", id: "S", name: "Swamp Rabbit stop", day: "2026-10-14", role: "manager" };  // a crewed stop (event_staff.stop_id)
+    const task = (id, day, op = null, source = "event") => ({ id, source, title: id, day, op });
+    const opOf = (kind, id, name, day) => ({ kind, id, name, day });
+    const tasks = [
+      task("t1", "2026-10-17", opOf("event", "A", "ISI Elite Training", "2026-10-17")),       // A's — counted on A's line
+      task("t2", "2026-10-15", opOf("stop", "X", "Main St stop", "2026-10-15")),              // a stop they are not crewing, but have work for
+      task("t3", "2026-10-13", null, "todo"),                                                  // tomorrow, on its own
+      task("t4", "2026-10-25"),                                                                // past the window
+      task("t5", null),                                                                         // undated
+      task("t6", mon),                                                                          // today's — To do's
+      task("t7", "2026-10-16", opOf("event", "B", "Fall Fest", "2026-10-20")),                // dated in the window, its event is not
+      task("t8", "2026-10-19"),                                                                // day 7: in
+    ];
+    const c = H.comingUp(mon, tasks, [evA, evB, evToday, stS]);
+    const keys = (r) => r.lines.map((l) => `${l.kind}:${l.id}`).join();
+    ok("my day (E): seven days from tomorrow, in day order, at most three lines — and how many in all",
+      H.COMING_DAYS === 7 && H.COMING_MAX === 3 && c.total === 6 && keys(c) === "task:t3,op:S,op:X", { total: c.total, keys: keys(c) });
+    const rest = H.comingUp(mon, tasks.filter((t) => ["t1", "t7", "t8"].includes(t.id)), [evA, evB, evToday]);
+    ok("my day (E): an event they are crewing is a line, their tasks for it counted on it; a task dated in the week whose event is not is its own line; day 7 is in, day 8 is not, and today's is the op card's",
+      keys(rest) === "task:t7,op:A,task:t8" && rest.total === 3 && rest.lines[1].tasks === 1 && rest.lines[1].staffed === true, keys(rest));
+    ok("my day (E): a task past the window, one with no date, and today's are not lines",
+      H.comingUp(mon, tasks.filter((t) => ["t4", "t5", "t6"].includes(t.id)), []).total === 0);
+    const lineA = H.comingUp(mon, [tasks[0]], [evA]).lines[0], lineX = H.comingUp(mon, [tasks[1]], []).lines[0];
+    ok("my day (E): a crewed event's line counts the viewer's tasks for it; a stop shows through a task when nobody crews it, and through the crew list when they do",
+      lineA.kind === "op" && lineA.staffed === true && lineA.tasks === 1 && lineX.kind === "op" && lineX.op === "stop" && lineX.staffed === false && lineX.tasks === 1
+      && c.lines[1].kind === "op" && c.lines[1].op === "stop" && c.lines[1].staffed === true);
+    ok("my day (E): each line in words — when (tomorrow, the weekday, a week out the date) and what it is to you",
+      JSON.stringify(H.comingWords(lineA, mon)) === JSON.stringify({ when: "Sat", sub: "Event · you're on the crew · 1 task of yours" })
+      && H.comingWords(c.lines[0], mon).when === "Tomorrow" && H.comingWords(c.lines[0], mon).sub === "To-do"
+      && H.comingWords(c.lines[1], mon).sub === "Truck stop · you're managing it" && H.comingWhen("2026-10-19", mon) === "Mon, Oct 19"
+      && H.comingWords({ kind: "task", id: "t7", source: "event", title: "t7", day: "2026-10-16", opName: "Fall Fest" }, mon).sub === "Task · for Fall Fest",
+      [H.comingWords(lineA, mon), H.comingWords(c.lines[1], mon)]);
+    const cu = code(read("components/ComingUp.tsx")), mdCrew = code(read("app/crew/page.tsx"));
+    const md = mdCrew.slice(mdCrew.indexOf("function MyDay("), mdCrew.indexOf("function MyTasks("));
+    ok("my day (E): Coming up reads your plate (lib/myTasks), your crew rows and the events and stops on them in the window — every read throws, so a failed week is not an empty one",
+      /loadMyTasks\(meId\),\s*sb\.from\("event_staff"\)\.select\("event_id, stop_id, role_label"\)\.eq\("user_id", meId\),/.test(cu)
+      && /if \(mine\.error\) throw new Error\(mine\.error\);/.test(cu) && /if \(crew\.error\) throw new Error\(crew\.error\.message\);/.test(cu)
+      && /sb\.from\("events"\)\.select\("id, title, day"\)\.in\("id", evIds\)\.is\("archived_at", null\)\.gte\("day", from\)\.lte\("day", to\)/.test(cu)
+      && /const failed = \[ev\?\.error, st\?\.error\]\.find\(Boolean\);\s*if \(failed\) throw new Error\(failed\.message\);/.test(cu)
+      && /errorSub="This is not the same as nothing coming up — we could not read it just now\."/.test(cu));
+    ok("my day (E): read only — no write anywhere in it — each line opens its record or its task, and it is on the app's refresh",
+      !/\.update\(|\.insert\(|\.delete\(|\.upsert\(|\.rpc\(|completeTask|updateTask/.test(cu)
+      && /onClick=\{\(\) => \(l\.kind === "op" \? openRecord\(l\.op, l\.id\) : openTask\(l\.id, l\.source\)\)\}/.test(cu)
+      && /\{ table: "event_staff", filter: `user_id=eq\.\$\{meId\}` \}, "events", "stops",/.test(cu) && /\], state\.reload, \{ enabled: !!meId \}\);/.test(cu));
+    ok("my day (E): it sits beside the day on a desk and after To do on a phone, for every role, a static import like the rest of the morning screen",
+      md.indexOf("<TodayList ") > 0 && md.indexOf("<TodayList ") < md.indexOf("<ComingUp />") && (mdCrew.match(/<ComingUp /g) || []).length === 1
+      && /^import ComingUp from "@\/components\/ComingUp";/m.test(read("app/crew/page.tsx")));
+  }
 }
 
 // ── THE CUSTOMER SIDE: ONE ORDERING RULE, AND A PRE-ORDER SAYS WHEN (2026-10-04, 0343) ────────────

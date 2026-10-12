@@ -44,6 +44,7 @@ import AsyncSection from "@/components/AsyncSection";
 import Owed from "@/components/Owed";  // daily path: the overdue list is on the default screen
 import HomeNumbers from "@/components/HomeNumbers";  // daily path: the home's three numbers
 import TodayList from "@/components/TodayList";      // daily path: the home's Today list
+import ComingUp from "@/components/ComingUp";        // daily path: the home's next seven days
 import { flagIsToday, rhythmDay, RHYTHM_TABLES } from "@/lib/home";
 // Daily path too (2026-10-04): today's op card lives here now, for everybody, so it is a static
 // import like the rest of the morning screen — a crew member opening My Day must never wait on a
@@ -222,7 +223,7 @@ const SEC_WHEN: Record<OpSection, string> = {
   plan: "Booking ahead", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", driver: "Delivery days", notes: "Any time", money: "The books", catalog: "Changing what we sell", customers: "Your regulars", team: "People & roles", settings: "Changing how it works",
 };
 const SEC_SUB: Record<OpSection, string> = {
-  day: "Your tasks, flags, needs-you & what's on today.",
+  day: "Your tasks, flags, needs-you, what's on today & what's coming.",
   command: "The shared board — initiatives, this week, blockers, done, money & goals.",
   now: "The pass, pack pickups & the 86 board — live service.",
   ask: "Recipes, gear, stock & how-to — from the GT3 playbook.",
@@ -240,7 +241,7 @@ const SEC_SUB: Record<OpSection, string> = {
   settings: "Your account, notifications & display — and how the business runs.",
 };
 const SEC_MORE: Record<OpSection, string> = {
-  day: "Your personal launchpad — the console's one glance screen. Everything assigned to you, everything flagged for your attention, the deadlines that are yours, and (for leadership) booking replies and restock lows. The team's late work is on Command, with who each task is waiting on.",
+  day: "Your personal launchpad — the console's one glance screen. Everything assigned to you, everything flagged for your attention, the deadlines that are yours, and (for leadership) booking replies and restock lows — then what's coming: the events, stops and dated tasks of yours in the next seven days. The team's late work is on Command, with who each task is waiting on.",
   command: "The shared war room both founders see — the digital version of the magnetic board. Your initiatives (a dated program like the Aug-1 launch) with a countdown and milestone progress, then This Week, Blockers, Done and Money in one glance. This is where you answer “are we on track?” together, instead of over text. Company goals live here too — owners, progress and check-ins — so the scoreboard and the steering wheel share one screen.",
   now: "The glance before the work. Alerts land here, the service pulse shows what's waiting (orders on the pass, items 86'd), and one tap opens The Pass — the working screen with the pass board, pickup checklist and 86 board. Prep lives here too: the drop's brew sheet and Sunday delivery.",
   prep: "Get ready before you roll. Build the pack list, check stock and readiness, and sign off that the truck's loaded for the next event or stop.",
@@ -262,7 +263,7 @@ const SEC_MORE: Record<OpSection, string> = {
   settings: "How the app and the business behave, by category — the way a phone's Settings reads. You — your account, notifications and display — is everyone's. Owners and admins see Business under it: payments & checkout, ordering & delivery, locations & markets, team & permissions, reports, integrations like Outlook, the AI, and the brand guests see. Advanced is about the software itself: the activity log, app health and the lists every picker offers. What the business sells is the Catalog, and a broadcast is Customers › Messages. Each thing's old spot keeps a line that brings you to it. Edits go live instantly, no deploy.",
 };
 const SEC_INSIDE: Record<OpSection, string[]> = {
-  day: ["Your open tasks & due dates", "Alerts flagged for you — with discussion threads", "Needs you — the deadlines that are yours; booking replies & restock for leadership", "What's on the calendar today", "Day-of brief — dress code & call time"],
+  day: ["Your open tasks & due dates", "Alerts flagged for you — with discussion threads", "Needs you — the deadlines that are yours; booking replies & restock for leadership", "What's on the calendar today", "Coming up — your next 7 days: events & stops you're on, dated tasks", "Day-of brief — dress code & call time"],
   command: ["The portfolio — ten workstreams, one owner each, audited every Monday /10", "Initiatives — a dated program with countdown & milestone progress + the goals it serves", "This week — everything due across both task lists", "Blockers — incidents, overdue work & at-risk goals", "Done this week — momentum at a glance", "Goals — owners, live numbers, one-tap check-ins", "The twelve — the Playbook's KPI board, Monday entry"],
   now: ["Service pulse — live counts, one tap into the working screen", "The Pass — the pass board (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Delivery run — run sheet, brew totals & packout (outcomes are logged in driver mode)", "Live truck: go live, GPS broadcast (locations live in Plan › Lists › Truck stops; the cup-ordering dial in Settings)", "Alerts & your tasks — pointers into My Day"],
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Crew assignments & sign-off", "Load-out & gear moved to Production › Assets"],
@@ -1189,6 +1190,13 @@ function MyDay({ userId, canGoLive, canBrew }: { userId: string | null; canGoLiv
           and goals are the live version of "what we're driving to"), the Chief of Staff briefing (on
           Command now, where the week is led), and Smart intake with what it filed (Quick actions › File,
           from every screen — a permit arrives in the hand, not at My Day). A daily screen holds the day. */}
+      </Column>
+      <Column>
+      {/* COMING UP (2026-10-12, the My Day audit, approved): what's coming, the third question My Day had
+          no answer to — one line per commitment of yours in the next seven days (an event or stop you're
+          on, one you have work for, a dated task), each opening its record. Read only; Plan is the record.
+          Beside the day on a desk, after To do on a phone. */}
+      <ComingUp />
       </Column>
       </Columns>
     </>
