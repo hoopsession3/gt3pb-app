@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "@/components/AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -11,7 +12,7 @@ import InlineCreate from "@/components/InlineCreate";
 import Icon from "@/components/Icon";
 import type { Stop, LiveStatus, Vendor } from "@/lib/db";
 import { haptic } from "@/lib/haptics";
-import { clockTime, dayWithDate, nextWeekdayAt } from "@/lib/dates";
+import { dayWithDate, nextWeekdayAt } from "@/lib/dates";
 import { isStopAhead, isStopPast, roadAhead, stopIsDue } from "@/lib/road";
 import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { goPlanTab } from "@/lib/planNav";
@@ -25,6 +26,12 @@ import { scrollToAnchor } from "@/lib/anchors";
 import { useWakeLock } from "@/lib/useWakeLock";
 import GoLine from "@/components/GoLine";
 import Button from "../Button";
+import { mayGoLive, stopName, truckAction, truckSays, type TruckRead } from "@/lib/liveOps";
+import { useMinute } from "@/lib/useMinute";
+import { StatusRow } from "@/components/crew/StatusRow";
+
+// Go live's checks, loaded with the first tap on Go live (it opens on a tap, as the console's other sheets do).
+const GoLiveSheet = dynamic(() => import("@/components/crew/GoLiveSheet"), { ssr: false });
 
 // LIVE CONTROL — the truck's live status board: where it is, whether it is open, what is next.
 //
@@ -32,6 +39,13 @@ import Button from "../Button";
 // twice from that page (compact on Live Ops, `manage` on Plan › Route) with a props flag deciding
 // which — so the page keeps both call sites and this file keeps the behaviour. The cup-ordering dial
 // it used to hold is its own component in Settings since 2026-10-06 (components/crew/CupOrderingDial).
+//
+// ON LIVE OPS, ONE ROW (2026-10-12, the Live Ops round, approved). The instrument was ~195 points on a quiet day:
+// OFFLINE, the next stop, Go live, "1 more stop ahead · truck stops · plan › lists", "cup-ordering dial ›". It is the
+// truck's row now (components/crew/StatusRow, the words lib/liveOps truckSays'): "Off the road · next: Wine Express ·
+// Sat 11:00am" with Go live, or "Live at Wine Express · 42 min left" with Go offline; a tap on the line folds open, in
+// place, everything the instrument held — the stop's record, the map dot and its broadcast, the stops list, the dial.
+// Nothing removed, only folded. It still stays mounted under the Pass (app/crew/page.tsx), so a broadcast goes on.
 
 export function LiveControl({ compact = false, manage = false }: { compact?: boolean; manage?: boolean }) {
   const confirm = useConfirm();
@@ -41,6 +55,13 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
   // Only they get the line to it; a manager who could not save it is not sent to it.
   const { profile } = useAuth();
   const admin = canOf(profile).admin;
+  // WHO MAY GO LIVE (2026-10-12): the database's test, read as it reads it (lib/liveOps mayGoLive). Go live, Go offline,
+  // the map dot's Pin once and Broadcast, and Plan the next stop each call a function or write a table that asks
+  // is_admin(); an event manager was drawn all of them and refused each tap. They see the truck's state, and none of it.
+  const canLive = mayGoLive(profile);
+  const now = useMinute();
+  const [open, setOpen] = useState(false);              // the row's fold, on Live Ops
+  const [asking, setAsking] = useState<Stop | null>(null); // Go live's checks, open for this stop
   const goDial = () => { setSection("settings"); scrollToAnchor("set-dial"); };
   const openPrep = (id: string) => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue("stop", id)); } catch { /* ignore */ } setSection("prep"); };
   const [stops, setStops] = useState<Stop[]>([]);
@@ -51,18 +72,29 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
   const [showArchStops, setShowArchStops] = useState(false);
   const [showPastStops, setShowPastStops] = useState(false);
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  // A READ THAT FAILS IS SAID, EVERY TIME (2026-10-12, the Live Ops round). The instrument drew OFFLINE before its first
+  // read had answered, and again when that read failed — live_status's error was never looked at, so a truck that was
+  // live read as offline to anyone whose read did not go through — and a later read that failed kept whatever the last
+  // one said, silently. The read's state is its own now: still reading, failed (the first read or any later one — the
+  // row says "Couldn't read the truck", with Try again, never a state it does not know), or ready. A live_status with no
+  // row is a truck off the road, which is what the database says; a stop list or a live_status that did not answer is a
+  // failure. The venue book is Route's grouping only (and may not exist before 0034), so its failure is not the truck's.
+  const [read, setRead] = useState<TruckRead>("loading");
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const [{ data: s, error: se }, { data: l }, { data: vs }] = await Promise.all([
+    const [s, l, vs] = await Promise.all([
       supabase.from("stops").select("*").order("sort"),
       supabase.from("live_status").select("*").maybeSingle(),
       supabase.from("vendors").select("*").order("sort"), // may not exist pre-0034
     ]);
-    if (se) setErr(se.message); else setErr("");
-    if (s) setStops(s as Stop[]);
-    if (l) setLive(l as LiveStatus);
-    if (vs) setVendors((vs as Vendor[]).filter((v) => !v.archived_at));
+    const failed = s.error ?? l.error;
+    if (failed) { setErr(failed.message); setRead("failed"); return; }
+    setErr("");
+    setRead("ready");
+    setStops((s.data as Stop[] | null) ?? []);
+    setLive((l.data as LiveStatus | null) ?? null);
+    if (vs.data) setVendors((vs.data as Vendor[]).filter((v) => !v.archived_at));
   }, []);
   // A stop's venue is picked in its sheet (FieldOpSheet → components/VenuePick), not on this card:
   // the card's own vendor <select> was a second editor for it. Route still reads the book, to group
@@ -90,9 +122,9 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
     const { data: chk } = await supabase!.from("live_status").select("is_live").eq("id", 1).maybeSingle();
     if (!chk || (chk as { is_live: boolean }).is_live !== true) {
       setErr("Go live didn't persist — confirm your owner role (RLS).");
-      toast("Go live didn't save — see banner.", "error");
+      toast("Go live didn't save — the truck still reads as off the road. Confirm your account is an owner or an admin.", "error");
     } else {
-      toast("Truck is LIVE — members updated");
+      toast("The truck is live — guests see it on Find Us");
     }
     load();
   };
@@ -126,9 +158,9 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
     const { data: chk } = await supabase!.from("live_status").select("is_live").eq("id", 1).maybeSingle();
     if (chk && (chk as { is_live: boolean }).is_live === true) {
       setErr("Go offline didn't persist — confirm your owner role (RLS).");
-      toast("Go offline didn't save — see banner.", "error");
+      toast("Go offline didn't save — the truck still reads as live. Confirm your account is an owner or an admin.", "error");
     } else {
-      toast(next ? `Offline — ${next.name} is next` : "Truck is offline");
+      toast(next ? `Off the road — ${next.name} is next` : "The truck is off the road");
     }
     load();
   };
@@ -252,83 +284,93 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
   // a guest can never disagree about where the truck goes next (lib/road, 2026-10-04).
   const road = roadAhead(active, live?.is_live ? live.current_stop_id : null);
   const nextStop = live?.is_live ? null : road[0] ?? null;
-  const nextWhen = nextStop
-    ? nextStop.starts_at ? `${dayWithDate(new Date(nextStop.starts_at))} · ${clockTime(nextStop.starts_at)}` : "no date yet"
-    : "";
-  // Go live is one tap when the stop is today (or underway); anything else — next Saturday, or no
-  // date at all — asks first, because going live is the one action in this panel a guest sees.
-  const goLiveNext = async () => {
-    if (!nextStop) return;
-    if (!stopIsDue(nextStop.starts_at) && !(await confirm({
-      title: `Go live at ${nextStop.name} now?`,
-      body: nextStop.starts_at
-        ? `It's on the road for ${nextWhen}. Guests see the truck live there the moment you do.`
-        : "It has no date yet. Guests see the truck live there the moment you do.",
-      confirmLabel: "Go live now",
-    }))) return;
-    goLive(nextStop.id);
-  };
+  // GO LIVE ASKS FIRST, EVERY TIME (2026-10-12, the Live Ops round — the owner approved the pre-flight). It went live in
+  // one tap when the stop was due, and asked "Go live at X now?" when it was not. It opens Go live's checks now — is the
+  // stop due, is a phone on the Pass and can it ring, is the stop on the map, and how many people will be told
+  // (components/crew/GoLiveSheet, lib/liveOps preflight) — for any stop, from this row and from the Route list's "Go live
+  // at this location", and goes live from there (goLive above: its haptic plays once, on the sheet's confirm). Only for
+  // who the database lets go live.
+  const askGoLive = (s: Stop | null | undefined) => { if (s && canLive) setAsking(s); };
+  const checks = asking && <GoLiveSheet stop={asking} onClose={() => setAsking(null)} onGo={() => { void goLive(asking.id); }} />;
+
+  if (compact) {
+    const truck = { read, live: !!live?.is_live, at: curStop ?? null, next: nextStop, nowMs: now };
+    const says = truckSays(truck);
+    const act = truckAction(truck, canLive);
+    const failed = read === "failed";
+    // The stop the row names: the live one, or the next on the road.
+    const named = (live?.is_live ? curStop : nextStop) ?? null;
+    const action = act === "retry"
+      ? <Button kind="secondary" compact className="shrink-0" onClick={() => { void load(); }} aria-label="Read the truck again">Try again</Button>
+      : act === "go-offline"
+        ? <Button kind="secondary" compact className="shrink-0" onClick={pause} aria-label={`Go offline${curStop ? ` — closes out ${stopName(curStop)}` : ""}`}>Go offline</Button>
+        : act === "go-live"
+          ? <Button kind={nextStop && stopIsDue(nextStop.starts_at) ? "primary" : "secondary"} compact className="shrink-0" aria-haspopup="dialog"
+              onClick={() => askGoLive(nextStop)} aria-label={`Go live at ${stopName(nextStop)} — shows what is ready first`}>Go live</Button>
+          : act === "plan"
+            ? <Button kind="secondary" compact className="shrink-0" onClick={() => goPlanTab("route", { setSection })}>Plan the next stop</Button>
+            : null;
+    return (
+      <>
+        {/* THE TRUCK, ONE ROW (2026-10-12): its state in words and its one action; a tap on the line folds open what the
+            instrument held — the stop's record, the map dot and its broadcast, the stops list, the dial. A read that did
+            not answer folds nothing open: the line tries again. */}
+        <StatusRow label="The truck" says={says} onTap={() => { if (failed) void load(); else setOpen((o) => !o); }}
+          tapLabel={failed ? `${says.text}. Tries again.` : `${says.text}. ${open ? "Hides" : "Shows"} the stop, the map dot and the stops list.`}
+          expanded={failed ? undefined : open} controls="truck-more" action={action}>
+          <div id="truck-more" className="px-4 pb-1 border-t border-line">
+            {/* The stop's record, a whole row to the thumb: the name in the line was a 66×15-point link. */}
+            {named && (
+              <RecordLink kind="stop" id={named.id} className="flex w-full items-center justify-between gap-3 min-h-11 py-2 no-underline">
+                <span className="min-w-0 truncate">{live?.is_live ? "Open the stop" : "Open the next stop"} · {stopName(named)}</span>
+                <span aria-hidden="true" className="text-cream-muted">›</span>
+              </RecordLink>
+            )}
+            {live?.is_live && (
+              <div className="flex flex-wrap items-center gap-2.5 min-h-11 py-1.5 border-t border-line">
+                {!broadcasting && !live?.pos_updated_at && <span className="text-caption font-semibold text-warn">Map dot off —</span>}
+                <span className="flex-1 min-w-0 text-footnote text-cream-muted">{broadcasting ? <><Icon name="dot" /> Broadcasting — dot moves with you</> : posLabel}</span>
+                {canLive && (broadcasting
+                  ? <Button kind="secondary" compact onClick={stopBroadcast}>Stop</Button>
+                  : <span className="flex gap-2"><Button kind="secondary" compact onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</Button><Button kind="primary" compact onClick={startBroadcast}>Broadcast</Button></span>)}
+              </div>
+            )}
+            <button type="button" className="adm-golink hit-y-44" onClick={() => goPlanTab("route", { setSection })}>{road.length > 1 ? `${road.length - 1} more stop${road.length > 2 ? "s" : ""} ahead · ` : ""}Truck stops · Plan › Lists</button>
+            {/* The dial's line, where this row used to name it (2026-10-06, the settings round). */}
+            {admin && <button type="button" className="adm-golink hit-y-44" onClick={goDial}>Cup-ordering dial ›</button>}
+          </div>
+        </StatusRow>
+        {checks}
+      </>
+    );
+  }
 
   return (
     <div className="adm-sec">
       {/* On Plan it is the list Lists opens as Truck stops (2026-10-10), and says so; on Live Ops it is the instrument. */}
       <SectionHeader label={manage ? "Truck stops" : "Live truck"} right={!compact ? <InlineCreate label="+ Add location" placeholder="Location name" onCreate={addStop} /> : undefined} />
       {err && <div className="adm-attn" role="alert">Backend error: {err}</div>}
-      {compact ? (
-        /* THE TRUCK INSTRUMENT — one panel, not a stack of floating cards (owner call). Row 1 is
-           the state (LED · live-at/offline · the one primary action); the stop list and broadcast
-           controls are rows of the same instrument, not separate cards. */
-        <div className={`liveinst${live?.is_live ? " on" : ""}`}>
-          <div className="liveinst-row main">
-            <span className={`adm-dot${live?.is_live ? " on" : ""}`} />
-            <div className="liveinst-state">
-              <b>{live?.is_live ? "LIVE" : "OFFLINE"}</b>
-              {/* The stop named here opens its record (2026-10-04) — it was plain text. */}
-              <span>{live?.is_live
-                ? (curStop ? <RecordLink kind="stop" id={curStop.id}>{curStop.name}</RecordLink> : "on location")
-                : nextStop ? <>next · <RecordLink kind="stop" id={nextStop.id}>{nextStop.name}</RecordLink> · {nextWhen}</> : "nothing on the road"}</span>
-            </div>
-            {live?.is_live
-              ? <Button kind="secondary" compact className="ml-auto shrink-0" onClick={pause}>Go offline</Button>
-              : nextStop
-                ? <Button kind={stopIsDue(nextStop.starts_at) ? "primary" : "secondary"} compact className="ml-auto shrink-0" onClick={goLiveNext}>Go live</Button>
-                : <Button kind="secondary" compact className="ml-auto shrink-0" onClick={() => goPlanTab("route", { setSection })}>Plan the next stop</Button>}
-          </div>
-          {live?.is_live ? (
-            <div className="liveinst-row">
-              {!broadcasting && !live?.pos_updated_at && <span className="liveinst-warn">Map dot off —</span>}
-              <span className="liveinst-sub">{broadcasting ? <><Icon name="dot" /> Broadcasting — dot moves with you</> : posLabel}</span>
-              {broadcasting
-                ? <Button kind="secondary" compact onClick={stopBroadcast}>Stop</Button>
-                : <span className="flex gap-2"><Button kind="secondary" compact onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</Button><Button kind="primary" compact onClick={startBroadcast}>Broadcast</Button></span>}
-            </div>
-          ) : null}
-          <button type="button" className="adm-golink hit-y-44" onClick={() => goPlanTab("route", { setSection })}>{road.length > 1 ? `${road.length - 1} more stop${road.length > 2 ? "s" : ""} ahead · ` : ""}Truck stops · Plan › Lists</button>
-          {/* The dial's line, where this row used to name it (2026-10-06, the settings round). */}
-          {admin && <button type="button" className="adm-golink hit-y-44" onClick={goDial}>Cup-ordering dial ›</button>}
-        </div>
-      ) : (
-      <>
+      {checks}
       {/* The card holds the status (outside Route) and Go offline (while live). With the dial gone
           it would be an empty box on Route whenever the truck is offline, so it is drawn only when
           it has something in it. */}
-      {(!manage || live?.is_live) && <div className="adm-live">
+      {(!manage || (live?.is_live && canLive)) && <div className="adm-live">
         {!manage && <div className="adm-live-status">
           <span className={`adm-dot${live?.is_live ? " on" : ""}`} />
-          <span><b>{live?.is_live ? "Live now" : "Offline"}</b>{live?.is_live && curStop ? <span className="adm-live-at"> · <RecordLink kind="stop" id={curStop.id}>{curStop.name}</RecordLink></span> : null}</span>
+          <span><b>{live?.is_live ? "Live now" : "Off the road"}</b>{live?.is_live && curStop ? <span className="adm-live-at"> · <RecordLink kind="stop" id={curStop.id}>{curStop.name}</RecordLink></span> : null}</span>
         </div>}
         {/* Status readout above stays manage-only (redundant with the LIVE pill already on the stop
             card below), but the action can't be — this was the only "Go offline" button reachable
             anywhere outside the Now tab's compact instrument, and that one disappears once you're
             past the pulse screen. Hiding it here left no way to end service from Stops at all. */}
-        {live?.is_live && <Button kind="secondary" compact onClick={pause}>Go offline</Button>}
+        {live?.is_live && canLive && <Button kind="secondary" compact onClick={pause}>Go offline</Button>}
       </div>}
       {/* The cup-ordering dial (0137) sat in that card until 2026-10-06 (the settings round). It lives
           in Settings › Business › Ordering & delivery now (components/crew/CupOrderingDial): only an owner or an
           admin can save it, and every manager could see it here — an event manager's tap read
           "saved" while the database changed nothing. Route keeps one line to it, for those who can. */}
       {admin && <GoLine to="settings" anchor="set-dial">Cup-ordering dial</GoLine>}
-      {!manage && live?.is_live && (
+      {!manage && live?.is_live && canLive && (
         <>
           {!broadcasting && !live?.pos_updated_at && (
             <div className="adm-attn" role="alert">Customers can&apos;t see the truck on the map yet — tap <b>Broadcast live</b> so the dot tracks you.</div>
@@ -384,8 +426,8 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
                   isCur={Boolean(s.id === live?.current_stop_id && live?.is_live)}
                   open={openStopId === s.id}
                   onToggle={() => setOpenStopId(openStopId === s.id ? null : s.id)}
-                  onGoLive={goLive}
-                  onGoOffline={pause}
+                  onGoLive={canLive ? (id) => askGoLive(stops.find((x) => x.id === id)) : undefined}
+                  onGoOffline={canLive ? pause : undefined}
                   onArchive={() => archiveStop(s.id)}
                   onChanged={load}
                   venue={g.vendor}
@@ -453,8 +495,6 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
             </div>
           ))}
         </div>
-      )}
-      </>
       )}
     </div>
   );

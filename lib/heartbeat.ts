@@ -214,7 +214,11 @@ export type DeviceRow = {
 
 export type Tone = "" | "ok" | "warn" | "crit";
 
-const FEED_WORD: Record<Feed, string> = { live: "Live", reconnecting: "Reconnecting", down: "Down", "signed-out": "Signed out", unknown: "Unknown" };
+// A DEVICE IS CONNECTED OR RECONNECTING (2026-10-12, the Live Ops round, approved). Live Ops says "live" of the truck
+// and "off the road" of it, and the Devices card said "Live" of a phone's orders feed beside it: two things called live
+// on one screen. A device's feed is connected, reconnecting or not connected (it was "Down"); the database keeps its own
+// five words (0375), and only what a person reads changed.
+const FEED_WORD: Record<Feed, string> = { live: "Connected", reconnecting: "Reconnecting", down: "Not connected", "signed-out": "Signed out", unknown: "Unknown" };
 const FEED_TONE: Record<Feed, Tone> = { live: "ok", reconnecting: "warn", down: "crit", "signed-out": "crit", unknown: "" };
 const SURFACE_WORD: Record<string, string> = { pass: "Pass", live_ops: "Live Ops", driver: "Driver" };
 
@@ -247,4 +251,30 @@ export function deviceView(r: DeviceRow, ageS: number): DeviceView {
     meta: [r.app_build ? `${app} ${r.app_build}` : app, r.wake_lock ? "screen stays on" : "screen can sleep"].join(" · "),
     hearing: !away && feed === "live",
   };
+}
+
+// ── THE PASS'S PHONES, COUNTED (2026-10-12, the Live Ops round) ───────────────────────────────────────────────────────
+// The Devices card was a card of its own under the truck; it is words on the Pass's row now ("2 phones can ring",
+// "1 reconnecting"), and its rows one tap away. These are the counts the words are made of (lib/liveOps passSays):
+//   onPass          on the Pass now: heard from inside AWAY_AFTER_S. A device that has gone quiet left the Pass (closed
+//                   it, slept) — it is not counted, and not called trouble: its row on the card still says "Away".
+//   ringing         on the Pass with its orders feed connected — it chimes for a new order. The rule 0376's watchdog
+//                   counts a Pass watched by, so "no phone can ring" here and its pass_unwatched alert agree.
+//   ringingAlertsOn …and its order alerts on, so a push reaches it with the Pass out of sight (Go live's checks ask it).
+//   reconnecting    on the Pass, its feed reconnecting.
+//   notConnected    on the Pass, its feed down or signed out. A feed not said yet ("unknown") is a Pass still opening,
+//                   neither ringing nor trouble.
+export type PassPhones = { onPass: number; ringing: number; ringingAlertsOn: number; reconnecting: number; notConnected: number };
+
+export function passPhones(rows: readonly DeviceRow[], sinceS: number = 0): PassPhones {
+  const n: PassPhones = { onPass: 0, ringing: 0, ringingAlertsOn: 0, reconnecting: 0, notConnected: 0 };
+  for (const r of rows) {
+    if (r.surface !== PASS_SURFACE || r.seen_s + sinceS > AWAY_AFTER_S) continue;
+    n.onPass++;
+    const feed = feedOf({ state: r.feed });
+    if (feed === "live") { n.ringing++; if (r.alerts_on) n.ringingAlertsOn++; }
+    else if (feed === "reconnecting") n.reconnecting++;
+    else if (feed === "down" || feed === "signed-out") n.notConnected++;
+  }
+  return n;
 }

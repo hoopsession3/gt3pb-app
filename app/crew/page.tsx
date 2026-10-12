@@ -20,11 +20,11 @@ import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
 import { readParam, dropParam } from "@/lib/urlParam";
 import { panelHome } from "@/lib/panelHome";
 import { useWakeLock } from "@/lib/useWakeLock";
-import { groupItems, readPulse } from "@/lib/passBoard";
+import { groupItems } from "@/lib/passBoard";
 import { usePassHeartbeat } from "@/components/usePassHeartbeat";
 import { useEtDay } from "@/lib/useEtDay";
 import { NotifPrefs, NotifPrefsSheet } from "@/components/NotifPrefs";
-import { DeviceAlerts, AlertsOffLine } from "@/components/DeviceAlerts";
+import { DeviceAlerts } from "@/components/DeviceAlerts";
 import { RingThisPhone } from "@/components/RingThisPhone";
 import { PassSound, Appearance } from "@/components/YouPrefs";
 import { DisplayControls } from "@/components/DisplayToggle";
@@ -210,7 +210,8 @@ import { OwnerDetails } from "@/components/crew/OwnerDetails";
 import VenuePick from "@/components/VenuePickLazy";
 import { LocationEditor } from "@/components/crew/LocationEditor";
 import { LiveControl } from "@/components/crew/LiveControl";
-import { DevicesCard } from "@/components/crew/DevicesCard";
+import { PassRow, ExceptionLine } from "@/components/crew/LiveOpsRows";
+import { alertHome } from "@/lib/liveOps";
 import { staffAccess } from "@/lib/access";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { SECTION_TITLE } from "@/lib/routeTitles";
@@ -310,40 +311,11 @@ const STATUSES: BookingRequest["status"][] = ["new", "contacted", "booked", "dec
 // Live Ops below keeps only the mount: `svc`, Escape, the wake lock.
 
 // ───────────────────────── service pulse: the glance before the work ─────────────────────────
-// Now doesn't render the boards anymore — it renders their PULSE. One hero button carries the
-// live counts (orders on the pass, items 86'd) and opens Service mode, where the work happens.
-function ServicePulse({ onEnter }: { onEnter: () => void }) {
-  const [pass, setPass] = useState<number | null>(null);
-  const [ahead, setAhead] = useState(0);
-  const [out, setOut] = useState(0);
-  // DUE NOW, AND LATER (2026-10-11, the KDS audit). An order placed ahead of a stop (0343 ready_from) counted as on
-  // the pass from the moment it was placed, and turned this button red hours before anyone could start it. The
-  // count is what can be made now; what is placed ahead is said beside it, quietly.
-  // COUNTED BY THE PASS'S OWN LANES (2026-10-11, the KDS program, wave 2: lib/passBoard readPulse). On the pass is New, In
-  // progress and Ready; placed ahead is the Pass's Scheduled lane. An order placed ahead and started early was neither
-  // here — not on the pass, still "ahead" — while the Pass showed it In progress.
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const [o, p] = await Promise.all([
-      readPulse(supabase, Date.now()),
-      supabase.from("products").select("id", { count: "exact", head: true }).eq("active", true).eq("sold_out", true),
-    ]);
-    if (o.pass !== null) setPass(o.pass);
-    if (o.ahead !== null) setAhead(o.ahead);
-    if (p.count !== null) setOut(p.count);
-  }, []);
-  useEffect(() => { load(); const t = window.setInterval(load, 60_000); return () => window.clearInterval(t); }, [load]);
-  useRealtimeTable(["orders", "products"], load);
-  return (
-    <button type="button" className={`svc-enter${(pass ?? 0) > 0 ? " hot" : ""}`} onClick={onEnter}>
-      <span className="svc-enter-t">▶ The Pass</span>
-      <span className="svc-enter-s">
-        {pass === null ? "The pass, pickups & the 86 board — one screen"
-          : <>{pass > 0 ? <><b><NumberRoll value={pass} ms={450} /></b> on the pass</> : "The pass is clear"}{ahead > 0 && <> · {ahead} placed ahead</>}{out > 0 && <> · <b><NumberRoll value={out} ms={450} /></b> 86&rsquo;d</>} — tap to work</>}
-      </span>
-    </button>
-  );
-}
+// THE PASS'S ROW (2026-10-12, the Live Ops round, approved). The pulse was a gold hero button — "▶ The Pass" over "The
+// pass is clear · 2 86'd — tap to work" — and this phone's alerts-off line and the Devices card were two more blocks
+// under the truck. It is one row now, components/crew/LiveOpsRows PassRow: "Pass clear · 2 86'd · 2 phones can ring" or
+// "3 on the Pass · 1 ahead", the phones' trouble in words on it and their rows one tap away; a tap opens the Pass.
+// Counted as it was (lib/passBoard readPulse: the Pass's own lanes), and a count that did not answer is said.
 
 // DUE NEXT (2026-10-11, the KDS audit — Ryan: "KDS x Dispatcher deliveries, only — right call?"). Live Ops' second
 // half: what leaves the truck besides the cups — the pickup drop, the Sunday porches, the office route — as one list,
@@ -353,6 +325,9 @@ function ServicePulse({ onEnter }: { onEnter: () => void }) {
 // ONE LIST ABOVE THEM (2026-10-11, the dispatch round): every pack, porch, office stop and cup placed ahead, soonest
 // first, one row each and in words; a row opens its card (components/crew/DueList, lib/dueNext). Each card hands up the
 // rows it read (onRows) — the list reads no table twice and cannot disagree with the card below it.
+// THE DROP IS A ROW OF THE LIST (2026-10-12, the Live Ops round, approved): its card sat under the list, so on a quiet
+// day "Nothing due next." stood over "Pickup drop · This Sat · no reservations yet". The list draws it among its rows, by
+// its day (components/crew/DueList `drop`); the porches and the office route stay cards under it, in the order due.
 type DueKey = "drop" | "porch" | "office";
 const DUE_KEYS: DueKey[] = ["drop", "porch", "office"];
 function DueNext({ canPlan, onOpenPass }: { canPlan: boolean; onOpenPass: () => void }) {
@@ -371,8 +346,8 @@ function DueNext({ canPlan, onOpenPass }: { canPlan: boolean; onOpenPass: () => 
   return (
     <section aria-label="Due next" className="due-next">
       <SectionHeader label="Due next" annotation="pickups · porches · office · cups ahead" />
-      <DueList feeds={feeds} onOpenPass={onOpenPass} />
-      {order.map((k) => card[k])}
+      <DueList feeds={feeds} onOpenPass={onOpenPass} drop={card.drop} />
+      {order.filter((k) => k !== "drop").map((k) => card[k])}
     </section>
   );
 }
@@ -598,10 +573,17 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
   const [reviewPost, setReviewPost] = useState<{ id: string; alert: MyFlag } | null>(null);
   const { openRecord } = useRecord();
   const { openTask } = useTaskSheet();
+  // AN ALERT OPENS ONLY WHERE ITS READER CAN GO (2026-10-12, the Live Ops round, approved). Open went to the section that
+  // owns the alert whoever was reading, and a section the reader's role cannot open falls back to My Day (AdminPage's
+  // `sec`): a server's "Paid order didn't record" (Money's) landed on My Day. The home counts only when this role can
+  // open it (components/OperatorNav sectionsForRole, lib/liveOps alertHome); otherwise the alert opens its record or
+  // task, or stays here in the inbox, its words the content — Open is not drawn.
+  const reachable = sectionsForRole(roleOf(profile));
+  const destOf = (a: MyFlag) => alertHome(alertDest(a.category, a.title, a.link), reachable);
   // Whether Open has anywhere to go — the record or task an alert names, or the screen that owns it.
   const canOpen = (a: MyFlag) => !!recordForAlert(a.kind, a.subject_id)
     || (!!a.kind && TASK_ALERT_KINDS.includes(a.kind) && !!a.subject_id)
-    || alertIsReservation(a.title) || alertIsContentReview(a.title) || alertDest(a.category, a.title, a.link) != null;
+    || alertIsReservation(a.title) || alertIsContentReview(a.title) || destOf(a) != null;
   const gotoAlert = (a: MyFlag) => {
     // An alert that names a ROW opens that row. The 0174 contract has carried subject_id since
     // before anything could open one, so every shop-order ping has known exactly which order it
@@ -621,8 +603,8 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
       toast("Couldn't find that post — it may have been removed. Check Brand.", "error");
       return;
     }
-    const d = alertDest(a.category, a.title, a.link);
-    if (!d) return;              // homeless alert — the card is the content; Open isn't rendered for these
+    const d = destOf(a);
+    if (!d) return;              // homeless alert, or a home this role can't open — the card is the content; Open isn't rendered for these
     onNavigate?.();              // close the inbox sheet FIRST — else the destination renders behind it
     if (d.planTab && isPlanTab(d.planTab)) { goPlanTab(d.planTab, { setSection }); } else { setSection(d.section); }
     jumpTo(d.anchor);            // a panel is scrolled to and opened; the Pass is opened (jumpTo)
@@ -5802,12 +5784,22 @@ export default function AdminPage() {
               What left, and where it lives: the live event's numbers and its "Make it live" → Command (and My Day,
               which already offered the switch); the next event → Readiness and Plan; your tasks → My Day; today's
               critical alerts → the header's bell, and in the Pass its own bell and the strip that names a critical one. The alerts-off line
-              stays: it says whether this phone can ring for an order, and only when it can't. The boards themselves (pass, pickup checklist, 86) render in ONE
+              stays: it says whether this phone can ring for an order, and only when it can't (since 2026-10-12, as words on
+              the Pass's row — below). The boards themselves (pass, pickup checklist, 86) render in ONE
               place: Service mode. */}
+          {/* AT A GLANCE (2026-10-12, the Live Ops round — the owner approved its six items). Measured on an iPhone 17 on a
+              quiet day: about 425 points of status cards before Due next — the Pass's hero button, the truck's ~195-point
+              card, the alerts-off line, the Devices card. Now: one line at the top only while an alert is hurting service
+              (tickets past their promise, no phone on the Pass that can ring, a paid order that didn't record), then one
+              row for the Pass and one for the truck, each a dot, its state in words and its one action — the alerts-off
+              line and the Devices card are words on the Pass's row, their detail one tap away. What each says, and why,
+              is lib/liveOps; the rows are components/crew/LiveOpsRows and LiveControl. The exception line reads the
+              header bell's own list (hdrFlags), so the two cannot disagree; under the Pass, the Pass's strip says it. */}
+          {!svc && <ExceptionLine flags={hdrFlags} onOpenPass={() => setSvc(true)} />}
           {/* ON THE DESK (2026-10-09, redesign 5): service on the left, dispatch on the right. */}
           <Columns>
           <Column>
-          {!svc && <ServicePulse onEnter={() => setSvc(true)} />}
+          {!svc && <PassRow canManage={canManage} onOpenPass={() => setSvc(true)} />}
           {/* The truck instrument rides directly under the pulse — going live IS the first act
               of service, not a panel below the fold.
               IT STAYS MOUNTED UNDER THE PASS (2026-10-11). Opening the Pass unmounted it, and its cleanup
@@ -5815,11 +5807,6 @@ export default function AdminPage() {
               it is still drawn, out of reach — inert takes it out of the tab order and away from a screen
               reader, and the Pass covers it; `contents` leaves Live Ops' layout as it was. */}
           {canManage && <div className="contents" inert={svc ? true : undefined}><LiveControl compact /></div>}
-          {/* Whether this phone can ring for an order: one line, only while order alerts are off here — the switch
-              is Settings › You › Notifications (2026-10-06). It stays with the service it is about. */}
-          <AlertsOffLine />
-          {/* Which devices are on the Pass, and whether each can hear an order (2026-10-11, components/crew/DevicesCard). */}
-          {canManage && !svc && <DevicesCard />}
           </Column>
           <Column>
           {!svc && <DueNext canPlan={canManage} onOpenPass={() => setSvc(true)} />}
