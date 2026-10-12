@@ -12133,6 +12133,143 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /if \(r\.status === 401 \|\| r\.status === 403\) setErr\("The Chief of Staff briefing is owner-only\. Ask an owner to run it for you\."\);/.test(rd("components/ChiefOfStaff.tsx")));
 }
 
+// ── RELEASE 2 · THE MONDAY AUDIT'S RULES, ONCE (2026-10-12) ──
+// The full-screen audit (components/MondayAudit) walks every stream due. Its rules are lib/mondayAudit's, pure: a second
+// tap clears a score, the total says itself in words, the note saves only with five scores, a next action is dated
+// seven days out and warned past seven, a draft is kept on the phone per person and stream, and the week's summary
+// reads the two-week rule exactly as the list does — the list's own code is run here against the lib's.
+{
+  const MA = require("../.smoke/mondayAudit.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const osrRaw = rd("components/OsRegistry.tsx");
+  ok("monday audit: the five criteria, in order, in the rubric's words, on a 0–2 scale — moved from the sheet, not reworded",
+    MA.CRITERIA.map((c) => `${c.key}|${c.label}|${c.hint}`).join("\n") === [
+      "c_owner|Owner|Exactly one name. Shared ownership scores zero.",
+      "c_next|Next action|Specific, dated, no more than 7 days out.",
+      "c_blockers|Blockers|None stale past 7 days without escalation.",
+      "c_artifacts|Artifacts|Latest version linked. No unversioned edits in the wild.",
+      "c_signal|Signal|A linked KPI or gate has moved since the last audit.",
+    ].join("\n") && MA.SCALE.join() === "0,1,2");
+  const t1 = MA.tapScore({}, "c_owner", 2);
+  ok("monday audit: a tap sets a score, the same tap again clears it, another value replaces it — and nothing else moves",
+    t1.c_owner === 2 && Object.keys(t1).length === 1 && !("c_owner" in MA.tapScore(t1, "c_owner", 2)) && MA.tapScore(t1, "c_owner", 0).c_owner === 0
+      && JSON.stringify(MA.tapScore({ c_next: 1 }, "c_owner", 1)) === JSON.stringify({ c_next: 1, c_owner: 1 }) && t1.c_owner === 2);
+  const all = (v) => Object.fromEntries(MA.CRITERIA.map((c) => [c.key, v]));
+  const five = { c_owner: 2, c_next: 2, c_blockers: 2, c_artifacts: 1, c_signal: 1 };
+  const dotSrc = (osrRaw.match(/const dotClass = \(h: number, status: string\) => ([^;\n]+);/) || [])[1];
+  const dotClass = dotSrc ? new Function("h", "status", `return ${dotSrc};`) : null;
+  ok("monday audit: the total is the five added up, and its band is the list's dot — 10 green, 8–9 amber, under 8 red",
+    MA.scoreTotal(all(2)) === 10 && MA.scoreTotal(five) === 8 && MA.scoreTotal({}) === 0 && !!dotClass
+      && [...Array(11).keys()].every((h) => MA.bandOf(h) === dotClass(h, "active"))
+      && MA.bandOf(10) === "green" && MA.bandOf(9) === "amber" && MA.bandOf(8) === "amber" && MA.bandOf(7) === "red");
+  ok("monday audit: the running total says itself in words — \"8 of 10 · amber\" — and what it stands at on the way",
+    MA.runningWords(five) === "8 of 10 · amber" && MA.runningWords(all(2)) === "10 of 10 · green" && MA.runningWords(all(1)) === "5 of 10 · red"
+      && MA.runningWords({}) === "Not scored yet" && MA.runningWords({ c_owner: 2, c_next: 1 }) === "3 so far · 3 to score",
+    [MA.runningWords(five), MA.runningWords({ c_owner: 2, c_next: 1 })]);
+  ok("monday audit: all five is an audit and none a details save; partial scoring still blocks the save, and says why",
+    MA.saveVerdict(five, "", false).kind === "audit" && MA.saveVerdict({}, "", true).kind === "details"
+      && MA.saveVerdict({ c_owner: 2 }, "", true).kind === null && /^Score all five, or clear them/.test(MA.saveVerdict({ c_owner: 2 }, "", true).why ?? "")
+      && MA.saveVerdict({}, "", false).kind === null);
+  ok("monday audit: the note is asked for once all five are scored; one typed and left without a score stays in sight, and the save that would drop it is refused",
+    !MA.noteShown({}, "") && !MA.noteShown({ c_owner: 1 }, "") && MA.noteShown(five, "") && MA.noteShown({}, "Waiting on legal")
+      && MA.saveVerdict({}, "Waiting on legal", true).kind === null && /^The note saves with a score/.test(MA.saveVerdict({}, "Waiting on legal", true).why ?? "")
+      && MA.saveVerdict(five, "Waiting on legal", false).kind === "audit");
+  ok("monday audit: the button says what it saves — a details save says it carries no score, or that this week's stands",
+    MA.primaryLabel({ kind: "details", last: false, thisWeek: null }) === "Save details — no score this week"
+      && MA.primaryLabel({ kind: "details", last: true, thisWeek: 8 }) === "Save details — this week's score stands"
+      && MA.primaryLabel({ kind: "audit", last: false, thisWeek: null }) === "Save and next" && MA.primaryLabel({ kind: "audit", last: true, thisWeek: null }) === "Save and finish"
+      && MA.primaryLabel({ kind: null, last: false, thisWeek: null }) === "Save and next");
+  const W = { id: "w1", name: "D2C Delivery Ops", owner: "Ryan", owner_user_id: "u-ryan", status: "active", health: 9, next_action: "Routes locked", due: null, blocker: null, last_audited: "2026-08-02" };
+  const base = MA.detailsOf(W, "2026-10-12");
+  ok("monday audit: a stream opens on its owner's id, not a spelling; a next action with no date opens dated seven days out, one typed into an empty stream too, and a date set stays",
+    base.owner.id === "u-ryan" && base.owner.name === "Ryan" && MA.NEXT_ACTION_DAYS === 7 && base.due === "2026-10-19"
+      && MA.detailsOf({ ...W, due: "2026-10-14" }, "2026-10-12").due === "2026-10-14" && MA.detailsOf({ ...W, next_action: null }, "2026-10-12").due === ""
+      && MA.withNextAction({ ...base, next_action: "", due: "" }, "Call QT", "2026-10-12").due === "2026-10-19"
+      && MA.withNextAction({ ...base, next_action: "", due: "2026-10-13" }, "Call QT", "2026-10-12").due === "2026-10-13"
+      && MA.withNextAction({ ...base, next_action: "Call", due: "" }, "Call QT", "2026-10-12").due === "", base);
+  ok("monday audit: a date past seven days out warns — a warning, never a block",
+    MA.dueWarning("2026-10-19", "2026-10-12") === null && MA.dueWarning("2026-10-20", "2026-10-12") === "8 days out — more than seven."
+      && MA.dueWarning("", "2026-10-12") === null && MA.dueWarning("2026-10-01", "2026-10-12") === null && !/due/.test(String(MA.saveVerdict)));
+  const R4 = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }], dueSet = new Set(["a", "c", "d"]), isDue = (r) => dueSet.has(r.id);
+  const q = (...a) => JSON.stringify(MA.auditQueue(...a));
+  ok("monday audit: the walk is the streams due in the list's order, from the first — or from the stream tapped, which joins it in its place",
+    q(R4, isDue) === JSON.stringify({ ids: ["a", "c", "d"], start: 0 }) && q(R4, isDue, "c") === JSON.stringify({ ids: ["a", "c", "d"], start: 1 })
+      && q(R4, isDue, "b") === JSON.stringify({ ids: ["a", "b", "c", "d"], start: 1 }) && q(R4, () => false, "b") === JSON.stringify({ ids: ["b"], start: 0 }));
+  ok("monday audit: on from a stream is the next not yet done, round past the end to the first; none left is the week's summary",
+    MA.nextInWalk(["a", "b", "c"], 0, () => false) === 1 && MA.nextInWalk(["a", "b", "c"], 2, () => false) === 0
+      && MA.nextInWalk(["a", "b", "c"], 1, (id) => id !== "a") === 0 && MA.nextInWalk(["a", "b", "c"], 0, () => true) === null && MA.nextInWalk([], 0, () => false) === null);
+  const H = [
+    { workstream_id: "w1", week_of: "2026-10-12", total: 8, c_owner: 2 },
+    { workstream_id: "w2", week_of: "2026-10-06", total: 6, c_owner: 1 },
+    { workstream_id: "w1", week_of: "2026-10-05", total: 7, c_owner: 1, c_next: 0, c_blockers: null },
+    { workstream_id: "w1", week_of: "2026-09-28", total: 9, c_owner: 2 },
+    { workstream_id: "w1", week_of: "2026-08-02", total: 9 },
+  ];
+  ok("monday audit: \"was\" is the stream's newest audit before this week's Monday; this week's is the one filed since; a total-only audit has no was",
+    MA.lastWeekOf(H, "w1", "2026-10-12")?.week_of === "2026-10-05" && MA.thisWeekOf(H, "w1", "2026-10-14")?.week_of === "2026-10-12"
+      && MA.thisWeekOf(H, "w2", "2026-10-12") === null && MA.lastWeekOf(H, "w2", "2026-10-12")?.week_of === "2026-10-06"
+      && MA.wasScore(MA.lastWeekOf(H, "w1", "2026-10-12"), "c_next") === 0 && MA.wasScore(MA.lastWeekOf(H, "w1", "2026-10-12"), "c_blockers") === null
+      && MA.wasScore(H[4], "c_owner") === null && MA.wasScore(null, "c_owner") === null);
+  const st = (o) => MA.auditState({ unsaved: false, kept: true, scored: 0, detailsOnly: false, thisWeek: null, ...o });
+  ok("monday audit: three states, each named — Draft (kept on this phone), Details only (no score this week), Scored (saved for the week)",
+    st({ unsaved: true, scored: 3 })?.word === "Draft" && st({ unsaved: true, scored: 3 })?.line === "Kept on this phone until you save"
+      && st({ unsaved: true, kept: false, detailsOnly: true })?.word === "Details only" && /^No score this week · this phone couldn't keep it/.test(st({ unsaved: true, kept: false, detailsOnly: true })?.line ?? "")
+      && st({ unsaved: true, detailsOnly: true, thisWeek: 9 })?.line === "This week's 9 stands · kept on this phone until you save"
+      && st({ thisWeek: 8 })?.word === "Scored" && st({ thisWeek: 8 })?.line === "8 of 10 · amber — saved for the week" && st({}) === null);
+  const wk = "2026-10-12", form0 = { ...base, note: "" };
+  const k1 = MA.draftKey("u-ryan", "w1"), k2 = MA.draftKey("u-kayla", "w1"), k3 = MA.draftKey("u-ryan", "w2");
+  ok("monday audit: a draft is kept per person, per stream — a key of its own", k1 === "gt3-audit-draft:u-ryan:w1" && new Set([k1, k2, k3]).size === 3 && MA.draftKey(null, "w1") === "gt3-audit-draft:signed-out:w1");
+  const d1 = MA.draftOf({ c_owner: 2 }, { ...form0, blocker: "Waiting on legal" }, base, wk);
+  ok("monday audit: a draft holds what moved — the scores, the note and the details changed — and nothing moved is no draft",
+    MA.draftOf({}, form0, base, wk) === null && MA.draftOf({}, { ...form0, name: " D2C Delivery Ops  " }, base, wk) === null
+      && d1?.week === wk && d1?.scores.c_owner === 2 && JSON.stringify(d1?.details) === JSON.stringify({ blocker: "Waiting on legal" })
+      && MA.draftOf({}, { ...form0, note: "why" }, base, wk)?.note === "why"
+      && JSON.stringify(MA.draftOf({}, { ...form0, owner: { id: "u-kayla", name: "Kayla" } }, base, wk)?.details) === JSON.stringify({ owner: { id: "u-kayla", name: "Kayla" } }), d1);
+  const mem = () => { const m = new Map(); return { m, getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => { m.set(k, String(v)); }, removeItem: (k) => { m.delete(k); } }; };
+  const store = mem();
+  const back = MA.keepDraft(store, k1, d1) && MA.restoreDraft({ ...base, next_action: "Moved by Kayla" }, MA.loadDraft(store, k1, wk));
+  ok("monday audit: kept, a draft comes back this week over the stream as it stands now (what it did not change is today's); saving drops it",
+    !!back && store.m.has(k1) && back.scores.c_owner === 2 && back.form.blocker === "Waiting on legal" && back.form.next_action === "Moved by Kayla" && back.form.note === ""
+      && (MA.dropDraft(store, k1), !store.m.has(k1)) && MA.loadDraft(store, k1, wk) === null, back);
+  ok("monday audit: a draft goes when nothing is left to keep — the score cleared back to where it opened",
+    MA.keepDraft(store, k1, d1) && store.m.has(k1) && MA.keepDraft(store, k1, MA.draftOf({}, form0, base, wk)) === true && !store.m.has(k1));
+  ok("monday audit: last week's draft and an unreadable one do not come back, and are cleared as they are read",
+    (store.setItem(k1, JSON.stringify({ ...d1, week: "2026-10-05" })), MA.loadDraft(store, k1, wk) === null && !store.m.has(k1))
+      && (store.setItem(k1, "{not json"), MA.loadDraft(store, k1, wk) === null && !store.m.has(k1))
+      && MA.readDraft(JSON.stringify({ v: 2, week: wk, scores: { c_owner: 1 } }), wk) === null
+      && MA.readDraft(JSON.stringify({ v: 1, week: wk, scores: { c_owner: 3 }, details: { status: "stalled" }, note: 4 }), wk) === null);
+  const odd = MA.readDraft(JSON.stringify({ v: 1, week: wk, scores: { c_owner: 3, c_next: 1, c_bogus: 2 }, details: { blocker: 7, name: "Ops", owner: { id: 5, name: "x" }, status: "parked" }, note: "n" }), wk);
+  ok("monday audit: a score off the scale or a detail of the wrong kind is left behind, and the rest comes back",
+    JSON.stringify(odd?.scores) === JSON.stringify({ c_next: 1 }) && JSON.stringify(odd?.details) === JSON.stringify({ name: "Ops", status: "parked" }) && odd?.note === "n", odd);
+  const refuses = { getItem() { throw new Error("SecurityError"); }, setItem() { throw new Error("QuotaExceededError"); }, removeItem() { throw new Error("SecurityError"); } };
+  ok("monday audit: a phone that refuses to store says so — kept is false — and nothing throws",
+    MA.keepDraft(refuses, k1, d1) === false && MA.loadDraft(refuses, k1, wk) === null && (MA.dropDraft(refuses, k1), true)
+      && MA.keepDraft(null, k1, d1) === false && MA.keepDraft(null, k1, null) === true);
+  const listSrc = (osrRaw.match(/const owesDecision = \(w: Ws\) => \{([\s\S]*?)\n\s*\};/) || [])[1];
+  const listOwes = listSrc ? new Function("w", "recent", listSrc) : null;
+  const au = (id, totals) => totals.map((total) => ({ workstream_id: id, week_of: "2026-10-05", total }));
+  const cases = [
+    [{ id: "a", status: "active" }, au("a", [7, 6])], [{ id: "a", status: "active" }, au("a", [7, 9])], [{ id: "a", status: "active" }, au("a", [7])],
+    [{ id: "a", status: "parked" }, au("a", [5, 5])], [{ id: "a", status: "blocked" }, au("a", [5, 5])], [{ id: "a", status: "active" }, au("a", [8, 7])],
+    [{ id: "a", status: "active" }, au("a", [9, 5, 5])], [{ id: "a", status: "active" }, [...au("b", [9]), ...au("a", [6]), ...au("b", [3]), ...au("a", [7])]],
+    [{ id: "a", status: "active" }, []],
+  ];
+  ok("monday audit: the summary's two-week rule is the list's, answer for answer — the list's own code, run here beside the lib's",
+    !!listOwes && cases.every(([w, r]) => MA.owesDecision(w, r) === listOwes(w, r)) && cases.filter(([w, r]) => MA.owesDecision(w, r)).length === 2,
+    cases.map(([w, r]) => [MA.owesDecision(w, r), listOwes ? listOwes(w, r) : "no list rule"]));
+  const S = MA.weekSummary(
+    [{ id: "w1", name: "D2C", status: "active" }, { id: "w2", name: "Events", status: "active" }, { id: "w3", name: "Flagship", status: "parked" }, { id: "w4", name: "Brand", status: "active" }],
+    [{ workstream_id: "w1", week_of: "2026-10-12", total: 8 }, { workstream_id: "w2", week_of: "2026-10-12", total: 6 }, { workstream_id: "w2", week_of: "2026-10-05", total: 7 },
+      { workstream_id: "w1", week_of: "2026-10-05", total: 10 }, { workstream_id: "w4", week_of: "2026-10-05", total: 5 }, { workstream_id: "w4", week_of: "2026-09-28", total: 6 }],
+    "2026-10-12", ["w4"]);
+  ok("monday audit: the week's summary — each stream's total and band this week, skipped and parked said as such, and who owes the ledger a decision as of today",
+    S.map((s) => s.id).join() === "w1,w2,w3,w4" && S[0].total === 8 && S[0].band === "amber" && !S[0].owes
+      && S[1].total === 6 && S[1].band === "red" && S[1].owes && S[2].parked && S[2].total === null && !S[2].owes
+      && S[3].skipped && S[3].total === null && S[3].band === null && S[3].owes, S);
+  ok("smoke: lib/mondayAudit is compiled for these pins", /lib\/noteLink\.ts lib\/mondayAudit\.ts --outDir/.test(JSON.parse(rd("package.json")).scripts.smoke));
+}
+
 Promise.all(PENDING).then(() => {
   console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
