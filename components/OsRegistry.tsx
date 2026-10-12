@@ -1,22 +1,22 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
-import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
-import { edited } from "@/lib/formGuard";
 import { SectionHeader } from "@/components/kit";
 import InlineCreate from "./InlineCreate";
 import Icon from "@/components/Icon";
 import { useCrew } from "./useCrew";
-import PersonPick, { type PersonValue } from "./PersonPick";
-import { localToday } from "@/lib/dates";
-import { useConfirm } from "@/components/ConfirmSheet";
 import { streamOwner } from "@/lib/portfolio";
+import { auditQueue } from "@/lib/mondayAudit";
+
+// The Monday audit loads when it is opened, not with Command (components/MondayAudit says what it is).
+const MondayAudit = dynamic(() => import("./MondayAudit"), { ssr: false });
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // THE WORKSTREAM REGISTRY (0264, 2026-08-03) — "the one place to manage every component and
@@ -34,33 +34,23 @@ type Ws = {
 };
 type Audit = { id: string; workstream_id: string; week_of: string; total: number };
 
-const CRITERIA = [
-  { key: "c_owner",     label: "Owner",       hint: "Exactly one name. Shared ownership scores zero." },
-  { key: "c_next",      label: "Next action", hint: "Specific, dated, no more than 7 days out." },
-  { key: "c_blockers",  label: "Blockers",    hint: "None stale past 7 days without escalation." },
-  { key: "c_artifacts", label: "Artifacts",   hint: "Latest version linked. No unversioned edits in the wild." },
-  { key: "c_signal",    label: "Signal",      hint: "A linked KPI or gate has moved since the last audit." },
-] as const;
-
 const dotClass = (h: number, status: string) => status === "parked" ? "park" : h >= 10 ? "green" : h >= 8 ? "amber" : "red";
 const nice = (iso: string | null) => iso ? new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
 const daysSince = (iso: string | null) => iso ? Math.floor((Date.now() - new Date(`${iso}T12:00:00`).getTime()) / 864e5) : null;
+// THE AUDIT WALKS THE STREAMS THE LINE COUNTS (2026-10-12). Opened from the overdue line, the Monday audit goes through
+// the streams that line counts as due — not parked, last audited seven or more days ago or never — by the line's own
+// sum, so "3 of 10 are due" and the audit's "1 of 3" agree. scripts/smoke.cjs holds the two to the same words.
+const dueNow = (r: Ws) => r.status !== "parked" && (daysSince(r.last_audited) ?? 99) >= 7;
 
 export default function OsRegistry() {
-  const confirm = useConfirm();
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
   const { toast } = useApp();
   const isAdmin = !!profile?.is_admin || ["owner", "admin"].includes(String((profile as any)?.role ?? ""));
-  const [auditing, setAuditing] = useState<Ws | null>(null);
-  const [scores, setScores] = useState<Record<string, number>>({});
   const crew = useCrew();
-  const [draft, setDraft] = useState({ name: "", owner: { id: null, name: "" } as PersonValue, next_action: "", due: "", blocker: "", status: "active" as Ws["status"], note: "" });
   // The person is the id (0307); the text is what prints when the person has no account. A linked
   // owner reads by their CURRENT name, so a rename on the crew roster renames them here too. The rule
   // is lib/portfolio's, because a milestone's workstream pick on the board says the same owner.
   const ownerName = (w: Ws) => streamOwner(w, crew);
-  const hasOwner = !!draft.owner.id || !!draft.owner.name.trim();
-  const [saving, setSaving] = useState(false);
 
   const loader = useCallback(async (): Promise<{ rows: Ws[]; recent: Audit[] }> => {
     if (!supabase) return { rows: [], recent: [] };
@@ -75,60 +65,23 @@ export default function OsRegistry() {
   const { reload } = state;
   useRealtimeTable(["os_workstreams", "workstream_audits"], reload);
 
-  const openAudit = (w: Ws) => {
-    setAuditing(w);
-    setScores({});
-    setDraft({ name: w.name, owner: { id: w.owner_user_id ?? null, name: w.owner ?? "" }, next_action: w.next_action ?? "", due: w.due ?? "", blocker: w.blocker ?? "", status: w.status, note: "" });
+  // THE AUDIT IS A WALK, FULL SCREEN (2026-10-12, Release 2 — Ryan chose it over the smaller sheet fix). It was a
+  // half-height sheet with one stream in it and no way on to the next. Now it walks the streams due, in the list's order
+  // (components/MondayAudit): from the overdue line it starts at the first; from a row, at that stream — which joins the
+  // walk if it is not due itself. The walk is fixed as it opens, so a save that makes a stream no longer due does not
+  // move the others under the auditor's thumb.
+  const [walk, setWalk] = useState<{ ids: string[]; start: number } | null>(null);
+  const openFlow = (at?: Ws) => {
+    const q = auditQueue(state.data?.rows ?? [], dueNow, at?.id);
+    if (q.ids.length) setWalk(q);
   };
-  const total = CRITERIA.reduce((s, c) => s + (scores[c.key] ?? 0), 0);
-  const anyScored = CRITERIA.some((c) => scores[c.key] !== undefined);
-  const scored = CRITERIA.every((c) => scores[c.key] !== undefined);
-
-  // Everything is editable in place, no restart (2026-08-03, Ryan): the same sheet saves two
-  // ways — score all five and it's a Monday AUDIT (history row + health), score none and it's a
-  // DETAILS edit (rename, re-own, re-date, re-status — nothing else moves). Partial scoring
-  // blocks the save so a half-audit can never masquerade as either.
-  const save = async () => {
-    if (!supabase || !auditing || saving || (anyScored && !scored) || !draft.name.trim() || !hasOwner) return;
-    setSaving(true);
-    const today = localToday();
-    if (scored) {
-      const { error } = await supabase.from("workstream_audits").upsert({
-        workstream_id: auditing.id, week_of: today,
-        c_owner: scores.c_owner, c_next: scores.c_next, c_blockers: scores.c_blockers,
-        c_artifacts: scores.c_artifacts, c_signal: scores.c_signal,
-        total, note: draft.note.trim() || null, audited_by: user?.id ?? null,
-      }, { onConflict: "workstream_id,week_of" });
-      if (error) { toast(`Couldn't save the audit — ${error.message}`, "error"); setSaving(false); return; }
-    }
-    // THE PERSON, NOT ONLY THEIR NAME (2026-10-04, the form audit). 0307 added owner_user_id and its
-    // changelog said owners "are now picked from the crew" — but this save wrote only the text, so
-    // re-owning a stream left owner_user_id on the PREVIOUS person, every stream added here had
-    // none, and v_workstream_owners and v_obligations (which read the id) answered for the wrong
-    // person. Both columns are written now, from one pick.
-    const { error: e2 } = await supabase.from("os_workstreams").update({
-      name: draft.name.trim().slice(0, 80), owner: draft.owner.name.trim().slice(0, 40), owner_user_id: draft.owner.id, status: draft.status,
-      next_action: draft.next_action.trim() || null, due: draft.due || null, blocker: draft.blocker.trim() || null,
-      ...(scored ? { health: total, last_audited: today } : {}),
-    }).eq("id", auditing.id);
-    setSaving(false);
-    if (e2) { toast(`Couldn't save — ${e2.message}`, "error"); return; }
-    toast(!scored ? "Stream updated" : total >= 10 ? `${draft.name}: 10 — green` : total >= 8 ? `${draft.name}: ${total} — amber watch` : `${draft.name}: ${total} — named in this week's review`);
-    setAuditing(null); reload();
-  };
+  const openAudit = (w: Ws) => openFlow(w);
 
   const addStream = async (name: string) => {
     if (!supabase || !name.trim()) return;
     const { error } = await supabase.from("os_workstreams").insert({ name: name.trim().slice(0, 80), owner: "", health: 0, sort: 1000 });
     if (error) { toast(String(error.message).includes("unique") ? "That workstream already exists" : `Couldn't add — ${error.message}`, "error"); return; }
     toast("Added — open it to set the owner and next action"); reload();
-  };
-  const removeStream = async () => {
-    if (!supabase || !auditing) return;
-    if (!(await confirm({ title: `Remove “${auditing.name}” from the portfolio?`, body: "Its audit history goes with it. Parking by decision is usually the better move.", confirmLabel: "Remove", danger: true }))) return;
-    const { error } = await supabase.from("os_workstreams").delete().eq("id", auditing.id);
-    if (error) { toast(`Couldn't remove — ${error.message}`, "error"); return; }
-    toast("Removed from the portfolio"); setAuditing(null); reload();
   };
 
   return (
@@ -154,7 +107,7 @@ export default function OsRegistry() {
               {overdue > 0 && (
                 <p className="osr-due flex items-start gap-2 mt-2.5 mb-0.5 px-3 py-2.5 border border-line2 rounded-lg font-sans text-footnote leading-[1.45] text-cream" role="status">
                   <Icon name="warning" />
-                  <span>{overdue === active.length ? "The Monday audit is overdue" : `${overdue} of ${active.length} workstreams are due an audit`}{lastRun ? ` — last run ${nice(lastRun)}, ${daysSince(lastRun)} days ago` : " — none has been run yet"}.{isAdmin ? " Tap a workstream to score it." : ""}</span>
+                  <span>{overdue === active.length ? "The Monday audit is overdue" : `${overdue} of ${active.length} workstreams are due an audit`}{lastRun ? ` — last run ${nice(lastRun)}, ${daysSince(lastRun)} days ago` : " — none has been run yet"}.{isAdmin && <> <button type="button" className="btn-ter" onClick={() => openFlow()}>Start the audit</button></>}</span>
                 </p>
               )}
               {/* THE ROWS ARE THE PAGE'S, NOT CARDS ON IT (2026-10-07). Each was a card filled with a
@@ -188,58 +141,8 @@ export default function OsRegistry() {
         }}
       </AsyncSection>
 
-      {auditing && (
-        <Sheet open onClose={() => setAuditing(null)} label={`Audit ${auditing.name}`}
-          dirty={anyScored || edited(
-            { name: draft.name, owner_id: draft.owner.id, owner: draft.owner.name, next_action: draft.next_action, due: draft.due, blocker: draft.blocker, status: draft.status, note: draft.note },
-            { name: auditing.name, owner_id: auditing.owner_user_id ?? null, owner: auditing.owner ?? "", next_action: auditing.next_action ?? "", due: auditing.due ?? "", blocker: auditing.blocker ?? "", status: auditing.status, note: "" },
-            ["name", "owner_id", "owner", "next_action", "due", "blocker", "status", "note"])}
-          header={<div className="note-lux-head"><span className="note-lux-eyb">Monday audit · {auditing.name}</span><CloseButton onClick={() => setAuditing(null)} /></div>}
-          footer={<div className="note-actions"><span className="osr-total">{scored ? `${total} / 10` : anyScored ? "score all five" : "details only"}</span><LeaveButton className="btn-sec" onClick={() => setAuditing(null)}>Cancel</LeaveButton><button type="button" className="btn-pri" disabled={saving || (anyScored && !scored) || !draft.name.trim() || !hasOwner} onClick={save}>{saving ? "Saving…" : scored ? "Save audit" : "Save details"}</button></div>}>
-          <div className="osr-audit">
-            <p className="h-sub">The score says where attention goes this week. Below 8 is named in the review; below 8 two weeks running owes the ledger a kill, pause or recover decision. Parked by decision is fine — stalled without one is not.</p>
-            <div className="osr-audit-row">
-              <label className="prod-f"><span>Workstream</span>
-                <input className="note-in" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} maxLength={80} /></label>
-              {/* The label used to read "Owner — exactly one name", which is an invariant a text
-                  box cannot keep: spell it differently the second time and the workstream belongs
-                  to nobody while still looking owned. It picks from the crew (0307 added
-                  owner_user_id beside the text column and backfilled the unambiguous matches) —
-                  through PersonPick, the one person pick list, which keeps the id AND the name.
-                  Someone with no account is still a valid owner — that is what "Someone else…"
-                  keeps the text box for — and it says plainly that it links to no one. */}
-              <label className="prod-f"><span>Owner</span>
-                <PersonPick label="Workstream owner" value={draft.owner} allowNone noneLabel="Nobody yet"
-                  onChange={(v) => setDraft((d) => ({ ...d, owner: v }))} /></label>
-            </div>
-            {CRITERIA.map((c) => (
-              <div key={c.key} className="osr-crit">
-                <div className="osr-crit-h"><b>{c.label}</b><span>{c.hint}</span></div>
-                <div className="osr-crit-chips" role="radiogroup" aria-label={c.label}>
-                  {[0, 1, 2].map((v) => (
-                    <button key={v} type="button" role="radio" aria-checked={scores[c.key] === v}
-                      className={`osr-chip${scores[c.key] === v ? " on" : ""}${v === 2 ? " full" : v === 0 ? " zero" : ""}`}
-                      onClick={() => setScores((s) => ({ ...s, [c.key]: v }))}>{v}</button>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <label className="prod-f"><span>Next action — specific, dated, ≤ 7 days out</span>
-              <input className="note-in" value={draft.next_action} onChange={(e) => setDraft({ ...draft, next_action: e.target.value })} placeholder="The one move this week" /></label>
-            <div className="osr-audit-row">
-              <label className="prod-f"><span>Due</span><input type="date" className="note-in" value={draft.due} onChange={(e) => setDraft({ ...draft, due: e.target.value })} /></label>
-              <label className="prod-f"><span>Status</span>
-                <select className="note-in" value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as Ws["status"] })}>
-                  <option value="active">Active</option><option value="blocked">Blocked</option><option value="parked">Parked (by logged decision)</option>
-                </select></label>
-            </div>
-            <label className="prod-f"><span>Blocker — none stale past 7 days without escalation</span>
-              <input className="note-in" value={draft.blocker} onChange={(e) => setDraft({ ...draft, blocker: e.target.value })} placeholder="What's stuck, if anything" /></label>
-            <label className="prod-f"><span>Audit note — why it isn't a 10</span>
-              <input className="note-in" value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} placeholder="One line, plain" /></label>
-            <button type="button" className="btn-del osr-remove" onClick={removeStream}>Remove from the portfolio</button>
-          </div>
-        </Sheet>
+      {walk && state.data && (
+        <MondayAudit rows={state.data.rows} recent={state.data.recent} ids={walk.ids} start={walk.start} onReload={reload} onClose={() => setWalk(null)} />
       )}
     </div>
   );

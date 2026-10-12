@@ -410,7 +410,7 @@ export const UNNAMED_EXEMPT = {
     "intake-drop", "oa-usual", "oa-tile", "mp-flex", "shop-card"],   // svc-enter, the Pass's hero button, went 2026-10-12: the Pass is a row
   // a box that ticks, a score's cells, a drop's stages, a photo's own toolbar, the Display sheet's four A's (each drawn at
   // the size it picks — and the shell, which carries the sheet, carries no control's code)
-  checks: ["rdy-check", "pbd-check", "goal-init-ck", "brew-score-b", "osr-chip", "dops-stage", "ms-b", "rdg-size"],
+  checks: ["rdy-check", "pbd-check", "goal-init-ck", "brew-score-b", "dops-stage", "ms-b", "rdg-size"],
   // a switch drawn as a tile with its caption (an event's Order ahead and Pickup, side by side): the iOS switches are
   // the kit's .k-switch (2026-10-09, the forms round)
   switches: ["oa-toggle"],

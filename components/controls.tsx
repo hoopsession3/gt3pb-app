@@ -18,7 +18,9 @@ export type SegOption<K extends string> = { key: K; label: ReactNode; title?: st
  *  row equally (and scrolls when the words will not fit); otherwise the track is as wide as its words.
  *  The thumb is measured from the chosen option itself, so options of different widths, a row that
  *  scrolls and the text-size setting all keep it under the right word. Until it has measured, the
- *  chosen option fills itself, so the first paint is already right. */
+ *  chosen option fills itself, so the first paint is already right. A `value` that is none of the
+ *  options chooses none: no thumb, nothing filled. `size="lg"` stands 44 points to the eye, not only
+ *  to the thumb — a choice a form is made of (2026-10-12: the Monday audit's 0 · 1 · 2). */
 export function Segmented<K extends string>({ options, value, onChange, onReselect, label, kind = "tabs", size, fill, className }: {
   options: SegOption<K>[];
   value: K;
@@ -27,7 +29,7 @@ export function Segmented<K extends string>({ options, value, onChange, onResele
   onReselect?: (key: K) => void;
   label: string;
   kind?: "tabs" | "choice";
-  size?: "sm";
+  size?: "sm" | "lg";
   fill?: boolean;
   className?: string;
 }) {

@@ -406,3 +406,32 @@
 @utility pass-narrow {
   @container pass (width >= 900px) { display: none; }
 }
+
+/* ============================================================
+   THE MONDAY AUDIT, FULL SCREEN (2026-10-12, Release 2 — Ryan chose it over the smaller sheet fix)
+   The audit (components/MondayAudit) walks every stream due an audit, and on a phone it is the whole screen: the house
+   Sheet's panel with no grab bar, no corners and no edge, its top clear of the status bar and the Dynamic Island, its
+   sides clear of a phone held on its side, its foot clear of the home indicator (the Sheet's footer pads that already).
+   It stands above the keyboard as every sheet does (the scrim's --kb). In the frame — a desk, an iPad — it is the Sheet's
+   centred card at the card's full height, so it does not grow and shrink from one stream to the next.
+   ============================================================ */
+@utility osr-flow {
+  @media not all and (min-width: 520px) and (min-height: 640px) {
+    max-width: none; height: 100%; max-height: none; border: 0; border-radius: 0; box-shadow: none;
+    padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);
+    & > .sheet2-grab { display: none; }
+    & > .sheet2-head { padding-top: calc(env(safe-area-inset-top, 0px) + 10px); }
+  }
+  @media (min-width: 520px) and (min-height: 640px) {
+    height: min(88vh, calc(100dvh - var(--kb, 0px) - 32px));
+  }
+}
+/* THE PHONE'S TEXT SIZE, ON THE AUDIT. The app's text size — in the iPhone app the phone's own Text Size until one is
+   picked (components/usePhoneText, lib/phoneText) — zooms the page (app/globals.css .app.rd-t1…3 .body); a sheet, drawn
+   beside the page rather than in it, kept the standard size. The audit's head, body and foot take the page's zooms, so
+   its words grow with the phone's, and its rows wrap rather than clip (the score drops under its rule). */
+@utility osr-type {
+  :where(.app.rd-t1) & { zoom: 1.08; }
+  :where(.app.rd-t2) & { zoom: 1.16; }
+  :where(.app.rd-t3) & { zoom: 1.26; }
+}

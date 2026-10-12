@@ -7229,10 +7229,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /if \(!s \|\| s\.userId !== userId\) return;/.test(np));
 
   // ── a workstream's owner is the person ──
-  const osr = code(read("components/OsRegistry.tsx"));
+  // The audit's form moved from OsRegistry's sheet to the full-screen walk (2026-10-12, components/MondayAudit), and the
+  // details it opens on to lib/mondayAudit's detailsOf: the same two rules, read where they live now.
+  const osr = code(read("components/OsRegistry.tsx")), maud = code(read("components/MondayAudit.tsx"));
   ok("workstream owner: one pick (PersonPick) writes the id AND the name",
-    /<PersonPick label="Workstream owner"/.test(osr) && /owner_user_id: draft\.owner\.id/.test(osr) && /owner: draft\.owner\.name/.test(osr));
-  ok("workstream owner: the sheet opens on the id it has, not a spelling", /owner: \{ id: w\.owner_user_id/.test(osr));
+    /<PersonPick label="Workstream owner"/.test(maud) && /owner_user_id: draft\.owner\.id/.test(maud) && /owner: draft\.owner\.name/.test(maud));
+  ok("workstream owner: the audit opens on the id it has, not a spelling", /owner: \{ id: w\.owner_user_id/.test(code(read("lib/mondayAudit.ts"))));
 
   // ── the KPI board files where it reads ──
   const kpi = code(read("components/KpiBoard.tsx"));
@@ -7247,9 +7249,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const LOWER_IS_BETTER = new Set\(\["spoilage"\]\);/.test(kpi) && /good: LOWER_IS_BETTER\.has\(k\.key\) \? d < 0 : d > 0/.test(kpi)
       && /change: isLive \? null : changeOf\(k, mine\[0\], mine\[1\]\)/.test(kpi) && /r\.change\.good \? "text-ok" : "text-warn"/.test(kpi));
   ok("command: one write for the sheet — every typed number in one upsert", /\.upsert\(rows, \{ onConflict: "metric,period,market" \}\)/.test(kpi) && !/\.upsert\(\s*\{ metric/.test(kpi));
-  ok("command: no paragraph of method above the state — the portfolio's is in its audit sheet, the board's in its log sheet",
+  ok("command: no paragraph of method above the state — the portfolio's is in its audit (the full-screen walk since 2026-10-12), the board's in its log sheet",
     !/The Playbook's KPI framework/.test(kpi) && !/Every goal is a number with a bar/.test(code(read("components/Goals.tsx")))
-      && /<div className="osr-audit">\s*<p className="h-sub">The score says where attention goes this week\./.test(osr) && !/Score is a search function/.test(osr));
+      && /<p className="h-sub">The score says where attention goes this week\./.test(maud) && !/The score says where attention goes/.test(osr) && !/Score is a search function/.test(osr + maud));
   ok("command: creates are name-first and quiet — a workstream is InlineCreate's, a goal a quiet button",
     /<InlineCreate label="\+ Workstream" placeholder="Workstream name" className="btn-ter self-start mt-2" onCreate=\{addStream\} \/>/.test(osr) && !/osr-add/.test(osr)
       && /<button type="button" className="btn-ter self-start mt-2" onClick=\{\(\) => setAdding\(true\)\}>\+ New goal<\/button>/.test(code(read("components/Goals.tsx"))));
@@ -8856,7 +8858,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const guarded = {
     "components/FieldOpSheet.tsx": /dirty=\{dirty\} page=\{page\}/, "components/CompanyCalendar.tsx": /dirty=\{edited\(f, loaded, CAL_SAVES\)\}/,
     "components/ProfileSheet.tsx": /dirty=\{edited\(\{ name, title, bio \}/, "components/MilestoneSheet.tsx": /dirty=\{title\.trim\(\) !== m\.title\.trim\(\)/,
-    "components/InitiativeSheet.tsx": /useUnsaved\(canEdit && changed\);/, "components/OsRegistry.tsx": /dirty=\{anyScored \|\| edited\(/,
+    "components/InitiativeSheet.tsx": /useUnsaved\(canEdit && changed\);/, "components/MondayAudit.tsx": /dirty=\{!summary && unsaved && !page\.kept\}/,
     "components/AssignTaskSheet.tsx": /dirty=\{!createdId && /, "components/AssetMaintenance.tsx": /dirty=\{summary\.trim\(\) !== \(from\?\.summary/,
     "components/ComplianceRuleRecord.tsx": /useUnsaved\(!!against\.trim\(\)/, "components/BrandCalendar.tsx": /dirty=\{edited\(f, loaded, \["title", "scheduled_for", "status", "event_id"\]\)\}/,
     "components/EventDayPlanner.tsx": /dirty=\{edited\(f, first,/, "components/BrewPlanner.tsx": /label="Batch log" dirty=\{dirty\}/,
@@ -12376,6 +12378,251 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /alertIsReservation\(a\.title\) \|\| alertIsContentReview\(a\.title\) \|\| destOf\(a\) != null;/.test(page) && /const d = destOf\(a\);\s*if \(!d\) return;/.test(page));
 
   ok("smoke: lib/liveOps and lib/heartbeat are compiled for these pins", /lib\/liveOps\.ts lib\/heartbeat\.ts/.test(JSON.parse(rd("package.json")).scripts.smoke));
+}
+
+// ── RELEASE 2 · THE MONDAY AUDIT'S RULES, ONCE (2026-10-12) ──
+// The full-screen audit (components/MondayAudit) walks every stream due. Its rules are lib/mondayAudit's, pure: a second
+// tap clears a score, the total says itself in words, the note saves only with five scores, a next action is dated
+// seven days out and warned past seven, a draft is kept on the phone per person and stream, and the week's summary
+// reads the two-week rule exactly as the list does — the list's own code is run here against the lib's.
+{
+  const MA = require("../.smoke/mondayAudit.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const osrRaw = rd("components/OsRegistry.tsx");
+  ok("monday audit: the five criteria, in order, in the rubric's words, on a 0–2 scale — moved from the sheet, not reworded",
+    MA.CRITERIA.map((c) => `${c.key}|${c.label}|${c.hint}`).join("\n") === [
+      "c_owner|Owner|Exactly one name. Shared ownership scores zero.",
+      "c_next|Next action|Specific, dated, no more than 7 days out.",
+      "c_blockers|Blockers|None stale past 7 days without escalation.",
+      "c_artifacts|Artifacts|Latest version linked. No unversioned edits in the wild.",
+      "c_signal|Signal|A linked KPI or gate has moved since the last audit.",
+    ].join("\n") && MA.SCALE.join() === "0,1,2");
+  const t1 = MA.tapScore({}, "c_owner", 2);
+  ok("monday audit: a tap sets a score, the same tap again clears it, another value replaces it — and nothing else moves",
+    t1.c_owner === 2 && Object.keys(t1).length === 1 && !("c_owner" in MA.tapScore(t1, "c_owner", 2)) && MA.tapScore(t1, "c_owner", 0).c_owner === 0
+      && JSON.stringify(MA.tapScore({ c_next: 1 }, "c_owner", 1)) === JSON.stringify({ c_next: 1, c_owner: 1 }) && t1.c_owner === 2);
+  const all = (v) => Object.fromEntries(MA.CRITERIA.map((c) => [c.key, v]));
+  const five = { c_owner: 2, c_next: 2, c_blockers: 2, c_artifacts: 1, c_signal: 1 };
+  const dotSrc = (osrRaw.match(/const dotClass = \(h: number, status: string\) => ([^;\n]+);/) || [])[1];
+  const dotClass = dotSrc ? new Function("h", "status", `return ${dotSrc};`) : null;
+  ok("monday audit: the total is the five added up, and its band is the list's dot — 10 green, 8–9 amber, under 8 red",
+    MA.scoreTotal(all(2)) === 10 && MA.scoreTotal(five) === 8 && MA.scoreTotal({}) === 0 && !!dotClass
+      && [...Array(11).keys()].every((h) => MA.bandOf(h) === dotClass(h, "active"))
+      && MA.bandOf(10) === "green" && MA.bandOf(9) === "amber" && MA.bandOf(8) === "amber" && MA.bandOf(7) === "red");
+  ok("monday audit: the running total says itself in words — \"8 of 10 · amber\" — and what it stands at on the way",
+    MA.runningWords(five) === "8 of 10 · amber" && MA.runningWords(all(2)) === "10 of 10 · green" && MA.runningWords(all(1)) === "5 of 10 · red"
+      && MA.runningWords({}) === "Not scored yet" && MA.runningWords({ c_owner: 2, c_next: 1 }) === "3 so far · 3 to score",
+    [MA.runningWords(five), MA.runningWords({ c_owner: 2, c_next: 1 })]);
+  ok("monday audit: all five is an audit and none a details save; partial scoring still blocks the save, and says why",
+    MA.saveVerdict(five, "", false).kind === "audit" && MA.saveVerdict({}, "", true).kind === "details"
+      && MA.saveVerdict({ c_owner: 2 }, "", true).kind === null && /^Score all five, or clear them/.test(MA.saveVerdict({ c_owner: 2 }, "", true).why ?? "")
+      && MA.saveVerdict({}, "", false).kind === null);
+  ok("monday audit: the note is asked for once all five are scored; one typed and left without a score stays in sight, and the save that would drop it is refused",
+    !MA.noteShown({}, "") && !MA.noteShown({ c_owner: 1 }, "") && MA.noteShown(five, "") && MA.noteShown({}, "Waiting on legal")
+      && MA.saveVerdict({}, "Waiting on legal", true).kind === null && /^The note saves with a score/.test(MA.saveVerdict({}, "Waiting on legal", true).why ?? "")
+      && MA.saveVerdict(five, "Waiting on legal", false).kind === "audit");
+  ok("monday audit: the button says what it saves — a details save says it carries no score, or that this week's stands",
+    MA.primaryLabel({ kind: "details", last: false, thisWeek: null }) === "Save details — no score this week"
+      && MA.primaryLabel({ kind: "details", last: true, thisWeek: 8 }) === "Save details — this week's score stands"
+      && MA.primaryLabel({ kind: "audit", last: false, thisWeek: null }) === "Save and next" && MA.primaryLabel({ kind: "audit", last: true, thisWeek: null }) === "Save and finish"
+      && MA.primaryLabel({ kind: null, last: false, thisWeek: null }) === "Save and next");
+  const W = { id: "w1", name: "D2C Delivery Ops", owner: "Ryan", owner_user_id: "u-ryan", status: "active", health: 9, next_action: "Routes locked", due: null, blocker: null, last_audited: "2026-08-02" };
+  const base = MA.detailsOf(W, "2026-10-12");
+  ok("monday audit: a stream opens on its owner's id, not a spelling; a next action with no date opens dated seven days out, one typed into an empty stream too, and a date set stays",
+    base.owner.id === "u-ryan" && base.owner.name === "Ryan" && MA.NEXT_ACTION_DAYS === 7 && base.due === "2026-10-19"
+      && MA.detailsOf({ ...W, due: "2026-10-14" }, "2026-10-12").due === "2026-10-14" && MA.detailsOf({ ...W, next_action: null }, "2026-10-12").due === ""
+      && MA.withNextAction({ ...base, next_action: "", due: "" }, "Call QT", "2026-10-12").due === "2026-10-19"
+      && MA.withNextAction({ ...base, next_action: "", due: "2026-10-13" }, "Call QT", "2026-10-12").due === "2026-10-13"
+      && MA.withNextAction({ ...base, next_action: "Call", due: "" }, "Call QT", "2026-10-12").due === "", base);
+  ok("monday audit: a date past seven days out warns — a warning, never a block",
+    MA.dueWarning("2026-10-19", "2026-10-12") === null && MA.dueWarning("2026-10-20", "2026-10-12") === "8 days out — more than seven."
+      && MA.dueWarning("", "2026-10-12") === null && MA.dueWarning("2026-10-01", "2026-10-12") === null && !/due/.test(String(MA.saveVerdict)));
+  const R4 = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }], dueSet = new Set(["a", "c", "d"]), isDue = (r) => dueSet.has(r.id);
+  const q = (...a) => JSON.stringify(MA.auditQueue(...a));
+  ok("monday audit: the walk is the streams due in the list's order, from the first — or from the stream tapped, which joins it in its place",
+    q(R4, isDue) === JSON.stringify({ ids: ["a", "c", "d"], start: 0 }) && q(R4, isDue, "c") === JSON.stringify({ ids: ["a", "c", "d"], start: 1 })
+      && q(R4, isDue, "b") === JSON.stringify({ ids: ["a", "b", "c", "d"], start: 1 }) && q(R4, () => false, "b") === JSON.stringify({ ids: ["b"], start: 0 }));
+  ok("monday audit: on from a stream is the next not yet done, round past the end to the first; none left is the week's summary",
+    MA.nextInWalk(["a", "b", "c"], 0, () => false) === 1 && MA.nextInWalk(["a", "b", "c"], 2, () => false) === 0
+      && MA.nextInWalk(["a", "b", "c"], 1, (id) => id !== "a") === 0 && MA.nextInWalk(["a", "b", "c"], 0, () => true) === null && MA.nextInWalk([], 0, () => false) === null);
+  const H = [
+    { workstream_id: "w1", week_of: "2026-10-12", total: 8, c_owner: 2 },
+    { workstream_id: "w2", week_of: "2026-10-06", total: 6, c_owner: 1 },
+    { workstream_id: "w1", week_of: "2026-10-05", total: 7, c_owner: 1, c_next: 0, c_blockers: null },
+    { workstream_id: "w1", week_of: "2026-09-28", total: 9, c_owner: 2 },
+    { workstream_id: "w1", week_of: "2026-08-02", total: 9 },
+  ];
+  ok("monday audit: \"was\" is the stream's newest audit before this week's Monday; this week's is the one filed since; a total-only audit has no was",
+    MA.lastWeekOf(H, "w1", "2026-10-12")?.week_of === "2026-10-05" && MA.thisWeekOf(H, "w1", "2026-10-14")?.week_of === "2026-10-12"
+      && MA.thisWeekOf(H, "w2", "2026-10-12") === null && MA.lastWeekOf(H, "w2", "2026-10-12")?.week_of === "2026-10-06"
+      && MA.wasScore(MA.lastWeekOf(H, "w1", "2026-10-12"), "c_next") === 0 && MA.wasScore(MA.lastWeekOf(H, "w1", "2026-10-12"), "c_blockers") === null
+      && MA.wasScore(H[4], "c_owner") === null && MA.wasScore(null, "c_owner") === null);
+  const st = (o) => MA.auditState({ unsaved: false, kept: true, scored: 0, detailsOnly: false, thisWeek: null, ...o });
+  ok("monday audit: three states, each named — Draft (kept on this phone), Details only (no score this week), Scored (saved for the week)",
+    st({ unsaved: true, scored: 3 })?.word === "Draft" && st({ unsaved: true, scored: 3 })?.line === "Kept on this phone until you save"
+      && st({ unsaved: true, kept: false, detailsOnly: true })?.word === "Details only" && /^No score this week · this phone couldn't keep it/.test(st({ unsaved: true, kept: false, detailsOnly: true })?.line ?? "")
+      && st({ unsaved: true, detailsOnly: true, thisWeek: 9 })?.line === "This week's 9 stands · kept on this phone until you save"
+      && st({ thisWeek: 8 })?.word === "Scored" && st({ thisWeek: 8 })?.line === "8 of 10 · amber — saved for the week" && st({}) === null);
+  const wk = "2026-10-12", form0 = { ...base, note: "" };
+  const k1 = MA.draftKey("u-ryan", "w1"), k2 = MA.draftKey("u-kayla", "w1"), k3 = MA.draftKey("u-ryan", "w2");
+  ok("monday audit: a draft is kept per person, per stream — a key of its own", k1 === "gt3-audit-draft:u-ryan:w1" && new Set([k1, k2, k3]).size === 3 && MA.draftKey(null, "w1") === "gt3-audit-draft:signed-out:w1");
+  const d1 = MA.draftOf({ c_owner: 2 }, { ...form0, blocker: "Waiting on legal" }, base, wk);
+  ok("monday audit: a draft holds what moved — the scores, the note and the details changed — and nothing moved is no draft",
+    MA.draftOf({}, form0, base, wk) === null && MA.draftOf({}, { ...form0, name: " D2C Delivery Ops  " }, base, wk) === null
+      && d1?.week === wk && d1?.scores.c_owner === 2 && JSON.stringify(d1?.details) === JSON.stringify({ blocker: "Waiting on legal" })
+      && MA.draftOf({}, { ...form0, note: "why" }, base, wk)?.note === "why"
+      && JSON.stringify(MA.draftOf({}, { ...form0, owner: { id: "u-kayla", name: "Kayla" } }, base, wk)?.details) === JSON.stringify({ owner: { id: "u-kayla", name: "Kayla" } }), d1);
+  const mem = () => { const m = new Map(); return { m, getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => { m.set(k, String(v)); }, removeItem: (k) => { m.delete(k); } }; };
+  const store = mem();
+  const back = MA.keepDraft(store, k1, d1) && MA.restoreDraft({ ...base, next_action: "Moved by Kayla" }, MA.loadDraft(store, k1, wk));
+  ok("monday audit: kept, a draft comes back this week over the stream as it stands now (what it did not change is today's); saving drops it",
+    !!back && store.m.has(k1) && back.scores.c_owner === 2 && back.form.blocker === "Waiting on legal" && back.form.next_action === "Moved by Kayla" && back.form.note === ""
+      && (MA.dropDraft(store, k1), !store.m.has(k1)) && MA.loadDraft(store, k1, wk) === null, back);
+  ok("monday audit: a draft goes when nothing is left to keep — the score cleared back to where it opened",
+    MA.keepDraft(store, k1, d1) && store.m.has(k1) && MA.keepDraft(store, k1, MA.draftOf({}, form0, base, wk)) === true && !store.m.has(k1));
+  ok("monday audit: last week's draft and an unreadable one do not come back, and are cleared as they are read",
+    (store.setItem(k1, JSON.stringify({ ...d1, week: "2026-10-05" })), MA.loadDraft(store, k1, wk) === null && !store.m.has(k1))
+      && (store.setItem(k1, "{not json"), MA.loadDraft(store, k1, wk) === null && !store.m.has(k1))
+      && MA.readDraft(JSON.stringify({ v: 2, week: wk, scores: { c_owner: 1 } }), wk) === null
+      && MA.readDraft(JSON.stringify({ v: 1, week: wk, scores: { c_owner: 3 }, details: { status: "stalled" }, note: 4 }), wk) === null);
+  const odd = MA.readDraft(JSON.stringify({ v: 1, week: wk, scores: { c_owner: 3, c_next: 1, c_bogus: 2 }, details: { blocker: 7, name: "Ops", owner: { id: 5, name: "x" }, status: "parked" }, note: "n" }), wk);
+  ok("monday audit: a score off the scale or a detail of the wrong kind is left behind, and the rest comes back",
+    JSON.stringify(odd?.scores) === JSON.stringify({ c_next: 1 }) && JSON.stringify(odd?.details) === JSON.stringify({ name: "Ops", status: "parked" }) && odd?.note === "n", odd);
+  const refuses = { getItem() { throw new Error("SecurityError"); }, setItem() { throw new Error("QuotaExceededError"); }, removeItem() { throw new Error("SecurityError"); } };
+  ok("monday audit: a phone that refuses to store says so — kept is false — and nothing throws",
+    MA.keepDraft(refuses, k1, d1) === false && MA.loadDraft(refuses, k1, wk) === null && (MA.dropDraft(refuses, k1), true)
+      && MA.keepDraft(null, k1, d1) === false && MA.keepDraft(null, k1, null) === true);
+  const listSrc = (osrRaw.match(/const owesDecision = \(w: Ws\) => \{([\s\S]*?)\n\s*\};/) || [])[1];
+  const listOwes = listSrc ? new Function("w", "recent", listSrc) : null;
+  const au = (id, totals) => totals.map((total) => ({ workstream_id: id, week_of: "2026-10-05", total }));
+  const cases = [
+    [{ id: "a", status: "active" }, au("a", [7, 6])], [{ id: "a", status: "active" }, au("a", [7, 9])], [{ id: "a", status: "active" }, au("a", [7])],
+    [{ id: "a", status: "parked" }, au("a", [5, 5])], [{ id: "a", status: "blocked" }, au("a", [5, 5])], [{ id: "a", status: "active" }, au("a", [8, 7])],
+    [{ id: "a", status: "active" }, au("a", [9, 5, 5])], [{ id: "a", status: "active" }, [...au("b", [9]), ...au("a", [6]), ...au("b", [3]), ...au("a", [7])]],
+    [{ id: "a", status: "active" }, []],
+  ];
+  ok("monday audit: the summary's two-week rule is the list's, answer for answer — the list's own code, run here beside the lib's",
+    !!listOwes && cases.every(([w, r]) => MA.owesDecision(w, r) === listOwes(w, r)) && cases.filter(([w, r]) => MA.owesDecision(w, r)).length === 2,
+    cases.map(([w, r]) => [MA.owesDecision(w, r), listOwes ? listOwes(w, r) : "no list rule"]));
+  const S = MA.weekSummary(
+    [{ id: "w1", name: "D2C", status: "active" }, { id: "w2", name: "Events", status: "active" }, { id: "w3", name: "Flagship", status: "parked" }, { id: "w4", name: "Brand", status: "active" }],
+    [{ workstream_id: "w1", week_of: "2026-10-12", total: 8 }, { workstream_id: "w2", week_of: "2026-10-12", total: 6 }, { workstream_id: "w2", week_of: "2026-10-05", total: 7 },
+      { workstream_id: "w1", week_of: "2026-10-05", total: 10 }, { workstream_id: "w4", week_of: "2026-10-05", total: 5 }, { workstream_id: "w4", week_of: "2026-09-28", total: 6 }],
+    "2026-10-12", ["w4"]);
+  ok("monday audit: the week's summary — each stream's total and band this week, skipped and parked said as such, and who owes the ledger a decision as of today",
+    S.map((s) => s.id).join() === "w1,w2,w3,w4" && S[0].total === 8 && S[0].band === "amber" && !S[0].owes
+      && S[1].total === 6 && S[1].band === "red" && S[1].owes && S[2].parked && S[2].total === null && !S[2].owes
+      && S[3].skipped && S[3].total === null && S[3].band === null && S[3].owes, S);
+  ok("smoke: lib/mondayAudit is compiled for these pins", /lib\/noteLink\.ts lib\/mondayAudit\.ts --outDir/.test(JSON.parse(rd("package.json")).scripts.smoke));
+}
+
+// ── RELEASE 2 · THE MONDAY AUDIT IS THE WHOLE SCREEN, AND WALKS EVERY STREAM DUE (2026-10-12) ──
+// It was a half-height sheet (its top at 420 of an iPhone 17's 874) showing two fields and no score, one stream a time.
+// components/MondayAudit is the house Sheet drawn full screen (app/tailwind.css osr-flow) that pages through the streams
+// due, from the overdue line or a row; OsRegistry keeps the list and opens it. The save is the sheet's, word for word.
+{
+  const PT = require("../.smoke/phoneText.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const norm = (t) => t.replace(/\s+/g, " ");
+  const maudRaw = rd("components/MondayAudit.tsx"), osrRaw = rd("components/OsRegistry.tsx");
+  const maud = code(maudRaw), osr = code(osrRaw), g = rd("app/globals.css"), tw = rd("app/tailwind.css"), ctl = code(rd("components/controls.tsx"));
+  // The sheet's save as it stood at 9695df5 (components/OsRegistry.tsx), comments aside.
+  const BEFORE_SAVE = [
+    'if (!supabase || !auditing || saving || (anyScored && !scored) || !draft.name.trim() || !hasOwner) return;',
+    'setSaving(true);',
+    'const today = localToday();',
+    'if (scored) {',
+    'const { error } = await supabase.from("workstream_audits").upsert({',
+    'workstream_id: auditing.id, week_of: today,',
+    'c_owner: scores.c_owner, c_next: scores.c_next, c_blockers: scores.c_blockers,',
+    'c_artifacts: scores.c_artifacts, c_signal: scores.c_signal,',
+    'total, note: draft.note.trim() || null, audited_by: user?.id ?? null,',
+    '}, { onConflict: "workstream_id,week_of" });',
+    'if (error) { toast(`Couldn\'t save the audit — ${error.message}`, "error"); setSaving(false); return; }',
+    '}',
+    'const { error: e2 } = await supabase.from("os_workstreams").update({',
+    'name: draft.name.trim().slice(0, 80), owner: draft.owner.name.trim().slice(0, 40), owner_user_id: draft.owner.id, status: draft.status,',
+    'next_action: draft.next_action.trim() || null, due: draft.due || null, blocker: draft.blocker.trim() || null,',
+    '...(scored ? { health: total, last_audited: today } : {}),',
+    '}).eq("id", auditing.id);',
+    'setSaving(false);',
+    'if (e2) { toast(`Couldn\'t save — ${e2.message}`, "error"); return; }',
+    'toast(!scored ? "Stream updated" : total >= 10 ? `${draft.name}: 10 — green` : total >= 8 ? `${draft.name}: ${total} — amber watch` : `${draft.name}: ${total} — named in this week\'s review`);',
+  ].join(" ");
+  const writes = (src, t) => (src.match(new RegExp(`\\.from\\("${t}"\\)\\.(insert|upsert|update|delete)\\(`, "g")) || []).map((m) => m.replace(/.*\.(\w+)\($/, "$1"));
+  ok("monday audit: the save writes exactly what it wrote — the same two tables, the same columns from the same values, the week's row before the stream, the same guard and the same words after",
+    norm(maud).includes(norm(BEFORE_SAVE)) && writes(maud, "workstream_audits").join() === "upsert" && writes(maud, "os_workstreams").join() === "update,delete"
+      && writes(osr, "workstream_audits").length === 0 && writes(osr, "os_workstreams").join() === "insert");
+  ok("monday audit: saved, its draft goes and the walk moves on — where the sheet closed",
+    /toast\(!scored \? "Stream updated"[^\n]*\n\s*dropDraft\(phone\(\), draftKey\(me, auditing\.id\)\);\s*if \(scored\) setMine\([^\n]*\);\s*onReload\(\);\s*advance\(auditing\.id, "saved"\);/.test(maud) && !/setAuditing/.test(maud + osr));
+  const lgRule = (g.match(/\.k-seg\.lg \.k-seg-opt\{([^}]*)\}/) || [])[1] ?? "";
+  const lgH = Number((lgRule.match(/(?:^|;)height:(\d+)px/) || [])[1]);
+  ok("monday audit: each score is the kit's segmented control, a radio group at its large size — 44 points tall, where the chips stood 34 — and a second tap clears it",
+    lgH >= 44 && /min-width:52px/.test(lgRule) && /size\?: "sm" \| "lg";/.test(ctl) && /\.k-seg\{[^}]*padding:3px/.test(g)
+      && /<Segmented kind="choice" size="lg" label=\{/.test(maud) && /onChange=\{pick\} onReselect=\{pick\}/.test(maud) && !/osr-chip/.test(g + maud + osr), lgRule);
+  ok("monday audit: the criteria have one home — the list keeps no copy of the sheet's, and the walk draws the lib's, one row each",
+    !/const CRITERIA = \[/.test(osrRaw + maudRaw) && /CRITERIA\.map\(\(c\) => <Criterion key=\{c\.key\}/.test(maud) && /<p className="m-0 mt-0\.5 font-sans text-footnote leading-snug text-cream-muted">\{c\.hint\}<\/p>/.test(maud));
+  ok("monday audit: each rule said once — the next action and the blocker are named, not ruled again, and 'parked by decision' is said beside Status alone",
+    /<span>Next action<\/span>/.test(maud) && /<span>Blocker<\/span>/.test(maud) && !/specific, dated|none stale past/i.test(maud)
+      && (maud.match(/Parked by decision/g) || []).length === 1 && /<option value="parked">Parked<\/option>/.test(maud) && !/Parked \(by logged decision\)/.test(maud + osr));
+  ok("monday audit: full screen — the house Sheet drawn whole on a phone, clear of the status bar, and never opened half",
+    /<Sheet open onClose=\{close\} label="Monday audit" className="osr-flow" detents=\{false\} bodyRef=\{bodyRef\}/.test(maud)
+      && /@utility osr-flow \{\s*@media not all and \(min-width: 520px\) and \(min-height: 640px\) \{\s*max-width: none; height: 100%; max-height: none;/.test(tw)
+      && /& > \.sheet2-grab \{ display: none; \}\s*& > \.sheet2-head \{ padding-top: calc\(env\(safe-area-inset-top, 0px\) \+ 10px\); \}/.test(tw)
+      && /padding-left: env\(safe-area-inset-left, 0px\); padding-right: env\(safe-area-inset-right, 0px\);/.test(tw));
+  ok("monday audit: reached from the overdue line (Start the audit) and from a row, which starts it at that stream; loaded only when opened",
+    /\{isAdmin && <> <button type="button" className="btn-ter" onClick=\{\(\) => openFlow\(\)\}>Start the audit<\/button><\/>\}/.test(osr)
+      && /onClick=\{\(\) => isAdmin && openAudit\(w\)\} disabled=\{!isAdmin\}/.test(osr) && /const openAudit = \(w: Ws\) => openFlow\(w\);/.test(osr)
+      && /const openFlow = \(at\?: Ws\) => \{\s*const q = auditQueue\(state\.data\?\.rows \?\? \[\], dueNow, at\?\.id\);\s*if \(q\.ids\.length\) setWalk\(q\);\s*\};/.test(osr)
+      && /const MondayAudit = dynamic\(\(\) => import\("\.\/MondayAudit"\), \{ ssr: false \}\);/.test(osr)
+      && /<MondayAudit rows=\{state\.data\.rows\} recent=\{state\.data\.recent\} ids=\{walk\.ids\} start=\{walk\.start\} onReload=\{reload\} onClose=\{\(\) => setWalk\(null\)\} \/>/.test(osr));
+  ok("monday audit: the walk's streams are the ones the overdue line counts — one rule, said in the same words",
+    /const active = rows\.filter\(\(r\) => r\.status !== "parked"\);/.test(osr) && /const overdue = active\.filter\(\(r\) => \(daysSince\(r\.last_audited\) \?\? 99\) >= 7\)\.length;/.test(osr)
+      && /const dueNow = \(r: Ws\) => r\.status !== "parked" && \(daysSince\(r\.last_audited\) \?\? 99\) >= 7;/.test(osr));
+  ok("monday audit: who may audit is unchanged — owners and admins: the row opens it for them alone, and so does the line's door",
+    /const isAdmin = !!profile\?\.is_admin \|\| \["owner", "admin"\]\.includes\(String\(\(profile as any\)\?\.role \?\? ""\)\);/.test(osr) && (osr.match(/openFlow\(/g) || []).length === 2);
+  ok("monday audit: Return in a one-line field saves and moves on, as the twelve's log does — and a held save says why rather than doing nothing",
+    /const onReturn = \(e: KeyboardEvent<HTMLInputElement>\) => \{\s*if \(e\.key !== "Enter" \|\| e\.nativeEvent\.isComposing\) return;\s*e\.preventDefault\(\);\s*submit\(\);/.test(maud)
+      && (maud.match(/onKeyDown=\{onReturn\}/g) || []).length === 4 && /if \(why\) \{ haptic\("boundary"\); toast\(why, "info"\); return; \}/.test(maud) && /disabled=\{saving \|\| !!why\}/.test(maud));
+  ok("monday audit: the note is asked for only with all five scored, where it saves — and kept in sight while it holds words",
+    /\{noteShown\(scores, draft\.note\) && \(/.test(maud) && /saves with all five scored/.test(maud) && /const verdict = saveVerdict\(scores, draft\.note, changedDetails\(draft, base\)\.length > 0\);/.test(maud));
+  ok("monday audit: the next action dates itself seven days out as it is first written, and a date past seven warns under the field without holding the save",
+    /onChange=\{\(e\) => set\(withNextAction\(draft, e\.target\.value, day\)\)\}/.test(maud) && /const warn = dueWarning\(draft\.due, day\);/.test(maud)
+      && /\{warn && <p className="[^"]*text-warn"><Icon name="warning" \/>\{warn\}<\/p>\}/.test(maud) && !/warn/.test((maud.match(/const why = [\s\S]*?;\n/) || [""])[0]));
+  ok("monday audit: the draft is kept as it is written, read back as a stream opens, and reaching the phone's storage is itself in a try",
+    /const phone = \(\): DraftStore \| null => \{ try \{ return window\.localStorage; \} catch \{ return null; \} \};/.test(maud)
+      && /setPage\(\{ \.\.\.p, kept: keepDraft\(phone\(\), draftKey\(me, p\.id\), draftOf\(p\.scores, p\.draft, p\.base, week\)\) \}\);/.test(maud)
+      && /restoreDraft\(base, w \? loadDraft\(phone\(\), draftKey\(me, id\), weekStartKey\(day\)\) : null\)/.test(maud)
+      && (maud.match(/localStorage/g) || []).length === 1);
+  ok("monday audit: the state is named on screen — Draft, Details only or Scored — and the button says what it saves",
+    /const state = auditState\(\{ unsaved, kept: page\.kept, scored: scoredCount\(scores\), detailsOnly: verdict\.kind === "details", thisWeek \}\);/.test(maud)
+      && /<span className=\{`k-tag\$\{state\.word === "Scored" \? " ok" : " gold"\}`\}>\{state\.word\}<\/span>\{state\.line\}/.test(maud) && /primaryLabel\(\{ kind, last, thisWeek \}\)/.test(maud));
+  ok("monday audit: VoiceOver — a score is a radio group named by its criterion and last week's score; each new stream's heading takes the focus; the progress is a progressbar; the total and a cleared score are announced",
+    /label=\{was !== null \? `\$\{c\.label\}, was \$\{was\}` : c\.label\}/.test(maud)
+      && /<h2 ref=\{titleRef\} tabIndex=\{-1\}/.test(maud) && /titleRef\.current\?\.focus\(\{ preventScroll: true \}\);/.test(maud) && /\}, \[page\.id, summary\]\);/.test(maud)
+      && /role="progressbar" aria-label="Streams done" aria-valuemin=\{0\} aria-valuemax=\{walk\.length\}/.test(maud) && /aria-valuetext=\{`\$\{doneCount\} of \$\{walk\.length\} done`\}/.test(maud)
+      && /<p className="osr-total m-0" aria-live="polite">\{runningWords\(scores\)\}<\/p>/.test(maud) && /setSaid\(next\[key\] === undefined \? `\$\{label\} cleared` : ""\);/.test(maud)
+      && /<p className="sr-only" aria-live="polite">\{said\}<\/p>/.test(maud));
+  const twZ = [1, ...[1, 2, 3].map((t) => Number((tw.match(new RegExp(`:where\\(\\.app\\.rd-t${t}\\) & \\{ zoom: ([\\d.]+); \\}`)) || [])[1]))];
+  ok("monday audit: the phone's text size zooms it as it zooms the page — the same three zooms — on its head, body and foot, and its rows wrap",
+    JSON.stringify(twZ) === JSON.stringify([...PT.ZOOMS]) && (maud.match(/\bosr-type\b/g) || []).length === 6
+      && /<div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line py-3">/.test(maud) && !/truncate|text-ellipsis|whitespace-nowrap/.test(maud), twZ);
+  ok("monday audit: Reduce Motion — it adds no motion of its own (the Sheet's arrival and the thumb answer to the house guard), and a new stream starts at its top without a scroll",
+    !/animate-|transition|behavior: "smooth"/.test(maud) && /bodyRef\.current\?\.scrollTo\(\{ top: 0 \}\);/.test(maud)
+      && /@media \(prefers-reduced-motion: reduce\)\{\s*\*,\*::before,\*::after\{animation-duration:\.001ms!important/.test(g));
+  const auditCols = JSON.parse(rd("supabase/schema.columns.json")).workstream_audits || [];
+  ok("monday audit: last week's five are read for the streams in the walk, from columns the table has — and their absence never holds the save",
+    /\.select\("workstream_id, week_of, total, c_owner, c_next, c_blockers, c_artifacts, c_signal"\)\s*\.in\("workstream_id", walk\)\.lt\("week_of", week\)\.order\("week_of", \{ ascending: false \}\)/.test(maud)
+      && ["workstream_id", "week_of", "total", "c_owner", "c_next", "c_blockers", "c_artifacts", "c_signal"].every((c) => auditCols.includes(c))
+      && /if \(error\) throw new Error\(error\.message\);/.test(maud) && /hist\.status === "error" && <p/.test(maud));
+  ok("monday audit: after the last stream, or once all are scored or skipped, the week — each stream's total and band, skipped and parked said, and who owes the ledger a decision by the list's own rule",
+    /if \(n === null\) openWeek\(\);/.test(maud) && /weekSummary\(rows, audits, day, walk\.filter\(\(id\) => done\[id\] === "skipped"\)\)/.test(maud)
+      && /const audits = \[\.\.\.mine, \.\.\.recent\.filter\(\(a\) => !mine\.some\(\(m\) => m\.workstream_id === a\.workstream_id && m\.week_of === a\.week_of\)\)\];/.test(maud)
+      && /`\$\{l\.total\} of 10 · \$\{l\.band\}`/.test(maud) && /⚖ Below 8 two weeks running owes the ledger a kill, pause or recover decision\./.test(maud)
+      && /className=\{`osr-score\$\{l\.band === "green" \? " green" : l\.band === "amber" \? " amber" : " red"\}`\}/.test(maud));
 }
 
 Promise.all(PENDING).then(() => {
