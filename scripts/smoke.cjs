@@ -9545,7 +9545,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /const deadline = Date\.now\(\) \+ \(holder \? PART_WAIT_MS : WAIT_MS\);/.test(anc)
     && /if \(now - \(asked\.get\(id\) \?\? -Infinity\) < REASK_MS\) return;\s*asked\.set\(id, now\);\s*window\.dispatchEvent\(new CustomEvent\(OPEN_PANEL_EVENT, \{ detail: id \}\)\);/.test(anc)
     && /if \(!asked\.has\(anchor\) \|\| \(el\.classList\.contains\("mpanel"\) && !el\.classList\.contains\("open"\)\)\) askOpen\(anchor\);/.test(anc)
-    && /<section id=\{id\} className=\{`mpanel\$\{open \? " open" : ""\}`\}/.test(read("app/crew/page.tsx"))
+    && /<section id=\{id\} className=\{`mpanel scroll-mt-4\$\{open \? " open" : ""\}`\}>/.test(read("app/crew/page.tsx"))
     && /const TAKEN_BACK = \["wheel", "touchmove", "keydown"\] as const;/.test(anc)
     && /const tick = \(\) => \{\s*if \(takenBack\) \{ watch\(false\); return; \}/.test(anc)
     && /setTimeout\(\(\) => \{\s*watch\(false\);\s*if \(takenBack\) return;/.test(anc)
