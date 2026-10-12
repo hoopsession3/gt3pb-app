@@ -105,19 +105,21 @@ export function useMyAlerts(userId: string | null, enabled = true) {
       if (f.severity !== "critical") {
         if (f.category && muted.has(f.category)) continue;
         if (snoozed.has(f.id)) continue;
+        if (quiet) { digest.push(f); continue; }
       }
       // SOMEBODY HAS IT (2026-10-12, 0383): a team alert someone else claimed is listed, with who, and
-      // counted nowhere — not on the bell, not as a critical, not on the service strip.
+      // counted nowhere — not on the bell, not as a critical, not on the service strip. In quiet hours a
+      // non-critical one waits in the digest like the rest, still saying who has it.
       if (claimWords(f, userId)) { taken.push(f); continue; }
-      if (f.severity !== "critical" && quiet) { digest.push(f); continue; }
       shown.push(f);
     }
     // Who has each: a first name only the database may give a server (alert_claimants, 0383). Without
     // its answer the line still says the truth — "Someone has it" — so a failure here is not a failed read.
-    if (taken.length) {
-      const { data: who, error: whoErr } = await supabase.rpc("alert_claimants", { p_alerts: taken.map((f) => f.id) });
+    const theirs = [...taken, ...digest.filter((f) => claimWords(f, userId))];
+    if (theirs.length) {
+      const { data: who, error: whoErr } = await supabase.rpc("alert_claimants", { p_alerts: theirs.map((f) => f.id) });
       const names = new Map(whoErr ? [] : ((who ?? []) as { alert_id: string; first_name: string | null }[]).map((w) => [w.alert_id, w.first_name]));
-      for (const f of taken) f.claim = claimWords({ ...f, claimed_name: names.get(f.id) }, userId);
+      for (const f of theirs) f.claim = claimWords({ ...f, claimed_name: names.get(f.id) }, userId);
     }
     setFlags(shown);
     setHeld(digest);

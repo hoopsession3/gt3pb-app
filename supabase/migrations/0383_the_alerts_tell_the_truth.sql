@@ -60,9 +60,10 @@
 --   · alert_claimants(alert ids): the claimant's first name, for the team alerts the caller can see. It is the
 --     database's answer because a server may not read another person's profile (0003); nothing about anyone's reads is
 --     shown — alert_reads stays its own person's.
---   · the inbox (lib/useMyAlerts, app/crew/page.tsx) lists a team alert someone else has after everything still open,
---     saying "<first name> has it", and does not count it: not on the bell, not in the critical count, not on the
---     service strip. The person who claimed it no longer sees it, as before.
+--   · the inbox (lib/useMyAlerts, app/crew/page.tsx) lists a team alert someone else has after everything still open
+--     (a non-critical one in quiet hours waits in the digest with the rest), saying "<first name> has it", and does not
+--     count it: not on the bell, not in the critical count, not on the service strip. The person who claimed it no
+--     longer sees it, as before.
 --   · escalate_unacked_criticals counts the claim, not any read: a claimed critical is not sent again, and a read by
 --     someone who cannot see the alert claims nothing and stops nothing.
 --   · a new alert is nobody's: a claim written with the alert is dropped (alerts_claim_starts_empty), so "<name> has

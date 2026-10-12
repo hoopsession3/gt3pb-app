@@ -722,7 +722,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
               {held.map((a) => (
                 <div key={a.id} className={`digest-item sev-${a.severity}`}>
                   <button type="button" className="digest-item-go" onClick={() => gotoAlert(a)}>
-                    <span className="digest-item-t">{a.title}<span className="alert-when">{ageLabel(a.created_at)}</span></span>
+                    <span className="digest-item-t">{a.title}{a.claim && <span className="k-tag ok txt ml-1.5">{a.claim}</span>}<span className="alert-when">{ageLabel(a.created_at)}</span></span>
                     {a.body && <span className="digest-item-b">{a.body}</span>}
                   </button>
                   <button type="button" className="digest-item-x" onClick={() => ack(a)} aria-label={`Dismiss ${a.title}`}><Icon name="close" /></button>
