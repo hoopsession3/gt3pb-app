@@ -84,7 +84,7 @@ export default function OfferLetters() {
 
   const loader = useCallback(async () => {
     if (!supabase) return { rows: [] as Row[], approvals: [] as Approval[], events: [] as Ev[], letters: [] as LetterRow[], members: [] as Member[], membersFailed: false };
-    const [{ data: rows, error }, { data: ap }, { data: ev }, mem] = await Promise.all([
+    const [{ data: rows, error }, ap, ev, mem] = await Promise.all([
       supabase.from("offer_letters").select("*").order("updated_at", { ascending: false }),
       supabase.from("offer_approvals").select("offer_id, approver_id, decision, note, decided_at"),
       supabase.from("offer_events").select("id, offer_id, at, kind, note, from_status, to_status").order("at", { ascending: false }),
@@ -92,11 +92,17 @@ export default function OfferLetters() {
       supabase.from("v_promotable").select("id, display_name, email, market, customer_name"),
     ]);
     if (error) throw new Error(error.message);
+    // A FAILED READ IS NOT "NOBODY HAS APPROVED" (2026-10-12). Only the offers' own read was checked: a failed read of
+    // the approvals tallied every offer as approved by no one, the history read as empty, and the letter would not
+    // print, with nothing said. They fail the panel now, with Try again — the customers' read keeps its own line below.
+    if (ap.error) throw new Error(ap.error.message);
+    if (ev.error) throw new Error(ev.error.message);
     // v_offer_letter (0286) carries the market's disclaimer alongside the offer, so the printed
     // letter is one read and cannot disagree with the record it came from.
-    const { data: letters } = await supabase.from("v_offer_letter").select("*");
-    return { rows: (rows as Row[]) ?? [], approvals: (ap as Approval[]) ?? [], events: (ev as Ev[]) ?? [],
-             letters: (letters as LetterRow[]) ?? [],
+    const lt = await supabase.from("v_offer_letter").select("*");
+    if (lt.error) throw new Error(lt.error.message);
+    return { rows: (rows as Row[]) ?? [], approvals: (ap.data as Approval[]) ?? [], events: (ev.data as Ev[]) ?? [],
+             letters: (lt.data as LetterRow[]) ?? [],
              // A failed read of the customers is said, not shown as "nobody has an account".
              members: (mem.data as Member[]) ?? [], membersFailed: !!mem.error };
   }, []);

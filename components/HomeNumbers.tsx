@@ -8,7 +8,8 @@ import { flavorDemand } from "@/lib/brewMath";
 import { nextDropDay } from "@/lib/dropDate";
 import { addDays, localToday, dayWithDate } from "@/lib/dates";
 import { moneyRound } from "@/lib/money";
-import { pctChange, changeWords, channelDriver, estMargin, samePoint, paceWords, topOf, type Channels } from "@/lib/home";
+import { pctChange, changeWords, channelDriver, estMargin, samePoint, paceWords, topOf, costBasisWords, ingredientWords,
+         type Channels, type CostBasis } from "@/lib/home";
 import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "./kit";
 import { useOperatorSection } from "./OperatorNav";
@@ -27,11 +28,13 @@ import { goToDest } from "./CrewKpis";
 // comparison (components/MoneyKpis, retired). Here, on Money, a number opens its report below instead of
 // the section it is already in, and there is no "See all" to the screen it is on.
 
-type Report = { revenue_cents?: number; by_channel?: Channels; cogs_pct?: number; error?: string };
+// THE MARGIN SAYS WHAT IT RESTS ON (2026-10-12, 0384): "ingredients at 30% of sales" read the same whether 30% was
+// measured from costed recipes or assumed because none were. report_sales says which (cogs_basis), and the cause says it.
+type Report = { revenue_cents?: number; by_channel?: Channels; cogs_pct?: number; cogs_basis?: CostBasis; error?: string };
 type EventPnl = { id: string; kind: string; fixed_cents: number };
 type Nums = {
   sales: { now: number; prev: number; driver: ReturnType<typeof channelDriver> } | null;
-  margin: { now: number; prev: number; pctOfSales: number | null; fixed: number; cogsPct: number } | null;
+  margin: { now: number; prev: number; pctOfSales: number | null; fixed: number; cogsPct: number; basis: CostBasis | null } | null;
   drop: { iso: string; packs: number; then: number | null; top: [string, number] | null } | null;
 };
 
@@ -73,7 +76,7 @@ export default function HomeNumbers({ money, drops, here = "day" }: { money: boo
       }
       const cogsPct = Number(b.cogs_pct ?? 0.3);
       const mNow = estMargin(now, cogsPct, fixedNow);
-      out.margin = { now: mNow, prev: estMargin(prev, cogsPct, fixedPrev), pctOfSales: now > 0 ? Math.round((mNow / now) * 100) : null, fixed: fixedNow, cogsPct };
+      out.margin = { now: mNow, prev: estMargin(prev, cogsPct, fixedPrev), pctOfSales: now > 0 ? Math.round((mNow / now) * 100) : null, fixed: fixedNow, cogsPct, basis: b.cogs_basis ?? null };
     })());
     if (drops) jobs.push((async () => {
       const day = await nextDropDay(sb);
@@ -147,8 +150,8 @@ export default function HomeNumbers({ money, drops, here = "day" }: { money: boo
                   <span className={CAUSE}>
                     {changeWords(pctChange(margin.now, margin.prev))}
                     {margin.fixed > 0
-                      ? ` · after ${moneyRound(margin.fixed)} in event costs`
-                      : ` · ingredients at ${Math.round(margin.cogsPct * 100)}% of sales`}
+                      ? ` · after ${moneyRound(margin.fixed)} in event costs${margin.basis ? ` · ${costBasisWords(margin.basis, margin.cogsPct)}` : ""}`
+                      : ` · ${ingredientWords(margin.cogsPct, margin.basis)}`}
                   </span>
                 </span>
                 <span className={VALUE}>{moneyRound(margin.now)}{margin.pctOfSales !== null && <small className="text-footnote font-normal text-cream-muted"> · {margin.pctOfSales}%</small>}</span>

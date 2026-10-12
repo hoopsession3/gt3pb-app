@@ -30,6 +30,17 @@ export const DEFAULT_ECON: EventEcon = {
   labor_rate_cents: 1800, booth_cents: 0, transport_cents: 0, permit_cents: 0, consumables_cents: 0,
 };
 
+// AN ESTIMATE SAYS WHAT IT ASSUMED (2026-10-12). An event with no saved economics is projected on DEFAULT_ECON, and the
+// live event card printed the net that came out of it as a fact. These are the words for the plan a figure rests on,
+// made from its numbers so the sentence cannot drift from them.
+/** "35% of guests buy · 1.2 items each · ingredients at 30% · crew at $18/hr" */
+export function planWords(e: EventEcon = DEFAULT_ECON): string {
+  const pct = (n: number) => `${Math.round(n * 100)}%`;
+  const rate = e.labor_rate_cents / 100;
+  const items = Number(e.items_per_guest);
+  return `${pct(e.capture_pct)} of guests buy · ${items} item${items === 1 ? "" : "s"} each · ingredients at ${pct(e.cogs_pct)} · crew at $${Number.isInteger(rate) ? rate : rate.toFixed(2)}/hr`;
+}
+
 // event menu flags → catalog keys (what this event actually sells)
 const MENU_KEYS: { flag: keyof EventRow; key: string }[] = [
   { flag: "menu_nitro", key: "nitro" },

@@ -11556,6 +11556,68 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && !/grant |policy|security definer/i.test(m378.replace(/--[^\n]*/g, "")) && /select public\.record_migration\('0377_the_porch_run_updates_live'\);/.test(m378));
 }
 
+// ── THE MONEY NUMBERS ARE HONEST (2026-10-12, 0384) ──────────────────────────────────────────────
+// scripts/db.money.test.mjs proves the database half against every migration. These hold the pure halves to their
+// word, and the Money screens to reading a failure as a failure.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  const HM = require("../.smoke/home.js"), SPM = require("../.smoke/spend.js"), ECM = require("../.smoke/economics.js");
+
+  ok("money: the shop is a channel of its own, named — a merch week moves the shop, not the walk-ups",
+    HM.CHANNEL_WORDS.shop === "Shop" && HM.channelDriver({ shop: 9000, square_walkup: 100 }, { shop: 9000, square_walkup: 200 })?.channel === "shop");
+
+  // An average is one channel's: its revenue over its own orders, never all revenue over the cups.
+  const rows = HM.channelRows({ square_walkup: 50000, cup: 9000, packs: 0, shop: 3200 }, { square_walkup: 20, cup: 10, packs: 0, shop: 1 });
+  ok("money: each channel is averaged over its own orders, biggest first, and an empty channel is not listed",
+    rows.map((r) => `${r.channel}:${r.avgCents}`).join() === "square_walkup:2500,cup:900,shop:3200", rows);
+  const older = HM.channelRows({ square_walkup: 50000, cup: 9000 }, { cup: 10 });
+  ok("money: a report that counts only cups gives only cups an average — no channel borrows another's count",
+    older.find((r) => r.channel === "cup")?.avgCents === 900 && older.find((r) => r.channel === "square_walkup")?.avgCents === null, older);
+  ok("money: the margin says what it rests on — costed products, or the 30% assumed — and an older report says nothing it cannot",
+    HM.costBasisWords({ products: 9, costed: 3, assumed: false }, 0.27) === "estimate · 3 of 9 products costed"
+      && HM.costBasisWords({ products: 9, costed: 0, assumed: true }, 0.3) === "assumed 30%" && HM.costBasisWords(undefined, 0.3) === ""
+      && HM.ingredientWords(0.3, { products: 9, costed: 0, assumed: true }) === "ingredients at 30% of sales, assumed"
+      && HM.ingredientWords(0.27, { products: 9, costed: 3, assumed: false }) === "ingredients at 27% of sales · 3 of 9 products costed"
+      && HM.ingredientWords(0.3) === "ingredients at 30% of sales");
+  ok("money: the default plan in words, from its own numbers", ECM.planWords() === "35% of guests buy · 1.2 items each · ingredients at 30% · crew at $18/hr", ECM.planWords());
+  ok("money: a budget's month is the business's — 9 pm Eastern on 31 October is October, after midnight it is November, and in winter too",
+    SPM.businessMonthStart(new Date("2026-11-01T01:00:00Z")) === "2026-10-01" && SPM.businessMonthStart(new Date("2026-11-01T04:30:00Z")) === "2026-11-01"
+      && SPM.businessMonthStart(new Date("2027-01-01T00:30:00Z")) === "2026-12-01");
+
+  // The screens: a failed read is a failure, said as one.
+  const reps = code(rd("lib/reports.ts")), sales = code(rd("components/Reports.tsx")), snap = code(rd("components/SnapshotReport.tsx"));
+  const pnl = code(rd("components/EventPnlReport.tsx")), spend = code(rd("components/SpendBudget.tsx")), crew = code(rd("app/crew/page.tsx"));
+  ok("money: the report fetchers throw on a failure, the function's own 'unauthorized' included — none returns null for a panel to draw as empty",
+    !/return null/.test(reps) && (reps.match(/if \(error\) throw new Error\(error\.message\);/g) || []).length === 3 && /if \(r\.error\) throw/.test(reps) && /if \(s\.error\) throw/.test(reps) && /if \(!Array\.isArray\(data\)\)/.test(reps));
+  ok("money: a report refused says who it is for — owners and admins (0384) — rather than drawing an empty panel",
+    /is for owners and admins\./.test(reps) && /Spend and budgets are for owners and admins\./.test(spend));
+  ok("money: Sales and the snapshot load through useAsyncData and say 'this is not zero' when they cannot read",
+    /useAsyncData<SalesReport>\(loader, \[loader\]\)/.test(sales) && /errorSub="This is not zero — we could not read the sales report just now\."/.test(sales)
+      && /useAsyncData<Snapshot>\(fetchSnapshot, \[\]\)/.test(snap) && /errorSub="This is not zero/.test(snap) && !/No snapshot data yet" \/>/.test(snap));
+  ok("money: Sales' average is per channel (channelRows), never all revenue over cup orders",
+    /channelRows\(rep\.by_channel \?\? \{\}, counts\)/.test(sales) && !/const aov = /.test(sales) && /rep\.orders_by_channel \?\? \{ cup: rep\.order_count \}/.test(sales));
+  ok("money: an event's net says it is an estimate, on the P&L and on the live card, and names the default plan when that is what it stands on",
+    /\{moneyRound\(r\.margin_cents\)\} est\. net/.test(pnl) && /r\.costs_saved === false/.test(pnl)
+      && /% of plan · est\. net <b/.test(crew) && /\{hasPlan && !econ && <p className="cp-line dim">Estimated on the default plan: \{planWords\(\)\}/.test(crew));
+  ok("money: Spend & budget cuts its month in Eastern time — the budget it saves, the list it reads, and the report it asks for by name",
+    /const month = businessMonthStart\(\);/.test(spend) && !/toISOString\(\)\.slice\(0, 10\)/.test(spend) && /supabase\.rpc\("report_spend", \{ p_month: monthStart \}\)/.test(spend)
+      && /const monthStart = businessMonthStart\(\);/.test(spend) && /const month = monthKey\(businessMonthStart\(\)\);/.test(spend));
+  ok("money: the console's money panels read their errors — subscribers, subscription interest, order history, product economics",
+    /const \{ data, error \} = await supabase\.from\("subscriptions"\)\.select\("\*"\)/.test(crew) && /const \{ data, error \} = await supabase\.from\("subscription_interest"\)/.test(crew)
+      && /const \{ data, error \} = await supabase\.from\("orders"\)\.select\("\*"\)\.in\("status", \["done", "void"\]\)/.test(crew)
+      && /if \(live\.error\) throw new Error\(live\.error\.message\);\s*if \(prods\.error\) throw new Error\(prods\.error\.message\);/.test(crew));
+  ok("money: and the panels that read in parts read every part — spend's report and categories, the shop's queue, an agreement's integrity and hours, an offer's approvals, history and letter",
+    /if \(c\.error\) throw new Error\(c\.error\.message\);/.test(spend) && /if \(!rep \|\| rep\.error\) throw/.test(spend)
+      && /if \(q\.error\) throw new Error\(q\.error\.message\);/.test(code(rd("components/ShopOrders.tsx")))
+      && /if \(integ\.error\) throw/.test(code(rd("components/OperatorDeal.tsx"))) && /if \(hrs\.error\) throw/.test(code(rd("components/OperatorDeal.tsx")))
+      && /if \(ap\.error\) throw/.test(code(rd("components/OfferLetters.tsx"))) && /if \(ev\.error\) throw/.test(code(rd("components/OfferLetters.tsx"))) && /if \(lt\.error\) throw/.test(code(rd("components/OfferLetters.tsx"))));
+  ok("money: 0384's test runs with the database tests, and 0384 records itself",
+    /node scripts\/db\.money\.test\.mjs/.test(JSON.parse(rd("package.json")).scripts["db:test"])
+      && /select public\.record_migration\('0384_the_money_numbers_are_honest',/.test(rd("supabase/migrations/0384_the_money_numbers_are_honest.sql")));
+}
+
 Promise.all(PENDING).then(() => {
   console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);

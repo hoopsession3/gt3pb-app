@@ -99,6 +99,9 @@ export const CHANNEL_WORDS = {
   packs: "Drop packs",
   delivery: "Delivery",
   office: "Office",
+  // THE SHOP IS A CHANNEL (2026-10-12, 0384). Its Square payments matched no app order, so report_sales filed them as
+  // walk-ups and a good week of merch read here as "Walk-ups +$…". A report from before 0384 has no shop key: zero.
+  shop: "Shop",
 } as const;
 export type Channel = keyof typeof CHANNEL_WORDS;
 export type Channels = Partial<Record<Channel, number>>;
@@ -138,6 +141,50 @@ export function channelDriver(ch7: Channels, ch14: Channels): { channel: Channel
  */
 export function estMargin(revenueCents: number, cogsPct: number, fixedCents: number): number {
   return Math.round(revenueCents * (1 - cogsPct)) - fixedCents;
+}
+
+// WHAT AN ESTIMATE RESTS ON (2026-10-12, 0384). A margin is revenue less the menu's blended cost of goods
+// (catalog_cogs_pct), and the blend is 30% by assumption until some product has a recipe — so a guessed 30% read exactly
+// like a measured one. report_sales says which now (cogs_basis); these are its words, one home for Sales and the home.
+export type CostBasis = { products: number; costed: number; assumed: boolean };
+
+const costedOf = (b: CostBasis): string => {
+  const of = Math.max(0, Number(b.products) || 0);
+  const n = Math.min(of, Math.max(0, Number(b.costed) || 0));
+  return `${n} of ${of} product${of === 1 ? "" : "s"} costed`;
+};
+
+/** "assumed 30%" · "estimate · 3 of 9 products costed" — or "" for a report from before 0384, which cannot say. */
+export function costBasisWords(basis: CostBasis | null | undefined, cogsPct: number): string {
+  if (!basis || typeof basis !== "object") return "";
+  return basis.assumed ? `assumed ${Math.round(cogsPct * 100)}%` : `estimate · ${costedOf(basis)}`;
+}
+
+/** The home's margin cause when no event cost leads it: "ingredients at 27% of sales · 3 of 9 products costed",
+ *  "ingredients at 30% of sales, assumed" — or, from a report before 0384, the percentage alone. */
+export function ingredientWords(cogsPct: number, basis?: CostBasis | null): string {
+  const at = `ingredients at ${Math.round(cogsPct * 100)}% of sales`;
+  if (!basis || typeof basis !== "object") return at;
+  return basis.assumed ? `${at}, assumed` : `${at} · ${costedOf(basis)}`;
+}
+
+// AN AVERAGE IS ONE CHANNEL'S (2026-10-12, 0384). Sales printed "N orders · $X avg" with N the cup orders and $X all
+// revenue over N — every walk-up, pack, delivery, office and shop dollar divided by the cups — so the average grew
+// whenever anything but cups sold. An average is a channel's revenue over that channel's own orders (report_sales'
+// orders_by_channel), and a channel whose count the report does not give has no average rather than a borrowed one.
+export type ChannelRow = { channel: Channel; label: string; cents: number; orders: number | null; avgCents: number | null };
+
+/** The channels that took money or orders, biggest first, each with its own orders and its own average. */
+export function channelRows(byChannel: Channels, orders: Channels): ChannelRow[] {
+  return (Object.keys(CHANNEL_WORDS) as Channel[])
+    .map((channel) => {
+      const cents = Number(byChannel[channel] ?? 0) || 0;
+      const raw = orders[channel];
+      const n = raw == null || !Number.isFinite(Number(raw)) ? null : Number(raw);
+      return { channel, label: CHANNEL_WORDS[channel], cents, orders: n, avgCents: n !== null && n > 0 ? Math.round(cents / n) : null };
+    })
+    .filter((r) => r.cents !== 0 || (r.orders ?? 0) > 0)
+    .sort((a, b) => b.cents - a.cents || a.label.localeCompare(b.label));
 }
 
 /**
