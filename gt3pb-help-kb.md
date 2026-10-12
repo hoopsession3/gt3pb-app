@@ -141,7 +141,7 @@ Two independent controls, both surfaced in the crew Money section (`components/P
 
 ## The membership economy (loyalty · referral · streak · credit)
 - **Stamps** — `profiles.points`, +1 per drink on pickup (0012). The stamp card and the
-  membership-card ring are views of that one number — "10th on us." Walk-up stamps: staff scan the
+  membership-card ring are views of that one number — "ten stamps, then a cup on us." Walk-up stamps: staff scan the
   member QR (`/scan`, RPCs in 0132). *Strategy pilot (not yet built): 5 bottle RETURNS = one free
   Performance drink — the delivery `empties_collected` log is its future data source.*
 - **Referral** — give $5, get $5 (`referral_events`): a friend joins with your code and makes their

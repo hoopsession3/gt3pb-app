@@ -1,6 +1,6 @@
 // THE CARD, SAID ONCE (2026-10-12 — C6 of the customer frontend audit and #6 of the account audit, both approved).
 //
-// Every tenth cup is on us. The card's numbers were worked out in six places, four ways: the account sheet's header
+// Ten stamps, then a cup on us — the eleventh, not the tenth. The card's numbers were worked out in six places, four ways: the account sheet's header
 // ("5 to your free pour"), the hub's line ("5 pts · 0 free earned"), Today's card, the crew's scan screen, the member
 // card and the Google pass, each with its own `const GOAL = 10`. And "free earned" counted every ten points forever,
 // because nothing recorded a free cup as given (0387 does now: a redemption is a ledger row of −10).

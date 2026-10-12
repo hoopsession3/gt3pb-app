@@ -31,7 +31,7 @@ export const STRATEGY_CORE: StrategyBlock[] = [
       "Loop $8 — refill into the customer's returned GT3 bottle. The loyalty + margin engine (78% margin).",
       "New $10 — fresh sealed bottle, customer keeps the glass (67% margin).",
       "Performance $14 — sealed + the Salted Latte add (70% margin).",
-      "House syrup station free at every tier. Loyalty: every drink earns a stamp, the 10th is free — no window, no minimum return count.",
+      "House syrup station free at every tier. Loyalty: every drink earns a stamp, ten stamps earn a free cup — no window, no minimum return count.",
     ],
   },
   {

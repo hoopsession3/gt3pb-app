@@ -9,7 +9,7 @@ import { fillCopy, useSiteCopy } from "@/lib/copy";
 import Icon from "@/components/Icon";
 import { cardOf, STAMP_GOAL } from "@/lib/loyalty";
 
-// LOYALTY STAMP CARD — every drink earns a stamp; the 10th is on us. Pure view of profiles.points,
+// LOYALTY STAMP CARD — every drink earns a stamp; ten earn a free cup. Pure view of profiles.points,
 // which the server credits on pickup (migration 0012, +1 per drink). No new data, no client writes.
 // Wears the shared GT3 card frame (gold ground + machined hairline + brand mark) so it reads as one
 // family with the membership card and the status card. Tapping it opens the member's own card

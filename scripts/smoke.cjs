@@ -6360,7 +6360,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /else \{ setCooldown\(30\); setOtp\(""\); setResent\(true\); codeRef\.current\?\.focus\(\); \}/.test(si)
     && /requestAnimationFrame\(\(\) => codeRef\.current\?\.select\(\)\);/.test(si) && /A new code is on its way — use the newest email\./.test(si));
   ok("sign-in: the 3MPIRE page joins by default and the avatar's Sign in lands on Welcome back; a page that needs an account names itself and signs in, without the join pitch",
-    /useState<Intent>\(start \?\? \(context \|\| compact \? "signin" : "join"\)\)/.test(si) && /\{context \? context\.title : intent === "join" \? "Every 10th cup is on us\." : "Welcome back\."\}/.test(si) && /\{!context && \(/.test(si)
+    /useState<Intent>\(start \?\? \(context \|\| compact \? "signin" : "join"\)\)/.test(si) && /\{context \? context\.title : intent === "join" \? "Buy 10, the next cup is on us\." : "Welcome back\."\}/.test(si) && /\{!context && \(/.test(si)
     && /if \(!user\) return <Suspense fallback=\{<SignIn \/>\}><GuestDoor \/><\/Suspense>;/.test(read("app/3mpire/page.tsx"))
     && /const signingIn = useSearchParams\(\)\.has\("signin"\);\s+return <SignIn key=\{signingIn \? "signin" : "join"\} start=\{signingIn \? "signin" : "join"\} \/>;/.test(read("app/3mpire/page.tsx")));
   ok("sign-in: inside a sheet that is already doing something — reserve, RSVP, checkout — it is compact: no logo, no pitch",
@@ -13439,7 +13439,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /const \[office\] = useState\(\(\) => params\.get\("for"\) === "office"\);\s+return <OrderFunnel initialMode="delivery" initialAudience=\{office \? "office" : "home"\} \/>;/.test(rd("app/delivery/page.tsx"))
     && /router\.push\("\/delivery\?for=office"\)/.test(office));
   ok("join: the offer first and what comes with it, one main button, the password a quieter way, Terms and Privacy where the account is made",
-    /"Every 10th cup is on us\."/.test(si) && /const PERKS = \["A stamp on every cup", "Order ahead, skip the line", "First taste of new reserves"\];/.test(si)
+    /"Buy 10, the next cup is on us\."/.test(si) && /const PERKS = \["A stamp on every cup", "Order ahead, skip the line", "First taste of new reserves"\];/.test(si)
     && /intent === "join" \? "Join free" : "Email me a sign-in code"/.test(si) && /className="auth-link min-h-11 inline-flex items-center text-cream-muted"/.test(si)
     && /By \{intent === "join" \? "joining" : "continuing"\} you agree to the <Link className="text-cream underline decoration-line2 underline-offset-4 hit-44" href="\/terms">Terms<\/Link> and <Link className="text-cream underline decoration-line2 underline-offset-4 hit-44" href="\/privacy">Privacy<\/Link>\./.test(si)
     && !/gt3-pb-wordmark\.png/.test(si) && !/so we can greet you/.test(si));

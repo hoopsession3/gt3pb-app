@@ -247,9 +247,9 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
       {/* ── main form ── */}
       {step === "form" && (
         <>
-          {/* The offer is the headline (the app's own words for it: lib/copy "10th is on us"), and what comes with
+          {/* The offer is the headline, in the card's own terms (lib/loyalty: ten stamps, then a cup on us), and what comes with
               joining is three lines, not a sentence. Compact says nothing here: the sheet around it already did. */}
-          {!compact && <h2 className="auth-headline">{context ? context.title : intent === "join" ? "Every 10th cup is on us." : "Welcome back."}</h2>}
+          {!compact && <h2 className="auth-headline">{context ? context.title : intent === "join" ? "Buy 10, the next cup is on us." : "Welcome back."}</h2>}
           {compact ? null : context ? <p className="auth-sub">{context.sub}</p> : intent === "join" ? (
             <ul className="mt-3 flex flex-col gap-1.5">
               {PERKS.map((p) => <li key={p} className="flex items-center gap-2.5 text-callout text-cream"><span className="text-gold2"><Icon name="check" /></span>{p}</li>)}
