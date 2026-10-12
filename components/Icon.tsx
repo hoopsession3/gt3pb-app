@@ -32,7 +32,10 @@ export type IconName =
   // 2026-10-01: a new operator is joining who will be cooking, and "put this on the scale" became
   // something the app has to say. The glyph lives HERE, not inline in BrewSteps — one home for the
   // line icons is the whole reason this file exists.
-  | "scale";
+  | "scale"
+  // 2026-10-12, the account sheet's two quick actions (A2 of the account audit): Show card — the scannable card — and
+  // Order again.
+  | "qr" | "repeat";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   // = OperatorNav ICONS.studio / STREAM_ICONS.brand (reused verbatim — same "AI/brand moment" glyph)
@@ -92,6 +95,8 @@ const PATHS: Record<IconName, React.ReactNode> = {
   // kitchen scale: the weighing bowl, the flat platform under it, the body, the readout. Four
   // strokes on purpose — this renders at 14px inside a WEIGH tag and has to still read as a scale.
   scale: <><path d="M8.5 9V6.5h7V9" /><path d="M3 9h18" /><path d="M5 9v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9" /><path d="M9.5 14.5h5" /></>,
+  qr: <><rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1" /><rect x="14" y="3.5" width="6.5" height="6.5" rx="1" /><rect x="3.5" y="14" width="6.5" height="6.5" rx="1" /><path d="M14 14h3v3h-3zM20.5 14v.01M14 20.5h.01M17 17h3.5v3.5" /></>,
+  repeat: <><path d="M17 2.5l3 3-3 3" /><path d="M4 11.5v-2a4 4 0 0 1 4-4h12" /><path d="M7 21.5l-3-3 3-3" /><path d="M20 12.5v2a4 4 0 0 1-4 4H4" /></>,
 };
 
 export function Icon({

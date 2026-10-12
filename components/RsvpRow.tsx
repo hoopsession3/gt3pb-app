@@ -128,7 +128,7 @@ export function RsvpRow({ ev }: { ev: EventRow }) {
       <Sheet open={signInOpen} onClose={() => { pendingRsvp.current = false; setSignInOpen(false); }} labelledBy={`rsvp-signin-${ev.id}`}>
         <div className="oa-kicker" id={`rsvp-signin-${ev.id}`}>SIGN IN TO RSVP</div>
         <h2 className="dl-h">{ev.title}</h2>
-        <SignIn />
+        <SignIn compact />
       </Sheet>
     </div>
   );

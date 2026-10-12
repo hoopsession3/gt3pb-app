@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -124,6 +125,19 @@ export default function Shop() {
           <EditableCopy k="reserve.headline" value={t("reserve.headline")} as="p" className="shop-stmt" multiline />
           <Reserves />
           <OrderFunnel initialMode="pickup" syncUrl={false} />
+          {/* FOR YOUR OFFICE (2026-10-12, A2 of the account audit, decision 5 — the owner chose Shop). Office sign-up's
+              only door inside the app was the account menu's "Office delivery" row, shown to every member; that row is
+              for members of an office company now, and everyone else finds the office here, beside the packs. It opens
+              the delivery page on its office side (components/OrderFunnel, ?for=office). Not prefetched: few tap it, and in the
+              app's export a prefetch of an address with a query asks the page itself. */}
+          <Link href="/delivery?for=office" prefetch={false} className="mt-4 flex w-full items-center gap-3 rounded-xl border border-line bg-card px-3.5 py-3 text-left no-underline">
+            <span className="text-gold2"><Icon name="jar" /></span>
+            <span className="min-w-0 flex-1">
+              <b className="block text-callout font-semibold text-cream">For your office</b>
+              <span className="block text-footnote text-cream-muted">Gallon jugs for the team, delivered Monday mornings</span>
+            </span>
+            <span className="text-cream-muted" aria-hidden="true">›</span>
+          </Link>
           {/* The guest's "What we make" story went (2026-10-09): it was the Menu tab's three acts again,
               under the order, with a second button to that same tab. The menu is one tap away. */}
           <ClosingBeat />

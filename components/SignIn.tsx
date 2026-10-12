@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { trackFunnel } from "@/lib/funnel";
-import Image from "next/image";
 import dynamic from "next/dynamic";
-import Mpire from "./Mpire";
+import Link from "next/link";
+import Gt3Mark from "./Gt3Mark";
+import Icon from "./Icon";
 import { useAuth } from "./AuthProvider";
 import { APP_BUILD, isNativeApp } from "@/lib/native";
 import { nextOnEnter } from "@/lib/formKeys";
@@ -51,7 +52,18 @@ const CODE_SCREEN: Record<CodeStep, { head: string; then: string; go: string; la
 // (lib/returnTo).
 export type SignInContext = { title: ReactNode; sub: ReactNode };
 
-export default function SignIn({ context }: { context?: SignInContext } = {}) {
+// THE OFFER FIRST, AND THREE SIZES (2026-10-12, A2 of the account audit; the owner approved the mockups). The join
+// screen led with a logo filling the top third and "Grow your 3MPIRE", which doesn't say what you get, and on an iPhone
+// SE its button sat under the tab bar. Now the small lockup, the offer and what comes with it, then the form — and the
+// Terms and Privacy where the account is made. Three sizes:
+//   · the 3MPIRE page — join by default, or "Welcome back" when the avatar's Sign in sent you (`start`);
+//   · a page that needs an account names itself (`context`) and signs in;
+//   · inside a sheet that is already doing something — reserve, RSVP, checkout — `compact`: no logo, no pitch, the
+//     sheet's own title says why.
+type Props = { context?: SignInContext; compact?: boolean; start?: Intent };
+const PERKS = ["A stamp on every cup", "Order ahead, skip the line", "First taste of new reserves"];
+
+export default function SignIn({ context, compact = false, start }: Props = {}) {
   const { sendCode, verifyCode, signInWithPassword, signUp, resetPassword } = useAuth();
   // In the iPhone app the emailed link can only open Safari, so the app never mentions it, and the form offers Sign in
   // with Apple. The page is drawn ahead of time with no phone (false); the app's first paint keeps that, then draws
@@ -59,7 +71,7 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
   const inApp = useSyncExternalStore(noSubscription, isNativeApp, () => false);
 
   // The first question is WHO you are (new vs returning) — the auth method comes second.
-  const [intent, setIntent] = useState<Intent>(context ? "signin" : "join");
+  const [intent, setIntent] = useState<Intent>(start ?? (context || compact ? "signin" : "join"));
   const [mode, setMode] = useState<Mode>("passwordless");
   const [step, setStep] = useState<"form" | "sent" | "confirm" | "reset-sent">("form");
 
@@ -181,10 +193,8 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
   };
 
   return (
-    <section className="screen auth" id="s-auth">
-      <div className="auth-welcome">Welcome to the</div>
-      <Image className="auth-logo" src="/gt3-pb-wordmark.png" alt="GT3 Performance Bar" width={440} height={248} priority unoptimized />
-      <div className="auth-rule" />
+    <section className={compact ? "flex flex-col" : "screen auth"} id={compact ? undefined : "s-auth"}>
+      {!compact && <div className="k-lock mb-6"><Gt3Mark tone="cream" /><span className="k-pb">Performance Bar</span></div>}
 
       {/* ── the code: after "email me a code" (sent), after a new password account (confirm) — the Confirm sign up
           email carries the same code, so a new account finishes here, not in Safari — and after "email me a reset
@@ -237,14 +247,14 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
       {/* ── main form ── */}
       {step === "form" && (
         <>
-          {/* The 3 in 3MPIRE is the real brand glyph (Mpire → public/brand/gt3-3.png), not a font
-              character — display-scale brand words carry the mark, same law as the GT3 masthead. */}
-          <h2 className="auth-headline">{context ? context.title : intent === "join" ? <>Grow your <Mpire />.</> : "Welcome back."}</h2>
-          <p className="auth-sub">
-            {context ? context.sub : intent === "join"
-              ? <>Free to join — points on every pour, first taste of reserves, order-ahead perks.</>
-              : <>Good to see you.</>}
-          </p>
+          {/* The offer is the headline (the app's own words for it: lib/copy "10th is on us"), and what comes with
+              joining is three lines, not a sentence. Compact says nothing here: the sheet around it already did. */}
+          {!compact && <h2 className="auth-headline">{context ? context.title : intent === "join" ? "Every 10th cup is on us." : "Welcome back."}</h2>}
+          {compact ? null : context ? <p className="auth-sub">{context.sub}</p> : intent === "join" ? (
+            <ul className="mt-3 flex flex-col gap-1.5">
+              {PERKS.map((p) => <li key={p} className="flex items-center gap-2.5 text-callout text-cream"><span className="text-gold2"><Icon name="check" /></span>{p}</li>)}
+            </ul>
+          ) : <p className="auth-sub">Sign in with the email you joined with.</p>}
 
           {/* SIGN IN WITH APPLE (2026-10-11): in the iPhone app, first — Apple's sheet, then signed in where you are, no
               email to wait for (components/AppleSignIn says why it looks like Apple's and not like the kit). */}
@@ -254,7 +264,7 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
             <form className="auth-form" onSubmit={handleSendCode}>
               {intent === "join" && (
                 <>
-                  <label className="auth-label" htmlFor="auth-name">First name <span>(so we can greet you)</span></label>
+                  <label className="auth-label" htmlFor="auth-name">First name</label>
                   <input id="auth-name" className="auth-input" enterKeyHint="next" onKeyDown={nextOnEnter} type="text" autoComplete="given-name" placeholder="Maverick" value={name} onChange={(e) => setName(e.target.value)} />
                 </>
               )}
@@ -262,7 +272,7 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
               <input id="auth-email" className="auth-input" enterKeyHint="send" type="email" inputMode="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
               {err && <div className="auth-err">{err}</div>}
               <button className="btn-pri btn-wide mt-4.5" type="submit" disabled={busy}>
-                <span>{busy ? "Sending…" : intent === "join" ? "Become a member — email my code" : "Email me a sign-in code"}</span>
+                <span>{busy ? "Sending…" : intent === "join" ? "Join free" : "Email me a sign-in code"}</span>
               </button>
             </form>
           )}
@@ -324,12 +334,17 @@ export default function SignIn({ context }: { context?: SignInContext } = {}) {
                 {intent === "join" ? "Already a member? Sign in" : "New here? Join free"}
               </button>
             )}
-            <button type="button" className="auth-link min-h-11 inline-flex items-center" onClick={() => { setMode(mode === "passwordless" ? "password" : "passwordless"); setErr(""); }}>
+            {/* The password is the quieter way: it doesn't compete with joining or signing in (the account audit, #7). */}
+            <button type="button" className="auth-link min-h-11 inline-flex items-center text-cream-muted" onClick={() => { setMode(mode === "passwordless" ? "password" : "passwordless"); setErr(""); }}>
               {mode === "passwordless" ? "Use a password instead" : "Email me a code instead"}
             </button>
           </div>
 
-          {!context && <p className="auth-fine">Browse the truck, menu &amp; events without signing in — membership just makes Today &amp; your 3MPIRE yours.</p>}
+          {/* Where an account can be made, its Terms and Privacy (the account audit, #7) — joining, and signing in too: an
+              emailed code or Apple makes the account when there is none (AuthProvider sendCode, shouldCreateUser). */}
+          {!context && (
+            <p className="auth-fine">By {intent === "join" ? "joining" : "continuing"} you agree to the <Link className="text-cream underline decoration-line2 underline-offset-4" href="/terms">Terms</Link> and <Link className="text-cream underline decoration-line2 underline-offset-4" href="/privacy">Privacy</Link>.{compact ? "" : " Or browse the menu and the truck first."}</p>
+          )}
         </>
       )}
     </section>

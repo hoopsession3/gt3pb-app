@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth, roleOf } from "./AuthProvider";
 import { useApp } from "./AppProvider";
@@ -12,8 +12,13 @@ import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { readEditMode, writeEditMode } from "@/lib/editModeToggle";
 import { showsCommerce, surfaceOf } from "@/lib/surfaces";
+import { staffAccess, type Access } from "@/lib/access";
+import { canOf } from "@/lib/roles";
+import { rememberMode } from "@/lib/mode";
+import { NATIVE_PUSH_ON } from "@/lib/nativePush";
 import type { Order } from "@/lib/db";
 import Button from "./Button";
+import { Segmented } from "@/components/controls";
 import { signOutHere } from "@/lib/pushRelease";
 import { cardOf, freeWords, STAMP_GOAL } from "@/lib/loyalty";
 
@@ -22,15 +27,22 @@ import { cardOf, freeWords, STAMP_GOAL } from "@/lib/loyalty";
 // ── WHAT IT STOPPED BEING (2026-10-02) ─────────────────────────────────────────────────────────
 // It used to open with a second copy of the /3mpire hub — the three stat tiles, the red "Order
 // again" block, the gold member-card hero — and only then the rows, so "Switch to Crew Mode" and
-// "Sign out" sat below the fold. Ryan's three screenshots showed the same four facts (name, tier,
-// stamps, usual) rendered on Today, on /3mpire and here, and his own console four taps away.
-// Every function one home: Today shows the card and the usual; /3mpire IS the hub; this is the
-// list of places to go. The identity line at the top is the way to the hub. Nothing is lost —
-// every destination this used to show is one tap away in a row, and the sheet now fits a phone
-// without scrolling.
+// "Sign out" sat below the fold. Every function one home: Today shows the card and the usual; /3mpire
+// IS the hub; this is the list of places to go. The identity line at the top is the way to the hub.
 //
-// For staff, Crew Mode is the FIRST row and the reason they opened this. lib/mode.ts remembers
-// the side they are on, so most days the owner never needs it: the app opens where he left it.
+// ── ONE SHEET, FOUR ROWS (2026-10-12, A2 of the account audit; the owner approved the mockups) ──────
+// Fifteen rows in three groups, and every member saw all of them: the office row for people with no
+// office, "Your agreement" for every crew role though only an operator has one, the owner's copy
+// switch among the help rows, and a member card that could not be scanned. Now:
+//   · the header, as before — the way to the hub;
+//   · for staff, a Customer · Crew switch instead of a gold row (it waits for the profile; a profile
+//     still loading is not "member");
+//   · two quick actions: Show card — the scannable card, its photo and finish inside it — and Order again;
+//   · four rows — Orders, Rewards, Settings & privacy, Help — and the rows a person has: Your office for a
+//     member of an office company, Your agreement or Your offer letter for someone who has one;
+//   · the owner's Edit copy in an Owner group; then Sign out.
+// Settings & privacy (Profile, Notifications, Display, Delete account) and Help (Ask us, Connect) open in
+// place, under this same sheet, with a way back. Nothing is gone: the account audit maps all fifteen.
 
 // Loaded when someone taps "Delete account", not with every page: the account sheet rides in every
 // route's bundle, and the design ratchet weighs each one (scripts/design.ratchet.mjs).
@@ -48,74 +60,138 @@ function Coconut() {
   );
 }
 
-// HELP AND DISPLAY (2026-10-08, the iPhone chrome round, approved). The floating rail held these on every
-// page; on a phone it is gone, and they are rows here — for a guest too. Each opens its own sheet
-// (Ask us: components/Concierge; Connect and Display: components/HelpSheets) as this menu closes. In the
-// frame the rail still has them as well: a menu that lists its help is never wrong.
-function HelpRows({ onClose, owner }: { onClose: () => void; owner: boolean }) {
-  const ask = showsCommerce(surfaceOf(usePathname()));
-  const open = (event: string) => { onClose(); window.dispatchEvent(new Event(event)); };
+/** One row of the menu: a name, what is behind it, and the sign that it goes somewhere. */
+function Row({ title, sub, onClick, end = "›", pressed, row }: { title: string; sub: string; onClick: () => void; end?: string; pressed?: boolean; row?: string }) {
+  return (
+    <button type="button" className="acs-row" onClick={onClick} aria-pressed={pressed} data-acs-row={row}>
+      <span className="acs-row-x"><b>{title}</b><span>{sub}</span></span>
+      <span className="acs-row-c" aria-hidden>{end}</span>
+    </button>
+  );
+}
+
+/** A quick action: one of the two things a member opens this sheet for most. */
+function Tile({ title, sub, icon, onClick, disabled }: { title: string; sub: string; icon: "qr" | "repeat" | "coffee"; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled}
+      className="flex min-h-16 min-w-0 flex-col items-start justify-center gap-0.5 rounded-xl border border-line bg-card px-3.5 py-2.5 text-left active:scale-[.98] disabled:opacity-50">
+      <span className="flex items-center gap-1.5 text-callout font-semibold text-cream"><Icon name={icon} /> {title}</span>
+      <span className="w-full truncate text-footnote text-cream-muted">{sub}</span>
+    </button>
+  );
+}
+
+/** The owner's on-page copy editing (components/EditableCopy), in a group of its own. */
+function OwnerRows() {
   // Read when the menu opens (it is drawn in the browser only, after a tap), so no effect is needed.
   const [editing, setEditing] = useState(readEditMode);
   return (
     <>
-      <div className="acs-group">Help &amp; display</div>
+      <div className="acs-group">Owner</div>
       <div className="acs-rows">
-        {ask && (
-          <button type="button" className="acs-row" onClick={() => open("gt3-open-concierge")}>
-            <span className="acs-row-x"><b>Ask us</b><span>The menu, the truck&rsquo;s hours, booking</span></span>
-            <span className="acs-row-c" aria-hidden>›</span>
-          </button>
-        )}
-        <button type="button" className="acs-row" onClick={() => open("gt3-open-connect")}>
-          <span className="acs-row-x"><b>Connect with GT3</b><span>Links, socials &amp; a code to scan</span></span>
-          <span className="acs-row-c" aria-hidden>›</span>
-        </button>
-        <button type="button" className="acs-row" onClick={() => open("gt3-open-display")}>
-          <span className="acs-row-x"><b>Display &amp; text size</b><span>Bigger text, bold, roomier spacing</span></span>
-          <span className="acs-row-c" aria-hidden>›</span>
-        </button>
-        {/* The owner's on-page copy editing (components/EditableCopy), the rail's Edit copy switch. */}
-        {owner && (
-          <button type="button" className="acs-row" aria-pressed={editing} onClick={() => { const next = !editing; setEditing(next); writeEditMode(next); }}>
-            <span className="acs-row-x"><b>Edit copy on pages</b><span>{editing ? "On — tap any text to change it" : "Off — turn on to change words on a page"}</span></span>
-            <span className="acs-row-c" aria-hidden>{editing ? "On" : "Off"}</span>
-          </button>
-        )}
+        <Row title="Edit copy on pages" sub={editing ? "On — tap any text to change it" : "Off — turn on to change words on a page"}
+          end={editing ? "On" : "Off"} pressed={editing} onClick={() => { const next = !editing; setEditing(next); writeEditMode(next); }} />
       </div>
     </>
   );
 }
 
+// HELP AND DISPLAY for someone signed out (2026-10-08, the iPhone chrome round): the floating rail held these on every
+// page; on a phone they are rows here. Signed in, they live under Help and Settings & privacy.
+function GuestRows({ onClose }: { onClose: () => void }) {
+  const ask = showsCommerce(surfaceOf(usePathname()));
+  const open = (event: string) => { onClose(); window.dispatchEvent(new Event(event)); };
+  return (
+    <>
+      <div className="acs-group">Help &amp; display</div>
+      <div className="acs-rows">
+        {ask && <Row title="Ask us" sub="The menu, the truck’s hours, booking" onClick={() => open("gt3-open-concierge")} />}
+        <Row title="Connect with GT3" sub="Links, socials & a code to scan" onClick={() => open("gt3-open-connect")} />
+        <Row title="Display & text size" sub="Bigger text, bold, roomier spacing" onClick={() => open("gt3-open-display")} />
+      </div>
+    </>
+  );
+}
+
+/** The rows only some people have, read when the menu opens: the office company they belong to (0355: a member reads
+ *  their own membership), an operator agreement made out to them (0277), an offer letter sent to them (0281). Asked
+ *  once the profile is known — an admin reads every offer and agreement, so theirs is asked for by name, and an
+ *  unknown profile might be an admin's. A read that fails is never "you have none": this menu is the only door to
+ *  those pages in the app, so the menu says it couldn't check, and checks again on a tap. */
+type Own = { office: boolean; agreement: boolean; offer: boolean; failed: boolean };
+function useOwnRows(userId: string | null, access: Access, admin: boolean): Own & { retry: () => void } {
+  const [own, setOwn] = useState<Own>({ office: false, agreement: false, offer: false, failed: false });
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    if (!supabase || !userId || (access !== "allow" && access !== "deny")) return;
+    let live = true;
+    const sb = supabase;
+    const staff = access === "allow";
+    // Anyone else sees only their own (RLS), matched on the account or — before they link it — on the email it was sent to.
+    let offers = sb.from("offer_letters").select("id").in("status", ["sent", "countered", "accepted"]).limit(1);
+    if (admin) offers = offers.eq("candidate_user_id", userId);
+    void Promise.all([
+      sb.from("company_members").select("id").eq("user_id", userId).eq("active", true).limit(1),
+      staff ? sb.from("operator_agreements").select("id").eq("operator_user_id", userId).limit(1) : Promise.resolve({ data: [], error: null }),
+      offers,
+    ]).then(([m, a, o]) => {
+      if (!live) return;
+      setOwn({ office: !!m.data?.length, agreement: !!a.data?.length, offer: !!o.data?.length, failed: !!(m.error || a.error || o.error) });
+    }, () => { if (live) setOwn((x) => ({ ...x, failed: true })); });
+    return () => { live = false; };
+  }, [userId, access, admin, attempt]);
+  return { ...own, retry: () => setAttempt((n) => n + 1) };
+}
+
 export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   onClose: () => void;
-  onEditProfile: () => void;
+  onEditProfile: (focus?: "notifications") => void;
   onShowCard: () => void;
 }) {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, profileStatus, signOut, refreshProfile } = useAuth();
   const { toast, reorder } = useApp();
   const router = useRouter();
+  const pathname = usePathname();
 
   const role = roleOf(profile);
-  const staff = !!user && role !== "member";
+  // A profile still loading is not "member" (lib/access): the switch waits for it instead of vanishing.
+  const access = staffAccess(!!user, profileStatus, profile);
+  const staff = access === "allow";
+  const admin = staff && canOf(profile).admin;
   const name = profile?.display_name || user?.email?.split("@")[0] || "Guest";
   const founding = !!profile?.founding_member;
   const card = cardOf(profile?.points);
   const credit = (profile?.credit_cents ?? 0) / 100;
   const photo = profile?.avatar_url || "";
+  const own = useOwnRows(user?.id ?? null, access, admin);
+  const ask = showsCommerce(surfaceOf(pathname));
+  // Notifications has a row only where there is something to switch: the app's own alerts, or a browser's.
+  const alerts = NATIVE_PUSH_ON || typeof Notification !== "undefined";
 
-  // Their usual — the single most-used customer action, reachable from anywhere.
+  // Their last completed order — "Order again" repeats what they had, not what was voided or is still being made.
   const [last, setLast] = useState<Order | null>(null);
   useEffect(() => {
     if (!supabase || !user) return;
-    supabase.from("orders").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1)
+    supabase.from("orders").select("*").eq("user_id", user.id).eq("status", "done").order("created_at", { ascending: false }).limit(1)
       .then(({ data }) => { if (data && data[0]) setLast(data[0] as Order); });
   }, [user]);
 
   const go = (href: string) => { onClose(); router.push(href); };
+  const open = (event: string) => { onClose(); window.dispatchEvent(new Event(event)); };
 
-  // "Delete account" swaps the menu for its own body under this same header (components/DeleteAccount).
+  // "Delete account" swaps the menu for its own body under this same header (components/DeleteAccount), and Settings &
+  // privacy and Help open in place the same way, with a way back.
   const [deleting, setDeleting] = useState(false);
+  const [view, setView] = useState<"menu" | "settings" | "help">("menu");
+  // Focus follows the swap (the tapped row is gone from the page): a sub-view lands on its way back, and the way back
+  // lands on the row that opened it — for VoiceOver and a keyboard, as a pushed screen does.
+  const backRef = useRef<HTMLButtonElement>(null);
+  const cameFrom = useRef<string | null>(null);
+  useEffect(() => {
+    if (view === "menu") { if (cameFrom.current) document.querySelector<HTMLElement>(`[data-acs-row="${cameFrom.current}"]`)?.focus(); }
+    else backRef.current?.focus();
+  }, [view]);
+  const openView = (v: "settings" | "help") => { cameFrom.current = v; setView(v); };
 
   const head = (title: string) => (
     <div className="acs-head">
@@ -127,7 +203,8 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   // DELETING STAYS ON SCREEN TO ITS END (2026-10-11, the review): the delete signs this phone out as soon as the server
   // has erased the account, and with no one signed in the sheet below turned into "Membership · Sign in" — taking the
   // last step with it: an account made with Apple whose Apple tokens could not be revoked from here is told how to end
-  // Sign in with Apple in Settings, and that was never seen. So the delete is asked first.
+  // Sign in with Apple in Settings, and that was never seen. So the delete is asked first, before Settings & privacy
+  // and before the signed-out sheet.
   if (deleting) {
     return (
       <Sheet open onClose={onClose} header={head("Delete your account")} className="acs-sheet">
@@ -141,11 +218,37 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
     return (
       <Sheet open onClose={onClose} header={head("Membership")} className="acs-sheet">
         <div className="acs-guest">
-          <div className="acs-guest-t">Points · pours · reserves</div>
+          <div className="acs-guest-t">Stamps · order ahead · reserves</div>
           <p>Sign in to earn stamps, track your orders, and carry your GT3 member card.</p>
-          <Button type="button" kind="primary" wide onClick={() => go("/3mpire")}>Sign in</Button>
+          {/* A returning member lands on "Welcome back", not on the join pitch (the account audit, #13). */}
+          <Button type="button" kind="primary" wide onClick={() => go("/3mpire?signin")}>Sign in</Button>
+          <button type="button" className="auth-link min-h-11 mt-1 inline-flex items-center" onClick={() => go("/3mpire")}>New here? Join free</button>
         </div>
-        <HelpRows onClose={onClose} owner={false} />
+        <GuestRows onClose={onClose} />
+      </Sheet>
+    );
+  }
+
+  if (view !== "menu") {
+    const back = <button ref={backRef} type="button" className="btn-ter mb-1" aria-label="Back to Your account" onClick={() => setView("menu")}><span aria-hidden="true">‹</span> Your account</button>;
+    return (
+      <Sheet open onClose={onClose} header={head(view === "settings" ? "Settings & privacy" : "Help")} className="acs-sheet">
+        {back}
+        {view === "settings" ? (
+          <div className="acs-rows">
+            <Row title="Profile" sub={staff ? "Photo, name, title and bio" : "Photo and name"} onClick={() => onEditProfile()} />
+            {alerts && <Row title="Notifications" sub="Order-ready alerts on this phone" onClick={() => onEditProfile("notifications")} />}
+            <Row title="Display & text size" sub="Bigger text, bold, roomier spacing" onClick={() => open("gt3-open-display")} />
+            {/* App Store Review Guideline 5.1.1(v): deleting the account is in the account — Settings & privacy, the
+                second level, on the web and in the app alike. */}
+            <Row title="Delete account" sub="Your profile and details, for good" onClick={() => setDeleting(true)} />
+          </div>
+        ) : (
+          <div className="acs-rows">
+            {ask && <Row title="Ask us" sub="The menu, the truck’s hours, booking" onClick={() => open("gt3-open-concierge")} />}
+            <Row title="Connect with GT3" sub="Links, socials & a code to scan" onClick={() => open("gt3-open-connect")} />
+          </div>
+        )}
       </Sheet>
     );
   }
@@ -153,11 +256,14 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   const usualNames = last ? last.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ") : "";
   // The card in lib/loyalty's words (C6): free cups READY — a redeemed one is gone from the count (0387).
   const stamps = card.free > 0 ? freeWords(card.free) : `${card.toNext} to a free cup`;
+  // The crew side is every staff surface — the console, and the work pages (the run, the scan screen, the playbook) — so
+  // Customer is a real choice from any of them (lib/surfaces).
+  const side = surfaceOf(pathname) === "customer" ? "customer" : "crew";
 
   return (
     <Sheet open onClose={onClose} header={head("Your account")} className="acs-sheet">
-      {/* Identity — who, which tier, how close to free — and the one way to the full card. */}
-      <button type="button" className="acs-hero acs-hero-go" onClick={() => go("/3mpire")} aria-label="Open your member card">
+      {/* Identity — who, which tier, how close to free — and the one way to the hub. */}
+      <button type="button" className="acs-hero acs-hero-go" onClick={() => go("/3mpire")} aria-label="Open your member hub">
         <div className={`acs-av${photo ? " ph" : ""}`} style={photo ? { backgroundImage: `url(${photo})` } : undefined}>
           {!photo && <Coconut />}
         </div>
@@ -169,67 +275,40 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
         <span className="acs-row-c" aria-hidden>›</span>
       </button>
 
-      {staff && (
-        <div className="acs-rows acs-rows-first">
-          <button type="button" className="acs-row crew" onClick={() => go("/crew")}>
-            <span className="acs-row-x"><b>Crew Mode</b><span>Your console — shift, prep, plan, money</span></span>
-            <span className="acs-row-c" aria-hidden>›</span>
-          </button>
-        </div>
-      )}
+      {/* Which side of GT3 — for the crew, a switch, not a row (lib/mode remembers it, so most days it isn't needed).
+          While the profile loads it holds its place, so nothing jumps and no one is told they aren't crew. */}
+      {staff ? (
+        <Segmented label="Which side of GT3" kind="choice" fill value={side}
+          options={[{ key: "customer", label: "Customer" }, { key: "crew", label: "Crew" }]}
+          onChange={(k) => { rememberMode(k); go(k === "crew" ? "/crew" : "/"); }} />
+      ) : access === "wait" ? <div className="h-9" aria-hidden="true" /> : access === "failed" ? (
+        // The profile didn't load: say that, and offer it again — never read it as "not crew" (lib/access).
+        <div className="acs-rows mb-0"><Row title="Couldn’t load your account" sub="Tap to try again" end="↻" onClick={() => void refreshProfile()} /></div>
+      ) : null}
 
-      <div className="acs-group">Manage</div>
-      <div className="acs-rows">
-        {last && (
-          <button type="button" className="acs-row" onClick={() => { reorder(last.items as DrinkId[]); onClose(); }}>
-            <span className="acs-row-x"><b>Order again</b><span>{usualNames} · one tap</span></span>
-            <span className="acs-row-c" aria-hidden>↻</span>
-          </button>
-        )}
-        <button type="button" className="acs-row" onClick={() => go("/3mpire#orders")}>
-          <span className="acs-row-x"><b>Orders &amp; deliveries</b><span>Track, reorder &amp; receipts</span></span>
-          <span className="acs-row-c" aria-hidden>›</span>
-        </button>
-        <button type="button" className="acs-row" onClick={() => go("/office")}>
-          <span className="acs-row-x"><b>Office delivery</b><span>Your team&rsquo;s Monday route &amp; jugs</span></span>
-          <span className="acs-row-c" aria-hidden>›</span>
-        </button>
-        <button type="button" className="acs-row" onClick={() => go("/3mpire#rewards")}>
-          <span className="acs-row-x"><b>Rewards &amp; referrals</b><span>Points, credit · give $5 get $5</span></span>
-          <span className="acs-row-c" aria-hidden>›</span>
-        </button>
-        <button type="button" className="acs-row" onClick={() => { onClose(); onShowCard(); }}>
-          <span className="acs-row-x"><b>Your member card</b><span>{founding ? "Founding status · photo & finish — show it off" : "Photo, status & finish — show it off"}</span></span>
-          <span className="acs-row-c" aria-hidden>›</span>
-        </button>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Tile icon="qr" title="Show card" sub="Scan at the window" disabled={!profile} onClick={() => { onClose(); onShowCard(); }} />
+        {last
+          ? <Tile icon="repeat" title="Order again" sub={usualNames} onClick={() => { reorder(last.items as DrinkId[]); onClose(); }} />
+          : <Tile icon="coffee" title="See the menu" sub="Order ahead" onClick={() => go("/menu")} />}
       </div>
 
-      <div className="acs-group">Account</div>
-      <div className="acs-rows">
-        <button type="button" className="acs-row" onClick={onEditProfile}>
-          <span className="acs-row-x"><b>Profile &amp; notifications</b><span>Photo · name · order alerts</span></span>
-          <span className="acs-row-c" aria-hidden>›</span>
-        </button>
-        {/* An agreement is a personal document about this person's own terms, so it belongs beside
-            their profile rather than inside the crew console — which is also the only place an
-            operator could not reach it from. */}
-        {staff && (
-          <button type="button" className="acs-row" onClick={() => go("/agreement")}>
-            <span className="acs-row-x"><b>Your agreement</b><span>What you agreed to, what it pays, and signing</span></span>
-            <span className="acs-row-c" aria-hidden>›</span>
-          </button>
-        )}
-        {/* App Store Review Guideline 5.1.1(v): deleting the account is in the account, one tap from
-            the menu, on the web and in the app alike. */}
-        <button type="button" className="acs-row" onClick={() => setDeleting(true)}>
-          <span className="acs-row-x"><b>Delete account</b><span>Your profile and details, for good</span></span>
-          <span className="acs-row-c" aria-hidden>›</span>
-        </button>
+      <div className="acs-rows mt-2">
+        <Row title="Orders" sub="Active, history and receipts" onClick={() => go("/3mpire#orders")} />
+        <Row title="Rewards" sub="Stamps, free cups · give $5 get $5" onClick={() => go("/3mpire#rewards")} />
+        {own.office && <Row title="Your office" sub="Deliveries, changes and invoices" onClick={() => go("/office")} />}
+        {/* An agreement or an offer is a personal document about this person's own terms, so it belongs beside their
+            profile rather than inside the crew console — and only for someone who has one. */}
+        {own.agreement && <Row title="Your agreement" sub="What you agreed to, what it pays, and signing" onClick={() => go("/agreement")} />}
+        {own.offer && <Row title="Your offer letter" sub="Your offer from GT3" onClick={() => go("/offer")} />}
+        {own.failed && <Row title="Couldn’t check your other pages" sub="Your office, agreement or offer — tap to try again" end="↻" onClick={own.retry} />}
+        <Row title="Settings & privacy" row="settings" sub={alerts ? "Profile · notifications · display · delete account" : "Profile · display · delete account"} onClick={() => openView("settings")} />
+        <Row title="Help" row="help" sub={ask ? "Ask us · connect with GT3" : "Connect with GT3"} onClick={() => openView("help")} />
       </div>
 
-      <HelpRows onClose={onClose} owner={role === "owner"} />
+      {role === "owner" && <OwnerRows />}
 
-      <button type="button" className="btn-del mt-2" onClick={() => { onClose(); void signOutHere(signOut); toast("Signed out"); }}>Sign out</button>
+      <button type="button" className="btn-del mt-1" onClick={() => { onClose(); void signOutHere(signOut); toast("Signed out"); }}>Sign out</button>
     </Sheet>
   );
 }

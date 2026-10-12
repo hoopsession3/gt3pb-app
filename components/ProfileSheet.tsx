@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { useAuth } from "./AuthProvider";
+import { useCallback, useRef, useState } from "react";
+import { useAuth, roleOf } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
@@ -14,8 +14,13 @@ import { AppAlertsProfile } from "./AppAlerts";
 
 // Your GT3 profile — photo, name, title, bio. Team culture: a face + a line on who you are, feeding
 // the org chart in Leadership. Avatar goes to the 'avatars' bucket under your own uid folder.
-export default function ProfileSheet({ onClose }: { onClose: () => void }) {
+// A customer's is a photo and a name (2026-10-12, A2 of the account audit, #17): Title and Bio are the crew's, for the
+// org chart, and were asked of every customer. Opened from Settings & privacy's Notifications, it starts at the alerts.
+export default function ProfileSheet({ onClose, focus }: { onClose: () => void; focus?: "notifications" }) {
   const { user, profile, refreshProfile } = useAuth();
+  const crew = roleOf(profile) !== "member";
+  // Drawn once, as the sheet opens: a ref, not an effect (the sheet reads the phone as it opens, never after).
+  const alertsAt = useCallback((el: HTMLDivElement | null) => { if (el && focus === "notifications") el.scrollIntoView({ block: "start" }); }, [focus]);
   const { toast } = useApp();
   const [name, setName] = useState(profile?.display_name ?? "");
   const [title, setTitle] = useState(profile?.title ?? "");
@@ -57,7 +62,9 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
   const save = async () => {
     if (!supabase || !user) return;
     setBusy(true);
-    const { error } = await supabase.from("profiles").update({ display_name: name.trim() || null, title: title.trim() || null, bio: bio.trim() || null }).eq("id", user.id);
+    const { error } = await supabase.from("profiles").update(crew
+      ? { display_name: name.trim() || null, title: title.trim() || null, bio: bio.trim() || null }
+      : { display_name: name.trim() || null }).eq("id", user.id);
     setBusy(false);
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
     await refreshProfile();
@@ -77,9 +84,10 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
             </div>
           </div>
           <label className="prod-f" style={{ marginTop: 14 }}><span>Name</span><input className="note-in" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" maxLength={60} /></label>
-          <label className="prod-f" style={{ marginTop: 8 }}><span>Title</span><input className="note-in" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Lead Operator · Co-Founder" maxLength={60} /></label>
-          <label className="prod-f" style={{ marginTop: 8 }}><span>Bio</span><textarea className="note-in" rows={3} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="A line or two — what you bring to the bar." maxLength={600} /></label>
+          {crew && <label className="prod-f" style={{ marginTop: 8 }}><span>Title</span><input className="note-in" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Lead Operator · Co-Founder" maxLength={60} /></label>}
+          {crew && <label className="prod-f" style={{ marginTop: 8 }}><span>Bio</span><textarea className="note-in" rows={3} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="A line or two — what you bring to the bar." maxLength={600} /></label>}
           {/* Notifications — order-ready alerts, managed right where the account lives. */}
+          <div ref={alertsAt} className="scroll-mt-4" />
           {NATIVE_PUSH_ON && <AppAlertsProfile />}
           {notifState !== "unsupported" && <div className="prof-notif">
             <div className="prof-notif-t">Order notifications</div>

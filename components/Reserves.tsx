@@ -130,7 +130,7 @@ export default function Reserves() {
       <Sheet open={signInOpen} onClose={() => { pendingClaim.current = null; setSignInOpen(false); }} labelledBy="reserve-signin-title">
         <div className="oa-kicker" id="reserve-signin-title">SIGN IN TO RESERVE</div>
         {pendingClaim.current && <h2 className="dl-h">{pendingClaim.current.name}</h2>}
-        <SignIn />
+        <SignIn compact />
       </Sheet>
     </>
   );

@@ -1222,7 +1222,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     });
     await page.locator('button.acct-av[aria-label="Your account"]').first().click().catch(() => {});
     await page.waitForTimeout(800);
-    await page.locator(".acs-row", { hasText: /profile/i }).filter({ hasNotText: /Delete/ }).first().click().catch(() => {});
+    // The profile is under Settings & privacy (2026-10-12, A2 of the account audit): the menu's row, then its own.
+    await page.locator(".acs-row", { hasText: "Settings & privacy" }).first().click().catch(() => {});
+    await page.waitForTimeout(500);
+    await page.locator(".acs-row", { hasText: /^Profile/ }).first().click().catch(() => {});
     await page.waitForTimeout(1200);
     const h0 = await stage();
     ok("sheets: a long form (the profile) opens half-height on a phone — the page still in sight above it, not stepped back",
@@ -1600,7 +1603,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await page.goto(`${BASE}/3mpire`, { waitUntil: "load" });
     await page.waitForTimeout(900); await page.evaluate(SETTLE);
     const join = await page.evaluate(() => {
-      const b = [...document.querySelectorAll("button.btn-pri")].find((x) => /member/i.test(x.textContent));
+      const b = [...document.querySelectorAll("button.btn-pri")].find((x) => /^Join free$/i.test(x.textContent.trim()));
       if (!b) return null;
       const r = b.getBoundingClientRect(), cs = getComputedStyle(b);
       return { h: Math.round(r.height), caps: cs.textTransform, bg: cs.backgroundColor, words: b.textContent.trim().slice(0, 40), old: document.querySelectorAll(".handle").length };
@@ -1784,8 +1787,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   }
 
   // ── 6 · deleting your account, in the app (App Store Review Guideline 5.1.1(v)) ──
-  // Signed in, from the avatar's menu: the row, its screen (loaded when tapped — so it must be in the
-  // export), what it asks the web's API, and after the red button a phone that is signed out and home.
+  // Signed in, from the avatar's menu: Settings & privacy, then the row — three taps (A2 of the account audit) — its
+  // screen (loaded when tapped — so it must be in the export), what it asks the web's API, and after the red button a
+  // phone that is signed out and home.
   // The stand-in API answers {} — nothing stands in the way — so this walks the whole way through.
   {
     const ctx = await phoneContext(MAIN, { owner: true });
@@ -1799,6 +1803,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const pill = page.locator('button.acct-av[aria-label="Your account"]').first();
     const hasPill = (await pill.count()) > 0;
     if (hasPill) await pill.click();
+    const settings = page.getByRole("button", { name: /^Settings & privacy/ }).first();
+    if (await settings.waitFor({ timeout: 5000 }).then(() => true, () => false)) await settings.click();
     const row = page.getByRole("button", { name: /^Delete account/ }).first();
     const hasRow = await row.waitFor({ timeout: 5000 }).then(() => true, () => false);
     if (hasRow) await row.click();
@@ -1806,7 +1812,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await page.waitForTimeout(300);
     const under = await page.evaluate(underTheBars, { top: MAIN.top, bottom: MAIN.bottom });
     if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "account--delete") });
-    ok("delete account: the avatar's menu has the row, in the app", hasPill && hasRow, `pill ${hasPill}, row ${hasRow}`);
+    ok("delete account: the avatar's menu has it under Settings & privacy, three taps in, in the app", hasPill && hasRow, `pill ${hasPill}, row ${hasRow}`);
     ok("delete account: its screen opens from the export and says what goes and what stays", said);
     ok("delete account: it asks the web's API first", asked("GET"));
     ok("delete account: nothing on its screen is under the system's bars", under.length === 0, findings(under));
@@ -1820,6 +1826,64 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     ok("delete account: the red button asks the web's API, then this phone is signed out and home, and told",
       asked("POST") && ["/", "/menu"].includes(after.path) && after.session === null && after.told, JSON.stringify({ posted: asked("POST"), ...after, session: after.session ? "still here" : null }));
     ok("delete account: no errors", errors.length === 0, errors.join(" | "));
+    await ctx.close();
+  }
+
+  // ── 6a · the account menu on the smallest iPhone (A2 of the account audit, 2026-10-12) ──
+  // A member's menu — the header, two quick actions, four rows — opens with Sign out in sight on an iPhone SE (the audit's
+  // acceptance line). The crew's Customer · Crew switch is there once the profile is, and it takes them to the console.
+  {
+    const SE = PHONES.find((p) => p.name === "iPhone SE");
+    const mctx = await phoneContext(SE, { owner: true, seed: { profiles: [{ ...PROFILE, role: "member", is_admin: false }] } });
+    const mp = await mctx.newPage();
+    await insetsOn(mp, SE.top, SE.bottom);
+    const merrors = watch(mp);
+    await mp.goto(`${BASE}/book`, { waitUntil: "load" });
+    await mp.waitForTimeout(900); await mp.evaluate(SETTLE);
+    await mp.locator('button.acct-av[aria-label="Your account"]').first().click().catch(() => {});
+    await mp.getByRole("button", { name: /^Settings & privacy/ }).first().waitFor({ timeout: 6000 }).catch(() => {});
+    await mp.waitForTimeout(900);
+    const mfit = await mp.evaluate(() => {
+      const sheet = [...document.querySelectorAll(".sheet2")].pop();
+      const out = [...(sheet?.querySelectorAll("button.btn-del") ?? [])].find((b) => b.textContent.trim() === "Sign out");
+      const r = out?.getBoundingClientRect();
+      return { rows: sheet ? sheet.querySelectorAll(".acs-row").length : 0, tiles: sheet ? sheet.querySelectorAll(".grid button").length : 0,
+        switch: !!sheet?.querySelector('[aria-label="Which side of GT3"]'), signOutOnScreen: !!r && r.bottom <= innerHeight && r.top >= 0 };
+    });
+    if (SHOTS) await mp.screenshot({ path: shotPath(SE, "account--member") });
+    ok("account menu: a member's — the header, two quick actions, four rows — shows Sign out on an iPhone SE without a scroll, and no crew switch",
+      mfit.tiles === 2 && mfit.rows === 4 && mfit.signOutOnScreen && !mfit.switch, JSON.stringify(mfit));
+    ok("account menu: no errors (a member)", merrors.length === 0, merrors.join(" | "));
+    await mctx.close();
+    const ctx = await phoneContext(SE, { owner: true });
+    const page = await ctx.newPage();
+    await insetsOn(page, SE.top, SE.bottom);
+    const errors = watch(page);
+    await page.goto(`${BASE}/book`, { waitUntil: "load" });
+    await page.waitForTimeout(900); await page.evaluate(SETTLE);
+    await page.locator('button.acct-av[aria-label="Your account"]').first().click().catch(() => {});
+    const crew = page.getByRole("radio", { name: "Crew" }).first();
+    const hasSwitch = await crew.waitFor({ timeout: 6000 }).then(() => true, () => false);
+    await page.waitForTimeout(700);
+    // The owner's is the longest menu there is — the switch and the Owner group on top of a member's: on an iPhone SE it
+    // scrolls, and Sign out is at the end of it.
+    const fit = await page.evaluate(() => {
+      const sheet = [...document.querySelectorAll(".sheet2")].pop(), body = sheet?.querySelector(".sheet2-body");
+      if (body) body.scrollTop = body.scrollHeight;
+      const out = [...(sheet?.querySelectorAll("button.btn-del") ?? [])].find((b) => b.textContent.trim() === "Sign out");
+      const r = out?.getBoundingClientRect();
+      return { rows: sheet ? sheet.querySelectorAll(".acs-row").length : 0, tiles: sheet ? sheet.querySelectorAll(".grid button").length : 0,
+        signOutReached: !!r && r.bottom <= innerHeight && r.top >= 0 };
+    });
+    if (SHOTS) await page.screenshot({ path: shotPath(SE, "account--owner") });
+    ok("account menu: the crew's Customer · Crew switch is there once the profile is", hasSwitch);
+    ok("account menu: on an iPhone SE the owner's menu — two quick actions, its rows, the Owner group — reaches Sign out at its end",
+      fit.tiles === 2 && fit.rows >= 5 && fit.signOutReached, JSON.stringify(fit));
+    await page.evaluate(() => { const b = [...document.querySelectorAll(".sheet2")].pop()?.querySelector(".sheet2-body"); if (b) b.scrollTop = 0; });
+    if (hasSwitch) await crew.click();
+    await page.waitForURL((u) => new URL(u).pathname === "/crew", { timeout: 8000 }).catch(() => {});
+    ok("account menu: the switch's Crew takes the owner to the console", new URL(page.url()).pathname === "/crew", page.url());
+    ok("account menu: no errors", errors.length === 0, errors.join(" | "));
     await ctx.close();
   }
 
@@ -1994,9 +2058,13 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       if (!(await avatar.count())) ok("device: the account menu is there to open the member card from", false, "no account avatar on /3mpire");
       else {
         await avatar.click();
-        const cardRow = page.locator("button", { hasText: "Your member card" }).first();
-        await cardRow.waitFor({ timeout: 5000 }).catch(() => {});
-        await cardRow.click().catch(() => {});
+        // Show card opens the scannable card; the status card — photo and finish — is its "Show off your status" (A2).
+        const cardTile = page.locator("button", { hasText: "Show card" }).first();
+        await cardTile.waitFor({ timeout: 5000 }).catch(() => {});
+        await cardTile.click().catch(() => {});
+        const flex = page.locator(".sheet2 .mp-flex").first();
+        await flex.waitFor({ timeout: 5000 }).catch(() => {});
+        await flex.click().catch(() => {});
         const shareCard = page.locator(".status-lux button.btn-pri");
         const ready = await page.waitForFunction(() => { const b = document.querySelector(".status-lux button.btn-pri"); return !!b && !b.disabled; }, null, { timeout: 15000 }).then(() => true, () => false);
         ok("device: the member card draws, and its Share is ready", ready);

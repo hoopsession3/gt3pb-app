@@ -24,7 +24,7 @@ export default function DriverPage() {
     <section className="screen" id="s-driver">
       <Masthead eyebrow="Delivery run" right={<AccountPill />} />
       {!user ? (
-        <div className="driver-empty"><p className="dl-sub" style={{ marginBottom: 12 }}>Sign in to see your run.</p><SignIn /></div>
+        <div className="driver-empty"><SignIn context={{ title: "Your delivery run.", sub: "Sign in with your crew account to see today’s stops." }} /></div>
       ) : access === "wait" || access === "failed" ? (
         <div className="driver-empty">Checking your access…</div>
       ) : !staff ? (

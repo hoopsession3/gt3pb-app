@@ -77,7 +77,7 @@ const PackChangePay = dynamic(() => import("./PackChangePay"));
 // it, so the sheet opens at once.
 const OfficeOrder = dynamic(() => import("./OfficeOrder"));
 
-export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMode: Mode; syncUrl?: boolean }) {
+export default function OrderFunnel({ initialMode, syncUrl = true, initialAudience = "home" }: { initialMode: Mode; syncUrl?: boolean; initialAudience?: "home" | "office" }) {
   const { toast } = useApp();
   const { user, profile } = useAuth();
   const payLater = usePayAtPickup();
@@ -90,7 +90,9 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
   const [step, setStep] = useState<Step>(initialMode === "delivery" ? "start" : "size");
   // Delivery fork: a home order (residential Sunday packs, the flow below) vs an office order (B2B
   // bulk, Monday 5–8 AM, amber gallon jugs — a purpose-built sheet, never the pack cart).
-  const [audience, setAudience] = useState<"home" | "office">("home");
+  // /delivery?for=office opens on the office side (2026-10-12, A2 of the account audit): Shop's "For your office" and
+  // the office page's "Set up office delivery" land there, and app/delivery passes it in.
+  const [audience, setAudience] = useState<"home" | "office">(initialAudience);
   const [officeOpen, setOfficeOpen] = useState(false);
   const [howOpen, setHowOpen] = useState(false);
 
@@ -865,7 +867,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
           {!user ? (
             <>
               <EditableCopy k="funnel.signin_prompt" value={t("funnel.signin_prompt")} as="p" className="dl-sub" />
-              <SignIn />
+              <SignIn compact />
             </>
           ) : mode === "delivery" ? (
             <>

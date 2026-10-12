@@ -6359,9 +6359,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("sign-in: a resent code empties the field and says to use the newest email; a wrong or old code says so and selects itself",
     /else \{ setCooldown\(30\); setOtp\(""\); setResent\(true\); codeRef\.current\?\.focus\(\); \}/.test(si)
     && /requestAnimationFrame\(\(\) => codeRef\.current\?\.select\(\)\);/.test(si) && /A new code is on its way — use the newest email\./.test(si));
-  ok("sign-in: the 3MPIRE page joins by default; a page that needs an account names itself and signs in, without the join pitch",
-    /useState<Intent>\(context \? "signin" : "join"\)/.test(si) && /\{context \? context\.title : intent === "join"/.test(si) && /\{!context && \(/.test(si)
-    && /if \(!user\) return <SignIn \/>;/.test(read("app/3mpire/page.tsx")));
+  ok("sign-in: the 3MPIRE page joins by default and the avatar's Sign in lands on Welcome back; a page that needs an account names itself and signs in, without the join pitch",
+    /useState<Intent>\(start \?\? \(context \|\| compact \? "signin" : "join"\)\)/.test(si) && /\{context \? context\.title : intent === "join" \? "Every 10th cup is on us\." : "Welcome back\."\}/.test(si) && /\{!context && \(/.test(si)
+    && /if \(!user\) return <Suspense fallback=\{<SignIn \/>\}><GuestDoor \/><\/Suspense>;/.test(read("app/3mpire/page.tsx"))
+    && /const signingIn = useSearchParams\(\)\.has\("signin"\);\s+return <SignIn key=\{signingIn \? "signin" : "join"\} start=\{signingIn \? "signin" : "join"\} \/>;/.test(read("app/3mpire/page.tsx")));
+  ok("sign-in: inside a sheet that is already doing something — reserve, RSVP, checkout — it is compact: no logo, no pitch",
+    ["components/OrderFunnel.tsx", "components/RsvpRow.tsx", "components/Reserves.tsx"].every((f) => read(f).includes("<SignIn compact />"))
+    && /\{!compact && <div className="k-lock mb-6">/.test(si) && /\{!compact && <h2 className="auth-headline">/.test(si));
   const pages = { office: "Your GT3 office account.", academy: "The GT3 Academy.", agreement: "Your operator agreement.", offer: "Your offer from GT3.", scan: "Scan a member card.", architecture: "The system map.", playbook: "The Playbook." };
   ok("sign-in: seven pages that need an account say where you are — office, academy, agreement, offer, scan, system map, playbook",
     Object.entries(pages).every(([r, title]) => read(`app/${r}/page.tsx`).includes(`<SignIn context={{ title: "${title}", sub: "`)));
@@ -6438,8 +6442,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && RT.tabOf("/events") === "/truck" && RT.tabOf("/truck") === "/truck" && RT.tabOf("/menu") === "/menu"
     && RT.tabOf("/") === "/" && RT.tabOf("/3mpire") === "/3mpire" && RT.tabOf("/craft") === null && RT.tabOf("/crew") === null
     && RT.tabOf("/reserve?x=1") === "/shop");
-  ok("ordering: the tab bar asks lib/routeTitles which tab is lit, and lights only that one",
-    /const lit = tabOf\(pathname\);/.test(read("components/BottomNav.tsx")) && /const on = tab\.href === lit;/.test(read("components/BottomNav.tsx"))
+  ok("ordering: the tab bar asks lib/routeTitles which tab is lit, and lights only that one — the member hub lights the member's identity tab (Join or Today, CSS shows one)",
+    /const lit = tabOf\(pathname\);/.test(read("components/BottomNav.tsx")) && /const on = tab\.href === lit \|\| \(tab\.key === "today" && lit === "\/3mpire"\);/.test(read("components/BottomNav.tsx"))
     && !/pathname\.startsWith\(tab\.href\)/.test(read("components/BottomNav.tsx")));
   ok("ordering: one line, then the choices — the size step says its heading, then asks; the three paragraphs are gone from it",
     (() => { const at = fu.indexOf("── SIZE ──") >= 0 ? fu.indexOf("── SIZE ──") : fu.indexOf('{step === "size" && ('); const step = fu.slice(fu.indexOf('{step === "size" && (\n        <div className="dl-step">'), fu.indexOf('{step === "build" && count && ('));
@@ -9035,7 +9039,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /\{inAdmin && <PullToRefresh \/>\}/.test(read("components/AppShell.tsx")) && /refreshLive\(\)/.test(read("components/PullToRefresh.tsx")));
   ok("haptics: an iPhone before iOS 26.5 ticks (the switch's own haptic) where vibrate does not exist, and nothing buzzes before a tap",
     /input\.setAttribute\("switch", ""\);/.test(read("lib/haptics.ts")) && /navigator\.userActivation && !navigator\.userActivation\.hasBeenActive/.test(read("lib/haptics.ts")));
-  ok("tab bar: the tab you are on, tapped again, goes back to the top", /scrollToTop\(\)/.test(read("components/OperatorNav.tsx")) && /if \(pathname === tab\.href\) \{ e\.preventDefault\(\); scrollToTop\(\); return; \}/.test(read("components/BottomNav.tsx")));
+  ok("tab bar: the tab you are on, tapped again, goes back to the top", /scrollToTop\(\)/.test(read("components/OperatorNav.tsx")) && /if \(pathname === tab\.href && !window\.location\.search\) \{ e\.preventDefault\(\); scrollToTop\(\); return; \}/.test(read("components/BottomNav.tsx")));
   ok("scroll to top: one home (lib/appScroll) — the tab bars and the order form call it; no copy of it, and not in the crew's panel jumps every guest would carry",
     /export function scrollToTop\(\): void/.test(read("lib/appScroll.ts")) && /document\.getElementById\("body"\)\?\.scrollTo\(\{ top: 0, behavior: "smooth" \}\);/.test(read("lib/appScroll.ts")) && !/scrollToTop/.test(read("lib/anchors.ts"))
     && ["components/BottomNav.tsx", "components/OperatorNav.tsx", "components/OrderFunnel.tsx"].every((f) => /import \{ (?:returnToPlace, )?scrollToTop \} from "@\/lib\/appScroll";/.test(read(f)))
@@ -9203,7 +9207,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /\{own\.map\(\(l, i\) => <PageTick key=\{i\} level=\{l \|\| null\} \/>\)\}/.test(sp)
     && (sp.match(/haptic\(/g) || []).length === 1 && !/haptic\(/.test(read("components/PagerMotion.tsx")));
   ok("tabs: a tab bar ticks when the tab changes — not when the tab you are on is tapped again (that goes back to the top)",
-    /onClick=\{\(e\) => \{ if \(pathname === tab\.href\) \{ e\.preventDefault\(\); scrollToTop\(\); return; \} returnToPlace\(\); if \(!on\) haptic\("selection"\); \}\}/.test(read("components/BottomNav.tsx"))
+    /onClick=\{\(e\) => \{ if \(pathname === tab\.href && !window\.location\.search\) \{ e\.preventDefault\(\); scrollToTop\(\); return; \} returnToPlace\(\); if \(!on\) haptic\("selection"\); \}\}/.test(read("components/BottomNav.tsx"))
     // currentId, not activeGroup.id (2026-10-06, the settings round): in Settings no lane is current,
     // so a lane tapped from there is a change and ticks.
     && /const openGroup = \(g: NavGroup\) => \{\s+if \(g\.id !== currentId\) haptic\("selection"\);/.test(code(read("components/OperatorNav.tsx"))));
@@ -9950,9 +9954,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const mig = read("supabase/migrations/0353_account_erasure.sql");
   const pkg = JSON.parse(read("package.json"));
 
-  const acctGroup = acs.slice(acs.indexOf('<div className="acs-group">Account</div>'), acs.indexOf('className="acs-signout"'));
-  ok("delete: \"Delete account\" is a row in the account menu's Account group — one tap from the avatar, on the web and in the app",
-    /<b>Delete account<\/b>/.test(acctGroup) && /onClick=\{\(\) => setDeleting\(true\)\}/.test(acctGroup)
+  // A2 of the account audit (2026-10-12): Settings & privacy holds it — the second level, as on a phone's own Settings
+  // (App Review 5.1.1(v): in the account, easy to find). The delete is drawn before the signed-out sheet and before
+  // Settings, so its last step — the Apple one — is never replaced by either.
+  const settingsView = acs.slice(acs.indexOf('{view === "settings" ? ('), acs.indexOf('<Row title="Ask us"', acs.indexOf('{view === "settings" ? (')));
+  ok("delete: \"Delete account\" is in Settings & privacy — two taps from the avatar, on the web and in the app",
+    /<Row title="Delete account" sub="Your profile and details, for good" onClick=\{\(\) => setDeleting\(true\)\} \/>/.test(settingsView)
+    && /<Row title="Settings & privacy" row="settings" sub=\{alerts \? "Profile · notifications · display · delete account" : "Profile · display · delete account"\} onClick=\{\(\) => openView\("settings"\)\} \/>/.test(acs)
+    && acs.indexOf("if (deleting) {") < acs.indexOf("if (!user) {") && acs.indexOf("if (!user) {") < acs.indexOf('if (view !== "menu") {')
     && /if \(deleting\) \{[\s\S]*?<DeleteAccount staff=\{staff\} onKeep=\{\(\) => setDeleting\(false\)\}/.test(acs)
     // the screen loads when the row is tapped, not with every page that carries the menu (design.ratchet WEIGHT)
     && /const DeleteAccount = dynamic\(\(\) => import\("@\/components\/DeleteAccount"\), \{ ssr: false \}\);/.test(acs) && !/import DeleteAccount/.test(acs));
@@ -10380,8 +10389,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("first day: read on the crew side, the first step is done and says where things are, not how to get there",
     on[0].done === true && /^You're on it\. It opens on Today/.test(on[0].how) && !/Tap your picture/.test(on[0].how), on[0]);
   const off = CS.startSteps({});
-  ok("first day: read anywhere else (the letter's words), the first step is the way over — the picture, then Crew Mode",
-    off[0].done === false && /Tap your picture at the top right, then Crew Mode\./.test(off[0].how), off[0]);
+  ok("first day: read anywhere else (the letter's words), the first step is the way over — the picture, then Crew (the menu's switch, A2 of the account audit)",
+    off[0].done === false && /Tap your picture at the top right, then Crew\./.test(off[0].how) && !/Crew Mode/.test(off[0].how), off[0]);
   ok("first day: each step that can be done carries the tap that does it — Today, Ask GT3, the Academy, Notifications",
     on[0].go.kind === "section" && on[0].go.section === "day" && on[1].go.kind === "ask" && on[2].go.kind === "href" && on[2].go.href === "/academy"
     && on[3].go.kind === "section" && on[3].go.section === "settings" && on[3].go.anchor === "set-notify" && !on[4].go && !on[5].go, on.map((x) => x.go));
@@ -10396,8 +10405,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("first day: on the Home Screen already, the step says so and asks nothing",
     CS.startSteps({ installed: true }).find((x) => x.key === "home").done === true && /It's there already/.test(CS.startSteps({ installed: true }).find((x) => x.key === "home").how));
   const lines = CS.startLetterLines({ track: "Operator" }, "https://app.gt3pb.com/").join("\n");
-  ok("first day, in the letter: no signing out, the picture then Crew Mode, the ✦ then Ask GT3, the path, and the guide's whole link",
-    /no need to sign out/.test(lines) && /tap your picture at the top right, then Crew Mode/.test(lines) && /tap the ✦ at the top, beside search, then Ask GT3/.test(lines) && !/bottom right/.test(lines)
+  ok("first day, in the letter: no signing out, the picture then Crew, the ✦ then Ask GT3, the path, and the guide's whole link",
+    /no need to sign out/.test(lines) && /tap your picture at the top right, then Crew\./.test(lines) && !/Crew Mode/.test(lines) && /tap the ✦ at the top, beside search, then Ask GT3/.test(lines) && !/bottom right/.test(lines)
     && /4\. Start your training in the Academy — the Operator path\./.test(lines) && /\nhttps:\/\/app\.gt3pb\.com\/crew\?guide=start$/.test(lines), lines);
   // THE APP STORE PASS (2026-10-11, Ryan: "I challenge when in App Store if certain copy or features are needed … add app
   // to home screen etc, audit for this"). Inside the iPhone app nothing asks for what only the web can do.
@@ -10420,7 +10429,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     !/Pull to refresh/i.test(pa) && /onClick=\{\(\) => void board\.reload\(\)\}>Try again<\/button>/.test(pa));
   const kb = CS.startKnowledge();
   ok("first day, for Ask GT3: the same steps with in-app links, and nobody's name in a prompt the whole crew shares",
-    /Crew Mode/.test(kb) && /the ✦ at the top of the crew side, beside search, then Ask GT3/.test(kb) && !/bottom right/.test(kb) && CS.startSteps({}).find((x) => x.key === "ask").title === "Ask GT3 — the ✦ at the top, beside search" && /\[Start here\]\(\/crew\?guide=start\)/.test(kb)
+    /tap your picture at the top right, then Crew —/.test(kb) && !/Crew Mode/.test(kb) && /the ✦ at the top of the crew side, beside search, then Ask GT3/.test(kb) && !/bottom right/.test(kb) && CS.startSteps({}).find((x) => x.key === "ask").title === "Ask GT3 — the ✦ at the top, beside search" && /\[Start here\]\(\/crew\?guide=start\)/.test(kb)
     && /\[Notifications\]\(\/crew\?s=settings&a=set-notify\)/.test(kb) && /nobody needs to sign out/.test(kb) && !/Kayla|Ryan|Niño|Atlanta|Greenville/.test(kb), kb);
   const w = WL.crewWelcome({ name: "Niño Reyes", role: "operator", city: "Atlanta", cityLead: "Kayla", track: { label: "Operator", blurb: "x" }, from: "Ryan" });
   ok("first day: the letter's steps ARE lib/crewStart's — one set of words, not two",
@@ -10662,7 +10671,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /export const HELP_EVENTS = \["gt3-open-concierge", "gt3-open-connect", "gt3-open-display"\] as const;/.test(read("lib/helpSheets.ts"))
     && /for \(const t of HELP_EVENTS\) window\.addEventListener\(t, onAsk\);/.test(shell) && /\{asked && !isShare && <HelpSheets asked=\{asked\} \/>\}/.test(shell)
     && /<ConciergeChat open=\{open === "gt3-open-concierge"\} onClose=\{close\} \/>/.test(read("components/HelpSheets.tsx"))
-    && (read("components/AccountSheet.tsx").match(/<HelpRows onClose=\{onClose\}/g) || []).length === 2
+    && ["concierge", "connect", "display"].every((d) => (read("components/AccountSheet.tsx").match(new RegExp(`open\\("gt3-open-${d}"\\)`, "g")) || []).length === 2)
     && /new Event\("gt3-open-connect"\)/.test(read("components/OperatorNav.tsx")));
   ok("one body, two doors: the rail's Connect popout and the sheet draw the same ConnectBody (and the concierge, ConciergeChat)",
     /export function ConnectBody\(\{ onGo \}/.test(read("components/ConnectHub.tsx")) && /<ConnectBody onGo=\{\(\) => setOpen\(false\)\} \/>/.test(read("components/ConnectHub.tsx")) && /<ConnectBody onGo=\{close\} \/>/.test(read("components/HelpSheets.tsx"))
@@ -13379,6 +13388,81 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /This is your card — another crew member stamps it\./.test(scan) && /\/stamp limit\/i\.test/.test(scan));
   ok("Activity log: a tier line names the member, read from their profile, not kept in the log",
     /customers: "Tier"/.test(at) && /r\.table_name === "customers" && r\.row_pk/.test(at) && /\|\| "a member"/.test(at));
+}
+
+// ── ONE SHEET, FOUR ROWS · THE OFFER FIRST (2026-10-12, A2 of the account audit; the owner approved the mockups) ──
+// The account menu had fifteen rows in three groups for everyone; the join screen led with a logo and "Grow your
+// 3MPIRE". The feature map in the audit says where each of today's actions lives now — every one is checked here
+// against the code that draws its door, so none can lose its last one.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const acs = code(rd("components/AccountSheet.tsx")), pill = code(rd("components/AccountPill.tsx")), card = code(rd("components/CardSheet.tsx"));
+  // ProfileSheet is read as written: its file input's accept="image/*" opens what code() takes for a comment.
+  const mc = code(rd("components/MembershipCard.tsx")), prof = rd("components/ProfileSheet.tsx"), si = code(rd("components/SignIn.tsx"));
+  const shop = code(rd("components/Shop.tsx")), fu = code(rd("components/OrderFunnel.tsx")), office = code(rd("app/office/page.tsx"));
+  const css = rd("app/globals.css");
+  const menu = acs.slice(acs.indexOf('<Sheet open onClose={onClose} header={head("Your account")}'));
+  ok("account sheet: the header, a switch for the crew, two quick actions, four rows, then the rows a person has, the owner's group and Sign out",
+    menu.indexOf('aria-label="Open your member hub"') < menu.indexOf('<Segmented label="Which side of GT3" kind="choice"')
+    && menu.indexOf('<Segmented label="Which side of GT3" kind="choice"') < menu.indexOf('<Tile icon="qr" title="Show card"')
+    && ["Orders", "Rewards", "Settings & privacy", "Help"].every((t) => menu.includes(`<Row title="${t}"`))
+    && (menu.match(/<Row title="/g) || []).length === 9 && menu.indexOf("<OwnerRows />") < menu.indexOf(">Sign out</button>"));
+  ok("account sheet: the switch waits for the profile — loading is not \"member\", a failed read says so and retries — and remembers the side",
+    /const access = staffAccess\(!!user, profileStatus, profile\);/.test(acs) && /: access === "wait" \? <div className="h-9" aria-hidden="true" \/> : access === "failed" \? \(/.test(acs)
+    && /<Row title="Couldn’t load your account" sub="Tap to try again" end="↻" onClick=\{\(\) => void refreshProfile\(\)\} \/>/.test(acs)
+    && /onChange=\{\(k\) => \{ rememberMode\(k\); go\(k === "crew" \? "\/crew" : "\/"\); \}\}/.test(acs));
+  ok("account sheet: rows by role — Your office for a company member, Your agreement or offer letter for someone who has one, Edit copy for the owner",
+    /\{own\.office && <Row title="Your office"/.test(acs) && /\{own\.agreement && <Row title="Your agreement"/.test(acs) && /\{own\.offer && <Row title="Your offer letter"/.test(acs)
+    && /sb\.from\("company_members"\)\.select\("id"\)\.eq\("user_id", userId\)\.eq\("active", true\)/.test(acs)
+    && /staff \? sb\.from\("operator_agreements"\)\.select\("id"\)\.eq\("operator_user_id", userId\)/.test(acs)
+    && /if \(admin\) offers = offers\.eq\("candidate_user_id", userId\);/.test(acs) && /\{role === "owner" && <OwnerRows \/>\}/.test(acs));
+  ok("feature map: Show card opens the scannable card, its photo and finish inside it; Order again repeats the last completed order",
+    /onShowCard=\{\(\) => setCardOpen\(true\)\}/.test(pill) && /\{cardOpen && <CardSheet onClose=\{\(\) => setCardOpen\(false\)\} \/>\}/.test(pill)
+    && /<MembershipCard \/>/.test(card) && /Show off your status/.test(mc) && /<MemberCard open=\{flexOpen\}/.test(mc)
+    && /\.eq\("user_id", user\.id\)\.eq\("status", "done"\)/.test(acs));
+  ok("feature map: Orders and Rewards open the hub there; Profile and Notifications open the profile, at its alerts for the second",
+    /<Row title="Orders" sub="Active, history and receipts" onClick=\{\(\) => go\("\/3mpire#orders"\)\} \/>/.test(acs)
+    && /<Row title="Rewards" sub="Stamps, free cups · give \$5 get \$5" onClick=\{\(\) => go\("\/3mpire#rewards"\)\} \/>/.test(acs)
+    && /onClick=\{\(\) => onEditProfile\("notifications"\)\}/.test(acs) && /setEditProfile\(focus \?\? "profile"\)/.test(pill)
+    && /if \(el && focus === "notifications"\) el\.scrollIntoView/.test(prof));
+  ok("feature map: a signed-out avatar's Sign in lands on Welcome back, with Join beside it; Ask us, Connect and Display stay",
+    /go\("\/3mpire\?signin"\)\}>Sign in<\/Button>/.test(acs) && /onClick=\{\(\) => go\("\/3mpire"\)\}>New here\? Join free<\/button>/.test(acs)
+    && /<GuestRows onClose=\{onClose\} \/>/.test(acs));
+  ok("profile: a customer's is a photo and a name — Title and Bio are the crew's, and only theirs are saved",
+    /\{crew && <label className="prod-f" style=\{\{ marginTop: 8 \}\}><span>Title<\/span>/.test(prof) && /\{crew && <label className="prod-f" style=\{\{ marginTop: 8 \}\}><span>Bio<\/span>/.test(prof)
+    && /: \{ display_name: name\.trim\(\) \|\| null \}\)\.eq\("id", user\.id\);/.test(prof));
+  ok("office: sign-up is two taps from Shop — For your office opens the delivery page on its office side; the office page sends there too",
+    /<Link href="\/delivery\?for=office" prefetch=\{false\}/.test(shop) && /For your office<\/b>/.test(shop)
+    && /const \[audience, setAudience\] = useState<"home" \| "office">\(initialAudience\);/.test(fu)
+    && /const \[office\] = useState\(\(\) => params\.get\("for"\) === "office"\);\s+return <OrderFunnel initialMode="delivery" initialAudience=\{office \? "office" : "home"\} \/>;/.test(rd("app/delivery/page.tsx"))
+    && /router\.push\("\/delivery\?for=office"\)/.test(office));
+  ok("join: the offer first and what comes with it, one main button, the password a quieter way, Terms and Privacy where the account is made",
+    /"Every 10th cup is on us\."/.test(si) && /const PERKS = \["A stamp on every cup", "Order ahead, skip the line", "First taste of new reserves"\];/.test(si)
+    && /intent === "join" \? "Join free" : "Email me a sign-in code"/.test(si) && /className="auth-link min-h-11 inline-flex items-center text-cream-muted"/.test(si)
+    && /By \{intent === "join" \? "joining" : "continuing"\} you agree to the <Link className="text-cream underline decoration-line2 underline-offset-4" href="\/terms">Terms<\/Link> and <Link className="text-cream underline decoration-line2 underline-offset-4" href="\/privacy">Privacy<\/Link>\./.test(si)
+    && !/gt3-pb-wordmark\.png/.test(si) && !/so we can greet you/.test(si));
+  // The review of A2 (2026-10-12, fresh eyes before ship): each finding, held.
+  ok("account sheet: the rows only some people have are asked once the profile is known; a failed read says it couldn't check, and checks again",
+    /if \(!supabase \|\| !userId \|\| \(access !== "allow" && access !== "deny"\)\) return;/.test(acs)
+    && /failed: !!\(m\.error \|\| a\.error \|\| o\.error\)/.test(acs)
+    && /\{own\.failed && <Row title="Couldn’t check your other pages" sub="Your office, agreement or offer — tap to try again" end="↻" onClick=\{own\.retry\} \/>\}/.test(acs));
+  ok("account sheet: the crew side is every staff surface (the run, the scan screen, the playbook), so Customer is a real choice from them",
+    /const side = surfaceOf\(pathname\) === "customer" \? "customer" : "crew";/.test(acs));
+  ok("account sheet: focus follows the swap — a sub-view lands on its way back (named Back to Your account), the way back on the row that opened it",
+    /if \(view === "menu"\) \{ if \(cameFrom\.current\) document\.querySelector<HTMLElement>\(`\[data-acs-row="\$\{cameFrom\.current\}"\]`\)\?\.focus\(\); \}\s+else backRef\.current\?\.focus\(\);/.test(acs)
+    && /<button ref=\{backRef\} type="button" className="btn-ter mb-1" aria-label="Back to Your account"/.test(acs));
+  ok("account sheet: Show card waits for the profile (the card draws nothing without one); subtitles name only what is behind them",
+    /<Tile icon="qr" title="Show card" sub="Scan at the window" disabled=\{!profile\}/.test(acs)
+    && /sub=\{ask \? "Ask us · connect with GT3" : "Connect with GT3"\}/.test(acs) && /<Row title="Your offer letter" sub="Your offer from GT3"/.test(acs));
+  ok("sign-in: the console and the driver's run name themselves — no join pitch for the crew",
+    /if \(!user\) return <SignIn context=\{\{ title: "The GT3 console\.", sub: "/.test(rd("app/crew/page.tsx"))
+    && /<SignIn context=\{\{ title: "Your delivery run\.", sub: "/.test(rd("app/driver/page.tsx")));
+  ok("tab bar: the member's Today, lit on the hub, is the current section (aria-current true), not the page; a re-tap with more in the address goes to the tab",
+    /aria-current=\{on \? \(tab\.href === lit \? "page" : "true"\) : undefined\}/.test(rd("components/BottomNav.tsx")));
+  ok("join: the fine print, the field hint and the code hint read at 4.5:1 or better (they measured 3.5, 2.7 and 4.1)",
+    /\.auth-fine\{font-size:12px;color:var\(--cream-m\);/.test(css) && /\.auth-label span\{color:var\(--cream-m\);/.test(css) && /\.auth-paste-hint\{font-size:12px;color:var\(--cream-m\);/.test(css));
 }
 
 Promise.all(PENDING).then(() => {

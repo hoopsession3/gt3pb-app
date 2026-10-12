@@ -67,13 +67,18 @@ export default function BottomNav() {
   return (
     <nav className="nav desk-sidebar" aria-label="Primary">
       {TABS.map((tab) => {
-        const on = tab.href === lit;
+        // The member hub is the member's identity tab: Join for a guest, Today for a member — CSS shows one of the two,
+        // so both are lit there (2026-10-12, A2 of the account audit, #20: a member on /3mpire saw no tab lit).
+        const on = tab.href === lit || (tab.key === "today" && lit === "/3mpire");
         return (
           // The tab for the screen you are on, tapped again, goes back to its top (lib/appScroll). Another
           // tab is a choice changed: the selection tick (2026-10-05, the haptics round), and that tab opens
           // where it was left (2026-10-08, EACH TAB KEEPS ITS PLACE).
-          <Link key={tab.key} href={tab.href} className={`tab${on ? " on" : ""}`} aria-current={on ? "page" : undefined} data-for={tab.for}
-            onClick={(e) => { if (pathname === tab.href) { e.preventDefault(); scrollToTop(); return; } returnToPlace(); if (!on) haptic("selection"); }}>
+          // aria-current says "page" only for the screen's own tab; the member's Today, lit on the hub, is "true" — the section,
+          // not the page. A tab tapped on its own screen goes back to its top — unless the address carries more than the
+          // tab (/3mpire?signin): then it goes to the tab itself, the join screen.
+          <Link key={tab.key} href={tab.href} className={`tab${on ? " on" : ""}`} aria-current={on ? (tab.href === lit ? "page" : "true") : undefined} data-for={tab.for}
+            onClick={(e) => { if (pathname === tab.href && !window.location.search) { e.preventDefault(); scrollToTop(); return; } returnToPlace(); if (!on) haptic("selection"); }}>
             <span className="ti">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 {tab.icon}

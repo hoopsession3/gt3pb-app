@@ -5576,7 +5576,7 @@ export default function AdminPage() {
   // Guard returns — all hooks live above (Rules of Hooks compliant).
   if (!enabled) return <section className="screen"><div className="h-title">Admin</div><div className="h-sub">The live backend isn&apos;t configured here.</div></section>;
   if (!ready) return <section className="screen" />;
-  if (!user) return <SignIn />;
+  if (!user) return <SignIn context={{ title: "The GT3 console.", sub: "Sign in with your crew account — your shift, prep, plan and money are inside." }} />;
   // KNOWING NOTHING IS NOT THE SAME AS KNOWING YOU ARE A CUSTOMER. roleOf(null) is "member", and
   // `ready` only covers the auth session — so between session-ready and profile-loaded, and after
   // any failed profile read, an owner used to be shown "Staff only" and shut out of this console.

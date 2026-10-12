@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
@@ -277,6 +277,14 @@ function MpireDemo() {
   );
 }
 
+// The avatar's Sign in comes here as /3mpire?signin and lands on "Welcome back", not on the join pitch (A2 of the
+// account audit, #13) — read as the router reads it, so it is right from another page and from this one; keyed, so a
+// second tap from the join pitch switches it.
+function GuestDoor() {
+  const signingIn = useSearchParams().has("signin");
+  return <SignIn key={signingIn ? "signin" : "join"} start={signingIn ? "signin" : "join"} />;
+}
+
 export default function MpireScreen() {
   const { ready, enabled, user } = useAuth();
   const router = useRouter();
@@ -291,6 +299,6 @@ export default function MpireScreen() {
   }, [user, router]);
   if (!enabled) return <MpireDemo />;
   if (!ready) return <section className="screen" id="s-mpire"><div className="toprow"><div className="eyb">Membership</div></div><Skeleton variant="card" count={1} /><Skeleton variant="row" count={3} /></section>;
-  if (!user) return <SignIn />;
+  if (!user) return <Suspense fallback={<SignIn />}><GuestDoor /></Suspense>;
   return <MpireReal />;
 }

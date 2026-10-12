@@ -606,30 +606,38 @@ export const PROD_ROUTE = {
 // A1 changed screens /book does not draw (the crew's customer card, proof queue and scan page). By the prerendered
 // HTML /book is 267.25 → 267.28 KB; served, smoke:ui weighs it 268. Built ade3aee and 195440f and gzipped what /book's
 // HTML references.
+// 2026-10-12 (A2 of the account audit): eleven routes 4–6 KB lighter, one 1 KB heavier. The sign-in screen no longer
+// draws the 440-pixel wordmark through next/image or the 3MPIRE glyph (Mpire): every route that carries the sign-in form
+// stopped carrying those — /truck and /events 285 → 280, /reserve 293 → 288, /delivery 291 → 287, /3mpire 284 → 279,
+// /academy 325 → 320, /office 282 → 276, /driver 280 → 274, /agreement 274 → 269, /offer 284 → 279, /shop 297 → 292,
+// recorded. / 273 → 274: Today carries no sign-in form, so it kept none of that and took the shell's share of this round
+// — the two line icons of the account menu's quick actions (Show card, Order again), the tab bar's current-tab rule and
+// the avatar's door to the card sheet — +214 bytes gzipped by its prerendered HTML (279 650 → 279 864), over the
+// rounding line as smoke:ui weighs it. Built efa2dba and ee9421b and gzipped what each route's HTML references.
 export const WEIGHT = {
-  "/truck":                    { js: 285, css: 89, chunks: 16 },
-  "/events":                   { js: 285, css: 89, chunks: 16 },
+  "/truck":                    { js: 280, css: 89, chunks: 16 },
+  "/events":                   { js: 280, css: 89, chunks: 16 },
   "/menu":                     { js: 267, css: 90, chunks: 15 },
-  "/reserve":                  { js: 293, css: 90, chunks: 16 },
-  "/delivery":                 { js: 291, css: 90, chunks: 16 },
-  "/3mpire":                   { js: 284, css: 90, chunks: 15 },
+  "/reserve":                  { js: 288, css: 90, chunks: 16 },
+  "/delivery":                 { js: 287, css: 90, chunks: 16 },
+  "/3mpire":                   { js: 279, css: 90, chunks: 15 },
   "/craft":                    { js: 267, css: 90, chunks: 15 },
   "/book":                     { js: 268, css: 90, chunks: 15 },
-  "/academy":                  { js: 325, css: 90, chunks: 16 },
-  "/office":                   { js: 282, css: 90, chunks: 15 },
+  "/academy":                  { js: 320, css: 90, chunks: 16 },
+  "/office":                   { js: 276, css: 90, chunks: 15 },
   "/scan":                     { js: 267, css: 90, chunks: 15 },
   "/architecture":             { js: 277, css: 90, chunks: 15 },
   "/playbook":                 { js: 275, css: 90, chunks: 15 },
-  "/driver":                   { js: 280, css: 89, chunks: 15 },
-  "/agreement":                { js: 274, css: 90, chunks: 15 },
-  "/offer":                    { js: 284, css: 90, chunks: 15 },
+  "/driver":                   { js: 274, css: 89, chunks: 15 },
+  "/agreement":                { js: 269, css: 90, chunks: 15 },
+  "/offer":                    { js: 279, css: 90, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 265, css: 90, chunks: 15 },
   "/display":                  { js: 266, css: 90, chunks: 15 },
-  "/shop":                     { js: 297, css: 90, chunks: 16 },
+  "/shop":                     { js: 292, css: 90, chunks: 16 },
   "/primal":                   { js: 268, css: 90, chunks: 15 },
   "/privacy":                  { js: 264, css: 90, chunks: 14 },
   "/terms":                    { js: 264, css: 90, chunks: 14 },
-  "/":                         { js: 273, css: 90, chunks: 15 },
+  "/":                         { js: 274, css: 90, chunks: 15 },
 };
 
 // 2026-10-09 (the button round: redesign 7): every route's stylesheet -1 628 bytes and its script +188 to +245 (gzip).

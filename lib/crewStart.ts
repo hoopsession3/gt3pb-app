@@ -102,7 +102,7 @@ export function startSteps(f: StartFacts = {}): StartStep[] {
       key: "crew", title: "The crew side",
       how: f.onCrewSide
         ? "You're on it. It opens on Today — your tasks, what's due and today's op. Customer, at the top, shows the app the way guests see it; GT3 remembers whichever side you were on last."
-        : "Tap your picture at the top right, then Crew Mode. It opens on Today — your tasks, what's due and today's op — and GT3 remembers: from then on it opens there.",
+        : "Tap your picture at the top right, then Crew. It opens on Today — your tasks, what's due and today's op — and GT3 remembers: from then on it opens there.",
       done: !!f.onCrewSide,
       go: { kind: "section", section: "day", label: "Open Today" },
     },
@@ -143,7 +143,7 @@ export function startLetterLines(f: StartFacts, origin: string): string[] {
   return [
     "Your first day:",
     `1. Open GT3 at ${o}, signed in with this email address. If it was already open on your phone, it switches you over the next time you come back to it — no need to sign out.`,
-    "2. Go to the crew side: tap your picture at the top right, then Crew Mode. It opens on Today — your tasks, what's due and today's op.",
+    "2. Go to the crew side: tap your picture at the top right, then Crew. It opens on Today — your tasks, what's due and today's op.",
     "3. Meet Ask GT3: tap the ✦ at the top, beside search, then Ask GT3. Ask what you'd ask a teammate — how to make a Rise, a ratio, our gear.",
     `4. Start your training in the Academy${f.track ? ` — the ${f.track} path` : ""}.`,
     "",
@@ -160,7 +160,7 @@ export function startLetterLines(f: StartFacts, origin: string): string[] {
 export function startKnowledge(): string {
   return [
     "HOW THE APP WORKS — for \"how do I…\" questions about the GT3 app itself. Answer from this, and link the place:",
-    "- The crew side: tap your picture at the top right, then Crew Mode — it opens on Today (tasks, what's due, today's op), and GT3 remembers the side you were on. Customer, at the top of the crew side, shows the app the way guests see it. [Open Today](/crew?s=day)",
+    "- The crew side: tap your picture at the top right, then Crew — it opens on Today (tasks, what's due, today's op), and GT3 remembers the side you were on. Customer, at the top of the crew side, shows the app the way guests see it. [Open Today](/crew?s=day)",
     "- A new role shows up the next time you come back to the app — nobody needs to sign out. If it hasn't after a minute, close the app and open it again.",
     "- Ask GT3: the ✦ at the top of the crew side, beside search, then Ask GT3. The ✦ also takes a quick note (just for you unless you share it) and logs a purchase. A link to app.gt3pb.com/crew?ask=1 opens Ask GT3 straight away.",
     "- Training: the Academy — each role has a path of short lessons with a quick check; progress saves. [The Academy](/academy)",

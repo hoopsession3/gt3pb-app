@@ -10,7 +10,8 @@ import dynamic from "next/dynamic";
 // round): the account menu gained its Help & display rows, and it rode in every customer route's first load.
 const AccountSheet = dynamic(() => import("./AccountSheet"), { ssr: false });
 const ProfileSheet = dynamic(() => import("./ProfileSheet"), { ssr: false });
-import MemberCard from "./MemberCard";
+// Show card opens the scannable card (A2 of the account audit) — loaded by that tap, not with the avatar.
+const CardSheet = dynamic(() => import("./CardSheet"), { ssr: false });
 
 // Top-right account avatar → the customer account popout (AccountSheet, the canonical LV Sheet).
 // The coconut mark (GT3's whole-coconut hydration) shows until they save a photo, then it's their
@@ -45,19 +46,20 @@ export function AccountFace() {
  *  here, and Settings' Account row, components/AccountRow). */
 export function useAccountDoor() {
   const [open, setOpen] = useState(false);
-  const [editProfile, setEditProfile] = useState(false);
+  // The profile sheet, and which part of it was asked for: Settings & privacy's Notifications opens it at its alerts.
+  const [editProfile, setEditProfile] = useState<false | "profile" | "notifications">(false);
   const [cardOpen, setCardOpen] = useState(false);
   const sheets = (
     <>
       {open && (
         <AccountSheet
           onClose={() => setOpen(false)}
-          onEditProfile={() => { setOpen(false); setEditProfile(true); }}
+          onEditProfile={(focus) => { setOpen(false); setEditProfile(focus ?? "profile"); }}
           onShowCard={() => setCardOpen(true)}
         />
       )}
-      {editProfile && <ProfileSheet onClose={() => setEditProfile(false)} />}
-      <MemberCard open={cardOpen} onClose={() => setCardOpen(false)} />
+      {editProfile && <ProfileSheet focus={editProfile === "notifications" ? "notifications" : undefined} onClose={() => setEditProfile(false)} />}
+      {cardOpen && <CardSheet onClose={() => setCardOpen(false)} />}
     </>
   );
   return { open, openAccount: () => setOpen(true), sheets };
