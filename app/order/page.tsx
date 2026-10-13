@@ -134,7 +134,8 @@ function TicketView({ t }: { t: string }) {
   // The card is Today's card (R3): the state in the order's word on the tag, the drinks, the line and the money beside
   // it, the four steps. Its tag says the state once; the money says the money — a canceled order's tag is not repeated.
   const tag = orderTag(tk.status, ahead);
-  const paidWords = refundedAll ? `Refunded ${money(refunded)}` : canceled && !tk.paid ? "Not charged" : tk.paid ? `Paid ${money(total)}` : `${money(total)} at the window`;
+  // A canceled order that was never charged says so once, in its line ("Nothing was charged.") — the money column is empty.
+  const paidWords = refundedAll ? `Refunded ${money(refunded)}` : canceled && !tk.paid ? null : tk.paid ? `Paid ${money(total)}` : `${money(total)} at the window`;
   const moneyBack = refundedAll ? "Refunded in full." : tk.refund_pending || refunded > 0 ? "The refund is on its way to your card." : "The crew is refunding your card in full.";
   // Money back on an order that was made (a drink remade, a charge fixed) is said too — Square's word, not ours.
   const backOnCard = !canceled && !refundedAll && refunded > 0 ? `${money(refunded)} went back to your card. ` : !canceled && tk.refund_pending ? "A refund is on its way to your card. " : "";
@@ -202,16 +203,20 @@ function TicketView({ t }: { t: string }) {
         </div>
         <div className="flex items-start justify-between gap-3">
           <p className="k-rsub min-w-0 whitespace-normal">{canceled ? note : line}{stale ? " Offline — the last we heard." : ""}</p>
-          <span className="whitespace-nowrap font-mono text-subhead text-cream-muted">{paidWords}</span>
+          {paidWords && <span className="whitespace-nowrap font-mono text-subhead text-cream-muted">{paidWords}</span>}
         </div>
         {!canceled && <OrderSteps at={stepOf(tk.status)} />}
         {active && <div className="grid grid-cols-2 gap-2" role="group" aria-label="Tell the truck">{eta("on_way")}{eta("outside")}</div>}
-        <div className="flex items-center justify-between gap-3">
-          {active
-            ? <button type="button" className="btn-ter" disabled={busy} aria-pressed={tk.eta === "late"} onClick={() => { void setEta("late"); }}>{tk.eta === "late" ? `${ETA_WORDS.late} ✓` : ETA_WORDS.late}</button>
-            : <span />}
-          <button type="button" className="btn-ter" onClick={() => { void share(); }}><Icon name="link" /> Share link</button>
-        </div>
+        {/* Running late and Share link are for an order still to be picked up or kept as a receipt — a canceled one
+            has neither (R3c: canceling from this page made that the common way to see one). */}
+        {!canceled && (
+          <div className="flex items-center justify-between gap-3">
+            {active
+              ? <button type="button" className="btn-ter" disabled={busy} aria-pressed={tk.eta === "late"} onClick={() => { void setEta("late"); }}>{tk.eta === "late" ? `${ETA_WORDS.late} ✓` : ETA_WORDS.late}</button>
+              : <span />}
+            <button type="button" className="btn-ter" onClick={() => { void share(); }}><Icon name="link" /> Share link</button>
+          </div>
+        )}
         {!canceled && <p className="text-footnote text-cream-dim">{note}</p>}
       </div>
       {/* The destructive way out sits apart, under the card, as an order screen's does. */}
@@ -225,7 +230,7 @@ function TicketView({ t }: { t: string }) {
         {receiptLine(canceled && !tk.paid ? "Nothing charged" : tk.paid ? (tk.card ? `Paid · ${tk.card}` : "Paid") : "Due at the window", money(canceled && !tk.paid ? 0 : total), true)}
         {refunded > 0 && receiptLine("Refunded", `−${money(refunded)}`, true)}
       </div>
-      {tk.stop && !tk.stop.canceled && (
+      {tk.stop && !tk.stop.canceled && !canceled && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-footnote text-cream-muted">{tk.stop.name}{tk.stop.starts_at ? ` · ${etDay(tk.stop.starts_at)} ${timeRange(tk.stop.starts_at, tk.stop.ends_at)}` : ""}</span>
           {tk.stop.place && <button type="button" className="k-chip sm" onClick={() => openAddress(tk.stop!.place!)}><Icon name="pin" /> Directions</button>}

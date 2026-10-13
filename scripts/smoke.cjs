@@ -13768,7 +13768,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("the ticket: its card is Today's — the drinks, the state once on its tag, the line with the money beside it, the steps — and it tells the truck through the ticket",
     /const line = orderLine\(tk\.status, ahead/.test(pg) && /const tag = orderTag\(tk\.status, ahead\);/.test(pg)
     && /<Eyebrow live=\{active\}>\{drinksWords\(tk\.items, nameOf\)\}<\/Eyebrow>\s*<span className=\{`k-tag \$\{canceled \? "crit" : tk\.status === "new" \? "gold" : "ok"\}`\}>\{tag\}<\/span>/.test(pg)
-    && /<p className="k-rsub min-w-0 whitespace-normal">\{canceled \? note : line\}\{stale \? " Offline — the last we heard\." : ""\}<\/p>\s*<span className="whitespace-nowrap font-mono text-subhead text-cream-muted">\{paidWords\}<\/span>/.test(pg)
+    && /<p className="k-rsub min-w-0 whitespace-normal">\{canceled \? note : line\}\{stale \? " Offline — the last we heard\." : ""\}<\/p>\s*\{paidWords && <span className="whitespace-nowrap font-mono text-subhead text-cream-muted">\{paidWords\}<\/span>\}/.test(pg)
     && /<OrderSteps at=\{stepOf\(tk\.status\)\} \/>/.test(pg)
     && /supabase\.rpc\("ticket_eta", \{ p_ticket: t, p_eta: next \}\)/.test(pg) && /\{eta\("on_way"\)\}\{eta\("outside"\)\}/.test(pg));
   ok("the ticket: a canceled order says why and what happens to the money — never a refund it can't promise as done",
@@ -13912,6 +13912,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /arrives-with: 0396/.test(rd("app/order/page.tsx")));
   ok("the ticket: the destructive way out sits apart, under the card",
     /\{canCancel && <div className="mt-3 flex justify-center"><button type="button" className="btn-del" disabled=\{busy\}/.test(pg));
+  // A canceled ticket said "Nothing was charged." beside "Not charged" above "Nothing charged $0", and kept Running late,
+  // Share link and the way to a pickup that isn't happening. Canceling from the page made it the common way to see one.
+  ok("the ticket, canceled: nothing-charged said once in the card, no Share link or Running late, no directions to the stop",
+    /canceled && !tk\.paid \? null : tk\.paid \?/.test(pg) && !/"Not charged"/.test(pg)
+    && /\{!canceled && \(\s*<div className="flex items-center justify-between gap-3">/.test(pg)
+    && /\{tk\.stop && !tk\.stop\.canceled && !canceled && \(/.test(pg));
 }
 
 Promise.all(PENDING).then(() => {
