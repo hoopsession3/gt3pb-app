@@ -11313,16 +11313,18 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /\.from\("field_ops"\)\.select\("lat, lng, address, location_text"\)\.eq\("id", id\)\.eq\("is_public", true\)/.test(mr) && !/searchParams\.get\("(lat|lng|center|q|address|street)"\)/.test(mr)
       && /p_bucket: `map:\$\{callerKey\(req\)\}`/.test(mr) && /"cache-control": "public, max-age=3600, s-maxage=86400/.test(mr)
       && /const SNAPSHOT = "https:\/\/snapshot\.apple-mapkit\.com";/.test(am));
-    ok("Find Us: the truck is the pin — Apple draws the place alone (pin=none) and the page sets the truck's photo on its centre, point down; a build that does not ask still gets Apple's red pin with its 3",
+    ok("Find Us: the bottle is the pin — Apple draws the place alone (pin=none) and the page sets the GT3 bottle's photo on its centre, point down; a build that does not ask still gets Apple's red pin with its 3",
       /const pin = u\.searchParams\.get\("pin"\) === "none" \? "none" : "apple";/.test(mr) && /snapshot\(\{ lat, lng, scheme: [^}]*, pin \}\)/.test(mr)
       && /\.\.\.\(o\.pin === "apple" \? \{ annotations: JSON\.stringify\(\[\{ point: at, color: "B82420", glyphText: "3", markerStyle: "balloon" \}\]\) \} : \{\}\)/.test(am)
       && /<span aria-hidden="true" className="pointer-events-none absolute left-1\/2 top-1\/2 flex -translate-x-1\/2 -translate-y-full flex-col items-center">/.test(fu)
-      && /<img src="\/brand\/truck-pin\.jpg" alt="" width=\{46\} height=\{46\}/.test(fu) && /className="relative block w-full mt-4 p-0 overflow-hidden rounded-2xl/.test(fu)
+      && /<img src="\/brand\/bottle-pin\.jpg" alt="" width=\{46\} height=\{46\}/.test(fu) && /className="relative block w-full mt-4 p-0 overflow-hidden rounded-2xl/.test(fu)
       && /<span className=\{`-mt-2 block size-3 rotate-45 \$\{live \? "bg-ok" : "bg-cream"\}`\} \/>/.test(fu));
     {
-      // The photo is Ryan's, cropped to the trailer's back door — a small JPEG the iPhone app carries in its bundle.
-      const pinJpg = require("fs").readFileSync(require("path").join(__dirname, "..", "public/brand/truck-pin.jpg"));
-      ok("Find Us: the truck's photo is a JPEG under 40 KB, square, in public/brand", pinJpg[0] === 0xff && pinJpg[1] === 0xd8 && pinJpg.length < 40_000
+      // The photo is Ryan's, cropped to the bottle in a hand with painted nails — a small JPEG the iPhone app carries in its
+      // bundle. The trailer's door it replaced (truck-pin.jpg) is gone, so the app carries one pin, not two.
+      const pinJpg = require("fs").readFileSync(require("path").join(__dirname, "..", "public/brand/bottle-pin.jpg"));
+      ok("Find Us: the bottle's photo is a JPEG under 40 KB, square, in public/brand — and the truck's old pin is not shipped beside it",
+        !require("fs").existsSync(require("path").join(__dirname, "..", "public/brand/truck-pin.jpg")) && pinJpg[0] === 0xff && pinJpg[1] === 0xd8 && pinJpg.length < 40_000
         && (() => { for (let i = 2; i < pinJpg.length - 9; i++) if (pinJpg[i] === 0xff && (pinJpg[i + 1] === 0xc0 || pinJpg[i + 1] === 0xc2)) return pinJpg.readUInt16BE(i + 5) === pinJpg.readUInt16BE(i + 7); return false; })());
     }
     ok("Find Us: the truck turns the live green and breathes on the map only while it pours at this stop; the pulse holds still for reduced motion, the green does not",

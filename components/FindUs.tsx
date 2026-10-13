@@ -509,9 +509,10 @@ export default function FindUs() {
 // street of a stop saved without one), so a moved stop is a new picture and the CDN's copy of the old one is never shown
 // for it. The whole card is the directions button. A picture that does not come (no Maps key, Apple down, a street Apple
 // cannot find) takes the card away instead of drawing a hole.
-// THE TRUCK IS THE PIN (2026-10-12, Ryan: "for the map icon can we use a real picture of our truck?"). Apple drew a red pin
-// with a 3. Apple draws the place alone now (pin=none), and the pin is the truck: the trailer's back door with its red 3,
-// from Ryan's photo at Topgolf (public/brand/truck-pin.jpg — a photo, not a mark redrawn), in a cream ring with a point.
+// THE BOTTLE IS THE PIN (2026-10-13, Ryan: "Use the gt3 bottle with the nails as pin picture"; before it, from 2026-10-12,
+// the trailer's back door from his Topgolf photo). Apple drew a red pin with a 3. Apple draws the place alone now
+// (pin=none), and the pin is a GT3 BREW bottle held up in a hand with painted nails, from Ryan's photo at the truck
+// (public/brand/bottle-pin.jpg — a photo, not a mark redrawn), in a cream ring with a point.
 // Apple's picture is centred on the stop, so the point sits on the card's centre. While the truck is pouring there the
 // ring and point turn the live green, and a ring breathes around it — the live dot's own pulse (lv); with reduced motion
 // the pulse holds still and the green still says it.
@@ -528,7 +529,7 @@ function StopMap({ id, at, label, live, onGo }: { id: string; at: string; label:
         <span className={`relative z-1 block size-13 rounded-full p-0.75 shadow-raised ${live ? "bg-ok" : "bg-cream"}`}>
           {live && <span className="absolute inset-0 rounded-full animate-[lv_2s_ease-out_infinite] motion-reduce:animate-none" />}
           {/* eslint-disable-next-line @next/next/no-img-element -- a photo in public/brand; next/image cannot export */}
-          <img src="/brand/truck-pin.jpg" alt="" width={46} height={46} decoding="async" draggable={false} className="relative block size-full rounded-full object-cover" />
+          <img src="/brand/bottle-pin.jpg" alt="" width={46} height={46} decoding="async" draggable={false} className="relative block size-full rounded-full object-cover" />
         </span>
         <span className={`-mt-2 block size-3 rotate-45 ${live ? "bg-ok" : "bg-cream"}`} />
       </span>
