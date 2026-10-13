@@ -75,7 +75,7 @@ export const Ticket = memo(function Ticket({ o, action, flash, me, admin, act, n
     { key: "void", label: "Void order", icon: "close", danger: true, run: () => { void act.voidOrder(o); } },
   ];
   return (
-    <LongPress title={`${o.customer ?? "Guest"} · #${o.id.slice(0, 4).toUpperCase()}`} items={items}>{(press) => (
+    <LongPress title={`${o.customer ?? "Guest"} · ${ticketNo(o.id)}`} items={items}>{(press) => (
       <div {...press.bind} className={`adm-order pressable st-${o.status}${flash ? " flash" : ""}`}
         role="group" aria-label={`${o.customer ?? "Guest"}, ${ticketNo(o.id)}`} tabIndex={-1} data-ticket={o.id}>
         {/* ⋯ IS THE TICKET'S MENU (2026-10-11) — the one the long press raises: next, back, the money, and
@@ -116,7 +116,7 @@ export const DoneTicket = memo(function DoneTicket({ o, me, admin, act, nameOf }
     ...(canUndo(o, me, admin) ? [{ key: "undo", label: `Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment`, run: () => { void act.undoTake(o); } } satisfies MenuItem] : []),
   ];
   return (
-    <LongPress title={`${o.customer ?? "Guest"} · #${o.id.slice(0, 4).toUpperCase()}`} items={items}>{(press) => (
+    <LongPress title={`${o.customer ?? "Guest"} · ${ticketNo(o.id)}`} items={items}>{(press) => (
       <div {...press.bind} className="adm-order pressable st-done"
         role="group" aria-label={`${o.customer ?? "Guest"}, ${ticketNo(o.id)}, picked up`} tabIndex={-1} data-ticket={o.id}>
         <div className="adm-order-top">

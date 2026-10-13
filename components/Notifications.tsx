@@ -5,6 +5,8 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { money } from "@/lib/money";
+import { orderNo } from "@/lib/activeOrder";
+import { orderLine } from "@/lib/orderWords";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -43,12 +45,8 @@ export default function Notifications() {
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (p) => {
         const o = p.new as any;
         if (o.user_id !== user.id) return;
-        const msg: Record<string, string> = {
-          preparing: "Your order is being made ☕",
-          ready: "Your order is ready — come grab it!",
-          done: "Order picked up. Enjoy.",
-        };
-        if (msg[o.status]) toast(msg[o.status]);
+        // The order's number and its words, as the bar, Today and the push say them (R3b: lib/orderWords).
+        if (o.status === "preparing" || o.status === "ready" || o.status === "done") toast(`${orderNo(String(o.id))} · ${orderLine(o.status)}`);
         // Loyalty points are credited server-side on the 'done' transition — pull the
         // fresh profile so the 3MPIRE ring updates live instead of waiting for a reload.
         if (o.status === "done") refreshProfile();

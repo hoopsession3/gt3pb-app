@@ -5993,7 +5993,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("customer: the lists that select their own columns read the stored answer (payment_status, there since 0155) — never a column 0341 has yet to add",
     /\.select\("id, size, paid, payment_status, picked_up"\)/.test(funnel) && /\$\{isSettled\(o\) \? "paid" : "pay at pickup"\}/.test(funnel)
     && /\.select\("id, size, drop_date, paid, payment_status, picked_up, canceled_at, status_changed_at, created_at"\)/.test(inbox) && /\$\{isSettled\(p\) \? "" : " · pay at pickup"\}/.test(inbox)
-    && /\{isSettled\(o\) \? "Paid" : "Pre-order"\}/.test(mpire)
+    && /\{o\.status === "void" \? "" : isSettled\(o\) \? " · paid" : " · pay at the window"\}/.test(mpire)
     && /\.select\("id, user_id, drop_date, size, glass, name, paid, payment_status, picked_up, stage, canceled_at"\)/.test(move) && /\(\$\{isSettled\(order\) \? "paid" : "pay at pickup"\}\)/.test(move));
   // A refund is still decided by `paid` — only a card paid online goes back through Square, and a
   // collected order cannot be canceled from a phone — so this looks for the WORDS of a payment state.
@@ -10905,7 +10905,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // A Pass ticket is components/pass/Ticket since 2026-10-11 (the KDS program, wave 2): the board hands it its actions (`act`).
   const ticketSrc = read("components/pass/Ticket.tsx"), passScreenSrc = read("components/pass/ThePass.tsx");
   ok("long press: on a Pass ticket — its next stage, back a stage, the money, and Void in red — on the ticket's own element",
-    /<LongPress title=\{`\$\{o\.customer \?\? "Guest"\} · #\$\{o\.id\.slice\(0, 4\)\.toUpperCase\(\)\}`\} items=\{items\}>\{\(press\) => \(\s*<div \{\.\.\.press\.bind\} className=\{`adm-order pressable/.test(ticketSrc)
+    /<LongPress title=\{`\$\{o\.customer \?\? "Guest"\} · \$\{ticketNo\(o\.id\)\}`\} items=\{items\}>\{\(press\) => \(\s*<div \{\.\.\.press\.bind\} className=\{`adm-order pressable/.test(ticketSrc)
     && /\{ key: "next", label: action, icon: "arrowRight", run: \(\) => \{ void act\.advance\(o\); \} \}/.test(ticketSrc) && /run: \(\) => \{ void act\.recall\(o\); \}/.test(ticketSrc)
     && /run: \(\) => \{ void act\.collect\(o\); \}/.test(ticketSrc) && /run: \(\) => \{ void act\.undoTake\(o\); \}/.test(ticketSrc) && /\{ key: "void", label: "Void order", icon: "close", danger: true, run: \(\) => \{ void act\.voidOrder\(o\); \} \}/.test(ticketSrc));
   ok("the Pass: a sheet opened from it (Collect, the void's question, a ticket's menu) stands above it — it opened behind the Pass before",
@@ -13690,6 +13690,39 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /etDayKey\(new Date\(c\.starts_at\)\) >= etDayKey\(new Date\(nowMs\)\)/.test(fu) && /Date\.now\(\) - 36 \* 3600 \* 1000/.test(fu) && !/Date\.parse\(c\.ends_at \?\? c\.starts_at\) > nowMs/.test(fu));
   ok("find us: the ordering line names its stop when it is not the stop above it",
     /closedWords\(ordering, \{ named: !!ordering\.stop && ordering\.stop\.id !== hero\?\.id \}\)/.test(fu) && !/named: false/.test(fu));
+}
+
+// ── ONE ORDER, ONE NUMBER, ONE SET OF WORDS (2026-10-13, R3b of the customer audit — board 09, approved) ──
+// The same cup order was numbered eight ways and worded ten. lib/activeOrder.orderNo is its number wherever a person reads
+// it, and lib/orderWords its words wherever its customer does; the push function keeps a copy, held to the same words here.
+{
+  const W = require("../.smoke/orderWords.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  ok("order words: a tag and a line for every status — In or Placed ahead, Being made, Ready, Picked up, Canceled",
+    ["new", "preparing", "ready", "done", "void"].map((s) => W.orderTag(s)).join() === "In,Being made,Ready,Picked up,Canceled" && W.orderTag("new", true) === "Placed ahead"
+    && W.orderLine("ready") === "Ready — grab it at the window." && W.orderLine("preparing") === "Being made now." && W.orderLine("new") === "We have it. Ready in about 8 minutes."
+    && W.orderLine("new", "Made when we open — today at 7:00am") === "Made when we open — today at 7:00am" && W.orderTag("odd") === "Your order" && W.orderLine("odd") === "");
+  const pol = rd("supabase/functions/push/policy.ts");
+  const deno = (name) => { const m = pol.match(new RegExp(`export const ${name}: Record<string, string> = (\\{[^}]*\\});`)); return m ? Function(`return ${m[1]}`)() : null; };
+  const tagD = deno("ORDER_TAG"), lineD = deno("ORDER_LINE");
+  ok("order words: the push says what the bar and Today say — its copy of the words is the same words",
+    !!tagD && !!lineD && Object.keys(lineD).join() === "preparing,ready" && Object.entries(lineD).every(([s, l]) => W.orderLine(s) === l)
+    && Object.entries(tagD).every(([s, t]) => W.orderTag(s) === t) && /\$\{id\.slice\(0, 4\)\.toUpperCase\(\)\}/.test(pol), { tagD, lineD });
+  const bar = rd("components/OrderStatus.tsx"), th = rd("components/today/TodayHome.tsx"), nt = rd("components/Notifications.tsx"), mh = rd("app/3mpire/page.tsx"), nf = rd("app/api/notify/route.ts");
+  ok("order words: the bar, Today, the toast, the ready email and the member's history read them — no words of their own",
+    /orderLine\(o\.status, o\.status === "new"/.test(bar) && !/Order received|Preparing your order|at the bar/.test(code(bar))
+    && /const tag = orderTag\(order\.status, ahead\);/.test(th) && /const line = orderLine\(order\.status, ahead/.test(th)
+    && /toast\(`\$\{orderNo\(String\(o\.id\)\)\} · \$\{orderLine\(o\.status\)\}`\)/.test(nt) && !/being made ☕|come grab it!/.test(nt)
+    && /subject: `GT3 — order \$\{no\} is ready`/.test(nf) && /\{orderNo\(o\.id\)\} · \{orderTag\(o\.status\)\}/.test(mh));
+  const hand = ["components/pass/Ticket.tsx", "components/pass/ThePass.tsx", "app/api/orders/cancel/route.ts", "app/crew/page.tsx", "components/OrderStatus.tsx", "components/today/TodayHome.tsx", "components/Notifications.tsx"];
+  ok("one number: no screen builds #4F2A by hand — lib/activeOrder.orderNo, or the Pass's ticketNo, which is it",
+    hand.every((f) => !/slice\(0, 4\)\.toUpperCase\(\)/.test(rd(f))) && /export const ticketNo = orderNo;/.test(rd("lib/orderStatus.ts")), hand.filter((f) => /slice\(0, 4\)\.toUpperCase\(\)/.test(rd(f))));
+  const crew = rd("app/crew/page.tsx");
+  ok("one number: the crew's order history shows it, finds it typed with its #, and exports it as printed — its status in the Pass's words",
+    /\{orderNo\(o\.id\)\} · \{STATUS_WORD\[o\.status\] \?\? o\.status\}/.test(crew) && /const no = term\.replace\(\/\^#\/, ""\);/.test(crew)
+    && /order: orderNo\(o\.id\)/.test(crew) && /status: STATUS_WORD\[o\.status\] \?\? o\.status/.test(crew));
 }
 
 Promise.all(PENDING).then(() => {

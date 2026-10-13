@@ -3,6 +3,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { staffFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { notifyCustomer, emailEnabled, smsEnabled, notifyStatus, sendEmail, accountEmail } from "@/lib/notify";
 import { route } from "@/lib/apiRoute";
+import { orderNo } from "@/lib/activeOrder";
+import { orderLine } from "@/lib/orderWords";
 
 // LIFECYCLE PINGS the crew fires from the boards — the customer can't be expected to sit in the
 // app. order_ready: the pass advanced an order to Ready (walk-up/pre-orders carry no phone, so
@@ -44,10 +46,12 @@ async function post(req: Request) {
       const { data: o } = await supabaseAdmin.from("orders").select("id, customer, user_id").eq("tenant_id", tenant).eq("id", id).maybeSingle();
       if (!o) return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
       const first = (o.customer || "").split(" ")[0];
+      // Its number and Today's words (R3b: lib/activeOrder, lib/orderWords) — "#4F2A" is what the window calls out.
+      const no = orderNo(o.id);
       const sent = await notifyCustomer({
         email: await accountEmail(o.user_id),
-        subject: "GT3 — your order is ready",
-        message: `GT3: ${first ? `${first}, ` : ""}your order is ready at the window — come grab it while it's fresh.`,
+        subject: `GT3 — order ${no} is ready`,
+        message: `GT3: ${first ? `${first}, ` : ""}order ${no} is ${orderLine("ready").replace(/^Ready/, "ready")}`,
       });
       return NextResponse.json({ ok: true, ...sent });
     }

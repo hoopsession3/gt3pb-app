@@ -33,6 +33,7 @@ import { supabase } from "@/lib/supabase";
 import { readMode } from "@/lib/mode";
 import type { Order } from "@/lib/db";
 import { drinksWords, etDay, orderable, orderNo, ORDER_STEPS, stepOf, todayLead, usualOf, type TodayLead } from "@/lib/today";
+import { orderLine, orderTag } from "@/lib/orderWords";
 
 // TODAY, BY STATE (2026-10-13, R3 of the customer audit — boards 03–06, approved). The page leads with what is true now —
 // the order being made, the usual one tap from a priced checkout, or the truck off and when cup orders open — and the
@@ -105,11 +106,9 @@ function MakingCard({ order, more, stale, reload }: { order: Order; more: number
   const { setEta, etaBusy, cancel, canceling } = useOrderActions(order, reload);
   const paid = isSettled(order);
   const ahead = order.status === "new" && !!order.ready_from && waitingToOpen(order);
-  const tag = order.status === "ready" ? "Ready" : order.status === "preparing" ? "Being made" : ahead ? "Placed ahead" : "In";
-  const line = order.status === "ready" ? "Ready — grab it at the window."
-    : order.status === "preparing" ? "Being made now."
-    : ahead ? readyWords({ state: "ahead", readyFrom: order.ready_from! })
-    : "We have it. Ready in about 8 minutes.";
+  // The words are the order's everywhere its customer reads it (lib/orderWords): the bar, the toast, the push.
+  const tag = orderTag(order.status, ahead);
+  const line = orderLine(order.status, ahead ? readyWords({ state: "ahead", readyFrom: order.ready_from! }) : null);
   const total = typeof order.total_cents === "number" ? money(order.total_cents) : null;
   // Paid at the window, the order is the crew's to cancel: the database refuses it from a phone (0341).
   const canCancel = order.status === "new" && !order.collected_at;

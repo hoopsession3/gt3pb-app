@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import Icon from "@/components/Icon";
 import { readyWords, waitingToOpen } from "@/lib/ordering";
 import { leadOrder, orderNo } from "@/lib/activeOrder";   // not lib/today: every page mounts this bar
+import { orderLine } from "@/lib/orderWords";
 import { useMyActiveOrders, useOrderActions, ETA_WORDS } from "./useMyOrders";
 
 // A live "your order" banner for signed-in members — preparing → ready in realtime,
@@ -15,11 +16,9 @@ import { useMyActiveOrders, useOrderActions, ETA_WORDS } from "./useMyOrders";
 // NOT ON TODAY (2026-10-13, R3): Today leads with the order itself — its number, its steps, the buttons that tell the
 // truck — so the bar above the tabs would say it twice. Every other screen keeps the bar. The reads and the actions are
 // components/useMyOrders, shared with Today's card.
-const STATUS_LABEL: Record<string, string> = {
-  new: "Order received",
-  preparing: "Preparing your order…",
-  ready: "Ready — grab it at the bar",
-};
+//
+// ITS WORDS ARE TODAY'S (2026-10-13, R3b): "Order received", "Preparing your order…" and "ready at the bar" were this
+// bar's own; the order reads the same here, on Today, in the toast and in the push (lib/orderWords).
 
 export default function OrderStatus() {
   const path = usePathname();
@@ -35,10 +34,9 @@ function OrderBar() {
   const { setEta, etaBusy, cancel, canceling } = useOrderActions(o, reload);
   if (!o) return null;
   const items = o.items.map(nameOf).join(" · ");
-  // Placed ahead of a stop (0343): "Order received" for hours read as "any minute now". It says when.
-  const label = o.status === "new" && o.ready_from && waitingToOpen(o)
-    ? readyWords({ state: "ahead", readyFrom: o.ready_from })
-    : STATUS_LABEL[o.status] ?? "Your order";
+  // Placed ahead of a stop (0343): "in about 8 minutes" for hours read as "any minute now". It says when.
+  const label = orderLine(o.status, o.status === "new" && o.ready_from && waitingToOpen(o)
+    ? readyWords({ state: "ahead", readyFrom: o.ready_from }) : null) || "Your order";
 
   return (
     <div className={`orderbar-wrap st-${o.status}`}>

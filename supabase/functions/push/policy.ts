@@ -73,16 +73,19 @@ export function newOrderShown(order: { id?: unknown; items?: unknown }): Shown {
   };
 }
 
-/** The customer's own order moving along — without their name, which their lock screen shows to the room too. */
+/** The order's words where its customer reads them — a copy of lib/orderWords (Deno cannot import it), held to it by
+ *  scripts/smoke.cjs — and its number as the bar, Today and the Pass print it (lib/activeOrder orderNo). */
+export const ORDER_TAG: Record<string, string> = { preparing: "Being made", ready: "Ready" };
+export const ORDER_LINE: Record<string, string> = { preparing: "Being made now.", ready: "Ready — grab it at the window." };
+export const orderNoOf = (id: unknown): string => (typeof id === "string" && id ? `#${id.slice(0, 4).toUpperCase()}` : "");
+
+/** The customer's own order moving along — its number and its words, never their name, which their lock screen shows
+ *  to the room too. 'done' sends nothing: they already have it in hand. */
 export function orderStatusShown(order: { id?: unknown; status?: unknown }): Shown | null {
-  const say: Record<string, string> = {
-    preparing: "We're making your order now.",
-    ready: "Your order's ready — come grab it at the bar.",
-    // 'done' sends nothing: they already have it in hand.
-  };
   const s = typeof order.status === "string" ? order.status : "";
-  if (!say[s]) return null;
-  return { title: BRAND, body: say[s], tag: `order:${idOf(order.id)}:${s}`, ring: false };
+  if (!ORDER_LINE[s]) return null;
+  const no = orderNoOf(order.id);
+  return { title: no ? `Order ${no} · ${ORDER_TAG[s]}` : ORDER_TAG[s], body: ORDER_LINE[s], tag: `order:${idOf(order.id)}:${s}`, ring: false };
 }
 
 /** A member's subscription changing state. */

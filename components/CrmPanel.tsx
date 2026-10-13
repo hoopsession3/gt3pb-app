@@ -38,6 +38,8 @@ type CrmOrder = {
 };
 
 const CH_LABEL: Record<CrmOrder["channel"], string> = { cup: "Cup", pickup: "Pickup", delivery: "Delivery" };
+// The fulfillment status in words (R3b — no raw placed / in_prep on a screen); one set for every channel the record shows.
+const FULFILL_WORD: Record<string, string> = { placed: "Placed", in_prep: "In progress", fulfilled: "Fulfilled", canceled: "Canceled" };
 
 type Loyalty = { points: number | null; credit_cents: number | null; founding_member: boolean | null;
                  role: string | null } | null;
@@ -171,7 +173,7 @@ export function CrmDetail({ c }: { c: Customer }) {
                 <div className="crm-ord" key={`${o.channel}-${o.id}`}>
                   <span className="ch">{CH_LABEL[o.channel]}</span>
                   <b>{new Date(o.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</b>
-                  <span>{o.fulfillment_status ?? "—"}</span>
+                  <span>{o.fulfillment_status ? FULFILL_WORD[o.fulfillment_status] ?? o.fulfillment_status : "—"}</span>
                   <span className="px">{o.total_cents != null ? money(o.total_cents) : "—"}</span>
                 </div>
               ))}

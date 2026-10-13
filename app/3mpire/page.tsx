@@ -21,6 +21,8 @@ import { clickable } from "@/lib/a11y";
 import { useSiteCopy } from "@/lib/copy";
 import { money, moneyPlain, moneyRound } from "@/lib/money";
 import { isSettled } from "@/lib/settled";
+import { orderNo } from "@/lib/activeOrder";
+import { orderTag } from "@/lib/orderWords";
 import { publicOrigin } from "@/lib/native";
 import { shareLink } from "@/lib/deviceActions";
 import { cardOf, freeWords, STAMP_GOAL } from "@/lib/loyalty";
@@ -58,7 +60,8 @@ function OrderHistory() {
         <div className="hist-row" key={o.id}>
           <div className="hist-row-l">
             <b>{o.items.map(nameOf).join(" · ")}</b>
-            <span>{histDate(o.created_at)} · {isSettled(o) ? "Paid" : "Pre-order"}</span>
+            {/* Its number and where it ended (R3b): a canceled order said nothing here and read like one picked up. */}
+            <span>{histDate(o.created_at)} · {orderNo(o.id)} · {orderTag(o.status)}{o.status === "void" ? "" : isSettled(o) ? " · paid" : " · pay at the window"}</span>
           </div>
           <span className="hist-px">{money(o.total_cents)}</span>
           <button className="k-icon-btn shrink-0" onClick={() => reorder(o.items)} aria-label="Order this again">↻</button>

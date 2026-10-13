@@ -216,6 +216,8 @@ import { staffAccess } from "@/lib/access";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { SECTION_TITLE } from "@/lib/routeTitles";
 import Button from "@/components/Button";
+import { orderNo } from "@/lib/activeOrder";
+import { STATUS_WORD } from "@/lib/orderStatus";
 
 // The sections' names have one home now (lib/routeTitles): this heading, the guide, and the title bar's
 // title and its ‹ read the same words (2026-10-08, the navigation round).
@@ -4688,16 +4690,18 @@ function OrdersHistory() {
               const name = (o.customer ?? "guest").toLowerCase();
               const id = o.id.slice(0, 4).toLowerCase();
               const items = o.items.map(nameOf).join(" ").toLowerCase();
-              return name.includes(term) || id.includes(term) || items.includes(term) || moneyPlain(o.total_cents).includes(term);
+              // "#4F2A" as the ticket, the bar and the customer's Today print it finds it too (R3b).
+              const no = term.replace(/^#/, "");
+              return name.includes(term) || (!!no && id.includes(no)) || items.includes(term) || moneyPlain(o.total_cents).includes(term);
             })
           : rows;
         return (
           <div className="adm-sec">
             {/* "It's my data" (enterprise round P2) — the accountant handoff, from the rows shown */}
             <button type="button" className="btn-sec btn-sm shrink-0 mb-2" onClick={() => downloadCsv("gt3-orders.csv", shown.map((o) => ({
-              when: o.status_changed_at ?? "", order: o.id.slice(0, 4), customer: o.customer ?? "guest",
+              when: o.status_changed_at ?? "", order: orderNo(o.id), customer: o.customer ?? "guest",
               items: o.items.map(nameOf).join(" · "),
-              total: moneyPlain(o.total_cents), status: o.status, paid: ledgerWord(o),
+              total: moneyPlain(o.total_cents), status: STATUS_WORD[o.status] ?? o.status, paid: ledgerWord(o),
             })))}>Export CSV</button>
             <SectionHeader label="Order history" right={done > 0 ? <span className="k-count">{done} completed</span> : undefined} />
             <input className="adm-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name · order # · item · amount" aria-label="Search order history" />
@@ -4707,7 +4711,7 @@ function OrdersHistory() {
                 <InfoRow
                   key={o.id}
                   name={<RecordLink kind="customer" id={o.customer_id}>{o.customer ?? "Guest"}</RecordLink>}
-                  nameExtra={<span className={`adm-substat ${o.status === "void" ? "past_due" : "active"}`}>{o.status}</span>}
+                  nameExtra={<span className={`adm-substat ${o.status === "void" ? "past_due" : "active"}`}>{orderNo(o.id)} · {STATUS_WORD[o.status] ?? o.status}</span>}
                   meta={<>{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${nameOf(g.id)}`).join(" · ")} · {money(o.total_cents)} · {new Date(o.status_changed_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</>}
                 />
               ))}

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isMissingFunction } from "./schemaSkew";
+import { orderNo } from "./activeOrder";
 
 // THE PASS MOVES AN ORDER FROM WHAT IT SHOWED (2026-10-11).
 //
@@ -20,8 +21,9 @@ import { isMissingFunction } from "./schemaSkew";
 /** A status in the pass's own words: its stages, and "Picked up" for done. */
 export const STATUS_WORD: Record<string, string> = { new: "New", preparing: "In progress", ready: "Ready", done: "Picked up", void: "Void" };
 
-/** An order by its ticket's number, as the pass prints it: "#AB12". */
-export const ticketNo = (id: string): string => `#${id.slice(0, 4).toUpperCase()}`;
+/** An order by its ticket's number, as the pass prints it: "#AB12" — the one number the bar, Today, the customer's
+ *  push and the emails print too (lib/activeOrder orderNo, R3b). */
+export const ticketNo = orderNo;
 
 export type StatusError = { message: string; code?: string | null; details?: string | null };
 

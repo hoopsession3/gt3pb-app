@@ -20,7 +20,7 @@ import { clockTime } from "@/lib/dates";
 import { haptic } from "@/lib/haptics";
 import { unlockAudio } from "@/lib/chime";
 import { money } from "@/lib/money";
-import { setOrderStatus, movedTo, movedLine } from "@/lib/orderStatus";
+import { setOrderStatus, movedTo, movedLine, ticketNo } from "@/lib/orderStatus";
 import { setPassMuted } from "@/lib/passSound";
 import { canOf } from "@/lib/roles";
 import { supabase } from "@/lib/supabase";
@@ -235,7 +235,7 @@ function PassBoard() {
       await raiseAlertClient({
         severity: "critical", category: "money", kind: "refund_needed", subjectId: o.id,
         title: "Voided a PAID order — refund needed",
-        body: `${o.customer ?? "Guest"} · #${o.id.slice(0, 4).toUpperCase()} · ${amt} paid ${how === "card_reader" ? "on the card reader" : "online"}. Refund it in Square.`,
+        body: `${o.customer ?? "Guest"} · ${ticketNo(o.id)} · ${amt} paid ${how === "card_reader" ? "on the card reader" : "online"}. Refund it in Square.`,
         link: "/crew?s=money&a=pay",
       });
     }

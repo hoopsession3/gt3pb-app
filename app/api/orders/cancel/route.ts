@@ -6,6 +6,7 @@ import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
+import { orderNo } from "@/lib/activeOrder";
 
 // CANCEL A CUSTOMER ORDER — one route for all three channels (cup / pickup pack / Sunday delivery).
 // The database RPC already does the hard, trusted part (owner check + status-window check + the
@@ -110,7 +111,7 @@ async function lookup(channel: Channel, id: string, userId: string): Promise<Can
         .from("orders").select("customer,total_cents,paid").eq("id", id).eq("user_id", userId).maybeSingle();
       if (!data) return null;
       return { paid: !!data.paid, who: data.customer || "A member",
-        label: `cup order #${id.slice(0, 4).toUpperCase()}`, phone: null, total_cents: data.total_cents ?? 0 };
+        label: `cup order ${orderNo(id)}`, phone: null, total_cents: data.total_cents ?? 0 };
     }
     if (channel === "pickup") {
       const { data } = await supabaseAdmin!

@@ -69,7 +69,13 @@ const shape = (s) => !!s && typeof s.title === "string" && s.title.length > 0 &&
   const ready = P.orderStatusShown({ id: "o-1", status: "ready", customer: NAME });
   const making = P.orderStatusShown({ id: "o-1", status: "preparing", customer: NAME });
   ok("the customer's order: ready and preparing say so without their name — their lock screen faces the room too",
-    /ready/.test(ready.body) && /making your order/.test(making.body) && leaks(ready).length === 0 && leaks(making).length === 0, { ready, making });
+    /ready/i.test(ready.body) && /being made/i.test(making.body) && leaks(ready).length === 0 && leaks(making).length === 0, { ready, making });
+  // R3b (2026-10-13): one number and one set of words — the order's number as the bar and the Pass print it, and the
+  // words the bar, Today and the toast use (lib/orderWords), "at the window" where this said "at the bar".
+  ok("the customer's order: its number and Today's words — Order #O-1 · Ready, Ready — grab it at the window",
+    ready.title === "Order #O-1 · Ready" && ready.body === "Ready — grab it at the window."
+    && making.title === "Order #O-1 · Being made" && making.body === "Being made now." && !/at the bar/.test(ready.body), { ready, making });
+  ok("the customer's order: no id, no number — the words alone", P.orderStatusShown({ status: "ready" })?.title === "Ready");
   ok("the customer's order: done and void send nothing", P.orderStatusShown({ status: "done" }) === null && P.orderStatusShown({ status: "void" }) === null && P.orderStatusShown({}) === null);
   ok("the customer's order: preparing then ready are two tags — ready rings even while preparing is still showing", ready.tag !== making.tag);
 }
