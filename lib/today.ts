@@ -66,11 +66,8 @@ export function drinksWords(items: readonly string[], nameOf: (slug: string) => 
   return [...n].map(([id, q]) => (q > 1 ? `${nameOf(id)} ×${q}` : nameOf(id))).join(" · ");
 }
 
-/** Where an order is, in four steps: in, being made, ready, picked up. */
-export const ORDER_STEPS = ["In", "Making", "Ready", "Picked up"] as const;
-export function stepOf(status: string): number {
-  return status === "done" ? 3 : status === "ready" ? 2 : status === "preparing" ? 1 : 0;
-}
+// Where an order is, in four steps — they live with the order's words (lib/orderWords): the ticket draws them too.
+export { ORDER_STEPS, stepOf } from "./orderWords";
 
 const ET_DAY = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", month: "numeric", day: "numeric" });
 /** A stop's day as the truck keeps it, Eastern: "Sat 10/17". */

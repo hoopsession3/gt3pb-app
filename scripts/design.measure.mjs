@@ -33,11 +33,15 @@ export const OBSERVE = `(() => {
     new PerformanceObserver((list) => {
       for (const e of list.getEntries()) {
         if (e.hadRecentInput) continue;
-        const nodes = (e.sources || []).map((s) => s.node).filter((n) => n && n.nodeType === 1);
+        const srcs = (e.sources || []).filter((s) => s.node && s.node.nodeType === 1);
+        const nodes = srcs.map((s) => s.node);
+        // …and where each went (2026-10-13, #258): "span.ti" alone could not say which tab, or which way, or how far.
+        const where = (s) => { const n = s.node, tab = n.closest(".tab"), a = s.previousRect, b = s.currentRect, r = Math.round;
+          return (tab ? "@" + (tab.getAttribute("data-for") || "tab") : "") + " " + r(a.x) + "," + r(a.y) + "→" + r(b.x) + "," + r(b.y) + (r(a.height) !== r(b.height) ? " h" + r(a.height) + "→" + r(b.height) : ""); };
         window.__gt3shifts.push({
           v: e.value, t: Math.round(e.startTime),
           chrome: nodes.some((n) => !!n.closest(".nav,.cartbar,.rail")),
-          src: nodes.slice(0, 3).map((n) => n.tagName.toLowerCase() + (typeof n.className === "string" && n.className ? "." + n.className.trim().split(/\\s+/).slice(0, 2).join(".") : "")),
+          src: srcs.slice(0, 3).map((s) => s.node.tagName.toLowerCase() + (typeof s.node.className === "string" && s.node.className ? "." + s.node.className.trim().split(/\\s+/).slice(0, 2).join(".") : "") + where(s)),
         });
       }
     }).observe({ type: "layout-shift", buffered: true });

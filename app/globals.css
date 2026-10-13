@@ -3044,7 +3044,7 @@ body:has(.conc-sheet) .rail{display:flex}
    the app's --line hairline register (you feel it before you see it). NOT global — opt-in per screen. */
 /* Every screen holding a mark (10-09: /shop's mark fell to the viewport's foot as its fade ended, 0.11 of
    shift). clip, not hidden: hidden made a scroll container, and the menu's sticky chips scrolled away. */
-.screen.arrival,.screen.menu,.screen.arch,.screen#s-today,.screen.shop,.screen.craft,.screen#s-delivery,.screen#s-reserve,.screen.office-portal,.screen.primal{position:relative;z-index:0;overflow:hidden;overflow:clip}
+.screen.arrival,.screen.menu,.screen.arch,.screen#s-today,#s-ticket,.screen.shop,.screen.craft,.screen#s-delivery,.screen#s-reserve,.screen.office-portal,.screen.primal{position:relative;z-index:0;overflow:hidden;overflow:clip}
 .wm{position:absolute;z-index:-1;pointer-events:none;background-repeat:no-repeat;background-position:center;background-size:contain;aspect-ratio:1184/1730}
 /* arrival (dark) — cream mark bleeding off the top-right, behind the hero statement */
 .wm--landing{top:-46px;right:-21%;width:74%;max-width:420px;opacity:.05;background-image:url(/brand/3_outline_cream.svg)}

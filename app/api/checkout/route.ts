@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { nameFrom } from "@/lib/drinks";
 import { readMenuRows } from "@/lib/drinksRead";
-import { chargeCard, safeIdemKey } from "@/lib/squareServer";
+import { chargeCard, safeIdemKey, type PaidCard } from "@/lib/squareServer";
+import { randomUUID } from "node:crypto";
+import { orderNo } from "@/lib/activeOrder";
 import { squarePriceMap } from "@/lib/squareCatalog";
 import { priceCups, priceChangedWords, tipCentsFor } from "@/lib/cupPrice";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -206,6 +208,22 @@ async function post(req: Request) {
     ? ((await supabaseAdmin.rpc("resolve_customer", { p_user_id: user.id, p_phone: null, p_email: null, p_name: customer })).data as string | null)
     : null;
 
+  // THE ORDER'S NUMBER AND ITS TICKET (2026-10-13, R3b of the customer audit — board 09). The id is made here, so the
+  // answer can say the number the window calls ("#4F2A") without reading the row back. The ticket — the link that shows
+  // this one order to whoever holds it, guests too (0395) — is the table's own, read once the row is in, as the
+  // receipt's lines (what this route priced) and the card's brand and last four are written beside it.
+  const orderId = randomUUID();
+  const receiptLines = priced.lines.map((l) => ({ slug: l.slug, name: l.name, qty: l.qty, unit_cents: l.cents, ...(l.cents !== l.baseCents ? { base_cents: l.baseCents } : {}) }));
+  const ticketFor = async (card: PaidCard | null): Promise<string | null> => {
+    // arrives-with: 0395 — until it is pasted the columns are not there: this write and its read fail together, on
+    // their own, after the order is in; the answer carries the order's number and no link.
+    // scoped-by: orderId was made above and the row was just inserted with it — this checkout's own order, one row.
+    const { data } = await supabaseAdmin!.from("orders")
+      .update(card?.last4 ? { lines: receiptLines, card_brand: card.brand, card_last4: card.last4 } : { lines: receiptLines })
+      .eq("id", orderId).select("ticket").maybeSingle();
+    return (data as { ticket?: string | null } | null)?.ticket ?? null;
+  };
+
   if (!paying) {
     // Pay-at-pickup: record unpaid, no Square call — the crew charges in person at the window. Claimed
     // like a charge (lib/chargeOnce): a retry after "we're offline" gets this order's answer back
@@ -213,7 +231,7 @@ async function post(req: Request) {
     const held = await claimKey(seen.claims, idemKey, { channel: "cups", card: false, amountCents: subtotal }, now, stopped);
     if ("answer" in held) return reply(held.answer);
     return reply(await placeOnce({ claims: held.claims, key: idemKey, now, place: async (): Promise<Answer> => {
-      const orderRow = { items, total_cents: subtotal, paid: false, payment_id: null, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode, stop_id: ordering.stop?.id ?? null };
+      const orderRow = { id: orderId, items, total_cents: subtotal, paid: false, payment_id: null, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode, stop_id: ordering.stop?.id ?? null };
       const { error: insErr } = await insertOrder(orderRow);
       if (insErr) return { status: 500, body: { error: "That didn't go through — give it another tap" } };
       // Confirmation email — cup orders carry no phone (a quick on-the-spot order, not a form), so this
@@ -223,7 +241,8 @@ async function post(req: Request) {
       }
       // `paid` says which kind of order this was, because one key covers the checkout whichever button
       // was tapped: a retry from Pay can be answered with this pre-order, and must not read as a charge.
-      return { status: 200, body: { ok: true, paid: false, amount: subtotal, recorded: true, ...promise } };
+      const ticket = await ticketFor(null);
+      return { status: 200, body: { ok: true, paid: false, amount: subtotal, recorded: true, no: orderNo(orderId), ticket, ...promise } };
     } }));
   }
 
@@ -235,6 +254,7 @@ async function post(req: Request) {
 
   // Record the paid order server-side (paid + payment_id are trustworthy here). Its answer is kept on
   // the claim and said again to every retry of this key.
+  let paidWith: PaidCard | null = null;
   const recordPaid = async (paymentId: string | null): Promise<Answer> => {
     try {
       // Idempotency at the ORDER row, the line behind the claim: Square answers a repeated key with the
@@ -250,7 +270,7 @@ async function post(req: Request) {
       // total_cents is the GOODS subtotal (tip excluded) so history + the referral floor
       // are consistent across paid and pre-order paths.
       // stop_id: the stop the order is for (0219's column; 0391 — a canceled stop tells the orders placed for it).
-      const orderRow = { items, total_cents: subtotal, tip_cents: tip, paid: true, payment_id: paymentId, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode, stop_id: ordering.stop?.id ?? null };
+      const orderRow = { id: orderId, items, total_cents: subtotal, tip_cents: tip, paid: true, payment_id: paymentId, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode, stop_id: ordering.stop?.id ?? null };
       let { error: insErr } = await insertOrder(orderRow);
       if (insErr) {
         // Charge succeeded but recording failed. Retry once — a transient DB blip must not cost the
@@ -279,7 +299,8 @@ async function post(req: Request) {
       if (user?.id) {
         await notifyCustomer({ email: await accountEmail(user.id), subject: "GT3 — order in", message: `GT3: your order is in. ${promise.ready} ${promise.pickup}. ${money(amount)} paid.` });
       }
-      return { status: 200, body: { ok: true, paid: true, paymentId, amount, recorded: true, ...promise } };
+      const ticket = await ticketFor(paidWith);
+      return { status: 200, body: { ok: true, paid: true, paymentId, amount, recorded: true, no: orderNo(orderId), ticket, ...promise } };
     } catch {
       // The charge is DONE at this point (we have a paymentId) — an exception here means something
       // broke while RECORDING it, not while paying. "Payment service unavailable" would be actively
@@ -290,7 +311,9 @@ async function post(req: Request) {
 
   return reply(await chargeOnce({
     claims: held.claims, key: idemKey, now,
-    charge: () => chargeCard({ token: token!, locationId: locationId!, sourceId: sourceId!, amountCents: amount, note: "GT3PB pre-order", idempotencyKey: idemKey, buyerEmail }),
+    // The card it was paid with, kept for the receipt (brand and last four — R3b, 0395); a retry answered from the
+    // claim charges nothing, and its receipt says "Paid" without the card.
+    charge: async () => { const r = await chargeCard({ token: token!, locationId: locationId!, sourceId: sourceId!, amountCents: amount, note: "GT3PB pre-order", idempotencyKey: idemKey, buyerEmail }); if (r.ok) paidWith = r.card ?? null; return r; },
     record: recordPaid,
     // chargeCard threw: a dropped connection after Square may already have taken the money, or an answer
     // that does not say whether it did (a 5xx, a reused key — lib/squareServer.chargeVerdict). This is a

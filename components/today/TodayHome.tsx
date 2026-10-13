@@ -32,8 +32,10 @@ import { isSettled } from "@/lib/settled";
 import { supabase } from "@/lib/supabase";
 import { readMode } from "@/lib/mode";
 import type { Order } from "@/lib/db";
-import { drinksWords, etDay, orderable, orderNo, ORDER_STEPS, stepOf, todayLead, usualOf, type TodayLead } from "@/lib/today";
+import { drinksWords, etDay, orderable, orderNo, stepOf, todayLead, usualOf, type TodayLead } from "@/lib/today";
 import { orderLine, orderTag } from "@/lib/orderWords";
+import OrderSteps from "@/components/today/OrderSteps";
+import Eyebrow from "@/components/today/Eyebrow";
 
 // TODAY, BY STATE (2026-10-13, R3 of the customer audit — boards 03–06, approved). The page leads with what is true now —
 // the order being made, the usual one tap from a priced checkout, or the truck off and when cup orders open — and the
@@ -83,22 +85,7 @@ function useQuote(items: readonly string[], on: boolean): number | null {
   return on && q && q.key === key ? q.cents : null;
 }
 
-function Eyebrow({ live, children }: { live?: boolean; children: ReactNode }) {
-  return <div className={`k-eyb${live ? " live" : ""}`}>{live && <span className="livedot" />}{children}</div>;
-}
 
-function Steps({ at }: { at: number }) {
-  return (
-    <ol className="grid grid-cols-4 gap-1" aria-label={`Where it is: ${ORDER_STEPS[at]}`}>
-      {ORDER_STEPS.map((w, i) => (
-        <li key={w} className="flex flex-col gap-1.5" aria-current={i === at ? "step" : undefined}>
-          <span className={`block h-1 rounded-pill ${i <= at ? "bg-ok" : "bg-line2"}`} />
-          <span className={`font-mono text-caption2 uppercase tracking-eyebrow ${i === at ? "text-cream" : i < at ? "text-cream-muted" : "text-cream-dim"}`}>{w}</span>
-        </li>
-      ))}
-    </ol>
-  );
-}
 
 // ── THE ORDER BEING MADE ──────────────────────────────────────────────────────────────────────────────────────
 function MakingCard({ order, more, stale, reload }: { order: Order; more: number; stale: boolean; reload: () => void }) {
@@ -130,7 +117,7 @@ function MakingCard({ order, more, stale, reload }: { order: Order; more: number
         </div>
         {total && <span className="whitespace-nowrap font-mono text-subhead text-cream-muted">{paid ? `Paid ${total}` : `${total} at the window`}</span>}
       </div>
-      <Steps at={stepOf(order.status)} />
+      <OrderSteps at={stepOf(order.status)} />
       <div className="grid grid-cols-2 gap-2" role="group" aria-label="Tell the truck">
         {eta("on_way")}
         {eta("outside")}

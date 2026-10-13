@@ -30,3 +30,9 @@ export function orderLine(status: string, aheadLine?: string | null): string {
   if (status === "new" && aheadLine) return aheadLine;
   return LINE[status] ?? "";
 }
+
+/** Where an order is, in four steps: in, being made, ready, picked up (Today's card and the ticket draw them). */
+export const ORDER_STEPS = ["In", "Making", "Ready", "Picked up"] as const;
+export function stepOf(status: string): number {
+  return status === "done" ? 3 : status === "ready" ? 2 : status === "preparing" ? 1 : 0;
+}

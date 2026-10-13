@@ -24,7 +24,7 @@ const ROUTE_TITLE: Readonly<Record<string, string>> = {
   book: "Book the bar", craft: "Our craft", reserve: "Reserve", delivery: "Delivery", primal: "Primal",
   academy: "Academy", agreement: "Agreement", offer: "Your offer", architecture: "System map", scan: "Scan",
   playbook: "Playbook", privacy: "Privacy", terms: "Terms", office: "Your GT3", driver: "Delivery run",
-  display: "Display", built: "Partner share", crew: "Crew",
+  display: "Display", built: "Partner share", crew: "Crew", order: "Your order",
 };
 
 /** The tab bar's own screens. A tab is where a way through the app starts: it has no Back of its own. */
@@ -33,7 +33,7 @@ export const TAB_ROOTS: readonly string[] = ["/", "/truck", "/events", "/menu", 
 /** Screens that had their own ‹ to a fixed place before the bar carried Back (2026-10-08): reached with no
  *  screen before them in this visit — a link in an email, the app opened on one — Back still goes there. */
 const UP: Readonly<Record<string, string>> = {
-  academy: "/3mpire", agreement: "/3mpire", architecture: "/3mpire", offer: "/", scan: "/crew",
+  academy: "/3mpire", agreement: "/3mpire", architecture: "/3mpire", offer: "/", scan: "/crew", order: "/menu",
 };
 
 const first = (path: string): string => (path.split("?")[0].split("#")[0].split("/")[1] ?? "");
@@ -67,6 +67,7 @@ export function upOf(pathname: string): string | null {
 // route lights a tab by sharing its first letters.
 const TAB_OF: Readonly<Record<string, string>> = {
   "": "/", truck: "/truck", events: "/truck", menu: "/menu", shop: "/shop", reserve: "/shop", delivery: "/shop", "3mpire": "/3mpire",
+  order: "/menu",   // the ticket (R3b): an order is the Menu's, where a guest placed it
 };
 
 /** The tab bar's tab (its href) lit on `pathname`, or null when the screen belongs to none. */

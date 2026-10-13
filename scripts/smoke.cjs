@@ -13333,7 +13333,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
   const api = code(rd("app/api/checkout/route.ts"));
   ok("checkout: a paid cup is written with its tip, beside the goods it was always written with",
-    /const orderRow = \{ items, total_cents: subtotal, tip_cents: tip, paid: true, payment_id: paymentId,/.test(api));
+    /const orderRow = \{ id: orderId, items, total_cents: subtotal, tip_cents: tip, paid: true, payment_id: paymentId,/.test(api));
   ok("checkout: before 0390 the order goes in without the tip, and nothing else is forgiven",
     /writeAcrossSkew\(\(r\) => supabaseAdmin!\.from\("orders"\)\.insert\(r\), promise\.readyFrom \? \{ \.\.\.row, ready_from: promise\.readyFrom \} : row, \["ready_from", "tip_cents"\]\)/.test(api));
 }
@@ -13641,7 +13641,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /closedWords\(\{ state: "none"/.test(th) && /etDay\(s\.starts_at\), timeRange\(s\.starts_at, s\.ends_at\)/.test(th));
   ok("today: the order in progress is Today's lead, and the bar above the tabs stays off Today so it is not said twice",
     /if \(path === "\/"\) return null;\s+return <OrderBar \/>;/.test(os) && /useMyActiveOrders\(\)/.test(os) && /useMyActiveOrders\(\)/.test(th)
-    && /<Steps at=\{stepOf\(order\.status\)\} \/>/.test(th) && /\{eta\("on_way"\)\}\s+\{eta\("outside"\)\}/.test(th));
+    && /<OrderSteps at=\{stepOf\(order\.status\)\} \/>/.test(th) && /\{eta\("on_way"\)\}\s+\{eta\("outside"\)\}/.test(th));
   ok("today: the card, the packs and the stack are a row each — the card in the card's own words (stamp.*), the packs not to someone with one coming, the stack in a sheet",
     /<InfoRow lead=\{t\("stamp\.kicker"\)\} leadSub=\{`\$\{c\.stamps\}\/\$\{STAMP_GOAL\}`\}/.test(th) && /\{!hasPack && \(/.test(th)
     && /const GenerateDay = dynamic\(\(\) => import\("@\/components\/GenerateDay"\)\);/.test(th) && !fs.existsSync(path.join(__dirname, "..", "components/StampCard.tsx")));
@@ -13723,6 +13723,51 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("one number: the crew's order history shows it, finds it typed with its #, and exports it as printed — its status in the Pass's words",
     /\{orderNo\(o\.id\)\} · \{STATUS_WORD\[o\.status\] \?\? o\.status\}/.test(crew) && /const no = term\.replace\(\/\^#\/, ""\);/.test(crew)
     && /order: orderNo\(o\.id\)/.test(crew) && /status: STATUS_WORD\[o\.status\] \?\? o\.status/.test(crew));
+}
+
+// ── EVERY ORDER A TICKET (2026-10-13, R3b of the customer audit — board 09, approved; 0395) ──
+// A guest who paid had the "Order in." screen and nothing after it. Every order now has a number and a ticket: a link
+// that shows that one order to whoever holds it (order_ticket, 0395), updates itself while it's in progress, and tells
+// the truck you're coming. The phone keeps the link (lib/tickets).
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  // the phone's tickets, run against a stand-in storage
+  const store = new Map();
+  global.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) };
+  const TK = require("../.smoke/tickets.js");
+  const A = "4f2a9c1e-0000-4000-8000-000000000001", B = "4f2a9c1e-0000-4000-8000-000000000002", now = Date.parse("2026-10-17T14:00:00Z");
+  TK.holdTicket(A, "#4F2A", now - 3600e3); TK.holdTicket(B, "#4F2A", now); TK.holdTicket("not-a-ticket", "#X", now); TK.holdTicket(A, "#4F2A", now + 1);
+  const held = TK.heldTickets(now + 2);
+  ok("tickets: the phone keeps its tickets newest first, one each, only ticket-shaped, gone after two days",
+    held.map((h) => h.t).join() === [A, B].join() && TK.heldTickets(now + 49 * 3600e3).length === 0 && TK.ticketPath(A) === `/order?t=${A}`
+    && TK.isTicket(A) && !TK.isTicket("4f2a") && !TK.isTicket(null), held);
+  for (let i = 0; i < 7; i++) TK.holdTicket(`4f2a9c1e-0000-4000-8000-00000000001${i}`, "#4F2A", now + 10 + i);
+  ok("tickets: five at most", TK.heldTickets(now + 100).length === 5);
+  delete global.localStorage;
+  const api = code(rd("app/api/checkout/route.ts")), sq = code(rd("lib/squareServer.ts")), co = code(rd("components/Checkout.tsx")), pg = code(rd("app/order/page.tsx"));
+  ok("checkout: the order's id is made here, so the answer says its number; both answers carry the number and the ticket",
+    /const orderId = randomUUID\(\);/.test(api) && (api.match(/const orderRow = \{ id: orderId, items,/g) || []).length === 2
+    && /recorded: true, no: orderNo\(orderId\), ticket, \.\.\.promise \}/.test(api) && (api.match(/no: orderNo\(orderId\), ticket/g) || []).length === 2);
+  ok("checkout: the receipt's lines and the card's last four go beside the order after it is in — never in the insert, so a database without 0395 still takes the order",
+    /\.update\(card\?\.last4 \? \{ lines: receiptLines, card_brand: card\.brand, card_last4: card\.last4 \} : \{ lines: receiptLines \}\)\s*\.eq\("id", orderId\)\.select\("ticket"\)\.maybeSingle\(\)/.test(api)
+    && !/orderRow = \{[^}]*(ticket|lines|card_last4)/.test(api) && /arrives-with: 0395/.test(rd("app/api/checkout/route.ts")));
+  ok("checkout: the card is the brand and the last four Square answered with — four digits or nothing",
+    /card: paidCard\(data\?\.payment\?\.card_details\?\.card\)/.test(sq) && /\^\\d\{4\}\$/.test(sq) && /if \(r\.ok\) paidWith = r\.card \?\? null;/.test(api));
+  ok("confirmation: says the order's number and, with a ticket, leads to it — the phone keeps it",
+    /title=\{done\.no \? `Order \$\{done\.no\} is in\.` : "Order in\."\}/.test(co) && /ctaLabel=\{done\.ticket \? "Track your order" : "Reserve a Saturday pack →"\}/.test(co)
+    && /router\.push\(tk \? ticketPath\(tk\) : "\/reserve"\)/.test(co) && /if \(t\.ticket && t\.no\) holdTicket\(t\.ticket, t\.no\);/.test(co));
+  ok("the ticket: one order by its ticket, through the view — refused in the database's words, kept on the phone",
+    /supabase\.rpc\("order_ticket", \{ p_ticket: t \}\)/.test(pg) && /refusalText\(e\) \?\? "We couldn't open this order just now/.test(pg)
+    && /if \(no\) holdTicket\(t, no\);/.test(pg) && !/from\("orders"\)/.test(pg));
+  ok("the ticket: it updates itself only while the order is in progress and the page is in front of someone",
+    /const live = !!tk && ACTIVE\.has\(tk\.status\);/.test(pg) && /if \(document\.visibilityState === "visible"\) void reload\(\);/.test(pg) && /setInterval\(tick, 15000\)/.test(pg));
+  ok("the ticket: the order's words and steps are Today's, and it tells the truck through the ticket",
+    /const line = orderLine\(tk\.status, ahead/.test(pg) && /<OrderSteps at=\{stepOf\(tk\.status\)\} \/>/.test(pg)
+    && /supabase\.rpc\("ticket_eta", \{ p_ticket: t, p_eta: next \}\)/.test(pg) && /\{eta\("on_way"\)\}\{eta\("outside"\)\}/.test(pg));
+  ok("the ticket: a canceled order says why and what happens to the money — never a refund it can't promise as done",
+    /The crew is refunding your card in full\./.test(pg) && /Nothing was charged\./.test(pg) && !/refunded\b/.test(pg.replace(/refunding/g, "")));
 }
 
 Promise.all(PENDING).then(() => {

@@ -28,6 +28,7 @@ import type { CupLine } from "@/lib/cupPrice";
 import { payErrorText } from "@/lib/idempotency";
 import { haptic } from "@/lib/haptics";
 import { Segmented } from "@/components/controls";
+import { holdTicket, isTicket, ticketPath } from "@/lib/tickets";
 
 // THE TIP SIGNS THE KEY (2026-10-12, C7 of the customer audit, approved). What is bought and what it costs — the items
 // and the tip — are the checkout key's whole signature (lib/idempotency attemptFor), and the key is kept beside the cart
@@ -50,7 +51,7 @@ export default function Checkout() {
   // by the time the confirm screen renders).
   // readyFrom/pickup are the SERVER's promise (/api/checkout answers with what it recorded), so the
   // screen says what the order says — not what this sheet last read, which can be a minute old.
-  const [done, setDone] = useState<{ paid: boolean; total: number; lines: [string, number][]; name: string; warn?: string; ref?: string; readyFrom: string | null; pickup: string } | null>(null);
+  const [done, setDone] = useState<{ paid: boolean; total: number; lines: [string, number][]; name: string; warn?: string; ref?: string; readyFrom: string | null; pickup: string; no?: string; ticket?: string | null } | null>(null);
   useEffect(() => { if (!open) setDone(null); else trackFunnel("order", "open"); }, [open]);
   const { profile } = useAuth();
   const paymentRef = useRef<PaymentCardHandle>(null);
@@ -185,11 +186,15 @@ export default function Checkout() {
   // answer can belong to the other button: a payment that went through while its answer was lost comes
   // back when "pay at the truck" is tapped, and a pre-order comes back to Pay. The server says which it
   // was (`paid`); the confirmation says what happened, not which button was pressed.
-  type Placed = { paid?: boolean; warn?: string; ref?: string; readyFrom?: string | null; pickup?: string; amount?: number };
+  type Placed = { paid?: boolean; warn?: string; ref?: string; readyFrom?: string | null; pickup?: string; amount?: number; no?: string; ticket?: string | null };
   const placed = (data: Placed, byCard: boolean) => {
     try { localStorage.removeItem(CO_TIP); } catch { /* ignore */ }
     const capturedLines = [...lines], capturedName = customer;
     const p = promised(data);
+    // The order's number and its ticket (R3b — board 09): the link that shows this order to whoever holds it, guests too.
+    // The phone keeps it (lib/tickets), so it is not lost with this sheet.
+    const t = { no: typeof data.no === "string" ? data.no : undefined, ticket: isTicket(data.ticket) ? data.ticket : null };
+    if (t.ticket && t.no) holdTicket(t.ticket, t.no);
     if (typeof data.paid === "boolean" ? data.paid : byCard) {
       trackFunnel("order", "paid");
       haptic("paid");
@@ -201,14 +206,14 @@ export default function Checkout() {
       // dropped entirely: the toast above never even rendered (React batches it with checkout()'s own
       // toast and only the last one shows), and `done` had nowhere to put it even if it had.
       // What was charged, as the server says it — not what this screen worked out (C2).
-      setDone({ paid: true, total: typeof data.amount === "number" ? data.amount : grandCents, lines: capturedLines, name: capturedName, warn: data.warn, ref: data.ref, ...p });
+      setDone({ paid: true, total: typeof data.amount === "number" ? data.amount : grandCents, lines: capturedLines, name: capturedName, warn: data.warn, ref: data.ref, ...p, ...t });
       invalidateCustomerKnown();
     } else {
       trackFunnel("order", "pickup");
       haptic("success");
       toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ${p.readyFrom ? "made when we open" : "ready in ~8 min"}`);
       checkout({ silentToast: true }); // clears cart — this toast already fired above
-      setDone({ paid: false, total: typeof data.amount === "number" ? data.amount : subtotalCents, lines: capturedLines, name: capturedName, ...p });
+      setDone({ paid: false, total: typeof data.amount === "number" ? data.amount : subtotalCents, lines: capturedLines, name: capturedName, ...p, ...t });
       invalidateCustomerKnown();   // the next form starts from this order
     }
   };
@@ -312,7 +317,7 @@ export default function Checkout() {
       header={<div className="oa-kicker" id="checkout-title">Checkout</div>}>
       {done ? (
         <OrderConfirm
-          title="Order in."
+          title={done.no ? `Order ${done.no} is in.` : "Order in."}
           sub={confirmWords(done.readyFrom, done.paid)}
           totalCents={done.total}
           totalLabel={done.paid ? "paid" : "due at the truck"}
@@ -324,9 +329,11 @@ export default function Checkout() {
             ...(done.ref ? [{ label: "Ref", value: `#${done.ref}` }] : []),
             { label: done.paid ? "Paid" : "Pay at pickup", value: money(done.total) },
           ]}
-          ctaLabel="Reserve a Saturday pack →"
-          onCta={() => { onClose(); router.push("/reserve"); }}
-          secondaryLabel="Not now"
+          // With a ticket, the next thing is the order itself — where it is, and telling the truck you're coming (board
+          // 09); the pack's pitch is on the ticket. Without one (0395 not pasted, or a charge that didn't record), as before.
+          ctaLabel={done.ticket ? "Track your order" : "Reserve a Saturday pack →"}
+          onCta={() => { const tk = done.ticket; onClose(); router.push(tk ? ticketPath(tk) : "/reserve"); }}
+          secondaryLabel={done.ticket ? "Done" : "Not now"}
           onSecondary={onClose}
         />
       ) : (

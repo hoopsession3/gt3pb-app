@@ -79,13 +79,18 @@ export default function BottomNav() {
           // tab (/3mpire?signin): then it goes to the tab itself, the join screen.
           <Link key={tab.key} href={tab.href} className={`tab${on ? " on" : ""}`} aria-current={on ? (tab.href === lit ? "page" : "true") : undefined} data-for={tab.for}
             onClick={(e) => { if (pathname === tab.href && !window.location.search) { e.preventDefault(); scrollToTop(); return; } returnToPlace(); if (!on) haptic("selection"); }}>
-            <span className="ti">
+            {/* #258 (2026-10-13): the icon sits where the tab puts it, whatever its label or the font is doing. Its
+                room was the line its svg sat on — 26px, from the font's descent — and the tab centres icon and label as
+                one block, so a label not there yet moved the icon 7px when it came (verify:prod caught the Join tab's,
+                807 → 800, once in a few dozen loads). The room is 26px of its own, and the label one line held at 11px,
+                even empty. */}
+            <span className="ti flex h-[26px] items-start justify-center">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 {tab.icon}
               </svg>
             </span>
             {/* Labels inside a <Link> → plain t(), keyed by the tab's stable key (nav.today/find/…). */}
-            <span className="tl leading-none">{t(`nav.${tab.key}`)}</span>
+            <span className="tl min-h-[11px] whitespace-nowrap leading-none">{t(`nav.${tab.key}`)}</span>
           </Link>
         );
       })}

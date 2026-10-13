@@ -78,12 +78,24 @@ const REFERENCE_MAX = 40;
 // the payment"; the Payment object carries it back), so a charge whose answer was lost can be matched
 // to the checkout that made it. ListPayments cannot filter on it, so that match is a read over a time
 // window and an amount — done by a person today, from the crew alert that names the key.
+/** The card a payment was made with, as a receipt says it ("Visa ··4242", R3b — 0395): its brand and last four, never
+ *  more of it. Square's VISA / MASTERCARD / AMERICAN_EXPRESS read as words. */
+export type PaidCard = { brand: string | null; last4: string | null };
+export function paidCard(c: { card_brand?: unknown; last_4?: unknown } | null | undefined): PaidCard | null {
+  if (!c) return null;
+  const last4 = typeof c.last_4 === "string" && /^\d{4}$/.test(c.last_4) ? c.last_4 : null;
+  const raw = typeof c.card_brand === "string" ? c.card_brand : "";
+  const brand = ({ VISA: "Visa", MASTERCARD: "Mastercard", AMERICAN_EXPRESS: "Amex", DISCOVER: "Discover", DISCOVER_DINERS: "Diners", JCB: "JCB",
+    CHINA_UNIONPAY: "UnionPay", SQUARE_GIFT_CARD: "Gift card", INTERAC: "Interac", EFTPOS: "eftpos", FELICA: "FeliCa", EBT: "EBT" } as Record<string, string>)[raw] ?? (raw ? "Card" : null);
+  return last4 ? { brand, last4 } : null;
+}
+
 export async function chargeCard(opts: {
   token: string; locationId: string; sourceId: string; amountCents: number; note: string; idempotencyKey: string;
   // Square emails the buyer a receipt when this is present (2026-08-01 enterprise round P3) —
   // optional, so guest checkouts without an account email charge exactly as before.
   buyerEmail?: string | null;
-}): Promise<{ ok: true; paymentId: string | null } | { ok: false; error: string }> {
+}): Promise<{ ok: true; paymentId: string | null; card?: PaidCard | null } | { ok: false; error: string }> {
   const res = await fetch(`${SQUARE_BASE}/v2/payments`, {
     method: "POST",
     headers: squareHeaders(opts.token),
@@ -99,7 +111,7 @@ export async function chargeCard(opts: {
   });
   const data = await res.json();
   const verdict = chargeVerdict(res.status, data);
-  if (verdict === "charged") return { ok: true, paymentId: data?.payment?.id ?? null };
+  if (verdict === "charged") return { ok: true, paymentId: data?.payment?.id ?? null, card: paidCard(data?.payment?.card_details?.card) };
   if (verdict === "unknown") {
     const said = String(data?.errors?.[0]?.code || data?.errors?.[0]?.detail || "");
     throw new ChargeUnknown(`Square answered ${res.status}${said ? ` (${said})` : ""}`);
