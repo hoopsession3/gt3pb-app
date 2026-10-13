@@ -19,7 +19,7 @@ import { closedWords, liveSwitchOn, readyWords, type NamedStop } from "@/lib/ord
 import { useAvailability } from "@/lib/availability";
 import { etToday, etRelativeDay, fmt12, clockTime, etDayKey, weekdayOf } from "@/lib/dates";
 import { isStopAhead } from "@/lib/road";
-import { canceledLine } from "@/lib/stopCancel";
+import { canceledLine } from "@/lib/stopLine";   // the line alone: the texts and the crew's words stay out of Find Us
 import { clickable } from "@/lib/a11y";
 import type { LiveStatus, EventRow } from "@/lib/db";
 import { useAsyncData } from "@/lib/useAsyncData";

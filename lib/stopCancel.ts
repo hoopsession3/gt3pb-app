@@ -1,23 +1,12 @@
 // A CANCELED STOP, SAID (2026-10-12 — H5 of the customer frontend audit, release C1, approved; texting customers is
 // decision 7). The words app/api/crew/stops/cancel sends when the crew calls a stop off (0391 cancel_stop), and the
-// line Find Us shows in its place. Pure: the route reads, this says.
+// line Find Us shows in its place. Pure: the route reads, this says. The line, the day and the reason live in
+// lib/stopLine (R3b), so Find Us loads them without the texts, the crew's toast and its refund list below.
 
 import { money } from "./money";
+import { canceledLine, stopDay, stopWhere as where, stopWhy as why, type CanceledStop } from "./stopLine";
 
-export type CanceledStop = { name: string | null; starts_at: string | null; cancel_reason: string | null };
-
-/** "Sat 10/17" in the stop's own clock (stops are Eastern). */
-export function stopDay(startsAt: string | null): string {
-  if (!startsAt) return "its day";
-  const d = new Date(startsAt);
-  if (Number.isNaN(d.getTime())) return "its day";
-  const wd = d.toLocaleDateString("en-US", { weekday: "short", timeZone: "America/New_York" });
-  const md = d.toLocaleDateString("en-US", { month: "numeric", day: "numeric", timeZone: "America/New_York" });
-  return `${wd} ${md}`;
-}
-
-const why = (s: CanceledStop) => (s.cancel_reason?.trim() ? ` — ${s.cancel_reason.trim()}` : "");
-const where = (s: CanceledStop) => s.name?.trim() || "the truck's stop";
+export { canceledLine, stopDay, type CanceledStop };
 
 /** To someone with a cup ordered for the stop. Their order is canceled with the stop; a paid one is refunded by the crew. */
 export function cupWords(s: CanceledStop, o: { cups: number; paid: boolean }): string {
@@ -30,13 +19,6 @@ export function packWords(s: CanceledStop, p: { size: number; paid: boolean }): 
   return `GT3: we've had to cancel the truck's stop on ${stopDay(s.starts_at)}${why(s)}. Your ${p.size}-pack for that day can move to another pickup day in the app (Your packs), or be canceled there${p.paid ? " for a refund" : ""}.`;
 }
 
-/** Find Us, in the stop's place: "Canceled · WineXpress · Sat 10/17 — Rained out". */
-export function canceledLine(s: CanceledStop): string {
-  return `${where(s)} · ${stopDay(s.starts_at)}${why(s)}`;
-}
-
-/** The crew's one line: who was told, and the paid pre-orders to refund in Square — each by the number the window
- *  calls ("#4F2A", R3b) and the Square reference to find it by. */
 /** The crew's toast once a visit is called off (R3b): the cup orders canceled, the members told and the guests who read
  *  it on their order's page — "N told" counted the guests too, who have no address with us — the packs, the refunds. */
 export function stopCanceledToast(d: { cups?: number; told?: number; paid?: number; packs?: number }): string {
@@ -47,6 +29,8 @@ export function stopCanceledToast(d: { cups?: number; told?: number; paid?: numb
   return `Visit canceled${parts.length ? `. ${parts.join("; ")}` : ""}${d.paid ? `. Refund ${d.paid} in Square (it's in your alerts).` : "."}`;
 }
 
+/** The crew's one line: who was told, and the paid pre-orders to refund in Square — each by the number the window
+ *  calls ("#4F2A", R3b) and the Square reference to find it by. */
 export function crewWords(s: CanceledStop, told: { cups: number; told?: number; paidCups: { no?: string; ref: string; cents: number }[]; packs: number }): { title: string; body: string } {
   const refunds = told.paidCups.length
     ? ` Refund ${told.paidCups.length} paid ${told.paidCups.length === 1 ? "order" : "orders"} in Square, in full (the tip too): ${told.paidCups.map((p) => `${p.no ? `${p.no} (Square …${p.ref})` : p.ref} — ${money(p.cents)} of drinks`).join(", ")}.`

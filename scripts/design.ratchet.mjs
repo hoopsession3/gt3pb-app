@@ -318,6 +318,9 @@ export const ROUTE = {
   "/display":       { depth: 1, tap: 49, text: 10 },
   "/privacy":       { depth: 0, tap: 49, text: 15 },
   "/terms":         { depth: 0, tap: 49, text: 15 },
+  // 2026-10-13 (R3b, the ticket): /order with no ?t= — the orders this phone keeps, none in a fresh browser — its title,
+  // the line that says where the link comes from, a chip to the menu, the footer. Measured on the smoke build, signed out.
+  "/order":         { depth: 1, tap: 44, text: 11 },
 };
 
 // ── THE SAME ROUTES, ON PRODUCTION, WITH DATA — read by scripts/verify.prod.mjs ─────────────────
@@ -632,6 +635,16 @@ export const PROD_ROUTE = {
 // the cart with an Undo (AppProvider), +72. One split held it there: the order the bar leads with and its number live in
 // lib/activeOrder, so the bar no longer brings the whole of lib/today into every page — −1 KB on seven routes from the
 // first build. Built 5681566 and this commit and gzipped what each route's prerendered HTML references.
+// 2026-10-13 (R3b of the customer audit, tracking): every route +456 bytes gzipped (/ +491, Find Us +502, the console
+// +742), and eight crossed the rounding line, +1: /, /craft, /office, /scan, /playbook, /display, /shop and /primal. The
+// shell's chunk holds it (19 537 → 20 043, and −50 on another): lib/orderWords, the order's one set of words that the
+// bar, the toast, Today and the push read — In, Being made, Ready, Picked up, Canceled; "Being made now." — in place of
+// the bar's and the toast's own, and what a cancel says happened (cancelWords: canceled and the money, too late and
+// where the order is, paid at the window, a failure). The ticket's own code — the page, lib/tickets — rides on /order
+// alone, and in checkout, which loads when it opens. One split held Find Us there: its canceled-stop line went to
+// lib/stopLine, so /truck and /events no longer carry the stop texts, the crew's toast and its refund list (lib/stopCancel)
+// — +248 bytes on their own chunk from the first build, +46 now. /order is new: 275 KB in 15 chunks. Built 1d56247 and
+// this commit and gzipped what each route's prerendered HTML references.
 export const WEIGHT = {
   "/truck":                    { js: 283, css: 89, chunks: 16 },
   "/events":                   { js: 283, css: 89, chunks: 16 },
@@ -639,23 +652,24 @@ export const WEIGHT = {
   "/reserve":                  { js: 291, css: 90, chunks: 16 },
   "/delivery":                 { js: 290, css: 90, chunks: 16 },
   "/3mpire":                   { js: 282, css: 90, chunks: 15 },
-  "/craft":                    { js: 270, css: 90, chunks: 15 },
+  "/craft":                    { js: 271, css: 90, chunks: 15 },
   "/book":                     { js: 271, css: 90, chunks: 15 },
   "/academy":                  { js: 323, css: 90, chunks: 16 },
-  "/office":                   { js: 279, css: 90, chunks: 15 },
-  "/scan":                     { js: 270, css: 90, chunks: 15 },
+  "/office":                   { js: 280, css: 90, chunks: 15 },
+  "/scan":                     { js: 271, css: 90, chunks: 15 },
   "/architecture":             { js: 280, css: 90, chunks: 15 },
-  "/playbook":                 { js: 278, css: 90, chunks: 15 },
+  "/playbook":                 { js: 279, css: 90, chunks: 15 },
   "/driver":                   { js: 277, css: 89, chunks: 15 },
   "/agreement":                { js: 272, css: 90, chunks: 15 },
   "/offer":                    { js: 282, css: 90, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 268, css: 90, chunks: 15 },
-  "/display":                  { js: 269, css: 90, chunks: 15 },
-  "/shop":                     { js: 295, css: 90, chunks: 16 },
-  "/primal":                   { js: 271, css: 90, chunks: 15 },
+  "/display":                  { js: 270, css: 90, chunks: 15 },
+  "/shop":                     { js: 296, css: 90, chunks: 16 },
+  "/primal":                   { js: 272, css: 90, chunks: 15 },
   "/privacy":                  { js: 267, css: 90, chunks: 14 },
   "/terms":                    { js: 267, css: 90, chunks: 14 },
-  "/":                         { js: 276, css: 90, chunks: 15 },
+  "/":                         { js: 277, css: 90, chunks: 15 },
+  "/order":                    { js: 275, css: 88, chunks: 15 },
 };
 
 // 2026-10-09 (the button round: redesign 7): every route's stylesheet -1 628 bytes and its script +188 to +245 (gzip).

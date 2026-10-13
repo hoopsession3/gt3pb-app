@@ -13761,12 +13761,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("the ticket: one order by its ticket, through the view — refused in the database's words, kept on the phone",
     /supabase\.rpc\("order_ticket", \{ p_ticket: t \}\)/.test(pg) && /refusalText\(e\) \?\? "We couldn't open this order just now/.test(pg)
     && /if \(no\) holdTicket\(t, no\);/.test(pg) && !/from\("orders"\)/.test(pg));
+  ok("the ticket: a first read that failed says so in the order's place; a later one keeps the order and says it is the last word heard",
+    /const err = ticket\.status === "error" \? ticket\.error\?\.message/.test(pg) && /const stale = !!tk && !!ticket\.error;/.test(pg));
   ok("the ticket: it updates itself only while the order is in progress and the page is in front of someone",
     /const live = !!tk && ACTIVE\.has\(tk\.status\);/.test(pg) && /if \(document\.visibilityState === "visible"\) void reload\(\);/.test(pg) && /setInterval\(tick, 15000\)/.test(pg));
   ok("the ticket: its card is Today's — the drinks, the state once on its tag, the line with the money beside it, the steps — and it tells the truck through the ticket",
     /const line = orderLine\(tk\.status, ahead/.test(pg) && /const tag = orderTag\(tk\.status, ahead\);/.test(pg)
     && /<Eyebrow live=\{active\}>\{drinksWords\(tk\.items, nameOf\)\}<\/Eyebrow>\s*<span className=\{`k-tag \$\{canceled \? "crit" : tk\.status === "new" \? "gold" : "ok"\}`\}>\{tag\}<\/span>/.test(pg)
-    && /<p className="k-rsub min-w-0 whitespace-normal">\{canceled \? note : line\}<\/p>\s*<span className="whitespace-nowrap font-mono text-subhead text-cream-muted">\{paidWords\}<\/span>/.test(pg)
+    && /<p className="k-rsub min-w-0 whitespace-normal">\{canceled \? note : line\}\{stale \? " Offline — the last we heard\." : ""\}<\/p>\s*<span className="whitespace-nowrap font-mono text-subhead text-cream-muted">\{paidWords\}<\/span>/.test(pg)
     && /<OrderSteps at=\{stepOf\(tk\.status\)\} \/>/.test(pg)
     && /supabase\.rpc\("ticket_eta", \{ p_ticket: t, p_eta: next \}\)/.test(pg) && /\{eta\("on_way"\)\}\{eta\("outside"\)\}/.test(pg));
   ok("the ticket: a canceled order says why and what happens to the money — never a refund it can't promise as done",

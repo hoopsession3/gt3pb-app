@@ -85,6 +85,9 @@ const ROUTES = [
   // route at phone width): the merch shop, the Primal index, and the two legal pages.
   { path: "/shop", must: ["k-mast"] },
   { path: "/primal", must: ["k-mast"] },
+  // The ticket (R3b): one order to whoever holds its link. With no ?t= it lists the orders this phone keeps — none in a
+  // fresh browser — and its prerendered HTML is the screen's frame; an order itself needs a ticket and a backend.
+  { path: "/order", must: ["s-ticket"] },
   { path: "/privacy", must: [] },
   { path: "/terms", must: [] },
   { path: "/", must: [] },   // Today redirects to /truck for guests — just must not crash

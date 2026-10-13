@@ -84,13 +84,17 @@ function TicketView({ t }: { t: string }) {
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
   // arrives-with: 0395 — until it is pasted the view is not there (PGRST202), and the page says it can't open the order.
-  const { data: tk, error, reload } = useAsyncData<Ticket>(async () => {
+  const ticket = useAsyncData<Ticket>(async () => {
     if (!supabase) throw new Error("We couldn't open this order just now — try again in a minute.");
     const { data, error: e } = await supabase.rpc("order_ticket", { p_ticket: t });
     if (e) throw new Error(refusalText(e) ?? "We couldn't open this order just now — try again in a minute.");
     return data as Ticket;
   }, [t]);
-  const err = !tk && error ? error.message : null;
+  const tk = ticket.data, reload = ticket.reload;
+  // A first read that failed says so in the order's place. A later one that failed keeps the order on screen and says it
+  // is the last word heard, as Today's card does — a guest at the truck on a bad signal is not shown a stale step as news.
+  const err = ticket.status === "error" ? ticket.error?.message ?? "We couldn't open this order just now — try again in a minute." : null;
+  const stale = !!tk && !!ticket.error;
   // It updates itself while the order is in progress — every 15 seconds the page is in front of someone, and on return.
   const live = !!tk && ACTIVE.has(tk.status);
   useEffect(() => {
@@ -180,7 +184,7 @@ function TicketView({ t }: { t: string }) {
           <span className={`k-tag ${canceled ? "crit" : tk.status === "new" ? "gold" : "ok"}`}>{tag}</span>
         </div>
         <div className="flex items-start justify-between gap-3">
-          <p className="k-rsub min-w-0 whitespace-normal">{canceled ? note : line}</p>
+          <p className="k-rsub min-w-0 whitespace-normal">{canceled ? note : line}{stale ? " Offline — the last we heard." : ""}</p>
           <span className="whitespace-nowrap font-mono text-subhead text-cream-muted">{paidWords}</span>
         </div>
         {!canceled && <OrderSteps at={stepOf(tk.status)} />}
