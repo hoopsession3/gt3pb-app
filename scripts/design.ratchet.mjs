@@ -652,13 +652,21 @@ export const PROD_ROUTE = {
 // its 20-second re-read ride only for a guest holding a ticket, never in a member's pages. /order carries Cancel and the
 // canceled ticket's rules (+232 on its own). Built 0e06b9d and this commit and gzipped what each route's prerendered
 // HTML references.
+// 2026-10-13 (R5 of the customer audit, packs belong to their stop): every route +189 bytes gzipped, the pack pages
+// +1.3 KB (/reserve +1 347, /delivery +1 353, /shop +1 333, /3mpire +1 377). The shell carries the order-ahead clock
+// (lib/orderAhead nextDrop), which now reads the Saturday drop and its Wednesday 6pm close on Eastern time (lib/etDay
+// etAt) instead of the phone's own zone — the +189. My packs says where and when each pack is picked up, that its stop
+// was called off, and until when it can be moved, changed or canceled (lib/pickupDay packClosesAt, closesWords), and
+// reads the packs without their stops until 0397 is pasted (lib/schemaSkew isMissingRelation) — the pack pages' +1.2 KB
+// more. Crossed the rounding line: /menu, /privacy, /terms, /order, /built and /shop +1; /reserve, /delivery and /3mpire
+// +2 (/reserve 291.41 → 292.72 KB). Built 010c6e7 and this commit and gzipped what each route's prerendered HTML references.
 export const WEIGHT = {
   "/truck":                    { js: 284, css: 89, chunks: 16 },
   "/events":                   { js: 284, css: 89, chunks: 16 },
-  "/menu":                     { js: 271, css: 90, chunks: 15 },
-  "/reserve":                  { js: 291, css: 90, chunks: 16 },
-  "/delivery":                 { js: 290, css: 90, chunks: 16 },
-  "/3mpire":                   { js: 282, css: 90, chunks: 15 },
+  "/menu":                     { js: 272, css: 90, chunks: 15 },
+  "/reserve":                  { js: 293, css: 90, chunks: 16 },
+  "/delivery":                 { js: 292, css: 90, chunks: 16 },
+  "/3mpire":                   { js: 284, css: 90, chunks: 15 },
   "/craft":                    { js: 271, css: 90, chunks: 15 },
   "/book":                     { js: 271, css: 90, chunks: 15 },
   "/academy":                  { js: 323, css: 90, chunks: 16 },
@@ -669,14 +677,14 @@ export const WEIGHT = {
   "/driver":                   { js: 277, css: 89, chunks: 15 },
   "/agreement":                { js: 272, css: 90, chunks: 15 },
   "/offer":                    { js: 282, css: 90, chunks: 15 },
-  "/built/gt3-built-k7m9x4q2": { js: 268, css: 90, chunks: 15 },
+  "/built/gt3-built-k7m9x4q2": { js: 269, css: 90, chunks: 15 },
   "/display":                  { js: 270, css: 90, chunks: 15 },
-  "/shop":                     { js: 296, css: 90, chunks: 16 },
+  "/shop":                     { js: 297, css: 90, chunks: 16 },
   "/primal":                   { js: 272, css: 90, chunks: 15 },
-  "/privacy":                  { js: 267, css: 90, chunks: 14 },
-  "/terms":                    { js: 267, css: 90, chunks: 14 },
+  "/privacy":                  { js: 268, css: 90, chunks: 14 },
+  "/terms":                    { js: 268, css: 90, chunks: 14 },
   "/":                         { js: 277, css: 90, chunks: 15 },
-  "/order":                    { js: 275, css: 88, chunks: 15 },
+  "/order":                    { js: 276, css: 88, chunks: 15 },
 };
 
 // 2026-10-09 (the button round: redesign 7): every route's stylesheet -1 628 bytes and its script +188 to +245 (gzip).
