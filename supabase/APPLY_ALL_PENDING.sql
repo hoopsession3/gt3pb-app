@@ -32,9 +32,9 @@
 --
 -- WHAT.
 --   · drop_orders.stop_id — the stop a pack is picked up at (stops; a stop deleted leaves it null). Backfilled from the
---     pack's day: that day's first stop not called off, else the day's stop that was. Kept true by a trigger for every
---     writer — the reserve route, Move, a change in place (0388), the crew's board — a pack whose day changes without a
---     stop named for it is linked to that day's first open stop.
+--     pack's day: that day's first stop on the schedule still taking packs, else its first, else the day's stop that was
+--     called off. Kept true by a trigger for every writer — the reserve route, Move, a change in place (0388), the crew's
+--     board — a pack whose day changes without a stop named for it is linked to that day's first stop still taking packs.
 --   · A stop moved to another day takes its packs with it (they are picked up at the stop), and the crew hear how many.
 --   · pack_closes_at(day, stop) — THE rule for when a pack's drop closes, said once: 24 hours before its stop (the packs
 --     are brewed to order); a stop called off never closes it (moving or canceling is the customer's call then); with no
@@ -49,16 +49,35 @@
 alter table public.drop_orders add column if not exists stop_id uuid references public.stops(id) on delete set null;
 create index if not exists drop_orders_stop_id_idx on public.drop_orders (stop_id) where stop_id is not null;
 
--- Backfill: the day's first stop not called off (completed stops included — history keeps its stop), else one that was.
+-- ── THE rule: when a pack's drop closes ────────────────────────────────────────────────────────────────────────────
+create or replace function public.pack_closes_at(p_day date, p_stop uuid) returns timestamptz
+  language sql stable set search_path = public as $$
+  select case
+           when s.id is not null and s.canceled_at is not null then null          -- called off: it never closes
+           when s.id is not null and s.starts_at is not null then s.starts_at - interval '24 hours'
+           when p_day is not null then ((p_day - 3)::timestamp + time '18:00') at time zone 'America/New_York'
+         end
+    from (select 1) one
+    left join public.stops s on s.id = p_stop
+$$;
+-- the signed-in and the server ask it (and the link below, as whoever writes the pack); never PUBLIC or anon (0381)
+revoke all on function public.pack_closes_at(date, uuid) from public, anon;
+grant execute on function public.pack_closes_at(date, uuid) to authenticated, service_role;
+
+-- Backfill: the day's stop on the schedule (completed stops included — history keeps its stop), the first still taking
+-- packs (a pack ordered for the second stop of a day after the first closed was ordered for that one), else the day's
+-- first; else one the truck called off. A stop the crew took off the schedule without calling it off (archived) is none.
 update public.drop_orders d set stop_id = (
   select s.id from public.stops s
    where s.starts_at is not null and (s.starts_at at time zone 'America/New_York')::date = d.drop_date
-   order by (s.canceled_at is not null), s.starts_at
+     and (s.archived_at is null or s.canceled_at is not null)
+   order by (s.canceled_at is not null), (public.pack_closes_at(d.drop_date, s.id) <= now()), s.starts_at
    limit 1)
  where d.stop_id is null and d.drop_date is not null;
 
--- Every writer: a new pack with no stop, or a pack moved to a day its stop is not on, takes that day's first open stop
--- (none: no stop, and the Saturday rule decides when it closes). A pack that moved WITH its stop keeps it.
+-- Every writer: a new pack with no stop, or a pack moved to a day its stop is not on, takes that day's first stop still
+-- taking packs, else its first (none: no stop, and the Saturday rule decides when it closes). A pack that moved WITH its
+-- stop keeps it.
 create or replace function public.link_pack_stop() returns trigger
   language plpgsql set search_path = public as $$
 begin
@@ -70,7 +89,7 @@ begin
     new.stop_id := (select s.id from public.stops s
                      where s.starts_at is not null and s.archived_at is null and s.canceled_at is null
                        and (s.starts_at at time zone 'America/New_York')::date = new.drop_date
-                     order by s.starts_at limit 1);
+                     order by (public.pack_closes_at(new.drop_date, s.id) <= now()), s.starts_at limit 1);
   end if;
   return new;
 end $$;
@@ -103,20 +122,6 @@ revoke all on function public.stop_moves_its_packs() from public, anon, authenti
 drop trigger if exists stops_move_their_packs on public.stops;
 create trigger stops_move_their_packs after update of starts_at on public.stops
   for each row execute function public.stop_moves_its_packs();
-
--- ── THE rule: when a pack's drop closes ────────────────────────────────────────────────────────────────────────────
-create or replace function public.pack_closes_at(p_day date, p_stop uuid) returns timestamptz
-  language sql stable set search_path = public as $$
-  select case
-           when s.id is not null and s.canceled_at is not null then null          -- called off: it never closes
-           when s.id is not null and s.starts_at is not null then s.starts_at - interval '24 hours'
-           when p_day is not null then ((p_day - 3)::timestamp + time '18:00') at time zone 'America/New_York'
-         end
-    from (select 1) one
-    left join public.stops s on s.id = p_stop
-$$;
-revoke all on function public.pack_closes_at(date, uuid) from public;
-grant execute on function public.pack_closes_at(date, uuid) to authenticated, service_role;
 
 -- ── a member's own cancel: only while reserved and open ───────────────────────────────────────────────────────────────
 create or replace function public.cancel_own_reservation(p_id uuid)

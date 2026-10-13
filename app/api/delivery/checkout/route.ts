@@ -3,7 +3,7 @@ import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
-import { notifyCustomer, accountEmail } from "@/lib/notify";
+import { notifyCustomer, accountEmail, whoAsked } from "@/lib/notify";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
 import { aboveShown, shownCents } from "@/lib/shownTotal";
@@ -69,10 +69,13 @@ async function post(req: Request) {
     couldNotConfirm: () => ({ status: 409, body: { pending: true, error: "We couldn't confirm your payment, and the crew has been told. Don't pay again — we'll confirm your delivery by text or email." } }),
   };
   const stopped = async ({ key, claim }: Stopped) => {
+    // Who, for the crew to reach (the retry carries the same order): the customer is told "we'll confirm your delivery by
+    // text or email", and a charge Square never made leaves no other trace of them.
+    const who = await whoAsked(b, user.id);
     if (claim.state === "charged") {
-      await raiseAlert({ severity: "critical", category: "money", title: "Paid DELIVERY may not have recorded — check deliveries", body: `A card payment went through (${claim.payment_id ?? "no payment id"}, ${money(claim.amount_cents ?? 0)}) and the delivery checkout stopped before the order was saved. If it isn't in deliveries, add it or refund it.` });
+      await raiseAlert({ severity: "critical", category: "money", title: "Paid DELIVERY may not have recorded — check deliveries", body: `A card payment went through (${claim.payment_id ?? "no payment id"}, ${money(claim.amount_cents ?? 0)}) and the delivery checkout stopped before the order was saved. ${who}. If it isn't in deliveries, add it or refund it.` });
     } else {
-      await raiseAlert({ severity: "critical", category: "money", title: "Delivery charge status unknown — check Square", body: `A delivery checkout stopped while Square was being asked to charge ${money(claim.amount_cents ?? 0)}. A payment, if there is one, carries the reference ${key}.` });
+      await raiseAlert({ severity: "critical", category: "money", title: "Delivery charge status unknown — check Square", body: `A delivery checkout stopped while Square was being asked to charge ${money(claim.amount_cents ?? 0)} (${who}). A payment, if there is one, carries the reference ${key}.` });
     }
   };
   const seen = await seenBefore(checkoutClaims(supabaseAdmin), idemKey, true, now, stopped, say);

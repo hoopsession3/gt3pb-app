@@ -11,6 +11,7 @@ import { changePack, diffFor, type After, type Money, type Tell, type Who } from
 import { packChangeStore, packChangeMissing } from "@/lib/packChangeStore";
 import { isUuid } from "@/lib/uuid";
 import { route } from "@/lib/apiRoute";
+import { isMissingColumn } from "@/lib/schemaSkew";
 
 // CHANGE A RESERVED PACK IN PLACE (0388, 2026-10-12 — C5 of the customer audit, approved). The pack itself changes —
 // size, flavors, glass, day, name, phone — and only the difference moves: more is charged to a card, less is refunded
@@ -23,6 +24,7 @@ import { route } from "@/lib/apiRoute";
 //                          what the page was shown (0388's begin decides it again, under the pack's lock)
 
 const notOn = () => NextResponse.json({ error: "Changing a pack isn't switched on yet — cancel it and reserve the new one." }, { status: 503 });
+type ChangedPack = { id: string; user_id: string; drop_date: string; stop_id?: string | null; total_cents: number | null; paid: boolean | null; benefit_code: string | null; canceled_at: string | null; picked_up: boolean | null; stage: string | null; collected_at: string | null };
 const EMPTY_AFTER: After = { size: 0, glass: "return", mix: {}, drop_date: "", total_cents: 0, benefit_code: null };
 const said = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
@@ -94,10 +96,15 @@ async function post(req: Request) {
   if (!cutoff) return NextResponse.json({ error: "That pickup day just changed — refresh to see the current stops." }, { status: 409 });
   if (Date.now() > cutoff.getTime()) return NextResponse.json({ error: "That drop has closed — pick the next pickup day." }, { status: 400 });
 
-  // arrives-with: 0397 — stop_id is read here; until it is pasted this read fails and the change says try again.
-  // scoped-by: order.user_id !== user.id, on the next line, 404s anything that is not the caller's
-  const { data: order } = await sb.from("drop_orders")
+  // arrives-with: 0397 — stop_id is read here. Until it is pasted the column is not there (lib/schemaSkew): the pack is
+  // read without it, as before, and its own drop is judged by its day.
+  // scoped-by: order.user_id !== user.id, below, 404s anything that is not the caller's
+  const withStop = await sb.from("drop_orders")
     .select("id, user_id, drop_date, stop_id, total_cents, paid, benefit_code, canceled_at, picked_up, stage, collected_at").eq("id", id).maybeSingle();
+  const order = (withStop.error && isMissingColumn(withStop.error)
+    // scoped-by: the same row, read again without the column 0397 adds — the 404 below decides, as above
+    ? (await sb.from("drop_orders").select("id, user_id, drop_date, total_cents, paid, benefit_code, canceled_at, picked_up, stage, collected_at").eq("id", id).maybeSingle()).data
+    : withStop.data) as ChangedPack | null;
   if (!order || order.user_id !== user.id) return NextResponse.json({ error: "Order not found." }, { status: 404 });
   if (order.canceled_at) return NextResponse.json({ error: "That pack was canceled." }, { status: 409 });
   if (order.collected_at) return NextResponse.json({ error: "This pack was paid at the window — the crew can change it." }, { status: 409 });

@@ -8,6 +8,7 @@ import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
 import { packClosesAt, closesWords, type PackStop } from "@/lib/pickupDay";
 import { orderNo } from "@/lib/activeOrder";
+import { isMissingColumn } from "@/lib/schemaSkew";
 
 // CANCEL A CUSTOMER ORDER — one route for all three channels (cup / pickup pack / Sunday delivery).
 // The database RPC already does the hard, trusted part (owner check + status-window check + the
@@ -130,11 +131,16 @@ async function whyNot(id: string, userId: string, failed: boolean): Promise<{ st
 
 /** Why a pack wasn't canceled — the database's own rule (0397 cancel_own_reservation), read back as the caller's row. */
 async function whyNotPack(id: string, userId: string, failed: boolean): Promise<{ status: number; body: { outcome: string; now?: string; error: string } }> {
-  // arrives-with: 0397 — stop_id is read here; until it is pasted this read fails and the answer is "try again".
+  // arrives-with: 0397 — stop_id is read here. Until it is pasted the column is not there (lib/schemaSkew): the pack is
+  // read without it, and its day's rule says when it closed.
   // scoped-by: user_id = the caller, whose token the cancel was just refused for — only ever their own pack.
-  const { data, error } = await supabaseAdmin!.from("drop_orders").select("drop_date, stop_id, stage, picked_up, canceled_at, collected_at").eq("id", id).eq("user_id", userId).maybeSingle();
+  const withStop = await supabaseAdmin!.from("drop_orders").select("drop_date, stop_id, stage, picked_up, canceled_at, collected_at").eq("id", id).eq("user_id", userId).maybeSingle();
+  const { data, error } = withStop.error && isMissingColumn(withStop.error)
+    // scoped-by: user_id = the caller, as above — the same row without the column 0397 adds.
+    ? await supabaseAdmin!.from("drop_orders").select("drop_date, stage, picked_up, canceled_at, collected_at").eq("id", id).eq("user_id", userId).maybeSingle()
+    : withStop;
   if (error) return { status: 500, body: { outcome: "error", error: "Couldn't cancel it just now — try again, or ask at the truck." } };
-  const p = data as { drop_date: string; stop_id: string | null; stage: string | null; picked_up: boolean; canceled_at: string | null; collected_at: string | null } | null;
+  const p = data as { drop_date: string; stop_id?: string | null; stage: string | null; picked_up: boolean; canceled_at: string | null; collected_at: string | null } | null;
   if (!p) return { status: 404, body: { outcome: "not_yours", error: "That pack isn't on your account." } };
   if (p.canceled_at) return { status: 409, body: { outcome: "too_late", now: "canceled", error: "That pack is already canceled." } };
   if (p.picked_up) return { status: 409, body: { outcome: "too_late", now: "picked_up", error: "That pack was picked up." } };

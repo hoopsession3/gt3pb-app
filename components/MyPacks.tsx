@@ -13,6 +13,7 @@ import { packClosesAt, closesWords } from "@/lib/pickupDay";
 import Icon from "@/components/Icon";
 import { useConfirm } from "./ConfirmSheet";
 import { isSettled } from "@/lib/settled";
+import { isMissingRelation } from "@/lib/schemaSkew";
 
 // YOUR PACK — the customer's own reservations, right on /reserve. Reserving is only half the
 // product: coming back should show what you've got coming, live (staff checking you off at the
@@ -105,11 +106,14 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
     if (!supabase || !user) { setRows([]); return; }
     // Yesterday's date-floor keeps today's drop visible all day regardless of timezone drift.
     const floor = dropDateKey(new Date(Date.now() - 24 * 60 * 60 * 1000));
-    // arrives-with: 0397 — the stop rides the pack (drop_orders.stop_id → stops); until it is pasted this read fails.
-    const { data } = await supabase.from("drop_orders").select("*, stop:stops(name, starts_at, ends_at, address, location_text, canceled_at, cancel_reason)")
+    const read = (cols: string) => supabase!.from("drop_orders").select(cols)
       .eq("user_id", user.id).is("canceled_at", null).gte("drop_date", floor)
       .order("drop_date").order("created_at");
-    const next = (data as MyPack[]) ?? [];
+    // arrives-with: 0397 — the stop rides the pack (drop_orders.stop_id → stops). Until it is pasted the link is not there
+    // (lib/schemaSkew): the packs are read without their stops, as before, never as none.
+    let { data, error } = await read("*, stop:stops(name, starts_at, ends_at, address, location_text, canceled_at, cancel_reason)");
+    if (error && isMissingRelation(error)) ({ data, error } = await read("*"));
+    const next = (data as unknown as MyPack[] | null) ?? [];
     // The realtime money moment: a pack flipping to PAID while you watch gets the settle buzz.
     // Paid at the window counts: the crew's tap is the moment the money settled (0341).
     if (rowsRef.current.some((prev) => { const cur = next.find((n) => n.id === prev.id); return cur && !isSettled(prev) && isSettled(cur); })) haptic("paid");

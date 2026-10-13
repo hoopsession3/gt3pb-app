@@ -4,17 +4,17 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { benefitsForUser, acceptedCode } from "@/lib/benefits";
-import { notifyCustomer, accountEmail } from "@/lib/notify";
+import { notifyCustomer, accountEmail, whoAsked } from "@/lib/notify";
 import { mixSummary, type Mix } from "@/lib/orderAhead";
 import { packPick, offeredDays, requestedDay, packCents } from "@/lib/packOrder";
-import { packClosesAt } from "@/lib/pickupDay";
+import { packClosesAt, packIsOpen, pickupDayWords } from "@/lib/pickupDay";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
 import { chargeOnce, claimKey, placeOnce, seenBefore, type Answer, type Say, type Stopped } from "@/lib/chargeOnce";
 import { checkoutClaims } from "@/lib/checkoutClaims";
 import { money } from "@/lib/money";
 import { aboveShown, shownCents } from "@/lib/shownTotal";
-import { pickupDayWords } from "@/lib/pickupDay";
+import { writeAcrossSkew } from "@/lib/schemaSkew";
 
 // ORDER-AHEAD reserve — records a one-off Saturday-drop reservation. Price + cutoff are recomputed
 // SERVER-SIDE from lib/orderAhead (never trust the client), the charge is a Square ONE-TIME payment
@@ -71,12 +71,15 @@ async function post(req: Request) {
       : "We couldn't confirm your pack went in, and the crew has been told. Check My packs before reserving again." } }),
   };
   const stopped = async ({ key, claim }: Stopped) => {
+    // Who, for the crew to reach (the retry carries the same order): the name and phone it gave, and the account's email —
+    // the customer is told the crew will confirm it, and a charge Square never made leaves no other trace of them.
+    const who = await whoAsked(body, user.id);
     if (claim.card && claim.state === "charged") {
-      await raiseAlert({ severity: "critical", category: "money", kind: "ops_incident", title: "Paid pack may not have recorded — check the drop", body: `A card payment went through (${claim.payment_id ?? "no payment id"}, ${money(claim.amount_cents ?? 0)}) and the pack checkout stopped before the reservation was saved. If it isn't on the drop, add it or refund it.` });
+      await raiseAlert({ severity: "critical", category: "money", kind: "ops_incident", title: "Paid pack may not have recorded — check the drop", body: `A card payment went through (${claim.payment_id ?? "no payment id"}, ${money(claim.amount_cents ?? 0)}) and the pack checkout stopped before the reservation was saved. ${who}. If it isn't on the drop, add it or refund it.` });
     } else if (claim.card) {
-      await raiseAlert({ severity: "critical", category: "money", kind: "ops_incident", title: "Pack charge status unknown — check Square", body: `A pack checkout stopped while Square was being asked to charge ${money(claim.amount_cents ?? 0)}. A payment, if there is one, carries the reference ${key}.` });
+      await raiseAlert({ severity: "critical", category: "money", kind: "ops_incident", title: "Pack charge status unknown — check Square", body: `A pack checkout stopped while Square was being asked to charge ${money(claim.amount_cents ?? 0)} (${who}). A payment, if there is one, carries the reference ${key}.` });
     } else {
-      await raiseAlert({ severity: "important", category: "order", kind: "ops_incident", title: "A pay-at-pickup pack may not have saved — check the drop", body: `A pay-at-pickup reservation (${money(claim.amount_cents ?? 0)}) stopped while it was being saved. Check the drop for it.` });
+      await raiseAlert({ severity: "important", category: "order", kind: "ops_incident", title: "A pay-at-pickup pack may not have saved — check the drop", body: `A pay-at-pickup reservation (${money(claim.amount_cents ?? 0)}, ${who}) stopped while it was being saved. Check the drop for it.` });
     }
   };
   const seen = await seenBefore(checkoutClaims(supabaseAdmin), idemKey, wantsCharge, now, stopped, say);
@@ -98,10 +101,11 @@ async function post(req: Request) {
   // Accept a plain day key or a full ISO instant; an instant resolves through the same ET
   // day-key rule the offered map uses (post-8pm-ET stops are otherwise off by one UTC day).
   const requested = requestedDay(body.dropDate);
-  // The stop the customer picked on that day (R5, 0397: a pack is picked up at a stop), else the day's first; its drop
-  // closes by the one rule (lib/pickupDay) — the map above holds one cutoff per DAY, the last stop's when there are two.
+  // The stop the customer picked on that day (R5, 0397: a pack is picked up at a stop); none named — an app from before
+  // R5 sends none — the day's first stop still taking packs, then its first. Its drop closes by the one rule
+  // (lib/pickupDay) — the map above holds one cutoff per DAY, the last stop's when there are two.
   const onDay = ((nextStops ?? []) as { id: string; starts_at: string }[]).filter((st) => requestedDay(st.starts_at) === requested);
-  const atStop = onDay.find((st) => st.id === body.stopId) ?? onDay[0] ?? null;
+  const atStop = onDay.find((st) => st.id === body.stopId) ?? onDay.find((st) => packIsOpen(requested, st)) ?? onDay[0] ?? null;
   const cutoff = atStop ? packClosesAt(requested, atStop) : offered.get(requested);
   if (!cutoff) {
     return NextResponse.json({ error: "That pickup day just changed — refresh to see the current stops." }, { status: 409 });
@@ -153,10 +157,18 @@ async function post(req: Request) {
       const customerId = (await db.rpc("resolve_customer", { p_user_id: user.id, p_phone: phone || null, p_email: null, p_name: name })).data as string | null;
       // The VALIDATED code rides the order row (0268) — coupon redemptions become a query, not a tally. The stop rides it
       // too (0397); none named, the database links the day's first.
-      // arrives-with: 0397 — until it is pasted the stop_id column is not there, and this insert is refused.
+      // arrives-with: 0397 — until it is pasted the stop_id column is not there: the pack is written without it
+      // (lib/schemaSkew), never refused after the card was charged, and 0397's backfill links it to its day's stop.
       const row = { user_id: user.id, customer_id: customerId, name, phone, size, glass, mix, total_cents: amount, paid, payment_id: paymentId, idempotency_key: idemKey, drop_date: dropDate, stop_id: atStop?.id ?? null, benefit_code: acceptedCode(benefits, (body as { code?: string }).code) };
-      let { data: inserted, error: insErr } = await db.from("drop_orders").insert(row).select("id").single();
-      if (insErr) ({ data: inserted, error: insErr } = await db.from("drop_orders").insert(row).select("id").single()); // retry once
+      let made: { id: string } | null = null;
+      const insertPack = async (r: Record<string, unknown>) => {
+        const res = await db.from("drop_orders").insert(r).select("id").single();
+        made = (res.data as { id: string } | null) ?? null;
+        return res;
+      };
+      let { error: insErr } = await writeAcrossSkew(insertPack, row, ["stop_id"]);
+      if (insErr) ({ error: insErr } = await writeAcrossSkew(insertPack, row, ["stop_id"])); // retry once
+      const inserted = made as { id: string } | null;
       if (insErr) {
         // A concurrent request can still lose this exact race (both can pass the check above before either insert
         // commits) — the unique indexes are the backstop. Confirm the other request's row is there before raising a

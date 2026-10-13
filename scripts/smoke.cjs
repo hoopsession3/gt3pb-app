@@ -13985,16 +13985,17 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("Move and Change judge the pack's own drop by its stop — a stop called off never closes it; no 'three days before' copy left",
     /if \(!packIsOpen\(order\.drop_date, cur as PackStop\)\)/.test(mv) && /if \(!packIsOpen\(String\(order\.drop_date\), cur as PackStop\)\)/.test(ch)
     && !/setDate\(cur\.getDate\(\) - 3\)/.test(mv) && !/packDayCutoff/.test(ch));
-  ok("Move: the day to move to is a stop on it — the one named, else the day's first — and the stop moves with the day",
-    /const target = onDay\.find\(\(st\) => st\.id === stopId\) \?\? onDay\[0\] \?\? null;/.test(mv) && /\.update\(\{ drop_date: toDate, stop_id: target\?\.id \?\? null \}\)/.test(mv));
+  ok("Move: the day to move to is a stop on it — the one named, else the day's first still taking packs — and the stop moves with the day",
+    /const target = onDay\.find\(\(st\) => st\.id === stopId\) \?\? onDay\.find\(\(st\) => packIsOpen\(toDate, st\)\) \?\? onDay\[0\] \?\? null;/.test(mv)
+    && /\{ drop_date: toDate, stop_id: target\?\.id \?\? null \}, \["stop_id"\]\);/.test(mv));
   ok("reserve: the pack records the stop the customer picked on that day, and its drop closes by that stop",
-    /const atStop = onDay\.find\(\(st\) => st\.id === body\.stopId\) \?\? onDay\[0\] \?\? null;/.test(rs) && /const cutoff = atStop \? packClosesAt\(requested, atStop\) : offered\.get\(requested\);/.test(rs)
+    /const atStop = onDay\.find\(\(st\) => st\.id === body\.stopId\) \?\? onDay\.find\(\(st\) => packIsOpen\(requested, st\)\) \?\? onDay\[0\] \?\? null;/.test(rs) && /const cutoff = atStop \? packClosesAt\(requested, atStop\) : offered\.get\(requested\);/.test(rs)
     && /drop_date: dropDate, stop_id: atStop\?\.id \?\? null, /.test(rs));
   ok("cancel: a pack says why it wasn't — canceled, picked up, at the window, in the crew's hands, or closed and when",
     /if \(channel === "pickup"\) \{\s*const why = await whyNotPack\(id, user\.id, !!error\);/.test(cx) && /Its drop closed \$\{closesWords\(closes\)\} — we may already be brewing it\. Ask at the truck\./.test(cx));
   const mp = code(rd("components/MyPacks.tsx")), of = code(rd("components/OrderFunnel.tsx"));
   ok("My Packs: each pack says where and when — or that its stop was called off — and offers Move, Change and Cancel only while it is the customer's",
-    /\.select\("\*, stop:stops\(name, starts_at, ends_at, address, location_text, canceled_at, cancel_reason\)"\)/.test(mp)
+    /await read\("\*, stop:stops\(name, starts_at, ends_at, address, location_text, canceled_at, cancel_reason\)"\);/.test(mp)
     && /was called off\{p\.stop\.cancel_reason \? ` — \$\{p\.stop\.cancel_reason\}` : ""\}\. Move it to another day, or cancel it\./.test(mp)
     && /const closes = packClosesAt\(p\.drop_date, p\.stop \?\? null\);/.test(mp) && /You can move, change or cancel it until \{closesWords\(closes\)\}\./.test(mp)
     && /toast\(d\?\.error \|\| "Couldn't cancel it just now — try again, or ask at the truck\.", "error"\)/.test(mp));
@@ -14002,6 +14003,22 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const key = dropDateKey\(new Date\(st\.starts_at\)\);/.test(mp) && /const k = dropDateKey\(new Date\(st\.starts_at\)\);/.test(of) && !/st\.starts_at\.slice\(0, 10\)/.test(mp));
   ok("the funnel: the pay screen says until when a pack can be canceled — by its stop, the one rule",
     /const packCloses = stop \? packClosesAt\(dropDateKey\(drop\.sat\), stop\) : drop\.cutoff;/.test(of) && /Cancel from My packs until \$\{packCloseWords\}/.test(of) && /stopId: stop\?\.id \?\? undefined/.test(of));
+  // Between the push and the paste (lib/schemaSkew — the push comes first in this repo), every reader and writer of the
+  // link goes on without it: a pack charged for is never refused at its insert, My packs never reads as none.
+  const sk = require("../.smoke/schemaSkew.js");
+  ok("skew: a link between two tables not there yet is told apart from any other error (PGRST200, or its sentence — nothing else)",
+    sk.isMissingRelation({ code: "PGRST200" }) && sk.isMissingRelation({ message: "Could not find a relationship between 'drop_orders' and 'stops' in the schema cache" })
+    && !sk.isMissingRelation({ code: "42501", message: "permission denied for table stops" }) && !sk.isMissingRelation(null));
+  ok("skew: the pack is written without its stop until 0397 is pasted — never refused after the card was charged",
+    /let \{ error: insErr \} = await writeAcrossSkew\(insertPack, row, \["stop_id"\]\);/.test(rs));
+  ok("skew: My packs reads the packs without their stops until then, never as none",
+    /if \(error && isMissingRelation\(error\)\) \(\{ data, error \} = await read\("\*"\)\);/.test(mp));
+  ok("skew: Move, Change and the cancel's reason read the pack without its stop until then",
+    [mv, ch, cx].every((t) => /withStop\.error && isMissingColumn\(withStop\.error\)/.test(t)));
+  const sc = code(rd("app/api/crew/stops/cancel/route.ts"));
+  ok("a stop called off tells its own packs — and the day's unlinked ones only when no other stop is left that day — not another stop's",
+    /\.eq\("stop_id", id\)\.is\("canceled_at", null\)\.eq\("picked_up", false\);/.test(sc) && /if \(!res\.other_stop_that_day\) \{/.test(sc)
+    && /\.eq\("drop_date", res\.day\)\.is\("stop_id", null\)/.test(sc) && /if \(atStop\.error && isMissingColumn\(atStop\.error\)\) \{/.test(sc));
 }
 
 Promise.all(PENDING).then(() => {

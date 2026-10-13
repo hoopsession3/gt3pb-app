@@ -6,6 +6,9 @@ import { nextDrop, dropDateKey } from "@/lib/orderAhead";
 import { packClosesAt, packIsOpen, pickupDayWords, type PackStop } from "@/lib/pickupDay";
 import { route } from "@/lib/apiRoute";
 import { isSettled } from "@/lib/settled";
+import { isMissingColumn, writeAcrossSkew } from "@/lib/schemaSkew";
+
+type MovedPack = { id: string; user_id: string; drop_date: string; stop_id?: string | null; size: number; glass: string; name: string; paid: boolean | null; payment_status: string | null; picked_up: boolean | null; stage: string | null; canceled_at: string | null };
 
 // MOVE a reservation to another pickup day — the customer's self-service reschedule.
 // Same authority as /api/reserve: the target day must be one of the truck's real upcoming drops
@@ -26,7 +29,8 @@ async function post(req: Request) {
   const stopId = typeof body.stopId === "string" ? body.stopId : "";
 
   // THE DAY TO MOVE TO (R5, 0397): one of the truck's real upcoming stops — the same read as /api/reserve — the stop on it
-  // the pack will be picked up at (the one the customer named, else the day's first), and when its drop closes: 24 hours
+  // the pack will be picked up at (the one the customer named, else the day's first still taking packs — an app from
+  // before R5 names none), and when its drop closes: 24 hours
   // before that stop (lib/pickupDay, the one rule). With no stop on the schedule at all, the Saturday cadence.
   // NOT marked scoped-by, deliberately. This reads the PUBLIC schedule — the same upcoming stops any guest already sees on
   // Find Us — so it leaks nothing today. But it IS unscoped, and with a second market it would offer a Greenville
@@ -36,7 +40,7 @@ async function post(req: Request) {
     .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(6);
   const upcoming = (nextStops ?? []) as { id: string; starts_at: string }[];
   const onDay = upcoming.filter((st) => dropDateKey(new Date(st.starts_at)) === toDate);
-  const target = onDay.find((st) => st.id === stopId) ?? onDay[0] ?? null;
+  const target = onDay.find((st) => st.id === stopId) ?? onDay.find((st) => packIsOpen(toDate, st)) ?? onDay[0] ?? null;
   const fallback = upcoming.length === 0 ? nextDrop() : null;
   const toCloses = target ? packClosesAt(toDate, target) : fallback && dropDateKey(fallback.sat) === toDate ? fallback.cutoff : null;
   if (!toCloses) return NextResponse.json({ error: "That day isn't on the pickup schedule." }, { status: 400 });
@@ -47,16 +51,22 @@ async function post(req: Request) {
   // line below — order.user_id !== user.id returns 404. A post-read check is invisible to a regex,
   // which is why this is said rather than filtered. The marker goes last so it sits directly above
   // the access it describes; four lines up, the audit could not see it.
-  // arrives-with: 0397 — stop_id is read here; until it is pasted this read fails and the move says try again.
-  // scoped-by: order.user_id !== user.id, two lines below, 404s anything that is not the caller's
-  const { data: order } = await supabaseAdmin.from("drop_orders")
+  // arrives-with: 0397 — stop_id is read here. Until it is pasted the column is not there (lib/schemaSkew): the pack is
+  // read without it, as before, and its own drop is judged by its day.
+  // scoped-by: order.user_id !== user.id, below, 404s anything that is not the caller's
+  const withStop = await supabaseAdmin.from("drop_orders")
     .select("id, user_id, drop_date, stop_id, size, glass, name, paid, payment_status, picked_up, stage, canceled_at").eq("id", id).maybeSingle();
+  const order = (withStop.error && isMissingColumn(withStop.error)
+    // scoped-by: the same row, read again without the column 0397 adds — the 404 below decides, as above
+    ? (await supabaseAdmin.from("drop_orders").select("id, user_id, drop_date, size, glass, name, paid, payment_status, picked_up, stage, canceled_at").eq("id", id).maybeSingle()).data
+    : withStop.data) as MovedPack | null;
   if (!order || order.user_id !== user.id) return NextResponse.json({ error: "Order not found." }, { status: 404 });
   if (order.canceled_at) return NextResponse.json({ error: "That order was canceled." }, { status: 400 });
   if (order.picked_up || (order.stage && order.stage !== "reserved")) {
     return NextResponse.json({ error: "The crew already has this pack in motion — ask at the truck to move it." }, { status: 400 });
   }
-  if (order.drop_date === toDate && (!target || order.stop_id === target.id)) return NextResponse.json({ ok: true, toDate });
+  // The same day and stop is no move (before 0397 a pack has no stop to compare — undefined — and the same day is none).
+  if (order.drop_date === toDate && (!target || order.stop_id === undefined || order.stop_id === target.id)) return NextResponse.json({ ok: true, toDate });
   // Its own drop must still be open — once it closes we may already be brewing it. Its STOP says when (lib/pickupDay):
   // a stop called off never closes it, so the customers its text told to move their pack can. It used to look the day up
   // in the schedule, find a canceled stop gone from it, fall back to "three days before at 6pm" and refuse them.
@@ -70,8 +80,10 @@ async function post(req: Request) {
 
   // scoped-by: unreachable with someone else's id — the 404 above. The user_id is repeated on the
   // write anyway, because that guard is twenty-five lines up and a later edit could move it.
-  // The stop goes with the day (0397): the one named, or the day's first; none — the database links the day's.
-  const { error } = await supabaseAdmin.from("drop_orders").update({ drop_date: toDate, stop_id: target?.id ?? null }).eq("id", id).eq("user_id", user.id);
+  // The stop goes with the day (0397): the one named, or the day's first still taking packs; none — the database links
+  // the day's. Until 0397 is pasted the day moves alone (lib/schemaSkew), and its backfill links the stop.
+  const { error } = await writeAcrossSkew((row) => supabaseAdmin!.from("drop_orders").update(row).eq("id", id).eq("user_id", user.id),
+    { drop_date: toDate, stop_id: target?.id ?? null }, ["stop_id"]);
   if (error) return NextResponse.json({ error: "Couldn't move it — try again." }, { status: 500 });
 
   // FYI the crew: the drop rollups recalc live, but brew planning likes to know a pack walked.

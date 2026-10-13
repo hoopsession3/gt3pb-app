@@ -90,3 +90,16 @@ export function isMissingTable(err: { code?: string | null; message?: string | n
   if (code === "PGRST205" || code === "42P01") return true;
   return MISSING_TABLE_TEXT.test(String(err.message ?? ""));
 }
+
+// THE LINK THAT DOES NOT EXIST YET (2026-10-13, R5). The same window, for a read that follows a foreign key a pending
+// migration adds (0397's drop_orders.stop_id, read as `stop:stops(…)`): before the paste PostgREST answers PGRST200,
+// "Could not find a relationship between 'drop_orders' and 'stops' in the schema cache". Same narrowness: this one code,
+// or this one sentence. A reader that sees exactly this reads the rows without the link, as it did before.
+const MISSING_RELATION_TEXT = /Could not find a relationship between '[^']+' and '[^']+' in the schema cache/i;
+
+/** Is this error ONLY "that link between two tables is not there yet"? */
+export function isMissingRelation(err: { code?: string | null; message?: string | null } | null | undefined): boolean {
+  if (!err) return false;
+  if (String(err.code ?? "") === "PGRST200") return true;
+  return MISSING_RELATION_TEXT.test(String(err.message ?? ""));
+}

@@ -15,6 +15,15 @@ export async function accountEmail(userId: string | null): Promise<string | null
   return data?.user?.email ?? null;
 }
 
+/** Who placed an order, for the crew to reach when its checkout stopped (R5): the name and phone the order gave, and the
+ *  account's email — "Sam Lee, 864-555-0100, sam@example.com". Never throws; "a member" when there is nothing. */
+export async function whoAsked(b: { name?: unknown; phone?: unknown } | null | undefined, userId: string | null): Promise<string> {
+  const said = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+  let email: string | null = null;
+  try { email = await accountEmail(userId); } catch { email = null; }
+  return [said(b?.name, 80), said(b?.phone, 30), email ?? ""].filter(Boolean).join(", ") || "a member";
+}
+
 export const emailEnabled = (): boolean =>
   !!(process.env.RESEND_API_KEY && process.env.NOTIFY_FROM_EMAIL);
 export const smsEnabled = (): boolean =>

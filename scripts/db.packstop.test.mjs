@@ -5,7 +5,8 @@
 // Change refused the customers a canceled stop's text told to move their pack, a rescheduled stop left its packs behind,
 // and the member's own cancel had no time or stage check at all.
 //
-// What it proves: the backfill links each pack to its day's stop (the first not called off, else the one that was); a
+// What it proves: the backfill links each pack to its day's stop (the first on the schedule still taking packs, else
+// its first, else the one called off — never one archived without being called off); a
 // new pack and a moved one are linked by the trigger, and a pack that moves WITH its stop keeps it; pack_closes_at is the
 // one rule (24 hours before the stop; never, for a stop called off; three days before at 6pm Eastern with no stop); the
 // member's cancel refuses a closed or started pack and changes nothing, takes an open one, and raises the refund alert
@@ -57,6 +58,19 @@ const pack = async (day, extra = {}) => (await q1(`insert into public.drop_order
 const DAY0 = await dayOf(WX), DAY1 = await dayOf(NEXT), DAYOFF = await dayOf(OFF), DAYSOON = await dayOf(SOON);
 const DAY3 = (await q1(`select to_char((${D} + interval '3 days')::date, 'YYYY-MM-DD') d`)).d;
 const P0 = await pack(DAY0), POFF = await pack(DAYOFF), P3 = await pack(DAY3);
+// A stop the crew took off the schedule without calling it off (LiveControl's Archive) is no pack's stop: a day with one
+// such stop and one on the schedule, and a day with only the archived one.
+const ARCH = await stop("Archived, not called off", 6, 9), KEPT = await stop("On the schedule", 6, 11), ARCHONLY = await stop("Only archived", 7, 9);
+await q(`update public.stops set archived_at = now() where id = any($1::uuid[])`, [[ARCH, ARCHONLY]]);
+const PARCH = await pack(await dayOf(ARCH)), PARCHONLY = await pack(await dayOf(ARCHONLY));
+// A day whose first stop has closed and whose second still takes packs: tomorrow (Eastern), one stop halfway between its
+// midnight and this time tomorrow (closed — under 24 hours away), one halfway between this time tomorrow and its end.
+const TW = await q1(`select to_char(x.d, 'YYYY-MM-DD') d, (y.m + (x.t - y.m) / 2)::text t1, (x.t + (y.e - x.t) / 2)::text t2
+  from (select ((now() + interval '24 hours') at time zone 'America/New_York')::date d, now() + interval '24 hours' t) x,
+  lateral (select (x.d::timestamp at time zone 'America/New_York') m, ((x.d + 1)::timestamp at time zone 'America/New_York') e) y`);
+const stopAt = async (name, at) => (await q1(`insert into public.stops (name, status, starts_at, ends_at) values ($1, 'upcoming', $2::timestamptz, $2::timestamptz + interval '1 hour') returning id`, [name, at])).id;
+const SHUT = await stopAt("Closed first", TW.t1), TAKING = await stopAt("Still taking packs", TW.t2);
+const PTW = await pack(TW.d);
 const stopOf = async (id) => (await q1(`select stop_id from public.drop_orders where id = $1`, [id])).stop_id;
 
 ok("before 0397: a pack has no stop", (await q(`select 1 from information_schema.columns where table_name = 'drop_orders' and column_name = 'stop_id'`)).length === 0);
@@ -66,6 +80,11 @@ await db.exec(SQL397);
 ok("backfill: a pack is linked to its day's first stop not called off", (await stopOf(P0)) === WX);
 ok("backfill: a day whose only stop was called off keeps that stop — so the pack knows it was called off", (await stopOf(POFF)) === OFF);
 ok("backfill: a day with no stop leaves none", (await stopOf(P3)) === null);
+ok("backfill: a stop archived without being called off is never a pack's — the day's stop on the schedule is",
+  (await stopOf(PARCH)) === KEPT && (await stopOf(PARCHONLY)) === null, [await stopOf(PARCH), await stopOf(PARCHONLY)]);
+ok("backfill: a day whose first stop has closed links the stop still taking packs", (await stopOf(PTW)) === TAKING, [TW, await stopOf(PTW)]);
+ok("a new pack for that day, no stop named (an app from before R5), takes the stop still taking packs — not the closed one",
+  (await stopOf(await pack(TW.d))) === TAKING && SHUT !== TAKING);
 const PNEW = await pack(DAY1);
 ok("a new pack with no stop named takes its day's first open stop", (await stopOf(PNEW)) === NEXT);
 await q(`update public.drop_orders set drop_date = $2::date where id = $1`, [P0, DAY1]);
