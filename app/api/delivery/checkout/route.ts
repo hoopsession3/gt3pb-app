@@ -192,8 +192,9 @@ async function post(req: Request) {
           if (already2) return { status: 200, body: { ok: true, paymentId, recorded: true, deliveryLabel: slot.deliveryLabel, totalCents: quote.totalCents } };
         }
         const ref = (paymentId || "").slice(-6).toUpperCase();
-        // A paid card that didn't record is a money emergency.
-        await raiseAlert({ severity: "critical", category: "money", title: "Paid DELIVERY didn't record — add it", body: `Card payment ${paymentId} (${money(quote.totalCents)}) succeeded but the delivery order didn't save. ${name}, ${packSize} bottles for ${slot.deliveryLabel}, ${street}, ${city} ${zip}. Add it by hand and confirm in Square.` });
+        // A paid card that didn't record is a money emergency (delivery is always paid on order; the other words are the
+        // pay-on-delivery order's, kept with their producer — supabase/functions/push/policy.ts shows both on a lock screen).
+        await raiseAlert({ severity: paid ? "critical" : "important", category: paid ? "money" : "order", title: paid ? "Paid DELIVERY didn't record — add it" : "DELIVERY order didn't record — add it", body: `Card payment ${paymentId} (${money(quote.totalCents)}) succeeded but the delivery order didn't save. ${name}, ${packSize} bottles for ${slot.deliveryLabel}, ${street}, ${city} ${zip}. Add it by hand and confirm in Square.` });
         return { status: 200, body: { ok: true, paymentId, recorded: false, ref, deliveryLabel: slot.deliveryLabel, warn: `Payment received — ref ${ref}. We've alerted the crew to add your order.` } };
       }
 
