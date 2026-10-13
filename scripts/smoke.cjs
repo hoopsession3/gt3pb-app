@@ -9223,7 +9223,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /onClick=\{\(\) => \{ if \(\(empties\[o\.id\] \?\? o\.empties_expected\) > 0\) haptic\("decrease"\); else haptic\("boundary"\); setEmpties\(/.test(dr)
     && /onClick=\{\(\) => \{ haptic\("increase"\); setEmpties\(/.test(dr));
   ok("steppers: one with a ceiling meets it as a boundary too — the delivery's empties (up to the pack's refills), a product's quantity (1 to 20)",
-    /onClick=\{\(\) => \{ if \(refills > 0\) haptic\("decrease"\); else haptic\("boundary"\); setRefills\(/.test(of) && /onClick=\{\(\) => \{ if \(refills < refillCap\) haptic\("increase"\); else haptic\("boundary"\); setRefills\(/.test(of)
+    /onClick=\{\(\) => \{ if \(refillCount > 0\) haptic\("decrease"\); else haptic\("boundary"\); setRefills\(/.test(of) && /onClick=\{\(\) => \{ if \(refillCount < refillCap\) haptic\("increase"\); else haptic\("boundary"\); setRefills\(/.test(of)
     && /onClick=\{\(\) => \{ if \(qty > 1\) haptic\("decrease"\); else haptic\("boundary"\); setQty\(/.test(shop) && /onClick=\{\(\) => \{ if \(qty < 20\) haptic\("increase"\); else haptic\("boundary"\); setQty\(/.test(shop));
   ok("switches: each says which way it went — on, off (stop ordering, codes, perks, the splash, a plan, a task done, the payment switches, an event's publish, the 86 board, the event copilot)",
     ["components/crew/OwnerDetails.tsx", "components/CodesPanel.tsx", "components/PerksPanel.tsx", "components/PromoEditor.tsx", "components/PlanEditor.tsx", "components/AssignTaskSheet.tsx", "components/PaymentSettings.tsx", "components/FieldOpSheet.tsx", "components/EightySix.tsx", "components/EventCopilot.tsx"]
@@ -13920,6 +13920,45 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /canceled && !tk\.paid \? null : tk\.paid \?/.test(pg) && !/"Not charged"/.test(pg)
     && /\{!canceled && \(\s*<div className="flex items-center justify-between gap-3">/.test(pg)
     && /\{tk\.stop && !tk\.stop\.canceled && !canceled && \(/.test(pg));
+}
+
+// ── THE TOTAL THE PAGE SHOWED IS THE MOST A CHECKOUT CHARGES; THE GLASS AND THE EMPTIES ARE THE CUSTOMER'S (2026-10-13, R5) ──
+// A member saw $106 on the 12-bottle delivery tile and was charged $130: the empties started at 0 while "Bringing mine
+// back" was lit. A guest who chose new glass for a pickup and signed in at the details step was put on the cheaper return
+// pack without being asked. Neither checkout knew what the page had shown, and the pack's confirmation said the list
+// price — not the amount charged — and the day as a date key.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const ST = require("../.smoke/shownTotal.js"), PD = require("../.smoke/pickupDay.js");
+  const up = ST.aboveShown(13000, 10600);
+  ok("shown total: a charge above what the page showed is refused with the total it would be; at or below it goes through; no total, no check",
+    up?.totalChanged === true && up.totalCents === 13000 && up.error === "The total is $130, not the $106 shown. Check your order, then tap again to pay $130."
+    && ST.aboveShown(10600, 10600) === null && ST.aboveShown(10000, 10600) === null && ST.aboveShown(13000, null) === null
+    && ST.shownCents(undefined) === null && ST.shownCents(-1) === null && ST.shownCents("10600") === null && ST.shownCents(10600.4) === 10600, up);
+  ok("pickup day in words: a day key is a day — 'Sat, Oct 17' — whatever the server's zone; anything else passes through",
+    PD.pickupDayWords("2026-10-17") === "Sat, Oct 17" && PD.pickupDayWords("2026-10-17T23:30:00Z") === "Sat, Oct 17" && PD.pickupDayWords("soon") === "soon" && PD.pickupDayWords(null) === "");
+  const dl = code(rd("app/api/delivery/checkout/route.ts")), rs = code(rd("app/api/reserve/route.ts"));
+  const before = (src, a, b) => src.indexOf(a) > 0 && src.indexOf(b) > src.indexOf(a);
+  ok("both checkouts refuse a total above the page's before any charge — the delivery's quote, the pack's amount with its perks",
+    /const raised = aboveShown\(quote\.totalCents, shownCents\(b\.expectedCents\)\);\s*if \(raised\) return NextResponse\.json\(raised, \{ status: 409 \}\);/.test(dl) && before(dl, "aboveShown(quote.totalCents", "chargeCard(")
+    && /const raised = aboveShown\(amount, shownCents\(body\.expectedCents\)\);\s*if \(raised\) return NextResponse\.json\(raised, \{ status: 409 \}\);/.test(rs) && before(rs, "aboveShown(amount", "chargeCard("));
+  ok("the pack's confirmation says what was charged or is due, and the day in words; the crew's line too; the page gets the amount back",
+    /reserved for pickup \$\{pickupDayWords\(dropDate\)\}\$\{paid \? ` — \$\{money\(amount\)\} paid ✓` : ` — \$\{money\(amount\)\} at pickup`\}/.test(rs)
+    && /for \$\{pickupDayWords\(dropDate\)\} — \$\{money\(amount\)\}, /.test(rs) && !/packTotal\(/.test(rs)
+    && /return NextResponse\.json\(\{ ok: true, id: inserted\?\.id \?\? null, paid, recorded: true, totalCents: amount \}\);/.test(rs));
+  const of = code(rd("components/OrderFunnel.tsx"));
+  ok("the funnel: empties start as every bottle that can be a refill when bringing back — the price the tiles show — until the customer sets the number",
+    /const \[refills, setRefills\] = useState<number \| null>\(null\);/.test(of) && /const refillCount = bringBack \? Math\.min\(refillCap, refills \?\? refillCap\) : 0;/.test(of)
+    && /quoteDelivery\(count, perf, refillCount, "direct"\)/.test(of) && /perfMix: premiums, refillCount, emptiesAck: ack,/.test(of) && /!\(refillCount > 0 && !ack\)/.test(of)
+    && !/setRefills\(0\)/.test(of));
+  ok("the funnel: every glass button is the customer's choice — signing in at the details step never flips new glass to bring-back",
+    (of.match(/glassTouched\.current = true; setBringBack\(false\)/g) || []).length === 2 && /useEffect\(\(\) => \{ if \(user && !glassTouched\.current\) setBringBack\(true\); \}, \[user\]\);/.test(of));
+  ok("the funnel: both checkouts send the total on the Pay button; a higher one from the server is shown for this cart and agreed to by the next tap",
+    (of.match(/expectedCents: payCents/g) || []).length === 2 && /const payCents = agreed && agreed\.sig === cartSig \? agreed\.cents : totalCents;/.test(of)
+    && (of.match(/raisedTotal\(data\);/g) || []).length === 2 && /fillCopy\(t\("funnel\.pay_cta"\), \{ total: money\(payCents\) \}\)/.test(of)
+    && /fillCopy\(t\("funnel\.reserve_pay_later"\), \{ total: money\(payCents\) \}\)/.test(of));
 }
 
 Promise.all(PENDING).then(() => {

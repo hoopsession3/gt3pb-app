@@ -6,6 +6,7 @@ import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
+import { aboveShown, shownCents } from "@/lib/shownTotal";
 import {
   quoteDelivery, deliverySlotChoices, pickedSlot, SUNDAY_CLOSED, zipInZone, perfTotal, maxRefills,
   DELIVERY_PACKS, type PerfMix,
@@ -28,6 +29,7 @@ type Body = {
   perfMix?: PerfMix;
   refillCount?: number;
   emptiesAck?: boolean;
+  expectedCents?: number; // the total on the page's Pay button (lib/shownTotal)
   deliveryDate?: string; // which Sunday — one of the two offered keys
 };
 
@@ -98,6 +100,9 @@ async function post(req: Request) {
 
   // Server-authoritative money + date.
   const quote = quoteDelivery(packSize, perf, refills, "direct");
+  // Never more than the page showed (R5, lib/shownTotal): refused before any charge, with the total it would be.
+  const raised = aboveShown(quote.totalCents, shownCents(b.expectedCents));
+  if (raised) return NextResponse.json(raised, { status: 409 });
   // The customer picks which Sunday (this one or next). A pick that is no longer on offer — its Friday
   // cutoff passed while the page was open — is refused before any charge, with the Sundays on offer now
   // (C4, 2026-10-12): it used to fall back to the coming slot and charge for a Sunday never shown. The

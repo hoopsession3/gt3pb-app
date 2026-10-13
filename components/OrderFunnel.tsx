@@ -101,6 +101,9 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   const [mix, setMix] = useState<Record<Flav, number>>({ rise: 0, flow: 0, dusk: 0 });
   // First-timers see the price they'll actually pay (new glass); signed-in members default to
   // bring-back. The glass step can only make it cheaper — never a mid-funnel surprise.
+  // A choice the customer made is theirs (R5): every glass button marks it touched, so signing in at the details step
+  // never flips "Need new glass" to bring-back — the pickup's new-glass button didn't, and a guest who chose new glass
+  // and signed in with a code was put on the cheaper return pack without being asked.
   const [bringBack, setBringBack] = useState(false);
   const glassTouched = useRef(false);
   useEffect(() => { if (user && !glassTouched.current) setBringBack(true); }, [user]);
@@ -129,7 +132,10 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   const [wlSent, setWlSent] = useState(false);
   const [premiums, setPremiums] = useState<Record<string, number>>({});
   const [bulkItems, setBulkItems] = useState<{ slug: string; name: string }[]>([{ slug: SALTED_LATTE.key, name: SALTED_LATTE.label }]);
-  const [refills, setRefills] = useState(0);
+  // How many empties go out — null until the customer sets the number. Bringing back with no number means every bottle
+  // that can be a refill: the price the size tiles show (R5, 2026-10-13). It started at 0, so a member — on bring-back by
+  // default — saw $106 on the 12-pack tile, the glass step's "Bringing mine back" lit with 0 empties, and was charged $130.
+  const [refills, setRefills] = useState<number | null>(null);
   const [ack, setAck] = useState(false);
   const [access, setAccess] = useKnownField(known?.delivery?.access);
   const [street, setStreet, streetKnown] = useKnownField(known?.delivery?.street);
@@ -194,9 +200,10 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   const perf = Object.values(premiums).reduce((s, n) => s + (n || 0), 0);
   const picked = mix.rise + mix.flow + mix.dusk + (mode === "delivery" ? perf : 0);
   const refillCap = count ? maxRefills(count, perf) : 0;
+  const refillCount = bringBack ? Math.min(refillCap, refills ?? refillCap) : 0;
   const deliveryQuote = useMemo(
-    () => (mode === "delivery" && count ? quoteDelivery(count, perf, bringBack ? refills : 0, "direct") : null),
-    [mode, count, perf, bringBack, refills]
+    () => (mode === "delivery" && count ? quoteDelivery(count, perf, refillCount, "direct") : null),
+    [mode, count, perf, refillCount]
   );
 
   // pickup drop / countdown
@@ -216,6 +223,17 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
     return 0;
   }, [codeState, codeBenefit, baseTotalCents, mode, bringBack]);
   const totalCents = Math.max(0, baseTotalCents - codeDiscountCents);
+  // THE TOTAL ON THE PAY BUTTON IS THE MOST IT CHARGES (R5, lib/shownTotal). It goes with the order; a server total above
+  // it comes back refused, with that total, and is shown here for this cart — the next tap agrees to it. A change to the
+  // cart (size, flavours, glass, empties, day, code) takes it back to the page's own number.
+  const cartSig = JSON.stringify(mode === "delivery"
+    ? ["delivery", count, mix, premiums, refillCount, slot?.deliveryDateKey ?? null]
+    : ["pickup", count, bringBack, mix, dropDateKey(drop.sat), codeState === "ok" ? codeClean : null]);
+  const [agreed, setAgreed] = useState<{ sig: string; cents: number } | null>(null);
+  const payCents = agreed && agreed.sig === cartSig ? agreed.cents : totalCents;
+  const raisedTotal = (data: { totalChanged?: unknown; totalCents?: unknown }) => {
+    if (data?.totalChanged === true && typeof data.totalCents === "number") setAgreed({ sig: cartSig, cents: data.totalCents });
+  };
   const countdown = useMemo(() => {
     if (mode !== "pickup" || !now) return "";
     const ms = drop.cutoff.getTime() - now; if (ms <= 0) return "";
@@ -295,7 +313,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
     if (count == null || !tiers.includes(count)) {
       nextCount = tiers.find((t) => t >= Math.max(count ?? 0, need)) ?? tiers[tiers.length - 1];
     }
-    if (next === "pickup") { setPremiums({}); setRefills(0); setAck(false); }
+    if (next === "pickup") { setPremiums({}); setRefills(null); setAck(false); }
     setMode(next);
     setCount(nextCount);
     // When embedded off its own route (the Shop "Bottles" aisle passes syncUrl={false}), don't drift
@@ -331,7 +349,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
     // independently, so money was always right — only the on-screen numbers were stuck/wrong).
     const newPerf = mode === "delivery" && overfull ? 0 : perf;
     if (mode === "delivery" && overfull) setPremiums({});
-    setRefills((r) => Math.min(maxRefills(s, newPerf), r));
+    setRefills((r) => (r === null ? null : Math.min(maxRefills(s, newPerf), r)));
     // Both modes operate identically: selecting a size highlights it; the "Build your pack" button
     // advances. (Delivery used to auto-jump on tap, which felt different from pickup.)
   };
@@ -391,13 +409,13 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
       const res = await authedFetch("/api/reserve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: attempt.token ?? undefined, idempotencyKey: attempt.key, name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }),
+        body: JSON.stringify({ sourceId: attempt.token ?? undefined, idempotencyKey: attempt.key, expectedCents: payCents, name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }),
       });
       const data = await res.json(); setBusy(false);
       idem.settle(attempt.key, res.status, data);
-      if (!res.ok) { setErr(data.error || "Something went wrong — try again."); return; }
+      if (!res.ok) { raisedTotal(data); setErr(data.error || "Something went wrong — try again."); return; }
       haptic("success");
-      setDone({ total: totalCents, paid: !!data.paid, ref: (data.id || data.ref || "").toString(), label: dayName(drop.sat) });
+      setDone({ total: typeof data.totalCents === "number" ? data.totalCents : payCents, paid: !!data.paid, ref: (data.id || data.ref || "").toString(), label: dayName(drop.sat) });
       invalidateCustomerKnown();   // the next form starts from this order
       trackFunnel("reserve", "done");
       setStep("done");
@@ -412,7 +430,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
       idem.settle(attempt.key, null, null);
       setErr("Couldn't confirm — safe to try again, you won't be charged twice.");
     }
-  }, [busy, name, phone, count, bringBack, mix, drop, totalCents, codeState, codeClean, idem]);
+  }, [busy, name, phone, count, bringBack, mix, drop, payCents, cartSig, codeState, codeClean, idem]);
 
   // ── a pack changed in place (0388) ──
   // The change as the server reads it: the pack that is changing, what it becomes, the code it is priced with.
@@ -432,17 +450,17 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
       // The key for what is in this delivery and what it costs — not the address, which a customer may
       // fix after a lost answer without it becoming a second charge — and the card token already sent
       // under it while the last answer is unknown.
-      const attempt = await idemDelivery.begin({ path: "delivery", count, mix, premiums, refills: bringBack ? refills : 0, slot: slot.deliveryDateKey }, () => paymentRef.current!.tokenize());
+      const attempt = await idemDelivery.begin({ path: "delivery", count, mix, premiums, refills: refillCount, slot: slot.deliveryDateKey }, () => paymentRef.current!.tokenize());
       if (!attempt.token) { setErr("Card details look off — check and retry."); setBusy(false); return; }
       sent = attempt.key;
       const res = await authedFetch("/api/delivery/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sourceId: attempt.token, idempotencyKey: attempt.key,
+          sourceId: attempt.token, idempotencyKey: attempt.key, expectedCents: payCents,
           name, phone, addressStreet: street, addressCity: city, addressZip: zip,
           accessInstructions: access, packSize: count, riseCount: mix.rise, flowCount: mix.flow, duskCount: mix.dusk,
-          perfMix: premiums, refillCount: bringBack ? refills : 0, emptiesAck: ack, deliveryDate: slot.deliveryDateKey,
+          perfMix: premiums, refillCount, emptiesAck: ack, deliveryDate: slot.deliveryDateKey,
           retry: attempt.retry === true,
         }),
       });
@@ -455,6 +473,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
           setChoices(data.choices as typeof choices);
           setWhen(0);
         }
+        raisedTotal(data);
         setErr(data.error || "Payment failed");
         return;
       }
@@ -512,10 +531,10 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
     setDupRows(found);
   };
 
-  const resetOrder = () => { setMix({ rise: 0, flow: 0, dusk: 0 }); setPremiums({}); setRefills(0); setAck(false); setErr(""); setDone(null); setStep(mode === "delivery" ? "size" : "size"); };
+  const resetOrder = () => { setMix({ rise: 0, flow: 0, dusk: 0 }); setPremiums({}); setRefills(null); setAck(false); setErr(""); setDone(null); setStep(mode === "delivery" ? "size" : "size"); };
 
   // step gating
-  const glassReady = mode === "delivery" ? bringBack !== null && !(bringBack && refills > 0 && !ack) : true;
+  const glassReady = mode === "delivery" ? bringBack !== null && !(refillCount > 0 && !ack) : true;
 
   // back navigation per mode
   const goBack = () => {
@@ -791,7 +810,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
           <EditableCopy k="funnel.glass_h" value={t("funnel.glass_h")} as="h2" className="dl-h" />
           {mode === "delivery" ? (
             <>
-              <button type="button" className={`dl-card${bringBack ? " on" : ""}`} onClick={() => { glassTouched.current = true; setBringBack(true); setRefills((r) => Math.min(refillCap, r || refillCap)); }}>
+              <button type="button" className={`dl-card${bringBack ? " on" : ""}`} onClick={() => { glassTouched.current = true; setBringBack(true); setRefills((r) => (r ? Math.min(refillCap, r) : null)); }}>
                 <b>{t("funnel.glass_back_title")}</b>
                 <span>{fillCopy(t("funnel.glass_back_del_sub"), { refill: money(DELIVERY_PRICING.refill), fresh: money(DELIVERY_PRICING.fresh) })}</span>
               </button>
@@ -799,11 +818,11 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
                 <div className="dl-loop">
                   <label className="dl-sub" htmlFor="of-ref">{t("funnel.empties_q")} <em>(up to {refillCap})</em></label>
                   <div className="dl-ctr-b lone">
-                    <button type="button" onClick={() => { if (refills > 0) haptic("decrease"); else haptic("boundary"); setRefills((r) => Math.max(0, r - 1)); }} aria-label="Fewer">−</button>
-                    <b id="of-ref">{refills}</b>
-                    <button type="button" onClick={() => { if (refills < refillCap) haptic("increase"); else haptic("boundary"); setRefills((r) => Math.min(refillCap, r + 1)); }} aria-label="More">+</button>
+                    <button type="button" onClick={() => { if (refillCount > 0) haptic("decrease"); else haptic("boundary"); setRefills(Math.max(0, refillCount - 1)); }} aria-label="Fewer">−</button>
+                    <b id="of-ref">{refillCount}</b>
+                    <button type="button" onClick={() => { if (refillCount < refillCap) haptic("increase"); else haptic("boundary"); setRefills(Math.min(refillCap, refillCount + 1)); }} aria-label="More">+</button>
                   </div>
-                  {refills > 0 && (
+                  {refillCount > 0 && (
                     <>
                       <p className="dl-callout">Set your rinsed empties on the porch by <b>5 AM Sunday</b>. No empties out, no swap — you&rsquo;ll pick up at GT3PB instead.</p>
                       <label className="dl-ack"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /><span>{t("funnel.empties_ack")}</span></label>
@@ -811,7 +830,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
                   )}
                 </div>
               )}
-              <button type="button" className={`dl-card${!bringBack ? " on" : ""}`} onClick={() => { glassTouched.current = true; setBringBack(false); setRefills(0); setAck(false); }}>
+              <button type="button" className={`dl-card${!bringBack ? " on" : ""}`} onClick={() => { glassTouched.current = true; setBringBack(false); setRefills(null); setAck(false); }}>
                 <b>{t("funnel.glass_new_del_title")}</b>
                 <span>{fillCopy(t("funnel.glass_new_del_sub"), { fresh: money(DELIVERY_PRICING.fresh) })}</span>
               </button>
@@ -831,7 +850,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
                 <b>{t("funnel.glass_back_title")}</b>
                 <span>{fillCopy(t("funnel.glass_back_pickup_sub"), { price: `$${perBottle(count, "return").toFixed(2)}` })}</span>
               </button>
-              <button type="button" className={`dl-card${!bringBack ? " on" : ""}`} onClick={() => setBringBack(false)}>
+              <button type="button" className={`dl-card${!bringBack ? " on" : ""}`} onClick={() => { glassTouched.current = true; setBringBack(false); }}>
                 <b>{t("funnel.glass_new_pickup_title")}</b>
                 <span>{fillCopy(t("funnel.glass_new_pickup_sub"), { price: money(1000) })}</span>
               </button>
@@ -926,7 +945,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
           <EditableCopy k="funnel.pay_h" value={t("funnel.pay_h")} as="h2" className="dl-h" />
           <div className="dl-quote">
             <span>{count} bottles{mode === "delivery" ? "" : ` · pickup ${dayName(drop.sat)}`}</span>
-            <span className="dl-quote-t">{codeDiscountCents > 0 ? <><s className="dl-was">{money(baseTotalCents)}</s> <b>{money(totalCents)}</b></> : <>total <b>{money(totalCents)}</b></>}</span>
+            <span className="dl-quote-t">{codeDiscountCents > 0 ? <><s className="dl-was">{money(baseTotalCents)}</s> <b>{money(payCents)}</b></> : <>total <b>{money(payCents)}</b></>}</span>
           </div>
 
           {codeBox}
@@ -937,7 +956,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
               <PaymentCard ref={paymentRef} className="sq-card" onReady={setCardReady} onError={(m) => setErr(m ?? "")} />
               {err && <p className="dl-err" role="alert">{err}</p>}
               <button type="button" className="btn-pri btn-wide" disabled={!cardReady || busy} onClick={mode === "delivery" ? payDelivery : payPickupCard}>
-                {busy ? "Charging…" : fillCopy(t("funnel.pay_cta"), { total: money(totalCents) })}
+                {busy ? "Charging…" : fillCopy(t("funnel.pay_cta"), { total: money(payCents) })}
               </button>
               {mode === "pickup" && payLater.on && (
                 <button type="button" className="oa-paylater" onClick={() => submitPickup(null)} disabled={busy}>
@@ -950,7 +969,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
             <>
               {err && <p className="dl-err" role="alert">{err}</p>}
               <button type="button" className="btn-pri btn-wide" onClick={() => submitPickup(null)} disabled={busy}>
-                {busy ? "Reserving…" : fillCopy(t("funnel.reserve_pay_later"), { total: money(totalCents) })}
+                {busy ? "Reserving…" : fillCopy(t("funnel.reserve_pay_later"), { total: money(payCents) })}
               </button>
               <EditableCopy k="funnel.reserve_window_note" value={t("funnel.reserve_window_note")} as="p" className="dl-sub" />
             </>
@@ -983,7 +1002,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
               ? [
                   { label: "Delivery", value: done.label ?? "" },
                   { label: "Address", value: `${street}, ${city} ${zip}` },
-                  ...(bringBack && refills > 0 ? [{ label: "Empties", value: `${refills} out by 5 AM Sun` }] : []),
+                  ...(refillCount > 0 ? [{ label: "Empties", value: `${refillCount} out by 5 AM Sun` }] : []),
                   { label: "Fresh", value: "7 days from delivery" },
                 ]
               : [

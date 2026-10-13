@@ -5,9 +5,12 @@ import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { benefitsForUser, acceptedCode } from "@/lib/benefits";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
-import { packTotal, mixSummary, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
+import { mixSummary, type Mix } from "@/lib/orderAhead";
 import { packPick, offeredDays, requestedDay, packCents } from "@/lib/packOrder";
 import { route } from "@/lib/apiRoute";
+import { money } from "@/lib/money";
+import { aboveShown, shownCents } from "@/lib/shownTotal";
+import { pickupDayWords } from "@/lib/pickupDay";
 
 // ORDER-AHEAD reserve — records a one-off Saturday-drop reservation. Price + cutoff are recomputed
 // SERVER-SIDE from lib/orderAhead (never trust the client), the charge is a Square ONE-TIME payment
@@ -21,7 +24,7 @@ async function post(req: Request) {
     return NextResponse.json({ error: "Reservations aren't switched on yet." }, { status: 503 });
   }
 
-  let body: { sourceId?: string; idempotencyKey?: string; name?: string; phone?: string; size?: number; glass?: string; mix?: Partial<Mix>; dropDate?: string };
+  let body: { sourceId?: string; idempotencyKey?: string; name?: string; phone?: string; size?: number; glass?: string; mix?: Partial<Mix>; dropDate?: string; expectedCents?: number };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
 
   // Order-ahead is member-only: the reservation needs an owner (drop_orders.user_id) so it lives
@@ -37,8 +40,8 @@ async function post(req: Request) {
   // on idempotency_key backs it. Scoped to the caller's own rows: the key is theirs.
   const idemKey = safeIdemKey(body.idempotencyKey);
   {
-    const { data: held } = await supabaseAdmin.from("drop_orders").select("id, paid").eq("idempotency_key", idemKey).eq("user_id", user.id).maybeSingle();
-    if (held) return NextResponse.json({ ok: true, id: held.id, paid: held.paid === true, recorded: true });
+    const { data: held } = await supabaseAdmin.from("drop_orders").select("id, paid, total_cents").eq("idempotency_key", idemKey).eq("user_id", user.id).maybeSingle();
+    if (held) return NextResponse.json({ ok: true, id: held.id, paid: held.paid === true, recorded: true, totalCents: held.total_cents ?? null });
   }
 
   // A card token means "charge now"; no token means a pre-order (reserve now, pay at pickup). The
@@ -80,6 +83,10 @@ async function post(req: Request) {
   // deepest percent, then amount-off (0268), floored at 0).
   const benefits = await benefitsForUser(user.id, (body as { code?: string }).code);
   const amount = packCents(size, glass, benefits);
+  // Never more than the page showed (R5, lib/shownTotal): refused before any charge or reservation, with the total it
+  // would be. Less goes through — a member's perk the page cannot see — and the confirmation says the amount charged.
+  const raised = aboveShown(amount, shownCents(body.expectedCents));
+  if (raised) return NextResponse.json(raised, { status: 409 });
 
   try {
     // Charge only when a card token was supplied; otherwise it's a pay-at-pickup pre-order.
@@ -154,14 +161,17 @@ async function post(req: Request) {
     await notifyCustomer({
       phone,
       email: await accountEmail(user.id),
-      subject: `GT3 — ${size}-pack reserved for ${dropDate}`,
-      message: `GT3: your ${size}-pack (${mixSummary(mix)}) is reserved for pickup ${dropDate}${paid ? " — paid ✓" : ` — ${dollars(packTotal(size, glass as GlassPath))} at pickup`}. We brew it fresh for pickup day.${glass === "return" ? " Rinse your empties and bring them along." : ""}`,
+      // What it costs is what was charged or is due (R5): `amount`, with the member's perks and code — it said the pack's
+      // list price, so a founding member whose refills are free read "$40 at pickup" for a pack that was $0. The day is
+      // a day ("Sat, Oct 17"), not the key the row keeps.
+      subject: `GT3 — ${size}-pack reserved for ${pickupDayWords(dropDate)}`,
+      message: `GT3: your ${size}-pack (${mixSummary(mix)}) is reserved for pickup ${pickupDayWords(dropDate)}${paid ? ` — ${money(amount)} paid ✓` : ` — ${money(amount)} at pickup`}. We brew it fresh for pickup day.${glass === "return" ? " Rinse your empties and bring them along." : ""}`,
     });
 
     // 'important' (2026-10-11): an fyi reaches the inbox only now (supabase/functions/push/policy.ts), and this is the
     // one line a new reservation gets — the push function's own alert for it was refused by 0232 (category 'drop').
-    await raiseAlert({ severity: "important", category: "order", kind: "reservation_new", subjectId: inserted?.id ?? undefined, title: "New reservation 🎉", body: `${name} reserved a ${size}-pack (${mixSummary(mix)}) for ${dropDate} — ${dollars(packTotal(size, glass as GlassPath))}, ${glass === "return" ? "bringing bottles back" : "new glass"}${paid ? "" : " · pay at pickup"}.` });
-    return NextResponse.json({ ok: true, id: inserted?.id ?? null, paid, recorded: true });
+    await raiseAlert({ severity: "important", category: "order", kind: "reservation_new", subjectId: inserted?.id ?? undefined, title: "New reservation 🎉", body: `${name} reserved a ${size}-pack (${mixSummary(mix)}) for ${pickupDayWords(dropDate)} — ${money(amount)}, ${glass === "return" ? "bringing bottles back" : "new glass"}${paid ? "" : " · pay at pickup"}.` });
+    return NextResponse.json({ ok: true, id: inserted?.id ?? null, paid, recorded: true, totalCents: amount });
   } catch {
     return NextResponse.json({ error: "Reservation service unavailable" }, { status: 502 });
   }
