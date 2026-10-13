@@ -158,6 +158,53 @@ const realFetch = globalThis.fetch;
 }
 
 // ── every branch ───────────────────────────────────────────────────────────────────────────────
+// ── each channel's own words (R5, 2026-10-13) ─────────────────────────────────────────────────────────
+// The pack, delivery and shop checkouts claim their keys too. A delivery or a shop order is not collected at a window, so
+// a route hands its own "paid, not saved" and "couldn't confirm" (lib/chargeOnce Say); with none, the cups' words stand.
+{
+  const store = (claim) => ({ read: async () => ({ ok: true, claim }), claim: async () => ({ ok: true, claimed: false }), move: async () => true, release: async () => {} });
+  const old = new Date(Date.now() - 10 * 60_000).toISOString();
+  const charged = { state: "charged", card: true, amount_cents: 2200, payment_id: "pay-XYZ123", status: null, answer: null, note: null, updated_at: old };
+  const say = { paidNotRecorded: (c) => ({ status: 200, body: { mine: "paid", ref: c.payment_id } }), couldNotConfirm: () => ({ status: 409, body: { mine: "unknown", pending: true } }) };
+  const quiet = async () => {};
+  const a1 = await C.answerFor(store(charged), "key-0001aaaa", charged, () => Date.now(), quiet, say);
+  ok("words: a request that died after the charge answers in the channel's words", a1.body.mine === "paid" && a1.body.ref === "pay-XYZ123", a1);
+  const a2 = await C.answerFor(store(charged), "key-0001aaaa", charged, () => Date.now(), quiet);
+  ok("words: without its own, the cups' — show this ref at the window", /show this ref at the window/.test(String(a2.body.warn)), a2);
+  const unknown = { ...charged, state: "unknown" };
+  ok("words: 'couldn't confirm' in the channel's words", (await C.answerFor(store(unknown), "key-0002aaaa", unknown, () => Date.now(), quiet, say)).body.mine === "unknown");
+  ok("words: without its own, the cups' 'couldn't confirm'", /show this at the window/.test(String((await C.answerFor(store(unknown), "key-0002aaaa", unknown, () => Date.now(), quiet)).body.error)));
+  let told = 0;
+  const started = { ...charged, state: "started", payment_id: null };
+  const a5 = await C.answerFor(store(started), "key-0003aaaa", started, () => Date.now(), async () => { told++; }, say);
+  ok("words: a request that died before Square answered is 'couldn't confirm' in the channel's words, and the crew is told once", a5.body.mine === "unknown" && told === 1, a5);
+  ok("words: seenBefore hands them on", (await C.seenBefore(store(unknown), "key-0004aaaa", true, () => Date.now(), quiet, say)).answer?.body.mine === "unknown");
+  ok("words: claimKey hands them on", (await C.claimKey(store(unknown), "key-0005aaaa", { channel: "shop", card: true, amountCents: 100 }, () => Date.now(), quiet, say)).answer?.body.mine === "unknown");
+}
+
+// ── the pack, delivery and shop checkouts read the way the cups' does (R5) ────────────────────────────────────
+// It was a bare 502 with nobody told when Square's answer was lost (packs, shop), or when a paid order failed to save
+// after the charge (packs, shop: their catch-all said "service unavailable"). Each now asks its claim first, claims
+// before the money, charges in one place inside chargeOnce, and answers in its own words.
+{
+  const code = (rel) => readFileSync(join(ROOT, rel), "utf8").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  for (const [rel, channel, priced] of [["app/api/reserve/route.ts", "packs", "offeredDays("], ["app/api/delivery/checkout/route.ts", "delivery", "zipInZone(zip)"], ["app/api/shop/checkout/route.ts", "shop", ".from(\"shop_products\")"]]) {
+    const r = code(rel), at = (s, from = 0) => r.indexOf(s, from);
+    const label = rel.replace("app/api/", "").replace("/route.ts", "");
+    ok(`${label}: the replay comes before the order is checked or priced again`, at("seenBefore(checkoutClaims(supabaseAdmin), idemKey, ") > 0 && at("seenBefore(") < at(priced), [at("seenBefore("), at(priced)]);
+    ok(`${label}: one claim, as "${channel}", after every check and before the money`, (r.match(/claimKey\(/g) || []).length === 1 && new RegExp(`claimKey\\(seen\\.claims, idemKey, \\{ channel: "${channel}", `).test(r) && at("claimKey(") < at("chargeOnce("));
+    ok(`${label}: Square is called in one place, inside chargeOnce`, (r.match(/chargeCard\(/g) || []).length === 1 && at("charge: () => chargeCard(") > at("chargeOnce("));
+    ok(`${label}: no catch-all that calls a charged order a failure`, !/service unavailable/.test(r) && /unknown: async \(e\) => \{\s*await raiseAlert\(\{ severity: "critical", category: "money"/.test(r));
+    ok(`${label}: its own words for "paid, not saved" and "couldn't confirm"`, /const say: Say = \{\s*paidNotRecorded:/.test(r) && /couldNotConfirm: /.test(r) && /stopped, say\)/.test(r));
+  }
+  const rs = code("app/api/reserve/route.ts");
+  ok("reserve: pay at pickup is written under its claim, and a pack not written gives the key back (placeOnce)", /if \(!wantsCharge\) return reply\(await placeOnce\(\{ claims: held\.claims, key: idemKey, now, place: \(\) => recordPack\(null, false\) \}\)\);/.test(rs));
+  for (const rel of ["app/api/delivery/checkout/route.ts", "app/api/shop/checkout/route.ts"]) {
+    const sayBlock = (code(rel).match(/const say: Say = \{[\s\S]*?\n  \};/) || [""])[0];
+    ok(`${rel.replace("app/api/", "").replace("/route.ts", "")}: nothing it says sends anyone to a window`, sayBlock.length > 0 && !/window/i.test(sayBlock), sayBlock.slice(0, 120));
+  }
+}
+
 await branches({ C, SQ, I, store: memoryClaims(), ok, memory: true });
 globalThis.fetch = realFetch;
 

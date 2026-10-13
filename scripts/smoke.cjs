@@ -13947,7 +13947,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("the pack's confirmation says what was charged or is due, and the day in words; the crew's line too; the page gets the amount back",
     /reserved for pickup \$\{pickupDayWords\(dropDate\)\}\$\{paid \? ` — \$\{money\(amount\)\} paid ✓` : ` — \$\{money\(amount\)\} at pickup`\}/.test(rs)
     && /for \$\{pickupDayWords\(dropDate\)\} — \$\{money\(amount\)\}, /.test(rs) && !/packTotal\(/.test(rs)
-    && /return NextResponse\.json\(\{ ok: true, id: inserted\?\.id \?\? null, paid, recorded: true, totalCents: amount \}\);/.test(rs));
+    && /return \{ status: 200, body: \{ ok: true, id: inserted\?\.id \?\? null, paid, recorded: true, totalCents: amount \} \};/.test(rs));
   const of = code(rd("components/OrderFunnel.tsx"));
   ok("the funnel: empties start as every bottle that can be a refill when bringing back — the price the tiles show — until the customer sets the number",
     /const \[refills, setRefills\] = useState<number \| null>\(null\);/.test(of) && /const refillCount = bringBack \? Math\.min\(refillCap, refills \?\? refillCap\) : 0;/.test(of)

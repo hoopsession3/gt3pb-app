@@ -118,6 +118,17 @@ export function declined(error: string): Answer {
   return { status: 400, body: { error, declined: true } };
 }
 
+/**
+ * What a channel says when Square took the money and the order was not written. The cups say it at the window (the
+ * default below); a delivery or a shop order is not collected at a window, so its route says its own (R5, 2026-10-13:
+ * the pack, delivery and shop checkouts claim their keys too).
+ */
+export type Say = {
+  paidNotRecorded?: (claim: Pick<Claim, "payment_id" | "amount_cents">) => Answer;
+  /** "We couldn't confirm" in the channel's words — the cups send the customer to the window. */
+  couldNotConfirm?: (card: boolean) => Answer;
+};
+
 /** Square took the money and the request that took it stopped before the order was written. */
 export function paidNotRecorded(claim: Pick<Claim, "payment_id" | "amount_cents">): Answer {
   const ref = (claim.payment_id || "").slice(-6).toUpperCase();
@@ -131,10 +142,10 @@ export function paidNotRecorded(claim: Pick<Claim, "payment_id" | "amount_cents"
 
 /** What to say to a request carrying a key that has been claimed. Moves a dead request's claim on. */
 export async function answerFor(
-  store: ClaimStore, key: string, claim: Claim, now: () => number, stopped: (s: Stopped) => Promise<void>,
+  store: ClaimStore, key: string, claim: Claim, now: () => number, stopped: (s: Stopped) => Promise<void>, say: Say = {},
 ): Promise<Answer> {
   if (claim.state === "done" && claim.answer && typeof claim.status === "number") return { status: claim.status, body: claim.answer };
-  if (claim.state === "unknown" || claim.state === "done") return couldNotConfirm(claim.card);
+  if (claim.state === "unknown" || claim.state === "done") return (say.couldNotConfirm ?? couldNotConfirm)(claim.card);
   const age = now() - Date.parse(claim.updated_at);
   if (!(age > IN_FLIGHT_MS)) return stillConfirming(claim.card);
 
@@ -142,7 +153,7 @@ export async function answerFor(
   // written — answer as the request would have, and keep that answer for the next retry. Started: it
   // died while Square was being asked, so nobody knows; it is unknown from here on.
   if (claim.state === "charged") {
-    const answer = paidNotRecorded(claim);
+    const answer = (say.paidNotRecorded ?? paidNotRecorded)(claim);
     const moved = await store.move(key, { state: "done", answer, paymentId: claim.payment_id, note: "its request stopped after the charge" }, iso(now()), claim);
     if (!moved) return stillConfirming(claim.card);
     await stopped({ key, claim });
@@ -150,7 +161,7 @@ export async function answerFor(
   }
   const moved = await store.move(key, { state: "unknown", note: "its request stopped before Square answered" }, iso(now()), claim);
   if (moved) await stopped({ key, claim });
-  return couldNotConfirm(claim.card);
+  return (say.couldNotConfirm ?? couldNotConfirm)(claim.card);
 }
 
 /**
@@ -161,17 +172,17 @@ export async function answerFor(
  * `{ claims: null }` — 0371 is not pasted yet: the checkout runs without claims, as it did before.
  */
 export async function seenBefore(
-  store: ClaimStore, key: string, card: boolean, now: () => number, stopped: (s: Stopped) => Promise<void>,
+  store: ClaimStore, key: string, card: boolean, now: () => number, stopped: (s: Stopped) => Promise<void>, say: Say = {},
 ): Promise<{ answer: Answer } | { claims: ClaimStore | null }> {
   const r = await store.read(key);
   if (!r.ok) return r.missing ? { claims: null } : { answer: cannotStart(card) };
   if (!r.claim) return { claims: store };
-  return { answer: await answerFor(store, key, r.claim, now, stopped) };
+  return { answer: await answerFor(store, key, r.claim, now, stopped, say) };
 }
 
 /** Claim the key — the last step before the money. The unique key decides between two taps. */
 export async function claimKey(
-  claims: ClaimStore | null, key: string, row: ClaimRow, now: () => number, stopped: (s: Stopped) => Promise<void>,
+  claims: ClaimStore | null, key: string, row: ClaimRow, now: () => number, stopped: (s: Stopped) => Promise<void>, say: Say = {},
 ): Promise<{ answer: Answer } | { claims: ClaimStore | null }> {
   if (!claims) return { claims: null };
   const c = await claims.claim(key, row, iso(now()));
@@ -180,7 +191,7 @@ export async function claimKey(
   // Somebody holds it: the other tap of a double tap, most likely. Say what it would say.
   const r = await claims.read(key);
   if (!r.ok || !r.claim) return { answer: stillConfirming(row.card) };
-  return { answer: await answerFor(claims, key, r.claim, now, stopped) };
+  return { answer: await answerFor(claims, key, r.claim, now, stopped, say) };
 }
 
 /**

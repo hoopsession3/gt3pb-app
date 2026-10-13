@@ -8,6 +8,9 @@ import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { mixSummary, type Mix } from "@/lib/orderAhead";
 import { packPick, offeredDays, requestedDay, packCents } from "@/lib/packOrder";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
+import { chargeOnce, claimKey, placeOnce, seenBefore, type Answer, type Say, type Stopped } from "@/lib/chargeOnce";
+import { checkoutClaims } from "@/lib/checkoutClaims";
 import { money } from "@/lib/money";
 import { aboveShown, shownCents } from "@/lib/shownTotal";
 import { pickupDayWords } from "@/lib/pickupDay";
@@ -17,6 +20,8 @@ import { pickupDayWords } from "@/lib/pickupDay";
 // (no recurring), and the row is written with the service role so `paid` can't be forged. Mirrors
 // /api/checkout. Member-only: a reservation always belongs to an account (guests browse; the walk-up
 // window stays open to everyone).
+const reply = (a: Answer) => NextResponse.json(a.body, { status: a.status });
+
 async function post(req: Request) {
   const token = process.env.SQUARE_ACCESS_TOKEN;
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
@@ -49,6 +54,32 @@ async function post(req: Request) {
   // is never a dead end.
   const wantsCharge = !!body.sourceId;
   if (wantsCharge && (!token || !locationId)) return NextResponse.json({ error: "Card checkout isn't switched on yet." }, { status: 503 });
+
+  // A key the claims have seen (lib/chargeOnce, R5) is answered now, with what its first request said — before the drop's
+  // cutoff or the price is asked again. The pack's own words for "paid, not saved" and "couldn't confirm": it is picked
+  // up at the truck, so that is where it is sorted out.
+  // arrives-with: 0371 — before it is pasted the checkout runs without claims, as it did before them.
+  const now = () => Date.now();
+  const say: Say = {
+    paidNotRecorded: (c) => {
+      const ref = (c.payment_id || "").slice(-6).toUpperCase();
+      return { status: 200, body: { ok: true, paid: true, recorded: false, ref, totalCents: c.amount_cents, warn: `Paid${ref ? ` — ref ${ref}` : ""}. We've alerted the crew to add your pack; show this at pickup.` } };
+    },
+    couldNotConfirm: (card) => ({ status: 409, body: { pending: true, error: card
+      ? "We couldn't confirm your payment, and the crew has been told. Don't pay again — check My packs in a few minutes, or show this at pickup."
+      : "We couldn't confirm your pack went in, and the crew has been told. Check My packs before reserving again." } }),
+  };
+  const stopped = async ({ key, claim }: Stopped) => {
+    if (claim.card && claim.state === "charged") {
+      await raiseAlert({ severity: "critical", category: "money", kind: "ops_incident", title: "Paid pack may not have recorded — check the drop", body: `A card payment went through (${claim.payment_id ?? "no payment id"}, ${money(claim.amount_cents ?? 0)}) and the pack checkout stopped before the reservation was saved. If it isn't on the drop, add it or refund it.` });
+    } else if (claim.card) {
+      await raiseAlert({ severity: "critical", category: "money", kind: "ops_incident", title: "Pack charge status unknown — check Square", body: `A pack checkout stopped while Square was being asked to charge ${money(claim.amount_cents ?? 0)}. A payment, if there is one, carries the reference ${key}.` });
+    } else {
+      await raiseAlert({ severity: "important", category: "order", kind: "ops_incident", title: "A pay-at-pickup pack may not have saved — check the drop", body: `A pay-at-pickup reservation (${money(claim.amount_cents ?? 0)}) stopped while it was being saved. Check the drop for it.` });
+    }
+  };
+  const seen = await seenBefore(checkoutClaims(supabaseAdmin), idemKey, wantsCharge, now, stopped, say);
+  if ("answer" in seen) return reply(seen.answer);
   // The pack itself — name, phone, size, glass, and the mix rebuilt from trusted flavor keys only, totaling the pack
   // size. Read in lib/packOrder, which /api/reserve/change reads the same way.
   const asked = packPick(body);
@@ -88,93 +119,95 @@ async function post(req: Request) {
   const raised = aboveShown(amount, shownCents(body.expectedCents));
   if (raised) return NextResponse.json(raised, { status: 409 });
 
-  try {
-    // Charge only when a card token was supplied; otherwise it's a pay-at-pickup pre-order.
-    let paymentId: string | null = null;
-    let paid = false;
-    if (wantsCharge) {
-      // buyerEmail → Square emails the customer a receipt (enterprise round P3).
-      const charge = await chargeCard({ token: token!, locationId: locationId!, sourceId: body.sourceId!, amountCents: amount, note: `GT3PB order-ahead · ${size}-pack · ${glass} · pickup ${dropDate}`, idempotencyKey: idemKey, buyerEmail: await accountEmail(user.id) });
-      // `declined`: Square refused this card, nothing was charged — the page starts over with a new key
-      // (lib/idempotency.attemptVerdict). An answer that does not say is thrown (lib/squareServer) and
-      // lands in the 502 below, where the page keeps its key and its card token.
-      if (!charge.ok) return NextResponse.json({ error: charge.error, declined: true }, { status: 400 });
-      paymentId = charge.paymentId;
-      paid = true;
-      // Idempotency at the ORDER row — the same protection /api/checkout has, missing here until now.
-      // A retried request (a fast double-tap before the button visually disables, or a client retry
-      // after a lost response) carries the SAME idempotency key, so Square correctly returns the SAME
-      // paymentId for both — but without this check, both requests would independently insert a row,
-      // producing two funded pack reservations for one charge. (A unique index on
-      // drop_orders.payment_id backs this in the DB — see the accompanying migration.)
-      if (paymentId) {
-        // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by
-        // Square, not chosen by the caller — at most one row in the whole table, so a tenant
-        // filter would narrow nothing. A stricter key than tenant_id, not a looser one.
-        const { data: already } = await supabaseAdmin.from("drop_orders").select("id").eq("payment_id", paymentId).maybeSingle();
-        if (already) return NextResponse.json({ ok: true, id: already.id, paid: true, recorded: true });
-      }
-    } else {
-      // Pay-at-pickup pre-order: no payment_id to dedupe on — no charge happens at order time, so the
-      // check above never runs. idemKey is the same per-attempt key the client already sends for the
-      // charge path; check it here too, backed by the unique index in the accompanying migration,
-      // mirroring the payment_id check above for the paid path.
-      // scoped-by: idempotency_key carries a UNIQUE index (verified in production) and the value is issued by
-      // Square, not chosen by the caller — at most one row in the whole table, so a tenant
-      // filter would narrow nothing. A stricter key than tenant_id, not a looser one.
-      const { data: already } = await supabaseAdmin.from("drop_orders").select("id").eq("idempotency_key", idemKey).maybeSingle();
-      if (already) return NextResponse.json({ ok: true, id: already.id, paid: false, recorded: true });
-    }
+  // ONE KEY, ONE CHARGE (R5, 2026-10-13 — lib/chargeOnce, 0371, as the cup checkout). The key is claimed before Square is
+  // asked, or before a pay-at-pickup pack is written: a second tap while the first is still out hears "still confirming",
+  // and an answer Square never gave stays "we couldn't confirm" — the crew told, nothing under that key sent to Square
+  // again. It was a bare 502, "Reservation service unavailable", with nobody told, whether Square's answer was lost or
+  // the pack failed to save after the card was charged.
+  const held = await claimKey(seen.claims, idemKey, { channel: "packs", card: wantsCharge, amountCents: amount }, now, stopped, say);
+  if ("answer" in held) return reply(held.answer);
 
-    // Canonical customer link (0151) — member-only route, so user.id is the strong key; phone folds
-    // any prior guest orders on the same number into this record.
-    const customerId = (await supabaseAdmin.rpc("resolve_customer", { p_user_id: user.id, p_phone: phone || null, p_email: null, p_name: name })).data as string | null;
-    // The VALIDATED code rides the order row (0268) — coupon redemptions become a query, not a tally.
-    const row = { user_id: user.id, customer_id: customerId, name, phone, size, glass, mix, total_cents: amount, paid, payment_id: paymentId, idempotency_key: idemKey, drop_date: dropDate, benefit_code: acceptedCode(benefits, (body as { code?: string }).code) };
-    let { data: inserted, error: insErr } = await supabaseAdmin.from("drop_orders").insert(row).select("id").single();
-    if (insErr) ({ data: inserted, error: insErr } = await supabaseAdmin.from("drop_orders").insert(row).select("id").single()); // retry once
-    if (insErr) {
-      // A concurrent request can still lose this exact race even with the pre-insert checks above
-      // (both requests can pass them before either insert commits) — the DB unique indexes are the
-      // real backstop. Confirm the other request's row is there before raising a false "didn't
-      // record" alert, which would otherwise have staff double-add a reservation already on the drop.
-      if ((insErr as { code?: string }).code === "23505") {
-        const dupe = paymentId
-          // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by
-          // Square, not chosen by the caller — at most one row in the whole table, so a tenant
-          // filter would narrow nothing. A stricter key than tenant_id, not a looser one.
-          ? await supabaseAdmin.from("drop_orders").select("id").eq("payment_id", paymentId).maybeSingle()
-          // scoped-by: idempotency_key carries a UNIQUE index (verified in production) and the value is issued by
-          // Square, not chosen by the caller — at most one row in the whole table, so a tenant
-          // filter would narrow nothing. A stricter key than tenant_id, not a looser one.
-          : await supabaseAdmin.from("drop_orders").select("id").eq("idempotency_key", idemKey).maybeSingle();
-        if (dupe.data) return NextResponse.json({ ok: true, id: dupe.data.id, paid, recorded: true });
+  // The pack, written once the money is settled — charged (paid) or due at pickup. Its answer is kept on the claim and
+  // said again to every retry of this key. It cannot throw: with a card the money is taken by now, so a failure here is
+  // told to the crew and answered as "reserved, being added" — never as a checkout that failed.
+  const db = supabaseAdmin;   // checked at the top; the closure below runs after the charge
+  const recordPack = async (paymentId: string | null, paid: boolean): Promise<Answer> => {
+    try {
+      // Idempotency at the ORDER row, the line behind the claim (and the only dedupe while 0371 is unpasted): Square
+      // answers a repeated key with the SAME paymentId, and a pay-at-pickup retry carries the same key. Unique indexes
+      // on drop_orders.payment_id and idempotency_key back both.
+      // scoped-by: payment_id and idempotency_key each carry a UNIQUE index (verified in production); payment_id is issued
+      // by Square and the key is this caller's own — at most one row in the whole table, a stricter key than tenant_id.
+      const { data: already } = paymentId
+        ? await db.from("drop_orders").select("id").eq("payment_id", paymentId).maybeSingle()
+        : await db.from("drop_orders").select("id").eq("idempotency_key", idemKey).maybeSingle();
+      if (already) return { status: 200, body: { ok: true, id: already.id, paid, recorded: true, totalCents: amount } };
+
+      // Canonical customer link (0151) — member-only route, so user.id is the strong key; phone folds
+      // any prior guest orders on the same number into this record.
+      const customerId = (await db.rpc("resolve_customer", { p_user_id: user.id, p_phone: phone || null, p_email: null, p_name: name })).data as string | null;
+      // The VALIDATED code rides the order row (0268) — coupon redemptions become a query, not a tally.
+      const row = { user_id: user.id, customer_id: customerId, name, phone, size, glass, mix, total_cents: amount, paid, payment_id: paymentId, idempotency_key: idemKey, drop_date: dropDate, benefit_code: acceptedCode(benefits, (body as { code?: string }).code) };
+      let { data: inserted, error: insErr } = await db.from("drop_orders").insert(row).select("id").single();
+      if (insErr) ({ data: inserted, error: insErr } = await db.from("drop_orders").insert(row).select("id").single()); // retry once
+      if (insErr) {
+        // A concurrent request can still lose this exact race (both can pass the check above before either insert
+        // commits) — the unique indexes are the backstop. Confirm the other request's row is there before raising a
+        // false "didn't record" alert, which would have staff double-add a reservation already on the drop.
+        if ((insErr as { code?: string }).code === "23505") {
+          // scoped-by: as above — unique payment_id / idempotency_key, one row at most.
+          const dupe = paymentId
+            ? await db.from("drop_orders").select("id").eq("payment_id", paymentId).maybeSingle()
+            : await db.from("drop_orders").select("id").eq("idempotency_key", idemKey).maybeSingle();
+          if (dupe.data) return { status: 200, body: { ok: true, id: dupe.data.id, paid, recorded: true, totalCents: amount } };
+        }
+        const ref = (paymentId || "").slice(-6).toUpperCase();
+        const title = paid ? "Paid reservation didn't record — add it" : "Reservation didn't record — add it";
+        await raiseAlert({ severity: "critical", category: paid ? "money" : "order", kind: "ops_incident", title, body: `${paid ? `A card payment succeeded (${paymentId}, ${money(amount)}) but the` : "A pre-order"} reservation didn't save. ${name} · ${size}-pack ${glass} · ${mixSummary(mix)} · pickup ${pickupDayWords(dropDate)}.${paid ? " Add it and confirm in Square." : " Add it to the drop."}` });
+        return { status: 200, body: { ok: true, paid, recorded: false, ref, warn: `Reserved${ref ? ` — ref ${ref}` : ""}. We've alerted the crew; show this at pickup.` } };
       }
+
+      // Confirmation to the customer — SMS (they gave a phone for exactly this) + account email.
+      // Best-effort: a provider hiccup never fails the reservation.
+      await notifyCustomer({
+        phone,
+        email: await accountEmail(user.id),
+        // What it costs is what was charged or is due (R5): `amount`, with the member's perks and code — it said the pack's
+        // list price, so a founding member whose refills are free read "$40 at pickup" for a pack that was $0. The day is
+        // a day ("Sat, Oct 17"), not the key the row keeps.
+        subject: `GT3 — ${size}-pack reserved for ${pickupDayWords(dropDate)}`,
+        message: `GT3: your ${size}-pack (${mixSummary(mix)}) is reserved for pickup ${pickupDayWords(dropDate)}${paid ? ` — ${money(amount)} paid ✓` : ` — ${money(amount)} at pickup`}. We brew it fresh for pickup day.${glass === "return" ? " Rinse your empties and bring them along." : ""}`,
+      });
+
+      // 'important' (2026-10-11): an fyi reaches the inbox only now (supabase/functions/push/policy.ts), and this is the
+      // one line a new reservation gets — the push function's own alert for it was refused by 0232 (category 'drop').
+      await raiseAlert({ severity: "important", category: "order", kind: "reservation_new", subjectId: inserted?.id ?? undefined, title: "New reservation 🎉", body: `${name} reserved a ${size}-pack (${mixSummary(mix)}) for ${pickupDayWords(dropDate)} — ${money(amount)}, ${glass === "return" ? "bringing bottles back" : "new glass"}${paid ? "" : " · pay at pickup"}.` });
+      return { status: 200, body: { ok: true, id: inserted?.id ?? null, paid, recorded: true, totalCents: amount } };
+    } catch (e) {
       const ref = (paymentId || "").slice(-6).toUpperCase();
-      const title = paid ? "Paid reservation didn't record — add it" : "Reservation didn't record — add it";
-      await raiseAlert({ severity: "critical", category: paid ? "money" : "order", kind: "ops_incident", title, body: `${paid ? `A card payment succeeded (${paymentId}) but the` : "A pre-order"} reservation didn't save. ${name} · ${size}-pack ${glass} · ${mixSummary(mix)} · pickup ${dropDate}.${paid ? " Add it and confirm in Square." : " Add it to the drop."}` });
-      return NextResponse.json({ ok: true, paid, recorded: false, ref, warn: `Reserved${ref ? ` — ref ${ref}` : ""}. We've alerted the crew; show this at pickup.` });
+      await raiseAlert({ severity: "critical", category: paid ? "money" : "order", kind: "ops_incident", title: paid ? "Paid reservation didn't finish saving — check it" : "A reservation didn't finish saving — check it", body: `${paid ? `A card payment succeeded (${paymentId ?? "no payment id"}, ${money(amount)}) and saving` : "Saving"} ${name}'s ${size}-pack for ${pickupDayWords(dropDate)} broke (${errorMessage(e, 160)}). Check the drop; add what is missing${paid ? " or refund it" : ""}.` });
+      return { status: 200, body: { ok: true, paid, recorded: false, ref, warn: `Reserved${ref ? ` — ref ${ref}` : ""}. We've alerted the crew to finish it; show this at pickup.` } };
     }
+  };
 
-    // Confirmation to the customer — SMS (they gave a phone for exactly this) + account email.
-    // Best-effort: a provider hiccup never fails the reservation.
-    await notifyCustomer({
-      phone,
-      email: await accountEmail(user.id),
-      // What it costs is what was charged or is due (R5): `amount`, with the member's perks and code — it said the pack's
-      // list price, so a founding member whose refills are free read "$40 at pickup" for a pack that was $0. The day is
-      // a day ("Sat, Oct 17"), not the key the row keeps.
-      subject: `GT3 — ${size}-pack reserved for ${pickupDayWords(dropDate)}`,
-      message: `GT3: your ${size}-pack (${mixSummary(mix)}) is reserved for pickup ${pickupDayWords(dropDate)}${paid ? ` — ${money(amount)} paid ✓` : ` — ${money(amount)} at pickup`}. We brew it fresh for pickup day.${glass === "return" ? " Rinse your empties and bring them along." : ""}`,
-    });
+  // Pay at pickup: nothing is charged; the claim makes a retry hear this pack's answer instead of writing a second one,
+  // and a pack that was not written gives the key back.
+  if (!wantsCharge) return reply(await placeOnce({ claims: held.claims, key: idemKey, now, place: () => recordPack(null, false) }));
 
-    // 'important' (2026-10-11): an fyi reaches the inbox only now (supabase/functions/push/policy.ts), and this is the
-    // one line a new reservation gets — the push function's own alert for it was refused by 0232 (category 'drop').
-    await raiseAlert({ severity: "important", category: "order", kind: "reservation_new", subjectId: inserted?.id ?? undefined, title: "New reservation 🎉", body: `${name} reserved a ${size}-pack (${mixSummary(mix)}) for ${pickupDayWords(dropDate)} — ${money(amount)}, ${glass === "return" ? "bringing bottles back" : "new glass"}${paid ? "" : " · pay at pickup"}.` });
-    return NextResponse.json({ ok: true, id: inserted?.id ?? null, paid, recorded: true, totalCents: amount });
-  } catch {
-    return NextResponse.json({ error: "Reservation service unavailable" }, { status: 502 });
-  }
+  // buyerEmail → Square emails the customer a receipt (enterprise round P3). Read before the charge, so a failure
+  // reading it is a failure before anything was charged.
+  const buyerEmail = await accountEmail(user.id);
+  return reply(await chargeOnce({
+    claims: held.claims, key: idemKey, now,
+    charge: () => chargeCard({ token: token!, locationId: locationId!, sourceId: body.sourceId!, amountCents: amount, note: `GT3PB order-ahead · ${size}-pack · ${glass} · pickup ${dropDate}`, idempotencyKey: idemKey, buyerEmail }),
+    record: (paymentId) => recordPack(paymentId, true),
+    // chargeCard threw: Square's answer never came or did not say whether the card was charged. The claim is 'unknown'
+    // from here; this answer and every retry's are the same words, and the payment, if there is one, carries the key.
+    unknown: async (e) => {
+      await raiseAlert({ severity: "critical", category: "money", kind: "ops_incident", title: "Pack charge status unknown — check Square", body: `A card charge of ${money(amount)} for ${name}'s ${size}-pack (pickup ${pickupDayWords(dropDate)}) may or may not have gone through (${errorMessage(e, 160)}). A payment, if there is one, carries the reference ${idemKey}.` });
+      return say.couldNotConfirm!(true);
+    },
+  }));
 }
 
 export const POST = route("reserve", post);

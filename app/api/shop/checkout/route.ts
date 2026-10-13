@@ -12,8 +12,13 @@ import { stateCode, usZip } from "@/lib/usAddress";
 import { integrationTenant } from "@/lib/tenantScope";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
+import { chargeOnce, claimKey, seenBefore, type Answer, type Say, type Stopped } from "@/lib/chargeOnce";
+import { checkoutClaims } from "@/lib/checkoutClaims";
 
 export const runtime = "nodejs";
+
+const reply = (a: Answer) => NextResponse.json(a.body, { status: a.status });
 
 // SHOP checkout (0273) — merch on the 0271 storefront spine, the same Square one-time-charge discipline
 // as /api/reserve: the total is recomputed SERVER-SIDE from shop_products (never the client's number),
@@ -54,6 +59,33 @@ async function post(req: Request) {
   addr.state = state; addr.zip = zip;
   if (!email) return NextResponse.json({ error: "An email is required for your order + tracking." }, { status: 400 });
 
+  // ONE KEY, ONE CHARGE (R5, 2026-10-13 — lib/chargeOnce, 0371, as the cup checkout). The page keeps one key per
+  // checkout (components/ShopCheckout, useIdemKey); this route claims it before Square is asked, so a second tap while the
+  // first is still out hears "still confirming", and an answer Square never gave stays "we couldn't confirm" — the crew
+  // told, nothing under that key sent to Square again. It was a bare 502, "Checkout service unavailable", with nobody
+  // told, whether Square's answer was lost or the order failed to save after the card was charged.
+  // arrives-with: 0371 — before it is pasted the checkout runs without claims, as it did before them.
+  const idemKey = safeIdemKey(body.idempotencyKey);
+  const now = () => Date.now();
+  const say: Say = {
+    paidNotRecorded: (c) => {
+      const ref = (c.payment_id || "").slice(-6).toUpperCase();
+      return { status: 200, body: { ok: true, paid: true, recorded: false, ref, warn: `Paid${ref ? ` — ref ${ref}` : ""}. We've alerted the crew to add your order; we'll follow up by email.` } };
+    },
+    couldNotConfirm: () => ({ status: 409, body: { pending: true, error: "We couldn't confirm your payment, and the crew has been told. Don't pay again — we'll email you either way." } }),
+  };
+  const stopped = async ({ key, claim }: Stopped) => {
+    if (claim.state === "charged") {
+      await raiseAlert({ severity: "critical", category: "money", kind: "ops_incident", title: "Paid shop order may not have recorded — check shop orders", body: `A card payment went through (${claim.payment_id ?? "no payment id"}, ${money(claim.amount_cents ?? 0)}) and the shop checkout stopped before the order was saved. ${shipName}, ${email}. If it isn't in shop orders, add it or refund it.` });
+    } else {
+      await raiseAlert({ severity: "critical", category: "money", kind: "ops_incident", title: "Shop charge status unknown — check Square", body: `A shop checkout stopped while Square was being asked to charge ${money(claim.amount_cents ?? 0)} (${shipName}, ${email}). A payment, if there is one, carries the reference ${key}.` });
+    }
+  };
+  // Asked before the cart is priced again: a retry of an order that went through hears "paid", not "no longer available"
+  // because the catalog moved while its first answer was lost.
+  const seen = await seenBefore(checkoutClaims(supabaseAdmin), idemKey, true, now, stopped, say);
+  if ("answer" in seen) return reply(seen.answer);
+
   // Rebuild the cart from trusted product ids only, and price it from the catalog.
   const rawItems = Array.isArray(body.items) ? body.items.slice(0, 40) : [];
   const ids = [...new Set(rawItems.map((i) => String(i.product_id ?? "")).filter(Boolean))];
@@ -86,100 +118,116 @@ async function post(req: Request) {
   const total = subtotal; // shipping/tax can layer here later; POD ships flat via Apliiq for now
   if (total <= 0) return NextResponse.json({ error: "Cart total is $0 — nothing to charge." }, { status: 400 });
 
-  const idemKey = safeIdemKey(body.idempotencyKey);
-  try {
-    const charge = await chargeCard({ token, locationId, sourceId: body.sourceId, amountCents: total, note: `GT3 shop · ${lineItems.reduce((n, l) => n + l.qty, 0)} item(s)`, idempotencyKey: idemKey, buyerEmail: email });
-    // `declined`: Square refused this card and nothing was charged, so the page starts over with a new
-    // key (lib/idempotency.attemptVerdict). An answer that does not say is thrown by chargeCard and
-    // answered by the 502 below, where the page keeps its key and its card token.
-    if (!charge.ok) return NextResponse.json({ error: charge.error, declined: true }, { status: 400 });
-    const paymentId = charge.paymentId;
-    // Dedupe at the order row — a retried request carries the same idempotency key, so Square returns
-    // the same paymentId; the unique index on shop_orders.payment_id is the real backstop.
-    if (paymentId) {
-      // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by
-      // Square, not chosen by the caller — at most one row in the whole table, so a tenant
-      // filter would narrow nothing. A stricter key than tenant_id, not a looser one.
-      const { data: already } = await supabaseAdmin.from("shop_orders").select("id").eq("payment_id", paymentId).maybeSingle();
-      if (already) return NextResponse.json({ ok: true, id: (already as { id: string }).id, paid: true, recorded: true });
-    }
+  const held = await claimKey(seen.claims, idemKey, { channel: "shop", card: true, amountCents: total }, now, stopped, say);
+  if ("answer" in held) return reply(held.answer);
 
-    const customerId = (await supabaseAdmin.rpc("resolve_customer", { p_user_id: user?.id ?? null, p_phone: null, p_email: email, p_name: shipName })).data as string | null;
-    const orderRow = {
-      customer_id: customerId, user_id: user?.id ?? null, email, payment_id: paymentId,
-      subtotal_cents: subtotal, total_cents: total, ship_name: shipName, ship_address: addr, status: "needs_fulfillment",
-    };
-    let { data: order, error: insErr } = await supabaseAdmin.from("shop_orders").insert(orderRow).select("id").single();
-    if (insErr) ({ data: order, error: insErr } = await supabaseAdmin.from("shop_orders").insert(orderRow).select("id").single()); // retry once
-    if (insErr) {
-      if ((insErr as { code?: string }).code === "23505" && paymentId) {
+  // After the money: the order, its lines, the printer, the receipt. Its answer is kept on the claim and said again to
+  // every retry of this key. It cannot throw: the card is charged by now, so a failure here is told to the crew and
+  // answered as "paid, being added" — never as a checkout that failed.
+  const db = supabaseAdmin;   // checked at the top; the closure below runs after the charge
+  const recordShop = async (paymentId: string | null): Promise<Answer> => {
+    try {
+      // Dedupe at the order row — a retried request carries the same idempotency key, so Square returns
+      // the same paymentId; the unique index on shop_orders.payment_id is the real backstop.
+      if (paymentId) {
         // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by
         // Square, not chosen by the caller — at most one row in the whole table, so a tenant
         // filter would narrow nothing. A stricter key than tenant_id, not a looser one.
-        const dupe = await supabaseAdmin.from("shop_orders").select("id").eq("payment_id", paymentId).maybeSingle();
-        if (dupe.data) return NextResponse.json({ ok: true, id: (dupe.data as { id: string }).id, paid: true, recorded: true });
+        const { data: already } = await db.from("shop_orders").select("id").eq("payment_id", paymentId).maybeSingle();
+        if (already) return { status: 200, body: { ok: true, id: (already as { id: string }).id, paid: true, recorded: true } };
       }
-      const ref = (paymentId || "").slice(-6).toUpperCase();
-      await raiseAlert({ severity: "critical", category: "money", kind: "ops_incident", title: "Paid shop order didn't record — add it", body: `A card payment succeeded (${paymentId}) but the shop order didn't save. ${shipName} · ${lineItems.map((l) => `${l.qty}× ${l.title}`).join(", ")}. Confirm in Square and add it.` });
-      return NextResponse.json({ ok: true, paid: true, recorded: false, ref, warn: `Paid — ref ${ref}. We've alerted the crew; we'll follow up by email.` });
-    }
-    const orderId = (order as { id: string }).id;
-    await supabaseAdmin.from("shop_order_items").insert(
-      lineItems.map((l) => ({ order_id: orderId, product_id: l.product_id, title: l.title, variant: l.variant, qty: l.qty, unit_cents: l.unit_cents, cost_cents: l.cost_cents }))
-    );
 
-    // Hand the paid order to Apliiq for print-on-demand. Best-effort: a failure leaves the order in the
-    // crew "needs fulfillment" queue (money already collected), never blocks the customer's confirmation.
-    try {
-      const submit = await submitOrderToApliiq({
-        id: orderId,
-        ship: { name: shipName, street: addr.street, city: addr.city, state: addr.state, zip: addr.zip },
-        // EVERY line, not only the ones with a POD link. Filtering here is what let a half-order
-        // reach Apliiq: a two-item cart where one item had no link submitted the other and called
-        // the whole order "submitted", so the customer paid for two and one was never made.
-        // buildOrderPayload refuses the whole order instead, and it lands in the crew queue naming
-        // the item that is missing its SKU.
-        items: lineItems.map((l) => ({ id: l.product_id, title: l.title, qty: l.qty, priceCents: l.unit_cents, sku: l.apliiq_sku })),
-      });
-      if (submit.ok) {
-        // scoped-by: orderId is the id returned by this request's own INSERT thirty lines above — not a
-        // value any caller supplied. Nothing else can be named here.
-        await supabaseAdmin.from("shop_orders").update({ apliiq_order_id: submit.apliiqOrderId, status: "submitted", updated_at: new Date().toISOString() }).eq("id", orderId);
-      } else {
-        await raiseAlert({ severity: "important", category: "order", kind: "fulfillment", subjectId: orderId, title: "Shop order needs manual fulfillment", body: `Apliiq submit failed (${submit.error}) for ${shipName}'s order. It's paid and queued — submit it by hand.` });
+      const customerId = (await db.rpc("resolve_customer", { p_user_id: user?.id ?? null, p_phone: null, p_email: email, p_name: shipName })).data as string | null;
+      const orderRow = {
+        customer_id: customerId, user_id: user?.id ?? null, email, payment_id: paymentId,
+        subtotal_cents: subtotal, total_cents: total, ship_name: shipName, ship_address: addr, status: "needs_fulfillment",
+      };
+      let { data: order, error: insErr } = await db.from("shop_orders").insert(orderRow).select("id").single();
+      if (insErr) ({ data: order, error: insErr } = await db.from("shop_orders").insert(orderRow).select("id").single()); // retry once
+      if (insErr) {
+        if ((insErr as { code?: string }).code === "23505" && paymentId) {
+          // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by
+          // Square, not chosen by the caller — at most one row in the whole table, so a tenant
+          // filter would narrow nothing. A stricter key than tenant_id, not a looser one.
+          const dupe = await db.from("shop_orders").select("id").eq("payment_id", paymentId).maybeSingle();
+          if (dupe.data) return { status: 200, body: { ok: true, id: (dupe.data as { id: string }).id, paid: true, recorded: true } };
+        }
+        const ref = (paymentId || "").slice(-6).toUpperCase();
+        await raiseAlert({ severity: "critical", category: "money", kind: "ops_incident", title: "Paid shop order didn't record — add it", body: `A card payment succeeded (${paymentId}) but the shop order didn't save. ${shipName} · ${lineItems.map((l) => `${l.qty}× ${l.title}`).join(", ")}. Confirm in Square and add it.` });
+        return { status: 200, body: { ok: true, paid: true, recorded: false, ref, warn: `Paid — ref ${ref}. We've alerted the crew; we'll follow up by email.` } };
       }
-    } catch { /* keep the confirmation clean; the order is safely 'needs_fulfillment' */ }
+      const orderId = (order as { id: string }).id;
+      await db.from("shop_order_items").insert(
+        lineItems.map((l) => ({ order_id: orderId, product_id: l.product_id, title: l.title, variant: l.variant, qty: l.qty, unit_cents: l.unit_cents, cost_cents: l.cost_cents }))
+      );
 
-    // WHAT ACTUALLY HAPPENED TO THE RECEIPT. This block used to await notifyCustomer and throw the
-    // answer away, so when Ryan's first cap order sent no email on 2026-09-29 the order looked
-    // perfect from every angle: charged, recorded, at the printer, and a confirmation screen
-    // promising a receipt that was never sent.
-    //
-    // "off" is a STANDING condition — no provider key — and belongs on the integrations panel, not
-    // in an alert per order; alerting on it would fire on every sale until somebody muted it.
-    // "failed" and "no-address" are this order's problem and the crew has to hear about them.
-    let emailed = false;
-    try {
-      // The wording lives in lib/receipt so the resend button two days later sends the SAME text —
-      // a second receipt that does not match the first gives the customer two accounts of one
-      // order. tellCustomer sends it AND records it; there is no way to do one without the other.
-      const body = orderReceipt({ id: orderId, ship_name: shipName, total_cents: total, items: lineItems });
-      const sent = await tellCustomer({ orderId, email, kind: "receipt", ...body });
-      emailed = sent.ok;
-      if (sent.email === "failed" || sent.email === "no-address") {
-        await raiseAlert({
-          severity: "important", category: "order", kind: "fulfillment", subjectId: orderId,
-          title: "Shop receipt didn't send",
-          body: `${shipName} paid ${money(total)} and the confirmation promised an email. ${sent.email === "no-address" ? "No address was on the order." : `Sending to ${email} failed — ${sent.detail ?? "no reason given"}.`} Resend it from the order record once that is fixed.`,
+      // Hand the paid order to Apliiq for print-on-demand. Best-effort: a failure leaves the order in the
+      // crew "needs fulfillment" queue (money already collected), never blocks the customer's confirmation.
+      try {
+        const submit = await submitOrderToApliiq({
+          id: orderId,
+          ship: { name: shipName, street: addr.street, city: addr.city, state: addr.state, zip: addr.zip },
+          // EVERY line, not only the ones with a POD link. Filtering here is what let a half-order
+          // reach Apliiq: a two-item cart where one item had no link submitted the other and called
+          // the whole order "submitted", so the customer paid for two and one was never made.
+          // buildOrderPayload refuses the whole order instead, and it lands in the crew queue naming
+          // the item that is missing its SKU.
+          items: lineItems.map((l) => ({ id: l.product_id, title: l.title, qty: l.qty, priceCents: l.unit_cents, sku: l.apliiq_sku })),
         });
-      }
-    } catch { /* notify is best-effort — a provider hiccup must never fail a paid order */ }
-    await raiseAlert({ severity: "fyi", category: "order", kind: "shop_order_new", subjectId: orderId, title: "New shop order 🧢", body: `${shipName} — ${lineItems.map((l) => `${l.qty}× ${l.title}`).join(", ")} · ${money(total)}.` });
-    // `emailed` is what the confirmation screen uses instead of promising one unconditionally.
-    return NextResponse.json({ ok: true, id: orderId, paid: true, recorded: true, emailed });
-  } catch {
-    return NextResponse.json({ error: "Checkout service unavailable" }, { status: 502 });
-  }
+        if (submit.ok) {
+          // scoped-by: orderId is the id returned by this request's own INSERT thirty lines above — not a
+          // value any caller supplied. Nothing else can be named here.
+          await db.from("shop_orders").update({ apliiq_order_id: submit.apliiqOrderId, status: "submitted", updated_at: new Date().toISOString() }).eq("id", orderId);
+        } else {
+          await raiseAlert({ severity: "important", category: "order", kind: "fulfillment", subjectId: orderId, title: "Shop order needs manual fulfillment", body: `Apliiq submit failed (${submit.error}) for ${shipName}'s order. It's paid and queued — submit it by hand.` });
+        }
+      } catch { /* keep the confirmation clean; the order is safely 'needs_fulfillment' */ }
+
+      // WHAT ACTUALLY HAPPENED TO THE RECEIPT. This block used to await notifyCustomer and throw the
+      // answer away, so when Ryan's first cap order sent no email on 2026-09-29 the order looked
+      // perfect from every angle: charged, recorded, at the printer, and a confirmation screen
+      // promising a receipt that was never sent.
+      //
+      // "off" is a STANDING condition — no provider key — and belongs on the integrations panel, not
+      // in an alert per order; alerting on it would fire on every sale until somebody muted it.
+      // "failed" and "no-address" are this order's problem and the crew has to hear about them.
+      let emailed = false;
+      try {
+        // The wording lives in lib/receipt so the resend button two days later sends the SAME text —
+        // a second receipt that does not match the first gives the customer two accounts of one
+        // order. tellCustomer sends it AND records it; there is no way to do one without the other.
+        const body = orderReceipt({ id: orderId, ship_name: shipName, total_cents: total, items: lineItems });
+        const sent = await tellCustomer({ orderId, email, kind: "receipt", ...body });
+        emailed = sent.ok;
+        if (sent.email === "failed" || sent.email === "no-address") {
+          await raiseAlert({
+            severity: "important", category: "order", kind: "fulfillment", subjectId: orderId,
+            title: "Shop receipt didn't send",
+            body: `${shipName} paid ${money(total)} and the confirmation promised an email. ${sent.email === "no-address" ? "No address was on the order." : `Sending to ${email} failed — ${sent.detail ?? "no reason given"}.`} Resend it from the order record once that is fixed.`,
+          });
+        }
+      } catch { /* notify is best-effort — a provider hiccup must never fail a paid order */ }
+      await raiseAlert({ severity: "fyi", category: "order", kind: "shop_order_new", subjectId: orderId, title: "New shop order 🧢", body: `${shipName} — ${lineItems.map((l) => `${l.qty}× ${l.title}`).join(", ")} · ${money(total)}.` });
+      // `emailed` is what the confirmation screen uses instead of promising one unconditionally.
+      return { status: 200, body: { ok: true, id: orderId, paid: true, recorded: true, emailed } };
+    } catch (e) {
+      const ref = (paymentId || "").slice(-6).toUpperCase();
+      await raiseAlert({ severity: "critical", category: "money", kind: "ops_incident", title: "Paid shop order didn't finish saving — check it", body: `A card payment succeeded (${paymentId ?? "no payment id"}, ${money(total)}) and saving the order broke (${errorMessage(e, 160)}). ${shipName}, ${email}. Check shop orders; add what is missing or refund it.` });
+      return { status: 200, body: { ok: true, paid: true, recorded: false, ref, warn: `Paid${ref ? ` — ref ${ref}` : ""}. We've alerted the crew to finish your order; we'll follow up by email.` } };
+    }
+  };
+
+  return reply(await chargeOnce({
+    claims: held.claims, key: idemKey, now,
+    charge: () => chargeCard({ token, locationId, sourceId: body.sourceId!, amountCents: total, note: `GT3 shop · ${lineItems.reduce((n, l) => n + l.qty, 0)} item(s)`, idempotencyKey: idemKey, buyerEmail: email }),
+    record: (paymentId) => recordShop(paymentId),
+    // chargeCard threw: Square's answer never came or did not say whether the card was charged. The claim is 'unknown'
+    // from here; this answer and every retry's are the same words, and the payment, if there is one, carries the key.
+    unknown: async (e) => {
+      await raiseAlert({ severity: "critical", category: "money", kind: "ops_incident", title: "Shop charge status unknown — check Square", body: `A card charge of ${money(total)} for ${shipName} (${email}) may or may not have gone through (${errorMessage(e, 160)}). A payment, if there is one, carries the reference ${idemKey}.` });
+      return say.couldNotConfirm!(true);
+    },
+  }));
 }
 
 export const POST = route("shop/checkout", post);
