@@ -120,7 +120,7 @@ export const CHROME_CLEARANCE = 8;
 
 // ── THE CEILINGS — measured, not remembered (2026-10-01, after the one-box-per-level pass) ───────
 export const CEILING = {
-  cardRules: 637,        // 638 → 637 on 2026-10-12 (at integration of Release 2): the Monday audit's score chip (.osr-chip) went — the scores are the kit's segmented control. 640 → 638 on 2026-10-12 (the Live Ops round): the truck instrument's card (.liveinst) and the Pass's hero button (.svc-enter) went — each is one row on the kit's card (.mpanel). 641 → 640 on 2026-10-11 (Readiness): the details' in-place edit card (.ownerdet.editing) went — the edit is a sheet. 643 → 641 on 2026-10-10 (the customer pages): the route map's well and its tooltip went with the map. 646 → 643 the same day (the Command fold): the twelve's row cards, their fields and their Log buttons (.kpib-row, .kpib-in input, .kpib-in button) — the board is a list that reads, and logging is one sheet. 647 → 646 the same day (the Live Ops fold): the office route's own card (.oo) — it is a fold, an .mpanel like the rest of the runs. 648 → 647 on 2026-10-09 (the office link): /delivery's home-or-office cards (.aud) — an office is a line under the ZIP now. 649 → 648 the same day (the ordering pages): /delivery's first line sat in a card of its own (.dl-hero) — it is the step's line now. 650 → 649 the same day (One home): the GTM card (.gtm) went with its component — the briefing is Command's, the intake is Quick actions › File. 689 → 650 on 2026-10-09 (the forms round: 39 field rules that drew their own box — a radius with a border or a fill — went with the declarations the base field drew over, and three switch recipes are the kit's one). 689 the same day, counted with the stylesheet's comments set aside (a note above a rule hid it from the count: 539 were seen; Studio's calendar's Week · Month, two more, is the segmented control); 618 → 539 the same day (round 7d: 86 button and chip recipes the name and radius tests could not see — each a card of its own — are the kit's buttons, chips, segmented control and icon buttons). 723 → 618 (2026-10-09, the chip round: the chip, tag and pill-button recipes and the 16 last button recipes — each a card of its own — are the kit's chip, tag, count and buttons, one rule per primitive). 751 → 723 (2026-10-09, the button round: 28 rules that drew a button as a card of its own went with the 31 recipes). 756 → 751 (2026-10-08, the foundations round: dead card recipes went — .cell, .rsvp, .note-tasks-prev, .supply-sheet, .domain). rules that make a card: radius + (border | fill). 759 → 756 (2026-10-07, Ryan's "Ewww" on Command and Team): the portfolio's rows sit on the page (.osr-row, .osr-dot, .osr-owner were cards), the role badge and the invite pills went with the second door (.tm-badge, .tinv-role), the overdue line's box is utilities; + the team's week line (.cmd-week) and the score's dot. 810 → 766 (2026-10-07, the Tailwind round): 44 of them styled classes no screen names any more — the old account menu, the pre-kit display, the strategy board, the old craft steps, the isheet — and went with the 320 dead rules scripts/css.audit.mjs now keeps at zero. 809 → 810 (2026-10-06, the settings round, Settings as a list): + .set-list, the grouped list each Settings section's rows sit on (a card by what it is); + the segmented control's track and segment (.set-seg, .set-seg > button — Appearance's Day · Dark · Auto, 40px tall where 27px pills were); − the lane cards (.ws-card: one lane per row now); − the floating moon (.theme-toggle: Appearance lives in Settings). 810 → 809 (2026-10-06, the settings round): the "More controls" card (.set-card), five cards pointing out of Settings at controls that are in Settings now — retired with its map; Settings draws with .mpanel, SectionHeader and .pay-row and adds no card CSS. 809 → 810 (2026-10-05, the gesture round): "Discard your changes?" — the card a sheet asks the question on, over the sheet, at the thumb (.sheet2-ask-card); it is a card by what it is. The toast's Undo is a text action, not a pill, so it adds none. 810 → 809: the quiet Outlook line, retired with the not-configured bar it styled (2026-10-05). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04) 766 → 759 (2026-10-07, the pill round): the crew header's bell, Jump and Guide, the section pills and the count pill were each a card-making rule of their own; the kit's pills make one per primitive.
+  cardRules: 634,        // 637 → 634 on 2026-10-13 (R3, Today): the old stamp card's own recipes (.stamp, .stamp::after, .stamp-dot) went with components/StampCard — Today's card is one row on the page (the kit's InfoRow, MiniStamps) and the whole card is MemberCard. 638 → 637 on 2026-10-12 (at integration of Release 2): the Monday audit's score chip (.osr-chip) went — the scores are the kit's segmented control. 640 → 638 on 2026-10-12 (the Live Ops round): the truck instrument's card (.liveinst) and the Pass's hero button (.svc-enter) went — each is one row on the kit's card (.mpanel). 641 → 640 on 2026-10-11 (Readiness): the details' in-place edit card (.ownerdet.editing) went — the edit is a sheet. 643 → 641 on 2026-10-10 (the customer pages): the route map's well and its tooltip went with the map. 646 → 643 the same day (the Command fold): the twelve's row cards, their fields and their Log buttons (.kpib-row, .kpib-in input, .kpib-in button) — the board is a list that reads, and logging is one sheet. 647 → 646 the same day (the Live Ops fold): the office route's own card (.oo) — it is a fold, an .mpanel like the rest of the runs. 648 → 647 on 2026-10-09 (the office link): /delivery's home-or-office cards (.aud) — an office is a line under the ZIP now. 649 → 648 the same day (the ordering pages): /delivery's first line sat in a card of its own (.dl-hero) — it is the step's line now. 650 → 649 the same day (One home): the GTM card (.gtm) went with its component — the briefing is Command's, the intake is Quick actions › File. 689 → 650 on 2026-10-09 (the forms round: 39 field rules that drew their own box — a radius with a border or a fill — went with the declarations the base field drew over, and three switch recipes are the kit's one). 689 the same day, counted with the stylesheet's comments set aside (a note above a rule hid it from the count: 539 were seen; Studio's calendar's Week · Month, two more, is the segmented control); 618 → 539 the same day (round 7d: 86 button and chip recipes the name and radius tests could not see — each a card of its own — are the kit's buttons, chips, segmented control and icon buttons). 723 → 618 (2026-10-09, the chip round: the chip, tag and pill-button recipes and the 16 last button recipes — each a card of its own — are the kit's chip, tag, count and buttons, one rule per primitive). 751 → 723 (2026-10-09, the button round: 28 rules that drew a button as a card of its own went with the 31 recipes). 756 → 751 (2026-10-08, the foundations round: dead card recipes went — .cell, .rsvp, .note-tasks-prev, .supply-sheet, .domain). rules that make a card: radius + (border | fill). 759 → 756 (2026-10-07, Ryan's "Ewww" on Command and Team): the portfolio's rows sit on the page (.osr-row, .osr-dot, .osr-owner were cards), the role badge and the invite pills went with the second door (.tm-badge, .tinv-role), the overdue line's box is utilities; + the team's week line (.cmd-week) and the score's dot. 810 → 766 (2026-10-07, the Tailwind round): 44 of them styled classes no screen names any more — the old account menu, the pre-kit display, the strategy board, the old craft steps, the isheet — and went with the 320 dead rules scripts/css.audit.mjs now keeps at zero. 809 → 810 (2026-10-06, the settings round, Settings as a list): + .set-list, the grouped list each Settings section's rows sit on (a card by what it is); + the segmented control's track and segment (.set-seg, .set-seg > button — Appearance's Day · Dark · Auto, 40px tall where 27px pills were); − the lane cards (.ws-card: one lane per row now); − the floating moon (.theme-toggle: Appearance lives in Settings). 810 → 809 (2026-10-06, the settings round): the "More controls" card (.set-card), five cards pointing out of Settings at controls that are in Settings now — retired with its map; Settings draws with .mpanel, SectionHeader and .pay-row and adds no card CSS. 809 → 810 (2026-10-05, the gesture round): "Discard your changes?" — the card a sheet asks the question on, over the sheet, at the thumb (.sheet2-ask-card); it is a card by what it is. The toast's Undo is a text action, not a pill, so it adds none. 810 → 809: the quiet Outlook line, retired with the not-configured bar it styled (2026-10-05). 814 → 810: the old My Day's flag cards, its Ack/Open buttons and the inbox count — dead since one task, one place, removed with the rest of its CSS (2026-10-04). 818 → 817: the account sheet lost its stat tiles (2026-10-02). 817 → 815: My Day's own event card and its LIVE pill, folded into the one op card (2026-10-04). 815 → 814: the headline's "Top 3" cards, whose tasks were all on the screen already (one task, one place, 2026-10-04) 766 → 759 (2026-10-07, the pill round): the crew header's bell, Jump and Guide, the section pills and the count pill were each a card-making rule of their own; the kit's pills make one per primitive.
   rawRadii: 26,          // distinct border-radius values that are not a --r-* token, 50% or 0. 26 on 2026-10-09, counted with the comments set aside (23 were seen); 24 → 23 the same day (round 7d: the last 22px — the shop orders' filters and My Day's rhythm — went to the kit). 25 → 24 (2026-10-09, the chip round: the last 9px pill-ish buttons went to the kit). 27 → 26 (2026-10-07): the only rule with its value was a dead one (scripts/css.audit.mjs); 26 → 25 (the pill round): calc(var(--r-xl) - 3px) was the old segmented control's option
   dupSelectors: 74,      // 74 on 2026-10-12 (the Live Ops round: .liveinst and .liveinst.on, each declared twice — once more for its colour, once more for its go-live sweep — went with the instrument); 76 on 2026-10-11 (the KDS program's wave 2: .svc-grid, declared twice — once more for a window 940 wide — went with service mode's layout, which is app/tailwind.css's now); 77 on 2026-10-10 (Find Us 10: the hero's Where and its city line, each declared twice — once more for a phone under 430px — are one rule each, the facts being rows); 79 on 2026-10-09, counted with the comments set aside (42 were seen); 44 → 42 the same day (round 7d: .lst-live, declared twice, went with its recipe, and a note came to stand above one of .note-fu-h's three). 50 → 44 (2026-10-09, the chip round: selectors declared twice went with their recipes — .handle, .goal-chip, .cal-view, .oa-cta.ghost, .mypack-flag.paid, and .note-fu-add, the follow-up row and the + Add button that shared its name). 51 → 50 (2026-10-09, the button round: .spl-cta:focus-visible, declared twice, went with the splash's recipe). 52 → 51 (2026-10-08: .menucat .wn, declared twice, went with the dead menu draft). single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02; 54 → 53: .myday-live, declared twice, retired with the card it lived on, 2026-10-04; 53 → 52: .crew-jump .crew-jump-k, retired with Jump's pill, 2026-10-07)
   rootBlocks: 1,         // separate `:root{` blocks — tokens have one home (6 → 1 on 2026-10-02: motion, spring, eyebrow tracking, color-scheme and the radius scale folded in)
@@ -624,29 +624,37 @@ export const PROD_ROUTE = {
 // only), and the stop menu's read no longer loads lib/schemaSkew in every page — together −1 KB on most routes from the
 // first build. lib/copy lost the thirty-odd per-drink keys (−2 KB on one shared chunk) that the rest outweighs. Built
 // 9be8cb1 and this commit, served both, and gzipped what each route's HTML references.
+// 2026-10-13 (R3 of the customer audit, Today by state): every route but / +1 175 bytes gzipped (/ +694), and each of
+// them crossed the rounding line, +1 (/agreement and /delivery +2: they sat on it). Three shared chunks hold it: lib/copy's
+// Today keys — the lead, its line, the rows, Remind me — +688 net of the two keys Today let go (masthead.today,
+// stamp.badge_full); the order bar's half, now hooks the bar and Today share (components/useMyOrders: the member's open
+// orders, live, and On my way, Running late and Cancel), +415 net where the bar's own code was; and Order again replacing
+// the cart with an Undo (AppProvider), +72. One split held it there: the order the bar leads with and its number live in
+// lib/activeOrder, so the bar no longer brings the whole of lib/today into every page — −1 KB on seven routes from the
+// first build. Built 5681566 and this commit and gzipped what each route's prerendered HTML references.
 export const WEIGHT = {
-  "/truck":                    { js: 282, css: 89, chunks: 16 },
-  "/events":                   { js: 282, css: 89, chunks: 16 },
-  "/menu":                     { js: 270, css: 90, chunks: 15 },
-  "/reserve":                  { js: 290, css: 90, chunks: 16 },
-  "/delivery":                 { js: 288, css: 90, chunks: 16 },
-  "/3mpire":                   { js: 281, css: 90, chunks: 15 },
-  "/craft":                    { js: 269, css: 90, chunks: 15 },
-  "/book":                     { js: 270, css: 90, chunks: 15 },
-  "/academy":                  { js: 322, css: 90, chunks: 16 },
-  "/office":                   { js: 278, css: 90, chunks: 15 },
-  "/scan":                     { js: 269, css: 90, chunks: 15 },
-  "/architecture":             { js: 279, css: 90, chunks: 15 },
-  "/playbook":                 { js: 277, css: 90, chunks: 15 },
-  "/driver":                   { js: 276, css: 89, chunks: 15 },
-  "/agreement":                { js: 270, css: 90, chunks: 15 },
-  "/offer":                    { js: 281, css: 90, chunks: 15 },
-  "/built/gt3-built-k7m9x4q2": { js: 267, css: 90, chunks: 15 },
-  "/display":                  { js: 268, css: 90, chunks: 15 },
-  "/shop":                     { js: 294, css: 90, chunks: 16 },
-  "/primal":                   { js: 270, css: 90, chunks: 15 },
-  "/privacy":                  { js: 266, css: 90, chunks: 14 },
-  "/terms":                    { js: 266, css: 90, chunks: 14 },
+  "/truck":                    { js: 283, css: 89, chunks: 16 },
+  "/events":                   { js: 283, css: 89, chunks: 16 },
+  "/menu":                     { js: 271, css: 90, chunks: 15 },
+  "/reserve":                  { js: 291, css: 90, chunks: 16 },
+  "/delivery":                 { js: 290, css: 90, chunks: 16 },
+  "/3mpire":                   { js: 282, css: 90, chunks: 15 },
+  "/craft":                    { js: 270, css: 90, chunks: 15 },
+  "/book":                     { js: 271, css: 90, chunks: 15 },
+  "/academy":                  { js: 323, css: 90, chunks: 16 },
+  "/office":                   { js: 279, css: 90, chunks: 15 },
+  "/scan":                     { js: 270, css: 90, chunks: 15 },
+  "/architecture":             { js: 280, css: 90, chunks: 15 },
+  "/playbook":                 { js: 278, css: 90, chunks: 15 },
+  "/driver":                   { js: 277, css: 89, chunks: 15 },
+  "/agreement":                { js: 272, css: 90, chunks: 15 },
+  "/offer":                    { js: 282, css: 90, chunks: 15 },
+  "/built/gt3-built-k7m9x4q2": { js: 268, css: 90, chunks: 15 },
+  "/display":                  { js: 269, css: 90, chunks: 15 },
+  "/shop":                     { js: 295, css: 90, chunks: 16 },
+  "/primal":                   { js: 271, css: 90, chunks: 15 },
+  "/privacy":                  { js: 267, css: 90, chunks: 14 },
+  "/terms":                    { js: 267, css: 90, chunks: 14 },
   "/":                         { js: 276, css: 90, chunks: 15 },
 };
 
@@ -984,12 +992,22 @@ async function painted(fixture = FIXTURE) {
     await page.goto(pathToFileURL(fixture).href);
     await page.addStyleTag({ content: await utilitiesFor(readFileSync(fixture, "utf8")) });
     await page.waitForTimeout(500);
+    // Settled before it is measured (2026-10-13, R3): the sheet opens with sheet2pop — scale .98 → 1 over .22s — and a
+    // measure taken inside it read the checkout sheet's "Not now" at 43.6px for its 44 (min-height: 44px), on a busy
+    // machine where the wait above ran out first. Fonts are waited for, and every animation that ends is run to its end.
+    const settle = () => page.evaluate(async () => {
+      await document.fonts?.ready;
+      for (const a of document.getAnimations()) { try { if (a.effect?.getComputedTiming?.().iterations !== Infinity) a.finish(); } catch { /* one that cannot finish is left */ } }
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    });
+    await settle();
     const day = await measurePage(page);
     // The same DOM in the dark theme (the console's default; `.crew-day` is the day switch). A theme
     // changes colour, not structure — a border that exists only in one theme is a box the other
     // theme does not have, and the measurement sees it as one.
     await page.evaluate(() => document.querySelector(".app")?.classList.remove("crew-day"));
     await page.waitForTimeout(300);
+    await settle();
     const dark = await measurePage(page);
     return { ...day, dark };
   } catch (e) { return { error: `could not render the fixture — ${String(e.message || e).split("\n")[0]}` }; }

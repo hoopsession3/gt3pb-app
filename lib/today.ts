@@ -15,13 +15,11 @@
 // Pure: the page reads (components/today), this decides — so every state is pinned without a phone (scripts/smoke.cjs).
 
 import type { Ordering, OrderingStop } from "./ordering";
+import { ACTIVE, leadOrder, type TodayOrder } from "./activeOrder";
 
-/** An order as Today reads it — the member's own rows (RLS), lib/db's Order or anything shaped like it. */
-export type TodayOrder = {
-  id: string; items: string[]; status: string; created_at: string;
-  total_cents?: number | null; paid?: boolean | null; payment_status?: string | null; collected_at?: string | null;
-  ready_from?: string | null; eta_status?: "on_way" | "outside" | "late" | null; stop_id?: string | null;
-};
+// The order in progress and its number live in lib/activeOrder, which the order bar on every page imports alone.
+export { leadOrder, orderNo } from "./activeOrder";
+export type { TodayOrder } from "./activeOrder";
 
 export type TodayLead<T extends TodayOrder = TodayOrder> =
   | { kind: "unknown" }
@@ -31,16 +29,6 @@ export type TodayLead<T extends TodayOrder = TodayOrder> =
   | { kind: "later"; stop: OrderingStop | null; opensAt: string | null }
   | { kind: "none" };
 
-const ACTIVE = new Set(["new", "preparing", "ready"]);
-const RANK: Record<string, number> = { ready: 3, preparing: 2, new: 1 };
-
-/** The order Today leads with: the most advanced of the member's open cup orders (ready, then being made, then in),
- *  the newest first among equals — the one the order bar shows. */
-export function leadOrder<T extends TodayOrder>(orders: readonly T[]): T | null {
-  const open = orders.filter((o) => ACTIVE.has(o.status));
-  if (!open.length) return null;
-  return [...open].sort((a, b) => (RANK[b.status] - RANK[a.status]) || (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0))[0];
-}
 
 /** What Today leads with. `ordering` null = not read yet (or never readable): the page claims nothing about the truck. */
 export function todayLead<T extends TodayOrder>(orders: readonly T[], ordering: Ordering | null): TodayLead<T> {
@@ -77,9 +65,6 @@ export function drinksWords(items: readonly string[], nameOf: (slug: string) => 
   for (const id of items) n.set(id, (n.get(id) ?? 0) + 1);
   return [...n].map(([id, q]) => (q > 1 ? `${nameOf(id)} ×${q}` : nameOf(id))).join(" · ");
 }
-
-/** An order's number as the window calls it — the first four of its id, as the bar and the Pass print it. */
-export const orderNo = (id: string): string => `#${id.slice(0, 4).toUpperCase()}`;
 
 /** Where an order is, in four steps: in, being made, ready, picked up. */
 export const ORDER_STEPS = ["In", "Making", "Ready", "Picked up"] as const;

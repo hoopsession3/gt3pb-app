@@ -182,9 +182,13 @@ await db.exec(`alter table public.markets add column if not exists offer_disclai
 const snap = JSON.parse(readFileSync(join(ROOT, "supabase/schema.columns.json"), "utf8"));
 const colsOf = async (t) => (await rows(`select attname from pg_attribute where attrelid = ('public.' || $1)::regclass
   and attnum > 0 and not attisdropped order by attnum`, [t])).map((r) => r.attname);
+// The snapshot is production NOW; these tables are built as production had them before 0351. Columns production
+// gained after 0351 are set aside from it, by name — 0393 appended the Catalog's cup facts to products (2026-10-13).
+const AFTER_0351 = { products: ["cup_orderable", "caffeine", "contains", "tag", "when_text"] };
 for (const t of ["products", "member_benefits", "subscription_plans", "broadcasts", "markets"]) {
   const have = await colsOf(t);
-  ok(`before 0351: ${t} has production's columns, in production's order`, JSON.stringify(have) === JSON.stringify(snap[t]), { have, prod: snap[t] });
+  const prod = snap[t].filter((c) => !(AFTER_0351[t] ?? []).includes(c));
+  ok(`before 0351: ${t} has production's columns, in production's order`, JSON.stringify(have) === JSON.stringify(prod), { have, prod });
 }
 
 // What each table holds, so every read rule has something to say no to: a retired code, a retired
@@ -397,7 +401,7 @@ const another = (c, t) => ({
 })[t];
 const guarded = cols.filter(({ c }) => !CREW_MAY.includes(c));
 ok("products: the crew rule is tried on every other column production's products has (23)",
-  guarded.length === 23 && guarded.length === snap.products.length - CREW_MAY.length && guarded.every(({ c, t }) => !!another(c, t)),
+  guarded.length === 23 && guarded.length === snap.products.filter((c) => !AFTER_0351.products.includes(c)).length - CREW_MAY.length && guarded.every(({ c, t }) => !!another(c, t)),
   guarded.filter(({ c, t }) => !another(c, t)));
 const flowBefore = await P("flow");
 for (const { c, t } of guarded) {

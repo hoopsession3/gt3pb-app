@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useApp } from "./AppProvider";
 import Icon from "@/components/Icon";
 import { readyWords, waitingToOpen } from "@/lib/ordering";
-import { leadOrder, orderNo } from "@/lib/today";
+import { leadOrder, orderNo } from "@/lib/activeOrder";   // not lib/today: every page mounts this bar
 import { useMyActiveOrders, useOrderActions, ETA_WORDS } from "./useMyOrders";
 
 // A live "your order" banner for signed-in members — preparing → ready in realtime,

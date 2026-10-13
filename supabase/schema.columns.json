@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-12T21:44:35.056Z",
+    "pulled_at": "2026-10-13T11:53:09.968Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
-    "source": "migrations through 0391 (less the held 0376), built locally with the fallback query; production's own names matched them exactly in the Supabase SQL editor (218 relations, 2806 columns, the same fingerprint), and keep production's column order",
-    "relations": 218,
-    "columns": 2806
+    "source": "migrations through 0394 (less the held 0376), built locally with the fallback query; production's own names matched them exactly in the Supabase SQL editor after 0394 was applied (219 relations, 2817 columns, the same fingerprint), and keep production's column order",
+    "relations": 219,
+    "columns": 2817
   },
   "academy_acknowledgements": [
     "user_id",
@@ -784,6 +784,14 @@
     "user_id",
     "cents",
     "by_user",
+    "created_at"
+  ],
+  "cup_reminders": [
+    "id",
+    "user_id",
+    "stop_id",
+    "remind_at",
+    "fired_at",
     "created_at"
   ],
   "customer_messages": [
@@ -2018,7 +2026,12 @@
     "bulk_price_cents",
     "bulk_tier",
     "bulk_sort",
-    "econ_key"
+    "econ_key",
+    "cup_orderable",
+    "caffeine",
+    "contains",
+    "tag",
+    "when_text"
   ],
   "profiles": [
     "id",
