@@ -21,7 +21,7 @@ import { shareLink } from "@/lib/deviceActions";
 import { publicOrigin } from "@/lib/native";
 import { readyWords, waitingToOpen } from "@/lib/ordering";
 import { orderLine, orderTag, stepOf } from "@/lib/orderWords";
-import { etDay } from "@/lib/today";
+import { drinksWords, etDay } from "@/lib/today";
 import { holdTicket, isTicket, ticketPath, useHeldTickets } from "@/lib/tickets";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { refusalText } from "@/lib/refusal";
@@ -124,13 +124,18 @@ function TicketView({ t }: { t: string }) {
   const line = orderLine(tk.status, ahead ? readyWords({ state: "ahead", readyFrom: tk.ready_from }) : null);
   // What Square has given back is a fact it reports (0330, through the view), never this page's guess.
   const refunded = tk.refunded_cents || 0, refundedAll = tk.paid && refunded >= total && total > 0;
-  const tag = refundedAll ? "Refunded" : refunded > 0 ? "Partly refunded" : canceled ? orderTag("void") : tk.paid ? "Paid" : `${money(total)} at the window`;
-  const moneyBack = refundedAll ? "Refunded in full." : tk.refund_pending ? "The refund is on its way to your card." : "The crew is refunding your card in full.";
+  // The card is Today's card (R3): the state in the order's word on the tag, the drinks, the line and the money beside
+  // it, the four steps. Its tag says the state once; the money says the money — a canceled order's tag is not repeated.
+  const tag = orderTag(tk.status, ahead);
+  const paidWords = refundedAll ? `Refunded ${money(refunded)}` : canceled && !tk.paid ? "Not charged" : tk.paid ? `Paid ${money(total)}` : `${money(total)} at the window`;
+  const moneyBack = refundedAll ? "Refunded in full." : tk.refund_pending || refunded > 0 ? "The refund is on its way to your card." : "The crew is refunding your card in full.";
+  // Money back on an order that was made (a drink remade, a charge fixed) is said too — Square's word, not ours.
+  const backOnCard = !canceled && !refundedAll && refunded > 0 ? `${money(refunded)} went back to your card. ` : !canceled && tk.refund_pending ? "A refund is on its way to your card. " : "";
   const note = canceled
     ? tk.stop?.canceled
       ? `${tk.stop.name} was called off${tk.stop.cancel_reason ? ` — ${tk.stop.cancel_reason}` : ""}. ${tk.paid ? moneyBack : "Nothing was charged."}`
       : tk.paid ? moneyBack : "Nothing was charged."
-    : tk.status === "done" ? "Thanks for coming by." : "This page updates itself while you wait. Keep the link to come back to it.";
+    : `${refundedAll ? "Refunded in full. " : backOnCard}${tk.status === "done" ? "Thanks for coming by." : "This page updates itself while you wait — keep the link to come back to it."}`;
   const sub = [tk.for && `For ${tk.for}`, tk.stop && `pickup at the ${tk.stop.name} window`].filter(Boolean).join(" · ");
 
   const setEta = async (k: "on_way" | "outside" | "late") => {
@@ -171,11 +176,14 @@ function TicketView({ t }: { t: string }) {
       {sub && <p className="k-sub">{sub}</p>}
       <div className="k-card mt-5 flex flex-col gap-3" role="status" aria-live="polite">
         <div className="flex items-center justify-between gap-3">
-          <Eyebrow live={active}>{line}</Eyebrow>
-          <span className={`k-tag ${canceled || refunded > 0 ? "crit" : tk.paid ? "ok" : "gold"}`}>{tag}</span>
+          <Eyebrow live={active}>{drinksWords(tk.items, nameOf)}</Eyebrow>
+          <span className={`k-tag ${canceled ? "crit" : tk.status === "new" ? "gold" : "ok"}`}>{tag}</span>
+        </div>
+        <div className="flex items-start justify-between gap-3">
+          <p className="k-rsub min-w-0 whitespace-normal">{canceled ? note : line}</p>
+          <span className="whitespace-nowrap font-mono text-subhead text-cream-muted">{paidWords}</span>
         </div>
         {!canceled && <OrderSteps at={stepOf(tk.status)} />}
-        <p className="k-rsub whitespace-normal">{note}</p>
         {active && <div className="grid grid-cols-2 gap-2" role="group" aria-label="Tell the truck">{eta("on_way")}{eta("outside")}</div>}
         <div className="flex items-center justify-between gap-3">
           {active
@@ -183,6 +191,7 @@ function TicketView({ t }: { t: string }) {
             : <span />}
           <button type="button" className="btn-ter" onClick={() => { void share(); }}><Icon name="link" /> Share link</button>
         </div>
+        {!canceled && <p className="text-footnote text-cream-dim">{note}</p>}
       </div>
 
       <SectionHeader label="Receipt" annotation={`${etDay(tk.placed_at)}, ${clockTime(tk.placed_at)}`} />
@@ -190,7 +199,7 @@ function TicketView({ t }: { t: string }) {
         {rows.map(([k, c]) => receiptLine(k, c === null ? "" : money(c)))}
         {tk.tip_cents > 0 && receiptLine("Tip", money(tk.tip_cents))}
         <div className="my-1 border-t border-line" />
-        {receiptLine(canceled && !tk.paid ? "Nothing charged" : tk.paid ? (tk.card ? `Paid · ${tk.card}` : "Paid") : "Due at the window", money(total), true)}
+        {receiptLine(canceled && !tk.paid ? "Nothing charged" : tk.paid ? (tk.card ? `Paid · ${tk.card}` : "Paid") : "Due at the window", money(canceled && !tk.paid ? 0 : total), true)}
         {refunded > 0 && receiptLine("Refunded", `−${money(refunded)}`, true)}
       </div>
       {tk.stop && !tk.stop.canceled && (
@@ -202,7 +211,7 @@ function TicketView({ t }: { t: string }) {
 
       <div className="k-rows mt-4">
         {!user && (
-          <InfoRow lead="Card" leadSub="10 → 1" name="Every cup earns a stamp" sub={<span className="whitespace-normal">Join, and your next cups count toward a free one</span>}
+          <InfoRow lead="Card" name="Every cup earns a stamp" sub={<span className="whitespace-normal">Join, and your next cups count toward a free one</span>}
             bodyClick={() => router.push("/3mpire")} ariaLabel="Join to earn stamps" trailing={<span className="text-cream-dim"><Icon name="chevronRight" /></span>} />
         )}
         <InfoRow lead="Packs" leadSub="3·6·12" name="Saturday's drop" sub={<span className="whitespace-normal">Bottles brewed to order</span>}
