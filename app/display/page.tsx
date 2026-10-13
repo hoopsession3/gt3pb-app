@@ -2,14 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
-import { DRINKS, MENU } from "@/lib/menu";
+import { lineSubKey, sectionsOf } from "@/lib/drinks";
+import { useSiteCopy } from "@/lib/copy";
+import { CUP_MARKETS } from "@/lib/markets";
+import { useViewerMarket } from "@/components/useViewerMarket";
+import { useOrderingOpen } from "@/components/useOrderingOpen";
+import { useApp } from "@/components/AppProvider";
+import { useAvailability } from "@/lib/availability";
 import { pickForDisplay, type CleanReview } from "@/lib/reviews";
 import { CONNECT_APP, SCAN_TO_ORDER } from "@/lib/connect";
 import { supabase } from "@/lib/supabase";
 import Gt3Mark from "@/components/Gt3Mark";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
-import { apiUrl } from "@/lib/native";
 
 // TRUCK DISPLAY — a full-screen, auto-rotating loop for a tablet or TV at the bar. Five scenes: the
 // live menu, the craft/chemistry teaser, a cleaned + anonymized guest review, the brand line, and a
@@ -27,15 +32,17 @@ export default function DisplayPage() {
   const [step, setStep] = useState(0);
   const [qr, setQr] = useState("");
   const [craftQr, setCraftQr] = useState("");
-  // Live prices (products.price_cents, the one authority — same /api/menu the ordering screens use)
-  // so a reprice via Money > Menu shows up on this public board, not just the frozen lib/menu.ts copy.
-  const [prices, setPrices] = useState<Record<string, number>>({});
-  // Cents-aware: a flat .toFixed(0) rounded every live price to a whole dollar for display while
-  // checkout charges the exact cents — this board is the public in-truck price, so it must match
-  // what customers are actually charged. Matches the dollars()/money() convention used elsewhere.
-  // The third hand-written copy of money()'s trim rule — app/menu and components/DrinkSheet held
-  // the other two. Identical ternary, identical modulo, three files, one function.
-  const priceLabel = (id: keyof typeof DRINKS) => (prices[id] != null ? money(prices[id]) : DRINKS[id].px);
+  // THE BOARD IS THE MENU (2026-10-13, R2 — the Catalog is the menu): the same drinks, names, sections and prices as the
+  // menu in the app (AppProvider → /api/menu → lib/drinks), read again every five minutes because this screen never
+  // reloads. A drink taken off in the Catalog leaves the board; one 86'd says so in place of its price (realtime).
+  // The board hangs in the truck: a stop with its own menu (stop_menu, 0393) shows what it pours, as the app does — the
+  // rest leave the board. Its words are the menu's: the 86 and each section's subtitle are the same page copy.
+  const { menu, refreshMenu, priceCents } = useApp();
+  const { soldOut } = useAvailability();
+  const t = useSiteCopy();
+  const { market } = useViewerMarket(CUP_MARKETS);
+  const { stopMenu } = useOrderingOpen(true, market);
+  const sections = sectionsOf(stopMenu ? menu.filter((d) => stopMenu.has(d.slug)) : menu);
 
   useEffect(() => {
     QRCode.toDataURL(SCAN_TO_ORDER, { margin: 1, width: 640, color: { dark: "#15120D", light: "#ffffff" } }).then(setQr).catch(() => setQr(""));
@@ -43,12 +50,10 @@ export default function DisplayPage() {
   }, []);
 
   useEffect(() => {
-    let live = true;
-    const load = () => fetch(apiUrl("/api/menu")).then((r) => r.json()).then((d) => { if (live) setPrices(d.prices || {}); }).catch(() => {});
-    load();
-    const t = setInterval(load, 5 * 60 * 1000); // this screen never reloads — keep the board fresh across a shift
-    return () => { live = false; clearInterval(t); };
-  }, []);
+    refreshMenu();
+    const t = setInterval(refreshMenu, 5 * 60 * 1000); // this screen never reloads — keep the board fresh across a shift
+    return () => clearInterval(t);
+  }, [refreshMenu]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -76,11 +81,11 @@ export default function DisplayPage() {
         <div className="tvl-scene tvl-menu">
           <div className="tvl-mast"><Gt3Mark tone="cream" /><span className="tvl-mast-pb">Performance Bar</span></div>
           <div className="tvl-cats">
-            {MENU.map((cat) => (
-              <div key={cat.name} className="tvl-cat">
-                <div className="tvl-cat-h">{cat.name}<span>{cat.wn}</span></div>
-                {cat.rows.map((id) => (
-                  <div key={id} className="tvl-row"><span className="tvl-row-n">{DRINKS[id].n}</span><em className="tvl-row-p">{priceLabel(id)}</em></div>
+            {sections.map((sec) => (
+              <div key={sec.line} className="tvl-cat">
+                <div className="tvl-cat-h">{sec.line}<span>{t(lineSubKey(sec.line))}</span></div>
+                {sec.drinks.map((d) => (
+                  <div key={d.slug} className="tvl-row"><span className="tvl-row-n">{d.name}</span><em className="tvl-row-p">{soldOut.has(d.slug) ? t("menu.sold_out") : money(priceCents(d.slug))}</em></div>
                 ))}
               </div>
             ))}

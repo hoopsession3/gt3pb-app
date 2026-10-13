@@ -16,7 +16,6 @@ import MyDeliveries from "@/components/MyDeliveries";
 import Skeleton from "@/components/Skeleton";
 import Icon from "@/components/Icon";
 import { supabase } from "@/lib/supabase";
-import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
 import { clickable } from "@/lib/a11y";
 import { useSiteCopy } from "@/lib/copy";
@@ -37,7 +36,7 @@ function histDate(iso: string) {
 
 // Real order history + one-tap reorder (replaces the old stub row).
 function OrderHistory() {
-  const { reorder } = useApp();
+  const { reorder, nameOf } = useApp();
   const { user } = useAuth();
   const t = useSiteCopy();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -58,11 +57,11 @@ function OrderHistory() {
       {(showAll ? orders : orders.slice(0, 4)).map((o) => (
         <div className="hist-row" key={o.id}>
           <div className="hist-row-l">
-            <b>{o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ")}</b>
+            <b>{o.items.map(nameOf).join(" · ")}</b>
             <span>{histDate(o.created_at)} · {isSettled(o) ? "Paid" : "Pre-order"}</span>
           </div>
           <span className="hist-px">{money(o.total_cents)}</span>
-          <button className="k-icon-btn shrink-0" onClick={() => reorder(o.items as DrinkId[])} aria-label="Order this again">↻</button>
+          <button className="k-icon-btn shrink-0" onClick={() => reorder(o.items)} aria-label="Order this again">↻</button>
         </div>
       ))}
       {orders.length > 4 && (

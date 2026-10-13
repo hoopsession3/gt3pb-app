@@ -307,6 +307,23 @@ try {
       await rp.click(".sheet2 .btn-pri.btn-wide"); await sleep(600);
       const cartText = await rp.$eval(".cartbar", (e) => e.textContent).catch(() => "");
       ok("order · adding it shows the cart bar with one drink and its price", /1 drink/.test(cartText) && /\$\d/.test(cartText), cartText);
+      // THE PRICE ADDS IT (2026-10-13, R2 of the customer audit): the + on the next drink's price adds it and becomes its
+      // counter in place — the rows under it do not move (the first counter was 4px shorter than the pill, and every row
+      // below jumped), and its − and + wear the page's face, not the browser's grey one (the first build's did).
+      const tops = () => rp.$$eval(".entry", (els) => els.slice(0, 5).map((e) => Math.round(e.getBoundingClientRect().top)));
+      const second = rp.locator(".entry").nth(1);
+      const t0 = await tops();
+      await second.locator("button.entry-px.order").click(); await sleep(400);
+      const t1 = await tops();
+      const qty = await second.locator(".entry-qty").evaluate((q) => ({
+        text: q.textContent.replace(/\s+/g, " ").trim(),
+        faces: [...q.querySelectorAll("button")].map((b) => { const cs = getComputedStyle(b); return `${cs.backgroundColor}/${cs.borderTopWidth}/${cs.appearance}`; }),
+      })).catch(() => null);
+      ok("menu · the + on a price adds the drink and becomes its counter, in place — nothing under it moves",
+        !!qty && /^−\s*1 · \$\d+\s*\+$/.test(qty.text) && t0.join() === t1.join() && /2 drinks/.test(await rp.$eval(".cartbar", (e) => e.textContent).catch(() => "")), JSON.stringify({ qty, t0, t1 }));
+      ok("menu · the counter's − and + paint no face of their own", !!qty && qty.faces.length === 2 && qty.faces.every((f) => f === "rgba(0, 0, 0, 0)/0px/none"), JSON.stringify(qty?.faces));
+      await second.getByRole("button", { name: /^Remove one / }).click(); await sleep(400);
+      ok("menu · its − takes the drink back out, and the price is a + again", (await second.locator("button.entry-px.order").count()) === 1 && /1 drink/.test(await rp.$eval(".cartbar", (e) => e.textContent).catch(() => "")) && (await tops()).join() === t0.join());
       // Ask us, beside the avatar
       await rp.click('button[aria-label^="Ask us"]'); await sleep(500);
       ok("phone · Ask us, beside the account avatar, opens the concierge", !!(await rp.$("#concierge-title")));

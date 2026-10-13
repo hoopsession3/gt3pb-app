@@ -17,18 +17,23 @@ import { useRealtimeTable } from "./realtime";
 //
 // Several components use this hook at once (menu, drink sheet, checkout, AppProvider);
 // useRealtimeTable gives each instance its own uniquely-named channel, so they stay independent.
-export function useAvailability(): { soldOut: Set<string>; inactive: Set<string>; activeTotal: number } {
-  const [state, setState] = useState<{ soldOut: Set<string>; inactive: Set<string>; activeTotal: number }>({ soldOut: new Set(), inactive: new Set(), activeTotal: 0 });
+// `names` (2026-10-13, R2 — the Catalog is the menu): each product's name as the Catalog says it, live — so a drink added
+// mid-shift prints by its name on the Pass the moment its row exists, and the crew (who read every row) see a drink taken
+// off the menu by its name in the history. AppProvider's nameOf reads it after the menu's own rows.
+type Availability = { soldOut: Set<string>; inactive: Set<string>; activeTotal: number; names: ReadonlyMap<string, string> };
+export function useAvailability(): Availability {
+  const [state, setState] = useState<Availability>({ soldOut: new Set(), inactive: new Set(), activeTotal: 0, names: new Map() });
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from("products").select("slug, sold_out, active");
+    const { data } = await supabase.from("products").select("slug, sold_out, active, name");
     if (!data) return;
-    const rows = data as { slug: string; sold_out: boolean | null; active: boolean | null }[];
+    const rows = data as { slug: string; sold_out: boolean | null; active: boolean | null; name: string | null }[];
     const inactive = new Set(rows.filter((p) => p.active === false).map((p) => p.slug));
     setState({
       soldOut: new Set(rows.filter((p) => p.sold_out).map((p) => p.slug)),
       inactive,
       activeTotal: rows.length - inactive.size,
+      names: new Map(rows.filter((p) => (p.name ?? "").trim()).map((p) => [p.slug, (p.name as string).trim()])),
     });
   }, []);
   useRealtimeTable("products", load, { loadOnMount: true });

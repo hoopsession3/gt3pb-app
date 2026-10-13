@@ -120,7 +120,12 @@ export const MEASURE = `(() => {
       const px = (v) => (/px$/.test(v) ? parseFloat(v) : null);
       const t = px(ps.top), l = px(ps.left), bt = px(ps.bottom), rt = px(ps.right);
       if (t === null || l === null || bt === null || rt === null) continue;
-      x0 = Math.min(x0, b.left + l); y0 = Math.min(y0, b.top + t); x1 = Math.max(x1, b.right - rt); y1 = Math.max(y1, b.bottom - bt);
+      // …where its translate puts it (2026-10-13, R2 — the menu's price pills): hit-44 centres its 44px with top/left 50%
+      // and translate(-50%, -50%), and read without the translate its box sat half a target down and to the right
+      const m6 = (ps.transform || "").startsWith("matrix(") ? ps.transform.slice(7, -1).split(",").map(Number) : [];
+      const pure = m6.length === 6 && m6[0] === 1 && m6[1] === 0 && m6[2] === 0 && m6[3] === 1;
+      const dx = pure ? m6[4] : 0, dy = pure ? m6[5] : 0;
+      x0 = Math.min(x0, b.left + l + dx); y0 = Math.min(y0, b.top + t + dy); x1 = Math.max(x1, b.right - rt + dx); y1 = Math.max(y1, b.bottom - bt + dy);
     }
     // what reaches past the element is cut back by an ancestor that clips; the element itself is not
     // (a row scrolled half out of view is not a smaller target — it is one you scroll to)
@@ -131,8 +136,12 @@ export const MEASURE = `(() => {
       // …and a target scrolled wholly out of that scroller is one you scroll to: its reach is judged in view, not
       // cut to the scroller's edge it sits beyond (2026-10-09: the rule sheet's deadline chips, below the fold)
       if (b.bottom <= c.top || b.top >= c.bottom || b.right <= c.left || b.left >= c.right) continue;
-      x0 = Math.min(b.left, Math.max(x0, c.left)); y0 = Math.min(b.top, Math.max(y0, c.top));
-      x1 = Math.max(b.right, Math.min(x1, c.right)); y1 = Math.max(b.bottom, Math.min(y1, c.bottom));
+      // …and one the scroller cuts in two is too, on the axis it scrolls (2026-10-13, R2: the menu's last price pill on
+      // the fold above the tab bar measured its own 25px, its reach cut at the fold and none of it counted above)
+      const cutX = !/(auto|scroll)/.test(cs.overflowX) || (b.left >= c.left && b.right <= c.right);
+      const cutY = !/(auto|scroll)/.test(cs.overflowY) || (b.top >= c.top && b.bottom <= c.bottom);
+      if (cutX) { x0 = Math.min(b.left, Math.max(x0, c.left)); x1 = Math.max(b.right, Math.min(x1, c.right)); }
+      if (cutY) { y0 = Math.min(b.top, Math.max(y0, c.top)); y1 = Math.max(b.bottom, Math.min(y1, c.bottom)); }
     }
     return { left: x0, top: y0, right: x1, bottom: y1, width: x1 - x0, height: y1 - y0 };
   };

@@ -102,7 +102,7 @@ function LaneHead({ lane, label, n, folded, onFold }: { lane: keyof Lanes; label
 /** The board: the lanes, their tickets, and what the board says about itself. */
 function PassBoard() {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast, nameOf } = useApp();
   const { user, profile } = useAuth();
   const me = user?.id ?? null;
   const admin = canOf(profile).admin;
@@ -259,7 +259,7 @@ function PassBoard() {
   // A ticket's clock starts when its order can be made (lib/ordering, 0343): placed ahead of a stop,
   // that is the stop's opening — not 7am, three hours before the truck could have made it.
   const late = lateOf(active, now);
-  const tickets = (list: Order[], action: string) => list.map((o) => <Ticket key={o.id} o={o} action={action} flash={flash.has(o.id)} me={me} admin={admin} act={act} />);
+  const tickets = (list: Order[], action: string) => list.map((o) => <Ticket key={o.id} o={o} action={action} flash={flash.has(o.id)} me={me} admin={admin} act={act} nameOf={nameOf} />);
 
   return (
     <div className="adm-sec pass-board" id="kitchen-pass" ref={board} tabIndex={-1} onFocus={onFocus}>
@@ -327,7 +327,7 @@ function PassBoard() {
                   {st.key === "ready" && done.length > 0 && (
                     <div className="kds-stage" data-lane="done">
                       <LaneHead lane="done" label="Just completed" n={done.length} folded={!trayOpen} onFold={() => setTrayOpen((v) => !v)} />
-                      {(trayOpen ? done : done.slice(0, TRAY_SHOWN)).map((o) => <DoneTicket key={o.id} o={o} me={me} admin={admin} act={act} />)}
+                      {(trayOpen ? done : done.slice(0, TRAY_SHOWN)).map((o) => <DoneTicket key={o.id} o={o} me={me} admin={admin} act={act} nameOf={nameOf} />)}
                     </div>
                   )}
                 </div>

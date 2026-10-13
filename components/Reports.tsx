@@ -9,6 +9,7 @@ import { Segmented } from "@/components/controls";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { channelRows, costBasisWords, type Channels } from "@/lib/home";
 import AsyncSection from "./AsyncSection";
+import { useApp } from "./AppProvider";
 
 // Sales actuals — the first reporting dashboard (MONEY tab). Real revenue + per-event actuals +
 // product mix + daily trend, read from one owner-and-admin RPC. On-brand bars, no chart dependency.
@@ -22,12 +23,14 @@ import AsyncSection from "./AsyncSection";
 // shows its own orders and its own average (lib/home channelRows). The margin is an estimate and says what it rests on:
 // how many of the menu's products are costed, or that 30% is assumed (lib/home costBasisWords).
 
-const DRINKS: Record<string, string> = { rise: "RISE", flow: "FLOW", dusk: "DUSK", tide: "TIDE", forge: "FORGE", hunt: "HUNT", wild: "WILD" };
-const label = (k: string) => DRINKS[k] || (k || "—").toUpperCase();
 const usd2 = (cents: number) => "$" + ((cents || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const RANGES = [7, 30, 90];
 
 export default function Reports() {
+  // A product's name is the Catalog's (R2, 2026-10-13: the report kept its own seven-drink list, so KING ME read "KINGME"
+  // and a drink added in the Catalog its slug).
+  const { nameOf } = useApp();
+  const label = (k: string) => (k ? nameOf(k) : "—");
   const [days, setDays] = useState(30);
   const loader = useCallback(() => fetchSalesReport(days), [days]);
   const sales = useAsyncData<SalesReport>(loader, [loader]);

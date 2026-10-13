@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ClaudeMsg } from "@/lib/anthropic";
 import { menuKnowledge } from "@/lib/conciergeKb";
+import { menuOf, seedMenu, type Drink } from "@/lib/drinks";
+import { readMenuRows } from "@/lib/drinksRead";
 import { ownerCorrections, logConvo } from "@/lib/agentKnowledge";
 import { claimSafe, CLAIM_FALLBACK } from "@/lib/claimGuard";
 import { etTimeLabel, etToday } from "@/lib/dates";
@@ -90,9 +92,12 @@ async function post(req: Request) {
   // uses etTimeLabel for exactly this reason; the day key three lines up was still UTC.
   const today = etToday();
   let prices = "", live = "", events = "", plans = "";
+  // The menu it describes is the Catalog's (R2, 2026-10-13) — the drinks a guest can order, in the menu's words. The code
+  // list's menu when the Catalog can't be read, as the app itself shows.
+  let drinks: Drink[] = seedMenu();
   if (supabaseAdmin) {
     const [pr, ls, ev, pl] = await Promise.all([
-      supabaseAdmin.from("products").select("slug, name, price_cents, active").eq("active", true),
+      readMenuRows(supabaseAdmin),
       supabaseAdmin.from("live_status").select("is_live, current_stop_id").eq("id", 1).maybeSingle(),
       // PUBLIC events only — this is a guest-facing context and the service role bypasses RLS,
       // so the visibility rule applies here too (panel catch: internal ops rows and private
@@ -105,7 +110,8 @@ async function post(req: Request) {
         .gte("day", today).order("day").limit(8),
       supabaseAdmin.from("subscription_plans").select("label, price_cents, period_days, active").eq("active", true).order("price_cents"),
     ]);
-    prices = (pr.data ?? []).map((p: any) => `- ${p.name ?? p.slug}: ${money(p.price_cents)}`).join("\n");
+    if (!pr.error && pr.rows.length) drinks = menuOf(pr.rows);
+    prices = pr.rows.filter((p) => p.active !== false && typeof p.price_cents === "number").map((p) => `- ${p.name ?? p.slug}: ${money(p.price_cents as number)}`).join("\n");
     if (ls.data) {
       let where = "";
       // The switch is a truck pouring only while the stop it names is still a stop (C1, lib/ordering liveSwitchOn) — the
@@ -147,7 +153,7 @@ async function post(req: Request) {
   const system = `${SYSTEM}${corrections ? `\n\n${corrections}` : ""}
 
 === MENU (canonical copy; use these descriptions verbatim in spirit) ===
-${menuKnowledge()}
+${menuKnowledge(drinks)}
 
 === CURRENT PRICES (live; prefer these over any price in the menu copy) ===
 ${prices || "(check at the window)"}

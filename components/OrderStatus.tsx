@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
-import { DRINKS, type DrinkId } from "@/lib/menu";
+import { useApp } from "./AppProvider";
 import type { Order } from "@/lib/db";
 import { saveSnapshot, readSnapshot, isNetworkError } from "./offline";
 import { snapshotUsable } from "@/lib/offline";
@@ -25,6 +25,7 @@ const RANK: Record<string, number> = { ready: 3, preparing: 2, new: 1 };
 
 export default function OrderStatus() {
   const confirm = useConfirm();
+  const { nameOf } = useApp(); // the Catalog's names (R2)
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [canceling, setCanceling] = useState(false);
@@ -76,7 +77,7 @@ export default function OrderStatus() {
   if (orders.length === 0) return null;
   // Surface the most-advanced active order (ready beats preparing beats new), newest first.
   const o = [...orders].sort((a, b) => (RANK[b.status] - RANK[a.status]) || (a.created_at < b.created_at ? 1 : -1))[0];
-  const items = o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ");
+  const items = o.items.map(nameOf).join(" · ");
   const paid = isSettled(o);
   // Placed ahead of a stop (0343): "Order received" for hours read as "any minute now". It says when.
   const label = o.status === "new" && o.ready_from && waitingToOpen(o)

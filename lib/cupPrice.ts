@@ -1,4 +1,4 @@
-import { DRINKS, type DrinkId } from "./menu";
+import { fallbackCents, nameFrom } from "./drinks";
 import { priceForSlug, type Benefit } from "./benefits";
 import { money } from "./money";
 
@@ -14,11 +14,11 @@ import { money } from "./money";
 // the amount the page showed: a server that would charge anything else refuses before the card, with the new amount
 // (priceChangedWords). Pure — the quote, the charge and the tests all run this.
 
-export type CupLine = { slug: DrinkId; name: string; qty: number; baseCents: number; cents: number; perk: string | null };
+export type CupLine = { slug: string; name: string; qty: number; baseCents: number; cents: number; perk: string | null };
 export type CupPrice = { lines: CupLine[]; subtotal: number };
 
-/** The price the code itself carries — the last fallback, as it always was. */
-export const pxCents = (slug: DrinkId): number => Math.round(parseFloat(DRINKS[slug].px.replace("$", "")) * 100);
+/** The price the code list carries — the last fallback, as it always was; null for a drink it doesn't know. */
+export const pxCents = (slug: string): number | null => fallbackCents(slug);
 
 /** The perk that lowers this cup's price, by its label — the one priceForSlug picks; null when none does. */
 export function perkFor(benefits: readonly Benefit[], slug: string, baseCents: number): string | null {
@@ -28,18 +28,19 @@ export function perkFor(benefits: readonly Benefit[], slug: string, baseCents: n
   return hit?.label?.trim() || "Member price";
 }
 
-/** The cart, priced: products' price first, Square's, then the code's; each cup through the caller's perks. A slug the
- *  menu does not know is named, never priced. Lines keep the cart's order. */
-export function priceCups(items: readonly string[], productPrices: Readonly<Record<string, number>>, squarePrices: Readonly<Record<string, number>>, benefits: readonly Benefit[]): CupPrice | { unknown: string } {
-  const qty = new Map<DrinkId, number>();
-  for (const id of items) {
-    if (!DRINKS[id as DrinkId]) return { unknown: id };
-    qty.set(id as DrinkId, (qty.get(id as DrinkId) ?? 0) + 1);
-  }
-  const lines: CupLine[] = [...qty].map(([slug, n]) => {
+/** The cart, priced: products' price first, Square's, then the code list's; each cup through the caller's perks. A drink
+ *  nothing prices is named, never charged. Since the Catalog is the menu (R2, 2026-10-13) any drink on it is priced —
+ *  the code list no longer decides which drinks exist; lib/catalog cartRefusal has already asked the Catalog. Names are
+ *  the caller's (lib/drinks nameFrom: the Catalog's). Lines keep the cart's order. */
+export function priceCups(items: readonly string[], productPrices: Readonly<Record<string, number>>, squarePrices: Readonly<Record<string, number>>, benefits: readonly Benefit[], nameOf: (slug: string) => string = (slug) => nameFrom(null, slug)): CupPrice | { unknown: string } {
+  const qty = new Map<string, number>();
+  for (const id of items) qty.set(id, (qty.get(id) ?? 0) + 1);
+  const lines: CupLine[] = [];
+  for (const [slug, n] of qty) {
     const base = productPrices[slug] ?? squarePrices[slug] ?? pxCents(slug);
-    return { slug, name: DRINKS[slug].n, qty: n, baseCents: base, cents: priceForSlug(benefits as Benefit[], slug, base), perk: perkFor(benefits, slug, base) };
-  });
+    if (base == null || !(base > 0)) return { unknown: slug };
+    lines.push({ slug, name: nameOf(slug), qty: n, baseCents: base, cents: priceForSlug(benefits as Benefit[], slug, base), perk: perkFor(benefits, slug, base) });
+  }
   return { lines, subtotal: lines.reduce((s, l) => s + l.cents * l.qty, 0) };
 }
 

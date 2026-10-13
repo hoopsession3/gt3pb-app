@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { DRINKS, type DrinkId } from "@/lib/menu";
+import { nameFrom } from "@/lib/drinks";
+import { readMenuRows } from "@/lib/drinksRead";
 import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { squarePriceMap } from "@/lib/squareCatalog";
 import { priceCups, priceChangedWords, tipCentsFor } from "@/lib/cupPrice";
@@ -9,9 +10,9 @@ import { benefitsForUser, acceptedCode } from "@/lib/benefits";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { readyWords, refusalWords, pickupWords, type Ordering } from "@/lib/ordering";
-import { orderingFrom, readOrdering } from "@/lib/orderingRead";
-import { cartRefusal, MENU_UNCHECKED, type CartRow } from "@/lib/catalog";
-import { writeAcrossSkew } from "@/lib/schemaSkew";
+import { orderingFrom, readOrdering, readStopMenu } from "@/lib/orderingRead";
+import { cartRefusal, MENU_UNCHECKED, offStopMenu, stopMenuRefusal } from "@/lib/catalog";
+import { isMissingFunction, writeAcrossSkew } from "@/lib/schemaSkew";
 import { toMarket } from "@/lib/markets";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
@@ -31,7 +32,7 @@ async function post(req: Request) {
     return NextResponse.json({ error: "Checkout isn't switched on yet." }, { status: 503 });
   }
 
-  let body: { sourceId?: string; items?: DrinkId[]; tipCents?: number; customer?: string; code?: string; idempotencyKey?: string; expectedCents?: number };
+  let body: { sourceId?: string; items?: unknown[]; tipCents?: number; customer?: string; code?: string; idempotencyKey?: string; expectedCents?: number };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   // A literal `null` body (e.g. body: 'null') is valid JSON — req.json() resolves to it without
   // throwing, so it slips past the try/catch above. Destructuring `null` next would throw a raw
@@ -42,6 +43,11 @@ async function post(req: Request) {
     return NextResponse.json({ error: "Empty order" }, { status: 400 });
   }
   if (items.length > 25) return NextResponse.json({ error: "Order too large" }, { status: 400 });
+  // Every line is a drink's slug (the Catalog's key). The code list used to refuse anything else as "Unknown item"; since
+  // the Catalog is the menu (R2) the check is said here, before any read.
+  if (!items.every((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 64)) {
+    return NextResponse.json({ error: "Bad request" }, { status: 400 });
+  }
 
   // sourceId present = paying by card now (Square required). Absent = pay-at-pickup (no Square
   // call at all — the crew charges in person at the window).
@@ -68,11 +74,11 @@ async function post(req: Request) {
   const stopped = async ({ key, claim }: Stopped) => {
     const who = customer ? ` Name: ${customer}.` : "";
     if (claim.card && claim.state === "charged") {
-      await raiseAlert({ severity: "critical", category: "money", title: "Paid order may not have recorded — check the pass", body: `A card payment went through (${claim.payment_id ?? "no payment id"}, ${money(claim.amount_cents ?? 0)}) and the checkout stopped before the order was saved.${who} If it isn't on the pass, add it. Items: ${items.join(", ")}.` });
+      await raiseAlert({ severity: "critical", category: "money", title: "Paid order may not have recorded — check the pass", body: `A card payment went through (${claim.payment_id ?? "no payment id"}, ${money(claim.amount_cents ?? 0)}) and the checkout stopped before the order was saved.${who} If it isn't on the pass, add it. Items: ${items.map((slug) => nameFrom(null, String(slug))).join(", ")}.` });
     } else if (claim.card) {
       await raiseAlert({ severity: "critical", category: "money", title: "Checkout charge status unknown — check Square", body: `A checkout stopped while Square was being asked to charge ${money(claim.amount_cents ?? 0)}.${who} A payment, if there is one, carries this key as its reference id: ${key}. Retries are not charged; check Square before taking payment again.` });
     } else {
-      await raiseAlert({ severity: "important", category: "order", title: "A pre-order may not have saved — check the pass", body: `A pay-at-pickup order stopped while it was being saved.${who} Items: ${items.join(", ")}. If it isn't on the pass, add it.` });
+      await raiseAlert({ severity: "important", category: "order", title: "A pre-order may not have saved — check the pass", body: `A pay-at-pickup order stopped while it was being saved.${who} Items: ${items.map((slug) => nameFrom(null, String(slug))).join(", ")}. If it isn't on the pass, add it.` });
     }
   };
   const seen = await seenBefore(checkoutClaims(supabaseAdmin), idemKey, paying, now, stopped);
@@ -101,12 +107,15 @@ async function post(req: Request) {
   // empty menu: it waits (503). Same query also carries price_cents — the one price authority — so
   // this single read covers both jobs.
   const productPrices: Record<string, number> = {};
+  let cupRows: Awaited<ReturnType<typeof readMenuRows>>["rows"] = [];
   {
     const uniq = [...new Set(items)];
-    const { data: avail, error: availErr } = await supabaseAdmin.from("products").select("slug, sold_out, active, price_cents").in("slug", uniq);
+    // The Catalog's rows for this cart — the menu's own read (lib/drinksRead; 0393's columns when they are there), so "sold by
+    // the cup" and the names Pay says come from the same rows as the price.
+    const { rows, error: availErr } = await readMenuRows(supabaseAdmin, uniq);
     if (availErr) return NextResponse.json({ error: MENU_UNCHECKED }, { status: 503 });
-    const rows = (avail ?? []) as (CartRow & { price_cents: number | null })[];
-    const refused = cartRefusal(uniq, rows, (slug) => DRINKS[slug as DrinkId]?.n ?? slug);
+    cupRows = rows;
+    const refused = cartRefusal(uniq, rows, (slug) => nameFrom(rows, slug));
     if (refused) return NextResponse.json({ error: refused }, { status: 409 });
     for (const p of rows) if (typeof p.price_cents === "number" && p.price_cents > 0) productPrices[p.slug] = p.price_cents;
   }
@@ -129,6 +138,15 @@ async function post(req: Request) {
     }
     ordering = orderingFrom(read.inputs, nowMs);
     if (!ordering.open) return NextResponse.json({ error: refusalWords(ordering, nowMs) }, { status: 409 });
+    // A STOP'S MENU (R2, 2026-10-13): a stop with a menu set sells what it pours (stop_menu, 0393). A read that failed is
+    // not "no menu": the order waits, like the truck's schedule above. Before 0393 there is no menu to read — nothing limits.
+    if (ordering.stop?.id) {
+      const sm = await readStopMenu(supabaseAdmin, ordering.stop.id);
+      if (sm.error && !isMissingFunction(sm.error)) return NextResponse.json({ error: "We couldn't check this stop's menu — give it another tap in a moment." }, { status: 503 });
+      const off = offStopMenu(items, sm.menu).map((slug) => nameFrom(cupRows, slug));
+      const refusedHere = stopMenuRefusal(off, ordering.stop.name);
+      if (refusedHere) return NextResponse.json({ error: refusedHere }, { status: 409 });
+    }
   }
   // What the customer was promised, said once for the screen, the email and the crew's pass: placed
   // ahead of a stop, it is made from the stop's start (orders.ready_from, 0343); otherwise now.
@@ -160,7 +178,7 @@ async function post(req: Request) {
   const benefitUser = await userFromRequest(req);
   const benefits = await benefitsForUser(benefitUser?.id ?? null, body.code);
   // lib/cupPrice — the one pricing the quote (/api/checkout/quote) runs too, so the page shows what this charges.
-  const priced = priceCups(items, productPrices, squarePrices, benefits);
+  const priced = priceCups(items, productPrices, squarePrices, benefits, (slug) => nameFrom(cupRows, slug));
   if ("unknown" in priced) return NextResponse.json({ error: `Unknown item: ${priced.unknown}` }, { status: 400 });
   const subtotal = priced.subtotal;
   // Which code to RECORD on the order (0268): only one that can actually reprice this channel.
@@ -255,7 +273,7 @@ async function post(req: Request) {
         // the insert, after the card was charged — so the alert says make it, or refund that payment.
         const ref = (paymentId || "").slice(-6).toUpperCase();
         const why = String((insErr as { message?: string }).message ?? "").slice(0, 90);
-        await raiseAlert({ severity: "critical", category: "money", title: "Paid order didn't record — add it", body: `A card payment succeeded (${paymentId}, ${money(amount)}) but the order didn't save${why ? `: ${why}` : "."} ${customer ? `Name: ${customer}. ` : ""}Items: ${items.join(", ")}. Add it to the pass — or, if it can't be made, refund that payment in Square.${promise.readyFrom ? ` Placed ahead for ${promise.pickup}.` : ""}` });
+        await raiseAlert({ severity: "critical", category: "money", title: "Paid order didn't record — add it", body: `A card payment succeeded (${paymentId}, ${money(amount)}) but the order didn't save${why ? `: ${why}` : "."} ${customer ? `Name: ${customer}. ` : ""}Items: ${items.map((slug) => nameFrom(cupRows, slug)).join(", ")}. Add it to the pass — or, if it can't be made, refund that payment in Square.${promise.readyFrom ? ` Placed ahead for ${promise.pickup}.` : ""}` });
         return { status: 200, body: { ok: true, paid: true, paymentId, amount, recorded: false, ref, warn: `Payment received${ref ? ` — ref ${ref}` : ""}. We've alerted the crew to add your order; show this ref at the window.`, ...promise } };
       }
       if (user?.id) {

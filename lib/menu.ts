@@ -1,4 +1,8 @@
-// GT3 menu — single source of truth.
+// THE CODE LIST — SEED DATA, NOT THE MENU (2026-10-13, R2 of the customer audit, "One catalog").
+// The menu customers order from is the Catalog (products, read through lib/drinks). This list is what the ten drinks
+// were before the Catalog said everything about them: 0393 copied it into their rows where the Catalog said nothing,
+// and lib/drinks falls back to it only when the Catalog can't be read, or for a field a row leaves empty. An old
+// iPhone build still carries it, so its slugs stay valid. Edit a drink in the Catalog, not here.
 // Pillars: ACTIVATION (before) · HYDRATION (during) · FUEL (after).
 // Copy is ingredient-led: name → what it is (extraction + whole-food input) → why it exists.
 
@@ -78,9 +82,10 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
   },
   aide: {
     n: "NATURE'S AIDE", px: "$10", grad: "linear-gradient(140deg,#a97c3f,#c8a661)", dot: "#A97C3F",
-    lines: ["Coconut water + mineral water", "Organic maple · Sea salt"],
+    // Ryan, 2026-10-13: coconut water and lime juice, no mineral water (his edit on the menu said lime; this list didn't).
+    lines: ["Organic coconut water + organic lime juice", "Organic maple · Sea salt"],
     why: "Light, balanced hydration for the middle of the work.",
-    has: ["Coconut water", "Mineral water", "Organic maple syrup", "Sea salt"],
+    has: ["Organic coconut water", "Organic lime juice", "Organic maple syrup", "Sea salt"],
     no: ["Powders", "Concentrate", "Dyes"],
     when: "DURING", whenT: "During work or training.",
   },

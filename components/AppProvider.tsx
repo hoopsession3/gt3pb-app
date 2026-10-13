@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { DRINKS, type DrinkId } from "@/lib/menu";
+import { drinkFrom, fallbackCents, menuOf, nameFrom, seedMenu, type Drink, type MenuRow } from "@/lib/drinks";
 import { useAvailability } from "@/lib/availability";
 import { haptic } from "@/lib/haptics";
 import { apiUrl } from "@/lib/native";
@@ -21,15 +21,15 @@ interface AppCtx {
   // cart (pre-order) — quantity per drink
   cart: Record<string, number>;
   cartCount: number;
-  isInCart: (id: DrinkId) => boolean;
-  qtyOf: (id: DrinkId) => number;
-  bump: (id: DrinkId) => void;
-  inc: (id: DrinkId) => void;
-  dec: (id: DrinkId) => void;
+  isInCart: (id: string) => boolean;
+  qtyOf: (id: string) => number;
+  bump: (id: string) => void;
+  inc: (id: string) => void;
+  dec: (id: string) => void;
   checkout: (opts?: { silentToast?: boolean }) => void;
   // drink sheet
-  openId: DrinkId | null;
-  openDrink: (id: DrinkId) => void;
+  openId: string | null;
+  openDrink: (id: string) => void;
   closeDrink: () => void;
   // checkout sheet
   coOpen: boolean;
@@ -43,13 +43,18 @@ interface AppCtx {
   payOpen: boolean;
   setPayOpen: (v: boolean) => void;
   // one-tap reorder: replace the cart with a past order and open checkout
-  reorder: (items: DrinkId[]) => void;
-  // authoritative price (cents) for a drink — Square Catalog if configured, else catalog fallback
-  priceCents: (id: DrinkId) => number;
+  reorder: (items: string[]) => void;
+  // authoritative price (cents) for a drink — the Catalog's, else the code list's until /api/menu lands; never a crash
+  priceCents: (id: string) => number;
+  // THE MENU IS THE CATALOG (2026-10-13, R2): the cup menu, a drink by its slug, and a name for an order line — one
+  // answer for every screen (lib/drinks). `menu` is the code list's menu until the Catalog has been read, and when it
+  // can't be: never empty. `menuRead` says whether the Catalog answered.
+  menu: Drink[];
+  menuRead: boolean;
+  drinkOf: (id: string) => Drink;
+  nameOf: (id: string) => string;
+  refreshMenu: () => void;
 }
-
-// Catalog fallback price (cents) parsed from the bundled menu — used until /api/menu loads.
-const fallbackCents = (id: DrinkId) => Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
 
 const Ctx = createContext<AppCtx | null>(null);
 
@@ -86,16 +91,43 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     tRef.current = setTimeout(() => { setToastShown(false); setToastAction(null); }, opts?.action ? 5000 : variant === "error" ? 4200 : 3000);
   }, []);
 
-  // One source of truth for prices: Square Catalog via /api/menu (falls back to the
-  // bundled catalog per-drink until it loads / when Square isn't configured). Shared so
-  // the cart bar, the menu, and checkout can never show three different totals.
+  // One source of truth for the menu and its prices: the Catalog, via /api/menu (lib/drinks). Shared so the cart bar,
+  // the menu, the drink sheet and checkout can never show three different drinks or totals. Until it lands — and when it
+  // can't be read — the code list's menu and prices stand in; Pay asks the Catalog itself either way. Read once per
+  // session and again whenever the menu opens (refreshMenu), so a drink added in the Catalog shows the next time the menu opens.
   const [prices, setPrices] = useState<Record<string, number>>({});
-  useEffect(() => {
-    let on = true;
-    fetch(apiUrl("/api/menu")).then((r) => (r.ok ? r.json() : null)).then((d) => { if (on && d) setPrices(d.prices || {}); }).catch(() => {});
-    return () => { on = false; };
+  const [rows, setRows] = useState<MenuRow[] | null>(null);
+  const reading = useRef(false);
+  // What the Catalog's first answer does to a cart restored from the phone (set below, once the cart exists): a drink taken
+  // off the menu since it went in comes out, said once. Only the first answer of the session — a later read can come from
+  // an edge copy a few seconds older than a drink just added — and never a read that failed (the code list's menu is a
+  // stand-in, not a verdict). A drink taken off mid-session is named by Pay ("isn't on the menu any more").
+  const pruneCart = useRef<(rows: MenuRow[]) => void>(() => {});
+  const pruned = useRef(false);
+  const refreshMenu = useCallback(() => {
+    if (reading.current) return;
+    reading.current = true;
+    // A read that hangs gives up after 10 seconds, so it never holds every later read (the truck's board reads every 5 min).
+    const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const quit = setTimeout(() => ctrl?.abort(), 10_000);
+    fetch(apiUrl("/api/menu"), ctrl ? { signal: ctrl.signal } : undefined).then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (!d) return;
+      setPrices(d.prices || {});
+      // An empty list is an answer (nothing on sale); null is a read that failed — the code list's menu stays.
+      if (Array.isArray(d.items)) {
+        setRows(d.items as MenuRow[]);
+        if (!pruned.current) { pruned.current = true; pruneCart.current(d.items as MenuRow[]); }
+      }
+    }).catch(() => {}).finally(() => { clearTimeout(quit); reading.current = false; });
   }, []);
-  const priceCents = useCallback((id: DrinkId) => prices[id] ?? fallbackCents(id), [prices]);
+  useEffect(() => { refreshMenu(); }, [refreshMenu]);
+  // Live: the 86s, and every product's name (the crew read every row) — for an order line the menu's rows don't name.
+  const { soldOut, names: liveNames } = useAvailability();
+  const bySlug = useMemo(() => new Map((rows ?? []).map((r) => [r.slug, r])), [rows]);
+  const menu = useMemo(() => (rows ? menuOf(rows) : seedMenu()), [rows]);
+  const drinkOf = useCallback((id: string) => drinkFrom(bySlug.get(id) ?? null, id), [bySlug]);
+  const nameOf = useCallback((id: string) => nameFrom(rows, id, liveNames), [rows, liveNames]);
+  const priceCents = useCallback((id: string) => prices[id] ?? bySlug.get(id)?.price_cents ?? fallbackCents(id) ?? 0, [prices, bySlug]);
 
   const [cart, setCart] = useState<Record<string, number>>({});
   const cartCount = Object.values(cart).reduce((s, n) => s + n, 0);
@@ -112,15 +144,16 @@ export default function AppProvider({ children }: { children: React.ReactNode })
       if (!raw) return;
       const saved = JSON.parse(raw) as Record<string, unknown>;
       const clean: Record<string, number> = {};
+      // Any drink is kept for now: which are still on the menu is the Catalog's to say, once it has been read (below).
       for (const [id, q] of Object.entries(saved)) {
-        if (DRINKS[id as DrinkId] && typeof q === "number" && Number.isFinite(q) && q > 0) clean[id] = Math.min(9, Math.floor(q));
+        if (id && typeof q === "number" && Number.isFinite(q) && q > 0) clean[id] = Math.min(9, Math.floor(q));
       }
       if (Object.keys(clean).length) setCart((c) => (Object.keys(c).length ? c : clean));
     } catch { /* ignore */ }
   }, []);
   useEffect(() => { try { localStorage.setItem("gt3-cart", JSON.stringify(cart)); } catch { /* ignore */ } }, [cart]);
-  const isInCart = useCallback((id: DrinkId) => (cart[id] ?? 0) > 0, [cart]);
-  const qtyOf = useCallback((id: DrinkId) => cart[id] ?? 0, [cart]);
+  const isInCart = useCallback((id: string) => (cart[id] ?? 0) > 0, [cart]);
+  const qtyOf = useCallback((id: string) => cart[id] ?? 0, [cart]);
 
   // bump = toggle in/out (menu tap); inc/dec adjust quantity (checkout / detail).
   //
@@ -130,7 +163,16 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   // in an effect: a ref is never written while rendering.
   const cartNow = useRef(cart);
   useEffect(() => { cartNow.current = cart; }, [cart]);
-  const bump = useCallback((id: DrinkId) => {
+  useEffect(() => {
+    pruneCart.current = (read: MenuRow[]) => {
+      const onMenu = new Set(menuOf(read).map((d) => d.slug));
+      const gone = Object.keys(cartNow.current).filter((id) => !onMenu.has(id));
+      if (!gone.length) return;
+      setCart((prev) => { const next = { ...prev }; for (const id of gone) delete next[id]; return next; });
+      toast(`${gone.map((id) => nameFrom(read, id)).join(" · ")} ${gone.length === 1 ? "isn't" : "aren't"} on the menu any more — taken out of your order`, "info");
+    };
+  }, [toast]);
+  const bump = useCallback((id: string) => {
     if (cartNow.current[id]) haptic("light"); else haptic("medium");
     setCart((prev) => {
       const next = { ...prev };
@@ -139,8 +181,8 @@ export default function AppProvider({ children }: { children: React.ReactNode })
       return next;
     });
   }, []);
-  const inc = useCallback((id: DrinkId) => { haptic("increase"); setCart((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 })); }, []);
-  const dec = useCallback((id: DrinkId) => { haptic("decrease"); setCart((prev) => {
+  const inc = useCallback((id: string) => { haptic("increase"); setCart((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 })); }, []);
+  const dec = useCallback((id: string) => { haptic("decrease"); setCart((prev) => {
     const next = { ...prev };
     const q = (next[id] ?? 0) - 1;
     if (q <= 0) delete next[id];
@@ -162,8 +204,8 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     setCart({});
   }, [cart, toast]);
 
-  const [openId, setOpenId] = useState<DrinkId | null>(null);
-  const openDrink = useCallback((id: DrinkId) => setOpenId(id), []);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const openDrink = useCallback((id: string) => setOpenId(id), []);
   const closeDrink = useCallback(() => setOpenId(null), []);
 
   const [coOpen, setCoOpen] = useState(false);
@@ -177,11 +219,20 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   // Only auto-open checkout when the cart was empty; otherwise toast so it's not jarring.
   // 86'd items are filtered here so one-tap reorder can never build a cart that dead-ends at
   // checkout — the customer is told what's out, and the rest of their usual carries on.
-  const { soldOut } = useAvailability();
-  const reorder = useCallback((items: DrinkId[]) => {
-    const out = [...new Set(items.filter((id) => soldOut.has(id)))].map((id) => DRINKS[id]?.n ?? id);
-    const ok = items.filter((id) => !soldOut.has(id) && DRINKS[id]); // drop unknown/legacy ids — Checkout reads DRINKS[id] unguarded
-    if (out.length) toast(`${out.join(" · ")} ${out.length === 1 ? "is" : "are"} sold out today${ok.length ? " — added the rest" : ""}`, "error");
+  // A drink no longer on the menu (the Catalog's cup menu, or the code list's until it is read) is said, by name, and left
+  // out — it used to vanish without a word, and an order made only of such drinks did nothing at all.
+  const reorder = useCallback((items: string[]) => {
+    // Until the Catalog has answered, the menu is the code list's stand-in: a drink only the Catalog knows is kept, and Pay
+    // decides — never "isn't on the menu any more" about a drink that is.
+    const onMenu = new Set([...menu.map((d) => d.slug), ...(rows ? [] : items)]);
+    const gone = [...new Set(items.filter((id) => !onMenu.has(id)))].map((id) => nameFrom(rows, id));
+    const out = [...new Set(items.filter((id) => onMenu.has(id) && soldOut.has(id)))].map((id) => nameFrom(rows, id));
+    const ok = items.filter((id) => onMenu.has(id) && !soldOut.has(id));
+    const said = [
+      gone.length ? `${gone.join(" · ")} ${gone.length === 1 ? "isn't" : "aren't"} on the menu any more` : "",
+      out.length ? `${out.join(" · ")} ${out.length === 1 ? "is" : "are"} sold out today` : "",
+    ].filter(Boolean).join(", and ");
+    if (said) toast(`${said}${ok.length ? " — added the rest" : ""}`, "error");
     if (ok.length === 0) return;
     setCart((prev) => {
       const wasEmpty = Object.keys(prev).length === 0;
@@ -191,11 +242,11 @@ export default function AppProvider({ children }: { children: React.ReactNode })
       else toast(`Added ${ok.length} to your order`, "success");
       return next;
     });
-  }, [toast, soldOut]);
+  }, [toast, soldOut, menu, rows]);
 
   const value = useMemo<AppCtx>(
-    () => ({ toast, toastMsg, toastShown, toastVariant, toastAction, hideToast, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents }),
-    [toast, toastMsg, toastShown, toastVariant, toastAction, hideToast, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents]
+    () => ({ toast, toastMsg, toastShown, toastVariant, toastAction, hideToast, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents, menu, menuRead: rows !== null, drinkOf, nameOf, refreshMenu }),
+    [toast, toastMsg, toastShown, toastVariant, toastAction, hideToast, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents, menu, rows, drinkOf, nameOf, refreshMenu]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

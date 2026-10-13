@@ -62,6 +62,11 @@ export const toMarket = (v: unknown): Market => (isMarket(v) ? v : FOUNDING_MARK
 export const marketServes = (market: Market, channel: Channel): boolean =>
   (MARKET_CHANNELS[market] ?? MARKET_CHANNELS[FOUNDING_MARKET])[channel];
 
+/** The cities with truck stops, where cups are sold — the cities the menu and checkout can be for. A viewer who chose one
+ *  of these is shown its menu and checks out there (R2, 2026-10-13: the menu and checkout always said the founding city,
+ *  whatever the viewer chose on Find Us). */
+export const CUP_MARKETS: readonly Market[] = MARKETS.filter((m) => MARKET_CHANNELS[m].stops);
+
 // ── WHICH MARKET IS THE VIEWER LOOKING AT? (0279) ────────────────────────────────────────────────
 //
 // The audit's step 02 — filter Find Us and the ordering window by city — needs an answer to "which

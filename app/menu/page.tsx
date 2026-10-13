@@ -14,15 +14,14 @@ import { useViewerMarket } from "@/components/useViewerMarket";
 import { useOrderingOpen } from "@/components/useOrderingOpen";
 import { closedWords, openWords } from "@/lib/ordering";
 import { money } from "@/lib/money";
-import { DRINKS, MENU, type DrinkId } from "@/lib/menu";
+import { lineSubKey, sectionsOf } from "@/lib/drinks";
+import { CUP_MARKETS } from "@/lib/markets";
 import { PACK_SIZES, PACK_TAG, packTotal, dollars } from "@/lib/orderAhead";
-import { clickable } from "@/lib/a11y";
 import Icon from "@/components/Icon";
-import { apiUrl } from "@/lib/native";
 
 export default function MenuScreen() {
   const router = useRouter();
-  const { openDrink, isInCart } = useApp();
+  const { openDrink, qtyOf, bump, inc, dec, menu, menuRead, refreshMenu, priceCents } = useApp();
   const t = useSiteCopy();
   const { soldOut } = useAvailability();
   // IS THIS A MENU YOU CAN ORDER FROM RIGHT NOW? (2026-10-04) With the truck closed the page still
@@ -30,25 +29,27 @@ export default function MenuScreen() {
   // order pill, and the hint said "tap any drink to order it" — then every drink sheet said the
   // truck was closed. The page asks the rule the sheet asks (lib/ordering) and says the same thing
   // first. Until the read lands it is the menu it always was.
-  const { market: viewerMarket } = useViewerMarket();
-  const o = useOrderingOpen(true, viewerMarket).ordering;
+  const { market: viewerMarket } = useViewerMarket(CUP_MARKETS);
+  const ordering = useOrderingOpen(true, viewerMarket);
+  const o = ordering.ordering;
   const closed = o !== null && !o.open;
   const stateLine = o ? (closed ? closedWords(o, { closing: t("findus.cta_closed") }) : openWords(o)) : null;
-  const [prices, setPrices] = useState<Record<string, number>>({});
-  // Prices come from Square Catalog (one source of truth across truck + app).
-  useEffect(() => {
-    fetch(apiUrl("/api/menu")).then((r) => r.json()).then((d) => setPrices(d.prices || {})).catch(() => {});
-  }, []);
+  // THE MENU IS THE CATALOG (2026-10-13, R2 of the customer audit): the drinks, their words and their prices are the
+  // Catalog's (AppProvider → /api/menu → lib/drinks), read again each time this page opens — a drink added in the Catalog
+  // is here the next time the page opens; one taken off is gone. Until the read lands, and if it fails, the code list's menu stands in.
+  useEffect(() => { refreshMenu(); }, [refreshMenu]);
+  const sections = sectionsOf(menu);
+  const sectionsKey = sections.map((s) => s.line).join("|");
   // This line used to re-derive money()'s exact rule by hand — trim the cents when they are .00,
   // show them when they are not — in a ternary with a modulo, and its own comment said it "matches
   // the money() convention used elsewhere". It did. That is the problem: the convention has a
   // function, and a copy of a rule is a copy that can drift. The customer tapped "$10" here and
   // then read "$10.00" in the cart, the checkout and on the receipt, because those four screens
   // held four spellings of one number.
-  const priceLabel = (id: DrinkId) => (prices[id] != null ? money(prices[id]) : DRINKS[id].px);
+  const priceLabel = (id: string) => money(priceCents(id));
 
   // Sticky category chips that scroll-spy the menu (jump + highlight current section).
-  const [active, setActive] = useState<string>(MENU[0]?.name ?? "");
+  const [active, setActive] = useState<string>(sections[0]?.line ?? "");
   const catRefs = useRef<Record<string, HTMLDivElement | null>>({});
   useEffect(() => {
     const root = document.getElementById("body");
@@ -62,7 +63,7 @@ export default function MenuScreen() {
     );
     Object.values(catRefs.current).forEach((el) => el && obs.observe(el));
     return () => obs.disconnect();
-  }, []);
+  }, [sectionsKey]);
   const jumpTo = (name: string) => catRefs.current[name]?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   return (
@@ -86,47 +87,64 @@ export default function MenuScreen() {
         : <EditableCopy k="menu.order_line" value={t("menu.order_line")} as="div" className="mast-order" />}
 
       <div className="menu-chips" role="tablist" aria-label="Menu categories">
-        {MENU.map((cat, ci) => (
-          <button key={cat.name} type="button" role="tab" aria-selected={active === cat.name} className={`k-chip sm${active === cat.name ? " on" : ""}`} onClick={() => jumpTo(cat.name)}>{t(`menu.sec.${ci}.name`)}</button>
+        {sections.map((sec) => (
+          <button key={sec.line} type="button" role="tab" aria-selected={active === sec.line} className={`k-chip sm${active === sec.line ? " on" : ""}`} onClick={() => jumpTo(sec.line)}>{sec.line}</button>
         ))}
       </div>
 
-      {MENU.map((cat, ci) => (
-        <div key={cat.name} ref={(el) => { catRefs.current[cat.name] = el; }} data-cat={cat.name}>
+      {/* The Catalog answered and nothing is on sale: said, never a blank page. */}
+      {menuRead && sections.length === 0 && <EditableCopy k="menu.empty" value={t("menu.empty")} as="p" className="menu-integrity" />}
+      {sections.map((sec) => (
+        <div key={sec.line} ref={(el) => { catRefs.current[sec.line] = el; }} data-cat={sec.line}>
+          {/* The section is the Catalog's line; its subtitle is page copy keyed by the line's name (menu.line.<name>.sub),
+              so it follows the section wherever the Catalog puts it. */}
           <SectionHeader
-            label={<EditableCopy k={`menu.sec.${ci}.name`} value={t(`menu.sec.${ci}.name`)} />}
-            annotation={t(`menu.sec.${ci}.sub`) ? <EditableCopy k={`menu.sec.${ci}.sub`} value={t(`menu.sec.${ci}.sub`)} /> : undefined}
+            label={sec.line}
+            annotation={t(lineSubKey(sec.line)) ? <EditableCopy k={lineSubKey(sec.line)} value={t(lineSubKey(sec.line))} /> : undefined}
           />
 
-          {cat.rows.map((id) => {
-            const d = DRINKS[id];
-            const on = isInCart(id);
-            const out = soldOut.has(id);
-            const name = t(`menu.${id}.name`);
-            const tag = d.tag ? t(`menu.${id}.tag`) : "";
+          {sec.drinks.map((d) => {
+            const id = d.slug;
+            const qty = qtyOf(id);
+            const out = soldOut.has(id); // live (useAvailability, realtime) — the menu's read is up to a minute old
+            // A stop with a menu set pours what it lists (stop_menu, 0393): the rest say so, and Pay refuses them too.
+            const notHere = !out && !!ordering.stopMenu && !ordering.stopMenu.has(id);
+            const off = out || notHere;
+            // What the Catalog says about it, as the row's tags: caffeine or none, and what it contains — nothing guessed.
+            const facts = [d.caffeine === true ? t("menu.caffeine") : d.caffeine === false ? t("menu.no_caffeine") : "", ...(d.contains ?? [])].filter(Boolean);
             return (
-              <div
-                className={`entry${out ? " entry-86" : ""}`}
-                key={id}
-                aria-label={`${name}, ${out ? "sold out today" : priceLabel(id)}, view details`}
-                {...clickable(() => openDrink(id))}
-              >
+              // THE PRICE ADDS IT; THE ROW OPENS IT (2026-10-13, R2 — the audit's menu, approved). The "+ $10" pill opened the
+              // drink's sheet and adding took a second tap there. Now, while the truck takes orders, the pill adds the drink
+              // and becomes its counter (− 1 · $10 +); the rest of the row opens the sheet. Two buttons side by side, never
+              // one inside the other: the row's is stretched across it (.entry-open), the pill's sits above it.
+              <div className={`entry relative${off ? " entry-86" : ""}`} key={id}>
+                <button type="button" className="entry-open absolute inset-0 cursor-pointer appearance-none border-0 bg-transparent p-0" onClick={() => openDrink(id)}
+                  aria-label={`${d.name}, ${out ? "sold out today" : notHere ? "not at this stop" : priceLabel(id)}${qty ? `, ${qty} in your order` : ""}, view details`} />
                 <div className="entry-head">
                   <span className="entry-dot" style={{ background: d.dot }} />
-                  <span className="entry-name">{name}</span>
-                  {out ? <span className="entry-out">{t("menu.sold_out")}</span> : tag ? <span className="entry-tag">{tag}</span> : null}
+                  <span className="entry-name">{d.name}</span>
+                  {out ? <span className="entry-out">{t("menu.sold_out")}</span> : d.tag ? <span className="entry-tag">{d.tag}</span> : null}
                   <span className="entry-gap" />
-                  {on && !out && <span className="entry-in" aria-label="in your order"><Icon name="check" /></span>}
-                  {/* the price is the order affordance (2026-08-01 audit: rows read as a printed
-                      menu). A styled pill — not a nested <button>; the whole row is already the
-                      tap target (clickable above), same a11y rule as the category chips. With the
-                      truck not taking orders it is a price again, not a "+" that cannot add — in
-                      the pill's own box (.shut), so the answer arriving moves no row. */}
-                  <span className={`entry-px${out ? "" : closed ? " shut" : " order"}`}>{priceLabel(id)}</span>
+                  {/* With the truck not taking orders the price is a price, in the pill's own box (.shut), so the answer
+                      arriving moves no row; off this stop's menu it says so in its place. */}
+                  {notHere ? <span className="entry-out">{t("menu.not_here")}</span>
+                    : off || closed ? <span className={`entry-px${off ? "" : " shut"}`}>{priceLabel(id)}</span>
+                    : qty > 0 ? (
+                      <span role="group" aria-label={`${d.name}: ${qty} in your order`}
+                        className="entry-qty relative z-[1] inline-flex items-center gap-1 rounded-pill font-mono text-footnote font-semibold">
+                        <button type="button" className="hit-44 px-2.5 py-1 cursor-pointer appearance-none border-0 bg-transparent text-inherit [font:inherit]" aria-label={`Remove one ${d.name}`} onClick={() => dec(id)}>−</button>
+                        <span>{qty} · {priceLabel(id)}</span>
+                        <button type="button" className="hit-44 px-2.5 py-1 cursor-pointer appearance-none border-0 bg-transparent text-inherit [font:inherit]" aria-label={`Add one more ${d.name}`} onClick={() => inc(id)}>+</button>
+                      </span>
+                    )
+                    : <button type="button" className="entry-px order hit-44 z-[1] cursor-pointer appearance-none bg-transparent" aria-label={`Add ${d.name}, ${priceLabel(id)}`} onClick={() => bump(id)}>{priceLabel(id)}</button>}
                 </div>
-                {/* One line: why you would pick it. What is in it is the drink's own sheet, one tap away. */}
+                {/* One line: why you would pick it, and the Catalog's facts. What is in it is the drink's own sheet. */}
                 <div className="entry-body">
-                  <div className="entry-why">{t(`menu.${id}.why`) || t(`menu.${id}.lines`).split("\n")[0]}</div>
+                  <div className="entry-why">{d.why || d.lines[0] || ""}</div>
+                  {facts.length > 0 && !notHere && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">{facts.map((f) => <span key={f} className="entry-tag">{f}</span>)}</div>
+                  )}
                 </div>
               </div>
             );

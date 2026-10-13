@@ -10,7 +10,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Order } from "./db";
-import { DRINKS, type DrinkId } from "./menu";
+import { nameFrom } from "./drinks";
 import { orderClockFrom, waitingToOpen, waitingLabel } from "./ordering";
 
 /** Picked-up orders linger this long, for review and recall. */
@@ -48,13 +48,15 @@ export function groupItems(items: readonly string[]): { id: string; qty: number 
 // menu does not have (app/api/checkout: "Unknown item"), and order_items is exploded from the same ids (0231). There is no
 // size, milk or note on an order to show. A string that is not a drink id (a row written before 0156 closed the
 // client's insert, or a writer still to come) is shown as it is, whole — whatever it carries is on the ticket.
+// The name is the Catalog's (2026-10-13, R2 — the Catalog is the menu): the Pass passes AppProvider's nameOf, so a drink
+// added or renamed in the Catalog prints as the menu says it; without one, the code list's name, then the id.
 /** One line per drink, repeats grouped, in the order first rung: { qty: 2, name: "FLOW" }. */
-export function itemLines(items: readonly string[]): { key: string; qty: number; name: string }[] {
-  return groupItems(items).map(({ id, qty }) => ({ key: id, qty, name: DRINKS[id as DrinkId]?.n ?? id }));
+export function itemLines(items: readonly string[], nameOf: (id: string) => string = (id) => nameFrom(null, id)): { key: string; qty: number; name: string }[] {
+  return groupItems(items).map(({ id, qty }) => ({ key: id, qty, name: nameOf(id) }));
 }
 /** The drinks in one line: "2× RISE · FLOW". */
-export const itemsLine = (items: readonly string[]): string =>
-  itemLines(items).map((l) => `${l.qty > 1 ? `${l.qty}× ` : ""}${l.name}`).join(" · ");
+export const itemsLine = (items: readonly string[], nameOf?: (id: string) => string): string =>
+  itemLines(items, nameOf).map((l) => `${l.qty > 1 ? `${l.qty}× ` : ""}${l.name}`).join(" · ");
 
 // ── time ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 /** "45s", "8m", "2h" — how long ago `iso` was at `nowMs`. */
@@ -227,7 +229,7 @@ export async function readPulse(sb: SupabaseClient, nowMs: number): Promise<{ pa
 // ── what the Pass says out loud ─────────────────────────────────────────────────────────────────────────────────────
 // A NEW ORDER IS SAID, POLITELY (2026-10-11). The whole board was one polite live region, so a screen reader was told
 // every change on it — each ticket's age, every second. One quiet line says what arrived instead.
-export const newOrderWords = (o: Pick<Order, "customer" | "items">): string => `New order: ${o.customer ?? "Guest"} — ${itemsLine(o.items)}`;
+export const newOrderWords = (o: Pick<Order, "customer" | "items">, nameOf?: (id: string) => string): string => `New order: ${o.customer ?? "Guest"} — ${itemsLine(o.items, nameOf)}`;
 export const newOrdersWords = (n: number): string => `${n} new orders`;
 export const outsideWords = (o: Pick<Order, "customer">): string => `${o.customer ?? "Guest"} is outside`;
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useApp } from "./AppProvider";
-import { type DrinkId } from "@/lib/menu";
 import { money } from "@/lib/money";
 
 // Persistent DRINKS cart bar — always visible (above the nav) whenever the drink order has
@@ -13,7 +12,7 @@ import { money } from "@/lib/money";
 export default function CartBar() {
   const { cart, cartCount, openCheckout, coOpen, payOpen, priceCents } = useApp();
   if (cartCount === 0 || coOpen || payOpen) return null;
-  const cents = Object.entries(cart).reduce((s, [id, q]) => s + priceCents(id as DrinkId) * q, 0);
+  const cents = Object.entries(cart).reduce((s, [id, q]) => s + priceCents(id) * q, 0);
   return (
     <button
       className="cartbar"

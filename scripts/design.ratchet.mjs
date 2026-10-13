@@ -614,30 +614,40 @@ export const PROD_ROUTE = {
 // — the two line icons of the account menu's quick actions (Show card, Order again), the tab bar's current-tab rule and
 // the avatar's door to the card sheet — +214 bytes gzipped by its prerendered HTML (279 650 → 279 864), over the
 // rounding line as smoke:ui weighs it. Built efa2dba and ee9421b and gzipped what each route's HTML references.
+// 2026-10-13 (R2 of the customer audit, the Catalog is the menu): every route +1 to +2 KB, the same 1 925 bytes gzipped
+// (/ +2 108, /menu +2 269, /display +2 060) — 1 645 at first, and 280 more for a fresh-eyes review's fixes: the Pass's live
+// names, the menu read's timeout and single flight, a reorder that keeps what only the Catalog knows. Nine routes crossed
+// the rounding line with those: /, /menu, /book, /reserve, /academy, /driver, /offer, /privacy and /terms, +1 each. The shell every page carries now holds the menu the Catalog says: AppProvider
+// keeps the Catalog's rows and answers drinkOf / nameOf / the cup menu for the menu, the drink sheet, the cart, checkout
+// and the Pass (lib/drinks, with the code list as the stand-in), and the drink sheet and checkout know a stop's menu
+// (useOrderingOpen reads stop_menu). Two splits held it there: the Catalog read went to lib/drinksRead (server routes
+// only), and the stop menu's read no longer loads lib/schemaSkew in every page — together −1 KB on most routes from the
+// first build. lib/copy lost the thirty-odd per-drink keys (−2 KB on one shared chunk) that the rest outweighs. Built
+// 9be8cb1 and this commit, served both, and gzipped what each route's HTML references.
 export const WEIGHT = {
-  "/truck":                    { js: 280, css: 89, chunks: 16 },
-  "/events":                   { js: 280, css: 89, chunks: 16 },
-  "/menu":                     { js: 267, css: 90, chunks: 15 },
-  "/reserve":                  { js: 288, css: 90, chunks: 16 },
-  "/delivery":                 { js: 287, css: 90, chunks: 16 },
-  "/3mpire":                   { js: 279, css: 90, chunks: 15 },
-  "/craft":                    { js: 267, css: 90, chunks: 15 },
-  "/book":                     { js: 268, css: 90, chunks: 15 },
-  "/academy":                  { js: 320, css: 90, chunks: 16 },
-  "/office":                   { js: 276, css: 90, chunks: 15 },
-  "/scan":                     { js: 267, css: 90, chunks: 15 },
-  "/architecture":             { js: 277, css: 90, chunks: 15 },
-  "/playbook":                 { js: 275, css: 90, chunks: 15 },
-  "/driver":                   { js: 274, css: 89, chunks: 15 },
-  "/agreement":                { js: 269, css: 90, chunks: 15 },
-  "/offer":                    { js: 279, css: 90, chunks: 15 },
-  "/built/gt3-built-k7m9x4q2": { js: 265, css: 90, chunks: 15 },
-  "/display":                  { js: 266, css: 90, chunks: 15 },
-  "/shop":                     { js: 292, css: 90, chunks: 16 },
-  "/primal":                   { js: 268, css: 90, chunks: 15 },
-  "/privacy":                  { js: 264, css: 90, chunks: 14 },
-  "/terms":                    { js: 264, css: 90, chunks: 14 },
-  "/":                         { js: 274, css: 90, chunks: 15 },
+  "/truck":                    { js: 282, css: 89, chunks: 16 },
+  "/events":                   { js: 282, css: 89, chunks: 16 },
+  "/menu":                     { js: 270, css: 90, chunks: 15 },
+  "/reserve":                  { js: 290, css: 90, chunks: 16 },
+  "/delivery":                 { js: 288, css: 90, chunks: 16 },
+  "/3mpire":                   { js: 281, css: 90, chunks: 15 },
+  "/craft":                    { js: 269, css: 90, chunks: 15 },
+  "/book":                     { js: 270, css: 90, chunks: 15 },
+  "/academy":                  { js: 322, css: 90, chunks: 16 },
+  "/office":                   { js: 278, css: 90, chunks: 15 },
+  "/scan":                     { js: 269, css: 90, chunks: 15 },
+  "/architecture":             { js: 279, css: 90, chunks: 15 },
+  "/playbook":                 { js: 277, css: 90, chunks: 15 },
+  "/driver":                   { js: 276, css: 89, chunks: 15 },
+  "/agreement":                { js: 270, css: 90, chunks: 15 },
+  "/offer":                    { js: 281, css: 90, chunks: 15 },
+  "/built/gt3-built-k7m9x4q2": { js: 267, css: 90, chunks: 15 },
+  "/display":                  { js: 268, css: 90, chunks: 15 },
+  "/shop":                     { js: 294, css: 90, chunks: 16 },
+  "/primal":                   { js: 270, css: 90, chunks: 15 },
+  "/privacy":                  { js: 266, css: 90, chunks: 14 },
+  "/terms":                    { js: 266, css: 90, chunks: 14 },
+  "/":                         { js: 276, css: 90, chunks: 15 },
 };
 
 // 2026-10-09 (the button round: redesign 7): every route's stylesheet -1 628 bytes and its script +188 to +245 (gzip).

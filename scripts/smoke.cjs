@@ -6980,7 +6980,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("words: pickup is the stop and its place, or the truck when it is live off-schedule; open words only ahead",
     O.pickupWords(at(T + H, true, [A], "A")) === "Stop A · Five Forks" && O.pickupWords(at(T, true, [])) === "At the truck"
     && O.pickupWords({ stop: { ...A, where: "Five Forks Plaza, Simpsonville, SC 29681" } }) === "Stop A · Five Forks Plaza, Simpsonville, SC"
-    && O.openWords(at(T + H, true, [A], "A")) === null && O.openWords(at(T - H, false, [A]), T - H) === "Order now — we make it when we open, today at 11:00am.");
+    && O.openWords(at(T + H, true, [A], "A")) === "Pouring at Stop A till 3:00pm. Tap + and it's in your order." && O.openWords(at(T, true, [])) === null
+    && O.openWords(at(T - H, false, [A]), T - H) === "Order now — we make it when we open, today at 11:00am.");
   ok("etWhen: today, tomorrow, a weekday inside the week, the date from a week out",
     DT2.etWhen(iso(T), T - H) === "today at 11:00am" && DT2.etWhen(iso(T), T - 20 * H) === "tomorrow at 11:00am"
     && DT2.etWhen(iso(T), T - 3 * 24 * H) === "Sat at 11:00am" && DT2.etWhen(iso(T), T - 8 * 24 * H) === "Sat, Oct 10 at 11:00am" && DT2.etWhen(null) === "");
@@ -7070,7 +7071,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /\.fu-state\{min-height:1\.45em/.test(read("app/globals.css")));
   ok("Find Us: the live row's Pre-order chip follows the same rule", /rowLive && ordering\?\.open !== false && <button/.test(fu));
   ok("menu: closed, the order line is the truck's state and the price is a price",
-    /const closed = o !== null && !o\.open;/.test(menu) && /entry-px\$\{out \? "" : closed \? " shut" : " order"\}/.test(menu) && /\.entry-px\.shut\{border:1px solid transparent;padding:3px 10px\}/.test(read("app/globals.css"))
+    /const closed = o !== null && !o\.open;/.test(menu) && /: off \|\| closed \? <span className=\{`entry-px\$\{off \? "" : " shut"\}`\}>\{priceLabel\(id\)\}<\/span>/.test(menu) && /\.entry-px\.shut\{border:1px solid transparent;padding:3px 10px\}/.test(read("app/globals.css"))
     && /className="mast-order mast-state" role="status"/.test(menu)
     && /closedWords\(o, \{ closing: t\("findus\.cta_closed"\) \}\) : openWords\(o\)/.test(menu));
   // ONE LINE, THEN THE CHOICES (2026-10-09, round 2 step 2; Ryan, on /menu: "This shit still cluttered").
@@ -7079,8 +7080,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       return /<Masthead tone="light" right=\{<AccountPill \/>\} \/>/.test(top) && !/eyebrow=/.test(top) && !/menu\.statement/.test(top) && !/btn-ter/.test(top) && (top.match(/className="mast-order/g) || []).length === 2; })()
     && !/menu-taphint|menu\.taphint|menu\.nav_shop|masthead\.menu|menu\.statement/.test(menu + read("lib/copy.ts")));
   ok("menu: a drink is one line — why you would pick it; what is in it is its sheet, one tap away",
-    /<div className="entry-why">\{t\(`menu\.\$\{id\}\.why`\) \|\| t\(`menu\.\$\{id\}\.lines`\)\.split\("\\n"\)\[0\]\}<\/div>/.test(menu) && !/entry-ing/.test(menu)
-    && /t\(`menu\.\$\{openId\}\.lines`\)/.test(sheet));
+    /<div className="entry-why">\{d\.why \|\| d\.lines\[0\] \|\| ""\}<\/div>/.test(menu) && !/entry-ing/.test(menu)
+    && /\{d\.lines\.map\(\(l\) => \(/.test(sheet));
   ok("menu: the chemistry and Primal follow the menu, and Shop is the tab bar's",
     menu.indexOf('t("menu.craft_link")') > menu.indexOf("PACK_SIZES.map") && menu.indexOf('t("menu.nav_primal")') > menu.indexOf("PACK_SIZES.map") && !/router\.push\("\/shop"\)/.test(menu));
   ok("drink sheet: says when cups open (not the stop's start), quotes the reservable drop, and knows closing from closed",
@@ -7919,9 +7920,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && JSON.stringify(BT.menuPriceOf("straight_brew", MENU)) === JSON.stringify({ low: 1000, high: 1100 }) && BT.menuPriceOf("", MENU) === null);
 
   const ubp = code(read("components/useBenefitProducts.ts"));
-  ok("applies to: one read of the menu for both panels, a failed read thrown, a cup is what lib/menu sells",
-    /\.from\("products"\)\.select\("slug, name, price_cents, active, sort"\)/.test(ubp) && /if \(error\) throw new Error\(error\.message\);/.test(ubp)
-    && /cup: Object\.prototype\.hasOwnProperty\.call\(DRINKS, p\.slug\)/.test(ubp));
+  ok("applies to: one read of the menu for both panels, a failed read thrown, a cup is what the Catalog sells by the cup (0393; the code list's ten before it)",
+    /\.from\("products"\)\.select\("slug, name, price_cents, active, sort, cup_orderable"\)/.test(ubp) && /if \(r\.error\) throw new Error\(r\.error\.message\);/.test(ubp)
+    && /cup: typeof p\.cup_orderable === "boolean" \? p\.cup_orderable : isSeedSlug\(p\.slug\)/.test(ubp));
   for (const [f, verb] of [["components/CodesPanel.tsx", "code"], ["components/PerksPanel.tsx", "perk"]]) {
     const src = code(read(f));
     ok(`applies to (${verb}s): the menu, through the shared list — the constant is gone`,
@@ -9154,9 +9155,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // ── the cart ──
   ok("cart: a drink in is firmer than a drink out, read from a mirror of the cart kept in an effect — not inside the updater, and no ref written while rendering",
     /const cartNow = useRef\(cart\);\s+useEffect\(\(\) => \{ cartNow\.current = cart; \}, \[cart\]\);/.test(ap)
-    && /const bump = useCallback\(\(id: DrinkId\) => \{\s+if \(cartNow\.current\[id\]\) haptic\("light"\); else haptic\("medium"\);\s+setCart\(/.test(ap));
+    && /const bump = useCallback\(\(id: string\) => \{\s+if \(cartNow\.current\[id\]\) haptic\("light"\); else haptic\("medium"\);\s+setCart\(/.test(ap));
   ok("cart: + is increase and − is decrease, said before the update is asked for",
-    /const inc = useCallback\(\(id: DrinkId\) => \{ haptic\("increase"\); setCart\(/.test(ap) && /const dec = useCallback\(\(id: DrinkId\) => \{ haptic\("decrease"\); setCart\(/.test(ap));
+    /const inc = useCallback\(\(id: string\) => \{ haptic\("increase"\); setCart\(/.test(ap) && /const dec = useCallback\(\(id: string\) => \{ haptic\("decrease"\); setCart\(/.test(ap));
   const shop = code(read("components/Shop.tsx"));
   ok("shop: into the cart is medium; a line's quantity says which way it went, read from the cart on screen",
     /const addToCart = \(product: Product, variant: Variant \| null, qty: number\) => \{\s+haptic\("medium"\);/.test(shop)
@@ -11415,8 +11416,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /export const DoneTicket = memo\(function DoneTicket\(/.test(tk)
     && /const act = useMemo<TicketActs>\(\(\) => \(\{\s*advance: \(o\) => \{ arm\(o\); return advance\(o\); \},\s*recall: \(o\) => \{ arm\(o\); return recall\(o\); \},\s*collect,\s*undoTake,\s*voidOrder: \(o\) => \{ arm\(o\); return voidOrder\(o\); \},\s*\}\), \[arm, advance, recall, collect, undoTake, voidOrder\]\);/.test(tp)
     && ["move", "takeMoney", "collect", "undoTake", "advance", "recall", "voidOrder"].every((f) => new RegExp(`const ${f} = useCallback\\(`).test(tp))
-    && /list\.map\(\(o\) => <Ticket key=\{o\.id\} o=\{o\} action=\{action\} flash=\{flash\.has\(o\.id\)\} me=\{me\} admin=\{admin\} act=\{act\} \/>\)/.test(tp)
-    && /<DoneTicket key=\{o\.id\} o=\{o\} me=\{me\} admin=\{admin\} act=\{act\} \/>/.test(tp));
+    && /list\.map\(\(o\) => <Ticket key=\{o\.id\} o=\{o\} action=\{action\} flash=\{flash\.has\(o\.id\)\} me=\{me\} admin=\{admin\} act=\{act\} nameOf=\{nameOf\} \/>\)/.test(tp)
+    && /<DoneTicket key=\{o\.id\} o=\{o\} me=\{me\} admin=\{admin\} act=\{act\} nameOf=\{nameOf\} \/>/.test(tp));
   ok("pass perf: the second ticks the age labels only — no board-wide tick; the board's own clock strikes when the board changes",
     !/setTick|setInterval\(\(\) => setTick/.test(passAll) && (tk.match(/useSecond\(\)/g) || []).length >= 2
     && /const now = useBoardNow\(\(at\) => nextBoardChange\(orders, at\)\);/.test(tp) && /useSyncExternalStore\(onSecond, second, second\)/.test(ck)
@@ -11463,8 +11464,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && [...tw.slice(tw.indexOf("THE PASS AT ARM'S LENGTH")).matchAll(/font-size: (\d+)px/g)].every((m) => [11, 12, 13, 15, 16, 17, 20, 22, 28, 34].includes(Number(m[1])))
     && /\.adm-order-top b\{font-family:'Inter';font-weight:650;font-size:15px;line-height:1\.2\}/.test(gl) && /\.adm-items\{font-family:'Inter';font-weight:600;font-size:15px;/.test(gl));
   ok("pass type: the ticket's number is up top beside the name, and its drinks are lib/passBoard's lines",
-    /<span className="pass-no">\{ticketNo\(o\.id\)\}<\/span>/.test(tk) && /itemLines\(items\)\.map\(\(l, i\) => \(/.test(tk) && /<span key=\{l\.key\} className="pass-item">\{i > 0 && <span className="pass-sep"> · <\/span>\}/.test(tk)
-    && /name: DRINKS\[id as DrinkId\]\?\.n \?\? id/.test(pb));
+    /<span className="pass-no">\{ticketNo\(o\.id\)\}<\/span>/.test(tk) && /itemLines\(items, nameOf\)\.map\(\(l, i\) => \(/.test(tk) && /<span key=\{l\.key\} className="pass-item">\{i > 0 && <span className="pass-sep"> · <\/span>\}/.test(tk)
+    && /groupItems\(items\)\.map\(\(\{ id, qty \}\) => \(\{ key: id, qty, name: nameOf\(id\) \}\)\)/.test(pb) && /nameOf: \(id: string\) => string = \(id\) => nameFrom\(null, id\)/.test(pb));
 
   // ── placed ahead: a lane of its own, and Live Ops counts the same way ──
   // 2026-10-12 (the Live Ops round): Live Ops' count moved from the crew page's Pass card into the Pass's row
@@ -11489,7 +11490,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /<div role="heading" aria-level=\{3\}>\s*<button type="button" className="kds-stage-h min-h-11" onClick=\{onFold\} aria-expanded=\{!folded\} aria-label=\{laneName\(lane, n\)\}>/.test(tp));
   ok("pass a11y: a new order is said politely in one line — the lanes are no live region (every age was read out each second)",
     (tp.match(/aria-live=/g) || []).length === 1 && !/aria-live=/.test(tk) && /<div className="sr-only" aria-live="polite" aria-atomic="true">\{said\.text && <span key=\{said\.n\}>\{said\.text\}<\/span>\}<\/div>/.test(tp)
-    && /say\(newOrderWords\(row\)\);/.test(hk) && /say\(outsideWords\(row\)\);/.test(hk) && /if \(fresh\.length > 1\) say\(newOrdersWords\(fresh\.length\)\);/.test(hk));
+    && /say\(newOrderWords\(row, nameRef\.current\)\);/.test(hk) && /say\(outsideWords\(row\)\);/.test(hk) && /if \(fresh\.length > 1\) say\(newOrdersWords\(fresh\.length\)\);/.test(hk));
   ok("pass a11y: no state by colour alone — late says 'late', the money says PAID or UNPAID, placed ahead says when",
     /\{a\.text\}\{a\.late && <> late<\/>\}/.test(tk) && /return \{ text: ago\(orderClockFrom\(o\), nowMs\), sev, late: sev === "late" \};/.test(pb) && /\{passWord\(o\)\}/.test(tk));
   ok("pass a11y: focus stays on the board — a ticket is a focusable group, and focus that was on it follows it when it moves",
@@ -13148,9 +13149,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   {
     const api = code(rd("app/api/checkout/route.ts"));
     ok("pay: the server asks cartRefusal before any charge — a failed products read is a 503, a refusal a 409, and nothing fails open",
-      /const \{ data: avail, error: availErr \} = await supabaseAdmin\.from\("products"\)\.select\("slug, sold_out, active, price_cents"\)\.in\("slug", uniq\);/.test(api)
+      /const \{ rows, error: availErr \} = await readMenuRows\(supabaseAdmin, uniq\);/.test(api)
       && /if \(availErr\) return NextResponse\.json\(\{ error: MENU_UNCHECKED \}, \{ status: 503 \}\);/.test(api)
-      && /const refused = cartRefusal\(uniq, rows, \(slug\) => DRINKS\[slug as DrinkId\]\?\.n \?\? slug\);\s*if \(refused\) return NextResponse\.json\(\{ error: refused \}, \{ status: 409 \}\);/.test(api)
+      && /const refused = cartRefusal\(uniq, rows, \(slug\) => nameFrom\(rows, slug\)\);\s*if \(refused\) return NextResponse\.json\(\{ error: refused \}, \{ status: 409 \}\);/.test(api)
       && api.indexOf("cartRefusal(") < api.indexOf("chargeCard(") && !/blocked\.join/.test(api));
   }
 }
@@ -13211,6 +13212,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("price: a member's perks are applied and named on the line they lower — the founding latte, a code's ten percent",
     m.subtotal === 800 + 900 && m.lines[0].perk === "Founding price" && m.lines[0].baseCents === 1400 && m.lines[1].perk === "TEN" && m.lines[1].cents === 900, m);
   ok("price: a slug the menu does not know is named, never priced", JSON.stringify(CP.priceCups(["rise", "ghost"], {}, {}, [])) === JSON.stringify({ unknown: "ghost" }));
+  // THE CATALOG IS THE MENU (R2, 2026-10-13): a drink only the Catalog knows is priced by it and named by it — the code
+  // list no longer decides which drinks exist (lib/catalog cartRefusal has asked the Catalog first).
+  const cat = CP.priceCups(["item-k3x9a", "rise"], { "item-k3x9a": 900, rise: 1000 }, {}, [], (s) => (s === "item-k3x9a" ? "MATCHA" : "RISE"));
+  ok("price: a drink only the Catalog knows is priced at its price and named by it", cat.subtotal === 1900 && cat.lines[0].name === "MATCHA" && cat.lines[1].name === "RISE", cat);
   ok("price: the tip is whole cents, capped at the subtotal, none on a pay-later send or a bad number",
     CP.tipCentsFor(true, 250.4, 2000) === 250 && CP.tipCentsFor(true, 5000, 2000) === 2000 && CP.tipCentsFor(false, 250, 2000) === 0
     && CP.tipCentsFor(true, -5, 2000) === 0 && CP.tipCentsFor(true, "250", 2000) === 0 && CP.tipCentsFor(true, NaN, 2000) === 0);
@@ -13219,12 +13224,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && CP.priceChangedWords(1050, false) === "The price changed — your total is now $10.50. Tap again to send it.");
   const api = code(rd("app/api/checkout/route.ts")), quote = code(rd("app/api/checkout/quote/route.ts")), co = code(rd("components/Checkout.tsx"));
   ok("charge: it prices with lib/cupPrice and refuses an amount it was not shown — after a retry is answered, before the claim and the card",
-    /const priced = priceCups\(items, productPrices, squarePrices, benefits\);/.test(api)
+    /const priced = priceCups\(items, productPrices, squarePrices, benefits, \(slug\) => nameFrom\(cupRows, slug\)\);/.test(api)
     && /if \(expected !== null && expected !== due\) \{\s*return NextResponse\.json\(\{ error: priceChangedWords\(due, paying\), priceChanged: true, subtotalCents: subtotal, amountCents: due, lines: priced\.lines \}, \{ status: 409 \}\);/.test(api)
     && api.indexOf("seenBefore(") < api.indexOf("expected !== due") && api.indexOf("expected !== due") < api.indexOf("claimKey(") && !/priceForSlug\(/.test(api));
   ok("quote: the same reads the charge makes — products (refused in the same words), Square, the caller's perks — and the same pricing",
-    /cartRefusal\(uniq, rows, \(slug\) => DRINKS\[slug as DrinkId\]\?\.n \?\? slug\)/.test(quote) && /if \(availErr\) return NextResponse\.json\(\{ error: MENU_UNCHECKED \}, \{ status: 503 \}\);/.test(quote)
-    && /await squarePriceMap\(token\)/.test(quote) && /benefitsForUser\(user\?\.id \?\? null, code\)/.test(quote) && /priceCups\(items, productPrices, squarePrices, benefits\)/.test(quote)
+    /const nameOf = \(slug: string\) => nameFrom\(rows, slug\);\s+const refused = cartRefusal\(uniq, rows, nameOf\);/.test(quote) && /await readMenuRows\(supabaseAdmin, uniq\)/.test(quote) && /if \(availErr\) return NextResponse\.json\(\{ error: MENU_UNCHECKED \}, \{ status: 503 \}\);/.test(quote)
+    && /await squarePriceMap\(token\)/.test(quote) && /benefitsForUser\(user\?\.id \?\? null, code\)/.test(quote) && /priceCups\(items, productPrices, squarePrices, benefits, nameOf\)/.test(quote)
     && /export const POST = route\("checkout\/quote", post\);/.test(quote));
   ok("page: it shows the server's price, sends the amount it showed from both buttons, takes a refusal's new amount, and confirms what was charged",
     /authedFetch\("\/api\/checkout\/quote"/.test(co) && /const subtotalCents = priced \? priced\.subtotalCents : totalCents;/.test(co)
@@ -13469,6 +13474,123 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /aria-current=\{on \? \(tab\.href === lit \? "page" : "true"\) : undefined\}/.test(rd("components/BottomNav.tsx")));
   ok("join: the fine print, the field hint and the code hint read at 4.5:1 or better (they measured 3.5, 2.7 and 4.1)",
     /\.auth-fine\{font-size:12px;color:var\(--cream-m\);/.test(css) && /\.auth-label span\{color:var\(--cream-m\);/.test(css) && /\.auth-paste-hint\{font-size:12px;color:var\(--cream-m\);/.test(css));
+}
+
+// ── THE CATALOG IS THE MENU (2026-10-13, R2 of the customer audit, "One catalog", approved) ──
+// The menu was ten drinks in lib/menu.ts; the Catalog set price and 86. Now a drink is its products row (lib/drinks): the
+// menu, the sheet, the cart, Pay, the Pass, the truck's board and Ask us all ask there. 0393's backfill and grants are
+// scripts/db.catalogmenu.test.mjs; here, the rules over the rows and where each screen reads them.
+{
+  const D = require("../.smoke/drinks.js");
+  const CAT = require("../.smoke/catalog.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const row = (o) => ({ slug: "x", name: null, line: null, price_cents: null, sort: null, what: null, why: null, ingredients: null, excludes: null, timing: null, accent: null, sold_out: false, active: true, ...o });
+  // After 0393: the row says everything.
+  const full = (o) => row({ cup_orderable: true, caffeine: null, contains: null, tag: null, when_text: null, ...o });
+  const rise = D.drinkFrom(full({ slug: "rise", name: "RISE", line: "Activation", price_cents: 1000, sort: 10, what: "Line one\nLine two", why: "Why.", ingredients: ["A"], excludes: ["B"], timing: "BEFORE", accent: "#C49A5E", tag: "Start here", when_text: "Morning.", caffeine: true, contains: ["Coconut"] }), "rise");
+  ok("drink: a full Catalog row is the drink — its words, lines one per row, caffeine and contains as said",
+    rise.name === "RISE" && rise.lines.join("|") === "Line one|Line two" && rise.why === "Why." && rise.has[0] === "A" && rise.no[0] === "B" && rise.tag === "Start here"
+    && rise.whenText === "Morning." && rise.caffeine === true && rise.contains[0] === "Coconut" && rise.priceCents === 1000 && rise.cup === true, rise);
+  const cleared = D.drinkFrom(full({ slug: "rise", name: "RISE", what: null, why: null, tag: null, ingredients: [] }), "rise");
+  ok("drink: a field the owner clears in the Catalog is clear on the menu — the code list's words don't come back",
+    cleared.lines.length === 0 && cleared.why === "" && cleared.tag === null && cleared.has.length === 0, cleared);
+  const before = D.drinkFrom(row({ slug: "tide", name: "TIDE", price_cents: 1200, sold_out: true, line: "Hydration" }), "tide");
+  ok("drink: before 0393 a code-list drink is the menu as it was — the code list's words with the Catalog's price and 86",
+    before.name === "TIDE" && before.lines.length === 2 && before.priceCents === 1200 && before.soldOut === true && before.cup === true && before.caffeine === null, before);
+  const latte = D.drinkFrom(row({ slug: "salted-latte", name: "Salted Latte", price_cents: 1400, line: "Recovery" }), "salted-latte");
+  ok("drink: before 0393 a product outside the code list is never a cup (Salted Latte stays a pack add-on)", latte.cup === false && latte.name === "Salted Latte", latte);
+  const ghost = D.drinkFrom(null, "ghost");
+  ok("drink: a slug nothing knows is still a drink — named by its slug, saying nothing, not orderable", ghost.name === "ghost" && ghost.cup === false && ghost.active === false && ghost.lines.length === 0, ghost);
+  const menu = D.menuOf([
+    full({ slug: "item-k3x9a", name: "MATCHA", line: "Activation", price_cents: 900, sort: 15 }),
+    full({ slug: "salted-latte", name: "Salted Latte", line: "Recovery", price_cents: 1400, sort: 900, cup_orderable: false }),
+    full({ slug: "forge", name: "FORGE", line: "Fuel", price_cents: 1000, sort: 30 }),
+    full({ slug: "rise", name: "RISE", line: "Activation", price_cents: 1000, sort: 10, sold_out: true }),
+    full({ slug: "gone", name: "GONE", line: "Activation", price_cents: 1000, sort: 11, active: false }),
+  ]);
+  ok("menu: on sale and sold by the cup, in the Catalog's order — a new drink is on it, a pack add-on and a drink off the menu aren't, an 86'd one stays (it says Sold out)",
+    menu.map((d) => d.slug).join(",") === "rise,item-k3x9a,forge", menu.map((d) => d.slug));
+  const secs = D.sectionsOf(menu);
+  ok("menu: sections are the Catalog's lines, each where its first drink is", secs.map((x) => `${x.line}:${x.drinks.length}`).join(",") === "Activation:2,Fuel:1", secs);
+  const seed = D.seedMenu();
+  ok("menu: the code list's menu stands in when the Catalog can't be read — the ten drinks, Activation, Hydration, Fuel, never empty",
+    seed.length === 10 && D.sectionsOf(seed).map((x) => x.line).join(",") === "Activation,Hydration,Fuel" && seed[0].slug === "rise" && seed[6].slug === "aide");
+  ok("menu: NATURE'S AIDE in the code list is what the owner said is in it (2026-10-13) — lime juice, no mineral water",
+    seed.find((d) => d.slug === "aide").has.join(", ") === "Organic coconut water, Organic lime juice, Organic maple syrup, Sea salt"
+    && !/[Mm]ineral water/.test(seed.find((d) => d.slug === "aide").lines.join(" ")));
+  ok("names: an order line prints the Catalog's name, then the live name (the crew read every row, a drink taken off included), then the code list's, then the slug",
+    D.nameFrom([{ slug: "rise", name: "RISE (new)" }], "rise") === "RISE (new)" && D.nameFrom(null, "kingme") === "KING ME" && D.nameFrom([], "item-zz") === "item-zz"
+    && D.nameFrom([], "item-zz", new Map([["item-zz", "MATCHA"]])) === "MATCHA" && D.nameFrom(null, "constructor") === "constructor");
+  ok("menu: sections group as the Catalog does — 'activation' and 'Activation ' are one section, named as its first drink says",
+    D.sectionsOf([full({ slug: "a", name: "A", line: "Activation", sort: 1 }), full({ slug: "b", name: "B", line: " activation ", sort: 2 })].map((r) => D.drinkFrom(r, r.slug))).map((x) => `${x.line}:${x.drinks.length}`).join(",") === "Activation:2");
+  ok("drink: a slug like 'constructor' is no code-list drink (no crash before 0393)", D.menuOf([row({ slug: "constructor", name: "C", price_cents: 100 })]).length === 0);
+  ok("sheet: caffeine and contains in words, nothing when the Catalog doesn't say", JSON.stringify(D.factsOf({ caffeine: true, contains: ["Goat milk"] })) === JSON.stringify({ caffeine: "Caffeine", contains: "Goat milk" })
+    && JSON.stringify(D.factsOf({ caffeine: null, contains: [] })) === JSON.stringify({ caffeine: null, contains: null }) && D.pillarOf("Fuel", "After the work") === "Fuel · After the work");
+  // Pay's words.
+  const nm = (s) => s.toUpperCase();
+  ok("pay: a product on sale that isn't sold by the cup is refused for what it is",
+    CAT.cartRefusal(["salted-latte"], [{ slug: "salted-latte", sold_out: false, active: true, cup_orderable: false }], nm) === "SALTED-LATTE isn't sold by the cup — remove it and try again.");
+  ok("pay: before 0393 (no cup_orderable on the row) only the code list's ten are cups — the refusal Pay always gave a pack add-on",
+    CAT.cartRefusal(["salted-latte", "rise"], [{ slug: "salted-latte", sold_out: false, active: true }, { slug: "rise", sold_out: false, active: true }], nm) === "SALTED-LATTE isn't sold by the cup — remove it and try again.");
+  ok("pay: a new drink sold by the cup passes", CAT.cartRefusal(["item-k3x9a"], [{ slug: "item-k3x9a", sold_out: false, active: true, cup_orderable: true }], nm) === null);
+  ok("pay: a stop's menu refuses what it doesn't pour, by name and with the stop's; no menu set limits nothing",
+    CAT.stopMenuRefusal(CAT.offStopMenu(["rise", "kingme", "kingme"], ["rise", "flow"]).map(nm), "WineXpress") === "KINGME isn't poured at WineXpress — remove it and try again."
+    && CAT.offStopMenu(["rise", "kingme"], null).length === 0 && CAT.stopMenuRefusal([], "X") === null);
+  // Where each screen reads it.
+  const ap = code(rd("components/AppProvider.tsx")), menuPage = code(rd("app/menu/page.tsx")), sheet = code(rd("components/DrinkSheet.tsx"));
+  const api = code(rd("app/api/menu/route.ts")), checkout = code(rd("app/api/checkout/route.ts")), board = code(rd("app/display/page.tsx"));
+  ok("menu api: the Catalog's rows on sale, prices as before for an installed iPhone build, never an edge copy; a failed read is null (and logged), nothing on sale an empty menu",
+    /const r = await readMenuRows\(sb\);\s+if \(!r\.error\) items = r\.rows\.filter\(\(p\) => p\.active !== false\);/.test(api) && !/s-maxage/.test(api)
+    && /else console\.error\(`menu: the Catalog read failed — \$\{r\.error\}`\);/.test(api)
+    && /if \(items && !items\.length\) return NextResponse\.json\(\{ prices: \{\}, items: \[\], source: "products" \}\);/.test(api)
+    && /return NextResponse\.json\(\{ prices, items, source: "products" \}\);/.test(api));
+  ok("app: one menu for every screen — the Catalog's (menuOf), the code list's until it is read; drinkOf never throws; a drink taken off leaves the cart, said once",
+    /const menu = useMemo\(\(\) => \(rows \? menuOf\(rows\) : seedMenu\(\)\), \[rows\]\);/.test(ap) && /const drinkOf = useCallback\(\(id: string\) => drinkFrom\(bySlug\.get\(id\) \?\? null, id\), \[bySlug\]\);/.test(ap)
+    && /if \(Array\.isArray\(d\.items\)\) \{\s+setRows\(d\.items as MenuRow\[\]\);\s+if \(!pruned\.current\) \{ pruned\.current = true; pruneCart\.current\(d\.items as MenuRow\[\]\); \}/.test(ap)
+    && /const onMenu = new Set\(menuOf\(read\)\.map\(\(d\) => d\.slug\)\);/.test(ap) && /on the menu any more — taken out of your order/.test(ap) && !/from "@\/lib\/menu"/.test(ap));
+  ok("menu page: sections and drinks from the menu, read again on open; a stop's menu says Not at this stop; caffeine when the Catalog says",
+    /useEffect\(\(\) => \{ refreshMenu\(\); \}, \[refreshMenu\]\);/.test(menuPage) && /const sections = sectionsOf\(menu\);/.test(menuPage)
+    && /const notHere = !out && !!ordering\.stopMenu && !ordering\.stopMenu\.has\(id\);/.test(menuPage)
+    && /const facts = \[d\.caffeine === true \? t\("menu\.caffeine"\) : d\.caffeine === false \? t\("menu\.no_caffeine"\) : "", \.\.\.\(d\.contains \?\? \[\]\)\]\.filter\(Boolean\);/.test(menuPage)
+    && /useViewerMarket\(CUP_MARKETS\)/.test(menuPage) && !/from "@\/lib\/menu"/.test(menuPage));
+  ok("menu: the price adds the drink and becomes its counter; the row opens the sheet — two sibling buttons, never one in the other, each 44 to the thumb",
+    /<button type="button" className="entry-open absolute inset-0 cursor-pointer appearance-none border-0 bg-transparent p-0" onClick=\{\(\) => openDrink\(id\)\}/.test(menuPage)
+    && /<button type="button" className="entry-px order hit-44 z-\[1\] cursor-pointer appearance-none bg-transparent" aria-label=\{`Add \$\{d\.name\}, \$\{priceLabel\(id\)\}`\} onClick=\{\(\) => bump\(id\)\}>/.test(menuPage)
+    && /aria-label=\{`Remove one \$\{d\.name\}`\} onClick=\{\(\) => dec\(id\)\}>−<\/button>/.test(menuPage) && /aria-label=\{`Add one more \$\{d\.name\}`\} onClick=\{\(\) => inc\(id\)\}>\+<\/button>/.test(menuPage)
+    && !/role="button"/.test(menuPage) && !/clickable\(/.test(menuPage));
+  // The first build's buttons wore the browser's grey face — the stretched one over the whole row — and its counter was 4px
+  // shorter than the pill, so every row under it jumped (smoke:ui and the captures caught both, 2026-10-13). Their resets are
+  // utilities, as one-off layout is here; smoke:ui measures the faces and the rows that must not move.
+  const gcss = rd("app/globals.css");
+  ok("menu: its buttons paint no browser face — the row's, the price pill's and the counter's − and +, each the pill's height; the sheet's facts are one grouped list",
+    (menuPage.match(/className="hit-44 px-2\.5 py-1 cursor-pointer appearance-none border-0 bg-transparent text-inherit \[font:inherit\]"/g) || []).length === 2
+    && /\n\.sheet-when\+\.sheet-when\{margin-top:-1px;border-top-color:transparent;border-top-left-radius:0;border-top-right-radius:0\}/.test(gcss)
+    && /\n\.sheet-when:has\(\+\.sheet-when\)\{border-bottom-left-radius:0;border-bottom-right-radius:0\}/.test(gcss));
+  const dm = rd("scripts/design.measure.mjs");
+  ok("design measure: an ::after's reach is where its translate puts it (hit-44 centres itself with one), and a target a scroller cuts in two is judged in view on the axis it scrolls",
+    /const dx = pure \? m6\[4\] : 0, dy = pure \? m6\[5\] : 0;/.test(dm) && /y0 = Math\.min\(y0, b\.top \+ t \+ dy\)/.test(dm)
+    && /const cutY = !\/\(auto\|scroll\)\/\.test\(cs\.overflowY\) \|\| \(b\.top >= c\.top && b\.bottom <= c\.bottom\);/.test(dm)
+    && /@utility hit-44 \{ position: relative; &::after \{ content: ""; position: absolute; left: 50%; top: 50%; width: max\(100%, 44px\); height: max\(100%, 44px\); transform: translate\(-50%, -50%\); \} \}/.test(rd("app/tailwind.css")));
+  ok("drink sheet: the drink is drinkOf's; empty lists leave out their heading; caffeine and contains only when said; not-at-this-stop names the stop",
+    /const d = openId \? drinkOf\(openId\) : null;/.test(sheet) && /\{d\.has\.length > 0 && \(/.test(sheet) && /\{caffeine && \(/.test(sheet) && /\{contains && \(/.test(sheet)
+    && /isn&apos;t poured at \{o\?\.stop\?\.name \|\| "this stop"\}/.test(sheet) && !/from "@\/lib\/menu"/.test(sheet));
+  ok("pay: a stop's menu is checked after the truck's schedule and before any charge; a failed read waits (503)",
+    /const sm = await readStopMenu\(supabaseAdmin, ordering\.stop\.id\);\s+if \(sm\.error && !isMissingFunction\(sm\.error\)\) return NextResponse\.json\(\{ error: "We couldn't check this stop's menu — give it another tap in a moment\." \}, \{ status: 503 \}\);/.test(checkout)
+    && checkout.indexOf("readStopMenu(") < checkout.indexOf("chargeCard(") && /items\.every\(\(x\): x is string => typeof x === "string"/.test(checkout));
+  ok("truck board: the menu's sections, names and prices; an 86 says Sold out in place of its price",
+    /soldOut\.has\(d\.slug\) \? t\("menu\.sold_out"\) : money\(priceCents\(d\.slug\)\)/.test(board) && /sectionsOf\(stopMenu \? menu\.filter\(\(d\) => stopMenu\.has\(d\.slug\)\) : menu\)/.test(board) && !/from "@\/lib\/menu"/.test(board));
+  // The code list is read by lib/drinks, and by nothing else but the Square name fallback and the day generator's tables.
+  const readers = [];
+  const walk = (dir) => { for (const e of fs.readdirSync(path.join(__dirname, "..", dir), { withFileTypes: true })) {
+    const f = `${dir}/${e.name}`;
+    if (e.isDirectory()) { if (!/node_modules|\.next|\.smoke|out$|ios|native|public/.test(f)) walk(f); }
+    else if (/\.(ts|tsx)$/.test(e.name) && /from "(@\/lib\/menu|\.\/menu|\.\.\/lib\/menu)"/.test(rd(f))) readers.push(f);
+  } };
+  for (const d of ["app", "components", "lib"]) walk(d);
+  ok("the code list is seed data: only lib/drinks reads it, with the Square name fallback and the day generator's recommendation tables",
+    readers.sort().join(",") === ["app/api/menu/route.ts", "components/GenerateDay.tsx", "lib/drinks.ts", "lib/squareCatalog.ts"].join(","), readers);
 }
 
 Promise.all(PENDING).then(() => {

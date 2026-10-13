@@ -14,6 +14,7 @@ import {
   OPEN_CAP, NOWHERE, PASS_FEED_EVENT, type BoardDown, type Here, type Scope,
 } from "@/lib/passBoard";
 import type { Order } from "@/lib/db";
+import { useApp } from "@/components/AppProvider";
 
 // THE PASS'S BOARD — what it holds and how it stays true (2026-10-11, the KDS program, wave 2: out of app/crew/page.tsx,
 // where it was the top half of the Kitchen function). The read, the realtime feed, the 15-second reconcile, the set of
@@ -62,10 +63,15 @@ export function usePassBoard() {
   const say = useCallback((text: string) => setSaid((s) => ({ text, n: s.n + 1 })), []);
 
   // Ring + buzz + flash when a genuinely new order lands (not on initial seed / own taps).
+  // The Catalog's names (R2): what a screen reader hears is what the ticket prints. Through a ref, so the menu landing (a
+  // new nameOf) never tears down and reopens the board's realtime feed.
+  const { nameOf } = useApp();
+  const nameRef = useRef(nameOf);
+  useEffect(() => { nameRef.current = nameOf; }, [nameOf]);
   const announceNew = useCallback((row: Order) => {
     if (!seeded.current) return;
     if (!mutedRef.current) { chime(); haptic("alert"); }
-    say(newOrderWords(row));
+    say(newOrderWords(row, nameRef.current));
     setFlash((p) => new Set(p).add(row.id));
     setTimeout(() => setFlash((p) => { const n = new Set(p); n.delete(row.id); return n; }), 6000);
   }, [say]);

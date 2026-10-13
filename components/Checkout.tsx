@@ -7,7 +7,8 @@ import { useAuth } from "./AuthProvider";
 import { useCustomerKnown, useKnownField, invalidateCustomerKnown } from "./useCustomerKnown";
 import { authedFetch } from "@/lib/authedFetch";
 import { subscribePush } from "@/lib/push";
-import { DRINKS, type DrinkId } from "@/lib/menu";
+import { offStopMenu } from "@/lib/catalog";
+import { CUP_MARKETS } from "@/lib/markets";
 import { useAvailability } from "@/lib/availability";
 import { perBottle, PRICING } from "@/lib/orderAhead";
 import { useViewerMarket } from "@/components/useViewerMarket";
@@ -26,7 +27,6 @@ import { holdsKey, useIdemKey } from "./useIdemKey";
 import type { CupLine } from "@/lib/cupPrice";
 import { payErrorText } from "@/lib/idempotency";
 import { haptic } from "@/lib/haptics";
-import { apiUrl } from "@/lib/native";
 import { Segmented } from "@/components/controls";
 
 // THE TIP SIGNS THE KEY (2026-10-12, C7 of the customer audit, approved). What is bought and what it costs — the items
@@ -43,21 +43,16 @@ function restoredTip(): number {
 }
 
 export default function Checkout() {
-  const { cart, inc, dec, toast, checkout, coOpen: open, closeCheckout: onClose } = useApp();
+  const { cart, inc, dec, toast, checkout, coOpen: open, closeCheckout: onClose, priceCents, nameOf } = useApp();
   const router = useRouter();
   // The confirmation moment — same shape as pickup/delivery's OrderConfirm. Lines/name are captured
   // at success time because checkout() clears the cart right after (lines would otherwise read empty
   // by the time the confirm screen renders).
   // readyFrom/pickup are the SERVER's promise (/api/checkout answers with what it recorded), so the
   // screen says what the order says — not what this sheet last read, which can be a minute old.
-  const [done, setDone] = useState<{ paid: boolean; total: number; lines: [DrinkId, number][]; name: string; warn?: string; ref?: string; readyFrom: string | null; pickup: string } | null>(null);
+  const [done, setDone] = useState<{ paid: boolean; total: number; lines: [string, number][]; name: string; warn?: string; ref?: string; readyFrom: string | null; pickup: string } | null>(null);
   useEffect(() => { if (!open) setDone(null); else trackFunnel("order", "open"); }, [open]);
   const { profile } = useAuth();
-  const [prices, setPrices] = useState<Record<string, number>>({});
-  // Prices for the displayed total (the actual charge is computed server-side).
-  useEffect(() => {
-    fetch(apiUrl("/api/menu")).then((r) => r.json()).then((d) => setPrices(d.prices || {})).catch(() => {});
-  }, []);
   const paymentRef = useRef<PaymentCardHandle>(null);
   // ONE KEY PER CHECKOUT (2026-10-11, lib/chargeOnce). The key used to be minted per card token, and
   // every tap of Pay asked the card form for a new token — so a retry after a lost answer went to
@@ -82,7 +77,7 @@ export default function Checkout() {
   // "Ready in ~8 min" is only true when there's a truck to make it. One shared rule (useOrderingOpen
   // → lib/ordering, on the read /api/checkout makes too): outside the window the sheet offers the
   // pack reserve instead, and inside it the sheet says where to pick up and when it will be made.
-  const { market: viewerMarket } = useViewerMarket();
+  const { market: viewerMarket } = useViewerMarket(CUP_MARKETS);
   const ordering = useOrderingOpen(open, viewerMarket);
   const o = ordering.ordering;
   const t = useSiteCopy();
@@ -95,9 +90,10 @@ export default function Checkout() {
   // path is offered — on its own when Square is off, or alongside the card when Square is on.
   const payLater = usePayAtPickup(open);
 
-  const lines = Object.entries(cart) as [DrinkId, number][];
-  const items = lines.flatMap(([id, q]) => Array(q).fill(id)) as DrinkId[]; // flat list for the charge + order record
-  const priceOf = (id: DrinkId) => prices?.[id] ?? Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
+  // The drinks and their prices are the menu's (AppProvider — the Catalog, R2); the charge is priced by the server.
+  const lines = Object.entries(cart);
+  const items = lines.flatMap(([id, q]) => Array<string>(q).fill(id)); // flat list for the charge + order record
+  const priceOf = (id: string) => priceCents(id);
   const totalCents = items.reduce((s, id) => s + priceOf(id), 0);
   // THE SERVER'S PRICE, BEFORE PAY (C2, 2026-10-12). /api/checkout/quote prices this cart the way the charge will — a
   // member's perks applied and named, a price the owner changed after the menu loaded — and the button shows that amount
@@ -115,7 +111,7 @@ export default function Checkout() {
     return () => { alive = false; };
   }, [open, itemsKey]);
   const priced = quote && quote.key === itemsKey ? quote : null;
-  const lineOf = (id: DrinkId) => priced?.lines.find((l) => l.slug === id) ?? null;
+  const lineOf = (id: string) => priced?.lines.find((l) => l.slug === id) ?? null;
   const subtotalCents = priced ? priced.subtotalCents : totalCents;
   const repriced = (d: { priceChanged?: boolean; subtotalCents?: unknown; lines?: unknown }) => {
     if (d?.priceChanged && typeof d.subtotalCents === "number" && Array.isArray(d.lines)) setQuote({ key: itemsKey, subtotalCents: d.subtotalCents, lines: d.lines as CupLine[] });
@@ -123,7 +119,22 @@ export default function Checkout() {
   // A cart line that sold out mid-order blocks submission (the server refuses it anyway — this is
   // the polite version: name the item, let them remove it, keep the rest of the order alive).
   const { soldOut } = useAvailability();
-  const blocked86 = lines.filter(([id]) => soldOut.has(id)).map(([id]) => DRINKS[id].n);
+  const blocked86 = lines.filter(([id]) => soldOut.has(id)).map(([id]) => nameOf(id));
+  // A drink the stop doesn't pour (its menu, stop_menu 0393) blocks the same way, by name and with the stop's: Pay
+  // refuses it anyway (R2, 2026-10-13). No menu set, or not read yet: nothing is blocked here.
+  const stopName = o?.stop?.name ?? null;
+  // A drink that is sold out is said once, as sold out — not twice.
+  const notHere = offStopMenu(items.filter((id) => !soldOut.has(id)), ordering.stopMenu ? [...ordering.stopMenu] : null).map(nameOf);
+  const blocked = blocked86.length + notHere.length;
+  const blockedNote = blocked > 0 ? (
+    <div className="co-86">
+      {[
+        blocked86.length ? `${blocked86.join(" · ")} just sold out` : "",
+        notHere.length ? `${notHere.join(" · ")} ${notHere.length === 1 ? "isn't" : "aren't"} poured at ${stopName ?? "this stop"}` : "",
+      ].filter(Boolean).join(", and ")} — remove {blocked === 1 ? "it" : "them"} with the − button to continue.
+    </div>
+  ) : null;
+  const blockedLabel = blocked86.length ? "Remove sold-out items" : "Remove what this stop doesn't pour";
   // A name is required so the operator can call the order at pickup. It starts from what we know
   // (lib/customerKnown: what they asked to be called, else the name on their record or their last
   // order — not only display_name, which is often empty) and is theirs the moment they type. A guest
@@ -231,7 +242,7 @@ export default function Checkout() {
   // the paid path gets.
   const sendPreOrder = async () => {
     if (busy || sending.current) return; // guard against a double-tap firing two pre-orders the kitchen makes
-    if (blocked86.length > 0) { toast("Remove the sold-out items first", "error"); return; }
+    if (blocked > 0) { toast(blocked86.length ? "Remove the sold-out items first" : "Remove what this stop doesn't pour first", "error"); return; }
     if (!customer) { toast("Add a name for pickup", "error"); return; }
     if (items.length === 0) return;
     setBusy(true);
@@ -307,7 +318,7 @@ export default function Checkout() {
           totalLabel={done.paid ? "paid" : "due at the truck"}
           warn={done.warn}
           rows={[
-            ...done.lines.map(([id, q]) => ({ label: DRINKS[id].n, value: `${q}×` })),
+            ...done.lines.map(([id, q]) => ({ label: nameOf(id), value: `${q}×` })),
             { label: "For", value: done.name },
             { label: "Pickup", value: done.pickup },
             ...(done.ref ? [{ label: "Ref", value: `#${done.ref}` }] : []),
@@ -335,10 +346,10 @@ export default function Checkout() {
               {lines.map(([id, q]) => (
                 <div className="co-line" key={id}>
                   <span className="co-qty">
-                    <button type="button" className="k-icon-btn" aria-label={`Remove one ${DRINKS[id].n}`} onClick={() => dec(id)} disabled={busy}>−</button>
+                    <button type="button" className="k-icon-btn" aria-label={`Remove one ${nameOf(id)}`} onClick={() => dec(id)} disabled={busy}>−</button>
                     <b>{q}</b>
-                    <button type="button" className="k-icon-btn" aria-label={`Add one ${DRINKS[id].n}`} onClick={() => inc(id)} disabled={busy}>+</button>
-                    {DRINKS[id].n}
+                    <button type="button" className="k-icon-btn" aria-label={`Add one ${nameOf(id)}`} onClick={() => inc(id)} disabled={busy}>+</button>
+                    {nameOf(id)}
                     {lineOf(id)?.perk && <em className="ml-1.5 not-italic text-caption2 text-gold2">{lineOf(id)!.perk}</em>}
                   </span>
                   <span>{money((lineOf(id)?.cents ?? priceOf(id)) * q)}</span>
@@ -387,14 +398,14 @@ export default function Checkout() {
                   </div>
                   {err && <div className="auth-err">{err}</div>}
                   <div className="co-foot">
-                    {blocked86.length > 0 && <div className="co-86">{blocked86.join(" · ")} just sold out — remove {blocked86.length === 1 ? "it" : "them"} with the − button to continue.</div>}
+                    {blockedNote}
                     <div className="co-line co-total"><span>Total</span><span>{total}</span></div>
-                    <button type="button" className="btn-pri btn-wide mt-4.5" onClick={pay} disabled={!ready || busy || items.length === 0 || !customer || blocked86.length > 0}>
-                      <span>{busy ? "Charging…" : blocked86.length > 0 ? "Remove sold-out items" : !customer ? "Add a name above" : ready ? `Pay ${total}` : "Loading card…"}</span>
+                    <button type="button" className="btn-pri btn-wide mt-4.5" onClick={pay} disabled={!ready || busy || items.length === 0 || !customer || blocked > 0}>
+                      <span>{busy ? "Charging…" : blocked > 0 ? blockedLabel : !customer ? "Add a name above" : ready ? `Pay ${total}` : "Loading card…"}</span>
                     </button>
                     {/* Card is primary; pay-at-pickup is the secondary path when the operator allows it. */}
                     {payLater.on && (
-                      <button type="button" className="co-paylater" onClick={sendPreOrder} disabled={busy || items.length === 0 || !customer || blocked86.length > 0}>
+                      <button type="button" className="co-paylater" onClick={sendPreOrder} disabled={busy || items.length === 0 || !customer || blocked > 0}>
                         or <b>pay at the truck</b> — send pre-order
                       </button>
                     )}
@@ -403,13 +414,13 @@ export default function Checkout() {
                 </>
               ) : payLater.on ? (
                 <>
-                  {blocked86.length > 0 && <div className="co-86">{blocked86.join(" · ")} just sold out — remove {blocked86.length === 1 ? "it" : "them"} with the − button to continue.</div>}
+                  {blockedNote}
                   <div className="co-line co-total"><span>Total</span><span>{money(subtotalCents)}</span></div>
                   <div className="honest" style={{ marginTop: 16 }}>
                     This is a <b>pre-order</b>{" "}— we&apos;ll have it ready and you pay at the truck.
                   </div>
-                  <button type="button" className="btn-pri btn-wide mt-4.5" onClick={sendPreOrder} disabled={busy || !customer || items.length === 0 || blocked86.length > 0}>
-                    <span>{busy ? "Sending…" : blocked86.length > 0 ? "Remove sold-out items" : "Send pre-order"}</span>
+                  <button type="button" className="btn-pri btn-wide mt-4.5" onClick={sendPreOrder} disabled={busy || !customer || items.length === 0 || blocked > 0}>
+                    <span>{busy ? "Sending…" : blocked > 0 ? blockedLabel : "Send pre-order"}</span>
                   </button>
                 </>
               ) : (

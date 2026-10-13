@@ -15,6 +15,7 @@
 // components/MenuManager (the list) and components/ProductPage (one product).
 
 import { clockTime, etDayKey, etWhen } from "./dates";
+import { isSeedSlug } from "./drinks";
 import { money, moneyPlain } from "./money";
 
 /** A products row, as the Catalog reads it (select *). */
@@ -23,6 +24,9 @@ export type CatalogProduct = {
   sold_out: boolean; sold_out_at: string | null; sold_out_by: string | null;
   what: string | null; why: string | null; ingredients: string[] | null; excludes: string[] | null; timing: string | null;
   bulk_orderable?: boolean | null; bulk_tier?: string | null; bulk_price_cents?: number | null;
+  // 0393 (R2 — the Catalog is the menu): sold by the cup, caffeine, contains, the menu row's tag, when to drink it.
+  // Absent on a row read before it is pasted.
+  cup_orderable?: boolean | null; caffeine?: boolean | null; contains?: string[] | null; tag?: string | null; when_text?: string | null;
   updated_at: string;
 };
 
@@ -187,17 +191,25 @@ export function shownRow<T extends { id: string; sold_out: boolean; updated_at: 
 // validations). The draft holds what is typed as typed: the comma lists used to be re-split on every keystroke, so a
 // comma typed at the end vanished before the next word could follow it; the price was a number box that could not hold
 // "7." on its way to "7.50".
-export const PAGE_FIELDS = ["name", "price_cents", "line", "timing", "what", "why", "ingredients", "excludes", "active", "bulk_orderable", "bulk_tier"] as const;
+// Since 2026-10-13 (R2, 0393) the page also edits what the menu shows that had no column: sold by the cup, caffeine (said
+// yes or no, or not said), what it contains, the row's tag and when to drink it. The description is the menu's "what it
+// is", one line per row.
+export const PAGE_FIELDS = ["name", "price_cents", "line", "timing", "what", "why", "ingredients", "excludes", "active", "bulk_orderable", "bulk_tier", "cup_orderable", "caffeine", "contains", "tag", "when_text"] as const;
 export type PageField = (typeof PAGE_FIELDS)[number];
+/** Caffeine as the page's control says it: not said, yes, none. */
+export type CaffeineChoice = "" | "yes" | "no";
 export type Draft = {
   name: string; price: string; line: string; timing: string; what: string; why: string; ingredients: string; excludes: string;
   active: boolean; bulk_orderable: boolean; bulk_tier: string;
+  cup_orderable: boolean; caffeine: CaffeineChoice; contains: string; tag: string; when_text: string;
 };
 export type Values = {
   name: string; price_cents: number; line: string; timing: string; what: string; why: string; ingredients: string[]; excludes: string[];
   active: boolean; bulk_orderable: boolean; bulk_tier: string;
+  cup_orderable: boolean; caffeine: boolean | null; contains: string[]; tag: string; when_text: string;
 };
-type DraftSource = Pick<CatalogProduct, "name" | "price_cents" | "line" | "timing" | "what" | "why" | "ingredients" | "excludes" | "active" | "bulk_orderable" | "bulk_tier">;
+type DraftSource = Pick<CatalogProduct, "name" | "price_cents" | "line" | "timing" | "what" | "why" | "ingredients" | "excludes" | "active" | "bulk_orderable" | "bulk_tier"
+  | "cup_orderable" | "caffeine" | "contains" | "tag" | "when_text">;
 
 const list = (text: string): string[] => text.split(",").map((s) => s.trim()).filter(Boolean);
 /** Dollars as typed → cents: "7.5", "$7.50" and "7" are 750, 750 and 700; what is not a number is $0. */
@@ -210,6 +222,8 @@ export function draftOf(p: DraftSource): Draft {
     name: p.name ?? "", price: moneyPlain(p.price_cents), line: p.line ?? "", timing: p.timing ?? "", what: p.what ?? "", why: p.why ?? "",
     ingredients: (p.ingredients ?? []).join(", "), excludes: (p.excludes ?? []).join(", "),
     active: !!p.active, bulk_orderable: !!p.bulk_orderable, bulk_tier: p.bulk_tier || "premium",
+    cup_orderable: p.cup_orderable !== false, caffeine: p.caffeine === true ? "yes" : p.caffeine === false ? "no" : "",
+    contains: (p.contains ?? []).join(", "), tag: p.tag ?? "", when_text: p.when_text ?? "",
   };
 }
 /** What a draft saves, the way the expander saved it: the name trimmed, the price in whole cents, the lists split. */
@@ -218,6 +232,8 @@ export function valuesOf(d: Draft): Values {
     name: d.name.trim(), price_cents: priceCents(d.price), line: d.line, timing: d.timing, what: d.what, why: d.why,
     ingredients: list(d.ingredients), excludes: list(d.excludes),
     active: d.active, bulk_orderable: d.bulk_orderable, bulk_tier: d.bulk_tier || "premium",
+    cup_orderable: d.cup_orderable, caffeine: d.caffeine === "yes" ? true : d.caffeine === "no" ? false : null,
+    contains: list(d.contains), tag: d.tag.trim(), when_text: d.when_text.trim(),
   };
 }
 // Blank and missing are one nothing and spaces at the ends are not a change (lib/formGuard's edited(), the same rule).
@@ -261,6 +277,7 @@ const FIELD_WORDS: Record<PageField, string> = {
   name: "the name", price_cents: "the price", line: "the line", timing: "the timing", what: "the description", why: "the why",
   ingredients: "the ingredients", excludes: "what it's free of", active: "whether it's on the menu",
   bulk_orderable: "the delivery pack setting", bulk_tier: "the bulk tier",
+  cup_orderable: "whether it's sold by the cup", caffeine: "the caffeine", contains: "what it contains", tag: "the tag", when_text: "when to drink it",
 };
 const and = (xs: string[]): string => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 /** The question, in words: who changed what, and what each answer does with it. */
@@ -365,17 +382,36 @@ export const RECIPE_REREAD_FAILED = "Couldn't read the recipe again — what is 
 // menu (active = false) was refused as "just sold out", the wrong reason. The Catalog is the menu's authority: a drink
 // is sold only while it has a row that is on the menu, and Pay says which reason is true. The 86 words are the ones
 // Pay always said, byte for byte. A cart of good drinks is refused nothing (null).
-export type CartRow = { slug: string; sold_out: boolean | null; active: boolean | null };
+// SOLD BY THE CUP (2026-10-13, R2 — the Catalog is the menu): a product on sale that is not sold by the cup (Salted Latte,
+// a pack add-on) is refused for what it is, not as "unknown". Before 0393 adds cup_orderable a row has no such field,
+// and only the code list's ten drinks were ever cups — so that is the answer until it is pasted.
+export type CartRow = { slug: string; sold_out: boolean | null; active: boolean | null; cup_orderable?: boolean | null };
+const cupOf = (r: CartRow): boolean => (typeof r.cup_orderable === "boolean" ? r.cup_orderable : isSeedSlug(r.slug));
 export function cartRefusal(slugs: readonly string[], rows: readonly CartRow[], nameOf: (slug: string) => string): string | null {
   const bySlug = new Map(rows.map((r) => [r.slug, r]));
   const uniq = [...new Set(slugs)];
   const gone = uniq.filter((s) => { const r = bySlug.get(s); return !r || r.active === false; }).map(nameOf);
-  const out = uniq.filter((s) => { const r = bySlug.get(s); return !!r && r.active !== false && !!r.sold_out; }).map(nameOf);
-  if (!gone.length && !out.length) return null;
+  const notCup = uniq.filter((s) => { const r = bySlug.get(s); return !!r && r.active !== false && !cupOf(r); }).map(nameOf);
+  const out = uniq.filter((s) => { const r = bySlug.get(s); return !!r && r.active !== false && cupOf(r) && !!r.sold_out; }).map(nameOf);
+  if (!gone.length && !notCup.length && !out.length) return null;
   const said: string[] = [];
   if (gone.length) said.push(`${gone.join(" · ")} ${gone.length === 1 ? "isn't" : "aren't"} on the menu any more`);
+  if (notCup.length) said.push(`${notCup.join(" · ")} ${notCup.length === 1 ? "isn't" : "aren't"} sold by the cup`);
   if (out.length) said.push(`${out.join(" · ")} just sold out`);
-  return `${said.join(", and ")} — remove ${gone.length + out.length === 1 ? "it" : "them"} and try again.`;
+  return `${said.join(", and ")} — remove ${gone.length + notCup.length + out.length === 1 ? "it" : "them"} and try again.`;
+}
+
+// A STOP'S MENU (2026-10-13, R2): a stop with a menu set (stop_menu, 0393) sells what it pours and nothing else. null = no
+// menu set, which limits nothing. Refused by name, with the stop's name: the customer can fix it before paying.
+export function offStopMenu(slugs: readonly string[], menu: readonly string[] | null): string[] {
+  if (!menu) return [];
+  const pours = new Set(menu);
+  return [...new Set(slugs)].filter((s) => !pours.has(s));
+}
+export function stopMenuRefusal(names: readonly string[], stopName: string | null): string | null {
+  if (!names.length) return null;
+  const where = (stopName ?? "").trim() || "this stop";
+  return `${names.join(" · ")} ${names.length === 1 ? "isn't" : "aren't"} poured at ${where} — remove ${names.length === 1 ? "it" : "them"} and try again.`;
 }
 /** A products read that failed is not an empty menu: Pay waits rather than sell what it could not check. */
 export const MENU_UNCHECKED = "We couldn't check the menu — give it another tap in a moment.";

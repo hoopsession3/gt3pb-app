@@ -11,167 +11,221 @@
 --
 -- The line below is what stops that happening again: scripts/drift.check.mjs fails the release
 -- if supabase/migrations/ ever holds a migration numbered above it.
--- pending-from: 0392
--- generated-at: 2026-10-12
+-- pending-from: 0393
+-- generated-at: 2026-10-13
 -- pending-count: 1
 -- ledger-read-from: https://app.gt3pb.com/api/migrations
 -- held: 0376_nobody_on_the_pass_during_service_is_an_alert.sql — NOT in this file; applied by hand once the condition in its header is met
 -- ============================================================
--- 0392_approvals_and_tiers_have_owners.sql
+-- 0393_the_catalog_is_the_menu.sql
 -- ============================================================
--- ── 0392 — APPROVALS AND TIERS HAVE OWNERS ──────────────────────────────────────────────────────────────────────
--- 2026-10-12. A1 of the account audit (the owner approved all five decisions; decision 2 is (a): only admins and
--- the owner set tiers, every change shows in the Activity log, and a crew scan never stamps the scanner and is capped).
+-- ── 0393 — THE CATALOG IS THE MENU ─────────────────────────────────────────────────────────────────────────────────
+-- 2026-10-13. R2 of the customer frontend audit, "One catalog" (approved 2026-10-12, "yes to all improvements";
+-- decision (a): the Catalog becomes the menu and the code list is retired). Ryan, 2026-10-13: NATURE'S AIDE is organic
+-- coconut water, organic lime juice, organic maple syrup and sea salt — no mineral water; and the caffeine tag and the
+-- "contains" line are filled from each drink's own ingredients.
 --
--- WHY. Four writes trusted the wrong person:
---   · a member could post their own review already approved (0131: the insert checked only the author), and the truck's
---     TV shows approved reviews;
---   · a member could file their own bottle proof already "verified" as Founding VIP (0203: the same check), and the
---     0251 trigger turns their VIP flag on, which unlocks VIP-only perks;
---   · any crew member could set anyone's tier, Founding included, which changes prices (0176, 0252: is_staff);
---   · any crew member could stamp any card as often as they liked, their own included (0229, 0389).
--- And the Activity log showed role changes only, so a tier change left no line anyone reads.
+-- WHY. The menu customers order from was ten drinks typed into lib/menu.ts. The Catalog set two things about them,
+-- price and sold out. A drink added in the Catalog never reached the menu and was refused at Pay as "Unknown item"; the
+-- words on the menu were the code's, or the owner's edits stored as page copy, so the Catalog's own descriptions said
+-- something else (NATURE'S AIDE's line said lime juice, its ingredient list — code nobody could edit — mineral water).
 --
 -- WHAT.
---   · reviews: a member's own review goes in unapproved and from the app. Staff still moderate and add (0131).
---   · vip_verifications: a member's own proof goes in pending, with nothing a reviewer sets. A server can still turn a
---     pending proof down; verifying it — which grants Founding, or Founding VIP — is an admin's or the owner's.
---   · admin_set_customer_tier and admin_set_customer_vip: admins and the owner only.
---   · award_manual_point: never the scanner's own card, and at most 6 walk-up stamps for one member in 10 minutes. Each
---     still records who stamped (0389).
---   · The Activity log (admin_audit, 0260) gets a line for every tier change — the tier, Founding VIP, and the owner's
---     Founding switch — with who made it. The line keeps the tier and nothing else of the person.
---   · admin_set_member's point adjustments record who made them, like a scan.
+--   · products.cup_orderable — "sold by the cup": what the cup menu lists. On for the ten drinks on the menu today,
+--     off for every other product (Salted Latte is a pack add-on; it never was a cup), on by default for a new one.
+--   · products.caffeine (null = not said), products.contains (null = not said), products.tag ("Start here", "Nitro"),
+--     products.when_text ("Morning, before the first task.") — the four things the menu showed that had no column.
+--   · The ten drinks' rows say what the menu says today. A field is filled only where the Catalog still holds what a
+--     seed wrote (0062, 0127, 0362) or nothing: a field the owner has written in the Catalog keeps his words. What the
+--     menu says is the owner's edit on the menu where he made one (site_copy menu.<drink>.name / lines / why / tag —
+--     TIDE's and NATURE'S AIDE's lines today), the code's words otherwise.
+--     TIDE's ingredient list was seeded "Raw honey", "Organic Thai coconut meat"; the menu has said "Organic local
+--     honey", "Young organic Thai coconut meat" since July — the menu's words. The broths' line was seeded "Recovery";
+--     customers read them under "Fuel". NATURE'S AIDE and TIDE shared sort 20; AIDE is 21, so the menu keeps its order.
+--   · A section's subtitle ("Before the work") is copy keyed by the section's name now (menu.line.<name>.sub), not by
+--     its position; an owner's edit to the old positional key (menu.sec.<n>.sub) moves across. The drink sheet's pillar
+--     line is the section's name and subtitle (sheet.pillar_* were never edited in production, read 2026-10-13).
+--   · stop_menu(stop): the drinks a stop pours, for the menu and Pay. event_menu_items is the crew's (0173, staff
+--     only); this answers one stop's list and nothing else. null = no menu set for that stop, which limits nothing.
 --
--- ORDER. Paste it before the deploy that reads it, or after: the screens hide what a person can't do either way, and
--- the database refuses it. existing rows: none written.
+-- ORDER. Either way round. Pasted first, the running app ignores the new columns. Deployed first, the menu reads the
+-- old columns and fills the rest from the code list (arrives-with: 0393), and a stop's menu limits nothing yet.
+-- existing rows: products (the ten drinks' unedited fields, once — a second run fills nothing; cup_orderable off for every
+--                other product, today's state), site_copy (a section subtitle an owner edited or a renamed section's, copied
+--                to its new key — none in production 2026-10-13; the Craft page's mineral-water line, where it is still the
+--                default's words).
 -- changelog: below.
 
--- Reviews: a member's own goes in unapproved, from the app. "reviews staff all" (0131) still lets staff add approved ones.
-drop policy if exists "reviews insert own" on public.reviews;
-create policy "reviews insert own" on public.reviews for insert to authenticated
-  with check (auth.uid() = user_id and approved = false and source = 'app');
+alter table public.products add column if not exists cup_orderable boolean;
+alter table public.products add column if not exists caffeine boolean;
+alter table public.products add column if not exists contains text[];
+alter table public.products add column if not exists tag text;
+alter table public.products add column if not exists when_text text;
+comment on column public.products.cup_orderable is 'Sold by the cup: on the menu customers order from (0393). Off = packs, delivery or events only.';
+comment on column public.products.caffeine is 'Caffeine: true, false, or null when not said (0393). The menu never guesses.';
+comment on column public.products.contains is 'What someone avoiding it should know ("Goat milk", "Coconut"); null when not said (0393).';
+comment on column public.products.tag is 'A short editorial anchor on the menu row ("Start here", "Nitro") (0393).';
+comment on column public.products.when_text is 'When to drink it, one line ("Morning, before the first task.") (0393).';
 
--- Bottle proofs: a member's own goes in pending, with nothing a reviewer sets.
-drop policy if exists "vip insert own" on public.vip_verifications;
-create policy "vip insert own" on public.vip_verifications for insert to authenticated
-  with check (auth.uid() = user_id and status = 'pending' and granted_tier is null and reward is null
-              and note is null and reviewed_by is null and reviewed_at is null);
--- Staff moderate pending proofs; only an admin or the owner verifies (verifying grants a tier), or edits a decided one.
-drop policy if exists "vip staff write" on public.vip_verifications;
-create policy "vip staff write" on public.vip_verifications for update
-  using ((select public.is_admin()) or ((select public.is_staff()) and status = 'pending'))
-  with check ((select public.is_admin()) or ((select public.is_staff()) and status in ('pending', 'rejected')));
+-- ── what the menu says today: the code list, then an owner's edits on the menu over it ─────────────────────────────
+create temp table if not exists _r2_menu (
+  slug text primary key, name text, what text, why text, ingredients text[], excludes text[], timing text, tag text,
+  when_text text, line text, accent text, caffeine boolean, contains text[]
+);
+truncate _r2_menu;
+insert into _r2_menu values
+  ('rise', 'RISE', E'Cold-extracted coffee in mineral water\nFinished with Organic Coconut Water', 'A clean, even lift to start the morning.',
+   '{"Single-origin cold extraction","Mineral water base","Organic coconut water"}', '{"Sugar","Dairy","Syrups","Preservatives"}',
+   'BEFORE', 'Start here', 'Morning, before the first task.', 'Activation', '#C49A5E', true, '{"Coconut"}'),
+  ('flow', 'FLOW', E'Cold-extracted coffee in mineral water\nInfused with Organic Cacao Nibs', 'Cacao to keep the focus going a little longer.',
+   '{"Single-origin cold extraction","Mineral water base","Organic cacao nibs"}', '{"Sugar","Dairy","Syrups","Preservatives"}',
+   'BEFORE', null, 'Before deep, heads-down work.', 'Activation', '#6B4429', true, '{}'),
+  ('dusk', 'DUSK', E'Cold-extracted coffee in mineral water\nCeylon Cinnamon · Green Cardamom', 'Cinnamon and cardamom for a warmer, spiced cup.',
+   '{"Single-origin cold extraction","Mineral water base","Ceylon cinnamon","Green cardamom"}', '{"Sugar","Dairy","Syrups","Preservatives"}',
+   'BEFORE', null, 'Afternoon, when you want a warmer cup with the same lift.', 'Activation', '#9C6B3F', true, '{}'),
+  ('kingme', 'KING ME', E'FLOW brew served on nitrogen\nVelvety, naturally creamy, subtly sweet', 'A sensory phenomenon — texture and microbubbles, nothing added.',
+   '{"FLOW cold-extraction","Nitrogen infusion"}', '{"Sugar","Dairy","Syrups","Preservatives"}',
+   'BEFORE', 'Nitro', 'The same clean lift, with a creamy nitro texture.', 'Activation', '#6B4429', true, '{}'),
+  ('maple', 'SALTED MAPLE LATTE', E'DUSK brew with Organic A2 grass-fed goat milk\nOrganic maple · Sea salt', 'Rich, naturally sweet and smooth.',
+   '{"DUSK cold-extraction (Ceylon cinnamon · green cardamom)","Organic A2 grass-fed goat milk","Organic maple syrup","Sea salt"}', '{"Refined sugar","Seed oils","Preservatives"}',
+   'BEFORE', null, 'An afternoon treat that still eats clean.', 'Activation', '#B8902F', true, '{"Goat milk"}'),
+  ('tide', 'TIDE', E'Young coconut water + young organic Thai coconut meat\nFinished with organic local honey', 'Real hydration that goes down easy.',
+   '{"Organic young coconut water","Young organic Thai coconut meat","Organic local honey","Blended to order"}', '{"Marine collagen","Powders","Concentrate"}',
+   'DURING', null, 'During work or training.', 'Hydration', '#2F7D74', false, '{"Coconut","Honey"}'),
+  ('aide', 'NATURE''S AIDE', E'Organic coconut water + organic lime juice\nOrganic maple · Sea salt', 'Light, balanced hydration for the middle of the work.',
+   '{"Organic coconut water","Organic lime juice","Organic maple syrup","Sea salt"}', '{"Powders","Concentrate","Dyes"}',
+   'DURING', null, 'During work or training.', 'Hydration', '#A97C3F', false, '{"Coconut"}'),
+  ('forge', 'FORGE', E'Beef Bone Broth\nPasture-Raised', 'Deep and rich, full of minerals for the rebuild.',
+   '{"Beef bone broth","Pasture-raised"}', '{"Bouillon","Additives","Powders","Filler"}',
+   'AFTER', null, 'After training, within the hour.', 'Fuel', '#B8423C', false, '{}'),
+  ('hunt', 'HUNT', E'Bison Bone Broth\nPasture-Raised', 'Leaner than beef, with a little more iron and zinc.',
+   '{"Bison bone broth","Pasture-raised"}', '{"Bouillon","Additives","Powders","Filler"}',
+   'AFTER', null, 'After training, within the hour.', 'Fuel', '#8A5C7D', false, '{}'),
+  ('wild', 'WILD', E'Ostrich Bone Broth\nPasture-Raised', 'A lighter, leaner broth for an easy rebuild.',
+   '{"Ostrich bone broth","Pasture-raised"}', '{"Bouillon","Additives","Powders","Filler"}',
+   'AFTER', null, 'After a lighter session, or in the evening.', 'Fuel', '#A89150', false, '{}');
 
--- Tiers: admins and the owner.
-create or replace function public.admin_set_customer_tier(p_user uuid, p_tier text)
-  returns void language plpgsql security definer set search_path = public as $$
-begin
-  if not public.is_admin() then raise exception 'only an admin or the owner sets a tier' using errcode = '42501'; end if;
-  if p_tier not in ('guest', 'member', 'founding') then raise exception 'bad tier'; end if;
-  update public.customers set tier = p_tier, updated_at = now() where user_id = p_user;
-  update public.profiles  set founding_member = (p_tier = 'founding') where id = p_user;
-end; $$;
-revoke all on function public.admin_set_customer_tier(uuid, text) from public, anon;
-grant execute on function public.admin_set_customer_tier(uuid, text) to authenticated;
+-- An owner's edit on the menu is what customers read: it wins over the code's words. A section renamed on the menu
+-- (menu.sec.<n>.name) renames the line its drinks sit under.
+update _r2_menu m set line = btrim(c.value) from public.site_copy c
+ where c.key = 'menu.sec.' || (case m.line when 'Activation' then '0' when 'Hydration' then '1' when 'Fuel' then '2' end) || '.name'
+   and btrim(c.value) <> '';
+update _r2_menu m set name = btrim(c.value) from public.site_copy c where c.key = 'menu.' || m.slug || '.name' and btrim(c.value) <> '';
+update _r2_menu m set what = btrim(c.value) from public.site_copy c where c.key = 'menu.' || m.slug || '.lines' and btrim(c.value) <> '';
+update _r2_menu m set why = btrim(c.value) from public.site_copy c where c.key = 'menu.' || m.slug || '.why' and btrim(c.value) <> '';
+update _r2_menu m set tag = btrim(c.value) from public.site_copy c where c.key = 'menu.' || m.slug || '.tag' and btrim(c.value) <> '';
+-- Once. A second run (the ledger has this migration) fills nothing: by then a field the owner has emptied in the Catalog
+-- is his choice, not a gap.
+delete from _r2_menu where exists (select 1 from public.schema_migrations where version = '0393_the_catalog_is_the_menu');
 
-create or replace function public.admin_set_customer_vip(p_user uuid, p_vip boolean)
-  returns void language plpgsql security definer set search_path = public as $$
-begin
-  if not public.is_admin() then raise exception 'only an admin or the owner sets a tier' using errcode = '42501'; end if;
-  update public.customers set vip_verified = p_vip, updated_at = now() where user_id = p_user;
-end; $$;
-revoke all on function public.admin_set_customer_vip(uuid, boolean) from public, anon;
-grant execute on function public.admin_set_customer_vip(uuid, boolean) to authenticated;
+-- ── what a seed wrote: a Catalog field that still holds one of these was never edited ──────────────────────────────
+create temp table if not exists _r2_seed (slug text not null, field text not null, txt text, arr text[]);
+truncate _r2_seed;
+insert into _r2_seed (slug, field, txt)
+select slug, 'name', name from (values ('rise','RISE'),('flow','FLOW'),('dusk','DUSK'),('kingme','KING ME'),('maple','SALTED MAPLE LATTE'),
+  ('tide','TIDE'),('aide','NATURE''S AIDE'),('forge','FORGE'),('hunt','HUNT'),('wild','WILD')) v(slug, name)
+union all select slug, 'what', what from (values
+  ('rise','Cold-extracted coffee in mineral water, finished with organic coconut water.'),
+  ('flow','Cold-extracted coffee in mineral water, infused with organic cacao nibs.'),
+  ('dusk','Cold-extracted coffee in mineral water with Ceylon cinnamon & green cardamom.'),
+  ('tide','Young coconut water + Thai coconut meat, finished with a touch of raw honey.'),
+  ('forge','Slow-simmered, pasture-raised beef bone broth.'), ('forge','Pasture-raised beef bone broth.'),
+  ('hunt','Slow-simmered, pasture-raised bison bone broth.'), ('hunt','Pasture-raised bison bone broth.'),
+  ('wild','Slow-simmered, pasture-raised ostrich bone broth.'), ('wild','Pasture-raised ostrich bone broth.')) v(slug, what)
+union all select slug, 'why', why from (values
+  ('rise','A clean, even lift to start the morning.'), ('flow','Cacao to keep the focus going a little longer.'),
+  ('dusk','Cinnamon and cardamom for a warmer, spiced cup.'), ('tide','Real hydration that goes down easy.'),
+  ('forge','Deep and rich, full of minerals for the rebuild.'), ('hunt','Leaner than beef, with a little more iron and zinc.'),
+  ('wild','A lighter, leaner broth for an easy rebuild.')) v(slug, why)
+union all select slug, 'line', line from (values ('rise','Activation'),('flow','Activation'),('dusk','Activation'),('kingme','Activation'),
+  ('maple','Activation'),('tide','Hydration'),('aide','Hydration'),('forge','Recovery'),('hunt','Recovery'),('wild','Recovery')) v(slug, line);
+insert into _r2_seed (slug, field, arr) values
+  ('rise', 'ingredients', '{"Single-origin cold extraction","Mineral water base","Organic coconut water"}'),
+  ('flow', 'ingredients', '{"Single-origin cold extraction","Mineral water base","Organic cacao nibs"}'),
+  ('dusk', 'ingredients', '{"Single-origin cold extraction","Mineral water base","Ceylon cinnamon","Green cardamom"}'),
+  ('tide', 'ingredients', '{"Organic young coconut water","Organic Thai coconut meat","Raw honey","Blended to order"}'),
+  ('aide', 'ingredients', '{"Coconut water","Mineral water","Organic maple syrup","Sea salt"}'),
+  ('forge', 'ingredients', '{"Slow-simmered beef bone broth","Pasture-raised"}'), ('forge', 'ingredients', '{"Beef bone broth","Pasture-raised"}'),
+  ('hunt', 'ingredients', '{"Slow-simmered bison bone broth","Pasture-raised"}'), ('hunt', 'ingredients', '{"Bison bone broth","Pasture-raised"}'),
+  ('wild', 'ingredients', '{"Slow-simmered ostrich bone broth","Pasture-raised"}'), ('wild', 'ingredients', '{"Ostrich bone broth","Pasture-raised"}'),
+  ('rise', 'excludes', '{"Sugar","Dairy","Syrups","Preservatives"}'), ('flow', 'excludes', '{"Sugar","Dairy","Syrups","Preservatives"}'),
+  ('dusk', 'excludes', '{"Sugar","Dairy","Syrups","Preservatives"}'), ('tide', 'excludes', '{"Marine collagen","Powders","Concentrate"}'),
+  ('forge', 'excludes', '{"Bouillon","Additives","Powders","Filler"}'), ('hunt', 'excludes', '{"Bouillon","Additives","Powders","Filler"}'),
+  ('wild', 'excludes', '{"Bouillon","Additives","Powders","Filler"}');
 
--- A walk-up stamp: never your own card, and at most 6 for one member in 10 minutes. The member's profile is locked
--- first, so two phones scanning the same card at once can't both slip under the limit.
-create or replace function public.award_manual_point(p_code text) returns int
-  language plpgsql security definer set search_path = public as $$
-declare uid uuid; new_points int; recent int;
-begin
-  if not public.is_staff() then raise exception 'staff only'; end if;
-  select p.id into uid from public.profiles p where p.referral_code = p_code or p.id::text = p_code limit 1;
-  if uid is null then return null; end if;
-  if uid = auth.uid() then
-    raise exception 'your own card: another crew member stamps it' using errcode = '42501';
-  end if;
-  perform 1 from public.profiles where id = uid for update;
-  select count(*) into recent from public.loyalty_ledger
-   where user_id = uid and channel = 'scan' and kind = 'award' and created_at > now() - interval '10 minutes';
-  if recent >= 6 then
-    raise exception 'stamp limit: 6 walk-up stamps in 10 minutes for one member' using errcode = 'P0001';
-  end if;
-  insert into public.loyalty_ledger (user_id, channel, kind, points, note, by_user)
-    values (uid, 'scan', 'award', 1, 'walk-up purchase, stamped at the window', auth.uid());
-  select points into new_points from public.profiles where id = uid;
-  return new_points;
-end $$;
+-- ── the ten drinks' rows say what the menu says ──────────────────────────────────────────────────────────────────────
+-- One update per drink (one line each in the change log, one realtime event each), field by field: a field still as a
+-- seed wrote it, or empty, takes the menu's words; a field the owner wrote keeps his. The four new fields are empty.
+-- TIDE and NATURE'S AIDE were both seeded at sort 20; the menu lists TIDE first.
+update public.products p set
+  name = case when btrim(coalesce(p.name, '')) = '' or exists (select 1 from _r2_seed s where s.slug = p.slug and s.field = 'name' and s.txt = p.name) then m.name else p.name end,
+  what = case when btrim(coalesce(p.what, '')) = '' or exists (select 1 from _r2_seed s where s.slug = p.slug and s.field = 'what' and s.txt = p.what) then m.what else p.what end,
+  why = case when btrim(coalesce(p.why, '')) = '' or exists (select 1 from _r2_seed s where s.slug = p.slug and s.field = 'why' and s.txt = p.why) then m.why else p.why end,
+  ingredients = case when coalesce(cardinality(p.ingredients), 0) = 0 or exists (select 1 from _r2_seed s where s.slug = p.slug and s.field = 'ingredients' and s.arr = p.ingredients) then m.ingredients else p.ingredients end,
+  excludes = case when coalesce(cardinality(p.excludes), 0) = 0 or exists (select 1 from _r2_seed s where s.slug = p.slug and s.field = 'excludes' and s.arr = p.excludes) then m.excludes else p.excludes end,
+  line = case when btrim(coalesce(p.line, '')) = '' or exists (select 1 from _r2_seed s where s.slug = p.slug and s.field = 'line' and s.txt = p.line) then m.line else p.line end,
+  timing = case when btrim(coalesce(p.timing, '')) = '' then m.timing else p.timing end,
+  accent = case when btrim(coalesce(p.accent, '')) = '' then m.accent else p.accent end,
+  tag = coalesce(p.tag, m.tag),
+  when_text = coalesce(p.when_text, m.when_text),
+  caffeine = coalesce(p.caffeine, m.caffeine),
+  contains = coalesce(p.contains, m.contains),
+  sort = case when p.slug = 'aide' and p.sort = 20 and exists (select 1 from public.products t where t.slug = 'tide' and t.sort = 20) then 21 else p.sort end
+from _r2_menu m
+where p.slug = m.slug;
 
--- The owner's loyalty edit (0229): unchanged, except its point adjustments say who made them, and a change to the
--- Founding switch writes its line in the Activity log.
-create or replace function public.admin_set_member(member uuid, new_points int, new_credit_cents int, new_founding boolean)
-returns void language plpgsql security definer set search_path = public as $$
-declare cur int; delta int; was boolean;
-begin
-  if not public.is_owner() then raise exception 'not authorized'; end if;
-  if new_points is not null then
-    select coalesce(points, 0) into cur from public.profiles where id = member;
-    delta := new_points - coalesce(cur, 0);
-    if delta <> 0 then
-      insert into public.loyalty_ledger (user_id, channel, kind, points, note, by_user)
-        values (member, 'admin', 'adjust', delta, 'owner set points to ' || new_points, auth.uid());
-    end if;
-  end if;
-  select founding_member into was from public.profiles where id = member;
-  update public.profiles
-     set credit_cents    = coalesce(new_credit_cents, credit_cents),
-         founding_member = coalesce(new_founding, founding_member)
-   where id = member;
-  if found and new_founding is not null and was is distinct from new_founding then
-    insert into public.admin_audit (actor, action, table_name, row_pk, summary, old_row, new_row)
-    values (auth.uid(), 'UPDATE', 'customers', member::text,
-            format('Founding member: %s → %s', case when coalesce(was, false) then 'on' else 'off' end,
-                                               case when new_founding then 'on' else 'off' end),
-            jsonb_build_object('founding_member', was), jsonb_build_object('founding_member', new_founding));
-  end if;
-end; $$;
+-- Sold by the cup: today's menu exactly. Set once — a second run finds no row without an answer.
+update public.products p set cup_orderable = exists (select 1 from _r2_menu m where m.slug = p.slug) where p.cup_orderable is null;
+alter table public.products alter column cup_orderable set default true;
+alter table public.products alter column cup_orderable set not null;
 
--- Every tier change, whoever makes it and however (the tier buttons, Verify in the proof queue, the VIP switch), is a
--- line in the Activity log: who, when, and the tier before and after. Nothing else of the customer is kept in it.
-create or replace function public.log_tier_change() returns trigger
-  language plpgsql security definer set search_path = public as $$
-declare v_on text := 'on'; v_off text := 'off';
-begin
-  insert into public.admin_audit (actor, action, table_name, row_pk, summary, old_row, new_row)
-  values (auth.uid(), 'UPDATE', 'customers', coalesce(new.user_id::text, new.id::text),
-          concat_ws(' · ',
-            case when old.tier is distinct from new.tier
-                 then format('tier: %s → %s', coalesce(old.tier, '∅'), coalesce(new.tier, '∅')) end,
-            case when old.vip_verified is distinct from new.vip_verified
-                 then format('Founding VIP: %s → %s', case when coalesce(old.vip_verified, false) then v_on else v_off end,
-                                                       case when coalesce(new.vip_verified, false) then v_on else v_off end) end),
-          jsonb_build_object('tier', old.tier, 'vip_verified', old.vip_verified),
-          jsonb_build_object('tier', new.tier, 'vip_verified', new.vip_verified));
-  return new;
-end $$;
-revoke all on function public.log_tier_change() from public, anon, authenticated;
-drop trigger if exists audit_customers_tier on public.customers;
-create trigger audit_customers_tier after update of tier, vip_verified on public.customers
-  for each row when (old.tier is distinct from new.tier or old.vip_verified is distinct from new.vip_verified)
-  execute function public.log_tier_change();
+-- A section's subtitle follows the section's name (the name customers read): an owner's edited subtitle moves to it, and a
+-- section the owner renamed keeps its subtitle — his, or the one it had (the code's defaults are only for the three names).
+insert into public.site_copy (key, value, updated_at)
+select 'menu.line.' || coalesce(nullif(btrim(n.value), ''), l.line) || '.sub', coalesce(nullif(btrim(c.value), ''), l.sub), now()
+  from (values ('0', 'Activation', 'Before the work'), ('1', 'Hydration', 'During the work'), ('2', 'Fuel', 'After the work')) l(i, line, sub)
+  left join public.site_copy c on c.key = 'menu.sec.' || l.i || '.sub'
+  left join public.site_copy n on n.key = 'menu.sec.' || l.i || '.name'
+ where nullif(btrim(c.value), '') is not null or (nullif(btrim(n.value), '') is not null and btrim(n.value) <> l.line)
+on conflict (key) do nothing;
 
+-- The Craft page's hydration list named a mineral-water base; neither hydration drink has one now (the owner, 2026-10-13).
+-- Only where the page still says it in the default's words; the code's default changes with this release.
+update public.site_copy
+   set value = replace(value, 'Mineral water base — We build on mineral water, not stripped water, so there''s substance behind every pour.',
+                              'Organic lime juice · NATURE''S AIDE — A squeeze of organic lime with organic maple and a pinch of sea salt: light, bright hydration, never from a powder.'),
+       updated_at = now()
+ where key = 'craft.hyd_items' and value like '%Mineral water base — We build on mineral water, not stripped water%';
+
+drop table if exists _r2_menu;
+drop table if exists _r2_seed;
+
+-- ── a stop's menu, for the menu and Pay ──────────────────────────────────────────────────────────────────────────────
+create or replace function public.stop_menu(p_stop uuid) returns text[]
+  language sql stable security definer set search_path = public as $$
+  select case when count(*) = 0 then null else array_agg(product_slug order by product_slug) end
+    from public.event_menu_items where stop_id = p_stop
+$$;
+revoke all on function public.stop_menu(uuid) from public;
+grant execute on function public.stop_menu(uuid) to anon, authenticated, service_role;
+comment on function public.stop_menu(uuid) is
+  'The drinks a stop pours (0393): its event_menu_items slugs, or null when no menu is set (which limits nothing). Public: the menu shows it.';
+
+-- ── what changed ───────────────────────────────────────────────────────────────────────────────────────────────────
 insert into public.changelog (title, category, area, summary, shipped_on, highlight)
 select v.title, v.category, v.area, v.summary, v.shipped_on::date, v.highlight
 from (values
-  ('Approvals and tiers have owners','security','Loyalty',
-   'A member could post a review already approved, or file a bottle proof already verified as Founding VIP, and any crew member could set anyone''s tier or stamp any card — their own included — as often as they liked. Now a member''s review and proof go in waiting; verifying a proof and setting a tier are an admin''s or the owner''s; a scan never stamps the scanner''s own card and stops at 6 walk-up stamps for one member in 10 minutes; and every tier change is a line in the Activity log, with who made it.',
-   '2026-10-12', false)
+  ('The Catalog is the menu', 'feature', 'Ordering',
+   'The menu, the drink sheet, the cart, the Pass, the truck''s board and Ask us read their drinks from the Catalog. A drink added there is on the menu the next time it opens; one taken off can''t be ordered; and a stop given its own menu sells what that menu lists. Each drink says whether it has caffeine and what it contains. Your edits on the menu kept their words.',
+   '2026-10-13', true)
 ) as v(title, category, area, summary, shipped_on, highlight)
 where not exists (select 1 from public.changelog c where c.title = v.title);
 
--- verify (numbers and booleans only):
---   select count(*) from pg_policies where tablename = 'reviews' and policyname = 'reviews insert own' and with_check like '%approved = false%';  -- 1
---   select count(*) from pg_trigger where tgname = 'audit_customers_tier';                                                                   -- 1
---   select prosrc like '%is_admin()%' from pg_proc where oid = 'public.admin_set_customer_tier(uuid, text)'::regprocedure;                  -- t
-select public.record_migration('0392_approvals_and_tiers_have_owners');
+select public.record_migration('0393_the_catalog_is_the_menu');
+
+-- verify:
+--   select count(*) from public.products where cup_orderable;                                            -- 10
+--   select slug from public.products where not cup_orderable order by slug;                             -- salted-latte (+ any item-…)
+--   select count(*) from public.products where slug in ('rise','flow','dusk','kingme','maple') and caffeine;   -- 5
+--   select array_to_string(ingredients, ', ') from public.products where slug = 'aide';  -- Organic coconut water, Organic lime juice, Organic maple syrup, Sea salt
+--   select count(*) from pg_proc where proname = 'stop_menu';                                            -- 1

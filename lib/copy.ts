@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { supabase } from "./supabase";
 import { useRealtimeTable } from "./realtime";
-import { DRINKS, MENU, type DrinkId } from "./menu";
+import { LINE_SUB, lineSubKey } from "./drinks";
 
 // SITE COPY — owner/admin-editable front-end text. Every editable string has a stable key and a
 // DEFAULT (the canonical copy). Overrides live in the `site_copy` table (0122); the front-end reads
@@ -46,7 +46,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "craft.hyd_intro", group: "Craft page", label: "Hydration — intro", multiline: true,
     default: "Real hydration is more than water — it's the minerals that carry it into you. We pour whole-food electrolytes: no powders, no dyes, no concentrate." },
   { key: "craft.hyd_items", group: "Craft page", label: "Hydration — ingredients (one per line, Name — fact)", multiline: true,
-    default: "Organic coconut water — Naturally rich in potassium — the electrolyte most people run short on — plus sodium and magnesium. A whole-food electrolyte source.\nYoung Thai coconut meat + local honey · TIDE — Blended to order for real hydration that goes down easy, with a touch of unrefined honey.\nSea salt — Sodium, the body's primary electrolyte for fluid balance — the reason a little salt helps you actually hold your water.\nMineral water base — We build on mineral water, not stripped water, so there's substance behind every pour." },
+    default: "Organic coconut water — Naturally rich in potassium — the electrolyte most people run short on — plus sodium and magnesium. A whole-food electrolyte source.\nYoung Thai coconut meat + local honey · TIDE — Blended to order for real hydration that goes down easy, with a touch of unrefined honey.\nSea salt — Sodium, the body's primary electrolyte for fluid balance — the reason a little salt helps you actually hold your water.\nOrganic lime juice · NATURE'S AIDE — A squeeze of organic lime with organic maple and a pinch of sea salt: light, bright hydration, never from a powder." },
   // Pillar 3 — Rebuild / Fuel
   { key: "craft.reb_label", group: "Craft page", label: "Rebuild — label", default: "03 · Rebuild / Fuel" },
   { key: "craft.reb_title", group: "Craft page", label: "Rebuild — title", default: "Rebuild after." },
@@ -250,11 +250,14 @@ export const COPY_META: CopyMeta[] = [
   { key: "findus.book_cta", group: "Find Us", label: "Book-the-bar button", default: "Book the bar for your event" },
   { key: "findus.ping_off", group: "Find Us", label: "Live-ping opt-in — off", default: "Ping me when live" },
   { key: "findus.ping_on", group: "Find Us", label: "Live-ping opt-in — on", default: "On the list — we'll ping you" },
-  // ── Drink sheet (the popout over /menu). Pillar tag + section labels + chrome CTAs. The per-drink
-  //    d.has/d.no ingredient lists stay in the menu data (lib/menu.ts), not here. ──
-  { key: "sheet.pillar_before", group: "Menu", label: "Drink sheet — Activation pillar tag", default: "Activation · Before the work" },
-  { key: "sheet.pillar_during", group: "Menu", label: "Drink sheet — Hydration pillar tag", default: "Hydration · During the work" },
-  { key: "sheet.pillar_after", group: "Menu", label: "Drink sheet — Fuel pillar tag", default: "Fuel · After the work" },
+  // ── Drink sheet (the popout over /menu). Section labels + chrome CTAs. A drink's own words — name, what it is, why,
+  //    what's in it, caffeine, contains — are the Catalog's (lib/drinks, R2 2026-10-13), edited on its Catalog page;
+  //    the sheet's pillar line is the drink's section and that section's subtitle (menu.line.<name>.sub, below). ──
+  { key: "sheet.caffeine_label", group: "Menu", label: "Drink sheet — Caffeine label", default: "Caffeine" },
+  { key: "sheet.caffeine_yes", group: "Menu", label: "Drink sheet — has caffeine", default: "Yes" },
+  { key: "sheet.caffeine_no", group: "Menu", label: "Drink sheet — no caffeine", default: "None" },
+  { key: "sheet.contains_label", group: "Menu", label: "Drink sheet — Contains label", default: "Contains" },
+  { key: "sheet.not_here", group: "Menu", label: "Drink sheet — button when this stop doesn't pour the drink", default: "Not at this stop" },
   { key: "sheet.in_bottle", group: "Menu", label: "Drink sheet — 'In the bottle' section", default: "In the bottle" },
   { key: "sheet.never", group: "Menu", label: "Drink sheet — 'Never' section", default: "Never" },
   { key: "sheet.when_label", group: "Menu", label: "Drink sheet — When label", default: "When" },
@@ -268,6 +271,10 @@ export const COPY_META: CopyMeta[] = [
   // ── Menu page — the Primal link, sold-out badge, reserve link (adoption pass 2026-08-10). ──
   { key: "menu.nav_primal", group: "Menu", label: "Nav button — Return to Primal", default: "Return to Primal" },
   { key: "menu.sold_out", group: "Menu", label: "Menu row — sold-out badge", default: "SOLD OUT" },
+  { key: "menu.not_here", group: "Menu", label: "Menu row — a drink this stop doesn't pour", default: "NOT AT THIS STOP" },
+  { key: "menu.empty", group: "Menu", label: "Menu — nothing on sale right now", default: "Nothing's on the menu right now — check back soon." },
+  { key: "menu.caffeine", group: "Menu", label: "Menu row — caffeine tag", default: "Caffeine" },
+  { key: "menu.no_caffeine", group: "Menu", label: "Menu row — no-caffeine tag", default: "No caffeine" },
   { key: "menu.reserve_pack", group: "Menu", label: "Packs — reserve link", default: "Reserve your pack ›" },
   // ── Shop — product detail + cart chrome (adoption pass 2026-08-10). ──
   { key: "shop.back", group: "Shop", label: "Back-to-grid button", default: "Shop" },
@@ -415,22 +422,13 @@ export const COPY_META: CopyMeta[] = [
   { key: "account.copy", group: "Account", label: "Referral — copy-code label (idle)", default: "Copy" },
   { key: "account.copied", group: "Account", label: "Referral — copy-code label (copied)", default: "Copied!" },
   { key: "account.share", group: "Account", label: "Referral — share button", default: "Share invite" },
-  // ── Menu · sections + every drink. Names, tags, and descriptions are copy — PRICES ARE NOT:
-  // the charge is computed server-side from the locked catalog / Square, so px stays in code.
-  ...MENU.flatMap((s, i) => [
-    { key: `menu.sec.${i}.name`, group: "Menu · sections", label: `${s.name} — title`, default: s.name },
-    { key: `menu.sec.${i}.sub`, group: "Menu · sections", label: `${s.name} — subtitle`, default: s.wn },
-  ]),
-  ...(Object.keys(DRINKS) as DrinkId[]).flatMap((id) => {
-    const d = DRINKS[id];
-    const out: CopyMeta[] = [
-      { key: `menu.${id}.name`, group: `Menu · ${d.n}`, label: "Name", default: d.n },
-      { key: `menu.${id}.lines`, group: `Menu · ${d.n}`, label: "What it is (one line per row)", multiline: true, default: d.lines.join("\n") },
-      { key: `menu.${id}.why`, group: `Menu · ${d.n}`, label: "Why it exists", multiline: true, default: d.why },
-    ];
-    if (d.tag) out.push({ key: `menu.${id}.tag`, group: `Menu · ${d.n}`, label: "Tag", default: d.tag });
-    return out;
-  }),
+  // ── Menu · sections. THE DRINKS ARE THE CATALOG'S (2026-10-13, R2 of the customer audit): a drink's name, what it
+  // is, why, its tag and its section are its Catalog row's, edited on its Catalog page — they were copy here (menu.<drink>.*),
+  // so the Catalog said one thing and the menu another; 0393 moved the owner's edits into the rows. A section's name is
+  // its drinks' line; its subtitle is copy keyed by that name, so it follows the section wherever the Catalog puts it.
+  ...Object.entries(LINE_SUB).map(([line, sub]) => (
+    { key: lineSubKey(line), group: "Menu · sections", label: `${line} — subtitle`, default: sub }
+  )),
 ];
 
 const COPY_DEFAULTS: Record<string, string> = Object.fromEntries(COPY_META.map((m) => [m.key, m.default]));

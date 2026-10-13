@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useApp } from "./AppProvider";
-import { DRINKS, type DrinkId } from "@/lib/menu";
+import { type DrinkId } from "@/lib/menu";
+import { useAvailability } from "@/lib/availability";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 
@@ -31,7 +32,8 @@ const ROLE: Record<DrinkId, string> = {
 };
 
 // ─── recommendation engine ────────────────────────────────────────────────────
-function buildRec(a: Complete): Rec {
+// `nm` is the drink's name as the menu says it (the Catalog's, R2) — the story names what the customer will order.
+function buildRec(a: Complete, nm: (id: DrinkId) => string): Rec {
   // ── S1: which Activate drink ──
   let rise = 0, flow = 0, dusk = 0;
   if (a.sleep === "wrecked" || a.sleep === "rough") dusk += 4;
@@ -104,7 +106,7 @@ function buildRec(a: Complete): Rec {
     // dusk describe theirs, since this drink carries the same caffeine, not a "treat" exception.
     maple: "Our DUSK brew — Ceylon cinnamon and green cardamom over the cold-extraction base — with organic A2 grass-fed goat milk, real maple, and a pinch of sea salt. Rich, naturally sweet and smooth, same caffeine as the rest of the line.",
     tide:  "Whole-food hydration — young coconut water blended with young organic Thai coconut meat and a touch of organic local honey (we always name it). Blended to order, never a powder or concentrate.",
-    aide:  "Coconut water and mineral water with organic maple and a pinch of sea salt. Light, clean hydration for the middle of the work — real ingredients, not a powder.",
+    aide:  "Organic coconut water and lime juice with organic maple and a pinch of sea salt. Light, clean hydration for the middle of the work — real ingredients, not a powder.",
     forge: "Pasture-raised beef bone broth. Deep, rich and mineral-forward — real food for the rebuild after training, not a supplement.",
     hunt:  "Pasture-raised bison bone broth. Leaner than beef with a little more iron and zinc — savory fuel for the window after a session.",
     wild:  "Pasture-raised ostrich bone broth. Our lightest, leanest broth — easy to sit with when your gut is sensitive.",
@@ -130,7 +132,6 @@ function buildRec(a: Complete): Rec {
   ];
 
   // The user story — the day, sequenced forward, so the guest can picture how it plays out.
-  const nm = (id: DrinkId) => DRINKS[id].n;
   const story = s2
     ? `Here's how the day flows: ${nm(s1)} to open, ${nm(s2)} to carry you through the work, then ${nm(s3)} to rebuild after. One sequence — start, sustain, recover.`
     : `Here's how the day flows: ${nm(s1)} to open the work, then ${nm(s3)} to rebuild after. Start, then recover — skip what you don't need.`;
@@ -158,7 +159,8 @@ function buildRec(a: Complete): Rec {
 
 // ─── component ────────────────────────────────────────────────────────────────
 export default function GenerateDay() {
-  const { bump, isInCart, toast } = useApp();
+  const { bump, isInCart, toast, drinkOf, nameOf, menu } = useApp();
+  const { soldOut } = useAvailability();
 
   const [sleep,    setSleep]    = useState<Sleep | null>(null);
   const [body,     setBody]     = useState<Body | null>(null);
@@ -179,15 +181,28 @@ export default function GenerateDay() {
     if (!sleep || !body || !workload || !training || !energy) return;
     setBusy(true);
     setTimeout(() => {
-      setRec(buildRec({ sleep, body, workload, training, energy, flags }));
+      setRec(buildRec({ sleep, body, workload, training, energy, flags }, nameOf));
       setBusy(false);
     }, 850);
   };
 
+  // THE STACK ADDS WHAT CAN BE ORDERED (2026-10-13, R2 — the Catalog is the menu). It added all three drinks whatever the
+  // menu said, so a drink 86'd or taken off the menu went into the cart and stopped Pay. It adds the ones on the menu and
+  // on sale, and names the rest.
   const addStack = () => {
     if (!rec) return;
-    rec.drinks.forEach((d) => { if (!isInCart(d.id)) bump(d.id); });
-    toast(`Stack added — ${rec.drinks.map((d) => DRINKS[d.id].n).join(", ")}`);
+    const onMenu = new Set(menu.map((m) => m.slug));
+    const off = rec.drinks.filter((d) => !onMenu.has(d.id));
+    const out = rec.drinks.filter((d) => onMenu.has(d.id) && soldOut.has(d.id));
+    const can = rec.drinks.filter((d) => onMenu.has(d.id) && !soldOut.has(d.id));
+    can.forEach((d) => { if (!isInCart(d.id)) bump(d.id); });
+    const names = (ds: RecDrink[]) => ds.map((d) => nameOf(d.id)).join(", ");
+    const said = [
+      off.length ? `${names(off)} ${off.length === 1 ? "isn't" : "aren't"} on the menu` : "",
+      out.length ? `${names(out)} ${out.length === 1 ? "is" : "are"} sold out today` : "",
+    ].filter(Boolean).join(", and ");
+    if (!can.length) { toast(said, "error"); return; }
+    toast(`Stack added — ${names(can)}${said ? `. ${said}` : ""}`, said ? "info" : "success");
   };
 
   // ── results ──
@@ -205,7 +220,7 @@ export default function GenerateDay() {
           {rec.drinks.map((d, i) => (
             <div key={d.id} className={`step s-${i === 0 ? "sun" : i === rec.drinks.length - 1 ? "broth" : "cup"}`}>
               <div className="ic">{i + 1}</div>
-              <div className="sx"><b>{DRINKS[d.id].n}</b><span>{d.role}</span></div>
+              <div className="sx"><b>{nameOf(d.id)}</b><span>{d.role}</span></div>
               <div className="tm">{d.timing}</div>
             </div>
           ))}
@@ -213,13 +228,13 @@ export default function GenerateDay() {
         <SectionHeader label="Your stack" annotation="what's in it" />
 
         {rec.drinks.map((d) => {
-          const dk = DRINKS[d.id];
+          const dk = drinkOf(d.id);
           return (
             <div key={d.id} className="gen-card" style={{ borderLeft: `3px solid ${dk.dot}` }}>
               <button type="button" className="gen-card-top" onClick={() => setOpenSci(openSci === d.id ? null : d.id)} aria-expanded={openSci === d.id}>
-                <div className="gen-swatch" style={{ color: dk.dot, borderColor: dk.dot }}>{dk.n.charAt(0)}</div>
+                <div className="gen-swatch" style={{ color: dk.dot, borderColor: dk.dot }}>{dk.name.charAt(0)}</div>
                 <div className="gen-card-meta">
-                  <div className="gen-card-name">{dk.n}</div>
+                  <div className="gen-card-name">{dk.name}</div>
                 </div>
                 <div className="gen-badge">{dk.when}</div>
                 <span className={`gen-sci-caret${openSci === d.id ? " open" : ""}`} aria-hidden>›</span>

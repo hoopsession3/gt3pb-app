@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
-import { DRINKS, type DrinkId } from "@/lib/menu";
 import { money } from "@/lib/money";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -30,7 +29,10 @@ function chime() {
 
 // Listens on Supabase realtime (RLS-scoped) and surfaces notifications. Renders nothing.
 export default function Notifications() {
-  const { toast } = useApp();
+  const { toast, nameOf } = useApp();
+  // The Catalog's names (R2), read through a ref so the realtime channel is not re-opened when the menu lands.
+  const nameRef = useRef(nameOf);
+  useEffect(() => { nameRef.current = nameOf; }, [nameOf]);
   const { user, profile, refreshProfile } = useAuth();
 
   // Client: updates to MY orders.
@@ -62,7 +64,7 @@ export default function Notifications() {
       .channel("notify-admin")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (p) => {
         const o = p.new as any;
-        const names = (o.items || []).map((i: string) => DRINKS[i as DrinkId]?.n ?? i).join(" · ");
+        const names = (o.items || []).map((i: string) => nameRef.current(i)).join(" · ");
         const amt = money(o.total_cents);
         toast(`New order · ${names} · ${amt}`);
         // ONE CHIME PER ORDER (2026-10-11, lib/passSound): none while the Pass is open — it rings its own — and none

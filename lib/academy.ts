@@ -6,7 +6,7 @@
 // HARD RULE (from the Source of Truth / Risk Register): no unsupported
 // physiological/comparative health claims. Nutrition is "estimated" until lab-
 // verified. Rise/Flow/Dusk share one spec and the SAME caffeine (~210 mg/10 oz).
-// Tide (coconut + honey hydration) contains organic local honey; Nature's Aide is coconut + mineral water with
+// Tide (coconut + honey hydration) contains organic local honey; Nature's Aide is coconut water + lime juice with
 // organic maple + sea salt. They're SEPARATE products — disclose the sweetener either way.
 
 export type Role = "founder" | "admin" | "event_manager" | "operator" | "staff" | "contractor";
@@ -210,7 +210,7 @@ export const MODULES: Module[] = [
     body: [
       { h: "Greet", p: "Eye contact, a real hello within a few seconds. \"First time with us?\" opens the door to educate. Warm and unhurried even when the line is long." },
       { h: "Educate, don't lecture", p: "Read the guest. A regular wants their order fast; a newcomer wants a quick why. Offer the one-line version first: \"Rise is our clean cold-brew to start the day\" — go deeper only if they're curious." },
-      { h: "Explain products simply", p: "Name → what it is → why it exists. \"Tide is whole-coconut hydration with organic local honey; Nature's Aide is coconut + mineral water with organic maple and sea salt — both easy to drink during the work.\" Keep it true and plain." },
+      { h: "Explain products simply", p: "Name → what it is → why it exists. \"Tide is whole-coconut hydration with organic local honey; Nature's Aide is coconut water + lime juice with organic maple and sea salt — both easy to drink during the work.\" Keep it true and plain." },
       { h: "Handle objections", p: "\"Why is it more than gas-station coffee?\" → \"It's cold-extracted over hours from single-origin beans, made when you order it.\" Acknowledge, give the real reason, never argue." },
       { h: "Serve with confidence", p: "Know the menu cold. If you don't know an answer, say so and find out — never guess a nutrition number or a health claim." },
       { h: "Make it memorable", p: "Use the guest's name if you have it. Hand the bottle with both hands and a line about how to enjoy it. The last ten seconds are what they remember." },
@@ -256,7 +256,7 @@ export const MODULES: Module[] = [
     ],
     quiz: [
       { q: "How much caffeine does Dusk have vs Rise and Flow?", options: ["Much less — it's a wind-down", "The same — all three share one spec (~210 mg/10 oz)", "Double"], correct: 1, why: "Dusk differs in flavor, not caffeine." },
-      { q: "Nature's Aide contains…", options: ["Only coconut water", "Coconut water, mineral water, organic maple, and sea salt", "Coconut and added electrolyte powder"], correct: 1, why: "Disclose the maple — never claim 'no added sugar.'" },
+      { q: "Nature's Aide contains…", options: ["Only coconut water", "Coconut water, lime juice, organic maple, and sea salt", "Coconut and added electrolyte powder"], correct: 1, why: "Disclose the maple — never claim 'no added sugar.'" },
       { q: "A guest wants the least caffeine in the Activation line. You say…", options: ["\"Dusk — it's the lightest.\"", "\"They're all about the same; Dusk is the same caffeine, just warmer and spiced.\"", "\"Flow has none.\""], correct: 1 },
     ],
   },
@@ -361,13 +361,13 @@ export const MODULES: Module[] = [
     objectives: ["Name the real reason each functional ingredient is on the menu", "Describe a benefit as 'what it is / how people use it,' not a cure", "Disclose allergens (raw honey, dairy) every time"],
     body: [
       { h: "The one rule that governs all of this", p: "We describe ingredients and process, never physiological or comparative health claims. 'Coconut water has naturally occurring electrolytes' is fine. 'This rehydrates you faster than a sports drink' is not — that's a comparative claim we haven't tested. When in doubt, describe what it is and how people use it, and say you'll confirm anything you're unsure of." },
-      { h: "Coconut water & electrolytes (Nature's Aide, Tide, Coconut Shake)", p: "Coconut water naturally contains electrolytes — minerals like potassium and sodium that the body uses for hydration and nerve/muscle function. Nature's Aide pairs coconut water with mineral water, organic maple syrup, and sea salt — disclose the maple. Tide uses young coconut water + young organic Thai coconut meat with a touch of organic local honey — always disclose the honey (allergen + not for infants). Talk about both as 'natural hydration,' not a medical rehydration claim." },
+      { h: "Coconut water & electrolytes (Nature's Aide, Tide, Coconut Shake)", p: "Coconut water naturally contains electrolytes — minerals like potassium and sodium that the body uses for hydration and nerve/muscle function. Nature's Aide pairs coconut water with lime juice, organic maple syrup, and sea salt — disclose the maple. Tide uses young coconut water + young organic Thai coconut meat with a touch of organic local honey — always disclose the honey (allergen + not for infants). Talk about both as 'natural hydration,' not a medical rehydration claim." },
       { h: "Cacao nibs (Flow)", p: "Organic cacao nibs are infused into the cold brew. Cacao brings chocolate aroma and naturally contains theobromine — a gentle, longer compound that pairs with caffeine for a steadier feel. Say 'cacao for a smooth, sustained focus,' not 'boosts your metabolism.'" },
       { h: "Spice (Dusk: cinnamon + cardamom)", p: "Ceylon cinnamon and green cardamom are infused for warmth and aroma — an evening-leaning, lower-noise flavor. It's a flavor story, not a health story." },
       { h: "Real maple & salt (Salted Maple)", p: "Real maple is the sweetener and a pinch of salt balances it — that's culinary contrast, not a 'natural sugar is healthy' claim. Maple-forward, never cloying." },
       { h: "Bone broth — protein & amino acids (Fuel)", p: "Made from pasture-raised bones, bone broth naturally contains protein and amino acids (like collagen-derived ones) and is served hot as a savory option. Describe it as 'a warm, savory, protein-forward option' — don't promise joint or gut outcomes." },
     ],
-    mistakes: ["Forgetting to disclose the organic local honey in Tide (or the organic maple in Nature's Aide)", "Confusing Tide (coconut + honey) with Nature's Aide (coconut + mineral water + maple + sea salt) — they're separate drinks", "Saying coconut water 'hydrates faster than Gatorade' (untested comparative claim)", "Calling bone broth a gut-health cure instead of 'protein-forward and savory'"],
+    mistakes: ["Forgetting to disclose the organic local honey in Tide (or the organic maple in Nature's Aide)", "Confusing Tide (coconut + honey) with Nature's Aide (coconut water + lime juice + maple + sea salt) — they're separate drinks", "Saying coconut water 'hydrates faster than Gatorade' (untested comparative claim)", "Calling bone broth a gut-health cure instead of 'protein-forward and savory'"],
     founderInsight: "Functional doesn't mean we make medical promises. It means every ingredient earns its place for a real reason. If the reason is just 'it tastes good,' say that — that's still a great reason.",
     scenarios: [
       { situation: "Guest with a nut/coconut allergy eyeing a hydration drink", doThis: "Flag it directly: 'Heads up — both Nature's Aide and Tide are coconut-based, and Tide also has organic local honey. Want me to point you to Rise or Dusk instead?'" },
@@ -857,22 +857,23 @@ export const PRODUCTS: Product[] = [
   },
   {
     key: "nature_aid", name: "Nature's Aide", line: "Hydration", price: "$10",
-    what: "A light electrolyte hydration — coconut water and mineral water with organic maple syrup, finished with sea salt.",
+    what: "A light electrolyte hydration — organic coconut water and organic lime juice with organic maple syrup, finished with sea salt.",
     why: "Clean, balanced hydration that goes down easy during the work.",
-    ingredients: ["Coconut water", "Mineral water", "Organic maple syrup", "Sea salt"],
+    // Ryan, 2026-10-13: coconut water and lime juice — no mineral water (R2, the Catalog round).
+    ingredients: ["Organic coconut water", "Organic lime juice", "Organic maple syrup", "Sea salt"],
     benefits: ["Light electrolyte hydration", "Real maple, not a powder or isolate", "Balanced sweet-and-salt, easy to drink"],
     customer: "The active guest mid-work or mid-training who wants clean hydration, not a neon sports drink.",
-    talking: ["Coconut + mineral water with organic maple and a pinch of sea salt", "Real ingredients, not a powder or concentrate", "Disclose the maple if asked about sugar"],
+    talking: ["Coconut water and lime juice with organic maple and a pinch of sea salt", "Real ingredients, not a powder or concentrate", "Disclose the maple if asked about sugar"],
     faqs: [
       { q: "Is there added sugar?", a: "Yes — organic maple syrup is the sweetener, balanced with a little sea salt. We disclose it; we don't claim 'no added sugar.'" },
-      { q: "Is it a sports drink?", a: "No — it's real coconut and mineral water with maple and sea salt, not a powdered electrolyte mix." },
+      { q: "Is it a sports drink?", a: "No — it's real coconut water and lime juice with maple and sea salt, not a powdered electrolyte mix." },
     ],
     voices: {
-      simple: "Coconut and mineral water with a little organic maple and sea salt. Clean hydration, no powder.",
-      gt3: "Nature's Aide is our light hydration — coconut water and mineral water with organic maple syrup and a pinch of sea salt. The maple and salt balance each other; it's real ingredients, not a powdered sports drink.",
-      founder: "Hydration doesn't need a lab. Coconut and mineral water carry what the body's after, organic maple gives it just enough, and sea salt rounds it out. The maple is the sweetener and we always name it — we disclose, we never hide behind 'no added sugar.' Simple, real, and it goes down easy in the middle of the work.",
+      simple: "Coconut water and lime juice with a little organic maple and sea salt. Clean hydration, no powder.",
+      gt3: "Nature's Aide is our light hydration — coconut water and lime juice with organic maple syrup and a pinch of sea salt. The maple and salt balance each other; it's real ingredients, not a powdered sports drink.",
+      founder: "Hydration doesn't need a lab. Coconut water and lime carry what the body's after, organic maple gives it just enough, and sea salt rounds it out. The maple is the sweetener and we always name it — we disclose, we never hide behind 'no added sugar.' Simple, real, and it goes down easy in the middle of the work.",
     },
-    cookbook: { batch: "Mix to order (no long batch).", brew: ["Combine coconut water + mineral water", "Add organic maple syrup + sea salt to spec", "Stir until fully dissolved"], serve: ["Serve cold, in glass"], storage: "Make to order; keep cold.", quality: "Balanced sweet-and-salt, never cloying.", troubleshoot: [{ issue: "Too sweet", fix: "Reduce maple to spec." }, { issue: "Tastes flat", fix: "A pinch more sea salt lifts it." }] },
+    cookbook: { batch: "Mix to order (no long batch).", brew: ["Combine coconut water + lime juice", "Add organic maple syrup + sea salt to spec", "Stir until fully dissolved"], serve: ["Serve cold, in glass"], storage: "Make to order; keep cold.", quality: "Balanced sweet-and-salt, never cloying.", troubleshoot: [{ issue: "Too sweet", fix: "Reduce maple to spec." }, { issue: "Tastes flat", fix: "A pinch more sea salt lifts it." }] },
   },
   {
     key: "tide", name: "Tide", line: "Hydration", price: "$12",

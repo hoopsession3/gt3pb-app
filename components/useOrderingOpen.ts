@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { type Ordering, type OrderingStop } from "@/lib/ordering";
-import { orderingFrom, readOrdering, type OrderingInputs } from "@/lib/orderingRead";
+import { orderingFrom, readOrdering, readStopMenu, type OrderingInputs } from "@/lib/orderingRead";
 import { FOUNDING_MARKET, type Market } from "@/lib/markets";
 
 // IS THE TRUCK TAKING CUP ORDERS? — every ordering surface asks here (Find Us, the menu, the drink
@@ -23,6 +23,9 @@ export type OrderingOpen = {
   pickup: boolean;                  // does THIS stop offer pickup? (per-stop opt-in, 0191)
   ordering: Ordering | null;        // the whole answer — state, stop, opensAt, readyFrom — once read
   stops: OrderingStop[];            // the city's road, for the pack line (lib/orderAhead.packDropFrom)
+  // The drinks the stop an order is for pours (stop_menu, 0393) — null when no menu is set, or not read yet: it limits
+  // nothing then, and Pay checks it itself (2026-10-13, R2 — the Catalog is the menu).
+  stopMenu: ReadonlySet<string> | null;
 };
 
 const REREAD_MS = 60_000;
@@ -52,8 +55,19 @@ export function useOrderingOpen(active: boolean, market: Market = FOUNDING_MARKE
     return () => { alive = false; clearInterval(reread); clearInterval(tick); document.removeEventListener("visibilitychange", onVis); };
   }, [active, market, refreshKey]);
   const o = inputs ? orderingFrom(inputs, now) : null;
+  // The stop's menu, read once per stop (it changes when the crew edits the stop, not with the clock). A failed read keeps
+  // no menu — the screen limits nothing and Pay decides.
+  const stopId = o?.stop?.id ?? null;
+  const [menuOf, setMenuOf] = useState<{ id: string; menu: ReadonlySet<string> | null } | null>(null);
+  useEffect(() => {
+    if (!active || !supabase || !stopId) return;
+    let alive = true;
+    readStopMenu(supabase, stopId).then((r) => { if (alive && !r.error) setMenuOf({ id: stopId, menu: r.menu ? new Set(r.menu) : null }); }).catch(() => {});
+    return () => { alive = false; };
+  }, [active, stopId]);
   return {
     open: o ? o.open : true, checked: o !== null, ordering: o, stops: inputs?.stops ?? [],
     nextAt: o?.stop?.starts_at ?? null, nextName: o?.stop?.name ?? null, pickup: !!o?.stop?.pickup,
+    stopMenu: menuOf && menuOf.id === stopId ? menuOf.menu : null,
   };
 }

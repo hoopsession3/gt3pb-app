@@ -12,11 +12,13 @@ import { drinkCogs, margin, shelfLabel, type InvCost } from "@/lib/cogs";
 import { money } from "@/lib/money";
 import { dayWithDate, etToday } from "@/lib/dates";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { isSeedSlug } from "@/lib/drinks";
 import Sheet, { CloseButton } from "./Sheet";
 import {
   RECIPE_READ_FAILED, RECIPE_REREAD_FAILED, changedFields, conflictWords, draftOf, flipLine, flipsFrom, invalid, nameOf, patchOf,
   resetLine, saveVerdict, soldOutLine, switchSpoken, switchWords, upcomingMenus, valuesOf,
   type AuditRow, type CatalogProduct, type Draft, type Flip, type MenuLink, type MenuStop,
+  type CaffeineChoice,
 } from "@/lib/catalog";
 
 // ONE PRODUCT, ITS OWN PAGE (2026-10-12, the Catalog round, approved). It was an expander inside the list: a card that
@@ -65,6 +67,8 @@ export default function ProductPage({ p, gone, onClose, onFlip, onSaved, onDelet
   // nothing is typed, the page shows it; if something did AND edits are typed, the edits stay, over the version they
   // started from — and Save asks (lib/catalog saveVerdict).
   const [base, setBase] = useState<CatalogProduct>(p);
+  // The menu's own fields (0393) — shown once the row has them, so a save never names a column that isn't there yet.
+  const menuFields = "cup_orderable" in base;
   const [draft, setDraft] = useState<Draft>(() => draftOf(p));
   const [seen, setSeen] = useState(p);
   const values = valuesOf(draft);
@@ -293,17 +297,41 @@ export default function ProductPage({ p, gone, onClose, onFlip, onSaved, onDelet
             </select>
           </label>
         </div>
-        <label className="prod-f"><span>Description</span><textarea rows={2} value={draft.what} onChange={(e) => set("what", e.target.value)} /></label>
+        {/* What the menu and the drink sheet say (R2, 2026-10-13 — the Catalog is the menu): every word a customer reads
+            about this drink is edited here. "What it is" is the sheet's lines, one per row. */}
+        <label className="prod-f"><span>What it is (one line per row)</span><textarea rows={2} value={draft.what} onChange={(e) => set("what", e.target.value)} /></label>
         <label className="prod-f"><span>Why</span><input value={draft.why} onChange={(e) => set("why", e.target.value)} /></label>
         <label className="prod-f"><span>Ingredients (comma)</span><input value={draft.ingredients} onChange={(e) => set("ingredients", e.target.value)} /></label>
         <label className="prod-f"><span>Free of (comma)</span><input value={draft.excludes} onChange={(e) => set("excludes", e.target.value)} /></label>
+        {menuFields && (
+          <>
+            <div className="prod-grid">
+              <label className="prod-f"><span>Caffeine</span>
+                <select value={draft.caffeine} onChange={(e) => set("caffeine", e.target.value as CaffeineChoice)}>
+                  <option value="">Not said</option>
+                  <option value="yes">Yes</option>
+                  <option value="no">None</option>
+                </select>
+              </label>
+              <label className="prod-f"><span>Tag on the menu</span><input value={draft.tag} placeholder="Start here" onChange={(e) => set("tag", e.target.value)} /></label>
+            </div>
+            <label className="prod-f"><span>Contains (comma)</span><input value={draft.contains} placeholder="Goat milk, Coconut" onChange={(e) => set("contains", e.target.value)} /></label>
+            <label className="prod-f"><span>When to drink it</span><input value={draft.when_text} placeholder="Morning, before the first task." onChange={(e) => set("when_text", e.target.value)} /></label>
+          </>
+        )}
       </div>
 
       {/* where it is sold ───────────────────────────────────────────────────────────────────────── */}
       <div className="cp-block">
         <div className="cp-block-h"><span>Where it&apos;s sold</span></div>
         <SwitchRow label="On the menu" on={draft.active} onChange={(v) => set("active", v)}
-          sub={draft.active ? "Cups, at the truck and in the app." : "Nobody can order it."} />
+          sub={!draft.active ? "Nobody can order it." : (menuFields ? draft.cup_orderable : isSeedSlug(base.slug)) ? "Customers can order it." : "On sale — not by the cup."} />
+        {/* Sold by the cup (0393): on the cup menu, at the truck and in the app. Off for a pack add-on (Salted Latte) or an
+            event-only pour. Only once 0393 is pasted — before it, only the code list's ten drinks were cups. */}
+        {menuFields && (
+          <SwitchRow label="Sold by the cup" on={draft.cup_orderable} onChange={(v) => set("cup_orderable", v)}
+            sub={draft.cup_orderable ? "On the cup menu, at the truck and in the app." : "Not on the cup menu."} />
+        )}
         {/* Bulk order = show this item in the delivery pack builder. 'brew' = the refillable
             daypart core (Loop $8 / new $10); 'premium' = a flat $14 add like the Salted Latte. */}
         <SwitchRow label="Available for bulk / delivery pack" on={draft.bulk_orderable} onChange={(v) => set("bulk_orderable", v)}

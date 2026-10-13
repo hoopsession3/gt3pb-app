@@ -128,6 +128,11 @@ export default function MenuRigChips({ value, onPatch, variant, ownerType, owner
     <>
       {/* BEO framing: MENU is one section; SETUP & SITE is another. Never one grab-bag headline. */}
       <div className={c.h}>Menu — what we&apos;re pouring</div>
+      {/* A STOP'S MENU IS WHAT CUSTOMERS CAN ORDER THERE (2026-10-13, R2 — the Catalog is the menu): the app and Pay read it
+          (stop_menu, 0393). Said here, where it is set, so a menu picked for the pack list is never a surprise at the window. */}
+      {ownerType === "stop" && ownerCol && (
+        <p className="cp-line dim">{picked.size > 0 ? "Customers can order only these drinks at this stop." : "Nothing picked: customers can order the whole menu here."}</p>
+      )}
       <div className={c.row}>
         {products.length > 0
           ? products

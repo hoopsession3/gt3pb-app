@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { DRINKS, type DrinkId } from "@/lib/menu";
+import { nameFrom } from "@/lib/drinks";
+import { readMenuRows } from "@/lib/drinksRead";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { benefitsForUser } from "@/lib/benefits";
-import { cartRefusal, MENU_UNCHECKED, type CartRow } from "@/lib/catalog";
+import { cartRefusal, MENU_UNCHECKED } from "@/lib/catalog";
 import { priceCups } from "@/lib/cupPrice";
 import { squarePriceMap } from "@/lib/squareCatalog";
 import { route } from "@/lib/apiRoute";
@@ -26,10 +27,11 @@ async function post(req: Request) {
   const code = typeof body.code === "string" ? body.code : null;
 
   const uniq = [...new Set(items)];
-  const { data: avail, error: availErr } = await supabaseAdmin.from("products").select("slug, sold_out, active, price_cents").in("slug", uniq);
+  // The Catalog's rows for this cart (lib/drinksRead — the menu's read; 0393's columns when they are there).
+  const { rows, error: availErr } = await readMenuRows(supabaseAdmin, uniq);
   if (availErr) return NextResponse.json({ error: MENU_UNCHECKED }, { status: 503 });
-  const rows = (avail ?? []) as (CartRow & { price_cents: number | null })[];
-  const refused = cartRefusal(uniq, rows, (slug) => DRINKS[slug as DrinkId]?.n ?? slug);
+  const nameOf = (slug: string) => nameFrom(rows, slug);
+  const refused = cartRefusal(uniq, rows, nameOf);
   if (refused) return NextResponse.json({ error: refused }, { status: 409 });
   const productPrices: Record<string, number> = {};
   for (const p of rows) if (typeof p.price_cents === "number" && p.price_cents > 0) productPrices[p.slug] = p.price_cents;
@@ -38,7 +40,7 @@ async function post(req: Request) {
   const user = await userFromRequest(req);
   const benefits = await benefitsForUser(user?.id ?? null, code);
 
-  const priced = priceCups(items, productPrices, squarePrices, benefits);
+  const priced = priceCups(items, productPrices, squarePrices, benefits, nameOf);
   if ("unknown" in priced) return NextResponse.json({ error: `Unknown item: ${priced.unknown}` }, { status: 400 });
   return NextResponse.json({ lines: priced.lines, subtotalCents: priced.subtotal }, { headers: { "Cache-Control": "no-store" } });
 }

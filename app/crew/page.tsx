@@ -190,7 +190,6 @@ const OutlookConnect = dynamic(() => import("@/components/OutlookConnect"), { lo
 const CupOrderingDial = dynamic(() => import("@/components/crew/CupOrderingDial"), { loading: () => <PourFill label="Loading…" /> });
 const ErrorLog = dynamic(() => import("@/components/ErrorLog"), { loading: () => <PourFill label="Loading…" /> });
 import Prose from "@/components/Prose";
-import { DRINKS, type DrinkId } from "@/lib/menu";
 import { packListFor } from "@/lib/packlist";
 import { complianceFor } from "@/lib/compliance";
 import { projectEvent, reconcile, DEFAULT_ECON, planWords, type EventEcon, type ProductEcon, type Projection, econBreakdown, econBreakdownLabel, type EconDrink } from "@/lib/economics";
@@ -4660,6 +4659,7 @@ function SubInterest() {
 // ───────────────────────── order history (review past orders) ─────────────────────────
 function OrdersHistory() {
   const [q, setQ] = useState("");
+  const { nameOf } = useApp(); // the Catalog's names (R2): what the Pass printed
   const ordersState = useAsyncData<Order[]>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
     // A FAILED READ IS NOT "NO COMPLETED ORDERS YET" (2026-10-12): the error went unread, null became [], and the
@@ -4687,7 +4687,7 @@ function OrdersHistory() {
           ? rows.filter((o) => {
               const name = (o.customer ?? "guest").toLowerCase();
               const id = o.id.slice(0, 4).toLowerCase();
-              const items = o.items.map((i) => (DRINKS[i as DrinkId]?.n ?? i)).join(" ").toLowerCase();
+              const items = o.items.map(nameOf).join(" ").toLowerCase();
               return name.includes(term) || id.includes(term) || items.includes(term) || moneyPlain(o.total_cents).includes(term);
             })
           : rows;
@@ -4696,7 +4696,7 @@ function OrdersHistory() {
             {/* "It's my data" (enterprise round P2) — the accountant handoff, from the rows shown */}
             <button type="button" className="btn-sec btn-sm shrink-0 mb-2" onClick={() => downloadCsv("gt3-orders.csv", shown.map((o) => ({
               when: o.status_changed_at ?? "", order: o.id.slice(0, 4), customer: o.customer ?? "guest",
-              items: o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · "),
+              items: o.items.map(nameOf).join(" · "),
               total: moneyPlain(o.total_cents), status: o.status, paid: ledgerWord(o),
             })))}>Export CSV</button>
             <SectionHeader label="Order history" right={done > 0 ? <span className="k-count">{done} completed</span> : undefined} />
@@ -4708,7 +4708,7 @@ function OrdersHistory() {
                   key={o.id}
                   name={<RecordLink kind="customer" id={o.customer_id}>{o.customer ?? "Guest"}</RecordLink>}
                   nameExtra={<span className={`adm-substat ${o.status === "void" ? "past_due" : "active"}`}>{o.status}</span>}
-                  meta={<>{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")} · {money(o.total_cents)} · {new Date(o.status_changed_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</>}
+                  meta={<>{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${nameOf(g.id)}`).join(" · ")} · {money(o.total_cents)} · {new Date(o.status_changed_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</>}
                 />
               ))}
             </div>

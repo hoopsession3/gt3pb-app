@@ -33,7 +33,7 @@
 // FindUs held alone, plus the answer to "when".
 
 import { STOP_DONE_GRACE_MS } from "./road";
-import { etWhen } from "./dates";
+import { clockTime, etWhen } from "./dates";
 
 /** Default lead before a stop (live_status.preorder_lead_h, 0137): cups open 4 hours ahead. */
 export const PREORDER_LEAD_MS = 4 * 60 * 60 * 1000;
@@ -210,7 +210,13 @@ export function pickupWords(o: Pick<Ordering, "stop">): string {
 
 /** The ordering line while it is open ahead of a stop; null when the truck is pouring (the page's own line holds). */
 export function openWords(o: Ordering, nowMs: number = Date.now()): string | null {
-  return o.state === "ahead" && o.readyFrom ? `Order now — we make it when we open, ${etWhen(o.readyFrom, nowMs)}.` : null;
+  if (o.state === "ahead" && o.readyFrom) return `Order now — we make it when we open, ${etWhen(o.readyFrom, nowMs)}.`;
+  // POURING NOW, SAID WHERE AND UNTIL WHEN (2026-10-13, R2 — the audit's menu, approved): the + on a price adds the drink,
+  // so the line says so. A truck live off the schedule (no stop) keeps the menu's own order line (null).
+  if ((o.state === "live" || o.state === "started") && o.stop?.name) {
+    return `Pouring at ${o.stop.name}${o.stop.ends_at ? ` till ${clockTime(o.stop.ends_at)}` : ""}. Tap + and it's in your order.`;
+  }
+  return null;
 }
 
 /**

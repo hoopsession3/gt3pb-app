@@ -103,10 +103,13 @@ const realFetch = globalThis.fetch;
   const r = code("app/api/checkout/route.ts");
   const at = (s, from = 0) => r.indexOf(s, from);
   ok("route: the replay comes before the limiter, the stock and the truck's hours",
-    at("seenBefore(") > 0 && at("seenBefore(") < at("rate_limit_hit") && at("seenBefore(") < at('.from("products")') && at("seenBefore(") < at("readOrdering("));
+    at("seenBefore(") > 0 && at("seenBefore(") < at("rate_limit_hit") && at("seenBefore(") < at("readMenuRows(") && at("seenBefore(") < at("readOrdering(")
+    && at("seenBefore(") < at("readStopMenu("));
+  // R2 (2026-10-13): the stock is the menu's own read (lib/drinks readMenuRows), and a stop's menu is a check like the truck's
+  // hours — both after the replay, both before the claim.
   const firstClaim = at("claimKey("), secondClaim = at("claimKey(", firstClaim + 1);
   ok("route: both claims come after every check and before the money",
-    firstClaim > at("orderingNow(") && firstClaim > at("pay_at_pickup") && secondClaim > firstClaim && firstClaim < at("placeOnce(") && secondClaim < at("chargeOnce(") && at("claimKey(", secondClaim + 1) === -1);
+    firstClaim > at("orderingNow(") && firstClaim > at("pay_at_pickup") && firstClaim > at("readStopMenu(") && secondClaim > firstClaim && firstClaim < at("placeOnce(") && secondClaim < at("chargeOnce(") && at("claimKey(", secondClaim + 1) === -1);
   ok("route: pay at pickup's insert is placed under its claim", at("placeOnce(") < at("await insertOrder(orderRow)") && at("await insertOrder(orderRow)") < secondClaim);
   ok("route: Square is called in one place, inside chargeOnce", (r.match(/chargeCard\(/g) || []).length === 1 && /charge: \(\) => chargeCard\(/.test(r) && at("charge: () => chargeCard(") > at("chargeOnce("));
   ok("route: the store it claims in is the table's (lib/checkoutClaims), and the route says how it survives the table not being there yet",

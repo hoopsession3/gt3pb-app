@@ -1132,10 +1132,11 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .entry-name{flex:0 0 auto;font-family:'Archivo Black';font-size:15px;letter-spacing:.4px;color:#221F18;line-height:1}
 .entry-gap{flex:1}
 .entry-tag{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#7a5a1e;background:rgba(154,122,42,.12);border:1px solid rgba(154,122,42,.3);padding:3px 7px;border-radius:var(--r-sm);flex:0 0 auto;align-self:center}
-.entry-in{font-family:'Inter';font-weight:700;font-size:11px;color:#6aa05c}
+/* in the order: its counter (R2) */
+.entry-qty{background:#7a5a1e;color:#fff}
 .entry-px{font-family:'DM Mono';font-weight:500;font-size:13px;color:#5f5a49}
-/* the price IS the order affordance (2026-08-01 audit): a quiet gold pill with a + — visual only,
-   the whole row is the tap target (no nested button). Sold-out rows keep the plain struck price. */
+/* the price IS the order button (2026-10-13, R2): a quiet gold pill with a +; it adds the drink,
+   the row beside it opens the sheet. Sold-out rows keep the plain struck price. */
 .entry-px.order{border:1px solid rgba(138,111,49,.42);border-radius:var(--r-pill);padding:3px 10px;color:#7a5a1e;font-weight:600}
 .entry-px.order::before{content:"+ ";font-weight:700}
 /* A price while the truck is not taking orders (lib/ordering): the order pill's box with no pill —
@@ -1165,6 +1166,9 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .sheet-list.no li{color:#9a4742;border-color:color-mix(in srgb, var(--brand-red) 30%, transparent)}
 .sheet-list.no li:before{content:"✕ ";color:#B82420}
 .sheet-when{display:flex;gap:12px;align-items:baseline;background:rgba(34,31,24,.04);border:1px solid rgba(34,31,24,.1);border-radius:13px;padding:13px 15px;margin-top:18px}
+/* when, caffeine, contains: one grouped list, as the system pass's rows are (R2) */
+.sheet-when+.sheet-when{margin-top:-1px;border-top-color:transparent;border-top-left-radius:0;border-top-right-radius:0}
+.sheet-when:has(+.sheet-when){border-bottom-left-radius:0;border-bottom-right-radius:0}
 .sheet-when-k{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#7a5a1e;flex:0 0 auto}
 .sheet-when-v{font-family:'Fraunces';font-size:13px;color:#2c291d}
 .sheet-signoff{text-align:center;font-family:'Fraunces';font-style:italic;font-size:13px;color:#6f6a59;margin-top:18px}

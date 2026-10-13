@@ -20,7 +20,6 @@ import EditableCopy from "@/components/EditableCopy";
 import EditCopyPill from "@/components/EditCopyPill";
 import { useSiteCopy } from "@/lib/copy";
 import { supabase } from "@/lib/supabase";
-import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
 
 // TODAY — the member home, on the kit (Design System v1). Masthead → greeting →
@@ -47,7 +46,7 @@ function greet(d: Date) {
 
 // ───────────────── your usual — one-tap reorder of the last order, as a kit row ─────────────────
 function YourUsual() {
-  const { reorder } = useApp();
+  const { reorder, nameOf } = useApp();
   const { user } = useAuth();
   const t = useSiteCopy();
   const [last, setLast] = useState<Order | null>(null);
@@ -57,7 +56,7 @@ function YourUsual() {
       .then(({ data }) => { if (data && data[0]) setLast(data[0] as Order); });
   }, [user]);
   if (!last) return null;
-  const names = last.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ");
+  const names = last.items.map(nameOf).join(" · ");
   return (
     <div className="k-rows" style={{ marginTop: 18 }}>
       <InfoRow
@@ -66,7 +65,7 @@ function YourUsual() {
         name={names}
         sub={t("today.usual_sub")}
         trailing={<span className="k-chip">{t("today.usual_cta")}</span>}
-        onClick={() => reorder(last.items as DrinkId[])}
+        onClick={() => reorder(last.items)}
         ariaLabel={`Order your usual again: ${names}`}
       />
     </div>

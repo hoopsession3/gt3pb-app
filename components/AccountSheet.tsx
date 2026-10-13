@@ -9,7 +9,6 @@ import Icon from "@/components/Icon";
 import Gt3Mark from "@/components/Gt3Mark";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
-import { DRINKS, type DrinkId } from "@/lib/menu";
 import { readEditMode, writeEditMode } from "@/lib/editModeToggle";
 import { showsCommerce, surfaceOf } from "@/lib/surfaces";
 import { staffAccess, type Access } from "@/lib/access";
@@ -149,7 +148,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   onShowCard: () => void;
 }) {
   const { user, profile, profileStatus, signOut, refreshProfile } = useAuth();
-  const { toast, reorder } = useApp();
+  const { toast, reorder, nameOf } = useApp();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -253,7 +252,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
     );
   }
 
-  const usualNames = last ? last.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ") : "";
+  const usualNames = last ? last.items.map(nameOf).join(" · ") : "";
   // The card in lib/loyalty's words (C6): free cups READY — a redeemed one is gone from the count (0387).
   const stamps = card.free > 0 ? freeWords(card.free) : `${card.toNext} to a free cup`;
   // The crew side is every staff surface — the console, and the work pages (the run, the scan screen, the playbook) — so
@@ -289,7 +288,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Tile icon="qr" title="Show card" sub="Scan at the window" disabled={!profile} onClick={() => { onClose(); onShowCard(); }} />
         {last
-          ? <Tile icon="repeat" title="Order again" sub={usualNames} onClick={() => { reorder(last.items as DrinkId[]); onClose(); }} />
+          ? <Tile icon="repeat" title="Order again" sub={usualNames} onClick={() => { reorder(last.items); onClose(); }} />
           : <Tile icon="coffee" title="See the menu" sub="Order ahead" onClick={() => go("/menu")} />}
       </div>
 

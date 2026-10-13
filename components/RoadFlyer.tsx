@@ -76,7 +76,7 @@ const LOGO = { fx: 0.035, fy: 0.05, fw: 0.93, fh: 0.50 };
 // Defaults are true to the Academy source of truth — real products, real specs, honey disclosed.
 const DEFAULT_MENU = "COLD BREW\nRise · Flow · Dusk\n\nON NITRO\nNitro Cold Brew";
 const DEFAULT_SUB = "SPECIALTY\nSalted Maple\n\nHYDRATION\nNature Aide · Tide";
-const DEFAULT_DETAILS = "Rise | Cold-extracted ~18 hrs, coconut-finished. No burnt bite.\nFlow | The same base, cacao-infused. Richer, no added sugar.\nDusk | Cinnamon and cardamom. Warm, spiced — same lift.\nNitro | Charged with nitrogen. Creamy, no milk, no ice.\nNature Aide | Coconut + mineral water, organic maple, sea salt.";
+const DEFAULT_DETAILS = "Rise | Cold-extracted ~18 hrs, coconut-finished. No burnt bite.\nFlow | The same base, cacao-infused. Richer, no added sugar.\nDusk | Cinnamon and cardamom. Warm, spiced — same lift.\nNitro | Charged with nitrogen. Creamy, no milk, no ice.\nNature Aide | Coconut water + lime, organic maple, sea salt.";
 
 export default function RoadFlyer() {
   const { toast } = useApp();
