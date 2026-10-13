@@ -104,3 +104,45 @@ copies of an idea.
     is a row you flip in place. Settings returns to its list; a deep link still opens its row.
 27. **A closed panel says what it holds.** Anywhere a `<Panel>` is closed at rest it carries a `sub`
     line; a blind header is the accordion wall (the design ratchet counts them, and may only fall).
+
+## Locked 2026-10-13 — the redesign rounds and the customer audit (rules 28–40)
+
+28. **Apple's sizes, not ours.** Ten type steps — 11, 12, 13, 15, 16, 17, 20, 22, 28, 34 — and no
+    other size (the type round folded 1,119). 44 pt is the smallest tap, 49 pt the tab bar, and a
+    field is 16 px on a 44 pt row so an iPhone never zooms into it (css.audit ONE FIELD).
+29. **One kit per primitive.** Four kinds of button in two sizes (`components/Button`), one chip,
+    one tag, one count, one segmented control, one switch. A recipe outside the kit, or a link
+    dressed as a button, is debt the css.audit counts at zero.
+30. **The phone column first.** Customer screens are a phone column at every width. Only the
+    console and /office spread to the desk (1024 wide, landscape), and `Columns` keep the phone's
+    reading order (lib/surfaces `DESK_QUERY`, one spelling in three places).
+31. **Nothing moves after paint.** Fixed chrome shifts 0 and a page 0.04 at most; a layout that
+    waits on a read reserves its room; pages are measured after fonts and animations settle
+    (design.ratchet SHIFT, verify.prod). The #258 tab-icon jump was this rule, broken.
+32. **Gestures are UIKit's.** A sheet pulls down from anywhere, a tab row that switches the screen
+    swipes, a row swipes to act, the left edge swipes back — numbers from `lib/gesture`, and an
+    ambiguous move is a scroll. Overlays are `<Sheet>`; the gesture audit names every exception.
+33. **One haptic vocabulary.** Eighteen named feels in `lib/haptics`; every error toast plays
+    `error`, Pay plays `heavy`, a crossed swipe plays `threshold`. Nothing buzzes before the
+    person has touched the page, and nothing else calls `navigator.vibrate`.
+34. **The page leads with what is true now.** Today is an order being made, the usual one tap
+    from a priced checkout, or when cup orders open and a Remind me — never a static home that
+    sells while an order is in progress (R3). The state picks the lead; the rows stay quiet.
+35. **One set of words per thing.** An order reads the same on Today, the bar, a toast, the ticket
+    and a push (`lib/orderWords`, mirrored in the push function and pinned equal); its number is
+    `#4F2A` from `orderNo` alone; a drink's words and facts are the Catalog's (`lib/drinks`).
+36. **A no is a sentence, as a 4xx.** The database refuses in words with a PT-coded status (0360);
+    the screen shows those words (`lib/refusal`). A refusal is never a 500, a code, or a toast
+    that says only "error".
+37. **A failure never looks empty.** Loading, failed and empty are three different screens
+    (`useAsyncData`, `AsyncSection`); a refresh that fails keeps the last read and says so
+    ("Offline — the last we heard."). The false-empty audit counts the reads that can't tell.
+38. **Ask about preferences, never symptoms.** No health or medical claim (`lib/claimGuard`), no
+    nutrient talk to sell a drink. The Daily Stack asks the day and caffeine, offers only what the
+    truck can make now, and keeps its answers on the phone (R4).
+39. **Every order is reachable.** Every order has a number and a link that shows it to whoever
+    holds it — guests too — and the phone keeps the link. No customer is left with a confirmation
+    that closes into nothing (R3b, 0395).
+40. **Measured, not remembered.** A rule that can be counted is a ratchet — design.ratchet,
+    css.audit, lint, render, false-empty, gesture, haptics, affordance, smoke — and its number may
+    only fall. The commit that moves a ceiling says why, beside the number.
