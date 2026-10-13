@@ -20,7 +20,8 @@ import { openAddress } from "@/lib/maps";
 import { shareLink } from "@/lib/deviceActions";
 import { publicOrigin } from "@/lib/native";
 import { readyWords, waitingToOpen } from "@/lib/ordering";
-import { orderLine, orderTag, stepOf } from "@/lib/orderWords";
+import { cancelWords, orderLine, orderTag, stepOf } from "@/lib/orderWords";
+import { useConfirm } from "@/components/ConfirmSheet";
 import { drinksWords, etDay } from "@/lib/today";
 import { holdTicket, isTicket, ticketPath, useHeldTickets } from "@/lib/tickets";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -38,6 +39,7 @@ type Line = { slug: string; name?: string; qty: number; unit_cents: number };
 type Ticket = {
   no: string; status: string; items: string[]; lines: Line[] | null; total_cents: number; tip_cents: number; paid: boolean;
   card: string | null; refunded_cents: number; refund_pending: boolean;
+  at_window?: boolean;   // paid at the window (0396): the crew's to cancel there
   placed_at: string; moved_at: string | null; ready_from: string | null; eta: "on_way" | "outside" | "late" | null;
   for: string | null;
   stop: { name: string; place: string | null; starts_at: string | null; ends_at: string | null; canceled: boolean; cancel_reason: string | null } | null;
@@ -83,6 +85,7 @@ function TicketView({ t }: { t: string }) {
   const { nameOf, toast } = useApp();
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
+  const confirm = useConfirm();
   // arrives-with: 0395 — until it is pasted the view is not there (PGRST202), and the page says it can't open the order.
   const ticket = useAsyncData<Ticket>(async () => {
     if (!supabase) throw new Error("We couldn't open this order just now — try again in a minute.");
@@ -152,6 +155,20 @@ function TicketView({ t }: { t: string }) {
     void reload();
     if (next) toast(`Told the truck: ${ETA_WORDS[next]}`);
   };
+  // Take it back while it is In (0396, cancel_by_ticket): the member's rule, by the ticket — not once it is being made,
+  // and not once paid at the window, which is the crew's to cancel there. It says what happened in the order's words.
+  // arrives-with: 0396 — until it is pasted the function is not there, and the answer is the "try again" line.
+  const canCancel = tk.status === "new" && !tk.at_window;
+  const cancel = async () => {
+    if (!supabase || busy) return;
+    if (!(await confirm({ title: "Cancel this order?", body: tk.paid ? "We'll flag it for a refund and the crew will process it." : undefined, confirmLabel: "Cancel order", cancelLabel: "Keep order", danger: true }))) return;
+    setBusy(true);
+    const { data, error } = await supabase.rpc("cancel_by_ticket", { p_ticket: t });
+    setBusy(false);
+    const words = cancelWords(error ? null : (data as { ok?: boolean; outcome?: string; now?: string; paid?: boolean } | null));
+    toast(error ? (refusalText(error) ?? words.text) : words.text, words.ok ? "info" : "error");
+    void reload();
+  };
   const share = async () => {
     const url = `${publicOrigin()}${ticketPath(t)}`;
     const how = await shareLink({ title: `GT3 order ${tk.no}`, text: `GT3 order ${tk.no}`, url });
@@ -197,6 +214,8 @@ function TicketView({ t }: { t: string }) {
         </div>
         {!canceled && <p className="text-footnote text-cream-dim">{note}</p>}
       </div>
+      {/* The destructive way out sits apart, under the card, as an order screen's does. */}
+      {canCancel && <div className="mt-3 flex justify-center"><button type="button" className="btn-del" disabled={busy} onClick={() => { void cancel(); }}>{busy ? "Canceling…" : "Cancel order"}</button></div>}
 
       <SectionHeader label="Receipt" annotation={`${etDay(tk.placed_at)}, ${clockTime(tk.placed_at)}`} />
       <div className="mt-2">

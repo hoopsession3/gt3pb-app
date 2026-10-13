@@ -13905,6 +13905,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /orderLine\(o\.status,/.test(gb) && /<Link href=\{ticketPath\(t\)\}/.test(gb));
   ok("guest bar: read again every 20 seconds only while the order is in and the page is in front of someone",
     /if \(!live\) return;/.test(gb) && /if \(document\.visibilityState === "visible"\) void reload\(\);/.test(gb) && /const POLL_MS = 20_000;/.test(gb));
+  const pg = code(rd("app/order/page.tsx"));
+  ok("the ticket: Cancel while it is In and not paid at the window — the member's rule, by the ticket (0396) — asked first, said in the order's words",
+    /const canCancel = tk\.status === "new" && !tk\.at_window;/.test(pg) && /supabase\.rpc\("cancel_by_ticket", \{ p_ticket: t \}\)/.test(pg)
+    && /confirmLabel: "Cancel order", cancelLabel: "Keep order", danger: true/.test(pg) && /const words = cancelWords\(error \? null :/.test(pg)
+    && /arrives-with: 0396/.test(rd("app/order/page.tsx")));
+  ok("the ticket: the destructive way out sits apart, under the card",
+    /\{canCancel && <div className="mt-3 flex justify-center"><button type="button" className="btn-del" disabled=\{busy\}/.test(pg));
 }
 
 Promise.all(PENDING).then(() => {

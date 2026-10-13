@@ -11,53 +11,36 @@
 --
 -- The line below is what stops that happening again: scripts/drift.check.mjs fails the release
 -- if supabase/migrations/ ever holds a migration numbered above it.
--- pending-from: 0395
+-- pending-from: 0396
 -- generated-at: 2026-10-13
 -- pending-count: 1
 -- ledger-read-from: https://app.gt3pb.com/api/migrations
 -- held: 0376_nobody_on_the_pass_during_service_is_an_alert.sql — NOT in this file; applied by hand once the condition in its header is met
 -- ============================================================
--- 0395_every_order_a_ticket.sql
+-- 0396_a_guest_cancels_from_the_ticket.sql
 -- ============================================================
--- ── 0395 — EVERY ORDER A TICKET ─────────────────────────────────────────────────────────────────────────────────────────
--- 2026-10-13 (R3b of the customer audit, board 09 "Every order gets a ticket", approved 2026-10-12).
+-- ── 0396 — A GUEST CANCELS FROM THE TICKET ─────────────────────────────────────────────────────────────────────────────
+-- 2026-10-13 (R3c of the customer audit — the rest of board 09 and plan row R3, "Cancel reports its outcome").
 --
--- WHY. A guest who paid for a cup had the "Order in." screen and nothing after it: no number, no way back once the sheet
--- closed, no word while they waited. The bar and Today are a member's (they read the member's own rows), and a status
--- push needs an account. Every order now carries a ticket — a link that shows that one order to whoever holds it: its
--- number, where it is, what was in it and what was paid, the stop and its hours — the way the bar and Today show a
--- member's.
+-- WHY. A member cancels a cup order from Today or the bar while it is still in (cancel_own_order, 0341: only theirs,
+-- only before it is being made, never once paid at the window — that is the crew's, at the window). A guest has no
+-- account to be the owner of anything: the ticket (0395) shows them the order and lets them tell the truck they are
+-- on the way, and nothing let them take it back. They walked up to the window to say so, or didn't come.
 --
 -- WHAT.
---   · orders.ticket — a random uuid for every order, old ones too, unique. It is the link's key and nothing else:
---     whoever has it sees that order and no other. (A member reads it on their own rows, as every column.)
---   · orders.lines — the receipt's lines as checkout priced them ([{slug, qty, unit_cents}]); orders.card_brand and
---     orders.card_last4 — "Visa ··4242", from Square's answer. Never more of a card than its last four.
---   · order_ticket(t) — the ticket's view, to anyone with t, signed in or not: the number, the status, the items and
---     their lines, the total and the tip, whether it is paid and how, what Square has refunded on it (0330's
---     square_refunds: completed, and whether one is still pending), when it is made from, the stop's name, place and
---     hours, and the first name it is for. Nothing about anyone else. An unknown ticket is refused in words, as a 4xx
---     (PT404, 0360).
---   · ticket_eta(t, eta) — On my way / I'm outside / Running late from the ticket, as set_order_eta (0138) is from a
---     member's own row: only while the order is in progress.
+--   · cancel_by_ticket(t) — the same rule as a member's cancel, by the ticket instead of the account: the order is
+--     the ticket's; only while it is In (new); never once paid at the window. It answers in the words the screens
+--     already use (lib/orderWords cancelWords): {ok, outcome: canceled | too_late (+ now) | at_window, paid}. An
+--     unknown ticket is refused in words, as a 4xx (PT404). Whoever holds the link may cancel, as whoever holds it may
+--     read it and tell the truck: the ticket is the key.
+--   · The crew hear it as they hear a member's: a card-paid order is a critical money alert to refund it in Square
+--     (as cancel_own_order raises), an unpaid one an FYI that nothing was charged (as /api/orders/cancel raises).
+--   · order_ticket(t) also says whether the order was paid at the window (at_window), so the ticket offers Cancel only
+--     when it can go through.
 --
 -- A second run changes nothing.
 
-alter table public.orders add column if not exists ticket uuid default gen_random_uuid();
-update public.orders set ticket = gen_random_uuid() where ticket is null;
-alter table public.orders alter column ticket set not null;
-create unique index if not exists orders_ticket_key on public.orders (ticket);
-comment on column public.orders.ticket is
-  'The order''s ticket (0395): the key of its link, /order?t=…, which shows this order and no other to whoever holds it.';
-
-alter table public.orders add column if not exists lines jsonb;
-alter table public.orders add column if not exists card_brand text;
-alter table public.orders add column if not exists card_last4 text;
-do $$ begin
-  alter table public.orders add constraint orders_card_last4_four check (card_last4 is null or card_last4 ~ '^[0-9]{4}$');
-exception when duplicate_object then null; end $$;
-
--- ── the ticket's view ──────────────────────────────────────────────────────────────────────────────────────────────
+-- ── the ticket's view, as 0395 made it, and whether it was paid at the window ──────────────────────────────────────────────────────────────────────────────────────────────
 create or replace function public.order_ticket(p_ticket uuid)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare
@@ -81,6 +64,8 @@ begin
     'tip_cents',   coalesce(o.tip_cents, 0),
     'paid',        coalesce(o.paid, false) or o.collected_at is not null or coalesce(o.payment_status = 'paid', false),
     'card',        case when o.card_last4 is not null then coalesce(nullif(o.card_brand, ''), 'Card') || ' ··' || o.card_last4 end,
+    -- paid at the window (0341): the crew's to cancel there, so the ticket offers no Cancel (0396)
+    'at_window',   o.collected_at is not null,
     -- what Square says left for it (0330) — money back is a fact Square reports, never this view's guess
     'refunded_cents', coalesce((select sum(r.amount_cents) from public.square_refunds r
                                  where o.payment_id is not null and r.payment_id = o.payment_id and r.status = 'COMPLETED'), 0),
@@ -99,49 +84,57 @@ end $$;
 revoke all on function public.order_ticket(uuid) from public;
 grant execute on function public.order_ticket(uuid) to anon, authenticated;
 
--- ── tell the truck, from the ticket ────────────────────────────────────────────────────────────────────────────────
-create or replace function public.ticket_eta(p_ticket uuid, p_eta text)
-returns boolean language plpgsql security definer set search_path = public as $$
+-- ── take it back, from the ticket ──────────────────────────────────────────────────────────────────────────────────
+create or replace function public.cancel_by_ticket(p_ticket uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
 declare
-  v_id     uuid;
-  v_status text;
+  o     public.orders;
+  v_no  text;
+  v_who text;
 begin
-  if p_eta is not null and p_eta not in ('on_way', 'outside', 'late') then
-    raise exception 'That isn''t something we can tell the truck.' using errcode = '22023';
+  select * into o from public.orders where ticket = p_ticket for update;
+  if not found then
+    raise exception 'That ticket isn''t one of ours.' using errcode = 'PT404';   -- a 4xx, never a 5xx (0360)
   end if;
-  select id, status into v_id, v_status from public.orders where ticket = p_ticket for update;
-  if v_id is null then
-    raise exception 'That ticket isn''t one of ours.' using errcode = 'PT404';
+  -- the member's rule (cancel_own_order, 0341): only while it is In, never once paid at the window
+  if o.status <> 'new' then return jsonb_build_object('ok', false, 'outcome', 'too_late', 'now', o.status); end if;
+  if o.collected_at is not null then return jsonb_build_object('ok', false, 'outcome', 'at_window'); end if;
+
+  update public.orders set status = 'void' where id = o.id;
+
+  v_no  := '#' || upper(substr(o.id::text, 1, 4));
+  v_who := coalesce(nullif(split_part(btrim(coalesce(o.customer, '')), ' ', 1), ''), 'A guest');
+  if coalesce(o.paid, false) then
+    insert into public.alerts (severity, category, title, body, link)
+    values ('critical', 'money', 'Customer canceled a paid order — refund needed',
+            v_who || ' canceled order ' || v_no || ' ($' || to_char((o.total_cents / 100.0)::numeric, 'FM999990.00')
+              || ') from its order page. Refund it in Square.',
+            '/admin');
+  else
+    insert into public.alerts (severity, category, title, body, link)
+    values ('fyi', 'order', 'Canceled: ' || v_who || '''s cup order',
+            v_who || ' canceled order ' || v_no || ' from its order page. Nothing was charged — no refund needed.',
+            '/crew');
   end if;
-  -- in progress only: a picked-up or canceled order is history, with nothing to tell the truck
-  if v_status not in ('new', 'preparing', 'ready') then return false; end if;
-  update public.orders set eta_status = p_eta, eta_at = case when p_eta is null then null else now() end where id = v_id;
-  return true;
+  return jsonb_build_object('ok', true, 'outcome', 'canceled', 'paid', coalesce(o.paid, false));
 end $$;
-revoke all on function public.ticket_eta(uuid, text) from public;
-grant execute on function public.ticket_eta(uuid, text) to anon, authenticated;
+-- existing rows: cancel_by_ticket — new in this migration; it has written no alert to restate.
+revoke all on function public.cancel_by_ticket(uuid) from public;
+grant execute on function public.cancel_by_ticket(uuid) to anon, authenticated;
 
 -- ── what changed ───────────────────────────────────────────────────────────────────────────────────────────────────
 insert into public.changelog (title, category, area, summary, shipped_on, highlight)
 select v.title, v.category, v.area, v.summary, v.shipped_on::date, v.highlight
 from (values
-  ('Every order gets a ticket', 'feature', 'Ordering',
-   'Every cup order has a number and a link — guests too. The link shows where the order is, what was in it and what was paid, and tells the truck you are on your way; it updates itself while you wait.',
-   '2026-10-13', true)
+  ('A guest can cancel from the order page', 'improvement', 'Ordering',
+   'The order page a guest gets after paying has Cancel while the order is still in — the same rule as a member''s: not once it is being made, and not once paid at the window. A card-paid order is flagged for a full refund, and the crew is told either way.',
+   '2026-10-13', false)
 ) as v(title, category, area, summary, shipped_on, highlight)
 where not exists (select 1 from public.changelog c where c.title = v.title);
 
--- 0391's entry said everyone with a cup ordered for a canceled stop "gets a text or an email". A guest got nothing — we
--- have no address for one — and nothing sends a text. It says what is true now: a member is told by email, and on their
--- phone where alerts are on; a guest's order page says so (the ticket, above).
-update public.changelog
-   set summary = replace(summary, 'everyone with a cup ordered for it gets a text or an email',
-                                  'a member with a cup ordered for it is told by email (and on their phone, where alerts are on), and a guest''s order page says so')
- where title = 'A canceled stop says so' and summary like '%everyone with a cup ordered for it gets a text or an email%';
-
-select public.record_migration('0395_every_order_a_ticket');
+select public.record_migration('0396_a_guest_cancels_from_the_ticket');
 
 -- verify:
---   select count(*) from information_schema.columns where table_name = 'orders' and column_name in ('ticket', 'lines', 'card_brand', 'card_last4');  -- 4
---   select count(*) from public.orders where ticket is null;                                                   -- 0
---   select count(*) from pg_proc where proname in ('order_ticket', 'ticket_eta');                            -- 2
+--   select count(*) from pg_proc where proname = 'cancel_by_ticket';                                             -- 1
+--   select has_function_privilege('anon', 'public.cancel_by_ticket(uuid)', 'execute');                          -- true
+--   select prosrc like '%at_window%' from pg_proc where proname = 'order_ticket';                               -- true
