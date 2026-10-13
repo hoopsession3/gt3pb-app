@@ -20,6 +20,7 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { squareClientReady } from "@/lib/square";
 import { haptic } from "@/lib/haptics";
+import { packClosesAt, closesWords } from "@/lib/pickupDay";
 import { scrollToTop } from "@/lib/appScroll";
 import {
   PACK_SIZES, PACK_TAG, PACK_HINT, FLAVOR_DESC,
@@ -144,7 +145,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   const [city, setCity] = useKnownField(known?.delivery?.city);
 
   // ── pickup-only ──
-  const [stops, setStops] = useState<{ name: string | null; starts_at: string }[]>([]);
+  const [stops, setStops] = useState<{ id: string; name: string | null; starts_at: string }[]>([]);
   // Whether the stops have been read yet — until then the Saturday picker keeps its place (below).
   const [stopsRead, setStopsRead] = useState(false);
   const [stopIdx, setStopIdx] = useState(0);
@@ -210,6 +211,10 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   const stop = stops[stopIdx] ?? null;
   const drop = useMemo(() => (stop?.starts_at ? dropForStop(stop.starts_at) : nextDrop(now ? new Date(now) : new Date())), [stop, now]);
   const pickupTotalCents = count ? Math.round(packTotal(count, bringBack ? "return" : "new") * 100) : 0;
+  // When this pack's drop will close, said where the customer is told they can cancel (R5): the one rule, by its stop
+  // (lib/pickupDay) — "before the drop closes" named no time, and nothing enforced it until 0397.
+  const packCloses = stop ? packClosesAt(dropDateKey(drop.sat), stop) : drop.cutoff;
+  const packCloseWords = packCloses ? closesWords(packCloses) : "the drop closes";
   const baseTotalCents = mode === "delivery" ? (deliveryQuote?.totalCents ?? 0) : pickupTotalCents;
   // A valid code's effect on the shown order total — mirrors the server (lib/benefits): free-refill
   // zeroes a bring-back pack; percent-off (whole order / straight-brew) discounts the total. Other
@@ -257,16 +262,17 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   useEffect(() => {
     if (!supabase) return;
     let live = true;
-    supabase.from("stops").select("name, starts_at").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
+    supabase.from("stops").select("id, name, starts_at").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
       .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(8)
       .then(({ data }) => {
         if (!live) return;
         setStopsRead(true);
         if (!data) return;
         const seen = new Set<string>();
-        const uniq = (data as { name: string | null; starts_at: string }[]).filter((st) => {
+        const uniq = (data as { id: string; name: string | null; starts_at: string }[]).filter((st) => {
           if (dropForStop(st.starts_at).cutoff.getTime() <= Date.now()) return false;
-          const k = new Date(st.starts_at).toISOString().slice(0, 10);
+          // The ET day, as the server keys it (dropDateKey) — a UTC slice put a stop after 8pm Eastern on the next day (R5).
+          const k = dropDateKey(new Date(st.starts_at));
           if (seen.has(k)) return false; seen.add(k); return true;
         }).slice(0, 4);
         setStops(uniq);
@@ -409,7 +415,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
       const res = await authedFetch("/api/reserve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: attempt.token ?? undefined, idempotencyKey: attempt.key, expectedCents: payCents, name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }),
+        body: JSON.stringify({ sourceId: attempt.token ?? undefined, idempotencyKey: attempt.key, expectedCents: payCents, stopId: stop?.id ?? undefined, name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }),
       });
       const data = await res.json(); setBusy(false);
       idem.settle(attempt.key, res.status, data);
@@ -430,7 +436,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
       idem.settle(attempt.key, null, null);
       setErr("Couldn't confirm — safe to try again, you won't be charged twice.");
     }
-  }, [busy, name, phone, count, bringBack, mix, drop, payCents, raisedTotal, codeState, codeClean, idem]);
+  }, [busy, name, phone, count, bringBack, mix, drop, stop, payCents, raisedTotal, codeState, codeClean, idem]);
 
   // ── a pack changed in place (0388) ──
   // The change as the server reads it: the pack that is changing, what it becomes, the code it is priced with.
@@ -963,7 +969,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
                   {busy ? "Reserving…" : t("funnel.pay_later")}
                 </button>
               )}
-              <p className="dl-trust">Secured by Square — your card never touches our servers. The charge shows as <b>GT3 Performance Bar</b>.{mode === "pickup" ? " Change of plans? Cancel from My packs before the drop closes and a paid pack is refunded." : ""}</p>
+              <p className="dl-trust">Secured by Square — your card never touches our servers. The charge shows as <b>GT3 Performance Bar</b>.{mode === "pickup" ? ` Change of plans? Cancel from My packs until ${packCloseWords} and a paid pack is refunded.` : ""}</p>
             </>
           ) : mode === "pickup" && payLater.on ? (
             <>

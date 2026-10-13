@@ -53,15 +53,3 @@ export function packCents(size: number, glass: GlassPath, benefits: Benefit[]): 
   return applyOrderBenefits(toCents(packTotal(size, glass)), benefits);
 }
 
-/**
- * When a reserved pack's own drop closes — after that it may be brewing, and changing it is the truck's call. Its
- * stop's cutoff when the stop is still on the schedule; else the Saturday rule, three days before at 6pm.
- */
-export function packDayCutoff(offered: Map<string, Date>, dropDate: string): Date {
-  const known = offered.get(dropDate);
-  if (known) return known;
-  const day = new Date(`${dropDate}T12:00:00`);
-  const cut = new Date(day);
-  cut.setDate(day.getDate() - 3); cut.setHours(18, 0, 0, 0);
-  return cut;
-}

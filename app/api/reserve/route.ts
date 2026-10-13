@@ -7,6 +7,7 @@ import { benefitsForUser, acceptedCode } from "@/lib/benefits";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { mixSummary, type Mix } from "@/lib/orderAhead";
 import { packPick, offeredDays, requestedDay, packCents } from "@/lib/packOrder";
+import { packClosesAt } from "@/lib/pickupDay";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
 import { chargeOnce, claimKey, placeOnce, seenBefore, type Answer, type Say, type Stopped } from "@/lib/chargeOnce";
@@ -29,7 +30,7 @@ async function post(req: Request) {
     return NextResponse.json({ error: "Reservations aren't switched on yet." }, { status: 503 });
   }
 
-  let body: { sourceId?: string; idempotencyKey?: string; name?: string; phone?: string; size?: number; glass?: string; mix?: Partial<Mix>; dropDate?: string; expectedCents?: number };
+  let body: { sourceId?: string; idempotencyKey?: string; name?: string; phone?: string; size?: number; glass?: string; mix?: Partial<Mix>; dropDate?: string; stopId?: string; expectedCents?: number };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
 
   // Order-ahead is member-only: the reservation needs an owner (drop_orders.user_id) so it lives
@@ -90,14 +91,18 @@ async function post(req: Request) {
   // authoritative; the Saturday cadence is the fallback when the route is empty). The client's
   // dropDate must match one of them, and its drop must still be open, or we reject — regardless
   // of what the client clock or a stale page said.
-  const { data: nextStops } = await supabaseAdmin.from("stops").select("starts_at")
+  const { data: nextStops } = await supabaseAdmin.from("stops").select("id, starts_at")
     .is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
     .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(6);
   const offered = offeredDays(nextStops as { starts_at: string }[] | null); // dropDate key → its order cutoff
   // Accept a plain day key or a full ISO instant; an instant resolves through the same ET
   // day-key rule the offered map uses (post-8pm-ET stops are otherwise off by one UTC day).
   const requested = requestedDay(body.dropDate);
-  const cutoff = offered.get(requested);
+  // The stop the customer picked on that day (R5, 0397: a pack is picked up at a stop), else the day's first; its drop
+  // closes by the one rule (lib/pickupDay) — the map above holds one cutoff per DAY, the last stop's when there are two.
+  const onDay = ((nextStops ?? []) as { id: string; starts_at: string }[]).filter((st) => requestedDay(st.starts_at) === requested);
+  const atStop = onDay.find((st) => st.id === body.stopId) ?? onDay[0] ?? null;
+  const cutoff = atStop ? packClosesAt(requested, atStop) : offered.get(requested);
   if (!cutoff) {
     return NextResponse.json({ error: "That pickup day just changed — refresh to see the current stops." }, { status: 409 });
   }
@@ -146,8 +151,10 @@ async function post(req: Request) {
       // Canonical customer link (0151) — member-only route, so user.id is the strong key; phone folds
       // any prior guest orders on the same number into this record.
       const customerId = (await db.rpc("resolve_customer", { p_user_id: user.id, p_phone: phone || null, p_email: null, p_name: name })).data as string | null;
-      // The VALIDATED code rides the order row (0268) — coupon redemptions become a query, not a tally.
-      const row = { user_id: user.id, customer_id: customerId, name, phone, size, glass, mix, total_cents: amount, paid, payment_id: paymentId, idempotency_key: idemKey, drop_date: dropDate, benefit_code: acceptedCode(benefits, (body as { code?: string }).code) };
+      // The VALIDATED code rides the order row (0268) — coupon redemptions become a query, not a tally. The stop rides it
+      // too (0397); none named, the database links the day's first.
+      // arrives-with: 0397 — until it is pasted the stop_id column is not there, and this insert is refused.
+      const row = { user_id: user.id, customer_id: customerId, name, phone, size, glass, mix, total_cents: amount, paid, payment_id: paymentId, idempotency_key: idemKey, drop_date: dropDate, stop_id: atStop?.id ?? null, benefit_code: acceptedCode(benefits, (body as { code?: string }).code) };
       let { data: inserted, error: insErr } = await db.from("drop_orders").insert(row).select("id").single();
       if (insErr) ({ data: inserted, error: insErr } = await db.from("drop_orders").insert(row).select("id").single()); // retry once
       if (insErr) {

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
-import { nextDrop, dropForStop, dropDateKey } from "@/lib/orderAhead";
+import { nextDrop, dropDateKey } from "@/lib/orderAhead";
+import { packClosesAt, packIsOpen, pickupDayWords, type PackStop } from "@/lib/pickupDay";
 import { route } from "@/lib/apiRoute";
 import { isSettled } from "@/lib/settled";
 
@@ -17,72 +18,66 @@ async function post(req: Request) {
   const user = await userFromRequest(req);
   if (!user) return NextResponse.json({ error: "Sign in to manage your packs." }, { status: 401 });
 
-  let body: { id?: string; toDate?: string };
+  let body: { id?: string; toDate?: string; stopId?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   const id = typeof body.id === "string" ? body.id : "";
   const toDate = typeof body.toDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.toDate) ? body.toDate : "";
   if (!id || !toDate) return NextResponse.json({ error: "Bad request" }, { status: 400 });
+  const stopId = typeof body.stopId === "string" ? body.stopId : "";
 
-  // The offered-days map — identical construction to /api/reserve so the two can't disagree.
-  // NOT marked scoped-by, deliberately. This reads the PUBLIC schedule — the same upcoming stops
-  // any guest already sees on Find Us — so it leaks nothing today. But it IS unscoped, and with a
-  // second market it would offer a Greenville customer Atlanta's drop dates. A scoped-by here would
-  // have removed it from the count while the comment claimed it was still in it, which is how a
-  // gate stops meaning anything. It stays counted until it is actually fixed.
-  const { data: nextStops } = await supabaseAdmin.from("stops").select("starts_at")
-    .is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
+  // THE DAY TO MOVE TO (R5, 0397): one of the truck's real upcoming stops — the same read as /api/reserve — the stop on it
+  // the pack will be picked up at (the one the customer named, else the day's first), and when its drop closes: 24 hours
+  // before that stop (lib/pickupDay, the one rule). With no stop on the schedule at all, the Saturday cadence.
+  // NOT marked scoped-by, deliberately. This reads the PUBLIC schedule — the same upcoming stops any guest already sees on
+  // Find Us — so it leaks nothing today. But it IS unscoped, and with a second market it would offer a Greenville
+  // customer Atlanta's drop dates. It stays counted until it is actually fixed.
+  const { data: nextStops } = await supabaseAdmin.from("stops").select("id, starts_at")
+    .is("archived_at", null).is("canceled_at", null).neq("status", "done").not("starts_at", "is", null)
     .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(6);
-  const offered = new Map<string, Date>();
-  for (const st of nextStops ?? []) {
-    const at = (st as { starts_at: string }).starts_at;
-    offered.set(dropDateKey(new Date(at)), dropForStop(at).cutoff);
-  }
-  if (offered.size === 0) { const fb = nextDrop(); offered.set(dropDateKey(fb.sat), fb.cutoff); }
-
-  const cutoff = offered.get(toDate);
-  if (!cutoff) return NextResponse.json({ error: "That day isn't on the pickup schedule." }, { status: 400 });
-  if (Date.now() > cutoff.getTime()) return NextResponse.json({ error: "Ordering for that day has closed — pick a later one." }, { status: 400 });
+  const upcoming = (nextStops ?? []) as { id: string; starts_at: string }[];
+  const onDay = upcoming.filter((st) => dropDateKey(new Date(st.starts_at)) === toDate);
+  const target = onDay.find((st) => st.id === stopId) ?? onDay[0] ?? null;
+  const fallback = upcoming.length === 0 ? nextDrop() : null;
+  const toCloses = target ? packClosesAt(toDate, target) : fallback && dropDateKey(fallback.sat) === toDate ? fallback.cutoff : null;
+  if (!toCloses) return NextResponse.json({ error: "That day isn't on the pickup schedule." }, { status: 400 });
+  if (Date.now() > toCloses.getTime()) return NextResponse.json({ error: "Ordering for that day has closed — pick a later one." }, { status: 400 });
 
   // A tenant filter would be WEAKER here, not stronger: it would let one member move another
   // member's pack. The right scope for a customer's own row is the customer, and the check is the
   // line below — order.user_id !== user.id returns 404. A post-read check is invisible to a regex,
   // which is why this is said rather than filtered. The marker goes last so it sits directly above
   // the access it describes; four lines up, the audit could not see it.
+  // arrives-with: 0397 — stop_id is read here; until it is pasted this read fails and the move says try again.
   // scoped-by: order.user_id !== user.id, two lines below, 404s anything that is not the caller's
   const { data: order } = await supabaseAdmin.from("drop_orders")
-    .select("id, user_id, drop_date, size, glass, name, paid, payment_status, picked_up, stage, canceled_at").eq("id", id).maybeSingle();
+    .select("id, user_id, drop_date, stop_id, size, glass, name, paid, payment_status, picked_up, stage, canceled_at").eq("id", id).maybeSingle();
   if (!order || order.user_id !== user.id) return NextResponse.json({ error: "Order not found." }, { status: 404 });
   if (order.canceled_at) return NextResponse.json({ error: "That order was canceled." }, { status: 400 });
   if (order.picked_up || (order.stage && order.stage !== "reserved")) {
     return NextResponse.json({ error: "The crew already has this pack in motion — ask at the truck to move it." }, { status: 400 });
   }
-  if (order.drop_date === toDate) return NextResponse.json({ ok: true, toDate });
-  // Current drop must still be open. Reuse the SAME `offered` map built above (real stops, via
-  // dropForStop) instead of recomputing — this used to hand-roll a "3 days before at 18:00" formula
-  // that's only meant to be the no-real-stops FALLBACK rule (nextDrop()). For any real scheduled
-  // stop that formula is mathematically ~2-3 days earlier than the true dropForStop() cutoff, so this
-  // check was strictly more restrictive than reality: it could reject a move as "closed" up to a full
-  // day before the actual cutoff, even while /api/reserve would still happily accept a brand-new
-  // reservation for that same day. Only fall back to the hand-rolled rule if the original stop is no
-  // longer in the offered map (e.g. archived/removed since the order was placed).
-  let curCutoff = offered.get(order.drop_date);
-  if (!curCutoff) {
-    const cur = new Date(`${order.drop_date}T12:00:00`);
-    curCutoff = new Date(cur); curCutoff.setDate(cur.getDate() - 3); curCutoff.setHours(18, 0, 0, 0);
-  }
-  if (Date.now() > curCutoff.getTime()) {
+  if (order.drop_date === toDate && (!target || order.stop_id === target.id)) return NextResponse.json({ ok: true, toDate });
+  // Its own drop must still be open — once it closes we may already be brewing it. Its STOP says when (lib/pickupDay):
+  // a stop called off never closes it, so the customers its text told to move their pack can. It used to look the day up
+  // in the schedule, find a canceled stop gone from it, fall back to "three days before at 6pm" and refuse them.
+  // scoped-by: stop_id is the caller's own pack's (the 404 above); stops are the public schedule.
+  const { data: cur } = order.stop_id
+    ? await supabaseAdmin.from("stops").select("starts_at, canceled_at").eq("id", order.stop_id).maybeSingle()
+    : { data: null };
+  if (!packIsOpen(order.drop_date, cur as PackStop)) {
     return NextResponse.json({ error: "This pack's drop has closed — we may already be brewing it. Ask at the truck." }, { status: 400 });
   }
 
   // scoped-by: unreachable with someone else's id — the 404 above. The user_id is repeated on the
   // write anyway, because that guard is twenty-five lines up and a later edit could move it.
-  const { error } = await supabaseAdmin.from("drop_orders").update({ drop_date: toDate }).eq("id", id).eq("user_id", user.id);
+  // The stop goes with the day (0397): the one named, or the day's first; none — the database links the day's.
+  const { error } = await supabaseAdmin.from("drop_orders").update({ drop_date: toDate, stop_id: target?.id ?? null }).eq("id", id).eq("user_id", user.id);
   if (error) return NextResponse.json({ error: "Couldn't move it — try again." }, { status: 500 });
 
   // FYI the crew: the drop rollups recalc live, but brew planning likes to know a pack walked.
   await raiseAlert({
     severity: "fyi", category: "order", kind: "pack_moved", subjectId: id, title: "Pack moved to another drop",
-    body: `${order.name} moved a ${order.size}-pack (${isSettled(order) ? "paid" : "pay at pickup"}) from ${order.drop_date} to ${toDate}.`,
+    body: `${order.name} moved a ${order.size}-pack (${isSettled(order) ? "paid" : "pay at pickup"}) from ${pickupDayWords(order.drop_date)} to ${pickupDayWords(toDate)}.`,
     link: "/crew?s=now",
   });
   return NextResponse.json({ ok: true, toDate });

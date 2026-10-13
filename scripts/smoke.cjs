@@ -165,16 +165,19 @@ ok("mixComplete false when short", OA.mixComplete({ RISE: 1, FLOW: 0, DUSK: 0 },
 ok("overfull mix resets on shrink", OA.mixTotal(OA.mixFitsOrReset(mix, 3)) === 0, OA.mixFitsOrReset(mix, 3));
 ok("fitting mix kept on shrink", OA.mixTotal(OA.mixFitsOrReset({ RISE: 3, FLOW: 0, DUSK: 0 }, 3)) === 3);
 ok("mixSummary reads", OA.mixSummary({ RISE: 2, FLOW: 0, DUSK: 1 }) === "2× RISE · 1× DUSK", OA.mixSummary({ RISE: 2, FLOW: 0, DUSK: 1 }));
-// cutoff: Wed 18:00 closes that Saturday; past it rolls a week
-const wedAM = new Date(2026, 6, 1, 9, 0);   // Wed Jul 1 2026, 9am — before cutoff
-const wedPM = new Date(2026, 6, 1, 18, 1);  // Wed Jul 1 2026, 18:01 — after cutoff
+// cutoff: Wed 18:00 EASTERN closes that Saturday; past it rolls a week (R5: on the truck's clock, wherever this runs)
+const wedAM = new Date("2026-07-01T09:00:00-04:00");   // Wed Jul 1 2026, 9am Eastern — before cutoff
+const wedPM = new Date("2026-07-01T18:01:00-04:00");   // Wed Jul 1 2026, 6:01pm Eastern — after cutoff
 const satD = OA.nextDrop(wedAM).sat, satD2 = OA.nextDrop(wedPM).sat;
-ok("open Wed am → this Saturday Jul 4", satD.getMonth() === 6 && satD.getDate() === 4, satD.toDateString());
-ok("cutoff is Wed 18:00", OA.nextDrop(wedAM).cutoff.getHours() === 18 && OA.nextDrop(wedAM).cutoff.getDay() === 3);
-ok("past cutoff → next Saturday Jul 11", satD2.getDate() === 11, satD2.toDateString());
-ok("Saturday itself rolls forward", OA.nextDrop(new Date(2026, 6, 4, 10, 0)).sat.getDate() === 11);
-ok("dropIsOpen matches resolved sat", OA.dropIsOpen(satD.toISOString(), wedAM) === true);
-ok("dropIsOpen false for stale drop", OA.dropIsOpen(new Date(2026, 5, 27).toISOString(), wedAM) === false);
+ok("open Wed am → this Saturday Jul 4", OA.dropDateKey(satD) === "2026-07-04", OA.dropDateKey(satD));
+ok("cutoff is Wed 18:00 Eastern", OA.nextDrop(wedAM).cutoff.toISOString() === "2026-07-01T22:00:00.000Z", OA.nextDrop(wedAM).cutoff.toISOString());
+ok("past cutoff → next Saturday Jul 11", OA.dropDateKey(satD2) === "2026-07-11", OA.dropDateKey(satD2));
+ok("Saturday itself rolls forward", OA.dropDateKey(OA.nextDrop(new Date("2026-07-04T10:00:00-04:00")).sat) === "2026-07-11");
+ok("a UTC server agrees with the phone: Wed 8pm UTC is 4pm Eastern — still this Saturday, not next (R5)",
+  OA.dropDateKey(OA.nextDrop(new Date("2026-07-01T20:00:00Z")).sat) === "2026-07-04");
+ok("winter too: Wed 6pm EST is 23:00 UTC", OA.nextDrop(new Date("2026-12-02T09:00:00-05:00")).cutoff.toISOString() === "2026-12-02T23:00:00.000Z");
+ok("dropIsOpen matches resolved sat", OA.dropIsOpen(OA.dropDateKey(satD), wedAM) === true);
+ok("dropIsOpen false for stale drop", OA.dropIsOpen("2026-06-27", wedAM) === false);
 // pack pickup ordering closes 24h before the stop (brew lead)
 const stopAt = "2026-07-11T17:00:00Z";
 ok("pickup cutoff is 24h before the stop", OA.dropForStop(stopAt).cutoff.getTime() === Date.parse(stopAt) - 24 * 60 * 60 * 1000);
@@ -5987,14 +5990,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /: isSettled\(p\) \? <><Icon name="check" \/> paid<\/> : "\$ at pickup"\}/.test(packs) && /return cur && !isSettled\(prev\) && isSettled\(cur\); \}\)\) haptic\("paid"\);/.test(packs)
     && /const atPickup = rows\.filter\(\(x\) => !isSettled\(x\)\)\.length;/.test(packs) && !/p\.paid \? <>|p\.paid \? "paid"|: p\.paid \? "paid"/.test(packs));
   ok("customer: paid at the window, the pack and the cup are the crew's to cancel — no button that the database will refuse",
-    /\{!p\.collected_at && <button type="button" className="btn-del" onClick=\{\(\) => cancel\(p\)\}/.test(packs) && /\{onChange && !p\.collected_at && /.test(packs)
+    /const mine = !p\.collected_at && !inMotion && !closed;/.test(packs) && /\{mine && \(\s*<div className="mypack-actions">/.test(packs) && /<button type="button" className="btn-del" onClick=\{\(\) => cancel\(p\)\}/.test(packs)
     && /\{o\.status === "new" && !o\.collected_at && \(/.test(status) && /const paid = isSettled\(o\);/.test(myOrders)
     && /const canCancel = order\.status === "new" && !order\.collected_at;/.test(todayHome) && /\{canCancel && <button type="button" className="btn-del"/.test(todayHome));
   ok("customer: the lists that select their own columns read the stored answer (payment_status, there since 0155) — never a column 0341 has yet to add",
     /\.select\("id, size, paid, payment_status, picked_up"\)/.test(funnel) && /\$\{isSettled\(o\) \? "paid" : "pay at pickup"\}/.test(funnel)
     && /\.select\("id, size, drop_date, paid, payment_status, picked_up, canceled_at, status_changed_at, created_at"\)/.test(inbox) && /\$\{isSettled\(p\) \? "" : " · pay at pickup"\}/.test(inbox)
     && /\{o\.status === "void" \? "" : isSettled\(o\) \? " · paid" : " · pay at the window"\}/.test(mpire)
-    && /\.select\("id, user_id, drop_date, size, glass, name, paid, payment_status, picked_up, stage, canceled_at"\)/.test(move) && /\(\$\{isSettled\(order\) \? "paid" : "pay at pickup"\}\)/.test(move));
+    && /\.select\("id, user_id, drop_date, stop_id, size, glass, name, paid, payment_status, picked_up, stage, canceled_at"\)/.test(move) && /\(\$\{isSettled\(order\) \? "paid" : "pay at pickup"\}\)/.test(move));
   // A refund is still decided by `paid` — only a card paid online goes back through Square, and a
   // collected order cannot be canceled from a phone — so this looks for the WORDS of a payment state.
   ok("customer: the customer's screens import the rule from lib/settled — lib/collect is the crew's half, and every page loads what they import (0.7 KB, measured)",
@@ -13270,8 +13273,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("pack: the price is the grid, then the member's perks — a free refill zeroes a bring-back pack, a code takes its percent",
     PO.packCents(6, "return", [founding]) === 0 && PO.packCents(6, "new", [founding]) > 0
     && PO.packCents(6, "new", [tenPct]) === Math.round(PO.packCents(6, "new", []) * 0.9));
-  const cut = PO.packDayCutoff(new Map(), "2026-10-24");
-  ok("pack: a pack whose stop left the schedule closes three days before, at 6pm", cut.getDate() === 21 && cut.getHours() === 18, String(cut));
+  ok("pack: the pack's own close is lib/pickupDay's one rule now (R5, 0397) — no second copy in lib/packOrder", typeof PO.packDayCutoff === "undefined");
   ok("change: the difference a paid pack moves; pay at pickup moves nothing unless paid now",
     PC.diffFor({ paid: true, total_cents: 6000 }, 3000, false) === -3000 && PC.diffFor({ paid: false, total_cents: 3000 }, 6000, false) === 0
     && PC.diffFor({ paid: false, total_cents: 3000 }, 6000, true) === 6000);
@@ -13280,7 +13282,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     diff_cents: -3000, charge_payment_id: null, refunds: [{ payment_id: "pay", refund_id: "r", cents: 2000, status: "PENDING" }], by_hand_cents: 1000, status: null, answer: null, note: null, updated_at: "" };
   const a = PC.doneAnswer(c);
   ok("change: done says what went back and what the crew is sending", a.status === 200 && a.body.refundedCents === 2000 && a.body.refundPendingCents === 1000 && /sending \$10 back/.test(a.body.warn), a);
-  ok("change: the text names the pack, the day and the money", PC.customerWords(c) === "GT3: your pack is now a 6-pack for pickup 2026-10-24. $20 is going back to the card you paid with. The crew is sending the other $10 back by hand.");
+  ok("change: the text names the pack, the day and the money", PC.customerWords(c) === "GT3: your pack is now a 6-pack for pickup Sat, Oct 24. $20 is going back to the card you paid with. The crew is sending the other $10 back by hand.");
   ok("change: a refusal keeps the key only while something may have happened",
     PC.stillConfirming().body.pending === true && PC.couldNotConfirm({ diff_cents: 500, key: "k" }).body.pending === true
     && PC.anotherChange().body.declined === true && PC.packMoved().body.declined === true && PC.refusal({ refused: "repriced", diff: 4500 }).body.priceChanged === true);
@@ -13290,7 +13292,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const asked = packPick\(body\);/.test(reserve) && /offeredDays\(nextStops/.test(reserve) && /requestedDay\(body\.dropDate\)/.test(reserve) && /packCents\(size, glass, benefits\)/.test(reserve)
     && !/mixComplete\(/.test(reserve) && !/refillIsFree\(/.test(reserve));
   ok("change route: a key seen before is answered first; then the pack, the day, the pack's own drop; a quote writes nothing; the shown difference is required",
-    change.indexOf('from("drop_order_changes")') < change.indexOf("packPick(body)") && change.indexOf("packPick(body)") < change.indexOf("packDayCutoff(")
+    change.indexOf('from("drop_order_changes")') < change.indexOf("packPick(body)") && change.indexOf("packPick(body)") < change.indexOf("packIsOpen(")
     && change.indexOf("if (quote)") < change.indexOf("const expected =") && /if \(expected === null\) return NextResponse\.json/.test(change)
     && /changePack\(\{ store, money, tell, now: Date\.now, key, order: id, user: user\.id, \.\.\.a \}\)/.test(change)
     && /export const POST = route\("reserve\/change", post\);/.test(change));
@@ -13959,6 +13961,47 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     (of.match(/expectedCents: payCents/g) || []).length === 2 && /const payCents = agreed && agreed\.sig === cartSig \? agreed\.cents : totalCents;/.test(of)
     && (of.match(/raisedTotal\(data\);/g) || []).length === 2 && /fillCopy\(t\("funnel\.pay_cta"\), \{ total: money\(payCents\) \}\)/.test(of)
     && /fillCopy\(t\("funnel\.reserve_pay_later"\), \{ total: money\(payCents\) \}\)/.test(of));
+}
+
+// ── A PACK BELONGS TO ITS STOP, AND CLOSES BY ONE RULE (2026-10-13, R5, 0397) ─────────────────────────────────────
+// A pack recorded only its day: its stop was guessed, differently in each place — Move and Change refused the customers
+// a canceled stop's text told to move their pack ("This pack's drop has closed"), a rescheduled stop left its packs
+// behind, the member's cancel had no time or stage check, and the Saturday fallback closed four hours early on a UTC
+// server. One rule now (lib/pickupDay, 0397 pack_closes_at), and the pack carries its stop.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const PD = require("../.smoke/pickupDay.js");
+  const st = { starts_at: "2026-10-17T11:00:00Z", canceled_at: null };
+  ok("the one rule: 24 hours before the pack's stop", PD.packClosesAt("2026-10-17", st)?.toISOString() === "2026-10-16T11:00:00.000Z");
+  ok("the one rule: a stop called off never closes it — open even an hour before it would have started",
+    PD.packClosesAt("2026-10-17", { ...st, canceled_at: "2026-10-16T09:00:00Z" }) === null && PD.packIsOpen("2026-10-17", { ...st, canceled_at: "x" }, Date.parse("2026-10-17T10:00:00Z")) === true);
+  ok("the one rule: no stop — three days before at 6pm Eastern (EDT and EST)",
+    PD.packClosesAt("2026-10-17", null)?.toISOString() === "2026-10-14T22:00:00.000Z" && PD.packClosesAt("2026-12-05", null)?.toISOString() === "2026-12-02T23:00:00.000Z");
+  ok("the one rule: open before, closed from the moment", PD.packIsOpen("2026-10-17", st, Date.parse("2026-10-16T10:59:59Z")) === true && PD.packIsOpen("2026-10-17", st, Date.parse("2026-10-16T11:00:00Z")) === false);
+  ok("closing time in words, Eastern: 'Fri 7:00am'", PD.closesWords(new Date("2026-10-16T11:00:00Z")) === "Fri 7:00am" && PD.closesWords(new Date("2026-10-14T22:00:00Z")) === "Wed 6:00pm");
+  const mv = code(rd("app/api/reserve/move/route.ts")), ch = code(rd("app/api/reserve/change/route.ts")), rs = code(rd("app/api/reserve/route.ts")), cx = code(rd("app/api/orders/cancel/route.ts"));
+  ok("Move and Change judge the pack's own drop by its stop — a stop called off never closes it; no 'three days before' copy left",
+    /if \(!packIsOpen\(order\.drop_date, cur as PackStop\)\)/.test(mv) && /if \(!packIsOpen\(String\(order\.drop_date\), cur as PackStop\)\)/.test(ch)
+    && !/setDate\(cur\.getDate\(\) - 3\)/.test(mv) && !/packDayCutoff/.test(ch));
+  ok("Move: the day to move to is a stop on it — the one named, else the day's first — and the stop moves with the day",
+    /const target = onDay\.find\(\(st\) => st\.id === stopId\) \?\? onDay\[0\] \?\? null;/.test(mv) && /\.update\(\{ drop_date: toDate, stop_id: target\?\.id \?\? null \}\)/.test(mv));
+  ok("reserve: the pack records the stop the customer picked on that day, and its drop closes by that stop",
+    /const atStop = onDay\.find\(\(st\) => st\.id === body\.stopId\) \?\? onDay\[0\] \?\? null;/.test(rs) && /const cutoff = atStop \? packClosesAt\(requested, atStop\) : offered\.get\(requested\);/.test(rs)
+    && /drop_date: dropDate, stop_id: atStop\?\.id \?\? null, /.test(rs));
+  ok("cancel: a pack says why it wasn't — canceled, picked up, at the window, in the crew's hands, or closed and when",
+    /if \(channel === "pickup"\) \{\s*const why = await whyNotPack\(id, user\.id, !!error\);/.test(cx) && /Its drop closed \$\{closesWords\(closes\)\} — we may already be brewing it\. Ask at the truck\./.test(cx));
+  const mp = code(rd("components/MyPacks.tsx")), of = code(rd("components/OrderFunnel.tsx"));
+  ok("My Packs: each pack says where and when — or that its stop was called off — and offers Move, Change and Cancel only while it is the customer's",
+    /\.select\("\*, stop:stops\(name, starts_at, ends_at, address, location_text, canceled_at, cancel_reason\)"\)/.test(mp)
+    && /was called off\{p\.stop\.cancel_reason \? ` — \$\{p\.stop\.cancel_reason\}` : ""\}\. Move it to another day, or cancel it\./.test(mp)
+    && /const closes = packClosesAt\(p\.drop_date, p\.stop \?\? null\);/.test(mp) && /You can move, change or cancel it until \{closesWords\(closes\)\}\./.test(mp)
+    && /toast\(d\?\.error \|\| "Couldn't cancel it just now — try again, or ask at the truck\.", "error"\)/.test(mp));
+  ok("My Packs and the funnel key a stop by its Eastern day — a UTC slice put a stop after 8pm on the next day",
+    /const key = dropDateKey\(new Date\(st\.starts_at\)\);/.test(mp) && /const k = dropDateKey\(new Date\(st\.starts_at\)\);/.test(of) && !/st\.starts_at\.slice\(0, 10\)/.test(mp));
+  ok("the funnel: the pay screen says until when a pack can be canceled — by its stop, the one rule",
+    /const packCloses = stop \? packClosesAt\(dropDateKey\(drop\.sat\), stop\) : drop\.cutoff;/.test(of) && /Cancel from My packs until \$\{packCloseWords\}/.test(of) && /stopId: stop\?\.id \?\? undefined/.test(of));
 }
 
 Promise.all(PENDING).then(() => {

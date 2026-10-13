@@ -5,7 +5,8 @@ import { raiseAlert } from "@/lib/serverAlerts";
 import { benefitsForUser, acceptedCode } from "@/lib/benefits";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { chargeCard, refundPayment, safeIdemKey } from "@/lib/squareServer";
-import { packPick, offeredDays, requestedDay, packCents, packDayCutoff } from "@/lib/packOrder";
+import { packPick, offeredDays, requestedDay, packCents } from "@/lib/packOrder";
+import { packIsOpen, type PackStop } from "@/lib/pickupDay";
 import { changePack, diffFor, type After, type Money, type Tell, type Who } from "@/lib/packChange";
 import { packChangeStore, packChangeMissing } from "@/lib/packChangeStore";
 import { isUuid } from "@/lib/uuid";
@@ -93,16 +94,23 @@ async function post(req: Request) {
   if (!cutoff) return NextResponse.json({ error: "That pickup day just changed — refresh to see the current stops." }, { status: 409 });
   if (Date.now() > cutoff.getTime()) return NextResponse.json({ error: "That drop has closed — pick the next pickup day." }, { status: 400 });
 
+  // arrives-with: 0397 — stop_id is read here; until it is pasted this read fails and the change says try again.
   // scoped-by: order.user_id !== user.id, on the next line, 404s anything that is not the caller's
   const { data: order } = await sb.from("drop_orders")
-    .select("id, user_id, drop_date, total_cents, paid, benefit_code, canceled_at, picked_up, stage, collected_at").eq("id", id).maybeSingle();
+    .select("id, user_id, drop_date, stop_id, total_cents, paid, benefit_code, canceled_at, picked_up, stage, collected_at").eq("id", id).maybeSingle();
   if (!order || order.user_id !== user.id) return NextResponse.json({ error: "Order not found." }, { status: 404 });
   if (order.canceled_at) return NextResponse.json({ error: "That pack was canceled." }, { status: 409 });
   if (order.collected_at) return NextResponse.json({ error: "This pack was paid at the window — the crew can change it." }, { status: 409 });
   if (order.picked_up || (order.stage && order.stage !== "reserved")) {
     return NextResponse.json({ error: "The crew already has this pack in motion — ask at the truck to change it." }, { status: 409 });
   }
-  if (Date.now() > packDayCutoff(offered, String(order.drop_date)).getTime()) {
+  // Its own drop must still be open, by its STOP (lib/pickupDay, R5 / 0397): a stop called off never closes it, so a pack
+  // whose stop the truck called off can be changed — it used to find the stop gone from the schedule and refuse.
+  // scoped-by: stop_id is the caller's own pack's (the 404 above); stops are the public schedule.
+  const { data: cur } = order.stop_id
+    ? await sb.from("stops").select("starts_at, canceled_at").eq("id", order.stop_id).maybeSingle()
+    : { data: null };
+  if (!packIsOpen(String(order.drop_date), cur as PackStop)) {
     return NextResponse.json({ error: "This pack's drop has closed — we may already be brewing it. Ask at the truck." }, { status: 409 });
   }
 

@@ -8,7 +8,8 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { mixSummary, dollars, emptyMix, dropForStop, nextDrop, dropDateKey, type Mix, type GlassPath } from "@/lib/orderAhead";
 import { authedFetch } from "@/lib/authedFetch";
 import { haptic } from "@/lib/haptics";
-import { nearDay } from "@/lib/dates";
+import { nearDay, timeRange } from "@/lib/dates";
+import { packClosesAt, closesWords } from "@/lib/pickupDay";
 import Icon from "@/components/Icon";
 import { useConfirm } from "./ConfirmSheet";
 import { isSettled } from "@/lib/settled";
@@ -26,6 +27,9 @@ export type MyPack = {
   picked_up: boolean; bottles_returned: boolean; stage?: PackStage | null; canceled_at: string | null;
   // Paid at the window (0341): settled without `paid` when it was the card reader — lib/collect.
   payment_status?: string | null; collected_at?: string | null; collected_via?: string | null;
+  // Its stop (0397): where and when it is picked up, and whether the truck called it off.
+  stop_id?: string | null;
+  stop?: { name: string | null; starts_at: string | null; ends_at: string | null; address: string | null; location_text: string | null; canceled_at: string | null; cancel_reason: string | null } | null;
 };
 
 // What the customer sees for each stage the crew sets — plain, reassuring, present-tense.
@@ -59,35 +63,36 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
   const [listOpen, setListOpen] = useState(false);
   // The same upcoming-drop days the order form offers (real stops, still open) — so "move it"
   // can only land on a day the truck will actually be out.
-  const [days, setDays] = useState<{ key: string; label: string }[]>([]);
+  const [days, setDays] = useState<{ key: string; label: string; stopId: string | null }[]>([]);
   useEffect(() => {
     if (!supabase || !user) return;
-    supabase.from("stops").select("starts_at").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
+    supabase.from("stops").select("id, starts_at").is("archived_at", null).is("canceled_at", null).neq("status", "done").not("starts_at", "is", null)
       .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(8)
       .then(({ data }) => {
         const seen = new Set<string>();
-        const opts: { key: string; label: string }[] = [];
-        for (const st of (data ?? []) as { starts_at: string }[]) {
+        const opts: { key: string; label: string; stopId: string | null }[] = [];
+        for (const st of (data ?? []) as { id: string; starts_at: string }[]) {
           const d = dropForStop(st.starts_at);
           if (d.cutoff.getTime() <= Date.now()) continue;
-          const key = st.starts_at.slice(0, 10);
+          // The Eastern day, as the server keys it — a UTC slice put a stop after 8pm Eastern on the next day (R5).
+          const key = dropDateKey(new Date(st.starts_at));
           if (seen.has(key)) continue; seen.add(key);
-          opts.push({ key, label: packDayLabel({ drop_date: key }) });
+          opts.push({ key, label: packDayLabel({ drop_date: key }), stopId: st.id });
         }
         // Same fallback the reserve API uses: no scheduled stops → the Saturday cadence.
         if (opts.length === 0 && (data ?? []).length === 0) {
           const fb = nextDrop();
-          opts.push({ key: dropDateKey(fb.sat), label: packDayLabel({ drop_date: dropDateKey(fb.sat) }) });
+          opts.push({ key: dropDateKey(fb.sat), label: packDayLabel({ drop_date: dropDateKey(fb.sat) }), stopId: null });
         }
         setDays(opts.slice(0, 4));
       });
   }, [user]);
 
-  const moveDay = async (p: MyPack, toDate: string) => {
+  const moveDay = async (p: MyPack, toDate: string, stopId: string | null) => {
     if (busy) return;
     setBusy(p.id);
     try {
-      const res = await authedFetch("/api/reserve/move", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, toDate }) });
+      const res = await authedFetch("/api/reserve/move", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, toDate, stopId: stopId ?? undefined }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { toast(data.error || "Couldn't move it — try again.", "error"); return; }
       haptic("success");
@@ -99,8 +104,9 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
   const load = useCallback(async () => {
     if (!supabase || !user) { setRows([]); return; }
     // Yesterday's date-floor keeps today's drop visible all day regardless of timezone drift.
-    const floor = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const { data } = await supabase.from("drop_orders").select("*")
+    const floor = dropDateKey(new Date(Date.now() - 24 * 60 * 60 * 1000));
+    // arrives-with: 0397 — the stop rides the pack (drop_orders.stop_id → stops); until it is pasted this read fails.
+    const { data } = await supabase.from("drop_orders").select("*, stop:stops(name, starts_at, ends_at, address, location_text, canceled_at, cancel_reason)")
       .eq("user_id", user.id).is("canceled_at", null).gte("drop_date", floor)
       .order("drop_date").order("created_at");
     const next = (data as MyPack[]) ?? [];
@@ -128,12 +134,14 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
     if (!ok0) return;
     setBusy(p.id);
     // Route (not the raw RPC) so canceling also pings the crew + texts/emails the customer.
-    const ok = await authedFetch("/api/orders/cancel", {
+    // The route says why it couldn't (R5): canceled already, picked up, paid at the window, in the crew's hands, or its
+    // drop closed — with when.
+    const d = await authedFetch("/api/orders/cancel", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ channel: "pickup", id: p.id }),
-    }).then((r) => r.ok ? r.json() : null).then((d) => d?.ok === true).catch(() => false);
+    }).then((r) => r.json()).catch(() => null) as { ok?: boolean; error?: string } | null;
     setBusy(null);
-    if (!ok) { toast("Couldn't cancel — it may already be picked up. Ask at the truck.", "error"); load(); return; }
+    if (d?.ok !== true) { toast(d?.error || "Couldn't cancel it just now — try again, or ask at the truck.", "error"); load(); return; }
     toast(p.paid ? "Canceled — flagged for a refund" : "Reservation canceled");
     load();
   };
@@ -183,6 +191,10 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
             {isOpen && (
               <>
                 <div className="mypack-mix">{mixSummary(packMix(p)) || "—"} · {p.glass === "return" ? "bringing bottles back" : "new glass"} · {dollars(p.total_cents / 100)}</div>
+                {/* Where and when it is picked up (0397: a pack belongs to its stop) — or that the truck called it off. */}
+                {p.stop && (p.stop.canceled_at
+                  ? <p className="mypack-paidnote text-warn">{p.stop.name ?? "The stop"} was called off{p.stop.cancel_reason ? ` — ${p.stop.cancel_reason}` : ""}. Move it to another day, or cancel it.</p>
+                  : <div className="mypack-mix">{[p.stop.name, p.stop.location_text || p.stop.address, p.stop.starts_at ? timeRange(p.stop.starts_at, p.stop.ends_at) : null].filter(Boolean).join(" · ")}</div>)}
                 {/* Live fulfillment tracker — the crew's stage, shown to the customer. */}
                 {(() => {
                   const stage = (p.stage ?? (p.picked_up ? "picked_up" : "reserved")) as PackStage;
@@ -201,31 +213,45 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
                     </>
                   );
                 })()}
-                {!p.picked_up && (
+                {!p.picked_up && (() => {
+                  // THE PACK'S OWN DROP (R5, 0397): moving, changing or canceling it is the customer's while it is reserved and
+                  // its drop is open — 24 hours before its stop, never for a stop called off (lib/pickupDay, the database's
+                  // own rule). Otherwise the screen says whose it is now, and when it closed; a button that can only fail is
+                  // not offered.
+                  const closes = packClosesAt(p.drop_date, p.stop ?? null);
+                  const inMotion = (p.stage ?? "reserved") !== "reserved";
+                  const closed = !!closes && Date.now() >= closes.getTime();
+                  const mine = !p.collected_at && !inMotion && !closed;
+                  return (
                   <>
+                    {mine && (
                     <div className="mypack-actions">
                       {days.some((d) => d.key !== p.drop_date) && (
                         <button type="button" className="btn-sec" onClick={() => setMoving(moving === p.id ? null : p.id)} aria-expanded={moving === p.id}>Move day</button>
                       )}
-                      {/* Paid at the window: the money is in the crew's hands, so changing or
-                          canceling it is theirs too — the database refuses it from here (0341),
-                          and a button that can only fail is not offered. */}
-                      {onChange && !p.collected_at && <button type="button" className="btn-sec" onClick={() => onChange(p)}>Change the pack</button>}
-                      {!p.collected_at && <button type="button" className="btn-del" onClick={() => cancel(p)} disabled={busy === p.id}>{busy === p.id ? "Canceling…" : "Cancel"}</button>}
+                      {onChange && <button type="button" className="btn-sec" onClick={() => onChange(p)}>Change the pack</button>}
+                      <button type="button" className="btn-del" onClick={() => cancel(p)} disabled={busy === p.id}>{busy === p.id ? "Canceling…" : "Cancel"}</button>
                     </div>
-                    {p.collected_at && <p className="mypack-paidnote">Paid at the window — to change or cancel it, ask the crew.</p>}
-                    {moving === p.id && (
+                    )}
+                    {/* Paid at the window: the money is in the crew's hands, so changing or canceling it is theirs too —
+                        the database refuses it from here (0341). */}
+                    {p.collected_at ? <p className="mypack-paidnote">Paid at the window — to change or cancel it, ask the crew.</p>
+                      : inMotion ? <p className="mypack-paidnote">The crew has it in motion — to change it, ask at the truck.</p>
+                      : closed && closes ? <p className="mypack-paidnote">Its drop closed {closesWords(closes)} — we may already be brewing it. To change it, ask at the truck.</p>
+                      : closes ? <p className="mypack-paidnote">You can move, change or cancel it until {closesWords(closes)}.</p> : null}
+                    {mine && moving === p.id && (
                       <div className="mypack-move">
                         <span>Pick the new day — everything else stays the same.</span>
                         <div className="mypack-move-days">
                           {days.filter((d) => d.key !== p.drop_date).map((d) => (
-                            <button key={d.key} type="button" className="k-chip" disabled={busy === p.id} onClick={() => moveDay(p, d.key)}>{d.label}</button>
+                            <button key={d.key} type="button" className="k-chip" disabled={busy === p.id} onClick={() => moveDay(p, d.key, d.stopId)}>{d.label}</button>
                           ))}
                         </div>
                       </div>
                     )}
                   </>
-                )}
+                  );
+                })()}
               </>
             )}
           </div>

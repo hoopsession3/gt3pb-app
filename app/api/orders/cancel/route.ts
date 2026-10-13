@@ -6,6 +6,7 @@ import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
+import { packClosesAt, closesWords, type PackStop } from "@/lib/pickupDay";
 import { orderNo } from "@/lib/activeOrder";
 
 // CANCEL A CUSTOMER ORDER — one route for all three channels (cup / pickup pack / Sunday delivery).
@@ -69,6 +70,12 @@ async function post(req: Request) {
       const why = await whyNot(id, user.id, !!error);
       return NextResponse.json({ ok: false, ...why.body }, { status: why.status });
     }
+    // A PACK SAYS WHICH TOO (R5, 0397): canceled already, picked up, paid at the window, in the crew's hands, or its drop
+    // closed — with when. It was a bare "Couldn't cancel — it may already be picked up" whatever the reason.
+    if (channel === "pickup") {
+      const why = await whyNotPack(id, user.id, !!error);
+      return NextResponse.json({ ok: false, ...why.body }, { status: why.status });
+    }
     return NextResponse.json({ ok: false }, { status: 200 });
   }
 
@@ -119,6 +126,26 @@ async function whyNot(id: string, userId: string, failed: boolean): Promise<{ st
   if (o.status !== "new") return { status: 409, body: { outcome: "too_late", now: o.status } };
   if (o.collected_at) return { status: 409, body: { outcome: "at_window" } };
   return failed ? { status: 500, body: { outcome: "error" } } : { status: 409, body: { outcome: "too_late", now: o.status } };
+}
+
+/** Why a pack wasn't canceled — the database's own rule (0397 cancel_own_reservation), read back as the caller's row. */
+async function whyNotPack(id: string, userId: string, failed: boolean): Promise<{ status: number; body: { outcome: string; now?: string; error: string } }> {
+  // arrives-with: 0397 — stop_id is read here; until it is pasted this read fails and the answer is "try again".
+  // scoped-by: user_id = the caller, whose token the cancel was just refused for — only ever their own pack.
+  const { data, error } = await supabaseAdmin!.from("drop_orders").select("drop_date, stop_id, stage, picked_up, canceled_at, collected_at").eq("id", id).eq("user_id", userId).maybeSingle();
+  if (error) return { status: 500, body: { outcome: "error", error: "Couldn't cancel it just now — try again, or ask at the truck." } };
+  const p = data as { drop_date: string; stop_id: string | null; stage: string | null; picked_up: boolean; canceled_at: string | null; collected_at: string | null } | null;
+  if (!p) return { status: 404, body: { outcome: "not_yours", error: "That pack isn't on your account." } };
+  if (p.canceled_at) return { status: 409, body: { outcome: "too_late", now: "canceled", error: "That pack is already canceled." } };
+  if (p.picked_up) return { status: 409, body: { outcome: "too_late", now: "picked_up", error: "That pack was picked up." } };
+  if (p.collected_at) return { status: 409, body: { outcome: "at_window", error: "Paid at the window — the crew cancels it there." } };
+  if (p.stage && p.stage !== "reserved") return { status: 409, body: { outcome: "too_late", now: p.stage, error: "The crew already has this pack in motion — ask at the truck." } };
+  // scoped-by: the caller's own pack's stop; stops are the public schedule.
+  const { data: st } = p.stop_id ? await supabaseAdmin!.from("stops").select("starts_at, canceled_at").eq("id", p.stop_id).maybeSingle() : { data: null };
+  const closes = packClosesAt(p.drop_date, st as PackStop);
+  if (closes && Date.now() >= closes.getTime()) return { status: 409, body: { outcome: "too_late", now: "closed", error: `Its drop closed ${closesWords(closes)} — we may already be brewing it. Ask at the truck.` } };
+  return failed ? { status: 500, body: { outcome: "error", error: "Couldn't cancel it just now — try again, or ask at the truck." } }
+    : { status: 409, body: { outcome: "too_late", error: "Couldn't cancel it — ask at the truck." } };
 }
 
 // Read the just-canceled row with the service role (RLS-bypassing) but re-scope to the caller's

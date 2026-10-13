@@ -9,6 +9,7 @@
 
 import { FRESH_PER_BOTTLE_CENTS, FLAT_BRING_BACK_CENTS, PICKUP_PACK_BRING_BACK_DOLLARS } from "./bottlePricing";
 import { etDayKey } from "./dates";
+import { etAt } from "./etDay";
 
 export const PRICING = {
   // order-ahead + bring bottles back — pickup's own bulk-discount schedule (see lib/bottlePricing.ts)
@@ -73,17 +74,24 @@ export const mixFitsOrReset = (mix: Mix, size: number): Mix => (mixTotal(mix) > 
 export const mixSummary = (mix: Mix): string => FLAVORS.filter((f) => mix[f] > 0).map((f) => `${mix[f]}× ${f}`).join(" · ");
 
 // ── cutoff / drop resolver ──
-// Saturday drop; ordering closes Wed 18:00 local (Saturday − 3 days). Past cutoff rolls to next week.
+// Saturday drop; ordering closes Wed 18:00 Eastern (Saturday − 3 days). Past cutoff rolls to next week.
 // `now` is injectable so the server can pass its own clock and the smoke suite can pin a moment.
+// ON THE TRUCK'S CLOCK (2026-10-13, R5): it read the runner's own clock — a phone in Eastern time, but Vercel's servers
+// run on UTC, where 18:00 comes four hours earlier: the server closed the Saturday fallback at 2pm while the phone still
+// said 6pm. Now the day, the Saturday and the close are all Eastern, wherever this runs (lib/dates, lib/etDay).
+const keyPlus = (key: string, days: number): string => {
+  const d = new Date(`${key}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
 export function nextDrop(now: Date = new Date()): { sat: Date; cutoff: Date } {
-  // Anchored at NOON local so dropDateKey (ET day) lands on the same calendar day whether this
-  // runs on a UTC server or a US client — local midnight reads as the ET day before on Vercel.
-  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
-  const daysToSat = (6 - d.getDay() + 7) % 7;
-  const sat = new Date(d); sat.setDate(d.getDate() + daysToSat);
-  const cutoff = new Date(sat); cutoff.setDate(sat.getDate() - 3); cutoff.setHours(18, 0, 0, 0);
-  if (now.getTime() > cutoff.getTime()) { sat.setDate(sat.getDate() + 7); cutoff.setDate(cutoff.getDate() + 7); }
-  return { sat, cutoff };
+  const today = etDayKey(now);
+  const dow = new Date(`${today}T12:00:00Z`).getUTCDay();   // the Eastern day's weekday
+  let satKey = keyPlus(today, (6 - dow + 7) % 7);
+  let cutoff = etAt(keyPlus(satKey, -3), 18);
+  if (now.getTime() > cutoff.getTime()) { satKey = keyPlus(satKey, 7); cutoff = etAt(keyPlus(satKey, -3), 18); }
+  // Noon Eastern on the Saturday: dropDateKey reads it back as that Saturday on any clock.
+  return { sat: etAt(satKey, 12), cutoff };
 }
 // is a given drop date (server-trusted) still open at `now`? Guards the reserve API against a
 // client that posts a stale/closed drop.

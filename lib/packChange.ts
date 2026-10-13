@@ -28,6 +28,7 @@
 // drives every branch against 0388 itself in Postgres, with Square stood in for.
 
 import { money } from "./money";
+import { pickupDayWords } from "./pickupDay";
 import { errorMessage } from "./errorMessage";
 
 /** How long a change may sit in "started" before its request is taken to have died (as lib/chargeOnce). */
@@ -163,7 +164,7 @@ export function doneAnswer(c: Change): Answer {
 
 export function customerWords(c: Change): string {
   const a = c.after;
-  const head = `GT3: your pack is now a ${packWords(a)} for pickup ${a.drop_date}.`;
+  const head = `GT3: your pack is now a ${packWords(a)} for pickup ${pickupDayWords(a.drop_date)}.`;   // a day, not its key (R5)
   const refunded = c.refunds.reduce((s, r) => s + r.cents, 0);
   if (c.diff_cents > 0) return c.before.paid ? `${head} We charged the ${money(c.diff_cents)} difference.` : `${head} Paid ✓ ${money(c.diff_cents)}.`;
   if (c.diff_cents < 0) {
@@ -179,7 +180,7 @@ function crewChanged(c: Change, name: string): CrewLine {
   const moved = c.diff_cents > 0 ? `charged ${money(c.diff_cents)}${b.paid ? " more" : " — paid now"}`
     : c.diff_cents < 0 ? `refunded ${money(-c.diff_cents)}${c.by_hand_cents > 0 ? ` (${money(c.by_hand_cents)} of it is yours to send by hand)` : ""}`
     : b.paid ? "same price" : "still pay at pickup";
-  const day = a.drop_date !== b.drop_date ? `, ${b.drop_date} → ${a.drop_date}` : `, ${a.drop_date}`;
+  const day = a.drop_date !== b.drop_date ? `, ${pickupDayWords(b.drop_date)} → ${pickupDayWords(a.drop_date)}` : `, ${pickupDayWords(a.drop_date)}`;
   return { severity: "important", category: "order", kind: "reservation_changed", subjectId: c.drop_order_id,
     title: "Pack changed", body: `${name} changed their pack: ${packWords(b)} → ${packWords(a)}${day}. ${moved[0].toUpperCase()}${moved.slice(1)}.` };
 }
