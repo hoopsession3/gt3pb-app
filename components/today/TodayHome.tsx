@@ -27,7 +27,7 @@ import { cardOf, STAMP_GOAL } from "@/lib/loyalty";
 import { CUP_MARKETS } from "@/lib/markets";
 import { openAddress } from "@/lib/maps";
 import { money } from "@/lib/money";
-import { closedWords, readyWords, waitingToOpen } from "@/lib/ordering";
+import { closedWords, readyWords, waitingToOpen, type Ordering } from "@/lib/ordering";
 import { isSettled } from "@/lib/settled";
 import { supabase } from "@/lib/supabase";
 import { readMode } from "@/lib/mode";
@@ -230,7 +230,8 @@ function Lead({ lead, usual, stopMenu, t }: { lead: Exclude<TodayLead<Order>, { 
 }
 
 // ── THE ROWS: the card, the packs, the stack ──────────────────────────────────────────────────────────────────
-const GenerateDay = dynamic(() => import("@/components/GenerateDay"));
+// The stack loads when it is opened (R4: two questions, the Catalog's drinks, a button that follows the truck).
+const DailyStack = dynamic(() => import("@/components/DailyStack"));
 // Loaded only for the truck-off lead, where it is drawn (its alerts code is not every member's Today).
 const RemindMe = dynamic(() => import("./RemindMe"));
 const CrewWelcomeRow = dynamic(() => import("@/components/CrewWelcomeRow"));
@@ -245,7 +246,7 @@ function MiniStamps({ n }: { n: number }) {
   );
 }
 
-function Rows({ t, quiet, first }: { t: T; quiet: boolean; first: boolean }) {
+function Rows({ t, quiet, first, ordering, stopMenu }: { t: T; quiet: boolean; first: boolean; ordering: Ordering | null; stopMenu: ReadonlySet<string> | null }) {
   const { profile } = useAuth();
   const router = useRouter();
   const hasPack = useHasActiveOrder();
@@ -279,8 +280,8 @@ function Rows({ t, quiet, first }: { t: T; quiet: boolean; first: boolean }) {
       {profile && <MemberCard open={card} onClose={() => setCard(false)} />}
       {stack && (
         <Sheet open={stack} onClose={() => setStack(false)} label={t("home.dialed_title")} header={<h2 className="k-title">{t("home.dialed_title")}</h2>}>
-          <EditableCopy k="home.questions" value={t("home.questions")} as="p" className="mx-0.5 mt-1 mb-2 text-subhead text-cream-muted" />
-          <GenerateDay />
+          <EditableCopy k="stack.intro" value={t("stack.intro")} as="p" className="mx-0.5 mt-1 mb-4 text-subhead text-cream-muted" />
+          <DailyStack ordering={ordering} stopMenu={stopMenu} />
         </Sheet>
       )}
     </>
@@ -323,7 +324,8 @@ export default function TodayHome({ t }: { t: T }) {
         : <Lead lead={lead} usual={usual} stopMenu={oo.stopMenu} t={t} />}
 
       <MemberInbox />
-      <Rows t={t} quiet={lead.kind === "later" || lead.kind === "none" || lead.kind === "closing"} first={usual === null} />
+      <Rows t={t} quiet={lead.kind === "later" || lead.kind === "none" || lead.kind === "closing"} first={usual === null}
+        ordering={oo.checked ? oo.ordering : null} stopMenu={oo.stopMenu} />
 
       <ClosingBeat />
     </section>

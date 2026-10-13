@@ -64,8 +64,9 @@ export const COPY_META: CopyMeta[] = [
   { key: "craft.cta_reserve", group: "Craft page", label: "CTA — reserve", default: "Reserve a drop" },
   { key: "craft.signoff", group: "Craft page", label: "Sign-off", default: "Pure Signal, No Noise." },
   // ── Home · signed-in (Today) ──
-  { key: "home.questions", group: "Home · signed-in", label: "Stack-builder intro", multiline: true,
-    default: "Five questions and I'll build your stack for the day." },
+  // R4 (Daily Stack 2): two questions, not five — a new key, so an edit of the five-question line is not shown over it.
+  { key: "stack.intro", group: "Home · signed-in", label: "Stack — intro", multiline: true,
+    default: "Two questions, and we'll build your stack for the day." },
   { key: "home.dialed_title", group: "Home · signed-in", label: "Stack section — title", default: "Dialed For Today" },
   { key: "home.dialed_sub", group: "Home · signed-in", label: "Stack section — subtitle", default: "your stack, built" },
   // ── Loyalty card (Today home) · the tap-to-open stamp card ── Settings-only, not inline-click-
@@ -434,7 +435,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "today.packs_cta", group: "Home · signed-in", label: "Packs row — button", default: "Reserve" },
   { key: "today.stack_lead", group: "Home · signed-in", label: "Stack row — lead", default: "Stack" },
   { key: "today.stack_first", group: "Home · signed-in", label: "Stack row — name, no orders yet", default: "Not sure what to get?" },
-  { key: "today.stack_first_sub", group: "Home · signed-in", label: "Stack row — line, no orders yet", default: "A few questions, and we'll suggest a cup" },
+  { key: "today.stack_first_sub", group: "Home · signed-in", label: "Stack row — line, no orders yet", default: "Two questions, and we'll suggest your stack" },
   // ── Account — the 3MPIRE page's section labels + account rows + referral card chrome. ──
   { key: "account.orders_label", group: "Account", label: "Recent orders — section label", default: "Recent Orders" },
   { key: "account.orders_note", group: "Account", label: "Recent orders — annotation", default: "order again" },

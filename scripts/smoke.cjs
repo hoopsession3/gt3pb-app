@@ -11179,10 +11179,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("recipes: the booking request's status is chips (chosen, and said so), its doors the kit's compact buttons, its delete the kit's red words",
     /className=\{`k-chip sm\$\{r\.status === s \? " on" : ""\}`\} aria-pressed=\{r\.status === s\}/.test(pg)
     && (pg.match(/<button className="btn-sec btn-sm" onClick=/g) || []).length >= 3 && /className="btn-del ml-auto" onClick=\{\(\) => del\(r\)\}/.test(pg));
-  const gd = read("components/GenerateDay.tsx");
-  ok("recipes: the home page's dial-in answers are chips — one chosen per question, gold, and a screen reader hears which",
-    (gd.match(/className=\{`k-chip sm\$\{(sleep|body|workload|training|energy) === v \? " on" : ""\}`\} aria-pressed=\{\1 === v\}/g) || []).length === 5
-    && /className=\{`k-chip sm\$\{flags\.has\(f\) \? " on" : ""\}`\} aria-pressed=\{flags\.has\(f\)\}/.test(gd) && !/gen-opt|"chip/.test(gd));
+  const gd = read("components/DailyStack.tsx");
+  ok("recipes: the stack's answers are chips — one chosen per question, gold, and a screen reader hears which (R4: two questions and a fine-tune)",
+    /className=\{`k-chip\$\{on\(v\) \? " on" : ""\}`\} aria-pressed=\{on\(v\)\} onClick=\{\(\) => pick\(v\)\}/.test(gd)
+    && (gd.match(/\{chips\("/g) || []).length === 3 && !/gen-opt|"chip/.test(gd));
   const seg = (f, re) => re.test(read(f)) && /import \{ (\w+, )?Segmented(, \w+)? \} from "@\/components\/controls";/.test(read(f));
   ok("recipes: a switch that looks like one — the tip, Event or Truck stop, COGS, Sales' range, the flyer's slide, the shop's aisles and the system map's views are the segmented control (sign-in's two are quiet lines since 2026-10-09)",
     !/<Segmented/.test(read("components/SignIn.tsx"))
@@ -11373,7 +11373,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       // …and everywhere else the word was: the menu's drink lines, Craft, the AI day plan, Academy and the
       // event brief, plus the rows the seeds wrote (0362). Comments may say why; no string may say it.
       const strs = (f) => read(f).replace(/^\s*\/\/.*$/gm, "");
-      const said = ["lib/menu.ts", "lib/copy.ts", "lib/academy.ts", "lib/eventbrief.ts", "components/GenerateDay.tsx", "app/layout.tsx", "app/manifest.ts"]
+      const said = ["lib/menu.ts", "lib/copy.ts", "lib/academy.ts", "lib/eventbrief.ts", "components/DailyStack.tsx", "lib/dailyStack.ts", "app/layout.tsx", "app/manifest.ts"]
         .filter((f) => /simmer/i.test(strs(f)));
       const m362 = read("supabase/migrations/0362_bone_broth_said_plainly.sql");
       ok("no drink, lesson, brief or Craft line says \"simmered\" — the app's copy, and the database rows its seeds wrote (0362)",
@@ -13593,8 +13593,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     else if (/\.(ts|tsx)$/.test(e.name) && /from "(@\/lib\/menu|\.\/menu|\.\.\/lib\/menu)"/.test(rd(f))) readers.push(f);
   } };
   for (const d of ["app", "components", "lib"]) walk(d);
-  ok("the code list is seed data: only lib/drinks reads it, with the Square name fallback and the day generator's recommendation tables",
-    readers.sort().join(",") === ["app/api/menu/route.ts", "components/GenerateDay.tsx", "lib/drinks.ts", "lib/squareCatalog.ts"].join(","), readers);
+  ok("the code list is seed data: only lib/drinks reads it, with the Square name fallback (the stack reads the Catalog since R4)",
+    readers.sort().join(",") === ["app/api/menu/route.ts", "lib/drinks.ts", "lib/squareCatalog.ts"].join(","), readers);
 }
 
 // ── TODAY, BY STATE (2026-10-13, R3 of the customer audit — "the state-aware home", boards 03–06, approved) ──
@@ -13644,7 +13644,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /<OrderSteps at=\{stepOf\(order\.status\)\} \/>/.test(th) && /\{eta\("on_way"\)\}\s+\{eta\("outside"\)\}/.test(th));
   ok("today: the card, the packs and the stack are a row each — the card in the card's own words (stamp.*), the packs not to someone with one coming, the stack in a sheet",
     /<InfoRow lead=\{t\("stamp\.kicker"\)\} leadSub=\{`\$\{c\.stamps\}\/\$\{STAMP_GOAL\}`\}/.test(th) && /\{!hasPack && \(/.test(th)
-    && /const GenerateDay = dynamic\(\(\) => import\("@\/components\/GenerateDay"\)\);/.test(th) && !fs.existsSync(path.join(__dirname, "..", "components/StampCard.tsx")));
+    && /const DailyStack = dynamic\(\(\) => import\("@\/components\/DailyStack"\)\);/.test(th) && !fs.existsSync(path.join(__dirname, "..", "components/StampCard.tsx")));
 }
 
 // ── REMIND ME WHEN CUP ORDERS OPEN (2026-10-13, R3 — board 04; 0394) ──
@@ -13812,6 +13812,77 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /if \(c\.user_id\) told\+\+;/.test(sc) && /no: orderNo\(c\.id\), ref:/.test(sc) && /cups: cups\.length, told, paid: paidCups\.length/.test(sc)
     && /toast\(d\.already \? "Already canceled\." : stopCanceledToast\(d\)\);/.test(lc)
     && /if \(!shown && record\.status === "void" && record\.stop_id\) \{/.test(px) && /if \(st\?\.canceled_at\) shown = stopCanceledShown\(record, st\.name \?\? null, st\.cancel_reason \?\? null\);/.test(px));
+}
+
+// ── THE DAILY STACK, TWO QUESTIONS (2026-10-13, R4 of the customer audit — "Daily Stack 2", decision (a)) ──────────────
+// Five questions and six flags about sleep, soreness, energy, the gut and the joints, answered with nutrient talk, a fake
+// wait and three drinks whatever the truck had. Now: the day and caffeine, a fine-tune of preferences, the Catalog's
+// drinks the truck can make now, a button that follows the truck, and the answers kept on the phone alone.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const DS = require("../.smoke/dailyStack.js"), DR = require("../.smoke/drinks.js");
+  // The Catalog as 0393 left it: the coffees say caffeine, the rest say none.
+  const menu = DR.seedMenu().map((d, i) => ({ ...d, caffeine: d.when === "BEFORE", priceCents: d.priceCents ?? 1000 + i, active: true, soldOut: false }));
+  const none = new Set();
+  const slugs = (st) => st.picks.map((p) => `${p.slot}:${p.drink.slug}`).join(",");
+  const A = (day, caffeine, prefs = []) => ({ day, caffeine, prefs });
+  ok("stack: training with caffeine is before, during and after — the deep-work pour, hydration for the session, the rebuild",
+    slugs(DS.stackFor(A("training", true), menu, none, null)) === "before:flow,during:tide,after:forge", slugs(DS.stackFor(A("training", true), menu, none, null)));
+  ok("stack: no caffeine keeps only what the Catalog says has none — training is during and after",
+    slugs(DS.stackFor(A("training", false), menu, none, null)) === "during:tide,after:forge"
+    && DS.stackFor(A("training", false), menu, none, null).picks.every((p) => p.drink.caffeine === false));
+  ok("stack: deep work is a coffee for the work and light hydration; an easy day is one cup; an easy day without caffeine is the light hydration",
+    slugs(DS.stackFor(A("deep", true), menu, none, null)) === "before:flow,during:aide"
+    && slugs(DS.stackFor(A("easy", true), menu, none, null)) === "before:rise"
+    && slugs(DS.stackFor(A("easy", false), menu, none, null)) === "during:aide");
+  ok("stack: the fine-tune is preferences — warm puts the spiced cup first, light the light hydration and the lighter broth, savory adds a broth",
+    slugs(DS.stackFor(A("easy", true, ["warm"]), menu, none, null)) === "before:dusk"
+    && slugs(DS.stackFor(A("training", true, ["light"]), menu, none, null)) === "before:flow,during:aide,after:wild"
+    && slugs(DS.stackFor(A("easy", true, ["savory"]), menu, none, null)) === "before:rise,after:hunt");
+  const noCaf = menu.map((d) => (d.slug === "tide" ? { ...d, caffeine: null } : d));
+  ok("stack: a drink the Catalog says nothing about is never offered as caffeine-free — the menu never guesses",
+    slugs(DS.stackFor(A("training", false), noCaf, none, null)) === "during:aide,after:forge");
+  ok("stack: only what the truck can make — not sold out (the menu's 86 or availability's), not off the stop's menu",
+    slugs(DS.stackFor(A("deep", true), menu, new Set(["flow"]), null)) === "before:kingme,during:aide"
+    && slugs(DS.stackFor(A("deep", true), menu.map((d) => (d.slug === "flow" ? { ...d, soldOut: true } : d)), none, null)) === "before:kingme,during:aide"
+    && slugs(DS.stackFor(A("training", true), menu, none, new Set(["rise", "aide", "hunt"]))) === "before:rise,during:aide,after:hunt");
+  const added = [...menu.filter((d) => d.when !== "DURING"), { ...menu.find((d) => d.slug === "tide"), slug: "melon", name: "MELON", sort: 99 }];
+  ok("stack: a drink added in the Catalog for its slot is picked when the ones it knows by name aren't there",
+    slugs(DS.stackFor(A("deep", true), added, none, null)) === "before:flow,during:melon");
+  const gap = DS.stackFor(A("training", true), menu.filter((d) => d.when !== "AFTER"), none, null);
+  ok("stack: a slot nothing can fill now is said, in a line, never skipped silently",
+    gap.missing.join(",") === "after" && DS.missingWords(gap.missing) === "Nothing for after on the menu right now."
+    && DS.missingWords(["during", "after"]) === "Nothing for during or after on the menu right now." && DS.missingWords([]) === "");
+  const st = DS.stackFor(A("training", false), menu, none, null);
+  ok("stack: its price is the Catalog's for each pick, and none at all when one is not said",
+    st.cents === st.picks.reduce((s, p) => s + p.drink.priceCents, 0)
+    && DS.stackFor(A("training", false), menu.map((d) => (d.slug === "forge" ? { ...d, priceCents: null } : d)), none, null).cents === null);
+  const usd = (c) => `$${c / 100}`;
+  const at = Date.parse("2026-10-17T10:00:00Z");
+  ok("stack: the button follows the truck — add to the order while it pours, pre-order for when it opens, keep it for the next stop otherwise",
+    DS.stackButton({ state: "live", open: true, stop: null, opensAt: null, readyFrom: null }, 2200, usd).label === "Add to order · $22"
+    && DS.stackButton(null, 2200, usd).kind === "add" && DS.stackButton({ state: "started", open: true, stop: null, opensAt: null, readyFrom: null }, null, usd).label === "Add to order"
+    && DS.stackButton({ state: "ahead", open: true, stop: null, opensAt: null, readyFrom: "2026-10-17T11:00:00Z" }, 2200, usd, at).label === "Pre-order for 7:00am"
+    && ["early", "closing", "none"].every((s) => DS.stackButton({ state: s, open: false, stop: null, opensAt: null, readyFrom: null }, 2200, usd).label === "Save for the next stop"));
+  ok("stack: the answers read back strictly — a day, a yes or no, preferences it knows; anything else is no answer",
+    JSON.stringify(DS.parseAnswers('{"day":"deep","caffeine":false,"prefs":["light","x"]}')) === JSON.stringify({ day: "deep", caffeine: false, prefs: ["light"] })
+    && DS.parseAnswers('{"day":"nap","caffeine":true}') === null && DS.parseAnswers('{"day":"easy"}') === null && DS.parseAnswers("{") === null && DS.parseAnswers(null) === null);
+  const ds = code(rd("components/DailyStack.tsx")), lib = code(rd("lib/dailyStack.ts")), th = code(rd("components/today/TodayHome.tsx"));
+  ok("stack: two questions — What's your day? and Caffeine? — and a fine-tune of preferences; nothing about how anyone feels, no nutrient talk",
+    DS.DAYS.map(([, l]) => l).join("|") === "Training|Deep work|Easy" && DS.CAFFEINE.map(([, l]) => l).join("|") === "Yes|Not today" && DS.PREFS.map(([, l]) => l).join("|") === "Warm|Light|Savory"
+    && /chips\("What's your day\?", DAYS,/.test(ds) && /chips\("Caffeine\?", CAFFEINE,/.test(ds)
+    && !/sleep|sore|energy|gut|joint|fatigue|iron|zinc|mineral|sick|stress|dehydrat/i.test((ds + lib).replace(/\/\/.*$/gm, "")));
+  ok("stack: the answers stay on this phone and go nowhere; the stack shows as they are given, no pretend wait; said to a screen reader as it changes",
+    /localStorage\.setItem\(STACK_KEY, JSON\.stringify\(\{ day: next\.day, caffeine: next\.caffeine, prefs: next\.prefs \}\)\)/.test(ds)
+    && !/supabase|fetch\(|authedFetch|setTimeout/.test(ds) && /<div aria-live="polite">/.test(ds) && /Your answers stay on this phone/.test(ds));
+  ok("stack: its button adds only the stack's own picks — never a drink it didn't pick, so never a sold-out one — then opens checkout, or keeps them for the next stop",
+    /for \(const p of stack\.picks\) if \(!isInCart\(p\.drink\.slug\)\) bump\(p\.drink\.slug\);/.test(ds) && /if \(button\.kind === "save"\) \{ toast\("Saved in your cart — it's there when cup orders open\."\); return; \}\s*openCheckout\(\);/.test(ds)
+    && /const button = stack \? stackButton\(ordering, stack\.cents, money\) : null;/.test(ds));
+  ok("stack: Today hands it the truck's state and the stop's menu, the same reads its lead uses; GenerateDay and its classes are gone",
+    /<DailyStack ordering=\{ordering\} stopMenu=\{stopMenu\} \/>/.test(th) && /ordering=\{oo\.checked \? oo\.ordering : null\} stopMenu=\{oo\.stopMenu\}/.test(th)
+    && !fs.existsSync(path.join(__dirname, "..", "components/GenerateDay.tsx")) && !/\.gen-|\.hero\{|\.step\{/.test(rd("app/globals.css")));
 }
 
 Promise.all(PENDING).then(() => {
