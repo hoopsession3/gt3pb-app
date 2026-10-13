@@ -231,9 +231,9 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
     : ["pickup", count, bringBack, mix, dropDateKey(drop.sat), codeState === "ok" ? codeClean : null]);
   const [agreed, setAgreed] = useState<{ sig: string; cents: number } | null>(null);
   const payCents = agreed && agreed.sig === cartSig ? agreed.cents : totalCents;
-  const raisedTotal = (data: { totalChanged?: unknown; totalCents?: unknown }) => {
+  const raisedTotal = useCallback((data: { totalChanged?: unknown; totalCents?: unknown }) => {
     if (data?.totalChanged === true && typeof data.totalCents === "number") setAgreed({ sig: cartSig, cents: data.totalCents });
-  };
+  }, [cartSig]);
   const countdown = useMemo(() => {
     if (mode !== "pickup" || !now) return "";
     const ms = drop.cutoff.getTime() - now; if (ms <= 0) return "";
@@ -430,7 +430,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
       idem.settle(attempt.key, null, null);
       setErr("Couldn't confirm — safe to try again, you won't be charged twice.");
     }
-  }, [busy, name, phone, count, bringBack, mix, drop, payCents, cartSig, codeState, codeClean, idem]);
+  }, [busy, name, phone, count, bringBack, mix, drop, payCents, raisedTotal, codeState, codeClean, idem]);
 
   // ── a pack changed in place (0388) ──
   // The change as the server reads it: the pack that is changing, what it becomes, the code it is priced with.
