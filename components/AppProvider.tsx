@@ -42,7 +42,7 @@ interface AppCtx {
   // one floating bar, and a flag that only knew about one of them.
   payOpen: boolean;
   setPayOpen: (v: boolean) => void;
-  // one-tap reorder: replace the cart with a past order and open checkout
+  // one-tap reorder: the cart becomes a past order (Undo brings back what it held) and checkout opens on it
   reorder: (items: string[]) => void;
   // authoritative price (cents) for a drink — the Catalog's, else the code list's until /api/menu lands; never a crash
   priceCents: (id: string) => number;
@@ -215,8 +215,10 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   // from coOpen because coOpen also OPENS the drinks sheet — one flag cannot both mean "a payment
   // is happening" and "show this particular sheet".
   const [payOpen, setPayOpen] = useState(false);
-  // Merge the past order into the current cart (don't clobber a build-in-progress).
-  // Only auto-open checkout when the cart was empty; otherwise toast so it's not jarring.
+  // ORDER AGAIN IS THAT ORDER (2026-10-13, R3 of the customer audit, approved: "Order again replaces the cart"). It used to
+  // add the past order to whatever the cart held — a cart the phone keeps for days — so one tap could check out last
+  // week's half-built order with the usual on top, at a total nobody had seen. Now the cart becomes the order and checkout
+  // opens on it; a cart that held something else comes back with Undo.
   // 86'd items are filtered here so one-tap reorder can never build a cart that dead-ends at
   // checkout — the customer is told what's out, and the rest of their usual carries on.
   // A drink no longer on the menu (the Catalog's cup menu, or the code list's until it is read) is said, by name, and left
@@ -232,16 +234,15 @@ export default function AppProvider({ children }: { children: React.ReactNode })
       gone.length ? `${gone.join(" · ")} ${gone.length === 1 ? "isn't" : "aren't"} on the menu any more` : "",
       out.length ? `${out.join(" · ")} ${out.length === 1 ? "is" : "are"} sold out today` : "",
     ].filter(Boolean).join(", and ");
-    if (said) toast(`${said}${ok.length ? " — added the rest" : ""}`, "error");
-    if (ok.length === 0) return;
-    setCart((prev) => {
-      const wasEmpty = Object.keys(prev).length === 0;
-      const next = { ...prev };
-      ok.forEach((id) => { next[id] = (next[id] ?? 0) + 1; });
-      if (wasEmpty) setCoOpen(true);
-      else toast(`Added ${ok.length} to your order`, "success");
-      return next;
-    });
+    if (ok.length === 0) { if (said) toast(said, "error"); return; }
+    const next: Record<string, number> = {};
+    ok.forEach((id) => { next[id] = (next[id] ?? 0) + 1; });
+    const before = cartNow.current;
+    const same = Object.keys(before).length === Object.keys(next).length && Object.entries(next).every(([id, q]) => before[id] === q);
+    setCart(next);
+    setCoOpen(true);
+    if (said) toast(`${said} — the rest is in your order`, "error");
+    else if (Object.keys(before).length && !same) toast("Replaced what was in your order", "info", { action: { label: "Undo", run: () => { setCart(before); setCoOpen(false); } } });
   }, [toast, soldOut, menu, rows]);
 
   const value = useMemo<AppCtx>(

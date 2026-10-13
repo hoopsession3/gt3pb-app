@@ -17,7 +17,7 @@ import { useViewerMarket } from "@/components/useViewerMarket";
 import { useOrderingOpen } from "@/components/useOrderingOpen";
 import { closedWords, liveSwitchOn, readyWords, type NamedStop } from "@/lib/ordering";
 import { useAvailability } from "@/lib/availability";
-import { localToday, relativeDay, fmt12, clockTime, etDayKey, weekdayOf } from "@/lib/dates";
+import { etToday, etRelativeDay, fmt12, clockTime, etDayKey, weekdayOf } from "@/lib/dates";
 import { isStopAhead } from "@/lib/road";
 import { canceledLine } from "@/lib/stopCancel";
 import { clickable } from "@/lib/a11y";
@@ -145,7 +145,7 @@ async function fetchRoad(): Promise<Board> {
     // never a page that cannot load.
     // arrives-with: 0391 — until it is pasted this read errors on its own, is not checked, and the road reads as before.
     supabase!.from("stops").select("id, name, starts_at, ends_at, cancel_reason, market").not("canceled_at", "is", null)
-      .gte("starts_at", new Date(Date.now() - 12 * 3600 * 1000).toISOString()).order("starts_at", { ascending: true }).limit(5),
+      .gte("starts_at", new Date(Date.now() - 36 * 3600 * 1000).toISOString()).order("starts_at", { ascending: true }).limit(5),
   ]);
   if (e1) throw new Error(e1.message);
   if (e2) throw new Error(e2.message);
@@ -232,7 +232,8 @@ export default function FindUs() {
     };
   }, [refreshQuietly]);
 
-  const today = localToday();
+  // The truck's day (Eastern), not the phone's (R3, 2026-10-13): an event's day is the day it happens where it happens.
+  const today = etToday();
   // A stop can carry a close time (stops.ends_at). Two automatic wind-downs hang off it, so the
   // operator never has to remember to flip anything at the end of service:
   //   • online pre-ordering closes 60 min before that close time (stop taking orders you can't fill
@@ -277,8 +278,10 @@ export default function FindUs() {
   // A CANCELED STOP SAYS SO (H5, 0391): the soonest one called off that would still be on before this page's next
   // stop — not over yet, and starting no later — is said above it, with the reason. It was a row that vanished.
   const heroStartMs = hero?.starts_at ? Date.parse(hero.starts_at) : Number.POSITIVE_INFINITY;
+  // FOR ITS DAY (R3, 2026-10-13): one with no close time went at its start — a 7am stop called off was gone by 7:01,
+  // before anyone driving to it looked. It stays until its day is over, Eastern; the read keeps a day and a half of them.
   const canceledNext = (road?.canceled ?? []).find((c) => rowInMarket(c, viewerMarket) && !!c.starts_at
-    && Date.parse(c.ends_at ?? c.starts_at) > nowMs && Date.parse(c.starts_at) <= heroStartMs) ?? null;
+    && etDayKey(new Date(c.starts_at)) >= etDayKey(new Date(nowMs)) && Date.parse(c.starts_at) <= heroStartMs) ?? null;
   // THE ROAD STARTS AFTER THE HERO (2026-10-10, round 2: "the next stop is listed twice"). The hero
   // is the next stop — its name, its line (the stop's own note first, descFor), where, when, the menu
   // and directions — and its row under "On the road" said all of it again, one screen down. A hero
@@ -290,7 +293,7 @@ export default function FindUs() {
   // unambiguous near-term qualifier — "Today" / "This Sat" — which we pair with the numeric date for
   // clarity ("This Sat · 7/18"). Anything a week or more out (or with no date) keeps the original
   // absolute weekday + M/D — no "Next {wd}", which misread a 12-day-out Friday as the wrong Friday.
-  const heroRel = hero ? relativeDay(hero.starts_at ?? (hero.day ? `${hero.day}T12:00:00` : "")) : "";
+  const heroRel = hero ? etRelativeDay(hero.starts_at ?? hero.day ?? "") : "";
   const heroWhen = !hero
     ? ""
     : /^(Today|Tomorrow|Yesterday|This )/.test(heroRel) || heroRel.endsWith("d ago")
@@ -414,12 +417,14 @@ export default function FindUs() {
       {/* ONE red action per screen. While cups can be ordered it is the pre-order; with nothing to
           pre-order it says what it does — the menu — and the line under it says when cups open. In
           the stop's last hour, ordering online is over and we say so instead (lib/ordering). The
-          line is always there, one line tall, so the answer arriving moves nothing on the page. */}
+          line is always there, one line tall, so the answer arriving moves nothing on the page. The line names its stop
+          when it is not the one above it (R3, 2026-10-13): "cup orders open at 4:00pm" sat under an event, or under an
+          ended stop, about a place it did not name. */}
       {ordering?.state === "closing"
         ? <EditableCopy k="findus.cta_closed" value={t("findus.cta_closed")} as="p" className="k-sub" style={{ marginTop: 4 }} multiline />
         : <>
             <button type="button" className="btn-pri btn-wide k-cta" onClick={() => router.push("/menu")}>{t(ordering && !ordering.open ? "findus.cta_menu" : "findus.cta_preorder")}</button>
-            <p className="k-sub fu-state" role="status">{ordering ? (ordering.open ? readyWords(ordering) : closedWords(ordering, { named: false })) : " "}</p>
+            <p className="k-sub fu-state" role="status">{ordering ? (ordering.open ? readyWords(ordering) : closedWords(ordering, { named: !!ordering.stop && ordering.stop.id !== hero?.id })) : " "}</p>
           </>}
 
       {/* Quiet chip row — never a second red CTA. Get directions is the hero's one-tap "take me

@@ -77,13 +77,12 @@ export const COPY_META: CopyMeta[] = [
   // truck.stop_note, which sits in a detail panel outside its row's button). Reachable only via the
   // Edit pill added to the Today masthead — see app/page.tsx.
   { key: "stamp.kicker", group: "Loyalty card", label: "Small label, top-left of the card", default: "Your card" },
-  { key: "stamp.badge_full", group: "Loyalty card", label: "Top-right badge — card just completed", default: "Card full" },
   { key: "stamp.badge_earned_one", group: "Loyalty card", label: "Top-right badge — exactly 1 free cup ready to give (uses {count})", default: "{count} free cup ready" },
   { key: "stamp.badge_earned_other", group: "Loyalty card", label: "Top-right badge — 2+ free cups ready to give (uses {count})", default: "{count} free cups ready" },
   { key: "stamp.badge_default", group: "Loyalty card", label: "Top-right badge — no free drinks earned yet", default: "Free cup at 10" },
   { key: "stamp.foot_full", group: "Loyalty card", label: "Footer line — a full card, a free cup ready", default: "A free cup is ready — show your card at the window." },
-  { key: "stamp.foot_near", group: "Loyalty card", label: "Footer line — 1-2 stamps from a free drink (uses {count})", default: "So close — just {count} more till a free cup." },
-  { key: "stamp.foot_progress", group: "Loyalty card", label: "Footer line — default progress, 3+ stamps to go (uses {count})", default: "{count} more drinks till your next free one." },
+  { key: "stamp.foot_near", group: "Loyalty card", label: "Footer line — 1-2 stamps from a free drink (uses {count})", default: "So close — {count} more to a free cup" },
+  { key: "stamp.foot_progress", group: "Loyalty card", label: "Footer line — default progress, 3+ stamps to go (uses {count})", default: "{count} more to a free cup" },
   { key: "stamp.open_cta", group: "Loyalty card", label: "Footer, right side — opens the member card", default: "Open your card ›" },
   // ── Reserve card on the home screen ──
   { key: "pitch.kicker", group: "Reserve card", label: "Kicker", default: "Order Ahead" },
@@ -236,7 +235,6 @@ export const COPY_META: CopyMeta[] = [
   // ── Masthead eyebrows (context labels) on pages otherwise covered by their own groups above.
   //    Keys carry a masthead.* prefix but sit in each page's natural group so "View live →" lands
   //    on the exact page. (Shop/Primal/Book/3MPIRE eyebrows live in those groups above.) ──
-  { key: "masthead.today", group: "Home · signed-in", label: "Masthead eyebrow (Today)", default: "Today" },
   { key: "masthead.delivery", group: "Delivery", label: "Masthead eyebrow (Order ahead)", default: "Order ahead" },
   // ── Find Us · the facts + chrome (adoption pass 2026-08-10; two rows since Find Us 10, 2026-10-10: Where, and When
   //    with the day and the hours on one line). The honest fallbacks ("Location TBA"/"Soon"). ──
@@ -407,6 +405,30 @@ export const COPY_META: CopyMeta[] = [
   { key: "today.usual_leadsub", group: "Home · signed-in", label: "Your-usual row — lead sub", default: "usual" },
   { key: "today.usual_sub", group: "Home · signed-in", label: "Your-usual row — sub", default: "same order, one tap" },
   { key: "today.usual_cta", group: "Home · signed-in", label: "Your-usual row — order-again chip", default: "Order again" },
+  // ── Today, by state (2026-10-13, R3: the page leads with what is true now — components/today/TodayHome). ──
+  { key: "today.again", group: "Home · signed-in", label: "Lead button — order the usual again (drinks and price follow)", default: "Order again" },
+  { key: "today.usual_label", group: "Home · signed-in", label: "Under the lead button — names the usual", default: "Your usual" },
+  { key: "today.again_now", group: "Home · signed-in", label: "Under the lead button — when it's made, truck pouring", default: "ready about 8 min after you order" },
+  { key: "today.usual_then", group: "Home · signed-in", label: "Truck off — after when cup orders open", default: "Your usual is one tap then." },
+  { key: "today.change", group: "Home · signed-in", label: "Beside the lead — order something else", default: "Change it" },
+  { key: "today.first_cta", group: "Home · signed-in", label: "Lead button — no orders yet", default: "Order your first cup" },
+  { key: "today.first_sub", group: "Home · signed-in", label: "Under it — no orders yet", multiline: true,
+    default: "Order here and it's waiting at the window. Every cup earns a stamp — buy 10, the next is on us." },
+  { key: "today.usual_out", group: "Home · signed-in", label: "The usual isn't on today's menu", default: "Your usual isn't on today's menu — pick something new." },
+  { key: "today.see_menu", group: "Home · signed-in", label: "Button/chip — the menu", default: "See the menu" },
+  { key: "today.find_us", group: "Home · signed-in", label: "Chip — Find Us (packing up)", default: "Find us" },
+  { key: "today.directions", group: "Home · signed-in", label: "Chip — directions to the next stop", default: "Directions" },
+  { key: "today.off_eyebrow", group: "Home · signed-in", label: "Truck off — the small label over the next stop", default: "Truck's off · next stop" },
+  { key: "today.none_eyebrow", group: "Home · signed-in", label: "Nothing scheduled — small label", default: "Truck's off" },
+  { key: "today.none_title", group: "Home · signed-in", label: "Nothing scheduled — headline", default: "No stop on the calendar yet" },
+  { key: "today.card_empty", group: "Home · signed-in", label: "Card row — no stamps yet", default: "Every cup earns a stamp" },
+  { key: "today.packs_lead", group: "Home · signed-in", label: "Packs row — lead", default: "Packs" },
+  { key: "today.packs_name", group: "Home · signed-in", label: "Packs row — name", default: "Saturday's drop" },
+  { key: "today.packs_sub", group: "Home · signed-in", label: "Packs row — line", default: "Bottles brewed to order" },
+  { key: "today.packs_cta", group: "Home · signed-in", label: "Packs row — button", default: "Reserve" },
+  { key: "today.stack_lead", group: "Home · signed-in", label: "Stack row — lead", default: "Stack" },
+  { key: "today.stack_first", group: "Home · signed-in", label: "Stack row — name, no orders yet", default: "Not sure what to get?" },
+  { key: "today.stack_first_sub", group: "Home · signed-in", label: "Stack row — line, no orders yet", default: "A few questions, and we'll suggest a cup" },
   // ── Account — the 3MPIRE page's section labels + account rows + referral card chrome. ──
   { key: "account.orders_label", group: "Account", label: "Recent orders — section label", default: "Recent Orders" },
   { key: "account.orders_note", group: "Account", label: "Recent orders — annotation", default: "order again" },

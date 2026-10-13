@@ -1,121 +1,44 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useAuth } from "./AuthProvider";
-import { supabase } from "@/lib/supabase";
-import { authedFetch } from "@/lib/authedFetch";
+import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { useApp } from "./AppProvider";
-import type { Order } from "@/lib/db";
-import { saveSnapshot, readSnapshot, isNetworkError } from "./offline";
-import { snapshotUsable } from "@/lib/offline";
 import Icon from "@/components/Icon";
-import { useConfirm } from "./ConfirmSheet";
-import { isSettled } from "@/lib/settled";
 import { readyWords, waitingToOpen } from "@/lib/ordering";
+import { leadOrder, orderNo } from "@/lib/today";
+import { useMyActiveOrders, useOrderActions, ETA_WORDS } from "./useMyOrders";
 
 // A live "your order" banner for signed-in members — preparing → ready in realtime,
 // no push permission required (RLS lets a member read only their own orders). Guests
 // (no account) still get the at-checkout confirmation; this closes the loop for members.
+//
+// NOT ON TODAY (2026-10-13, R3): Today leads with the order itself — its number, its steps, the buttons that tell the
+// truck — so the bar above the tabs would say it twice. Every other screen keeps the bar. The reads and the actions are
+// components/useMyOrders, shared with Today's card.
 const STATUS_LABEL: Record<string, string> = {
   new: "Order received",
   preparing: "Preparing your order…",
   ready: "Ready — grab it at the bar",
 };
-const RANK: Record<string, number> = { ready: 3, preparing: 2, new: 1 };
 
 export default function OrderStatus() {
-  const confirm = useConfirm();
+  const path = usePathname();
+  if (path === "/") return null;
+  return <OrderBar />;
+}
+
+function OrderBar() {
   const { nameOf } = useApp(); // the Catalog's names (R2)
-  const { user } = useAuth();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [canceling, setCanceling] = useState(false);
-  const [etaBusy, setEtaBusy] = useState(false);
+  const { orders, stale, reload } = useMyActiveOrders();
   const [etaOpen, setEtaOpen] = useState(false); // chips fold until asked for
-  // Offline: a member who walks away from the truck (festival dead zones) still sees their
-  // last-known status, labeled as such, instead of the banner vanishing.
-  const [stale, setStale] = useState(false);
-  const loadedOnce = useRef(false);
-
-  const load = useCallback(async () => {
-    if (!supabase || !user) { setOrders([]); return; }
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("user_id", user.id)
-      .in("status", ["new", "preparing", "ready"])
-      .order("created_at", { ascending: false });
-    if (data) {
-      setOrders(data as Order[]); setStale(false); loadedOnce.current = true;
-      saveSnapshot(`gt3-order-snap-${user.id}`, data);
-      return;
-    }
-    if (error && !loadedOnce.current && isNetworkError(error.message)) {
-      const snap = readSnapshot<Order[]>(`gt3-order-snap-${user.id}`);
-      if (snap && snapshotUsable(snap.at, Date.now(), 90 * 60 * 1000) && snap.data.length > 0) { setOrders(snap.data); setStale(true); }
-    }
-  }, [user]);
-
-  useEffect(() => {
-    load();
-    if (!supabase || !user) return;
-    const interval = setInterval(load, 20000);
-    const onVis = () => { if (document.visibilityState === "visible") load(); };
-    document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("focus", load);
-    const ch = supabase
-      .channel("my-orders")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `user_id=eq.${user.id}` }, () => load())
-      .subscribe();
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("focus", load);
-      supabase?.removeChannel(ch);
-    };
-  }, [load, user]);
-
-  if (orders.length === 0) return null;
-  // Surface the most-advanced active order (ready beats preparing beats new), newest first.
-  const o = [...orders].sort((a, b) => (RANK[b.status] - RANK[a.status]) || (a.created_at < b.created_at ? 1 : -1))[0];
+  const o = leadOrder(orders);
+  const { setEta, etaBusy, cancel, canceling } = useOrderActions(o, reload);
+  if (!o) return null;
   const items = o.items.map(nameOf).join(" · ");
-  const paid = isSettled(o);
   // Placed ahead of a stop (0343): "Order received" for hours read as "any minute now". It says when.
   const label = o.status === "new" && o.ready_from && waitingToOpen(o)
     ? readyWords({ state: "ahead", readyFrom: o.ready_from })
     : STATUS_LABEL[o.status] ?? "Your order";
-
-  // Customer → pass quick replies ("I'm on the way / outside / running late"). One tap writes
-  // eta_status via the definer RPC (owner-only, active orders only); the KDS shows it live and
-  // OUTSIDE rings the pass so the crew calls the name. Tapping the active chip clears it.
-  const setEta = async (eta: "on_way" | "outside" | "late") => {
-    if (!supabase || etaBusy) return;
-    setEtaBusy(true);
-    const next = o.eta_status === eta ? null : eta;
-    // try/finally so a thrown (not just an {error}-shaped) RPC failure can't leave etaBusy stuck
-    // true forever — the chips would otherwise go permanently unusable for the rest of the session.
-    try {
-      const { data } = await supabase.rpc("set_order_eta", { p_order: o.id, p_eta: next });
-      if (data === true) load();
-    } finally {
-      setEtaBusy(false);
-    }
-  };
-
-  // Self-service cancel — allowed only while the order is still 'new' (not yet on the pass). The RPC
-  // re-checks owner + status server-side; a paid order flags staff for the Square refund.
-  const cancel = async () => {
-    if (!supabase || canceling) return;
-    // "Will follow shortly" overpromised a timeline this flow doesn't actually enforce.
-    if (!(await confirm({ title: "Cancel this order?", body: paid ? "We'll flag it for a refund and the crew will process it." : undefined, confirmLabel: "Cancel order", cancelLabel: "Keep order", danger: true }))) return;
-    setCanceling(true);
-    // Route (not the raw RPC) so canceling also pings the crew + texts/emails the customer.
-    const ok = await authedFetch("/api/orders/cancel", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ channel: "cup", id: o.id }),
-    }).then((r) => r.ok ? r.json() : null).then((d) => d?.ok === true).catch(() => false);
-    setCanceling(false);
-    if (ok) load();
-  };
 
   return (
     <div className={`orderbar-wrap st-${o.status}`}>
@@ -132,20 +55,20 @@ export default function OrderStatus() {
             {canceling ? "Canceling…" : "Cancel"}
           </button>
         )}
-        <span className="orderbar-tag">#{o.id.slice(0, 4).toUpperCase()}</span>
+        <span className="orderbar-tag">{orderNo(o.id)}</span>
       </div>
       {/* Talk to the truck — folded until asked for; once set, it collapses to the answer. */}
       {etaOpen ? (
         <div className="orderbar-eta" role="group" aria-label="Tell the truck">
-          {([["on_way", "compass", "On my way"], ["outside", "pin", "I'm outside"], ["late", "clock", "Running late"]] as const).map(([k, icon, label]) => (
+          {([["on_way", "compass"], ["outside", "pin"], ["late", "clock"]] as const).map(([k, icon]) => (
             <button key={k} type="button" className={`k-chip sm${o.eta_status === k ? " on" : ""}`} disabled={etaBusy} onClick={async () => { await setEta(k); setEtaOpen(false); }} aria-pressed={o.eta_status === k}>
-              <Icon name={icon} /> {label}
+              <Icon name={icon} /> {ETA_WORDS[k]}
             </button>
           ))}
         </div>
       ) : o.eta_status ? (
         <div className="orderbar-eta collapsed">
-          <span className="eta-set"><Icon name={({ on_way: "compass", outside: "pin", late: "clock" } as const)[o.eta_status]} /> {({ on_way: "On my way", outside: "I'm outside", late: "Running late" } as const)[o.eta_status]} <Icon name="check" /></span>
+          <span className="eta-set"><Icon name={({ on_way: "compass", outside: "pin", late: "clock" } as const)[o.eta_status]} /> {ETA_WORDS[o.eta_status]} <Icon name="check" /></span>
           <button type="button" className="eta-change" onClick={() => setEtaOpen(true)}>change</button>
         </div>
       ) : (

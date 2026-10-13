@@ -268,6 +268,26 @@ export const relativeDay = (input: Date | string): string => {
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 };
 
+// THE TRUCK'S "TODAY" (2026-10-13, R3 of the customer audit): relativeDay answers in the phone's day, which is right
+// for the crew's own lists and wrong for a stop, which happens on one day where the truck is. Find Us said "Tomorrow
+// · 10/13" over a stop it dated 10/13 for anyone west of Eastern after their midnight — and "open today at 7:00am" beside
+// it (etWhen). This one is relativeDay's words on the business day, Eastern; a day key (YYYY-MM-DD) is that day already.
+const ET_MON_DAY = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric" });
+export function etRelativeDay(input: Date | string, nowMs: number = Date.now()): string {
+  const isKey = typeof input === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input);
+  const d = typeof input === "string" ? (isKey ? null : new Date(input)) : input;
+  if (d && isNaN(d.getTime())) return "";
+  const key = isKey ? (input as string) : etDayKey(d as Date);
+  const diff = Math.round((dayFromKey(key).getTime() - dayFromKey(etDayKey(new Date(nowMs))).getTime()) / 864e5);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  if (diff === -1) return "Yesterday";
+  if (diff > 1 && diff < 7) return `This ${weekdayOf(key, "short")}`;
+  if (diff <= -2 && diff > -7) return `${-diff}d ago`;
+  return isKey ? WD_MON_DAY_KEY(key) : ET_MON_DAY.format(d as Date);
+}
+const WD_MON_DAY_KEY = (key: string) => dayFromKey(key).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
 // ── A DAY, SAID ONCE (2026-10-04) ─────────────────────────────────────────────────────────────
 // Ryan's Live Ops, Saturday night: "PICKUP · RESERVES & PACKS   Oct 10 · Oct 10's drop". The
 // caller contract above says pair relativeDay with the absolute date, so "This Sat" cannot misread

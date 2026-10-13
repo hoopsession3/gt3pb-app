@@ -5979,14 +5979,17 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("pickup: 'paid' on the upcoming and past lists is settled, not paid-online", /\{isSettled\(o\) \? <> · paid <Icon name="check" \/><\/> : ""\}/.test(dops) && /\{isSettled\(o\) \? "" : " · unpaid"\}/.test(dops));
 
   // ── the customer ──
+  // The order bar's reads and actions are components/useMyOrders since R3 (2026-10-13), shared with Today's order card.
   const packs = code(read("components/MyPacks.tsx")), status = code(read("components/OrderStatus.tsx")), funnel = code(read("components/OrderFunnel.tsx"));
+  const myOrders = code(read("components/useMyOrders.ts")), todayHome = code(read("components/today/TodayHome.tsx"));
   const inbox = code(read("components/MemberInbox.tsx")), mpire = code(read("app/3mpire/page.tsx")), move = code(read("app/api/reserve/move/route.ts"));
   ok("customer: a pack paid at the window reads paid, buzzes paid, and is not '$ at pickup'",
     /: isSettled\(p\) \? <><Icon name="check" \/> paid<\/> : "\$ at pickup"\}/.test(packs) && /return cur && !isSettled\(prev\) && isSettled\(cur\); \}\)\) haptic\("paid"\);/.test(packs)
     && /const atPickup = rows\.filter\(\(x\) => !isSettled\(x\)\)\.length;/.test(packs) && !/p\.paid \? <>|p\.paid \? "paid"|: p\.paid \? "paid"/.test(packs));
   ok("customer: paid at the window, the pack and the cup are the crew's to cancel — no button that the database will refuse",
     /\{!p\.collected_at && <button type="button" className="btn-del" onClick=\{\(\) => cancel\(p\)\}/.test(packs) && /\{onChange && !p\.collected_at && /.test(packs)
-    && /\{o\.status === "new" && !o\.collected_at && \(/.test(status) && /const paid = isSettled\(o\);/.test(status));
+    && /\{o\.status === "new" && !o\.collected_at && \(/.test(status) && /const paid = isSettled\(o\);/.test(myOrders)
+    && /const canCancel = order\.status === "new" && !order\.collected_at;/.test(todayHome) && /\{canCancel && <button type="button" className="btn-del"/.test(todayHome));
   ok("customer: the lists that select their own columns read the stored answer (payment_status, there since 0155) — never a column 0341 has yet to add",
     /\.select\("id, size, paid, payment_status, picked_up"\)/.test(funnel) && /\$\{isSettled\(o\) \? "paid" : "pay at pickup"\}/.test(funnel)
     && /\.select\("id, size, drop_date, paid, payment_status, picked_up, canceled_at, status_changed_at, created_at"\)/.test(inbox) && /\$\{isSettled\(p\) \? "" : " · pay at pickup"\}/.test(inbox)
@@ -5995,7 +5998,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // A refund is still decided by `paid` — only a card paid online goes back through Square, and a
   // collected order cannot be canceled from a phone — so this looks for the WORDS of a payment state.
   ok("customer: the customer's screens import the rule from lib/settled — lib/collect is the crew's half, and every page loads what they import (0.7 KB, measured)",
-    [packs, status, funnel, inbox, mpire, move].every((t) => /import \{ isSettled \} from "@\/lib\/settled";/.test(t) && !/from "@\/lib\/collect"/.test(t))
+    [packs, myOrders, todayHome, funnel, inbox, mpire, move].every((t) => /import \{ isSettled \} from "@\/lib\/settled";/.test(t) && !/from "@\/lib\/collect"/.test(t)) && !/from "@\/lib\/collect"/.test(status)
     && /export \{ isSettled, type Collectable \};/.test(read("lib/collect.ts")) && !/export function isSettled/.test(read("lib/collect.ts")));
   ok("customer: no screen says paid-or-owed from `paid` alone any more",
     ![packs, status, funnel, inbox, mpire, move, dops, kit].some((t) => /\b[opx]\.paid \? (?:<>|"(?:PAID|Paid|paid)\b|"" : " · (?:unpaid|pay at pickup)")/.test(t) || /\(o\) => !o\.paid\)/.test(t)));
@@ -7067,7 +7070,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && (api.match(/\.\.\.promise \}/g) || []).length >= 4);
   ok("Find Us: asks the rule; with nothing to pre-order the button is the menu and the line says when cups open",
     /useOrderingOpen\(true, viewerMarket, `\$\{live\?\.is_live/.test(fu) && /\}, \[active, market, refreshKey\]\);/.test(hook) && /t\(ordering && !ordering\.open \? "findus\.cta_menu" : "findus\.cta_preorder"\)/.test(fu)
-    && /closedWords\(ordering, \{ named: false \}\)/.test(fu) && /ordering\?\.state === "closing"/.test(fu)
+    && /closedWords\(ordering, \{ named: !!ordering\.stop && ordering\.stop\.id !== hero\?\.id \}\)/.test(fu) && /ordering\?\.state === "closing"/.test(fu) // named unless it is the hero's (R3)
     && /\.fu-state\{min-height:1\.45em/.test(read("app/globals.css")));
   ok("Find Us: the live row's Pre-order chip follows the same rule", /rowLive && ordering\?\.open !== false && <button/.test(fu));
   ok("menu: closed, the order line is the truck's state and the price is a price",
@@ -10474,7 +10477,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /if \(!\(await staffFromRequest\(req\)\)\) return NextResponse\.json/.test(wr) && /\.eq\("tenant_id", tenant\)\.eq\("id", me\.id\)\.maybeSingle\(\)/.test(wr)
     && (wr.match(/await crewFacts\(tenant, person\)/g) || []).length === 2 && /export const GET = route\("team\/welcome", get\);/.test(wr)
     && /\.eq\("tenant_id", tenant\)\.eq\("role", "owner"\)/.test(wr));
-  const home = code(read("app/page.tsx")), row = code(read("components/CrewWelcomeRow.tsx"));
+  const home = code(read("components/today/TodayHome.tsx")), row = code(read("components/CrewWelcomeRow.tsx")); // Today is TodayHome since R3
   ok("the way over: a staff member who has never picked a side on this phone sees one row on the home that opens the crew side and the guide — loaded only for them",
     /\{isStaff\(profile\) && !sideChosen && <CrewWelcomeRow \/>\}/.test(home) && /const \[sideChosen\] = useState\(\(\) => readMode\(\) !== null\);/.test(home)
     && /const CrewWelcomeRow = dynamic\(\(\) => import\("@\/components\/CrewWelcomeRow"\)\);/.test(home) && !/lib\/crewStart/.test(home)
@@ -13174,7 +13177,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("card: one line on every screen — progress, or the free cups ready, singular and plural",
     L.cardLine(L.cardOf(8)) === "8/10 · 2 to a free cup" && L.cardLine(L.cardOf(10)) === "1 free cup ready" && L.cardLine(L.cardOf(25)) === "2 free cups ready"
     && L.freeWords(1) === "1 free cup ready" && L.STAMP_GOAL === 10);
-  const files = ["components/StampCard.tsx", "components/AccountSheet.tsx", "components/MembershipCard.tsx", "app/scan/page.tsx", "app/3mpire/page.tsx", "app/api/wallet/google/route.ts"];
+  // Today's card is a row of components/today/TodayHome since R3 (2026-10-13); the stamp card it was went.
+  const files = ["components/today/TodayHome.tsx", "components/AccountSheet.tsx", "components/MembershipCard.tsx", "app/scan/page.tsx", "app/3mpire/page.tsx", "app/api/wallet/google/route.ts"];
   ok("card: the six places that worked out the card ask lib/loyalty — no GOAL = 10, no % 10, no \"free earned\" left",
     files.every((f) => /from "@\/lib\/loyalty"/.test(rd(f)) && !/const GOAL = 10;/.test(rd(f)) && !/% 10\b/.test(rd(f)) && !/free earned/.test(rd(f))),
     files.filter((f) => !/from "@\/lib\/loyalty"/.test(rd(f)) || /const GOAL = 10;|% 10\b|free earned/.test(rd(f))));
@@ -13591,6 +13595,77 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   for (const d of ["app", "components", "lib"]) walk(d);
   ok("the code list is seed data: only lib/drinks reads it, with the Square name fallback and the day generator's recommendation tables",
     readers.sort().join(",") === ["app/api/menu/route.ts", "components/GenerateDay.tsx", "lib/drinks.ts", "lib/squareCatalog.ts"].join(","), readers);
+}
+
+// ── TODAY, BY STATE (2026-10-13, R3 of the customer audit — "the state-aware home", boards 03–06, approved) ──
+// Today was one page whatever the truck was doing: with it off, Order again opened a checkout that said so; with a cup
+// being made, the page still sold the usual. lib/today decides what leads; components/today/TodayHome draws it.
+{
+  const TD = require("../.smoke/today.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const stop = { id: "s1", name: "WineXpress", starts_at: "2026-10-17T11:00:00Z", ends_at: "2026-10-17T16:00:00Z", where: "202 Scuffletown Rd, Simpsonville, SC 29681", leadMs: 0, pickup: true };
+  const ord = (state, extra = {}) => ({ state, open: ["live", "started", "ahead"].includes(state), stop, opensAt: null, readyFrom: null, ...extra });
+  const o = (id, status, at, items = ["flow"]) => ({ id, status, created_at: at, items });
+  const kinds = ["live", "started", "ahead", "closing", "early", "none"].map((st) => TD.todayLead([], ord(st)).kind);
+  ok("today: the lead follows the truck — pouring or under way is open, a window ahead is open (not pouring), the last hour is closing, a shut window is later, nothing is none",
+    kinds.join(",") === "open,open,open,closing,later,none" && TD.todayLead([], ord("live")).pouring === true && TD.todayLead([], ord("ahead", { readyFrom: stop.starts_at })).pouring === false
+    && TD.todayLead([], ord("ahead", { readyFrom: stop.starts_at })).readyFrom === stop.starts_at && TD.todayLead([], ord("early", { opensAt: "2026-10-17T07:00:00Z" })).opensAt === "2026-10-17T07:00:00Z", kinds);
+  ok("today: the truck not read claims nothing (unknown); an order in progress leads whatever the truck says",
+    TD.todayLead([], null).kind === "unknown" && TD.todayLead([o("a", "new", "2026-10-13T10:00:00Z")], null).kind === "making" && TD.todayLead([o("a", "preparing", "2026-10-13T10:00:00Z")], ord("none")).kind === "making");
+  const lead = TD.todayLead([o("old", "new", "2026-10-13T09:00:00Z"), o("rdy", "ready", "2026-10-13T08:00:00Z"), o("mk", "preparing", "2026-10-13T10:00:00Z"), o("v", "void", "2026-10-13T11:00:00Z"), o("d", "done", "2026-10-13T11:30:00Z")], ord("live"));
+  ok("today: the order that leads is the most advanced open one — ready, then being made, then in; a void or a done one never leads; the rest are counted",
+    lead.kind === "making" && lead.order.id === "rdy" && lead.more === 2 && TD.leadOrder([o("v", "void", "x"), o("d", "done", "y")]) === null, lead);
+  const usual = TD.usualOf([o("n", "new", "2026-10-13T12:00:00Z", ["rise"]), o("v", "void", "2026-10-13T11:00:00Z", ["kingme"]), o("d1", "done", "2026-10-12T10:00:00Z", ["flow", "tide"]), o("d0", "done", "2026-10-01T10:00:00Z", ["dusk"])]);
+  ok("today: the usual is the last order picked up — never one cancelled or still being made (Today took the newest of any status)",
+    JSON.stringify(usual) === JSON.stringify(["flow", "tide"]) && TD.usualOf([o("v", "void", "z", ["kingme"])]) === null && TD.usualOf([]) === null, usual);
+  ok("today: Order again offers what the cart will hold — off the menu, sold out, or not poured at this stop is left out",
+    TD.orderable(["flow", "tide", "gone", "forge"], new Set(["flow", "tide", "forge"]), new Set(["tide"]), null).join() === "flow,forge"
+    && TD.orderable(["flow", "forge"], new Set(["flow", "forge"]), new Set(), new Set(["forge"])).join() === "forge");
+  ok("today: the drinks in words, a repeat counted once; the number the window calls; four steps from in to picked up; a stop's day in Eastern",
+    TD.drinksWords(["flow", "tide", "flow"], (x) => x.toUpperCase()) === "FLOW ×2 · TIDE" && TD.orderNo("4f2a9c1e-0000") === "#4F2A"
+    && [TD.stepOf("new"), TD.stepOf("preparing"), TD.stepOf("ready"), TD.stepOf("done")].join() === "0,1,2,3" && TD.ORDER_STEPS.join() === "In,Making,Ready,Picked up"
+    && TD.etDay("2026-10-17T11:00:00Z") === "Sat 10/17" && TD.etDay("2026-10-18T03:30:00Z") === "Sat 10/17" && TD.etDay(null) === "");
+  const th = rd("components/today/TodayHome.tsx"), ap = rd("components/AppProvider.tsx"), os = rd("components/OrderStatus.tsx"), page = rd("app/page.tsx");
+  ok("today: one page, drawn by state — the order card, the lead, or the room it keeps until the truck and the usual are read; the TODAY eyebrow went",
+    /\{lead\.kind === "making"\s+\? <MakingCard order=\{lead\.order\}/.test(th) && /: holding \? <div className="mt-5 min-h-\[132px\]" aria-busy="true" \/>/.test(th)
+    && /<Masthead right=\{/.test(th) && !/masthead\.today/.test(th + rd("lib/copy.ts")) && /return <TodayHome t=\{t\} \/>;/.test(page));
+  ok("today: Order again is one tap to checkout with what the cart will hold, priced by the server's quote (the amount Pay holds to) — never a guess",
+    /onClick=\{\(\) => reorder\(can\)\}>\s*\{t\("today\.again"\)\} · \{drinksWords\(can, nameOf\)\}\{cents !== null \? ` · \$\{money\(cents\)\}` : ""\}/.test(th)
+    && /authedFetch\("\/api\/checkout\/quote"/.test(th) && /const can = usual \? orderable\(usual, onMenu, soldOut, stopMenu\) : \[\];/.test(th));
+  ok("today: Order again replaces the cart and opens checkout — what the cart held comes back with Undo, never added to",
+    /setCart\(next\);\s+setCoOpen\(true\);/.test(ap) && /action: \{ label: "Undo", run: \(\) => \{ setCart\(before\); setCoOpen\(false\); \} \}/.test(ap)
+    && !/next\[id\] = \(next\[id\] \?\? 0\) \+ 1; \}\);\s+if \(wasEmpty\)/.test(ap));
+  ok("today: the truck off says where it goes next and when cup orders open — before any tap; nothing scheduled says so",
+    /t\("today\.off_eyebrow"\)/.test(th) && /`Cup orders open \$\{etWhen\(lead\.opensAt\)\}\./.test(th) && /"Cup orders open when the truck goes live\."/.test(th)
+    && /closedWords\(\{ state: "none"/.test(th) && /etDay\(s\.starts_at\), timeRange\(s\.starts_at, s\.ends_at\)/.test(th));
+  ok("today: the order in progress is Today's lead, and the bar above the tabs stays off Today so it is not said twice",
+    /if \(path === "\/"\) return null;\s+return <OrderBar \/>;/.test(os) && /useMyActiveOrders\(\)/.test(os) && /useMyActiveOrders\(\)/.test(th)
+    && /<Steps at=\{stepOf\(order\.status\)\} \/>/.test(th) && /\{eta\("on_way"\)\}\s+\{eta\("outside"\)\}/.test(th));
+  ok("today: the card, the packs and the stack are a row each — the card in the card's own words (stamp.*), the packs not to someone with one coming, the stack in a sheet",
+    /<InfoRow lead=\{t\("stamp\.kicker"\)\} leadSub=\{`\$\{c\.stamps\}\/\$\{STAMP_GOAL\}`\}/.test(th) && /\{!hasPack && \(/.test(th)
+    && /const GenerateDay = dynamic\(\(\) => import\("@\/components\/GenerateDay"\)\);/.test(th) && !fs.existsSync(path.join(__dirname, "..", "components/StampCard.tsx")));
+}
+
+// ── FIND US ON THE TRUCK'S CLOCK (2026-10-13, R3 of the customer audit) ──
+// A stop happens on one day where the truck is: "Tomorrow · 10/13" over a stop dated 10/13 was the phone's day. A stop
+// called off with no close time went at its start, and the ordering line under an event never named the stop it meant.
+{
+  const D = require("../.smoke/dates.js");
+  const fs = require("node:fs"), path = require("node:path");
+  const fu = fs.readFileSync(path.join(__dirname, "..", "components/FindUs.tsx"), "utf8");
+  const at = Date.parse("2026-10-13T03:30:00Z"); // 11:30pm Monday 10/12 in Greenville; Tuesday already in UTC
+  ok("dates: the truck's relative day is Eastern — today, tomorrow, this weekday, days ago, else the date; a day key is that day",
+    D.etRelativeDay("2026-10-13T14:00:00Z", at) === "Tomorrow" && D.etRelativeDay("2026-10-12T14:00:00Z", at) === "Today"
+    && D.etRelativeDay("2026-10-17T11:00:00Z", at) === "This Sat" && D.etRelativeDay("2026-10-10", at) === "2d ago"
+    && D.etRelativeDay("2026-10-11", at) === "Yesterday" && D.etRelativeDay("2026-10-30T16:00:00Z", at) === "Oct 30" && D.etRelativeDay("2026-11-02", at) === "Nov 2"
+    && D.etRelativeDay("nope", at) === "", [D.etRelativeDay("2026-10-13T14:00:00Z", at), D.etRelativeDay("2026-10-30T16:00:00Z", at)]);
+  ok("find us: the hero's day and the events' today are the truck's (Eastern) — never the phone's",
+    /const heroRel = hero \? etRelativeDay\(hero\.starts_at \?\? hero\.day \?\? ""\) : "";/.test(fu) && /const today = etToday\(\);/.test(fu) && !/relativeDay\(|localToday\(/.test(fu.replace(/etRelativeDay\(/g, "")));
+  ok("find us: a stop called off says so for its whole day (Eastern), read a day and a half back — not gone at its start",
+    /etDayKey\(new Date\(c\.starts_at\)\) >= etDayKey\(new Date\(nowMs\)\)/.test(fu) && /Date\.now\(\) - 36 \* 3600 \* 1000/.test(fu) && !/Date\.parse\(c\.ends_at \?\? c\.starts_at\) > nowMs/.test(fu));
+  ok("find us: the ordering line names its stop when it is not the stop above it",
+    /closedWords\(ordering, \{ named: !!ordering\.stop && ordering\.stop\.id !== hero\?\.id \}\)/.test(fu) && !/named: false/.test(fu));
 }
 
 Promise.all(PENDING).then(() => {
