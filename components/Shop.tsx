@@ -19,6 +19,7 @@ import { readMedia, coverOf, hasVideo, type MediaItem } from "@/lib/shopMedia";
 import { money } from "@/lib/money";
 import { useApp } from "@/components/AppProvider";
 import { variantLabel, type Variant, type Product, type CartLine } from "@/lib/shopCart";
+import type { ShopReceipt } from "@/lib/receipt";
 import SwipePager from "@/components/SwipePager";
 import { haptic } from "@/lib/haptics";
 import { Segmented } from "@/components/controls";
@@ -47,7 +48,7 @@ export default function Shop() {
   const [view, setView] = useState<"grid" | "product" | "checkout" | "done">("grid");
   const [active, setActive] = useState<Product | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [doneRef, setDoneRef] = useState<{ warn?: string; emailed?: boolean } | null>(null);
+  const [doneRef, setDoneRef] = useState<{ warn?: string; emailed?: boolean; receipt?: ShopReceipt } | null>(null);
   // Claim the screen for the whole PURCHASE, not just the form: the drinks CartBar was floating over
   // the Pay button on checkout, and then again under "Order in" on the confirmation, both times
   // quoting a different cart's total. Scoping this to the checkout view alone released it one screen
@@ -172,7 +173,7 @@ export default function Shop() {
 
       {section === "merch" && view === "checkout" && (
         <ShopCheckout cart={cart} total={total} isMember={!!user} setQty={setQty}
-          onBack={() => setView("grid")} onDone={(warn, emailed) => { setDoneRef({ warn, emailed }); setCart([]); setView("done"); }} />
+          onBack={() => setView("grid")} onDone={(warn, emailed, receipt) => { setDoneRef({ warn, emailed, receipt }); setCart([]); setView("done"); }} />
       )}
 
       {section === "merch" && view === "done" && (
@@ -189,6 +190,27 @@ export default function Shop() {
             : doneRef?.emailed === false
             ? <p className="shop-lede">Your order is in — we have it. No email receipt went out, so keep this screen: we&apos;ll follow up by hand, and tracking still comes when it ships.</p>
             : <EditableCopy k="shop.done_lede" value={t("shop.done_lede")} as="p" className="shop-lede" multiline />}
+          {/* THE RECEIPT (2026-10-13, R5 — "A merch receipt"): what was bought and what was charged, as the checkout priced
+              it (lib/receipt shopReceipt), with the number the email gives — not "you'll get an email" and nothing else.
+              Absent when the order is still being added (the warn above says so, with its reference). */}
+          {doneRef?.receipt && (
+            <div className="shop-lines mx-auto mb-6 max-w-[420px] text-left">
+              {doneRef.receipt.lines.map((l, i) => (
+                <div className="shop-line" key={i}>
+                  <div className="shop-line-x">
+                    <span className="shop-line-t">{l.qty}× {l.title}</span>
+                    {l.variant && <span className="shop-line-v">{l.variant}</span>}
+                  </div>
+                  <span className="shop-line-px">{money(l.unit_cents * l.qty)}</span>
+                </div>
+              ))}
+              <div className="shop-total"><span>Paid · order {doneRef.receipt.no}</span><b>{money(doneRef.receipt.total_cents)}</b></div>
+              <p className="shop-fine text-left">
+                {doneRef.receipt.ship_to ? `Ships to ${doneRef.receipt.ship_to}.` : ""}
+                {doneRef.receipt.email ? ` Receipt sent to ${doneRef.receipt.email}; tracking follows by email when it ships.` : ""}
+              </p>
+            </div>
+          )}
           {/* "Keep shopping" is inside a <button> — plain t(), not EditableCopy (same nested-
               interactive rule as Craft's CTAs). Editable via Settings → the Shop group. */}
           <button type="button" className="btn-sec" onClick={() => setView("grid")}>{t("shop.keep")}</button>

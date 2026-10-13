@@ -9178,7 +9178,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("checkout: an error said with toast() is not buzzed again here — AppProvider already felt it",
     (co.match(/haptic\("error"\)/g) || []).length === 1 && (sc.match(/haptic\("error"\)/g) || []).length === 1);
   ok("shop checkout: a payment through is paid, and the error under the card is felt where it is set",
-    /if \(!r\.ok\) \{ setErr\(payErrorText\(data\.error\)\); setBusy\(false\); return; \}\s+haptic\("paid"\);/.test(sc) && /useEffect\(\(\) => \{ if \(err\) haptic\("error"\); \}, \[err\]\);/.test(sc));
+    /if \(!r\.ok\) \{[\s\S]{0,240}?setErr\(payErrorText\(data\.error\)\); setBusy\(false\); return;\s*\}\s+haptic\("paid"\);/.test(sc) && /useEffect\(\(\) => \{ if \(err\) haptic\("error"\); \}, \[err\]\);/.test(sc));
   const of = code(read("components/OrderFunnel.tsx")), dr = code(read("components/DriverRun.tsx"));
   ok("order form: its inline errors are felt where they are set, and a code is success when it lands, error when it does not",
     /useEffect\(\(\) => \{ if \(err\) haptic\("error"\); \}, \[err\]\);/.test(of) && (of.match(/haptic\("error"\)/g) || []).length === 2
@@ -14019,6 +14019,36 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("a stop called off tells its own packs — and the day's unlinked ones only when no other stop is left that day — not another stop's",
     /\.eq\("stop_id", id\)\.is\("canceled_at", null\)\.eq\("picked_up", false\);/.test(sc) && /if \(!res\.other_stop_that_day\) \{/.test(sc)
     && /\.eq\("drop_date", res\.day\)\.is\("stop_id", null\)/.test(sc) && /if \(atStop\.error && isMissingColumn\(atStop\.error\)\) \{/.test(sc));
+}
+
+// ── A MERCH RECEIPT (2026-10-13, R5 — "A merch receipt") ────────────────────────────────────────────────────────────
+// The merch done screen said "Thanks — you'll get an email" and nothing about the order. It shows the receipt now — the
+// lines the checkout priced, the total it charged, the email's own number — and the Pay button's total is the most the
+// checkout charges, as packs and delivery.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const RC = require("../.smoke/receipt.js");
+  const r = RC.shopReceipt({ id: "a1b2c3d4-0000-4000-8000-000000000001", ship_name: "Jordan Reyes", city: "Simpsonville", state: "SC", total_cents: 6800, emailed_to: "jordan@example.test",
+    lines: [{ title: "GT3 6-Panel Cap", variant: "One size · Black", qty: 1, unit_cents: 3200 }, { title: "Motion Tee", variant: "M · Cream", qty: 2, unit_cents: 1800 }, { title: "", variant: null, qty: 1, unit_cents: 0 }] });
+  ok("receipt: the email's own number, the lines as charged (an empty line dropped), the total, where it ships, where the receipt went",
+    r.no === "#A1B2C3" && r.no === `#${RC.orderRef("a1b2c3d4-0000-4000-8000-000000000001")}` && r.lines.length === 2 && r.lines[1].qty === 2 && r.lines[1].unit_cents === 1800
+    && r.total_cents === 6800 && r.ship_to === "Jordan Reyes · Simpsonville, SC" && r.email === "jordan@example.test");
+  ok("receipt: no email sent is said as none — the screen says so instead of naming an address",
+    RC.shopReceipt({ id: "x", total_cents: 100, lines: [], emailed_to: null }).email === null && RC.shopReceipt({ id: "x", ship_name: " ", total_cents: 100, lines: [] }).ship_to === "");
+  const rt = code(rd("app/api/shop/checkout/route.ts")), sc = code(rd("components/ShopCheckout.tsx")), sh = code(rd("components/Shop.tsx"));
+  ok("checkout: a merch total above the Pay button is refused before the key is claimed or the card asked",
+    /const raised = aboveShown\(total, shownCents\(body\.expectedCents\)\);/.test(rt) && rt.indexOf("aboveShown(total") < rt.indexOf("await claimKey(") && rt.indexOf("aboveShown(total") < rt.indexOf("chargeCard({"));
+  ok("checkout: the answer carries the receipt — the priced lines, the charged total, the email's number",
+    /const receipt = shopReceipt\(\{ id: orderId, ship_name: shipName, city: addr\.city, state: addr\.state, total_cents: total, emailed_to: emailed \? email : null,/.test(rt)
+    && /body: \{ ok: true, id: orderId, paid: true, recorded: true, emailed, totalCents: total, receipt \}/.test(rt));
+  ok("Pay sends the total it shows; a raised total is shown for this cart and agreed to by the next tap",
+    /expectedCents: payCents,/.test(sc) && /const payCents = agreed && agreed\.sig === cartSig \? agreed\.cents : total;/.test(sc)
+    && /fillCopy\(t\("checkout\.pay"\), \{ total: money\(payCents\) \}\)/.test(sc) && /setAgreed\(\{ sig: cartSig, cents: data\.totalCents \}\)/.test(sc));
+  ok("the done screen shows the receipt it was handed: lines, the total paid with its order number, where it ships",
+    /onDone=\{\(warn, emailed, receipt\) => \{ setDoneRef\(\{ warn, emailed, receipt \}\);/.test(sh) && /<span>Paid · order \{doneRef\.receipt\.no\}<\/span><b>\{money\(doneRef\.receipt\.total_cents\)\}<\/b>/.test(sh)
+    && /doneRef\.receipt\.lines\.map\(/.test(sh));
 }
 
 Promise.all(PENDING).then(() => {

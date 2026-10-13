@@ -5,9 +5,11 @@ import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { accountEmail } from "@/lib/notify";
 import { tellCustomer } from "@/lib/customerMessage";
-import { orderReceipt } from "@/lib/receipt";
+import { orderReceipt, shopReceipt } from "@/lib/receipt";
 import { submitOrderToApliiq } from "@/lib/apliiq";
 import { skuFor } from "@/lib/apliiqOrder";
+import { variantLabel, type Variant } from "@/lib/shopCart";
+import { aboveShown, shownCents } from "@/lib/shownTotal";
 import { stateCode, usZip } from "@/lib/usAddress";
 import { integrationTenant } from "@/lib/tenantScope";
 import { money } from "@/lib/money";
@@ -34,7 +36,7 @@ async function post(req: Request) {
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
   if (!supabaseAdmin) return NextResponse.json({ error: "The shop isn't switched on yet." }, { status: 503 });
 
-  let body: { sourceId?: string; idempotencyKey?: string; items?: InItem[]; ship?: Ship };
+  let body: { sourceId?: string; idempotencyKey?: string; items?: InItem[]; ship?: Ship; expectedCents?: number };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
 
   if (!token || !locationId) return NextResponse.json({ error: "Card checkout isn't switched on yet." }, { status: 503 });
@@ -117,6 +119,11 @@ async function post(req: Request) {
   if (lineItems.length === 0) return NextResponse.json({ error: "Nothing in your cart is available." }, { status: 409 });
   const total = subtotal; // shipping/tax can layer here later; POD ships flat via Apliiq for now
   if (total <= 0) return NextResponse.json({ error: "Cart total is $0 — nothing to charge." }, { status: 400 });
+  // Never more than the Pay button said (R5, lib/shownTotal — as packs and delivery): a price raised in the catalog while
+  // the cart sat open is refused before any charge, with the total it is now; the next tap agrees to it. It was charged at
+  // the new price, under a button that said the old one.
+  const raised = aboveShown(total, shownCents(body.expectedCents));
+  if (raised) return NextResponse.json(raised, { status: 409 });
 
   const held = await claimKey(seen.claims, idemKey, { channel: "shop", card: true, amountCents: total }, now, stopped, say);
   if ("answer" in held) return reply(held.answer);
@@ -208,8 +215,11 @@ async function post(req: Request) {
         }
       } catch { /* notify is best-effort — a provider hiccup must never fail a paid order */ }
       await raiseAlert({ severity: "fyi", category: "order", kind: "shop_order_new", subjectId: orderId, title: "New shop order 🧢", body: `${shipName} — ${lineItems.map((l) => `${l.qty}× ${l.title}`).join(", ")} · ${money(total)}.` });
-      // `emailed` is what the confirmation screen uses instead of promising one unconditionally.
-      return { status: 200, body: { ok: true, id: orderId, paid: true, recorded: true, emailed } };
+      // `emailed` is what the confirmation screen uses instead of promising one unconditionally. The receipt is what it
+      // shows (R5, lib/receipt shopReceipt): the lines as priced here and the total charged, the email's own number.
+      const receipt = shopReceipt({ id: orderId, ship_name: shipName, city: addr.city, state: addr.state, total_cents: total, emailed_to: emailed ? email : null,
+        lines: lineItems.map((l) => ({ title: l.title, variant: variantLabel((l.variant ?? null) as Variant | null) || null, qty: l.qty, unit_cents: l.unit_cents })) });
+      return { status: 200, body: { ok: true, id: orderId, paid: true, recorded: true, emailed, totalCents: total, receipt } };
     } catch (e) {
       const ref = (paymentId || "").slice(-6).toUpperCase();
       await raiseAlert({ severity: "critical", category: "money", kind: "ops_incident", title: "Paid shop order didn't finish saving — check it", body: `A card payment succeeded (${paymentId ?? "no payment id"}, ${money(total)}) and saving the order broke (${errorMessage(e, 160)}). ${shipName}, ${email}. Check shop orders; add what is missing or refund it.` });

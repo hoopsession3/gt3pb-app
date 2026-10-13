@@ -12,6 +12,7 @@ import { useIdemKey } from "./useIdemKey";
 import { payErrorText } from "@/lib/idempotency";
 import { US_STATES } from "@/lib/usAddress";
 import { variantLabel, type CartLine } from "@/lib/shopCart";
+import type { ShopReceipt } from "@/lib/receipt";
 import { useCustomerKnown, useKnownField, invalidateCustomerKnown } from "./useCustomerKnown";
 import { haptic } from "@/lib/haptics";
 import AddressField from "@/components/AddressField";
@@ -22,7 +23,7 @@ import AddressField from "@/components/AddressField";
 // form's wiring, the address, the fifty states — rode in that first load for everyone.
 
 export default function ShopCheckout({ cart, total, isMember, setQty, onBack, onDone }: {
-  cart: CartLine[]; total: number; isMember: boolean; setQty: (idx: number, qty: number) => void; onBack: () => void; onDone: (warn?: string, emailed?: boolean) => void;
+  cart: CartLine[]; total: number; isMember: boolean; setQty: (idx: number, qty: number) => void; onBack: () => void; onDone: (warn?: string, emailed?: boolean, receipt?: ShopReceipt) => void;
 }) {
   const t = useSiteCopy();
   const payRef = useRef<PaymentCardHandle>(null);
@@ -52,6 +53,12 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
   // Square replays the first payment and the route finds its order by payment_id. Paid, or refused by
   // Square, and the next tap is a new checkout.
   const idem = useIdemKey("gt3-shop-idem");
+  // THE TOTAL ON PAY IS THE MOST IT CHARGES (R5, lib/shownTotal — as packs and delivery). It goes with the order; a server
+  // total above it comes back refused, with that total, and is shown here for this cart — the next tap agrees to it. A
+  // change to the cart (an item, a size, a quantity) takes it back to the cart's own number.
+  const cartSig = JSON.stringify(cart.map((l) => [l.product.id, variantLabel(l.variant), l.qty]));
+  const [agreed, setAgreed] = useState<{ sig: string; cents: number } | null>(null);
+  const payCents = agreed && agreed.sig === cartSig ? agreed.cents : total;
   const canPay = ready && !busy && cart.length > 0 && ship.name && ship.street && ship.city && ship.state && ship.zip && (isMember || ship.email);
 
   const pay = async () => {
@@ -64,17 +71,20 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
       const r = await authedFetch("/api/shop/checkout", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sourceId: attempt.token, idempotencyKey: attempt.key,
+          sourceId: attempt.token, idempotencyKey: attempt.key, expectedCents: payCents,
           items: cart.map((l) => ({ product_id: l.product.id, variant: l.variant, qty: l.qty })),
           ship,
         }),
       });
       const data = await r.json();
       idem.settle(attempt.key, r.status, data);
-      if (!r.ok) { setErr(payErrorText(data.error)); setBusy(false); return; }
+      if (!r.ok) {
+        if (data?.totalChanged === true && typeof data.totalCents === "number") setAgreed({ sig: cartSig, cents: data.totalCents });
+        setErr(payErrorText(data.error)); setBusy(false); return;
+      }
       haptic("paid");
       invalidateCustomerKnown();   // the next form starts from this order
-      onDone(data.warn, data.emailed === true);
+      onDone(data.warn, data.emailed === true, data.receipt && typeof data.receipt === "object" ? (data.receipt as ShopReceipt) : undefined);
     } catch {
       idem.settle(attempt.key, null, null);
       setErr("Something went wrong — you were not charged twice; check your email or try again."); setBusy(false);
@@ -101,7 +111,7 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
             <span className="shop-line-px">{money(l.product.price_cents * l.qty)}</span>
           </div>
         ))}
-        <div className="shop-total"><span>{t("checkout.total")}</span><b>{money(total)}</b></div>
+        <div className="shop-total"><span>{t("checkout.total")}</span><b>{money(payCents)}</b></div>
       </div>
 
       <div className="shop-ship">
@@ -131,7 +141,7 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
             <PaymentCard ref={payRef} tone="paper" onReady={setReady} onError={(m) => setErr(m)} />
             {err && <div className="shop-err">{err}</div>}
             {/* Pay button + 'Charging…' loading label inside a <button> → plain t()/fillCopy. */}
-            <button type="button" className="btn-pri btn-wide mt-3.5" onClick={pay} disabled={!canPay}>{busy ? "Charging…" : fillCopy(t("checkout.pay"), { total: money(total) })}</button>
+            <button type="button" className="btn-pri btn-wide mt-3.5" onClick={pay} disabled={!canPay}>{busy ? "Charging…" : fillCopy(t("checkout.pay"), { total: money(payCents) })}</button>
             <EditableCopy k="checkout.fine" value={t("checkout.fine")} as="p" className="shop-fine" multiline />
           </>
         ) : (

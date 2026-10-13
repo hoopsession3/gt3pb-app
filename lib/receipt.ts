@@ -46,6 +46,27 @@ export function itemLine(items: readonly ReceiptLine[]): string {
     .join(", ");
 }
 
+// ── THE MERCH RECEIPT ON THE SCREEN (2026-10-13, R5 — "A merch receipt") ──────────────────────────────────────────────
+// The done screen said "Thanks — you'll get an email" and nothing about the order: no number, no lines, no total, no
+// address — and when the email didn't go out, nothing at all. It reads the checkout's answer now: the lines the route
+// priced and the total it charged, never the phone's own cart, with the same number the email gives (orderRef).
+
+export type ShopReceiptLine = { title: string; variant: string | null; qty: number; unit_cents: number };
+export type ShopReceipt = { no: string; lines: ShopReceiptLine[]; total_cents: number; ship_to: string; email: string | null };
+
+/** What the merch done screen shows: "#A1B2C3", the lines as charged, the total, "Jordan Reyes · Simpsonville, SC", and
+ *  the address the receipt went to (null when no email went out — the screen says so instead). */
+export function shopReceipt(o: { id: string; ship_name?: string | null; city?: string | null; state?: string | null; total_cents: number; lines: readonly ShopReceiptLine[]; emailed_to?: string | null }): ShopReceipt {
+  const place = [String(o.city ?? "").trim(), String(o.state ?? "").trim()].filter(Boolean).join(", ");
+  return {
+    no: `#${orderRef(o.id)}`,
+    lines: (o.lines ?? []).filter((l) => l && l.title).map((l) => ({ title: l.title, variant: l.variant || null, qty: Math.max(1, Math.floor(Number(l.qty) || 1)), unit_cents: Math.max(0, Math.round(Number(l.unit_cents) || 0)) })),
+    total_cents: Math.max(0, Math.round(Number(o.total_cents) || 0)),
+    ship_to: [String(o.ship_name ?? "").trim(), place].filter(Boolean).join(" · "),
+    email: o.emailed_to ? String(o.emailed_to) : null,
+  };
+}
+
 /**
  * The order receipt. `resent` is true when a person pressed the button rather than the checkout
  * sending it — the customer is told so plainly, because a second copy of a receipt arriving days
