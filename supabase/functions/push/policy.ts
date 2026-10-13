@@ -88,6 +88,20 @@ export function orderStatusShown(order: { id?: unknown; status?: unknown }): Sho
   return { title: no ? `Order ${no} · ${ORDER_TAG[s]}` : ORDER_TAG[s], body: ORDER_LINE[s], tag: `order:${idOf(order.id)}:${s}`, ring: false };
 }
 
+/** A cup order voided because its stop was called off (crew/stops/cancel, 0391): the stop's name and the reason, both
+ *  public on Find Us, and what becomes of the money — never the customer's name (R3b: 0391's notices, the push half). */
+export function stopCanceledShown(order: { id?: unknown; paid?: unknown; collected_at?: unknown; payment_status?: unknown }, stopName: unknown, reason: unknown): Shown {
+  const no = orderNoOf(order.id);
+  const where = typeof stopName === "string" && stopName.trim() ? stopName.trim().slice(0, 60) : "Your stop";
+  const why = typeof reason === "string" && reason.trim() ? ` — ${reason.trim().slice(0, 120)}` : "";
+  const paid = order.paid === true || !!order.collected_at || order.payment_status === "paid";
+  return {
+    title: no ? `Order ${no} · Canceled` : "Order canceled",
+    body: `${where} was called off${why}. ${paid ? "Your card is being refunded in full." : "Nothing was charged."}`,
+    tag: `order:${idOf(order.id)}:void`, ring: false,
+  };
+}
+
 /** A member's subscription changing state. */
 export function subscriptionShown(sub: { id?: unknown; status?: unknown }): Shown | null {
   const say: Record<string, string> = {

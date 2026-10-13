@@ -37,7 +37,8 @@ import { refusalText } from "@/lib/refusal";
 type Line = { slug: string; name?: string; qty: number; unit_cents: number };
 type Ticket = {
   no: string; status: string; items: string[]; lines: Line[] | null; total_cents: number; tip_cents: number; paid: boolean;
-  card: string | null; placed_at: string; moved_at: string | null; ready_from: string | null; eta: "on_way" | "outside" | "late" | null;
+  card: string | null; refunded_cents: number; refund_pending: boolean;
+  placed_at: string; moved_at: string | null; ready_from: string | null; eta: "on_way" | "outside" | "late" | null;
   for: string | null;
   stop: { name: string; place: string | null; starts_at: string | null; ends_at: string | null; canceled: boolean; cancel_reason: string | null } | null;
 };
@@ -121,11 +122,14 @@ function TicketView({ t }: { t: string }) {
   const ahead = tk.status === "new" && waitingToOpen({ created_at: tk.placed_at, ready_from: tk.ready_from });
   const total = tk.total_cents + (tk.tip_cents || 0);
   const line = orderLine(tk.status, ahead ? readyWords({ state: "ahead", readyFrom: tk.ready_from }) : null);
-  const tag = canceled ? orderTag("void") : tk.paid ? "Paid" : `${money(total)} at the window`;
+  // What Square has given back is a fact it reports (0330, through the view), never this page's guess.
+  const refunded = tk.refunded_cents || 0, refundedAll = tk.paid && refunded >= total && total > 0;
+  const tag = refundedAll ? "Refunded" : refunded > 0 ? "Partly refunded" : canceled ? orderTag("void") : tk.paid ? "Paid" : `${money(total)} at the window`;
+  const moneyBack = refundedAll ? "Refunded in full." : tk.refund_pending ? "The refund is on its way to your card." : "The crew is refunding your card in full.";
   const note = canceled
     ? tk.stop?.canceled
-      ? `${tk.stop.name} was called off${tk.stop.cancel_reason ? ` — ${tk.stop.cancel_reason}` : ""}. ${tk.paid ? "The crew is refunding your card in full." : "Nothing was charged."}`
-      : tk.paid ? "The crew refunds your card in full." : "Nothing was charged."
+      ? `${tk.stop.name} was called off${tk.stop.cancel_reason ? ` — ${tk.stop.cancel_reason}` : ""}. ${tk.paid ? moneyBack : "Nothing was charged."}`
+      : tk.paid ? moneyBack : "Nothing was charged."
     : tk.status === "done" ? "Thanks for coming by." : "This page updates itself while you wait. Keep the link to come back to it.";
   const sub = [tk.for && `For ${tk.for}`, tk.stop && `pickup at the ${tk.stop.name} window`].filter(Boolean).join(" · ");
 
@@ -168,7 +172,7 @@ function TicketView({ t }: { t: string }) {
       <div className="k-card mt-5 flex flex-col gap-3" role="status" aria-live="polite">
         <div className="flex items-center justify-between gap-3">
           <Eyebrow live={active}>{line}</Eyebrow>
-          <span className={`k-tag ${canceled ? "crit" : tk.paid ? "ok" : "gold"}`}>{tag}</span>
+          <span className={`k-tag ${canceled || refunded > 0 ? "crit" : tk.paid ? "ok" : "gold"}`}>{tag}</span>
         </div>
         {!canceled && <OrderSteps at={stepOf(tk.status)} />}
         <p className="k-rsub whitespace-normal">{note}</p>
@@ -186,7 +190,8 @@ function TicketView({ t }: { t: string }) {
         {rows.map(([k, c]) => receiptLine(k, c === null ? "" : money(c)))}
         {tk.tip_cents > 0 && receiptLine("Tip", money(tk.tip_cents))}
         <div className="my-1 border-t border-line" />
-        {receiptLine(canceled ? (tk.paid ? "Paid · refunding" : "Nothing charged") : tk.paid ? (tk.card ? `Paid · ${tk.card}` : "Paid") : "Due at the window", money(total), true)}
+        {receiptLine(canceled && !tk.paid ? "Nothing charged" : tk.paid ? (tk.card ? `Paid · ${tk.card}` : "Paid") : "Due at the window", money(total), true)}
+        {refunded > 0 && receiptLine("Refunded", `−${money(refunded)}`, true)}
       </div>
       {tk.stop && !tk.stop.canceled && (
         <div className="mt-3 flex flex-wrap items-center gap-2">

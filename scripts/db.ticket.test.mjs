@@ -87,6 +87,14 @@ ok("an unknown ticket is refused in words, as a 4xx (PT404) — never a 5xx", ba
 const member = await as(SAM, `select public.order_ticket($1) as t`, [T_DONE]);
 ok("a member reads their own order's ticket the same way", member.rows[0]?.t?.status === "done" && member.rows[0]?.t?.for === "Sam", member);
 
+// ── what Square has refunded ──────────────────────────────────────────────────────────────────────────────────────
+ok("the view: nothing refunded is nothing refunded", t?.refunded_cents === 0 && t?.refund_pending === false, t);
+await q(`insert into public.square_refunds (id, payment_id, amount_cents, status) values ('rf-1', 'sq-pay-old-1', 2400, 'COMPLETED'), ('rf-2', 'sq-pay-old-1', 100, 'PENDING'), ('rf-3', 'sq-pay-other', 999, 'COMPLETED')`);
+const rf = (await as(null, `select public.order_ticket($1) as t`, [T_OLD])).rows[0]?.t;
+ok("the view: what Square completed for this payment, and that one is still pending — never another payment's",
+  rf?.refunded_cents === 2400 && rf?.refund_pending === true, rf);
+ok("the view: an order with no payment has no refunds, whatever the table holds", (await as(null, `select public.order_ticket($1) as t`, [T_NEW])).rows[0]?.t?.refunded_cents === 0);
+
 // ── the table itself stays closed ───────────────────────────────────────────────────────────────────────────────────
 const anonRead = await as(null, `select ticket from public.orders`);
 ok("signed out, the orders table is still unreadable — the ticket opens one order through its view, not the table",
@@ -117,6 +125,11 @@ const grants = await q1(`select has_function_privilege('anon', 'public.order_tic
   has_function_privilege('authenticated', 'public.order_ticket(uuid)', 'execute') as a2,
   has_function_privilege('anon', 'public.ticket_eta(uuid, text)', 'execute') as a3`);
 ok("the two functions are anyone's — the ticket is the key, not the account", grants.a1 && grants.a2 && grants.a3, grants);
+
+// ── 0391's line, said as it is ─────────────────────────────────────────────────────────────────────────────────────
+const c391 = (await q1(`select summary from public.changelog where title = 'A canceled stop says so'`))?.summary ?? "";
+ok("0391's changelog no longer promises every cup a text or an email — a member is told, a guest's order page says it",
+  !!c391 && !/gets a text or an email/.test(c391) && /a guest's order page says so/.test(c391), c391.slice(0, 200));
 
 // ── a second run ────────────────────────────────────────────────────────────────────────────────────────────────────
 const before2 = JSON.stringify(await q(`select id, ticket from public.orders order by id`));

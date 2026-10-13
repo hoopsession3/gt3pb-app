@@ -36,3 +36,16 @@ export const ORDER_STEPS = ["In", "Making", "Ready", "Picked up"] as const;
 export function stepOf(status: string): number {
   return status === "done" ? 3 : status === "ready" ? 2 : status === "preparing" ? 1 : 0;
 }
+
+/** What a cancel did, in a sentence (R3b — "Cancel reports its outcome"): canceled, and what becomes of the money; or why
+ *  not — too late (with where the order is now), paid at the window (the crew cancels it there), or a failure. `said` is
+ *  /api/orders/cancel's answer, null when there was none. */
+export function cancelWords(said: { ok?: boolean; outcome?: string; now?: string; paid?: boolean } | null): { ok: boolean; text: string } {
+  if (said?.ok === true) return { ok: true, text: said.paid ? "Canceled — your payment is flagged for a full refund." : "Canceled — nothing was charged." };
+  if (said?.outcome === "too_late") {
+    const now = said.now && TAG[said.now] ? TAG[said.now].toLowerCase() : "";
+    return { ok: false, text: now === "canceled" ? "That order is already canceled." : `Too late to cancel${now ? ` — it's ${now === "picked up" ? "been picked up" : now}` : ""}. Ask at the window.` };
+  }
+  if (said?.outcome === "at_window") return { ok: false, text: "Paid at the window — the crew cancels it there." };
+  return { ok: false, text: "Couldn't cancel it just now — try again, or ask at the window." };
+}

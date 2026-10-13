@@ -16,7 +16,7 @@ import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   alertShown, channelsFor, escalationShown, isEscalation, liveShown, mayEmail, newOrderShown, orderStatusShown, reminderShown,
-  severityOf, signoffShown, stillUnanswered, subscriptionShown, taskShown, whoRings, type NotifPrefsRow, type Shown,
+  severityOf, signoffShown, stillUnanswered, stopCanceledShown, subscriptionShown, taskShown, whoRings, type NotifPrefsRow, type Shown,
 } from "./policy.ts";
 
 webpush.setVapidDetails(
@@ -224,6 +224,12 @@ Deno.serve(async (req) => {
       // when the row is rewritten with the same status (optimistic + reconcile, etc.).
       if (old_record && old_record.status === record.status) return new Response("skip: no transition");
       shown = orderStatusShown(record);
+      // A stop called off voids its cup orders (crew/stops/cancel): the member hears it here, with why (R3b — 0391's
+      // notices, the push half). A void the crew or the member made themselves says nothing, as before.
+      if (!shown && record.status === "void" && record.stop_id) {
+        const { data: st } = await supabase.from("stops").select("name, canceled_at, cancel_reason").eq("id", record.stop_id).maybeSingle();
+        if (st?.canceled_at) shown = stopCanceledShown(record, st.name ?? null, st.cancel_reason ?? null);
+      }
       if (!shown) return new Response("skip");
       targets = await subsFor((q) => q.eq("user_id", record.user_id));
 

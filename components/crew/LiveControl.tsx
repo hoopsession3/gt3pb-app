@@ -30,6 +30,7 @@ import { mayGoLive, stopName, truckAction, truckSays, type TruckRead } from "@/l
 import { useMinute } from "@/lib/useMinute";
 import { StatusRow } from "@/components/crew/StatusRow";
 import { authedFetch } from "@/lib/authedFetch";
+import { stopCanceledToast } from "@/lib/stopCancel";
 
 // Go live's checks, loaded with the first tap on Go live (it opens on a tap, as the console's other sheets do).
 const GoLiveSheet = dynamic(() => import("@/components/crew/GoLiveSheet"), { ssr: false });
@@ -272,11 +273,11 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
   // orders placed for it and the packs for its day, and gives you the paid ones to refund in Square.
   const cancelStop = async (id: string, reason: string): Promise<boolean> => {
     const res = await authedFetch("/api/crew/stops/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, reason }) });
-    const d = await res.json().catch(() => ({})) as { error?: string; already?: boolean; cups?: number; paid?: number; packs?: number };
+    const d = await res.json().catch(() => ({})) as { error?: string; already?: boolean; cups?: number; told?: number; paid?: number; packs?: number };
     if (!res.ok) { toast(d.error || "Couldn't cancel it — try again.", "error"); return false; }
     haptic("success");
-    const told = [d.cups ? `${d.cups} cup ${d.cups === 1 ? "order" : "orders"}` : "", d.packs ? `${d.packs} ${d.packs === 1 ? "pack" : "packs"}` : ""].filter(Boolean).join(" and ");
-    toast(d.already ? "Already canceled." : `Visit canceled${told ? ` — ${told} told` : ""}${d.paid ? `. Refund ${d.paid} in Square (it's in your alerts).` : "."}`);
+    // R3b: "N cup orders told" counted the guests too, who have no address with us — they read it on their order's page.
+    toast(d.already ? "Already canceled." : stopCanceledToast(d));
     setOpenStopId(null);
     load();
     return true;

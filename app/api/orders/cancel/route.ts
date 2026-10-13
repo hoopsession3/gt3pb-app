@@ -62,6 +62,13 @@ async function post(req: Request) {
   if (error || ok !== true) {
     // The RPC returns false when it's too late (already on the pass / brewed / picked up) or not
     // the caller's order — the surfaces phrase this as "too late to cancel online."
+    // A CUP SAYS WHICH (2026-10-13, R3b — "Cancel reports its outcome"): too late (it's being made, it's ready, it was
+    // picked up — the status it is in now), paid at the window (the crew's to cancel there), not this person's, or a
+    // failure. Each was "We couldn't cancel it — it may already be on the way". The packs and deliveries answer as before.
+    if (channel === "cup") {
+      const why = await whyNot(id, user.id, !!error);
+      return NextResponse.json({ ok: false, ...why.body }, { status: why.status });
+    }
     return NextResponse.json({ ok: false }, { status: 200 });
   }
 
@@ -99,7 +106,19 @@ async function post(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, paid: !!info?.paid }, { status: 200 });
+  return NextResponse.json({ ok: true, outcome: "canceled", paid: !!info?.paid }, { status: 200 });
+}
+
+/** Why a cup wasn't canceled, read as the caller's own row (service role, scoped back to their user_id). */
+async function whyNot(id: string, userId: string, failed: boolean): Promise<{ status: number; body: { outcome: string; now?: string } }> {
+  // scoped-by: user_id = the caller, whose token the cancel was just refused for — only ever their own order.
+  const { data, error } = await supabaseAdmin!.from("orders").select("status, collected_at").eq("id", id).eq("user_id", userId).maybeSingle();
+  if (error) return { status: 500, body: { outcome: "error" } };
+  const o = data as { status: string; collected_at: string | null } | null;
+  if (!o) return { status: 404, body: { outcome: "not_yours" } };
+  if (o.status !== "new") return { status: 409, body: { outcome: "too_late", now: o.status } };
+  if (o.collected_at) return { status: 409, body: { outcome: "at_window" } };
+  return failed ? { status: 500, body: { outcome: "error" } } : { status: 409, body: { outcome: "too_late", now: o.status } };
 }
 
 // Read the just-canceled row with the service role (RLS-bypassing) but re-scope to the caller's

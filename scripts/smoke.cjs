@@ -13767,7 +13767,46 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const line = orderLine\(tk\.status, ahead/.test(pg) && /<OrderSteps at=\{stepOf\(tk\.status\)\} \/>/.test(pg)
     && /supabase\.rpc\("ticket_eta", \{ p_ticket: t, p_eta: next \}\)/.test(pg) && /\{eta\("on_way"\)\}\{eta\("outside"\)\}/.test(pg));
   ok("the ticket: a canceled order says why and what happens to the money — never a refund it can't promise as done",
-    /The crew is refunding your card in full\./.test(pg) && /Nothing was charged\./.test(pg) && !/refunded\b/.test(pg.replace(/refunding/g, "")));
+    /The crew is refunding your card in full\./.test(pg) && /Nothing was charged\./.test(pg)
+    && /refundedAll = tk\.paid && refunded >= total && total > 0;/.test(pg) && /refundedAll \? "Refunded in full\."/.test(pg));
+}
+
+// ── CANCEL SAYS WHAT HAPPENED; A CALLED-OFF STOP TELLS WHO IT CAN (2026-10-13, R3b of the customer audit) ──
+// A cup cancel that didn't go through said "it may already be on the way" whatever the reason, and one that did said
+// nothing. A stop called off told members by email and guests nothing, while the crew's toast counted them all as told.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const W = require("../.smoke/orderWords.js"), SC = require("../.smoke/stopCancel.js");
+  ok("cancel words: canceled and what becomes of the money; too late, with where it is now; paid at the window; a failure",
+    W.cancelWords({ ok: true, outcome: "canceled", paid: true }).text === "Canceled — your payment is flagged for a full refund."
+    && W.cancelWords({ ok: true, paid: false }).text === "Canceled — nothing was charged." && W.cancelWords({ ok: true }).ok === true
+    && W.cancelWords({ ok: false, outcome: "too_late", now: "preparing" }).text === "Too late to cancel — it's being made. Ask at the window."
+    && W.cancelWords({ ok: false, outcome: "too_late", now: "done" }).text === "Too late to cancel — it's been picked up. Ask at the window."
+    && W.cancelWords({ ok: false, outcome: "too_late", now: "void" }).text === "That order is already canceled."
+    && W.cancelWords({ ok: false, outcome: "at_window" }).text === "Paid at the window — the crew cancels it there."
+    && W.cancelWords(null).text === "Couldn't cancel it just now — try again, or ask at the window." && W.cancelWords(null).ok === false);
+  const api = code(rd("app/api/orders/cancel/route.ts")), mo = code(rd("components/useMyOrders.ts"));
+  ok("cancel route: a cup that wasn't canceled says which — 409 too late (with its status), 409 at the window, 404 not theirs, 500 a failure — read as their own row",
+    /if \(channel === "cup"\) \{\s*const why = await whyNot\(id, user\.id, !!error\);/.test(api) && /\.eq\("id", id\)\.eq\("user_id", userId\)\.maybeSingle\(\)/.test(api)
+    && /status: 409, body: \{ outcome: "too_late", now: o\.status \}/.test(api) && /status: 404, body: \{ outcome: "not_yours" \}/.test(api)
+    && /outcome: "canceled", paid: !!info\?\.paid/.test(api));
+  ok("cancel: the member's screen reads the answer whatever its status and says it in the order's words",
+    /\.then\(\(r\) => r\.json\(\)\.catch\(\(\) => null\)\)/.test(mo) && /const words = cancelWords\(said\);/.test(mo) && /toast\(words\.text, words\.ok \? "info" : "error"\);/.test(mo)
+    && !/it may already be on the way/.test(mo));
+  ok("stop called off: the crew's toast counts the members told and the guests who read it on their order's page",
+    SC.stopCanceledToast({ cups: 3, told: 2, paid: 1, packs: 0 }) === "Visit canceled. 3 cup orders canceled — 2 told, 1 guest sees it on their order's page. Refund 1 in Square (it's in your alerts)."
+    && SC.stopCanceledToast({ cups: 1, told: 1, packs: 2 }) === "Visit canceled. 1 cup order canceled — 1 told; 2 packs told." && SC.stopCanceledToast({}) === "Visit canceled.");
+  const stop = { name: "WineXpress", starts_at: "2026-10-17T11:00:00Z", cancel_reason: "Rained out" };
+  ok("stop called off: the crew's refunds name each order by its number and the Square reference to find it by",
+    /2 cup orders canceled — 1 told, 1 guest sees it on their order's page/.test(SC.crewWords(stop, { cups: 2, told: 1, paidCups: [{ no: "#4F2A", ref: "ABC123", cents: 2000 }], packs: 0 }).body)
+    && /#4F2A \(Square …ABC123\) — \$20 of drinks/.test(SC.crewWords(stop, { cups: 2, told: 1, paidCups: [{ no: "#4F2A", ref: "ABC123", cents: 2000 }], packs: 0 }).body));
+  const sc = code(rd("app/api/crew/stops/cancel/route.ts")), lc = code(rd("components/crew/LiveControl.tsx")), px = code(rd("supabase/functions/push/index.ts"));
+  ok("stop called off: the route counts members told and gives each refund its number; the toast says it; the push tells the member why",
+    /if \(c\.user_id\) told\+\+;/.test(sc) && /no: orderNo\(c\.id\), ref:/.test(sc) && /cups: cups\.length, told, paid: paidCups\.length/.test(sc)
+    && /toast\(d\.already \? "Already canceled\." : stopCanceledToast\(d\)\);/.test(lc)
+    && /if \(!shown && record\.status === "void" && record\.stop_id\) \{/.test(px) && /if \(st\?\.canceled_at\) shown = stopCanceledShown\(record, st\.name \?\? null, st\.cancel_reason \?\? null\);/.test(px));
 }
 
 Promise.all(PENDING).then(() => {

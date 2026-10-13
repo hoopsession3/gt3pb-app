@@ -76,6 +76,14 @@ const shape = (s) => !!s && typeof s.title === "string" && s.title.length > 0 &&
     ready.title === "Order #O-1 · Ready" && ready.body === "Ready — grab it at the window."
     && making.title === "Order #O-1 · Being made" && making.body === "Being made now." && !/at the bar/.test(ready.body), { ready, making });
   ok("the customer's order: no id, no number — the words alone", P.orderStatusShown({ status: "ready" })?.title === "Ready");
+  // R3b: a stop called off voids its cup orders, and the member hears why — the stop and its reason are public on Find Us.
+  const sc = P.stopCanceledShown({ id: "4f2a-1", paid: true, customer: NAME }, "WineXpress", "Rained out");
+  ok("a stop called off: its number, the stop and why, and what becomes of the money — never the customer's name",
+    sc.title === "Order #4F2A · Canceled" && sc.body === "WineXpress was called off — Rained out. Your card is being refunded in full."
+    && leaks(sc).length === 0 && sc.tag === "order:4f2a-1:void" && sc.ring === false, sc);
+  const sc2 = P.stopCanceledShown({ id: "4f2a-2", paid: false, collected_at: null }, null, "  ");
+  ok("a stop called off: no name, no reason, nothing charged — still a true sentence",
+    sc2.body === "Your stop was called off. Nothing was charged." && P.stopCanceledShown({ id: "x", payment_status: "paid" }, "A", null).body.endsWith("refunded in full."), sc2);
   ok("the customer's order: done and void send nothing", P.orderStatusShown({ status: "done" }) === null && P.orderStatusShown({ status: "void" }) === null && P.orderStatusShown({}) === null);
   ok("the customer's order: preparing then ready are two tags — ready rings even while preparing is still showing", ready.tag !== making.tag);
 }

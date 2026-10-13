@@ -6,6 +6,7 @@ import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { isMissingFunction } from "@/lib/schemaSkew";
 import { isUuid } from "@/lib/uuid";
 import { cupWords, packWords, crewWords, type CanceledStop } from "@/lib/stopCancel";
+import { orderNo } from "@/lib/activeOrder";
 import { route } from "@/lib/apiRoute";
 
 // CALL A STOP OFF, AND TELL THE PEOPLE WHO ORDERED FOR IT (0391, 2026-10-12 — H5 of the customer audit, release C1,
@@ -53,11 +54,15 @@ async function post(req: Request) {
     // scoped-by: the ids just read for this stop.
     await supabaseAdmin.from("orders").update({ status: "void" }).in("id", cups.map((c) => c.id)).in("status", ["new", "preparing", "ready"]);
   }
+  // Told: a member, by email here and on their phone by the push function (the void, R3b). A guest has no address with
+  // us — their order's page (the ticket, 0395) says it was called off, and why. The crew's toast counts which is which.
+  let told = 0;
   for (const c of cups) {
     const email = await accountEmail(c.user_id);
     if (email) {
       await notifyCustomer({ email, subject: "GT3 — your order is canceled", message: cupWords(stop, { cups: c.items?.length || 1, paid: c.paid }) });
     }
+    if (c.user_id) told++;
   }
 
   // The packs for its day, when no other stop is left that day: told to move or cancel.
@@ -72,11 +77,11 @@ async function post(req: Request) {
     }
   }
 
-  const paidCups = cups.filter((c) => c.paid).map((c) => ({ ref: (c.payment_id || c.id).slice(-6).toUpperCase(), cents: c.total_cents }));
-  const line = crewWords(stop, { cups: cups.length, paidCups, packs: packs.length });
+  const paidCups = cups.filter((c) => c.paid).map((c) => ({ no: orderNo(c.id), ref: (c.payment_id || c.id).slice(-6).toUpperCase(), cents: c.total_cents }));
+  const line = crewWords(stop, { cups: cups.length, told, paidCups, packs: packs.length });
   await raiseAlert({ severity: paidCups.length ? "critical" : "important", category: paidCups.length ? "money" : "order", kind: "stop_canceled",
     subjectId: id, title: line.title, body: line.body, link: "/crew?s=now" });
-  return NextResponse.json({ ok: true, cups: cups.length, paid: paidCups.length, packs: packs.length });
+  return NextResponse.json({ ok: true, cups: cups.length, told, paid: paidCups.length, packs: packs.length });
 }
 
 export const POST = route("crew/stops/cancel", post);

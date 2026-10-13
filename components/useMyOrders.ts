@@ -10,6 +10,7 @@ import type { Order } from "@/lib/db";
 import { saveSnapshot, readSnapshot, isNetworkError } from "./offline";
 import { snapshotUsable } from "@/lib/offline";
 import { isSettled } from "@/lib/settled";
+import { cancelWords } from "@/lib/orderWords";
 
 // A MEMBER'S OPEN CUP ORDERS, READ ONCE FOR EVERY SCREEN THAT SHOWS ONE (2026-10-13, R3 — Today leads with an order in
 // progress). The order bar (components/OrderStatus) read them for itself; Today's order card reads the same, the same
@@ -93,14 +94,16 @@ export function useOrderActions(o: Order | null, reload: () => void) {
     const paid = isSettled(o);
     if (!(await confirm({ title: "Cancel this order?", body: paid ? "We'll flag it for a refund and the crew will process it." : undefined, confirmLabel: "Cancel order", cancelLabel: "Keep order", danger: true }))) return;
     setCanceling(true);
-    // The route, not the bare function, so a cancel also tells the crew and the customer.
-    const ok = await authedFetch("/api/orders/cancel", {
+    // The route, not the bare function, so a cancel also tells the crew and the customer — and says what happened
+    // (R3b): canceled and what becomes of the money, or why not, in the order's own words (lib/cancelWords).
+    const said = await authedFetch("/api/orders/cancel", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ channel: "cup", id: o.id }),
-    }).then((r) => (r.ok ? r.json() : null)).then((d) => d?.ok === true).catch(() => false);
+    }).then((r) => r.json().catch(() => null)).catch(() => null) as { ok?: boolean; outcome?: string; now?: string; paid?: boolean } | null;
     setCanceling(false);
-    if (ok) reload();
-    else toast("We couldn't cancel it — it may already be on the way. Ask at the window.", "error");
+    const words = cancelWords(said);
+    toast(words.text, words.ok ? "info" : "error");
+    if (words.ok) reload();
   }, [o, canceling, confirm, reload, toast]);
 
   return { setEta, etaBusy, cancel, canceling };

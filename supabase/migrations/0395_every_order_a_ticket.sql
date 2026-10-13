@@ -13,7 +13,8 @@
 --   · orders.lines — the receipt's lines as checkout priced them ([{slug, qty, unit_cents}]); orders.card_brand and
 --     orders.card_last4 — "Visa ··4242", from Square's answer. Never more of a card than its last four.
 --   · order_ticket(t) — the ticket's view, to anyone with t, signed in or not: the number, the status, the items and
---     their lines, the total and the tip, whether it is paid and how, when it is made from, the stop's name, place and
+--     their lines, the total and the tip, whether it is paid and how, what Square has refunded on it (0330's
+--     square_refunds: completed, and whether one is still pending), when it is made from, the stop's name, place and
 --     hours, and the first name it is for. Nothing about anyone else. An unknown ticket is refused in words, as a 4xx
 --     (PT404, 0360).
 --   · ticket_eta(t, eta) — On my way / I'm outside / Running late from the ticket, as set_order_eta (0138) is from a
@@ -43,7 +44,7 @@ declare
   s record;
 begin
   select id, items, status, created_at, status_changed_at, total_cents, tip_cents, paid, payment_status, collected_at,
-         ready_from, eta_status, customer, stop_id, lines, card_brand, card_last4
+         ready_from, eta_status, customer, stop_id, lines, card_brand, card_last4, payment_id
     into o from public.orders where ticket = p_ticket;
   if o.id is null then
     raise exception 'That ticket isn''t one of ours.' using errcode = 'PT404';   -- a 4xx, never a 5xx (0360)
@@ -59,6 +60,11 @@ begin
     'tip_cents',   coalesce(o.tip_cents, 0),
     'paid',        coalesce(o.paid, false) or o.collected_at is not null or coalesce(o.payment_status = 'paid', false),
     'card',        case when o.card_last4 is not null then coalesce(nullif(o.card_brand, ''), 'Card') || ' ··' || o.card_last4 end,
+    -- what Square says left for it (0330) — money back is a fact Square reports, never this view's guess
+    'refunded_cents', coalesce((select sum(r.amount_cents) from public.square_refunds r
+                                 where o.payment_id is not null and r.payment_id = o.payment_id and r.status = 'COMPLETED'), 0),
+    'refund_pending', exists (select 1 from public.square_refunds r
+                                where o.payment_id is not null and r.payment_id = o.payment_id and r.status = 'PENDING'),
     'placed_at',   o.created_at,
     'moved_at',    o.status_changed_at,
     'ready_from',  o.ready_from,
@@ -103,6 +109,14 @@ from (values
    '2026-10-13', true)
 ) as v(title, category, area, summary, shipped_on, highlight)
 where not exists (select 1 from public.changelog c where c.title = v.title);
+
+-- 0391's entry said everyone with a cup ordered for a canceled stop "gets a text or an email". A guest got nothing — we
+-- have no address for one — and nothing sends a text. It says what is true now: a member is told by email, and on their
+-- phone where alerts are on; a guest's order page says so (the ticket, above).
+update public.changelog
+   set summary = replace(summary, 'everyone with a cup ordered for it gets a text or an email',
+                                  'a member with a cup ordered for it is told by email (and on their phone, where alerts are on), and a guest''s order page says so')
+ where title = 'A canceled stop says so' and summary like '%everyone with a cup ordered for it gets a text or an email%';
 
 select public.record_migration('0395_every_order_a_ticket');
 
