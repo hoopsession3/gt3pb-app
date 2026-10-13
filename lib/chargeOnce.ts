@@ -187,30 +187,33 @@ export async function claimKey(
  * Charge a claimed key, once. `charge` THROWS when Square's answer does not say whether the card was
  * charged (lib/squareServer); `record` writes the order and answers, and does not throw; `unknown`
  * tells the crew and answers the page. With no claims (0371 not pasted) the same steps run unrecorded.
+ * `record` is handed the charge's own answer beside its payment id — what else Square said about it (the
+ * card it was paid with, for the receipt: R3b, 0395) — so nothing outside reaches into the charge for it.
  */
-export async function chargeOnce(o: {
+export async function chargeOnce<R extends ChargeResult = ChargeResult>(o: {
   claims: ClaimStore | null; key: string; now: () => number;
-  charge: () => Promise<ChargeResult>;
-  record: (paymentId: string | null) => Promise<Answer>;
+  charge: () => Promise<R>;
+  record: (paymentId: string | null, charged: Extract<R, { ok: true }>) => Promise<Answer>;
   unknown: (e: unknown) => Promise<Answer>;
 }): Promise<Answer> {
-  let result: ChargeResult;
+  let result: R;
   try {
     result = await o.charge();
   } catch (e) {
     await o.claims?.move(o.key, { state: "unknown", note: errorMessage(e, 300) }, iso(o.now()));
     return o.unknown(e);
   }
-  if (!result.ok) {
-    const answer = declined(result.error);
+  const said: ChargeResult = result;
+  if (!said.ok) {
+    const answer = declined(said.error);
     await o.claims?.move(o.key, { state: "done", answer }, iso(o.now()));
     return answer;
   }
   // The money is taken. Said BEFORE the order is written, so a request that dies writing it leaves a
   // claim that says "paid" — and the retry that finds it answers paid, not "we couldn't confirm".
-  await o.claims?.move(o.key, { state: "charged", paymentId: result.paymentId }, iso(o.now()));
-  const answer = await o.record(result.paymentId);
-  await o.claims?.move(o.key, { state: "done", answer, paymentId: result.paymentId }, iso(o.now()));
+  await o.claims?.move(o.key, { state: "charged", paymentId: said.paymentId }, iso(o.now()));
+  const answer = await o.record(said.paymentId, result as Extract<R, { ok: true }>);
+  await o.claims?.move(o.key, { state: "done", answer, paymentId: said.paymentId }, iso(o.now()));
   return answer;
 }
 

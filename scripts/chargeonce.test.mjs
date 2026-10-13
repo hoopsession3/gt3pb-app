@@ -95,6 +95,24 @@ const realFetch = globalThis.fetch;
   ok("page: nothing about the card is in the signature", !/cnon/.test(I.attemptFor({ ...first, token: "cnon:TEST-9" }, { items: ["rise"], tipCents: 0 }, mint).sig));
 }
 
+// ── record is handed the charge's own answer (R3b, 0395: the card it was paid with, for the receipt) ────
+{
+  let got = null;
+  const card = { brand: "Visa", last4: "4242" };
+  const a = await C.chargeOnce({ claims: null, key: "k-record-0001", now: () => 0,
+    charge: async () => ({ ok: true, paymentId: "pay-1", card }),
+    record: async (paymentId, charged) => { got = { paymentId, charged }; return { status: 200, body: { ok: true } }; },
+    unknown: async () => ({ status: 502, body: {} }) });
+  ok("chargeOnce: record gets the payment id and the charge's whole answer — the card with it, nothing re-asked of Square",
+    a.status === 200 && got?.paymentId === "pay-1" && got?.charged?.card === card && got?.charged?.ok === true, got);
+  let called = false;
+  await C.chargeOnce({ claims: null, key: "k-record-0002", now: () => 0,
+    charge: async () => ({ ok: false, error: "Card declined." }),
+    record: async () => { called = true; return { status: 200, body: {} }; },
+    unknown: async () => ({ status: 502, body: {} }) });
+  ok("chargeOnce: a decline is never recorded", called === false);
+}
+
 // ── the route still reads the way the suite drives it ────────────────────────────────────────────
 // scripts/fixtures/chargeonce.mjs's cupsRoute is /api/checkout's money path in the route's order. These hold
 // the route to that order, so the branches below are about the route and not about a story told of it.

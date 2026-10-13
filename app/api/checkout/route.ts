@@ -254,8 +254,8 @@ async function post(req: Request) {
 
   // Record the paid order server-side (paid + payment_id are trustworthy here). Its answer is kept on
   // the claim and said again to every retry of this key.
-  let paidWith: PaidCard | null = null;
-  const recordPaid = async (paymentId: string | null): Promise<Answer> => {
+  // paidWith: the card Square says it was paid with (brand and last four — R3b, 0395), for the receipt.
+  const recordPaid = async (paymentId: string | null, paidWith: PaidCard | null): Promise<Answer> => {
     try {
       // Idempotency at the ORDER row, the line behind the claim: Square answers a repeated key with the
       // SAME paymentId, so if an order already carries it — a retry while 0371 is unpasted, when that
@@ -311,10 +311,10 @@ async function post(req: Request) {
 
   return reply(await chargeOnce({
     claims: held.claims, key: idemKey, now,
-    // The card it was paid with, kept for the receipt (brand and last four — R3b, 0395); a retry answered from the
-    // claim charges nothing, and its receipt says "Paid" without the card.
-    charge: async () => { const r = await chargeCard({ token: token!, locationId: locationId!, sourceId: sourceId!, amountCents: amount, note: "GT3PB pre-order", idempotencyKey: idemKey, buyerEmail }); if (r.ok) paidWith = r.card ?? null; return r; },
-    record: recordPaid,
+    charge: () => chargeCard({ token: token!, locationId: locationId!, sourceId: sourceId!, amountCents: amount, note: "GT3PB pre-order", idempotencyKey: idemKey, buyerEmail }),
+    // The card it was paid with goes on the receipt (R3b, 0395); a retry answered from the claim charges nothing,
+    // and its receipt says "Paid" without the card.
+    record: (paymentId, charged) => recordPaid(paymentId, charged.card ?? null),
     // chargeCard threw: a dropped connection after Square may already have taken the money, or an answer
     // that does not say whether it did (a 5xx, a reused key — lib/squareServer.chargeVerdict). This is a
     // genuine "may have been charged" state, so it gets its own alert, naming the key the payment carries

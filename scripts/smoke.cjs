@@ -13754,7 +13754,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\.update\(card\?\.last4 \? \{ lines: receiptLines, card_brand: card\.brand, card_last4: card\.last4 \} : \{ lines: receiptLines \}\)\s*\.eq\("id", orderId\)\.select\("ticket"\)\.maybeSingle\(\)/.test(api)
     && !/orderRow = \{[^}]*(ticket|lines|card_last4)/.test(api) && /arrives-with: 0395/.test(rd("app/api/checkout/route.ts")));
   ok("checkout: the card is the brand and the last four Square answered with — four digits or nothing",
-    /card: paidCard\(data\?\.payment\?\.card_details\?\.card\)/.test(sq) && /\^\\d\{4\}\$/.test(sq) && /if \(r\.ok\) paidWith = r\.card \?\? null;/.test(api));
+    /card: paidCard\(data\?\.payment\?\.card_details\?\.card\)/.test(sq) && /\^\\d\{4\}\$/.test(sq) && /record: \(paymentId, charged\) => recordPaid\(paymentId, charged\.card \?\? null\),/.test(api) && /const ticket = await ticketFor\(paidWith\);/.test(api));
   ok("confirmation: says the order's number and, with a ticket, leads to it — the phone keeps it",
     /title=\{done\.no \? `Order \$\{done\.no\} is in\.` : "Order in\."\}/.test(co) && /ctaLabel=\{done\.ticket \? "Track your order" : "Reserve a Saturday pack →"\}/.test(co)
     && /router\.push\(tk \? ticketPath\(tk\) : "\/reserve"\)/.test(co) && /if \(t\.ticket && t\.no\) holdTicket\(t\.ticket, t\.no\);/.test(co));
