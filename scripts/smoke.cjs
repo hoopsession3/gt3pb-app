@@ -13640,7 +13640,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /t\("today\.off_eyebrow"\)/.test(th) && /`Cup orders open \$\{etWhen\(lead\.opensAt\)\}\./.test(th) && /"Cup orders open when the truck goes live\."/.test(th)
     && /closedWords\(\{ state: "none"/.test(th) && /etDay\(s\.starts_at\), timeRange\(s\.starts_at, s\.ends_at\)/.test(th));
   ok("today: the order in progress is Today's lead, and the bar above the tabs stays off Today so it is not said twice",
-    /if \(path === "\/"\) return null;\s+return <OrderBar \/>;/.test(os) && /useMyActiveOrders\(\)/.test(os) && /useMyActiveOrders\(\)/.test(th)
+    /if \(path === "\/" \|\| path === "\/order"\) return null;\s+if \(user\) return <OrderBar \/>;/.test(os) && /useMyActiveOrders\(\)/.test(os) && /useMyActiveOrders\(\)/.test(th)
     && /<OrderSteps at=\{stepOf\(order\.status\)\} \/>/.test(th) && /\{eta\("on_way"\)\}\s+\{eta\("outside"\)\}/.test(th));
   ok("today: the card, the packs and the stack are a row each — the card in the card's own words (stamp.*), the packs not to someone with one coming, the stack in a sheet",
     /<InfoRow lead=\{t\("stamp\.kicker"\)\} leadSub=\{`\$\{c\.stamps\}\/\$\{STAMP_GOAL\}`\}/.test(th) && /\{!hasPack && \(/.test(th)
@@ -13883,6 +13883,28 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("stack: Today hands it the truck's state and the stop's menu, the same reads its lead uses; GenerateDay and its classes are gone",
     /<DailyStack ordering=\{ordering\} stopMenu=\{stopMenu\} \/>/.test(th) && /ordering=\{oo\.checked \? oo\.ordering : null\} stopMenu=\{oo\.stopMenu\}/.test(th)
     && !fs.existsSync(path.join(__dirname, "..", "components/GenerateDay.tsx")) && !/\.gen-|\.hero\{|\.step\{/.test(rd("app/globals.css")));
+}
+
+// ── A SIGNED-OUT PHONE'S ORDER, IN THE BAR (2026-10-13, R3c — the rest of board 09) ─────────────────────────────────
+// A guest had the ticket's page and nothing above the tabs; a member had the bar. The phone keeps the ticket, and the
+// newest one it holds rides in the bar while the order is in — read through the ticket alone, never the orders table.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const os = code(rd("components/OrderStatus.tsx")), gb = code(rd("components/GuestOrderBar.tsx"));
+  ok("guest bar: only for someone signed out, once the session is known, and loaded only for them — a member's pages carry none of it",
+    /const GuestOrderBar = dynamic\(\(\) => import\("\.\/GuestOrderBar"\), \{ ssr: false \}\);/.test(os)
+    && /if \(user\) return <OrderBar \/>;\s+return ready \? <GuestOrderBar \/> : null;/.test(os) && !/from "\.\/GuestOrderBar"/.test(os));
+  ok("guest bar: not on Today and not on the order's own page — each is the order already",
+    /if \(path === "\/" \|\| path === "\/order"\) return null;/.test(os));
+  ok("guest bar: the newest ticket the phone holds, read through order_ticket alone — never the orders table",
+    /const lead = held\?\.\[0\] \?\? null;/.test(gb) && /supabase\.rpc\("order_ticket", \{ p_ticket: t \}\)/.test(gb) && !/from\("orders"\)/.test(gb));
+  ok("guest bar: in the order's words while it is in, being made or ready; it leaves when done, canceled or unreadable, and a tap opens its page",
+    /const ACTIVE = new Set\(\["new", "preparing", "ready"\]\);/.test(gb) && /if \(!o \|\| !live\) return null;/.test(gb)
+    && /orderLine\(o\.status,/.test(gb) && /<Link href=\{ticketPath\(t\)\}/.test(gb));
+  ok("guest bar: read again every 20 seconds only while the order is in and the page is in front of someone",
+    /if \(!live\) return;/.test(gb) && /if \(document\.visibilityState === "visible"\) void reload\(\);/.test(gb) && /const POLL_MS = 20_000;/.test(gb));
 }
 
 Promise.all(PENDING).then(() => {

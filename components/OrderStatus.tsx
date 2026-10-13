@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useApp } from "./AppProvider";
+import { useAuth } from "./AuthProvider";
 import Icon from "@/components/Icon";
 import { readyWords, waitingToOpen } from "@/lib/ordering";
 import { leadOrder, orderNo } from "@/lib/activeOrder";   // not lib/today: every page mounts this bar
@@ -10,8 +12,8 @@ import { orderLine } from "@/lib/orderWords";
 import { useMyActiveOrders, useOrderActions, ETA_WORDS } from "./useMyOrders";
 
 // A live "your order" banner for signed-in members — preparing → ready in realtime,
-// no push permission required (RLS lets a member read only their own orders). Guests
-// (no account) still get the at-checkout confirmation; this closes the loop for members.
+// no push permission required (RLS lets a member read only their own orders). A guest's
+// order rides here too, by the ticket the phone holds (R3c, components/GuestOrderBar).
 //
 // NOT ON TODAY (2026-10-13, R3): Today leads with the order itself — its number, its steps, the buttons that tell the
 // truck — so the bar above the tabs would say it twice. Every other screen keeps the bar. The reads and the actions are
@@ -20,10 +22,17 @@ import { useMyActiveOrders, useOrderActions, ETA_WORDS } from "./useMyOrders";
 // ITS WORDS ARE TODAY'S (2026-10-13, R3b): "Order received", "Preparing your order…" and "ready at the bar" were this
 // bar's own; the order reads the same here, on Today, in the toast and in the push (lib/orderWords).
 
+// A signed-out phone's order, by its ticket (R3c): loaded only for someone signed out, so a member's pages carry none.
+const GuestOrderBar = dynamic(() => import("./GuestOrderBar"), { ssr: false });
+
 export default function OrderStatus() {
   const path = usePathname();
-  if (path === "/") return null;
-  return <OrderBar />;
+  const { ready, user } = useAuth();
+  // Not on Today (its card is the order) and not on the order's own page (it is the order).
+  if (path === "/" || path === "/order") return null;
+  if (user) return <OrderBar />;
+  // Not before the session is known: a member is never shown the guest's bar for a moment.
+  return ready ? <GuestOrderBar /> : null;
 }
 
 function OrderBar() {
