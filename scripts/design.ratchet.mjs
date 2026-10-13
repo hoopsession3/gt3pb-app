@@ -645,9 +645,16 @@ export const PROD_ROUTE = {
 // lib/stopLine, so /truck and /events no longer carry the stop texts, the crew's toast and its refund list (lib/stopCancel)
 // — +248 bytes on their own chunk from the first build, +46 now. /order is new: 275 KB in 15 chunks. Built 1d56247 and
 // this commit and gzipped what each route's prerendered HTML references.
+// 2026-10-13 (R3c of the customer audit, a guest's order in the bar and Cancel on the ticket): every route +71 bytes
+// gzipped, /order +303. Three crossed the rounding line, +1: /truck and /events (283.46 → 283.52 KB) and /architecture
+// (280.43 → 280.50). The shell's bar now knows a signed-out phone: components/OrderStatus waits for the session and, for
+// someone signed out, loads components/GuestOrderBar (next/dynamic, ssr: false) — the bar's code, the ticket's read and
+// its 20-second re-read ride only for a guest holding a ticket, never in a member's pages. /order carries Cancel and the
+// canceled ticket's rules (+232 on its own). Built 0e06b9d and this commit and gzipped what each route's prerendered
+// HTML references.
 export const WEIGHT = {
-  "/truck":                    { js: 283, css: 89, chunks: 16 },
-  "/events":                   { js: 283, css: 89, chunks: 16 },
+  "/truck":                    { js: 284, css: 89, chunks: 16 },
+  "/events":                   { js: 284, css: 89, chunks: 16 },
   "/menu":                     { js: 271, css: 90, chunks: 15 },
   "/reserve":                  { js: 291, css: 90, chunks: 16 },
   "/delivery":                 { js: 290, css: 90, chunks: 16 },
@@ -657,7 +664,7 @@ export const WEIGHT = {
   "/academy":                  { js: 323, css: 90, chunks: 16 },
   "/office":                   { js: 280, css: 90, chunks: 15 },
   "/scan":                     { js: 271, css: 90, chunks: 15 },
-  "/architecture":             { js: 280, css: 90, chunks: 15 },
+  "/architecture":             { js: 281, css: 90, chunks: 15 },
   "/playbook":                 { js: 279, css: 90, chunks: 15 },
   "/driver":                   { js: 277, css: 89, chunks: 15 },
   "/agreement":                { js: 272, css: 90, chunks: 15 },
