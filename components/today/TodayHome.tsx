@@ -214,6 +214,7 @@ function Lead({ lead, usual, stopMenu, t }: { lead: Exclude<TodayLead<Order>, { 
           </div>
         )}
         <p className="k-rsub whitespace-normal">{opens}</p>
+        {s && lead.opensAt && <RemindMe stopId={s.id} opensAt={lead.opensAt} t={t} />}
         <div className="flex flex-wrap items-center gap-2">
           {s?.where && <button type="button" className="k-chip sm" onClick={() => openAddress(s.where!)}><Icon name="pin" /> {t("today.directions")}</button>}
           {menuChip}
@@ -246,6 +247,8 @@ function Lead({ lead, usual, stopMenu, t }: { lead: Exclude<TodayLead<Order>, { 
 
 // ── THE ROWS: the card, the packs, the stack ──────────────────────────────────────────────────────────────────
 const GenerateDay = dynamic(() => import("@/components/GenerateDay"));
+// Loaded only for the truck-off lead, where it is drawn (its alerts code is not every member's Today).
+const RemindMe = dynamic(() => import("./RemindMe"));
 const CrewWelcomeRow = dynamic(() => import("@/components/CrewWelcomeRow"));
 
 function MiniStamps({ n }: { n: number }) {

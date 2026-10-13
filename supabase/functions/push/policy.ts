@@ -110,6 +110,12 @@ export function liveShown(stopName: unknown): Shown {
   return { title: "GT3 is LIVE", body: `We're pouring${at} — come thru.`, tag: "live", ring: false };
 }
 
+/** Cup orders opened for a stop a member asked to be reminded about (0394). The stop's name is public; nothing else. */
+export function reminderShown(stopName: unknown, stopId: unknown): Shown {
+  const at = typeof stopName === "string" && stopName.trim() ? ` for ${stopName.trim().slice(0, 60)}` : "";
+  return { title: "Cup orders are open", body: `Order ahead${at} — your usual is one tap on Today.`, tag: `cups-open:${idOf(stopId)}`, ring: false };
+}
+
 /** Prep waiting on someone's sign-off. The event's title can be a client's name, so it is not shown. */
 export function signoffShown(req: { id?: unknown }): Shown {
   return { title: "Prep needs your sign-off", body: `Tap to review and approve.`, tag: `signoff:${idOf(req.id)}`, ring: false };

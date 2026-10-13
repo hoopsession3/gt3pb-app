@@ -90,6 +90,10 @@ const shape = (s) => !!s && typeof s.title === "string" && s.title.length > 0 &&
   const l = P.liveShown("Falls Park"), none = P.liveShown(null);
   ok("the truck is live: a stop's public name may be said; no stop, no place", l.body === "We're pouring at Falls Park — come thru." && none.body === "We're pouring — come thru." && l.tag === "live");
   ok("the truck is live: a name is cut at sixty characters", P.liveShown("x".repeat(90)).body.length < 100);
+  // 0394 — Remind me when cup orders open: the stop's name (public), cut like the live ping's; one notification a stop.
+  const rm = P.reminderShown("WineXpress", "5a10e000-0000-4000-8000-00000000057a"), rm0 = P.reminderShown(null, null);
+  ok("a reminder: cup orders are open, for the stop by name — nothing about the member", rm.title === "Cup orders are open" && rm.body === "Order ahead for WineXpress — your usual is one tap on Today." && rm.ring === false, rm);
+  ok("a reminder: no name says no name; one notification per stop", rm0.body === "Order ahead — your usual is one tap on Today." && rm.tag === "cups-open:5a10e000-0000-4000-8000-00000000057a" && rm0.tag === "cups-open:-" && P.reminderShown("y".repeat(90), "s").body.includes("y".repeat(60)) && !P.reminderShown("y".repeat(90), "s").body.includes("y".repeat(61)), rm0);
 }
 
 // Every kind with a sentence, every category, a kind nobody wrote one for, and kind-less alerts.

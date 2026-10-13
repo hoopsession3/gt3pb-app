@@ -15,7 +15,7 @@
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
-  alertShown, channelsFor, escalationShown, isEscalation, liveShown, mayEmail, newOrderShown, orderStatusShown,
+  alertShown, channelsFor, escalationShown, isEscalation, liveShown, mayEmail, newOrderShown, orderStatusShown, reminderShown,
   severityOf, signoffShown, stillUnanswered, subscriptionShown, taskShown, whoRings, type NotifPrefsRow, type Shown,
 } from "./policy.ts";
 
@@ -352,6 +352,15 @@ Deno.serve(async (req) => {
       shown = liveShown(stopName);
       url = "/";
       targets = await subsFor((q) => q.eq("wants_live", true).eq("tenant_id", tenantOf(record)));
+
+    } else if (table === "cup_reminders" && type === "UPDATE") {
+      // Remind me when cup orders open (0394): the minute's run marked it sent — to that member's own devices, once.
+      // The stop's name, which Find Us shows anyone; nothing else about them or the order.
+      if (!record.fired_at || (old_record && old_record.fired_at)) return new Response("skip: not a reminder going out");
+      const { data: s } = await supabase.from("stops").select("name").eq("id", record.stop_id).maybeSingle();
+      shown = reminderShown(s?.name ?? null, record.stop_id);
+      url = "/";
+      targets = await subsFor((q) => q.eq("user_id", record.user_id));
 
     } else if (table === "alerts" && type === "INSERT") {
       // Alert spine (0050) — fan one alert out to the channels its severity gets (./policy.ts: an fyi gets none).

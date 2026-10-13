@@ -13647,6 +13647,30 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /const GenerateDay = dynamic\(\(\) => import\("@\/components\/GenerateDay"\)\);/.test(th) && !fs.existsSync(path.join(__dirname, "..", "components/StampCard.tsx")));
 }
 
+// ── REMIND ME WHEN CUP ORDERS OPEN (2026-10-13, R3 — board 04; 0394) ──
+// With the truck off, Today says when cup orders open; the one thing to do about it is a push at that minute. Only where a
+// push can land, only once the phone said yes, and kept by the database (scripts/db.cupreminders.test.mjs runs 0394).
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const rm = rd("components/today/RemindMe.tsx"), th = rd("components/today/TodayHome.tsx"), fn = rd("supabase/functions/push/index.ts"), mig = rd("supabase/migrations/0394_remind_me_when_cup_orders_open.sql");
+  ok("remind me: drawn for the truck-off lead with a time to remind at, loaded only there",
+    /\{s && lead\.opensAt && <RemindMe stopId=\{s\.id\} opensAt=\{lead\.opensAt\} t=\{t\} \/>\}/.test(th) && /const RemindMe = dynamic\(\(\) => import\("\.\/RemindMe"\)\);/.test(th));
+  ok("remind me: only where a push can land — the app once its alerts are live, a browser that takes a push — and its room kept while it asks",
+    /const \[native\] = useState\(\(\) => APP_BUILD && isNativeApp\(\)\);/.test(rm) && /const appPush = native && NATIVE_PUSH_ON && app\.state !== "unknown" && app\.state !== "unavailable";/.test(rm) && /"PushManager" in window/.test(rm)
+    && /!\(app\.state === "unknown" && waited\)/.test(rm)
+    && /if \(!maybe \|\| unreadable\) return null;/.test(rm) && /<div className="h-\[50px\]" aria-hidden="true" \/>/.test(rm));
+  ok("remind me: the phone is asked first; the database keeps it (keep_cup_reminder) and takes it back (drop_cup_reminder); a refusal is said in its words",
+    /if \(!\(await ask\(\)\)\) return;\s+const \{ error \} = await supabase\.rpc\("keep_cup_reminder", \{ p_stop: stopId, p_at: opensAt \}\);\s+if \(error\) \{ toast\(error\.message, "error"\); return; \}/.test(rm)
+    && /supabase\.rpc\("drop_cup_reminder", \{ p_stop: stopId \}\)/.test(rm) && /\/\/ arrives-with: 0394/.test(rm));
+  ok("remind me: the push function sends a reminder marked sent to that member's devices only, saying the stop's name and nothing else",
+    /table === "cup_reminders" && type === "UPDATE"/.test(fn) && /if \(!record\.fired_at \|\| \(old_record && old_record\.fired_at\)\) return new Response\("skip: not a reminder going out"\);/.test(fn)
+    && /targets = await subsFor\(\(q\) => q\.eq\("user_id", record\.user_id\)\);/.test(fn) && /shown = reminderShown\(s\?\.name \?\? null, record\.stop_id\);/.test(fn));
+  ok("remind me: 0394 makes its door from the fan-out's call (no address or key in the file), runs every minute, and lets a late one go",
+    /cron\.schedule\('fire-cup-reminders', '\* \* \* \* \*', 'select public\.fire_cup_reminders\(\)'\)/.test(mig) && /and r\.remind_at > now\(\) - interval '30 minutes'/.test(mig)
+    && /create trigger cup_reminders_push after update of fired_at on public\.cup_reminders/.test(mig) && !/https?:\/\/|Bearer/i.test(mig.replace(/--.*$/gm, "")));
+}
+
 // ── FIND US ON THE TRUCK'S CLOCK (2026-10-13, R3 of the customer audit) ──
 // A stop happens on one day where the truck is: "Tomorrow · 10/13" over a stop dated 10/13 was the phone's day. A stop
 // called off with no close time went at its start, and the ordering line under an event never named the stop it meant.
