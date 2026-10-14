@@ -3,7 +3,8 @@ import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
-import { notifyCustomer, accountEmail, whoAsked } from "@/lib/notify";
+import { notifyCustomer, accountEmail, whoAsked, sayTextConsent } from "@/lib/notify";
+import { textsOn } from "@/lib/texts";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
 import { aboveShown, shownCents } from "@/lib/shownTotal";
@@ -34,6 +35,7 @@ type Body = {
   emptiesAck?: boolean;
   expectedCents?: number; // the total on the page's Pay button (lib/shownTotal)
   deliveryDate?: string; // which Sunday — one of the two offered keys
+  textOptIn?: boolean;   // they ticked the yes to texts (components/TextYes, 0398)
 };
 
 const reply = (a: Answer) => NextResponse.json(a.body, { status: a.status });
@@ -201,7 +203,11 @@ async function post(req: Request) {
         return { status: 200, body: { ok: true, paymentId, recorded: false, ref, deliveryLabel: slot.deliveryLabel, warn: `Payment received — ref ${ref}. We've alerted the crew to add your order.` } };
       }
 
-      // Confirmation to the customer — the delivery phone + account email. Best-effort.
+      // The yes to texts, kept with the delivery (R5, 0398): only when they ticked it, for this delivery's number, and only
+      // while texts are switched on. Best-effort — a yes that could not be kept is no yes.
+      if (b.textOptIn === true && textsOn()) await sayTextConsent(row.phone, true, "delivery_checkout", user.id);
+
+      // Confirmation to the customer — the account email, and a text to a number that said yes (lib/notify). Best-effort.
       await notifyCustomer({
         phone: row.phone,
         email: await accountEmail(user.id),

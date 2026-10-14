@@ -7,6 +7,7 @@ import AsyncSection from "./AsyncSection";
 import { SQUARE_APP_ID, SQUARE_ENV, squareClientReady } from "@/lib/square";
 import { errorMessage } from "@/lib/errorMessage";
 import { apiUrl } from "@/lib/native";
+import { textsOn } from "@/lib/texts";
 
 // INTEGRATIONS & SECURITY — one card per connected service with an honest status (2026-08-01
 // enterprise round P4). Everything here was already real but scattered across env vars, the
@@ -75,8 +76,12 @@ export default function IntegrationsPanel() {
               setTesting(false);
             }}>{testing ? "Sending…" : "Test"}</button>
           </div>
-          <Row name="SMS (Twilio)" ok={p.notify ? p.notify.sms : null}
-            sub={p.notify === null ? "couldn't check" : p.notify.sms ? "keys set — order and delivery texts send" : "no keys — texts are skipped"} />
+          {/* A text needs a yes (R5, 0398): keys alone no longer mean "texts send" — only to a number that said yes and
+              has not said STOP, 8am–9pm Eastern, once texts are switched on. */}
+          <Row name="SMS (Twilio)" ok={p.notify ? (!p.notify.sms ? false : textsOn() ? true : null) : null}
+            sub={p.notify === null ? "couldn't check" : !p.notify.sms ? "no keys — texts are skipped"
+              : textsOn() ? "keys set — texts go to numbers that said yes, 8am–9pm ET" : "keys set — texts stay off until the number is registered"}
+            note={p.notify?.sms && !textsOn() ? "then set NEXT_PUBLIC_TEXTS_ON=1 in Vercel" : undefined} />
           <Row name="Teams alerts" ok={null} sub="server-side — critical fan-out posts when the webhook is set in Vercel" />
           <div className="intg-sec">
             <b>Security</b>

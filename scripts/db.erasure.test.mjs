@@ -83,6 +83,8 @@ const ev = (await one(`select id from public.events where title = 'Harvest Pour'
 await q(`insert into public.rsvps (event_id, user_id, contact_email, tenant_id) values ($1, $2, $3, $4)`, [ev, CUST, CASEY.email, T1]);
 await q(`insert into public.vip_verifications (user_id, photo_url, note, tenant_id) values ($1, $2, 'Firefighter, Station 3', $3)`, [CUST, `https://x.supabase.co/storage/v1/object/public/vip/${CUST}/badge.jpg`, T1]);
 await q(`insert into public.subscription_interest (user_id, email, pack_size, tenant_id) values ($1, $2, '6', $3)`, [CUST, CASEY.email, T1]);
+// her yes to texts, given at a pack checkout (0398) — her number, kept for the texts
+await q(`select public.say_text_consent('+18645550142', true, 'pack_checkout', $1)`, [CUST]);
 await q(`insert into public.loyalty_ledger (user_id, kind, points, note, tenant_id) values ($1, 'award', 10, 'First pour', $2)`, [CUST, T1]);
 await q(`insert into public.push_subscriptions (user_id, endpoint, p256dh, auth, tenant_id) values ($1, 'https://push.example/1', 'k', 'a', $2)`, [CUST, T1]);
 await q(`insert into public.check_ins (user_id, day, note, tenant_id) values ($1, current_date, 'Slept badly before the 5k', $2)`, [CUST, T1]);
@@ -259,7 +261,7 @@ ok("the weekly audit prune runs again, keeps the year, and the switch it uses en
 // kept as signed · business: a company's account the person only used (a company's request stays the company's, unsigned — 0359)
 const DECIDED = {
   deleted: ["academy_acknowledgements", "agent_convos", "check_ins", "loyalty_ledger", "profiles", "reviews", "rsvps", "subscription_interest",
-            "team_invites", "user_activity", "vip_verifications"],
+            "team_invites", "text_consents", "user_activity", "vip_verifications"],
   books: ["customer_messages", "customers", "delivery_orders", "drop_orders", "jug_ledger", "loop_txns", "shop_orders"],
   work: ["account_activities", "agent_knowledge", "alerts", "asset_maintenance", "brew_batch_steps", "brew_batches", "comments", "compliance_checks",
          "compliance_rules", "content_items", "documents", "event_schedule_items", "expenses", "goals", "gtm_drafts", "inventory_ledger", "inventory_lots",

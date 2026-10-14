@@ -14051,6 +14051,80 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /doneRef\.receipt\.lines\.map\(/.test(sh));
 }
 
+// ── A TEXT NEEDS A YES (2026-10-14, R5 — decided 2026-10-13: texts with a recorded opt-in, STOP honoured, none at night,
+// none at all until the Twilio number is registered) ──────────────────────────────────────────────────────────────────────
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const TX = require("../.smoke/texts.js");
+  ok("texts: a number as people type it is one +1 number — brackets, dots, dashes, a leading 1 or +1",
+    ["(864) 555-0100", "864.555.0100", "8645550100", "1-864-555-0100", "+1 864 555 0100", " 864 555 0100 "].every((x) => TX.e164(x) === "+18645550100")
+    && TX.e164("+44 20 7946 0958") === "+442079460958");
+  ok("texts: anything else is no number — a guess at a number is a text to a stranger",
+    [null, undefined, "", "555-0100", "0864555010", "123-456-7890", "21864555010", "+0123456789", "+1234567", "call me", "10-864-555-0100"].every((x) => TX.e164(x) === null));
+  ok("texts: a US number is shown back to its owner as (864) 555-0100; any other as it is",
+    TX.phoneShown("+18645550100") === "(864) 555-0100" && TX.phoneShown("+442079460958") === "+442079460958" && TX.phoneShown(null) === "");
+  ok("texts: STOP and every word carriers treat as it — any case, spaces, a full stop — is a stop",
+    ["STOP", "stop", "Stop.", " stop ", "STOP!", "Stop all", "STOPALL", "unsubscribe", "Cancel", "END", "quit", "revoke", "OPTOUT"].every((w) => TX.textKeyword(w) === "stop"));
+  ok("texts: START / YES / UNSTOP say yes again; HELP / INFO ask for help",
+    ["START", "start", "Yes", "UNSTOP"].every((w) => TX.textKeyword(w) === "start") && ["HELP", "help?", "Info"].every((w) => TX.textKeyword(w) === "help"));
+  ok("texts: a person writing is not a keyword, even with STOP in it",
+    ["please stop by at 5", "Don't stop", "yes please", "STOP STOP", "", null].every((w) => TX.textKeyword(w) === null));
+  const night = (iso) => TX.quietHours(new Date(iso));
+  ok("texts: night is 9pm to 8am Eastern — in summer (EDT) and in winter (EST), midnight included",
+    !night("2026-07-15T00:59:00Z") && night("2026-07-15T01:00:00Z") && night("2026-07-15T11:59:00Z") && !night("2026-07-15T12:00:00Z")
+    && !night("2026-12-15T01:59:00Z") && night("2026-12-15T02:00:00Z") && night("2026-12-15T05:00:00Z") && night("2026-12-15T12:59:00Z") && !night("2026-12-15T13:00:00Z"));
+  {
+    const was = process.env.NEXT_PUBLIC_TEXTS_ON, seen = [];
+    try {
+      for (const v of [undefined, "", "true", "0", "1"]) { if (v === undefined) delete process.env.NEXT_PUBLIC_TEXTS_ON; else process.env.NEXT_PUBLIC_TEXTS_ON = v; seen.push(TX.textsOn()); }
+    } finally { if (was === undefined) delete process.env.NEXT_PUBLIC_TEXTS_ON; else process.env.NEXT_PUBLIC_TEXTS_ON = was; }
+    ok("texts: switched on only by NEXT_PUBLIC_TEXTS_ON=1 — unset, empty, 'true' or 0 leave them off", seen.join() === "false,false,false,false,true", seen);
+  }
+
+  // notifyCustomer, run: keys alone text nobody; texts on, a number with no yes is not texted. The yes is read through the
+  // service client, which is not there in this harness — the "can't be read" case, which must be a no. Run after every other
+  // pending check, so the made-up Twilio keys set here are never seen by one of them (nothing here can reach Twilio).
+  const N = require("../.smoke/notify.js");
+  const earlier = PENDING.slice();
+  PENDING.push((async () => {
+    await Promise.all(earlier);
+    const K = ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM_NUMBER", "NEXT_PUBLIC_TEXTS_ON"], keep = {};
+    for (const k of K) keep[k] = process.env[k];
+    try {
+      Object.assign(process.env, { TWILIO_ACCOUNT_SID: "AC-made-up", TWILIO_AUTH_TOKEN: "made-up", TWILIO_FROM_NUMBER: "+18645550199" });
+      delete process.env.NEXT_PUBLIC_TEXTS_ON;
+      const off = await N.notifyCustomer({ phone: "864-555-0100", subject: "s", message: "m" });
+      process.env.NEXT_PUBLIC_TEXTS_ON = "1";
+      const noYes = await N.notifyCustomer({ phone: "864-555-0100", subject: "s", message: "m" });
+      const odd = await N.notifyCustomer({ phone: "555-0100", subject: "s", message: "m" });
+      ok("notify: Twilio keys set but texts not switched on — no text ('off')", off.sms === "off", off);
+      ok("notify: texts on, a number whose yes can't be found — not texted ('not-asked'), which is not a send", noYes.sms === "not-asked" && N.didSend(noYes.sms) === false, noYes);
+      ok("notify: a phone that is not a number — 'no-address', with the reason", odd.sms === "no-address" && /unparseable/.test(odd.smsDetail || ""), odd);
+    } finally { for (const k of K) { if (keep[k] === undefined) delete process.env[k]; else process.env[k] = keep[k]; } }
+  })());
+
+  const nt = code(rd("lib/notify.ts")), ib = code(rd("app/api/sms/inbound/route.ts")), rs = code(rd("app/api/reserve/route.ts")), dc = code(rd("app/api/delivery/checkout/route.ts"));
+  const ac = code(rd("app/api/account/texts/route.ts")), ty = code(rd("components/TextYes.tsx")), of = code(rd("components/OrderFunnel.tsx"));
+  const sms = nt.slice(nt.indexOf("export async function notifyCustomer("), nt.indexOf("export async function notifyCustomer(") + 1600);
+  ok("notify: a customer text is sent only after the switch, a standing yes and the daytime — in that order",
+    /if \(!smsEnabled\(\) \|\| !textsOn\(\)\) return \["off"/.test(sms) && sms.indexOf("await textYes(num)") > 0 && sms.indexOf("quietHours()") > sms.indexOf("await textYes(num)")
+    && sms.indexOf("await sendSMS(num") > sms.indexOf("quietHours()"));
+  ok("notify: one way to read a number — lib/texts e164, for the yes, the lookup and the send",
+    /import \{ e164, quietHours, textsOn \} from "\.\/texts";/.test(nt) && !/const e164 = /.test(nt));
+  ok("a text sent to us: nothing is read or recorded before Twilio's signature is checked",
+    ib.indexOf("twilioSignatureOk(") > 0 && ib.indexOf("twilioSignatureOk(") < ib.indexOf("sayTextConsent(") && ib.indexOf("twilioSignatureOk(") < ib.indexOf("raiseAlert("));
+  ok("checkout: the yes is recorded only when ticked, only while texts are on, for the number on the order",
+    /if \(body\.textOptIn === true && textsOn\(\)\) await sayTextConsent\(phone, true, "pack_checkout", user\.id\);/.test(rs)
+    && /if \(b\.textOptIn === true && textsOn\(\)\) await sayTextConsent\(row\.phone, true, "delivery_checkout", user\.id\);/.test(dc));
+  ok("checkout: the box starts unticked and is sent as it stands — never ticked for them",
+    /const \[textYes, setTextYes\] = useState\(false\);/.test(of) && (of.match(/<TextYes phone=\{phone\} checked=\{textYes\} onChange=\{setTextYes\} \/>/g) || []).length === 2
+    && (of.match(/textOptIn: textYes \|\| undefined/g) || []).length === 2 && /<input type="checkbox" checked=\{checked\} onChange=\{\(e\) => onChange\(e\.target\.checked\)\} \/>/.test(ty));
+  ok("account: the switch changes only a number on the member's own orders",
+    /if \(!theirs\.has\(num\)\) return NextResponse\.json\(\{ error: "That number isn't on your orders\." \}, \{ status: 403 \}\);/.test(ac) && ac.indexOf("theirs.has(num)") < ac.indexOf("sayTextConsent("));
+}
+
 Promise.all(PENDING).then(() => {
   console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);

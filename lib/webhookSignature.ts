@@ -89,6 +89,16 @@ export function apliiqSignatureOk(rawBody: string, authHeader: string | null | u
   return sameBytes(sig, expected);
 }
 
+/** Twilio (2026-10-14, R5 — a text sent to us, STOP honoured): base64(HMAC-SHA1(auth token, the URL Twilio called +
+ *  each POST parameter's name and value, names sorted)) in x-twilio-signature. The URL is the one set on the number in
+ *  Twilio, exactly — behind a proxy, req.url is not it (app/api/sms/inbound). */
+export function twilioSignatureOk(params: Record<string, string>, header: string | null | undefined, authToken: string | null | undefined, url: string | null | undefined): boolean {
+  if (!header || !authToken || !url) return false;
+  const data = url + Object.keys(params).sort().map((k) => k + params[k]).join("");
+  const expected = createHmac("sha1", authToken).update(Buffer.from(data, "utf8")).digest("base64");
+  return sameBytes(header, expected);
+}
+
 /** A shared token on the request (an inbound-email service that cannot sign): equal to the secret, compared in
  *  constant time. No secret set is never a match. */
 export function tokenOk(got: string | null | undefined, secret: string | null | undefined): boolean {

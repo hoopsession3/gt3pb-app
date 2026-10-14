@@ -4,7 +4,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { benefitsForUser, acceptedCode } from "@/lib/benefits";
-import { notifyCustomer, accountEmail, whoAsked } from "@/lib/notify";
+import { notifyCustomer, accountEmail, whoAsked, sayTextConsent } from "@/lib/notify";
+import { textsOn } from "@/lib/texts";
 import { mixSummary, type Mix } from "@/lib/orderAhead";
 import { packPick, offeredDays, requestedDay, packCents } from "@/lib/packOrder";
 import { packClosesAt, packIsOpen, pickupDayWords } from "@/lib/pickupDay";
@@ -30,7 +31,7 @@ async function post(req: Request) {
     return NextResponse.json({ error: "Reservations aren't switched on yet." }, { status: 503 });
   }
 
-  let body: { sourceId?: string; idempotencyKey?: string; name?: string; phone?: string; size?: number; glass?: string; mix?: Partial<Mix>; dropDate?: string; stopId?: string; expectedCents?: number };
+  let body: { sourceId?: string; idempotencyKey?: string; name?: string; phone?: string; size?: number; glass?: string; mix?: Partial<Mix>; dropDate?: string; stopId?: string; expectedCents?: number; textOptIn?: boolean };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
 
   // Order-ahead is member-only: the reservation needs an owner (drop_orders.user_id) so it lives
@@ -186,7 +187,11 @@ async function post(req: Request) {
         return { status: 200, body: { ok: true, paid, recorded: false, ref, warn: `Reserved${ref ? ` — ref ${ref}` : ""}. We've alerted the crew; show this at pickup.` } };
       }
 
-      // Confirmation to the customer — SMS (they gave a phone for exactly this) + account email.
+      // The yes to texts, kept with the pack (R5, 0398): only when they ticked it (components/TextYes), for the number on
+      // this pack, and only while texts are switched on. Best-effort — a yes that could not be kept is no yes.
+      if (body.textOptIn === true && textsOn()) await sayTextConsent(phone, true, "pack_checkout", user.id);
+
+      // Confirmation to the customer — email, and a text to a number that said yes (lib/notify: 0398, never at night).
       // Best-effort: a provider hiccup never fails the reservation.
       await notifyCustomer({
         phone,

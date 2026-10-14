@@ -320,8 +320,11 @@ export const COPY_META: CopyMeta[] = [
   { key: "funnel.details_h_pickup", group: "Reserve flow", label: "Details step — headline, pickup", default: "Who's this drop for?" },
   { key: "funnel.signin_prompt", group: "Reserve flow", label: "Details step — signed-out prompt", default: "Sign in so your order is yours to track and manage." },
   { key: "funnel.f_name", group: "Reserve flow", label: "Details — name placeholder (both modes)", default: "Name" },
-  { key: "funnel.f_phone_pickup", group: "Reserve flow", label: "Details — phone placeholder, pickup", default: "Phone (for pickup-day text)" },
-  { key: "funnel.tel_consent", group: "Reserve flow", label: "Details — SMS consent line (both modes)", multiline: true, default: "Your number gets order texts from GT3 only — never marketing. Reply STOP anytime." },
+  // R5 (0398): a number is texted only after its yes (the box below it), so the field no longer promises a text.
+  { key: "funnel.f_phone_pickup", group: "Reserve flow", label: "Details — phone placeholder, pickup", default: "Phone (in case we need to reach you)" },
+  { key: "funnel.tel_consent", group: "Reserve flow", label: "Details — what the phone number is for, while texts are off (both modes)", multiline: true, default: "We use your number only about this order — never marketing." },
+  // R5 (2026-10-14, 0398): the yes to texts, beside an unticked box, once texts are switched on (components/TextYes).
+  { key: "funnel.text_yes", group: "Reserve flow", label: "Details — the yes to texts, beside its box (both modes)", multiline: true, default: "Text me about my packs and deliveries — when one is confirmed, and if anything changes. Msg frequency varies. Msg & data rates may apply. Reply STOP to stop, HELP for help." },
   { key: "funnel.details_pay", group: "Reserve flow", label: "Details — advance-to-payment button (both modes)", default: "Payment" },
   { key: "funnel.pay_h", group: "Reserve flow", label: "Pay step — headline", default: "Lock it in." },
   { key: "funnel.have_code", group: "Reserve flow", label: "Pay step — 'have a code' toggle", default: "Have a code?" },
@@ -365,7 +368,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "funnel.glass_new_del_sub", group: "Delivery", label: "Glass step — new-glass card body, delivery (uses {fresh})", default: "Sealed bottles delivered fresh. {fresh}/bottle." },
   { key: "funnel.glass_next_del", group: "Delivery", label: "Glass step — advance button, delivery", default: "Delivery details" },
   { key: "funnel.details_h_del", group: "Delivery", label: "Details step — headline, delivery", default: "Where do we bring it?" },
-  { key: "funnel.f_phone_del", group: "Delivery", label: "Details — phone placeholder, delivery", default: "Phone — for delivery-morning texts" },
+  { key: "funnel.f_phone_del", group: "Delivery", label: "Details — phone placeholder, delivery", default: "Phone (in case we need to reach you)" },
   { key: "funnel.f_street", group: "Delivery", label: "Details — street placeholder", default: "Street address" },
   { key: "funnel.f_city", group: "Delivery", label: "Details — city placeholder", default: "City" },
   { key: "funnel.f_access", group: "Delivery", label: "Details — access-notes placeholder", default: "Gate code / access notes (optional)" },

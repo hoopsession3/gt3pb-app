@@ -30,7 +30,7 @@ export const GUARDS = [
   /\btimingSafeEqual\(/, /\bcreateHmac\(/,     // a signed webhook (Stripe/Square shape)
   // lib/webhookSignature.ts (2026-10-11): the same signed-webhook checks, in one home — a route that calls one of
   // these verifies its sender and answers 401 when it fails (scripts/webhooks.test.mjs runs each route).
-  /\b(?:square|svix|stripe|apliiq)SignatureOk\(/, /\btokenOk\(/,
+  /\b(?:square|svix|stripe|apliiq|twilio)SignatureOk\(/, /\btokenOk\(/,
   /\bpending_state\b/,                        // an OAuth callback checking the state it issued
   /process\.env\.[A-Z_]*SECRET[A-Z_]*/,       // a shared-secret token compared on the request
   // NOT here, on purpose: an inline `.auth.getUser(`. app/api/office did that to get the email

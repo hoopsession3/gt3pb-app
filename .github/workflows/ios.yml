@@ -358,6 +358,7 @@ jobs:
       NEXT_PUBLIC_APPLE_WALLET: ${{ vars.NEXT_PUBLIC_APPLE_WALLET }}
       NEXT_PUBLIC_GOOGLE_WALLET: ${{ vars.NEXT_PUBLIC_GOOGLE_WALLET }}
       NEXT_PUBLIC_NATIVE_PUSH: ${{ vars.NEXT_PUBLIC_NATIVE_PUSH }}
+      NEXT_PUBLIC_TEXTS_ON: ${{ vars.NEXT_PUBLIC_TEXTS_ON }}
     steps:
       - name: Said when the launch check could not run
         if: needs.simulator.result != 'success'

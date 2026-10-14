@@ -1,11 +1,11 @@
 // EVERY INBOUND WEBHOOK PROVES WHO SENT IT — lib/webhookSignature and the routes on top of it, run (2026-10-11, wave 2).
 //
-// Five doors take requests with no session: Square, Resend (Svix), Stripe and Apliiq sign theirs; the inbound-email
-// door (notes/inbound) carries a shared token. Each must answer a missing or wrong signature with 401 and act on
+// Six doors take requests with no session: Square, Resend (Svix), Stripe, Apliiq and Twilio (texts sent to us, 2026-10-14)
+// sign theirs; the inbound-email door (notes/inbound) carries a shared token. Each must answer a missing or wrong signature with 401 and act on
 // nothing, and let a correctly signed one through. The checks are compiled from lib/webhookSignature.ts and asked
 // directly; then each route file is compiled and called with a Request, as Next calls it — its own code, with its
 // database, alerts and error intake stood in for by recorders (nothing here talks to Supabase, Square, Stripe,
-// Resend or Apliiq). Every secret, key, token and signature below is made up for this file.
+// Resend, Apliiq or Twilio). Every secret, key, token and signature below is made up for this file.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createHmac } from "node:crypto";
@@ -42,7 +42,8 @@ function loader(shims = {}) {
 
 const W = loader()("lib/webhookSignature.ts");
 ok("compiled: lib/webhookSignature", typeof W.squareSignatureOk === "function" && typeof W.svixSignatureOk === "function"
-  && typeof W.stripeSignatureOk === "function" && typeof W.apliiqSignatureOk === "function" && typeof W.tokenOk === "function");
+  && typeof W.stripeSignatureOk === "function" && typeof W.apliiqSignatureOk === "function" && typeof W.twilioSignatureOk === "function"
+  && typeof W.tokenOk === "function");
 
 // ── the made-up secrets, and each provider's signature computed here independently, from its documentation ────────
 const SQ_KEY = "made-up-square-signature-key-for-tests", SQ_URL = "https://app.example.test/api/square/webhook";
@@ -55,6 +56,10 @@ const stripeSign = (t, body, secret = STRIPE_SECRET) => createHmac("sha256", sec
 const APLIIQ_SECRET = "made-up-apliiq-shared-secret";
 const apliiqHeader = (body, { rts = "1760180000", appid = "app-test", state = "nonce1234", secret = APLIIQ_SECRET } = {}) =>
   `x-apliiq-auth ${rts}:${createHmac("sha256", secret).update(appid + rts + state + (body ? Buffer.from(body).toString("base64") : "")).digest("base64")}:${appid}:${state}`;
+// Twilio: HMAC-SHA1 of the URL set on the number followed by each form field, name then value, in name order — base64.
+const TW_TOKEN = "made-up-twilio-auth-token", TW_URL = "https://app.example.test/api/sms/inbound";
+const twSign = (params, url = TW_URL, token = TW_TOKEN) =>
+  createHmac("sha1", token).update(url + Object.keys(params).sort().map((k) => k + params[k]).join("")).digest("base64");
 const now = Math.floor(Date.now() / 1000);
 
 // ── 1 · the checks ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -118,6 +123,24 @@ const now = Math.floor(Date.now() / 1000);
     && !W.apliiqSignatureOk(body, apliiqHeader(body, { secret: "not-ours" }), APLIIQ_SECRET) && !W.apliiqSignatureOk(body + "x", apliiqHeader(body), APLIIQ_SECRET));
   ok("apliiq: no secret configured — closed", !W.apliiqSignatureOk(body, apliiqHeader(body), ""));
 }
+{
+  // Twilio's own worked example (its "Webhooks security" page): token 12345, this URL and these five fields sign to this.
+  const doc = { CallSid: "CA1234567890ABCDE", Caller: "+12349013030", Digits: "1234", From: "+12349013030", To: "+18005551212" };
+  const DOC_URL = "https://mycompany.com/myapp.php?foo=1&bar=2", DOC_SIG = "0/KCTR6DLpKmkAf8muzZqo1nDgQ=";
+  ok("twilio: the documented example — token 12345 over its URL and fields — passes", W.twilioSignatureOk(doc, DOC_SIG, "12345", DOC_URL));
+  ok("twilio: the field order on the wire does not matter (signed in name order)",
+    W.twilioSignatureOk({ To: doc.To, From: doc.From, Digits: doc.Digits, Caller: doc.Caller, CallSid: doc.CallSid }, DOC_SIG, "12345", DOC_URL));
+  ok("twilio: another token, URL, field value, an added field, or a missing one — refused",
+    !W.twilioSignatureOk(doc, DOC_SIG, "12346", DOC_URL) && !W.twilioSignatureOk(doc, DOC_SIG, "12345", DOC_URL.replace("foo=1", "foo=2"))
+    && !W.twilioSignatureOk({ ...doc, Digits: "1235" }, DOC_SIG, "12345", DOC_URL) && !W.twilioSignatureOk({ ...doc, Body: "STOP" }, DOC_SIG, "12345", DOC_URL)
+    && !W.twilioSignatureOk({ CallSid: doc.CallSid, Caller: doc.Caller, Digits: doc.Digits, From: doc.From }, DOC_SIG, "12345", DOC_URL));
+  ok("twilio: missing or empty header, no token, no URL — refused; a non-ASCII forgery is refused, not thrown",
+    !W.twilioSignatureOk(doc, null, "12345", DOC_URL) && !W.twilioSignatureOk(doc, "", "12345", DOC_URL)
+    && !W.twilioSignatureOk(doc, DOC_SIG, "", DOC_URL) && !W.twilioSignatureOk(doc, DOC_SIG, "12345", "")
+    && W.twilioSignatureOk(doc, "é" + DOC_SIG.slice(1), "12345", DOC_URL) === false);
+  const p = { From: "+18645550100", To: "+18645550199", Body: "STOP", MessageSid: "SM-made-up" };
+  ok("twilio: this file's signer agrees with the check (so the route tests below sign as Twilio does)", W.twilioSignatureOk(p, twSign(p), TW_TOKEN, TW_URL));
+}
 ok("token: equal passes; different, missing, or with no secret set does not",
   W.tokenOk("made-up-token", "made-up-token") && !W.tokenOk("made-up-tokeN", "made-up-token") && !W.tokenOk(null, "made-up-token")
   && !W.tokenOk("", "") && !W.tokenOk("é", "x") && !W.tokenOk("made-up-token", undefined));
@@ -126,9 +149,14 @@ ok("token: equal passes; different, missing, or with no secret set does not",
 // Stand-ins: NextResponse.json is a Response; the service-role client records each call and answers "nothing there";
 // the alert raisers and the error intake record what they are asked. lib/apiRoute, lib/squareServer, lib/money and
 // lib/webhookSignature are the real files.
-const nextServer = { NextResponse: { json: (body, init) => new Response(JSON.stringify(body), { status: init?.status ?? 200, headers: { "content-type": "application/json" } }) } };
-function world() {
-  const calls = [], alerts = [], filed = [];
+// (A class, so a route may also answer `new NextResponse(text, init)` — the inbound-text route answers TwiML.)
+class NextResponseShim extends Response {
+  static json(body, init) { return new Response(JSON.stringify(body), { status: init?.status ?? 200, headers: { "content-type": "application/json" } }); }
+}
+const nextServer = { NextResponse: NextResponseShim };
+function world({ rpc: answer = () => ({ data: null, error: null }) } = {}) {
+  const calls = [], alerts = [], filed = [], rpcs = [];
+  const rpc = async (name, args) => { rpcs.push({ name, args }); return answer(name, args); };
   const from = (table) => {
     const steps = [];
     calls.push({ table, steps });
@@ -142,14 +170,14 @@ function world() {
   };
   const shims = {
     "next/server": nextServer,
-    "@/lib/supabaseAdmin": { supabaseAdmin: { from, rpc: async () => ({ data: null, error: null }) } },
-    "./supabaseAdmin": { supabaseAdmin: { from, rpc: async () => ({ data: null, error: null }) } },
+    "@/lib/supabaseAdmin": { supabaseAdmin: { from, rpc } },
+    "./supabaseAdmin": { supabaseAdmin: { from, rpc } },
     "@/lib/serverAlerts": { raiseAlert: async (a) => { alerts.push(a); }, raiseAlertOnce: async (a) => { alerts.push(a); return true; } },
     "./errorIntake": { fileError: async (e) => { filed.push(e); return true; } },
     "./apliiqOrder": { buildOrderPayload: () => ({}) },
     "./errorMessage": { errorMessage: (e) => String(e) },
   };
-  return { calls, alerts, filed, shims, wrote: () => calls.some((c) => c.steps.some(([m]) => ["insert", "update", "upsert", "delete"].includes(m))) };
+  return { calls, alerts, filed, rpcs, shims, wrote: () => rpcs.length > 0 || calls.some((c) => c.steps.some(([m]) => ["insert", "update", "upsert", "delete"].includes(m))) };
 }
 const withEnv = async (env, fn) => {
   const before = {};
@@ -158,8 +186,9 @@ const withEnv = async (env, fn) => {
 };
 const post = async (mod, url, headers, body) => {
   const res = await mod.POST(new Request(url, { method: "POST", headers, body }));
-  let json = null; try { json = await res.json(); } catch { /* not JSON */ }
-  return { status: res.status, json };
+  const text = await res.text();
+  let json = null; try { json = JSON.parse(text); } catch { /* not JSON */ }
+  return { status: res.status, json, text, type: res.headers.get("content-type") ?? "" };
 };
 
 // Square
@@ -254,6 +283,78 @@ await withEnv({ APLIIQ_SHARED_SECRET: undefined }, async () => {
   const r = await post(loader(w.shims)("app/api/apliiq/search/route.ts"), "https://app.example.test/api/apliiq/search", { authorization: apliiqHeader(body) }, body);
   ok("apliiq route: with its secret unset it is closed (401), as it always has been", r.status === 401 && w.calls.length === 0, r.status);
 });
+
+// Twilio — a text sent to the GT3 number (app/api/sms/inbound, R5 of the customer audit: a recorded yes, STOP honoured)
+const text = (Body, extra = {}) => ({ ToCountry: "US", From: "+18645550100", To: "+18645550199", Body, MessageSid: "SM-made-up-1", NumMedia: "0", ...extra });
+const form = (params) => new URLSearchParams(params).toString();
+const FORM = { "content-type": "application/x-www-form-urlencoded" };
+const twiml = (r) => r.status === 200 && r.type.startsWith("text/xml") && /<Response><\/Response>/.test(r.text);
+await withEnv({ TWILIO_AUTH_TOKEN: TW_TOKEN, TWILIO_WEBHOOK_URL: TW_URL, NEXT_PUBLIC_APP_URL: undefined }, async () => {
+  const run = async (params, { sig = twSign(params), at = TW_URL, rpc, raw } = {}) => {
+    const w = world(rpc ? { rpc } : {});
+    const headers = sig === null ? { ...FORM } : { ...FORM, "x-twilio-signature": sig };
+    const r = await post(loader(w.shims)("app/api/sms/inbound/route.ts"), at, headers, raw ?? form(params));
+    return { ...r, w };
+  };
+  const stop = text("STOP");
+  const none = await run(stop, { sig: null });
+  ok("sms inbound: unsigned → 401, nothing recorded, no alert", none.status === 401 && !none.w.wrote() && none.w.alerts.length === 0, none.status);
+  const wrong = await run(stop, { sig: twSign(stop, TW_URL, "not-the-token") });
+  ok("sms inbound: signed with another token → 401, nothing recorded", wrong.status === 401 && !wrong.w.wrote(), wrong.status);
+  const elsewhere = await run(stop, { sig: twSign(stop, "https://elsewhere.test/api/sms/inbound") });
+  ok("sms inbound: signed for another URL → 401", elsewhere.status === 401 && !elsewhere.w.wrote(), elsewhere.status);
+  const tampered = await run(stop, { raw: form(text("START")) });
+  ok("sms inbound: a STOP's signature on a START (the text changed after signing) → 401", tampered.status === 401 && !tampered.w.wrote(), tampered.status);
+  const proxied = await run(stop, { at: "http://internal.example.test/api/sms/inbound" });
+  ok("sms inbound: the URL checked is the one set on the number, not the one the request reached the app on (Vercel's proxy)",
+    twiml(proxied) && proxied.w.rpcs.length === 1, proxied.status);
+
+  const s = await run(stop);
+  const said = s.w.rpcs[0];
+  ok("sms inbound: STOP → the number's yes is withdrawn (say_text_consent: no, 'stop_text', no member) and the reply is empty TwiML",
+    twiml(s) && s.w.rpcs.length === 1 && said?.name === "say_text_consent" && said.args.p_phone === "+18645550100" && said.args.p_yes === false
+    && said.args.p_source === "stop_text" && said.args.p_user === null && s.w.alerts.length === 0, { status: s.status, rpcs: s.w.rpcs });
+  const stops = await Promise.all(["stop", "Stop.", " unsubscribe ", "CANCEL", "End", "quit", "STOPALL", "Stop all", "Revoke", "OPTOUT"].map((b) => run(text(b))));
+  ok("sms inbound: every word carriers treat as STOP — any case, a full stop or spaces around it — withdraws the yes",
+    stops.every((r) => twiml(r) && r.w.rpcs.length === 1 && r.w.rpcs[0].args.p_yes === false && r.w.alerts.length === 0), stops.map((r) => r.w.rpcs.length));
+  const starts = await Promise.all(["START", "yes", "Unstop"].map((b) => run(text(b))));
+  ok("sms inbound: START / YES / UNSTOP → the yes stands again ('start_text')",
+    starts.every((r) => twiml(r) && r.w.rpcs.length === 1 && r.w.rpcs[0].args.p_yes === true && r.w.rpcs[0].args.p_source === "start_text"), starts.map((r) => r.w.rpcs));
+  const help = await run(text("HELP"));
+  ok("sms inbound: HELP → nothing recorded, no alert, an empty reply (Twilio's own HELP answer is the one sent)", twiml(help) && !help.w.wrote() && help.w.alerts.length === 0);
+  const lost = await run(stop, { rpc: () => ({ data: null, error: { message: 'relation "public.text_consents" does not exist' } }) });
+  const crit = lost.w.alerts[0];
+  ok("sms inbound: a STOP that could not be recorded → a critical alert to the crew naming the number, and still an empty reply",
+    twiml(lost) && lost.w.alerts.length === 1 && crit.severity === "critical" && crit.kind === "text_stop_unrecorded" && crit.body.includes("(864) 555-0100"), lost.w.alerts);
+  const person = await run(text("Running 10 min late, can you hold my pack?"));
+  const a = person.w.alerts[0];
+  ok("sms inbound: a person writing → the crew hear it (customer_text: the number, the words, and that this inbox can't text back); nothing recorded",
+    twiml(person) && person.w.rpcs.length === 0 && person.w.alerts.length === 1 && a.kind === "customer_text" && a.severity === "important"
+    && a.title === "Text from (864) 555-0100" && a.body.startsWith("Running 10 min late, can you hold my pack?") && a.body.includes("can't text back"), person.w.alerts);
+  const sentence = await run(text("please stop by at 5"));
+  ok("sms inbound: 'stop' inside a sentence is a person writing, not a STOP", sentence.w.rpcs.length === 0 && sentence.w.alerts[0]?.kind === "customer_text", sentence.w.rpcs);
+  const blank = await run(text("   "));
+  ok("sms inbound: an empty text (a picture alone) → no alert, nothing recorded", twiml(blank) && !blank.w.wrote() && blank.w.alerts.length === 0);
+  const odd = await run(text("STOP", { From: "GT3-SHORTCODE" }));
+  ok("sms inbound: a sender that is not a phone number → nothing recorded, an empty reply", twiml(odd) && !odd.w.wrote() && odd.w.alerts.length === 0);
+  const long = await run(text("x".repeat(2000)));
+  ok("sms inbound: a long text reaches the crew cut to 600 characters", !!long.w.alerts[0]?.body.startsWith("x".repeat(600) + "\n\n"), long.w.alerts[0]?.body.length);
+});
+await withEnv({ TWILIO_AUTH_TOKEN: TW_TOKEN, TWILIO_WEBHOOK_URL: undefined, NEXT_PUBLIC_APP_URL: "https://app.example.test/" }, async () => {
+  const w = world();
+  const p = text("STOP");
+  const r = await post(loader(w.shims)("app/api/sms/inbound/route.ts"), TW_URL, { ...FORM, "x-twilio-signature": twSign(p) }, form(p));
+  ok("sms inbound: with no TWILIO_WEBHOOK_URL the app's own URL + /api/sms/inbound is the one checked (its trailing / not doubled)", r.status === 200 && w.rpcs.length === 1, r.status);
+});
+for (const env of [{ TWILIO_AUTH_TOKEN: undefined, TWILIO_WEBHOOK_URL: TW_URL }, { TWILIO_AUTH_TOKEN: TW_TOKEN, TWILIO_WEBHOOK_URL: undefined, NEXT_PUBLIC_APP_URL: undefined }]) {
+  await withEnv(env, async () => {
+    const w = world();
+    const p = text("STOP");
+    const r = await post(loader(w.shims)("app/api/sms/inbound/route.ts"), TW_URL, { ...FORM, "x-twilio-signature": twSign(p) }, form(p));
+    ok(`sms inbound: with ${env.TWILIO_AUTH_TOKEN ? "no URL" : "no auth token"} set it answers 503 and records nothing (until the number is registered)`,
+      r.status === 503 && !w.wrote() && w.alerts.length === 0, r.status);
+  });
+}
 
 console.log(`EVERY WEBHOOK PROVES WHO SENT IT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

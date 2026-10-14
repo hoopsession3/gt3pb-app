@@ -6,6 +6,7 @@
 
 import { supabaseAdmin } from "./supabaseAdmin";
 import { errorMessage } from "./errorMessage";
+import { e164, quietHours, textsOn } from "./texts";
 
 // The three notifyCustomer() call sites each looked up the account email the same way
 // (auth.admin.getUserById → .user?.email) — one lookup instead of three copies.
@@ -29,15 +30,7 @@ export const emailEnabled = (): boolean =>
 export const smsEnabled = (): boolean =>
   !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM_NUMBER);
 
-// US-centric E.164 normalize — 10 digits get +1; anything unparseable is skipped, not errored.
-const e164 = (raw: string): string | null => {
-  const plus = raw.trim().startsWith("+");
-  const n = raw.replace(/\D/g, "");
-  if (plus && n.length >= 11) return `+${n}`;
-  if (n.length === 10) return `+1${n}`;
-  if (n.length === 11 && n.startsWith("1")) return `+${n}`;
-  return null;
-};
+// A number is read one way everywhere (lib/texts e164): the yes is kept, looked up and texted under the same +1….
 
 /**
  * ── WHY THIS RETURNS A REASON ──────────────────────────────────────────────────────────────────
@@ -124,8 +117,10 @@ export async function sendSMS(to: string, body: string): Promise<Sent> {
  *   failed      keys are set and the provider refused, or the network died. That IS per-order, and
  *               somebody has to hear about it.
  *   no-address  there was nobody to send to. Also per-order, and a different fix.
+ *   not-asked   a text, to a number that never said yes or has said STOP (0398) — the customer's choice, not a fault.
+ *   quiet       a text, at night (9pm–8am Eastern, lib/texts) — not sent; the email still goes.
  */
-export type SendResult = "sent" | "off" | "failed" | "no-address";
+export type SendResult = "sent" | "off" | "failed" | "no-address" | "not-asked" | "quiet";
 
 /** Did a channel actually reach anyone? */
 export const didSend = (r: SendResult): boolean => r === "sent";
@@ -140,14 +135,48 @@ export const didSend = (r: SendResult): boolean => r === "sent";
 // six of its seven callers awaited it and discarded the answer entirely; and the one operator
 // screen that reports integration health renders Email as a permanent grey dot, because it had
 // nothing it could ask. A no-op nobody can observe is indistinguishable from a feature that works.
+/** Is this number's yes to texts standing (0398 text_consent_standing)? Any failure to read it is a no. */
+export async function textYes(num: string): Promise<boolean> {
+  if (!supabaseAdmin) return false;
+  try {
+    const { data, error } = await supabaseAdmin.rpc("text_consent_standing", { p_phone: num });
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Record a yes or a stop for a number (0398 say_text_consent) — the checkout routes, the account route and the
+ *  inbound-text route. Never throws; false when it could not be kept (the table not there yet: said in its detail). */
+export async function sayTextConsent(phone: string | null | undefined, yes: boolean, source: string, userId: string | null): Promise<{ ok: boolean; standing?: boolean; detail?: string }> {
+  const num = e164(phone);
+  if (!num) return { ok: false, detail: "unparseable phone number" };
+  if (!supabaseAdmin) return { ok: false, detail: "no database" };
+  try {
+    const { data, error } = await supabaseAdmin.rpc("say_text_consent", { p_phone: num, p_yes: yes, p_source: source, p_user: userId });
+    if (error) return { ok: false, detail: error.message.slice(0, 200) };
+    return { ok: true, standing: data === true };
+  } catch (e) {
+    return { ok: false, detail: errorMessage(e, 200) };
+  }
+}
+
 export async function notifyCustomer(opts: {
   phone?: string | null; email?: string | null; subject: string; message: string;
 }): Promise<{ sms: SendResult; email: SendResult; smsDetail?: string; emailDetail?: string; emailId?: string }> {
   const [sms, mail] = await Promise.all([
     (async (): Promise<[SendResult, string | undefined, undefined]> => {
       if (!opts.phone) return ["no-address", undefined, undefined];
-      if (!smsEnabled()) return ["off", undefined, undefined];
-      const r = await sendSMS(opts.phone, opts.message);
+      // Off until texts are switched on (the number registered, NEXT_PUBLIC_TEXTS_ON — Ryan's): keys alone text nobody.
+      if (!smsEnabled() || !textsOn()) return ["off", undefined, undefined];
+      const num = e164(opts.phone);
+      if (!num) return ["no-address", "unparseable phone number", undefined];
+      // A TEXT NEEDS A YES (2026-10-14, R5, 0398): only a number whose yes is standing — said at checkout or on the account,
+      // not since withdrawn by STOP — and never at night. It texted any phone an order carried. A yes that cannot be read
+      // (the table not there yet, the database down) is no yes: a text not sent is better than one nobody asked for.
+      if (!(await textYes(num))) return ["not-asked", undefined, undefined];
+      if (quietHours()) return ["quiet", undefined, undefined];
+      const r = await sendSMS(num, opts.message);
       return [r.ok ? "sent" : "failed", r.detail, undefined];
     })(),
     (async (): Promise<[SendResult, string | undefined, string | undefined]> => {

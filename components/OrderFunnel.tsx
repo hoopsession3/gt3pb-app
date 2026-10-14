@@ -21,6 +21,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { squareClientReady } from "@/lib/square";
 import { haptic } from "@/lib/haptics";
 import { packClosesAt, closesWords } from "@/lib/pickupDay";
+import TextYes from "./TextYes";
 import { scrollToTop } from "@/lib/appScroll";
 import {
   PACK_SIZES, PACK_TAG, PACK_HINT, FLAVOR_DESC,
@@ -138,6 +139,8 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   // default — saw $106 on the 12-pack tile, the glass step's "Bringing mine back" lit with 0 empties, and was charged $130.
   const [refills, setRefills] = useState<number | null>(null);
   const [ack, setAck] = useState(false);
+  // The yes to texts (R5, 0398 — components/TextYes): never ticked for them; sent with the order, which records it.
+  const [textYes, setTextYes] = useState(false);
   const [access, setAccess] = useKnownField(known?.delivery?.access);
   const [street, setStreet, streetKnown] = useKnownField(known?.delivery?.street);
   // the ZIP of the address last picked from the street's suggestions, held against the one the zone check passed
@@ -407,7 +410,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   const submitPickup = useCallback(async (card: Attempt | null) => {
     if (busy) return; // guard a fast double-tap before the button's disabled attribute takes effect
     setErr("");
-    if (!name.trim() || !phone.trim()) { setErr("Name and phone are required for the pickup text."); return; }
+    if (!name.trim() || !phone.trim()) { setErr("Name and phone are required."); return; }
     if (!count) return;
     setBusy(true);
     const attempt = card ?? await idem.begin(pickupSig(count, bringBack, mix, dropDateKey(drop.sat), codeState === "ok" ? codeClean : undefined));
@@ -415,7 +418,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
       const res = await authedFetch("/api/reserve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: attempt.token ?? undefined, idempotencyKey: attempt.key, expectedCents: payCents, stopId: stop?.id ?? undefined, name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }),
+        body: JSON.stringify({ sourceId: attempt.token ?? undefined, idempotencyKey: attempt.key, expectedCents: payCents, stopId: stop?.id ?? undefined, textOptIn: textYes || undefined, name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }),
       });
       const data = await res.json(); setBusy(false);
       idem.settle(attempt.key, res.status, data);
@@ -436,7 +439,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
       idem.settle(attempt.key, null, null);
       setErr("Couldn't confirm — safe to try again, you won't be charged twice.");
     }
-  }, [busy, name, phone, count, bringBack, mix, drop, stop, payCents, raisedTotal, codeState, codeClean, idem]);
+  }, [busy, name, phone, count, bringBack, mix, drop, stop, textYes, payCents, raisedTotal, codeState, codeClean, idem]);
 
   // ── a pack changed in place (0388) ──
   // The change as the server reads it: the pack that is changing, what it becomes, the code it is priced with.
@@ -467,6 +470,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
           name, phone, addressStreet: street, addressCity: city, addressZip: zip,
           accessInstructions: access, packSize: count, riseCount: mix.rise, flowCount: mix.flow, duskCount: mix.dusk,
           perfMix: premiums, refillCount, emptiesAck: ack, deliveryDate: slot.deliveryDateKey,
+          textOptIn: textYes || undefined,
           retry: attempt.retry === true,
         }),
       });
@@ -501,7 +505,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   const payPickupCard = async () => {
     if (busy) return; // guard a fast double-tap before the button's disabled attribute takes effect
     setErr("");
-    if (!name.trim() || !phone.trim()) { setErr("Name and phone are required for the pickup text."); return; }
+    if (!name.trim() || !phone.trim()) { setErr("Name and phone are required."); return; }
     if (!cardReady) return;
     setBusy(true);
     try {
@@ -899,7 +903,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
               {streetKnown && <p className="dl-sub known-note">From your last delivery — change anything that&apos;s different.</p>}
               <input className="auth-input" placeholder={t("funnel.f_name")} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={80} aria-label="Name" />
               <input className="auth-input" placeholder={t("funnel.f_phone_del")} type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
-              <EditableCopy k="funnel.tel_consent" value={t("funnel.tel_consent")} as="p" className="tel-consent" multiline />
+              <TextYes phone={phone} checked={textYes} onChange={setTextYes} />
               {/* The street finds itself (components/AddressField): a pick fills the city too, near the ZIP the zone check passed. */}
               <AddressField className="auth-input" placeholder={t("funnel.f_street")} label="Street address" value={street} onChange={setStreet} near={zip}
                 onPick={(a) => { setStreet(a.street); if (a.city) setCity(a.city); setPickedZip(a.zip); }} />
@@ -917,7 +921,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
             <>
               <input className="auth-input" placeholder={t("funnel.f_name")} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={80} aria-label="Name" />
               <input className="auth-input" placeholder={t("funnel.f_phone_pickup")} type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
-              <EditableCopy k="funnel.tel_consent" value={t("funnel.tel_consent")} as="p" className="tel-consent" multiline />
+              <TextYes phone={phone} checked={textYes} onChange={setTextYes} />
               <div className="dl-quote">
                 <span>{count} bottles · {bringBack ? "bring-back" : "new glass"}</span>
                 <span>pickup {dayName(drop.sat)}{stop?.name ? ` · ${stop.name}` : ""}</span>
