@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-14T13:02:26.167Z",
+    "pulled_at": "2026-10-14T16:04:58.538Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
-    "source": "migrations through 0399 (less the held 0376), built locally with the fallback query; production's own names matched them exactly in the Supabase SQL editor after 0399 was applied (221 relations, 2841 columns, the same fingerprint), and keep production's column order",
+    "source": "migrations through 0400 (less the held 0376), built locally with the fallback query; production's own names matched them exactly in the Supabase SQL editor after 0400 was applied (221 relations, 2850 columns, the same fingerprint), and keep production's column order",
     "relations": 221,
-    "columns": 2841
+    "columns": 2850
   },
   "academy_acknowledgements": [
     "user_id",
@@ -2193,7 +2193,15 @@
     "order_id",
     "created_at",
     "tenant_id",
-    "customer_id"
+    "customer_id",
+    "idempotency_key",
+    "payment_id",
+    "paid_cents",
+    "refunded_cents",
+    "canceled_at",
+    "cancel_reason",
+    "collected_at",
+    "collected_by"
   ],
   "reserves": [
     "id",
@@ -2208,7 +2216,8 @@
     "drop_at",
     "sort",
     "created_at",
-    "tenant_id"
+    "tenant_id",
+    "stop_id"
   ],
   "reviews": [
     "id",
