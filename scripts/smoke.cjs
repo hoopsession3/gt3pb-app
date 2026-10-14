@@ -14201,6 +14201,30 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && ["hold_reserve(uuid, uuid, integer, text)", "settle_reserve(uuid, text, integer)", "release_reserve(uuid, text, integer)"].every((f) => sql.includes(`revoke all on function public.${f} from public, anon, authenticated;`) && sql.includes(`grant execute on function public.${f} to service_role;`)));
 }
 
+// ── 0401: a signed-out caller reaches only what is meant for it (2026-10-14) ─────────────────────────────────────────
+// Supabase grants anon by name, so a revoke from public alone — or none — left 44 definer functions open to the anon key,
+// and two of them let it answer an offer or an agreement nobody had signed in for. scripts/db.signedout.test.mjs runs it.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const sql = rd("supabase/migrations/0401_a_signed_out_caller_reaches_only_what_is_meant_for_it.sql");
+  const at = sql.indexOf("names text[] := array["), list = sql.slice(at, sql.indexOf("];", at));
+  ok("0401: the 41 are closed to public, anon and authenticated together, and given back by name to whoever had them",
+    /execute format\('revoke execute on function %s from public, anon, authenticated', f\);/.test(sql)
+    && /auth_had := has_function_privilege\('authenticated', f, 'execute'\);/.test(sql)
+    && /if auth_had then execute format\('grant execute on function %s to authenticated', f\); end if;/.test(sql)
+    && /raise exception '0401: no function named %', missing;/.test(sql)
+    && (list.match(/'[a-z_]+'/g) || []).length === 41 && !/'(effective_tenant|is_owner|primal_menu_for_lesson)'/.test(list));
+  ok("0401: respond_to_offer and respond_to_agreement refuse a caller with no session before anything else",
+    (sql.match(/begin\s+if \(select auth\.uid\(\)\) is null then\s+raise exception 'Sign in to answer your (offer|agreement)\.' using errcode = '28000';/g) || []).length === 2);
+  const drift = rd("scripts/drift.check.mjs");
+  ok("the REVOKE GATE holds both halves: from 0381 a revoke naming anon or authenticated names public; from 0401 one naming public names both",
+    /const REVOKE_FLOOR = 381;/.test(drift) && /const NAMED_FLOOR = 401;/.test(drift)
+    && /if \(\/\\bpublic\\b\/\.test\(roles\) && !\(\/\\banon\\b\/\.test\(roles\) && \/\\bauthenticated\\b\/\.test\(roles\)\)\)/.test(drift));
+  ok("the schema the db tests stand up grants anon, authenticated and service_role by name, as Supabase does",
+    /alter default privileges in schema public grant all on functions to anon, authenticated, service_role;/.test(rd("scripts/fixtures/schema.full.mjs")));
+}
+
 Promise.all(PENDING).then(() => {
   console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);

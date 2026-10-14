@@ -23,6 +23,14 @@ const DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "supabase"
 
 export const SUPABASE_STANDINS = `
   create role anon; create role authenticated; create role service_role;
+  -- Supabase's own default privileges (role postgres, schema public, 2026-10-14): every table, view, sequence and
+  -- function made here is granted to anon, authenticated and service_role BY NAME — not through PUBLIC. So a revoke
+  -- from public alone leaves all three able to call a function, and a table's guard is its RLS, never a missing grant.
+  -- Without these the schema here was stricter than production's, and a door left open there was shut here.
+  grant usage on schema public to anon, authenticated, service_role;
+  alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+  alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
+  alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
   create schema auth; create schema storage; create schema extensions; create schema cron;
   create schema net; create schema vault; create schema supabase_functions;
   create table auth.users (id uuid primary key default gen_random_uuid(), email text, phone text,

@@ -79,7 +79,10 @@ const pushes = async () => (await q(`select tbl, op, trig from public.test_pushe
 // ── SET, READ, TAKE BACK ────────────────────────────────────────────────────────────────────────────────────────────
 {
   const anon = await as(null, `select public.keep_cup_reminder($1, now() + interval '1 hour')`, [WX]);
-  ok("a guest cannot keep one — it is a member's phone that is reminded", /permission denied/.test(anon.error || ""), anon);
+  // 0394 revoked from public alone, and Supabase grants anon by name (scripts/fixtures/schema.full.mjs): so as 0394 left
+  // it, the function's own check refuses the guest. 0401 takes the grant too (scripts/db.signedout.test.mjs).
+  ok("a guest cannot keep one — it is a member's phone that is reminded",
+    /permission denied|Sign in to be reminded/.test(anon.error || "") && !anon.rows.length, anon);
   const kept = await as(JORDAN, `select public.keep_cup_reminder($1, now() + interval '2 hours') t`, [WX]);
   ok("a member keeps one for a stop on the calendar, at the time its window opens", !kept.error && kept.rows[0]?.t instanceof Date, kept);
   const mine = await as(JORDAN, `select stop_id, fired_at from public.cup_reminders`);

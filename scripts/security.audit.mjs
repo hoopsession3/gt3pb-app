@@ -71,6 +71,10 @@ export const CEILING = {
   // and the jobs only the cron runs); 0383–0400 opened 14, each granted by name in its migration.
   publicRead: 3,       // tables with a world-readable SELECT policy: live_status, site_copy, stops — the truck's public face
   definerExec: 116,    // SECURITY DEFINER functions the API roles may call (none of them a trigger any more)
+  // …and of them, the ones a caller with NO session may call: the anon key every phone carries. Supabase grants anon by
+  // name, so this is what is left once each migration has said who keeps a function (0401). Measured on the first
+  // snapshot after 0401 is applied; until then null, and that snapshot's commit records it.
+  anonExec: null,
   definerView: 1,      // owner-run views the API roles may read: market_live
 };
 
@@ -109,7 +113,7 @@ const forApi = (pol) => (pol.r || []).some((r) => r === "public" || API_ROLES.in
 /** The verdict on one snapshot. Pure. */
 export function judge(snapshot, exempt = EXEMPT) {
   const snap = snapshot.t ? expand(snapshot) : snapshot;   // compact (the committed shape) or already expanded
-  const hard = [], publicRead = [], definerExec = [], definerView = [], info = { serviceOnly: 0, failClosed: 0, tables: 0, views: 0 };
+  const hard = [], publicRead = [], definerExec = [], anonExec = [], definerView = [], info = { serviceOnly: 0, failClosed: 0, tables: 0, views: 0 };
   for (const [name, rel] of Object.entries(snap.tables || {})) {
     const isTable = rel.kind === "r" || rel.kind === "p";
     if (isTable) info.tables++; else info.views++;
@@ -136,8 +140,9 @@ export function judge(snapshot, exempt = EXEMPT) {
   }
   for (const fn of snap.functions || []) {
     if (fn.definer && API_ROLES.some((r) => fn.exec?.[r])) definerExec.push(`${fn.name}(${fn.args || ""})`);
+    if (fn.definer && fn.exec?.anon) anonExec.push(`${fn.name}(${fn.args || ""})`);
   }
-  return { hard, publicRead: [...new Set(publicRead)].sort(), definerExec: definerExec.sort(), definerView: definerView.sort(), info };
+  return { hard, publicRead: [...new Set(publicRead)].sort(), definerExec: definerExec.sort(), anonExec: anonExec.sort(), definerView: definerView.sort(), info };
 }
 
 /** Migrations above the snapshot's high-water mark that touch what it measures. Pure over the list. */
@@ -186,6 +191,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   if (!v.hard.length) console.log("  ✓ no table the API roles can touch has RLS off; no write policy is `true`");
   ratchet("tables readable by the world (SELECT `true`)", v.publicRead, CEILING.publicRead);
   ratchet("SECURITY DEFINER functions the API roles may call", v.definerExec, CEILING.definerExec);
+  ratchet("…of them, callable with no session (anon)", v.anonExec, CEILING.anonExec);
   ratchet("owner-run views the API roles may read", v.definerView, CEILING.definerView);
   if (fails) { console.log(`\nSECURITY AUDIT: ${fails} failure(s).`); process.exit(1); }
   console.log("\nSECURITY AUDIT: clean.");

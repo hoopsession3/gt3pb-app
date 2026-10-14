@@ -607,6 +607,9 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
     grant execute on function public.is_staff() to anon, authenticated;
     create or replace function public.internal_only() returns boolean language sql stable security definer as $$ select true $$;
     revoke execute on function public.internal_only() from public, anon, authenticated;
+    create or replace function public.members_only() returns boolean language sql stable security definer as $$ select true $$;
+    revoke execute on function public.members_only() from public, anon, authenticated;
+    grant execute on function public.members_only() to authenticated;
     create or replace function public.plain() returns boolean language sql stable as $$ select true $$;
     create table public.leak (id int); grant select on public.leak to anon;
     create table public.service_only (id int);
@@ -627,7 +630,7 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
   const r = reassemble(rows);
   ok("security: the query's rows reassemble and the digest row agrees", !r.error, r.error);
   const snap = r.json || { t: {}, f: [], x: [] };
-  ok("security: the compact shape names every relation and definer function", Object.keys(snap.t).length === 22 && snap.f.length === 2, [Object.keys(snap.t).length, snap.f.length]);
+  ok("security: the compact shape names every relation and definer function", Object.keys(snap.t).length === 22 && snap.f.length === 3, [Object.keys(snap.t).length, snap.f.length]);
   ok("security: the fixture spans several rows, so the refusals below mean something", rows.length >= 3, rows.length);
   ok("security: expressions are stored once and policies point at them", snap.x.includes("true") && snap.t.menu_items[7][0][4] === snap.x.indexOf("true"));
   const v = judge(snap, {});
@@ -635,7 +638,8 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
   ok("security: a guest-writable `true` policy is the hard finding", v.hard.some((h) => h.startsWith("open-write: guestbook")), v.hard);
   ok("security: nothing else is hard", v.hard.length === 2, v.hard);
   ok("security: a world-readable SELECT is listed, not failed", v.publicRead.join() === "menu_items", v.publicRead);
-  ok("security: a definer function the API may call is listed; one it may not is not; a plain one never", v.definerExec.join() === "is_staff()", v.definerExec);
+  ok("security: a definer function the API may call is listed; one it may not is not; a plain one never", v.definerExec.join() === "is_staff(),members_only()", v.definerExec);
+  ok("security: of those, the one a caller with no session may call is listed apart; the signed-in-only one is not", v.anonExec.join() === "is_staff()", v.anonExec);
   ok("security: an owner-run view the API may read is listed; an invoker view is not", v.definerView.join() === "v_owner", v.definerView);
   ok("security: a table nobody but the service role can touch is counted, not judged", v.info.serviceOnly === 2 && v.info.failClosed === 1 && v.info.tables === 20, v.info);
   ok("security: an exemption with a reason clears a finding", judge(snap, { leak: "a planted reason", "guestbook.anyone writes": "a planted reason" }).hard.length === 0);

@@ -296,12 +296,33 @@ for (const f of readdirSync(DIR).filter((x) => x.endsWith(".sql")).sort()) {
   }
 }
 
+// ── NINTH RULE, added at 0401: closing a function to PUBLIC closes it to anon and authenticated too ─────────────────
+// The other half. Supabase grants every function made in public to anon, authenticated and service_role BY NAME (its
+// default privileges for the postgres role), on top of PUBLIC's grant — so "revoke all on function f from public; grant
+// execute on function f to authenticated" leaves anon its own grant. 0292 (void_expense) and 0394 (keep_cup_reminder,
+// drop_cup_reminder) wrote exactly that; the security snapshot at ledger 0400 found 55 definer functions answering a
+// caller with no session, 44 never granted to anon by any migration. 0401 closed them. From 0401 on, a revoke on a
+// function that names public names anon and authenticated as well; whoever should keep it is granted back by name.
+const NAMED_FLOOR = 401;
+for (const f of readdirSync(DIR).filter((x) => x.endsWith(".sql")).sort()) {
+  const seq = Number(f.slice(0, 4));
+  if (!Number.isFinite(seq) || seq < NAMED_FLOOR) continue;
+  const sql = readFileSync(join(DIR, f), "utf8").split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
+  for (const m of sql.matchAll(/revoke\s+(?:all(?:\s+privileges)?|execute)\s+on\s+(?:all\s+)?functions?\b[^;]*?\bfrom\s+([^;']*)/gi)) {
+    const roles = m[1].toLowerCase();
+    if (/\bpublic\b/.test(roles) && !(/\banon\b/.test(roles) && /\bauthenticated\b/.test(roles))) {
+      halfRevokes.push(`${f} — ${m[0].replace(/\s+/g, " ").slice(0, 100)}  (names public, not anon and authenticated)`);
+    }
+  }
+}
+
 if (halfRevokes.length) {
-  console.error(`REVOKE GATE: ${halfRevokes.length} revoke(s) close a function to anon or authenticated and leave PUBLIC's grant:`);
+  console.error(`REVOKE GATE: ${halfRevokes.length} revoke(s) close a function to one of PUBLIC / anon / authenticated and leave the others' grants:`);
   for (const m of halfRevokes) console.error(`  ✗ ${m}`);
   console.error(
-    `\nanon and authenticated are members of PUBLIC, and every function is granted to PUBLIC when it is made, so ` +
-    `this revoke changes nothing: both can still call it. Name public too, and grant back whoever should keep it:\n` +
+    `\nEvery function is granted to PUBLIC when it is made, and Supabase grants anon, authenticated and service_role ` +
+    `by name as well: a revoke that names some of PUBLIC / anon / authenticated leaves the others able to call it. ` +
+    `Name all three, and grant back by name whoever should keep it:\n` +
     `    revoke execute on function public.<name>(<args>) from public, anon, authenticated;\n` +
     `    grant execute on function public.<name>(<args>) to service_role;   -- and/or authenticated`
   );
@@ -397,4 +418,4 @@ console.log("VIEW GATE: every view created from 0312 honours RLS, is closed to t
 console.log("WHOLE-TABLE GATE: every UPDATE/DELETE from 0315 names its rows, or declares it means all of them — clean.");
 console.log(`PASTE-FILE GATE: every loose .sql under supabase/ says what it is current as of, and none is behind ${String(highestMigration).padStart(4, "0")} — clean.`);
 console.log("PASTE-FILE GATE: every migration the paste file carries is its file, verbatim — clean.");
-console.log("REVOKE GATE: every function revoke from 0381 that names anon or authenticated names public too — clean.");
+console.log("REVOKE GATE: every function revoke from 0381 that names anon or authenticated names public too, and from 0401 one that names public names anon and authenticated — clean.");
