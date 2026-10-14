@@ -123,7 +123,8 @@ ok("2 · and deleting their account is refused, whole", /only owner/.test((await
 ok("2 · a membership that can still bill is cancelled first — coded, so the route can cancel it itself", (await blockers(CUST)).some((b) => /^membership: .*can still bill/.test(b)), await blockers(CUST));
 await q(`update public.subscriptions set status = 'canceled' where user_id = $1`, [CUST]);
 ok("2 · a reserve they paid for, from a drop still running, holds it", (await blockers(CUST)).some((b) => /order on its way/.test(b)), await blockers(CUST));
-await q(`update public.reserves set status = 'archived' where id = $1`, [cask]);
+// The bottle is handed over (0400: a reserve people paid for is not taken down until they have it, or their money).
+await q(`update public.reserve_claims set state = 'collected', collected_at = now() where reserve_id = $1 and user_id = $2`, [cask, CUST]);
 ok("2 · a pickup from last week still marked placed does NOT hold it (a stale status, not an order)", (await blockers(CUST)).length === 0, await blockers(CUST));
 await q(`insert into public.drop_orders (user_id, customer_id, name, phone, size, glass, total_cents, drop_date, tenant_id) values ($1, $2, $3, $4, 6, 'new', 6000, current_date + 2, $5)`, [CUST, custRec, CASEY.name, CASEY.phone, T1]);
 ok("2 · a pickup dated ahead holds it", (await blockers(CUST)).some((b) => /order on its way/.test(b)), await blockers(CUST));
@@ -173,12 +174,15 @@ ok(`3 · no foreign key anywhere names the customer's account (${named.refs} che
 const said = await stillSaid([CASEY.name, "Quillfeather", CASEY.email, CASEY.phone, "8645550142", CASEY.street, "Gate code 4411", "blue door", "Station 3",
   "best thing in Greenville", "Gift for my sister", "Slept badly"]);
 ok(`3 · their name, email, phone, address and words are in no column of any table — the audit trail included (${said.cols} columns read)`, said.cols > 600 && said.found.length === 0, said.found);
-ok("3 · their review, RSVP, VIP proof, wait-list entry, points, check-in, holds and push subscription are gone",
+ok("3 · their review, RSVP, VIP proof, wait-list entry, points, check-in, push subscription and their name on any claim are gone",
   !(await count(`select count(*) n from public.reviews`)) && !(await count(`select count(*) n from public.rsvps where event_id = $1`, [ev]))
   && !(await count(`select count(*) n from public.vip_verifications`)) && !(await count(`select count(*) n from public.subscription_interest`))
   && !(await count(`select count(*) n from public.loyalty_ledger`)) && !(await count(`select count(*) n from public.check_ins`))
-  && !(await count(`select count(*) n from public.reserve_claims`)) && !(await count(`select count(*) n from public.push_subscriptions`)));
+  && !(await count(`select count(*) n from public.reserve_claims where user_id is not null`)) && !(await count(`select count(*) n from public.push_subscriptions`)));
 ok("3 · the two bottles they held are back on the shelf", (await one(`select stock_remaining from public.reserves where id = $1`, [barrel])).stock_remaining === 10);
+const claimsKept = (await q(`select state, user_id from public.reserve_claims order by state`)).rows;
+ok("4 · their reserve claims stay in the books without them (0400): the bottle handed over, the hold let go",
+  claimsKept.length === 2 && claimsKept[0].state === "cancelled" && claimsKept[1].state === "collected" && claimsKept.every((c) => c.user_id === null), claimsKept);
 ok("3 · the referral pair is gone, and the person they referred is let go", !(await count(`select count(*) n from public.referral_events`)) && (await one(`select referred_by from public.profiles where id = $1`, [CREW])).referred_by === null);
 ok("3 · the history of what was deleted went with it (their review's audit rows hold nothing)",
   (await count(`select count(*) n from public.audit_log where table_name = 'reviews' and row_id = $1`, [reviewId])) > 0

@@ -1,107 +1,131 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import dynamic from "next/dynamic";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
+import { useAsyncData } from "@/lib/useAsyncData";
+import { authedFetch } from "@/lib/authedFetch";
+import { isMissingColumn, isMissingRelation } from "@/lib/schemaSkew";
+import { reserveClosesAt, reserveOpen, reservePickupWords, type ReserveStop } from "@/lib/reservePickup";
+import { closesWords } from "@/lib/pickupDay";
 import Sheet from "./Sheet";
 import SignIn from "./SignIn";
+import { useConfirm } from "./ConfirmSheet";
 import type { Reserve, ReserveClaim } from "@/lib/db";
 import Icon from "@/components/Icon";
-import { moneyRound } from "@/lib/money";
+import { money, moneyRound } from "@/lib/money";
 
-// Live limited drops. Stock + claims are server-authoritative (claim_reserve RPC);
-// this view just reflects them and reserves a unit on tap. Pay-at-pickup hold.
+// The pay step loads with the first tap of "Reserve yours" — most visitors to /reserve and /shop never make it.
+const ReservePay = dynamic(() => import("./ReservePay"), { ssr: false });
+
+// LIMITED RESERVES — PAID TO HOLD (0400, 2026-10-14, R5 of the customer audit; decided 2026-10-13: charged like packs,
+// no timer, a full refund on a cancel before the cutoff). A reserve names its pickup; "Reserve yours" pays for it, and
+// it is the member's until the crew hand it over — no clock running out on it. Each claim says where it stands: paid
+// (cancel for a refund until the pickup closes, then ask the crew), being confirmed, or an old hold paid at the truck.
+// Stock and claims are the server's (app/api/reserves/pay, hold_reserve); this reflects them, live.
+//
+// THE CARD THAT WAS NEVER THERE (2026-10-02). This used to paint a 150px card skeleton until the query answered, and the
+// query's usual answer is "no live drops" — so on /reserve and /shop every guest watched the order funnel jump up 164px
+// about a second in. A skeleton stands in for content that is coming; it is the wrong tool for a section that is usually
+// absent. Nothing paints until the answer is known.
+
+type Shown = Reserve & { stop?: ReserveStop; open: boolean; closes: string | null };
+type Board = { reserves: Shown[]; claims: ReserveClaim[] };
+
 export default function Reserves() {
   const { toast } = useApp();
   const { user } = useAuth();
-  const [reserves, setReserves] = useState<Reserve[]>([]);
-  const [claims, setClaims] = useState<Record<string, ReserveClaim>>({});
+  const confirm = useConfirm();
   const [busy, setBusy] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
-  const [loadFailed, setLoadFailed] = useState(false);
-  // Signed-out tap opens sign-in right here instead of redirecting to /3mpire and losing the intent;
-  // once signed in, the reserve that was tapped claims automatically.
-  const [signInOpen, setSignInOpen] = useState(false);
-  const pendingClaim = useRef<Reserve | null>(null);
+  // The reserve a signed-out tap was for: sign-in opens right here, and once signed in its pay step opens by itself.
+  const [signInFor, setSignInFor] = useState<string | null>(null);
+  const [paying, setPaying] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!supabase) { setLoaded(true); return; }
-    const { data, error } = await supabase.from("reserves").select("*").in("status", ["live", "sold_out"]).order("sort");
-    // A failed fetch must not render identically to "no live drops today" (the false-empty-state bug
-    // class fixed crew-side) — keep whatever list is already on screen instead of clobbering it.
-    if (error) { setLoadFailed(true); setLoaded(true); return; }
-    setLoadFailed(false);
-    setReserves((data as Reserve[]) ?? []);
+  const board = useAsyncData<Board>(async () => {
+    if (!supabase) return { reserves: [], claims: [] };
+    // arrives-with: 0400 — until it is pasted a reserve has no pickup (reserves.stop_id): it is read without one and shows
+    // as opening soon, never as payable.
+    let res = await supabase.from("reserves").select("*, stop:stops(name, starts_at, ends_at, canceled_at)").in("status", ["live", "sold_out"]).order("sort");
+    if (res.error && (isMissingRelation(res.error) || isMissingColumn(res.error))) res = await supabase.from("reserves").select("*").in("status", ["live", "sold_out"]).order("sort");
+    // A failed read is not "no live drops today" (the false-empty bug class): it is an error, said as one.
+    if (res.error) throw new Error(res.error.message);
+    const nowMs = Date.now();
+    const reserves = ((res.data ?? []) as (Reserve & { stop?: ReserveStop })[]).map((r) => ({
+      ...r, open: reserveOpen(r.stop ?? null, nowMs), closes: reserveClosesAt(r.stop ?? null)?.toISOString() ?? null,
+    }));
+    let claims: ReserveClaim[] = [];
     if (user) {
-      const { data: c } = await supabase.from("reserve_claims").select("*").eq("user_id", user.id).in("state", ["held", "paid"]);
-      const map: Record<string, ReserveClaim> = {};
-      (c as ReserveClaim[] | null)?.forEach((cl) => { map[cl.reserve_id] = cl; });
-      setClaims(map);
+      const c = await supabase.from("reserve_claims").select("*").eq("user_id", user.id).in("state", ["held", "pending", "paid"]).order("created_at");
+      if (c.error) throw new Error(c.error.message);
+      claims = (c.data as ReserveClaim[]) ?? [];
     }
-    setLoaded(true);
-  }, [user]);
+    return { reserves, claims };
+  }, [user?.id]);
+  const load = board.reload;
 
-  useEffect(() => { load(); }, [load]);
-
-  // Realtime: live stock + sold-out flips, plus the member's own claim changes
-  // (hold expiry / admin release) so the "Reserved" badge never goes stale.
+  // Live: stock and sold-out flips, and the member's own claims — paid, confirmed, canceled by the crew.
   useRealtimeTable(user ? ["reserves", { table: "reserve_claims", filter: `user_id=eq.${user.id}` }] : "reserves", load);
 
-  const claim = async (r: Reserve) => {
-    if (!user) { pendingClaim.current = r; setSignInOpen(true); return; }
+  const buy = (r: Shown) => {
+    if (!user) { setSignInFor(r.id); return; }
+    setPaying(r.id);
+  };
+  const payFor = paying ?? (user ? signInFor : null);
+  const closePay = () => { setPaying(null); setSignInFor(null); };
+
+  const cancel = async (r: Shown, cl: ReserveClaim) => {
+    if (busy) return;
+    const paid = cl.paid_cents ?? 0;
+    const ok = await confirm({
+      title: `Cancel your ${r.name}?`,
+      body: paid > 0 ? `${money(paid)} goes back to the card you paid with.` : "Nothing was charged.",
+      confirmLabel: paid > 0 ? "Cancel and refund" : "Cancel it", cancelLabel: "Keep it", danger: true,
+    });
+    if (!ok) return;
+    setBusy(cl.id);
+    const d = await authedFetch("/api/reserves/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: cl.id }) })
+      .then((x) => x.json()).catch(() => null) as { ok?: boolean; error?: string; warn?: string; refundedCents?: number } | null;
+    setBusy(null);
+    if (d?.ok !== true) { toast(d?.error || "Couldn't cancel it just now — try again, or ask at the truck.", "error"); load(); return; }
+    toast(d.warn || (d.refundedCents ? `Canceled — ${money(d.refundedCents)} is on its way back to your card` : "Canceled"));
+    load();
+  };
+
+  // An old hold — paid at the truck (0014) — goes back on the shelf with its own call, as before.
+  const release = async (cl: ReserveClaim) => {
     if (!supabase || busy) return;
-    setBusy(r.id);
-    const { error } = await supabase.rpc("claim_reserve", { p_reserve: r.id, p_qty: 1 });
+    setBusy(cl.id);
+    const { error } = await supabase.rpc("cancel_reserve_claim", { p_claim: cl.id });
     setBusy(null);
-    if (error) {
-      const m = /sold out/i.test(error.message) ? "Just sold out — sorry."
-        : /limit/i.test(error.message) ? "You've hit the limit on this drop."
-        : /members only/i.test(error.message) ? "This drop is members-only."
-        : "Couldn't reserve — try again.";
-      toast(m, "error");
-      load();
-      return;
-    }
-    toast("Reserved ✓ — pay at the truck on pickup");
+    toast(error ? "Couldn't release it — try again." : "Reserve released", error ? "error" : undefined);
     load();
   };
 
-  // Sign-in completed while the sheet was open for a tapped reserve — claim it automatically instead
-  // of the old redirect-to-/3mpire-and-lose-the-intent pattern.
-  useEffect(() => {
-    if (user && pendingClaim.current) { const r = pendingClaim.current; pendingClaim.current = null; setSignInOpen(false); claim(r); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
-
-  const cancel = async (r: Reserve) => {
-    const cl = claims[r.id];
-    if (!cl || !supabase || busy) return;
-    setBusy(r.id);
-    await supabase.rpc("cancel_reserve_claim", { p_claim: cl.id });
-    setBusy(null);
-    toast("Reserve released");
-    load();
-  };
-
-  // THE CARD THAT WAS NEVER THERE (2026-10-02). This used to paint a 150px card skeleton until the
-  // query answered, and the query's usual answer is "no live drops" — so on /reserve and /shop
-  // every guest watched the order funnel jump up 164px about a second in (layout shift 0.14 and
-  // 0.12 on production, the two largest in the app). A skeleton stands in for content that is
-  // coming; it is the wrong tool for a section that is usually absent. Nothing paints until the
-  // answer is known: the common case never moves, and a live drop, when there is one, arrives as
-  // the one thing on the page that was worth waiting for.
-  if (!loaded) return null;
-  if (loadFailed && reserves.length === 0) return <p className="rsv-err" role="alert">Couldn&rsquo;t load reserves right now — check back shortly.</p>;
+  if (board.status === "loading") return null;
+  if (board.status === "error") return <p className="rsv-err" role="alert">Couldn&rsquo;t load reserves right now — check back shortly.</p>;
+  const reserves = board.data?.reserves ?? [];
   if (reserves.length === 0) return null;
+  const claims = board.data?.claims ?? [];
+  const paying1 = reserves.find((r) => r.id === payFor) ?? null;
+  const signingFor = !user ? reserves.find((r) => r.id === signInFor) ?? null : null;
 
   return (
     <>
       {reserves.map((r) => {
-        const mine = claims[r.id];
+        const mine = claims.filter((c) => c.reserve_id === r.id);
+        const have = mine.reduce((a, c) => a + c.qty, 0);
         const sold = r.status === "sold_out" || r.stock_remaining <= 0;
+        // Payable once 0400 is here and the crew have named its pickup; not when that pickup was called off or has closed.
+        const ready = "stop_id" in r && !!r.stop_id && !!r.stop;
+        const called = !!r.stop?.canceled_at;
+        const pickup = reservePickupWords(r.stop ?? null);
         const price = moneyRound(r.price_cents);
+        // Another, while under their limit — not while one is still being confirmed.
+        const more = have < r.per_member_limit && !mine.some((c) => c.state === "pending");
+        const why = !ready ? "Opening soon" : called ? "Pickup called off" : !r.open ? "Reserves closed" : sold ? "Sold out" : null;
         return (
           <div className="drop" key={r.id}>
             {r.member_only && <span className="badge"><Icon name="star" /> Member access</span>}
@@ -109,29 +133,67 @@ export default function Reserves() {
               <div className="eyb">Limited Reserve</div>
               <h2>{r.name}</h2>
               {r.blurb && <div className="desc">{r.blurb}</div>}
+              {ready && pickup && (
+                <p className="mt-2 text-footnote text-cream-muted">
+                  {called ? <>Its pickup on {pickup} was called off — check back for the new one.</> : <>Pickup {pickup}</>}
+                </p>
+              )}
               <div className="meta">
                 <span className="cd">{price}</span>
                 <span className="left">{sold ? "Sold out" : `${r.stock_remaining} of ${r.stock_total} left`}</span>
               </div>
-              {mine ? (
-                <div className="rsv-done">
-                  <span>Reserved{mine.qty > 1 ? ` ·  ${mine.qty}` : ""} <Icon name="check" /> — pay at pickup</span>
-                  <button type="button" className="rsv-cancel" onClick={() => cancel(r)} disabled={busy === r.id}>Release</button>
+              {mine.map((cl) => (
+                <div className="rsv-done" key={cl.id}>
+                  {cl.state === "paid" ? (
+                    <>
+                      <span>Yours <Icon name="check" />{cl.qty > 1 ? ` · ${cl.qty}` : ""}{cl.paid_cents ? ` · ${money(cl.paid_cents)} paid` : ""}</span>
+                      {r.open || called || !ready
+                        ? <button type="button" className="rsv-cancel" onClick={() => cancel(r, cl)} disabled={busy === cl.id}>{busy === cl.id ? "Canceling…" : "Cancel"}</button>
+                        : <span className="text-caption text-cream-muted">Ask the crew to change it</span>}
+                    </>
+                  ) : cl.state === "pending" ? (
+                    <span>Confirming your payment…</span>
+                  ) : (
+                    <>
+                      <span>Reserved{cl.qty > 1 ? ` · ${cl.qty}` : ""} <Icon name="check" /> — pay at pickup</span>
+                      <button type="button" className="rsv-cancel" onClick={() => release(cl)} disabled={busy === cl.id}>Release</button>
+                    </>
+                  )}
                 </div>
-              ) : (
-                <button type="button" className="btn-pri btn-wide mt-1" onClick={() => claim(r)} disabled={sold || busy === r.id}>
-                  {sold ? "Sold out" : busy === r.id ? "Reserving…" : "Reserve yours"}
-                </button>
+              ))}
+              {why ? (
+                mine.length === 0 && <button type="button" className="btn-pri btn-wide mt-1" disabled>{why}</button>
+              ) : mine.length === 0 ? (
+                <button type="button" className="btn-pri btn-wide mt-1" onClick={() => buy(r)}>Reserve yours · {price}</button>
+              ) : more ? (
+                <button type="button" className="btn-sec btn-wide mt-2" onClick={() => buy(r)}>Reserve another</button>
+              ) : null}
+              {ready && !why && r.closes && mine.length === 0 && (
+                <p className="mt-2 text-caption text-cream-muted">Yours once it&rsquo;s paid — cancel for a full refund until {closesWords(new Date(r.closes))}.</p>
               )}
             </div>
           </div>
         );
       })}
-      <Sheet open={signInOpen} onClose={() => { pendingClaim.current = null; setSignInOpen(false); }} labelledBy="reserve-signin-title">
+      <Sheet open={!!signingFor} onClose={() => setSignInFor(null)} labelledBy="reserve-signin-title">
         <div className="oa-kicker" id="reserve-signin-title">SIGN IN TO RESERVE</div>
-        {pendingClaim.current && <h2 className="dl-h">{pendingClaim.current.name}</h2>}
+        {signingFor && <h2 className="dl-h">{signingFor.name}</h2>}
         <SignIn compact />
       </Sheet>
+      {paying1 && user && (
+        <ReservePay
+          reserve={{ id: paying1.id, name: paying1.name, price_cents: paying1.price_cents, per_member_limit: paying1.per_member_limit, stock_remaining: paying1.stock_remaining }}
+          pickup={reservePickupWords(paying1.stop ?? null)}
+          closes={paying1.closes}
+          have={claims.filter((c) => c.reserve_id === paying1.id).reduce((a, c) => a + c.qty, 0)}
+          onClose={closePay}
+          onDone={(d) => {
+            closePay();
+            toast(d.warn || `${paying1.name} is yours${d.totalCents ? ` — ${money(d.totalCents)} paid` : ""}`);
+            load();
+          }}
+        />
+      )}
     </>
   );
 }

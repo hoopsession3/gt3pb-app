@@ -21,6 +21,7 @@ import { canCollect, canUndo, collectPayment, undoCollection, isSettled, paidHow
 import { useCollectSheet } from "./CollectSheet";
 import FoldCard from "@/components/crew/FoldCard";
 import { dueLead, type PickupFeed } from "@/lib/dueNext";
+import ReserveClaims from "./crew/ReserveClaims";
 
 // DROP OPS — the order-ahead brew sheet + pickup checklist for Saturday's drop. Lives in the admin
 // "Now" section right under the kitchen pass (and pops out of reservation alerts), so walk-up orders
@@ -428,6 +429,8 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
               annotation={`${dropWhen}'s drop${rows.length > 0 ? ` · ${rows.length} pack${rows.length === 1 ? "" : "s"}` : ""}`}
             />
             {body}
+            {/* The Limited Reserves handed over at this day's stops (0400): who is owed one, and Handed over. */}
+            <ReserveClaims day={dropISO} />
           </div>
           )}
           {/* Moved packs land here in the same breath — never off any surface. Grouped by date so a

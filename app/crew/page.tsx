@@ -77,6 +77,8 @@ import MenuRigChips, { MENU_RIG_COLUMNS, type MenuRigPatch, type MenuRigValue } 
 // chunk available offline. next/dynamic on a default export keeps full prop-type inference.
 const TrailerLoadout = dynamic(() => import("@/components/TrailerLoadout"), { loading: () => <PourFill label="Loading…" /> });
 import DropOps from "@/components/DropOps";
+import ReserveClaims from "@/components/crew/ReserveClaims";
+import { reserveStopLabel } from "@/lib/reservePickup";
 import ThePass from "@/components/pass/ThePass";
 import OfficeOrders from "@/components/OfficeOrders";
 const SiteCopyEditor = dynamic(() => import("@/components/SiteCopyEditor"), { loading: () => <PourFill label="Loading…" /> });
@@ -3483,6 +3485,15 @@ function ReservesAdmin() {
     return (data as Reserve[]) ?? [];
   }, []);
   const load = reservesState.reload;
+  // THE PICKUP A RESERVE IS HANDED OVER AT (0400): a stop on the schedule — from a month back (a reserve keeps the pickup it
+  // had) to what is coming. A reserve with none is "opening soon" on the page and cannot be paid for.
+  const stopsState = useAsyncData<{ id: string; name: string | null; starts_at: string | null; canceled_at: string | null }[]>(async () => {
+    if (!supabase) return [];
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await supabase.from("stops").select("id, name, starts_at, canceled_at").gte("starts_at", since).order("starts_at").limit(80);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as { id: string; name: string | null; starts_at: string | null; canceled_at: string | null }[];
+  }, []);
 
   // STOCK AND LEFT MOVE TOGETHER (lib/reserveStock). The write is matched on the two numbers it was
   // worked out from: a member claiming in between makes it miss, and it is worked out again from the
@@ -3586,6 +3597,21 @@ function ReservesAdmin() {
                     <button type="button" className="btn-ter" onClick={() => archive(r.id)}>Archive</button>
                     <Button type="button" kind="destructive" onClick={() => remove(r.id, r.name)}>Delete</Button>
                   </div>
+                  {/* arrives-with: 0400 — until it is pasted a reserve has no pickup to name, and the choice is not shown. */}
+                  {"stop_id" in r && (
+                    <div className="adm-fields">
+                      <label>Pickup
+                        <select defaultValue={r.stop_id ?? ""} key={`stop-${r.stop_id ?? ""}`} onChange={(e) => update(r.id, { stop_id: e.target.value || null })}>
+                          <option value="">None yet — opening soon</option>
+                          {r.stop_id && !(stopsState.data ?? []).some((st) => st.id === r.stop_id) && <option value={r.stop_id}>Its pickup</option>}
+                          {(stopsState.data ?? []).map((st) => (
+                            <option key={st.id} value={st.id}>{reserveStopLabel(st)}{st.canceled_at ? " · called off" : ""}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  )}
+                  <ReserveClaims reserveId={r.id} />
                 </div>
               ))}
             </>

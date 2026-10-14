@@ -292,17 +292,29 @@ export interface Reserve {
   drop_at: string | null;
   sort: number;
   created_at: string;
+  /** The pickup it is handed over at (0400). Absent until 0400 is pasted; null: opening soon. */
+  stop_id?: string | null;
 }
 
+// A claim on a reserve. 0400: paid to hold — pending while Square is asked, paid, collected when handed over. `held` is
+// the old hold paid at the truck (0014); user_id is let go when the member's account is erased (0353).
 export interface ReserveClaim {
   id: string;
   reserve_id: string;
-  user_id: string;
+  user_id: string | null;
   qty: number;
-  state: "held" | "paid" | "expired" | "cancelled";
+  state: "held" | "pending" | "paid" | "collected" | "expired" | "cancelled";
   hold_expires_at: string | null;
   order_id: string | null;
   created_at: string;
+  idempotency_key?: string | null;
+  payment_id?: string | null;
+  paid_cents?: number | null;
+  refunded_cents?: number;
+  canceled_at?: string | null;
+  cancel_reason?: string | null;
+  collected_at?: string | null;
+  collected_by?: string | null;
 }
 
 // Subscriptions mirror (0015). Square is billing truth; this row is a read-only

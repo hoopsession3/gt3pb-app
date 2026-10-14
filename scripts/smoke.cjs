@@ -11197,7 +11197,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && seg("components/Shop.tsx", /<div className="menu-chips shop-sections">\s*<Segmented label="Shop" fill value=\{section\} onChange=\{setSection\}/)
     && seg("app/architecture/page.tsx", /<Segmented label="View" className="mt-3" value=\{view\} onChange=\{setView\}/));
   ok("recipes: a customer's one primary is the kit's — reserve a bottle, share your code, add to the order (and its closed and sold-out words), share your status; a code's Apply is the secondary",
-    /<button type="button" className="btn-pri btn-wide mt-1" onClick=\{\(\) => claim\(r\)\}/.test(read("components/Reserves.tsx"))
+    /<button type="button" className="btn-pri btn-wide mt-1" onClick=\{\(\) => buy\(r\)\}>Reserve yours · \{price\}<\/button>/.test(read("components/Reserves.tsx"))
     && /<button type="button" className="btn-pri btn-wide mt-2\.5" onClick=\{share\}>/.test(read("app/3mpire/page.tsx"))
     && (read("components/DrinkSheet.tsx").match(/className="btn-pri btn-wide mt-4\.5"/g) || []).length === 2 && !/order-bar/.test(code(read("components/DrinkSheet.tsx")))
     && /footer=\{<button type="button" className="btn-pri btn-wide" onClick=\{share\} disabled=\{!ready\}>/.test(read("components/StatusCard.tsx"))
@@ -14123,6 +14123,60 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && (of.match(/textOptIn: textYes \|\| undefined/g) || []).length === 2 && /<input type="checkbox" checked=\{checked\} onChange=\{\(e\) => onChange\(e\.target\.checked\)\} \/>/.test(ty));
   ok("account: the switch changes only a number on the member's own orders",
     /if \(!theirs\.has\(num\)\) return NextResponse\.json\(\{ error: "That number isn't on your orders\." \}, \{ status: 403 \}\);/.test(ac) && ac.indexOf("theirs.has(num)") < ac.indexOf("sayTextConsent("));
+}
+
+// ── A LIMITED RESERVE IS PAID TO HOLD (2026-10-14, R5 — decided 2026-10-13: charged like packs, no timer, a full refund
+// on a cancel before the cutoff; 0400) ────────────────────────────────────────────────────────────────────────────────
+// A reserve was a 48-hour hold paid at the truck: nothing said where or when to come, the hold ran out on its own clock,
+// and the crew had no list of who was owed a bottle. It is paid for now and names its pickup; the money path is
+// lib/reservePay (scripts/reservepay.test.mjs runs every branch), the database 0400 (scripts/db.reservepaid.test.mjs).
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const RP = require("../.smoke/reservePickup.js");
+  const st = { name: "WineXpress", starts_at: "2026-10-17T15:00:00Z", ends_at: "2026-10-17T18:00:00Z", canceled_at: null };
+  ok("reserve pickup: in words, Eastern — 'Sat, Oct 17 · 11:00am–2:00pm at WineXpress'; the crew's list 'Sat, Oct 17 · WineXpress'",
+    RP.reservePickupWords(st) === "Sat, Oct 17 · 11:00am–2:00pm at WineXpress" && RP.reserveStopLabel(st) === "Sat, Oct 17 · WineXpress");
+  ok("reserve pickup: closes 24 hours before its stop (the pack rule); no stop, or one called off, is never open",
+    RP.reserveClosesAt(st)?.toISOString() === "2026-10-16T15:00:00.000Z" && !RP.reserveOpen(null) && !RP.reserveOpen({ ...st, canceled_at: "x" }, Date.parse("2026-10-14T00:00:00Z"))
+    && RP.reserveOpen(st, Date.parse("2026-10-16T14:59:59Z")) && !RP.reserveOpen(st, Date.parse("2026-10-16T15:00:00Z")));
+  const rv = code(rd("components/Reserves.tsx")), rp = code(rd("components/ReservePay.tsx"));
+  ok("the card: payable only once 0400 is here and its pickup is named — otherwise 'Opening soon', never a Pay that answers 503",
+    /const ready = "stop_id" in r && !!r\.stop_id && !!r\.stop;/.test(rv) && /const why = !ready \? "Opening soon" : called \? "Pickup called off" : !r\.open \? "Reserves closed" : sold \? "Sold out" : null;/.test(rv));
+  ok("the card: no hold paid at the truck is made any more — the pay step, loaded with the first tap",
+    !/rpc\("claim_reserve"/.test(rv) && /const ReservePay = dynamic\(\(\) => import\("\.\/ReservePay"\), \{ ssr: false \}\);/.test(rv) && !/import ReservePay/.test(rv));
+  ok("the card: a paid claim says so — cancel for a refund while its pickup is open (or called off), else the crew's",
+    /Yours <Icon name="check" \/>/.test(rv) && /r\.open \|\| called \|\| !ready/.test(rv) && /Ask the crew to change it/.test(rv) && /confirmLabel: paid > 0 \? "Cancel and refund" : "Cancel it"/.test(rv)
+    && /authedFetch\("\/api\/reserves\/cancel"/.test(rv) && /Confirming your payment…/.test(rv));
+  ok("the card: signed out, the tap signs in right there and its pay step opens once signed in — no effect, no ref",
+    /const payFor = paying \?\? \(user \? signInFor : null\);/.test(rv) && !/useRef/.test(rv) && !/useEffect/.test(rv) && /<SignIn compact \/>/.test(rv));
+  ok("pay: one key per checkout, the shown total sent and a raised one agreed to, the words of Square's no",
+    /useIdemKey\("gt3-rsv-idem"\)/.test(rp) && /expectedCents: totalCents/.test(rp) && /if \(data\.totalChanged && typeof data\.totalCents === "number"\) setAgreed\(\{ n, cents: data\.totalCents \}\);/.test(rp)
+    && /setErr\(payErrorText\(data\.error\)\);/.test(rp) && /idem\.settle\(attempt\.key, null, null\);/.test(rp));
+  ok("pay: says until when a cancel is refunded, and that no clock runs out on it",
+    /Cancel for a full refund until \$\{closesWords\(new Date\(closes\)\)\}, 24 hours before pickup\./.test(rp) && /No timer — it&rsquo;s yours once it&rsquo;s paid\./.test(rp));
+  const pr = code(rd("app/api/reserves/pay/route.ts")), cr = code(rd("app/api/reserves/cancel/route.ts")), sr = code(rd("app/api/reserves/settle/route.ts"));
+  ok("routes: pay is members only; cancel by the crew needs the crew; settle is the crew's — each through the route wrapper",
+    /if \(!user\) return NextResponse\.json\(\{ error: "Reserves are for members — sign in to reserve\." \}, \{ status: 401 \}\);/.test(pr)
+    && /if \(body\.crew === true\) \{\s*if \(!\(await staffFromRequest\(req\)\)\) return NextResponse\.json\(\{ error: "Crew only\." \}, \{ status: 403 \}\);/.test(cr)
+    && /if \(!\(await staffFromRequest\(req\)\)\) return NextResponse\.json\(\{ error: "Crew only\." \}, \{ status: 403 \}\);/.test(sr)
+    && /export const POST = route\("reserves\/pay", post\);/.test(pr) && /export const POST = route\("reserves\/cancel", post\);/.test(cr) && /export const POST = route\("reserves\/settle", post\);/.test(sr));
+  ok("routes: a payment settled by hand carries Square's id — the checkout's own, else one pasted that looks like one",
+    /paymentId: kept\?\.payment_id \?\? typed,/.test(sr) && /const PAYMENT_ID = \/\^\[A-Za-z0-9_-\]\{8,64\}\$\/;/.test(rd("app/api/reserves/settle/route.ts")));
+  const rc = code(rd("components/crew/ReserveClaims.tsx")), dop = code(rd("components/DropOps.tsx")), cp = code(rd("app/crew/page.tsx"));
+  ok("the crew: the drop's face lists the reserves handed over at that day's stops; Money's lists each reserve's claims",
+    /<ReserveClaims day=\{dropISO\} \/>/.test(dop) && /<ReserveClaims reserveId=\{r\.id\} \/>/.test(cp)
+    && /\.in\("stop_id", stopIds\)/.test(rc) && /\.in\("state", \["paid", "collected"\]\)/.test(rc));
+  ok("the crew: hand over by their own call; a refund through the server; a payment that never answered settled with its id",
+    /supabase\.rpc\("collect_reserve_claim", \{ p_claim: c\.id \}\)/.test(rc) && /JSON\.stringify\(\{ id: c\.id, crew: true \}\)/.test(rc)
+    && /authedFetch\("\/api\/reserves\/settle"/.test(rc) && /placeholder="Square payment ID"/.test(rc) && !/style=\{\{/.test(rc));
+  ok("the crew: a reserve names its pickup once 0400 is here — a stop on the schedule, or none yet (opening soon)",
+    /\{"stop_id" in r && \(/.test(cp) && /onChange=\{\(e\) => update\(r\.id, \{ stop_id: e\.target\.value \|\| null \}\)\}/.test(cp) && /<option value="">None yet — opening soon<\/option>/.test(cp));
+  const sql = rd("supabase/migrations/0400_a_limited_reserve_is_paid_to_hold.sql");
+  ok("0400: the members' hold is gone; the hold, the settle and the release are the server's alone",
+    /revoke execute on function public\.claim_reserve\(uuid, integer\) from public, anon, authenticated;/.test(sql)
+    && ["hold_reserve(uuid, uuid, integer, text)", "settle_reserve(uuid, text, integer)", "release_reserve(uuid, text, integer)"].every((f) => sql.includes(`revoke all on function public.${f} from public, anon, authenticated;`) && sql.includes(`grant execute on function public.${f} to service_role;`)));
 }
 
 Promise.all(PENDING).then(() => {

@@ -47,7 +47,7 @@ export const DATABASES: DbEntry[] = [
   // Partial — manageable but bounded by design
   { table: "alerts", manage: "partial", surface: "My Day / Now", note: "Raised + acknowledged, not edited." },
   { table: "comments", manage: "partial", surface: "Throughout", note: "Post + delete; not edited." },
-  { table: "reserves", manage: "partial", surface: "Money → Reserve drops", note: "Create + update." },
+  { table: "reserves", manage: "partial", surface: "Money → Reserve drops", note: "Create + update; names its pickup (0400)." },
   { table: "rsvps", manage: "partial", surface: "Events", note: "Create + update." },
   { table: "event_approvals", manage: "partial", surface: "Now (sign-off)", note: "Create + delete (the sign-off flow)." },
   { table: "event_economics", manage: "partial", surface: "Money → Event P&L", note: "P&L inputs (upsert)." },
@@ -67,7 +67,7 @@ export const DATABASES: DbEntry[] = [
   { table: "push_subscriptions", manage: "system", surface: "—", note: "Managed by push registration." },
   { table: "referral_events", manage: "system", surface: "—", note: "Event log." },
   { table: "check_ins", manage: "system", surface: "—", note: "Event log." },
-  { table: "reserve_claims", manage: "system", surface: "—", note: "Claimed via RPC." },
+  { table: "reserve_claims", manage: "partial", surface: "Money → Reserve drops; the drop", note: "Paid to hold (0400): held and settled by the server, handed over or refunded by the crew." },
   { table: "admin_emails", manage: "readonly", surface: "SQL only", note: "Allowlist — not in-app." },
   { table: "subscription_interest", manage: "partial", surface: "Money", note: "Captured from interest signups." },
   { table: "trailer_profile", manage: "partial", surface: "Assets", note: "Singleton — update." },

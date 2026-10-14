@@ -82,7 +82,10 @@ import { readFileSync, existsSync } from "node:fs";
 // the last shipped (two had come out in earlier rounds and the line stayed at 100); 97 at 9695df5, release 1 (Money's
 // report loader set its loading flag inside its effect, components/Reports — it reads through one loader now); 95 with
 // release 2's two, the Pass's row and the menu's expander, written above as 100 → 99 → 98 against the stale line.
-export const BASELINE = 95;
+//
+// 2026-10-14: 95 → 94 (R5 of the customer audit, a Limited Reserve is paid to hold): the reserve card loaded its list from
+// an effect that set state (components/Reserves) — it reads through useAsyncData now, with no effect of its own.
+export const BASELINE = 94;
 
 const RULE = "react-hooks/set-state-in-effect";
 
