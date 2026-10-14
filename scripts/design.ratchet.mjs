@@ -660,6 +660,11 @@ export const PROD_ROUTE = {
 // reads the packs without their stops until 0397 is pasted (lib/schemaSkew isMissingRelation) — the pack pages' +1.2 KB
 // more. Crossed the rounding line: /menu, /privacy, /terms, /order, /built and /shop +1; /reserve, /delivery and /3mpire
 // +2 (/reserve 291.41 → 292.72 KB). Built 010c6e7 and this commit and gzipped what each route's prerendered HTML references.
+// 2026-10-14 (R5 of the customer audit, a merch receipt): /shop +216 bytes gzipped (304 471 → 304 687, 297.33 → 297.55 KB,
+// across the rounding line: +1), every other route unchanged to the byte. The done screen shows what was paid — the lines
+// as charged, the total with its order number, where it ships and where the receipt went (components/Shop, from the
+// checkout's own answer: lib/receipt shopReceipt) — and Pay sends the total it shows, so a raised one is shown before it is
+// charged (components/ShopCheckout). Built bbd8dfd and this commit and gzipped what each route's prerendered HTML references.
 export const WEIGHT = {
   "/truck":                    { js: 284, css: 89, chunks: 16 },
   "/events":                   { js: 284, css: 89, chunks: 16 },
@@ -679,7 +684,7 @@ export const WEIGHT = {
   "/offer":                    { js: 282, css: 90, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 269, css: 90, chunks: 15 },
   "/display":                  { js: 270, css: 90, chunks: 15 },
-  "/shop":                     { js: 297, css: 90, chunks: 16 },
+  "/shop":                     { js: 298, css: 90, chunks: 16 },
   "/primal":                   { js: 272, css: 90, chunks: 15 },
   "/privacy":                  { js: 268, css: 90, chunks: 14 },
   "/terms":                    { js: 268, css: 90, chunks: 14 },
