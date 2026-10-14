@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { adminFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { refundPayment } from "@/lib/squareServer";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { accountEmail, notifyCustomer, whoAsked } from "@/lib/notify";
@@ -11,10 +11,11 @@ import { route } from "@/lib/apiRoute";
 import type { Answer } from "@/lib/chargeOnce";
 
 // CANCEL A LIMITED RESERVE, AND GIVE THE MONEY BACK (0400, 2026-10-14 — R5 of the customer audit). The member's own,
-// until its pickup closes (24 hours before the stop; any time once the pickup was called off); the crew's (`crew: true`,
-// staff only), any time. The decisions are lib/reservePay's: the refund first, to the card that paid, under a key of the
-// claim's own (a cancel sent twice is refunded once) — refused or unknown, the claim stands and the crew are told — then
-// the bottles back on the shelf (0400 release_reserve), and the member and the crew told.
+// until its pickup closes (24 hours before the stop; any time once the pickup was called off); the crew's (`crew: true`),
+// any time — an owner's or an admin's: a refund moves money back, and that is not every server's call on the truck.
+// The decisions are lib/reservePay's: the refund first, to the card that paid, under a key of the claim's own (a cancel
+// sent twice is refunded once) — refused or unknown, the claim stands and the crew are told — then the bottles back on
+// the shelf (0400 release_reserve), and the member and the crew told.
 const reply = (a: Answer) => NextResponse.json(a.body, { status: a.status });
 
 async function post(req: Request) {
@@ -26,7 +27,7 @@ async function post(req: Request) {
 
   let by: { userId: string } | { crew: true };
   if (body.crew === true) {
-    if (!(await staffFromRequest(req))) return NextResponse.json({ error: "Crew only." }, { status: 403 });
+    if (!(await adminFromRequest(req))) return NextResponse.json({ error: "Only an owner or an admin refunds a reserve." }, { status: 403 });
     by = { crew: true };
   } else {
     const user = await userFromRequest(req);

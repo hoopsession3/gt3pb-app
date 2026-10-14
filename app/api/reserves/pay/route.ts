@@ -18,6 +18,10 @@ import type { Answer } from "@/lib/chargeOnce";
 // reserve's checks, the key claimed, the bottles held (0400 hold_reserve), the card charged once. This route reads the
 // reserve and hands over the database (lib/reserveSteps), Square and who is told.
 const reply = (a: Answer) => NextResponse.json(a.body, { status: a.status });
+// A minute at most. The checkout claims take a request still "started" two minutes on to have died (lib/chargeOnce
+// IN_FLIGHT_MS), and a claim settled by hand trusts that (lib/reservePay.settleByHand): a request still waiting on Square
+// past it could be answered after its claim was let go. Square answers in seconds.
+export const maxDuration = 60;
 
 async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ error: "Reserving isn't switched on yet." }, { status: 503 });

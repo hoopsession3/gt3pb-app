@@ -67,7 +67,7 @@ export const DATABASES: DbEntry[] = [
   { table: "push_subscriptions", manage: "system", surface: "—", note: "Managed by push registration." },
   { table: "referral_events", manage: "system", surface: "—", note: "Event log." },
   { table: "check_ins", manage: "system", surface: "—", note: "Event log." },
-  { table: "reserve_claims", manage: "partial", surface: "Money → Reserve drops; the drop", note: "Paid to hold (0400): held and settled by the server, handed over or refunded by the crew." },
+  { table: "reserve_claims", manage: "partial", surface: "Money → Reserve drops; the drop", note: "Paid to hold (0400): held and settled by the server, handed over by the crew; refunded or settled by hand by an owner or admin." },
   { table: "admin_emails", manage: "readonly", surface: "SQL only", note: "Allowlist — not in-app." },
   { table: "subscription_interest", manage: "partial", surface: "Money", note: "Captured from interest signups." },
   { table: "trailer_profile", manage: "partial", surface: "Assets", note: "Singleton — update." },

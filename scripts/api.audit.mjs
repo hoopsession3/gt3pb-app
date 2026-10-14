@@ -26,6 +26,7 @@ const API = join(ROOT, "app/api");
 
 export const GUARDS = [
   /\buserFromRequest\(/, /\bstaffFromRequest\(/, /\bownerFromRequest\(/, /\btenantFromRequest\(/, /\bleadershipFromRequest\(/,
+  /\badminFromRequest\(/,                    // owner or admin, is_admin() (2026-10-14: a reserve's refund and its payment settled by hand)
   /\bverifyApliiq\(/,                         // Apliiq webhook signature (lib/apliiq.ts)
   /\btimingSafeEqual\(/, /\bcreateHmac\(/,     // a signed webhook (Stripe/Square shape)
   // lib/webhookSignature.ts (2026-10-11): the same signed-webhook checks, in one home — a route that calls one of
@@ -130,7 +131,7 @@ export function boundOf(src, readFile = (p) => readFileSync(join(ROOT, p), "utf8
 // business yet. A count may only go down: an unscoped read beyond it fails, and so does a count left
 // above what is measured (slack is room for new debt — scripts/design.ratchet.mjs's rule).
 export const AGENT_DOOR = "app/api/agents/";
-const ROLE_GUARDS = "staffFromRequest|ownerFromRequest|leadershipFromRequest";
+const ROLE_GUARDS = "staffFromRequest|ownerFromRequest|adminFromRequest|leadershipFromRequest";
 
 // Measured 2026-10-12, after the strategy session, the weekly review, the transcript and the briefing were
 // scoped. Nearly all of it is a truck stop — or the compliance rules for one — read by the id the request

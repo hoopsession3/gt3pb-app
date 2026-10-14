@@ -1,4 +1,5 @@
-import { chargeOnce, claimKey, placeOnce, seenBefore, type Answer, type ChargeResult, type ClaimStore, type Say, type Stopped } from "./chargeOnce";
+import { chargeOnce, claimKey, declined, placeOnce, seenBefore, IN_FLIGHT_MS, type Answer, type ChargeResult, type Claim, type ClaimStore, type Say, type Stopped } from "./chargeOnce";
+import { REFERENCE_MAX } from "./squareServer";
 import { aboveShown, shownCents } from "./shownTotal";
 import { money } from "./money";
 import { errorMessage } from "./errorMessage";
@@ -31,15 +32,22 @@ import { reserveClosesAt, reserveOpen, reservePickupWords, type ReserveStop } fr
 //      (/api/reserves/settle) with Square's payment in front of them.
 // A reserve that costs nothing is placed instead of charged (lib/chargeOnce.placeOnce).
 //
-// CANCEL: the member's own, until the pickup closes (24 hours before the stop; any time when it was called off); the
-// crew's, any time. The money goes back to the card first, under a key of the claim's own — refused or unknown, the
-// claim stands and the crew are told — then the bottles go back on the shelf.
+// CANCEL: the member's own, until the pickup closes (24 hours before the stop; any time when it was called off); an
+// owner's or an admin's, any time. The money goes back to the card first, under a key of the claim's own — refused or
+// unknown, the claim stands and the crew are told — then the bottles go back on the shelf.
 
 export const MAX_QTY = 12;
 /** Where the crew see a reserve's claims (app/crew, Money → Reserve drops). */
 export const RESERVES_LINK = "/crew?s=money&a=resv";
-/** Square's refund for a canceled claim — one key per claim, so a cancel sent twice is refunded once. */
-export const refundKey = (claimId: string): string => `rsvx-${claimId}`;
+/**
+ * Square's refund for a canceled claim: the claim (its id, dashes dropped) and what it had refunded before this one. A
+ * cancel sent twice asks again under the same key, so Square refunds it once. A cancel after a part refund made in
+ * Square asks for the rest under a new key — the old key with a new amount is a request Square refuses
+ * (IDEMPOTENCY_KEY_REUSED), and the claim would stand unrefunded for good. 45 characters at most, Square's limit:
+ * "rsvx-" and 32 and "-" leave seven digits — $99,999.99 refunded.
+ */
+export const refundKey = (claimId: string, refundedCents: number): string =>
+  `rsvx-${claimId.replace(/-/g, "")}-${Math.max(0, Math.round(refundedCents || 0))}`.slice(0, 45);
 export const REFUND_REASON = "Limited Reserve canceled";
 
 export type ClaimState = "held" | "pending" | "paid" | "collected" | "expired" | "cancelled";
@@ -54,6 +62,7 @@ export type ReserveForPay = {
 export type ReserveClaimRow = {
   id: string; reserve_id: string; user_id: string | null; qty: number; state: ClaimState;
   idempotency_key: string | null; payment_id: string | null; paid_cents: number | null; refunded_cents: number;
+  created_at?: string | null;
   reserve?: { name: string; stop?: ReserveStop } | null;
   closes_at?: string | null;
 };
@@ -264,7 +273,7 @@ export function memberMayCancel(c: Pick<ReserveClaimRow, "closes_at">, nowMs: nu
 export async function cancelReserve(o: {
   steps: ReserveSteps; tell: Tell; now: () => number;
   claimId: string;
-  /** The member themselves (their account), or the crew. */
+  /** The member themselves (their account), or the crew — an owner or an admin (app/api/reserves/cancel). */
   by: { userId: string } | { crew: true };
   /** Who, for the crew's line. */
   who: string;
@@ -295,7 +304,7 @@ export async function cancelReserve(o: {
     if (!o.refund) return refuse(503, "Card refunds aren't switched on here yet — the crew can refund it in Square.");
     let back: RefundResult;
     try {
-      back = await o.refund({ paymentId: c.payment_id, amountCents: due, key: refundKey(c.id), reason: REFUND_REASON });
+      back = await o.refund({ paymentId: c.payment_id, amountCents: due, key: refundKey(c.id, c.refunded_cents ?? 0), reason: REFUND_REASON });
     } catch (e) {
       await tell.crew({ severity: "critical", category: "money", kind: "ops_incident", subjectId: c.id, link: RESERVES_LINK,
         title: "Reserve refund status unknown — check Square",
@@ -326,15 +335,55 @@ export async function cancelReserve(o: {
 }
 
 // ── SETTLED BY HAND ─────────────────────────────────────────────────────────────────────────────────────────────────
-// A claim left pending — Square's answer never came — is settled by the crew with the payment in front of them: Paid
-// (with the payment's id, which its refund will need) or Not charged (the bottles back on the shelf).
+// A claim left pending — Square's answer never came, or its request stopped before it was saved — is settled by an
+// owner or an admin (app/api/reserves/settle): Paid, or Not charged (the bottles back on the shelf). Neither is taken
+// on trust:
+//   · not while its checkout may still be going: its checkout claim moved under two minutes ago and not finished
+//     (lib/chargeOnce IN_FLIGHT_MS — the pay route itself is cut off at a minute, app/api/reserves/pay maxDuration) is a
+//     request that may yet answer for itself, or a payment Square may not list yet;
+//   · Square is asked first, about this checkout's payment: the one the checkout heard of; else one pasted, held to
+//     this checkout (completed, made under this claim's key — chargeCard sets the key as the payment's reference); else
+//     the one Square has under the key, found among the payments made while the checkout ran (findPaymentByReference —
+//     ListPayments cannot filter on a reference). What counts is what Square still holds of it, its refunds taken off: a
+//     refunded payment stays COMPLETED in Square.
+//   · Not charged is refused while Square holds money for it — mark it Paid, or refund it in Square first; refunded in
+//     full, it is let go. Paid records what Square still holds; refunded in full, there is nothing to mark paid. A
+//     reserve that cost nothing was never charged: Paid with no payment at all.
+// Once settled, the checkout's key says so: a retry from the member's page hears "yours" or "nothing is charged — tap Pay
+// to try again", not "we couldn't confirm" for ever.
+
+/** Square's record of one payment (lib/squareServer.getPayment). */
+export type PaymentSeen =
+  | { ok: true; status: string; referenceId: string | null; amountCents: number; refundedCents: number }
+  | { ok: false; notFound: boolean; error: string };
+type SquarePayment = { id: string; status: string; amountCents: number; refundedCents: number };
+/** A payment looked for by the key it was made under (lib/squareServer.findPaymentByReference). */
+export type PaymentFound = { ok: true; payment: SquarePayment | null } | { ok: false; error: string };
+
+/** How long before and after its checkout began a payment can have been made: the key is claimed the moment before the
+ *  hold and the charge, and a request lives a minute at most — the rest is room for clocks that disagree. */
+export const SEARCH_BEFORE_MS = 5 * 60_000;
+export const SEARCH_AFTER_MS = 15 * 60_000;
+const TOOK = new Set(["COMPLETED", "APPROVED", "PENDING"]);
 
 export async function settleByHand(o: {
-  steps: ReserveSteps; claimId: string; outcome: "paid" | "not_charged";
-  /** What was charged: the checkout claim's amount, else the bottles at the reserve's price. */
+  steps: ReserveSteps;
+  /** The checkout claims (lib/checkoutClaims), to say the key is settled; null before 0371. */
+  claims: ClaimStore | null;
+  now: () => number;
+  claimId: string; outcome: "paid" | "not_charged";
+  /** The checkout claim under the claim's key, as read just now (with when it was claimed) — null when there is none. */
+  checkout: (Pick<Claim, "state" | "amount_cents" | "payment_id" | "updated_at"> & { created_at?: string | null }) | null;
+  /** The bottles at the reserve's price — what a checkout with no amount of its own was charging. */
   priceCents: number;
-  /** Square's payment: the one the checkout recorded, else the one the crew pasted. */
-  paymentId: string | null;
+  /** A payment id pasted from Square, already shaped (letters, digits, - and _); null when none was. */
+  typedPaymentId: string | null;
+  /** Square, asked about one payment (lib/squareServer.getPayment); null when card payments are not switched on.
+   *  Throws when Square cannot be asked. */
+  lookup: ((paymentId: string) => Promise<PaymentSeen>) | null;
+  /** Square's payments between two times, searched for one made under a key (lib/squareServer.findPaymentByReference);
+   *  null when card payments are not switched on. Throws when Square cannot be asked. */
+  search: ((reference: string, fromIso: string, toIso: string) => Promise<PaymentFound>) | null;
 }): Promise<Answer> {
   let c: ReserveClaimRow | null;
   try { c = await o.steps.claim(o.claimId); } catch { return refuse(503, "Couldn't read that claim just now — try again."); }
@@ -343,11 +392,101 @@ export async function settleByHand(o: {
     if ((c.state === "paid" || c.state === "collected") && o.outcome === "paid") return { status: 200, body: { ok: true, already: true, state: c.state } };
     return refuse(409, `That claim is ${c.state} — it isn't waiting on its payment any more.`);
   }
-  if (o.outcome === "paid") {
-    if (!o.paymentId) return refuse(400, "Paste the payment's ID from Square — its refund needs it.");
-    const s = await o.steps.settle(c.id, o.paymentId, Math.max(0, Math.round(o.priceCents)));
-    return s.ok ? { status: 200, body: { ok: true, state: "paid" } } : refuse(409, s.error);
+  const k = o.checkout;
+  // Still going? Its checkout claim (or, with none to read, the hold) moved under two minutes ago and has not finished.
+  const since = k ? k.updated_at : c.created_at ?? null;
+  if ((!k || k.state !== "done") && since && !(o.now() - Date.parse(since) > IN_FLIGHT_MS)) {
+    return refuse(409, "Its checkout may still be going — give it two minutes, then settle it.", { inFlight: true });
   }
-  const s = await o.steps.release(c.id, "not charged", 0);
-  return s.ok ? { status: 200, body: { ok: true, state: "cancelled" } } : refuse(409, s.error);
+  const key = c.idempotency_key;
+  const expected = Math.max(0, Math.round(k?.amount_cents ?? o.priceCents));
+  // The key, settled: what every retry of it hears from now on. Moved from the claim as it was read; moved on since — a
+  // retry found its request dead (started → unknown) — it is moved from where it is now, unless its own request finished.
+  const keyHears = async (answer: Answer, paymentId: string | null) => {
+    if (!o.claims || !key || !k || k.state === "done") return;
+    const to = { state: "done" as const, answer, paymentId, note: "settled by hand" }, at = new Date(o.now()).toISOString();
+    if (await o.claims.move(key, to, at, k)) return;
+    const fresh = await o.claims.read(key);
+    if (fresh.ok && fresh.claim && fresh.claim.state !== "done") await o.claims.move(key, to, at, fresh.claim);
+  };
+
+  // ── What Square has for this checkout ──
+  const asked = async (paymentId: string, ours: boolean): Promise<{ answer: Answer } | { payment: SquarePayment }> => {
+    let seen: PaymentSeen;
+    try { seen = await o.lookup!(paymentId); } catch { return { answer: refuse(503, "Couldn't reach Square to check that payment — try again.") }; }
+    if (!seen.ok) {
+      return { answer: seen.notFound
+        ? refuse(400, "Square has no payment with that ID — copy it again from the payment's page.")
+        : refuse(503, `Square didn't answer about that payment (${seen.error}) — try again.`) };
+    }
+    if (ours && key && key.length <= REFERENCE_MAX && seen.referenceId !== key) {
+      return { answer: refuse(409, "That payment was made for another checkout — its reference isn't this claim's. Check the ID.") };
+    }
+    return { payment: { id: paymentId, status: seen.status, amountCents: seen.amountCents, refundedCents: seen.refundedCents } };
+  };
+  let found: SquarePayment | null = null;
+  if (k?.payment_id) {
+    // Square's own answer named it: that is the payment, and a different one pasted is a mistake to say.
+    if (o.outcome === "paid" && o.typedPaymentId && o.typedPaymentId !== k.payment_id) {
+      return refuse(409, `Square's answer named another payment (ref ${refOf(k.payment_id)}) — check the ID, or leave it empty.`);
+    }
+    if (o.lookup) {
+      const r = await asked(k.payment_id, false);
+      if ("answer" in r) return r.answer;
+      found = r.payment;
+    } else {
+      found = { id: k.payment_id, status: "COMPLETED", amountCents: expected, refundedCents: 0 };   // the checkout's word alone
+    }
+  } else if (o.outcome === "paid" && o.typedPaymentId) {
+    if (!o.lookup) return refuse(503, "Card payments aren't switched on here, so that payment can't be checked with Square.");
+    const r = await asked(o.typedPaymentId, true);
+    if ("answer" in r) return r.answer;
+    found = r.payment;
+  } else {
+    // Searched for by its key — when there was money to take and the key went on the payment (one too long did not).
+    const began = Date.parse(k?.created_at ?? c.created_at ?? "");
+    if (expected > 0 && o.search && key && key.length <= REFERENCE_MAX && Number.isFinite(began)) {
+      let r: PaymentFound;
+      try {
+        r = await o.search(key, new Date(began - SEARCH_BEFORE_MS).toISOString(), new Date(Math.min(o.now(), began + SEARCH_AFTER_MS)).toISOString());
+      } catch { return refuse(503, "Couldn't ask Square about its payment — try again in a moment."); }
+      if (!r.ok) return refuse(503, `Square didn't answer about its payment (${r.error}) — try again in a moment.`);
+      found = r.payment;
+    } else if (expected > 0 && o.outcome === "paid") {
+      return refuse(400, "Paste the payment's ID from Square — its refund needs it.", { needsId: true });
+    }
+  }
+  // What Square still holds of it, its refunds taken off.
+  const still = found ? Math.max(0, found.amountCents - found.refundedCents) : 0;
+  const took = !!found && TOOK.has(found.status);
+
+  if (o.outcome === "not_charged") {
+    if (found && took && still > 0) {
+      return refuse(409, `Square took ${money(still)} for this one (ref ${refOf(found.id)}) — it was charged. Mark it Paid, or refund it in Square first.`, { found: true });
+    }
+    const refunded = !!found && took;   // charged, and all of it went back in Square
+    const s = await o.steps.release(c.id, refunded ? "refunded in Square" : "not charged", 0);
+    if (!s.ok) return refuse(409, s.error);
+    await keyHears(declined(refunded
+      ? "That payment was refunded — nothing is charged. Tap Pay to reserve it again."
+      : "That payment didn't go through — nothing was charged. Tap Pay to try again."), null);
+    return { status: 200, body: { ok: true, state: "cancelled" } };
+  }
+
+  if (!found) {
+    if (expected > 0) return refuse(400, "Square has no payment under this checkout — mark it Not charged, or paste the payment's ID if you found one.", { needsId: true });
+    // Nothing to charge, nothing charged: theirs.
+    const s = await o.steps.settle(c.id, null, 0);
+    if (!s.ok) return refuse(409, s.error);
+    await keyHears(paidAnswer({ id: c.id, qty: c.qty, paid_cents: 0 }), null);
+    return { status: 200, body: { ok: true, state: "paid", paidCents: 0 } };
+  }
+  if (found.status !== "COMPLETED") {
+    return refuse(409, `Square shows that payment as ${found.status ? found.status.toLowerCase() : "unfinished"}, not completed — settle it once it completes, or mark it Not charged if it failed.`);
+  }
+  if (still <= 0) return refuse(409, "Square shows that payment refunded in full — there is nothing to mark paid. Mark it Not charged.");
+  const s = await o.steps.settle(c.id, found.id, still);
+  if (!s.ok) return refuse(409, s.error);
+  await keyHears(paidAnswer({ id: c.id, qty: c.qty, paid_cents: still }), found.id);
+  return { status: 200, body: { ok: true, state: "paid", paidCents: still, ref: refOf(found.id) } };
 }

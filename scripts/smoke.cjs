@@ -14157,20 +14157,35 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("pay: says until when a cancel is refunded, and that no clock runs out on it",
     /Cancel for a full refund until \$\{closesWords\(new Date\(closes\)\)\}, 24 hours before pickup\./.test(rp) && /No timer — it&rsquo;s yours once it&rsquo;s paid\./.test(rp));
   const pr = code(rd("app/api/reserves/pay/route.ts")), cr = code(rd("app/api/reserves/cancel/route.ts")), sr = code(rd("app/api/reserves/settle/route.ts"));
-  ok("routes: pay is members only; cancel by the crew needs the crew; settle is the crew's — each through the route wrapper",
+  ok("routes: pay is members only; a crew refund and a payment settled by hand are an owner's or an admin's (is_admin) — each through the route wrapper",
     /if \(!user\) return NextResponse\.json\(\{ error: "Reserves are for members — sign in to reserve\." \}, \{ status: 401 \}\);/.test(pr)
-    && /if \(body\.crew === true\) \{\s*if \(!\(await staffFromRequest\(req\)\)\) return NextResponse\.json\(\{ error: "Crew only\." \}, \{ status: 403 \}\);/.test(cr)
-    && /if \(!\(await staffFromRequest\(req\)\)\) return NextResponse\.json\(\{ error: "Crew only\." \}, \{ status: 403 \}\);/.test(sr)
+    && /if \(body\.crew === true\) \{\s*if \(!\(await adminFromRequest\(req\)\)\) return NextResponse\.json\(\{ error: "Only an owner or an admin refunds a reserve\." \}, \{ status: 403 \}\);/.test(cr)
+    && /async function post\(req: Request\) \{\s*if \(!\(await adminFromRequest\(req\)\)\) return NextResponse\.json\(\{ error: "Only an owner or an admin settles a payment\." \}, \{ status: 403 \}\);/.test(sr)
+    && !/staffFromRequest/.test(cr + sr) && /export async function adminFromRequest[\s\S]*?sb\.rpc\("is_admin"\)/.test(rd("lib/apiAuth.ts"))
     && /export const POST = route\("reserves\/pay", post\);/.test(pr) && /export const POST = route\("reserves\/cancel", post\);/.test(cr) && /export const POST = route\("reserves\/settle", post\);/.test(sr));
-  ok("routes: a payment settled by hand carries Square's id — the checkout's own, else one pasted that looks like one",
-    /paymentId: kept\?\.payment_id \?\? typed,/.test(sr) && /const PAYMENT_ID = \/\^\[A-Za-z0-9_-\]\{8,64\}\$\/;/.test(rd("app/api/reserves/settle/route.ts")));
+  ok("routes: the pay route is cut off at a minute — inside the two minutes a checkout claim is given before it is taken for dead",
+    /export const maxDuration = 60;/.test(pr) && /export const IN_FLIGHT_MS = 120_000;/.test(rd("lib/chargeOnce.ts")));
+  ok("routes: a payment settled by hand is checked — its checkout read (a failed read refuses), a pasted id shaped like one and asked of Square",
+    /const PAYMENT_ID = \/\^\[A-Za-z0-9_-\]\{8,64\}\$\/;/.test(rd("app/api/reserves/settle/route.ts")) && /if \(k\.error && !isMissingTable\(k\.error\)\) return/.test(sr)
+    && /typedPaymentId: raw \|\| null,/.test(sr) && /lookup: token \? \(paymentId\) => getPayment\(\{ token, paymentId \}\) : null,/.test(sr)
+    && /\.select\("state, amount_cents, payment_id, created_at, updated_at"\)/.test(sr));
   const rc = code(rd("components/crew/ReserveClaims.tsx")), dop = code(rd("components/DropOps.tsx")), cp = code(rd("app/crew/page.tsx"));
   ok("the crew: the drop's face lists the reserves handed over at that day's stops; Money's lists each reserve's claims",
     /<ReserveClaims day=\{dropISO\} \/>/.test(dop) && /<ReserveClaims reserveId=\{r\.id\} \/>/.test(cp)
-    && /\.in\("stop_id", stopIds\)/.test(rc) && /\.in\("state", \["paid", "collected"\]\)/.test(rc));
+    && /\.in\("stop_id", stopIds\)/.test(rc) && /\.in\("state", \["pending", "paid", "collected"\]\)/.test(rc));
   ok("the crew: hand over by their own call; a refund through the server; a payment that never answered settled with its id",
     /supabase\.rpc\("collect_reserve_claim", \{ p_claim: c\.id \}\)/.test(rc) && /JSON\.stringify\(\{ id: c\.id, crew: true \}\)/.test(rc)
     && /authedFetch\("\/api\/reserves\/settle"/.test(rc) && /placeholder="Square payment ID"/.test(rc) && !/style=\{\{/.test(rc));
+  ok("the crew: money is offered to an owner or an admin only — Refund, and settling a claim once its checkout has had its two minutes",
+    /const admin = canOf\(profile\)\.admin;/.test(rc) && /\{!day && admin && c\.state === "paid" && \(/.test(rc)
+    && /const settleHere = !day && admin && c\.state === "pending" && !confirming\(c\);/.test(rc) && /Date\.parse\(c\.created_at\) \+ IN_FLIGHT_MS > at/.test(rc)
+    && /\{!free && askId\[c\.id\] && \(/.test(rc) && /if \(d\?\.needsId\) setAskId/.test(rc));
+  ok("the card: a reserve handed over is the member's still — counted toward their limit, and said: Picked up",
+    /\.in\("state", \["held", "pending", "paid", "collected"\]\)/.test(rv) && /cl\.state === "collected" \? \(\s*<span>Picked up <Icon name="check" \/>/.test(rv));
+  ok("the card: until when a cancel is refunded — said before it is bought, and again beside one paid for, while its pickup is open",
+    /const refundUntil = ready && r\.open && r\.closes \? closesWords\(new Date\(r\.closes\)\) : null;/.test(rv)
+    && /\{refundUntil && \(mine\.length === 0 \? !why : mine\.some\(\(c\) => c\.state === "paid"\)\) && \(/.test(rv)
+    && /<>Yours once it&rsquo;s paid — cancel<\/> : "Cancel"\} for a full refund until \{refundUntil\}\./.test(rv));
   ok("the crew: a reserve names its pickup once 0400 is here — a stop on the schedule, or none yet (opening soon)",
     /\{"stop_id" in r && \(/.test(cp) && /onChange=\{\(e\) => update\(r\.id, \{ stop_id: e\.target\.value \|\| null \}\)\}/.test(cp) && /<option value="">None yet — opening soon<\/option>/.test(cp));
   const sql = rd("supabase/migrations/0400_a_limited_reserve_is_paid_to_hold.sql");

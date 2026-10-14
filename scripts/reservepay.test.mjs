@@ -138,7 +138,37 @@ function fakeRefunds() {
 // ── the world ──────────────────────────────────────────────────────────────────────────────────────────────────────
 const now = clock("2026-10-14T15:00:00.000Z");
 const sq = fakeSquare(), rf = fakeRefunds();
-globalThis.fetch = (url, init) => (String(url).endsWith("/v2/refunds") ? rf.fetch(url, init) : sq.fetch(url, init));
+/** Square's GET /v2/payments/{id}, over the payments the fake has made (and any a test adds): 404 for one it has not. */
+const onePayment = async (url) => {
+  const id = decodeURIComponent(String(url).split("/v2/payments/")[1]);
+  const p = sq.payments.find((x) => x.id === id);
+  const res = p ? { status: 200, body: { payment: { id: p.id, status: p.status, amount_money: p.amount_money, reference_id: p.reference_id, ...(p.refunded_money ? { refunded_money: p.refunded_money } : {}) } } }
+    : { status: 404, body: { errors: [{ category: "INVALID_REQUEST_ERROR", code: "NOT_FOUND", detail: `Could not find payment with id: ${id}` }] } };
+  return { ok: res.status < 300, status: res.status, json: async () => JSON.parse(JSON.stringify(res.body)) };
+};
+/** Square's GET /v2/payments (ListPayments): the location's payments made between begin_time and end_time, oldest first,
+ *  `limit` a page with a cursor to the next, and `payments` left out when there are none (as Square does). `lp.script`:
+ *  "error" (Square answers 500), "throw" (the connection drops), "garbled" (a 200 cut off mid-body). */
+const lp = { calls: [], script: [] };
+const listPayments = async (url) => {
+  const q = new URL(String(url)).searchParams;
+  lp.calls.push(Object.fromEntries(q));
+  const step = lp.script.length ? lp.script.shift() : "ok";
+  if (step === "throw") throw new TypeError("fetch failed");
+  if (step === "error") return { ok: false, status: 500, json: async () => ({ errors: [{ code: "INTERNAL_SERVER_ERROR", detail: "Square is having a moment" }] }) };
+  if (step === "garbled") return { ok: true, status: 200, json: async () => { throw new SyntaxError("Unexpected end of JSON input"); } };
+  const from = Date.parse(q.get("begin_time")), to = Date.parse(q.get("end_time")), at = Number(q.get("cursor") || 0), n = Number(q.get("limit") || 100);
+  const all = sq.payments.filter((p) => Date.parse(p.created_at) >= from && Date.parse(p.created_at) <= to)
+    .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
+  const page = all.slice(at, at + n).map((p) => ({ id: p.id, status: p.status, amount_money: p.amount_money, reference_id: p.reference_id, created_at: p.created_at,
+    ...(p.refunded_money ? { refunded_money: p.refunded_money } : {}) }));
+  return { ok: true, status: 200, json: async () => ({ ...(page.length ? { payments: page } : {}), ...(at + n < all.length ? { cursor: String(at + n) } : {}) }) };
+};
+/** Every payment the fake makes is stamped with the suite's clock, as Square stamps created_at. */
+const stamped = async (p) => { try { return await p; } finally { for (const x of sq.payments) x.created_at ??= new Date(now()).toISOString(); } };
+globalThis.fetch = (url, init) => (String(url).endsWith("/v2/refunds") ? rf.fetch(url, init)
+  : /\/v2\/payments\?/.test(String(url)) ? listPayments(url)
+  : /\/v2\/payments\/[^/?]+$/.test(String(url)) ? onePayment(url) : stamped(sq.fetch(url, init)));
 const W = memorySteps();
 const store = memoryClaims();
 const told = { crew: [], customer: [] };
@@ -329,12 +359,14 @@ const paidClaim = async (key, qty = 1, user = SAM) => {
   const left = W.reserves.get(RES).stock_remaining;
   const a = await cancel({ id: c.id });
   ok("cancel: refunded in full to the card — Square asked once, under the claim's own key, with the reason",
-    a.status === 200 && a.body.refundedCents === 8000 && rf.calls.length === 1 && rf.calls[0].idempotency_key === `rsvx-${c.id}` && rf.calls[0].payment_id === c.payment_id
+    a.status === 200 && a.body.refundedCents === 8000 && rf.calls.length === 1 && rf.calls[0].idempotency_key === `rsvx-${c.id.replace(/-/g, "")}-0` && rf.calls[0].payment_id === c.payment_id
     && rf.calls[0].amount_money.amount === 8000 && rf.calls[0].reason === "Limited Reserve canceled", [a, rf.calls[0]]);
   ok("cancel: the claim let go with its refund, the bottles back on the shelf", c.state === "cancelled" && c.refunded_cents === 8000 && W.reserves.get(RES).stock_remaining === left + 2, c);
   ok("cancel: the member told the money is on its way; the crew an fyi that the bottles are back",
     /is canceled — \$80 is on its way back to your card/.test(told.customer.at(-1)?.message ?? "") && told.crew.at(-1)?.severity === "fyi" && /back on the shelf/.test(told.crew.at(-1)?.body ?? ""), told);
-  ok("cancel: refund keys fit Square's 45 characters", R.refundKey(c.id).length <= 45 && R.refundKey(c.id) === `rsvx-${c.id}`);
+  ok("cancel: the refund key is the claim's and what it had refunded — 45 characters at most, Square's limit",
+    R.refundKey(c.id, 0) === `rsvx-${c.id.replace(/-/g, "")}-0` && R.refundKey(c.id, 9999999).length === 45 && R.refundKey(c.id, 1000) !== R.refundKey(c.id, 0)
+    && R.refundKey(c.id, 1000) === R.refundKey(c.id, 1000), [R.refundKey(c.id, 0), R.refundKey(c.id, 9999999)]);
   const twice = await cancel({ id: c.id });
   ok("cancel twice: already — and Square is not asked again", twice.status === 200 && twice.body.already === true && rf.calls.length === 1, twice);
 }
@@ -370,17 +402,20 @@ const paidClaim = async (key, qty = 1, user = SAM) => {
     a.status === 409 && a.body.pending === true && c.state === "paid" && told.crew.some((x) => x.severity === "critical" && x.title === "Reserve refund status unknown — check Square" && x.body.includes(c.payment_id)), a);
   const b = await cancel({ id: c.id });
   ok("refund answer lost, then the cancel again: the same key and request — Square replays its refund, made once",
-    b.status === 200 && c.state === "cancelled" && rf.refunds.length === n0 + 1 && rf.calls.filter((x) => x.idempotency_key === `rsvx-${c.id}`).length === 2, b);
+    b.status === 200 && c.state === "cancelled" && rf.refunds.length === n0 + 1 && rf.calls.filter((x) => x.idempotency_key === R.refundKey(c.id, 0)).length === 2, b);
 }
 {
   reset();
   const c = await paidClaim("rsv-cxl-0000000005");
-  rf.script.push("lose");
-  await cancel({ id: c.id });                     // made, its answer lost
-  c.refunded_cents = 1000;                        // a part refund made in Square meanwhile (0400: kept on the claim)
-  const a = await cancel({ id: c.id });           // the same key, now asking for less — a different request
-  ok("refund key reused with a different amount: Square says so, the answer is unknown — the claim stands",
-    a.status === 409 && a.body.pending === true && c.state === "paid" && rf.calls.at(-1).amount_money.amount === 3000, a);
+  rf.script.push("refuse");                       // $10 was refunded in Square first, so all $40 is more than is left
+  const first = await cancel({ id: c.id });
+  c.refunded_cents = 1000;                        // …and Square's refund webhook kept that $10 on the claim (0400)
+  const n0 = rf.refunds.length;
+  const a = await cancel({ id: c.id });           // the rest, $30 — under a key of its own, not the old key with a new amount
+  ok("a part refund made in Square, then a cancel: the rest goes back under a new key — not refused as a reused key",
+    first.status === 400 && a.status === 200 && a.body.refundedCents === 3000 && c.state === "cancelled" && c.refunded_cents === 4000
+    && rf.refunds.length === n0 + 1 && rf.calls.at(-1).amount_money.amount === 3000 && rf.calls.at(-1).idempotency_key === R.refundKey(c.id, 1000)
+    && rf.calls.at(-2).idempotency_key === R.refundKey(c.id, 0), [first, a]);
 }
 {
   reset();
@@ -437,25 +472,228 @@ const paidClaim = async (key, qty = 1, user = SAM) => {
 }
 
 // ── 12 · settled by hand ──────────────────────────────────────────────────────────────────────────────────────────────
+const lookup = (id) => SQ.getPayment({ token: "sq-test-access-token", paymentId: id });
+const search = (reference, fromIso, toIso) => SQ.findPaymentByReference({ token: "sq-test-access-token", locationId: "LOC-TEST", reference, fromIso, toIso });
+const kept = (key) => { const r = store.rows.get(key); return r ? { state: r.state, amount_cents: r.amount_cents, payment_id: r.payment_id, updated_at: r.updated_at } : null; };
+const settle = (o) => R.settleByHand({
+  steps: W.steps, claims: store, now, claimId: o.id, outcome: o.outcome,
+  checkout: o.checkout === undefined ? kept(o.key) : o.checkout, priceCents: o.price ?? 4000,
+  typedPaymentId: o.typed ?? null, lookup: o.lookup === undefined ? lookup : o.lookup, search: o.search === undefined ? search : o.search,
+});
+const userN = (n) => `5a1a0000-0000-4000-8000-0000000000${n}`;
+const stampHold = (key) => { const c = [...W.claims.values()].find((x) => x.idempotency_key === key); c.created_at = new Date(now()).toISOString(); return c; };
 {
   reset();
-  sq.script.push("lose");
-  await pay({ key: "rsv-hand-000000001", user: "5a1a0000-0000-4000-8000-00000000000a" });
-  sq.script.push("lose");
-  await pay({ key: "rsv-hand-000000002", user: "5a1a0000-0000-4000-8000-00000000000b" });
-  const one = [...W.claims.values()].find((x) => x.idempotency_key === "rsv-hand-000000001");
-  const two = [...W.claims.values()].find((x) => x.idempotency_key === "rsv-hand-000000002");
-  const noId = await R.settleByHand({ steps: W.steps, claimId: one.id, outcome: "paid", priceCents: 4000, paymentId: null });
-  ok("by hand: Paid needs Square's payment id — its refund will need it", noId.status === 400 && /Paste the payment's ID from Square/.test(noId.body.error) && one.state === "pending", noId);
-  const paid = await R.settleByHand({ steps: W.steps, claimId: one.id, outcome: "paid", priceCents: 4000, paymentId: "pay_FOUNDINSQ1" });
-  ok("by hand: Paid — the claim paid with that payment and the amount", paid.status === 200 && one.state === "paid" && one.payment_id === "pay_FOUNDINSQ1" && one.paid_cents === 4000, one);
-  const again = await R.settleByHand({ steps: W.steps, claimId: one.id, outcome: "paid", priceCents: 4000, paymentId: "pay_FOUNDINSQ1" });
+  sq.script.push("lose");                         // Square took $40 under the key; its answer never came back
+  await pay({ key: "rsv-hand-000000001", user: userN("0a") });
+  const one = stampHold("rsv-hand-000000001");
+  sq.script.push("drop");                         // the connection dropped before Square saw it: nothing was taken
+  await pay({ key: "rsv-hand-000000002", user: userN("0b") });
+  const two = stampHold("rsv-hand-000000002");
+  const its = sq.payments.find((p) => p.reference_id === "rsv-hand-000000001");
+  now.advance(C.IN_FLIGHT_MS + 60_000);           // the crew get to it a few minutes later
+  const o1 = { id: one.id, key: "rsv-hand-000000001", outcome: "paid" };
+  const noSearch = await settle({ ...o1, search: null });
+  ok("by hand: with no way to look in Square, Paid asks for the payment's id — its refund will need it",
+    noSearch.status === 400 && noSearch.body.needsId === true && /Paste the payment's ID from Square/.test(noSearch.body.error) && one.state === "pending", noSearch);
+  const made = await settle({ ...o1, typed: "pay_NOSUCHPAY1" });
+  const other = await settle({ ...o1, typed: sq.payments[0].id });
+  sq.payments.push({ id: "pay_TESTFAILED1", status: "FAILED", amount_money: { amount: 4000, currency: "USD" }, reference_id: "rsv-hand-000000001", created_at: "2026-10-01T00:00:00.000Z" });
+  const failed = await settle({ ...o1, typed: "pay_TESTFAILED1" });
+  const off = await settle({ ...o1, typed: its.id, lookup: null });
+  const down = await settle({ ...o1, typed: its.id, lookup: async () => { throw new TypeError("fetch failed"); } });
+  ok("by hand: a pasted id is checked with Square first — none there, another checkout's, not completed, Square off or down: refused, nothing moves",
+    made.status === 400 && /Square has no payment with that ID/.test(made.body.error) && other.status === 409 && /made for another checkout/.test(other.body.error)
+    && failed.status === 409 && /Square shows that payment as failed, not completed/.test(failed.body.error) && off.status === 503 && down.status === 503 && one.state === "pending", [made, other, failed, off, down]);
+  lp.script.push("error");
+  const sqDown = await settle(o1);
+  lp.script.push("throw");
+  const sqGone = await settle({ id: one.id, key: "rsv-hand-000000001", outcome: "not_charged" });
+  ok("by hand: Square's search failing is said, never taken for 'no payment' — not for Paid, not for Not charged",
+    sqDown.status === 503 && /Square didn't answer about its payment/.test(sqDown.body.error) && sqGone.status === 503 && one.state === "pending", [sqDown, sqGone]);
+  const no1 = await settle({ id: one.id, key: "rsv-hand-000000001", outcome: "not_charged" });
+  ok("by hand: Not charged is refused when Square has a payment under the checkout's key — it was charged",
+    no1.status === 409 && no1.body.found === true && new RegExp(`Square took \\$40 for this one \\(ref ${its.id.slice(-6).toUpperCase()}\\) — it was charged\\. Mark it Paid`).test(no1.body.error) && one.state === "pending", no1);
+  const n0 = lp.calls.length;
+  const paid = await settle(o1);
+  const asked = lp.calls.at(-1);
+  ok("by hand: Paid, nothing pasted — Square searched by the checkout's key, over the minutes its checkout ran, at the truck's location",
+    lp.calls.length === n0 + 1 && asked.location_id === "LOC-TEST" && asked.sort_order === "ASC"
+    && Date.parse(asked.begin_time) === Date.parse(one.created_at) - R.SEARCH_BEFORE_MS && Date.parse(asked.end_time) === Math.min(now(), Date.parse(one.created_at) + R.SEARCH_AFTER_MS), asked);
+  ok("by hand: …found, completed: the claim paid with that payment and what Square took",
+    paid.status === 200 && paid.body.paidCents === 4000 && paid.body.ref === its.id.slice(-6).toUpperCase() && one.state === "paid" && one.payment_id === its.id && one.paid_cents === 4000, [paid, one]);
+  const k1 = store.rows.get("rsv-hand-000000001");
+  ok("by hand: …and the checkout's key says so — every retry from the member's page hears 'yours'",
+    k1.state === "done" && k1.answer?.paid === true && k1.answer?.recorded === true && k1.payment_id === its.id && k1.note === "settled by hand", k1);
+  const retry = await pay({ key: "rsv-hand-000000001", user: userN("0a") });
+  ok("by hand: the member's retry — yours, $40, and Square not asked again", retry.status === 200 && retry.body.paid === true && retry.body.totalCents === 4000
+    && sq.calls.filter((x) => x.idempotency_key === "rsv-hand-000000001").length === 1, retry);
+  const again = await settle(o1);
+  const nothere = await settle({ id: two.id, key: "rsv-hand-000000002", outcome: "paid" });
+  ok("by hand: Paid twice is already; Paid where Square has nothing under the key asks for the id — mark it Not charged, or paste one",
+    again.status === 200 && again.body.already === true && nothere.status === 400 && nothere.body.needsId === true && /Square has no payment under this checkout/.test(nothere.body.error) && two.state === "pending", [again, nothere]);
   const left = W.reserves.get(RES).stock_remaining;
-  const no = await R.settleByHand({ steps: W.steps, claimId: two.id, outcome: "not_charged", priceCents: 4000, paymentId: null });
-  ok("by hand: Paid twice is already; Not charged lets the claim go and puts its bottle back",
-    again.status === 200 && again.body.already === true && no.status === 200 && two.state === "cancelled" && two.cancel_reason === "not charged" && W.reserves.get(RES).stock_remaining === left + 1, [again, no]);
-  const done = await R.settleByHand({ steps: W.steps, claimId: two.id, outcome: "paid", priceCents: 4000, paymentId: "pay_LATE00001" });
+  const no = await settle({ id: two.id, key: "rsv-hand-000000002", outcome: "not_charged" });
+  ok("by hand: Not charged, and Square has nothing under the key — the claim let go, its bottle back",
+    no.status === 200 && two.state === "cancelled" && two.cancel_reason === "not charged" && W.reserves.get(RES).stock_remaining === left + 1, no);
+  const k2 = store.rows.get("rsv-hand-000000002");
+  const retry2 = await pay({ key: "rsv-hand-000000002", user: userN("0b") });
+  ok("by hand: Not charged — the key hears 'nothing was charged', a definite no, so the page starts over with a new key",
+    k2.state === "done" && retry2.status === 400 && retry2.body.declined === true && /nothing was charged/.test(retry2.body.error), retry2);
+  const done = await settle({ id: two.id, key: "rsv-hand-000000002", outcome: "paid", typed: "pay_LATE00001" });
   ok("by hand: a claim no longer waiting on its payment is said so — 409", done.status === 409 && /isn't waiting on its payment/.test(done.body.error), done);
+  now.advance(-(C.IN_FLIGHT_MS + 60_000));
+}
+{
+  reset();
+  W.fail.settle = 1;                              // charged, and the claim would not move to paid (section 6's way)
+  await pay({ key: "rsv-hand-000000003", user: userN("0c") });
+  const c = stampHold("rsv-hand-000000003");
+  const k = kept("rsv-hand-000000003");
+  const o = { id: c.id, key: "rsv-hand-000000003" };
+  const n0 = lp.calls.length;
+  const notCharged = await settle({ ...o, outcome: "not_charged" });
+  ok("by hand: Not charged is refused when Square's answer named a payment Square still holds — that money was taken (no search: it is asked by its id)",
+    notCharged.status === 409 && /Square took \$40 for this one \(ref [A-Z0-9]{6}\) — it was charged/.test(notCharged.body.error) && c.state === "pending" && lp.calls.length === n0, notCharged);
+  const wrong = await settle({ ...o, outcome: "paid", typed: "pay_SOMEONEELSE" });
+  const paid = await settle({ ...o, outcome: "paid" });
+  ok("by hand: Paid with the payment the checkout heard — nothing to paste; a different one pasted is said to be wrong",
+    wrong.status === 409 && /named another payment/.test(wrong.body.error) && paid.status === 200 && c.state === "paid" && c.payment_id === k.payment_id && c.paid_cents === 4000, [wrong, paid]);
+}
+{
+  reset();
+  const key = "rsv-hand-000000004";
+  const h = await W.steps.hold({ userId: userN("0d"), reserveId: RES, qty: 1, key });
+  W.claims.get(h.id).created_at = new Date(now()).toISOString();
+  store.rows.set(key, { state: "started", card: true, amount_cents: 4000, payment_id: null, status: null, answer: null, note: null, updated_at: new Date(now()).toISOString() });
+  const early = await settle({ id: h.id, key, outcome: "not_charged" });
+  const noKey = await settle({ id: h.id, key, outcome: "not_charged", checkout: null });
+  ok("by hand: not while its checkout may still be going — started under two minutes ago (or, with no checkout claim, held that recently)",
+    early.status === 409 && early.body.inFlight === true && noKey.status === 409 && noKey.body.inFlight === true && W.claims.get(h.id).state === "pending", [early, noKey]);
+  now.advance(C.IN_FLIGHT_MS + 1000);
+  const later = await settle({ id: h.id, key, outcome: "not_charged" });
+  now.advance(-(C.IN_FLIGHT_MS + 1000));
+  ok("by hand: …and once its request has had its two minutes (and Square has nothing under its key), it can be", later.status === 200 && W.claims.get(h.id).state === "cancelled", later);
+}
+{
+  reset();
+  const key = "rsv-hand-free-0001";
+  const h = await W.steps.hold({ userId: userN("0e"), reserveId: FREE, qty: 1, key });
+  store.rows.set(key, { state: "unknown", card: false, amount_cents: 0, payment_id: null, status: null, answer: null, note: null, updated_at: new Date(now() - C.IN_FLIGHT_MS - 1).toISOString() });
+  const n0 = lp.calls.length;
+  const a = await settle({ id: h.id, key, outcome: "paid", price: 0 });
+  ok("by hand: a reserve that cost nothing is confirmed with no payment at all — Square not asked",
+    a.status === 200 && W.claims.get(h.id).state === "paid" && W.claims.get(h.id).payment_id === null && W.claims.get(h.id).paid_cents === 0 && lp.calls.length === n0, a);
+}
+{
+  // Square's search reads every page of the window before it says "none".
+  const many = Array.from({ length: 230 }, (_, i) => ({ id: `pay_BUSY${String(i).padStart(6, "0")}`, status: "COMPLETED", amount_money: { amount: 500, currency: "USD" },
+    reference_id: i === 217 ? "rsv-page-000000001" : null, created_at: new Date(Date.parse("2026-10-14T16:00:00Z") + i * 1000).toISOString() }));
+  sq.payments.push(...many);
+  const n0 = lp.calls.length;
+  const r = await search("rsv-page-000000001", "2026-10-14T15:55:00.000Z", "2026-10-14T16:10:00.000Z");
+  const none = await search("rsv-page-nowhere01", "2026-10-14T15:55:00.000Z", "2026-10-14T16:10:00.000Z");
+  ok("search: every page of the window is read — found on the third; none only once the last page is read",
+    r.ok && r.payment?.id === "pay_BUSY000217" && none.ok && none.payment === null && lp.calls.length === n0 + 6 && lp.calls[n0 + 2].cursor === "200", [r, none]);
+  sq.payments.splice(sq.payments.length - many.length, many.length);
+}
+
+{
+  reset();
+  // Charged, its answer lost — then refunded in Square before anybody settled it: in full for one, in part for another.
+  sq.script.push("lose");
+  await pay({ key: "rsv-hand-000000006", user: userN("0f") });
+  const full = stampHold("rsv-hand-000000006");
+  sq.script.push("lose");
+  await pay({ key: "rsv-hand-000000007", user: userN("10") });
+  const part = stampHold("rsv-hand-000000007");
+  sq.payments.find((p) => p.reference_id === "rsv-hand-000000006").refunded_money = { amount: 4000, currency: "USD" };
+  sq.payments.find((p) => p.reference_id === "rsv-hand-000000007").refunded_money = { amount: 1000, currency: "USD" };
+  now.advance(C.IN_FLIGHT_MS + 60_000);
+  const fullPaid = await settle({ id: full.id, key: "rsv-hand-000000006", outcome: "paid" });
+  const fullNo = await settle({ id: full.id, key: "rsv-hand-000000006", outcome: "not_charged" });
+  ok("by hand: refunded in full in Square — nothing to mark paid; Not charged lets it go, and its key says it was refunded",
+    fullPaid.status === 409 && /refunded in full/.test(fullPaid.body.error) && fullNo.status === 200 && full.state === "cancelled" && full.cancel_reason === "refunded in Square"
+    && /That payment was refunded — nothing is charged/.test(store.rows.get("rsv-hand-000000006").answer?.error ?? ""), [fullPaid, fullNo]);
+  const partNo = await settle({ id: part.id, key: "rsv-hand-000000007", outcome: "not_charged" });
+  const partPaid = await settle({ id: part.id, key: "rsv-hand-000000007", outcome: "paid" });
+  ok("by hand: refunded in part — Not charged refused for the $30 Square still holds; Paid records the $30, so a cancel later refunds what is there",
+    partNo.status === 409 && /Square took \$30 for this one/.test(partNo.body.error) && partPaid.status === 200 && part.state === "paid" && part.paid_cents === 3000, [partNo, partPaid]);
+  now.advance(-(C.IN_FLIGHT_MS + 60_000));
+}
+{
+  reset();
+  // Charged, not recorded — and the checkout's amount is not what was charged (the hold priced it lower): Square's is.
+  W.fail.settle = 1;
+  await pay({ key: "rsv-hand-000000008", user: userN("11") });
+  const c = stampHold("rsv-hand-000000008");
+  const paidSq = sq.payments.find((p) => p.reference_id === "rsv-hand-000000008");
+  paidSq.amount_money = { amount: 3500, currency: "USD" };
+  const a = await settle({ id: c.id, key: "rsv-hand-000000008", outcome: "paid" });
+  ok("by hand: the payment the checkout heard of is asked of Square — Paid records what Square took, not what the checkout went to charge",
+    a.status === 200 && c.paid_cents === 3500 && c.payment_id === paidSq.id, [a, c]);
+  sq.script.push("lose");
+  await pay({ key: "rsv-hand-000000009", user: userN("12") });
+  const d = stampHold("rsv-hand-000000009");
+  const kRow = store.rows.get("rsv-hand-000000009");
+  Object.assign(kRow, { state: "done", payment_id: sq.payments.find((p) => p.reference_id === "rsv-hand-000000009").id });   // as if its answer named it
+  sq.payments.find((p) => p.reference_id === "rsv-hand-000000009").refunded_money = { amount: 4000, currency: "USD" };
+  const b = await settle({ id: d.id, key: "rsv-hand-000000009", outcome: "not_charged" });
+  ok("by hand: …and one Square has since refunded in full can be let go: Not charged", b.status === 200 && d.state === "cancelled" && d.cancel_reason === "refunded in Square", b);
+}
+{
+  reset();
+  // The checkout moved to "unknown" a moment ago: Square may not list its payment yet — not settled for two minutes.
+  const key = "rsv-hand-000000010";
+  const h = await W.steps.hold({ userId: userN("13"), reserveId: RES, qty: 1, key });
+  W.claims.get(h.id).created_at = new Date(now() - 10 * 60_000).toISOString();
+  store.rows.set(key, { state: "unknown", card: true, amount_cents: 4000, payment_id: null, status: null, answer: null, note: null, updated_at: new Date(now() - 30_000).toISOString() });
+  const early = await settle({ id: h.id, key, outcome: "not_charged" });
+  ok("by hand: a checkout gone unknown under two minutes ago is still waited on — its payment may not be listed yet", early.status === 409 && early.body.inFlight === true, early);
+  // A retry moved the claim on since it was read (started → unknown): the settle still reaches the key.
+  store.rows.get(key).updated_at = new Date(now() - C.IN_FLIGHT_MS - 5000).toISOString();
+  const stale = { state: "started", amount_cents: 4000, payment_id: null, updated_at: new Date(now() - C.IN_FLIGHT_MS - 60_000).toISOString() };
+  const a = await settle({ id: h.id, key, outcome: "not_charged", checkout: stale });
+  ok("by hand: the key moved on since it was read — read again, and it still hears 'nothing was charged'",
+    a.status === 200 && store.rows.get(key).state === "done" && store.rows.get(key).answer?.declined === true, [a, store.rows.get(key)]);
+}
+{
+  reset();
+  // The search looks around when the checkout began, not when the bottles were first held: a key retried an hour on.
+  const key = "rsv-hand-000000011";
+  sq.script.push("lose");
+  await pay({ key, user: userN("14") });
+  const c = stampHold(key);
+  c.created_at = new Date(now() - 60 * 60_000).toISOString();              // held an hour before this checkout
+  const began = new Date(now() - 1000).toISOString();
+  now.advance(C.IN_FLIGHT_MS + 60_000);
+  const k = { ...kept(key), created_at: began };
+  const a = await settle({ id: c.id, key, outcome: "paid", checkout: k });
+  now.advance(-(C.IN_FLIGHT_MS + 60_000));
+  ok("by hand: the search's window is the checkout's own minutes — found, though the hold is an hour older",
+    a.status === 200 && c.state === "paid" && Date.parse(lp.calls.at(-1).begin_time) === Date.parse(began) - R.SEARCH_BEFORE_MS, [a, lp.calls.at(-1)]);
+}
+{
+  lp.script.push("garbled");
+  const r = await search("rsv-anything-00001", "2026-10-14T15:00:00.000Z", "2026-10-14T15:20:00.000Z");
+  const none = await search("rsv-anything-00001", "2020-01-01T00:00:00.000Z", "2020-01-01T00:20:00.000Z");
+  ok("search: a 2xx that cannot be read is an error, never 'no payment'; an empty window (no `payments` at all) is none",
+    r.ok === false && /could not be read/.test(r.error) && none.ok === true && none.payment === null, [r, none]);
+}
+
+// ── 12b · the hold's answer lost: read back, and it is this request's own (lib/reserveSteps) ─────────────────────────
+{
+  const S = load("lib/reserveSteps.ts");
+  const fakeDb = (row) => ({
+    rpc: async () => { throw new TypeError("fetch failed: other side closed"); },
+    from: () => { const q = { select: () => q, eq: () => q, maybeSingle: async () => ({ data: row, error: null }) }; return q; },
+  });
+  const back = await S.reserveSteps(fakeDb({ id: "c1a10000-0000-4000-8000-0000000000ff", qty: 2, state: "pending", reserve: { price_cents: 4000 } }))
+    .hold({ userId: SAM, reserveId: RES, qty: 2, key: "rsv-readback-00001" });
+  ok("hold, its answer lost and found by its key: this request's own hold — not 'again', so a price raised since lets it go",
+    back.ok === true && back.again === false && back.id === "c1a10000-0000-4000-8000-0000000000ff" && back.amountCents === 8000, back);
+  const none = await S.reserveSteps(fakeDb(null)).hold({ userId: SAM, reserveId: RES, qty: 2, key: "rsv-readback-00002" });
+  ok("hold, its answer lost and nothing there: not held (502) — nothing is charged", none.ok === false && none.answer.status === 502 && none.answer.body.code === "NOT_HELD", none);
 }
 
 // ── 13 · the order of the money path, as written ────────────────────────────────────────────────────────────────────
@@ -472,6 +710,14 @@ const paidClaim = async (key, qty = 1, user = SAM) => {
   ok("route: members only, the reserve read with its pickup (and without it until 0400), and the key on the card's charge",
     /if \(!user\) return NextResponse\.json\(\{ error: "Reserves are for members/.test(route) && /stop:stops\(name, starts_at, ends_at, canceled_at\)/.test(route)
     && /isMissingRelation\(withStop\.error\) \|\| isMissingColumn\(withStop\.error\)/.test(route) && /idempotencyKey: key, buyerEmail: email/.test(route));
+  const settleRoute = readFileSync(join(ROOT, "app/api/reserves/settle/route.ts"), "utf8");
+  const cancelRoute = readFileSync(join(ROOT, "app/api/reserves/cancel/route.ts"), "utf8");
+  ok("routes: a payment settled by hand and a crew refund are an owner's or an admin's (is_admin), asked first",
+    /async function post\(req: Request\) \{\s*if \(!\(await adminFromRequest\(req\)\)\) return/.test(settleRoute)
+    && /if \(body\.crew === true\) \{\s*if \(!\(await adminFromRequest\(req\)\)\) return/.test(cancelRoute) && !/staffFromRequest/.test(settleRoute + cancelRoute));
+  ok("routes: settle reads its checkout and refuses on a failed read (only a missing table is none), and asks Square — the search, and a pasted id",
+    /if \(k\.error && !isMissingTable\(k\.error\)\) return/.test(settleRoute) && /lookup: token \? \(paymentId\) => getPayment\(\{ token, paymentId \}\) : null/.test(settleRoute)
+    && /search: token && locationId \? \(reference, fromIso, toIso\) => findPaymentByReference\(\{ token, locationId, reference, fromIso, toIso \}\) : null/.test(settleRoute));
 }
 
 console.log(`LIMITED RESERVE, PAID TO HOLD (lib/reservePay): ${pass} passed, ${fail} failed`);

@@ -671,11 +671,23 @@ export const PROD_ROUTE = {
 // yes once texts are on (lib/texts); /3mpire +1 148: the account's "Texts about my packs" switch (components/TextsSetting),
 // shown once texts are switched on. Crossed the rounding line: /3mpire, /academy, /driver and /offer +1 (/academy 323.49 →
 // 323.61 KB). Built 48973be and this commit and gzipped what each route's prerendered HTML references.
+// 2026-10-14 (R5 of the customer audit, a Limited Reserve is paid to hold): /reserve 293 → 295 with one chunk more, /shop
+// 298 → 299. Built 5ea433a and this commit, served both, and gzipped what each route's prerendered HTML references:
+// /reserve +2 075 bytes (300 450 → 302 525, 293.41 → 295.43 KB), /shop +1 010 (305 384 → 306 394, 298.23 → 299.21 KB);
+// every other route +2 to +74, inside its line, and every stylesheet +30 (90 033 → 90 063). What rides is the Limited
+// Reserve card both pages draw (components/Reserves): where and when its pickup is and until when a cancel is refunded
+// (lib/reservePickup, on lib/pickupDay's clock), each of the member's claims as it stands — paid, with Cancel, its
+// refund's confirm and its last day; being confirmed; picked up — the sign-in sheet on the card itself, and "Opening
+// soon" for a reserve with no pickup yet. The pay step — how many, the card, the one key — loads with the first tap of
+// "Reserve yours" (components/ReservePay, next/dynamic), and the crew's list of who is owed one rides with the console
+// only. The chunk that holds the card on /reserve (43 989 bytes raw) is two files now (21 540 + 27 328): the bundler
+// split the group once the card grew — the same code, one request more. The stylesheet's 30 bytes are the card's and
+// the crew list's utilities.
 export const WEIGHT = {
   "/truck":                    { js: 284, css: 89, chunks: 16 },
   "/events":                   { js: 284, css: 89, chunks: 16 },
   "/menu":                     { js: 272, css: 90, chunks: 15 },
-  "/reserve":                  { js: 293, css: 90, chunks: 16 },
+  "/reserve":                  { js: 295, css: 90, chunks: 17 },
   "/delivery":                 { js: 292, css: 90, chunks: 16 },
   "/3mpire":                   { js: 285, css: 90, chunks: 15 },
   "/craft":                    { js: 271, css: 90, chunks: 15 },
@@ -690,7 +702,7 @@ export const WEIGHT = {
   "/offer":                    { js: 283, css: 90, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 269, css: 90, chunks: 15 },
   "/display":                  { js: 270, css: 90, chunks: 15 },
-  "/shop":                     { js: 298, css: 90, chunks: 16 },
+  "/shop":                     { js: 299, css: 90, chunks: 16 },
   "/primal":                   { js: 272, css: 90, chunks: 15 },
   "/privacy":                  { js: 268, css: 90, chunks: 14 },
   "/terms":                    { js: 268, css: 90, chunks: 14 },

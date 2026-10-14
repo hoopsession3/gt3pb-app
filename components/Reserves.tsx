@@ -24,7 +24,8 @@ const ReservePay = dynamic(() => import("./ReservePay"), { ssr: false });
 // LIMITED RESERVES — PAID TO HOLD (0400, 2026-10-14, R5 of the customer audit; decided 2026-10-13: charged like packs,
 // no timer, a full refund on a cancel before the cutoff). A reserve names its pickup; "Reserve yours" pays for it, and
 // it is the member's until the crew hand it over — no clock running out on it. Each claim says where it stands: paid
-// (cancel for a refund until the pickup closes, then ask the crew), being confirmed, or an old hold paid at the truck.
+// (cancel for a refund until the pickup closes, then ask the crew), being confirmed, picked up, or an old hold paid at
+// the truck.
 // Stock and claims are the server's (app/api/reserves/pay, hold_reserve); this reflects them, live.
 //
 // THE CARD THAT WAS NEVER THERE (2026-10-02). This used to paint a 150px card skeleton until the query answered, and the
@@ -58,7 +59,8 @@ export default function Reserves() {
     }));
     let claims: ReserveClaim[] = [];
     if (user) {
-      const c = await supabase.from("reserve_claims").select("*").eq("user_id", user.id).in("state", ["held", "pending", "paid"]).order("created_at");
+      // Handed over counts too: it is theirs, it says so, and it is part of their limit (hold_reserve counts it).
+      const c = await supabase.from("reserve_claims").select("*").eq("user_id", user.id).in("state", ["held", "pending", "paid", "collected"]).order("created_at");
       if (c.error) throw new Error(c.error.message);
       claims = (c.data as ReserveClaim[]) ?? [];
     }
@@ -126,6 +128,8 @@ export default function Reserves() {
         // Another, while under their limit — not while one is still being confirmed.
         const more = have < r.per_member_limit && !mine.some((c) => c.state === "pending");
         const why = !ready ? "Opening soon" : called ? "Pickup called off" : !r.open ? "Reserves closed" : sold ? "Sold out" : null;
+        // Until when a cancel is refunded — said before it is bought, and again beside one that is paid for.
+        const refundUntil = ready && r.open && r.closes ? closesWords(new Date(r.closes)) : null;
         return (
           <div className="drop" key={r.id}>
             {r.member_only && <span className="badge"><Icon name="star" /> Member access</span>}
@@ -153,6 +157,8 @@ export default function Reserves() {
                     </>
                   ) : cl.state === "pending" ? (
                     <span>Confirming your payment…</span>
+                  ) : cl.state === "collected" ? (
+                    <span>Picked up <Icon name="check" />{cl.qty > 1 ? ` · ${cl.qty}` : ""}</span>
                   ) : (
                     <>
                       <span>Reserved{cl.qty > 1 ? ` · ${cl.qty}` : ""} <Icon name="check" /> — pay at pickup</span>
@@ -168,8 +174,8 @@ export default function Reserves() {
               ) : more ? (
                 <button type="button" className="btn-sec btn-wide mt-2" onClick={() => buy(r)}>Reserve another</button>
               ) : null}
-              {ready && !why && r.closes && mine.length === 0 && (
-                <p className="mt-2 text-caption text-cream-muted">Yours once it&rsquo;s paid — cancel for a full refund until {closesWords(new Date(r.closes))}.</p>
+              {refundUntil && (mine.length === 0 ? !why : mine.some((c) => c.state === "paid")) && (
+                <p className="mt-2 text-caption text-cream-muted">{mine.length === 0 ? <>Yours once it&rsquo;s paid — cancel</> : "Cancel"} for a full refund until {refundUntil}.</p>
               )}
             </div>
           </div>

@@ -62,8 +62,9 @@ export class ChargeUnknown extends Error {
   constructor(message: string) { super(message); this.name = "ChargeUnknown"; }
 }
 
-// Square's limit on reference_id (CreatePayment: "Max Length 40"). The pages mint uuids — 36.
-const REFERENCE_MAX = 40;
+// Square's limit on reference_id (CreatePayment: "Max Length 40"). The pages mint uuids — 36. A key longer than this
+// goes without a reference, so nothing can match a payment to it (lib/reservePay.settleByHand asks only when it fits).
+export const REFERENCE_MAX = 40;
 
 // The one-time-card-charge shape three routes (checkout, delivery checkout, reserve) each built by
 // hand: POST /v2/payments with the caller's stable idempotency key, parse the decline vs. success
@@ -156,6 +157,59 @@ export async function refundPayment(opts: {
   const status = String(data?.refund?.status ?? "PENDING");
   if (status === "REJECTED" || status === "FAILED") return { ok: false, error: `Square ${status.toLowerCase()} the refund` };
   return { ok: true, refundId: data?.refund?.id ?? null, status };
+}
+
+// ONE PAYMENT, AS SQUARE KEEPS IT (2026-10-14, 0400). GET /v2/payments/{id}: its status, the reference it was made under
+// (chargeCard sets the checkout's key there), its amount and what has been refunded of it — a refunded payment stays
+// COMPLETED in Square, with refunded_money beside it. An owner settling a Limited Reserve whose answer was lost is checked
+// against this before anything is believed (lib/reservePay settleByHand): a payment that is not this checkout's, or not
+// completed, is not marked paid, and what it is marked paid with is what is still taken. 404: no such payment. Throws on
+// a dropped connection, like the others.
+export async function getPayment(opts: { token: string; paymentId: string }): Promise<
+  { ok: true; status: string; referenceId: string | null; amountCents: number; refundedCents: number } | { ok: false; notFound: boolean; error: string }
+> {
+  const res = await fetch(`${SQUARE_BASE}/v2/payments/${encodeURIComponent(opts.paymentId)}`, { headers: squareHeaders(opts.token) });
+  const data = await res.json().catch(() => null);
+  const p = data?.payment;
+  if (res.status >= 200 && res.status < 300 && p) {
+    return { ok: true, status: String(p.status ?? ""), referenceId: typeof p.reference_id === "string" ? p.reference_id : null,
+      amountCents: Number(p.amount_money?.amount) || 0, refundedCents: Number(p.refunded_money?.amount) || 0 };
+  }
+  return { ok: false, notFound: res.status === 404, error: String(data?.errors?.[0]?.detail || data?.errors?.[0]?.code || `Square answered ${res.status}`) };
+}
+
+// A PAYMENT FOUND BY THE KEY IT WAS MADE UNDER (2026-10-14, 0400). ListPayments cannot filter on reference_id, so this
+// reads the location's payments over the window a checkout ran in and matches the reference: a checkout asks Square once
+// under its key (lib/chargeOnce never asks again), so its payment, if there is one, was made inside that window. Several
+// under one reference (a failed try, then none) — the one that took money first. Five pages of 100 at most; more than
+// that in a few minutes is not a window this can read, and it says so rather than calling it "none" — as it does an
+// answer it cannot read (a 2xx cut off mid-body is not "no payments"). Square leaves `payments` out when there are none.
+export type FoundPayment = { id: string; status: string; amountCents: number; refundedCents: number };
+export async function findPaymentByReference(opts: {
+  token: string; locationId: string; reference: string; fromIso: string; toIso: string;
+}): Promise<{ ok: true; payment: FoundPayment | null } | { ok: false; error: string }> {
+  const hits: FoundPayment[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < 5; page++) {
+    const q = new URLSearchParams({ begin_time: opts.fromIso, end_time: opts.toIso, location_id: opts.locationId, sort_order: "ASC", limit: "100" });
+    if (cursor) q.set("cursor", cursor);
+    const res = await fetch(`${SQUARE_BASE}/v2/payments?${q.toString()}`, { headers: squareHeaders(opts.token) });
+    const data = await res.json().catch(() => null);
+    if (!(res.status >= 200 && res.status < 300)) return { ok: false, error: String(data?.errors?.[0]?.detail || data?.errors?.[0]?.code || `Square answered ${res.status}`) };
+    if (!data || typeof data !== "object" || ("payments" in data && !Array.isArray(data.payments))) return { ok: false, error: "an answer that could not be read" };
+    type Listed = { id?: unknown; status?: unknown; reference_id?: unknown; amount_money?: { amount?: unknown }; refunded_money?: { amount?: unknown } };
+    for (const p of (Array.isArray(data.payments) ? data.payments : []) as Listed[]) {
+      if (p?.reference_id === opts.reference && typeof p.id === "string") {
+        hits.push({ id: p.id, status: String(p.status ?? ""), amountCents: Number(p.amount_money?.amount) || 0, refundedCents: Number(p.refunded_money?.amount) || 0 });
+      }
+    }
+    cursor = typeof data?.cursor === "string" && data.cursor ? data.cursor : undefined;
+    if (!cursor) {
+      const took = hits.find((h) => h.status !== "FAILED" && h.status !== "CANCELED");
+      return { ok: true, payment: took ?? hits[0] ?? null };
+    }
+  }
+  return { ok: false, error: "more payments in that window than can be read" };
 }
 
 // One Square Subscription Plan Variation per coffee pack (6 / 12 / 18). The owner

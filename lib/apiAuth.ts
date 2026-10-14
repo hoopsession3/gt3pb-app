@@ -75,6 +75,20 @@ export function callerClient(req: Request): SupabaseClient | null {
   });
 }
 
+// Owner-or-admin gate (2026-10-14, 0400) — same shape as staffFromRequest but keys off is_admin() (0035: role owner or
+// admin, or the legacy is_admin flag), the database's own word for who moves money back. A refund and a payment settled
+// by hand (app/api/reserves/cancel for the crew, app/api/reserves/settle) are theirs, not every server's on the truck.
+export async function adminFromRequest(req: Request): Promise<boolean> {
+  try {
+    const sb = callerClient(req);
+    if (!sb) return false;
+    const { data, error } = await sb.rpc("is_admin");
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+}
+
 // Owner-only gate — same shape as staffFromRequest but keys off is_owner().
 export async function ownerFromRequest(req: Request): Promise<boolean> {
   try {

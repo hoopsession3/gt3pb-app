@@ -14,7 +14,7 @@ import type { ClaimState, Done, Held, ReserveClaimRow, ReserveSteps } from "./re
 // not take → 400. An answer that does not say — the network, a timeout — may still have made the hold, so it is read
 // back by its key before it is called a failure.
 
-const COLS = "id, reserve_id, user_id, qty, state, idempotency_key, payment_id, paid_cents, refunded_cents";
+const COLS = "id, reserve_id, user_id, qty, state, idempotency_key, payment_id, paid_cents, refunded_cents, created_at";
 const OFF = "Reserving with a card isn't switched on yet — check back shortly.";
 
 type DbError = { code?: string | null; message?: string | null } | null | undefined;
@@ -41,12 +41,14 @@ export function reserveSteps(db: SupabaseClient): ReserveSteps {
       if (isMissingFunction(error)) return { ok: false, answer: { status: 503, body: { error: OFF, off: true } } };
       const words = refusalText(error);
       if (words) return { ok: false, answer: { status: isGone(error) ? 404 : isClosed(error) ? 409 : 400, body: { error: words, ...(isGone(error) ? { gone: true } : {}) } } };
-      // The answer did not say. The hold may be there: read it back by its key — the member's own, still pending.
+      // The answer did not say. The hold may be there: read it back by its key — the member's own, still pending. Found,
+      // it is THIS request's hold, not one made before it: this request claimed the key (lib/chargeOnce.claimKey), so no
+      // other request was holding under it. So it is not `again` — a price raised since lets it go like any new hold.
       // scoped-by: idempotency_key is UNIQUE (0400) and the read is the caller's own rows (user_id).
       const back = await db.from("reserve_claims").select("id, qty, state, reserve:reserves(price_cents)")
         .eq("idempotency_key", key).eq("user_id", userId).eq("state", "pending").maybeSingle();
       const row = back.data as { id: string; qty: number; state: ClaimState; reserve: { price_cents: number } | null } | null;
-      if (row?.reserve) return { ok: true, id: row.id, qty: row.qty, amountCents: row.qty * row.reserve.price_cents, again: true, state: row.state };
+      if (row?.reserve) return { ok: true, id: row.id, qty: row.qty, amountCents: row.qty * row.reserve.price_cents, again: false, state: row.state };
       return { ok: false, answer: { status: 502, body: { error: "We couldn't hold your bottles just now — nothing was charged. Try again.", code: "NOT_HELD" } } };
     },
 
