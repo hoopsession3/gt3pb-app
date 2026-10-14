@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-14T00:32:31.088Z",
+    "pulled_at": "2026-10-14T13:02:26.167Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
-    "source": "migrations through 0397 (less the held 0376), built locally with the fallback query; production's own names matched them exactly in the Supabase SQL editor after 0397 was applied (219 relations, 2822 columns, the same fingerprint), and keep production's column order",
-    "relations": 219,
-    "columns": 2822
+    "source": "migrations through 0399 (less the held 0376), built locally with the fallback query; production's own names matched them exactly in the Supabase SQL editor after 0399 was applied (221 relations, 2841 columns, the same fingerprint), and keep production's column order",
+    "relations": 221,
+    "columns": 2841
   },
   "academy_acknowledgements": [
     "user_id",
@@ -1911,6 +1911,20 @@
     "last_sync_note",
     "updated_at"
   ],
+  "pack_notices": [
+    "id",
+    "pack_id",
+    "user_id",
+    "kind",
+    "for_day",
+    "due_at",
+    "sent_at",
+    "pushed",
+    "emailed",
+    "texted",
+    "detail",
+    "created_at"
+  ],
   "primal_lesson_products": [
     "id",
     "tenant_id",
@@ -2454,6 +2468,15 @@
     "stripe_customer_id",
     "stripe_subscription_id",
     "current_period_end"
+  ],
+  "text_consents": [
+    "phone",
+    "user_id",
+    "yes_at",
+    "yes_source",
+    "stop_at",
+    "stop_source",
+    "updated_at"
   ],
   "todos": [
     "id",
