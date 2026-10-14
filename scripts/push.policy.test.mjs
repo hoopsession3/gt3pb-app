@@ -315,5 +315,64 @@ const shape = (s) => !!s && typeof s.title === "string" && s.title.length > 0 &&
     /from\("profiles"\)\.select\("id, market"\)\.in\("id", ids\)/.test(fn) && /from\("markets"\)\.select\("slug, timezone"\)\.in\("slug", markets\)/.test(fn));
 }
 
+// ── 5 · A PACK HEARS ABOUT ITS DAY (0399) ────────────────────────────────────────────────────────────────────────
+{
+  // WineXpress, Sat Oct 24 2026, 11am–2pm Eastern (EDT: 15:00–18:00 UTC); a 6-pack bringing its empties back.
+  const pack = { id: "p-1", size: 6, glass: "return", drop_date: "2026-10-24", paid: false, name: NAME, phone: PHONE, total_cents: 3200 };
+  const stop = { name: "WineXpress", starts_at: "2026-10-24T15:00:00Z", ends_at: "2026-10-24T18:00:00Z", address: "202 Scuffletown Rd, Simpsonville, SC" };
+  const tomorrow = P.packNoticeShown("pickup_tomorrow", pack, stop);
+  ok("the evening before: \"Pickup tomorrow\" — the size, the hours, the stop's name; a tag of its own",
+    shape(tomorrow) && tomorrow.title === "Pickup tomorrow" && tomorrow.body === "Your 6-pack: 11am–2pm at WineXpress." && tomorrow.tag === "pack:p-1:pickup_tomorrow" && !tomorrow.ring, tomorrow);
+  const changed = P.packNoticeShown("pickup_changed", pack, { ...stop, starts_at: "2026-10-24T16:30:00Z", ends_at: "2026-10-24T19:00:00Z" });
+  ok("the stop's hours changed: the day and the new hours, said as they stand", changed.title === "Your pickup changed" && changed.body === "Your 6-pack is now Sat, Oct 24, 12:30pm–3pm at WineXpress.", changed);
+  const moved = P.packNoticeShown("pack_moved", { ...pack, drop_date: "2026-10-31" }, { ...stop, starts_at: "2026-10-31T15:00:00Z", ends_at: "2026-10-31T18:00:00Z" });
+  ok("the crew moved it: the new day and hours", moved.title === "Your pack moved" && moved.body === "Your 6-pack is now Sat, Oct 31, 11am–2pm at WineXpress.", moved);
+  const canceled = P.packNoticeShown("pack_canceled", pack, stop), canceledPaid = P.packNoticeShown("pack_canceled", { ...pack, paid: true }, stop);
+  ok("the crew canceled it: which day, and what becomes of the money — never the amount",
+    canceled.body === "Your 6-pack for Sat, Oct 24 is canceled. Nothing was charged." && canceledPaid.body === "Your 6-pack for Sat, Oct 24 is canceled. What you paid is being refunded.", [canceled, canceledPaid]);
+  const noStop = P.packNoticeShown("pickup_tomorrow", pack, null);
+  ok("a pack with no stop still has its day: Find Us has where and when", noStop.body === "Your 6-pack: Find Us has where and when.", noStop);
+  ok("no lock screen says the member's name, number or what they paid — or the stop's street",
+    [tomorrow, changed, moved, canceled, canceledPaid, noStop].every((x) => leaks(x).length === 0 && !x.body.includes("Scuffletown")));
+  ok("a kind it does not know sends nothing", P.packNoticeShown("pack_lost", pack, stop) === null && P.packNoticeTold("pack_lost", pack, stop) === null);
+  const told = P.packNoticeTold("pickup_tomorrow", pack, stop);
+  ok("the email: a subject that says it, the day, the hours, where (the stop's street — a public place), the empties, and the way to the packs",
+    told.subject === "GT3 — pickup tomorrow: WineXpress"
+    && told.text.startsWith("Your 6-pack is ready for pickup tomorrow, Sat, Oct 24, 11am–2pm at WineXpress (202 Scuffletown Rd, Simpsonville, SC).")
+    && told.text.includes("Bringing your empties back") && told.text.endsWith("Your packs: https://app.gt3pb.com/reserve") && !told.text.includes(NAME), told);
+  ok("the text: GT3, what it is, and how to stop — under two messages", told.sms.startsWith("GT3: Pickup tomorrow. Your 6-pack: 11am–2pm at WineXpress.") && told.sms.endsWith("Reply STOP to stop.") && told.sms.length <= 320, told.sms);
+  ok("no empties line for new glass, nor on any notice but the evening before",
+    !P.packNoticeTold("pickup_tomorrow", { ...pack, glass: "new" }, stop).text.includes("empties") && !P.packNoticeTold("pickup_changed", pack, stop).text.includes("empties"));
+  ok("clock words: on the hour, and with minutes", P.clockOf(new Date("2026-10-24T15:00:00Z")) === "11am" && P.clockOf(new Date("2026-10-24T16:30:00Z")) === "12:30pm"
+    && P.clockOf(new Date("2026-12-24T16:00:00Z")) === "11am");   // EST in December
+
+  // The number a text goes to is lib/texts e164's, the same on every input (Deno cannot import lib/texts).
+  const texts = (() => {
+    const mod = { exports: {} };
+    new Function("module", "exports", "require", ts.transpileModule(readFileSync(join(ROOT, "lib/texts.ts"), "utf8"),
+      { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText)(mod, mod.exports, () => ({}));
+    return mod.exports;
+  })();
+  const inputs = [null, "", "(864) 555-0100", "864.555.0100", "8645550100", "1-864-555-0100", "+1 864 555 0100", "+44 20 7946 0958", "555-0100",
+    "0864555010", "123-456-7890", "21864555010", "+0123456789", "+1234567", "call me", "+8645550100"];
+  const differ = inputs.filter((x) => P.textNumber(x) !== texts.e164(x));
+  ok("the push function reads a number as lib/texts does", differ.length === 0, differ);
+  const hours = [0, 7, 8, 12, 20, 21, 23].map((h) => [h, P.textQuiet(new Date(Date.UTC(2026, 9, 24, h + 4))), texts.quietHours(new Date(Date.UTC(2026, 9, 24, h + 4)))]);
+  ok("…and keeps its night: 9pm to 8am Eastern, as lib/texts", hours.every(([, a, b]) => a === b) && hours.filter(([, a]) => a).map(([h]) => h).join() === "0,7,21,23", hours);
+
+  // Its wiring, read: the function cannot run here.
+  const fn = readFileSync(join(ROOT, "supabase/functions/push/index.ts"), "utf8");
+  ok("the push function sends a notice once — when the run marks it sent — to the member's own devices",
+    /table === "pack_notices" && type === "UPDATE"/.test(fn) && /if \(!record\.sent_at \|\| \(old_record && old_record\.sent_at\)\) return new Response\("skip: not a notice going out"\);/.test(fn)
+    && /targets = await subsFor\(\(q\) => q\.eq\("user_id", pack\.user_id\)\);/.test(fn));
+  ok("…emails the member's own address and nobody else's (no fallback to the admin list)",
+    /async function emailMember\(userId: string, subject: string, body: string\): Promise<boolean> \{[\s\S]{0,260}return em \? await sendEmail\(\[em\], subject, body\) : false;/.test(fn));
+  ok("…texts only when texts are on, the number's yes stands, and not at night",
+    /if \(Deno\.env\.get\("TEXTS_ON"\) !== "1" \|\| !sid \|\| !token \|\| !from\) return \{ result: "off" \};/.test(fn)
+    && fn.indexOf('supabase.rpc("text_consent_standing"') < fn.indexOf("if (textQuiet(new Date()))") && fn.indexOf("if (textQuiet(new Date()))") < fn.indexOf("api.twilio.com"));
+  ok("…and writes back what went", /after = \(\) => supabase\.from\("pack_notices"\)\.update\(\{ pushed: devices, emailed, texted: texted\.result, detail: texted\.detail \?\? null \}\)\.eq\("id", record\.id\);/.test(fn)
+    && /if \(after\) await after\(\);\s*return new Response\("ok"\);/.test(fn));
+}
+
 console.log(`WHAT A PUSH SAYS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

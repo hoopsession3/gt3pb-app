@@ -154,6 +154,8 @@ export const KIND_WORDS: Readonly<Record<string, string>> = {
   delivery_held: "A delivery is held for pickup",
   delivery_not_home: "A delivery customer wasn't home",
   email_undelivered: "A customer email didn't arrive",
+  customer_text: "A customer texted us",                       // app/api/sms/inbound (0398): never the words or the number
+  text_stop_unrecorded: "A STOP text wasn't recorded",
   ops_incident: "An order needs a hand",
   refund_needed: "A refund is needed",
   refund_unrecorded: "A Square refund isn't recorded here",
@@ -355,3 +357,97 @@ export function whoRings(
   }
   return { ring, held };
 }
+
+// ── 5 · A PACK HEARS ABOUT ITS DAY (2026-10-14, R5 of the customer audit — 0399) ─────────────────────────────────────
+// What a member is told about their pack: the evening-before reminder, the stop's hours or place changed, the crew
+// moved the pack or canceled it. The lock screen says the pack's size, the stop's name, its day and hours — what Find Us
+// shows anyone — never their name, phone or what it cost. The email and the text say where too: the stop's street, a
+// public place. The words are read when the notice goes (./index.ts reads the pack and its stop then), so a stop changed
+// twice before it went says how it stands now.
+export type PackNoticeKind = "pickup_tomorrow" | "pickup_changed" | "pack_moved" | "pack_canceled";
+export type NoticePack = { id?: unknown; size?: unknown; glass?: unknown; drop_date?: unknown; paid?: unknown; payment_status?: unknown };
+export type NoticeStop = { name?: unknown; starts_at?: unknown; ends_at?: unknown; location_text?: unknown; address?: unknown } | null | undefined;
+
+const PACKS_URL = "https://app.gt3pb.com/reserve";
+const noticeDay = new Intl.DateTimeFormat("en-US", { timeZone: MARKET_ZONE, weekday: "short", month: "short", day: "numeric" });
+const noticeClock = new Intl.DateTimeFormat("en-US", { timeZone: MARKET_ZONE, hour: "numeric", minute: "2-digit", hourCycle: "h12" });
+const asDate = (x: unknown): Date | null => {
+  if (typeof x !== "string" || !x) return null;
+  const d = new Date(x);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+const said = (x: unknown, max = 80): string | null => (typeof x === "string" && x.trim() ? x.trim().slice(0, max) : null);
+
+/** "11am", "11:30am" — a time on the market's clock. */
+export function clockOf(at: Date): string {
+  const parts = noticeClock.formatToParts(at);
+  const h = parts.find((p) => p.type === "hour")?.value ?? "";
+  const m = parts.find((p) => p.type === "minute")?.value ?? "00";
+  const ap = (parts.find((p) => p.type === "dayPeriod")?.value ?? "").toLowerCase();
+  return `${h}${m === "00" ? "" : `:${m}`}${ap}`;
+}
+
+/** Where, which day and the hours of a pack's pickup: its stop's, else its drop date's day ("2026-10-24" is that day). */
+export function pickupOf(pack: NoticePack, stop: NoticeStop): { where: string | null; street: string | null; day: string | null; hours: string | null } {
+  const s = asDate(stop?.starts_at), e = asDate(stop?.ends_at);
+  const drop = typeof pack.drop_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(pack.drop_date) ? new Date(`${pack.drop_date}T16:00:00Z`) : null;
+  return {
+    where: said(stop?.name, 60),
+    street: said(stop?.address, 120) ?? said(stop?.location_text, 120),
+    day: s ? noticeDay.format(s) : drop ? noticeDay.format(drop) : null,
+    hours: s ? (e ? `${clockOf(s)}–${clockOf(e)}` : `from ${clockOf(s)}`) : null,
+  };
+}
+
+const sizeOf = (pack: NoticePack) => (typeof pack.size === "number" && pack.size > 0 ? `${pack.size}-pack` : "pack");
+const paidOf = (pack: NoticePack) => pack.paid === true || pack.payment_status === "paid";
+const isKind = (k: unknown): k is PackNoticeKind => k === "pickup_tomorrow" || k === "pickup_changed" || k === "pack_moved" || k === "pack_canceled";
+
+/** What the lock screen shows. Null for a kind this does not know: nothing is sent. */
+export function packNoticeShown(kind: unknown, pack: NoticePack, stop: NoticeStop): Shown | null {
+  if (!isKind(kind)) return null;
+  const p = pickupOf(pack, stop), size = sizeOf(pack);
+  const when = [p.day, p.hours].filter(Boolean).join(", ");
+  const at = p.where ? ` at ${p.where}` : "";
+  const tag = `pack:${idOf(pack.id)}:${kind}`;
+  if (kind === "pickup_tomorrow") return { title: "Pickup tomorrow", body: `Your ${size}: ${p.hours ? `${p.hours}${at}` : p.where ? `at ${p.where}` : "Find Us has where and when"}.`, tag, ring: false };
+  if (kind === "pickup_changed") return { title: "Your pickup changed", body: `Your ${size} is now ${when || "on a new day"}${at}.`, tag, ring: false };
+  if (kind === "pack_moved") return { title: "Your pack moved", body: `Your ${size} is now ${when || "on a new day"}${at}.`, tag, ring: false };
+  return { title: "Your pack is canceled", body: `Your ${size}${p.day ? ` for ${p.day}` : ""} is canceled. ${paidOf(pack) ? "What you paid is being refunded." : "Nothing was charged."}`, tag, ring: false };
+}
+
+/** What the email and the text say: the lock screen's words, where the stop is, and the way to the member's packs. */
+export function packNoticeTold(kind: unknown, pack: NoticePack, stop: NoticeStop): { subject: string; text: string; sms: string } | null {
+  const shown = packNoticeShown(kind, pack, stop);
+  if (!shown) return null;
+  const p = pickupOf(pack, stop);
+  const street = p.street ? ` (${p.street})` : "";
+  const glass = kind === "pickup_tomorrow" && pack.glass === "return" ? "\n\nBringing your empties back: rinse them and bring them along." : "";
+  const lines: Record<PackNoticeKind, string> = {
+    pickup_tomorrow: `Your ${sizeOf(pack)} is ready for pickup tomorrow${p.day ? `, ${p.day}` : ""}${p.hours ? `, ${p.hours}` : ""}${p.where ? ` at ${p.where}${street}` : ""}.${glass}`,
+    pickup_changed: `Your stop changed: your ${sizeOf(pack)} is now picked up ${[p.day, p.hours].filter(Boolean).join(", ") || "on a new day"}${p.where ? ` at ${p.where}${street}` : ""}.`,
+    pack_moved: `We moved your ${sizeOf(pack)}: it is now picked up ${[p.day, p.hours].filter(Boolean).join(", ") || "on a new day"}${p.where ? ` at ${p.where}${street}` : ""}.`,
+    pack_canceled: shown.body,
+  };
+  const k = kind as PackNoticeKind;
+  return {
+    subject: `GT3 — ${shown.title.charAt(0).toLowerCase()}${shown.title.slice(1)}${k === "pickup_tomorrow" && p.where ? `: ${p.where}` : ""}`,
+    text: `${lines[k]}\n\nYour packs: ${PACKS_URL}`,
+    sms: `GT3: ${shown.title}. ${shown.body} Reply STOP to stop.`.slice(0, 320),
+  };
+}
+
+/** The number a text goes to — lib/texts e164, line for line (Deno cannot import it; scripts/smoke.cjs holds them
+ *  together): a number written with its own + keeps it; ten digits take +1; eleven starting 1 take +. Else none. */
+export function textNumber(raw: unknown): string | null {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  const digits = s.replace(/\D/g, "");
+  if (s.startsWith("+") && digits.length >= 8 && digits.length <= 15 && !digits.startsWith("0")) return `+${digits}`;
+  if (digits.length === 10 && !/^[01]/.test(digits)) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1") && !/^1[01]/.test(digits)) return `+${digits}`;
+  return null;
+}
+
+/** Night on the market's clock — 9pm to 8am, as lib/texts quietHours: no text goes then (0399 releases nothing then). */
+export const textQuiet = (at: Date): boolean => { const h = hourOn(at, MARKET_ZONE); return h >= 21 || h < 8; };

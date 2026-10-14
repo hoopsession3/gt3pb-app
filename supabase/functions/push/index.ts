@@ -1,7 +1,8 @@
 // Supabase Edge Function - sends Web Push (browsers) and APNs (the iPhone app) on order / subscription / booking changes.
 // Triggered by Database Webhooks (orders INSERT/UPDATE, subscriptions UPDATE, booking_requests
 // INSERT, alerts INSERT, event_tasks UPDATE, profiles INSERT, delivery_orders INSERT,
-// drop_orders INSERT, live_status UPDATE — the customer go-live ping, 0257), and by an alerts UPDATE when a
+// drop_orders INSERT, live_status UPDATE — the customer go-live ping, 0257; cup_reminders and pack_notices UPDATE — 0394,
+// 0399), and by an alerts UPDATE when a
 // critical nobody picked up is escalated (0373's alerts_push_escalation trigger, through the same door as 0157's).
 // Secrets: VAPID_PUBLIC, VAPID_PRIVATE. SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are auto-injected.
 // The iPhone app (2026-10-11): APNS_PRIVATE_KEY, the .p8's text of the Apple Developer key "GT3 Push Notifications"
@@ -15,8 +16,9 @@
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
-  alertShown, channelsFor, escalationShown, isEscalation, liveShown, mayEmail, newOrderShown, orderStatusShown, reminderShown,
-  severityOf, signoffShown, stillUnanswered, stopCanceledShown, subscriptionShown, taskShown, whoRings, type NotifPrefsRow, type Shown,
+  alertShown, channelsFor, escalationShown, isEscalation, liveShown, mayEmail, newOrderShown, orderStatusShown, packNoticeShown,
+  packNoticeTold, reminderShown, severityOf, signoffShown, stillUnanswered, stopCanceledShown, subscriptionShown, taskShown,
+  textNumber, textQuiet, whoRings, type NotifPrefsRow, type Shown,
 } from "./policy.ts";
 
 webpush.setVapidDetails(
@@ -170,17 +172,18 @@ async function insertAlert(a: { severity: string; category: string; title: strin
 // (2026-07-30 — Ryan: "Why can you see CC, maybe BCC?"): one visible To keeps deliverability
 // happy; BCC keeps the list private and the header clean. RESEND_API_KEY / NOTIFY_FROM_EMAIL
 // must be set on this function's env or this is a clean no-op — same contract as lib/notify.ts.
-async function sendEmail(to: string[], subject: string, body: string) {
+async function sendEmail(to: string[], subject: string, body: string): Promise<boolean> {
   const key = Deno.env.get("RESEND_API_KEY");
   const from = Deno.env.get("NOTIFY_FROM_EMAIL");
-  if (!key || !from || !to.length) return;
+  if (!key || !from || !to.length) return false;
   try {
-    await fetch("https://api.resend.com/emails", {
+    const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from, to: to.slice(0, 1), ...(to.length > 1 ? { bcc: to.slice(1) } : {}), subject: subject.slice(0, 200), text: body }),
     });
-  } catch { /* never fail the webhook on a mail-provider hiccup */ }
+    return r.ok;
+  } catch { return false; /* never fail the webhook on a mail-provider hiccup */ }
 }
 
 // Email the owner/manager list (public.admin_emails — 0004). Push needs a subscribed device and
@@ -204,6 +207,39 @@ async function emailUser(userId: string, subject: string, body: string) {
   await emailAdmins(subject, body);
 }
 
+// A MEMBER'S OWN NOTICE (2026-10-14, 0399): their account's email and nobody else's — no fallback to the admin list,
+// which is for the crew's criticals. True when Resend took it.
+async function emailMember(userId: string, subject: string, body: string): Promise<boolean> {
+  try {
+    const { data } = await supabase.auth.admin.getUserById(userId);
+    const em = data?.user?.email;
+    return em ? await sendEmail([em], subject, body) : false;
+  } catch { return false; }
+}
+
+// A text to a member (0398, 0399): only when texts are switched on here (TEXTS_ON=1, with the Twilio number's keys —
+// Ryan's, set beside Vercel's when the number is registered), to a number whose yes stands, and never at night. What
+// happened is said back in lib/notify's words.
+async function textMember(phone: unknown, body: string): Promise<{ result: "sent" | "off" | "not-asked" | "quiet" | "no-number" | "failed"; detail?: string }> {
+  const sid = Deno.env.get("TWILIO_ACCOUNT_SID"), token = Deno.env.get("TWILIO_AUTH_TOKEN"), from = Deno.env.get("TWILIO_FROM_NUMBER");
+  if (Deno.env.get("TEXTS_ON") !== "1" || !sid || !token || !from) return { result: "off" };
+  const num = textNumber(phone);
+  if (!num) return { result: "no-number" };
+  const { data: yes, error } = await supabase.rpc("text_consent_standing", { p_phone: num });
+  if (error || yes !== true) return { result: "not-asked" };
+  if (textQuiet(new Date())) return { result: "quiet" };
+  try {
+    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: "POST",
+      headers: { Authorization: `Basic ${btoa(`${sid}:${token}`)}`, "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ To: num, From: from, Body: body.slice(0, 320) }),
+    });
+    return r.ok ? { result: "sent" } : { result: "failed", detail: `Twilio ${r.status}` };
+  } catch (e) {
+    return { result: "failed", detail: String(e).slice(0, 200) };
+  }
+}
+
 Deno.serve(async (req) => {
   try {
     const { table, type, record, old_record } = await req.json();
@@ -211,6 +247,8 @@ Deno.serve(async (req) => {
     // holds) and where a tap opens. The row's own words stay in the app.
     let shown: Shown | null = null, url = "/";
     let targets: Sub[] = [];
+    // Something to do once the push is sent (a pack notice writes back what went).
+    let after: (() => PromiseLike<unknown>) | null = null;
 
     if (table === "orders" && type === "INSERT") {
       shown = newOrderShown(record);
@@ -368,6 +406,27 @@ Deno.serve(async (req) => {
       url = "/";
       targets = await subsFor((q) => q.eq("user_id", record.user_id));
 
+    } else if (table === "pack_notices" && type === "UPDATE") {
+      // A pack hears about its day (0399): the five minutes' run marked it sent. To the member's own devices, their own
+      // email, and a text when texts are on and their number said yes (0398). The pack and its stop are read now, so the
+      // words say how things stand; what went is written back on the notice.
+      if (!record.sent_at || (old_record && old_record.sent_at)) return new Response("skip: not a notice going out");
+      const { data: pack } = await supabase.from("drop_orders")
+        .select("id, user_id, size, glass, drop_date, stop_id, paid, payment_status, phone").eq("id", record.pack_id).maybeSingle();
+      if (!pack?.user_id) return new Response("skip: no pack");
+      const { data: stop } = pack.stop_id
+        ? await supabase.from("stops").select("name, starts_at, ends_at, location_text, address").eq("id", pack.stop_id).maybeSingle()
+        : { data: null };
+      shown = packNoticeShown(record.kind, pack, stop);
+      const told = packNoticeTold(record.kind, pack, stop);
+      if (!shown || !told) return new Response("skip: not a notice this knows");
+      url = "/reserve";
+      targets = await subsFor((q) => q.eq("user_id", pack.user_id));
+      const emailed = await emailMember(pack.user_id, told.subject, told.text);
+      const texted = await textMember(pack.phone, told.sms);
+      const devices = targets.length;
+      after = () => supabase.from("pack_notices").update({ pushed: devices, emailed, texted: texted.result, detail: texted.detail ?? null }).eq("id", record.id);
+
     } else if (table === "alerts" && type === "INSERT") {
       // Alert spine (0050) — fan one alert out to the channels its severity gets (./policy.ts: an fyi gets none).
       const ch = channelsFor(record.severity);
@@ -444,6 +503,7 @@ Deno.serve(async (req) => {
         if (code === 404 || code === 410) await supabase.from("push_subscriptions").delete().eq("endpoint", s.endpoint);
       }
     }));
+    if (after) await after();
     return new Response("ok");
   } catch (e) {
     return new Response("err: " + e, { status: 500 });
