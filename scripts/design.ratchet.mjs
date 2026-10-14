@@ -665,23 +665,29 @@ export const PROD_ROUTE = {
 // as charged, the total with its order number, where it ships and where the receipt went (components/Shop, from the
 // checkout's own answer: lib/receipt shopReceipt) — and Pay sends the total it shows, so a raised one is shown before it is
 // charged (components/ShopCheckout). Built bbd8dfd and this commit and gzipped what each route's prerendered HTML references.
+// 2026-10-14 (R5 of the customer audit, a text needs a yes): every route +122 bytes gzipped — the shell's site copy carries
+// the yes to texts beside its box (funnel.text_yes), and the phone fields no longer promise a text; the pack pages +0.7 KB
+// (/reserve +700, /delivery +698, /shop +697): the box under the phone (components/TextYes), which reads the member's own
+// yes once texts are on (lib/texts); /3mpire +1 148: the account's "Texts about my packs" switch (components/TextsSetting),
+// shown once texts are switched on. Crossed the rounding line: /3mpire, /academy, /driver and /offer +1 (/academy 323.49 →
+// 323.61 KB). Built 48973be and this commit and gzipped what each route's prerendered HTML references.
 export const WEIGHT = {
   "/truck":                    { js: 284, css: 89, chunks: 16 },
   "/events":                   { js: 284, css: 89, chunks: 16 },
   "/menu":                     { js: 272, css: 90, chunks: 15 },
   "/reserve":                  { js: 293, css: 90, chunks: 16 },
   "/delivery":                 { js: 292, css: 90, chunks: 16 },
-  "/3mpire":                   { js: 284, css: 90, chunks: 15 },
+  "/3mpire":                   { js: 285, css: 90, chunks: 15 },
   "/craft":                    { js: 271, css: 90, chunks: 15 },
   "/book":                     { js: 271, css: 90, chunks: 15 },
-  "/academy":                  { js: 323, css: 90, chunks: 16 },
+  "/academy":                  { js: 324, css: 90, chunks: 16 },
   "/office":                   { js: 280, css: 90, chunks: 15 },
   "/scan":                     { js: 271, css: 90, chunks: 15 },
   "/architecture":             { js: 281, css: 90, chunks: 15 },
   "/playbook":                 { js: 279, css: 90, chunks: 15 },
-  "/driver":                   { js: 277, css: 89, chunks: 15 },
+  "/driver":                   { js: 278, css: 89, chunks: 15 },
   "/agreement":                { js: 272, css: 90, chunks: 15 },
-  "/offer":                    { js: 282, css: 90, chunks: 15 },
+  "/offer":                    { js: 283, css: 90, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 269, css: 90, chunks: 15 },
   "/display":                  { js: 270, css: 90, chunks: 15 },
   "/shop":                     { js: 298, css: 90, chunks: 16 },
