@@ -14,7 +14,7 @@ import { useViewerMarket } from "@/components/useViewerMarket";
 import { useOrderingOpen } from "@/components/useOrderingOpen";
 import { closedWords, openWords } from "@/lib/ordering";
 import { money } from "@/lib/money";
-import { lineSubKey, sectionsOf } from "@/lib/drinks";
+import { isSeedSlug, lineSubKey, sectionsOf } from "@/lib/drinks";
 import { CUP_MARKETS } from "@/lib/markets";
 import { PACK_SIZES, PACK_TAG, packTotal, dollars } from "@/lib/orderAhead";
 import Icon from "@/components/Icon";
@@ -112,6 +112,13 @@ export default function MenuScreen() {
             const off = out || notHere;
             // What the Catalog says about it, as the row's tags: caffeine or none, and what it contains — nothing guessed.
             const facts = [d.caffeine === true ? t("menu.caffeine") : d.caffeine === false ? t("menu.no_caffeine") : "", ...(d.contains ?? [])].filter(Boolean);
+            // THE LINE THE CATALOG FILLS IN IS THERE FROM THE FIRST PAINT (2026-10-14). The facts are the Catalog's alone, and
+            // the code list's menu that stands in until it answers says none — so about a second in every row grew a line of
+            // tags and the menu under it jumped (verify:prod PAINTED, /menu: a layout shift of 0.10 against a gate of 0.04, in
+            // every run since R2). Until the Catalog answers, a code-list drink keeps that line's room, empty and unread (the
+            // ten all carry caffeine); a drink not at this stop keeps it too, hidden, so a stop's menu arriving moves no row.
+            const reserve = facts.length === 0 && !menuRead && isSeedSlug(id);
+            const hideFacts = reserve || notHere;
             return (
               // THE PRICE ADDS IT; THE ROW OPENS IT (2026-10-13, R2 — the audit's menu, approved). The "+ $10" pill opened the
               // drink's sheet and adding took a second tap there. Now, while the truck takes orders, the pill adds the drink
@@ -142,8 +149,10 @@ export default function MenuScreen() {
                 {/* One line: why you would pick it, and the Catalog's facts. What is in it is the drink's own sheet. */}
                 <div className="entry-body">
                   <div className="entry-why">{d.why || d.lines[0] || ""}</div>
-                  {facts.length > 0 && !notHere && (
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">{facts.map((f) => <span key={f} className="entry-tag">{f}</span>)}</div>
+                  {(facts.length > 0 || reserve) && (
+                    <div className={`mt-1.5 flex flex-wrap gap-1.5${hideFacts ? " invisible" : ""}`} aria-hidden={hideFacts || undefined}>
+                      {(reserve ? [t("menu.caffeine")] : facts).map((f) => <span key={f} className="entry-tag">{f}</span>)}
+                    </div>
                   )}
                 </div>
               </div>

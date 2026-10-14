@@ -13563,6 +13563,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /const notHere = !out && !!ordering\.stopMenu && !ordering\.stopMenu\.has\(id\);/.test(menuPage)
     && /const facts = \[d\.caffeine === true \? t\("menu\.caffeine"\) : d\.caffeine === false \? t\("menu\.no_caffeine"\) : "", \.\.\.\(d\.contains \?\? \[\]\)\]\.filter\(Boolean\);/.test(menuPage)
     && /useViewerMarket\(CUP_MARKETS\)/.test(menuPage) && !/from "@\/lib\/menu"/.test(menuPage));
+  // The Catalog's facts line arrived a second after the code list's menu painted, and every row grew 28px under the reader
+  // (verify:prod PAINTED, /menu 0.10 against 0.04, 2026-10-14). Its room is kept from the first paint, empty and unread,
+  // and a drink not at this stop keeps it hidden rather than losing it.
+  ok("menu: the facts line's room is there from the first paint — a code-list drink keeps it until the Catalog answers; not at this stop, it is hidden, not gone",
+    /const reserve = facts\.length === 0 && !menuRead && isSeedSlug\(id\);/.test(menuPage) && /const hideFacts = reserve \|\| notHere;/.test(menuPage)
+    && /\{\(facts\.length > 0 \|\| reserve\) && \(/.test(menuPage) && /hideFacts \? " invisible" : ""/.test(menuPage) && /aria-hidden=\{hideFacts \|\| undefined\}/.test(menuPage)
+    && !/facts\.length > 0 && !notHere/.test(menuPage));
   ok("menu: the price adds the drink and becomes its counter; the row opens the sheet — two sibling buttons, never one in the other, each 44 to the thumb",
     /<button type="button" className="entry-open absolute inset-0 cursor-pointer appearance-none border-0 bg-transparent p-0" onClick=\{\(\) => openDrink\(id\)\}/.test(menuPage)
     && /<button type="button" className="entry-px order hit-44 z-\[1\] cursor-pointer appearance-none bg-transparent" aria-label=\{`Add \$\{d\.name\}, \$\{priceLabel\(id\)\}`\} onClick=\{\(\) => bump\(id\)\}>/.test(menuPage)
