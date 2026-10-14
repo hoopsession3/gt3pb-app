@@ -72,9 +72,9 @@ export const CEILING = {
   publicRead: 3,       // tables with a world-readable SELECT policy: live_status, site_copy, stops — the truck's public face
   definerExec: 116,    // SECURITY DEFINER functions the API roles may call (none of them a trigger any more)
   // …and of them, the ones a caller with NO session may call: the anon key every phone carries. Supabase grants anon by
-  // name, so this is what is left once each migration has said who keeps a function (0401). Measured on the first
-  // snapshot after 0401 is applied; until then null, and that snapshot's commit records it.
-  anonExec: null,
+  // name, so this is what is left once each migration has said who keeps a function (0401). First measured on the
+  // snapshot at ledger 0401 (2026-10-14): 55 before 0401, 14 after.
+  anonExec: 14,
   definerView: 1,      // owner-run views the API roles may read: market_live
 };
 

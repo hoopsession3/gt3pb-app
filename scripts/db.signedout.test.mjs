@@ -7,8 +7,11 @@
 // to anon by any migration; and two of those (respond_to_offer, respond_to_agreement) let that caller answer an offer or
 // an agreement not yet tied to an account.
 //
-// The schema here is first checked to BE production's as the snapshot measured it (supabase/schema.security.json, ledger
-// 0400): the same functions open to anon, the same open to the signed-in. Then 0401, twice, and who may call what after.
+// The schema here is checked against production as it was measured on each side of 0401 — 55 definer functions open to
+// anon and 116 to the signed-in at ledger 0400, the fourteen open to anon by name at ledger 0401 (the security snapshot
+// and Supabase's advisor agreed both times). Those are facts about 0401, written here, not read from
+// supabase/schema.security.json: that file moves on with every snapshot, and a migration's test must not move with it
+// (it did once — the snapshot pulled after 0401 broke this test's "before" check, 2026-10-14).
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -16,7 +19,12 @@ import { fullSchema } from "./fixtures/schema.full.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SQL401 = readFileSync(join(ROOT, "supabase/migrations/0401_a_signed_out_caller_reaches_only_what_is_meant_for_it.sql"), "utf8");
-const SNAP = JSON.parse(readFileSync(join(ROOT, "supabase/schema.security.json"), "utf8"));
+// Production, measured after 0401 was applied (ledger 0401, 2026-10-14): the definer functions a caller with no session may call.
+const MEASURED_ANON_0401 = ["cancel_by_ticket(p_ticket uuid)", "effective_tenant()", "field_ops_drift()", "is_admin()", "is_owner()",
+  "is_staff()", "keep_app_push_token(p_token text)",
+  "keep_push_device(p_endpoint text, p_p256dh text, p_auth text, p_crew boolean, p_wants_live boolean)",
+  "market_visible(p_market text)", "order_ticket(p_ticket uuid)", "primal_menu_for_lesson(_lesson_id uuid)", "stop_menu(p_stop uuid)",
+  "ticket_eta(p_ticket uuid, p_eta text)", "track_guest()"];
 let pass = 0, fail = 0;
 const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
 
@@ -50,16 +58,15 @@ for (const [id, role, email] of [[OWNER, "owner", "owner@example.test"], [SAM, "
 const open = async (role) => (await q(`select p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' as f
     from pg_proc p join pg_namespace s on s.oid = p.pronamespace
    where s.nspname = 'public' and p.prosecdef and has_function_privilege($1, p.oid, 'execute') order by 1`, [role])).map((r) => r.f);
-const snapOpen = (i) => SNAP.f.filter((e) => e[i] === true).map((e) => `${e[0]}(${e[1]})`).sort();
 const same = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
 const diff = (a, b) => ({ onlyHere: a.filter((x) => !b.includes(x)).slice(0, 6), onlyThere: b.filter((x) => !a.includes(x)).slice(0, 6) });
 
 // ── THE SCHEMA HERE IS PRODUCTION'S, AS MEASURED ────────────────────────────────────────────────────────────────────────
 const anonBefore = await open("anon"), authBefore = await open("authenticated"), svcBefore = await open("service_role");
-ok(`before 0401: the definer functions open to anon are production's own (${snapOpen(2).length} at ledger 0400)`,
-  same(anonBefore, snapOpen(2)), diff(anonBefore, snapOpen(2)));
-ok(`before 0401: the ones open to the signed-in are production's own (${snapOpen(3).length})`,
-  same(authBefore, snapOpen(3)), diff(authBefore, snapOpen(3)));
+ok("before 0401: 55 definer functions open to anon, as production measured at ledger 0400", anonBefore.length === 55, anonBefore.length);
+ok("before 0401: 116 open to the signed-in, as production measured", authBefore.length === 116, authBefore.length);
+ok("before 0401: every one of the fourteen production keeps open to anon after 0401 is among the 55",
+  MEASURED_ANON_0401.every((f) => anonBefore.includes(f)), MEASURED_ANON_0401.filter((f) => !anonBefore.includes(f)));
 ok("before 0401: a guest's cup reminder is refused by the function's own check, not by its grant",
   /Sign in to be reminded/.test((await as(null, `select public.keep_cup_reminder(gen_random_uuid(), now())`)).error || ""));
 
@@ -97,6 +104,8 @@ ok(`a caller with no session reaches ${anonAfter.length} definer functions, not 
   NAMES.length === 41 && anonAfter.length === 14 && JSON.stringify(closedNames) === JSON.stringify([...NAMES].sort()), { after: anonAfter.length, closedNames: closedNames.length });
 ok("kept for anon: the two row-level policies judge signed-out readers with, and a rookie lesson's drink stack",
   KEPT.every((f) => anonAfter.includes(f)), KEPT.filter((f) => !anonAfter.includes(f)));
+ok("after 0401: the fourteen open to anon are exactly the ones production measured at ledger 0401",
+  same(anonAfter, MEASURED_ANON_0401), diff(anonAfter, MEASURED_ANON_0401));
 // What anon still reaches, apart from the three kept, some migration grants to anon by name.
 const MIGS = readdirSync(join(ROOT, "supabase/migrations")).filter((f) => /^\d{4}_.*\.sql$/.test(f))
   .map((f) => readFileSync(join(ROOT, "supabase/migrations", f), "utf8").replace(/--.*$/gm, "")).join("\n");
