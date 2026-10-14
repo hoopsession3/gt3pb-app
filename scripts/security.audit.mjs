@@ -67,8 +67,10 @@ const MIGRATIONS = join(ROOT, "supabase/migrations");
 export const CEILING = {
   // First measured 2026-10-11 (snapshot pulled at ledger 0380). Only ever lower these, in the commit whose snapshot
   // shows fewer; raising one means naming the new member in that commit's message.
+  // 2026-10-14, snapshot at ledger 0400: definerExec 162 → 116. 0381's revokes closed 60 (every trigger among them,
+  // and the jobs only the cron runs); 0383–0400 opened 14, each granted by name in its migration.
   publicRead: 3,       // tables with a world-readable SELECT policy: live_status, site_copy, stops — the truck's public face
-  definerExec: 162,    // SECURITY DEFINER functions the API roles may call (39 of them triggers, which no one can call)
+  definerExec: 116,    // SECURITY DEFINER functions the API roles may call (none of them a trigger any more)
   definerView: 1,      // owner-run views the API roles may read: market_live
 };
 
