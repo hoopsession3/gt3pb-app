@@ -129,7 +129,7 @@ export const CEILING = {
   selectClassShorthands: 0, // rules that paint a class some <select> carries with the `background` shorthand (selectClassShorthands). Measured 25 the day it was written (2026-10-04) and 25 → 0 that day: background-color, the way the rest of the selects are painted — the stripes under OsRegistry's Status pick (.note-in), and the arrow the day theme erased from the brew board's status, the goal and shoot owner picks, the assignee picks and the rest
   undefinedTokens: 0,    // var(--x) reads with no fallback of a custom property nothing defines — see undefinedTokens(). 1 → 0 the day it was written (2026-10-06): the Academy's progress track, var(--ink-onLight-08), a step the scale never had
   selectShorthands: 0,   // rules on a <select> that paint with the `background` SHORTHAND. It resets background-repeat, and the chevron the app draws on every select then tiles across it — stripes, in the day theme, on every select whose container had one (Ryan's brew sheet, 2026-10-03). 19 → 0: colour is background-color.
-  maxLeafDepth: 3,       // boxes around the innermost box on the Plan screen (was 4; 2 → 3 on 2026-10-09, the chip round: the calendar's views are the kit's segmented control, Calendar's Day · Week · Month, and its chosen option sits on its track inside the calendar's card, as the brew sheet's does)
+  maxLeafDepth: 2,       // boxes around the innermost box on the Plan screen (3 → 2 on 2026-10-14, R6: the calendar's month row is painted only once it has stuck — components/useStuck reads its place against its sticky top; the 1px sentinel it used counted the row as stuck whenever the sentinel was out of view, below the fold too, where the fixture's row sits, and its fill was the third box; was 4; 2 → 3 on 2026-10-09, the chip round: the calendar's views are the kit's segmented control, Calendar's Day · Week · Month, and its chosen option sits on its track inside the calendar's card, as the brew sheet's does)
   railAreaFraction: 0.066, // expanded rail as a share of a 390×844 viewport — a 48px row plus 8px of air above the nav, in the layout flow (2026-10-02). Width used to be the number (0.46 → 0.27 → a bar); area is what a toolbar can be held to
   railCoversFixed: 0,      // fixed-position buttons the expanded rail sits on top of
 };
@@ -317,7 +317,9 @@ export const ROUTE = {
   "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 44, text: 11 },
   "/display":       { depth: 1, tap: 49, text: 10 },
   "/privacy":       { depth: 0, tap: 49, text: 15 },
-  "/terms":         { depth: 0, tap: 49, text: 15 },
+  // 2026-10-14 (R6, texts): /terms 49 → 44 — its Texts paragraph links to the Privacy policy in place (a sheet over a
+  // checkout, a page here), a 44pt link (.legal-link hit-44) where only the tab bar's 49pt tabs were.
+  "/terms":         { depth: 0, tap: 44, text: 15 },
   // 2026-10-13 (R3b, the ticket): /order with no ?t= — the orders this phone keeps, none in a fresh browser — its title,
   // the line that says where the link comes from, a chip to the menu, the footer. Measured on the smoke build, signed out.
   "/order":         { depth: 1, tap: 44, text: 11 },
@@ -367,7 +369,9 @@ export const PROD_ROUTE = {
   "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 44, text: 11 },
   "/display":       { depth: 1, tap: 49, text: 10 },
   "/privacy":       { depth: 0, tap: 49, text: 15 },
-  "/terms":         { depth: 0, tap: 49, text: 15 },
+  // 2026-10-14 (R6, texts): /terms 49 → 44 — its Texts paragraph links to the Privacy policy in place (a sheet over a
+  // checkout, a page here), a 44pt link (.legal-link hit-44) where only the tab bar's 49pt tabs were.
+  "/terms":         { depth: 0, tap: 44, text: 15 },
 };
 
 // ── WEIGHT — what a phone downloads for each route, cold, from the local build (KB on the wire) ──
@@ -687,22 +691,22 @@ export const WEIGHT = {
   "/truck":                    { js: 284, css: 89, chunks: 16 },
   "/events":                   { js: 284, css: 89, chunks: 16 },
   "/menu":                     { js: 272, css: 90, chunks: 15 },
-  "/reserve":                  { js: 295, css: 90, chunks: 17 },
-  "/delivery":                 { js: 292, css: 90, chunks: 16 },
+  "/reserve":                  { js: 296, css: 90, chunks: 17 },
+  "/delivery":                 { js: 293, css: 90, chunks: 16 },
   "/3mpire":                   { js: 285, css: 90, chunks: 15 },
   "/craft":                    { js: 271, css: 90, chunks: 15 },
-  "/book":                     { js: 271, css: 90, chunks: 15 },
+  "/book":                     { js: 272, css: 90, chunks: 15 },
   "/academy":                  { js: 324, css: 90, chunks: 16 },
   "/office":                   { js: 280, css: 90, chunks: 15 },
   "/scan":                     { js: 271, css: 90, chunks: 15 },
   "/architecture":             { js: 281, css: 90, chunks: 15 },
   "/playbook":                 { js: 279, css: 90, chunks: 15 },
   "/driver":                   { js: 278, css: 89, chunks: 15 },
-  "/agreement":                { js: 272, css: 90, chunks: 15 },
+  "/agreement":                { js: 273, css: 90, chunks: 15 },
   "/offer":                    { js: 283, css: 90, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 269, css: 90, chunks: 15 },
   "/display":                  { js: 270, css: 90, chunks: 15 },
-  "/shop":                     { js: 299, css: 90, chunks: 16 },
+  "/shop":                     { js: 300, css: 90, chunks: 16 },
   "/primal":                   { js: 272, css: 90, chunks: 15 },
   "/privacy":                  { js: 268, css: 90, chunks: 14 },
   "/terms":                    { js: 268, css: 90, chunks: 14 },
@@ -756,6 +760,14 @@ export const WEIGHT = {
 // the page its link was asked for on (lib/returnTo). /scan, the system map and the playbook, which now sign a visitor in
 // instead of turning them away, load the sign-in on that visit only (next/dynamic) — +0 to +1 KB. Crossed the rounding
 // line up on /privacy, /terms, /built, /display, /craft and /scan, recorded.
+// 2026-10-14 (R6 of the customer audit): every route's script +60 to +140 bytes (gzip) — the shell's copy for the account's
+// Notifications row, the help sheets' door to it and /texts' title; /reserve +516 and /delivery +440 — the yes to texts
+// with its line under it (no condition of purchase, the Terms and the Privacy policy), whose two pages of words load only
+// once the box is drawn (next/dynamic: the first build carried them, 4 KB); /shop +847, the same box and its aisle row's
+// stuck test (components/useStuck); /3mpire −859, the texts switch gone from the page into Notifications. Built 4418c39
+// and this commit and gzipped what each route's HTML references (/reserve 302 525 → 303 041, /book 277 981 → 278 045,
+// /agreement 278 951 → 279 043). Crossed the rounding line upward on /reserve, /delivery, /shop, /book and /agreement,
+// recorded.
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];
   const out = [];

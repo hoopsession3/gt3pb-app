@@ -47,18 +47,18 @@ export function AccountFace() {
 export function useAccountDoor() {
   const [open, setOpen] = useState(false);
   // The profile sheet, and which part of it was asked for: Settings & privacy's Notifications opens it at its alerts.
-  const [editProfile, setEditProfile] = useState<false | "profile" | "notifications">(false);
+  const [editProfile, setEditProfile] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
   const sheets = (
     <>
       {open && (
         <AccountSheet
           onClose={() => setOpen(false)}
-          onEditProfile={(focus) => { setOpen(false); setEditProfile(focus ?? "profile"); }}
+          onEditProfile={() => { setOpen(false); setEditProfile(true); }}
           onShowCard={() => setCardOpen(true)}
         />
       )}
-      {editProfile && <ProfileSheet focus={editProfile === "notifications" ? "notifications" : undefined} onClose={() => setEditProfile(false)} />}
+      {editProfile && <ProfileSheet onClose={() => setEditProfile(false)} />}
       {cardOpen && <CardSheet onClose={() => setCardOpen(false)} />}
     </>
   );

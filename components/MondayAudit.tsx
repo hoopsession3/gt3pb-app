@@ -36,7 +36,8 @@ import {
 // It is the house Sheet, drawn full screen on a phone (app/tailwind.css osr-flow) and never opened half (detents off):
 // the safe areas, the keyboard (the sheet stands above it, and a field tapped scrolls into view — components/AppShell),
 // Escape and Back, focus given back to what opened it, the pull, Reduce Motion (the house's own guard) and "Discard your
-// changes?" are the Sheet's, as on every sheet in the app. The phone's text size zooms it as it zooms the page (osr-type).
+// changes?" are the Sheet's, as on every sheet in the app. The phone's text size zooms it as it zooms the page — every
+// sheet's head, body and foot take the page's step now (app/globals.css, R6), so this one needs no zoom of its own.
 // What is written is kept on this phone until it is saved (the draft), so leaving asks only when the phone could not.
 //
 // THE SAVE IS THE SHEET'S, WORD FOR WORD — unchanged until Release 3 replaces it, with the owner's yes: all five scored
@@ -262,7 +263,7 @@ export default function MondayAudit({ rows, recent, ids, start, onReload, onClos
   const kind = auditing ? verdict.kind : null;
 
   const header = (
-    <div className="osr-type">
+    <div>
       <div className="note-lux-head gap-3">
         <span className="note-lux-eyb">Monday audit</span>
         <span className="ml-auto flex items-center gap-4">
@@ -283,13 +284,13 @@ export default function MondayAudit({ rows, recent, ids, start, onReload, onClos
   );
 
   const footer = summary ? (
-    <div className="osr-type flex flex-wrap items-center gap-x-4 gap-y-3">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
       <p className="osr-total m-0 min-w-0 flex-1 basis-40">{lines.filter((l) => l.total !== null).length} of {lines.filter((l) => !l.parked).length} scored this week</p>
       {skippedCount > 0 && <button type="button" className="btn-sec" onClick={again}>Back to the {skippedCount} skipped</button>}
       <button type="button" className="btn-pri" onClick={close}>Done</button>
     </div>
   ) : (
-    <div className="osr-type flex flex-wrap items-center gap-x-4 gap-y-2">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
       <div className="min-w-0 flex-1 basis-40">
         <p className="osr-total m-0" aria-live="polite">{runningWords(scores)}</p>
         {why && <p className="m-0 mt-0.5 font-sans text-caption leading-snug text-cream-muted">{why}</p>}
@@ -302,7 +303,7 @@ export default function MondayAudit({ rows, recent, ids, start, onReload, onClos
     <Sheet open onClose={close} label="Monday audit" className="osr-flow" detents={false} bodyRef={bodyRef}
       dirty={!summary && unsaved && !page.kept} header={header} footer={footer}>
       {summary ? (
-        <div className="osr-audit osr-type pb-2">
+        <div className="osr-audit pb-2">
           <p className="h-sub">{owing === 0 ? "" : `${owing} ${owing === 1 ? "stream owes" : "streams owe"} the ledger a decision. `}Tap a stream to go back to it.</p>
           <div className="osr-rows">
             {lines.map((l) => <WeekRow key={l.id} l={l} draft={drafts.includes(l.id)} onOpen={() => revisit(l.id)} />)}
@@ -310,9 +311,9 @@ export default function MondayAudit({ rows, recent, ids, start, onReload, onClos
           <p className="h-sub">⚖ Below 8 two weeks running owes the ledger a kill, pause or recover decision.</p>
         </div>
       ) : !auditing ? (
-        <div className="osr-audit osr-type pb-2"><p className="h-sub">This workstream is no longer in the portfolio.</p></div>
+        <div className="osr-audit pb-2"><p className="h-sub">This workstream is no longer in the portfolio.</p></div>
       ) : (
-        <div className="osr-audit osr-type pb-2">
+        <div className="osr-audit pb-2">
           {state && (
             <p className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1 font-sans text-footnote leading-snug text-cream-muted">
               <span className={`k-tag${state.word === "Scored" ? " ok" : " gold"}`}>{state.word}</span>{state.line}

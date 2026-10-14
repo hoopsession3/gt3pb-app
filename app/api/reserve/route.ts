@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { benefitsForUser, acceptedCode } from "@/lib/benefits";
-import { notifyCustomer, accountEmail, whoAsked, sayTextConsent } from "@/lib/notify";
+import { notifyCustomer, accountEmail, whoAsked, sayTextYes } from "@/lib/notify";
 import { textsOn } from "@/lib/texts";
 import { mixSummary, type Mix } from "@/lib/orderAhead";
 import { packPick, offeredDays, requestedDay, packCents } from "@/lib/packOrder";
@@ -188,8 +188,9 @@ async function post(req: Request) {
       }
 
       // The yes to texts, kept with the pack (R5, 0398): only when they ticked it (components/TextYes), for the number on
-      // this pack, and only while texts are switched on. Best-effort — a yes that could not be kept is no yes.
-      if (body.textOptIn === true && textsOn()) await sayTextConsent(phone, true, "pack_checkout", user.id);
+      // this pack, and only while texts are switched on. Best-effort — a yes that could not be kept is no yes. A new yes is
+      // confirmed by text before the pack's own (R6, lib/notify sayTextYes), so the first text they get says what comes.
+      if (body.textOptIn === true && textsOn()) await sayTextYes(phone, "pack_checkout", user.id);
 
       // Confirmation to the customer — email, and a text to a number that said yes (lib/notify: 0398, never at night).
       // Best-effort: a provider hiccup never fails the reservation.

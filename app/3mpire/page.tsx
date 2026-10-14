@@ -12,7 +12,6 @@ import ReviewPrompt from "@/components/ReviewPrompt";
 import MembershipCard from "@/components/MembershipCard";
 import VipVerify from "@/components/VipVerify";
 import MyPacks from "@/components/MyPacks";
-import TextsSetting from "@/components/TextsSetting";
 import MyDeliveries from "@/components/MyDeliveries";
 import Skeleton from "@/components/Skeleton";
 import Icon from "@/components/Icon";
@@ -213,8 +212,13 @@ function MpireReal() {
           <div className="rl"><b>{t("account.book")}</b><span>{t("account.book_sub")}</span></div>
           <div className="rr">›</div>
         </div>
-        {/* Texts about my packs (R5, 0398): on or off for the number on their orders — shown once texts are switched on. */}
-        <TextsSetting />
+        {/* Notifications (R6): every kind on one screen — order updates, pickup reminders, truck live, and texts (R5's
+            switch for the number on their orders lives there now, components/NotificationsSheet). */}
+        <div className="row" aria-label="Notifications" {...clickable(() => window.dispatchEvent(new Event("gt3-open-notifications")))}>
+          <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg></div>
+          <div className="rl"><b>{t("account.notifications")}</b><span>{t("account.notifications_sub")}</span></div>
+          <div className="rr">›</div>
+        </div>
         <div className="row" aria-label="Sign out" {...clickable(() => { void import("@/lib/pushRelease").then((m) => m.signOutHere(signOut), () => signOut()); toast("Signed out"); })}>
           <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg></div>
           <div className="rl"><b>{t("account.signout")}</b><span>{user?.email}</span></div>

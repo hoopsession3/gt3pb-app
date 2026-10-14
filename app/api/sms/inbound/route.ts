@@ -18,9 +18,11 @@ export const runtime = "nodejs"; // node crypto for the signature
 //   · anything else is a person writing to us: the crew hear it, with the number, in their inbox — a text nobody reads
 //     is a customer ignored.
 //
-// Twilio's own keyword handling answers STOP, START and HELP on the phone (its standard replies, on every US number),
-// so this answers with an empty reply and never a second message. TWILIO_AUTH_TOKEN and the number's webhook URL are
-// set by Ryan when the number is registered; until then this answers 503 and records nothing.
+// Twilio answers STOP, START and HELP on the phone itself — with the replies set in the Messaging Service's Advanced
+// Opt-Out (the GT3 Texts setup doc, Steps 3–4: brand, help contact, "No more messages will be sent") — so this answers
+// with an empty reply and never a second message. That is also why START gets no confirmation from here (R6): Twilio's
+// opt-in reply is it; a yes at checkout or on the account is confirmed by lib/notify sayTextYes. TWILIO_AUTH_TOKEN and
+// the number's webhook URL are set by Ryan when the number is registered; until then this answers 503 and records nothing.
 const EMPTY = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 const twiml = () => new NextResponse(EMPTY, { status: 200, headers: { "content-type": "text/xml; charset=utf-8" } });
 

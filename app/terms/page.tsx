@@ -1,5 +1,10 @@
 // TERMS — plain-language, right-sized (2026-08-01 enterprise round P5). Static server component.
 // NOTE FOR THE OWNER: review with counsel before treating this as legal advice.
+// 2026-10-14 (R6): the words live in components/legal/LegalText, so the yes to texts at checkout opens the same Terms in a
+// sheet over the order; the Texts section is the one Twilio's campaign review reads (program, frequency, rates, HELP and
+// STOP, the help contact, carriers not liable, a link to the Privacy policy).
+import { TermsText } from "@/components/legal/LegalText";
+
 export const metadata = { title: "Terms — GT3 Performance Bar" };
 
 export default function TermsPage() {
@@ -7,13 +12,7 @@ export default function TermsPage() {
     <section className="screen legal">
       <div className="legal-wrap">
         <h1 data-large-title>Terms</h1>
-        <p className="legal-date">GT3 Performance Bar · effective August 2026</p>
-        <p><b>Orders.</b> Ordering through this app is an offer to buy; we confirm it when the order shows as accepted. Pre-orders are made fresh for your pickup window — if we can&rsquo;t fill something (a sold-out batch, a truck problem), we&rsquo;ll refund it in full through Square.</p>
-        <p><b>Packs and delivery.</b> Pack reservations with bring-back pricing assume the empties come back — bottles stay yours otherwise at the new-glass price shown at checkout. Delivery orders are prepaid; if a porch delivery fails because the address given was wrong, we&rsquo;ll work it out with you like humans, but we can&rsquo;t guarantee a re-run that day.</p>
-        <p><b>What can change.</b> Prices, hours, and stops can change — the app always shows the current truth. Memberships and founding perks are personal to your account and aren&rsquo;t transferable.</p>
-        <p><b>Conduct and liability.</b> Be decent to the crew and other guests; we can refuse service where that fails. Our liability for any order is limited to what you paid for it.</p>
-        <p><b>Questions.</b> Refund questions or anything else: reply to your receipt email or talk to us at the window.</p>
-        <p className="legal-fine">Plain words on purpose. Not a substitute for legal advice.</p>
+        <TermsText />
       </div>
     </section>
   );

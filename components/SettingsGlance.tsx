@@ -8,7 +8,7 @@ import { squareClientReady } from "@/lib/square";
 import { useWorkStreams } from "@/lib/streams";
 import { useDisplay } from "@/components/DisplayToggle";
 import { useThemeChoice } from "@/lib/theme";
-import { NOTIF_PREFS_EVENT, type NotifPrefsSaved } from "@/components/NotifPrefs";
+import { NOTIF_PREFS_EVENT, crewMuted, type NotifPrefsSaved } from "@/components/NotifPrefs";
 import { useOutlookStatus } from "@/components/OutlookConnect";
 import { payGlance, orderingGlance, digestGlance, displayGlance, notifyGlance, lanesGlance, outlookGlance, UNREAD, type Glance } from "@/lib/settingsGlance";
 
@@ -54,14 +54,15 @@ export function useSettingsGlance(userId: string | null, isAdmin: boolean): Sett
         if (gone || saved) return; // a save that landed first is newer than this read
         if (error) { setNotifFailed(true); return; }
         const p = data as { muted_categories?: string[] | null; quiet_start?: number | null; quiet_end?: number | null } | null;
-        setNotif({ muted: p?.muted_categories ?? [], qs: p?.quiet_start ?? null, qe: p?.quiet_end ?? null });
+        // The crew's categories only (R6): a member's own switches (lib/customerNotify) share the row, never the count.
+        setNotif({ muted: crewMuted(p?.muted_categories), qs: p?.quiet_start ?? null, qe: p?.quiet_end ?? null });
       });
     const onSaved = (e: Event) => {
       const s = (e as CustomEvent<NotifPrefsSaved>).detail;
       if (!s || s.userId !== userId) return;
       saved = true;
       setNotifFailed(false);
-      setNotif({ muted: s.muted, qs: s.qs === "" ? null : Number(s.qs), qe: s.qe === "" ? null : Number(s.qe) });
+      setNotif({ muted: crewMuted(s.muted), qs: s.qs === "" ? null : Number(s.qs), qe: s.qe === "" ? null : Number(s.qe) });
     };
     window.addEventListener(NOTIF_PREFS_EVENT, onSaved);
     return () => { gone = true; window.removeEventListener(NOTIF_PREFS_EVENT, onSaved); };

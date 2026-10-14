@@ -24,7 +24,7 @@ const ROUTE_TITLE: Readonly<Record<string, string>> = {
   book: "Book the bar", craft: "Our craft", reserve: "Reserve", delivery: "Delivery", primal: "Primal",
   academy: "Academy", agreement: "Agreement", offer: "Your offer", architecture: "System map", scan: "Scan",
   playbook: "Playbook", privacy: "Privacy", terms: "Terms", office: "Your GT3", driver: "Delivery run",
-  display: "Display", built: "Partner share", crew: "Crew", order: "Your order",
+  display: "Display", built: "Partner share", crew: "Crew", order: "Your order", texts: "Texts",
 };
 
 /** The tab bar's own screens. A tab is where a way through the app starts: it has no Back of its own. */

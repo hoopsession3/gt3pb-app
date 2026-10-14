@@ -76,7 +76,7 @@ function OrderBar() {
       ) : o.eta_status ? (
         <div className="orderbar-eta collapsed">
           <span className="eta-set"><Icon name={({ on_way: "compass", outside: "pin", late: "clock" } as const)[o.eta_status]} /> {ETA_WORDS[o.eta_status]} <Icon name="check" /></span>
-          <button type="button" className="eta-change" onClick={() => setEtaOpen(true)}>change</button>
+          <button type="button" className="eta-change hit-44" onClick={() => setEtaOpen(true)}>change</button>
         </div>
       ) : (
         <button type="button" className="eta-tell" onClick={() => setEtaOpen(true)}>Tell the truck ›</button>

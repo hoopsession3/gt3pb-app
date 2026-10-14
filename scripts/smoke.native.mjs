@@ -1210,9 +1210,14 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   // a finger that drifts does not raise them, the lift does not also tap the flag, the phone ticks, Escape puts
   // the menu away with the Inbox still open, a right-click raises it too, and its Got it clears the flag.
   {
-    const ctx = await phoneContext(MAIN, { owner: true });
+    // On the smallest iPhone (2026-10-14, R6). The crew's profile — photo, name, title, bio — was the long form here while
+    // the alerts sat at its foot; they are Notifications' now, and on a 6.3" phone the profile is three-fifths of the
+    // screen, opened at its own height as it should be. On the SE it is four-fifths: a long form, where a half-height
+    // sheet matters most.
+    const SE = PHONES[0];
+    const ctx = await phoneContext(SE, { owner: true });
     const page = await ctx.newPage();
-    await insetsOn(page, MAIN.top, MAIN.bottom);
+    await insetsOn(page, SE.top, SE.bottom);
     const errors = watch(page);
     await page.goto(`${BASE}/book`, { waitUntil: "load" });
     await page.waitForTimeout(900); await page.evaluate(SETTLE);
@@ -1228,7 +1233,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await page.locator(".acs-row", { hasText: /^Profile/ }).first().click().catch(() => {});
     await page.waitForTimeout(1200);
     const h0 = await stage();
-    ok("sheets: a long form (the profile) opens half-height on a phone — the page still in sight above it, not stepped back",
+    ok("sheets: a long form (the crew's profile, on an iPhone SE) opens half-height on a phone — the page still in sight above it, not stepped back",
       h0.detent === "half" && h0.h > 0 && h0.h <= Math.ceil(h0.vh * 0.53) && !h0.receded && h0.scale === 1, JSON.stringify(h0));
     await page.evaluate(() => { [...document.querySelectorAll(".sheet2-body")].pop().scrollTop = 60; });
     await page.waitForTimeout(900);

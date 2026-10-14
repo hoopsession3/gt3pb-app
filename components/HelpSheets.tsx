@@ -5,6 +5,7 @@ import Sheet, { CloseButton } from "@/components/Sheet";
 import { ConciergeChat } from "./Concierge";
 import { ConnectBody } from "./ConnectHub";
 import { DisplayControls } from "./DisplayToggle";
+import NotificationsSheet from "./NotificationsSheet";
 import type { Asked } from "@/lib/helpSheets";
 
 // ASK US, CONNECT AND DISPLAY, AS SHEETS (2026-10-08, the iPhone chrome round, approved). On a phone the floating
@@ -27,6 +28,7 @@ export default function HelpSheets({ asked }: { asked: Asked }) {
           <DisplayControls />
         </Sheet>
       )}
+      {open === "gt3-open-notifications" && <NotificationsSheet onClose={close} />}
       {open === "gt3-open-connect" && (
         // The links are drawn for the rail's dark card in either look, so this sheet keeps the dark ground in the
         // crew's Day look too: --bg unset falls back to the sheet's own charcoal, and the words take the brand's

@@ -3,7 +3,7 @@ import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
-import { notifyCustomer, accountEmail, whoAsked, sayTextConsent } from "@/lib/notify";
+import { notifyCustomer, accountEmail, whoAsked, sayTextYes } from "@/lib/notify";
 import { textsOn } from "@/lib/texts";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
@@ -204,8 +204,9 @@ async function post(req: Request) {
       }
 
       // The yes to texts, kept with the delivery (R5, 0398): only when they ticked it, for this delivery's number, and only
-      // while texts are switched on. Best-effort — a yes that could not be kept is no yes.
-      if (b.textOptIn === true && textsOn()) await sayTextConsent(row.phone, true, "delivery_checkout", user.id);
+      // while texts are switched on. Best-effort — a yes that could not be kept is no yes. A new yes is confirmed by text
+      // first (R6, lib/notify sayTextYes).
+      if (b.textOptIn === true && textsOn()) await sayTextYes(row.phone, "delivery_checkout", user.id);
 
       // Confirmation to the customer — the account email, and a text to a number that said yes (lib/notify). Best-effort.
       await notifyCustomer({

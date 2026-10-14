@@ -426,12 +426,3 @@
     height: min(88vh, calc(100dvh - var(--kb, 0px) - 32px));
   }
 }
-/* THE PHONE'S TEXT SIZE, ON THE AUDIT. The app's text size — in the iPhone app the phone's own Text Size until one is
-   picked (components/usePhoneText, lib/phoneText) — zooms the page (app/globals.css .app.rd-t1…3 .body); a sheet, drawn
-   beside the page rather than in it, kept the standard size. The audit's head, body and foot take the page's zooms, so
-   its words grow with the phone's, and its rows wrap rather than clip (the score drops under its rule). */
-@utility osr-type {
-  :where(.app.rd-t1) & { zoom: 1.08; }
-  :where(.app.rd-t2) & { zoom: 1.16; }
-  :where(.app.rd-t3) & { zoom: 1.26; }
-}

@@ -7,6 +7,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import { useStuck } from "./useStuck";
 import EmptyState from "./EmptyState";
 import { CAL_CAT as CAT } from "@/lib/calendarTokens";
 import { brewStartOverdue, BATCH_OVER_IN } from "@/lib/brewMath";
@@ -114,21 +115,10 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
   const todayKey = key(now);
   // THE BAR IS PAINTED ONLY WHILE IT IS STUCK (2026-10-01, one box per level). At rest it is part
   // of the page; an always-opaque var(--bg) fill painted a lighter rectangle on the gradient page
-  // — one more box, and the first thing under the CALENDAR heading. A 1px sentinel sits just above
-  // the bar: the moment it scrolls out of the scroll container the bar has stuck, and only then
-  // does it get its fill. The scroll container is found rather than assumed, because in the crew
-  // console it is .body, not the window.
-  const sentinel = useRef<HTMLDivElement>(null);
-  const [stuck, setStuck] = useState(false);
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-    let root: HTMLElement | null = el.parentElement;
-    while (root && !/(auto|scroll)/.test(getComputedStyle(root).overflowY)) root = root.parentElement;
-    const io = new IntersectionObserver(([e]) => setStuck(!e.isIntersecting), { root, threshold: 0 });
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
+  // — one more box, and the first thing under the CALENDAR heading. It gets its fill the moment it
+  // has stuck (components/useStuck, 2026-10-14: read against its own top — the sentinel that told
+  // it before was late by the status bar, and by the title bar under it, on an iPhone).
+  const [stickyRef, stuck] = useStuck<HTMLDivElement>();
   // Default is LIST, not the month grid — on a phone the 30-day grid is a wall of tiny cells that
   // shows almost no data (owner call, 2026-07-09: "we lose sight… it's small and shows not much").
   // List reads like an agenda: dense, dated, actionable. A chosen view still persists.
@@ -473,9 +463,8 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
           <button type="button" onClick={tidy} disabled={tidying}>{tidying ? "Tidying…" : "Tidy up"}</button>
         </div>
       )}
-      <div ref={sentinel} className="cal-stickysentinel" aria-hidden />
       {/* Under the title bar while it shows (components/TitleBar, data-compact): the month row steps down under it. */}
-      <div className={`cal-sticky${stuck ? " is-stuck" : ""} [.app:has([data-tbar][data-compact])_&]:top-[calc(env(safe-area-inset-top,0px)+44px)]! [.app:has(>.bcast):has([data-tbar][data-compact])_&]:top-11!`}>
+      <div ref={stickyRef} className={`cal-sticky${stuck ? " is-stuck" : ""} [.app:has([data-tbar][data-compact])_&]:top-[calc(env(safe-area-inset-top,0px)+44px)]! [.app:has(>.bcast):has([data-tbar][data-compact])_&]:top-11!`}>
         <div className="cal-bar">
           <div className="cal-nav">
             {!FLOW_VIEWS.includes(view) && <button type="button" className="k-icon-btn" onClick={() => nav(-1)} aria-label="Previous"><Icon name="chevronLeft" /></button>}

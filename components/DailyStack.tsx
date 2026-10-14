@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "./AppProvider";
 import Button from "@/components/Button";
 import { InfoRow } from "@/components/kit";
@@ -47,6 +47,15 @@ export default function DailyStack({ ordering, stopMenu }: Props) {
   const stack = answered ? stackFor({ day, caffeine, prefs }, menu, soldOut, stopMenu) : null;
   const button = stack ? stackButton(ordering, stack.cents, money) : null;
 
+  // WHAT A SCREEN READER HEARS (2026-10-14, R6 — the audit: the result was never announced). One sentence, from a quiet
+  // region of its own: the stack's drinks in order, or what is missing. The card itself is no live region any more — its
+  // buttons and the fine-tune chips were read out as "updates" whenever they changed. The sentence is written into the
+  // region after it is on the page, so a stack restored from the phone as the sheet opens is heard too (a region
+  // announces what changes in it, never what it starts with).
+  const said = stack ? `${caffeine ? "Your stack" : "Your stack, no caffeine"}: ${stack.picks.map((p) => `${SLOT_WORD[p.slot]}, ${p.drink.name}`).join("; ") || "nothing the truck can make right now"}.${stack.missing.length ? ` ${missingWords(stack.missing)}` : ""}` : "";
+  const sayRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => { if (sayRef.current) sayRef.current.textContent = said; }, [said]);
+
   const go = () => {
     if (!stack || !button || !stack.picks.length) return;
     for (const p of stack.picks) if (!isInCart(p.drink.slug)) bump(p.drink.slug);
@@ -69,9 +78,10 @@ export default function DailyStack({ ordering, stopMenu }: Props) {
     <div className="flex flex-col gap-5">
       {chips("What's your day?", DAYS, (v) => v === day, pickDay)}
       {chips("Caffeine?", CAFFEINE, (v) => v === caffeine, pickCaffeine)}
-      {/* The stack, as soon as both are answered — said to a screen reader as it changes, and nothing that has focus
-          is taken away (the old sheet swapped its whole form for the result). */}
-      <div aria-live="polite">
+      {/* The stack, as soon as both are answered — nothing that has focus is taken away (the old sheet swapped its whole
+          form for the result); what it says is heard from the line just below (R6). */}
+      <p ref={sayRef} className="sr-only" aria-live="polite" aria-atomic="true" />
+      <div>
         {stack && button && (
           <div className="k-card flex flex-col gap-1">
             <Eyebrow>{caffeine ? "Your stack" : "Your stack · no caffeine"}</Eyebrow>

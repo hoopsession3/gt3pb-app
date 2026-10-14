@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { staffFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
-import { notifyCustomer, emailEnabled, smsEnabled, notifyStatus, sendEmail, accountEmail } from "@/lib/notify";
+import { notifyCustomer, emailEnabled, smsEnabled, notifyStatus, sendEmail, accountEmail, customerMuted } from "@/lib/notify";
 import { route } from "@/lib/apiRoute";
 import { orderNo } from "@/lib/activeOrder";
 import { orderLine } from "@/lib/orderWords";
@@ -48,6 +48,8 @@ async function post(req: Request) {
       const first = (o.customer || "").split(" ")[0];
       // Its number and Today's words (R3b: lib/activeOrder, lib/orderWords) — "#4F2A" is what the window calls out.
       const no = orderNo(o.id);
+      // Order updates turned off on their Notifications screen (R6, lib/customerNotify): nothing sent, and said so.
+      if (await customerMuted(o.user_id, "order_updates")) return NextResponse.json({ ok: true, sms: "muted", email: "muted" });
       const sent = await notifyCustomer({
         email: await accountEmail(o.user_id),
         subject: `GT3 — order ${no} is ready`,
@@ -60,6 +62,7 @@ async function post(req: Request) {
       .select("id, name, phone, user_id, refill_count").eq("tenant_id", tenant).eq("id", id).maybeSingle();
     if (!d) return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
     const first = (d.name || "").split(" ")[0];
+    if (await customerMuted(d.user_id, "order_updates")) return NextResponse.json({ ok: true, sms: "muted", email: "muted" });
     const sent = await notifyCustomer({
       phone: d.phone,
       email: await accountEmail(d.user_id),

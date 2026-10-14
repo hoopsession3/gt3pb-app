@@ -23,6 +23,7 @@ import type { ShopReceipt } from "@/lib/receipt";
 import SwipePager from "@/components/SwipePager";
 import { haptic } from "@/lib/haptics";
 import { Segmented } from "@/components/controls";
+import { useStuck } from "@/components/useStuck";
 
 // THE SHOP (0273) — GT3 merch on the 0271 storefront spine. Reads published merch through RLS, a simple
 // cart in memory, and the shared Square card mount + /api/shop/checkout for a real one-time charge that
@@ -41,6 +42,18 @@ const StoryViewer = dynamic(() => import("./StoryViewer"), { ssr: false });
 // The shop's two aisles, in the order its row shows them — and the order a swipe turns through them.
 type Aisle = "bottles" | "merch";
 const SHOP_AISLES: readonly Aisle[] = ["bottles", "merch"];
+
+/** The aisle row, Bottles · Merch. Part of the page at rest — a fill there was a darker box cut out of the watermark —
+ *  and the tab bar's glass, edge to edge, once it has stuck (components/useStuck; app/globals.css #s-shop .menu-chips). */
+function AisleRow({ section, onChange, labels }: { section: Aisle; onChange: (a: Aisle) => void; labels: [string, string] }) {
+  const [ref, stuck] = useStuck<HTMLDivElement>();
+  return (
+    <div ref={ref} className={stuck ? "menu-chips shop-sections is-stuck" : "menu-chips shop-sections"}>
+      <Segmented label="Shop" fill value={section} onChange={onChange}
+        options={[{ key: "bottles", label: labels[0] }, { key: "merch", label: labels[1] }]} />
+    </div>
+  );
+}
 
 export default function Shop() {
   const { user } = useAuth();
@@ -97,11 +110,15 @@ export default function Shop() {
   };
 
   return (
-    <section className="screen shop" id="s-shop">
-      <Watermark variant="menu" />
+    <section className="screen" id="s-shop">
+      {/* DARK, LIKE THE REST OF ITS TAB (2026-10-14, R6 — decided by Ryan: "All dark"). The Shop tab lit three pages, and
+          /shop alone was paper: Reserve and Delivery, a tap away under the same tab, were the app's charcoal. The shop's
+          own rules read the theme's tokens now (app/globals.css .shop-*), so its aisles, merch and checkout are the
+          charcoal too; the menu and the order sheets stay paper. */}
+      <Watermark variant="landing" />
       {/* No eyebrow (2026-10-09, round 2): "THE SHOP" named the tab lit below it. The aisle row is the
           first thing under the brand, then one line, then the choices — as on the menu. */}
-      <Masthead tone="light" right={<div className="mast-right"><EditCopyPill group="Shop" /><AccountPill /></div>} />
+      <Masthead right={<div className="mast-right"><EditCopyPill group="Shop" /><AccountPill /></div>} />
 
       {/* One h1 per rendered state: the hub views (Bottles, or the Merch grid) get an sr-only h1;
           the Merch product/checkout/done views render their own visible <h1>. /shop stays in
@@ -111,10 +128,7 @@ export default function Shop() {
       {/* Two aisles: Bottles (pack reserve) · Merch (capsule). Hidden while inside a Merch sub-view
           (product/checkout/done) so those flows read as their own focused screen. */}
       {(section === "bottles" || view === "grid") && (
-        <div className="menu-chips shop-sections">
-          <Segmented label="Shop" fill value={section} onChange={setSection}
-            options={[{ key: "bottles", label: t("shop.sec_bottles") }, { key: "merch", label: t("shop.sec_merch") }]} />
-        </div>
+        <AisleRow section={section} onChange={setSection} labels={[t("shop.sec_bottles"), t("shop.sec_merch")]} />
       )}
 
       {/* The two aisles are pages: a sideways swipe on the shop turns from Bottles to Merch and back

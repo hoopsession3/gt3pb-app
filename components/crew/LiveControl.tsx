@@ -68,6 +68,9 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
   const openPrep = (id: string) => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue("stop", id)); } catch { /* ignore */ } setSection("prep"); };
   const [stops, setStops] = useState<Stop[]>([]);
   const [live, setLive] = useState<LiveStatus | null>(null);
+  // When the truck's position was last pinned — its own row, the crew's alone (R6, 0402: off live_status, which everyone
+  // may read). Shown here as "Pinned 3:04pm"; no customer page draws the position.
+  const [pinnedAt, setPinnedAt] = useState<string | null>(null);
   const [err, setErr] = useState("");
   const [posBusy, setPosBusy] = useState(false);
   const [openStopId, setOpenStopId] = useState<string | null>(null); // single-open accordion
@@ -85,10 +88,13 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const [s, l, vs] = await Promise.all([
+    const [s, l, vs, tp] = await Promise.all([
       supabase.from("stops").select("*").order("sort"),
       supabase.from("live_status").select("*").maybeSingle(),
       supabase.from("vendors").select("*").order("sort"), // may not exist pre-0034
+      // arrives-with: 0402 — until it is pasted the row is not there: the read errs, and the time comes from live_status's
+      // own column, where 0022 kept it.
+      supabase.from("truck_position").select("pos_updated_at").maybeSingle(),
     ]);
     const failed = s.error ?? l.error;
     if (failed) { setErr(failed.message); setRead("failed"); return; }
@@ -96,6 +102,8 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
     setRead("ready");
     setStops((s.data as Stop[] | null) ?? []);
     setLive((l.data as LiveStatus | null) ?? null);
+    const at = (r: unknown) => ((r as { pos_updated_at?: string | null } | null)?.pos_updated_at ?? null);
+    setPinnedAt(tp.error ? at(l.data) : at(tp.data));
     if (vs.data) setVendors((vs.data as Vendor[]).filter((v) => !v.archived_at));
   }, []);
   // A stop's venue is picked in its sheet (FieldOpSheet → components/VenuePick), not on this card:
@@ -141,7 +149,8 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
       ? { title: `Close out ${finished.name} and go offline?`, body: `It gets archived off the live screen${next ? `, and ${next.name} is up next` : ""}. Customers stop seeing the truck as live.`, confirmLabel: "Go offline" }
       : { title: "Take the truck offline?", body: "Customers will immediately stop seeing it as live on the Truck page.", confirmLabel: "Go offline" }))) return;
     stopBroadcast();
-    setLive((l) => (l ? { ...l, is_live: false, current_stop_id: null, truck_lat: null, truck_lng: null, pos_updated_at: null } : { id: 1, current_stop_id: null, is_live: false, next_eta: null }));
+    setLive((l) => (l ? { ...l, is_live: false, current_stop_id: null } : { id: 1, current_stop_id: null, is_live: false, next_eta: null }));
+    setPinnedAt(null);
     // Authoritative, atomic go-offline via the SECURITY-DEFINER RPC — clears is_live,
     // current_stop_id and the live position, and demotes the live stop, all server-side.
     // (Replaces the piecemeal client writes that could report success without sticking.)
@@ -175,15 +184,15 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
         const { error } = await supabase!.rpc("admin_set_truck_pos", { lat: p.coords.latitude, lng: p.coords.longitude });
         setPosBusy(false);
         if (error) { setErr(error.message); toast(`Couldn't pin location — ${error.message}`, "error"); }
-        else toast("Location pinned — members see the dot move");
+        else { setPinnedAt(new Date().toISOString()); toast("Location pinned"); }
       },
       (e) => { setPosBusy(false); toast(`Location error: ${e.message}`, "error"); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
-  // Continuous broadcast — stream the phone's GPS so the customer dot actually MOVES,
-  // not just a stale one-shot pin. The screen stays on while it broadcasts (lib/useWakeLock — the
+  // Continuous broadcast — stream the phone's GPS, not just a one-shot pin. For the crew: no customer page draws the
+  // position (the route map went, b6af016), and since 0402 none can read it (R6). The screen stays on while it broadcasts (lib/useWakeLock — the
   // Pass's hook too, which asks again whenever the app comes back to the screen).
   const watchRef = useRef<number | null>(null);
   const lastWriteRef = useRef(0);
@@ -203,13 +212,14 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
         const now = Date.now();
         if (now - lastWriteRef.current < 8000) return; // throttle to ~1 write / 8s
         lastWriteRef.current = now;
-        await supabase!.rpc("admin_set_truck_pos", { lat: p.coords.latitude, lng: p.coords.longitude });
+        const { error } = await supabase!.rpc("admin_set_truck_pos", { lat: p.coords.latitude, lng: p.coords.longitude });
+        if (!error) setPinnedAt(new Date().toISOString());
       },
       (e) => { toast(`Location error: ${e.message}`, "error"); stopBroadcast(); },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
     );
     setBroadcasting(true);
-    toast("Broadcasting live location — the dot moves with you");
+    toast("Broadcasting the truck's location");
   };
 
   // Stop streaming on unmount (ref-based so it doesn't depend on a memoized callback). Opening the
@@ -219,8 +229,8 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
     if (watchRef.current != null && typeof navigator !== "undefined") navigator.geolocation.clearWatch(watchRef.current);
   }, []);
   const posLabel = live?.is_live
-    ? live?.pos_updated_at
-      ? `Pinned ${new Date(live.pos_updated_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+    ? pinnedAt
+      ? `Pinned ${new Date(pinnedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
       : "Location not pinned yet"
     : "";
   const addStop = async (name: string) => {
@@ -345,8 +355,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
             )}
             {live?.is_live && (
               <div className="flex flex-wrap items-center gap-2.5 min-h-11 py-1.5 border-t border-line">
-                {!broadcasting && !live?.pos_updated_at && <span className="text-caption font-semibold text-warn">Map dot off —</span>}
-                <span className="flex-1 min-w-0 text-footnote text-cream-muted">{broadcasting ? <><Icon name="dot" /> Broadcasting — dot moves with you</> : posLabel}</span>
+                <span className="flex-1 min-w-0 text-footnote text-cream-muted">{broadcasting ? <><Icon name="dot" /> Broadcasting the truck&apos;s location</> : posLabel}</span>
                 {canLive && (broadcasting
                   ? <Button kind="secondary" compact onClick={stopBroadcast}>Stop</Button>
                   : <span className="flex gap-2"><Button kind="secondary" compact onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</Button><Button kind="primary" compact onClick={startBroadcast}>Broadcast</Button></span>)}
@@ -389,11 +398,8 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
       {admin && <GoLine to="settings" anchor="set-dial">Cup-ordering dial</GoLine>}
       {!manage && live?.is_live && canLive && (
         <>
-          {!broadcasting && !live?.pos_updated_at && (
-            <div className="adm-attn" role="alert">Customers can&apos;t see the truck on the map yet — tap <b>Broadcast live</b> so the dot tracks you.</div>
-          )}
           <div className="adm-live adm-live-pos">
-            <div className="adm-live-status"><span className="h-sub">{broadcasting ? <><Icon name="dot" /> Broadcasting — dot moves with you</> : posLabel}</span></div>
+            <div className="adm-live-status"><span className="h-sub">{broadcasting ? <><Icon name="dot" /> Broadcasting the truck&apos;s location</> : posLabel}</span></div>
             {broadcasting ? (
               <Button kind="secondary" compact onClick={stopBroadcast}>Stop</Button>
             ) : (

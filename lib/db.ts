@@ -77,10 +77,7 @@ export interface LiveStatus {
   // (FindUs's public road, the crew console, the concierge's live-status context) — not read from
   // here. Column kept only so old rows don't error.
   next_eta: string | null;
-  // Live truck GPS — set from the truck's phone via admin_set_truck_pos, cleared on offline.
-  truck_lat?: number | null;
-  truck_lng?: number | null;
-  pos_updated_at?: string | null;
+  // The truck's GPS left this row (R6, 0402): everyone may read live_status, so it moved to truck_position, the crew's alone.
   // How many hours before a stop cup pre-orders open (0 = only while live). 0137.
   preorder_lead_h?: number | null;
 }

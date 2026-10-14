@@ -18,7 +18,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   alertShown, channelsFor, escalationShown, isEscalation, liveShown, mayEmail, newOrderShown, orderStatusShown, packNoticeShown,
   packNoticeTold, reminderShown, severityOf, signoffShown, stillUnanswered, stopCanceledShown, subscriptionShown, taskShown,
-  textNumber, textQuiet, whoRings, type NotifPrefsRow, type Shown,
+  CUSTOMER_MUTE, smsPlain, textNumber, textQuiet, whoRings, type NotifPrefsRow, type Shown,
 } from "./policy.ts";
 
 webpush.setVapidDetails(
@@ -207,6 +207,13 @@ async function emailUser(userId: string, subject: string, body: string) {
   await emailAdmins(subject, body);
 }
 
+// A KIND THE MEMBER TURNED OFF (2026-10-14, R6): their Notifications screen keeps it in their notif_prefs row (0177;
+// lib/customerNotify). A read that fails is a no — the news goes, as it did before the screen existed.
+async function customerMuted(userId: string, key: string): Promise<boolean> {
+  const { data, error } = await supabase.from("notif_prefs").select("muted_categories").eq("user_id", userId).maybeSingle();
+  return !error && Array.isArray(data?.muted_categories) && data.muted_categories.includes(key);
+}
+
 // A MEMBER'S OWN NOTICE (2026-10-14, 0399): their account's email and nobody else's — no fallback to the admin list,
 // which is for the crew's criticals. True when Resend took it.
 async function emailMember(userId: string, subject: string, body: string): Promise<boolean> {
@@ -232,7 +239,7 @@ async function textMember(phone: unknown, body: string): Promise<{ result: "sent
     const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
       method: "POST",
       headers: { Authorization: `Basic ${btoa(`${sid}:${token}`)}`, "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ To: num, From: from, Body: body.slice(0, 320) }),
+      body: new URLSearchParams({ To: num, From: from, Body: smsPlain(body).slice(0, 320) }),   // plain characters (R6)
     });
     return r.ok ? { result: "sent" } : { result: "failed", detail: `Twilio ${r.status}` };
   } catch (e) {
@@ -262,6 +269,9 @@ Deno.serve(async (req) => {
       // when the row is rewritten with the same status (optimistic + reconcile, etc.).
       if (old_record && old_record.status === record.status) return new Response("skip: no transition");
       shown = orderStatusShown(record);
+      // Order updates turned off on the member's Notifications screen (R6): "being made" and "ready" stay quiet. A stop
+      // called off is a change to the order itself, and is said whatever the switch (below).
+      if (shown && await customerMuted(record.user_id, CUSTOMER_MUTE.orderUpdates)) return new Response("skip: order updates off");
       // A stop called off voids its cup orders (crew/stops/cancel): the member hears it here, with why (R3b — 0391's
       // notices, the push half). A void the crew or the member made themselves says nothing, as before.
       if (!shown && record.status === "void" && record.stop_id) {
@@ -420,6 +430,12 @@ Deno.serve(async (req) => {
       shown = packNoticeShown(record.kind, pack, stop);
       const told = packNoticeTold(record.kind, pack, stop);
       if (!shown || !told) return new Response("skip: not a notice this knows");
+      // The evening-before reminder, turned off on their Notifications screen (R6): nothing goes, and the notice says
+      // why. A pack moved or canceled is the order itself, and goes whatever the switch.
+      if (record.kind === "pickup_tomorrow" && await customerMuted(pack.user_id, CUSTOMER_MUTE.pickupReminders)) {
+        await supabase.from("pack_notices").update({ pushed: 0, emailed: false, texted: null, detail: "pickup reminders off (Notifications)" }).eq("id", record.id);
+        return new Response("skip: pickup reminders off");
+      }
       url = "/reserve";
       targets = await subsFor((q) => q.eq("user_id", pack.user_id));
       const emailed = await emailMember(pack.user_id, told.subject, told.text);

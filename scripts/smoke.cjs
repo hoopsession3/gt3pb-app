@@ -5568,8 +5568,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("paper: the empty task box is white with an ink edge in the day theme, and never outranks the ticked or picked states",
     boxDay > 0 && boxDay < css.indexOf(".task-box.on{"));
   ok("paper: the top three's cards left with them — no style is kept for a list that is not drawn", !/\.dayhead-t\b|\.dayhead-top\b/.test(css));
-  ok("paper: the day console restates --field, --well and --ink-whisper — they fell through to :root's black",
-    /--field:#FFFFFF; --well:rgba\(34,31,24,\.05\); --ink-whisper:rgba\(34,31,24,\.64\);/.test(css));
+  {
+    // R6: one light palette for the day console and paper — the block both read declares them once.
+    const one = css.slice(css.indexOf(".app.crew-day,.menu,:is(.sheet,.sheet2).paper{"), css.indexOf("}", css.indexOf(".app.crew-day,.menu,:is(.sheet,.sheet2).paper{")));
+    ok("paper: the day console and paper declare --field, --well and --ink-whisper once, together — they fell through to :root's black",
+      one.length > 0 && /--field:#FFFFFF;/.test(one) && /--well:rgba\(34,31,24,\.05\);/.test(one) && /--ink-whisper:rgba\(34,31,24,\.64\);/.test(one));
+  }
   ok("paper: 'late' is one colour, the legible red for text in either theme", /\.owed-row\.late \.owed-age,\.owed-age\.late\{color:var\(--red-onLight\)\}/.test(css));
   ok("weight: daysBetween and dueWord live in lib/dayWords, not the lib/dates every page carries",
     !/export function (partOfDay|daysBetween|dueWord)\b/.test(read("lib/dates.ts")) && /export function dueWord/.test(read("lib/dayWords.ts")));
@@ -6472,7 +6476,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("ordering: /delivery's first line is a line, not a card — its 34px headline and its box are gone, and its last word is not the action red",
     !/dl-hero|dl-h-xl/.test(fu + css) && /<h2 className="dl-h serif"><EditableCopy k="funnel\.hero_h1"/.test(fu));
   ok("ordering: /shop has no eyebrow repeating its tab; the retired keys are gone from the editor too",
-    /<Masthead tone="light" right=\{<div className="mast-right"><EditCopyPill group="Shop" \/><AccountPill \/><\/div>\} \/>/.test(read("components/Shop.tsx"))
+    /<Masthead right=\{<div className="mast-right"><EditCopyPill group="Shop" \/><AccountPill \/><\/div>\} \/>/.test(read("components/Shop.tsx"))
     && !/shop\.eyebrow|story\.make_label|story\.craft_link|home\.pillar1_t|reserve\.order_bar|home\.signoff|home\.cta_sub|pricemode_pickup/.test(copy + read("components/Shop.tsx")));
   ok("ordering: /delivery asks for the ZIP first — an office is one quiet line under it and a line back, still its own flow (Ryan: \"Office link\", 2026-10-09)",
     !/aud-fork|role="radiogroup" aria-label="Delivery type"/.test(fu) && !/(^|\n)\.aud[{ .:]/.test(css)
@@ -7745,8 +7749,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /<h1 className="k-title lg">…<\/h1>/.test(fu) && (fu.match(/<FindUsCoda \/>/g) || []).length === 2 && /function FindUsCoda\(\)/.test(fu));
   ok("find us: the road is drawn from the read itself — no effect copies it into state a render later",
     /const road = fresh \?\? board\.data \?\? null;/.test(fu) && !/setOps\(|setLive\(/.test(fu));
-  ok("find us: the live-ping chip knows itself on its first render",
-    /useState<"hidden" \| "off" \| "on" \| "busy">\(\(\) => \{/.test(fu) && !/setState\(on \? "on" : "off"\)/.test(fu));
+  ok("find us: the live-ping chip knows itself on its first render (its state is components/useLivePing's, shared with Notifications — R6)",
+    /const \[state, setState\] = useState<LivePing>\(\(\) => \{/.test(read("components/useLivePing.ts")) && /const \{ state, toggle \} = useLivePing\(\);/.test(fu) && !/setState\(on \? "on" : "off"\)/.test(fu));
   // 2026-10-10: the opening hour read Eastern and the closing hour the phone's zone, so a stop open 11-5
   // read "11:00am – 9:00pm" outside Eastern. Day, date and both hours read the truck's clock now.
   ok("find us: a stop's day, date and both hours are on the truck's clock (Eastern), none on the phone's",
@@ -9557,8 +9561,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && !/from\("push_subscriptions"\)/.test(lp) && /export async function subscribePush\(crew: boolean, opts\?: \{ wantsLive\?: boolean \}\): Promise<boolean>/.test(lp)
       && !/\.from\("push_subscriptions"\)\.(upsert|insert|update|delete)/.test(code(read("components/DeviceAlerts.tsx")) + fu + ps + code(read("components/Checkout.tsx"))));
     ok("alerts: a screen says \"on\" only once the device is kept — a guest's \"truck is live\" said on and kept nothing",
-      /if \(!\(await subscribePush\(!!profile\?\.is_admin, \{ wantsLive: turningOn \}\)\)\) \{ setState\(turningOn \? "off" : "on"\); return; \}/.test(fu)
-      && /if \(await subscribePush\(!!profile\?\.is_admin\)\) toast\("Order alerts are on"\);\s*else toast\(/.test(ps));
+      /if \(!\(await subscribePush\(!!profile\?\.is_admin, \{ wantsLive: turningOn \}\)\)\) \{ setState\(turningOn \? "off" : "on"\); return; \}/.test(code(read("components/useLivePing.ts")))
+      && /if \(await subscribePush\(!!profile\?\.is_admin\)\) toast\("Alerts are on for this phone"\);\s*else toast\(/.test(code(read("components/NotificationsSheet.tsx"))));
     const pr = code(read("lib/pushRelease.ts"));
     ok("alerts: signing out lets go of this device first, while still signed in — a second and a half at most, never held up — from the sign-out buttons, not the provider every route carries",
       /await Promise\.race\(\[releaseThisDevice\(\), new Promise\(\(r\) => setTimeout\(r, 1500\)\)\]\);\s*await signOut\(\);/.test(pr)
@@ -9967,7 +9971,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const settingsView = acs.slice(acs.indexOf('{view === "settings" ? ('), acs.indexOf('<Row title="Ask us"', acs.indexOf('{view === "settings" ? (')));
   ok("delete: \"Delete account\" is in Settings & privacy — two taps from the avatar, on the web and in the app",
     /<Row title="Delete account" sub="Your profile and details, for good" onClick=\{\(\) => setDeleting\(true\)\} \/>/.test(settingsView)
-    && /<Row title="Settings & privacy" row="settings" sub=\{alerts \? "Profile · notifications · display · delete account" : "Profile · display · delete account"\} onClick=\{\(\) => openView\("settings"\)\} \/>/.test(acs)
+    && /<Row title="Settings & privacy" row="settings" sub="Profile · notifications · display · delete account" onClick=\{\(\) => openView\("settings"\)\} \/>/.test(acs)
     && acs.indexOf("if (deleting) {") < acs.indexOf("if (!user) {") && acs.indexOf("if (!user) {") < acs.indexOf('if (view !== "menu") {')
     && /if \(deleting\) \{[\s\S]*?<DeleteAccount staff=\{staff\} onKeep=\{\(\) => setDeleting\(false\)\}/.test(acs)
     // the screen loads when the row is tapped, not with every page that carries the menu (design.ratchet WEIGHT)
@@ -10174,7 +10178,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /select public\.record_migration\('0367_alerts_in_the_iphone_app'\);/.test(mig));
     ok("alerts: in the app Settings, the profile and Live Ops draw the app's own switch — and nothing until alerts are live",
       /if \(APP_BUILD\) return NATIVE_PUSH_ON \? <AppAlertsRow \/> : null;/.test(da) && /if \(!NATIVE_PUSH_ON\) return null;/.test(da)
-      && /\{NATIVE_PUSH_ON && <AppAlertsProfile \/>\}/.test(read("components/ProfileSheet.tsx")) && /const s = await p\.enable\(\);/.test(aa2)
+      && /if \(NATIVE_PUSH_ON\) return <AppAlertsProfile \/>;/.test(read("components/NotificationsSheet.tsx")) && /const s = await p\.enable\(\);/.test(aa2)
       && /onClick=\{openSettings\}>Open Settings<\/button>/.test(aa2) && /void nativeDevice\(\)\?\.openSettings\(\)/.test(aa2) && !/Settings ›/.test(aa2));
     ok("alerts: the first day's \"Turn on alerts\" comes back to the app once alerts are live, and Home Screen never does",
       CS2.startSteps({ onCrewSide: true, installed: true, app: true, appAlerts: true }).map((x) => x.key).join(",") === "crew,ask,training,alerts,who"
@@ -10428,7 +10432,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const cmdk = code(read("components/CommandPalette.tsx")), pa = code(read("components/PrimalAcademy.tsx"));
   ok("app store: no placeholder and no dead button for alerts in the app — Settings shows no row, the profile shows no button that cannot ask",
     /if \(APP_BUILD\) return NATIVE_PUSH_ON \? <AppAlertsRow \/> : null;/.test(da) && !/next update|web app on this phone/.test(da)
-    && /\{notifState !== "unsupported" && <div className="prof-notif">/.test(ps) && !/useEffect\(/.test(ps));
+    && /if \(perm === "unsupported"\) return null;/.test(code(read("components/NotificationsSheet.tsx"))) && !/prof-notif|useEffect\(/.test(ps));
   ok("app store: the website's QR is not shown inside the app, and the palette drops the member-card scan (the Camera opens Safari) and its keyboard keys on a touch screen",
     /\{qr && !APP_BUILD && \(/.test(ch) && /if \(APP_BUILD\) return;/.test(ch) && /import \{ APP_BUILD \} from "@\/lib\/native";/.test(ch)
     && /\.\.\.\(APP_BUILD \? \[\] : \[\{ id: "act:scan"/.test(cmdk) && /<div className="cmdk-foot pointer-coarse:hidden">/.test(cmdk));
@@ -10675,7 +10679,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("no floating chrome on a phone (or the desk): each of their doors exists — ✦ in the crew header, Ask us beside the avatar, Connect and Display in the menus",
     /<IconButton icon="sparkles"[^>]*className="frame:hidden! desk:inline-flex!"[^>]*onClick=\{\(\) => window\.dispatchEvent\(new Event\("gt3-quick-do"\)\)\}/.test(read("app/crew/page.tsx"))
     && /className="acct-av hit-44 text-gold2 frame:hidden! desk:flex!"/.test(read("components/AccountPill.tsx")) && /new Event\("gt3-open-concierge"\)/.test(read("components/AccountPill.tsx"))
-    && /export const HELP_EVENTS = \["gt3-open-concierge", "gt3-open-connect", "gt3-open-display"\] as const;/.test(read("lib/helpSheets.ts"))
+    && /export const HELP_EVENTS = \["gt3-open-concierge", "gt3-open-connect", "gt3-open-display", "gt3-open-notifications"\] as const;/.test(read("lib/helpSheets.ts"))
     && /for \(const t of HELP_EVENTS\) window\.addEventListener\(t, onAsk\);/.test(shell) && /\{asked && !isShare && <HelpSheets asked=\{asked\} \/>\}/.test(shell)
     && /<ConciergeChat open=\{open === "gt3-open-concierge"\} onClose=\{close\} \/>/.test(read("components/HelpSheets.tsx"))
     && ["concierge", "connect", "display"].every((d) => (read("components/AccountSheet.tsx").match(new RegExp(`open\\("gt3-open-${d}"\\)`, "g")) || []).length === 2)
@@ -11048,8 +11052,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /\.k-tag\.txt\{font-family:'Inter';font-weight:600;font-size:12px;letter-spacing:0;text-transform:none\}/.test(g) && /\.k-tag\.glass\{/.test(g));
   ok("tags: the tones are tokens, declared once, and the crew's light look and paper restate them — a tag holds 4.5:1 wherever it lands",
     /--tone-ok:var\(--ok\); --tone-gold:var\(--gold2\); --tone-warn:var\(--warn\); --tone-crit:var\(--red-h\); --tone-blue:#6fa8dc;/.test(g.slice(0, 4000))
-    && /--tone-ok:var\(--green-onLight\); --tone-gold:var\(--gold2\); --tone-warn:var\(--warn\); --tone-crit:var\(--red-onLight\); --tone-blue:var\(--color-info\);/.test(g)
-    && /--ink-whisper:rgba\(34,31,24,\.64\);\s*--tone-ok:var\(--ok\); --tone-gold:var\(--gold2\); --tone-warn:var\(--warn\); --tone-crit:var\(--red-h\); --tone-blue:var\(--color-info\);/.test(g));
+    // R6: the crew's light look and paper are ONE light palette — one block restates the tones for both.
+    && /\.app\.crew-day,\.menu,:is\(\.sheet,\.sheet2\)\.paper\{[^}]*--tone-ok:var\(--ok\); --tone-gold:var\(--gold2\); --tone-warn:var\(--warn\); --tone-crit:var\(--red-onLight\); --tone-blue:var\(--color-info\);/.test(g)
+    && (g.match(/--tone-crit:/g) || []).length === 3);
   ok("tags: one that comes off ends in its × — 44 to the thumb (a file on a note, a goal an initiative serves)",
     /\.k-tag-x\{position:relative;[^}]*width:16px;height:16px;/.test(g) && /\.k-tag-x::after\{content:"";position:absolute;inset:-14px\}/.test(g)
     && (read("app/crew/page.tsx").match(/className="k-tag-x" onClick=/g) || []).length === 2 && /className="k-tag-x" onClick=\{\(\) => unlinkGoal\(it\.id, g\.id\)\}/.test(read("components/CommandBoard.tsx")));
@@ -11194,7 +11199,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && seg("components/CogsCalculator.tsx", /<Segmented label="COGS" fill className="mt-1 mb-2\.5" value=\{tab\} onChange=\{setTab\}/)
     && seg("components/Reports.tsx", /<Segmented label="Range" kind="choice" size="sm" value=\{String\(days\)\} onChange=\{\(k\) => setDays\(Number\(k\)\)\}/)
     && seg("components/RoadFlyer.tsx", /<Segmented label="Slide" size="sm" fill value=\{tile\} onChange=\{setTile\}/)
-    && seg("components/Shop.tsx", /<div className="menu-chips shop-sections">\s*<Segmented label="Shop" fill value=\{section\} onChange=\{setSection\}/)
+    && seg("components/Shop.tsx", /<div ref=\{ref\} className=\{stuck \? "menu-chips shop-sections is-stuck" : "menu-chips shop-sections"\}>\s*<Segmented label="Shop" fill value=\{section\} onChange=\{onChange\}/)
     && seg("app/architecture/page.tsx", /<Segmented label="View" className="mt-3" value=\{view\} onChange=\{setView\}/));
   ok("recipes: a customer's one primary is the kit's — reserve a bottle, share your code, add to the order (and its closed and sold-out words), share your status; a code's Apply is the secondary",
     /<button type="button" className="btn-pri btn-wide mt-1" onClick=\{\(\) => buy\(r\)\}>Reserve yours · \{price\}<\/button>/.test(read("components/Reserves.tsx"))
@@ -11354,7 +11359,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     }
     ok("driver: the whole run opens in Maps by its addresses — no geocoding, no pins to wait for",
       /rows\.filter\(\(o\) => !doneOf\(o\)\)\.map\(\(o\) => \(\{ address: /.test(dr) && !/geocode|Pinning porches/.test(dr));
-    const pr = read("components/PrimalAcademy.tsx"), bk = read("app/book/page.tsx"), pv = read("app/privacy/page.tsx"), tm = read("app/terms/page.tsx");
+    // The pages' words live in components/legal/LegalText since R6 (they open in a sheet over checkout too): each page's
+    // own function is read as its text.
+    const legal = read("components/legal/LegalText.tsx");
+    const pr = read("components/PrimalAcademy.tsx"), bk = read("app/book/page.tsx");
+    const pv = legal.slice(legal.indexOf("export function PrivacyText("), legal.indexOf("export const LEGAL_TITLE"));
+    const tm = legal.slice(legal.indexOf("export function TermsText("), legal.indexOf("export function PrivacyText("));
     ok("Primal: a pillar with no lesson to read is not drawn, and progress shows only to someone signed in",
       /if \(pillarLessons\.length === 0\) return null;/.test(pr) && /\{user && t && t\.total > 0 && \(/.test(pr));
     ok("Book the bar: the event first, then who to answer — and what we can do without says optional",
@@ -11388,7 +11398,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     }
     ok("Privacy tells the truth about passwords and deletion; Privacy and Terms lead each paragraph with what it is about",
       !/never store a password/.test(pv.replace(/^\/\/.*$/gm, "")) && /one-way hash/.test(pv) && /then Delete account/.test(pv)
-      && (pv.match(/<p><b>/g) || []).length === 5 && (tm.match(/<p><b>/g) || []).length === 5);
+      && (pv.match(/<p><b>/g) || []).length + (pv.match(/<p id="texts"><b>/g) || []).length === 8 && (tm.match(/<p><b>/g) || []).length + (tm.match(/<p id="texts"><b>/g) || []).length === 6);
   }
   const atc = read("components/AddToCalendar.tsx");
   ok("menu: Add to calendar's menu closes on Escape, back to the button that opened it, and on a touch outside — not only a mouse's press",
@@ -12342,10 +12352,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /act === "retry"\s*\? <Button kind="secondary" compact className="shrink-0" onClick=\{\(\) => \{ void load\(\); \}\} aria-label="Read the truck again">Try again<\/Button>/.test(compact)
       && /onTap=\{\(\) => \{ if \(failed\) void load\(\); else setOpen\(\(o\) => !o\); \}\}/.test(compact) && /expanded=\{failed \? undefined : open\}/.test(compact)
       && LO.truckAction({ read: "failed", live: true, nowMs: NOW }, false) === "retry");
-  ok("truck: live, a tap folds open what the instrument held — the stop's record, the map dot and its broadcast, the stops list, the dial: nothing removed",
+  // R6 (0402): the position is the crew's — no customer page draws it — so "Map dot off —" and the alert that customers
+  // couldn't see the truck went; the pin and the broadcast stay, with the time it was last pinned.
+  ok("truck: live, a tap folds open what the instrument held — the stop's record, the position and its broadcast, the stops list, the dial: nothing removed",
     /<RecordLink kind="stop" id=\{named\.id\}/.test(compact) && /onClick=\{pinHere\}/.test(compact) && /onClick=\{startBroadcast\}/.test(compact) && /onClick=\{stopBroadcast\}/.test(compact)
       && /Truck stops · Plan › Lists<\/button>/.test(compact) && /\{admin && <button type="button" className="adm-golink hit-y-44" onClick=\{goDial\}>Cup-ordering dial ›<\/button>\}/.test(compact)
-      && /Map dot off —/.test(compact) && /<div id="truck-more"/.test(compact));
+      && !/Map dot off|dot moves|see the dot|Customers can&apos;t see the truck/.test(compact) && /Broadcasting the truck&apos;s location/.test(compact) && /<div id="truck-more"/.test(compact));
   ok("truck: it stays mounted under the Pass, inert, so a broadcast goes on (the 2026-10-11 decision stands)",
     /\{canManage && <div className="contents" inert=\{svc \? true : undefined\}><LiveControl compact \/><\/div>\}/.test(nowSec) && /useWakeLock\(broadcasting\);/.test(lc));
 
@@ -12746,10 +12758,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /role="progressbar" aria-label="Streams done" aria-valuemin=\{0\} aria-valuemax=\{walk\.length\}/.test(maud) && /aria-valuetext=\{`\$\{doneCount\} of \$\{walk\.length\} done`\}/.test(maud)
       && /<p className="osr-total m-0" aria-live="polite">\{runningWords\(scores\)\}<\/p>/.test(maud) && /setSaid\(next\[key\] === undefined \? `\$\{label\} cleared` : ""\);/.test(maud)
       && /<p className="sr-only" aria-live="polite">\{said\}<\/p>/.test(maud));
-  const twZ = [1, ...[1, 2, 3].map((t) => Number((tw.match(new RegExp(`:where\\(\\.app\\.rd-t${t}\\) & \\{ zoom: ([\\d.]+); \\}`)) || [])[1]))];
-  ok("monday audit: the phone's text size zooms it as it zooms the page — the same three zooms — on its head, body and foot, and its rows wrap",
-    JSON.stringify(twZ) === JSON.stringify([...PT.ZOOMS]) && (maud.match(/\bosr-type\b/g) || []).length === 6
-      && /<div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line py-3">/.test(maud) && !/truncate|text-ellipsis|whitespace-nowrap/.test(maud), twZ);
+  // R6: every sheet's head, body and foot take the page's step (app/globals.css --rd-z), so the audit carries no zoom of
+  // its own any more — the osr-type utility it had is gone.
+  const rdZ = [1, ...[1, 2, 3].map((t) => Number((g.match(new RegExp(`\\.app\\.rd-t${t}\\{--rd-z:([\\d.]+)\\}`)) || [])[1]))];
+  ok("monday audit: the phone's text size zooms it as it zooms the page — every sheet's head, body and foot take the page's three zooms (R6), so it carries none of its own — and its rows wrap",
+    JSON.stringify(rdZ) === JSON.stringify([...PT.ZOOMS]) && !/\bosr-type\b/.test(maud) && !/osr-type/.test(tw)
+      && /\.app:is\(\.rd-t1,\.rd-t2,\.rd-t3\) :is\(\.sheet2-head,\.sheet2-body,\.sheet2-foot,\.cartbar,\.toast,\.orderbar-wrap\)>\*,\n\.app:is\(\.rd-t1,\.rd-t2,\.rd-t3\) \.nav \.tl\{zoom:var\(--rd-z\)\}/.test(g)
+      && /<div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line py-3">/.test(maud) && !/truncate|text-ellipsis|whitespace-nowrap/.test(maud), rdZ);
   ok("monday audit: Reduce Motion — it adds no motion of its own (the Sheet's arrival and the thumb answer to the house guard), and a new stream starts at its top without a scroll",
     !/animate-|transition|behavior: "smooth"/.test(maud) && /bodyRef\.current\?\.scrollTo\(\{ top: 0 \}\);/.test(maud)
       && /@media \(prefers-reduced-motion: reduce\)\{\s*\*,\*::before,\*::after\{animation-duration:\.001ms!important/.test(g));
@@ -13435,11 +13450,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /onShowCard=\{\(\) => setCardOpen\(true\)\}/.test(pill) && /\{cardOpen && <CardSheet onClose=\{\(\) => setCardOpen\(false\)\} \/>\}/.test(pill)
     && /<MembershipCard \/>/.test(card) && /Show off your status/.test(mc) && /<MemberCard open=\{flexOpen\}/.test(mc)
     && /\.eq\("user_id", user\.id\)\.eq\("status", "done"\)/.test(acs));
-  ok("feature map: Orders and Rewards open the hub there; Profile and Notifications open the profile, at its alerts for the second",
+  ok("feature map: Orders and Rewards open the hub there; Profile opens the profile, Notifications its own screen (R6)",
     /<Row title="Orders" sub="Active, history and receipts" onClick=\{\(\) => go\("\/3mpire#orders"\)\} \/>/.test(acs)
     && /<Row title="Rewards" sub="Stamps, free cups · give \$5 get \$5" onClick=\{\(\) => go\("\/3mpire#rewards"\)\} \/>/.test(acs)
-    && /onClick=\{\(\) => onEditProfile\("notifications"\)\}/.test(acs) && /setEditProfile\(focus \?\? "profile"\)/.test(pill)
-    && /if \(el && focus === "notifications"\) el\.scrollIntoView/.test(prof));
+    && /<Row title="Notifications" sub="Order updates, pickup reminders, truck live, texts" onClick=\{\(\) => open\("gt3-open-notifications"\)\} \/>/.test(acs)
+    && /onEditProfile=\{\(\) => \{ setOpen\(false\); setEditProfile\(true\); \}\}/.test(pill) && !/focus === "notifications"/.test(prof));
   ok("feature map: a signed-out avatar's Sign in lands on Welcome back, with Join beside it; Ask us, Connect and Display stay",
     /go\("\/3mpire\?signin"\)\}>Sign in<\/Button>/.test(acs) && /onClick=\{\(\) => go\("\/3mpire"\)\}>New here\? Join free<\/button>/.test(acs)
     && /<GuestRows onClose=\{onClose\} \/>/.test(acs));
@@ -13887,7 +13902,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && !/sleep|sore|energy|gut|joint|fatigue|iron|zinc|mineral|sick|stress|dehydrat/i.test((ds + lib).replace(/\/\/.*$/gm, "")));
   ok("stack: the answers stay on this phone and go nowhere; the stack shows as they are given, no pretend wait; said to a screen reader as it changes",
     /localStorage\.setItem\(STACK_KEY, JSON\.stringify\(\{ day: next\.day, caffeine: next\.caffeine, prefs: next\.prefs \}\)\)/.test(ds)
-    && !/supabase|fetch\(|authedFetch|setTimeout/.test(ds) && /<div aria-live="polite">/.test(ds) && /Your answers stay on this phone/.test(ds));
+    && !/supabase|fetch\(|authedFetch|setTimeout/.test(ds) && /<p ref=\{sayRef\} className="sr-only" aria-live="polite" aria-atomic="true" \/>/.test(ds)
+    && !/aria-live="polite">\s*\{stack/.test(ds) && /Your answers stay on this phone/.test(ds));
   ok("stack: its button adds only the stack's own picks — never a drink it didn't pick, so never a sold-out one — then opens checkout, or keeps them for the next stop",
     /for \(const p of stack\.picks\) if \(!isInCart\(p\.drink\.slug\)\) bump\(p\.drink\.slug\);/.test(ds) && /if \(button\.kind === "save"\) \{ toast\("Saved in your cart — it's there when cup orders open\."\); return; \}\s*openCheckout\(\);/.test(ds)
     && /const button = stack \? stackButton\(ordering, stack\.cents, money\) : null;/.test(ds));
@@ -14119,17 +14135,147 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /if \(!smsEnabled\(\) \|\| !textsOn\(\)\) return \["off"/.test(sms) && sms.indexOf("await textYes(num)") > 0 && sms.indexOf("quietHours()") > sms.indexOf("await textYes(num)")
     && sms.indexOf("await sendSMS(num") > sms.indexOf("quietHours()"));
   ok("notify: one way to read a number — lib/texts e164, for the yes, the lookup and the send",
-    /import \{ e164, quietHours, textsOn \} from "\.\/texts";/.test(nt) && !/const e164 = /.test(nt));
+    /import \{ e164, phoneShown, quietHours, smsPlain, textsOn, TEXT_YES_CONFIRMATION \} from "\.\/texts";/.test(nt) && !/const e164 = /.test(nt));
   ok("a text sent to us: nothing is read or recorded before Twilio's signature is checked",
     ib.indexOf("twilioSignatureOk(") > 0 && ib.indexOf("twilioSignatureOk(") < ib.indexOf("sayTextConsent(") && ib.indexOf("twilioSignatureOk(") < ib.indexOf("raiseAlert("));
   ok("checkout: the yes is recorded only when ticked, only while texts are on, for the number on the order",
-    /if \(body\.textOptIn === true && textsOn\(\)\) await sayTextConsent\(phone, true, "pack_checkout", user\.id\);/.test(rs)
-    && /if \(b\.textOptIn === true && textsOn\(\)\) await sayTextConsent\(row\.phone, true, "delivery_checkout", user\.id\);/.test(dc));
+    /if \(body\.textOptIn === true && textsOn\(\)\) await sayTextYes\(phone, "pack_checkout", user\.id\);/.test(rs)
+    && /if \(b\.textOptIn === true && textsOn\(\)\) await sayTextYes\(row\.phone, "delivery_checkout", user\.id\);/.test(dc));
   ok("checkout: the box starts unticked and is sent as it stands — never ticked for them",
     /const \[textYes, setTextYes\] = useState\(false\);/.test(of) && (of.match(/<TextYes phone=\{phone\} checked=\{textYes\} onChange=\{setTextYes\} \/>/g) || []).length === 2
-    && (of.match(/textOptIn: textYes \|\| undefined/g) || []).length === 2 && /<input type="checkbox" checked=\{checked\} onChange=\{\(e\) => onChange\(e\.target\.checked\)\} \/>/.test(ty));
+    && (of.match(/textOptIn: textYes \|\| undefined/g) || []).length === 2 && /<input id=\{id\} type="checkbox" checked=\{checked\} onChange=\{\(e\) => onChange\(e\.target\.checked\)\} \/>/.test(ty)
+    && /<label htmlFor=\{id\} className="cursor-pointer">\{t\("funnel\.text_yes"\)\}<\/label>/.test(ty));
   ok("account: the switch changes only a number on the member's own orders",
-    /if \(!theirs\.has\(num\)\) return NextResponse\.json\(\{ error: "That number isn't on your orders\." \}, \{ status: 403 \}\);/.test(ac) && ac.indexOf("theirs.has(num)") < ac.indexOf("sayTextConsent("));
+    /if \(!theirs\.has\(num\)\) return NextResponse\.json\(\{ error: "That number isn't on your orders\." \}, \{ status: 403 \}\);/.test(ac) && ac.indexOf("theirs.has(num)") < ac.indexOf("sayTextYes(num") && ac.indexOf("theirs.has(num)") < ac.indexOf("sayTextConsent(num"));
+}
+
+// ── R6: ACCESS, PRIVACY, POLISH (2026-10-14 — the customer audit's R6; decided by Ryan: texts confirmed at once, night
+// too; Notifications switches every kind but receipts; the Shop tab all dark; the truck's GPS hidden from guests; the
+// privacy wording as approved) ─────────────────────────────────────────────────────────────────────────────────────────
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const TX = require("../.smoke/texts.js");
+  const CN = require("../.smoke/customerNotify.js");
+  const g = rd("app/globals.css"), gc = g.replace(/\/\*[\s\S]*?\*\//g, "");
+  // ── texts: plain characters, the confirmation, the help contact ──
+  ok("texts: a text goes out in plain characters — ✓ dropped, dashes, ×, ·, curly quotes and accents made plain",
+    TX.smsPlain("GT3: your 6-pack (3× Rise · 3× Flow) is reserved for pickup Sat, Oct 17 — $36.00 paid ✓. We brew it fresh for pickup day.")
+      === "GT3: your 6-pack (3x Rise, 3x Flow) is reserved for pickup Sat, Oct 17 - $36.00 paid. We brew it fresh for pickup day."
+    && TX.smsPlain("GT3: Zoë, your bottles are on the porch — we took your empties.") === "GT3: Zoe, your bottles are on the porch - we took your empties."
+    && TX.smsPlain("GT3: we’ve had to cancel… “Rain” 🌧️") === "GT3: we've had to cancel... \"Rain\"" && TX.smsPlain("11am–2pm") === "11am-2pm");
+  ok("texts: the confirmation of a yes is one plain segment, and says who, what, how often, the rates, HELP and STOP",
+    TX.TEXT_YES_CONFIRMATION.length <= 160 && TX.smsPlain(TX.TEXT_YES_CONFIRMATION) === TX.TEXT_YES_CONFIRMATION
+    && /^GT3 Performance Bar: /.test(TX.TEXT_YES_CONFIRMATION) && /Msg frequency varies\./.test(TX.TEXT_YES_CONFIRMATION)
+    && /Msg & data rates may apply\./.test(TX.TEXT_YES_CONFIRMATION) && /Reply HELP for help, STOP to stop\.$/.test(TX.TEXT_YES_CONFIRMATION), TX.TEXT_YES_CONFIRMATION.length);
+  ok("texts: the help contact is a GT3 address — the carriers fail a free or personal one", /^[a-z0-9._-]+@gt3pb\.com$/.test(TX.TEXTS_HELP_EMAIL), TX.TEXTS_HELP_EMAIL);
+  const pol = rd("supabase/functions/push/policy.ts"), tx = rd("lib/texts.ts");
+  // The GSM-7 line and the function's body, each file's own — compared as written.
+  const gsmOf = (t) => (t.match(/^const GSM7 = .*$/m) || [""])[0];
+  const fnOf = (t) => { const a = t.indexOf("export function smsPlain(text: string): string {"); return a < 0 ? "" : t.slice(a, t.indexOf("\n}\n", a) + 2); };
+  ok("texts: the push function makes its texts plain the same way — lib/texts smsPlain, line for line",
+    gsmOf(pol).length > 40 && gsmOf(pol) === gsmOf(tx) && fnOf(pol).length > 200 && fnOf(pol) === fnOf(tx)
+    && /Body: smsPlain\(body\)\.slice\(0, 320\)/.test(rd("supabase/functions/push/index.ts")), { gsm: gsmOf(pol) === gsmOf(tx), fn: fnOf(pol) === fnOf(tx) });
+  const nt = code(rd("lib/notify.ts"));
+  const yes = nt.slice(nt.indexOf("export async function sayTextYes("), nt.indexOf("export async function customerMuted("));
+  ok("notify: every text is sent plain, and Twilio's own id (sid) is kept",
+    /Body: smsPlain\(body\)\.slice\(0, 640\)/.test(nt) && /typeof j\?\.sid === "string" \? j\.sid : undefined/.test(nt));
+  ok("notify: a new yes is confirmed by text at once — read before it is recorded, sent only when it was not standing, night or day; a refusal reaches the crew",
+    yes.indexOf("const was = await textYes(num);") > 0 && yes.indexOf("const was = await textYes(num);") < yes.indexOf("await sayTextConsent(num, true, source, userId)")
+    && /if \(!r\.ok \|\| r\.standing !== true \|\| was\) return r;/.test(yes) && /await sendSMS\(num, TEXT_YES_CONFIRMATION\)/.test(yes)
+    && !/quietHours\(/.test(yes) && /kind: "text_confirm_failed"/.test(yes) && /text_confirm_failed: "A texts sign-up wasn't confirmed"/.test(pol));
+  const ib = code(rd("app/api/sms/inbound/route.ts")), ac = code(rd("app/api/account/texts/route.ts"));
+  ok("texts: START by text gets Twilio's own reply, never a second one from us; the account's on is confirmed like checkout's",
+    /await sayTextConsent\(from, true, "start_text", null\);/.test(ib) && !/sayTextYes|sendSMS/.test(ib)
+    && /const r = body\.on \? await sayTextYes\(num, "account", user\.id\) : await sayTextConsent\(num, false, "account", user\.id\);/.test(ac));
+  const ty = code(rd("components/TextYes.tsx")), ts = code(rd("components/TextsSetting.tsx"));
+  ok("texts: under the box — no condition of purchase, Terms and Privacy in a sheet over the order — and the account's switch carries the same words",
+    /Consent isn&rsquo;t a condition of purchase\./.test(ty) && /onClick=\{\(\) => onLegal\("terms"\)\}>Terms<\/button>/.test(ty) && /onClick=\{\(\) => onLegal\("privacy"\)\}>Privacy<\/button>/.test(ty)
+    && [ty, ts].every((f) => /const LegalSheet = dynamic\(\(\) => import\("\.\/LegalSheet"\), \{ ssr: false \}\);/.test(f) && !/import LegalSheet from/.test(f)
+      && /\{doc && <LegalSheet open=\{doc\} onClose=\{\(\) => setDoc\(null\)\} \/>\}/.test(f))
+    && /return <TextYesBox checked=\{checked\} onChange=\{onChange\} \/>;/.test(ty)
+    && /\{t\("funnel\.text_yes"\)\}/.test(ts) && /<TextYesFine onLegal=\{setDoc\} under="switch" \/>/.test(ts));
+  const legal = rd("components/legal/LegalText.tsx");
+  const terms = legal.slice(legal.indexOf("export function TermsText("), legal.indexOf("export function PrivacyText(")), priv = legal.slice(legal.indexOf("export function PrivacyText("));
+  ok("terms: the Texts section has what the carriers read — the program, frequency, rates, bold STOP and HELP, the help contact, carriers not liable, the Privacy policy",
+    /<p id="texts"><b>Texts\.<\/b>/.test(terms) && /GT3 Performance Bar texts you about your packs and deliveries/.test(terms) && /Message frequency varies/.test(terms)
+    && /Msg &amp; data rates may apply\./.test(terms) && /<b>STOP<\/b>/.test(terms) && /<b>HELP<\/b>/.test(terms) && /\{TEXTS_HELP_EMAIL\}/.test(terms)
+    && /Carriers aren&rsquo;t liable for delayed or undelivered messages\./.test(terms) && /<Other to="privacy" onLink=\{onLink\}>Privacy policy<\/Other>/.test(terms));
+  ok("privacy: a Privacy policy, the carriers' sentence word for word, every service named — the AI provider among them — and Notifications as it works",
+    /<h1 data-large-title>Privacy policy<\/h1>/.test(rd("app/privacy/page.tsx"))
+    && /We do not sell or share your SMS opt-in data or personal information with third parties for marketing purposes\./.test(priv)
+    && /never shared with third parties or affiliates for marketing or promotional purposes/.test(priv)
+    && ["Square", "Supabase", "Vercel", "Resend", "Twilio", "Apple", "Google", "Apliiq", "Anthropic"].every((w) => priv.includes(w))
+    && /answered by Claude, an AI model made by Anthropic/.test(priv) && /Push notifications and texts are opt-in/.test(priv) && !/each kind can be turned off where you turned it on/.test(priv));
+  const tp = rd("app/texts/page.tsx");
+  ok("texts: a public page shows the reviewers the box as checkout draws it, the confirming text, STOP, HELP and the contact",
+    /<TextsOptInDemo \/>/.test(tp) && /\{TEXT_YES_CONFIRMATION\}/.test(tp) && /Reply <b>STOP<\/b>/.test(tp) && /Reply <b>HELP<\/b>/.test(tp) && /\{TEXTS_HELP_EMAIL\}/.test(tp)
+    && /<TextYesBox checked=\{yes\} onChange=\{setYes\} \/>/.test(rd("components/TextsOptInDemo.tsx")) && /"\/texts"\]\);/.test(rd("components/AppShell.tsx"))
+    && / texts: "Texts",\n/.test(rd("lib/routeTitles.ts"))
+    && ["checkout", "confirmed", "notifications"].every((n) => {
+      // the captures the page shows are there, at the size it says: a lossy WebP (RIFF…WEBPVP8 ), whose frame header holds
+      // the width and height as 14-bit numbers at bytes 26–29 — 2× a phone, under 150 KB each
+      const f = path.join(__dirname, "..", `public/texts/${n}.webp`);
+      if (!tp.includes(`src="/texts/${n}.webp" width={780} height={1688} loading="lazy"`) || !fs.existsSync(f)) return false;
+      const w = fs.readFileSync(f);
+      return w.toString("ascii", 0, 4) === "RIFF" && w.toString("ascii", 8, 16) === "WEBPVP8 " && w.length > 20_000 && w.length < 150_000
+        && (w.readUInt16LE(26) & 0x3fff) === 780 && (w.readUInt16LE(28) & 0x3fff) === 1688;
+    }));
+  // ── notifications: one screen, and the server reads it ──
+  ok("notifications: two kinds belong to the account — order updates and pickup reminders — and a switch keeps every other entry",
+    CN.CUSTOMER_KIND_KEYS.join() === "order_updates,pickup_reminders" && /CUSTOMER_MUTE = \{ orderUpdates: "order_updates", pickupReminders: "pickup_reminders" \}/.test(pol)
+    && JSON.stringify(CN.withKind(["money", "order_updates"], "order_updates", true)) === '["money"]' && JSON.stringify(CN.withKind(["money"], "pickup_reminders", false)) === '["money","pickup_reminders"]'
+    && CN.kindMuted(["pickup_reminders"], "pickup_reminders") && !CN.kindMuted(null, "order_updates"));
+  const nr = code(rd("app/api/notify/route.ts")), pi = code(rd("supabase/functions/push/index.ts"));
+  ok("notifications: the server asks before it sends — 'ready' and 'on the porch' skip a member who turned order updates off",
+    (nr.match(/if \(await customerMuted\([od]\.user_id, "order_updates"\)\) return NextResponse\.json\(\{ ok: true, sms: "muted", email: "muted" \}\);/g) || []).length === 2
+    && nr.indexOf('customerMuted(o.user_id') < nr.indexOf("const sent = await notifyCustomer"));
+  ok("notifications: the push function too — 'being made' and 'ready' and the evening-before reminder; a stop called off, a pack moved or canceled always go",
+    /if \(shown && await customerMuted\(record\.user_id, CUSTOMER_MUTE\.orderUpdates\)\) return new Response\("skip: order updates off"\);/.test(pi)
+    && pi.indexOf("CUSTOMER_MUTE.orderUpdates") < pi.indexOf("stopCanceledShown(record")
+    && /if \(record\.kind === "pickup_tomorrow" && await customerMuted\(pack\.user_id, CUSTOMER_MUTE\.pickupReminders\)\)/.test(pi) && /detail: "pickup reminders off \(Notifications\)"/.test(pi));
+  const ns = code(rd("components/NotificationsSheet.tsx"));
+  ok("notifications: the screen writes only its own entry, draws no switch before the read answers, and says what always comes",
+    /upsert\(\{ user_id: user\.id, muted_categories: next \}, \{ onConflict: "user_id" \}\)/.test(ns) && /disabled=\{muted === null \|\| busy !== null\}/.test(ns)
+    && /\{ALWAYS_SENT\}/.test(ns) && /<TruckLive \/>/.test(ns) && /<TextsSetting \/>/.test(ns) && /<ThisPhone \/>/.test(ns));
+  ok("notifications: the account menu, the account page and the help-sheet host open it; the crew's glance counts only the crew's",
+    /<NotificationsSheet onClose=\{close\} \/>/.test(rd("components/HelpSheets.tsx")) && /new Event\("gt3-open-notifications"\)/.test(rd("app/3mpire/page.tsx"))
+    && /crewMuted\(p\?\.muted_categories\)/.test(rd("components/SettingsGlance.tsx")) && !/<TextsSetting \/>/.test(rd("app/3mpire/page.tsx")));
+  // ── access: targets, contrast, what VoiceOver hears ──
+  ok("access: the member's small targets reach 44 — Tell the truck, change, pay at the truck, ‹ Back — and wrapped small chips keep their reach apart",
+    /\.eta-tell\{display:flex;align-items:center;justify-content:center;min-height:44px;/.test(g) && /\n\.orderbar:has\(\+ \.eta-tell\)\{margin-bottom:2px\}/.test(g) && /className="eta-change hit-44"/.test(rd("components/OrderStatus.tsx"))
+    && /\.co-paylater,\.oa-paylater\{display:block;width:100%;min-height:44px;background:none;border:none;margin-top:2px;[^}]*padding:14px 10px;/.test(g) && /\.dl-back\{[^}]*min-height:44px;min-width:44px;/.test(g)
+    && /\.k-chips:has\(> \.k-chip\.sm\),\.orderbar-eta:has\(> \.k-chip\.sm\)\{row-gap:16px\}/.test(g));
+  ok("access: the success toast is white on a green that reads at 5:1, not 3:1",
+    /--ok:#6aa05c;--ok-fill:#457a32;/.test(g) && /\.toast\{[^}]*background:var\(--ok-fill\);color:#fff;/.test(g));
+  const co = code(rd("components/Checkout.tsx")), dsh = code(rd("components/DrinkSheet.tsx"));
+  ok("access: checkout and the drink sheet have a close button; checkout's errors and sold-out notes, and the drink's not-here line, are announced",
+    /header=\{<div className="co-head"><div className="oa-kicker" id="checkout-title">Checkout<\/div><CloseButton onClick=\{onClose\} \/><\/div>\}/.test(co)
+    && /\{err && <div className="auth-err" role="alert">\{err\}<\/div>\}/.test(co) && /<div className="co-86" role="status">/.test(co)
+    && /<div className="sheet-top">\s*<div className="sheet-pillar">[\s\S]{0,80}<CloseButton onClick=\{closeDrink\} \/>/.test(dsh) && /<div className="sheet-signoff" role="status">/.test(dsh));
+  // ── one light palette, and a dark shop ──
+  ok("palette: the console's Day look and paper are one light token set — declared once, and no old paper gold left in a rule",
+    (g.match(/\.app\.crew-day,\.menu,:is\(\.sheet,\.sheet2\)\.paper\{/g) || []).length === 1 && !/#7a5a1e/.test(gc) && !/\.app\.crew-day\{--muted/.test(g)
+    && !/\n\.menu,:is\(\.sheet,\.sheet2\)\.paper\{\n\s*--cream/.test(g) && /input: \{ backgroundColor: "#FFFFFF", color: "#221F18" \}/.test(rd("components/PaymentCard.tsx")));
+  const shop = rd("components/Shop.tsx");
+  const shopRules = gc.split("\n").filter((l) => /^\.shop-|^@media \(hover:hover\)\{\.shop-/.test(l)).join("\n");
+  ok("shop: the Shop tab is dark on all three of its pages — /shop takes the theme's tokens, the dark mark and masthead",
+    /<section className="screen" id="s-shop">/.test(shop) && /<Watermark variant="landing" \/>/.test(shop) && !/tone="light"/.test(shop)
+    && !/\n\.shop\{/.test(g) && !/#221F18|#7a5a1e|#FBF8EF|#EFE7D6|rgba\(34,31,24/.test(shopRules) && !/ tone="paper"/.test(rd("components/ShopCheckout.tsx")));
+  const cal = rd("components/CompanyCalendar.tsx");
+  ok("shop: the aisle row is part of the page at rest and the tab bar's glass, edge to edge in every frame, once it has stuck — told by its own sticky top (components/useStuck), as the crew calendar's month row is now; the quantity's buttons are 44 points",
+    /\n#s-shop \.menu-chips\{background:transparent\}/.test(gc) && /\n#s-shop \.menu-chips\.is-stuck\{background:rgba\(15,14,11,\.92\);[^}]*margin-inline:-22px;padding-inline:22px\}/.test(gc)
+    && /#s-shop \.menu-chips\.is-stuck\{margin-inline:-30px;padding-inline:30px\}/.test(gc) && /#s-shop \.menu-chips\.is-stuck\{margin-inline:-42px;padding-inline:42px\}/.test(gc)
+    && /const \[ref, stuck\] = useStuck<HTMLDivElement>\(\);/.test(shop) && /const \[stickyRef, stuck\] = useStuck<HTMLDivElement>\(\);/.test(cal) && /<div ref=\{stickyRef\} className=\{`cal-sticky/.test(cal)
+    && !/IntersectionObserver|cal-stickysentinel/.test(cal) && !/cal-stickysentinel/.test(g)
+    && /setStuck\(el\.getBoundingClientRect\(\)\.top - edge <= top \+ 0\.5\);/.test(rd("components/useStuck.ts"))
+    && /\n\.shop-qty button\{width:44px;height:44px;/.test(gc));
+  // ── the truck's position is the crew's (0402) ──
+  ok("truck: Find Us asks live_status for named columns, and Live Ops reads the position from the crew's own row",
+    /from\("live_status"\)\.select\("id, is_live, current_stop_id"\)/.test(rd("components/FindUs.tsx")) && !/from\("live_status"\)\.select\("\*"\)/.test(rd("components/FindUs.tsx"))
+    && /\/\/ arrives-with: 0402/.test(rd("components/crew/LiveControl.tsx")) && /from\("truck_position"\)\.select\("pos_updated_at"\)/.test(rd("components/crew/LiveControl.tsx"))
+    && !/truck_lat|truck_lng|pos_updated_at/.test(code(rd("lib/db.ts"))));
 }
 
 // ── A LIMITED RESERVE IS PAID TO HOLD (2026-10-14, R5 — decided 2026-10-13: charged like packs, no timer, a full refund

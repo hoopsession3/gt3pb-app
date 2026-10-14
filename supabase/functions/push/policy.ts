@@ -156,6 +156,7 @@ export const KIND_WORDS: Readonly<Record<string, string>> = {
   email_undelivered: "A customer email didn't arrive",
   customer_text: "A customer texted us",                       // app/api/sms/inbound (0398): never the words or the number
   text_stop_unrecorded: "A STOP text wasn't recorded",
+  text_confirm_failed: "A texts sign-up wasn't confirmed",       // lib/notify sayTextYes (R6): Twilio refused the first text
   ops_incident: "An order needs a hand",
   refund_needed: "A refund is needed",
   refund_unrecorded: "A Square refund isn't recorded here",
@@ -447,6 +448,33 @@ export function textNumber(raw: unknown): string | null {
   if (digits.length === 10 && !/^[01]/.test(digits)) return `+1${digits}`;
   if (digits.length === 11 && digits.startsWith("1") && !/^1[01]/.test(digits)) return `+${digits}`;
   return null;
+}
+
+// WHAT A CUSTOMER TURNED OFF (2026-10-14, R6) — lib/customerNotify's two keys, by name (Deno cannot import it;
+// scripts/smoke.cjs holds them together), kept in the person's own notif_prefs.muted_categories (0177). Receipts and
+// changes to an order (a pack moved or canceled, a stop called off) have no key: they are always said.
+export const CUSTOMER_MUTE = { orderUpdates: "order_updates", pickupReminders: "pickup_reminders" } as const;
+
+// A text in plain characters — lib/texts smsPlain, line for line (Deno cannot import it; scripts/smoke.cjs holds them
+// together): one ✓, long dash or curly apostrophe made the whole text Unicode, 70 characters a segment instead of 160.
+const GSM7 = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà^{}\\[~]|€";
+export function smsPlain(text: string): string {
+  const swapped = String(text ?? "")
+    .replace(/\s*[\u2713\u2714\u2705]/g, "")
+    .replace(/\s+\u00B7\s+/g, ", ")
+    .replace(/[\u00B7\u2022]/g, "-")
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/[\u2018\u2019\u201A\u201B\u2032]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"')
+    .replace(/\u2026/g, "...")
+    .replace(/\u00D7/g, "x")
+    .replace(/[\u00A0\u2007\u2009\u200A\u202F]/g, " ");
+  let out = "";
+  for (const ch of swapped) {
+    if (GSM7.includes(ch)) { out += ch; continue; }
+    for (const c of ch.normalize("NFD")) if (GSM7.includes(c)) out += c;
+  }
+  return out.replace(/ {2,}/g, " ").trim();
 }
 
 /** Night on the market's clock — 9pm to 8am, as lib/texts quietHours: no text goes then (0399 releases nothing then). */

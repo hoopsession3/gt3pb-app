@@ -14,7 +14,6 @@ import { showsCommerce, surfaceOf } from "@/lib/surfaces";
 import { staffAccess, type Access } from "@/lib/access";
 import { canOf } from "@/lib/roles";
 import { rememberMode } from "@/lib/mode";
-import { NATIVE_PUSH_ON } from "@/lib/nativePush";
 import type { Order } from "@/lib/db";
 import Button from "./Button";
 import { Segmented } from "@/components/controls";
@@ -144,7 +143,7 @@ function useOwnRows(userId: string | null, access: Access, admin: boolean): Own 
 
 export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   onClose: () => void;
-  onEditProfile: (focus?: "notifications") => void;
+  onEditProfile: () => void;
   onShowCard: () => void;
 }) {
   const { user, profile, profileStatus, signOut, refreshProfile } = useAuth();
@@ -164,8 +163,6 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   const photo = profile?.avatar_url || "";
   const own = useOwnRows(user?.id ?? null, access, admin);
   const ask = showsCommerce(surfaceOf(pathname));
-  // Notifications has a row only where there is something to switch: the app's own alerts, or a browser's.
-  const alerts = NATIVE_PUSH_ON || typeof Notification !== "undefined";
 
   // Their last completed order — "Order again" repeats what they had, not what was voided or is still being made.
   const [last, setLast] = useState<Order | null>(null);
@@ -236,7 +233,8 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
         {view === "settings" ? (
           <div className="acs-rows">
             <Row title="Profile" sub={staff ? "Photo, name, title and bio" : "Photo and name"} onClick={() => onEditProfile()} />
-            {alerts && <Row title="Notifications" sub="Order-ready alerts on this phone" onClick={() => onEditProfile("notifications")} />}
+            {/* One screen for every kind (R6, components/NotificationsSheet) — there is always something to switch now. */}
+            <Row title="Notifications" sub="Order updates, pickup reminders, truck live, texts" onClick={() => open("gt3-open-notifications")} />
             <Row title="Display & text size" sub="Bigger text, bold, roomier spacing" onClick={() => open("gt3-open-display")} />
             {/* App Store Review Guideline 5.1.1(v): deleting the account is in the account — Settings & privacy, the
                 second level, on the web and in the app alike. */}
@@ -301,7 +299,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
         {own.agreement && <Row title="Your agreement" sub="What you agreed to, what it pays, and signing" onClick={() => go("/agreement")} />}
         {own.offer && <Row title="Your offer letter" sub="Your offer from GT3" onClick={() => go("/offer")} />}
         {own.failed && <Row title="Couldn’t check your other pages" sub="Your office, agreement or offer — tap to try again" end="↻" onClick={own.retry} />}
-        <Row title="Settings & privacy" row="settings" sub={alerts ? "Profile · notifications · display · delete account" : "Profile · display · delete account"} onClick={() => openView("settings")} />
+        <Row title="Settings & privacy" row="settings" sub="Profile · notifications · display · delete account" onClick={() => openView("settings")} />
         <Row title="Help" row="help" sub={ask ? "Ask us · connect with GT3" : "Connect with GT3"} onClick={() => openView("help")} />
       </div>
 

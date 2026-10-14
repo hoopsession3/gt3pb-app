@@ -6,7 +6,9 @@
 
 import { supabaseAdmin } from "./supabaseAdmin";
 import { errorMessage } from "./errorMessage";
-import { e164, quietHours, textsOn } from "./texts";
+import { raiseAlert } from "./serverAlerts";
+import { kindMuted, type CustomerKind } from "./customerNotify";
+import { e164, phoneShown, quietHours, smsPlain, textsOn, TEXT_YES_CONFIRMATION } from "./texts";
 
 // The three notifyCustomer() call sites each looked up the account email the same way
 // (auth.admin.getUserById → .user?.email) — one lookup instead of three copies.
@@ -92,12 +94,13 @@ export async function sendSMS(to: string, body: string): Promise<Sent> {
         Authorization: `Basic ${Buffer.from(`${sid}:${process.env.TWILIO_AUTH_TOKEN}`).toString("base64")}`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: new URLSearchParams({ To: num, From: process.env.TWILIO_FROM_NUMBER!, Body: body.slice(0, 640) }),
+      // Plain characters (lib/texts smsPlain, R6): one ✓ or long dash made the whole text Unicode, billed at 70 a segment.
+      body: new URLSearchParams({ To: num, From: process.env.TWILIO_FROM_NUMBER!, Body: smsPlain(body).slice(0, 640) }),
     });
     if (r.ok) {
-      // Their id, kept. A body that will not parse is not a failed send — the mail is already gone —
-      // so this degrades to "sent, unmatchable" rather than claiming the send failed.
-      const id = await r.json().then((j) => (typeof j?.id === "string" ? j.id : undefined)).catch(() => undefined);
+      // Their id, kept — Twilio calls it `sid` (R6: this read `id`, Resend's word, so no text's id was ever kept). A body
+      // that will not parse is not a failed send — the text is already gone — so this degrades to "sent, unmatchable".
+      const id = await r.json().then((j) => (typeof j?.sid === "string" ? j.sid : undefined)).catch(() => undefined);
       return { ok: true, id };
     }
     const t = await r.text().catch(() => "");
@@ -158,6 +161,39 @@ export async function sayTextConsent(phone: string | null | undefined, yes: bool
     return { ok: true, standing: data === true };
   } catch (e) {
     return { ok: false, detail: errorMessage(e, 200) };
+  }
+}
+
+/** A yes to texts from the checkout or the account (R6): recorded as sayTextConsent records it, and — when the number's
+ *  yes is new, not one already standing — confirmed with one text, sent at once, night or day (lib/texts
+ *  TEXT_YES_CONFIRMATION). `confirmed` says what became of that text; absent when none was due. Never throws. */
+export async function sayTextYes(phone: string | null | undefined, source: "pack_checkout" | "delivery_checkout" | "account", userId: string | null): Promise<{ ok: boolean; standing?: boolean; confirmed?: SendResult; detail?: string }> {
+  const num = e164(phone);
+  if (!num) return { ok: false, detail: "unparseable phone number" };
+  const was = await textYes(num);
+  const r = await sayTextConsent(num, true, source, userId);
+  if (!r.ok || r.standing !== true || was) return r;
+  if (!smsEnabled() || !textsOn()) return { ...r, confirmed: "off" };
+  const s = await sendSMS(num, TEXT_YES_CONFIRMATION);
+  // A confirmation Twilio refused is the first sign the number or its keys are wrong — every order text after it fails
+  // the same way. The crew hear it once, with the reason; the yes itself stays recorded.
+  if (!s.ok) {
+    await raiseAlert({ severity: "important", category: "order", kind: "text_confirm_failed", title: "A texts sign-up wasn't confirmed",
+      body: `${phoneShown(num)} said yes to texts (${YES_WHERE[source]}) and the confirmation text failed: ${s.detail ?? "no reason given"}. Check Twilio — their order texts will fail the same way.`, link: "/crew" });
+  }
+  return { ...r, confirmed: s.ok ? "sent" : "failed", detail: s.detail };
+}
+const YES_WHERE = { pack_checkout: "at pack checkout", delivery_checkout: "at delivery checkout", account: "on their account" } as const;
+
+/** Has this member turned a kind off on their Notifications screen (lib/customerNotify, R6)? Read through the service
+ *  client from their notif_prefs row. A read that fails is a no: the news goes, as it did before the screen existed. */
+export async function customerMuted(userId: string | null | undefined, kind: CustomerKind): Promise<boolean> {
+  if (!userId || !supabaseAdmin) return false;
+  try {
+    const { data, error } = await supabaseAdmin.from("notif_prefs").select("muted_categories").eq("user_id", userId).maybeSingle();
+    return !error && kindMuted((data as { muted_categories?: string[] | null } | null)?.muted_categories, kind);
+  } catch {
+    return false;
   }
 }
 

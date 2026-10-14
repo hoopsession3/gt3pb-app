@@ -24,6 +24,9 @@ const NOTIF_CATS: { key: string; label: string }[] = [
   { key: "content", label: "Brand / content" },
   { key: "strategy", label: "Pipeline & strategy" },
 ];
+/** The crew's own categories in a muted list — a member's switches (lib/customerNotify, R6) share the notif_prefs row and
+ *  are kept by every save here, but are never counted as the crew's. */
+export const crewMuted = (muted: readonly string[] | null | undefined): string[] => (muted ?? []).filter((k) => NOTIF_CATS.some((c) => c.key === k));
 // QUIET HOURS ARE A PICK, NOT A NUMBER (2026-10-04, the form audit). They were two text boxes read
 // with parseInt: "10pm" saved as 10 — ten in the MORNING — "7pm" as 7am, and "10:30" as 10, with
 // "Saved" toasted on every blur whatever happened. notif_prefs.quiet_start/_end are hours 0–23 on

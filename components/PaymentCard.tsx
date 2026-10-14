@@ -21,12 +21,15 @@ let seq = 0;
 // stark white block — fine as a defined field on the dark funnel, a visible seam on the paper
 // checkout sheet. tone="paper" tints the inputs to the sheet's own cream so the card form reads
 // as part of the page, not an embed. Keys are Square's documented card style surface.
+// ONE LIGHT PALETTE (2026-10-14, R6): Square's fields live in its own frame and cannot read the page's tokens, so they
+// are the palette's values written out — the field white (--field), the ink (--cream), the focus gold (--gold2) — and
+// the card form matches the name field above it again.
 const CARD_STYLE: Record<string, object> = {
   paper: {
-    input: { backgroundColor: "#FBF8EF", color: "#221F18" },
+    input: { backgroundColor: "#FFFFFF", color: "#221F18" },
     "input::placeholder": { color: "#9a8f7c" },
     ".input-container": { borderColor: "#D8CFBB", borderRadius: "10px" },
-    ".input-container.is-focus": { borderColor: "#8a6f31" },
+    ".input-container.is-focus": { borderColor: "#6e4c1e" },
   },
 };
 const PaymentCard = forwardRef<PaymentCardHandle, {

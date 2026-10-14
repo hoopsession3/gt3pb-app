@@ -450,6 +450,8 @@ export const COPY_META: CopyMeta[] = [
   { key: "account.arch_sub", group: "Account", label: "Row — System architecture sub", default: "How the platform is built · owner" },
   { key: "account.book", group: "Account", label: "Row — Book the bar", default: "Book the bar" },
   { key: "account.book_sub", group: "Account", label: "Row — Book the bar sub", default: "Bring GT3PB to your event — B2B" },
+  { key: "account.notifications", group: "Account", label: "Row — Notifications (opens the switches)", default: "Notifications" },
+  { key: "account.notifications_sub", group: "Account", label: "Row — Notifications sub", default: "Order updates, pickup reminders, truck live, texts" },
   { key: "account.signout", group: "Account", label: "Row — Sign out (sub is the member's email)", default: "Sign out" },
   { key: "account.copy", group: "Account", label: "Referral — copy-code label (idle)", default: "Copy" },
   { key: "account.copied", group: "Account", label: "Referral — copy-code label (copied)", default: "Copied!" },

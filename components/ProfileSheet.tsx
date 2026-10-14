@@ -1,26 +1,23 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useAuth, roleOf } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
-import { subscribePush } from "@/lib/push";
 import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import { edited } from "@/lib/formGuard";
-import Icon from "@/components/Icon";
-import { NATIVE_PUSH_ON } from "@/lib/nativePush";
-import { AppAlertsProfile } from "./AppAlerts";
 
 // Your GT3 profile — photo, name, title, bio. Team culture: a face + a line on who you are, feeding
 // the org chart in Leadership. Avatar goes to the 'avatars' bucket under your own uid folder.
 // A customer's is a photo and a name (2026-10-12, A2 of the account audit, #17): Title and Bio are the crew's, for the
-// org chart, and were asked of every customer. Opened from Settings & privacy's Notifications, it starts at the alerts.
-export default function ProfileSheet({ onClose, focus }: { onClose: () => void; focus?: "notifications" }) {
+// org chart, and were asked of every customer.
+// THE ALERTS MOVED OUT (2026-10-14, R6): "Order notifications" sat at the foot of the profile, and Settings & privacy's
+// Notifications opened the profile scrolled down to it. Notifications is a screen of its own now
+// (components/NotificationsSheet: this phone, then a switch per kind), and the profile is a photo and a name.
+export default function ProfileSheet({ onClose }: { onClose: () => void }) {
   const { user, profile, refreshProfile } = useAuth();
   const crew = roleOf(profile) !== "member";
-  // Drawn once, as the sheet opens: a ref, not an effect (the sheet reads the phone as it opens, never after).
-  const alertsAt = useCallback((el: HTMLDivElement | null) => { if (el && focus === "notifications") el.scrollIntoView({ block: "start" }); }, [focus]);
   const { toast } = useApp();
   const [name, setName] = useState(profile?.display_name ?? "");
   const [title, setTitle] = useState(profile?.title ?? "");
@@ -28,23 +25,6 @@ export default function ProfileSheet({ onClose, focus }: { onClose: () => void; 
   const [avatar, setAvatar] = useState(profile?.avatar_url ?? "");
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  // Notification management — reflect the real permission state; enabling re-subscribes push. The sheet opens on a
-  // tap, never in a server render, so the phone's answer is read as it opens. "unsupported" — the iPhone app (its own
-  // alerts are the next part of the app round) and a browser with none — shows no row (2026-10-11, the App Store
-  // audit): "Turn on order-ready alerts" sat there and did nothing when tapped.
-  const [notifState, setNotifState] = useState<NotificationPermission | "unsupported">(() => (typeof Notification === "undefined" ? "unsupported" : Notification.permission));
-  const enableNotifs = async () => {
-    try {
-      if (typeof Notification === "undefined") return;
-      const p = await Notification.requestPermission();
-      setNotifState(p);
-      if (p !== "granted") return;
-      // "On" only once the database has kept this phone (lib/push, 0366).
-      if (await subscribePush(!!profile?.is_admin)) toast("Order alerts are on");
-      else toast("Couldn't save this phone for alerts — try again", "error");
-    } catch { /* ignore */ }
-  };
-
   const pickAvatar = async (file: File) => {
     if (!supabase || !user) return;
     setBusy(true);
@@ -86,19 +66,6 @@ export default function ProfileSheet({ onClose, focus }: { onClose: () => void; 
           <label className="prod-f" style={{ marginTop: 14 }}><span>Name</span><input className="note-in" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" maxLength={60} /></label>
           {crew && <label className="prod-f" style={{ marginTop: 8 }}><span>Title</span><input className="note-in" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Lead Operator · Co-Founder" maxLength={60} /></label>}
           {crew && <label className="prod-f" style={{ marginTop: 8 }}><span>Bio</span><textarea className="note-in" rows={3} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="A line or two — what you bring to the bar." maxLength={600} /></label>}
-          {/* Notifications — order-ready alerts, managed right where the account lives. */}
-          <div ref={alertsAt} className="scroll-mt-4" />
-          {NATIVE_PUSH_ON && <AppAlertsProfile />}
-          {notifState !== "unsupported" && <div className="prof-notif">
-            <div className="prof-notif-t">Order notifications</div>
-            {notifState === "granted" ? (
-              <div className="prof-notif-s on"><Icon name="check" /> On — you&apos;ll get a ping when your order is ready. Turn off anytime in your phone&apos;s settings for this app.</div>
-            ) : notifState === "denied" ? (
-              <div className="prof-notif-s">Blocked in your phone&apos;s settings — enable notifications for this app to get &ldquo;order ready&rdquo; pings.</div>
-            ) : (
-              <button type="button" className="btn-sec btn-wide" onClick={enableNotifs}><Icon name="bell" /> Turn on order-ready alerts</button>
-            )}
-          </div>}
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <LeaveButton className="btn-ter" onClick={onClose}>Cancel</LeaveButton>
             <button type="button" className="btn-pri" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save profile"}</button>

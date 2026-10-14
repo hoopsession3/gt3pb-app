@@ -73,7 +73,7 @@ const NativeBridge = process.env.NEXT_PUBLIC_GT3_TARGET === "app" ? dynamic(() =
 // injected below — and four routes were getting BOTH: "/", /playbook, /privacy and /terms each
 // have a visible heading of their own plus the injected one, so assistive tech announced two
 // page titles. Found by counting headings across every route, not by reading one of them.
-const H1_SKIP = new Set(["/", "/truck", "/craft", "/office", "/display", "/events", "/academy", "/crew", "/primal", "/shop", "/playbook", "/privacy", "/terms"]);
+const H1_SKIP = new Set(["/", "/truck", "/craft", "/office", "/display", "/events", "/academy", "/crew", "/primal", "/shop", "/playbook", "/privacy", "/terms", "/texts"]);
 const H1_TITLES: Record<string, string> = {
   menu: "Menu", events: "Events", reserve: "Reserve a pack", book: "Book the bar",
   delivery: "Delivery", scan: "Scan your card", playbook: "Playbook", academy: "Academy",

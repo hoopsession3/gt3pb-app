@@ -113,7 +113,6 @@
     <div class="adm-sec cal" data-from="components/CompanyCalendar.tsx">
       <div class="k-sec" data-from="components/kit.tsx"><span class="k-sec-lbl"><h2 class="l">Calendar</h2></span></div>
       <div class="cal-titlesub">everything dated — tap anything to edit · swipe ‹ › to walk it</div>
-      <div class="cal-stickysentinel" aria-hidden="true"></div>
       <div class="cal-sticky">
         <div class="cal-bar">
           <div class="cal-nav"><span class="cal-month">Agenda</span></div>
@@ -185,11 +184,20 @@
 <script>
   // Same state as the screenshots: the section body has just been script-focused.
   document.getElementById("op-trans").focus();
-  // The component's stuck sentinel, same logic (CompanyCalendar.tsx): painted only while stuck.
+  // The bar's stuck test, same logic (components/useStuck, which CompanyCalendar.tsx uses): painted only while stuck —
+  // its place read against its own sticky top.
   (() => {
-    const el = document.querySelector(".cal-stickysentinel"), bar = document.querySelector(".cal-sticky");
-    let root = el.parentElement; while (root && !/(auto|scroll)/.test(getComputedStyle(root).overflowY)) root = root.parentElement;
-    new IntersectionObserver(([e]) => bar.classList.toggle("is-stuck", !e.isIntersecting), { root, threshold: 0 }).observe(el);
+    const bar = document.querySelector(".cal-sticky");
+    let root = bar.parentElement; while (root && !/(auto|scroll)/.test(getComputedStyle(root).overflowY)) root = root.parentElement;
+    const check = () => {
+      const top = parseFloat(getComputedStyle(bar).top) || 0;
+      const edge = root ? root.getBoundingClientRect().top + root.clientTop : 0;
+      bar.classList.toggle("is-stuck", bar.getBoundingClientRect().top - edge <= top + 0.5);
+    };
+    (root || window).addEventListener("scroll", check, { passive: true });
+    const grew = new ResizeObserver(check);
+    for (const c of (root || document.body).children) grew.observe(c);
+    check();
   })();
 </script>
 </body>

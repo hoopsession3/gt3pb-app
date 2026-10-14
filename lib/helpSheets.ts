@@ -2,7 +2,8 @@
 // rail; on a phone the rail is gone, and they open from the header (Ask us, beside the account avatar) and from the
 // menus (the account menu, the crew's More). Any of those says which with an event; components/AppShell hears it
 // and loads components/HelpSheets on the first ask, so nothing of theirs loads with the page.
-export const HELP_EVENTS = ["gt3-open-concierge", "gt3-open-connect", "gt3-open-display"] as const;
+// Notifications joined them (2026-10-14, R6): the customer's one screen of switches, from the account menu and page.
+export const HELP_EVENTS = ["gt3-open-concierge", "gt3-open-connect", "gt3-open-display", "gt3-open-notifications"] as const;
 export type HelpEvent = (typeof HELP_EVENTS)[number];
 /** The latest ask: which sheet, and a count so the same sheet asked twice opens twice. */
 export type Asked = { which: HelpEvent; n: number };

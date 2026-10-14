@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
-import { sayTextConsent } from "@/lib/notify";
+import { sayTextConsent, sayTextYes } from "@/lib/notify";
 import { e164, textsOn } from "@/lib/texts";
 import { route } from "@/lib/apiRoute";
 
@@ -29,7 +29,8 @@ async function post(req: Request) {
   const theirs = new Set([...(cust.data ?? []), ...(packs.data ?? []), ...(dels.data ?? [])].map((r) => e164((r as { phone?: string | null }).phone)).filter(Boolean));
   if (!theirs.has(num)) return NextResponse.json({ error: "That number isn't on your orders." }, { status: 403 });
 
-  const r = await sayTextConsent(num, body.on, "account", user.id);
+  // On: a new yes is confirmed by text at once (R6, lib/notify sayTextYes). Off: recorded; the switch's own toast says it.
+  const r = body.on ? await sayTextYes(num, "account", user.id) : await sayTextConsent(num, false, "account", user.id);
   if (!r.ok) return NextResponse.json({ error: "Couldn't change it just now — try again." }, { status: 502 });
   return NextResponse.json({ ok: true, on: r.standing === true });
 }

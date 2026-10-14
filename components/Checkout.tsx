@@ -19,7 +19,7 @@ import { usePayAtPickup } from "./usePayAtPickup";
 import { squareClientReady } from "@/lib/square";
 import { money } from "@/lib/money";
 import { trackFunnel } from "@/lib/funnel";
-import Sheet from "./Sheet";
+import Sheet, { CloseButton } from "./Sheet";
 import OrderConfirm from "./OrderConfirm";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import Icon from "@/components/Icon";
@@ -127,8 +127,9 @@ export default function Checkout() {
   // A drink that is sold out is said once, as sold out — not twice.
   const notHere = offStopMenu(items.filter((id) => !soldOut.has(id)), ordering.stopMenu ? [...ordering.stopMenu] : null).map(nameOf);
   const blocked = blocked86.length + notHere.length;
+  // Said to a screen reader when it appears (R6): sold-out changes live, often while focus is on the card form.
   const blockedNote = blocked > 0 ? (
-    <div className="co-86">
+    <div className="co-86" role="status">
       {[
         blocked86.length ? `${blocked86.join(" · ")} just sold out` : "",
         notHere.length ? `${notHere.join(" · ")} ${notHere.length === 1 ? "isn't" : "aren't"} poured at ${stopName ?? "this stop"}` : "",
@@ -314,7 +315,7 @@ export default function Checkout() {
     // outside, Escape — gives and stays put until the charge answers. A do-nothing onClose used to stand
     // in for this, and a tap outside then faded the sheet out for good — "Order in." with it.
     <Sheet open={open} onClose={onClose} dismissible={!busy} detents={false} className="paper" labelledBy="checkout-title"
-      header={<div className="oa-kicker" id="checkout-title">Checkout</div>}>
+      header={<div className="co-head"><div className="oa-kicker" id="checkout-title">Checkout</div><CloseButton onClick={onClose} /></div>}>
       {done ? (
         <OrderConfirm
           title={done.no ? `Order ${done.no} is in.` : "Order in."}
@@ -403,7 +404,7 @@ export default function Checkout() {
                     <PaymentCard ref={paymentRef} className="sq-card" tone="paper" onReady={setReady} onError={(m) => setErr(m ?? "")} />
                     {!ready && <div className="sk sq-sk-bar" />}
                   </div>
-                  {err && <div className="auth-err">{err}</div>}
+                  {err && <div className="auth-err" role="alert">{err}</div>}
                   <div className="co-foot">
                     {blockedNote}
                     <div className="co-line co-total"><span>Total</span><span>{total}</span></div>

@@ -11,7 +11,7 @@ import { CUP_MARKETS } from "@/lib/markets";
 import { packDropFrom } from "@/lib/orderAhead";
 import { closedWords, readyWords } from "@/lib/ordering";
 import { useSiteCopy, fillCopy } from "@/lib/copy";
-import Sheet from "@/components/Sheet";
+import Sheet, { CloseButton } from "@/components/Sheet";
 import EditableCopy from "@/components/EditableCopy";
 import { money } from "@/lib/money";
 
@@ -61,7 +61,12 @@ export default function DrinkSheet() {
     <Sheet open={!!openId} onClose={closeDrink} className="paper" labelledBy="drink-sheet-title">
       {d && openId && (
         <>
-          <div className="sheet-pillar">{pillarOf(d.line, t(lineSubKey(d.line)))}</div>
+          {/* A close button where every sheet has one (R6 — the audit: pull-down, a tap outside and Escape were the only
+              ways out, none of them a control VoiceOver can find). It takes the sheet's first focus, as on iOS. */}
+          <div className="sheet-top">
+            <div className="sheet-pillar">{pillarOf(d.line, t(lineSubKey(d.line)))}</div>
+            <CloseButton onClick={closeDrink} />
+          </div>
           <div className="sheet-mark">
             <span className="sheet-dot" style={{ background: d.dot }} />
             <span className="sheet-name" id="drink-sheet-title">{d.name}</span>
@@ -143,7 +148,7 @@ export default function DrinkSheet() {
               {/* Ordered ahead of a stop it is made when the truck opens — not "the moment you order". A stop that doesn't
                   pour it is named, so the customer knows it's this stop, not the drink. */}
               {notHere && !on
-                ? <div className="sheet-signoff">{d.name} isn&apos;t poured at {o?.stop?.name || "this stop"}.</div>
+                ? <div className="sheet-signoff" role="status">{d.name} isn&apos;t poured at {o?.stop?.name || "this stop"}.</div>
                 : o?.state === "ahead"
                 ? <div className="sheet-signoff">{readyWords(o)}</div>
                 : <EditableCopy k="sheet.made_moment" value={t("sheet.made_moment")} as="div" className="sheet-signoff" />}

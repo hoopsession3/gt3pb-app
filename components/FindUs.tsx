@@ -8,8 +8,6 @@ import EditableCopy from "@/components/EditableCopy";
 import { Masthead, SectionHeader, InfoRow, ClosingBeat } from "@/components/kit";
 import { RsvpRow } from "@/components/RsvpRow";
 import { openDirections, openAddress, mapStreet } from "@/lib/maps";
-import { subscribePush } from "@/lib/push";
-import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { useSiteCopy } from "@/lib/copy";
 import { marketsPresent, rowInMarket, shouldOfferMarketChoice, MARKET_LABEL } from "@/lib/markets";
@@ -25,6 +23,7 @@ import type { LiveStatus, EventRow } from "@/lib/db";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
+import { useLivePing } from "@/components/useLivePing";
 import Skeleton from "@/components/Skeleton";
 import { apiUrl } from "@/lib/native";
 
@@ -140,7 +139,8 @@ async function fetchRoad(): Promise<Board> {
   // were dropped from the table entirely in migration 0240; there's nothing left to leak.)
   const [{ data: fo, error: e1 }, { data: l, error: e2 }, { data: cx }] = await Promise.all([
     supabase!.from("field_ops").select("id, kind, name, public_title, day, starts_at, ends_at, start_time, end_time, day_label, when_label, time_label, location_text, address, lat, lng, member_only, going_count, capacity, blurb, menu_tier, notes, note, status, completed_at, archived_at, is_public, published_at, market").eq("is_public", true),
-    supabase!.from("live_status").select("*").maybeSingle(),
+    // Named columns, never * (R6): this page is read signed out, and the switch and its stop are all it needs.
+    supabase!.from("live_status").select("id, is_live, current_stop_id").maybeSingle(),
     // Called off lately or ahead (0391; stops are public). An error — 0391 not pasted yet — is no canceled stops,
     // never a page that cannot load.
     // arrives-with: 0391 — until it is pasted this read errors on its own, is not checked, and the road reads as before.
@@ -577,41 +577,12 @@ function FindUsCoda() {
   );
 }
 
-// "Ping me when the truck goes live" — the public opt-in for the go-live push (0257). Renders
-// only where background push can actually work (needs PushManager: installed PWA or desktop —
-// an iOS Safari TAB has no PushManager, so the chip simply doesn't appear there rather than
-// dead-ending someone). Signed-in visitors keep their user_id/is_admin on the row (the same
-// upsert Checkout/ProfileSheet use — wants_live is one more preference on the device row, not a
-// second subscription). Anon subscribers can't read their row back (RLS is owner/admin-only),
-// so the chip's on/off label rides localStorage — a courtesy memory, not an audit.
+// "Ping me when the truck goes live" — the public opt-in for the go-live push (0257), as a chip. Its state and its
+// device row are components/useLivePing's, shared with the account's Notifications screen (R6), which draws it as a
+// switch; it renders only where background push can actually work.
 function LivePingButton() {
-  const { profile } = useAuth();
   const t = useSiteCopy();
-  // Known on the first render, not one after it (2026-10-04): the chip arrived a frame late and
-  // wrapped the chip row onto a second line under everything already drawn — the last 0.018 of the
-  // page's layout shift. This mounts only in the browser now (FindUs draws its skeleton on the
-  // server and until the road is read), so there is a window to ask.
-  const [state, setState] = useState<"hidden" | "off" | "on" | "busy">(() => {
-    if (!(typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && typeof Notification !== "undefined")) return "hidden";
-    try { return localStorage.getItem("gt3-live-ping") === "1" ? "on" : "off"; } catch { return "off"; }
-  });
-  const toggle = async () => {
-    if (state === "busy" || state === "hidden") return;
-    const turningOn = state === "off";
-    setState("busy");
-    try {
-      if (turningOn) {
-        const p = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
-        if (p !== "granted") { setState("off"); return; }
-      }
-      // "On" only once the database has kept this device (lib/push, 0366): a guest's used to say on and keep nothing.
-      if (!(await subscribePush(!!profile?.is_admin, { wantsLive: turningOn }))) { setState(turningOn ? "off" : "on"); return; }
-      try { localStorage.setItem("gt3-live-ping", turningOn ? "1" : "0"); } catch { /* ignore */ }
-      setState(turningOn ? "on" : "off");
-    } catch {
-      setState(turningOn ? "off" : "on");
-    }
-  };
+  const { state, toggle } = useLivePing();
   if (state === "hidden") return null;
   return (
     <button type="button" className={`k-chip mt-2.5${state === "on" ? " on" : ""}`} onClick={toggle} aria-pressed={state === "on"} disabled={state === "busy"}>

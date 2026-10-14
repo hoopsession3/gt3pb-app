@@ -88,7 +88,7 @@ p,.entry-why,.gl-uc,.k-sub{text-wrap:pretty}
   /* --gold2 is the de facto PRIMARY gold in practice (468 usages vs 137 for --gold) despite the name —
      --gold reads as the emphasis/deep variant. Not renaming (605 combined call sites depend on current
      resolution); noting it here so new work reaches for --gold2 first. */
-  --gold:#a97c3f;--gold2:#c8a661;--bronze:#a97c3f;--line:color-mix(in srgb, var(--brand-cream) 12%, transparent);--line2:color-mix(in srgb, var(--brand-cream) 20%, transparent);--ok:#6aa05c;--warn:#cf9a4a;--muted:color-mix(in srgb, var(--brand-cream) 60%, transparent);
+  --gold:#a97c3f;--gold2:#c8a661;--bronze:#a97c3f;--line:color-mix(in srgb, var(--brand-cream) 12%, transparent);--line2:color-mix(in srgb, var(--brand-cream) 20%, transparent);--ok:#6aa05c;--ok-fill:#457a32;--warn:#cf9a4a;--muted:color-mix(in srgb, var(--brand-cream) 60%, transparent);
   /* --color-info (2026-07): a real gap — 17 distinct blue link/info literals existed with zero
      consolidation (e.g. .dp-item-addr). Same value already in live use in both themes, so one token. */
   --color-info:#2d6ca8;--color-info-tint:rgba(45,108,168,.15);
@@ -451,7 +451,7 @@ html:not([data-viewer="guest"]) .tab[data-for="guest"]{display:none}
 .tab:active{transform:scale(.94)}
 .tab svg{width:22px;height:22px}
 .tab .tl{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
-.toast{position:absolute;left:22px;right:22px;bottom:calc(96px + env(safe-area-inset-bottom,0px));background:var(--ok);color:#fff;border-radius:15px;padding:14px 16px;font-family:'Inter';font-weight:600;letter-spacing:.4px;font-size:13px;z-index:60;transform:translateY(220%);opacity:0;pointer-events:none;transition:transform .3s,opacity .3s;display:flex;gap:10px;align-items:center;line-height:1.35}
+.toast{position:absolute;left:22px;right:22px;bottom:calc(96px + env(safe-area-inset-bottom,0px));background:var(--ok-fill);color:#fff;border-radius:15px;padding:14px 16px;font-family:'Inter';font-weight:600;letter-spacing:.4px;font-size:13px;z-index:60;transform:translateY(220%);opacity:0;pointer-events:none;transition:transform .3s,opacity .3s;display:flex;gap:10px;align-items:center;line-height:1.35}  /* 5.1:1 (R6; on --ok, 3.1) */
 /* never cover the CartBar (2026-08-01 audit: "Added — keep building" landed ON the Review bar it
    was pointing at) — with the bar in the shell, the toast rides one story higher. */
 .app:has(.cartbar) .toast{bottom:calc(150px + env(safe-area-inset-bottom,0px))}
@@ -607,8 +607,8 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .sq-wrap{position:relative;margin-top:4px}
 .sq-sk-bar{position:absolute;inset:0;border-radius:13px}
 /* sticky pay footer so Total + Pay stay visible while the order scrolls */
-:is(.sheet,.sheet2).paper .co-foot{position:sticky;bottom:0;background:#F4EFE3;padding-top:12px;margin-top:8px}
-:is(.sheet,.sheet2).paper .co-foot::before{content:"";position:absolute;left:0;right:0;top:-20px;height:20px;background:linear-gradient(transparent,#F4EFE3);pointer-events:none}
+:is(.sheet,.sheet2).paper .co-foot{position:sticky;bottom:0;background:var(--bg);padding-top:12px;margin-top:8px}
+:is(.sheet,.sheet2).paper .co-foot::before{content:"";position:absolute;left:0;right:0;top:-20px;height:20px;background:linear-gradient(transparent,var(--bg));pointer-events:none}
 
 /* ---- admin / back office ---- */
 .adm-sec{margin-top:8px}
@@ -1064,7 +1064,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 @font-face{font-family:'Fraunces';font-style:normal;font-weight:400 500;font-display:swap;src:url(/fonts/fraunces-400.woff2) format('woff2');}
 @font-face{font-family:'Fraunces';font-style:italic;font-weight:400 500;font-display:swap;src:url(/fonts/fraunces-400-italic.woff2) format('woff2');}
 
-.menu{background:#F4EFE3;min-height:100%;color:#221F18;padding-bottom:42px}
+.menu{background:var(--bg);min-height:100%;color:var(--cream);padding-bottom:42px}
 .menu .toprow{padding-top:4px}
 /* The light masthead's copy of the caption — same call as .k-lock .k-pb above: app text at the floor. */
 .mast-stmt{font-family:'Fraunces';font-weight:400;font-size:17px;line-height:1.5;color:#33301f;margin-top:18px;letter-spacing:.1px}
@@ -1079,7 +1079,11 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 /* The same line when it is the truck's state (lib/ordering, 2026-10-04): it replaces the order prompt
    after the read lands, and holds the prompt's two phone lines so the menu below does not move. */
 .mast-state{min-height:2.42em}
-.menu-chips{position:sticky;top:env(safe-area-inset-top,0px);z-index:6;display:flex;gap:8px;overflow-x:auto;padding:11px 0;margin-top:12px;background:#F4EFE3;border-bottom:1px solid rgba(34,31,24,.1)}
+.menu-chips{position:sticky;top:env(safe-area-inset-top,0px);z-index:6;display:flex;gap:8px;overflow-x:auto;padding:11px 0;margin-top:12px;background:var(--bg);border-bottom:1px solid var(--line)}
+/* The dark shop's aisle row (R6): part of the page at rest — filled, it was a darker box cut out of the watermark —
+   and the tab bar's glass, edge to edge, once it has stuck (components/useStuck; the screen's gutter, in each frame) */
+#s-shop .menu-chips{background:transparent}
+#s-shop .menu-chips.is-stuck{background:rgba(15,14,11,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);margin-inline:-22px;padding-inline:22px}
 .menu-chips::-webkit-scrollbar{display:none}
 /* A chip's jump lands its section below the chips, which stay stuck at the top (and below the status
    bar of a phone that draws under one). */
@@ -1088,57 +1092,64 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
    paper surface; just give the aisle content a little breathing room below the sticky chip band. */
 .shop-sections{margin-bottom:6px}
 
-.entry{padding:15px 0;border-bottom:1px solid rgba(34,31,24,.11);cursor:pointer}
+.entry{padding:15px 0;border-bottom:1px solid var(--line);cursor:pointer}
 .entry:active{opacity:.7}
-.entry-head{display:flex;align-items:baseline;gap:10px}
+.entry-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px}
+.entry-head>:last-child{margin-left:auto}  /* at large text the price takes its own line (R6) */
 .entry-dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto;transform:translateY(-1px)}
-.entry-name{flex:0 0 auto;font-family:'Archivo Black';font-size:15px;letter-spacing:.4px;color:#221F18;line-height:1}
+.entry-name{flex:0 0 auto;font-family:'Archivo Black';font-size:15px;letter-spacing:.4px;color:var(--cream);line-height:1}
 .entry-gap{flex:1}
-.entry-tag{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#7a5a1e;background:rgba(154,122,42,.12);border:1px solid rgba(154,122,42,.3);padding:3px 7px;border-radius:var(--r-sm);flex:0 0 auto;align-self:center}
+.entry-tag{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold2);background:rgba(154,122,42,.12);border:1px solid rgba(154,122,42,.3);padding:3px 7px;border-radius:var(--r-sm);flex:0 0 auto;align-self:center}
 /* in the order: its counter (R2) */
-.entry-qty{background:#7a5a1e;color:#fff}
-.entry-px{font-family:'DM Mono';font-weight:500;font-size:13px;color:#5f5a49}
+.entry-qty{background:var(--gold2);color:#fff}
+.entry-px{font-family:'DM Mono';font-weight:500;font-size:13px;color:var(--cream-m)}
 /* the price IS the order button (2026-10-13, R2): a quiet gold pill with a +; it adds the drink,
    the row beside it opens the sheet. Sold-out rows keep the plain struck price. */
-.entry-px.order{border:1px solid rgba(138,111,49,.42);border-radius:var(--r-pill);padding:3px 10px;color:#7a5a1e;font-weight:600}
+.entry-px.order{border:1px solid rgba(138,111,49,.42);border-radius:var(--r-pill);padding:3px 10px;color:var(--gold2);font-weight:600}
 .entry-px.order::before{content:"+ ";font-weight:700}
 /* A price while the truck is not taking orders (lib/ordering): the order pill's box with no pill —
    same padding, an invisible border — so a menu that learns it is closed does not move a row. */
 .entry-px.shut{border:1px solid transparent;padding:3px 10px}
 .entry-body{margin-left:17px;margin-top:4px}
-.entry-why{font-family:'Fraunces';font-style:italic;font-size:13px;color:#6f6a59;line-height:1.4}
+.entry-why{font-family:'Fraunces';font-style:italic;font-size:13px;color:var(--cream-d);line-height:1.4}
 
-.menu-integrity{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#6b6555;text-align:center;margin-top:26px;line-height:1.8}
+.menu-integrity{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--cream-d);text-align:center;margin-top:26px;line-height:1.8}
 
 /* cream detail sheet — a card lifted off the menu */
-:is(.sheet,.sheet2).paper{background:#F4EFE3;border-top:1px solid rgba(34,31,24,.14)}
-:is(.sheet,.sheet2).paper .grab{background:rgba(34,31,24,.22)}
-.sheet-pillar{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#7a5a1e;margin-top:6px}
+:is(.sheet,.sheet2).paper{background:var(--bg);border-top:1px solid var(--line)}
+:is(.sheet,.sheet2).paper .grab{background:var(--line2)}
+.sheet-pillar{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold2);margin-top:6px}
+/* the drink sheet's and checkout's close, pulled into its line (R6) */
+.sheet-top{display:flex;align-items:center;gap:8px}
+.sheet-top .sheet-pillar{flex:1;min-width:0}
+.sheet-top .qd-x,.co-head .qd-x{margin:-14px -10px -14px auto}
+.co-head{display:flex;align-items:center;margin-bottom:12px}
+.co-head .oa-kicker{margin-bottom:0}
 .sheet-mark{display:flex;align-items:baseline;gap:11px;margin-top:12px}
 .sheet-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;transform:translateY(-2px)}
-.sheet-name{flex:1;font-family:'Archivo Black';font-size:28px;letter-spacing:-.3px;color:#221F18;line-height:1;text-transform:uppercase}
-.sheet-px{font-family:'DM Mono';font-weight:500;font-size:15px;color:#5f5a49}
+.sheet-name{flex:1;font-family:'Archivo Black';font-size:28px;letter-spacing:-.3px;color:var(--cream);line-height:1;text-transform:uppercase}
+.sheet-px{font-family:'DM Mono';font-weight:500;font-size:15px;color:var(--cream-m)}
 .sheet-lines{margin-top:16px}
-.sheet-line{font-family:'Fraunces';font-size:16px;color:#2c291d;line-height:1.55}
-.sheet-why{font-family:'Fraunces';font-style:italic;font-size:13px;color:#6f6a59;margin-top:9px;line-height:1.5}
-.sheet-rule{height:1px;background:rgba(34,31,24,.14);margin:20px 0 4px}
-.sheet-sec{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:#7a5a1e;margin:16px 0 9px}
+.sheet-line{font-family:'Fraunces';font-size:16px;color:var(--cream);line-height:1.55}
+.sheet-why{font-family:'Fraunces';font-style:italic;font-size:13px;color:var(--cream-d);margin-top:9px;line-height:1.5}
+.sheet-rule{height:1px;background:var(--line);margin:20px 0 4px}
+.sheet-sec{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:var(--gold2);margin:16px 0 9px}
 .sheet-list{list-style:none;display:flex;flex-wrap:wrap;gap:7px}
-.sheet-list li{font-family:'DM Mono';font-size:12px;color:#2c291d;background:rgba(34,31,24,.05);border:1px solid rgba(34,31,24,.12);padding:6px 10px;border-radius:9px}
-.sheet-list li:before{content:"• ";color:#7a5a1e}
+.sheet-list li{font-family:'DM Mono';font-size:12px;color:var(--cream);background:var(--well);border:1px solid var(--line);padding:6px 10px;border-radius:9px}
+.sheet-list li:before{content:"• ";color:var(--gold2)}
 .sheet-list.no li{color:#9a4742;border-color:color-mix(in srgb, var(--brand-red) 30%, transparent)}
 .sheet-list.no li:before{content:"✕ ";color:#B82420}
-.sheet-when{display:flex;gap:12px;align-items:baseline;background:rgba(34,31,24,.04);border:1px solid rgba(34,31,24,.1);border-radius:13px;padding:13px 15px;margin-top:18px}
+.sheet-when{display:flex;gap:12px;align-items:baseline;background:var(--ink-onLight-04);border:1px solid var(--line);border-radius:13px;padding:13px 15px;margin-top:18px}
 /* when, caffeine, contains: one grouped list, as the system pass's rows are (R2) */
 .sheet-when+.sheet-when{margin-top:-1px;border-top-color:transparent;border-top-left-radius:0;border-top-right-radius:0}
 .sheet-when:has(+.sheet-when){border-bottom-left-radius:0;border-bottom-right-radius:0}
-.sheet-when-k{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#7a5a1e;flex:0 0 auto}
-.sheet-when-v{font-family:'Fraunces';font-size:13px;color:#2c291d}
-.sheet-signoff{text-align:center;font-family:'Fraunces';font-style:italic;font-size:13px;color:#6f6a59;margin-top:18px}
+.sheet-when-k{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold2);flex:0 0 auto}
+.sheet-when-v{font-family:'Fraunces';font-size:13px;color:var(--cream)}
+.sheet-signoff{text-align:center;font-family:'Fraunces';font-style:italic;font-size:13px;color:var(--cream-d);margin-top:18px}
 
 /* cream checkout — recolour the legacy dark internals (scoped to the paper sheet) */
-:is(.sheet,.sheet2).paper .spec-label{color:#7a5a1e}
-:is(.sheet,.sheet2).paper .co-line{color:#221F18;border-bottom-color:rgba(34,31,24,.12)}
+:is(.sheet,.sheet2).paper .spec-label{color:var(--gold2)}
+:is(.sheet,.sheet2).paper .co-line{color:var(--cream);border-bottom-color:var(--line)}
 :is(.sheet,.sheet2).paper .co-line span:last-child{color:#5f5a49}
 :is(.sheet,.sheet2).paper .co-total span{color:#221F18!important}
 :is(.sheet,.sheet2).paper .sq-card{background:rgba(34,31,24,.04);border-color:rgba(34,31,24,.16)}
@@ -2407,11 +2418,10 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
    more box, and the first thing under the CALENDAR heading. */
 .cal-sticky{position:sticky;top:env(safe-area-inset-top,0px);z-index:6;background:transparent;padding-top:4px}
 /* Stuck = painted, full-bleed to the screen's edges so it reads as a toolbar, not a floating box.
-   The component toggles .is-stuck from a 1px sentinel above the bar. A frosted backdrop-filter was
+   The component toggles .is-stuck when the bar has stuck (components/useStuck). A frosted backdrop-filter was
    tried first and dropped: it could not be verified here (headless Chromium paints no backdrop
    blur), and a bar you can read the list through is worse than a flat one. */
 .cal-sticky.is-stuck{background:var(--bg,#161310);margin:0 -22px;padding-left:22px;padding-right:22px;box-shadow:0 1px 0 var(--line)}
-.cal-stickysentinel{height:1px;margin-top:-1px;visibility:hidden}
 .cal-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;padding:4px 0 10px}  /* wraps: on a phone the views and Today ran past the edge */
 .cal-nav{display:flex;align-items:center;gap:10px}
 .cal-month{font-family:'Fraunces','Inter',serif;font-size:20px;color:var(--cream);min-width:9ch;text-align:center}
@@ -2514,32 +2524,29 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 .fu-prop.has .fu-prop-h{color:var(--ok)}
 .fu-prop-b{font-family:'Inter';font-size:15px;line-height:1.5;color:var(--cream);margin-top:5px;white-space:pre-wrap}
 
-/* ═══ DAY MODE — light theme for the crew console (toggle back to dark anytime) ═══ */
-.app.crew-day{
-  background:linear-gradient(180deg,#F7F2E8 0%,#EFE7D8 55%,#E9E0CF 100%);
+/* ═══ ONE LIGHT PALETTE (2026-10-14, R6) ═══ Day mode's and paper's (the menu, the order sheets) — declared twice before,
+   and drifted (gold #6e4c1e vs #7a5a1e, white vs cream cards, tokens one scope lacked falling to the dark :root). Text
+   tokens take the higher contrast of the two (Day's 2026-07-09 WCAG crawl; paper's computed 4.5:1 floor), surfaces the
+   console's. #1a1610 stays a literal: root --char2, a theme-invariant "dark text on a gold chip". */
+.app.crew-day,.menu,:is(.sheet,.sheet2).paper{
   --bg:#F4EEE2;
-  /* Text tokens sit at a measured legibility floor (automated WCAG crawl of the signed-in console,
-     2026-07-09): secondary/tertiary ink lifted, gold/bronze text roles deepened past 4.5:1 on the
-     cream ground. Gold is also a pill BACKGROUND in day — those pills carry white text (below). */
-  --cream:#221F18; --cream-m:rgba(34,31,24,.74); --cream-d:rgba(34,31,24,.56); --cream2:#3a352b;
-  --card:#FFFFFF; --char:#F1EADB; --char2:#F1EADB; --char3:#ECE4D3;
+  --cream:#221F18; --cream-m:rgba(34,31,24,.74); --cream-d:rgba(34,31,24,.66); --cream2:#3a352b; --muted:rgba(34,31,24,.66);
+  --card:#FFFFFF; --field:#FFFFFF; --well:rgba(34,31,24,.05); --char:#F1EADB; --char2:#F1EADB; --char3:#ECE4D3;
   --line:rgba(34,31,24,.13); --line2:rgba(34,31,24,.22);
-  --gold:#86581f; --gold2:#6e4c1e; --bronze:#7d5622; --ok:#457a32; --warn:#8a5a17;
-  /* Pass-2 token extraction (2026-07-15): light-theme values for the 15 tokens declared in :root
-     above — see that comment. #1a1610 (rdg-fab/svc-exit/pay-row-t/alerts-strip-t, 4x) was NOT
-     tokenized here: it is byte-identical to root --char2, and reads as an intentional theme-invariant
-     "dark text on a gold chip" choice rather than a light-specific color; adding a differently-named
-     token for the same value would add confusion, not remove it. */
-  --red-onLight:#8f1d1a; --green-onLight:#3f6b2f; --danger-onLight:#a13c34;
-  --tone-ok:var(--green-onLight); --tone-gold:var(--gold2); --tone-warn:var(--warn); --tone-crit:var(--red-onLight); --tone-blue:var(--color-info);
+  --gold:#86581f; --gold2:#6e4c1e; --bronze:#7d5622; --ok:#3f6b2f; --warn:#8a5a17;
+  --red-onLight:#8f1d1a; --green-onLight:#3f6b2f; --danger-onLight:#a13c34; --red-h:#8f1d1a;
+  --tone-ok:var(--ok); --tone-gold:var(--gold2); --tone-warn:var(--warn); --tone-crit:var(--red-onLight); --tone-blue:var(--color-info);
   --muted2-onLight:#6c6256; --muted3-onLight:#6f6a59; --amber-onLight:#8a6a2a;
   --ink-onLight-03:rgba(34,31,24,.03); --ink-onLight-04:rgba(34,31,24,.04); --ink-onLight-05:rgba(34,31,24,.05);
   --ink-onLight-16:rgba(34,31,24,.16); --ink-onLight-18:rgba(34,31,24,.18); --ink-onLight-24:rgba(34,31,24,.24);
   --ink2-onLight-06:rgba(26,22,16,.06); --ink2-onLight-08:rgba(26,22,16,.08); --ink2-onLight-10:rgba(26,22,16,.10);
-  /* 2026-10-04. --field, --well and --ink-whisper were only ever restated for the paper scope, so on
-     the cream console they fell through to :root's black washes and cream whisper — the grey slab
-     .ofr-stat met and worked around. Restated here once, so every rule that uses them is right. */
-  --field:#FFFFFF; --well:rgba(34,31,24,.05); --ink-whisper:rgba(34,31,24,.64);
+  --ink-whisper:rgba(34,31,24,.64);
+  --surface-ink:#221F18; --oa-cream:#221F18; --oa-cream-dim:rgba(34,31,24,.70); --oa-cream-faint:rgba(34,31,24,.66);
+  --oa-hair:rgba(34,31,24,.20); --oa-gold:var(--gold2);
+}
+/* ═══ DAY MODE — light theme for the crew console (toggle back to dark anytime) ═══ */
+.app.crew-day{
+  background:linear-gradient(180deg,#F7F2E8 0%,#EFE7D8 55%,#E9E0CF 100%);
 }
 /* bottom nav + sticky headers (these reference --bg or hardcoded dark) */
 .app.crew-day .nav{background:rgba(247,242,232,.92);border-top:1px solid var(--line2)}
@@ -2706,6 +2713,13 @@ body:has(.conc-sheet) .rail{display:flex}
 .app.rd-t1 .body{zoom:1.08}
 .app.rd-t2 .body{zoom:1.16}
 .app.rd-t3 .body{zoom:1.26}
+/* The text size reaches what is drawn beside the page (R6): sheets (portaled beside .body), the bars' insides and the tab
+   labels take the same step — not the panels or bars themselves, whose places are fixed. lib/phoneText ZOOMS. */
+.app.rd-t1{--rd-z:1.08}
+.app.rd-t2{--rd-z:1.16}
+.app.rd-t3{--rd-z:1.26}
+.app:is(.rd-t1,.rd-t2,.rd-t3) :is(.sheet2-head,.sheet2-body,.sheet2-foot,.cartbar,.toast,.orderbar-wrap)>*,
+.app:is(.rd-t1,.rd-t2,.rd-t3) .nav .tl{zoom:var(--rd-z)}
 .app.rd-bold .body{font-weight:600}
 .app.rd-bold .body b,.app.rd-bold .body strong{font-weight:800}
 .app.rd-roomy .body{line-height:1.7;letter-spacing:.1px}
@@ -3007,7 +3021,7 @@ body:has(.conc-sheet) .rail{display:flex}
    the app's --line hairline register (you feel it before you see it). NOT global — opt-in per screen. */
 /* Every screen holding a mark (10-09: /shop's mark fell to the viewport's foot as its fade ended, 0.11 of
    shift). clip, not hidden: hidden made a scroll container, and the menu's sticky chips scrolled away. */
-.screen.arrival,.screen.menu,.screen.arch,.screen#s-today,#s-ticket,.screen.shop,.screen.craft,.screen#s-delivery,.screen#s-reserve,.screen.office-portal,.screen.primal{position:relative;z-index:0;overflow:hidden;overflow:clip}
+.screen.arrival,.screen.menu,.screen.arch,.screen#s-today,#s-ticket,.screen#s-shop,.screen.craft,.screen#s-delivery,.screen#s-reserve,.screen.office-portal,.screen.primal{position:relative;z-index:0;overflow:hidden;overflow:clip}
 .wm{position:absolute;z-index:-1;pointer-events:none;background-repeat:no-repeat;background-position:center;background-size:contain;aspect-ratio:1184/1730}
 /* arrival (dark) — cream mark bleeding off the top-right, behind the hero statement */
 .wm--landing{top:-46px;right:-21%;width:74%;max-width:420px;opacity:.05;background-image:url(/brand/3_outline_cream.svg)}
@@ -3274,6 +3288,7 @@ body:has(.conc-sheet) .rail{display:flex}
   body{padding:24px}
   .app{max-width:700px;height:min(1180px,95dvh);border-radius:34px}
   .screen{padding:calc(8px + env(safe-area-inset-top)) 30px 32px}
+  #s-shop .menu-chips.is-stuck{margin-inline:-30px;padding-inline:30px}
   /* calendar is the primary planning surface — give the grid room */
   .cal-grid{gap:7px}
   .cal-cell{min-height:120px;border-radius:var(--r-xl);padding:7px 7px 8px}
@@ -3286,6 +3301,7 @@ body:has(.conc-sheet) .rail{display:flex}
   body{padding:30px}
   .app{max-width:860px;height:min(1340px,95dvh)}
   .screen{padding:calc(10px + env(safe-area-inset-top)) 42px 42px}
+  #s-shop .menu-chips.is-stuck{margin-inline:-42px;padding-inline:42px}
   .cal-grid{gap:8px}
   .cal-cell{min-height:144px}
   .cal-items .cc-chip{font-size:12px}
@@ -3601,9 +3617,9 @@ body:has(.conc-sheet) .rail{display:flex}
 .sheet2-body:has(+.sheet2-foot){padding-bottom:18px}  /* the footer below already clears the home indicator (2026-10-08) */
 .sheet2-foot{flex:0 0 auto;padding:12px 18px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--bg,#161310)}
 /* .paper — the cream "printed menu" look for the drink sheet, carried onto <Sheet> */
-.sheet2.paper{background:#F4EFE3;color:#221F18;border-color:rgba(34,31,24,.14)}
+.sheet2.paper{background:var(--bg);color:var(--cream);border-color:var(--line)}
 .sheet2.paper .sheet2-grab::before{background:rgba(34,31,24,.22)}
-.sheet2.paper .sheet2-foot{background:#F4EFE3;border-top-color:rgba(34,31,24,.12)}
+.sheet2.paper .sheet2-foot{background:var(--bg);border-top-color:var(--line)}
 @media(min-width:520px) and (min-height:640px){
   .sheet2-scrim{align-items:center;padding:16px}
   .sheet2{border:1px solid var(--line);border-radius:var(--r-4xl);max-height:min(88vh,calc(100dvh - var(--kb,0px) - 32px));box-shadow:0 24px 60px rgba(0,0,0,.6),0 0 55px -6px color-mix(in srgb, var(--brand-gold2) 34%, transparent);animation:sheet2pop .22s var(--ease)}
@@ -4364,7 +4380,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .app.crew-day .svc-full{background:#f3efe6}
 .svc-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;background:inherit;padding:calc(6px + env(safe-area-inset-top)) 0 10px;border-bottom:1px solid var(--line)}
 .svc-bar b{font-family:'Inter';font-weight:800;letter-spacing:2px;text-transform:uppercase;font-size:12px;color:var(--gold)}
-.app.crew-day .svc-bar b{color:#7a5a1e}
+.app.crew-day .svc-bar b{color:var(--gold2)}
 /* Ordering dial — when cup pre-orders open (Live truck panel) */
 .adm-lead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 4px}
 .adm-lead-k{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-m)}
@@ -4388,7 +4404,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .co-upsell-line{display:block;width:100%;background:none;border:none;font-family:'Inter';font-size:13px;color:var(--cream-m);text-align:left;padding:10px 2px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .co-upsell-line b{color:var(--gold2,#C8A661);font-weight:650}
 /* secondary pay-at-pickup action under a card path (checkout sheet + reserve + delivery) */
-.co-paylater,.oa-paylater{display:block;width:100%;background:none;border:none;margin-top:10px;font-family:'Inter';font-size:13px;color:var(--cream-m);text-align:center;padding:10px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.co-paylater,.oa-paylater{display:block;width:100%;min-height:44px;background:none;border:none;margin-top:2px;font-family:'Inter';font-size:13px;color:var(--cream-m);text-align:center;padding:14px 10px;cursor:pointer;-webkit-appearance:none;appearance:none}  /* 44 (R6), in the footer's old height: 2 + 44 where 10 + 36 stood */
 .co-paylater b,.oa-paylater b{color:var(--cream);font-weight:700}
 .co-paylater:disabled,.oa-paylater:disabled{opacity:.5}
 /* Money → Checkout & payments */
@@ -4677,7 +4693,7 @@ button.mkpi-tile:active{transform:scale(.98)}
 .shoot-delshoot{align-self:flex-start;font-family:'Inter';font-size:11px;color:#c98b7a;background:none;border:none;cursor:pointer;padding:2px 0}
 .app.crew-day .shoot-card{background:var(--card);border-color:var(--ink2-onLight-10)}
 .app.crew-day .shoot-fields input,.app.crew-day .shoot-fields select,.app.crew-day .shoot-assign{background-color:var(--card)}
-.app.crew-day .mkpi-v{color:#7a5a1e}
+.app.crew-day .mkpi-v{color:var(--gold2)}
 .app.crew-day .mkpi-k{color:rgba(26,22,16,.55)}
 .paysettings{display:flex;flex-direction:column;gap:14px}
 .pay-row{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
@@ -4710,7 +4726,8 @@ button.mkpi-tile:active{transform:scale(.98)}
 
 /* structural de-noise: Now live-panel compact rows, Prep glance line, ETA fold, science fold */
 .adm-golink{display:block;width:100%;background:none;border:none;font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-m);padding:12px 2px 2px;cursor:pointer;text-align:left;-webkit-appearance:none;appearance:none}
-.eta-tell{display:block;background:none;border:none;font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m);padding:8px 2px 2px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.eta-tell{display:flex;align-items:center;justify-content:center;min-height:44px;background:none;border:none;font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m);padding:4px 2px 2px;cursor:pointer;-webkit-appearance:none;appearance:none}  /* 44 (R6): the card's gap above is the 44's own, so the words sit where they did */
+.orderbar:has(+ .eta-tell){margin-bottom:2px}
 .orderbar-eta.collapsed{display:flex;align-items:center;gap:10px;padding-top:8px}
 .eta-set{font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream)}
 .eta-change{background:none;border:none;font-family:'Inter';font-size:12px;color:var(--cream-m);text-decoration:underline;cursor:pointer;padding:0;-webkit-appearance:none;appearance:none}
@@ -4769,7 +4786,7 @@ button.mkpi-tile:active{transform:scale(.98)}
 .dl-quote b{font-family:var(--mono);font-weight:500;color:var(--gold2,#C8A661)}
 .dl-quote-t{border-top:1px solid var(--line);padding-top:6px;margin-top:4px;color:var(--cream)}
 .dl-err{font-family:'Inter';font-size:13px;color:#e08b88;margin:0}
-.dl-back{align-self:flex-start;background:none;border:none;font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m);padding:14px 2px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.dl-back{align-self:flex-start;display:inline-flex;align-items:center;min-height:44px;min-width:44px;background:none;border:none;font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m);padding:14px 2px;cursor:pointer;-webkit-appearance:none;appearance:none}  /* 44 (R6) */
 .dl-held{color:#e08b88;font-style:normal}
 
 /* ─────────── the playbook (/playbook, owner) ─────────── */
@@ -4895,6 +4912,8 @@ button.mkpi-tile:active{transform:scale(.98)}
 .legal-fine{font-size:12px;font-style:italic;color:var(--cream-d)}
 /* ── Blind-spot round (2026-08-01): consent microcopy, offline state, batch picker ── */
 .tel-consent{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m);margin:4px 2px 0}  /* the SMS consent is read before agreeing: 12px in --cream-m, not 10px faded (2026-10-08) */
+.legal-link{position:relative;display:inline;padding:0;border:0;background:none;font:inherit;color:var(--cream);text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px;cursor:pointer}  /* Terms and Privacy under a yes to texts (R6) */
+.row:has(+ .texts-fine){border-bottom:0}  /* the texts switch keeps its terms under it, inside one rule (R6) */
 .offline-bar{position:fixed;top:0;left:0;right:0;z-index:95;background:#3a2f16;color:#e8ddc2;border-bottom:1px solid color-mix(in srgb, var(--brand-gold2) 40%, transparent);font-family:'Inter';font-weight:600;font-size:12px;text-align:center;padding:calc(8px + env(safe-area-inset-top)) 14px 8px}
 .dops-batchsel{max-width:150px}
 .dops-batchsel.set{border-color:rgba(184,144,47,.45);color:var(--gold2)}
@@ -4996,7 +5015,6 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .goal-settled{margin-top:14px;border-top:1px dashed var(--line);padding-top:10px}
 
 /* crew-day: muted text was still dark-theme cream → ghost on the light shell */
-.app.crew-day{--muted:rgba(34,31,24,.6)}
 .app.crew-day .opx-link-s{color:var(--muted)}
 .app.crew-day .adm-member{color:var(--cream)}
 
@@ -5756,11 +5774,11 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 /* TaskSheet — event-task prep fields (section/type/priority/qty), two-up grid */
 .tsheet-prep-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 /* KIT · light (paper) context — the cream Menu keeps its palette, same anatomy */
-.k-mast-light .g3{color:#221F18}
-.k-mast-light .k-pb{color:#6f6a59}
-.menu .k-eyb,.paper .k-eyb{color:#7a5a1e}
+.k-mast-light .g3{color:var(--cream)}
+.k-mast-light .k-pb{color:var(--muted3-onLight)}
+.menu .k-eyb,.paper .k-eyb{color:var(--gold2)}
 .menu .k-sec,.paper .k-sec{border-color:rgba(34,31,24,.16)}
-.menu .k-sec .l,.paper .k-sec .l{color:#7a5a1e}
+.menu .k-sec .l,.paper .k-sec .l{color:var(--gold2)}
 .menu .k-sec .a,.paper .k-sec .a{color:#5d5748}
 .menu .k-beat .rule,.paper .k-beat .rule{background:rgba(34,31,24,.16)}
 .menu .k-beat .g3,.paper .k-beat .g3{color:#221F18}
@@ -5881,6 +5899,8 @@ button.k-switch::after{content:"";position:absolute;inset:-7px -2px}
 /* a person on a chip (a task's assignee): their initial on a gold disc at the chip's start */
 .k-av{display:inline-flex;align-items:center;justify-content:center;flex:none;width:28px;height:28px;margin-left:-10px;border-radius:50%;background:var(--gold2);color:var(--char);font-family:'Archivo Black';font-size:12px;line-height:1}
 .k-chips{display:flex;flex-wrap:wrap;gap:8px}
+/* wrapped small chips: their 44 reach meets, never overlaps (R6) */
+.k-chips:has(> .k-chip.sm),.orderbar-eta:has(> .k-chip.sm){row-gap:16px}
 /* tag (2026-10-09, the chip round) — a status or a label, never a control: 22pt with 11pt mono capitals, the
    house's telemetry voice (.k-lead, .k-meta). Neutral by default. A tone washes it in its colour and inks it in
    that colour's ink for the surface (--tone-*, which the crew's light look and paper restate); .fill is the one
@@ -6373,40 +6393,15 @@ div.owed-row-go{cursor:default}
 /* ═══════════════════════════════════════════════════════════════════════════════════════════════
    THE SHOP (0273) — merch storefront on the light "paper" surface, same editorial world as the Menu.
    ═══════════════════════════════════════════════════════════════════════════════════════════════ */
-.shop{background:#F4EFE3;min-height:100%;color:#221F18}
-/* ── The paper surface, as a TOKEN SCOPE (2026-09) ────────────────────────────────────────────────
-   Shop is a light screen hosting dark-built components. OrderFunnel (.of/.dl/.oa), Reserves,
-   StorefrontStory and the closing beat were all written against the charcoal app surface, where
-   "cream" means "text". Embedding the Bottles aisle here put cream text on a cream ground: a
-   MEASURED 1.02:1 on the fulfilment toggle — literally invisible — and what read on screen as a big
-   empty gap above the pack tiles was three paragraphs of live copy nobody could see. 19 text nodes
-   failed AA. Patching those rules one at a time would leave the next dark-built component to
-   rediscover the same bug, so this takes the .app.crew-day route instead: redeclare the ink family
-   once for this surface and let every component — including ones not written yet — inherit a
-   correct palette. Values carry a 4.5:1 floor on #F4EFE3, computed rather than eyeballed, and the
-   quiet tiers stay a real ramp: faint 5.0 · dim 5.7 · muted 6.5 · full ink 14.3. The greys and
-   golds are the ones the hand-written .shop-* rules below already use, so paper is ONE palette
-   now, not two that drift apart. Menu and the paper order sheets are the SAME surface and had the
-   same disease — /menu measured 26 AA failures, its footer links at 1.01:1 — so they share the
-   scope rather than keep accumulating the per-rule overrides that had already piled up under
-   :is(.sheet,.sheet2).paper. One surface, one palette, declared once. */
-.shop,.menu,:is(.sheet,.sheet2).paper{
-  --cream:#221F18; --cream-m:rgba(34,31,24,.74); --cream-d:rgba(34,31,24,.66); --cream2:#3a352b;
-  --oa-cream:#221F18; --oa-cream-dim:rgba(34,31,24,.70); --oa-cream-faint:rgba(34,31,24,.66);
-  --surface-ink:#221F18;
-  --card:#FBF8EF; --char:#EFE7D6; --char2:#EFE7D6; --char3:#E9E0CF; --field:#FBF8EF; --well:#FBF8EF;
-  --line:rgba(34,31,24,.12); --line2:rgba(34,31,24,.22); --oa-hair:rgba(34,31,24,.20);
-  --gold:#86581f; --gold2:#7a5a1e; --bronze:#7d5622; --oa-gold:#7a5a1e;
-  --muted:rgba(34,31,24,.66); --ok:#3f6b2f; --warn:#8a5a17; --red-h:#9d1d1a;
-  --ink-whisper:rgba(34,31,24,.64);
-  --tone-ok:var(--ok); --tone-gold:var(--gold2); --tone-warn:var(--warn); --tone-crit:var(--red-h); --tone-blue:var(--color-info);
-  --ink2-onLight-08:rgba(34,31,24,.08);   /* the kit's icon button's wash, in paper's ink (the checkout's − and +) */
-}
+/* ── The paper surface, as a TOKEN SCOPE (2026-09) ── The menu and the paper order sheets host dark-built components
+   (OrderFunnel, Reserves, the closing beat), where "cream" means text: cream on a cream ground measured 1.02:1, and /menu
+   26 AA failures. So paper redeclares the ink family once and every component inherits it — since R6 as the ONE LIGHT
+   PALETTE it shares with Day mode (above). */
 /* Dark islands re-assert their own ink. A surface that is genuinely dark inside a light screen is
    not a bug to flatten — it's a panel — so it restates the charcoal palette rather than inheriting
    paper. Two kinds live here: the drop card (a dark panel by design) and the red CTAs/tags, where
    cream ON red is the correct foreground and paper ink would be the regression. */
-:is(.shop,.menu,.sheet,.sheet2) .drop{
+:is(.menu,.sheet,.sheet2) .drop{
   --cream:#F5F1E8; --cream-m:color-mix(in srgb, var(--brand-cream) 72%, transparent);
   --cream-d:color-mix(in srgb, var(--brand-cream) 48%, transparent); --cream2:#EFE7D6;
   --surface-ink:var(--brand-cream);
@@ -6416,36 +6411,36 @@ div.owed-row-go{cursor:default}
   --ink-whisper:color-mix(in srgb, var(--brand-cream) 50%, transparent);
   --tone-ok:var(--ok); --tone-gold:var(--gold2); --tone-warn:#cf9a4a; --tone-crit:var(--red-h); --tone-blue:#6fa8dc;
 }
-.shop-stmt{font-family:'Fraunces';font-style:italic;font-size:16px;line-height:1.5;color:#5a5142;margin:14px 0 20px;max-width:52ch}
-.shop-note{margin:24px 0;text-align:center;font-family:'Inter';font-size:15px;color:#5a5142}
+.shop-stmt{font-family:'Fraunces';font-style:italic;font-size:16px;line-height:1.5;color:var(--cream-m);margin:14px 0 20px;max-width:52ch}
+.shop-note{margin:24px 0;text-align:center;font-family:'Inter';font-size:15px;color:var(--cream-m)}
 .shop-note.err{color:var(--red)}
-.shop-h1{font-family:'Fraunces';font-weight:600;font-size:clamp(34px,10vw,50px);line-height:1;letter-spacing:-.5px;color:#221F18;margin:8px 0 0}
+.shop-h1{font-family:'Fraunces';font-weight:600;font-size:clamp(34px,10vw,50px);line-height:1;letter-spacing:-.5px;color:var(--cream);margin:8px 0 0}
 .shop-h1 i{font-style:italic;color:var(--red)}
 .shop-h1.sm{font-size:clamp(26px,7vw,34px);margin:12px 0 0}
 /* grid */
 .shop-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:6px 0 0}
-.shop-card{display:flex;flex-direction:column;text-align:left;background:#FBF8EF;border:1px solid rgba(34,31,24,.1);border-radius:var(--r-2xl);overflow:hidden;cursor:pointer;padding:0;transition:transform .16s,box-shadow .16s}
-.shop-card:focus-visible{transform:translateY(-2px);box-shadow:0 10px 24px rgba(34,31,24,.12)}
-@media (hover:hover){.shop-card:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(34,31,24,.12)}}
-.shop-thumb{aspect-ratio:1;background:#EFE7D6;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.shop-card{display:flex;flex-direction:column;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--r-2xl);overflow:hidden;cursor:pointer;padding:0;transition:transform .16s,box-shadow .16s}
+.shop-card:focus-visible{transform:translateY(-2px);box-shadow:var(--shadow-2)}
+@media (hover:hover){.shop-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-2)}}
+.shop-thumb{aspect-ratio:1;background:var(--char2);display:flex;align-items:center;justify-content:center;overflow:hidden}
 .shop-thumb img{width:100%;height:100%;object-fit:cover}
-.shop-thumb-ph{color:rgba(34,31,24,.25);font-size:34px}
+.shop-thumb-ph{color:var(--cream-d);font-size:34px}
 .shop-thumb-ph.lg{font-size:56px}
 .shop-card-b{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:11px 13px 13px}
-.shop-card-t{font-family:'Archivo Black';font-size:13px;letter-spacing:.3px;color:#221F18;line-height:1.15}
-.shop-card-px{font-family:var(--mono);font-size:13px;color:#7a5a1e;font-weight:500;white-space:nowrap}
+.shop-card-t{font-family:'Archivo Black';font-size:13px;letter-spacing:.3px;color:var(--cream);line-height:1.15}
+.shop-card-px{font-family:var(--mono);font-size:13px;color:var(--gold2);font-weight:500;white-space:nowrap}
 /* detail */
 .shop-detail,.shop-checkout{animation:fade .22s}
-.shop-back{margin:10px 0 6px;color:#7a5a1e}
-.shop-hero{aspect-ratio:1;max-height:360px;background:#EFE7D6;border-radius:var(--r-3xl);display:flex;align-items:center;justify-content:center;overflow:hidden;margin:6px 0 0}
+.shop-back{margin:10px 0 6px;color:var(--gold2)}
+.shop-hero{aspect-ratio:1;max-height:360px;background:var(--char2);border-radius:var(--r-3xl);display:flex;align-items:center;justify-content:center;overflow:hidden;margin:6px 0 0}
 .shop-hero img{width:100%;height:100%;object-fit:cover}
-.shop-detail-px{font-family:var(--mono);font-size:17px;color:#7a5a1e;font-weight:500;margin:10px 0 0}
-.shop-blurb{font-family:'Inter';font-size:15px;line-height:1.6;color:#4a4335;margin:12px 0 0;max-width:56ch}
+.shop-detail-px{font-family:var(--mono);font-size:17px;color:var(--gold2);font-weight:500;margin:10px 0 0}
+.shop-blurb{font-family:'Inter';font-size:15px;line-height:1.6;color:var(--cream-m);margin:12px 0 0;max-width:56ch}
 .shop-vari{display:flex;flex-direction:column;gap:6px;margin:18px 0 0}
-.shop-vari span{font-family:'Inter';font-weight:750;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:#7a5a1e}
-.shop-vari select{padding:12px;border:1px solid rgba(34,31,24,.2);border-radius:var(--r-lg);background-color:#FBF8EF;color:#221F18;font-family:'Inter';font-size:16px}
-.shop-qty{display:flex;align-items:center;gap:0;margin:16px 0;width:fit-content;border:1px solid rgba(34,31,24,.2);border-radius:var(--r-pill);overflow:hidden}
-.shop-qty button{width:44px;height:42px;background:#FBF8EF;border:0;font-size:20px;color:#221F18;cursor:pointer}
+.shop-vari span{font-family:'Inter';font-weight:750;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold2)}
+.shop-vari select{padding:12px;border:1px solid var(--line2);border-radius:var(--r-lg);background-color:var(--field);color:var(--cream);font-family:'Inter';font-size:16px}
+.shop-qty{display:flex;align-items:center;gap:0;margin:16px 0;width:fit-content;border:1px solid var(--line2);border-radius:var(--r-pill);overflow:hidden}
+.shop-qty button{width:44px;height:44px;background:var(--card);border:0;font-size:20px;color:var(--cream);cursor:pointer}
 .shop-qty span{min-width:44px;text-align:center;font-family:var(--mono);font-size:15px}
 /* sticky cart bar */
 .shop-cartbar{position:sticky;bottom:12px;  /* sticky inside the page's scroller, which already ends above the tab bar and the home indicator (2026-10-08) */
@@ -6453,22 +6448,22 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
 .shop-cartbar-n{font-family:'Inter';font-weight:700;font-size:13px;letter-spacing:.3px}
 .shop-cartbar-go{display:inline-flex;align-items:center;gap:7px;font-family:'Inter';font-weight:800;font-size:15px}
 /* checkout */
-.shop-lines{margin:16px 0 0;border-top:1px solid rgba(34,31,24,.12)}
-.shop-line{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px dashed rgba(34,31,24,.14)}
+.shop-lines{margin:16px 0 0;border-top:1px solid var(--line)}
+.shop-line{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px dashed var(--line)}
 .shop-line-x{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.shop-line-t{font-family:'Archivo Black';font-size:13px;color:#221F18}
-.shop-line-v{font-family:'Inter';font-size:12px;color:#7a7160}
-.shop-line-qty{display:flex;align-items:center;border:1px solid rgba(34,31,24,.18);border-radius:var(--r-pill);overflow:hidden}
-.shop-line-qty button{width:32px;height:30px;background:#FBF8EF;border:0;font-size:16px;color:#221F18;cursor:pointer}
+.shop-line-t{font-family:'Archivo Black';font-size:13px;color:var(--cream)}
+.shop-line-v{font-family:'Inter';font-size:12px;color:var(--cream-d)}
+.shop-line-qty{display:flex;align-items:center;border:1px solid var(--line2);border-radius:var(--r-pill);overflow:hidden}
+.shop-line-qty button{width:32px;height:30px;background:var(--card);border:0;font-size:16px;color:var(--cream);cursor:pointer}
 .shop-line-qty span{min-width:30px;text-align:center;font-family:var(--mono);font-size:13px}
-.shop-line-px{font-family:var(--mono);font-size:15px;color:#221F18;min-width:56px;text-align:right}
+.shop-line-px{font-family:var(--mono);font-size:15px;color:var(--cream);min-width:56px;text-align:right}
 .shop-total{display:flex;align-items:baseline;justify-content:space-between;padding:14px 0 0}
-.shop-total span{font-family:'Inter';font-weight:750;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#7a7160}
-.shop-total b{font-family:'Fraunces';font-weight:600;font-size:22px;color:#221F18}
+.shop-total span{font-family:'Inter';font-weight:750;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--cream-d)}
+.shop-total b{font-family:'Fraunces';font-weight:600;font-size:22px;color:var(--cream)}
 .shop-ship,.shop-pay{margin:24px 0 0}
-.shop-ship-n{font-family:'Inter';font-weight:750;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:#7a5a1e;margin:0 0 10px}
-.shop-ship input,.shop-ship-row input,.shop-ship select{width:100%;padding:13px 14px;margin:0 0 9px;border:1px solid rgba(34,31,24,.2);border-radius:var(--r-lg);background-color:#FBF8EF;color:#221F18;font-family:'Inter';font-size:16px}
-.shop-ship input::placeholder,.shop-ship-row input::placeholder,.shop-ship select.ph{color:#6b6555}
+.shop-ship-n{font-family:'Inter';font-weight:750;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gold2);margin:0 0 10px}
+.shop-ship input,.shop-ship-row input,.shop-ship select{width:100%;padding:13px 14px;margin:0 0 9px;border:1px solid var(--line2);border-radius:var(--r-lg);background-color:var(--field);color:var(--cream);font-family:'Inter';font-size:16px}
+.shop-ship input::placeholder,.shop-ship-row input::placeholder,.shop-ship select.ph{color:var(--cream-d)}
 .shop-ship-row select{flex:1}
 /* ↑ The state pick list (2026-10-04) shares the inputs' box. background-COLOR, not the shorthand: on
    a select the shorthand resets background-repeat and the app's chevron tiles (design ratchet). */
@@ -6476,13 +6471,13 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
 /* "From your last order — change anything that's different." over a form that started from what we
    know (lib/customerKnown). Quiet: it explains the filled boxes, it is not an alert. */
 .known-note{font-family:'Inter';font-size:13px;line-height:1.45;margin:0 0 9px;opacity:.85}
-.shop-ship .known-note{color:#6b6555;opacity:1}
+.shop-ship .known-note{color:var(--cream-d);opacity:1}
 .shop-err{font-family:'Inter';font-size:13px;color:var(--red);margin:10px 0}
-.shop-fine{font-family:'Inter';font-size:12px;line-height:1.5;color:#7a7160;margin:12px 0 0;text-align:center}
+.shop-fine{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-d);margin:12px 0 0;text-align:center}
 /* done */
 .shop-done{text-align:center;margin:44px 0}
 .shop-done-ic{display:inline-flex;width:60px;height:60px;align-items:center;justify-content:center;border-radius:50%;background:rgba(106,160,92,.14);color:var(--ok);font-size:28px;margin:0 0 10px}
-.shop-lede{font-family:'Inter';font-size:16px;line-height:1.6;color:#4a4335;max-width:44ch;margin:14px auto 22px}
+.shop-lede{font-family:'Inter';font-size:16px;line-height:1.6;color:var(--cream-m);max-width:44ch;margin:14px auto 22px}
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════════
    SHOP MEDIA (0278) — the story affordance on paper, the story itself on black.
@@ -6494,7 +6489,7 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
 .shop-hero.as-story{position:relative;padding:0;border:0;cursor:pointer;width:100%;-webkit-appearance:none;appearance:none;
   transition:transform .16s var(--ease),box-shadow .16s}
 .shop-hero.as-story:active{transform:scale(.995)}
-@media (hover:hover){.shop-hero.as-story:hover{box-shadow:0 12px 30px rgba(34,31,24,.16)}}
+@media (hover:hover){.shop-hero.as-story:hover{box-shadow:var(--shadow-2)}}
 .shop-hero-cue{position:absolute;left:12px;bottom:14px}
 .shop-hero-pips{position:absolute;left:12px;right:12px;bottom:6px;display:flex;gap:3px}
 .shop-hero-pips i{flex:1;height:2px;border-radius:2px;background:color-mix(in srgb, var(--brand-cream) 62%, transparent)}
@@ -6934,11 +6929,9 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
   background-repeat:no-repeat;background-position:right 12px center;padding-right:34px;
 }
 .app.crew-day select,.app.crew-day .ev-f select,.app.crew-day .gl-f select,.app.crew-day .prod-f select,
-.app.crew-day .codes-f select,.app.crew-day .tm-hire-form select,.app .shop-ship select,.app .shop-vari select{
+.app.crew-day .codes-f select,.app.crew-day .tm-hire-form select{
   background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%23221F18' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' opacity='.6'/%3E%3C/svg%3E");
 }
-/* The shop's selects sit on paper, so they take the ink arrow too — the cream one all but vanished
-   there (2026-10-04: the size picker had it since the shop opened). */
 /* A select whose container sets its own ground keeps it — only the arrow was added above. */
 .ev-f select{background-color:rgba(0,0,0,.28)}
 .app.crew-day .ev-f select{background-color:var(--card)}

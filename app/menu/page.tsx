@@ -138,7 +138,7 @@ export default function MenuScreen() {
                     : off || closed ? <span className={`entry-px${off ? "" : " shut"}`}>{priceLabel(id)}</span>
                     : qty > 0 ? (
                       <span role="group" aria-label={`${d.name}: ${qty} in your order`}
-                        className="entry-qty relative z-[1] inline-flex items-center gap-1 rounded-pill font-mono text-footnote font-semibold">
+                        className="entry-qty relative z-[1] inline-flex flex-none items-center gap-1 whitespace-nowrap rounded-pill font-mono text-footnote font-semibold">
                         <button type="button" className="hit-44 px-2.5 py-1 cursor-pointer appearance-none border-0 bg-transparent text-inherit [font:inherit]" aria-label={`Remove one ${d.name}`} onClick={() => dec(id)}>−</button>
                         <span>{qty} · {priceLabel(id)}</span>
                         <button type="button" className="hit-44 px-2.5 py-1 cursor-pointer appearance-none border-0 bg-transparent text-inherit [font:inherit]" aria-label={`Add one more ${d.name}`} onClick={() => inc(id)}>+</button>
