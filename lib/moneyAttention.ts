@@ -1,5 +1,5 @@
 import { moneyRound } from "./money";
-import { dueWord } from "./dayWords";
+import { dueWord, daysBetween } from "./dayWords";
 
 // WHAT NEEDS A PERSON, ON MONEY (2026-10-15, release 3 of the Plan & Money audit: "Money answers three questions in
 // order — how is the business doing, what needs attention, what do I do next"; Ryan, shown the mockups: "Yes, build it"). Money's exceptions sat where each
@@ -12,8 +12,10 @@ import { dueWord } from "./dayWords";
 //
 // Only the levels a person must act on are used here (Critical, Urgent, Action required); Normal and
 // Informational are what the rest of the page is. One rule per source, each the one the database already keeps:
-//   · a shop order waiting on us is critical from 24 hours — shop_order_stall_watchdog's default (0331), which
-//     raises its critical alert at the same hour — and action required before it;
+//   · a shop order waiting on us is critical when its promise is at risk — the business's today has reached the
+//     weekday before its ship-by date, or passed it (0407: 5 business days from payment, v_shop_orders.ship_risk) — and
+//     action required inside it, as the stall watchdog grades its alert. Before 0407 there is no promise to read, and
+//     the old rule stands: critical from the 24th hour, the hour the watchdog raised its critical (0331);
 //   · a chargeback still open (square_disputes, 0330: any state but won, lost or accepted) is critical with two days
 //     or fewer to answer, and urgent before that — Square decides against us when the date passes; its day is the
 //     business's, Eastern, as v_obligations cuts it;
@@ -50,7 +52,19 @@ export type AttnRow = {
   invoiceId?: string;
 };
 
-export type ShopWait = { id: string; who: string | null; total_cents: number | null; age_hours: number | null; items: string | null };
+export type ShopWait = {
+  id: string; who: string | null; total_cents: number | null; age_hours: number | null; items: string | null;
+  /** 0407: the day it must ship by, and whether today has reached the weekday before it. Absent before 0407. */
+  ship_by?: string | null; ship_risk?: boolean | null;
+};
+
+/** "ships in 3 days" · "ships today" · "2 days late" — an order's promise from the business's today. */
+export function promiseWords(daysToShip: number): string {
+  if (daysToShip > 0) return `ships in ${daysToShip} day${daysToShip === 1 ? "" : "s"}`;
+  if (daysToShip === 0) return "ships today";
+  const n = -daysToShip;
+  return `${n} day${n === 1 ? "" : "s"} late`;
+}
 /** An open chargeback: its amount, who, and the whole days from today to its evidence date (Eastern). */
 export type Dispute = { id: string; amount_cents: number; who: string | null; days_out: number | null };
 /** An open invoice: its amount, the account, and the whole days from today to its due date. */
@@ -68,6 +82,8 @@ export function waitWords(hours: number): string {
 
 export function moneyAttention(input: {
   waiting: readonly ShopWait[];
+  /** The business's today (Eastern), for an order's promise; without it the promise's day count is not said. */
+  today?: string;
   disputes: readonly Dispute[];
   invoices: readonly Invoice[];
   drift: readonly Drift[];
@@ -77,20 +93,24 @@ export function moneyAttention(input: {
   const rows: AttnRow[] = [];
   const label = input.label ?? ((s: string) => s);
 
-  // Paid shop orders waiting on us: one row, named by the oldest — it is the one the alert rings for.
-  const waiting = [...input.waiting].sort((a, b) => Number(b.age_hours ?? 0) - Number(a.age_hours ?? 0));
+  // Paid shop orders waiting on us: one row, named by the order most at risk — the one the alert rings for — and,
+  // among equals, the oldest.
+  const promised = (w: ShopWait) => typeof w.ship_risk === "boolean";
+  const atRisk = (w: ShopWait) => (promised(w) ? !!w.ship_risk : Number(w.age_hours ?? 0) >= STALL_HOURS);
+  const waiting = [...input.waiting].sort((a, b) => Number(atRisk(b)) - Number(atRisk(a)) || Number(b.age_hours ?? 0) - Number(a.age_hours ?? 0));
   if (waiting.length) {
     const oldest = waiting[0];
     const hours = Number(oldest.age_hours ?? 0);
-    const level: Level = hours >= STALL_HOURS ? "critical" : "action";
+    const level: Level = atRisk(oldest) ? "critical" : "action";
+    const daysToShip = oldest.ship_by && input.today ? daysBetween(input.today, oldest.ship_by) : null;
     const who = oldest.who?.trim() || "A customer";
     const what = oldest.items?.trim() ? ` for ${oldest.items.trim()}` : "";
     rows.push({
       key: "shop",
       level,
       title: waiting.length === 1 ? "A shop order is waiting on us" : `${waiting.length} shop orders are waiting on us`,
-      detail: `${LEVEL_WORD[level]} · ${waiting.length === 1 ? "" : "the oldest: "}${who} paid ${moneyRound(oldest.total_cents ?? 0)}${what}`,
-      side: waitWords(hours),
+      detail: `${LEVEL_WORD[level]} · ${waiting.length === 1 ? "" : "the first: "}${who} paid ${moneyRound(oldest.total_cents ?? 0)}${what}`,
+      side: daysToShip !== null ? promiseWords(daysToShip) : waitWords(hours),
       go: { section: "catalog", anchor: "shoporders" },
     });
   }

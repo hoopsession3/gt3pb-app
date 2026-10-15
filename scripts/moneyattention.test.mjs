@@ -38,11 +38,30 @@ ok("a refund the records agree on is nothing", run({ drift: [{ order_id: "o1", w
     { id: "b", who: "Maya T.", total_cents: 6400, age_hours: 264, items: "1 tee, 1 cap" },
     { id: "c", who: null, total_cents: 2800, age_hours: 2, items: null },
   ] });
-  ok("three waiting are one row, counted, named by the oldest", many.length === 1 && many[0].title === "3 shop orders are waiting on us"
-    && many[0].detail === "Critical · the oldest: Maya T. paid $64 for 1 tee, 1 cap" && many[0].side === "11 days", many[0]);
+  ok("three waiting are one row, counted, named by the one most at risk — before 0407, the oldest", many.length === 1 && many[0].title === "3 shop orders are waiting on us"
+    && many[0].detail === "Critical · the first: Maya T. paid $64 for 1 tee, 1 cap" && many[0].side === "11 days", many[0]);
   ok("the shop's row opens its queue in the Catalog, where it is now", many[0].go.section === "catalog" && many[0].go.anchor === "shoporders", many[0].go);
   const nameless = run({ waiting: [{ id: "c", who: "  ", total_cents: 2800, age_hours: 2, items: "" }] });
   ok("no name and no items still reads as a sentence", nameless[0].detail === "Action required · A customer paid $28", nameless[0]);
+}
+
+// ── the promise (0407): 5 business days from payment; critical once today reaches the weekday before it ──
+{
+  const inside = run({ today: "2026-10-15", waiting: [{ id: "a", who: "Maya T.", total_cents: 6400, age_hours: 70, items: "1 tee", ship_by: "2026-10-19", ship_risk: false }] });
+  ok("inside its promise an order waiting three days is action required, said by its promise — no ringing during service", inside[0].level === "action"
+    && inside[0].detail === "Action required · Maya T. paid $64 for 1 tee" && inside[0].side === "ships in 4 days", inside[0]);
+  const risk = run({ today: "2026-10-16", waiting: [{ id: "a", who: "Maya T.", total_cents: 6400, age_hours: 94, items: "1 tee", ship_by: "2026-10-19", ship_risk: true }] });
+  ok("the weekday before its promise it is critical", risk[0].level === "critical" && risk[0].side === "ships in 3 days", risk[0]);
+  const late = run({ today: "2026-10-21", waiting: [{ id: "a", who: "Maya T.", total_cents: 6400, age_hours: 200, items: "1 tee", ship_by: "2026-10-19", ship_risk: true }] });
+  ok("past it, critical, and how late", late[0].level === "critical" && late[0].side === "2 days late", late[0]);
+  const due = run({ today: "2026-10-19", waiting: [{ id: "a", who: null, total_cents: 2800, age_hours: 150, items: null, ship_by: "2026-10-19", ship_risk: true }] });
+  ok("on the day: ships today", due[0].side === "ships today", due[0]);
+  const mixed = run({ today: "2026-10-15", waiting: [
+    { id: "old", who: "Ana B.", total_cents: 3200, age_hours: 90, items: "1 cap", ship_by: "2026-10-20", ship_risk: false },
+    { id: "risk", who: "Devon P.", total_cents: 4800, age_hours: 30, items: "1 hoodie", ship_by: "2026-10-16", ship_risk: true },
+  ] });
+  ok("the row is named by the order at risk, not the oldest one inside its promise", mixed[0].level === "critical" && /Devon P\./.test(mixed[0].detail) && mixed[0].side === "ships in 1 day", mixed[0]);
+  ok("promiseWords: in N days, today, N days late", M.promiseWords(1) === "ships in 1 day" && M.promiseWords(0) === "ships today" && M.promiseWords(-1) === "1 day late" && M.promiseWords(-3) === "3 days late");
 }
 
 // ── chargebacks ──
