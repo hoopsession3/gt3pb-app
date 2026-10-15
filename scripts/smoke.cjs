@@ -14272,9 +14272,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /setStuck\(el\.getBoundingClientRect\(\)\.top - edge <= top \+ 0\.5\);/.test(rd("components/useStuck.ts"))
     && /\n\.shop-qty button\{width:44px;height:44px;/.test(gc));
   // ── the truck's position is the crew's (0402) ──
-  ok("truck: Find Us asks live_status for named columns, and Live Ops reads the position from the crew's own row",
+  ok("truck: Find Us asks live_status for named columns, and Live Ops reads the position from the crew's own row — only there, now 0402 is applied",
     /from\("live_status"\)\.select\("id, is_live, current_stop_id"\)/.test(rd("components/FindUs.tsx")) && !/from\("live_status"\)\.select\("\*"\)/.test(rd("components/FindUs.tsx"))
-    && /\/\/ arrives-with: 0402/.test(rd("components/crew/LiveControl.tsx")) && /from\("truck_position"\)\.select\("pos_updated_at"\)/.test(rd("components/crew/LiveControl.tsx"))
+    && !/arrives-with: 0402/.test(rd("components/crew/LiveControl.tsx")) && /from\("truck_position"\)\.select\("pos_updated_at"\)/.test(rd("components/crew/LiveControl.tsx"))
+    && /setPinnedAt\(\(\(tp\.data as \{ pos_updated_at\?: string \| null \} \| null\)\?\.pos_updated_at\) \?\? null\);/.test(rd("components/crew/LiveControl.tsx"))
     && !/truck_lat|truck_lng|pos_updated_at/.test(code(rd("lib/db.ts"))));
 }
 

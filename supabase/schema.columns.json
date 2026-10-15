@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-14T16:04:58.538Z",
+    "pulled_at": "2026-10-15T00:36:16.949Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
-    "source": "migrations through 0400 (less the held 0376), built locally with the fallback query; production's own names matched them exactly in the Supabase SQL editor after 0400 was applied (221 relations, 2850 columns, the same fingerprint), and keep production's column order",
-    "relations": 221,
-    "columns": 2850
+    "source": "migrations through 0402 (less the held 0376): the snapshot at 0400 with 0402's change — live_status's three position columns gone, truck_position's four in the order 0402 makes them; production's own names matched it exactly through the Supabase connector after 0402 was applied (222 relations, 2851 columns, the same fingerprint over production's order and over the names alone), and keep production's column order",
+    "relations": 222,
+    "columns": 2851
   },
   "academy_acknowledgements": [
     "user_id",
@@ -1511,9 +1511,6 @@
     "current_stop_id",
     "is_live",
     "next_eta",
-    "truck_lat",
-    "truck_lng",
-    "pos_updated_at",
     "tenant_id",
     "preorder_lead_h",
     "pay_at_pickup",
@@ -2532,6 +2529,12 @@
     "veh_cargo_height_in",
     "veh_usable_pct",
     "market"
+  ],
+  "truck_position": [
+    "id",
+    "truck_lat",
+    "truck_lng",
+    "pos_updated_at"
   ],
   "user_activity": [
     "id",
