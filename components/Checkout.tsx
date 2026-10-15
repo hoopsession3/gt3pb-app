@@ -119,7 +119,7 @@ export default function Checkout() {
   };
   // A cart line that sold out mid-order blocks submission (the server refuses it anyway — this is
   // the polite version: name the item, let them remove it, keep the rest of the order alive).
-  const { soldOut } = useAvailability();
+  const { soldOut } = useAvailability(viewerMarket);   // the city this checkout is for (0408: an 86 is for one city)
   const blocked86 = lines.filter(([id]) => soldOut.has(id)).map(([id]) => nameOf(id));
   // A drink the stop doesn't pour (its menu, stop_menu 0393) blocks the same way, by name and with the stop's: Pay
   // refuses it anyway (R2, 2026-10-13). No menu set, or not read yet: nothing is blocked here.

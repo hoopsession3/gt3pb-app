@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { drinkFrom, fallbackCents, menuOf, nameFrom, seedMenu, type Drink, type MenuRow } from "@/lib/drinks";
-import { useAvailability } from "@/lib/availability";
+import { useCupAvailability } from "@/components/useCupAvailability";
 import { haptic } from "@/lib/haptics";
 import { apiUrl } from "@/lib/native";
 
@@ -122,7 +122,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   }, []);
   useEffect(() => { refreshMenu(); }, [refreshMenu]);
   // Live: the 86s, and every product's name (the crew read every row) — for an order line the menu's rows don't name.
-  const { soldOut, names: liveNames } = useAvailability();
+  const { soldOut, names: liveNames } = useCupAvailability();
   const bySlug = useMemo(() => new Map((rows ?? []).map((r) => [r.slug, r])), [rows]);
   const menu = useMemo(() => (rows ? menuOf(rows) : seedMenu()), [rows]);
   const drinkOf = useCallback((id: string) => drinkFrom(bySlug.get(id) ?? null, id), [bySlug]);

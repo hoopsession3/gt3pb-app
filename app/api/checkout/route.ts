@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { nameFrom } from "@/lib/drinks";
-import { readMenuRows } from "@/lib/drinksRead";
+import { readCityOut, readMenuRows } from "@/lib/drinksRead";
 import { chargeCard, safeIdemKey, type PaidCard } from "@/lib/squareServer";
 import { randomUUID } from "node:crypto";
 import { orderNo } from "@/lib/activeOrder";
@@ -15,7 +15,7 @@ import { readyWords, refusalWords, pickupWords, type Ordering } from "@/lib/orde
 import { orderingFrom, readOrdering, readStopMenu } from "@/lib/orderingRead";
 import { cartRefusal, MENU_UNCHECKED, offStopMenu, stopMenuRefusal } from "@/lib/catalog";
 import { isMissingFunction, writeAcrossSkew } from "@/lib/schemaSkew";
-import { toMarket } from "@/lib/markets";
+import { FOUNDING_MARKET, toMarket } from "@/lib/markets";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
@@ -132,9 +132,10 @@ async function post(req: Request) {
   // MARKET (0279): the gate asks about the buyer's city, not "is any stop anywhere next". A client
   // that sends nothing is the founding market, gated exactly as it was.
   let ordering: Ordering;
+  const market = toMarket((body as { market?: unknown }).market);
   {
     const nowMs = Date.now();
-    const read = await readOrdering(supabaseAdmin, toMarket((body as { market?: unknown }).market), nowMs);
+    const read = await readOrdering(supabaseAdmin, market, nowMs);
     if (!read.inputs) {
       return NextResponse.json({ error: "We couldn't check the truck's schedule — give it another tap in a moment." }, { status: 503 });
     }
@@ -149,6 +150,15 @@ async function post(req: Request) {
       const refusedHere = stopMenuRefusal(off, ordering.stop.name);
       if (refusedHere) return NextResponse.json({ error: refusedHere }, { status: 409 });
     }
+    // AN 86 IS FOR ONE CITY (2026-10-15, 0408): the Pass's 86 sells an item out in its truck's city only. The order's city
+    // is its stop's (readOrdering reads this market's stops), else the founding city — the rule the order's own insert
+    // checks (0408's check_order_availability). Asked here, before the card, in the words an 86 everywhere is refused in.
+    const city = ordering.stop ? market : FOUNDING_MARKET;
+    const cart = [...new Set(items)];
+    const here = await readCityOut(supabaseAdmin, city, cart);
+    if (here.error) return NextResponse.json({ error: MENU_UNCHECKED }, { status: 503 });
+    const outHere = here.out.size ? cartRefusal(cart, cupRows.map((r) => (here.out.has(r.slug) ? { ...r, sold_out: true } : r)), (slug) => nameFrom(cupRows, slug)) : null;
+    if (outHere) return NextResponse.json({ error: outHere }, { status: 409 });
   }
   // What the customer was promised, said once for the screen, the email and the crew's pass: placed
   // ahead of a stop, it is made from the stop's start (orders.ready_from, 0343); otherwise now.

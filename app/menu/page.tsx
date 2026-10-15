@@ -9,7 +9,7 @@ import EditableCopy from "@/components/EditableCopy";
 import Watermark from "@/components/Watermark";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
-import { useAvailability } from "@/lib/availability";
+import { useCupAvailability } from "@/components/useCupAvailability";
 import { useViewerMarket } from "@/components/useViewerMarket";
 import { useOrderingOpen } from "@/components/useOrderingOpen";
 import { closedWords, openWords } from "@/lib/ordering";
@@ -23,7 +23,7 @@ export default function MenuScreen() {
   const router = useRouter();
   const { openDrink, qtyOf, bump, inc, dec, menu, menuRead, refreshMenu, priceCents } = useApp();
   const t = useSiteCopy();
-  const { soldOut } = useAvailability();
+  const { soldOut } = useCupAvailability();
   // IS THIS A MENU YOU CAN ORDER FROM RIGHT NOW? (2026-10-04) With the truck closed the page still
   // said "Order here, and it'll be waiting when you reach the window", every price wore the "+"
   // order pill, and the hint said "tap any drink to order it" — then every drink sheet said the

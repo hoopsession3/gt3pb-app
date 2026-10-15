@@ -15,8 +15,10 @@ import { ageLabel } from "@/lib/dates";
 type Row = { id: number; actor: string | null; action: string; table_name: string; row_pk: string | null; summary: string | null; created_at: string };
 type Board = { rows: Row[]; names: Record<string, string> };
 
+// product_86 (0408): an 86 in one city, from the Pass — its line says the city.
 const TABLE_LABEL: Record<string, string> = {
   products: "Menu product", deals: "Deal", budgets: "Budget", site_copy: "Copy line", profiles: "Role", customers: "Tier",
+  product_86: "86 in one city",
 };
 const ACTION_LABEL: Record<string, string> = { INSERT: "added", UPDATE: "changed", DELETE: "removed" };
 

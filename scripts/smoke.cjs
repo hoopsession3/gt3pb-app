@@ -7061,7 +7061,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const co = code(read("components/Checkout.tsx")), bar = code(read("components/OrderStatus.tsx")), crew = code(read("app/crew/page.tsx"));
   ok("one rule: the phone and the server read with lib/orderingRead and decide with lib/ordering",
     /readOrdering\(supabase!, market\)/.test(hook) && /orderingFrom\(inputs, now\)/.test(hook)
-    && /readOrdering\(supabaseAdmin, toMarket\(/.test(api) && /orderingFrom\(read\.inputs, nowMs\)/.test(api)
+    && /const market = toMarket\(\(body as \{ market\?: unknown \}\)\.market\);/.test(api) && /readOrdering\(supabaseAdmin, market, nowMs\)/.test(api)
+    && /orderingFrom\(read\.inputs, nowMs\)/.test(api)
     && /export const orderingFrom = \(i: OrderingInputs, nowMs: number\): Ordering => orderingNow\(nowMs, i\.isLive, i\.stops, i\.liveStopId, i\.named\);/.test(read("lib/orderingRead.ts"))
     && !/orderingNow\(/.test(hook) && !/orderingNow\(/.test(api));
   // 2026-10-12 (C1): the switch names a stop the road does not have → that stop's own row, this city's only, and a failed
@@ -11285,8 +11286,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("recipes: My Day's rhythm is chips — the lane's colour on each icon, not a border down a pill's curve, and they still seat in one after another",
     /<Icon name="truck" style=\{\{ color: laneColor\("stop"\) \}\} \/>/.test(pg) && /<Icon name="package" style=\{\{ color: laneColor\("drop"\) \}\} \/>/.test(pg)
     && /className=\{`k-chip sm\$\{b\.warn \? " warn" : ""\}`\}/.test(pg) && /\.op-trans :is\(\.mypack,\.myday-rhythm>\.k-chip,\.prep-card,\.pipe-card,\.mypack-day\)\{animation:seatIn/.test(g));
-  ok("recipes: the 86 board — what ran out is a red chip with its name struck through, and the time beside it",
-    /className=\{`k-chip\$\{p\.sold_out \? " crit on" : ""\}`\} onClick=\{\(\) => flip\(p\)\} aria-pressed=\{p\.sold_out\}>\s*\{p\.sold_out \? <s>\{p\.name\}<\/s> : p\.name\}/.test(read("components/EightySix.tsx")));
+  ok("recipes: the 86 board — what ran out is a red chip with its name struck through, and the time beside it (out here: everywhere, or in this city — 0408)",
+    /const isOut = \(p: Prod\) => p\.sold_out \|\| here\.has\(p\.id\);/.test(read("components/EightySix.tsx"))
+    && /className=\{`k-chip\$\{out \? " crit on" : ""\}`\} onClick=\{\(\) => flip\(p\)\} aria-pressed=\{out\}/.test(read("components/EightySix.tsx"))
+    && /\{out \? <s>\{p\.name\}<\/s> : p\.name\}/.test(read("components/EightySix.tsx")));
   ok("recipes: a row of chips that scrolls keeps their 44 — 8px above and below inside the scroll, the row where it stood (Plan's pages, Studio's filters, the flyer's styles)",
     /\.subnav\{display:flex;align-items:center;gap:6px;overflow-x:auto;padding:8px 0;margin:-6px 0 4px;/.test(g) && /\.rf-tpls\{display:flex;gap:6px;overflow-x:auto;padding:8px 0;margin:-8px 0 5px;/.test(g)
     && /\.k-chip\.sm::after\{inset:-8px 0\}/.test(g));
@@ -12460,7 +12463,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("pass: a device is connected or reconnecting — no more Live or Down for a phone",
     HB.feedWord("live") === "Connected" && HB.feedWord("reconnecting") === "Reconnecting" && HB.feedWord("down") === "Not connected" && HB.feedWord("signed-out") === "Signed out");
   ok("pass: the row reads the Pass's own count (readPulse) and the 86 board, again on a change and every minute; a tap opens the Pass; its phones are the managers' to read, this phone's alerts everyone's",
-    /readPulse\(supabase, Date\.now\(\)\)/.test(rows) && /useRealtimeTable\(\["orders", "products"\], reload\);/.test(rows) && /window\.setInterval\(\(\) => \{ void reload\(\); \}, 60_000\)/.test(rows)
+    /readPulse\(supabase, Date\.now\(\)\)/.test(rows) && /useRealtimeTable\(\["orders", "products", "product_86"\], reload\);/.test(rows) && /window\.setInterval\(\(\) => \{ void reload\(\); \}, 60_000\)/.test(rows)
       && /<StatusRow label="The Pass" says=\{says\} tapLabel=\{`\$\{says\.text\}\. Opens the Pass\.`\} onTap=\{onOpenPass\} action=\{action\} \/>/.test(rows)
       && /const devices = useDevices\(canManage\);/.test(rows) && /phones: !canManage \? null : devices\.failed \? "failed" : devices\.phones,/.test(rows)
       && /const read: ReadState = pulse\.error \? "failed" : pulse\.data \? "ready" : "loading";/.test(rows));
@@ -13122,7 +13125,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && K.resetLine(Date.parse("2026-10-12T15:00:00Z")) === "Every 86 clears at 4:00am." && K.resetLine(Date.parse("2026-12-01T15:00:00Z")) === "Every 86 clears at 3:00am."
     && K.nextResetAt(Date.parse("2026-10-12T07:59:00Z")) === "2026-10-12T08:00:00.000Z");
   ok("catalog: the page reads its 86s from the change log's own before and after, and its event menus by slug — and says when either could not be read",
-    /\.from\("admin_audit"\)\s*\.select\("created_at, actor, was86:old_row->sold_out, is86:new_row->sold_out"\)\s*\.eq\("table_name", "products"\)\.eq\("row_pk", p\.id\)\.ilike\("summary", "%sold_out: %"\)/.test(pp)
+    /\.from\("admin_audit"\)\s*\.select\("created_at, actor, was86:old_row->sold_out, is86:new_row->sold_out, city:new_row->>market"\)\s*\.in\("table_name", \["products", "product_86"\]\)\.eq\("row_pk", p\.id\)\.ilike\("summary", "%sold_out: %"\)/.test(pp)
     && /\.from\("event_menu_items"\)\s*\.select\("event_id, stop_id, events\(title, day, archived_at, completed_at\), stops\(name, starts_at, archived_at, completed_at\)"\)\s*\.eq\("product_slug", p\.slug\)/.test(pp)
     && /Couldn&apos;t read the 86 history/.test(pp) && /Couldn&apos;t read the event menus/.test(pp));
   const E = (id, title, day, extra = {}) => ({ event_id: id, stop_id: null, events: { title, day, archived_at: null, completed_at: null, ...extra } });
@@ -13206,7 +13209,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     K.freshest(row({}), row({ updated_at: "2026-10-12T14:05:00+00:00", sold_out: true })).sold_out === true
     && K.freshest(row({ updated_at: "2026-10-12T14:06:00+00:00" }), row({ updated_at: "2026-10-12T14:05:00+00:00", sold_out: true })).sold_out === false
     && K.shownRow(row({}), { p: true }, {}).sold_out === true && K.shownRow(row({}), {}, {}).sold_out === false
-    && /const products = useMemo\(\(\) => \(board\.data \?\? \[\]\)\.map\(\(p\) => shownRow\(p, pending, held\)\), \[board\.data, pending, held\]\);/.test(mm));
+    && /const products = useMemo\(\(\) => \(board\.data \?\? \[\]\)\.map\(\(p\) => \{\s*const row = shownRow\(p, pending, held\);\s*const out = cities\.get\(p\.id\);\s*return out \? \{ \.\.\.row, outIn: out\.map\(\(c\) => c\.market\) \} : row;\s*\}\), \[board\.data, pending, held, cities\]\);/.test(mm));
 
   // ── what Pay refuses (C3 of the customer audit, 2026-10-12) ──
   // A missing products row used to fail open, so a drink deleted in the Catalog stayed on sale; a drink off the menu was
@@ -13235,6 +13238,65 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /if \(availErr\) return NextResponse\.json\(\{ error: MENU_UNCHECKED \}, \{ status: 503 \}\);/.test(api)
       && /const refused = cartRefusal\(uniq, rows, \(slug\) => nameFrom\(rows, slug\)\);\s*if \(refused\) return NextResponse\.json\(\{ error: refused \}, \{ status: 409 \}\);/.test(api)
       && api.indexOf("cartRefusal(") < api.indexOf("chargeCard(") && !/blocked\.join/.test(api));
+  }
+
+  // ── AN 86 IS FOR ONE CITY (0408, 2026-10-15 — Ryan: "Pass: its city. Catalog: all") ──
+  // The Pass's 86 sells an item out in its own city (product_86); the Catalog's switch is every city. The database's half
+  // is scripts/db.eightysix.test.mjs; what is pinned here is what the screens and Pay do with it.
+  {
+    const api = code(rd("app/api/checkout/route.ts")), dr = code(rd("lib/drinksRead.ts"));
+    const mm2 = code(rd("components/MenuManager.tsx")), pp2 = code(rd("components/ProductPage.tsx")), es = code(rd("components/EightySix.tsx"));
+    const av = code(rd("lib/availability.ts")), cup = code(rd("components/useCupAvailability.ts"));
+    ok("86 for one city: the row and the page say where — 'Greenville', 'Greenville and Atlanta' — and nothing when it is out nowhere",
+      K.outInLine(["greenville"]) === "86'd in Greenville" && K.outInLine(["greenville", "atlanta"]) === "86'd in Greenville and Atlanta"
+      && K.outInLine([]) === null && K.outInLine(null) === null
+      && K.exceptLine(["greenville"]) === "On sale, except in Greenville." && K.exceptLine(["greenville", "atlanta", "greenville"]) === "On sale, except in Greenville and Atlanta." && K.exceptLine([]) === null
+      && /: sold \?\? exceptLine\(cities\.map\(\(c\) => c\.market\)\) \?\? "On sale on the live menu\."/.test(pp2)
+      && K.cityOutLine({ market: "greenville", sold_out_at: "2026-10-15T18:14:00Z", sold_out_by: "u2" }, { u2: "Kayla" }, Date.parse("2026-10-15T20:00:00Z")) === "86'd in Greenville today at 2:14pm by Kayla.",
+      K.cityOutLine({ market: "greenville", sold_out_at: "2026-10-15T18:14:00Z", sold_out_by: "u2" }, { u2: "Kayla" }, Date.parse("2026-10-15T20:00:00Z")));
+    ok("86 for one city: what a truck ran out of is counted under 86'd, never 'On sale', and heard on the row; the switch stays every city's (sold_out)",
+      K.availabilityOf({ active: true, sold_out: false, outIn: ["greenville"] }) === "86" && K.availabilityOf({ active: true, sold_out: false, outIn: [] }) === "on"
+      && K.availabilityOf({ active: false, sold_out: false, outIn: ["greenville"] }) === "off"
+      && K.filterCounts([{ active: true, sold_out: false, outIn: ["greenville"] }, { active: true, sold_out: false }], "")["86"] === 1
+      && K.rowSpoken({ name: "RISE", line: "Activation", price_cents: 700, active: true, sold_out: false, outIn: ["greenville"] }) === "RISE, Activation, $7, 86'd in Greenville"
+      && K.rowSpoken({ name: "RISE", line: "Activation", price_cents: 700, active: true, sold_out: true, outIn: ["greenville"] }) === "RISE, Activation, $7"
+      && /aria-checked=\{!p\.sold_out\}/.test(pp2) && /const where = p\.active && !p\.sold_out \? outInLine\(p\.outIn\) : null;/.test(mm2));
+    const fc = K.flipsFrom([{ created_at: "2026-10-15T18:14:00Z", actor: "u2", was86: false, is86: true, city: "greenville" },
+      { created_at: "2026-10-15T17:00:00Z", actor: "u1", was86: false, is86: true }]);
+    ok("86 for one city: the history keeps the Pass's 86s, each with its city — '86'd in Greenville today at 2:14pm · Kayla' — and the Catalog's without one",
+      fc.length === 2 && fc[0].market === "greenville" && fc[1].market === null
+      && K.flipLine(fc[0], { u2: "Kayla" }, Date.parse("2026-10-15T20:00:00Z")) === "86'd in Greenville today at 2:14pm · Kayla"
+      && K.flipLine(fc[1], { u1: "Ryan" }, Date.parse("2026-10-15T20:00:00Z")) === "86'd today at 1:00pm · Ryan",
+      [K.flipLine(fc[0], { u2: "Kayla" }, Date.parse("2026-10-15T20:00:00Z")), K.flipLine(fc[1], { u1: "Ryan" }, Date.parse("2026-10-15T20:00:00Z"))]);
+    ok("86 for one city: Pay asks the order's city before the card — its stop's, else the founding city, the insert's own rule — in the words an 86 everywhere is refused in; a failed read waits",
+      /const city = ordering\.stop \? market : FOUNDING_MARKET;/.test(api) && /const here = await readCityOut\(supabaseAdmin, city, cart\);/.test(api)
+      && /if \(here\.error\) return NextResponse\.json\(\{ error: MENU_UNCHECKED \}, \{ status: 503 \}\);/.test(api)
+      && /cartRefusal\(cart, cupRows\.map\(\(r\) => \(here\.out\.has\(r\.slug\) \? \{ \.\.\.r, sold_out: true \} : r\)\)/.test(api)
+      && api.indexOf("readCityOut(") > api.indexOf("readOrdering(") && api.indexOf("readCityOut(") < api.indexOf("chargeCard(")
+      && /const all = sb\.from\("product_86"\)\.select\("products!inner\(slug\)"\)\.eq\("market", market\);\s*const r = slugs \? await all\.in\("products\.slug", \[\.\.\.slugs\]\) : await all;/.test(dr)
+      && /if \(r\.error\) return isMissingTable\(r\.error\) \? \{ out: new Set\(\), error: null \} : \{ out: new Set\(\), error: r\.error\.message \};/.test(dr));
+    ok("86 for one city: every guest-facing read asks its own city's 86s — the cup screens the viewer's, checkout its city's, the truck's board its own — and a city read that fails keeps what the menu knew",
+      /export function useAvailability\(market: Market = FOUNDING_MARKET\): Availability \{/.test(av)
+      && /supabase\.from\("product_86"\)\.select\("product_id"\)\.eq\("market", market\)/.test(av) && /if \(city\.error && !\(await import\("@\/lib\/schemaSkew"\)\)\.isMissingTable\(city\.error\)\) return;/.test(av) && !/from "\.\/schemaSkew"|from "@\/lib\/schemaSkew"/.test(av)
+      && /useRealtimeTable\(\["products", "product_86"\], load, \{ loadOnMount: true \}\);/.test(av)
+      && /return useAvailability\(market\);/.test(cup) && /useViewerMarket\(CUP_MARKETS\)/.test(cup)
+      && /const \{ soldOut \} = useAvailability\(viewerMarket\);/.test(code(rd("components/Checkout.tsx")))
+      && /const \{ soldOut \} = useAvailability\(market\);/.test(code(rd("app/display/page.tsx")))
+      && ["app/menu/page.tsx", "components/AppProvider.tsx", "components/DrinkSheet.tsx", "components/today/TodayHome.tsx", "components/FindUs.tsx", "components/DailyStack.tsx"]
+        .every((f) => /useCupAvailability\(\)/.test(code(rd(f))) && !/useAvailability\(/.test(code(rd(f)))));
+    ok("86 for one city: the concierge speaks for live_status's truck — the founding city's — and calls 86'd what is out there, everywhere or by the Pass",
+      /readCityOut\(supabaseAdmin, FOUNDING_MARKET\),/.test(code(rd("app/api/concierge/route.ts")))
+      && /drinks = menuOf\(pr\.rows\.map\(\(r\) => \(here\.out\.has\(r\.slug\) \? \{ \.\.\.r, sold_out: true \} : r\)\)\);/.test(code(rd("app/api/concierge/route.ts"))));
+    ok("86 for one city: the Pass's board 86s in the crew member's city (set_eighty_six), the Catalog's 86 is every city's and still comes back from the board; before 0408 a tap is the everywhere 86 it was",
+      /const market = homeMarket\(profile\) \?\? FOUNDING_MARKET;/.test(es)
+      && /supabase\.rpc\("set_eighty_six", \{ p_product: p\.id, p_market: market, p_out: next \}\)/.test(es)
+      && /if \(p\.sold_out \|\| !byCity\) \{/.test(es) && /else if \(isMissingTable\(c\.error\)\) setByCity\(false\);/.test(es)
+      && /useRealtimeTable\(\["products", "product_86"\], load\);/.test(es));
+    ok("86 for one city: the Catalog reads every city's 86s beside the list, live, says a failed read, and the page puts one back in its city",
+      /supabase\.from\("product_86"\)\.select\("product_id, market, sold_out_at, sold_out_by"\)/.test(mm2) && /useRealtimeTable\("product_86", city\.reload\);/.test(mm2)
+      && /Couldn&apos;t read what the trucks have 86&apos;d in their cities/.test(mm2)
+      && /supabase\.rpc\("set_eighty_six", \{ p_product: p\.id, p_market: c\.market, p_out: false \}\)/.test(pp2)
+      && /`Back on in \$\{cityName\(c\.market\)\}`/.test(pp2) && /\{cityOutLine\(c, names\)\}/.test(pp2));
   }
 }
 

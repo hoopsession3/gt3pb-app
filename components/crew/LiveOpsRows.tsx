@@ -6,7 +6,11 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import { useRealtimeTable } from "@/lib/realtime";
 import { readPulse } from "@/lib/passBoard";
 import { localToday } from "@/lib/dates";
+import { homeMarket } from "@/lib/homeMarket";
+import { FOUNDING_MARKET } from "@/lib/markets";
+import { isMissingTable } from "@/lib/schemaSkew";
 import { passSays, serviceExceptions, exceptionSays, type ReadState } from "@/lib/liveOps";
+import { useAuth } from "@/components/AuthProvider";
 import type { MyFlag } from "@/lib/useMyAlerts";
 import { AlertsOffLine, useAlertsOffHere } from "@/components/DeviceAlerts";
 import { DevicesCard, useDevices } from "@/components/crew/DevicesCard";
@@ -29,20 +33,29 @@ import Icon from "@/components/Icon";
 type Pulse = { pass: number; ahead: number; out: number };
 
 export function PassRow({ onOpenPass, canManage }: { onOpenPass: () => void; canManage: boolean }) {
+  const { profile } = useAuth();
+  const market = homeMarket(profile) ?? FOUNDING_MARKET;
   const loader = useCallback(async (): Promise<Pulse> => {
     if (!supabase) return { pass: 0, ahead: 0, out: 0 };
-    const [o, p] = await Promise.all([
+    // AN 86 IS FOR ONE CITY (2026-10-15, 0408): out is what is sold out here — everywhere (the Catalog's 86) or in this
+    // crew member's city (the Pass's) — each active item once.
+    const [o, p, c] = await Promise.all([
       readPulse(supabase, Date.now()),
-      supabase.from("products").select("id", { count: "exact", head: true }).eq("active", true).eq("sold_out", true),
+      supabase.from("products").select("id, sold_out").eq("active", true),
+      // arrives-with: 0408
+      supabase.from("product_86").select("product_id").eq("market", market),
     ]);
     if (o.pass === null || o.ahead === null) throw new Error("The Pass's count did not answer");
     if (p.error) throw new Error(p.error.message);
-    return { pass: o.pass, ahead: o.ahead, out: p.count ?? 0 };
-  }, []);
+    if (c.error && !isMissingTable(c.error)) throw new Error(c.error.message);
+    const here = new Set(((c.data as { product_id: string }[] | null) ?? []).map((r) => r.product_id));
+    const out = ((p.data as { id: string; sold_out: boolean }[] | null) ?? []).filter((r) => r.sold_out || here.has(r.id)).length;
+    return { pass: o.pass, ahead: o.ahead, out };
+  }, [market]);
   const pulse = useAsyncData(loader, []);
   const { reload } = pulse;
   useEffect(() => { const t = window.setInterval(() => { void reload(); }, 60_000); return () => window.clearInterval(t); }, [reload]);
-  useRealtimeTable(["orders", "products"], reload);
+  useRealtimeTable(["orders", "products", "product_86"], reload);
 
   // The phones: a manager's to read (crew_devices answers no one else); this phone's alerts, everyone's.
   const devices = useDevices(canManage);

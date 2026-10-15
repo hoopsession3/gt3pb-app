@@ -5,7 +5,7 @@ import { useApp } from "./AppProvider";
 import Button from "@/components/Button";
 import { InfoRow } from "@/components/kit";
 import Eyebrow from "@/components/today/Eyebrow";
-import { useAvailability } from "@/lib/availability";
+import { useCupAvailability } from "@/components/useCupAvailability";
 import { money } from "@/lib/money";
 import type { Ordering } from "@/lib/ordering";
 import { CAFFEINE, DAYS, PREFS, SLOT_WORD, STACK_KEY, missingWords, parseAnswers, stackButton, stackFor, type Day, type Pref } from "@/lib/dailyStack";
@@ -24,7 +24,7 @@ const saved = () => { try { return parseAnswers(localStorage.getItem(STACK_KEY))
 
 export default function DailyStack({ ordering, stopMenu }: Props) {
   const { menu, bump, isInCart, toast, openCheckout, openDrink } = useApp();
-  const { soldOut } = useAvailability();
+  const { soldOut } = useCupAvailability();
   // The sheet mounts on a tap, never on the server: the phone's last answers are read once, as it opens.
   const [last] = useState(saved);
   const [day, setDay] = useState<Day | null>(last?.day ?? null);

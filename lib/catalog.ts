@@ -16,6 +16,7 @@
 
 import { clockTime, etDayKey, etWhen } from "./dates";
 import { isSeedSlug } from "./drinks";
+import { MARKET_LABEL, type Market } from "./markets";
 import { money, moneyPlain } from "./money";
 
 /** A products row, as the Catalog reads it (select *). */
@@ -35,11 +36,49 @@ export type CatalogProduct = {
 // "86'd", and a product off the menu altogether has no switch (an 86 is "sold out today"; off the menu is active =
 // false, set on the product's page and saved — 0130's split).
 
-/** What a product is to somebody who wants one: on sale, 86'd for the day, or off the menu altogether. */
+/** What a product is to somebody who wants one: on sale, 86'd for the day, or off the menu altogether. 86'd is in every
+ *  city (sold_out, the Catalog's switch) or in some (outIn — the cities the Pass has sold it out in, 0408). */
 export type Availability = "on" | "86" | "off";
-export function availabilityOf(p: { active: boolean; sold_out: boolean }): Availability {
+export function availabilityOf(p: { active: boolean; sold_out: boolean; outIn?: readonly string[] | null }): Availability {
   if (!p.active) return "off";
-  return p.sold_out ? "86" : "on";
+  return p.sold_out || (p.outIn?.length ?? 0) > 0 ? "86" : "on";
+}
+
+// ── AN 86 IN ONE CITY (2026-10-15, 0408 — Ryan: "Pass: its city. Catalog: all") ─────────────────────────────────────
+// The Pass's 86 sells an item out in its own city (product_86); the Catalog's switch is every city (products.sold_out).
+// The Catalog says both: the switch is every city's, and a city's 86 is said beside it — on the row, on the page and in
+// the history — so the list never calls a drink on sale that a truck has run out of without saying where.
+export type City86 = { product_id: string; market: string; sold_out_at: string | null; sold_out_by: string | null };
+/** A city as the screen names it: "Greenville". */
+export const cityName = (m: string): string => MARKET_LABEL[m as Market] ?? m;
+/** Cities as a sentence names them: "Greenville", "Greenville and Atlanta". Empty when there are none. */
+const citiesWords = (markets: readonly string[] | null | undefined): string => {
+  const names = [...new Set(markets ?? [])].map(cityName);
+  return names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+};
+/** The row's line: "86'd in Greenville", "86'd in Greenville and Atlanta". Null when it is out in no city. */
+export function outInLine(markets: readonly string[] | null | undefined): string | null {
+  const where = citiesWords(markets);
+  return where ? `86'd in ${where}` : null;
+}
+/** The page's status beside the switch, which is every city's: "On sale, except in Greenville." Null when it is out in
+ *  no city. */
+export function exceptLine(markets: readonly string[] | null | undefined): string | null {
+  const where = citiesWords(markets);
+  return where ? `On sale, except in ${where}.` : null;
+}
+/** The page's line for one city: "86'd in Greenville today at 2:14pm by Kayla." */
+export function cityOutLine(c: Pick<City86, "market" | "sold_out_at" | "sold_out_by">, names: Readonly<Record<string, string>>, nowMs: number = Date.now()): string {
+  const when = c.sold_out_at ? ` ${etWhen(c.sold_out_at, nowMs)}` : "";
+  const who = c.sold_out_by ? ` by ${names[c.sold_out_by] || "Staff"}` : "";
+  return `86'd in ${cityName(c.market)}${when}${who}.`;
+}
+/** Each product's cities, from the product_86 rows: id → its rows, the oldest 86 first. */
+export function citiesByProduct(rows: readonly City86[] | null | undefined): Map<string, City86[]> {
+  const by = new Map<string, City86[]>();
+  for (const r of rows ?? []) { const a = by.get(r.product_id) ?? []; a.push(r); by.set(r.product_id, a); }
+  for (const a of by.values()) a.sort((x, y) => (x.sold_out_at ?? "").localeCompare(y.sold_out_at ?? "") || x.market.localeCompare(y.market));
+  return by;
 }
 
 /** A draft that has no name yet is still somebody's row ("+ New item" makes it blank on purpose). */
@@ -63,8 +102,9 @@ export function spokenLine(name: string, soldOut: boolean): string {
 
 /** The row's own button, which opens the product: name, line, price — and "off the menu" when it is, since an off
  *  row has no switch to say so. */
-export function rowSpoken(p: { name?: string | null; line?: string | null; price_cents: number; active: boolean }): string {
-  return [nameOf(p), (p.line ?? "").trim(), money(p.price_cents), p.active ? "" : "off the menu"].filter(Boolean).join(", ");
+export function rowSpoken(p: { name?: string | null; line?: string | null; price_cents: number; active: boolean; sold_out?: boolean; outIn?: readonly string[] | null }): string {
+  const where = p.active && !p.sold_out ? outInLine(p.outIn) ?? "" : "";
+  return [nameOf(p), (p.line ?? "").trim(), money(p.price_cents), p.active ? where : "off the menu"].filter(Boolean).join(", ");
 }
 
 /** The toast an 86 or an un-86 leaves, with Undo beside it. */
@@ -89,7 +129,7 @@ export type CatalogFilter = "all" | "on" | "86" | "off";
 export const FILTERS: readonly { key: CatalogFilter; label: string }[] = [
   { key: "all", label: "All" }, { key: "on", label: "On sale" }, { key: "86", label: "86'd" }, { key: "off", label: "Off" },
 ];
-export const inFilter = (p: { active: boolean; sold_out: boolean }, f: CatalogFilter): boolean =>
+export const inFilter = (p: { active: boolean; sold_out: boolean; outIn?: readonly string[] | null }, f: CatalogFilter): boolean =>
   f === "all" || availabilityOf(p) === f;
 
 /** Words as a search compares them: no accents, one apostrophe, one case, single spaces. */
@@ -109,7 +149,7 @@ export type LineGroup<T> = { key: string; label: string; items: T[] };
 /** The products a filter and a search show, under their line — lines in the order the menu first reaches them
  *  (products.sort), the products in theirs. One line however it is cased, named and placed as the whole menu first
  *  has it, whatever the filter leaves; a product with no line is under "No line". */
-export function shownGroups<T extends { active: boolean; sold_out: boolean; name?: string | null; line?: string | null; slug?: string | null }>(
+export function shownGroups<T extends { active: boolean; sold_out: boolean; outIn?: readonly string[] | null; name?: string | null; line?: string | null; slug?: string | null }>(
   products: readonly T[], f: CatalogFilter, q: string,
 ): LineGroup<T>[] {
   const lines = new Map<string, { label: string; at: number }>();
@@ -129,7 +169,7 @@ export function shownGroups<T extends { active: boolean; sold_out: boolean; name
   return [...byKey.values()].sort((a, b) => (lines.get(a.key)?.at ?? 0) - (lines.get(b.key)?.at ?? 0));
 }
 /** A filter's count is the rows it would show — with the search as typed. */
-export function filterCounts(products: readonly { active: boolean; sold_out: boolean; name?: string | null; line?: string | null; slug?: string | null }[], q: string): Record<CatalogFilter, number> {
+export function filterCounts(products: readonly { active: boolean; sold_out: boolean; outIn?: readonly string[] | null; name?: string | null; line?: string | null; slug?: string | null }[], q: string): Record<CatalogFilter, number> {
   const n: Record<CatalogFilter, number> = { all: 0, on: 0, "86": 0, off: 0 };
   for (const p of products) {
     if (!matchesSearch(p, q)) continue;
@@ -299,13 +339,14 @@ export function conflictWords(name: string, base: CatalogProduct, latest: Catalo
 // The product holds its current 86 only (0130: sold_out_at and sold_out_by, cleared on un-86). The history is in the
 // change log: 0260's trigger writes a line for every products update — whoever made it, crew included, and the 4am
 // reset with nobody behind it — with the row before and after. The page reads the lines whose diff names sold_out and
-// takes the flag from each side; nothing is inferred that the log does not say.
-export type AuditRow = { created_at: string; actor: string | null; was86: unknown; is86: unknown };
-export type Flip = { at: string; actor: string | null; to86: boolean };
+// takes the flag from each side; nothing is inferred that the log does not say. A city's 86 (0408) is a line of its own
+// table, product_86, in the same shape, with its city on it: "86'd in Greenville today at 2:14pm · Kayla".
+export type AuditRow = { created_at: string; actor: string | null; was86: unknown; is86: unknown; city?: unknown };
+export type Flip = { at: string; actor: string | null; to86: boolean; market?: string | null };
 export function flipsFrom(rows: readonly AuditRow[] | null | undefined): Flip[] {
   return (rows ?? [])
     .filter((r) => typeof r.was86 === "boolean" && typeof r.is86 === "boolean" && r.was86 !== r.is86)
-    .map((r) => ({ at: r.created_at, actor: r.actor, to86: r.is86 === true }))
+    .map((r) => ({ at: r.created_at, actor: r.actor, to86: r.is86 === true, market: typeof r.city === "string" && r.city ? r.city : null }))
     .sort((a, b) => (versionMicros(b.at) ?? 0) - (versionMicros(a.at) ?? 0));
 }
 /** pg_cron runs the reset at 08:00 UTC (0130); a flip back on sale with nobody behind it, then, is the reset. */
@@ -318,9 +359,10 @@ export function flipWho(f: Flip, names: Readonly<Record<string, string>>): strin
   if (f.actor) return names[f.actor] || "Staff";
   return isDailyReset(f) ? "the daily reset" : "the system";
 }
-/** "86'd today at 2:14pm · Ryan", "Back on sale Mon, Oct 12 at 4:00am · the daily reset" — the business's clock. */
+/** "86'd today at 2:14pm · Ryan", "Back on sale Mon, Oct 12 at 4:00am · the daily reset" — the business's clock — and a
+ *  city's: "86'd in Greenville today at 2:14pm · Kayla". */
 export function flipLine(f: Flip, names: Readonly<Record<string, string>>, nowMs: number = Date.now()): string {
-  return `${f.to86 ? "86'd" : "Back on sale"} ${etWhen(f.at, nowMs)} · ${flipWho(f, names)}`;
+  return `${f.to86 ? "86'd" : "Back on sale"}${f.market ? ` in ${cityName(f.market)}` : ""} ${etWhen(f.at, nowMs)} · ${flipWho(f, names)}`;
 }
 /** The current 86, from the product itself: "86'd today at 2:14pm by Ryan." Null when it is on sale. */
 export function soldOutLine(p: Pick<CatalogProduct, "sold_out" | "sold_out_at" | "sold_out_by">, names: Readonly<Record<string, string>>, nowMs: number = Date.now()): string | null {

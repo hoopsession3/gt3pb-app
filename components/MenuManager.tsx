@@ -10,9 +10,10 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { haptic } from "@/lib/haptics";
 import { money } from "@/lib/money";
 import {
-  FILTERS, availabilityOf, emptyLine, filterCounts, flipToast, nameOf, rowSpoken, shownGroups, shownRow, undoOpen, undoStart,
-  type CatalogFilter, type CatalogProduct,
+  FILTERS, availabilityOf, citiesByProduct, emptyLine, filterCounts, flipToast, nameOf, outInLine, rowSpoken, shownGroups, shownRow,
+  undoOpen, undoStart, type CatalogFilter, type CatalogProduct, type City86,
 } from "@/lib/catalog";
+import { isMissingTable } from "@/lib/schemaSkew";
 import AsyncSection from "./AsyncSection";
 import ProductPage, { AvailSwitch } from "./ProductPage";
 
@@ -33,6 +34,12 @@ import ProductPage, { AvailSwitch } from "./ProductPage";
 // LIVE (2026-10-12). The list read once, so an 86 called from the Pass stayed on sale here until a reload. It reads
 // again on every change to products (lib/realtime — which also puts it on the app's refresh: pull to refresh, and
 // coming back to the app), and an open product keeps what was typed into it across those reads (ProductPage).
+//
+// AN 86 IS FOR ONE CITY (2026-10-15, 0408 — Ryan: "Pass: its city. Catalog: all"). The switch here is every city, as it
+// was. The Pass's 86 is its own city's (product_86): read beside the list, live, and said on the row ("86'd in
+// Greenville") and on the drink's page, and counted under 86'd — so what the Pass ran out of never reads "on sale" here.
+
+const NO_CITIES: readonly City86[] = [];
 
 /** The map without one key — an 86 that has landed (or failed) is no longer on its way. */
 const without = <T,>(m: Readonly<Record<string, T>>, id: string): Record<string, T> => {
@@ -66,8 +73,23 @@ export default function MenuManager() {
   const { reload } = board;
   // The crew's 86 from the Pass, the 4am reset, another owner's save: each reads the list again, here and now.
   useRealtimeTable("products", reload);
+  // Each city's 86s (0408). A read that failed is not "out nowhere": the list says so above the rows.
+  const cityLoader = useCallback(async (): Promise<City86[]> => {
+    if (!supabase) return [];
+    // arrives-with: 0408
+    const { data, error } = await supabase.from("product_86").select("product_id, market, sold_out_at, sold_out_by");
+    if (error) { if (isMissingTable(error)) return []; throw new Error(error.message); }
+    return (data as City86[]) ?? [];
+  }, []);
+  const city = useAsyncData(cityLoader, []);
+  useRealtimeTable("product_86", city.reload);
+  const cities = useMemo(() => citiesByProduct(city.data), [city.data]);
 
-  const products = useMemo(() => (board.data ?? []).map((p) => shownRow(p, pending, held)), [board.data, pending, held]);
+  const products = useMemo(() => (board.data ?? []).map((p) => {
+    const row = shownRow(p, pending, held);
+    const out = cities.get(p.id);
+    return out ? { ...row, outIn: out.map((c) => c.market) } : row;
+  }), [board.data, pending, held, cities]);
   const groups = useMemo(() => shownGroups(products, filter, q), [products, filter, q]);
   const counts = useMemo(() => filterCounts(products, q), [products, q]);
   const shown = groups.reduce((n, g) => n + g.items.length, 0);
@@ -151,6 +173,10 @@ export default function MenuManager() {
             </div>
             {/* The four-line paragraph, as one quiet line (2026-10-12): the panel's own sub says what the list is. */}
             <p className="m-0 mb-3 text-caption text-cream-muted">The app charges these prices, card and cash.</p>
+            {city.status === "error" && (
+              <p className="cp-line mt-0 mb-3" role="alert">Couldn&apos;t read what the trucks have 86&apos;d in their cities — that is not the same as nothing.{" "}
+                <button type="button" className="btn-ter" onClick={() => { void city.reload(); }}>Try again</button></p>
+            )}
             <Segmented kind="choice" label="Show" fill value={filter} onChange={(k) => { haptic("selection"); setFilter(k); }}
               options={FILTERS.map((f) => ({ key: f.key, label: <>{f.label}{counts[f.key] > 0 && <span className="k-seg-n">{counts[f.key]}</span>}</> }))} />
             <p className="sr-only" role="status">{`${shown} of ${products.length} shown`}</p>
@@ -170,6 +196,7 @@ export default function MenuManager() {
       {/* Outside the list's own states, keyed by the product: a read of the list never remounts the page. */}
       {page && (
         <ProductPage key={page.id} p={page} gone={!live && board.status === "ready"} onClose={close}
+          cities={cities.get(page.id) ?? NO_CITIES} onCityBack={() => { void city.reload(); }}
           onFlip={(p) => { void flip(p); }} onSaved={adopt} onDeleted={deleted} />
       )}
     </>
@@ -177,13 +204,18 @@ export default function MenuManager() {
 }
 
 /** One product, one row about 56 points tall: the name and the price open its page (a 56-point target, where the name
- *  alone was 20); the switch beside them 86es it. A product off the menu says "Off" where the switch would be. */
-function MenuRow({ p, onOpen, onFlip }: { p: CatalogProduct; onOpen: () => void; onFlip: () => void }) {
+ *  alone was 20); the switch beside them 86es it. A product off the menu says "Off" where the switch would be. One the
+ *  Pass has 86'd in a city says where under its name — the switch is every city's (0408). */
+function MenuRow({ p, onOpen, onFlip }: { p: CatalogProduct & { outIn?: readonly string[] }; onOpen: () => void; onFlip: () => void }) {
+  const where = p.active && !p.sold_out ? outInLine(p.outIn) : null;
   return (
     <div className="k-row py-0 gap-3">
       <button type="button" onClick={onOpen} aria-label={rowSpoken(p)}
         className="flex-1 min-w-0 min-h-14 flex items-center gap-3 p-0 border-0 bg-transparent text-left text-cream [font:inherit] cursor-pointer appearance-none transition-opacity active:opacity-70">
-        <span className="flex-1 min-w-0 line-clamp-2 break-words font-bold text-callout">{nameOf(p)}</span>
+        <span className="flex-1 min-w-0">
+          <span className="block line-clamp-2 break-words font-bold text-callout">{nameOf(p)}</span>
+          {where && <span className="block text-footnote text-red-hover">{where}</span>}
+        </span>
         <span className="prod-px shrink-0">{money(p.price_cents)}</span>
       </button>
       {availabilityOf(p) === "off"

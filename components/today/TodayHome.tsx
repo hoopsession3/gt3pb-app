@@ -19,7 +19,7 @@ import EditCopyPill from "@/components/EditCopyPill";
 import { useOrderingOpen } from "@/components/useOrderingOpen";
 import { useViewerMarket } from "@/components/useViewerMarket";
 import { useMyActiveOrders, useOrderActions, ETA_WORDS } from "@/components/useMyOrders";
-import { useAvailability } from "@/lib/availability";
+import { useCupAvailability } from "@/components/useCupAvailability";
 import { authedFetch } from "@/lib/authedFetch";
 import { fillCopy } from "@/lib/copy";
 import { clockTime, etWhen, timeRange } from "@/lib/dates";
@@ -134,7 +134,7 @@ function MakingCard({ order, more, stale, reload }: { order: Order; more: number
 function Lead({ lead, usual, stopMenu, t }: { lead: Exclude<TodayLead<Order>, { kind: "making" }>; usual: string[] | null | undefined; stopMenu: ReadonlySet<string> | null; t: T }) {
   const router = useRouter();
   const { menu, nameOf, reorder } = useApp();
-  const { soldOut } = useAvailability();
+  const { soldOut } = useCupAvailability();
   const onMenu = new Set(menu.map((d) => d.slug));
   const can = usual ? orderable(usual, onMenu, soldOut, stopMenu) : [];
   const cents = useQuote(can, lead.kind === "open" && can.length > 0);

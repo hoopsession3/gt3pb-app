@@ -15,6 +15,8 @@ import { route } from "@/lib/apiRoute";
 // the charge — products (a drink off the menu or 86'd is refused in the same words, lib/catalog cartRefusal), Square
 // for a price products lacks, the caller's perks (lib/benefits) — so the quote and the charge cannot drift.
 // A guest gets the price anyone pays; a signed-in member gets their perks (userFromRequest, null for a guest).
+// An 86 in one city (0408, the Pass's) is the charge's to refuse, where the order's city is known — its stop's; the cart
+// already shows it sold out for the viewer's city (lib/availability), and the charge refuses it before the card.
 async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ error: "Checkout isn't switched on yet." }, { status: 503 });
   let body: { items?: unknown; code?: unknown };

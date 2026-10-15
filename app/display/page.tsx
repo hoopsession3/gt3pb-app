@@ -38,9 +38,10 @@ export default function DisplayPage() {
   // The board hangs in the truck: a stop with its own menu (stop_menu, 0393) shows what it pours, as the app does — the
   // rest leave the board. Its words are the menu's: the 86 and each section's subtitle are the same page copy.
   const { menu, refreshMenu, priceCents } = useApp();
-  const { soldOut } = useAvailability();
   const t = useSiteCopy();
   const { market } = useViewerMarket(CUP_MARKETS);
+  // The board's own city (0408: an 86 at one truck is that city's): the same market its stop menu is read for.
+  const { soldOut } = useAvailability(market);
   const { stopMenu } = useOrderingOpen(true, market);
   const sections = sectionsOf(stopMenu ? menu.filter((d) => stopMenu.has(d.slug)) : menu);
 

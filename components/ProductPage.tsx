@@ -15,9 +15,9 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { isSeedSlug } from "@/lib/drinks";
 import Sheet, { CloseButton } from "./Sheet";
 import {
-  RECIPE_READ_FAILED, RECIPE_REREAD_FAILED, changedFields, conflictWords, draftOf, flipLine, flipsFrom, invalid, nameOf, patchOf,
-  resetLine, saveVerdict, soldOutLine, switchSpoken, switchWords, upcomingMenus, valuesOf,
-  type AuditRow, type CatalogProduct, type Draft, type Flip, type MenuLink, type MenuStop,
+  RECIPE_READ_FAILED, RECIPE_REREAD_FAILED, changedFields, cityName, cityOutLine, conflictWords, draftOf, exceptLine, flipLine, flipsFrom,
+  invalid, nameOf, patchOf, resetLine, saveVerdict, soldOutLine, switchSpoken, switchWords, upcomingMenus, valuesOf,
+  type AuditRow, type CatalogProduct, type City86, type Draft, type Flip, type MenuLink, type MenuStop,
   type CaffeineChoice,
 } from "@/lib/catalog";
 
@@ -26,7 +26,8 @@ import {
 // next read of the list, because the row copied every reload into its draft (`useEffect(() => { setD(p); }, [p])`), so
 // an 86 on ANY other row wiped what was being typed here. The page holds four things, in the order they are reached for:
 //   availability   the same switch as the row, the current 86 from the product (sold_out_at / sold_out_by, 0130), and the
-//                  last few 86s from the change log (0260) — what the data holds, nothing inferred;
+//                  last few 86s from the change log (0260) — what the data holds, nothing inferred. The switch is every
+//                  city (0408); a city the Pass has 86'd it in is a line of its own, with its way back on there;
 //   details        the expander's fields and its two refusals, unchanged (lib/catalog invalid);
 //   where it is sold   on the menu (cups, at the truck and in the app), the delivery pack builder (bulk_orderable and its
 //                  tier), and the event and stop menus that pour it (event_menu_items, 0173);
@@ -41,16 +42,21 @@ type History = { flips: Flip[]; names: Record<string, string> };
 
 const NO_INV: Inv[] = [];
 const NO_COMPS: Comp[] = [];
+const NO_CITIES: readonly City86[] = [];
 /** How many of a product's 86s the page reads back from the change log. */
 const HISTORY_N = 6;
 /** A person's first name, the change log's way (components/AuditTrail). */
 const firstName = (n: string | null | undefined): string => (n || "").trim().split(/\s+/)[0] || "Staff";
 
-export default function ProductPage({ p, gone, onClose, onFlip, onSaved, onDeleted }: {
+export default function ProductPage({ p, gone, cities = NO_CITIES, onCityBack, onClose, onFlip, onSaved, onDeleted }: {
   /** The newest version of the row the list has, an 86 on its way included. */
   p: CatalogProduct;
   /** The row left the list while the page was open (somebody deleted it). */
   gone: boolean;
+  /** The cities the Pass has 86'd it in (product_86, 0408), as the list read them. */
+  cities?: readonly City86[];
+  /** One of them is back on: the list reads its cities again. */
+  onCityBack?: () => void;
   onClose: () => void;
   onFlip: (p: CatalogProduct) => void;
   /** The saved row, so the list shows it before it reads again. */
@@ -113,15 +119,19 @@ export default function ProductPage({ p, gone, onClose, onFlip, onSaved, onDelet
 
   // ── the 86s ──
   const soldOutBy = p.sold_out_by ?? null;
+  // Whoever 86'd it in a city is named as the product's own 86 is; the cities' 86s move the history too.
+  const cityBy = cities.map((c) => c.sold_out_by ?? "").join(",");
+  const cityKey = cities.map((c) => `${c.market}@${c.sold_out_at ?? ""}`).join(",");
   const historyLoader = useCallback(async (): Promise<History> => {
     if (!supabase) return { flips: [], names: {} };
+    // The product's own 86s, and each city's (0408 logs product_86 in the same shape, its city on the line).
     const { data, error } = await supabase.from("admin_audit")
-      .select("created_at, actor, was86:old_row->sold_out, is86:new_row->sold_out")
-      .eq("table_name", "products").eq("row_pk", p.id).ilike("summary", "%sold_out: %")
+      .select("created_at, actor, was86:old_row->sold_out, is86:new_row->sold_out, city:new_row->>market")
+      .in("table_name", ["products", "product_86"]).eq("row_pk", p.id).ilike("summary", "%sold_out: %")
       .order("created_at", { ascending: false }).limit(HISTORY_N);
     if (error) throw new Error(error.message);
     const flips = flipsFrom(data as unknown as AuditRow[]);
-    const ids = [...new Set([soldOutBy, ...flips.map((f) => f.actor)].filter((x): x is string => !!x))];
+    const ids = [...new Set([soldOutBy, ...cityBy.split(","), ...flips.map((f) => f.actor)].filter((x): x is string => !!x))];
     const names: Record<string, string> = {};
     if (ids.length) {
       // A name is a courtesy: without it a line still says what and when, and "Staff" for who (as the change log does).
@@ -129,9 +139,22 @@ export default function ProductPage({ p, gone, onClose, onFlip, onSaved, onDelet
       if (!noNames) for (const r of (people ?? []) as { id: string; display_name: string | null }[]) names[r.id] = firstName(r.display_name);
     }
     return { flips, names };
-  }, [p.id, soldOutBy]);
-  // Read again whenever the 86 itself moves: the change log has a new line then.
-  const history = useAsyncData(historyLoader, [historyLoader, p.sold_out, p.sold_out_at]);
+  }, [p.id, soldOutBy, cityBy]);
+  // Read again whenever the 86 itself moves, here or in a city: the change log has a new line then.
+  const history = useAsyncData(historyLoader, [historyLoader, p.sold_out, p.sold_out_at, cityKey]);
+  // Back on in one city: the Pass's own write (set_eighty_six), from here. Every city's 86 is the switch's.
+  const [backing, setBacking] = useState<string | null>(null);
+  const backOn = async (c: City86) => {
+    if (!supabase || backing) return;
+    setBacking(c.market);
+    const { data, error } = await supabase.rpc("set_eighty_six", { p_product: p.id, p_market: c.market, p_out: false });
+    setBacking(null);
+    const r = (data ?? {}) as { ok?: boolean; words?: string };
+    if (error || !r.ok) { toast(`Couldn't put ${title} back on in ${cityName(c.market)} — ${error?.message ?? r.words ?? "try again"}`, "error"); return; }
+    haptic("toggleOff");
+    toast(`${title} is back on sale in ${cityName(c.market)}`, "success");
+    onCityBack?.();
+  };
 
   // ── the event and stop menus ──
   const menusLoader = useCallback(async (): Promise<MenuStop[]> => {
@@ -258,13 +281,21 @@ export default function ProductPage({ p, gone, onClose, onFlip, onSaved, onDelet
             <div className="cp-block-h"><span>Availability</span></div>
             <p className="cp-line mt-1">
               {!p.active ? "Off the menu — nobody can order it. Turn on “On the menu” below and save to sell it."
-                : sold ?? "On sale on the live menu."}
+                : sold ?? exceptLine(cities.map((c) => c.market)) ?? "On sale on the live menu."}
             </p>
           </div>
           {p.active
             ? <AvailSwitch p={p} onFlip={() => onFlip(p)} />
             : <span className="w-30 shrink-0 flex justify-end" aria-hidden="true"><span className="k-tag txt">Off</span></span>}
         </div>
+        {p.active && !p.sold_out && cities.map((c) => (
+          <p key={c.market} className="cp-line">
+            {cityOutLine(c, names)}{" "}
+            <button type="button" className="btn-ter" disabled={backing !== null} onClick={() => { void backOn(c); }}>
+              {backing === c.market ? "Putting back…" : `Back on in ${cityName(c.market)}`}
+            </button>
+          </p>
+        ))}
         {p.active && <p className="cp-line dim">{resetLine()}</p>}
         <div className="cp-block-h mt-3"><span>Recent 86s</span></div>
         {history.status === "loading" ? <p className="cp-line dim">Reading the change log…</p>
@@ -274,7 +305,7 @@ export default function ProductPage({ p, gone, onClose, onFlip, onSaved, onDelet
           ) : flips.length === 0 ? <p className="cp-line dim">No 86 in the change log yet.</p>
           : (
             <ul className="m-0 p-0 list-none">
-              {flips.slice(0, 5).map((f) => <li key={`${f.at}-${f.to86}`} className="cp-line">{flipLine(f, names)}</li>)}
+              {flips.slice(0, 5).map((f) => <li key={`${f.at}-${f.to86}-${f.market ?? ""}`} className="cp-line">{flipLine(f, names)}</li>)}
             </ul>
           )}
       </div>

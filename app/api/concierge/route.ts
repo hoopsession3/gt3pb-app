@@ -3,7 +3,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ClaudeMsg } from "@/lib/anthropic";
 import { menuKnowledge } from "@/lib/conciergeKb";
 import { menuOf, seedMenu, type Drink } from "@/lib/drinks";
-import { readMenuRows } from "@/lib/drinksRead";
+import { readCityOut, readMenuRows } from "@/lib/drinksRead";
+import { FOUNDING_MARKET } from "@/lib/markets";
 import { ownerCorrections, logConvo } from "@/lib/agentKnowledge";
 import { claimSafe, CLAIM_FALLBACK } from "@/lib/claimGuard";
 import { etTimeLabel, etToday } from "@/lib/dates";
@@ -96,7 +97,9 @@ async function post(req: Request) {
   // list's menu when the Catalog can't be read, as the app itself shows.
   let drinks: Drink[] = seedMenu();
   if (supabaseAdmin) {
-    const [pr, ls, ev, pl] = await Promise.all([
+    // AN 86 IS FOR ONE CITY (0408): the truck the concierge speaks for is live_status's — the founding city's (0285) — so
+    // what it calls 86'd is that city's too: sold out everywhere, or sold out there by the Pass.
+    const [pr, ls, ev, pl, here] = await Promise.all([
       readMenuRows(supabaseAdmin),
       supabaseAdmin.from("live_status").select("is_live, current_stop_id").eq("id", 1).maybeSingle(),
       // PUBLIC events only — this is a guest-facing context and the service role bypasses RLS,
@@ -109,8 +112,9 @@ async function post(req: Request) {
         .not("published_at", "is", null)
         .gte("day", today).order("day").limit(8),
       supabaseAdmin.from("subscription_plans").select("label, price_cents, period_days, active").eq("active", true).order("price_cents"),
+      readCityOut(supabaseAdmin, FOUNDING_MARKET),
     ]);
-    if (!pr.error && pr.rows.length) drinks = menuOf(pr.rows);
+    if (!pr.error && pr.rows.length) drinks = menuOf(pr.rows.map((r) => (here.out.has(r.slug) ? { ...r, sold_out: true } : r)));
     prices = pr.rows.filter((p) => p.active !== false && typeof p.price_cents === "number").map((p) => `- ${p.name ?? p.slug}: ${money(p.price_cents as number)}`).join("\n");
     if (ls.data) {
       let where = "";

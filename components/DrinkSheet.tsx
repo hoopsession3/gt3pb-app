@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "./AppProvider";
-import { useAvailability } from "@/lib/availability";
+import { useCupAvailability } from "@/components/useCupAvailability";
 import { useViewerMarket } from "@/components/useViewerMarket";
 import { useOrderingOpen } from "./useOrderingOpen";
 import { lineSubKey, pillarOf } from "@/lib/drinks";
@@ -22,7 +22,7 @@ import { money } from "@/lib/money";
 
 export default function DrinkSheet() {
   const { openId, closeDrink, isInCart, bump, toast, priceCents, drinkOf } = useApp();
-  const { soldOut } = useAvailability();
+  const { soldOut } = useCupAvailability();
   const router = useRouter();
   const t = useSiteCopy();
   // Ordering is gated at the FIRST touchpoint, not just checkout: outside the truck's window the

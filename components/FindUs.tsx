@@ -14,7 +14,7 @@ import { marketsPresent, rowInMarket, shouldOfferMarketChoice, MARKET_LABEL } fr
 import { useViewerMarket } from "@/components/useViewerMarket";
 import { useOrderingOpen } from "@/components/useOrderingOpen";
 import { closedWords, liveSwitchOn, readyWords, type NamedStop } from "@/lib/ordering";
-import { useAvailability } from "@/lib/availability";
+import { useCupAvailability } from "@/components/useCupAvailability";
 import { etToday, etRelativeDay, fmt12, clockTime, etDayKey, weekdayOf } from "@/lib/dates";
 import { isStopAhead } from "@/lib/road";
 import { canceledLine } from "@/lib/stopLine";   // the line alone: the texts and the crew's words stay out of Find Us
@@ -183,7 +183,7 @@ async function fetchRoad(): Promise<Board> {
 export default function FindUs() {
   const router = useRouter();
   const t = useSiteCopy();
-  const avail = useAvailability();
+  const avail = useCupAvailability();
   const [openStop, setOpenStop] = useState<string | null>(null);
 
   const loader = useCallback(async (): Promise<Board> => {
