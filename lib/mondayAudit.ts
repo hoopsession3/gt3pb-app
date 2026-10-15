@@ -13,9 +13,9 @@ import { edited } from "./formGuard";
 // stream. These are its rules, pure, so scripts/smoke.cjs holds each one to its answers.
 //
 // UNCHANGED, ON PURPOSE: the five criteria and their 0–2 scale, the total and its bands, the two-week rule and its
-// words, who may audit (owners and admins), and the save — its two writes are components/MondayAudit's, word for word
-// what the sheet wrote. The database's side of the audit (one all-or-nothing save, filing by Monday, week locks) is
-// Release 3, and waits for its own yes.
+// words, and who may audit (owners and admins). The database's side of the audit — one all-or-nothing save, filing by
+// Monday, weeks that lock, a stream with history parked rather than deleted — is 0405 (2026-10-15, Release 3):
+// components/MondayAudit saves through save_workstream_audit.
 
 // ── THE FIVE, EACH RULE SAID ONCE ────────────────────────────────────────────────────────────────────────────────────
 // Moved here from components/OsRegistry as they stood (0264's rubric). The rule beside each criterion is the only place
@@ -105,6 +105,8 @@ export type StreamStatus = "active" | "blocked" | "parked";
 export type AuditStream = {
   id: string; name: string; owner: string | null; owner_user_id: string | null; status: StreamStatus;
   health: number; next_action: string | null; due: string | null; blocker: string | null; last_audited: string | null;
+  /** When the stream last changed (0405): what the save is checked against, so a colleague's newer save is not overwritten. */
+  updated_at?: string | null;
 };
 export type AuditDetails = { name: string; owner: { id: string | null; name: string }; next_action: string; due: string; blocker: string; status: StreamStatus };
 /** The form: the details and the audit note (the shape the sheet's `draft` had). */

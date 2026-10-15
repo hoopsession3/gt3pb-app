@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
+import { isMissingTable } from "@/lib/schemaSkew";
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -31,9 +32,9 @@ const MondayAudit = dynamic(() => import("./MondayAudit"), { ssr: false });
 type Ws = {
   id: string; name: string; owner: string; owner_user_id: string | null; status: "active" | "blocked" | "parked";
   health: number; next_action: string | null; due: string | null; blocker: string | null;
-  last_audited: string | null; sort: number;
+  last_audited: string | null; sort: number; updated_at?: string | null;
 };
-type Audit = { id: string; workstream_id: string; week_of: string; total: number };
+type Audit = { workstream_id: string; week_of: string; total: number };
 
 const dotClass = (h: number, status: string) => status === "parked" ? "park" : h >= 10 ? "green" : h >= 8 ? "amber" : "red";
 
@@ -49,11 +50,18 @@ export default function OsRegistry() {
 
   const loader = useCallback(async (): Promise<{ rows: Ws[]; recent: Audit[] }> => {
     if (!supabase) return { rows: [], recent: [] };
-    const [w, a] = await Promise.all([
+    // EIGHT WEEKS A STREAM (2026-10-15, 0405): each stream's own last eight weekly totals (v_workstream_weeks). The 40
+    // newest audits across the portfolio could leave a stream audited less often with none to show. Until 0405 is
+    // pasted the view is not there, and the 40 newest are read, as before.
+    const [w, v] = await Promise.all([
       supabase.from("os_workstreams").select("*").order("sort"),
-      supabase.from("workstream_audits").select("id, workstream_id, week_of, total").order("week_of", { ascending: false }).limit(40),
+      // arrives-with: 0405
+      supabase.from("v_workstream_weeks").select("workstream_id, week_of, total").order("week_of", { ascending: false }),
     ]);
     if (w.error) throw new Error(w.error.message);
+    const a = v.error && isMissingTable(v.error)
+      ? await supabase.from("workstream_audits").select("workstream_id, week_of, total").order("week_of", { ascending: false }).limit(40)
+      : v;
     return { rows: (w.data as Ws[]) ?? [], recent: (a.data as Audit[]) ?? [] };
   }, []);
   const state = useAsyncData(loader, []);

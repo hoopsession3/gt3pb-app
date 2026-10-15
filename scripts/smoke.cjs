@@ -12746,36 +12746,24 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const fs = require("node:fs"), path = require("node:path");
   const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
   const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
-  const norm = (t) => t.replace(/\s+/g, " ");
   const maudRaw = rd("components/MondayAudit.tsx"), osrRaw = rd("components/OsRegistry.tsx");
   const maud = code(maudRaw), osr = code(osrRaw), g = rd("app/globals.css"), tw = rd("app/tailwind.css"), ctl = code(rd("components/controls.tsx"));
-  // The sheet's save as it stood at 9695df5 (components/OsRegistry.tsx), comments aside.
-  const BEFORE_SAVE = [
-    'if (!supabase || !auditing || saving || (anyScored && !scored) || !draft.name.trim() || !hasOwner) return;',
-    'setSaving(true);',
-    'const today = localToday();',
-    'if (scored) {',
-    'const { error } = await supabase.from("workstream_audits").upsert({',
-    'workstream_id: auditing.id, week_of: today,',
-    'c_owner: scores.c_owner, c_next: scores.c_next, c_blockers: scores.c_blockers,',
-    'c_artifacts: scores.c_artifacts, c_signal: scores.c_signal,',
-    'total, note: draft.note.trim() || null, audited_by: user?.id ?? null,',
-    '}, { onConflict: "workstream_id,week_of" });',
-    'if (error) { toast(`Couldn\'t save the audit — ${error.message}`, "error"); setSaving(false); return; }',
-    '}',
-    'const { error: e2 } = await supabase.from("os_workstreams").update({',
-    'name: draft.name.trim().slice(0, 80), owner: draft.owner.name.trim().slice(0, 40), owner_user_id: draft.owner.id, status: draft.status,',
-    'next_action: draft.next_action.trim() || null, due: draft.due || null, blocker: draft.blocker.trim() || null,',
-    '...(scored ? { health: total, last_audited: today } : {}),',
-    '}).eq("id", auditing.id);',
-    'setSaving(false);',
-    'if (e2) { toast(`Couldn\'t save — ${e2.message}`, "error"); return; }',
-    'toast(!scored ? "Stream updated" : total >= 10 ? `${draft.name}: 10 — green` : total >= 8 ? `${draft.name}: ${total} — amber watch` : `${draft.name}: ${total} — named in this week\'s review`);',
-  ].join(" ");
+  // Which writes each file makes, by table.
   const writes = (src, t) => (src.match(new RegExp(`\\.from\\("${t}"\\)\\.(insert|upsert|update|delete)\\(`, "g")) || []).map((m) => m.replace(/.*\.(\w+)\($/, "$1"));
-  ok("monday audit: the save writes exactly what it wrote — the same two tables, the same columns from the same values, the week's row before the stream, the same guard and the same words after",
-    norm(maud).includes(norm(BEFORE_SAVE)) && writes(maud, "workstream_audits").join() === "upsert" && writes(maud, "os_workstreams").join() === "update,delete"
-      && writes(osr, "workstream_audits").length === 0 && writes(osr, "os_workstreams").join() === "insert");
+  // A WEEK'S AUDIT IS A RECORD (2026-10-15, 0405, Release 3). The walk's save was held word for word to the sheet's two
+  // writes while the database's side waited for its yes; it is one save now — save_workstream_audit, with the stream as
+  // this page read it, so a colleague's newer save is read in rather than overwritten — and the two writes are what
+  // saves only until 0405 is pasted.
+  ok("monday audit: one save — save_workstream_audit with the stream as it was read, the details, the five scores or none and the note only with them; a refusal said in its own words, a colleague's newer save read in; the two old writes only until 0405, the week's row before the stream",
+    /\/\/ arrives-with: 0405\n\s*const \{ data, error \} = await supabase\.rpc\("save_workstream_audit", \{\s*p_workstream: auditing\.id, p_seen: auditing\.updated_at \?\? null, p_details: details,/.test(maudRaw)
+      && /p_scores: scored \? \{ c_owner: scores\.c_owner, c_next: scores\.c_next, c_blockers: scores\.c_blockers, c_artifacts: scores\.c_artifacts, c_signal: scores\.c_signal \} : null,\s*p_note: scored \? draft\.note\.trim\(\) \|\| null : null,/.test(maud)
+      && /if \(error && isMissingFunction\(error\)\) \{/.test(maud) && maud.indexOf("isMissingFunction(error)") < maud.indexOf('.from("workstream_audits").upsert(')
+      && maud.indexOf('.from("workstream_audits").upsert(') < maud.indexOf('.from("os_workstreams").update(')
+      && /toast\(r\.words \|\| "Couldn't save — try again\.", "error"\);/.test(maud) && /if \(r\.code === "changed"\) onReload\(\);/.test(maud)
+      && /toast\(!scored \? "Stream updated"/.test(maud)
+      && writes(maud, "workstream_audits").join() === "upsert" && writes(maud, "os_workstreams").join() === "update,delete"
+      && writes(osr, "workstream_audits").length === 0 && writes(osr, "os_workstreams").join() === "insert"
+      && /if \(error\?\.code === "23503"\) \{ toast\("It has audit history, so it stays on the record — set its status to Parked instead\.", "error"\); return; \}/.test(maud));
   ok("monday audit: saved, its draft goes and the walk moves on — where the sheet closed",
     /toast\(!scored \? "Stream updated"[^\n]*\n\s*dropDraft\(phone\(\), draftKey\(me, auditing\.id\)\);\s*if \(scored\) setMine\([^\n]*\);\s*onReload\(\);\s*advance\(auditing\.id, "saved"\);/.test(maud) && !/setAuditing/.test(maud + osr));
   const lgRule = (g.match(/\.k-seg\.lg \.k-seg-opt\{([^}]*)\}/) || [])[1] ?? "";

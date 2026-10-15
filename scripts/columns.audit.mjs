@@ -160,6 +160,30 @@ export function arrivingColumns(pending = pendingMigrations()) {
     for (const m of sql.matchAll(/alter\s+table\s+(?:public\.)?([a-z0-9_]+)\s+add\s+column\s+(?:if\s+not\s+exists\s+)?([a-z0-9_]+)/gi)) {
       out.set(`${m[1].toLowerCase()}.${m[2].toLowerCase()}`, num);
     }
+    // A view's columns are its outer select list (2026-10-15, 0405's v_workstream_weeks): up to the first `from` outside
+    // parentheses, each item named by its alias or its last word (`a.total` → total).
+    for (const m of sql.matchAll(/create\s+(?:or\s+replace\s+)?view\s+(?:public\.)?([a-z0-9_]+)\b[\s\S]*?\bas\s+select\b([\s\S]*?);/gi)) {
+      const rel = m[1].toLowerCase(), body = m[2];
+      let depth = 0, cut = body.length;
+      for (let i = 0; i < body.length; i++) {
+        if (body[i] === "(") depth++;
+        else if (body[i] === ")") depth--;
+        else if (depth === 0 && /^from\b/i.test(body.slice(i)) && /\s/.test(body[i - 1] ?? " ")) { cut = i; break; }
+      }
+      const items = [];
+      let cur = "";
+      depth = 0;
+      for (const ch of body.slice(0, cut)) {
+        if (ch === "(") depth++;
+        if (ch === ")") depth--;
+        if (ch === "," && depth === 0) { items.push(cur); cur = ""; } else cur += ch;
+      }
+      items.push(cur);
+      for (const item of items) {
+        const c = item.trim().match(/\bas\s+([a-z0-9_]+)\s*$/i) || item.trim().match(/([a-z0-9_]+)\s*$/i);
+        if (c) out.set(`${rel}.${c[1].toLowerCase()}`, num);
+      }
+    }
     for (const m of sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z0-9_]+)\s*\(([\s\S]*?)\n\s*\)\s*;/gi)) {
       const rel = m[1].toLowerCase();
       for (const line of m[2].split("\n")) {
@@ -188,6 +212,10 @@ export function arrivingRelations(pending = pendingMigrations()) {
   for (const [num, raw] of pending) {
     const sql = raw.split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
     for (const m of sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z0-9_]+)\s*\(/gi)) {
+      out.set(m[1].toLowerCase(), num);
+    }
+    // A view is a relation the paste creates too (2026-10-15, 0405's v_workstream_weeks): read the same way.
+    for (const m of sql.matchAll(/create\s+(?:or\s+replace\s+)?view\s+(?:public\.)?([a-z0-9_]+)\b/gi)) {
       out.set(m[1].toLowerCase(), num);
     }
   }

@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { dayFromKey, localToday, weekStartKey } from "@/lib/dates";
 import { haptic } from "@/lib/haptics";
+import { isMissingFunction } from "@/lib/schemaSkew";
 import { streamOwner } from "@/lib/portfolio";
 import {
   CRITERIA, SCALE, allScored, auditState, changedDetails, detailsOf, draftKey, draftOf, dropDraft, dueWarning, keepDraft,
@@ -195,32 +196,61 @@ export default function MondayAudit({ rows, recent, ids, start, onReload, onClos
     if (!supabase || !auditing || saving || (anyScored && !scored) || !draft.name.trim() || !hasOwner) return;
     setSaving(true);
     const today = localToday();
-    if (scored) {
-      const { error } = await supabase.from("workstream_audits").upsert({
-        workstream_id: auditing.id, week_of: today,
-        c_owner: scores.c_owner, c_next: scores.c_next, c_blockers: scores.c_blockers,
-        c_artifacts: scores.c_artifacts, c_signal: scores.c_signal,
-        total, note: draft.note.trim() || null, audited_by: user?.id ?? null,
-      }, { onConflict: "workstream_id,week_of" });
-      if (error) { toast(`Couldn't save the audit — ${error.message}`, "error"); setSaving(false); return; }
-    }
     // THE PERSON, NOT ONLY THEIR NAME (2026-10-04, the form audit). 0307 added owner_user_id and its
     // changelog said owners "are now picked from the crew" — but this save wrote only the text, so
     // re-owning a stream left owner_user_id on the PREVIOUS person, every stream added here had
     // none, and v_workstream_owners and v_obligations (which read the id) answered for the wrong
     // person. Both columns are written now, from one pick.
-    const { error: e2 } = await supabase.from("os_workstreams").update({
+    const details = {
       name: draft.name.trim().slice(0, 80), owner: draft.owner.name.trim().slice(0, 40), owner_user_id: draft.owner.id, status: draft.status,
       next_action: draft.next_action.trim() || null, due: draft.due || null, blocker: draft.blocker.trim() || null,
-      ...(scored ? { health: total, last_audited: today } : {}),
-    }).eq("id", auditing.id);
+    };
+    // A WEEK'S AUDIT IS A RECORD (2026-10-15, 0405 — Release 3 of the Today, Command, Audit & Catalog audit). The audit
+    // and the stream are one save in the database now (save_workstream_audit): both, or neither, filed under the week's
+    // Monday (Eastern), and refused in words — not written — when someone saved this stream after this page read it.
+    // It wrote them in two (the history row under the phone's day, then the stream), and a second save the same day
+    // overwrote a colleague's without a word. Until 0405 is pasted the function is not there, and the two writes below
+    // are what saves, as before.
+    let week = weekStartKey(today);
+    // arrives-with: 0405
+    const { data, error } = await supabase.rpc("save_workstream_audit", {
+      p_workstream: auditing.id, p_seen: auditing.updated_at ?? null, p_details: details,
+      p_scores: scored ? { c_owner: scores.c_owner, c_next: scores.c_next, c_blockers: scores.c_blockers, c_artifacts: scores.c_artifacts, c_signal: scores.c_signal } : null,
+      p_note: scored ? draft.note.trim() || null : null,
+    });
+    if (error && isMissingFunction(error)) {
+      week = today;
+      if (scored) {
+        const { error: e1 } = await supabase.from("workstream_audits").upsert({
+          workstream_id: auditing.id, week_of: today,
+          c_owner: scores.c_owner, c_next: scores.c_next, c_blockers: scores.c_blockers,
+          c_artifacts: scores.c_artifacts, c_signal: scores.c_signal,
+          total, note: draft.note.trim() || null, audited_by: user?.id ?? null,
+        }, { onConflict: "workstream_id,week_of" });
+        if (e1) { toast(`Couldn't save the audit — ${e1.message}`, "error"); setSaving(false); return; }
+      }
+      const { error: e2 } = await supabase.from("os_workstreams").update({ ...details, ...(scored ? { health: total, last_audited: today } : {}) }).eq("id", auditing.id);
+      if (e2) { toast(`Couldn't save — ${e2.message}`, "error"); setSaving(false); return; }
+    } else if (error) {
+      setSaving(false); haptic("error"); toast(`Couldn't save — ${error.message}`, "error"); return;
+    } else {
+      const r = (data ?? {}) as { ok?: boolean; code?: string; words?: string; week_of?: string };
+      if (!r.ok) {
+        setSaving(false); haptic("error");
+        toast(r.words || "Couldn't save — try again.", "error");
+        // A colleague's newer save is read in, never overwritten unread: the list reloads with theirs, this form keeps
+        // what was typed, and the next save is checked against theirs.
+        if (r.code === "changed") onReload();
+        return;
+      }
+      if (r.week_of) week = r.week_of;
+    }
     setSaving(false);
-    if (e2) { toast(`Couldn't save — ${e2.message}`, "error"); return; }
     toast(!scored ? "Stream updated" : total >= 10 ? `${draft.name}: 10 — green` : total >= 8 ? `${draft.name}: ${total} — amber watch` : `${draft.name}: ${total} — named in this week's review`);
     // ON, NOT OUT (2026-10-12): saved, the stream's draft goes and the walk moves to the next stream due, where the
     // sheet closed and the next one had to be found on the list again.
     dropDraft(phone(), draftKey(me, auditing.id));
-    if (scored) setMine((m) => [{ workstream_id: auditing.id, week_of: today, total }, ...m.filter((a) => a.workstream_id !== auditing.id || a.week_of !== today)]);
+    if (scored) setMine((m) => [{ workstream_id: auditing.id, week_of: week, total }, ...m.filter((a) => a.workstream_id !== auditing.id || a.week_of !== week)]);
     onReload();
     advance(auditing.id, "saved");
   };
@@ -237,8 +267,10 @@ export default function MondayAudit({ rows, recent, ids, start, onReload, onClos
   };
   const removeStream = async () => {
     if (!supabase || !auditing) return;
-    if (!(await confirm({ title: `Remove “${auditing.name}” from the portfolio?`, body: "Its audit history goes with it. Parking by decision is usually the better move.", confirmLabel: "Remove", danger: true }))) return;
+    if (!(await confirm({ title: `Remove “${auditing.name}” from the portfolio?`, body: "Only a stream never audited can be removed — one with history is parked, and keeps its record. Parking by decision is usually the better move.", confirmLabel: "Remove", danger: true }))) return;
     const { error } = await supabase.from("os_workstreams").delete().eq("id", auditing.id);
+    // A stream with audit history keeps it (0405: on delete restrict) — the record is parked, not deleted.
+    if (error?.code === "23503") { toast("It has audit history, so it stays on the record — set its status to Parked instead.", "error"); return; }
     if (error) { toast(`Couldn't remove — ${error.message}`, "error"); return; }
     toast("Removed from the portfolio");
     dropDraft(phone(), draftKey(me, auditing.id));
