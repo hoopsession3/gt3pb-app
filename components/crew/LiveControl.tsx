@@ -92,8 +92,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
       supabase.from("stops").select("*").order("sort"),
       supabase.from("live_status").select("*").maybeSingle(),
       supabase.from("vendors").select("*").order("sort"), // may not exist pre-0034
-      // arrives-with: 0402 — until it is pasted the row is not there: the read errs, and the time comes from live_status's
-      // own column, where 0022 kept it.
+      // the crew's own row since 0402 (applied 2026-10-15): live_status, which everyone may read, holds no position
       supabase.from("truck_position").select("pos_updated_at").maybeSingle(),
     ]);
     const failed = s.error ?? l.error;
@@ -102,8 +101,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
     setRead("ready");
     setStops((s.data as Stop[] | null) ?? []);
     setLive((l.data as LiveStatus | null) ?? null);
-    const at = (r: unknown) => ((r as { pos_updated_at?: string | null } | null)?.pos_updated_at ?? null);
-    setPinnedAt(tp.error ? at(l.data) : at(tp.data));
+    setPinnedAt(((tp.data as { pos_updated_at?: string | null } | null)?.pos_updated_at) ?? null);
     if (vs.data) setVendors((vs.data as Vendor[]).filter((v) => !v.archived_at));
   }, []);
   // A stop's venue is picked in its sheet (FieldOpSheet → components/VenuePick), not on this card:
