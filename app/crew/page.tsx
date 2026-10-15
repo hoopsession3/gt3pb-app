@@ -43,6 +43,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "@/components/AsyncSection";
 import Owed from "@/components/Owed";  // daily path: the overdue list is on the default screen
 import HomeNumbers from "@/components/HomeNumbers";  // daily path: the home's three numbers
+import MoneyAttention from "@/components/MoneyAttention";  // Money's first screen, under Performance
 import TodayList from "@/components/TodayList";      // daily path: the home's Today list
 import ComingUp from "@/components/ComingUp";        // daily path: the home's next seven days
 import { flagIsToday, rhythmDay, RHYTHM_TABLES } from "@/lib/home";
@@ -158,6 +159,7 @@ const InventoryLibrary = dynamic(() => import("@/components/InventoryLibrary"), 
 const Reports = dynamic(() => import("@/components/Reports"), { loading: () => <PourFill label="Loading…" /> });
 const SnapshotReport = dynamic(() => import("@/components/SnapshotReport"), { loading: () => <PourFill label="Loading…" /> });
 const EventPnlReport = dynamic(() => import("@/components/EventPnlReport"), { loading: () => <PourFill label="Loading…" /> });
+const GetPaid = dynamic(() => import("@/components/GetPaid"), { loading: () => <PourFill label="Loading…" /> });
 import SignIn from "@/components/SignIn";
 import Sheet, { CloseButton, LeaveButton, sheetOpen } from "@/components/Sheet";
 import { NumberRoll } from "@/components/CountUp";
@@ -240,10 +242,10 @@ const SEC_SUB: Record<OpSection, string> = {
   brew: "Schedule, start & log brews — sized to what's reserved.",
   garage: "Load-out & tow, gear, maintenance & inventory.",
   driver: "The delivery run — map, list & one big go button.",
-  money: "Sales, costs, reserves & order history.",
-  catalog: "The menu, merch, lessons, membership plans, codes & perks.",
-  customers: "Every customer — orders, loyalty, contact info & messages.",
-  team: "People, roles & training.",
+  money: "How the business is doing, what needs you, what to do next — then the reports.",
+  catalog: "The menu, merch & its orders, reserve drops, lessons, plans, codes & perks.",
+  customers: "Every customer — orders, loyalty, members, messages & where people drop off.",
+  team: "People, roles, deals & offers, and training.",
   settings: "Your account, notifications & display — and how the business runs.",
 };
 const SEC_MORE: Record<OpSection, string> = {
@@ -257,10 +259,10 @@ const SEC_MORE: Record<OpSection, string> = {
   brew: "Production's home. Schedule brews sized to demand, hit start-by deadlines, log every batch — with coverage, serve-by and stock checks right on the card.",
   garage: "The physical operation: trailer load-out & tow plan, the gear library, asset maintenance, and inventory with pars.",
   driver: "Run day, from the wheel: how many porches, where, and one tap into driver mode with the map and run list.",
-  money: "The books. Watch sales and reserve revenue, work out costs and margins, and review order history — the numbers behind the operation. How people pay is set in Settings; what we sell — the menu, merch, lessons and plans — is the Catalog.",
-  catalog: "What the business sells, in one place: the menu and its products, the merch in the Shop, the Return to Primal lessons, and what members get — membership plans, discount codes and founding perks. What each costs and earns stays in Money.",
-  customers: "Your customer book. Every person who's ordered — cup, pickup or delivery, with or without an account — with their history, loyalty and contact info in one place. Messages is here too: a live broadcast to everyone in the app.",
-  team: "Your people. The roster — change someone's role and access right on their row — who's on what, the org chart, and training. Inviting someone new, who owns each lane and training the AI are in Settings.",
+  money: "The books, in three answers. Performance — the week's sales and margin against last week's, what customers owe you, and the next drop. Needs attention — a shop order waiting on us, a chargeback's date, a late invoice, a refund Square and the app disagree about, a budget over its line, worst first. Do next — log a purchase, get paid. Then the reports and the records, one row each. How people pay is set in Settings; what we sell, and the shop's orders, are the Catalog.",
+  catalog: "What the business sells, in one place: the menu and its products, the merch in the Shop and the orders waiting to be sent, the limited reserve drops, the Return to Primal lessons, and what members get — membership plans, discount codes and founding perks. What each costs and earns stays in Money.",
+  customers: "Your customer book. Every person who's ordered — cup, pickup or delivery, with or without an account — with their history, loyalty and contact info in one place. Messages is here too: a live broadcast to everyone in the app. And the members — who pays monthly, who asked for a plan — and the funnels: where people drop off.",
+  team: "Your people. The roster — change someone's role and access right on their row — who's on what, the org chart, operator deals and offer letters, and training. Inviting someone new, who owns each lane and training the AI are in Settings.",
   ask: "Your pocket brain. Ask anything about recipes, the why, gear, stock or how-to and get an answer from the GT3 playbook — from any screen.",
   // THE GUIDE SAYS WHAT SETTINGS HOLDS (2026-10-06, the settings round; by category the same day). It
   // used to call Settings "the owner control room" holding "promos & codes" — the codes were in
@@ -279,10 +281,10 @@ const SEC_INSIDE: Record<OpSection, string[]> = {
   brew: ["Brew schedule with start-by deadlines", "Coverage — makes vs reserved", "Serve-by freshness windows", "Batch log & recipes"],
   garage: ["Load-out & tow plan", "Gear library — manuals & specs", "Asset maintenance & what's due", "Inventory — stock, costs & pars"],
   driver: ["Next run — porches & zips", "Driver mode — map & run list", "The ONE place outcomes are logged (swap · fresh · hold · not home)"],
-  customers: ["Customer list — guests & members", "Cross-channel order history (cup · pickup · delivery)", "Loyalty — points & credit", "Contact info for outreach", "Messages — a live message or ad, to everyone in the app"],
-  money: ["Refunds & disputes — the door to Square (the payment switches are in Settings)", "Sales · snapshot · per-event P&L", "Pricing & margins — product economics & COGS (the menu itself is in the Catalog)", "Subscribers & subscription interest (the plans are in the Catalog)", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here", "Reserve drops — configure the limited drops"],
-  catalog: ["Menu & products — every drink and product, its price, and whether it's on", "The Shop · merch", "Return to Primal · lessons", "Membership plans — what members pay, and what they get", "Discount codes — mint one, see who used it, turn one off", "Founding perks — what a founding member gets, and what a VIP gets"],
-  team: ["Staff roster — change a role on the person's row", "Who's on what & the org chart", "Training & academy", "Manager approvals", "Invites, lane owners & Train the AI — in Settings"],
+  customers: ["Customer list — guests & members", "Cross-channel order history (cup · pickup · delivery)", "Loyalty — points & credit", "Contact info for outreach", "Messages — a live message or ad, to everyone in the app", "Members — who pays monthly, and who's waiting for a plan", "Funnels — where people drop off"],
+  money: ["Performance — sales & margin on last week, what's owed to you, the next drop", "Needs attention — waiting shop orders, chargebacks, late invoices, refunds that disagree, budgets over", "Do next — log a purchase; get paid: what's owed, chargebacks & refunds (made in Square; the switches are in Settings)", "Reports — sales, events, subscriptions, margins by product & COGS, spend vs budget", "Records — order history; the shop's orders are in the Catalog", "The Playbook (/playbook, owners) — every growth play + where its numbers land here"],
+  catalog: ["Menu & products — every drink and product, its price, and whether it's on", "The Shop · merch — and its orders: send, ship, refund", "Reserve drops — the limited drops, and who is owed one", "Return to Primal · lessons", "Membership plans — what members pay, and what they get", "Discount codes — mint one, see who used it, turn one off", "Founding perks — what a founding member gets, and what a VIP gets"],
+  team: ["Staff roster — change a role on the person's row", "Who's on what & the org chart", "Deals & offers — operator agreements and offer letters", "Training & academy", "Manager approvals", "Invites, lane owners & Train the AI — in Settings"],
   ask: ["Recipes & the why", "Gear & stock how-to", "The GT3 playbook"],
   settings: ["You — your account; notifications: order alerts and the pass's sound on this phone, what pings you & quiet hours; display: day, dark or auto, text size (everyone)", "Business — payments & checkout: card, pay at pickup (pickup orders only: delivery is always prepaid on the card), subscriptions; ordering & delivery: the cup-ordering dial, office delivery pricing; locations & markets; team & permissions: invites & lane owners (a role is changed on Team's roster); reports: the founder digest; integrations & Outlook's two-way sync; the AI; brand & customer app: every line guests read, the app splash", "Advanced — the activity log, app health (errors & every audit run), and the dropdown lists every picker offers"],
 };
@@ -5371,6 +5373,15 @@ function CustomersBody() {
         customers, not a setting — so it left Settings for the customer book. */}
     <SectionHeader label="Messages" />
     <Panel id="cust-broadcast" title="Broadcast" sub="A live message or ad, to everyone in the app"><BroadcastEditor /></Panel>
+    {/* FROM MONEY (2026-10-15, release 3 of the Plan & Money audit): who pays monthly, who asked for a plan, and where
+        people drop off are about customers — the money members bring is Money's Reports › Subscriptions. The ids
+        stayed (lib/panelHome). */}
+    <SectionHeader label="Members" />
+    <Panel id="subs" title="Members" sub="Who pays monthly, and for which plan"><Subscribers /></Panel>
+    <Panel id="subint" title="Waiting for a plan" sub="People who asked to hear when a plan opens"><SubInterest /></Panel>
+    <GoLine to="catalog" anchor="plans">Membership plans</GoLine>
+    <SectionHeader label="Growth" />
+    <Panel id="funnels" title="Funnels" sub="Where people drop off — ordering, reserving, delivery, signing up"><FunnelReport /></Panel>
     </Column>
     </Columns>
   );
@@ -5471,8 +5482,15 @@ export default function AdminPage() {
     if (a === PASS_ANCHOR && sec !== "now" && readParam("s") === "now") return;
     consumedAnchorRef.current = true;
     dropParam("a");
-    jumpTo(a);
-  }, [sec]);
+    // A LINK TO A PANEL THAT MOVED, OPENED AS A PAGE (2026-10-15): a push, a crew member's "Draft their offer letter"
+    // or a bookmark still names the old section (?s=money&a=offers), and the page looked for the panel there. Go to the
+    // panel's home first, as an alert tapped in the app does (alertDest → lib/panelHome). Here and not in the section
+    // provider: that is in every page's bundle, guests' too, and this effect runs before it reads the address.
+    const named = readParam("s") ?? sec;
+    const home = panelHome(named, a);
+    if (home.section !== named && VALID_SECTIONS.has(home.section as OpSection)) setSection(home.section as OpSection);
+    jumpTo(home.anchor ?? a);
+  }, [sec, setSection]);
   // The header 🔔 opens the ONE inbox (your flags + the needs-you queue). Any screen can summon it
   // (a badged nav tab, the Now strip) via the gt3-open-inbox event; navigating a section closes it.
   useEffect(() => {
@@ -6000,65 +6018,59 @@ export default function AdminPage() {
 
       {sec === "money" && isAdmin && (
         <>
-          {/* BUSINESS OPENS HERE (2026-10-09, Ryan: "Business opens on Money", approved; 0361). It opened on five
-              tiles that compared nothing and four panels open at once. Now the home's three numbers, each with
-              its change on the week before and what moved it — a number opens the report that explains it —
-              and two panels open at rest: Sales, and the shop's queue of orders waiting on us. The rest stay
-              folded, each saying what it holds, and remembered. */}
+          {/* MONEY ANSWERS THREE QUESTIONS, IN ORDER (2026-10-15, release 3 of the Plan & Money audit; Ryan, shown the
+              mockups on the iPhone 17 and the SE: "Yes, build it", and of the moves, "Yes, all seven"). It was the three
+              numbers and then fifteen panels under seven headings, each added where it was built, and nothing decided
+              what mattered now: the shop's queue of paid orders waiting on us — where every stalled-order alert points —
+              was the last panel, 2,236 points down on an iPhone 17. Now the first screen says how the business is doing
+              (Performance: the numbers, and what customers owe us) and what needs a person (Needs attention: the waiting
+              order, a chargeback's date, a late invoice, a refund Square and the app disagree about, a budget over its
+              line — components/MoneyAttention); the next says what to do (Do next: log a purchase, get paid); the rest is
+              one row each — the reports, then the records. Seven panels that were never about the books went where their
+              work is: the shop's orders and the reserve drops to the Catalog, members, plan interest and the funnels to
+              Customers, operator deals and offer letters to Team. Each kept its id, so every old link lands on its new
+              home (lib/panelHome). */}
           <HomeNumbers money drops here="money" />
-          {/* ON THE DESK (2026-10-09, redesign 5): the money moving now on the left — spend, getting paid, the
-              numbers — and the setup and the records on the right. */}
+          {/* On the desk, the numbers stand over both columns, as they did: what needs a person and what to do next on the
+              left, the reports and the records on the right. A phone reads them in that order. */}
           <Columns>
           <Column>
-          <SectionHeader label="Spend & budget" />
-          <Panel id="spend" title="Spend & budget · what the business spends" sub="Log a purchase; each category against its monthly budget"><SpendBudget /></Panel>
-          <SectionHeader label="Get paid" />
-          {/* THE PAY PANEL STAYS (2026-10-06, the settings round). The switches it held — card
-              checkout, pay at pickup, subscriptions — are Settings › Business › Payments & checkout now. The
-              panel keeps its id: a voided paid order raises a refund alert that links
-              /crew?s=money&a=pay, and a refund is still Money's — so it keeps the door to them, and
-              one line to the switches. */}
-          <Panel id="pay" title="Refunds & payment settings" sub="Refunds and disputes are in Square; the payment switches are in Settings">
-            {/* Refunds live in Square by design (the card data never touches this app) — but the
-                DOOR to them belongs here (enterprise round P3). */}
-            <a className="adm-golink hit-y-44" style={{ display: "inline-block", marginTop: 10 }} href="https://squareup.com/dashboard/sales/transactions" target="_blank" rel="noreferrer">Refunds &amp; disputes — Square Dashboard <Icon name="externalLink" /></a>
-            <GoLine to="settings" anchor="set-pay">Payment settings</GoLine>
-          </Panel>
-          {/* "Reports" (2026-10-09): the three numbers above are "Numbers"; these are the reports behind them. */}
-          <SectionHeader label="Reports" />
-          {/* Open at rest (2026-10-02, Ryan: "do all 6"): Money used to open on MoneyKpis and then
-              seventeen closed titles — the accordion wall. One panel per section opens on its own,
-              the one most looked at; here that is Sales. The rest stay folded and remembered. */}
-          <Panel id="sales" title="Sales" defaultOpen><Reports /></Panel>
-          <Panel id="snapshot" title="Business snapshot"><SnapshotReport /></Panel>
-          <Panel id="pnl" title="Per-event P&L"><EventPnlReport /></Panel>
-          <Panel id="funnels" title="Funnels · where people drop off"><FunnelReport /></Panel>
+          <MoneyAttention />
+          <SectionHeader label="Do next" />
+          <SetList>
+            {/* The capture sheet lives in the quick-actions dock (components/QuickDock → LogPurchase), receipt first;
+                this row is one more way in, as Spend vs budget's button is. */}
+            <section className="mpanel">
+              <button type="button" className="mpanel-h" onClick={() => window.dispatchEvent(new Event("gt3-log-purchase"))}>
+                <span className="mpanel-tt"><span className="mpanel-t">Log a purchase</span><span className="mpanel-s">Receipt first, from any screen</span></span>
+                <span className="mpanel-chev" aria-hidden="true">›</span>
+              </button>
+            </section>
+            {/* GET PAID KEEPS ITS ID (2026-10-06, the settings round; listed 2026-10-15). A voided paid order raises a
+                refund alert that links /crew?s=money&a=pay, and a refund is still Money's. It lists now what Square has
+                told us and what is owed (components/GetPaid); the refund itself is made in Square, the payment switches
+                are Settings' — one line each, inside it. */}
+            <Panel id="pay" title="Get paid" sub="What’s owed to you, chargebacks and refunds"><GetPaid /></Panel>
+          </SetList>
           </Column>
           <Column>
-          <SectionHeader label="Pricing & margins" />
-          {/* What the business sells — the menu, the merch, the lessons — is the Catalog (2026-10-06,
-              the settings-by-category round); what each costs and earns stays here. */}
-          <GoLine to="catalog" anchor="menu">Menu, merch &amp; lessons</GoLine>
-          <Panel id="econ" title="Product economics"><ProductCatalog /></Panel>
-          <Panel id="cogs" title="COGS calculator"><CogsCalculator /></Panel>
-          <SectionHeader label="Operators" />
-          {/* The deal itself: what an operator gets, what they fund, what they earn, and what comes
-              back as royalty — built on a slider anchored to the agreed 50/30/20, then sent for their
-              response. The money math lives in lib/operatorDeal.ts and is unit-tested. */}
-          <Panel id="operators" title="Operator agreements · deals, levels &amp; royalties"><OperatorDeal /></Panel>
-          <Panel id="offers" title="Offer letters · hire someone"><OfferLetters /></Panel>
-          <SectionHeader label="Members & subscriptions" />
-          {/* The plans themselves (id "plans") are the Catalog's (2026-10-06); who subscribed, and who
-              asked to, stay with the money. */}
-          <GoLine to="catalog" anchor="plans">Membership plans</GoLine>
-          <Panel id="subs" title="Subscribers"><Subscribers /></Panel>
-          <Panel id="subint" title="Subscription interest"><SubInterest /></Panel>
+          <SectionHeader label="Reports" />
+          <SetList>
+            <Panel id="sales" title="Sales" sub="By channel, event and day"><Reports /></Panel>
+            <Panel id="pnl" title="Events" sub="What each event made, after its costs"><EventPnlReport /></Panel>
+            <Panel id="snapshot" title="Subscriptions" sub="Recurring revenue and members"><SnapshotReport /></Panel>
+            {/* What the business sells is the Catalog (2026-10-06); what each costs and earns stays here. */}
+            <Panel id="econ" title="Margins by product" sub="What each costs to make, and earns"><ProductCatalog /></Panel>
+            <Panel id="cogs" title="COGS calculator" sub="A drink’s cost, from its recipe"><CogsCalculator /></Panel>
+            <Panel id="spend" title="Spend vs budget" sub="This month’s spend, and receipts owed"><SpendBudget /></Panel>
+          </SetList>
           <SectionHeader label="Records" />
-          <Panel id="resv" title="Reserve drops"><ReservesAdmin /></Panel>
-          <Panel id="orders" title="Order history"><OrdersHistory /></Panel>
-          {/* The storefront queue. Lives here rather than under Catalog & pricing with the
-              merch manager: a paid order is a record with a person attached, not a product. */}
-          <Panel id="shoporders" title="The Shop · orders" defaultOpen><ShopOrders /></Panel>
+          <SetList>
+            <Panel id="orders" title="Order history" sub="Cup orders, done or void"><OrdersHistory /></Panel>
+          </SetList>
+          {/* The shop's queue is the Catalog's now, beside the merch it fulfils; Needs attention above says when an
+              order waits on us. */}
+          <GoLine to="catalog" anchor="shoporders">The Shop · orders</GoLine>
           </Column>
           </Columns>
         </>
@@ -6097,6 +6109,11 @@ export default function AdminPage() {
           <SectionHeader label="What we sell" />
           <Panel id="menu" title="Menu & products" sub="Every drink and product, its price, and whether it’s on" defaultOpen><MenuManager /></Panel>
           <Panel id="merch" title="The Shop · merch" sub="Shirts and gear in the online shop"><MerchManager /></Panel>
+          {/* FROM MONEY (2026-10-15, release 3 of the Plan & Money audit): the shop's paid orders, fulfilled beside the
+              merch they are, and the limited drops, sold beside the menu. Money's Needs attention says when an order
+              waits on us, and links here. Both kept their ids (lib/panelHome). */}
+          <Panel id="shoporders" title="The Shop · orders" sub="Paid merch orders — send, ship, refund"><ShopOrders /></Panel>
+          <Panel id="resv" title="Reserve drops" sub="The limited drops to sell, and who is owed one"><ReservesAdmin /></Panel>
           <Panel id="lessons" title="Return to Primal · lessons" sub="The lessons members can take"><LessonsManager /></Panel>
           </Column>
           <Column>
@@ -6149,6 +6166,12 @@ export default function AdminPage() {
               IN the system: active days, sign-ins, actions, last-seen per person, plus the
               anonymous guest pulse. Admin-only data by RLS. */}
           <Panel id="team-usage" title="Who's in the system" sub="The last 30 days, person by person, and the guest pulse"><UtilizationPanel bare /></Panel>
+          {/* FROM MONEY (2026-10-15, release 3 of the Plan & Money audit): an operator's deal and an offer letter are about
+              a person joining or running a truck — the links from a crew member's page open them here. The ids stayed
+              (lib/panelHome), and an offer's deadline on My Day comes here too (lib/obligations). */}
+          <SectionHeader label="Deals & offers" />
+          <Panel id="operators" title="Operator agreements" sub="Deals, levels and royalties"><OperatorDeal /></Panel>
+          <Panel id="offers" title="Offer letters" sub="Hire someone — the offer, its approval and their answer"><OfferLetters /></Panel>
           <SectionHeader label="Growth & training" />
           {/* Was a flat link with no state, on a page where everything else shows live numbers — so it
               was the one block the eye skipped, and the Academy had zero progress rows for anybody.

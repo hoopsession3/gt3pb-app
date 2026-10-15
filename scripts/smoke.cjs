@@ -5405,11 +5405,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("needs you: an expiring cert or a training due opens the PERSON, not the top of Team",
     JSON.stringify(go("academy_certifications", { owner_user_id: uid })) === JSON.stringify({ kind: "person", id: uid })
     && JSON.stringify(go("academy_assignments", { owner_user_id: uid })) === JSON.stringify({ kind: "person", id: uid }));
-  ok("needs you: an offer lands on Money › Offer letters, where the panel actually is (its route said Team)",
-    JSON.stringify(go("offer_letters")) === JSON.stringify({ kind: "section", section: "money", anchor: "offers" }));
-  ok("needs you: agreements, goals, workstreams and disputes land on their panels",
-    go("operator_agreements").anchor === "operators" && go("goals").anchor === "goals" && go("goals").section === "command"
-    && go("os_workstreams").anchor === "os-registry" && go("square_disputes").anchor === "shoporders");
+  // MONEY KEEPS THE BOOKS (2026-10-15, release 3 of the Plan & Money audit; Ryan: "Yes, all seven"): offers and operator
+  // deals are Team's, beside the people; a chargeback is listed, with its evidence date, in Money › Get paid.
+  ok("needs you: an offer lands on Team › Offer letters, where the panel is now (Money's until 2026-10-15)",
+    JSON.stringify(go("offer_letters")) === JSON.stringify({ kind: "section", section: "team", anchor: "offers" }));
+  ok("needs you: agreements, goals, workstreams and disputes land on their panels — a chargeback on Get paid, which lists it",
+    go("operator_agreements").section === "team" && go("operator_agreements").anchor === "operators" && go("goals").anchor === "goals" && go("goals").section === "command"
+    && go("os_workstreams").anchor === "os-registry" && go("square_disputes").section === "money" && go("square_disputes").anchor === "pay");
   ok("needs you: an initiative opens itself — it went to the workstreams panel, which does not hold it (10:40 PM)",
     JSON.stringify(go("initiatives", { subject_id: uid })) === JSON.stringify({ kind: "initiative", id: uid }));
   // ── "needs you" means you (lib/obligations obligationFor) ──
@@ -5558,7 +5560,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("plan: on the crew calendar an event or stop opens its record instead of a row that does nothing",
     /onClick=\{\(\) => openRecord\(it\.kind as "event" \| "stop", it\.id\)\}/.test(read("components/CompanyCalendar.tsx")));
   ok("money: its numbers land where they say, through CrewKpis' one jump — on Money a number opens the report that explains it (2026-10-09)",
-    /const open = \(anchor: "sales" \| "pnl"\) => \(here === "money" \? goToDest\(\{ anchor \}, setSection\) : setSection\("money"\)\);/.test(read("components/HomeNumbers.tsx")) && /export function goToDest/.test(read("components/CrewKpis.tsx")));
+    /const open = \(anchor: "sales" \| "pnl" \| "pay"\) => \(here === "money" \? goToDest\(\{ anchor \}, setSection\) : setSection\("money"\)\);/.test(read("components/HomeNumbers.tsx")) && /export function goToDest/.test(read("components/CrewKpis.tsx"))
+    // What customers owe us opens Get paid, where each invoice is (2026-10-15).
+    && /onClick=\{\(\) => open\("pay"\)\}/.test(read("components/HomeNumbers.tsx")));
   ok("panels: a wrapped component's duplicate title hides, its controls never — Sales' range, '+ Add', 'due soon'",
     /\.mpanel-body > \*:not\(\.adm-hud\) > \.k-sec:first-child:has\(> \.k-sec-r\),\n\.mpanel-body > \.k-sec:first-child:has\(> \.k-sec-r\)\{display:flex;/.test(css)
     && /:has\(> \.k-sec-r\) > \.k-sec-lbl\{display:none\}/.test(css));
@@ -6404,12 +6408,24 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("navigation: one alert number — the bell's; no tab carries a count, and the lane legend that explained them went with them",
     !/nav-badge|critCount|laneCounts|useMyAlerts/.test(nav) && !/\.nav-badge|\.lane-legend|\.lane-key/.test(css) && !/lane-legend/.test(nav)
     && /badge=\{hdrToday\.length\} crit=\{hdrTodayCrit > 0\}/.test(header));
-  ok("navigation: Business opens on Money — first in the lane here and in 0361 for the live rows, with the home's three numbers on top, Sales and the shop's queue open, and every folded panel saying what it holds (Ryan: \"Business opens on Money\", 2026-10-09)",
+  // MONEY ANSWERS THREE QUESTIONS, IN ORDER (2026-10-15, release 3 of the Plan & Money audit; Ryan: "Yes, build it", "Yes,
+  // all seven"). How the business is doing (Performance), what needs a person (Needs attention), what to do next — then
+  // the reports and the records, one row each, every one folded and saying what it holds. The Sales report folds to a row:
+  // the Sales number opens it. The shop's queue is the Catalog's.
+  ok("navigation: Business opens on Money — first in the lane here and in 0361 for the live rows — and Money answers in order: Performance, Needs attention, Do next, then Reports and Records, every row folded and saying what it holds (Ryan, 2026-10-15)",
     /sections: \["money", "plan", "notes", "catalog", "customers", "team"\]/.test(read("lib/streams.ts"))
     && /set sections = array\['money'\]::text\[\] \|\| array_remove\(sections, 'money'\)/.test(read("supabase/migrations/0361_business_opens_on_money.sql"))
     && /<HomeNumbers money drops here="money" \/>/.test(crew) && !/MoneyKpis/.test(crew) && !fs.existsSync(path.join(__dirname, "..", "components/MoneyKpis.tsx"))
-    && (() => { const m = crew.slice(crew.indexOf('{sec === "money" && isAdmin && ('), crew.indexOf('{sec === "notes" && <MeetingNotes />}')); return (m.match(/defaultOpen/g) || []).length === 2 && /<Panel id="sales" title="Sales" defaultOpen>/.test(m) && /<Panel id="shoporders" title="The Shop · orders" defaultOpen>/.test(m)
-      && /<Panel id="spend" title="Spend & budget · what the business spends" sub="[^"]{12,}">/.test(m) && /<Panel id="pay" title="Refunds & payment settings" sub="[^"]{12,}">/.test(m); })());
+    && (() => {
+      const m = crew.slice(crew.indexOf('{sec === "money" && isAdmin && ('), crew.indexOf('{sec === "notes" && <MeetingNotes />}'));
+      const order = ['<HomeNumbers money drops here="money" />', "<MoneyAttention />", '<SectionHeader label="Do next" />', '<SectionHeader label="Reports" />', '<SectionHeader label="Records" />'].map((x) => m.indexOf(x));
+      const panels = [...m.matchAll(/<Panel id="([a-z-]+)" title="[^"]+" sub="([^"]+)">/g)].map((x) => x[1]);
+      return order.every((i, k) => i >= 0 && (k === 0 || i > order[k - 1])) && !/defaultOpen/.test(m)
+        && panels.join(",") === "pay,sales,pnl,snapshot,econ,cogs,spend,orders"
+        && /onClick=\{\(\) => window\.dispatchEvent\(new Event\("gt3-log-purchase"\)\)\}/.test(m)
+        && /<GoLine to="catalog" anchor="shoporders">The Shop · orders<\/GoLine>/.test(m)
+        && !/id="(shoporders|resv|subs|subint|funnels|operators|offers)"/.test(m);
+    })());
   ok("navigation: the name is said once — over a lane's row of sections the title names the lane, as its tab does; a lane of one names its section",
     /<h1 className="op-head-t" data-large-title>\{lane\.members\.length >= 2 \? lane\.label : SEC_LABEL\[sec\]\}<\/h1>/.test(crew)
     && /<Segmented fill className=\{`lane-tabs mb-3\.5\$\{switcher \|\| inView \? " hidden! desk:flex!" : ""\}`\} label=\{lane\.label\} value=\{sec\}/.test(crew));
@@ -7685,7 +7701,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // ── every next step carries who ──
   const cp = code(read("components/CrewPerson.tsx"));
   ok("person page: the offer, the agreement and the Academy path open for them",
-    cp.includes("offer:     { href: (id) => `/crew?s=money&a=offers&offer_for=${id}`") && cp.includes("agreement: { href: (id) => `/crew?s=money&a=operators&agreement_for=${id}`") && cp.includes("academy:   { href: (id) => `/academy?assign=${id}`") && /href=\{go\.href\(p\.user_id\)\}/.test(cp));
+    // Offers and operator deals are Team's since 2026-10-15 (release 3 of the Plan & Money audit), beside the person.
+    cp.includes("offer:     { href: (id) => `/crew?s=team&a=offers&offer_for=${id}`") && cp.includes("agreement: { href: (id) => `/crew?s=team&a=operators&agreement_for=${id}`") && cp.includes("academy:   { href: (id) => `/academy?assign=${id}`") && /href=\{go\.href\(p\.user_id\)\}/.test(cp));
   const ac = code(read("app/academy/page.tsx"));
   ok("academy: ?assign= opens the board with them chosen — for an admin, and only someone on it",
     /useState<View>\(\(\) => \(assignFor \? \{ k: "team" \} : \{ k: "home" \}\)\)/.test(ac) && /if \(view\.k === "team" && isAdmin\) return <TeamBoard assignFor=\{assignFor\}/.test(ac) && /const chosen = rows\.some\(\(r\) => r\.id === memberId\) \? memberId : "";/.test(ac));
@@ -7695,7 +7712,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("bring someone on: the city starts as theirs, else yours, else the founding market — not Atlanta by the alphabet",
     /supabase\.from\("v_promotable"\)\.select\("id, display_name, email, customer_name, market"\)/.test(add) && /\[picked\?\.market, profile\?\.market, FOUNDING_MARKET\]/.test(add) && !/setMarket\(\(prev\) => prev \|\| /.test(add));
   ok("bring someone on: their offer and their Academy path open for them",
-    add.includes("href={`/crew?s=money&a=offers&offer_for=${done.id}`}") && add.includes("href={`/academy?assign=${done.id}`}"));
+    add.includes("href={`/crew?s=team&a=offers&offer_for=${done.id}`}") && add.includes("href={`/academy?assign=${done.id}`}"));
   // 2026-10-06 (the settings round): the ?a= consumer reads and drops in two steps — a link to the
   // Pass waits for ?s=now to land before it is taken — still through lib/urlParam, its one home.
   ok("crew page: a link's one-time instruction has one home", /const a = readParam\("a"\);/.test(pg) && /dropParam\("a"\);/.test(pg) && /readParam\("promote"\)/.test(pg) && !/searchParams\.delete\("promote"\)/.test(pg) && !/searchParams\.delete\("a"\)/.test(pg));
@@ -9493,17 +9510,22 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // Customers draws its panels in CustomersBody since 2026-10-10 (proofs waiting lead): the section is its block and that.
   const money = block('{sec === "money" && isAdmin && ('), cust = block('{sec === "customers" && isAdmin && (') + pg.slice(pg.indexOf("function CustomersBody()"), pg.indexOf("const PLAN_LABEL")), team = block('{sec === "team" && isAdmin && (');
   const cat = block('{sec === "catalog" && isAdmin && (');
-  ok("old spots: Money keeps its pay panel — the refunds door and \"Payment settings ›\" — folded at rest since 2026-10-09, and the switches left it",
-    /<Panel id="pay" title="Refunds & payment settings" sub="[^"]+">[\s\S]*?Refunds &amp; disputes — Square Dashboard[\s\S]*?<GoLine to="settings" anchor="set-pay">Payment settings<\/GoLine>\s*<\/Panel>/.test(money)
+  // GET PAID (2026-10-15, release 3 of the Plan & Money audit): the pay panel keeps its id and its two doors — a refund is
+  // made in Square, the switches are Settings' — and lists, in the app, what Square has told us and what is owed
+  // (components/GetPaid). The membership plans' line went with the members, to Customers.
+  ok("old spots: Money keeps its pay panel — Get paid, folded at rest, listing refunds, chargebacks and what is owed, with the Square door and \"Payment settings ›\" inside — and the switches left it",
+    /<Panel id="pay" title="Get paid" sub="[^"]+"><GetPaid \/><\/Panel>/.test(money)
+    && /href=\{SQUARE_SALES\}[^>]*>Refund or answer a chargeback — Square <Icon name="externalLink" \/><\/a>\s*<GoLine to="settings" anchor="set-pay">Payment settings<\/GoLine>/.test(read("components/GetPaid.tsx"))
+    && /from\("square_refunds"\)/.test(read("components/GetPaid.tsx")) && /from\("square_disputes"\)/.test(read("components/GetPaid.tsx")) && /markInvoicePaid\(supabase, inv\.id\)/.test(read("components/GetPaid.tsx"))
     && !/<PaymentSettings \/>/.test(money) && !/<MenuManager \/>|<PlanEditor \/>|<MerchManager \/>|<LessonsManager \/>/.test(money)
-    && /<SectionHeader label="Pricing & margins" \/>\s*(?:\{\}\s*)?<GoLine to="catalog" anchor="menu">Menu, merch &amp; lessons<\/GoLine>\s*<Panel id="econ" title="Product economics"><ProductCatalog \/><\/Panel>\s*<Panel id="cogs" title="COGS calculator"><CogsCalculator \/><\/Panel>/.test(money)
-    && /<GoLine to="catalog" anchor="plans">Membership plans<\/GoLine>/.test(money) && !/Catalog & pricing/.test(money));
+    && /<Panel id="econ" title="Margins by product" sub="[^"]+"><ProductCatalog \/><\/Panel>\s*<Panel id="cogs" title="COGS calculator" sub="[^"]+"><CogsCalculator \/><\/Panel>/.test(money)
+    && /<GoLine to="catalog" anchor="plans">Membership plans<\/GoLine>/.test(cust) && !/Catalog & pricing/.test(money));
   ok("old spots: Customers keeps \"Codes & perks ›\" (to the Catalog), no code or perk panel — and gains Messages, where the broadcast is",
     /<GoLine to="catalog" anchor="cust-codes">Codes &amp; perks<\/GoLine>/.test(cust) && !/<CodesPanel|<PerksPanel|id="cust-codes"|id="cust-perks"/.test(cust)
     && /<SectionHeader label="Messages" \/>\s*<Panel id="cust-broadcast" title="Broadcast" sub="[^"]{8,}"><BroadcastEditor \/><\/Panel>/.test(cust));
-  ok("catalog: what the business sells, in one section — the menu open at rest, then merch and lessons; then plans, codes and perks — every row saying what it holds",
-    /<SectionHeader label="What we sell" \/>\s*<Panel id="menu" title="Menu & products" sub="[^"]{8,}" defaultOpen><MenuManager \/><\/Panel>\s*<Panel id="merch" title="The Shop · merch" sub="[^"]{8,}"><MerchManager \/><\/Panel>\s*<Panel id="lessons" title="Return to Primal · lessons" sub="[^"]{8,}"><LessonsManager \/><\/Panel>\s*<\/Column>\s*<Column>\s*<SectionHeader label="Memberships & offers" \/>\s*<Panel id="plans" title="Membership plans" sub="[^"]{8,}"><PlanEditor \/><\/Panel>\s*<Panel id="cust-codes" title="Discount codes" sub="[^"]{8,}"><CodesPanel \/><\/Panel>\s*<Panel id="cust-perks" title="Founding perks" sub="[^"]{8,}"><PerksPanel \/><\/Panel>/.test(cat)
-    && ["<MenuManager />", "<MerchManager />", "<LessonsManager />", "<PlanEditor />", "<CodesPanel />", "<PerksPanel />", "<BroadcastEditor />"].every((c) => pg.split(c).length === 2));
+  ok("catalog: what the business sells, in one section — the menu open at rest, then merch, the shop's orders and the reserve drops (Money's until 2026-10-15), and lessons; then plans, codes and perks — every row saying what it holds",
+    /<SectionHeader label="What we sell" \/>\s*<Panel id="menu" title="Menu & products" sub="[^"]{8,}" defaultOpen><MenuManager \/><\/Panel>\s*<Panel id="merch" title="The Shop · merch" sub="[^"]{8,}"><MerchManager \/><\/Panel>\s*(?:\{\}\s*|\{\/\*[\s\S]*?\*\/\}\s*)?<Panel id="shoporders" title="The Shop · orders" sub="[^"]{8,}"><ShopOrders \/><\/Panel>\s*<Panel id="resv" title="Reserve drops" sub="[^"]{8,}"><ReservesAdmin \/><\/Panel>\s*<Panel id="lessons" title="Return to Primal · lessons" sub="[^"]{8,}"><LessonsManager \/><\/Panel>\s*<\/Column>\s*<Column>\s*<SectionHeader label="Memberships & offers" \/>\s*<Panel id="plans" title="Membership plans" sub="[^"]{8,}"><PlanEditor \/><\/Panel>\s*<Panel id="cust-codes" title="Discount codes" sub="[^"]{8,}"><CodesPanel \/><\/Panel>\s*<Panel id="cust-perks" title="Founding perks" sub="[^"]{8,}"><PerksPanel \/><\/Panel>/.test(cat)
+    && ["<MenuManager />", "<MerchManager />", "<LessonsManager />", "<PlanEditor />", "<CodesPanel />", "<PerksPanel />", "<BroadcastEditor />", "<ShopOrders />", "<ReservesAdmin />"].every((c) => pg.split(c).length === 2));
   ok("catalog: a section of the console — owners and admins open it, it sits right after Money in their sections, it is in the Business lane (which opens on Money, 2026-10-09), and the Guide explains it",
     ["admin", "owner"].every((r) => { const l = roleLine(r); return l.indexOf("catalog") === l.indexOf("money") + 1; })
     && ["server", "contractor", "operator", "event_manager"].every((r) => !roleLine(r).includes("catalog"))
@@ -9577,7 +9599,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /link: "\/crew\?s=money&a=pay",/.test(code(read("components/pass/ThePass.tsx"))) && idCount("pay") === 1 && !("money#pay" in PH.PANEL_MOVES)
     && JSON.stringify(PH.panelHome("money", "pay")) === JSON.stringify({ section: "money", anchor: "pay" }));
   const J = (x) => JSON.stringify(x);
-  ok("links land: a link to a panel that moved goes to its new home in one step — the Catalog's six, the broadcast, and Train the AI",
+  ok("links land: a link to a panel that moved goes to its new home in one step — the Catalog's six, the broadcast, Train the AI, and the seven that left Money (2026-10-15)",
     J(PH.panelHome("money", "menu")) === J({ section: "catalog", anchor: "menu" }) && J(PH.panelHome("settings", "menu")) === J({ section: "catalog", anchor: "menu" })
     && J(PH.panelHome("money", "plans")) === J({ section: "catalog", anchor: "plans" }) && J(PH.panelHome("settings", "plans")) === J({ section: "catalog", anchor: "plans" })
     && J(PH.panelHome("money", "merch")) === J({ section: "catalog", anchor: "merch" }) && J(PH.panelHome("money", "lessons")) === J({ section: "catalog", anchor: "lessons" })
@@ -9586,7 +9608,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && J(PH.panelHome("settings", "set-broadcast")) === J({ section: "customers", anchor: "cust-broadcast" })
     && J(PH.panelHome("settings", "set-dial")) === J({ section: "settings", anchor: "set-dial" })
     && JSON.stringify(PH.panelHome("team", "ai-training")) === JSON.stringify({ section: "settings", anchor: "set-train" })
-    && JSON.stringify(PH.panelHome("plan")) === JSON.stringify({ section: "plan" }) && JSON.stringify(PH.panelHome("money", "offers")) === JSON.stringify({ section: "money", anchor: "offers" }));
+    && JSON.stringify(PH.panelHome("plan")) === JSON.stringify({ section: "plan" })
+    // MONEY KEEPS THE BOOKS (2026-10-15, release 3 of the Plan & Money audit; Ryan: "Yes, all seven").
+    && J(PH.panelHome("money", "shoporders")) === J({ section: "catalog", anchor: "shoporders" }) && J(PH.panelHome("money", "resv")) === J({ section: "catalog", anchor: "resv" })
+    && J(PH.panelHome("money", "subs")) === J({ section: "customers", anchor: "subs" }) && J(PH.panelHome("money", "subint")) === J({ section: "customers", anchor: "subint" })
+    && J(PH.panelHome("money", "funnels")) === J({ section: "customers", anchor: "funnels" })
+    && J(PH.panelHome("money", "operators")) === J({ section: "team", anchor: "operators" }) && J(PH.panelHome("money", "offers")) === J({ section: "team", anchor: "offers" })
+    // What stayed is not aliased: Get paid, the reports, the spend.
+    && ["pay", "sales", "pnl", "snapshot", "econ", "cogs", "spend", "orders"].every((a) => J(PH.panelHome("money", a)) === J({ section: "money", anchor: a })));
   const moves = Object.entries(PH.PANEL_MOVES);
   const blockOf = { settings: sh, catalog: cat, customers: cust, money, team };
   ok("links land: every alias goes to a panel its new section draws, from a section that no longer has it",
@@ -9642,7 +9671,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /jumpTo\(d\.anchor\);/.test(pg) && !/scrollToAnchor\(d\.anchor\)/.test(pg) && /<div className="adm-sec pass-board" id="kitchen-pass"/.test(code(read("components/pass/ThePass.tsx"))));
   ok("links land: the page answers by going to Live Ops and opening the Pass — and a link waits for ?s=now to land before it is taken",
     /const open = \(\) => \{ setSection\("now"\); setSvc\(true\); \};\s*window\.addEventListener\(OPEN_PASS_EVENT, open\);/.test(pg)
-    && /if \(a === PASS_ANCHOR && sec !== "now" && readParam\("s"\) === "now"\) return;\s*consumedAnchorRef\.current = true;\s*dropParam\("a"\);\s*jumpTo\(a\);/.test(pg)
+    && /if \(a === PASS_ANCHOR && sec !== "now" && readParam\("s"\) === "now"\) return;\s*consumedAnchorRef\.current = true;\s*dropParam\("a"\);/.test(pg)
+    // A link to a panel that moved, opened as a page, goes to the panel's home first (2026-10-15): the same alias table the
+    // alert router reads — in the console, not the section provider every guest's page carries.
+    && /const named = readParam\("s"\) \?\? sec;\s*const home = panelHome\(named, a\);\s*if \(home\.section !== named && VALID_SECTIONS\.has\(home\.section as OpSection\)\) setSection\(home\.section as OpSection\);\s*jumpTo\(home\.anchor \?\? a\);/.test(pg)
+    && !/panelHome/.test(read("components/OperatorSection.tsx"))
     && pg.indexOf("const [svc, setSvc] = useState(false);") < pg.indexOf("window.addEventListener(OPEN_PASS_EVENT, open)"));
   ok("links land: Outlook's consent screen comes back to the panel that sent it, which reads the word and takes it off the address",
     /Location: `\$\{origin\}\/crew\?s=settings&a=set-outlook&outlook=\$\{note\}`/.test(read("app/api/outlook/callback/route.ts"))

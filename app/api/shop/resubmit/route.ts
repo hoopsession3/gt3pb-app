@@ -95,7 +95,7 @@ async function post(req: Request) {
       title: "Sending an order to the printer failed",
       body: `${(order as { ship_name?: string }).ship_name ?? "An order"}'s cap could not be sent: ${submit.error}. `
           + `The money is still collected and the order is still in the queue.`,
-      link: "/crew?s=money&a=shoporders",
+      link: "/crew?s=catalog&a=shoporders",
     });
     return NextResponse.json({ ok: false, error: submit.error }, { status: 502 });
   }
@@ -115,7 +115,7 @@ async function post(req: Request) {
       title: "Order went to the printer but did not save",
       body: `Apliiq accepted this order as ${submit.apliiqOrderId} and writing that back here failed. `
           + `DO NOT send it again — it is already being made. Put ${submit.apliiqOrderId} on the order by hand.`,
-      link: "/crew?s=money&a=shoporders",
+      link: "/crew?s=catalog&a=shoporders",
     });
     return NextResponse.json({ ok: false, error: `Apliiq took it as ${submit.apliiqOrderId}, but saving that here failed. Do not send it again — the crew has been alerted.` }, { status: 500 });
   }

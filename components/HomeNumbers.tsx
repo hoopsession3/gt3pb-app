@@ -34,12 +34,18 @@ import { goToDest } from "./CrewKpis";
 
 // THE MARGIN SAYS WHAT IT RESTS ON (2026-10-12, 0384): "ingredients at 30% of sales" read the same whether 30% was
 // measured from costed recipes or assumed because none were. report_sales says which (cogs_basis), and the cause says it.
+// PERFORMANCE, AND WHAT IS OWED TO US (2026-10-15, release 3 of the Plan & Money audit). On Money these are the first
+// of its three answers — how the business is doing — so the head says so ("Performance"), and a fourth line joins
+// them there: the money customers owe us, the office accounts' open invoices. It was missing from every money screen
+// (only an "Invoice due" row on My Day, when one fell due). Drawn only while an invoice is open: a business with no
+// office accounts is not told every day that nobody owes it anything. A tap opens Get paid, where each one is.
 type Report = { revenue_cents?: number; by_channel?: Channels; cogs_pct?: number; cogs_basis?: CostBasis; error?: string };
 type EventPnl = { id: string; kind: string; fixed_cents: number };
 type Nums = {
   sales: { now: number; prev: number; driver: ReturnType<typeof channelDriver> } | null;
   margin: { now: number; prev: number; pctOfSales: number | null; fixed: number; cogsPct: number; basis: CostBasis | null } | null;
   drop: { iso: string; packs: number; then: number | null; top: [string, number] | null } | null;
+  owed: { cents: number; count: number; late: number } | null;
 };
 
 // The row is Needs-you's (.owed-row); what it adds is utilities, not a recipe of its own. The value is
@@ -51,10 +57,19 @@ const sign = (cents: number) => `${cents > 0 ? "+" : "−"}${moneyRound(Math.abs
 export default function HomeNumbers({ money, drops, here = "day" }: { money: boolean; drops: boolean; here?: "day" | "money" }) {
   const { setSection } = useOperatorSection();
   const loader = useCallback(async (): Promise<Nums> => {
-    const out: Nums = { sales: null, margin: null, drop: null };
+    const out: Nums = { sales: null, margin: null, drop: null, owed: null };
     if (!supabase) return out;
     const sb = supabase;
     const jobs: Promise<void>[] = [];
+    if (money && here === "money") jobs.push((async () => {
+      // Open and sent are owed; paid and void are not (0187). due_at is a date: past it is before today's.
+      const { data, error } = await sb.from("invoices").select("amount_cents, due_at").in("status", ["open", "sent"]);
+      if (error) throw new Error(error.message);
+      const rows = (data as { amount_cents: number; due_at: string | null }[] | null) ?? [];
+      if (!rows.length) return;
+      const today = localToday();
+      out.owed = { cents: rows.reduce((s, r) => s + Number(r.amount_cents || 0), 0), count: rows.length, late: rows.filter((r) => !!r.due_at && r.due_at < today).length };
+    })());
     if (money) jobs.push((async () => {
       const today = localToday(), weekStart = addDays(today, -6);
       // report_sales has no offset: last week is the 14-day report less the 7-day one.
@@ -102,25 +117,25 @@ export default function HomeNumbers({ money, drops, here = "day" }: { money: boo
     })());
     await Promise.all(jobs);
     return out;
-  }, [money, drops]);
+  }, [money, drops, here]);
   const state = useAsyncData<Nums>(loader, [loader]);
   if (!money && !drops) return null;
   // On My Day a money number opens Money; on Money it opens the report that explains it.
-  const open = (anchor: "sales" | "pnl") => (here === "money" ? goToDest({ anchor }, setSection) : setSection("money"));
+  const open = (anchor: "sales" | "pnl" | "pay") => (here === "money" ? goToDest({ anchor }, setSection) : setSection("money"));
 
   return (
     <div className="adm-sec" id="home-numbers">
       {/* The head stays put while the numbers load, so nothing below it moves when they arrive. */}
-      <SectionHeader label="Numbers" right={here === "day" ? <button type="button" className="owed-more -my-3.5" onClick={() => setSection("command")}>See all <span aria-hidden="true">›</span></button> : undefined} />
+      <SectionHeader label={here === "money" ? "Performance" : "Numbers"} right={here === "day" ? <button type="button" className="owed-more -my-3.5" onClick={() => setSection("command")}>See all <span aria-hidden="true">›</span></button> : undefined} />
       <AsyncSection
         state={state}
-        isEmpty={(d) => !d.sales && !d.margin && !d.drop}
+        isEmpty={(d) => !d.sales && !d.margin && !d.drop && !d.owed}
         emptyTitle="No numbers yet"
         loadingLabel="Reading the week…"
         errorTitle="Couldn't read this week's numbers"
         errorSub="This is not zero — we could not read them just now."
       >
-        {({ sales, margin, drop }) => {
+        {({ sales, margin, drop, owed }) => {
           // TWO WEEKS WITH NOTHING SOLD IS ONE LINE (2026-10-10, My Day 10): Sales and Margin each read "$0 ·
           // Nothing to compare yet", two rows saying one fact. A week with event costs and no sales keeps its
           // margin row — that one is news.
@@ -159,6 +174,19 @@ export default function HomeNumbers({ money, drops, here = "day" }: { money: boo
                   </span>
                 </span>
                 <span className={VALUE}>{moneyRound(margin.now)}{margin.pctOfSales !== null && <small className="text-footnote font-normal text-cream-muted"> · {margin.pctOfSales}%</small>}</span>
+                <span className="owed-c" aria-hidden="true">›</span>
+              </button>
+            )}
+            {owed && (
+              <button type="button" className="owed-row" onClick={() => open("pay")}>
+                <span className="owed-row-b">
+                  <b>Owed to you</b>
+                  <span className={CAUSE}>
+                    {owed.count} {owed.count === 1 ? "invoice" : "invoices"} open
+                    {owed.late > 0 ? ` · ${owed.late} past ${owed.late === 1 ? "its" : "their"} date` : " · none past its date"}
+                  </span>
+                </span>
+                <span className={VALUE}>{moneyRound(owed.cents)}</span>
                 <span className="owed-c" aria-hidden="true">›</span>
               </button>
             )}

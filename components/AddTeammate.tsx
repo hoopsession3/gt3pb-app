@@ -214,7 +214,7 @@ export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string
             <div className="tm-hired" role="status">
               <b>{done.name} is on the crew.</b> {done.role}{done.city ? ` · ${done.city}` : ""}{done.lead ? " · leads the city" : ""}. {letterLine(done.letter, "Welcome letter")}
               <div className="tm-hired-next">
-                <a className="tm-hire-open" href={`/crew?s=money&a=offers&offer_for=${done.id}`}>
+                <a className="tm-hire-open" href={`/crew?s=team&a=offers&offer_for=${done.id}`}>
                   Draft their offer letter <span className="ev-chev" aria-hidden="true">›</span>
                 </a>
                 <a className="tm-hire-open" href={`/academy?assign=${done.id}`}>

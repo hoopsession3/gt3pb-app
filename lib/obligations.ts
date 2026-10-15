@@ -92,16 +92,19 @@ export function obligationGo(r: ObligationRow, viewer?: Viewer): ObligationGo {
     case "initiatives":
       if (isUuid(r.subject_id)) return { kind: "initiative", id: r.subject_id };
       break;
+    // Offers and operator deals are Team's since 2026-10-15 (release 3 of the Plan & Money audit), beside the people.
     case "offer_letters":
-      return { kind: "section", section: "money", anchor: "offers" };
+      return { kind: "section", section: "team", anchor: "offers" };
     case "operator_agreements":
-      return { kind: "section", section: "money", anchor: "operators" };
+      return { kind: "section", section: "team", anchor: "operators" };
     case "goals":
       return { kind: "section", section: "command", anchor: "goals" };
     case "os_workstreams":
       return { kind: "section", section: "command", anchor: "os-registry" };
+    // A chargeback is listed, with its evidence date, in Money › Get paid (2026-10-15); it opened the shop's queue,
+    // which does not show it.
     case "square_disputes":
-      return { kind: "section", section: "money", anchor: "shoporders" };
+      return { kind: "section", section: "money", anchor: "pay" };
     case "invoices":
       return { kind: "none" };
     case "compliance_rules":

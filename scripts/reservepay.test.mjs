@@ -201,7 +201,7 @@ const reset = () => { told.crew.length = 0; told.customer.length = 0; };
   ok("pay: the member is told where, when, and until when a cancel is refunded",
     told.customer.length === 1 && /Barrel Rise is yours — \$80 paid ✓\. Pick it up Sat, Oct 17 · 11:00am–2:00pm at WineXpress\. Cancel for a full refund until Fri 11:00am\./.test(told.customer[0].message) && told.customer[0].userId === SAM, told.customer[0]);
   ok("pay: the crew are told — 'Limited Reserve sold', linked to Money → Reserve drops",
-    told.crew.length === 1 && told.crew[0].title === "Limited Reserve sold" && told.crew[0].kind === "reservation_new" && told.crew[0].link === "/crew?s=money&a=resv" && /2 × Barrel Rise — \$80 paid/.test(told.crew[0].body), told.crew);
+    told.crew.length === 1 && told.crew[0].title === "Limited Reserve sold" && told.crew[0].kind === "reservation_new" && told.crew[0].link === "/crew?s=catalog&a=resv" && /2 × Barrel Rise — \$80 paid/.test(told.crew[0].body), told.crew);
   const again = await pay({ key: "rsv-key-0000000001", qty: 2, expected: 8000, token: null });
   ok("pay: the same key again (a lost answer, a reload with no card) — yours, from the claim, and Square is not asked",
     again.status === 200 && again.body.paid && again.body.id === claim?.id && again.body.totalCents === 8000 && sq.calls.length === 1, again);

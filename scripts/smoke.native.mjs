@@ -1689,8 +1689,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         && g.tabs.every((t, i) => i === 0 || t.y > g.tabs[i - 1].y) && lit.length === 1 && lit[0].bg !== "rgba(0, 0, 0, 0)", JSON.stringify({ nav: g.nav, tabs: g.tabs }));
     ok("desk: the sidebar's head says Crew console, and its list says it stands up", g.head && g.orient === "vertical", JSON.stringify({ head: g.head, orient: g.orient }));
     ok("desk: the canvas sits right of the sidebar, never wider than 1,240, and nothing scrolls sideways", g.screen.x >= 236 && g.screen.w <= 1240 && g.over <= 0, JSON.stringify({ screen: g.screen, over: g.over }));
-    ok("desk: Money's groups stand in two columns side by side, starting on one line — spending, getting paid and the reports; pricing, operators, members and the records",
-      side(g.cols) && g.cols[0].h.includes("Spend & budget") && g.cols[0].h.includes("Reports") && g.cols[1].h.includes("Pricing & margins") && g.cols[1].h.includes("Records"), JSON.stringify({ cols: bare(g.cols), heads: g.cols.map((c) => c.h) }));
+    // MONEY ANSWERS THREE QUESTIONS (2026-10-15, release 3 of the Plan & Money audit, Ryan: "Yes, build it"): what needs a
+    // person and what to do next on the left, the reports and the records on the right.
+    ok("desk: Money's groups stand in two columns side by side, starting on one line — what needs attention and what to do next; the reports and the records",
+      side(g.cols) && g.cols[0].h.includes("Needs attention") && g.cols[0].h.includes("Do next") && g.cols[1].h.includes("Reports") && g.cols[1].h.includes("Records"), JSON.stringify({ cols: bare(g.cols), heads: g.cols.map((c) => c.h) }));
     ok("desk: Money opens on the home's three numbers, above its two columns (2026-10-09); nothing floats over the canvas — the ✦ is in the header, and no rail or floating button is drawn",
       g.numbers !== null && g.cols.length === 2 && g.numbers < g.cols[0].y && g.tiles.length === 0 && g.spark && !g.fab && !g.rail, JSON.stringify({ numbers: g.numbers, cols: bare(g.cols), tiles: g.tiles, spark: g.spark, fab: g.fab, rail: g.rail }));
     await m.ctx.close();
@@ -2080,6 +2082,82 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     ok("delete account: Done takes the signed-out phone home", ["/", "/menu"].includes(new URL(page.url()).pathname), page.url());
     ok("delete account: no errors (said in full)", errors.length === 0, errors.join(" | "));
     await ctx.close();
+  }
+
+  // ── 6g · MONEY ANSWERS THREE QUESTIONS (2026-10-15, release 3 of the Plan & Money audit; Ryan: "Yes, build it", "Yes,
+  // all seven") ──
+  // The owner opens Money with a paid shop order waiting on us for eleven days, a chargeback with four days to answer, an
+  // office invoice six days late, a refund Square made that the app never recorded, and ingredients over budget. On the
+  // iPhone 17 and the SE, Needs attention starts on the first screen — the waiting order was the last panel, 2,618
+  // points down — its rows worst first with the level said in words; the waiting order's row opens the shop's queue,
+  // which is the Catalog's now. And a link to a panel that moved, opened as a page (a push, a crew member's "Draft their
+  // offer letter", a bookmark), lands on its new home rather than looking for it where it was.
+  {
+    const now = Date.now(), at = (d) => new Date(now + d * 864e5).toISOString();
+    const etDay = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date(now + d * 864e5));
+    const seed = {
+      rpc: {
+        report_sales: { days: 7, revenue_cents: 482500, order_count: 74, cogs_pct: 0.31, by_channel: { square_walkup: 182000, cup: 141500, packs: 96000, delivery: 21000, office: 42000 }, cogs_basis: { products: 11, costed: 8, assumed: false }, by_product: [], by_event: [], by_day: [] },
+        report_events: [],
+        report_spend: { month: `${etDay(0).slice(0, 8)}01`, total_spent_cents: 61200, total_budget_cents: 50000, by_category: [{ category: "ingredients", budget_cents: 50000, spent_cents: 61200 }] },
+      },
+      v_shop_orders: [{ id: "so-1", created_at: at(-11), status: "paid", who: "Maya T.", total_cents: 6400, items: "1 tee, 1 cap", waiting_on_us: true, waiting_on_printer: false, waiting_on_carrier: false, closed: false, age_hours: 264 }],
+      v_shop_queue: [{ orders: 1, on_us: 1, on_printer: 0, on_carrier: 0, closed: 0, gross_cents: 6400, refunded_cents: 0, oldest_on_us_hours: 264 }],
+      square_disputes: [{ id: "dp-1", amount_cents: 3800, state: "EVIDENCE_REQUIRED", due_at: at(4), reason: "PRODUCT_NOT_RECEIVED", shop_orders: { ship_name: "Devon P.", email: null } }],
+      invoices: [{ id: "inv-1", amount_cents: 42000, due_at: etDay(-6), status: "open", terms: "net15", business_accounts: { company: "Northside Dental" } }],
+      v_shop_money_drift: [{ order_id: "so-2", who: "Sam K.", gap_cents: 2200, open_disputes: 0, verdict: "Square refunded more than this app has recorded." }],
+      spend_categories: [{ slug: "ingredients", label: "Ingredients", sort: 1, active: true, receipt_required_over_cents: 2500 }],
+    };
+    for (const phone of [MAIN, PHONES[0]]) {
+      const ctx = await phoneContext(phone, { owner: true, seed });
+      const page = await ctx.newPage();
+      await insetsOn(page, phone.top, phone.bottom);
+      const errors = watch(page);
+      await page.goto(`${BASE}/crew?s=money`, { waitUntil: "load" });
+      await page.waitForFunction(BRIDGE_UP, null, { timeout: 8000 }).catch(() => {});
+      await page.waitForSelector("#money-attention .owed-row", { timeout: 10000 }).catch(() => {});
+      await page.waitForTimeout(400); await page.evaluate(SETTLE);
+      const a = await page.evaluate(() => {
+        const sec = document.getElementById("money-attention"), perf = document.getElementById("home-numbers");
+        const rows = [...(sec?.querySelectorAll(".owed-row") ?? [])].map((r) => ({ t: (r.querySelector("b")?.textContent ?? "").trim(), i: (r.querySelector("i")?.textContent ?? "").trim(), late: r.classList.contains("late") }));
+        const head = (sec?.querySelector(".k-sec-r")?.textContent ?? "").replace(/\s+/g, " ").trim();
+        return { top: sec ? Math.round(sec.getBoundingClientRect().top) : null, perf: perf ? Math.round(perf.getBoundingClientRect().top) : null, rows, head, h: innerHeight,
+          owed: [...(perf?.querySelectorAll(".owed-row b") ?? [])].map((b) => (b.textContent ?? "").trim()) };
+      });
+      if (SHOTS) await page.screenshot({ path: shotPath(phone, "money--first-screen") });
+      const seen = JSON.stringify(a);
+      ok(`${phone.name} money: Needs attention starts on the first screen, under Performance`, a.top !== null && a.perf !== null && a.perf < a.top && a.top < a.h - phone.bottom - 120, seen);
+      ok(`${phone.name} money: Performance says what is owed to us`, a.owed.includes("Owed to you"), seen);
+      ok(`${phone.name} money: worst first, each row's level said in words before the problem — the order waiting 11 days is critical, the chargeback and the late invoice urgent, the refund and the budget to do`,
+        a.rows.length === 5
+          && a.rows[0].t === "A shop order is waiting on us" && /^Critical · Maya T\. paid \$64 for 1 tee, 1 cap$/.test(a.rows[0].i) && a.rows[0].late
+          && /^Chargeback · \$38 · Devon P\.$/.test(a.rows[1].t) && /^Urgent · /.test(a.rows[1].i)
+          && a.rows[2].t === "Northside Dental · $420" && a.rows[2].i === "Urgent · invoice past its date"
+          && a.rows[3].t === "Refund in Square, not recorded here" && /^Action required · Sam K\./.test(a.rows[3].i) && !a.rows[3].late
+          && a.rows[4].t === "Ingredients over budget" && a.rows[4].i === "Action required · $612 of $500 this month"
+          && a.head === "1 critical2 urgent2 to do", seen);
+      if (phone === MAIN) {
+        await page.locator("#money-attention .owed-row", { hasText: "A shop order is waiting on us" }).first().click();
+        await page.waitForSelector("#shoporders.open", { timeout: 8000 }).catch(() => {});
+        const w = await page.evaluate(() => ({ s: new URLSearchParams(location.search).get("s"), open: !!document.querySelector("#shoporders.open") }));
+        ok("money: the waiting order's row opens the shop's queue — in the Catalog now, open", w.s === "catalog" && w.open, JSON.stringify(w));
+      }
+      ok(`${phone.name} money: no errors`, errors.length === 0, errors.join(" | "));
+      await ctx.close();
+    }
+    {
+      const ctx = await phoneContext(MAIN, { owner: true });
+      const page = await ctx.newPage();
+      await insetsOn(page, MAIN.top, MAIN.bottom);
+      const errors = watch(page);
+      await page.goto(`${BASE}/crew?s=money&a=offers`, { waitUntil: "load" });
+      await page.waitForFunction(BRIDGE_UP, null, { timeout: 8000 }).catch(() => {});
+      await page.waitForSelector("#offers.open", { timeout: 8000 }).catch(() => {});
+      const w = await page.evaluate(() => ({ s: new URLSearchParams(location.search).get("s"), open: !!document.querySelector("#offers.open") }));
+      ok("money: an old link to a panel that moved, opened as a page (/crew?s=money&a=offers), lands on its new home — Team's offer letters, open", w.s === "team" && w.open, JSON.stringify(w));
+      ok("money: no errors (an old link)", errors.length === 0, errors.join(" | "));
+      await ctx.close();
+    }
   }
 
   // ── 6c · Alerts in the app (2026-10-11) ──

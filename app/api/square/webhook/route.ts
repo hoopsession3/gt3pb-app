@@ -116,7 +116,8 @@ async function post(req: Request) {
             severity: "critical", category: "money", kind: "refund_unrecorded", subjectId: o.id,
             title: "A refund was issued in Square and this app does not know",
             body: `${o.ship_name || o.email || "A customer"} was refunded $${moneyPlain(cents)} in Square, but this order records $${moneyPlain(o.refund_amount_cents)}. Mark the order refunded with a reason, or the books disagree.`,
-            link: "/crew?s=money&a=shoporders",
+            // The order is the Catalog's since 2026-10-15 (the shop's queue moved there from Money): the refund is marked on it.
+            link: "/crew?s=catalog&a=shoporders",
           });
         }
       }
@@ -154,7 +155,8 @@ async function post(req: Request) {
             severity: "critical", category: "money", kind: "chargeback_open", subjectId: String(dId),
             title: `A card dispute was opened for $${moneyPlain(cents)}`,
             body: `${o?.ship_name || o?.email || "A customer"} disputed a payment.${by} A dispute with no evidence filed is lost by default — the amount and the bank's fee both go. Respond in Square.`,
-            link: "/crew?s=money&a=shoporders",
+            // Money › Get paid lists every open chargeback with its evidence date (2026-10-15); the shop's queue never showed one.
+            link: "/crew?s=money&a=pay",
           });
         }
       }

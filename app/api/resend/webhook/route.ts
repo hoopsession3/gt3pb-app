@@ -80,7 +80,7 @@ async function post(req: Request) {
       title: `A ${r.kind.replace(/_/g, " ")} email ${what}`,
       body: `The ${r.kind.replace(/_/g, " ")} sent to ${r.to_address} ${what} — ${patch.delivery_detail ?? "no detail given"}. ` +
             `That customer has heard nothing. Check the address on the order and send it again.`,
-      link: "/crew?s=money&a=shoporders",
+      link: "/crew?s=catalog&a=shoporders",
     });
   }
 

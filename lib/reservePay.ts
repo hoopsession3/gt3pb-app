@@ -38,7 +38,7 @@ import { reserveClosesAt, reserveOpen, reservePickupWords, type ReserveStop } fr
 
 export const MAX_QTY = 12;
 /** Where the crew see a reserve's claims (app/crew, Money → Reserve drops). */
-export const RESERVES_LINK = "/crew?s=money&a=resv";
+export const RESERVES_LINK = "/crew?s=catalog&a=resv";   // the reserve drops are the Catalog's since 2026-10-15
 /**
  * Square's refund for a canceled claim: the claim (its id, dashes dropped) and what it had refunded before this one. A
  * cancel sent twice asks again under the same key, so Square refunds it once. A cancel after a part refund made in

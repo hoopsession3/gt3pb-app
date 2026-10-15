@@ -63,8 +63,8 @@ type Data = { person: Person | null; steps: Step[]; markets: Market[] };
 // draft one for them (?agreement_for=, components/OperatorDeal), and the Academy's assign sheet
 // opens with them chosen (?assign=, app/academy — the only writer of academy_assignments).
 const GO_TO: Record<string, { href: (id: string) => string; cta: string }> = {
-  offer:     { href: (id) => `/crew?s=money&a=offers&offer_for=${id}`, cta: "Draft their offer letter" },
-  agreement: { href: (id) => `/crew?s=money&a=operators&agreement_for=${id}`, cta: "Open their agreement" },
+  offer:     { href: (id) => `/crew?s=team&a=offers&offer_for=${id}`, cta: "Draft their offer letter" },
+  agreement: { href: (id) => `/crew?s=team&a=operators&agreement_for=${id}`, cta: "Open their agreement" },
   academy:   { href: (id) => `/academy?assign=${id}`, cta: "Assign their Academy path" },
 };
 
