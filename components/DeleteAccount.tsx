@@ -13,19 +13,23 @@ import { supabase } from "@/lib/supabase";
 // it, in the app, without an email to send or a number to call. Apple allows a confirmation step and
 // asks that people be told what is kept and why. So, in order:
 //   1. ask the server what deleting would mean for this account (GET /api/account/erase) — anything
-//      that stands in the way, in words they can act on, and whether a membership will be cancelled;
+//      that stands in the way, in words they can act on, whether a membership will be cancelled, and a
+//      company's weekly office order under their name, which stops (A3 of the account audit);
 //   2. say plainly what goes and what stays, before the one red button;
 //   3. delete (POST /api/account/erase), then sign this device out — the account no longer exists.
-// The server does the deleting and every check; this only tells the truth about it.
+// The server does the deleting and every check; this only tells the truth about it — the database first, then
+// what is outside it (2026-10-15, 0404): what the server couldn't finish outside is the crew's now, and said.
 
 type Blocker = { code: string; message: string };
 type Phase =
   | { at: "checking" }
   | { at: "blocked"; blockers: Blocker[] }
-  | { at: "ready"; membership: boolean }
-  | { at: "deleting"; membership: boolean }
+  | { at: "ready"; membership: boolean; office: string[] }
+  | { at: "deleting"; membership: boolean; office: string[] }
   | { at: "failed"; message: string }
-  | { at: "apple" };   // deleted — and Apple could not be told, so the person ends Sign in with Apple themselves
+  // deleted — and a step is left: Apple could not be told (the person ends Sign in with Apple in Settings), or the
+  // membership's cancel is still going through with Square (the crew has it)
+  | { at: "after"; apple: boolean; membership: boolean };
 
 const OFFLINE = "You're offline. Connect, then try again.";
 
@@ -45,15 +49,16 @@ export default function DeleteAccount({ staff, onKeep, onDeleted }: {
         if (!live) return;
         if (!r.ok) { haptic("error"); setPhase({ at: "failed", message: j.error || "We couldn't check your account just now. Try again in a minute." }); return; }
         const blockers: Blocker[] = Array.isArray(j.blockers) ? j.blockers : [];
-        setPhase(blockers.length ? { at: "blocked", blockers } : { at: "ready", membership: !!j.membership });
+        const office = Array.isArray(j.office) ? (j.office as unknown[]).map(String).filter(Boolean) : [];
+        setPhase(blockers.length ? { at: "blocked", blockers } : { at: "ready", membership: !!j.membership, office });
       })
       .catch(() => { if (live) { haptic("error"); setPhase({ at: "failed", message: OFFLINE }); } });
     return () => { live = false; };
   }, [asked]);
 
-  const erase = async (membership: boolean) => {
+  const erase = async (membership: boolean, office: string[]) => {
     haptic("heavy");
-    setPhase({ at: "deleting", membership });
+    setPhase({ at: "deleting", membership, office });
     try {
       const r = await authedFetch("/api/account/erase", {
         method: "POST",
@@ -66,8 +71,9 @@ export default function DeleteAccount({ staff, onKeep, onDeleted }: {
       // The account is gone on the server, and its sessions with it: forget this device's copy too.
       await supabase?.auth.signOut({ scope: "local" }).catch(() => undefined);
       // Signed in with Apple, and Apple's tokens could not be revoked from here (app/api/account/erase): the one
-      // step left is theirs, in the iPhone's Settings (Apple's TN3194; support.apple.com/102571).
-      if (j.appleManual) { haptic("success"); setPhase({ at: "apple" }); return; }
+      // step left is theirs, in the iPhone's Settings (Apple's TN3194; support.apple.com/102571). And a membership
+      // Square didn't confirm cancelled is the crew's now (0404 rings them): said, so nobody wonders.
+      if (j.appleManual || j.membershipPending) { haptic("success"); setPhase({ at: "after", apple: !!j.appleManual, membership: !!j.membershipPending }); return; }
       onDeleted();
     } catch {
       haptic("error");
@@ -91,14 +97,22 @@ export default function DeleteAccount({ staff, onKeep, onDeleted }: {
     );
   }
 
-  if (phase.at === "apple") {
+  if (phase.at === "after") {
     return (
       <div>
         <p className="cfm-body" role="status">Your account is deleted.</p>
-        <p className="dp-hint">
-          One last step, because you signed in with Apple: on your iPhone, open Settings, tap your name, then Sign in
-          with Apple. Choose GT3 Performance Bar and tap Delete.
-        </p>
+        {phase.membership && (
+          <p className="dp-hint">
+            Your membership&rsquo;s cancellation is still going through with Square. We&rsquo;ve been told, and we&rsquo;ll
+            make sure it doesn&rsquo;t bill again.
+          </p>
+        )}
+        {phase.apple && (
+          <p className="dp-hint">
+            One last step, because you signed in with Apple: on your iPhone, open Settings, tap your name, then Sign in
+            with Apple. Choose GT3 Performance Bar and tap Delete.
+          </p>
+        )}
         <div className="prod-actions cfm-actions">
           <button type="button" className="btn-pri" onClick={onDeleted}>Done</button>
         </div>
@@ -127,8 +141,18 @@ export default function DeleteAccount({ staff, onKeep, onDeleted }: {
       <p className="dp-hint">
         Your profile and photo; your name, email and phone; your reviews, RSVPs and VIP proof; your Primal progress;
         your points and store credit; and your saved settings.
-        {phase.membership ? " Your membership is cancelled first, so it won't bill again." : ""}
+        {phase.membership ? " Your membership is cancelled too, so it won't bill again." : ""}
       </p>
+
+      {phase.office.length > 0 && (
+        <>
+          <div className="acs-group">Your office</div>
+          <p className="dp-hint">
+            {phase.office.join(" and ")}&rsquo;s weekly office order is under your name, so deleting stops it. We&rsquo;ll reach
+            your company to set up a new contact.
+          </p>
+        </>
+      )}
 
       <div className="acs-group">Kept, without your name</div>
       <p className="dp-hint">
@@ -139,7 +163,7 @@ export default function DeleteAccount({ staff, onKeep, onDeleted }: {
 
       <div className="prod-actions cfm-actions">
         <button type="button" className="btn-ter" onClick={onKeep} disabled={busy}>Keep my account</button>
-        <button type="button" className="btn-del" onClick={() => erase(phase.membership)} disabled={busy}>
+        <button type="button" className="btn-del" onClick={() => erase(phase.membership, phase.office)} disabled={busy}>
           {busy ? "Deleting…" : "Delete my account"}
         </button>
       </div>

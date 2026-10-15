@@ -60,3 +60,53 @@ export async function revoke(refreshToken: string): Promise<boolean> {
   const r = await fetch(`${APPLE}/auth/revoke`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body, signal: AbortSignal.timeout(10000) });
   return r.ok;
 }
+
+// THE IDENTITY TOKEN, CHECKED HERE (2026-10-15, A3 of the account audit). Joining an Apple ID to a member's account
+// deletes the empty account that Apple ID made (app/api/account/link-apple, lib/appleLink) — so before anything is deleted,
+// the token that says "this Apple ID is mine" is checked the way Supabase will check it: Apple's signature (its published
+// keys, RS256), Apple as the issuer, this app as the audience, not expired, and the nonce the phone asked Apple with (the
+// SHA-256 of the page's own, in hex — native/ios/GT3Device.swift). Supabase checks it again when it links.
+export type AppleJwk = { kid: string; kty: string; alg?: string; n: string; e: string; use?: string };
+let keyCache: { keys: AppleJwk[]; at: number } | null = null;
+
+async function appleKeys(): Promise<AppleJwk[]> {
+  if (keyCache && Date.now() - keyCache.at < 60 * 60 * 1000) return keyCache.keys;
+  const r = await fetch(`${APPLE}/auth/keys`, { signal: AbortSignal.timeout(10000) });
+  if (!r.ok) return keyCache?.keys ?? [];
+  const j = (await r.json().catch(() => ({}))) as { keys?: AppleJwk[] };
+  keyCache = { keys: Array.isArray(j.keys) ? j.keys : [], at: Date.now() };
+  return keyCache.keys;
+}
+
+/** Apple's `sub` for the person, when the identity token is Apple's, for this app, current, and made for this nonce;
+ *  null otherwise. `keys` and `now` stand in for Apple's published keys and the clock in tests. */
+export async function verifyIdentityToken(token: unknown, rawNonce: unknown,
+  opts: { keys?: AppleJwk[]; now?: number } = {}): Promise<{ sub: string; email: string | null } | null> {
+  if (typeof token !== "string" || typeof rawNonce !== "string" || !rawNonce || token.length > 4096) return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const [h, p, s] = parts;
+  let header: { alg?: string; kid?: string }, claims: { iss?: string; aud?: string | string[]; exp?: number; iat?: number; sub?: string; nonce?: string; email?: string };
+  try {
+    header = JSON.parse(Buffer.from(h, "base64url").toString("utf8"));
+    claims = JSON.parse(Buffer.from(p, "base64url").toString("utf8"));
+  } catch { return null; }
+  if (header.alg !== "RS256" || !header.kid) return null;
+  const jwk = (opts.keys ?? (await appleKeys())).find((k) => k.kid === header.kid && k.kty === "RSA");
+  if (!jwk) return null;
+  const { createPublicKey, verify, createHash } = await import("node:crypto");
+  let signed = false;
+  try {
+    const key = createPublicKey({ key: { kty: "RSA", n: jwk.n, e: jwk.e }, format: "jwk" });
+    signed = verify("RSA-SHA256", Buffer.from(`${h}.${p}`), key, Buffer.from(s, "base64url"));
+  } catch { return null; }
+  if (!signed) return null;
+  const now = Math.floor((opts.now ?? Date.now()) / 1000);
+  const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+  const nonce = createHash("sha256").update(rawNonce, "utf8").digest("hex");
+  if (claims.iss !== APPLE || !aud.includes(APPLE_CLIENT_ID)) return null;
+  if (typeof claims.exp !== "number" || claims.exp <= now) return null;
+  if (typeof claims.iat === "number" && claims.iat > now + 300) return null;
+  if (claims.nonce !== nonce || typeof claims.sub !== "string" || !claims.sub) return null;
+  return { sub: claims.sub, email: typeof claims.email === "string" ? claims.email : null };
+}

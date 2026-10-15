@@ -19,6 +19,7 @@ import Button from "./Button";
 import { Segmented } from "@/components/controls";
 import { signOutHere } from "@/lib/pushRelease";
 import { cardOf, freeWords, STAMP_GOAL } from "@/lib/loyalty";
+import { APP_BUILD, isNativeApp } from "@/lib/native";
 
 // THE account popout — a MENU, reachable from the avatar on every page.
 //
@@ -236,6 +237,11 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
             {/* One screen for every kind (R6, components/NotificationsSheet) — there is always something to switch now. */}
             <Row title="Notifications" sub="Order updates, pickup reminders, truck live, texts" onClick={() => open("gt3-open-notifications")} />
             <Row title="Display & text size" sub="Bigger text, bold, roomier spacing" onClick={() => open("gt3-open-display")} />
+            {/* A3 of the account audit (2026-10-15): in the iPhone app, an account signed in with its email can take its
+                Apple ID — Continue with Apple opens it from then on (components/AppleLink; the web has no Apple sheet). */}
+            {APP_BUILD && isNativeApp() && !user.identities?.some((i) => i.provider === "apple") && (
+              <Row title="Link Sign in with Apple" sub="Continue with Apple opens this account" onClick={() => open("gt3-link-apple")} />
+            )}
             {/* App Store Review Guideline 5.1.1(v): deleting the account is in the account — Settings & privacy, the
                 second level, on the web and in the app alike. */}
             <Row title="Delete account" sub="Your profile and details, for good" onClick={() => setDeleting(true)} />

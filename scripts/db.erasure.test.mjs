@@ -120,8 +120,9 @@ ok("1 · deleting the account runs it: the trigger is on auth.users", (await cou
 const blockers = async (id) => (await one(`select public.account_erasure_blockers($1) as b`, [id])).b.map((x) => `${x.code}: ${x.message}`);
 ok("2 · the business's only owner is asked to name another owner first", (await blockers(OWNER)).some((b) => /^only_owner: .*only owner/.test(b)), await blockers(OWNER));
 ok("2 · and deleting their account is refused, whole", /only owner/.test((await erase(OWNER)) || "") && (await count(`select count(*) n from public.profiles where id = $1`, [OWNER])) === 1);
-ok("2 · a membership that can still bill is cancelled first — coded, so the route can cancel it itself", (await blockers(CUST)).some((b) => /^membership: .*can still bill/.test(b)), await blockers(CUST));
-await q(`update public.subscriptions set status = 'canceled' where user_id = $1`, [CUST]);
+// 0404: the database goes first now — a membership Square can still bill no longer stands in the way; deleting queues its
+// cancel (scripts/db.erasequeue.test.mjs runs the queue).
+ok("2 · a membership that can still bill does not stand in the way — deleting queues its cancel (0404)", !(await blockers(CUST)).some((b) => /^membership:/.test(b)), await blockers(CUST));
 ok("2 · a reserve they paid for, from a drop still running, holds it", (await blockers(CUST)).some((b) => /order on its way/.test(b)), await blockers(CUST));
 // The bottle is handed over (0400: a reserve people paid for is not taken down until they have it, or their money).
 await q(`update public.reserve_claims set state = 'collected', collected_at = now() where reserve_id = $1 and user_id = $2`, [cask, CUST]);
@@ -134,7 +135,8 @@ await q(`update public.drop_orders set fulfillment_status = 'fulfilled', picked_
 await q(`insert into public.orders (user_id, customer_id, customer, items, total_cents, tenant_id) values ($1, $2, $3, '{}', 1000, $4)`, [CUST, custRec, CASEY.name, T1]);
 ok("2 · a truck order from the last twelve hours holds it", (await blockers(CUST)).some((b) => /order on its way/.test(b)), await blockers(CUST));
 await q(`update public.orders set status = 'done' where user_id = $1`, [CUST]);   // fulfillment_status follows status (sync_order_status)
-ok("2 · with the membership cancelled and the orders collected, nothing stands in the way", (await blockers(CUST)).length === 0, await blockers(CUST));
+ok("2 · with the orders collected, nothing stands in the way — the membership still on", (await blockers(CUST)).length === 0
+  && (await count(`select count(*) n from public.subscriptions where user_id = $1 and status = 'active'`, [CUST])) === 1, await blockers(CUST));
 
 // ── 3–5 · the customer deletes their account ──
 const ordersBefore = {

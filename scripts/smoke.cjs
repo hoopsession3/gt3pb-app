@@ -9981,15 +9981,26 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /supabase\?\.auth\.signOut\(\{ scope: "local" \}\)/.test(del));
   ok("delete: the screen asks the server first, says what goes and what stays, and only then offers the red words (the kit's destructive)",
     /authedFetch\("\/api\/account\/erase"\)\s*\.then/.test(del) && />Deleted<\/div>/.test(del) && />Kept, without your name<\/div>/.test(del)
-    && /className="btn-del" onClick=\{\(\) => erase\(phase\.membership\)\}/.test(del) && /body: JSON\.stringify\(\{ confirm: true \}\)/.test(del)
+    && /className="btn-del" onClick=\{\(\) => erase\(phase\.membership, phase\.office\)\}/.test(del) && /body: JSON\.stringify\(\{ confirm: true \}\)/.test(del)
     && /phase\.at === "blocked"/.test(del) && !/window\.location\.reload/.test(del));
-  const at = (re) => { const m = re.exec(rt); return m ? m.index : -1; };
-  const order = [at(/body\.confirm !== true/), at(/const first = await blockersFor\(user\.id\)/), at(/\/v2\/subscriptions\/\$\{encodeURIComponent\(id\)\}\/cancel/),
-    at(/supabaseAdmin\.storage\.from\(bucket\)/), at(/supabaseAdmin\.auth\.admin\.deleteUser\(user\.id\)/), at(/\/v2\/customers\/\$\{encodeURIComponent\(squareCustomer\)\}/)];
-  ok("delete: the route's order — confirmed, asked, the membership cancelled at Square, the photos removed, the account deleted, the saved card last",
-    order.every((i, k) => i > 0 && (k === 0 || i > order[k - 1])), order);
-  ok("delete: a membership Square cannot confirm cancelled stops it, with nothing deleted",
-    /if \(!ended\) return NextResponse\.json\(\{ error: "We couldn't cancel your membership with our payment processor, so nothing was deleted\./.test(rt));
+  // A3 of the account audit (2026-10-15): the database goes first — 0353's erasure and 0404's queue of what is outside it,
+  // in one transaction — and only then the steps outside, from the queue (lib/accountErase decides the order).
+  const ae = code(read("lib/accountErase.ts"));
+  const post = rt.slice(rt.indexOf("async function post("));
+  const at = (re, t = ae) => { const m = re.exec(t); return m ? m.index : -1; };
+  const order = [at(/const first = await steps\.blockers\(userId\);/), at(/const apple = await steps\.hasApple\(userId\);/), at(/await steps\.markTicket\(userId, ticket\)/),
+    at(/const gone = await steps\.deleteAccount\(userId\);/), at(/const queued = await steps\.claim\(ticket\);/), at(/done = await steps\.run\(f\)/)];
+  ok("delete: the database goes first — asked, the ticket written, the account deleted (erasure and queue in one transaction), and only then the steps outside",
+    order.every((i, k) => i > 0 && (k === 0 || i > order[k - 1])) && at(/body\.confirm !== true/, post) > 0 && at(/body\.confirm !== true/, post) < at(/const answer = await eraseAccount\(user\.id, steps\);/, post)
+    && !/fetch\(|revoke\(|\.remove\(/.test(post), order);
+  ok("delete: a membership Square doesn't confirm cancelled goes to the crew by an alert that rings, and the person is told — the account is deleted all the same",
+    /if \(f\.kind === "square_subscription"\) membershipPending = true;\s*await steps\.handOff\(f\);/.test(ae)
+    && /perform public\.alert_open_once\('erasure_followup', f\.id, 'critical', 'money',/.test(read("supabase/migrations/0404_an_account_is_erased_before_anything_outside_it.sql"))
+    && /Your membership&rsquo;s cancellation is still going through with Square\./.test(read("components/DeleteAccount.tsx")));
+  ok("delete: a company's weekly office order under their name is said before the red words — it stops",
+    /\.from\("business_accounts"\)\.select\("company"\)/.test(rt) && /<div className="acs-group">Your office<\/div>/.test(del) && /weekly office order is under your name, so deleting stops it\./.test(read("components/DeleteAccount.tsx")));
+  ok("delete: its proof runs with the suites — the order, against stand-ins (the erase forced to fail touches nothing outside), and 0404's queue in Postgres",
+    /node scripts\/accounterase\.test\.mjs/.test(pkg.scripts.test) && /node scripts\/db\.erasequeue\.test\.mjs/.test(pkg.scripts["db:test"]));
   ok("delete: 0353 — deleting the account runs the erasure, in its transaction, and nothing else may call it",
     /create trigger on_auth_user_deleted before delete on auth\.users/.test(mig)
     && /revoke all on function public\.erase_account_data\(uuid\) from public, anon, authenticated, service_role;/.test(mig)
@@ -10120,10 +10131,37 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /p_bucket: `apple-code:\$\{user\.id\}`/.test(ar) && /export const POST = route\("auth\/apple", post\);/.test(ar)
       && /alter table public\.apple_tokens enable row level security;/.test(mig) && !/create policy/i.test(mig) && /revoke all on table public\.apple_tokens from anon, authenticated;/.test(mig)
       && /references auth\.users\(id\) on delete cascade/.test(mig) && /select public\.record_migration\('0363_sign_in_with_apple_tokens'\);/.test(mig));
-    ok("apple: deleting an account revokes Sign in with Apple at Apple first, and when it can't, the sheet says how to end it in Settings",
-      er.indexOf("appleManual = !(token && siwaConfigured() && (await revoke(token)") > 0 && er.indexOf("await revoke(token)") < er.indexOf("supabaseAdmin.auth.admin.deleteUser(user.id)")
-      && /return NextResponse\.json\(\{ ok: true, appleManual \}\);/.test(er) && /if \(j\.appleManual\) \{ haptic\("success"\); setPhase\(\{ at: "apple" \}\); return; \}/.test(code(read("components/DeleteAccount.tsx")))
+    // A3 (2026-10-15): revoked from 0404's queue, after the database — a refused deletion revokes nothing.
+    ok("apple: deleting an account revokes Sign in with Apple at Apple (from the queue, after the database), and when it can't, the sheet says how to end it in Settings",
+      /if \(f\.kind === "apple_token"\) \{\s*if \(!siwaConfigured\(\)\) return \{ ok: false, error: "Sign in with Apple's key isn't set" \};\s*return \(await revoke\(f\.ref\)/.test(er)
+      && /appleManual: apple && !appleRevoked/.test(read("lib/accountErase.ts"))
+      && /if \(j\.appleManual \|\| j\.membershipPending\) \{ haptic\("success"\); setPhase\(\{ at: "after", apple: !!j\.appleManual, membership: !!j\.membershipPending \}\); return; \}/.test(code(read("components/DeleteAccount.tsx")))
+      && /select 'apple_token', t\.refresh_token, v_ticket/.test(read("supabase/migrations/0404_an_account_is_erased_before_anything_outside_it.sql"))
       && /aud: APPLE, sub: APPLE_CLIENT_ID/.test(asi) && /token_type_hint: "refresh_token"/.test(asi));
+    // A3 (2026-10-15, decided 2026-10-13): Sign in with Apple finds the account it belongs to.
+    {
+      const al = code(read("components/AppleLink.tsx")), shell = code(read("components/AppShell.tsx")), acs2 = code(read("components/AccountSheet.tsx"));
+      const lr = read("app/api/account/link-apple/route.ts"), m403 = read("supabase/migrations/0403_an_apple_sign_in_joins_the_account_it_belongs_to.sql");
+      ok("apple link: a first Apple sign-in — an account made a moment ago, Apple alone on it — asks right away, with Apple's token in memory only, for one take",
+        /const appleOnly = \(session\.user\.identities \?\? \[\]\)\.every\(\(i\) => i\.provider === "apple"\);/.test(aa)
+        && /Date\.now\(\) - made < 2 \* 60_000/.test(aa) && /freshApple = \{ idToken: credential\.identityToken, nonce, at: Date\.now\(\) \};\s*window\.dispatchEvent\(new Event\(FRESH_APPLE\)\);/.test(aa)
+        && /return f && Date\.now\(\) - f\.at < 8 \* 60_000 \? f : null;/.test(aa)
+        && !/localStorage|sessionStorage/.test(al) && /onFresh\(\);\s*window\.addEventListener\(FRESH_APPLE, onFresh\);/.test(al));
+      ok("apple link: the email is proved by its code — an account that exists only, never a new one — and the code signs this phone in to it",
+        /supabase\.auth\.signInWithOtp\(\{ email: to, options: \{ shouldCreateUser: false \} \}\)/.test(al)
+        && /supabase\.auth\.verifyOtp\(\{ email: email\.trim\(\), token, type: "email" \}\)/.test(al) && al.indexOf("verifyOtp(") < al.indexOf("linkAppleHere(supabase, cred)"));
+      ok("apple link: the app's alone — built into the app only, as NativeBridge is — and Settings & privacy offers it to an email account without an Apple ID",
+        /const AppleLink = process\.env\.NEXT_PUBLIC_GT3_TARGET === "app" \? dynamic\(\(\) => import\("\.\/AppleLink"\), \{ ssr: false \}\) : null;/.test(shell) && /\{AppleLink && <AppleLink \/>\}/.test(shell)
+        && /\{APP_BUILD && isNativeApp\(\) && !user\.identities\?\.some\(\(i\) => i\.provider === "apple"\) && \(\s*<Row title="Link Sign in with Apple" sub="Continue with Apple opens this account" onClick=\{\(\) => open\("gt3-link-apple"\)\} \/>/.test(acs2)
+        && /export const LINK_APPLE = "gt3-link-apple";/.test(read("components/AppleLink.tsx")) && !/import .*AppleLink/.test(acs2));
+      ok("apple link: the server checks Apple's token itself before anything is deleted, and Supabase links with the member's own session",
+        /verify: \(token, raw\) => verifyIdentityToken\(token, raw\)/.test(lr) && /link_identity: true/.test(lr) && /const user = await userFromRequest\(req\);/.test(lr)
+        && /if \(header\.alg !== "RS256" \|\| !header\.kid\) return null;/.test(asi) && /if \(claims\.nonce !== nonce \|\| typeof claims\.sub !== "string" \|\| !claims\.sub\) return null;/.test(asi));
+      ok("apple link: 0403's two questions are the server's alone, and its proof runs with the suites",
+        /revoke all on function public\.account_for_apple\(text\) from public, anon, authenticated;/.test(m403) && /revoke all on function public\.account_unused\(uuid\) from public, anon, authenticated;/.test(m403)
+        && /select public\.record_migration\('0403_an_apple_sign_in_joins_the_account_it_belongs_to'\);/.test(m403)
+        && /node scripts\/applelink\.test\.mjs/.test(JSON.parse(read("package.json")).scripts.test) && /node scripts\/db\.applelink\.test\.mjs/.test(JSON.parse(read("package.json")).scripts["db:test"]));
+    }
   }
   // ── UNIVERSAL LINKS (2026-10-11): app.gt3pb.com's links open the app; a password saved for the site is offered in it ──
   {

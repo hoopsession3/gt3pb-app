@@ -64,6 +64,8 @@ const Concierge = dynamic(() => import("./Concierge"));
 // chunks (never loaded, but there) — measured, not assumed. scripts/smoke.cjs holds the two spellings
 // to the same words.
 const NativeBridge = process.env.NEXT_PUBLIC_GT3_TARGET === "app" ? dynamic(() => import("./NativeBridge"), { ssr: false }) : null;
+// Sign in with Apple finding the account it belongs to (A3 of the account audit) — the app's alone, built the same way.
+const AppleLink = process.env.NEXT_PUBLIC_GT3_TARGET === "app" ? dynamic(() => import("./AppleLink"), { ssr: false }) : null;
 
 // Routes whose page already renders its own visible <h1> — don't add a second one.
 // "/crew" joined this list 2026-07-29: the console's op-head-t now renders as a real per-section
@@ -278,6 +280,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {customerSurface && <MarketingSplash />}
         <ErrorReporter />
         {NativeBridge && <NativeBridge />}
+        {AppleLink && <AppleLink />}
       </div>
       </RecordProvider>
      </TaskSheetProvider>

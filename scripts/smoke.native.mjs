@@ -1935,6 +1935,153 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await web.close();
   }
 
+  // ── 6d · Sign in with Apple finds the account it belongs to (2026-10-15, A3 of the account audit) ──
+  // A first Apple sign-in — the token exchange answers with an account made this moment, Apple alone on it (Hide My Email's
+  // relay address) — asks "Already a GT3 member?". Linking: the email, sent a code for an account that exists (never a new
+  // one); the code, which signs the phone in to that account; then the join, with the sign-in's Apple token (still fresh)
+  // and its nonce, to the web's API, asked as the member's own account. "I'm new here" keeps the new account.
+  {
+    const APPLE_ID = "5a10e000-0000-4000-8000-0000000000a9";
+    const exp = Math.floor(Date.now() / 1000) + 86400;
+    const freshUser = { id: APPLE_ID, aud: "authenticated", role: "authenticated", email: "x7k2pq9abc@privaterelay.appleid.com",
+      app_metadata: { provider: "apple", providers: ["apple"] }, user_metadata: {}, created_at: new Date().toISOString(),
+      identities: [{ id: "5a10e000-0000-4000-8000-0000000000aa", identity_id: "5a10e000-0000-4000-8000-0000000000ab", user_id: APPLE_ID, provider: "apple",
+        identity_data: { sub: ANSWERS["GT3Device.signInWithApple"].user } }] };
+    const freshSession = { access_token: `${b64url({ alg: "HS256", typ: "JWT" })}.${b64url({ sub: APPLE_ID, role: "authenticated", aud: "authenticated", exp, email: freshUser.email })}.smoke-signature-not-a-key`,
+      token_type: "bearer", expires_in: 86400, expires_at: exp, refresh_token: "smoke-refresh-apple-not-a-token", user: freshUser };
+    const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET, POST, OPTIONS" };
+    for (const path of ["link", "new"]) {
+      const ctx = await phoneContext(MAIN);
+      const page = await ctx.newPage();
+      await insetsOn(page, MAIN.top, MAIN.bottom);
+      const errors = watch(page);
+      const sent = { otp: null, verify: null, link: null, auth: null };
+      await page.route((u) => u.host === BACKEND_HOST && u.pathname.startsWith("/auth/v1/"), async (route) => {
+        const req = route.request(), u = new URL(req.url());
+        if (req.method() === "OPTIONS") return route.fallback();
+        const json = (body) => route.fulfill({ status: 200, headers: { ...cors, "content-type": "application/json" }, body: JSON.stringify(body) });
+        if (u.pathname === "/auth/v1/token" && u.searchParams.get("grant_type") === "id_token") return json(freshSession);
+        if (u.pathname === "/auth/v1/user" && (req.headers().authorization ?? "") === `Bearer ${freshSession.access_token}`) return json(freshUser);
+        if (u.pathname === "/auth/v1/otp") { sent.otp = req.postDataJSON(); return json({}); }
+        if (u.pathname === "/auth/v1/verify") { sent.verify = req.postDataJSON(); return json(SESSION); }
+        return route.fallback();
+      });
+      await page.route((u) => u.origin === API_ORIGIN && u.pathname === "/api/account/link-apple", async (route) => {
+        const req = route.request();
+        if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: { ...cors, "access-control-allow-headers": "content-type, authorization" } });
+        sent.link = req.postDataJSON(); sent.auth = req.headers().authorization ?? null;
+        return route.fulfill({ status: 200, headers: { ...cors, "content-type": "application/json" }, body: JSON.stringify({ ok: true, joined: true }) });
+      });
+      await page.goto(`${BASE}/3mpire`, { waitUntil: "load" });
+      const apple = page.getByRole("button", { name: "Continue with Apple" });
+      const shown = await apple.waitFor({ timeout: 8000 }).then(() => true, () => false);
+      await page.waitForTimeout(700); await page.evaluate(SETTLE);   // the phone's half in (NativeBridge), as 6b waits
+      if (shown) await apple.click();
+      const asked = await page.waitForSelector("text=Already a GT3 member?", { timeout: 8000 }).then(() => true, () => false);
+      const nonce = (await nativeCalls(page)).find((c) => c.plugin === "GT3Device" && c.method === "signInWithApple")?.options?.nonce ?? null;
+      await page.waitForTimeout(500); await page.evaluate(SETTLE);
+      const sessionUser = () => page.evaluate((key) => { try { return JSON.parse(localStorage.getItem(key) ?? "null")?.user?.id ?? null; } catch { return null; } }, `sb-${BACKEND_HOST.split(".")[0]}-auth-token`);
+      if (path === "new") {
+        if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "apple--already-member") });
+        ok("apple link: a first Apple sign-in asks \"Already a GT3 member?\" right away", asked);
+        await page.getByRole("button", { name: "I’m new here" }).first().click().catch(() => {});
+        const gone = await page.waitForSelector("text=Already a GT3 member?", { state: "detached", timeout: 5000 }).then(() => true, () => false);
+        ok("apple link: \"I'm new here\" keeps the new account — the sheet goes, no code is sent, the phone stays signed in to it",
+          gone && sent.otp === null && (await sessionUser()) === APPLE_ID, JSON.stringify({ gone, otp: sent.otp, user: await sessionUser() }));
+        ok("apple link: no errors (new here)", errors.length === 0, errors.join(" | "));
+        await ctx.close();
+        continue;
+      }
+      await page.getByRole("button", { name: "Link my account" }).first().click().catch(() => {});
+      await page.fill("#al-email", "owner@smoke.test").catch(() => {});
+      if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "apple--email") });
+      await page.getByRole("button", { name: "Email me a code" }).first().click().catch(() => {});
+      const codeShown = await page.waitForSelector("#al-code", { timeout: 6000 }).then(() => true, () => false);
+      await page.fill("#al-code", "12345678").catch(() => {});
+      if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "apple--code") });
+      await page.locator("form", { has: page.locator("#al-code") }).getByRole("button", { name: "Link my account" }).click().catch(() => {});
+      const linked = await page.waitForSelector("text=Linked.", { timeout: 8000 }).then(() => true, () => false);
+      await page.waitForTimeout(300);
+      if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "apple--linked") });
+      ok("apple link: the email is sent a code for an account that exists — never a new account", codeShown && sent.otp?.email === "owner@smoke.test" && sent.otp?.create_user === false, JSON.stringify(sent.otp));
+      ok("apple link: the code signs the phone in to that account (an email code, the one typed)", sent.verify?.type === "email" && sent.verify?.token === "12345678" && (await sessionUser()) === OWNER_ID, JSON.stringify(sent.verify));
+      ok("apple link: the join goes to the web's API as the member's own account, with the sign-in's Apple token and its nonce",
+        sent.link?.idToken === ANSWERS["GT3Device.signInWithApple"].identityToken && !!nonce && sent.link?.nonce === nonce && sent.auth === `Bearer ${SESSION.access_token}`,
+        JSON.stringify({ link: sent.link, nonce, auth: sent.auth ? "set" : null }));
+      ok("apple link: and says it is done — Linked", linked);
+      ok("apple link: Apple's sheet was asked once — the sign-in's token was still fresh", (await nativeCalls(page)).filter((c) => c.plugin === "GT3Device" && c.method === "signInWithApple").length === 1);
+      ok("apple link: no errors (link)", errors.length === 0, errors.join(" | "));
+      await ctx.close();
+    }
+  }
+
+  // ── 6e · Settings & privacy › Link Sign in with Apple, for an account signed in with its email (A3) ──
+  {
+    const ctx = await phoneContext(MAIN, { owner: true });
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    let link = null;
+    await page.route((u) => u.origin === API_ORIGIN && u.pathname === "/api/account/link-apple", async (route) => {
+      const req = route.request(), cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "content-type, authorization", "access-control-allow-methods": "POST, OPTIONS" };
+      if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+      link = req.postDataJSON();
+      return route.fulfill({ status: 200, headers: { ...cors, "content-type": "application/json" }, body: JSON.stringify({ ok: true, joined: false }) });
+    });
+    await page.goto(`${BASE}/book`, { waitUntil: "load" });
+    await page.waitForTimeout(400); await page.evaluate(SETTLE);
+    await page.locator('button.acct-av[aria-label="Your account"]').first().click().catch(() => {});
+    const settings = page.getByRole("button", { name: /^Settings & privacy/ }).first();
+    if (await settings.waitFor({ timeout: 5000 }).then(() => true, () => false)) await settings.click();
+    const row = page.getByRole("button", { name: /^Link Sign in with Apple/ }).first();
+    const hasRow = await row.waitFor({ timeout: 5000 }).then(() => true, () => false);
+    if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "account--settings-apple") });
+    if (hasRow) await row.click();
+    await page.waitForFunction(() => window.__native?.calls.some((c) => c.plugin === "GT3Device" && c.method === "signInWithApple"), null, { timeout: 5000 }).catch(() => {});
+    const told = await page.waitForSelector("text=Sign in with Apple is linked", { timeout: 8000 }).then(() => true, () => false);
+    const nonce = (await nativeCalls(page)).find((c) => c.plugin === "GT3Device" && c.method === "signInWithApple")?.options?.nonce ?? null;
+    ok("apple link: Settings & privacy offers Link Sign in with Apple to an account signed in with its email", hasRow);
+    ok("apple link: it asks Apple's sheet with a fresh nonce and sends that token and nonce to the web's API, then says it is linked",
+      !!nonce && /^[0-9a-f]{64}$/.test(nonce) && link?.nonce === nonce && link?.idToken === ANSWERS["GT3Device.signInWithApple"].identityToken && told, JSON.stringify({ link, nonce, told }));
+    ok("apple link: no errors (Settings)", errors.length === 0, errors.join(" | "));
+    await ctx.close();
+  }
+
+  // ── 6f · deleting, said in full (A3): a company's weekly office order under their name, and a membership Square
+  // hasn't confirmed cancelled yet — the account is deleted, the crew has the rest, and the person is told ──
+  {
+    const ctx = await phoneContext(MAIN, { owner: true });
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    await page.route((u) => u.origin === API_ORIGIN && u.pathname === "/api/account/erase", async (route) => {
+      const req = route.request(), cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "content-type, authorization", "access-control-allow-methods": "GET, POST, OPTIONS" };
+      if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+      const body = req.method() === "GET" ? { blockers: [], membership: true, office: ["Acme Dental"] } : { ok: true, appleManual: false, membershipPending: true };
+      return route.fulfill({ status: 200, headers: { ...cors, "content-type": "application/json" }, body: JSON.stringify(body) });
+    });
+    await page.goto(`${BASE}/book`, { waitUntil: "load" });
+    await page.waitForTimeout(400); await page.evaluate(SETTLE);
+    await page.locator('button.acct-av[aria-label="Your account"]').first().click().catch(() => {});
+    const settings = page.getByRole("button", { name: /^Settings & privacy/ }).first();
+    if (await settings.waitFor({ timeout: 5000 }).then(() => true, () => false)) await settings.click();
+    const row = page.getByRole("button", { name: /^Delete account/ }).first();
+    if (await row.waitFor({ timeout: 5000 }).then(() => true, () => false)) await row.click();
+    const office = await page.waitForSelector("text=Acme Dental’s weekly office order is under your name", { timeout: 8000 }).then(() => true, () => false);
+    const cancelled = await page.locator("text=Your membership is cancelled too").count();
+    if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "account--delete-office") });
+    if (office) await page.getByRole("button", { name: "Delete my account" }).click();
+    const pending = await page.waitForSelector("text=still going through with Square", { timeout: 8000 }).then(() => true, () => false);
+    if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "account--delete-pending") });
+    ok("delete account: a company's weekly office order under their name is said before the red button, and the membership's cancel", office && cancelled === 1);
+    ok("delete account: a membership Square hasn't confirmed cancelled is said after — the account is deleted, the crew has it", pending);
+    await page.getByRole("button", { name: "Done" }).first().click().catch(() => {});
+    await page.waitForURL((u) => ["/", "/menu"].includes(new URL(u).pathname), { timeout: 8000 }).catch(() => {});
+    ok("delete account: Done takes the signed-out phone home", ["/", "/menu"].includes(new URL(page.url()).pathname), page.url());
+    ok("delete account: no errors (said in full)", errors.length === 0, errors.join(" | "));
+    await ctx.close();
+  }
+
   // ── 6c · Alerts in the app (2026-10-11) ──
   // The smoke build has alerts live (scripts/build.app.mjs SMOKE_FLAGS). Settings › Notifications as the owner: Turn on
   // asks iOS (answered yes), registers the phone, and the token Apple gives it (fired here as the registration event)

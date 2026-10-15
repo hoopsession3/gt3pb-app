@@ -23,11 +23,15 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
 import ts from "typescript";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-/** lib/<name>.ts, compiled. Relative imports resolve inside lib/; anything else is a test that needs fixing. */
+const nodeRequire = createRequire(import.meta.url);
+
+/** lib/<name>.ts, compiled. Relative imports resolve inside lib/, and Node's own modules (node:crypto — lib/appleKey,
+ *  lib/appleSignIn) are Node's; anything else is a test that needs fixing. */
 export function libLoader() {
   const cache = new Map();
   const load = (rel) => {
@@ -38,6 +42,7 @@ export function libLoader() {
       { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
     new Function("module", "exports", "require", out)(mod, mod.exports, (spec) => {
       if (spec.startsWith("./")) return load(`lib/${spec.slice(2)}.ts`);
+      if (spec.startsWith("node:")) return nodeRequire(spec);
       throw new Error(`unexpected import ${spec} in ${rel}`);
     });
     return mod.exports;

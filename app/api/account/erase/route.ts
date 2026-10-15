@@ -1,36 +1,29 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { SQUARE_BASE, squareHeaders } from "@/lib/squareServer";
-import { raiseAlert } from "@/lib/serverAlerts";
 import { route } from "@/lib/apiRoute";
+import { raiseAlert } from "@/lib/serverAlerts";
 import { revoke, siwaConfigured } from "@/lib/appleSignIn";
+import { eraseAccount, ERASE_WORDS, type Blocker, type EraseSteps, type Followup } from "@/lib/accountErase";
 
 // DELETE MY ACCOUNT — the route behind "Delete account" in the account menu, on the web and in the
 // iPhone app (App Store Review Guideline 5.1.1(v): an app that lets people make an account must let
 // them delete it, in the app, without an email or a phone call).
 //
 //   GET                     → what deleting would mean for the caller, before anything changes:
-//                             { blockers: [{ code, message }], membership: boolean }
-//   POST { confirm: true }  → it happens: { ok: true }
+//                             { blockers: [{ code, message }], membership: boolean, office: string[] }
+//   POST { confirm: true }  → it happens: { ok: true, appleManual, membershipPending }
 //
-// THE DATABASE DOES THE DELETING. Supabase's admin API deletes the account — the documented way,
-// which takes the sign-ins and sessions with it — and 0353's trigger on auth.users erases the
-// person's data in the same transaction (deleted, kept for the books without them, or kept as
-// signed), or refuses with a reason and nothing changes. What only this route can do comes first,
-// in this order, each step safe to repeat if a later one fails:
-//   1. ask what stands in the way (account_erasure_blockers) and answer before anything changes;
-//   2. cancel a membership at Square, so no charge outlives the account — if Square cannot confirm
-//      it, stop there: nothing is deleted;
-//   3. remove their photos from storage — their avatar and their VIP proof, both in public buckets;
-//   4. delete the account — and first, if they signed in with Apple, revoke what Sign in with Apple
-//      gave GT3 (Apple's TN3194; lib/appleSignIn). Best effort: the deletion is owed either way, and
-//      without a token to revoke the answer says so (appleManual), and the sheet says how to stop
-//      using the Apple ID with GT3 from the iPhone's Settings;
-//   5. delete their Square customer profile, which holds their saved card. Best effort: the account
-//      is already gone, so a failure here raises an alert for the crew to finish it by hand.
-
-type Blocker = { code: string; message: string };
+// THE DATABASE GOES FIRST (2026-10-15, A3 of the account audit). Supabase's admin API deletes the account — the
+// documented way, which takes the sign-ins and sessions with it — and in that one transaction 0353's trigger erases the
+// person's data (deleted, kept for the books without them, or kept as signed) and 0404's writes what is left outside the
+// database: the membership to cancel at Square, the Square profile holding a saved card, the token Sign in with Apple gave
+// GT3, each photo. Or the erasure refuses with a reason, and none of it happens — before, this cancelled the membership,
+// removed the photos and revoked Apple first, so a refusal left an account without them (deletion stopped halfway). Then
+// the steps outside, each tried twice; one that still fails goes to the crew by an alert saying what to do by hand, and a
+// watch hands over anything this never reached (lib/accountErase decides the order; 0404 keeps the queue).
 
 const PHOTO_BUCKETS = ["avatars", "vip"] as const;   // both written to `<user id>/…` (ProfileSheet, StatusCard, VipVerify)
 const BILLING = ["active", "paused", "pending", "past_due"];
@@ -47,13 +40,55 @@ async function get(req: Request) {
   const user = await userFromRequest(req);
   if (!user) return NextResponse.json({ error: "Sign in." }, { status: 401 });
   const list = await blockersFor(user.id);
-  if (!list) return NextResponse.json({ error: "Deleting an account isn't available yet. Try again later today." }, { status: 503 });
-  // A membership is not something they have to clear first: deleting cancels it (step 2).
-  return NextResponse.json({ blockers: list.filter((b) => b.code !== "membership"), membership: list.some((b) => b.code === "membership") });
+  if (!list) return NextResponse.json({ error: ERASE_WORDS.unavailable }, { status: 503 });
+  // A membership is not something they have to clear first: deleting cancels it (0404 queues the cancel).
+  // scoped-by: both reads are keyed by the caller's own verified id, never anything the request supplied.
+  const { data: subs } = await supabaseAdmin.from("subscriptions").select("id")
+    .eq("user_id", user.id).not("square_subscription_id", "is", null).in("status", BILLING).limit(1);
+  // A company's weekly office order under their name stops when they go (0354 office_account_lost_person, which tells
+  // the crew) — so the person deleting is told first, not only the crew after.
+  const { data: offices } = await supabaseAdmin.from("business_accounts").select("company")
+    .eq("user_id", user.id).eq("standing_active", true);
+  return NextResponse.json({
+    blockers: list,
+    membership: (subs ?? []).length > 0,
+    office: (offices ?? []).map((o) => String(o.company ?? "").trim() || "Your office").slice(0, 3),
+  });
+}
+
+/** One step outside the database, for a deleted account. */
+async function run(f: Followup): Promise<{ ok: boolean; error?: string }> {
+  const token = process.env.SQUARE_ACCESS_TOKEN;
+  if (f.kind === "square_subscription") {
+    if (!token) return { ok: false, error: "Square isn't configured" };
+    const res = await fetch(`${SQUARE_BASE}/v2/subscriptions/${encodeURIComponent(f.ref)}/cancel`, { method: "POST", headers: squareHeaders(token), body: "{}" });
+    if (res.ok) return { ok: true };
+    // Already cancelled there (a second try, or cancelled from the card first)? Look before calling it failed.
+    const look = await fetch(`${SQUARE_BASE}/v2/subscriptions/${encodeURIComponent(f.ref)}`, { headers: squareHeaders(token) });
+    const sub = (await look.json().catch(() => ({})))?.subscription;
+    const ended = look.ok && (sub?.status === "CANCELED" || sub?.status === "DEACTIVATED" || !!sub?.canceled_date);
+    return ended ? { ok: true } : { ok: false, error: `Square answered ${res.status}` };
+  }
+  if (f.kind === "square_customer") {
+    if (!token) return { ok: false, error: "Square isn't configured" };
+    const r = await fetch(`${SQUARE_BASE}/v2/customers/${encodeURIComponent(f.ref)}`, { method: "DELETE", headers: squareHeaders(token) });
+    return r.ok || r.status === 404 ? { ok: true } : { ok: false, error: `Square answered ${r.status}` };
+  }
+  if (f.kind === "apple_token") {
+    if (!siwaConfigured()) return { ok: false, error: "Sign in with Apple's key isn't set" };
+    return (await revoke(f.ref).catch(() => false)) ? { ok: true } : { ok: false, error: "Apple did not confirm" };
+  }
+  // a photo: 'bucket/path', in one of the two buckets a person's photos are written to
+  const slash = f.ref.indexOf("/");
+  const bucket = f.ref.slice(0, slash), path = f.ref.slice(slash + 1);
+  if (slash < 1 || !(PHOTO_BUCKETS as readonly string[]).includes(bucket) || !path) return { ok: false, error: "not a photo of theirs" };
+  const { error } = await supabaseAdmin!.storage.from(bucket).remove([path]);
+  return !error || /not.?found/i.test(error.message) ? { ok: true } : { ok: false, error: error.message };
 }
 
 async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ error: "Not configured" }, { status: 503 });
+  const admin = supabaseAdmin;
   const user = await userFromRequest(req);
   if (!user) return NextResponse.json({ error: "Sign in." }, { status: 401 });
 
@@ -61,91 +96,56 @@ async function post(req: Request) {
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   if (body.confirm !== true) return NextResponse.json({ error: "Confirm to delete your account." }, { status: 400 });
 
-  // 1 · what stands in the way
-  const first = await blockersFor(user.id);
-  if (!first) return NextResponse.json({ error: "Deleting an account isn't available yet. Try again later today." }, { status: 503 });
-  const standing = first.filter((b) => b.code !== "membership");
-  if (standing.length) return NextResponse.json({ error: standing[0].message, blockers: standing }, { status: 409 });
+  const steps: EraseSteps = {
+    blockers: blockersFor,
+    hasApple: async (id) => {
+      const { data } = await admin.auth.admin.getUserById(id);
+      return !!data.user?.identities?.some((i) => i.provider === "apple");
+    },
+    // arrives-with: 0404 — read before the account goes, and done directly while there is no queue (lib/accountErase).
+    outside: async (id) => {
+      const out: Followup[] = [];
+      const { data: prof } = await admin.from("profiles").select("square_customer_id").eq("id", id).maybeSingle();
+      if (prof?.square_customer_id) out.push({ id: `direct-${out.length}`, kind: "square_customer", ref: String(prof.square_customer_id) });
+      const { data: held } = await admin.from("apple_tokens").select("refresh_token").eq("user_id", id).maybeSingle();
+      if (held?.refresh_token) out.push({ id: `direct-${out.length}`, kind: "apple_token", ref: String(held.refresh_token) });
+      for (const bucket of PHOTO_BUCKETS) {
+        const { data: files } = await admin.storage.from(bucket).list(id, { limit: 1000 });
+        for (const f of files ?? []) if (f.name) out.push({ id: `direct-${out.length}`, kind: "photo", ref: `${bucket}/${id}/${f.name}` });
+      }
+      return out;
+    },
+    newTicket: () => randomUUID(),
+    // The ticket rides on the account into 0404's trigger, which marks this deletion's rows with it.
+    markTicket: async (id, ticket) => !(await admin.auth.admin.updateUserById(id, { app_metadata: { erasure_ticket: ticket } })).error,
+    deleteAccount: async (id) => {
+      const { error } = await admin.auth.admin.deleteUser(id);
+      return error ? { ok: false, error: error.message } : { ok: true };
+    },
+    claim: async (ticket) => {
+      const { data, error } = await admin.rpc("claim_erasure_followups", { p_ticket: ticket, p_limit: 20 });
+      // arrives-with: 0404 — no such function yet: no queue, so the steps read before the delete are done directly
+      if (error && (error.code === "PGRST202" || /could not find the function|does not exist/i.test(error.message))) return null;
+      return (Array.isArray(data) ? data : []) as Followup[];
+    },
+    run,
+    finish: async (f, ok, error) => { if (!f.direct) await admin.rpc("finish_erasure_followup", { p_id: f.id, p_ok: ok, p_error: error ?? null }); },
+    handOff: async (f) => {
+      if (!f.direct) { await admin.rpc("erasure_followup_alert", { p_id: f.id }); return; }
+      // arrives-with: 0404 — the old way: the crew is told what is left, directly
+      if (f.kind === "square_customer") {
+        await raiseAlert({ severity: "important", category: "money", title: "Remove a deleted account's Square profile",
+          body: `Someone deleted their GT3 account. Their Square customer profile ${f.ref} could not be removed automatically and still holds their saved card — delete it in Square › Customers.` });
+      } else if (f.kind === "photo") {
+        await raiseAlert({ severity: "important", category: "system", title: "Remove a deleted account's photo",
+          body: `Someone deleted their GT3 account, and a photo of theirs could not be removed automatically: ${f.ref} in Supabase › Storage. Delete it there.` });
+      }
+    },
+  };
 
-  // 2 · the membership, cancelled at Square before anything is deleted
-  const token = process.env.SQUARE_ACCESS_TOKEN;
-  const { data: subs } = await supabaseAdmin
-    .from("subscriptions").select("square_subscription_id").eq("user_id", user.id).in("status", BILLING);
-  for (const s of subs ?? []) {
-    const id = s.square_subscription_id as string | null;
-    if (!id) continue;   // never reached Square, so nothing can bill (0353 does not count it either)
-    if (!token) return NextResponse.json({ error: "We can't reach our payment processor to cancel your membership, so nothing was deleted. Try again later today." }, { status: 503 });
-    const res = await fetch(`${SQUARE_BASE}/v2/subscriptions/${encodeURIComponent(id)}/cancel`, { method: "POST", headers: squareHeaders(token), body: "{}" });
-    if (!res.ok) {
-      // Already cancelled there (a second try, or cancelled from the card first)? Look before giving up.
-      const look = await fetch(`${SQUARE_BASE}/v2/subscriptions/${encodeURIComponent(id)}`, { headers: squareHeaders(token) });
-      const sub = (await look.json().catch(() => ({})))?.subscription;
-      const ended = look.ok && (sub?.status === "CANCELED" || sub?.status === "DEACTIVATED" || !!sub?.canceled_date);
-      if (!ended) return NextResponse.json({ error: "We couldn't cancel your membership with our payment processor, so nothing was deleted. Try again in a minute." }, { status: 502 });
-    }
-    // scoped-by: `id` was read above with .eq("user_id", user.id) — it is provably this caller's own
-    // subscription, and the update keys off that verified id, never anything the request supplied.
-    await supabaseAdmin.from("subscriptions")
-      .update({ status: "canceled", updated_at: new Date().toISOString() })
-      .eq("square_subscription_id", id);
-  }
-
-  // Read before the account goes — after it, the profile that names it is gone.
-  const { data: prof } = await supabaseAdmin.from("profiles").select("square_customer_id").eq("id", user.id).maybeSingle();
-  const squareCustomer = (prof?.square_customer_id as string | null) || null;
-
-  // 3 · their photos (a bucket that does not exist here has nothing of theirs in it)
-  for (const bucket of PHOTO_BUCKETS) {
-    const store = supabaseAdmin.storage.from(bucket);
-    const { data: files, error } = await store.list(user.id, { limit: 1000 });
-    if (error) {
-      if (/not.?found/i.test(error.message)) continue;
-      return NextResponse.json({ error: "We couldn't remove your photos, so nothing was deleted. Try again in a minute." }, { status: 502 });
-    }
-    const paths = (files ?? []).filter((f) => f.name).map((f) => `${user.id}/${f.name}`);
-    if (paths.length) {
-      const { error: rmErr } = await store.remove(paths);
-      if (rmErr) return NextResponse.json({ error: "We couldn't remove your photos, so nothing was deleted. Try again in a minute." }, { status: 502 });
-    }
-  }
-
-  // 4 · Sign in with Apple, revoked at Apple — read before the account goes, and the token row with it (0363)
-  let appleManual = false;
-  const { data: found } = await supabaseAdmin.auth.admin.getUserById(user.id);
-  if (found.user?.identities?.some((i) => i.provider === "apple")) {
-    // arrives-with: 0363 — until it is applied the read is an error, not a row: no token, so the sheet shows the Settings step
-    const { data: held } = await supabaseAdmin.from("apple_tokens").select("refresh_token").eq("user_id", user.id).maybeSingle();
-    const token = (held?.refresh_token as string | undefined) || "";
-    appleManual = !(token && siwaConfigured() && (await revoke(token).catch(() => false)));
-  }
-
-  // 4 · the account — and with it, by 0353's trigger, their data
-  const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(user.id);
-  if (delErr) {
-    // The database said no. Supabase reports every refusal as "Database error deleting user", so
-    // ask again what stands in the way: an order placed a moment ago, say.
-    const now = (await blockersFor(user.id)) ?? [];
-    if (now.length) return NextResponse.json({ error: now[0].message, blockers: now }, { status: 409 });
-    throw new Error(`account erase: deleteUser failed — ${delErr.message}`);   // route() files it and answers in JSON
-  }
-
-  // 5 · their saved card, at Square
-  if (squareCustomer && token) {
-    let removed = false;
-    try {
-      const r = await fetch(`${SQUARE_BASE}/v2/customers/${encodeURIComponent(squareCustomer)}`, { method: "DELETE", headers: squareHeaders(token) });
-      removed = r.ok || r.status === 404;
-    } catch { /* below */ }
-    if (!removed) {
-      await raiseAlert({
-        severity: "important", category: "money",
-        title: "Remove a deleted account's Square profile",
-        body: `Someone deleted their GT3 account. Their Square customer profile ${squareCustomer} could not be removed automatically and still holds their saved card — delete it in Square › Customers.`,
-      });
-    }
-  }
-
-  return NextResponse.json({ ok: true, appleManual });
+  const answer = await eraseAccount(user.id, steps);
+  if (answer.thrown) throw new Error(answer.thrown);   // route() files it and answers in JSON
+  return NextResponse.json(answer.body, { status: answer.status });
 }
 
 export const GET = route("account/erase", get);

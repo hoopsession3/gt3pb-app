@@ -36,7 +36,9 @@ export const SUPABASE_STANDINS = `
   create table auth.users (id uuid primary key default gen_random_uuid(), email text, phone text,
     raw_user_meta_data jsonb default '{}'::jsonb, raw_app_meta_data jsonb default '{}'::jsonb,
     created_at timestamptz default now(), last_sign_in_at timestamptz, email_confirmed_at timestamptz);
-  create table auth.identities (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade);
+  -- provider and provider_id as Supabase keeps them (Apple's sub is an Apple identity's provider_id): 0403 asks by them.
+  create table auth.identities (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade,
+    provider text, provider_id text, identity_data jsonb default '{}'::jsonb);
   create or replace function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   create or replace function auth.role() returns text language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claim.role', true), ''), 'anon') $$;
   create or replace function auth.jwt() returns jsonb language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
