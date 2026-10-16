@@ -720,29 +720,29 @@ export const PROD_ROUTE = {
 // that moved are +235 (the auth client's), +164 (AuthProvider's) and −7. Crossed the rounding line on /truck and /events
 // (286 → 287: 293 725 bytes), /reserve (297 → 298), /office (282 → 283: 289 635) and /shop (302 → 303), recorded.
 export const WEIGHT = {
-  "/truck":                    { js: 287, css: 89, chunks: 16 },
-  "/events":                   { js: 287, css: 89, chunks: 16 },
-  "/menu":                     { js: 274, css: 90, chunks: 15 },
+  "/truck":                    { js: 288, css: 89, chunks: 16 },
+  "/events":                   { js: 288, css: 89, chunks: 16 },
+  "/menu":                     { js: 275, css: 90, chunks: 15 },
   "/reserve":                  { js: 298, css: 90, chunks: 17 },
-  "/delivery":                 { js: 295, css: 90, chunks: 17 },
-  "/3mpire":                   { js: 288, css: 90, chunks: 15 },
-  "/craft":                    { js: 273, css: 90, chunks: 15 },
-  "/book":                     { js: 274, css: 90, chunks: 15 },
-  "/academy":                  { js: 326, css: 90, chunks: 16 },
-  "/office":                   { js: 283, css: 90, chunks: 15 },
-  "/scan":                     { js: 274, css: 90, chunks: 15 },
-  "/architecture":             { js: 283, css: 90, chunks: 15 },
-  "/playbook":                 { js: 281, css: 90, chunks: 15 },
-  "/driver":                   { js: 280, css: 89, chunks: 15 },
-  "/agreement":                { js: 275, css: 90, chunks: 15 },
-  "/offer":                    { js: 285, css: 90, chunks: 15 },
-  "/built/gt3-built-k7m9x4q2": { js: 271, css: 90, chunks: 15 },
-  "/display":                  { js: 272, css: 90, chunks: 15 },
+  "/delivery":                 { js: 296, css: 90, chunks: 17 },
+  "/3mpire":                   { js: 289, css: 90, chunks: 15 },
+  "/craft":                    { js: 274, css: 90, chunks: 15 },
+  "/book":                     { js: 275, css: 90, chunks: 15 },
+  "/academy":                  { js: 327, css: 90, chunks: 16 },
+  "/office":                   { js: 284, css: 90, chunks: 15 },
+  "/scan":                     { js: 275, css: 90, chunks: 15 },
+  "/architecture":             { js: 284, css: 90, chunks: 15 },
+  "/playbook":                 { js: 282, css: 90, chunks: 15 },
+  "/driver":                   { js: 281, css: 89, chunks: 15 },
+  "/agreement":                { js: 276, css: 90, chunks: 15 },
+  "/offer":                    { js: 286, css: 90, chunks: 15 },
+  "/built/gt3-built-k7m9x4q2": { js: 272, css: 90, chunks: 15 },
+  "/display":                  { js: 273, css: 90, chunks: 15 },
   "/shop":                     { js: 303, css: 90, chunks: 17 },
-  "/primal":                   { js: 274, css: 90, chunks: 15 },
-  "/privacy":                  { js: 270, css: 90, chunks: 14 },
-  "/terms":                    { js: 270, css: 90, chunks: 14 },
-  "/":                         { js: 280, css: 90, chunks: 15 },
+  "/primal":                   { js: 275, css: 90, chunks: 15 },
+  "/privacy":                  { js: 271, css: 90, chunks: 14 },
+  "/terms":                    { js: 271, css: 90, chunks: 14 },
+  "/":                         { js: 281, css: 90, chunks: 15 },
   "/order":                    { js: 279, css: 88, chunks: 15 },
 };
 
@@ -800,6 +800,13 @@ export const WEIGHT = {
 // and this commit and gzipped what each route's HTML references (/reserve 302 525 → 303 041, /book 277 981 → 278 045,
 // /agreement 278 951 → 279 043). Crossed the rounding line upward on /reserve, /delivery, /shop, /book and /agreement,
 // recorded.
+// 2026-10-16 (R10b of the 10/10 audit): every route's script +680 bytes (gzip), +1 568 raw, in the shell's chunks. Built
+// R10 (7bd5ae0) and this commit and gzipped what each route's HTML references (/privacy 276 443 → 277 123, /menu
+// 280 674 → 281 354, /reserve 304 820 → 305 500): the shell's AuthProvider takes a signed-out person's data off the phone
+// (lib/accountWipe) and stamps the offline queue with whose writes they are (components/offline); the error reporter
+// sends a link with its private parts taken out (lib/reportUrl); and the broadcast bar and the splash open only a link
+// that is one (lib/safeLink). Crossed the rounding line upward on every route but /reserve, /shop and /order, recorded.
+
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];
   const out = [];
