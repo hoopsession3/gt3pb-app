@@ -1,5 +1,6 @@
 "use client";
 
+import { refusalText } from "@/lib/refusal";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase, supabaseEnabled } from "@/lib/supabase";
@@ -165,7 +166,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       const code = localStorage.getItem("gt3_ref");
       if (code) {
         localStorage.removeItem("gt3_ref"); // consume first so a concurrent load can't re-issue it
-        await supabase.rpc("attach_referral", { code });
+        // A code the database refused (not a code, already referred, your own) is spent; one that failed on the way —
+        // the network, a timeout — is kept for the next load (R12b, F4: a dropped answer lost the referral for good).
+        const attached = await supabase.rpc("attach_referral", { code });
+        if (attached.error && !refusalText(attached.error)) { try { localStorage.setItem("gt3_ref", code); } catch { /* storage blocked */ } }
         const r2 = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
         if (!r2.error && r2.data) data = r2.data;
       }

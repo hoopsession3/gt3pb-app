@@ -52,7 +52,9 @@ export async function tellCustomer(opts: {
       // They still reach the caller in `email`, which is what decides the alert.
       if (sent.email === "sent" || sent.email === "failed") {
         // scoped-by: tenant_id is stamped by the 0134 trigger; order_id is the caller's own order.
-        await supabaseAdmin.from("customer_messages").insert({
+        // A log row that did not land is said in the server's log (R12b, F4): the record of what the customer was told,
+        // and the id a bounce is matched against, would be missing with no trace of why.
+        const logged = await supabaseAdmin.from("customer_messages").insert({
           order_id: opts.orderId,
           channel: "email",
           kind: opts.kind,
@@ -67,6 +69,7 @@ export async function tellCustomer(opts: {
           provider_id: sent.emailId ?? null,
           sent_by: opts.sentBy ?? null,
         });
+        if (logged.error) console.error(`customer message: sent to order ${opts.orderId}, but not logged — ${logged.error.message}`);
       }
     }
   } catch { /* the customer already has their email; a log write must never undo that */ }

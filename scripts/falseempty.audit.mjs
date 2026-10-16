@@ -31,6 +31,7 @@
 // after reading what the new matches actually are.
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import ts from "typescript";
 
 // Raise nothing. Lower freely.
 export const BASELINE = 0;
@@ -46,6 +47,94 @@ export const BASELINE = 0;
 // counts loaders that catch a failure and never show it, which is the only way the first number
 // can be trusted to mean anything.
 export const SILENT_BASELINE = 1;
+
+// ── THE THIRD MEASURE: WRITES WHOSE ANSWER IS NEVER READ (R12b — the 10/10 audit, F4) ──────────────────────────
+// The first two meter reads. A write fails the same quiet way: supabase-js answers a refused insert, update, delete or
+// call with {error} — it does not throw — so `await supabase.from("x").update(…)` dropped on its own line succeeds on the
+// screen whatever happened. The audit found 82 in the screens ("Location archived" with the truck still live there,
+// "Deleted" over a refusal, a brief's editor closed on a save that never landed) and the routes had more. Every one is
+// read now: lib/wrote on a screen, the route's own answer or its log on the server.
+//
+// What counts: a statement whose whole value is a Supabase write — .from(…).insert/update/delete/upsert(…) or .rpc(…),
+// awaited, voided or bare — or a Promise.all of them, or one of lib/tasks' write helpers, with nothing reading what
+// came back. A `.then(fn)` whose fn takes the answer reads it; `.then(() => {})` does not. Every file under app/,
+// components/ and lib/ — the server's included: a route that answers ok over a dropped write is the same lie, told to
+// a screen. What may drop its answer is named in FIRE_AND_FORGET, with why.
+export const UNREAD_WRITES_BASELINE = 0;
+export const FIRE_AND_FORGET = {
+  "lib/track.ts#track_user": "a visit count: never worth a word to the person, never allowed to slow a tap (15s apart at most)",
+  "lib/track.ts#track_guest": "a guest count, once an hour a device: the same",
+  "lib/funnel.ts#funnel_events": "a step in a funnel report: an analytics row a checkout must never wait on or fail over",
+};
+const WRITE_VERBS = new Set(["insert", "update", "delete", "upsert"]);
+const TASK_WRITERS = new Set(["updateTask", "deleteTask", "deleteTasks", "deleteTasksForParent", "createTodo", "createEventTask", "createEventTasks", "completeTask", "completeInitiative"]);
+const peel = (n) => { while (n && (ts.isAwaitExpression(n) || ts.isVoidExpression(n) || ts.isParenthesizedExpression(n) || ts.isAsExpression(n) || ts.isNonNullExpression(n))) n = n.expression; return n; };
+
+/** The write a call chain makes — its table or function name — or null when it is not a Supabase write. A chain that
+ *  ends in `.then(fn)` with fn taking the answer reads it, and is not counted. */
+export function writeOf(node) {
+  let n = peel(node);
+  if (n && ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === "then") {
+    const fn = n.arguments[0];
+    if (fn && (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) && fn.parameters.length > 0) return null;
+  }
+  let verb = false, table = null, rpc = null;
+  for (let cur = n; cur; ) {
+    if (ts.isCallExpression(cur)) {
+      const e = cur.expression;
+      if (ts.isPropertyAccessExpression(e)) {
+        const name = e.name.text, arg = cur.arguments[0];
+        const lit = arg && (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg)) ? arg.text : arg ? arg.getText() : "";
+        if (WRITE_VERBS.has(name)) verb = true;
+        else if (name === "from") table = lit;
+        else if (name === "rpc") rpc = lit;
+        cur = e.expression; continue;
+      }
+      cur = e; continue;
+    }
+    if (ts.isPropertyAccessExpression(cur) || ts.isNonNullExpression(cur) || ts.isParenthesizedExpression(cur)) { cur = cur.expression; continue; }
+    break;
+  }
+  if (rpc) return rpc;
+  if (verb && table) return table;
+  return null;
+}
+
+/** Every statement in one file's source that drops a write's answer: [{ line, name }]. */
+export function unreadWritesIn(src, file = "x.tsx") {
+  const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  const out = [];
+  const visit = (node) => {
+    if (ts.isExpressionStatement(node)) {
+      const e = peel(node.expression);
+      let name = writeOf(node.expression);
+      if (!name && e && ts.isCallExpression(e)) {
+        const callee = e.expression.getText();
+        if (/^Promise\.(all|allSettled)$/.test(callee)) {
+          const inner = e.arguments[0]?.getText() ?? "";
+          const m = /\.(?:from)\(\s*["'`]([\w-]+)["'`]\s*\)[\s\S]*?\.(?:insert|update|delete|upsert)\(|\.rpc\(\s*["'`]([\w-]+)/.exec(inner);
+          if (m) name = m[1] ?? m[2];
+        } else if (ts.isIdentifier(e.expression) && TASK_WRITERS.has(e.expression.text)) name = e.expression.text;
+      }
+      if (name) out.push({ line: sf.getLineAndCharacterOfPosition(node.getStart()).line + 1, name });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+export function collectUnreadWrites(root = ".") {
+  const hits = [];
+  for (const f of walk(root)) {
+    const rel = f.replace(/^\.\//, "").replace(/\\/g, "/");
+    if (!/^(app|components|lib)\//.test(rel)) continue;
+    const src = readFileSync(f, "utf8");
+    if (!/\.(insert|update|delete|upsert|rpc)\(|Task\(|Tasks\(|createTodo\(/.test(src)) continue;
+    for (const h of unreadWritesIn(src, f)) if (!(`${rel}#${h.name}` in FIRE_AND_FORGET)) hits.push({ file: rel, ...h });
+  }
+  return hits;
+}
 
 const UNCHECKED =
   /const\s*\{\s*data(\s*:\s*\w+)?\s*\}\s*=\s*await|\.then\(\s*\(\s*\{\s*data(\s*:\s*\w+)?\s*\}\s*\)/;
@@ -113,7 +202,15 @@ if (import.meta.url === (await import("node:url")).pathToFileURL(process.argv[1]
   console.log(`  and ${silent.length} file(s) catch a failure but never show it:`);
   for (const f of silent) console.log(`       ${f}`);
 
+  const unread = collectUnreadWrites(".");
+  console.log(`  and ${unread.length} write(s) whose answer is never read${unread.length ? ":" : ""}`);
+  for (const u of unread) console.log(`       ${u.file}:${u.line}  ${u.name}`);
+
   let bad = false;
+  if (unread.length > UNREAD_WRITES_BASELINE) {
+    console.log(`\n  ✗ RATCHET: ${unread.length} > UNREAD_WRITES_BASELINE ${UNREAD_WRITES_BASELINE}. A write whose {error} is never read says "saved" whatever happened — read it (lib/wrote), or name why not in FIRE_AND_FORGET.`);
+    bad = true;
+  }
   if (hits.length > BASELINE) {
     console.log(`\n  ✗ RATCHET: ${hits.length} > BASELINE ${BASELINE}. A new read that cannot fail out loud is a new false empty state.`);
     bad = true;

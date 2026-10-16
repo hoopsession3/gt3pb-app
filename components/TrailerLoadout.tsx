@@ -14,6 +14,7 @@ import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import { errorMessage } from "@/lib/errorMessage";
 import Button from "./Button";
+import { wrote } from "@/lib/wrote";
 
 const fmt = (n: number | null | undefined) => (n ?? 0).toLocaleString();
 const ZONE_LABEL: Record<string, string> = { nose: "Nose (front)", axle: "Over axle", tail: "Tail (rear)" };
@@ -144,10 +145,12 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
       });
       const j = await r.json();
       if (!j.ok) { toast(j.error || "Couldn't look that up", "error"); setVeh((v) => ({ ...v, busy: false })); return; }
-      await supabase.from("trailer_profile").update({
+      // "Applied" only when the profile took it (R12b, F4): the load-out kept measuring the old vehicle under the message.
+      const applied = await supabase.from("trailer_profile").update({
         veh_cargo_len_in: j.bay_len_in, veh_cargo_width_in: j.bay_width_in, veh_cargo_height_in: j.bay_height_in, veh_usable_pct: 85,
         tow_rating_lb: Math.round(j.tow_capacity_lb), tow_vehicle: j.resolved, updated_at: new Date().toISOString(),
       }).eq("id", 1);
+      if (!wrote(applied, toast, `Found ${j.resolved}, but couldn't apply it`)) { setVeh((v) => ({ ...v, busy: false })); return; }
       setVeh((v) => ({ ...v, busy: false, spec: j }));
       toast(`${j.resolved}: ~${j.usable_cuft} cu ft for ${j.passengers} riders — applied`);
       reload();

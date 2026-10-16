@@ -89,7 +89,10 @@ ${assets || "(none loaded)"}`;
   // scoped-by: the read above already 404s a task_id outside this tenant, so this write cannot be
   // reached with someone else's id. The tenant filter is repeated here anyway — the guard is
   // twenty lines away and a later edit could move it without anyone noticing this depended on it.
-  await supabaseAdmin.from("event_tasks").update({ ai_proposal: out.proposal, ai_has_answer: !!out.have_answer }).eq("tenant_id", tenant).eq("id", task_id);
+  // The proposal is kept on the task — or the caller hears it was not (R12b, F4): it answered ok over a dropped write,
+  // and the proposal was gone on the next open.
+  const kept = await supabaseAdmin.from("event_tasks").update({ ai_proposal: out.proposal, ai_has_answer: !!out.have_answer }).eq("tenant_id", tenant).eq("id", task_id);
+  if (kept.error) return NextResponse.json({ ok: false, error: "Couldn't keep the proposal on the task — try again.", proposal: out.proposal }, { status: 500 });
   return NextResponse.json({ ok: true, proposal: out.proposal, have_answer: !!out.have_answer });
 }
 

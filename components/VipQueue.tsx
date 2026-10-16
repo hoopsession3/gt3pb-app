@@ -13,6 +13,7 @@ import Icon from "@/components/Icon";
 import { RecordLink } from "./RecordSheet";
 import PromptSheet from "./PromptSheet";
 import { SectionHeader } from "@/components/kit";
+import { wrote } from "@/lib/wrote";
 
 // VIP QUEUE — the staff moderation side of VIP verification. A bottle owner's proof photo lands here;
 // staff either Reject with a reason, or Verify and choose which grant it earns — plain Founding, or
@@ -84,8 +85,8 @@ export default function VipQueue() {
   const doReject = async (v: Vip, note: string) => {
     if (!supabase || busy) return;
     setBusy(v.id);
-    await supabase.from("vip_verifications").update({ status: "rejected", reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString(), note: note.trim() || null }).eq("id", v.id);
-    setBusy(null); reload();
+    const ok = wrote(await supabase.from("vip_verifications").update({ status: "rejected", reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString(), note: note.trim() || null }).eq("id", v.id), toast, "Couldn't reject it");
+    setBusy(null); if (ok) toast("Rejected"); reload();
   };
 
   return (

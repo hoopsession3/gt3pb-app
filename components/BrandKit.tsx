@@ -6,6 +6,8 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import { uploadToBucket } from "@/lib/uploads";
 import Icon from "@/components/Icon";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { wrote } from "@/lib/wrote";
+import { useApp } from "./AppProvider";
 
 // BRAND KIT — GT3's logos, palette, fonts & voice, in the Studio. Seeded with the real brand;
 // leadership can edit voice/tagline, the wordmark, and the palette. The reference both of you
@@ -19,6 +21,7 @@ type Asset = { id: string; label: string; kind: string; url: string; notes: stri
 
 export default function BrandKit({ canEdit }: { canEdit: boolean }) {
   const confirm = useConfirm();
+  const { toast } = useApp();
   const [kit, setKit] = useState<Kit | null>(null);
   const [draft, setDraft] = useState<Kit>(EMPTY);
   const [edit, setEdit] = useState(false);
@@ -64,14 +67,16 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
   const delAsset = async (id: string) => {
     if (!supabase) return;
     if (!(await confirm({ title: "Remove this asset?", confirmLabel: "Remove", danger: true }))) return;
-    await supabase.from("brand_assets").delete().eq("id", id);
+    if (!wrote(await supabase.from("brand_assets").delete().eq("id", id), toast, "Couldn't remove the asset")) return;
     setAssets((a) => a.filter((x) => x.id !== id));
   };
 
   const save = async () => {
     if (!supabase || !kit?.id) return;
     setSaving(true);
-    await supabase.from("brand_kit").update({ voice: draft.voice, tagline: draft.tagline, wordmark_url: draft.wordmark_url, logo_url: draft.logo_url, colors: draft.colors, fonts: draft.fonts, notes: draft.notes }).eq("id", kit.id);
+    const saved = await supabase.from("brand_kit").update({ voice: draft.voice, tagline: draft.tagline, wordmark_url: draft.wordmark_url, logo_url: draft.logo_url, colors: draft.colors, fonts: draft.fonts, notes: draft.notes }).eq("id", kit.id);
+    // The kit is what was saved only when it was (R12b, F4): the editor closed on a refusal, showing a kit no one had.
+    if (!wrote(saved, toast, "Couldn't save the brand kit")) { setSaving(false); return; }
     setKit(draft); setEdit(false); setSaving(false);
   };
 

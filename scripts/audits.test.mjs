@@ -7,7 +7,7 @@
 // only matched a single setState. So the rules get fixtures, and the fixtures are real code copied
 // out of this repo rather than something shaped to pass.
 import { classifyEffect, effectAt } from "./render.audit.mjs";
-import { isFalseEmpty, catchesButHides } from "./falseempty.audit.mjs";
+import { isFalseEmpty, catchesButHides, unreadWritesIn, collectUnreadWrites, FIRE_AND_FORGET } from "./falseempty.audit.mjs";
 import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate.audit.mjs";
 import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn, rendersRawCrewOption, peelsErrorMessageByHand } from "./dupe.audit.mjs";
 import { selectsIn, topLevelParts, columnsOf, ageLine, pendingMigrations, arrivingColumns, arrivingRelations, declaresArrival } from "./columns.audit.mjs";
@@ -114,6 +114,31 @@ ok("handling only 'loading' is NOT handling failure (components/PrimalLesson.tsx
   catchesButHides(`const b = useAsyncData(loader, []); if (b.status === "loading") return <Spin/>; return <X d={b.data}/>;`) === true);
 ok("a file that never loads anything is not in scope",
   catchesButHides(`export function Static() { return <p>hi</p>; }`) === false);
+
+// ── unreadWritesIn (R12b, F4) ─────────────────────────────────────────────────
+// A write is a statement whose answer nobody reads: the shapes the audit found, and the shapes that read it.
+{
+  const W = (src) => unreadWritesIn(src, "x.tsx").map((h) => h.name).join(",");
+  ok("unread: an awaited update on its own line", W(`async function f() { await supabase.from("stops").update({ a: 1 }).eq("id", id); }`) === "stops");
+  ok("unread: a delete with a non-null client and the call voided", W(`function f() { void supabase!.from("vendors").delete().eq("id", id); }`) === "vendors");
+  ok("unread: an rpc, bare", W(`async function f() { await admin.rpc("admin_set_offline"); }`) === "admin_set_offline");
+  ok("unread: .then(() => {}) still drops it", W(`function f() { supabase.from("events").update({ x }).eq("id", id).then(() => {}); }`) === "events");
+  ok("unread: a Promise.all of updates", W(`async function f() { await Promise.all(ids.map((id, i) => supabase.from("content_items").update({ grid_sort: i }).eq("id", id))); }`) === "content_items");
+  ok("unread: lib/tasks' writers, dropped", W(`async function f() { await updateTask("event", id, { done: true }); await deleteTask("todo", id); }`) === "updateTask,deleteTask");
+  ok("read: the answer destructured, assigned, passed to wrote, or taken by .then",
+    W(`async function f() {
+      const { error } = await supabase.from("a").update({}).eq("id", 1);
+      const r = await supabase.from("b").delete().eq("id", 1);
+      if (!wrote(await supabase.from("c").insert({}), toast, "x")) return;
+      void supabase.from("d").update({}).eq("id", 1).then((r) => wrote(r, toast, "y"));
+      const done = await completeTask("event", id);
+    }`) === "");
+  ok("read: reads are not writes — a select, and an rpc whose answer is kept",
+    W(`async function f() { await supabase.from("a").select("*"); const { data } = await supabase.rpc("x"); }`) === "a".slice(1));
+  const live = collectUnreadWrites(".");
+  ok("unread: none in app, components or lib but the ones FIRE_AND_FORGET names, each with why",
+    live.length === 0 && Object.values(FIRE_AND_FORGET).every((why) => typeof why === "string" && why.length > 20), live.map((h) => `${h.file}:${h.line} ${h.name}`));
+}
 
 // ── the gate audit ─────────────────────────────────────────────────────────────────────────────
 // This rule caught a real bug on its first run: app/architecture said "Owners only" on

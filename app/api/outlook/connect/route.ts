@@ -23,7 +23,10 @@ async function get(req: Request) {
   // From the iPhone app (?from=app): the state says so, and the callback answers the app's browser sheet with a page
   // that sends the person back to the app instead of to the website's console (components/OutlookConnect).
   const state = `${new URL(req.url).searchParams.get("from") === "app" ? "app." : ""}${randomUUID()}`;
-  await supabaseAdmin.from("outlook_connection").upsert({ id: 1, pending_state: state }, { onConflict: "id" });
+  // The state the callback checks is kept before the owner is sent to Microsoft (R12b, F4) — unkept, the callback
+  // refused the answer and the connect failed after the consent screen.
+  const kept = await supabaseAdmin.from("outlook_connection").upsert({ id: 1, pending_state: state }, { onConflict: "id" });
+  if (kept.error) return NextResponse.json({ ok: false, error: "Couldn't start connecting Outlook — try again." }, { status: 500 });
   return NextResponse.json({ ok: true, url: authUrl(reqOrigin(req), state) });
 }
 

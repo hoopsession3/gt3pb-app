@@ -18,6 +18,7 @@ import { useCrew } from "./useCrew";
 import PersonPick, { type PersonValue } from "./PersonPick";
 import { useEtDay } from "@/lib/useEtDay";
 import { quietGoalDays } from "@/lib/rhythm";
+import { wrote } from "@/lib/wrote";
 
 // GOALS — the true tracker (0163/0164). Three layers, top down:
 //   lane → goal → moves.
@@ -106,10 +107,10 @@ export default function Goals() {
       for (const [s, v] of pairs) if (v != null) m[s] = v;
       setLive(m);
       if (canLead && supabase) {
-        for (const g of rows) {
-          const v = g.metric_source ? m[g.metric_source] : undefined;
-          if (v != null && v !== g.current_value) supabase.from("goals").update({ current_value: v }).eq("id", g.id);
-        }
+        // The live numbers kept on the goals, for the reports — and said, once, when they were not (R12b, F4).
+        const writes = rows.filter((g) => { const v = g.metric_source ? m[g.metric_source] : undefined; return v != null && v !== g.current_value; })
+          .map((g) => supabase!.from("goals").update({ current_value: m[g.metric_source as string] }).eq("id", g.id));
+        if (writes.length) void Promise.all(writes).then((answers) => { const bad = answers.find((a) => a.error); if (bad) wrote(bad, toast, "Couldn't keep the goals' live numbers — the reports may show older ones"); });
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -182,21 +183,21 @@ export default function Goals() {
 
   const setStream = async (g: Goal, stream_key: string) => {
     if (!supabase) return;
-    await supabase.from("goals").update({ stream_key }).eq("id", g.id);
+    if (!wrote(await supabase.from("goals").update({ stream_key }).eq("id", g.id), toast, "Couldn't move the goal")) return;
     reload();
   };
 
   // Every objective gets ONE accountable owner (distinct from the people doing the individual moves).
   const setOwner = async (g: Goal, uid: string) => {
     if (!supabase) return;
-    await supabase.from("goals").update({ owner_user_id: uid || null, updated_at: new Date().toISOString() }).eq("id", g.id);
+    if (!wrote(await supabase.from("goals").update({ owner_user_id: uid || null, updated_at: new Date().toISOString() }).eq("id", g.id), toast, "Couldn't set the goal's owner")) return;
     reload();
   };
 
   // Planning altitude: strategic (big bets) / tactical (moves) / operational (day-to-day).
   const setHorizon = async (g: Goal, horizon: string) => {
     if (!supabase) return;
-    await supabase.from("goals").update({ horizon, updated_at: new Date().toISOString() }).eq("id", g.id);
+    if (!wrote(await supabase.from("goals").update({ horizon, updated_at: new Date().toISOString() }).eq("id", g.id), toast, "Couldn't change the goal's horizon")) return;
     reload();
   };
 
@@ -223,19 +224,20 @@ export default function Goals() {
   };
   const toggleInitiative = async (i: Move) => {
     if (!supabase) return;
-    await updateTask("event", i.id, { done: !i.done }, user?.id);   // ONE write path (lib/tasks)
+    wrote(await updateTask("event", i.id, { done: !i.done }, user?.id), toast, i.done ? "Couldn't reopen the move" : "Couldn't check the move off");   // ONE write path (lib/tasks)
     reload();
   };
   const removeInitiative = async (i: Move) => {
     if (!supabase) return;
-    await deleteTask("event", i.id);   // ONE write path (lib/tasks)
+    if (!wrote(await deleteTask("event", i.id), toast, "Couldn't remove the move")) return;   // ONE write path (lib/tasks)
     reload();
   };
   // Assigning a move works exactly like assigning prep: the owner gets a targeted ping and the
   // move appears in THEIR My Tasks (same rows, same engine).
   const assignMove = async (i: Move, goalTitle: string, uid: string) => {
     if (!supabase) return;
-    await updateTask("event", i.id, { assignee: uid || null });   // ONE write path (lib/tasks)
+    // The ping goes only to someone the move was given to (R12b, F4): a refused assignment still pinged them.
+    if (!wrote(await updateTask("event", i.id, { assignee: uid || null }), toast, "Couldn't assign the move")) return;   // ONE write path (lib/tasks)
     if (uid && uid !== user?.id) {
       raiseAlertClient({ severity: "critical", category: "task", kind: "task_assigned", subjectId: i.id, title: `Assigned to you: ${i.label}`.slice(0, 140), body: `Goal: ${goalTitle}`, link: "/crew?s=day", targetUserId: uid });
     }
@@ -244,7 +246,7 @@ export default function Goals() {
   const dueMove = async (i: Move, v: string) => {
     if (!supabase) return;
     const due_at = v ? new Date(`${v}T23:59:59`).toISOString() : null;
-    await updateTask("event", i.id, { dueISO: due_at });   // ONE write path (lib/tasks)
+    wrote(await updateTask("event", i.id, { dueISO: due_at }), toast, "Couldn't set the move's date");   // ONE write path (lib/tasks)
     reload();
   };
   const firstName = (uid: string | null) => (staff.find((s) => s.id === uid)?.display_name || "").trim().split(/\s+/)[0] || null;

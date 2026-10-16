@@ -34,7 +34,7 @@ function logUsage(agent: string, model: string, u: { input_tokens: number; outpu
       input_tokens: u.input_tokens, output_tokens: u.output_tokens,
       cache_write_tokens: u.cache_write_tokens, cache_read_tokens: u.cache_read_tokens,
       cost_cents: costCents(model, u),
-    }).then(() => {}, () => {}); // swallow — logging is never allowed to surface
+    }).then(({ error }) => { if (error) console.warn(`ai usage: not metered — ${error.message}`); }, () => {}); // never surfaces to the crew; said in the server's log (R12b)
   } catch { /* best-effort */ }
 }
 

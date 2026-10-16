@@ -6105,8 +6105,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       }
     };
     walkWriters("app"); walkWriters("components"); walkWriters("lib");
-    ok("office access: only the booking route, the crew's jug count and /office's pre-0354 write touch an office account",
-      writers.sort().join(",") === "app/api/office/route.ts,app/office/page.tsx,components/OfficeOrders.tsx", writers);
+    ok("office access: only the booking route and /office's pre-0354 write touch an office account — the crew's jug count is office_log_delivery's since 0357 (R12b took the browser's copy out)",
+      writers.sort().join(",") === "app/api/office/route.ts,app/office/page.tsx", writers);
     ok("office access: 0354 swaps the client's FOR ALL for a read, passes clients through the city filter, and ends an erased person's weekly order",
       /drop policy if exists "biz acct own" on public\.business_accounts;/.test(m354)
       && /create policy "biz acct own read" on public\.business_accounts\s+for select using \(user_id = \(select auth\.uid\(\)\)\);/.test(m354)
@@ -6169,8 +6169,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("office stops: the driver logs and undoes through the one-write functions, each stop showing its own window",
       /supabase\.rpc\("office_log_delivery", \{/.test(run) && /supabase\.rpc\("office_reopen_delivery", \{ p_order: o\.id, p_reason: "Mis-tap on the driver's run" \}\)/.test(run)
       && /\{windowHours\(o\.delivery_window\)\}/.test(run) && !/5–8 AM/.test(run));
-    ok("office stops: the crew's route logs through the same function (the three browser writes only before 0357), and hears the driver live",
-      /const one = await supabase\.rpc\("office_log_delivery", \{ p_order: o\.id,/.test(crewOffice2) && /if \(one\.error\) \{\s*const \{ error \} = await supabase\.from\("business_orders"\)\.update\(/.test(crewOffice2)
+    ok("office stops: the crew's route logs through the same function, and only through it (0357 is applied — the three browser writes went, R12b), and hears the driver live",
+      /const one = await supabase\.rpc\("office_log_delivery", \{ p_order: o\.id,/.test(crewOffice2) && /if \(one\.error\) \{ toast\(refusalText\(one\.error\) \?\? "Didn't save — try again", "error"\);/.test(crewOffice2)
+      && !/bumpJugs|from\("jug_ledger"\)\.insert/.test(crewOffice2)
       && /useRealtimeTable\("business_orders", reload\);/.test(crewOffice2));
     ok("office stops: one locked write, the balance never under zero, a second log refused, the crew told once",
       /select greatest\(0, coalesce\(jug_balance, 0\) \+ v_out - v_in\) into v_bal/.test(m357)
@@ -8075,7 +8076,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /disabled=\{isBlank\(d\.title\) \|\| \(!!holder && !absorbing\)\}/.test(mm) && /onClick=\{moveHere\}>Move the link here</.test(mm) && /onClick=\{\(\) => onOpen\(holder\)\}>Open it</.test(mm));
   ok("apliiq id: moving the link frees the synced copy first, matched on the ID it held, and gives it back if this save fails",
     /\.update\(\{ apliiq_product_id: null, archived_at: absorbing\.archived_at \?\? now, updated_at: now \}\)\s*\.eq\("id", absorbing\.id\)\.eq\("apliiq_product_id", typedId\)\.select\("id"\)/.test(mm)
-    && /if \(error && absorbing\) \{\s*await supabase\.from\("shop_products"\)\.update\(\{ apliiq_product_id: typedId, archived_at: absorbing\.archived_at/.test(mm));
+    && /if \(error && absorbing\) \{\s*const back = await supabase\.from\("shop_products"\)\.update\(\{ apliiq_product_id: typedId, archived_at: absorbing\.archived_at/.test(mm)
+    && /if \(back\.error\) \{ toast\(`Didn't save, and Apliiq #\$\{typedId\} couldn't go back to/.test(mm));
   ok("apliiq id: what the curated product lacks comes with the link — cost and sizes, never over its own",
     /absorbing && p\.cost_cents == null && absorbing\.cost_cents != null \? \{ cost_cents: absorbing\.cost_cents \}/.test(mm)
     && /absorbing && p\.variants\.length === 0 && absorbing\.variants\.length \? \{ variants: absorbing\.variants \}/.test(mm));
@@ -9650,9 +9652,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       /if \(!\(await subscribePush\(!!profile\?\.is_admin, \{ wantsLive: turningOn \}\)\)\) \{ setState\(turningOn \? "off" : "on"\); return; \}/.test(code(read("components/useLivePing.ts")))
       && /if \(await subscribePush\(!!profile\?\.is_admin\)\) toast\("Alerts are on for this phone"\);\s*else toast\(/.test(code(read("components/NotificationsSheet.tsx"))));
     const pr = code(read("lib/pushRelease.ts"));
-    ok("alerts: signing out lets go of this device first, while still signed in — a second and a half at most, never held up — from the sign-out buttons, not the provider every route carries",
-      /await Promise\.race\(\[releaseThisDevice\(\), new Promise\(\(r\) => setTimeout\(r, 1500\)\)\]\);\s*await signOut\(\);/.test(pr)
-      && /if \(sub\?\.endpoint\) await supabase\.rpc\("release_push_device", \{ p_endpoint: sub\.endpoint \}\);/.test(pr)
+    ok("alerts: signing out lets go of this device first, while still signed in — a second and a half at most, never held up — and when the database could not, the browser unsubscribes (R12b); from the sign-out buttons, not the provider every route carries",
+      /const released = await Promise\.race\(\[releaseThisDevice\(\), new Promise<boolean>\(\(r\) => setTimeout\(\(\) => r\(false\), 1500\)\)\]\);\s*if \(!released\) await Promise\.race\(\[forgetThisDevice\(\), new Promise\(\(r\) => setTimeout\(r, 1000\)\)\]\);\s*await signOut\(\);/.test(pr)
+      && /const \{ error \} = await supabase\.rpc\("release_push_device", \{ p_endpoint: sub\.endpoint \}\);\s*return !error;/.test(pr) && /await \(await subscription\(\)\)\?\.unsubscribe\(\);/.test(pr)
       && /onClick=\{\(\) => \{ onClose\(\); void signOutHere\(signOut\); toast\("Signed out"\); \}\}>Sign out<\/button>/.test(read("components/AccountSheet.tsx"))
       && /void import\("@\/lib\/pushRelease"\)\.then\(\(m\) => m\.signOutHere\(signOut\), \(\) => signOut\(\)\)/.test(read("app/3mpire/page.tsx"))
       && !/pushRelease|release_push_device/.test(au2) && !/release_push_device/.test(lp));
@@ -15581,6 +15583,37 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /displayPrefs\(\): Promise<\{ boldText: boolean; reduceTransparency: boolean \}>;/.test(rd("lib/deviceActions.ts"))
       && /void device\.displayPrefs\(\)\.then\(applyDisplayPrefs, \(\) => \{\}\);/.test(rd("components/NativeBridge.tsx")) && /document\.addEventListener\("visibilitychange", prefsAgain\);/.test(rd("components/NativeBridge.tsx"))
       && /html\.toggleAttribute\("data-phone-bold", !!p\?\.boldText\);/.test(rd("lib/displayPrefs.ts")) && !/contrast/.test(rd("components/DisplayToggle.tsx")));
+}
+
+// ── R12b · EVERY WRITE'S ANSWER, READ (2026-10-16, the 10/10 audit, F4) ─────────────────────────────────────────────
+// supabase-js answers a refused write with {error}; it does not throw. Statement-level writes whose answer was dropped
+// said "saved" whatever happened — 82 in the screens, more in the routes. The meter is scripts/falseempty.audit.mjs's
+// third measure (scripts/audits.test.mjs tests its shapes); these hold what each screen does with the answer.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const W = require("../.smoke/wrote.js");
+  const said = [];
+  const t = (m, v) => said.push([m, v]);
+  ok("R12b wrote: a refusal is said in the database's own words, a failure in its message, and the caller is told it did not happen",
+    W.wrote({ error: null }, t, "x") === true && said.length === 0
+      && W.wrote({ error: { code: "42501", message: "only an owner can do that" } }, t, "Couldn't archive the location") === false
+      && said[0][0] === "Couldn't archive the location — only an owner can do that" && said[0][1] === "error"
+      && W.wrote({ error: "offline" }, t, "Couldn't move it") === false && said[1][0] === "Couldn't move it — offline"
+      && W.wrote({ error: { message: "" } }, t, "Couldn't save") === false && said[2][0] === "Couldn't save — try again in a moment");
+  const fe = rd("scripts/falseempty.audit.mjs");
+  ok("R12b meter: the audit counts writes whose answer is never read — none allowed but three named analytics pings, each with why",
+    /export const UNREAD_WRITES_BASELINE = 0;/.test(fe) && (fe.slice(fe.indexOf("export const FIRE_AND_FORGET = {"), fe.indexOf("};", fe.indexOf("export const FIRE_AND_FORGET = {"))).match(/^\s+"[\w/.-]+#[\w-]+": "/gm) || []).length === 3
+      && /if \(unread\.length > UNREAD_WRITES_BASELINE\)/.test(fe));
+  const lc = rd("components/crew/LiveControl.tsx"), studio = rd("components/Studio.tsx"), oo = rd("components/OfficeOrders.tsx");
+  ok("R12b screens: a live stop is archived only once the truck is offline; Studio says Not saved where Saved stood; the office route logs in one write",
+    /if \(wasLive && !wrote\(await supabase!\.rpc\("admin_set_offline"\), toast,/.test(lc)
+      && /\{saveErr \? <Said as="span" className="studio-saved text-red-hover" assertive>Not saved — \{saveErr\}<\/Said> : savedAt && <span className="studio-saved">Saved \{savedAt\}<\/span>\}/.test(studio)
+      && !/bumpJugs/.test(oo));
+  const pr = rd("lib/pushRelease.ts"), sq = rd("app/api/square/webhook/route.ts"), os = rd("app/api/outlook/sync/route.ts");
+  ok("R12b server: a paid office order that could not be marked raises an alert; an Outlook event pushed but not remembered is taken back; a sign-out the database could not release unsubscribes the browser",
+    /kind: "office_paid_unmarked"/.test(sq) && /if \(mapped\.error\) \{ unmapped\+\+; try \{ await graph\(token, `\$\{base\}\/events\/\$\{g\.id\}`, \{ method: "DELETE" \}\);/.test(os)
+      && /if \(!released\) await Promise\.race\(\[forgetThisDevice\(\)/.test(pr));
 }
 
 Promise.all(PENDING).then(() => {

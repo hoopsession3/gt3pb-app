@@ -143,7 +143,8 @@ export async function fileError(r: ErrorReport, deps: IntakeDeps = { admin: supa
       .select("id").single();
     if (error) {
       // Unique-violation race (two instances, same new error): bump instead.
-      await admin.rpc("bump_client_error", { p_fingerprint: fingerprint });
+      const bumped = await admin.rpc("bump_client_error", { p_fingerprint: fingerprint });
+      if (bumped.error) console.warn(`errors: couldn't file or count a client error — ${error.message}; ${bumped.error.message}`);   // R12b
       return false;
     }
 

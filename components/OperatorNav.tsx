@@ -266,13 +266,17 @@ function MoreSheet({ lanes, pins, activeId, onOpen, onSettings, onClose, canPin 
   const { user, refreshProfile } = useAuth();
   const [local, setLocal] = useState<string[]>(pins);
   const [full, setFull] = useState(false);
+  const [pinErr, setPinErr] = useState(false);
   const toggle = async (key: string) => {
     if (!supabase || !user) return;
     // Never silently evict a pin (the old slice(-MAX) quietly dropped Today) — say the bar is full.
     if (!local.includes(key) && local.length >= MAX_PINS) { setFull(true); setTimeout(() => setFull(false), 2500); return; }
     const next = local.includes(key) ? local.filter((k) => k !== key) : [...local, key];
+    const was = local;
     setLocal(next);
-    await supabase.from("profiles").update({ nav_pins: next }).eq("id", user.id);
+    // Refused, the pins go back to the bar you have (R12b, F4): the sheet showed a bar the profile never kept.
+    const { error } = await supabase.from("profiles").update({ nav_pins: next }).eq("id", user.id);
+    if (error) { setLocal(was); setPinErr(true); setTimeout(() => setPinErr(false), 4000); return; }
     refreshProfile();
   };
   return (
@@ -317,7 +321,7 @@ function MoreSheet({ lanes, pins, activeId, onOpen, onSettings, onClose, canPin 
       </div>
       {/* The bar holds MAX_PINS tabs (Today counts) — 4 since 2026-10-08, so with More the bar is an
           iPhone's 5. The words read the number, never a copy of it. */}
-      <div className="lane-hint">{full ? `Your bar is full (${MAX_PINS}) — unpin one first.` : local.length === 0 ? "Nothing pinned — your bar shows the standard set for your role. Pin lanes to make it yours." : `Tap a lane to open it. Pin up to ${MAX_PINS} to your bar — unpin anything, it stays here.`}</div>
+      <div className="lane-hint">{pinErr ? "Couldn't change your bar just now — try again." : full ? `Your bar is full (${MAX_PINS}) — unpin one first.` : local.length === 0 ? "Nothing pinned — your bar shows the standard set for your role. Pin lanes to make it yours." : `Tap a lane to open it. Pin up to ${MAX_PINS} to your bar — unpin anything, it stays here.`}</div>
       {lanes.map((g) => (
         <div key={g.id} className={`lane-row${activeId === g.id ? " on" : ""}`}>
           <button type="button" className="lane-open" onClick={() => onOpen(g)}>

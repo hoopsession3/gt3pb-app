@@ -49,7 +49,7 @@ async function get(req: Request) {
     const tok = await exchangeCode(origin, code);
     let email: string | null = null;
     try { const me = await graph(tok.access_token, "/me"); email = me?.mail || me?.userPrincipalName || null; } catch { /* non-fatal */ }
-    await supabaseAdmin.from("outlook_connection").update({
+    const kept = await supabaseAdmin.from("outlook_connection").update({
       access_token: tok.access_token,
       refresh_token: tok.refresh_token ?? null,
       expires_at: new Date(Date.now() + ((tok.expires_in || 3600) - 60) * 1000).toISOString(),
@@ -57,6 +57,8 @@ async function get(req: Request) {
       connected_at: new Date().toISOString(),
       pending_state: randomUUID(), // burn the used state
     }).eq("id", 1);
+    // "Connected" only when the tokens were kept (R12b, F4): it said so over a dropped write, and the first sync failed.
+    if (kept.error) { console.error(`outlook: connected at Microsoft, but the tokens weren't kept — ${kept.error.message}`); return back("error"); }
     return back("connected");
   } catch {
     return back("error");

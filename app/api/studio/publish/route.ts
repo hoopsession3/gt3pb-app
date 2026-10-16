@@ -36,7 +36,8 @@ async function post(req: Request) {
     if (!item.webflow_item_id) return NextResponse.json({ ok: false, error: "not on the site" }, { status: 400 });
     try {
       await webflowUnpublish(item.webflow_item_id);
-      await supabaseAdmin.from("content_items").update({ published_url: null, status: "approved" }).eq("id", content_id).eq("tenant_id", tenant);
+      const kept = await supabaseAdmin.from("content_items").update({ published_url: null, status: "approved" }).eq("id", content_id).eq("tenant_id", tenant);
+      if (kept.error) return NextResponse.json({ ok: false, error: "It's off the site, but the piece still reads published — try again." }, { status: 500 });
       return NextResponse.json({ ok: true });
     } catch (e) {
       return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
@@ -47,7 +48,9 @@ async function post(req: Request) {
     const { itemId, slug } = await webflowPublish(item.title || "Untitled", toHtml(item.caption || ""));
     const base = process.env.WEBFLOW_PUBLIC_BASE || ""; // e.g. https://gt3pb.com/blog/
     const published_url = base ? `${base.replace(/\/$/, "")}/${slug}` : slug;
-    await supabaseAdmin.from("content_items").update({ webflow_item_id: itemId, published_url, status: "published" }).eq("id", content_id).eq("tenant_id", tenant);
+    const kept = await supabaseAdmin.from("content_items").update({ webflow_item_id: itemId, published_url, status: "published" }).eq("id", content_id).eq("tenant_id", tenant);
+    // Live on the site but not known to the piece is said, with its address (R12b, F4): a second Publish made a second post.
+    if (kept.error) return NextResponse.json({ ok: false, error: `It's live at ${published_url}, but the piece didn't keep it — don't publish it again; tell the owner.` }, { status: 500 });
     return NextResponse.json({ ok: true, webflow_item_id: itemId, published_url });
   } catch (e) {
     return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });

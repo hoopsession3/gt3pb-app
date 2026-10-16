@@ -31,6 +31,7 @@ import { useMinute } from "@/lib/useMinute";
 import { StatusRow } from "@/components/crew/StatusRow";
 import { authedFetch } from "@/lib/authedFetch";
 import { stopCanceledToast } from "@/lib/stopCancel";
+import { wrote } from "@/lib/wrote";
 
 // Go live's checks, loaded with the first tap on Go live (it opens on a tap, as the console's other sheets do).
 const GoLiveSheet = dynamic(() => import("@/components/crew/GoLiveSheet"), { ssr: false });
@@ -263,9 +264,11 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
   // Archive a location out of the active list (keeps the record). If it was live, close it.
   const archiveStop = async (id: string) => {
     const wasLive = id === live?.current_stop_id;
-    // If it's the live stop, take the truck offline authoritatively first (atomic RPC).
-    if (wasLive) await supabase!.rpc("admin_set_offline");
-    await supabase!.from("stops").update({ archived_at: new Date().toISOString(), status: "upcoming" }).eq("id", id);
+    // If it's the live stop, take the truck offline authoritatively first (atomic RPC) — and if the truck could not be
+    // taken offline, the stop stays where it is: archived under a live truck, it was a location no one could see the
+    // truck at (R12b, F4: both answers were dropped, and "Location archived" said either way).
+    if (wasLive && !wrote(await supabase!.rpc("admin_set_offline"), toast, "Couldn't take the truck offline first, so the location stays")) return;
+    if (!wrote(await supabase!.from("stops").update({ archived_at: new Date().toISOString(), status: "upcoming" }).eq("id", id), toast, "Couldn't archive the location")) { load(); return; }
     toast("Location archived");
     setOpenStopId(null);
     load();
@@ -273,7 +276,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
   const restoreStop = async (id: string) => {
     // A canceled visit (0391) comes back uncanceled too — only sent when the row carries the columns.
     const was = stops.find((x) => x.id === id);
-    await supabase!.from("stops").update(was?.canceled_at ? { archived_at: null, canceled_at: null, cancel_reason: null } : { archived_at: null }).eq("id", id);
+    if (!wrote(await supabase!.from("stops").update(was?.canceled_at ? { archived_at: null, canceled_at: null, cancel_reason: null } : { archived_at: null }).eq("id", id), toast, "Couldn't restore the location")) return;
     toast("Location restored");
     load();
   };
@@ -292,7 +295,8 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
   };
   const deleteStop = async (id: string, nm: string) => {
     if (!(await confirm({ title: `Delete ${nm}?`, body: "This removes the record.", confirmLabel: "Delete", danger: true }))) return;
-    await supabase!.from("stops").delete().eq("id", id);
+    if (!wrote(await supabase!.from("stops").delete().eq("id", id), toast, `Couldn't delete ${nm}`)) return;
+    toast(`${nm} deleted`);
     load();
   };
   const curStop = stops.find((s) => s.id === live?.current_stop_id);

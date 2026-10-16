@@ -45,8 +45,9 @@ export async function appleSignInFlow(supabase: SupabaseClient, reloadProfile: (
     const madeUp = (session.user.email ?? "").split("@")[0].toLowerCase().replace(/(^|[^a-z0-9])([a-z])/g, (_, p: string, c: string) => p + c.toUpperCase());
     const current = ((prof?.display_name as string | null) ?? "").trim();
     if (!current || current === madeUp) {
-      await supabase.from("profiles").update({ display_name: given.slice(0, 60) }).eq("id", session.user.id);
-      await reloadProfile(session.user.id);
+      // Best effort — the made-up name stays if it is refused — but read (R12b, F4): no reload for a name not kept.
+      const named = await supabase.from("profiles").update({ display_name: given.slice(0, 60) }).eq("id", session.user.id);
+      if (!named.error) await reloadProfile(session.user.id);
     }
   }
   if (credential.authorizationCode) {

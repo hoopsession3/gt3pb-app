@@ -11,6 +11,7 @@ import { InfoRow } from "@/components/kit";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { btn } from "./Button";
 import { LINK_WORDS, safeLink } from "@/lib/safeLink";
+import { wrote } from "@/lib/wrote";
 
 // BROADCAST EDITOR (Settings) — compose an announcement/ad and put it live across the app to everyone.
 // The composer exposes every option: what it says, who sees it, how it looks, an optional call-to-
@@ -64,8 +65,18 @@ export default function BroadcastEditor() {
     toast(payload.active ? "Live across the app now" : "Saved as a draft");
     setD(BLANK); load();
   };
-  const toggle = async (b: Broadcast) => { if (!supabase) return; await supabase.from("broadcasts").update({ active: !b.active }).eq("id", b.id); toast(!b.active ? "Live now" : "Taken down"); load(); };
-  const del = async (b: Broadcast) => { if (!supabase) return; if (!(await confirm({ title: `Delete “${b.title}”?`, confirmLabel: "Delete", danger: true }))) return; await supabase.from("broadcasts").delete().eq("id", b.id); if (d.id === b.id) setD(BLANK); load(); };
+  // "Live now" and "Taken down" only when it is (R12b, F4): both said so whatever the write answered.
+  const toggle = async (b: Broadcast) => {
+    if (!supabase) return;
+    if (!wrote(await supabase.from("broadcasts").update({ active: !b.active }).eq("id", b.id), toast, !b.active ? "Couldn't put it live" : "Couldn't take it down")) return;
+    toast(!b.active ? "Live now" : "Taken down"); load();
+  };
+  const del = async (b: Broadcast) => {
+    if (!supabase) return;
+    if (!(await confirm({ title: `Delete “${b.title}”?`, confirmLabel: "Delete", danger: true }))) return;
+    if (!wrote(await supabase.from("broadcasts").delete().eq("id", b.id), toast, `Couldn't delete “${b.title}”`)) return;
+    if (d.id === b.id) setD(BLANK); toast("Deleted"); load();
+  };
 
   return (
     <div className="bce">

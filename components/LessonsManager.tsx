@@ -8,6 +8,7 @@ import { SectionHeader, InfoRow } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { wrote } from "@/lib/wrote";
 
 // RETURN TO PRIMAL · lessons manager (0273) — author the customer nutrition academy the same way the
 // menu is managed: create a draft (born hidden, 0270 publish gate), fill it in, link the menu products
@@ -142,7 +143,8 @@ function LessonRow({ l, products, open, onToggle, onSaved, toast }: { l: Lesson;
   const del = async () => {
     if (!supabase) return;
     if (!(await confirm({ title: `Delete “${d.title}”?`, body: "This removes the lesson and its menu links.", confirmLabel: "Delete", danger: true }))) return;
-    await supabase.from("primal_lessons").delete().eq("id", l.id); toast("Deleted"); onSaved();
+    if (!wrote(await supabase.from("primal_lessons").delete().eq("id", l.id), toast, "Couldn't delete the lesson")) return;
+    toast("Deleted"); onSaved();
   };
   const addLink = async () => {
     if (!supabase || !addSlug) return;
@@ -153,7 +155,7 @@ function LessonRow({ l, products, open, onToggle, onSaved, toast }: { l: Lesson;
   };
   const rmLink = async (id: string) => {
     if (!supabase) return;
-    await supabase.from("primal_lesson_products").delete().eq("id", id);
+    if (!wrote(await supabase.from("primal_lesson_products").delete().eq("id", id), toast, "Couldn't remove the link")) return;
     setLinks((c) => c.filter((x) => x.id !== id));
   };
   const prodName = (slug: string) => products.find((p) => p.slug === slug)?.name ?? slug;
@@ -238,7 +240,7 @@ function StructureEditor({ pillars, modules, onSaved, toast }: { pillars: Pillar
   };
   const togglePub = async (table: "primal_pillars" | "primal_modules", id: string, cur: string | null) => {
     if (!supabase) return;
-    await supabase.from(table).update({ published_at: cur ? null : new Date().toISOString() }).eq("id", id);
+    if (!wrote(await supabase.from(table).update({ published_at: cur ? null : new Date().toISOString() }).eq("id", id), toast, cur ? "Couldn't unpublish it" : "Couldn't publish it")) return;
     onSaved();
   };
 

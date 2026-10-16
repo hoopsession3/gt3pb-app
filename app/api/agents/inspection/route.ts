@@ -138,9 +138,10 @@ async function processResearchJob(jobId: string, j: { state: string; county: str
 async function reapStale(state: string) {
   if (!supabaseAdmin) return;
   const cutoff = new Date(Date.now() - 150000).toISOString(); // > maxDuration; alive workers are fresher
-  await supabaseAdmin.from("inspection_research_jobs")
+  const { error } = await supabaseAdmin.from("inspection_research_jobs")
     .update({ status: "error", error: "timed out — research exceeded the time limit", updated_at: new Date().toISOString() })
     .eq("state", state).in("status", ["pending", "running", "searched", "extracting"]).lt("updated_at", cutoff);
+  if (error) console.warn(`inspection: couldn't close stale jobs for ${state} — ${error.message}`);   // best-effort, said (R12b)
 }
 
 async function post(req: Request) {

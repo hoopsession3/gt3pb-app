@@ -13,6 +13,7 @@ import Sheet, { CloseButton } from "@/components/Sheet";
 import { useCrew, crewLabel } from "./useCrew";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { errorMessage } from "@/lib/errorMessage";
+import { wrote } from "@/lib/wrote";
 
 // SHOOT PLANNER (0214) — plan any content shoot: date, location, call time, and a shot list you can
 // assign and check off (planned → shot → in edit). The reusable capability behind the Atlanta shoot
@@ -69,12 +70,14 @@ export default function ShootPlanner() {
   const patchShoot = async (id: string, patch: Partial<Shoot>) => {
     if (!supabase) return;
     setShoots((p) => p.map((s) => (s.id === id ? { ...s, ...patch } : s)));
-    await supabase.from("shoots").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
+    // A refused change goes back to what the planner holds (R12b, F4: each write here was dropped unread).
+    if (!wrote(await supabase.from("shoots").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id), toast, "Couldn't save the shoot")) reload();
   };
   const delShoot = async (id: string) => {
     if (!supabase) return;
     if (!(await confirm({ title: "Delete this shoot and its shot list?", confirmLabel: "Delete", danger: true }))) return;
-    await supabase.from("shoots").delete().eq("id", id); setOpen(null); reload();
+    if (!wrote(await supabase.from("shoots").delete().eq("id", id), toast, "Couldn't delete the shoot")) return;
+    setOpen(null); reload();
   };
   const addShot = async (shootId: string, description: string, sortOverride?: number) => {
     if (!supabase) return;
@@ -82,20 +85,20 @@ export default function ShootPlanner() {
     // own position — reading shots.length fresh inside a loop would give every one the same sort,
     // since this component's state doesn't re-render mid-loop.
     const n = sortOverride ?? shots.filter((s) => s.shoot_id === shootId).length;
-    await supabase.from("shots").insert({ shoot_id: shootId, description, sort: n }); reload();
+    wrote(await supabase.from("shots").insert({ shoot_id: shootId, description, sort: n }), toast, "Couldn't add the shot"); reload();
   };
   const cycleShot = async (s: Shot) => {
     if (!supabase) return;
     const ns = SHOT_NEXT[s.status] ?? "planned";
     setShots((p) => p.map((x) => (x.id === s.id ? { ...x, status: ns } : x)));
-    await supabase.from("shots").update({ status: ns }).eq("id", s.id);
+    if (!wrote(await supabase.from("shots").update({ status: ns }).eq("id", s.id), toast, "Couldn't move the shot on")) reload();
   };
   const assignShot = async (s: Shot, uid: string) => {
     if (!supabase) return;
     setShots((p) => p.map((x) => (x.id === s.id ? { ...x, assignee: uid || null } : x)));
-    await supabase.from("shots").update({ assignee: uid || null }).eq("id", s.id);
+    if (!wrote(await supabase.from("shots").update({ assignee: uid || null }).eq("id", s.id), toast, "Couldn't assign the shot")) reload();
   };
-  const delShot = async (id: string) => { if (!supabase) return; await supabase.from("shots").delete().eq("id", id); reload(); };
+  const delShot = async (id: string) => { if (!supabase) return; if (wrote(await supabase.from("shots").delete().eq("id", id), toast, "Couldn't delete the shot")) reload(); };
 
   return (
     <div className="shoot">

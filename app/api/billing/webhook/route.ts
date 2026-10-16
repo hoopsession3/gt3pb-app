@@ -93,7 +93,7 @@ async function post(req: Request) {
       }
     }
 
-    if (evt.id) { try { await supabaseAdmin.from("webhook_events").update({ processed_at: new Date().toISOString() }).eq("id", evt.id); } catch { /* best-effort */ } }
+    if (evt.id) { try { const done = await supabaseAdmin.from("webhook_events").update({ processed_at: new Date().toISOString() }).eq("id", evt.id); if (done.error) console.warn(`billing webhook: ${evt.id} processed but not marked — ${done.error.message}`); } catch { /* best-effort */ } }
   } catch { /* malformed body from a verified sender — ack and move on (don't retry a bad payload) */ }
   return NextResponse.json({ ok: true });
 }

@@ -130,10 +130,21 @@ async function post(req: Request) {
       return (Array.isArray(data) ? data : []) as Followup[];
     },
     run,
-    finish: async (f, ok, error) => { if (!f.direct) await admin.rpc("finish_erasure_followup", { p_id: f.id, p_ok: ok, p_error: error ?? null }); },
+    // Each queue write read (R12b, F4): a follow-up not marked finished is said in the log (the queue takes it up again),
+    // and one the queue could not hand to the crew is handed to them directly, in the same words — a deleted account's
+    // saved card is never left in Square with no one told.
+    finish: async (f, ok, error) => {
+      if (f.direct) return;
+      const r = await admin.rpc("finish_erasure_followup", { p_id: f.id, p_ok: ok, p_error: error ?? null });
+      if (r.error) console.error(`erase: follow-up ${f.id} done (${ok ? "ok" : "failed"}) but not marked — ${r.error.message}`);
+    },
     handOff: async (f) => {
-      if (!f.direct) { await admin.rpc("erasure_followup_alert", { p_id: f.id }); return; }
-      // arrives-with: 0404 — the old way: the crew is told what is left, directly
+      if (!f.direct) {
+        const r = await admin.rpc("erasure_followup_alert", { p_id: f.id });
+        if (!r.error) return;
+        console.error(`erase: follow-up ${f.id} couldn't go to the crew by the queue — telling them directly: ${r.error.message}`);
+      }
+      // arrives-with: 0404 — the old way, and now the way when the queue cannot: the crew is told what is left, directly
       if (f.kind === "square_customer") {
         await raiseAlert({ severity: "important", category: "money", title: "Remove a deleted account's Square profile",
           body: `Someone deleted their GT3 account. Their Square customer profile ${f.ref} could not be removed automatically and still holds their saved card — delete it in Square › Customers.` });

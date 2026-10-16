@@ -260,10 +260,12 @@ export function useDrafts() {
   // filter was written as if the button existed. It did not.
   // Retired rather than deleted: a draft that was discussed carries a thread, and that is worth
   // being able to find again. The list needed cleaning, not the record.
-  const retire = useCallback(async (id: string) => {
-    if (!supabase) return;
-    await supabase.from("gtm_drafts").update({ status: "retired" }).eq("id", id);
+  // Answers whether it went, with the database's words when it did not (R12b, F4) — the caller says them.
+  const retire = useCallback(async (id: string): Promise<string | null> => {
+    if (!supabase) return "offline";
+    const { error } = await supabase.from("gtm_drafts").update({ status: "retired" }).eq("id", id);
     load();
+    return error ? (error.message || "try again") : null;
   }, [load]);
   return { drafts, reload: load, retire, state };
 }

@@ -9,6 +9,7 @@ import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { useCrew, crewLabel } from "@/components/useCrew";
 import { haptic } from "@/lib/haptics";
+import { wrote } from "@/lib/wrote";
 
 // REUSABLE buildout → task. Drop this after any buildout (bottle loadout, delivery loadout, event
 // prep) to offer "Create a task? Assign to…" without leaving the flow. It writes to the existing
@@ -50,14 +51,16 @@ export default function AssignTaskSheet({
     onCreated?.();
   };
   const reassign = async (id: string) => {
+    const was = assignee;
     setAssignee(id);
-    if (supabase && createdId) await updateTask("todo", createdId, { assignee: id || null });   // ONE write path (lib/tasks)
+    // A refused change goes back (R12b, F4): the sheet showed someone the task was never given to.
+    if (supabase && createdId && !wrote(await updateTask("todo", createdId, { assignee: id || null }), toast, "Couldn't reassign it")) setAssignee(was);   // ONE write path (lib/tasks)
   };
   const toggleDone = async () => {
     if (!supabase || !createdId) return;
     const nd = !done; setDone(nd);
     if (nd) haptic("toggleOn"); else haptic("toggleOff");
-    await updateTask("todo", createdId, { done: nd });   // ONE write path (lib/tasks)
+    if (!wrote(await updateTask("todo", createdId, { done: nd }), toast, nd ? "Couldn't check it off" : "Couldn't reopen it")) setDone(!nd);   // ONE write path (lib/tasks)
   };
 
   const crewOptions = (

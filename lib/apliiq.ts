@@ -80,7 +80,9 @@ export async function firstSeen(provider: "apliiq" | "square", eventId: string):
 export async function forgetSeen(provider: "apliiq" | "square", eventId: string): Promise<void> {
   if (!supabaseAdmin || !eventId) return;
   // scoped-by: the inbox's own primary key, this event's — the row firstSeen wrote a moment ago
-  await supabaseAdmin.from("webhook_events").delete().eq("id", `${provider}:${eventId}`);
+  // Said when it could not be given back (R12b, F4): the retry is then answered "deduped" and the work stays undone.
+  const { error } = await supabaseAdmin.from("webhook_events").delete().eq("id", `${provider}:${eventId}`);
+  if (error) console.error(`webhooks: couldn't give ${provider} event ${eventId} back for its retry — it will read as already seen: ${error.message}`);
 }
 
 /** An inbox key from the signed body itself (R9, 2026-10-16). The routes keyed their inbox row on x-apliiq-delivery when

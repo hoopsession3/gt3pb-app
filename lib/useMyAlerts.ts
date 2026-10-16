@@ -213,8 +213,11 @@ export function useMyAlerts(userId: string | null, enabled = true) {
     if (!supabase || !userId || !cur.length) return;
     const mine = cur.filter((f) => f.target_user_id === userId).map((f) => f.id);
     const broadcast = cur.filter((f) => f.target_user_id !== userId).map((f) => f.id);
-    if (mine.length) await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).in("id", mine);
-    if (broadcast.length) await supabase.from("alert_reads").upsert(broadcast.map((id) => ({ alert_id: id, user_id: userId })));
+    // Cleared only when the database has them cleared (R12b, F4): refused, they come back to the held list — they had
+    // vanished here and stayed unread everywhere else, back on the next read with nothing said.
+    const acked = mine.length ? await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).in("id", mine) : { error: null };
+    const read = broadcast.length ? await supabase.from("alert_reads").upsert(broadcast.map((id) => ({ alert_id: id, user_id: userId }))) : { error: null };
+    if (acked.error || read.error) setHeld(cur);
   }, [held, userId]);
 
   const critCount = flags.filter((f) => f.severity === "critical").length;

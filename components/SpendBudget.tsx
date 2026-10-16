@@ -17,6 +17,7 @@ import { moneyPlain, moneyRound } from "@/lib/money";
 import { attachReceipt as fileReceipt } from "@/lib/receipts";
 import { usePrompt } from "@/components/PromptSheet";
 import Button from "./Button";
+import { wrote } from "@/lib/wrote";
 
 // SPEND & BUDGET (0209) — the procurement side of Money. Log what the business spends (optionally to a
 // real vendor / event) and track it against a per-category monthly budget. Reads report_spend(); every
@@ -148,11 +149,13 @@ export default function SpendBudget() {
       return;
     }
     if (!Number.isFinite(cents) || cents < 0) return;
-    await supabase.from("budgets").upsert(
+    const set = await supabase.from("budgets").upsert(
       { category, market, monthly_limit_cents: cents, effective_from: month,
         updated_at: new Date().toISOString() },
       { onConflict: "tenant_id,market,category,effective_from" },
     );
+    // Said either way (R12b, F4): a refused budget left the old one standing, unannounced.
+    if (wrote(set, toast, `Couldn't set the ${category} budget`)) toast(`${category}: budget set for this month.`);
     reload();
   };
 

@@ -221,9 +221,17 @@ async function post(req: Request) {
             } else if (bo && ["pending", "invoiced", "failed"].includes(String(bo.payment_status))) {
               // Only forward transitions: never let a delayed Square retry flip a refunded order back to paid.
               // scoped-by: the row Square's own order id just matched, and only while it is still owed.
-              await supabaseAdmin.from("business_orders")
+              const marked = await supabaseAdmin.from("business_orders")
                 .update({ payment_status: "paid", payment_id: p.id })
                 .eq("id", bo.id).in("payment_status", ["pending", "invoiced", "failed"]);
+              // Paid and not marked is a thing the crew must hear (R12b, F4): the write's answer was dropped, and the order
+              // went on reading owed — a reminder to chase a bill already paid. Still never a retry of the whole event.
+              if (marked.error) await raiseAlertOnce({
+                severity: "important", category: "money", kind: "office_paid_unmarked", subjectId: String(bo.id),
+                title: "An office order was paid by its link but couldn't be marked paid",
+                body: `${bo.company || "An office"} paid $${moneyPlain(cents)} through its payment link (Square payment ending ${String(p.id).slice(-6)}), but the order still reads owed. Mark it paid by hand.`,
+                link: "/crew?s=money&a=pay",
+              });
             } else if (bo && bo.payment_status === "paid" && bo.payment_id !== p.id) {
               await raiseAlertOnce({
                 severity: "important", category: "money", kind: "office_paid_twice", subjectId: String(bo.id),
@@ -240,15 +248,15 @@ async function post(req: Request) {
     // (it retries on non-2xx) rather than silently dropping the state transition. The inbox row
     // keeps processed_at null on a failure — which is exactly what lets the retry re-run the body.
     if (err) {
-      if (eventId) { try { await supabaseAdmin.from("webhook_events").update({ error: err.message || "processing failed" }).eq("id", eventId); } catch { /* best-effort */ } }
+      if (eventId) { try { const noted = await supabaseAdmin.from("webhook_events").update({ error: err.message || "processing failed" }).eq("id", eventId); if (noted.error) console.warn(`square webhook: ${eventId} failed, and the failure wasn't noted — ${noted.error.message}`); } catch { /* best-effort */ } }
       return NextResponse.json({ ok: false }, { status: 500 });
     }
   } catch {
-    if (eventId) { try { await supabaseAdmin.from("webhook_events").update({ error: "processing threw" }).eq("id", eventId); } catch { /* best-effort */ } }
+    if (eventId) { try { const noted = await supabaseAdmin.from("webhook_events").update({ error: "processing threw" }).eq("id", eventId); if (noted.error) console.warn(`square webhook: ${eventId} threw, and it wasn't noted — ${noted.error.message}`); } catch { /* best-effort */ } }
     return NextResponse.json({ ok: false }, { status: 500 });
   }
 
-  if (eventId) { try { await supabaseAdmin.from("webhook_events").update({ processed_at: new Date().toISOString(), error: null }).eq("id", eventId); } catch { /* best-effort */ } }
+  if (eventId) { try { const done = await supabaseAdmin.from("webhook_events").update({ processed_at: new Date().toISOString(), error: null }).eq("id", eventId); if (done.error) console.warn(`square webhook: ${eventId} processed but not marked — ${done.error.message}`); } catch { /* best-effort */ } }
   return NextResponse.json({ ok: true });
 }
 

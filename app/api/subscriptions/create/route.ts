@@ -86,11 +86,15 @@ async function post(req: Request) {
     const keep = (asked[0] as { id: string }).id;
     if (live) {
       // scoped-by: keep is one of this member's own rows, read just above by user_id.
-      await supabaseAdmin.from("subscriptions").update({ square_subscription_id: live.id, status: mapSubStatus(live.status), square_asked_at: null, updated_at: new Date().toISOString() }).eq("id", keep);
+      const took = await supabaseAdmin.from("subscriptions").update({ square_subscription_id: live.id, status: mapSubStatus(live.status), square_asked_at: null, updated_at: new Date().toISOString() }).eq("id", keep);
+      // Subscribed at Square either way; a mirror that missed is said in the log, and the next visit takes it up again (R12b).
+      if (took.error) console.error(`subscriptions: ${live.id} is live at Square, but the mirror row ${keep} didn't take it — ${took.error.message}`);
       return NextResponse.json({ ok: true, status: mapSubStatus(live.status), warn: "Your last try went through at Square — you're subscribed." });
     }
     // scoped-by: user_id = the caller's own id; only rows Square was asked about and has nothing for.
-    await supabaseAdmin.from("subscriptions").delete().eq("user_id", user.id).eq("status", "pending").is("square_subscription_id", null).not("square_asked_at", "is", null);
+    const cleared = await supabaseAdmin.from("subscriptions").delete().eq("user_id", user.id).eq("status", "pending").is("square_subscription_id", null).not("square_asked_at", "is", null);
+    // Not cleared, the try below would meet the double-subscribe guard and say so in words not meant for the member (R12b).
+    if (cleared.error) return NextResponse.json({ error: "We couldn't check on your last try just now — give it a minute.", pending: true }, { status: 503 });
   }
 
   // Self-heal: clear the caller's own stale 'pending' rows that never reached Square
@@ -99,10 +103,11 @@ async function post(req: Request) {
   // double-subscribe guard below. Without this, one dead attempt locks the member out
   // of subscribing forever (the partial unique index keeps rejecting them). Never a row
   // Square was asked about (R10b — above).
-  await supabaseAdmin
+  const healed = await supabaseAdmin
     .from("subscriptions").delete()
     .eq("user_id", user.id).eq("status", "pending").is("square_subscription_id", null).is("square_asked_at", null)
     .lt("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());
+  if (healed.error) console.warn(`subscriptions: couldn't clear stale pending rows for a member — ${healed.error.message}`);   // the guard below still holds (R12b)
 
   // Atomic double-subscribe guard: claim a 'pending' row BEFORE calling Square. The
   // partial unique index subscriptions_one_active(user_id) rejects a concurrent or
@@ -139,7 +144,9 @@ async function post(req: Request) {
       const cData = await cRes.json();
       if (!cRes.ok) throw new Error("Couldn't set up billing just now — nothing was charged. Try again in a minute.");   // Square's own words stay here (R10b)
       customerId = cData?.customer?.id;
-      await supabaseAdmin.from("profiles").update({ square_customer_id: customerId }).eq("id", user.id);
+      // Kept for the next time — unkept, the next subscription made a second Square customer for the same member (R12b).
+      const keptCustomer = await supabaseAdmin.from("profiles").update({ square_customer_id: customerId }).eq("id", user.id);
+      if (keptCustomer.error) console.error(`subscriptions: Square customer ${customerId} made, but the profile didn't keep it — ${keptCustomer.error.message}`);
     }
 
     // 2) vault the card (idempotency keyed to this attempt's row → retries dedupe, resubscribe doesn't)
@@ -178,18 +185,24 @@ async function post(req: Request) {
 
     // Persist the Square id to the mirror IMMEDIATELY — before anything else can throw — so the row
     // can never be orphaned: the member can always cancel, and the webhook can always match by id.
-    // scoped-by: rowId came from this request's own INSERT (user_id: user.id from the verified session), never from the caller
-    if (squareSubId) await supabaseAdmin.from("subscriptions").update({ square_subscription_id: squareSubId, square_asked_at: null }).eq("id", rowId);
+    // Unkept, it is the reconcile path below (R12b, F4): a live subscription the mirror cannot name is the crew's to fix,
+    // and the member is told they're subscribed — not "ok" over a row that can't be cancelled from the app.
+    if (squareSubId) {
+      // scoped-by: rowId came from this request's own INSERT (user_id: user.id from the verified session), never from the caller
+      const named = await supabaseAdmin.from("subscriptions").update({ square_subscription_id: squareSubId, square_asked_at: null }).eq("id", rowId);
+      if (named.error) throw new Error(`the mirror didn't take the Square id — ${named.error.message}`);
+    }
 
     // 4) fill the rest of the mirror (webhook reconciles authoritatively)
     // scoped-by: rowId came from this request's own INSERT (user_id: user.id from the verified session), never from the caller
-    await supabaseAdmin.from("subscriptions").update({
+    const filled = await supabaseAdmin.from("subscriptions").update({
       status: mapSubStatus(sub?.status),
       square_card_id: cardId,
       current_period_end: sub?.charged_through_date || null,
       updated_at: new Date().toISOString(),
     // scoped-by: rowId came from this request's own INSERT (user_id: user.id from the verified session), never from the caller
     }).eq("id", rowId);
+    if (filled.error) throw new Error(`the mirror didn't take the subscription's details — ${filled.error.message}`);
 
     // Leadership visibility — new recurring revenue shouldn't be invisible.
     await raiseAlert({ severity: "fyi", category: "money", title: "New subscriber 🎉", body: `A member started a ${pack}-pack coffee subscription. See Subscribers.` });
@@ -200,8 +213,9 @@ async function post(req: Request) {
       // member could never cancel in-app. Keep the row, ensure it carries the id, mark it active,
       // and flag staff to reconcile — never silently drop a paying member.
       // scoped-by: rowId came from this request's own INSERT (user_id: user.id from the verified session), never from the caller
-      await supabaseAdmin.from("subscriptions").update({ status: "active", square_subscription_id: squareSubId, updated_at: new Date().toISOString() }).eq("id", rowId);
-      await raiseAlert({ severity: "critical", category: "money", title: "Subscription needs reconcile", body: `A subscription is live at Square (${squareSubId}) but setup errored after billing started. It's kept so the member can cancel — verify the mirror in Subscribers.` });
+      const kept = await supabaseAdmin.from("subscriptions").update({ status: "active", square_subscription_id: squareSubId, updated_at: new Date().toISOString() }).eq("id", rowId);
+      if (kept.error) console.error(`subscriptions: ${squareSubId} is live, and its mirror row ${rowId} couldn't be marked — ${kept.error.message}`);
+      await raiseAlert({ severity: "critical", category: "money", title: "Subscription needs reconcile", body: `A subscription is live at Square (${squareSubId}) but setup errored after billing started${kept.error ? " — and the app's row could not be marked; find it by the member" : ""}. It's kept so the member can cancel — verify the mirror in Subscribers.` });
       return NextResponse.json({ ok: true, status: "active", warn: "You're subscribed — we're finalizing a couple details." });
     }
     if (e instanceof SubscriptionUnknown) {
@@ -215,7 +229,8 @@ async function post(req: Request) {
     }
     // Nothing was created at Square — safe to roll back the pending claim so the member can retry.
     // scoped-by: rowId came from this request's own INSERT (user_id: user.id from the verified session), never from the caller
-    await supabaseAdmin.from("subscriptions").delete().eq("id", rowId);
+    const rolledBack = await supabaseAdmin.from("subscriptions").delete().eq("id", rowId);
+    if (rolledBack.error) console.warn(`subscriptions: couldn't roll back pending row ${rowId} — the next try's self-heal clears it after ten minutes: ${rolledBack.error.message}`);
     // Square's own words stay here (R10b): a customer's or card's refusal is said in one sentence (refusalWords), and a
     // failure of ours — a dropped connection, a body that would not parse — is not the member's to read.
     const said = e instanceof Error && !/fetch failed|JSON|Unexpected token|network|abort|timeout/i.test(e.message) ? e.message : "Your subscription couldn't start just now — nothing was charged. Try again in a minute.";

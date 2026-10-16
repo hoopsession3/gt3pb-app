@@ -15,6 +15,7 @@ import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 import { goPlanTab } from "@/lib/planNav";
 import { Segmented, tabPanel } from "@/components/controls";
+import { wrote } from "@/lib/wrote";
 
 // BRAND CALENDAR — the planning brain of Studio. Posts (scheduled content) + events roll onto one
 // month view so Ryan + Kayla see the whole picture and build FROM it.
@@ -297,6 +298,7 @@ function DayView({ dayKey, posts, evs, evTitle, onClose, onEdit, onOpenFull, onA
 // Quick in-place editor for a scheduled piece — date, time, status, and the event link, written
 // straight to content_items. "Open full editor" jumps to Studio for hook/caption/Canva.
 function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string; events: EvItem[]; onClose: () => void; onSaved: () => void; onOpenFull: (id: string) => void }) {
+  const { toast } = useApp();
   const [f, setF] = useState<any | null>(null);
   // The piece as loaded: what "unsaved" is measured against (lib/formGuard edited).
   const [loaded, setLoaded] = useState<any | null>(null);
@@ -316,10 +318,11 @@ function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string;
   const save = async () => {
     if (!supabase || !f || isBlank(f.title)) return;   // a piece can't be saved without a title (no more "Untitled")
     setSaving(true);
-    await supabase.from("content_items").update({ title: f.title.trim(), scheduled_for: f.scheduled_for || null, status: f.status || "draft", event_id: f.event_id || null }).eq("id", id);
-    setSaving(false); onSaved();
+    // The sheet closes on a save that landed (R12b, F4).
+    const ok = wrote(await supabase.from("content_items").update({ title: f.title.trim(), scheduled_for: f.scheduled_for || null, status: f.status || "draft", event_id: f.event_id || null }).eq("id", id), toast, "Couldn't save the piece");
+    setSaving(false); if (ok) onSaved();
   };
-  const unschedule = async () => { if (!supabase) return; setSaving(true); await supabase.from("content_items").update({ scheduled_for: null }).eq("id", id); setSaving(false); onSaved(); };
+  const unschedule = async () => { if (!supabase) return; setSaving(true); const ok = wrote(await supabase.from("content_items").update({ scheduled_for: null }).eq("id", id), toast, "Couldn't unschedule it"); setSaving(false); if (ok) onSaved(); };
   if (!f && loadFailed) return (
     <Sheet open onClose={onClose} label="Edit content piece" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Edit piece</b><CloseButton onClick={onClose} /></div>}>
       <p className="load-failed" role="status">Couldn&apos;t load this piece — nothing has been changed. Close and try again.</p>

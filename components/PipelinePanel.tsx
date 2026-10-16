@@ -22,6 +22,7 @@ import PersonPick from "./PersonPick";
 import { localToday } from "@/lib/dates";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { scrollMotion } from "@/lib/motion";
+import { wrote } from "@/lib/wrote";
 
 // PIPELINE — the sales funnel (0165). Vendor (the account) × deal (from the owner's catalog,
 // gated per vendor type) × rep × stage. The owner articulates what's on the table in the Deal
@@ -365,7 +366,8 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   // so a rep's notes and the stage history read as ONE chronological pursuit record.
   const logActivity = (oppId: string, body: string) => {
     if (!supabase || !user) return;
-    supabase.from("comments").insert({ strategy_key: `opp:${oppId}`, body, author_id: user.id }).then(() => loadActivity());
+    // The milestone on the record — or said not to be (R12b, F4: the insert's answer was dropped).
+    void supabase.from("comments").insert({ strategy_key: `opp:${oppId}`, body, author_id: user.id }).then((r) => { wrote(r, toast, "Couldn't write the milestone to the pursuit's record"); loadActivity(); });
   };
   const [activity, setActivity] = useState<Record<string, { n: number; lastAt: string; lastBy: string | null }>>({});
   const loadActivity = useCallback(async () => {

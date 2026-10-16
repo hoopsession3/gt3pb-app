@@ -46,7 +46,11 @@ async function post(req: Request) {
     // Paid another way: the link goes, so it cannot be paid a second time. Said back as off, none or unknown.
     const link = await switchOffPaylink(token, o);
     // scoped-by: the order just read in the caller's tenant
-    if (link === "off") await supabaseAdmin.from("business_orders").update({ paylink_url: null, paylink_id: null }).eq("tenant_id", tenant).eq("id", o.id);
+    // Off at Square and off on the order, or said not (R12b, F4): the order kept showing a link Square had switched off.
+    if (link === "off") {
+      const cleared = await supabaseAdmin.from("business_orders").update({ paylink_url: null, paylink_id: null }).eq("tenant_id", tenant).eq("id", o.id);
+      if (cleared.error) return NextResponse.json({ ok: false, link, error: "The link is off at Square, but the order still shows it — try again." }, { status: 500 });
+    }
     return NextResponse.json({ ok: link !== "unknown", link });
   }
   if (o.canceled_at) return NextResponse.json({ ok: false, error: "order is canceled" }, { status: 400 });

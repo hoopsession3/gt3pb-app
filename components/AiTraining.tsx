@@ -10,6 +10,7 @@ import Icon from "@/components/Icon";
 import Prose from "@/components/Prose";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { scrollMotion } from "@/lib/motion";
+import { wrote } from "@/lib/wrote";
 
 // TRAIN THE AI (Settings › AI › Train the AI, owner — it was on Team until 2026-10-06, the settings
 // round; Team keeps a line to it) — the correction loop for the freeform agents.
@@ -88,13 +89,15 @@ export default function AiTraining() {
   const toggle = async (k: Know) => {
     if (!supabase) return;
     setRows((r) => r.map((x) => (x.id === k.id ? { ...x, active: !x.active } : x)));
-    await supabase.from("agent_knowledge").update({ active: !k.active }).eq("id", k.id);
+    // Refused, it goes back to what the agent really uses (R12b, F4).
+    if (!wrote(await supabase.from("agent_knowledge").update({ active: !k.active }).eq("id", k.id), toast, k.active ? "Couldn't switch it off" : "Couldn't switch it on"))
+      setRows((r) => r.map((x) => (x.id === k.id ? { ...x, active: k.active } : x)));
   };
   const del = async (k: Know) => {
     if (!supabase) return;
     if (!(await confirm({ title: `Delete “${k.title}”?`, body: "The agent will stop using it.", confirmLabel: "Delete", danger: true }))) return;
     setRows((r) => r.filter((x) => x.id !== k.id));
-    await supabase.from("agent_knowledge").delete().eq("id", k.id);
+    if (!wrote(await supabase.from("agent_knowledge").delete().eq("id", k.id), toast, `Couldn't delete “${k.title}”`)) setRows((r) => [k, ...r]);
   };
 
   // Turn a logged answer into a correction — prefill the form with the question, scroll to it.

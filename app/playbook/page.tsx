@@ -9,6 +9,7 @@ import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import dynamic from "next/dynamic";
 import Icon from "@/components/Icon";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { useApp } from "@/components/AppProvider";
 import Link from "next/link";
 // The sign-in is for a visitor who is signed out — staff signed in never download it (2026-10-09).
 const SignIn = dynamic(() => import("@/components/SignIn"));
@@ -24,6 +25,7 @@ const keyFor = (name: string) => "gtm:" + name.toLowerCase().replace(/[^a-z0-9]+
 
 export default function PlaybookPage() {
   const confirm = useConfirm();
+  const { toast } = useApp();
   const { profile, enabled, user, ready } = useAuth();
   const [open, setOpen] = useState<string | null>(null); // which thread is open
   const [builder, setBuilder] = useState<null | { prefill: GtmPlay | null }>(null);
@@ -92,7 +94,7 @@ export default function PlaybookPage() {
           <Discuss k={"draft:" + d.id} label={`Draft: ${d.name}`} />
           {/* The retire the query has been filtering for since day one. */}
           <button type="button" className="btn-sec btn-sm btn-wide mt-2"
-                  onClick={async () => { if (await confirm({ title: `Retire “${d.name}”?`, body: "It comes off the playbook. The draft and anything said about it are kept.", confirmLabel: "Retire" })) retire(d.id); }}>
+                  onClick={async () => { if (await confirm({ title: `Retire “${d.name}”?`, body: "It comes off the playbook. The draft and anything said about it are kept.", confirmLabel: "Retire" })) { const why = await retire(d.id); toast(why ? `Couldn't retire it — ${why}` : `“${d.name}” retired`, why ? "error" : undefined); } }}>
             Retire this draft
           </button>
         </div>

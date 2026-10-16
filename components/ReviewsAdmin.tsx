@@ -12,6 +12,8 @@ import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 import { apiUrl } from "@/lib/native";
 import Button from "./Button";
+import { wrote } from "@/lib/wrote";
+import { useConfirm } from "./ConfirmSheet";
 
 // STAFF REVIEW DESK — approve member feedback and add reviews pulled from Google / Instagram / the
 // feedback album. "Add" inserts pre-approved. Every row shows a live preview of exactly how it'll read
@@ -23,6 +25,7 @@ const SOURCES = ["manual", "google", "instagram", "app"] as const;
 
 export default function ReviewsAdmin() {
   const { toast } = useApp();
+  const confirm = useConfirm();
   const [tab, setTab] = useState<"pending" | "live">("pending");
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState<{ name: string; rating: number; body: string; source: string }>({ name: "", rating: 5, body: "", source: "google" });
@@ -53,7 +56,7 @@ export default function ReviewsAdmin() {
   const acceptSuggestion = async (id: string) => {
     if (!supabase) return;
     const text = suggest[id];
-    await supabase.from("reviews").update({ body: text, approved: true }).eq("id", id);
+    if (!wrote(await supabase.from("reviews").update({ body: text, approved: true }).eq("id", id), toast, "Couldn't put the simplified review live")) return;
     setSuggest((s) => { const n = { ...s }; delete n[id]; return n; });
     reload();
   };
@@ -69,12 +72,23 @@ export default function ReviewsAdmin() {
   const { reload } = board;
   const rows = board.data ?? [];
 
-  const setApproved = async (id: string, approved: boolean) => { if (!supabase) return; await supabase.from("reviews").update({ approved }).eq("id", id); reload(); };
-  const remove = async (id: string) => { if (!supabase) return; await supabase.from("reviews").delete().eq("id", id); reload(); };
+  // Each says what it did only when it did (R12b, F4) — and a review typed in is kept in its form until it is saved: it
+  // was cleared before the insert answered, so a refusal threw the typing away.
+  const setApproved = async (id: string, approved: boolean) => {
+    if (!supabase) return;
+    if (!wrote(await supabase.from("reviews").update({ approved }).eq("id", id), toast, approved ? "Couldn't approve it" : "Couldn't hide it")) return;
+    reload();
+  };
+  const remove = async (id: string, who: string) => {
+    if (!supabase) return;
+    if (!(await confirm({ title: `Delete the review from ${who}?`, body: "It comes off the truck display and out of this list.", confirmLabel: "Delete", danger: true }))) return;
+    if (!wrote(await supabase.from("reviews").delete().eq("id", id), toast, "Couldn't delete it")) return;
+    reload();
+  };
   const add = async () => {
     if (!supabase || !f.body.trim()) return;
+    if (!wrote(await supabase.from("reviews").insert({ name: f.name.trim() || null, rating: f.rating, body: f.body.trim(), source: f.source, approved: true }), toast, "Couldn't add the review")) return;
     setAdding(false);
-    await supabase.from("reviews").insert({ name: f.name.trim() || null, rating: f.rating, body: f.body.trim(), source: f.source, approved: true });
     setF({ name: "", rating: 5, body: "", source: "google" });
     reload();
   };
@@ -152,7 +166,7 @@ export default function ReviewsAdmin() {
                         <button className="btn-pri btn-sm" onClick={() => setApproved(r.id, true)} disabled={!okd} title={okd ? "" : "Below the display bar — simplify or edit it"}>Approve</button>
                         <button className="btn-sec btn-sm" onClick={() => simplify(r)} disabled={busyId === r.id || !r.body?.trim()}>{busyId === r.id ? "…" : <><Icon name="sparkles" /> Simplify</>}</button>
                       </>}
-                  <button className="k-icon-btn sm" onClick={() => remove(r.id)} aria-label={`Delete the review from ${c.who}`}><Icon name="close" /></button>
+                  <button className="k-icon-btn sm" onClick={() => remove(r.id, c.who)} aria-label={`Delete the review from ${c.who}`}><Icon name="close" /></button>
                 </div>
               </div>
             );

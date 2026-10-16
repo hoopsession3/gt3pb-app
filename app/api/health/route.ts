@@ -34,7 +34,8 @@ async function get() {
     const { error } = await supabaseAdmin.from("admin_emails").select("email", { count: "exact", head: true });
     if (error) throw error;
     // Feed the watchdog. Best-effort but awaited — serverless won't flush a dangling write.
-    await supabaseAdmin.from("ops_heartbeat").upsert({ id: 1, seen_at: new Date().toISOString(), source: "health" });
+    const beat = await supabaseAdmin.from("ops_heartbeat").upsert({ id: 1, seen_at: new Date().toISOString(), source: "health" });
+    if (beat.error) console.warn(`health: the watchdog's heartbeat wasn't written — ${beat.error.message}`);   // the probe still answers; said (R12b)
     return NextResponse.json({ ok: true, db_ms: Date.now() - t0, build }, { headers: noStore });
   } catch {
     return NextResponse.json({ ok: false, build }, { status: 503, headers: noStore });

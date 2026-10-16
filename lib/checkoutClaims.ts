@@ -62,7 +62,9 @@ export function checkoutClaims(db: SupabaseClient): ClaimStore {
 
     async release(key) {
       try {
-        await db.from("checkout_claims").delete().eq("idempotency_key", key).eq("state", "started");
+        const { error } = await db.from("checkout_claims").delete().eq("idempotency_key", key).eq("state", "started");
+        // Said in the log (R12b, F4); a claim left behind still expires into "couldn't confirm" — the slow way, not a wrong one.
+        if (error) console.warn(`checkout: couldn't release claim ${key} — it expires on its own: ${error.message}`);
       } catch { /* a claim left behind expires into "couldn't confirm" — the slow way, not a wrong one */ }
     },
   };

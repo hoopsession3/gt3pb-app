@@ -21,10 +21,13 @@ async function validToken(): Promise<{ token: string; base: string } | null> {
   if (!token || exp < Date.now()) {
     const t = await refresh(data.refresh_token);
     token = t.access_token;
-    await supabaseAdmin.from("outlook_connection").update({
+    const kept = await supabaseAdmin.from("outlook_connection").update({
       access_token: t.access_token, refresh_token: t.refresh_token ?? data.refresh_token,
       expires_at: new Date(Date.now() + ((t.expires_in || 3600) - 60) * 1000).toISOString(),
     }).eq("id", 1);
+    // This run has its token either way; a refreshed token not kept is said (R12b, F4) — Microsoft may have retired the
+    // old refresh token with this answer, and the next sync would fail with nothing in the log to say why.
+    if (kept.error) console.error(`outlook: refreshed the token but couldn't keep it — ${kept.error.message}`);
   }
   return { token: token!, base: data.calendar_id ? `/me/calendars/${data.calendar_id}` : "/me" };
 }
@@ -42,7 +45,7 @@ async function post(req: Request) {
   const now = new Date().toISOString();
   const fromD = new Date(Date.now() - 7 * 864e5), toD = new Date(Date.now() + 120 * 864e5);
   const fromDay = fromD.toISOString().slice(0, 10), toDay = toD.toISOString().slice(0, 10);
-  let pushed = 0, updated = 0, pulled = 0;
+  let pushed = 0, updated = 0, pulled = 0, unmapped = 0;
 
   try {
     // ── PUSH: our events → Outlook ──
@@ -56,7 +59,13 @@ async function post(req: Request) {
       } else {
         try {
           const g = await graph(token, `${base}/events`, { method: "POST", body });
-          if (g?.id) { await supabaseAdmin.from("events").update({ outlook_event_id: g.id, outlook_synced_at: now }).eq("id", e.id); pushed++; }
+          if (g?.id) {
+            // Pushed, and remembered as pushed — or taken back (R12b, F4): an event in Outlook with no mapping here was
+            // pushed again on the next sync, a duplicate each time.
+            const mapped = await supabaseAdmin.from("events").update({ outlook_event_id: g.id, outlook_synced_at: now }).eq("id", e.id);
+            if (mapped.error) { unmapped++; try { await graph(token, `${base}/events/${g.id}`, { method: "DELETE" }); } catch { /* the next sync says it again */ } }
+            else pushed++;
+          }
         } catch { /* skip one */ }
       }
     }
@@ -81,9 +90,10 @@ async function post(req: Request) {
     return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
   }
 
-  const note = `Pushed ${pushed}, updated ${updated}, pulled ${pulled}`;
-  await supabaseAdmin.from("outlook_connection").update({ last_sync_at: now, last_sync_note: note }).eq("id", 1);
-  return NextResponse.json({ ok: true, pushed, updated, pulled, note });
+  const note = `Pushed ${pushed}, updated ${updated}, pulled ${pulled}${unmapped ? ` · ${unmapped} not pushed (couldn't keep the link — next sync tries again)` : ""}`;
+  const noted = await supabaseAdmin.from("outlook_connection").update({ last_sync_at: now, last_sync_note: note }).eq("id", 1);
+  if (noted.error) console.warn(`outlook: synced, but the sync's note wasn't kept — ${noted.error.message}`);
+  return NextResponse.json({ ok: true, pushed, updated, pulled, unmapped, note });
 }
 
 export const POST = route("outlook/sync", post);

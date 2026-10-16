@@ -7,6 +7,7 @@ import { useApp } from "./AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import InlineCreate from "./InlineCreate";
 import { SectionHeader } from "@/components/kit";
+import { wrote } from "@/lib/wrote";
 
 // LAUNCH READINESS — the go/no-go board. Distinct from milestone progress ("are the deliverables
 // done?"): this is the gating checklist ("is it actually safe to launch?"). Each critical check is
@@ -65,7 +66,9 @@ export function useLaunchReadiness(): Launch {
     if (!supabase || !isAdmin) return;
     const ns = NEXT[c.status];
     setChecks((p) => p.map((x) => (x.id === c.id ? { ...x, status: ns } : x)));
-    await supabase.from("readiness_checks").update({ status: ns, updated_at: new Date().toISOString() }).eq("id", c.id);
+    // Refused, the check goes back to where it stood (R12b, F4).
+    if (!wrote(await supabase.from("readiness_checks").update({ status: ns, updated_at: new Date().toISOString() }).eq("id", c.id), toast, "Couldn't move the check on"))
+      setChecks((p) => p.map((x) => (x.id === c.id ? { ...x, status: c.status } : x)));
   };
   const addCheck = async (label: string) => {
     if (!supabase || !launch) return;

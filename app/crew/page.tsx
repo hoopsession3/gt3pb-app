@@ -72,6 +72,7 @@ import { CrumbProvider, Breadcrumbs, useCrumb, useCrumbs } from "@/components/Cr
 import { recordRecent } from "@/components/recents";
 import { ledgerWord } from "@/lib/collect";
 import MenuRigChips, { MENU_RIG_COLUMNS, type MenuRigPatch, type MenuRigValue } from "@/components/MenuRigChips";
+import { wrote } from "@/lib/wrote";
 // ── Code-split (2026-07-29, speed round): every component below renders only inside ONE section
 // (or opens on a tap), so it loads as its own chunk on demand instead of riding in the /crew
 // route's first paint. Daily-path components (My Day, Live Ops' DropOps/DeliveryOps, the Pass and its 86 board,
@@ -504,7 +505,8 @@ function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: 
     const patch: Record<string, unknown> = { status };
     if (caption !== (item?.caption ?? "")) patch.caption = caption;           // revise inline
     if (status === "changes") patch.review_note = note.trim();
-    await supabase.from("content_items").update(patch).eq("id", contentId);
+    // Approved — or changes asked for — only once the post says so (R12b, F4): the maker was told either way.
+    if (!wrote(await supabase.from("content_items").update(patch).eq("id", contentId), toast, status === "approved" ? "Couldn't approve it" : "Couldn't send the changes")) { setBusy(false); return; }
     const t = (item?.title || "Untitled").slice(0, 80);
     if (item?.created_by && item.created_by !== meId) {
       await raiseAlert(status === "approved"
@@ -848,7 +850,8 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
   const del = async (c: Comment) => {
     if (!supabase) return;
     setComments((p) => p.filter((x) => x.id !== c.id)); // optimistic; RLS allows author-only delete
-    await supabase.from("comments").delete().eq("id", c.id);
+    // A refused delete puts the comment back (R12b, F4): it vanished here and stayed for everyone else.
+    if (!wrote(await supabase.from("comments").delete().eq("id", c.id), toast, "Couldn't delete the comment")) load();
   };
 
   return (
@@ -917,6 +920,7 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
 // true stored value untouched.
 function IncidentLog({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; ownerId: string }) {
   const confirm = useConfirm();
+  const { toast } = useApp();
   type Inc = { id: string; problem: string; severity: string; resolved: boolean; created_at: string; symptom: string | null };
   const [rows, setRows] = useState<Inc[]>([]);
   const [incFailed, setIncFailed] = useState(false);
@@ -932,13 +936,15 @@ function IncidentLog({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; 
   const toggle = async (r: Inc) => {
     if (!supabase) return;
     setRows((p) => p.map((x) => x.id === r.id ? { ...x, resolved: !x.resolved } : x));
-    await supabase.from("incident_log").update({ resolved: !r.resolved, resolved_at: !r.resolved ? new Date().toISOString() : null }).eq("id", r.id);
+    // Refused, the incident goes back to where it stood (R12b, F4): a blocker showed resolved that the log still had open.
+    if (!wrote(await supabase.from("incident_log").update({ resolved: !r.resolved, resolved_at: !r.resolved ? new Date().toISOString() : null }).eq("id", r.id), toast, r.resolved ? "Couldn't reopen it" : "Couldn't resolve it"))
+      setRows((p) => p.map((x) => x.id === r.id ? { ...x, resolved: r.resolved } : x));
   };
   const del = async (id: string) => {
     if (!supabase) return;
     if (!(await confirm({ title: "Delete this incident from the log?", confirmLabel: "Delete", danger: true }))) return;
     setRows((p) => p.filter((x) => x.id !== id));
-    await supabase.from("incident_log").delete().eq("id", id);
+    if (!wrote(await supabase.from("incident_log").delete().eq("id", id), toast, "Couldn't delete the incident")) load();
   };
   // The log hides itself when clean. A failed read hid it in exactly the same way, so an event
   // with three open blockers looked like an event with none.
@@ -1022,10 +1028,13 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
   const [brief, setBrief] = useState("");
   const [edit, setEdit] = useState(false);
   const [saving, setSaving] = useState(false);
+  const { toast } = useApp();
 
   const briefState = useAsyncData<{ dress: string; brief: string }>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
-    const { data } = await supabase.from(opsTable).select("dress_code, crew_brief").eq(ownerCol, ownerId).maybeSingle();
+    // A failed read is a failure, not "No brief yet" (R12b, F4) — the editor would have saved blanks over the brief.
+    const { data, error } = await supabase.from(opsTable).select("dress_code, crew_brief").eq(ownerCol, ownerId).maybeSingle();
+    if (error) throw new Error(error.message);
     return {
       dress: (data as { dress_code?: string | null } | null)?.dress_code ?? "",
       brief: (data as { crew_brief?: string | null } | null)?.crew_brief ?? "",
@@ -1042,8 +1051,11 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
     if (!supabase) return;
     setSaving(true);
     // Upsert the staff-only ops row (create it on first save; the parent may have none yet).
-    await supabase.from(opsTable).upsert({ [ownerCol]: ownerId, dress_code: dress.trim() || null, crew_brief: brief.trim() || null }, { onConflict: ownerCol });
-    setSaving(false); setEdit(false);
+    // The editor closes on a brief that landed (R12b, F4): it closed whatever the save answered, and the crew found no
+    // brief on the day.
+    const ok = wrote(await supabase.from(opsTable).upsert({ [ownerCol]: ownerId, dress_code: dress.trim() || null, crew_brief: brief.trim() || null }, { onConflict: ownerCol }), toast, "Couldn't save the brief");
+    setSaving(false);
+    if (ok) { setEdit(false); toast("Brief saved"); }
   };
 
   return (
@@ -2030,7 +2042,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     const { error } = await supabase.from("event_staff").insert({ [ownerCol]: target.id, user_id: uid });
     if (error) toast(error.code === "23505" ? "Already on crew" : `Error: ${error.message}`, "error"); else load();
   };
-  const removeCrew = async (id: string) => { if (supabase) { await supabase.from("event_staff").delete().eq("id", id); load(); } };
+  const removeCrew = async (id: string) => { if (supabase) { if (wrote(await supabase.from("event_staff").delete().eq("id", id), toast, "Couldn't take them off the crew")) load(); } };
   // Add supplies the crew must bring — picked from the Notion inventory catalog or typed
   // off-catalog. Each becomes a checklist line under "Supplies" (no inventory duplication).
   const addSupplies = async (items: { label: string; critical: boolean }[]) => {
@@ -2048,13 +2060,13 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   // Tag/untag a crew member as a manager — managers must approve the prep too.
   const setManager = async (crewRowId: string, makeMgr: boolean) => {
     if (!supabase) return;
-    await supabase.from("event_staff").update({ role_label: makeMgr ? "manager" : null }).eq("id", crewRowId);
+    if (!wrote(await supabase.from("event_staff").update({ role_label: makeMgr ? "manager" : null }).eq("id", crewRowId), toast, makeMgr ? "Couldn't make them a manager" : "Couldn't take the manager tag off")) return;
     load();
   };
   const toggleApproval = async (mine: boolean) => {
     if (!user || !supabase) return;
     if (mine) {
-      await supabase.from("event_approvals").delete().eq(ownerCol, target.id).eq("approver_id", user.id);
+      if (!wrote(await supabase.from("event_approvals").delete().eq(ownerCol, target.id).eq("approver_id", user.id), toast, "Couldn't withdraw the approval")) return;
       toast("Approval withdrawn");
     } else {
       const { error } = await supabase.from("event_approvals").insert({ [ownerCol]: target.id, approver_id: user.id });
@@ -2223,8 +2235,14 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           eventDay={isEvent ? (ev?.day ?? null) : stopMeta.day}
           planDays={isEvent ? Math.max(1, ev?.plan_days ?? 1) : stopMeta.plan_days}
           onPlanDays={(n) => {
-            if (isEvent) { supabase?.from("events").update({ plan_days: n }).eq("id", target.id).then(() => {}); }
-            else { setStopMeta((m) => ({ ...m, plan_days: n })); supabase?.from("stops").update({ plan_days: n }).eq("id", target.id).then(() => {}); }
+            if (!supabase) return;
+            // How many days the plan runs, kept — or said not kept (R12b, F4): the answer was dropped either way.
+            if (isEvent) { void supabase.from("events").update({ plan_days: n }).eq("id", target.id).then((r) => { wrote(r, toast, "Couldn't change the plan's days"); }); }
+            else {
+              const was = stopMeta.plan_days;
+              setStopMeta((m) => ({ ...m, plan_days: n }));
+              void supabase.from("stops").update({ plan_days: n }).eq("id", target.id).then((r) => { if (!wrote(r, toast, "Couldn't change the plan's days")) setStopMeta((m) => ({ ...m, plan_days: was })); });
+            }
           }}
           onClose={() => setPlanOpen(false)} />
       )}
@@ -2639,7 +2657,7 @@ function MeetingNotes() {
   };
   const archive = async (n: MeetingNote, on: boolean) => {
     if (!supabase) return;
-    await supabase.from("meeting_notes").update({ archived_at: on ? new Date().toISOString() : null }).eq("id", n.id);
+    if (!wrote(await supabase.from("meeting_notes").update({ archived_at: on ? new Date().toISOString() : null }).eq("id", n.id), toast, on ? "Couldn't archive the note" : "Couldn't restore the note")) return;
     toast(on ? "Note archived" : "Note restored"); load();
   };
 
@@ -2742,7 +2760,7 @@ function MeetingNotes() {
   const remove = async (n: MeetingNote) => {
     if (!supabase || !isAdmin) return;
     if (!(await confirm({ title: `Delete “${n.title}”?`, body: "This also removes its follow-ups.", confirmLabel: "Delete", danger: true }))) return;
-    await supabase.from("meeting_notes").delete().eq("id", n.id);
+    if (!wrote(await supabase.from("meeting_notes").delete().eq("id", n.id), toast, "Couldn't delete the note")) return;
     toast("Note deleted"); load();
   };
 
@@ -3761,7 +3779,8 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
 
   const save = async () => {
     setBusy(true);
-    if (name !== (m.display_name ?? "")) await supabase!.rpc("admin_set_display_name", { member: m.id, name });
+    // The name first, and nothing more if it was refused (R12b, F4): "Saved" followed a name that never changed.
+    if (name !== (m.display_name ?? "") && !wrote(await supabase!.rpc("admin_set_display_name", { member: m.id, name }), toast, "Couldn't change the name")) { setBusy(false); return; }
     // Only what was changed goes (0414): the points, the credit or Founding as read when the form loaded would write back
     // over a spend at the window or a referral's undoing made since — null leaves each as the database has it.
     const { error } = await supabase!.rpc("admin_set_member", {
@@ -4534,8 +4553,11 @@ function EventsAdmin() {
 
   // upsert the full econ row (keeps DB authoritative copy in sync with the panel)
   const saveEcon = async (id: string, econ: EventEcon) => {
+    const was = econMap[id];
     setEconMap((m) => ({ ...m, [id]: econ })); // optimistic — no flicker on the live gauge
-    await supabase!.from("event_economics").upsert({ event_id: id, ...econ }, { onConflict: "event_id" });
+    // Refused, the gauge goes back to what the database holds (R12b, F4): it showed numbers that were never kept.
+    if (!wrote(await supabase!.from("event_economics").upsert({ event_id: id, ...econ }, { onConflict: "event_id" }), toast, "Couldn't save the event's numbers"))
+      setEconMap((m) => { const next = { ...m }; if (was) next[id] = was; else delete next[id]; return next; });
   };
 
   const update = async (id: string, patch: Partial<EventRow>) => {
@@ -4797,8 +4819,8 @@ function VendorLocationsEditor({ vendorId, vendorName }: { vendorId: string; ven
   };
   const setPrimary = async (id: string) => {
     if (!supabase) return;
-    // Clear the old primary first — the partial unique index enforces ONE.
-    await supabase.from("vendor_locations").update({ is_primary: false }).eq("vendor_id", vendorId).eq("is_primary", true);
+    // Clear the old primary first — the partial unique index enforces ONE — and stop there if that was refused.
+    if (!wrote(await supabase.from("vendor_locations").update({ is_primary: false }).eq("vendor_id", vendorId).eq("is_primary", true), toast, "Couldn't set primary")) return;
     const { error } = await supabase.from("vendor_locations").update({ is_primary: true }).eq("id", id);
     toast(error ? `Couldn't set primary — ${error.message}` : "Primary location set", error ? "error" : undefined);
     load();
@@ -4907,8 +4929,8 @@ function VendorsAdmin() {
     if (r.kind === "similar") { setResolve({ name: sug.name, candidates: r.candidates, ctx: { type: "from", sug } }); return; }
     if (r.kind === "error") { toast(`Error: ${r.message}`, "error"); return; }
     setResolve(null);
-    if (sug.kind === "stop") await supabase!.from("stops").update({ vendor_id: r.id }).eq("id", sug.id);
-    else await supabase!.from("events").update({ vendor_id: r.id }).eq("id", sug.id);
+    const linked = await supabase!.from(sug.kind === "stop" ? "stops" : "events").update({ vendor_id: r.id }).eq("id", sug.id);
+    if (!wrote(linked, toast, r.kind === "created" ? `Vendor created, but ${sug.name} isn't linked to it` : `Couldn't link ${sug.name}`)) { load(); return; }
     toast(r.kind === "created" ? `Vendor created from ${sug.name} — now linked` : `${sug.name} linked to the existing vendor`);
     load();
   };
@@ -4925,12 +4947,13 @@ function VendorsAdmin() {
     toast(`Merged into ${keepName}${moved ? ` — repointed ${moved}` : ""}`);
     load();
   };
-  const archive = async (id: string) => { await supabase!.from("vendors").update({ archived_at: new Date().toISOString() }).eq("id", id); setOpenId(null); load(); };
-  const restore = async (id: string) => { await supabase!.from("vendors").update({ archived_at: null }).eq("id", id); load(); };
-  const del = async (id: string, nm: string) => { if (!(await confirm({ title: `Delete ${nm}?`, confirmLabel: "Delete", danger: true }))) return; await supabase!.from("vendors").delete().eq("id", id); load(); };
+  // Each one done only when the book says so (R12b, F4).
+  const archive = async (id: string) => { if (!wrote(await supabase!.from("vendors").update({ archived_at: new Date().toISOString() }).eq("id", id), toast, "Couldn't archive the vendor")) return; setOpenId(null); load(); };
+  const restore = async (id: string) => { if (!wrote(await supabase!.from("vendors").update({ archived_at: null }).eq("id", id), toast, "Couldn't restore the vendor")) return; load(); };
+  const del = async (id: string, nm: string) => { if (!(await confirm({ title: `Delete ${nm}?`, confirmLabel: "Delete", danger: true }))) return; if (!wrote(await supabase!.from("vendors").delete().eq("id", id), toast, `Couldn't delete ${nm}`)) return; toast(`${nm} deleted`); load(); };
   // Approve a venue that was added on the fly from a truck stop (0191) — it becomes a first-class
   // vendor. Opening it to fill in the contact details is the natural next step.
-  const approve = async (id: string) => { await supabase!.from("vendors").update({ status: "approved" }).eq("id", id); toast("Vendor approved"); setOpenId(id); load(); };
+  const approve = async (id: string) => { if (!wrote(await supabase!.from("vendors").update({ status: "approved" }).eq("id", id), toast, "Couldn't approve the vendor")) return; toast("Vendor approved"); setOpenId(id); load(); };
   const active = vendors.filter((v) => !v.archived_at);
   const pending = active.filter((v) => v.status === "pending");
   const archived = vendors.filter((v) => v.archived_at);
@@ -5028,18 +5051,15 @@ function VendorsAdmin() {
           onUse={async (c) => {
             const ctx = resolve.ctx; setResolve(null);
             if (ctx.type === "add") { setOpenId(c.id); toast(`${c.name} is already in the book — opened it`); return; }
-            if (ctx.sug.kind === "stop") await supabase!.from("stops").update({ vendor_id: c.id }).eq("id", ctx.sug.id);
-            else await supabase!.from("events").update({ vendor_id: c.id }).eq("id", ctx.sug.id);
+            if (!wrote(await supabase!.from(ctx.sug.kind === "stop" ? "stops" : "events").update({ vendor_id: c.id }).eq("id", ctx.sug.id), toast, `Couldn't link ${ctx.sug.name}`)) return;
             toast(`${ctx.sug.name} linked to ${c.name}`); load();
           }}
           onAddLocation={async (c) => {
             const ctx = resolve.ctx; setResolve(null);
             const src = ctx.type === "from" && ctx.sug.kind === "stop" ? ctx.sug.stop : null;
-            await addVendorLocation(c.id, { label: resolve.name, address: src?.address ?? null, location_text: src?.location_text ?? null, lat: src?.lat ?? null, lng: src?.lng ?? null });
-            if (ctx.type === "from") {
-              if (ctx.sug.kind === "stop") await supabase!.from("stops").update({ vendor_id: c.id }).eq("id", ctx.sug.id);
-              else await supabase!.from("events").update({ vendor_id: c.id }).eq("id", ctx.sug.id);
-            }
+            const made = await addVendorLocation(c.id, { label: resolve.name, address: src?.address ?? null, location_text: src?.location_text ?? null, lat: src?.lat ?? null, lng: src?.lng ?? null });
+            if (!made) { toast(`Couldn't add “${resolve.name}” as a location of ${c.name}`, "error"); return; }
+            if (ctx.type === "from" && !wrote(await supabase!.from(ctx.sug.kind === "stop" ? "stops" : "events").update({ vendor_id: c.id }).eq("id", ctx.sug.id), toast, `Added the location, but couldn't link ${ctx.sug.name}`)) { load(); return; }
             toast(`Added “${resolve.name}” as a location of ${c.name}`); load();
           }}
           onCreateDistinct={() => {

@@ -29,6 +29,7 @@ import Button from "./Button";
 import { IconButton } from "@/components/controls";
 import { RowMenu } from "@/components/LongPress";
 import { rovingKeys, rovingTab } from "./roving";
+import { wrote } from "@/lib/wrote";
 
 // BREW — recipes + a back-scheduled batch plan. Pick a recipe, set the batch size in GALLONS (the
 // recipe scales exactly to it and hits its OG/Signal-Score spec), tie it to the event it's for, and
@@ -303,18 +304,18 @@ export default function BrewPlanner() {
     const startIso = new Date(startLocal).toISOString();
     const readyIso = new Date(new Date(startLocal).getTime() + hrs * 3600000).toISOString();
     setNow(Date.now());
-    await supabase.from("brew_batches").update({ brew_started_at: startIso, ready_at: readyIso, alerted_soon: false, alerted_ready: false }).eq("id", b.id);
+    if (!wrote(await supabase.from("brew_batches").update({ brew_started_at: startIso, ready_at: readyIso, alerted_soon: false, alerted_ready: false }).eq("id", b.id), toast, "Couldn't set the brew time")) return;
     reload();
   };
   const stopBrew = async (b: Batch) => {
     if (!supabase) return;
     const nowIso = new Date().toISOString();
-    await supabase.from("brew_batches").update({ status: "ready", ready_at: nowIso, alerted_ready: true }).eq("id", b.id);
+    if (!wrote(await supabase.from("brew_batches").update({ status: "ready", ready_at: nowIso, alerted_ready: true }).eq("id", b.id), toast, "Couldn't mark it ready")) return;
     reload();
   };
   const undoStart = async (b: Batch) => {
     if (!supabase) return;
-    await supabase.from("brew_batches").update({ status: "planned", brew_started_at: null, ready_at: null, alerted_soon: false, alerted_ready: false, alerted_started: false }).eq("id", b.id);
+    if (!wrote(await supabase.from("brew_batches").update({ status: "planned", brew_started_at: null, ready_at: null, alerted_soon: false, alerted_ready: false, alerted_started: false }).eq("id", b.id), toast, "Couldn't take the start back")) return;
     reload();
   };
 
@@ -528,7 +529,9 @@ export default function BrewPlanner() {
                           {ms <= 0 && (
                             <button type="button" className="btn-ter ml-2.5" onClick={async () => {
                               if (!supabase) return;
-                              await supabase.from("brew_batches").update({ hold_hours: Number(b.hold_hours ?? 72) + 24 }).eq("id", b.id);
+                              // Said either way (R12b, F4): the ladder kept pushing over a hold that never moved.
+                              if (!wrote(await supabase.from("brew_batches").update({ hold_hours: Number(b.hold_hours ?? 72) + 24 }).eq("id", b.id), toast, "Couldn't extend the hold")) return;
+                              toast("Hold extended 24 hours"); reload();
                             }}>Tasted — still good, +24h</button>
                           )}
                         </div>
@@ -697,9 +700,14 @@ function BatchLog({ batch, events, stops, lotBoard, onClose, onSaved, onRemove }
       stop_id: targets[0]?.startsWith("s:") ? targets[0].slice(2) : null,
     } as Record<string, unknown>, ["brewer_id", "coffee_lot_id"]);
     if (error) { setErr(error.message); setBusy(false); return; }
-    // Re-sync the links to the chosen set (clear + insert).
-    await supabase.from("brew_batch_links").delete().eq("batch_id", batch.id);
-    if (targets.length) await supabase.from("brew_batch_links").insert(targets.map((t) => { const [k, id] = t.split(":"); return k === "s" ? { batch_id: batch.id, stop_id: id } : { batch_id: batch.id, event_id: id }; }));
+    // Re-sync the links to the chosen set (clear + insert) — and say it if they did not take (R12b, F4): the sheet closed
+    // on a batch that served nothing, or still served what it no longer should.
+    const cleared = await supabase.from("brew_batch_links").delete().eq("batch_id", batch.id);
+    if (cleared.error) { setErr(`Saved the batch, but its events and stops didn't update — ${cleared.error.message}`); setBusy(false); return; }
+    if (targets.length) {
+      const linked = await supabase.from("brew_batch_links").insert(targets.map((t) => { const [k, id] = t.split(":"); return k === "s" ? { batch_id: batch.id, stop_id: id } : { batch_id: batch.id, event_id: id }; }));
+      if (linked.error) { setErr(`Saved the batch, but it isn't linked to its events and stops — ${linked.error.message}. Save again.`); setBusy(false); return; }
+    }
     setBusy(false); onSaved();
   };
   // ONE REMOVAL PATH, NOT TWO. This used to be a raw delete that promised "can't be undone" and
@@ -977,7 +985,9 @@ function BrewSheet({ recipe, events, stops, vessels, inv, initialTarget, onClose
     // Link the new batch to EVERY event/stop it serves (many-to-many).
     if (j.batch_id && targets.length && supabase) {
       const links = targets.map((t) => { const [k, id] = t.split(":"); return k === "s" ? { batch_id: j.batch_id, stop_id: id } : { batch_id: j.batch_id, event_id: id }; });
-      await supabase.from("brew_batch_links").insert(links);
+      const linked = await supabase.from("brew_batch_links").insert(links);
+      // The batch is made either way; a link that did not take is said, so it is linked from the batch (R12b, F4).
+      if (linked.error) setErr(`The batch is saved, but it isn't linked to everything it serves — ${linked.error.message}. Link it from the batch.`);
     }
     setSaved(true);
     setBusy(false);

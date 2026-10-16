@@ -11,6 +11,7 @@ import Icon from "@/components/Icon";
 import { InfoRow } from "@/components/kit";
 import { localToday } from "@/lib/dates";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { wrote } from "@/lib/wrote";
 
 // MAINTENANCE & AUDITS (Settings) — the owner's record of every audit run on the app: what kind, when,
 // the prompt used, the result/score, a summary, findings, and a link to the artifact. Opens with a
@@ -88,7 +89,7 @@ export default function MaintenanceLog() {
     toast(d.id ? "Audit updated" : "Audit logged");
     setD(BLANK); setComposing(false); reload();
   };
-  const del = async (a: Audit) => { if (!supabase) return; if (!(await confirm({ title: `Delete “${a.title}”?`, confirmLabel: "Delete", danger: true }))) return; await supabase.from("maintenance_log").delete().eq("id", a.id); reload(); };
+  const del = async (a: Audit) => { if (!supabase) return; if (!(await confirm({ title: `Delete “${a.title}”?`, confirmLabel: "Delete", danger: true }))) return; if (!wrote(await supabase.from("maintenance_log").delete().eq("id", a.id), toast, `Couldn't delete “${a.title}”`)) return; reload(); };
 
   const stats = useMemo(() => {
     const r = board.data ?? [];

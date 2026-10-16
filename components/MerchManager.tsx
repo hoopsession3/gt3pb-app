@@ -275,8 +275,11 @@ function MerchRow({ p, all, open, onToggle, onOpen, onSaved, toast }: {
       sort: d.sort, published_at: d.published_at, archived_at: d.archived_at,
       updated_at: now,
     }).eq("id", p.id);
+    // The other product gets its link back when this save failed — and if that fails too, say so: the Apliiq link is
+    // then on neither product (R12b, F4).
     if (error && absorbing) {
-      await supabase.from("shop_products").update({ apliiq_product_id: typedId, archived_at: absorbing.archived_at, updated_at: now }).eq("id", absorbing.id);
+      const back = await supabase.from("shop_products").update({ apliiq_product_id: typedId, archived_at: absorbing.archived_at, updated_at: now }).eq("id", absorbing.id);
+      if (back.error) { toast(`Didn't save, and Apliiq #${typedId} couldn't go back to “${absorbing.public_title || absorbing.title}” — link it there by hand. (${back.error.message})`, "error"); return; }
     }
     if (error) toast(`Error: ${error.message}`, "error");
     else { toast(absorbing ? `Saved — Apliiq #${typedId} is linked here, and “${absorbing.public_title || absorbing.title}” is archived.` : "Saved"); setAbsorb(null); onSaved(); }

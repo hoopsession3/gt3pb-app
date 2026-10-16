@@ -24,6 +24,7 @@ import { usePrompt } from "@/components/PromptSheet";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { useMinute } from "@/lib/useMinute";
 import { dueAnchor, officeLate, type OfficeFeed } from "@/lib/dueNext";
+import { refusalText } from "@/lib/refusal";
 
 // CREW · OFFICE ORDERS — the operator's control surface for the Monday B2B route (0187). See upcoming
 // office deliveries, log the jug swap (full out / empties in) on delivery, and settle billing
@@ -166,17 +167,9 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
     reload();
   };
 
-  const bumpJugs = async (o: BOrder, jugsIn: number) => {
-    if (!o.business_id) return; // one-off order, no standing account to track a balance for
-    const { data: acct } = await supabase!.from("business_accounts").select("jug_balance").eq("id", o.business_id).single();
-    const bal = Math.max(0, (acct?.jug_balance ?? 0) + Math.round(o.gallons) - jugsIn); // +full out, −empties in
-    await supabase!.from("jug_ledger").insert({ business_id: o.business_id, business_order_id: o.id, jugs_out: Math.round(o.gallons), jugs_in: jugsIn, balance_after: bal });
-    await supabase!.from("business_accounts").update({ jug_balance: bal }).eq("id", o.business_id);
-  };
-
-  // UNDOING A SWAP. bumpJugs writes a jug_ledger row and moves business_accounts.jug_balance, so a
+  // UNDOING A SWAP. A logged swap wrote a jug_ledger row and moved business_accounts.jug_balance, so a
   // miscount is wrong in two places at once. void_jug_entry reverses both in one transaction and
-  // keeps the row as the record — and it clamps at zero exactly where bumpJugs does, which is the
+  // keeps the row as the record — and it clamps at zero exactly where the logged swap did, which is the
   // bug 0310 fixed after I shipped the reversal without it.
   const voidSwap = async (o: BOrder) => {
     if (!supabase || busyId) return;
@@ -196,21 +189,14 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
 
   // ONE WRITE (2026-10-07, 0357). office_log_delivery records the outcome, the jugs, the ledger row and
   // the balance together with the order locked — the driver's run (components/OfficeRun) uses the same
-  // door, so two phones cannot count one swap twice; these were three writes from the browser. Until
-  // 0357 is pasted the function isn't there and the old writes below stand.
+  // door, so two phones cannot count one swap twice; these were three writes from the browser.
+  // THE ONLY WRITE (R12b, the 10/10 audit, F4): 0357 is applied, so the browser's three writes — kept for a database
+  // without the function — went; they read none of their answers (a ledger row with no balance moved, or the reverse).
   const deliver = async (o: BOrder, swapped: boolean) => {
     if (!supabase || busyId) return; setBusyId(o.id);
     const jugsIn = swapped ? Math.max(0, empties[o.id] ?? Math.round(o.gallons)) : 0;
     const one = await supabase.rpc("office_log_delivery", { p_order: o.id, p_outcome: swapped ? "delivered_swapped" : "delivered_no_swap", p_jugs_in: swapped ? jugsIn : null });
-    if (one.error && !isMissingFunction(one.error)) { toast(one.error.message, "error"); setBusyId(null); reload(); return; }
-    if (one.error) {
-      const { error } = await supabase.from("business_orders").update({
-        status: "delivered", driver_outcome: swapped ? "delivered_swapped" : "delivered_no_swap",
-        jugs_out: Math.round(o.gallons), jugs_in: jugsIn,
-      }).eq("id", o.id);
-      if (error) { toast("Didn't save — try again", "error"); setBusyId(null); return; }
-      await bumpJugs(o, jugsIn);
-    }
+    if (one.error) { toast(refusalText(one.error) ?? "Didn't save — try again", "error"); setBusyId(null); reload(); return; }
     setBusyId(null); setOpenId(null); toast(`${o.company} — delivered`); reload();
   };
 

@@ -41,9 +41,11 @@ async function post(req: Request) {
     // scoped-by: `id` was read above with .eq("user_id", user.id), so it is provably this
     // caller's own subscription. The update keys off that verified id, not off anything the
     // request supplied — the ownership check is two statements up, where a regex cannot see it.
-    await supabaseAdmin.from("subscriptions")
+    const mirrored = await supabaseAdmin.from("subscriptions")
       .update({ status: written, updated_at: new Date().toISOString() })
       .eq("square_subscription_id", id);
+    // Square has it either way, and its webhook brings the mirror round; a mirror that missed is said in the log (R12b, F4).
+    if (mirrored.error) console.error(`subscriptions: ${action} done at Square for ${id}, but the mirror wasn't updated — ${mirrored.error.message}`);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Service unavailable" }, { status: 502 });

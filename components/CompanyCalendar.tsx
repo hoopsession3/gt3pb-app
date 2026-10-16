@@ -33,6 +33,8 @@ import { SectionHeader } from "@/components/kit";
 import { useOutlookStatus, outlookLine } from "./OutlookConnect";
 import GoLine from "./GoLine";
 import Button from "./Button";
+import { wrote } from "@/lib/wrote";
+import { useApp } from "./AppProvider";
 
 // COMPANY CALENDAR — one pane for everything dated: truck events, admin/ops work, scheduled content
 // (from Studio), and free-standing to-dos. Category-colored, filterable, click-through to source.
@@ -116,6 +118,7 @@ const qStart = (cursor: Date) => Math.floor(cursor.getMonth() / 3) * 3;
 // the team's anchor; My Day stays each person's actionable lens on it.
 export default function CompanyCalendar({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { setSection } = useOperatorSection();
+  const { toast } = useApp();
   const { openRecord } = useRecord();
   const { profile } = useAuth();
   const role = roleOf(profile);
@@ -238,7 +241,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
   const openPlanTab = (tab: PlanTab, anchor?: string) => goPlanTab(tab, { setSection, anchor });
   const toggleTodo = async (t: Todo) => {
     if (!supabase || readOnly) return;
-    await updateTask("todo", t.id, { done: !t.done });   // ONE write path (lib/tasks)
+    wrote(await updateTask("todo", t.id, { done: !t.done }), toast, t.done ? "Couldn't reopen the to-do" : "Couldn't check the to-do off");   // ONE write path (lib/tasks)
     reload();
   };
   // Drag-to-reschedule for every editable kind — same rule as CalEdit's onDate: plain-date columns
@@ -257,13 +260,14 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
       const hh = old ? `${pad(old.getHours())}:${pad(old.getMinutes())}` : cfg.defTime;
       val = new Date(`${dayKey}T${hh}:00`).toISOString();
     }
-    if (kind === "task") await updateTask("event", id, { dueISO: val });   // ONE write path (lib/tasks)
-    else await supabase.from(cfg.table).update({ [cfg.dateCol]: val }).eq("id", id);
+    // A move that did not take is said, and the calendar reads again where it really is (R12b, F4).
+    if (kind === "task") { const r = await updateTask("event", id, { dueISO: val }); if (r.error) toast(`Couldn't move it — ${r.error}`, "error"); }   // ONE write path (lib/tasks)
+    else wrote(await supabase.from(cfg.table).update({ [cfg.dateCol]: val }).eq("id", id), toast, "Couldn't move it");
     reload();
   };
   const unschedule = async (kind: EditKind, id: string) => {
     if (!supabase || readOnly || (kind !== "todo" && kind !== "content")) return;
-    await supabase.from(SRC[kind].table).update({ [SRC[kind].dateCol]: null }).eq("id", id);
+    wrote(await supabase.from(SRC[kind].table).update({ [SRC[kind].dateCol]: null }).eq("id", id), toast, "Couldn't take it off the calendar");
     reload();
   };
   // Business-rhythm rollups deep-link to the lane page that owns them.
@@ -860,6 +864,7 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
   walker?: ReactNode;
 }) {
   const confirm = useConfirm();
+  const { toast } = useApp();
   // events + stops route to FieldOpSheet (the one quick editor) before reaching here — CalEdit
   // handles every other kind: todo / content / task / brew / goal / lead / pipe / meeting.
   const cfg = SRC[kind];
@@ -909,7 +914,8 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
     const name = (f[cfg.nameCol] || "").trim();
     if (kind === "task") {
       // ONE write path (lib/tasks) — done carries done_at/done_by bookkeeping a raw update would miss
-      await updateTask("event", id, { title: name, dueISO: f.due_at || null, done: !!f.done });
+      const r = await updateTask("event", id, { title: name, dueISO: f.due_at || null, done: !!f.done });
+      if (r.error) { toast(`Couldn't save the task — ${r.error}`, "error"); setSaving(false); return; }
     } else {
       const patch: any = { [cfg.nameCol]: name || null, [cfg.dateCol]: f[cfg.dateCol] || null };
       if (kind === "todo") { patch.category = f.category || "ops"; patch.event_id = f.event_id || null; }
@@ -918,7 +924,8 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
       else if (kind === "lead") patch.status = f.status || "new";
       else if (kind === "pipe") patch.stage = f.stage || "lead";
       if (kind === "meeting" && !patch.met_on) delete patch.met_on;   // met_on is NOT NULL — clearing keeps the old date
-      await supabase.from(cfg.table).update(patch).eq("id", id);
+      // The editor closes on a save that landed (R12b, F4): it closed on a refusal too, the change gone without a word.
+      if (!wrote(await supabase.from(cfg.table).update(patch).eq("id", id), toast, "Couldn't save it")) { setSaving(false); return; }
     }
     setSaving(false); onSaved();
   };
@@ -932,8 +939,8 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
       ? { title: "Unschedule this from the calendar?", body: "It stays in Brand.", confirmLabel: "Unschedule" }
       : { title: "Delete this to-do?", confirmLabel: "Delete", danger: true }))) return;
     setSaving(true);
-    if (kind === "todo") await deleteTask("todo", id);   // ONE write path (lib/tasks)
-    else await supabase.from("content_items").update({ scheduled_for: null }).eq("id", id);
+    if (kind === "todo") { const r = await deleteTask("todo", id); if (r.error) { toast(`Couldn't delete the to-do — ${r.error}`, "error"); setSaving(false); return; } }   // ONE write path (lib/tasks)
+    else if (!wrote(await supabase.from("content_items").update({ scheduled_for: null }).eq("id", id), toast, "Couldn't unschedule it")) { setSaving(false); return; }
     setSaving(false); onSaved();
   };
   if (!f) return null;

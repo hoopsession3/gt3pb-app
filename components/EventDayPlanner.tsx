@@ -14,6 +14,8 @@ import { useCrew } from "./useCrew";
 import { follow } from "@/lib/pickFill";
 import { edited } from "@/lib/formGuard";
 import Button from "./Button";
+import { wrote } from "@/lib/wrote";
+import { useApp } from "./AppProvider";
 
 // EVENT DAY PLANNER — a multi-day, time-by-time run of show for one event. Pick how many days the
 // event runs, then build each day block by block: leave home 9:00, drive, arrive Airbnb (address +
@@ -89,6 +91,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
   ownerType?: "event" | "stop"; eventId: string; title: string; eventDay: string | null; planDays: number; initialDay?: number; onPlanDays: (n: number) => void; onClose: () => void;
 }) {
   const ownerCol = ownerType === "stop" ? "stop_id" : "event_id"; // event_schedule_items belongs to one owner
+  const { toast } = useApp();
   const days = Math.max(1, planDays || 1);
   const [active, setActive] = useState(Math.min(Math.max(1, initialDay), Math.max(1, planDays || 1)));
   const [editing, setEditing] = useState<Item | "new" | null>(null);
@@ -149,19 +152,20 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
     if (!supabase) return;
     const { data: { user } } = await supabase.auth.getUser();
     const nextSort = (dayItems[dayItems.length - 1]?.sort ?? 0) + 1;
-    await supabase.from("event_schedule_items").insert({
+    // Every block's write is read (R12b, F4): a block that did not save simply was not there, with nothing said.
+    wrote(await supabase.from("event_schedule_items").insert({
       [ownerCol]: eventId, day_index: active, day_date: dayDate(active),
       title: patch.title ?? "New block", kind: patch.kind ?? "other",
       start_time: patch.start_time ?? null, end_time: patch.end_time ?? null,
       location: patch.location ?? null, address: patch.address ?? null, details: patch.details ?? null, who: patch.who ?? null,
       sort: patch.sort ?? nextSort, created_by: user?.id ?? null,
-    });
+    }), toast, "Couldn't add the block");
     reload();
   };
-  const saveItem = async (id: string, patch: Partial<Item>) => { if (!supabase) return; await supabase.from("event_schedule_items").update(patch).eq("id", id); reload(); };
-  const delItem = async (id: string) => { if (!supabase) return; await supabase.from("event_schedule_items").delete().eq("id", id); reload(); };
-  const toggle = async (it: Item) => { if (!supabase) return; await supabase.from("event_schedule_items").update({ done: !it.done, done_at: !it.done ? new Date().toISOString() : null }).eq("id", it.id); reload(); };
-  const moveDay = async (it: Item, di: number) => { if (!supabase) return; await supabase.from("event_schedule_items").update({ day_index: di, day_date: dayDate(di) }).eq("id", it.id); reload(); };
+  const saveItem = async (id: string, patch: Partial<Item>) => { if (!supabase) return; wrote(await supabase.from("event_schedule_items").update(patch).eq("id", id), toast, "Couldn't save the block"); reload(); };
+  const delItem = async (id: string) => { if (!supabase) return; wrote(await supabase.from("event_schedule_items").delete().eq("id", id), toast, "Couldn't delete the block"); reload(); };
+  const toggle = async (it: Item) => { if (!supabase) return; wrote(await supabase.from("event_schedule_items").update({ done: !it.done, done_at: !it.done ? new Date().toISOString() : null }).eq("id", it.id), toast, it.done ? "Couldn't reopen the block" : "Couldn't check the block off"); reload(); };
+  const moveDay = async (it: Item, di: number) => { if (!supabase) return; wrote(await supabase.from("event_schedule_items").update({ day_index: di, day_date: dayDate(di) }).eq("id", it.id), toast, "Couldn't move the block"); reload(); };
 
   // "When to leave" — the AI scheduler reads THIS day's slots and says when to leave, anchored on
   // the first fixed commitment. Cleared whenever you switch days or the blocks change.
@@ -177,7 +181,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
         // auto-fill the event's calendar buffer from the computed drive+setup time
         if (typeof j.buffer_min === "number" && j.buffer_min > 0) {
           const table = ownerCol === "stop_id" ? "stops" : "events";
-          supabase.from(table).update({ default_buffer_min: j.buffer_min }).eq("id", eventId).then(() => {});
+          void supabase.from(table).update({ default_buffer_min: j.buffer_min }).eq("id", eventId).then((r) => { wrote(r, toast, "Couldn't set the calendar's buffer"); });
         }
       }
     } catch { /* leave banner empty on failure */ }

@@ -171,9 +171,10 @@ export async function brewRecipeFacts(): Promise<string> {
 export async function logConvo(agent: string, question: string, answer: string, userId: string | null, authorName: string | null): Promise<void> {
   if (!supabaseAdmin) return;
   try {
-    await supabaseAdmin.from("agent_convos").insert({
+    const { error } = await supabaseAdmin.from("agent_convos").insert({
       agent, question: question.slice(0, 2000), answer: answer.slice(0, 4000),
       user_id: userId, author_name: authorName,
     });
+    if (error) console.warn(`agents: the ${agent} exchange wasn't logged — ${error.message}`);   // best-effort, but said (R12b)
   } catch { /* logging is best-effort */ }
 }

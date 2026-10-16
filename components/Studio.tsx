@@ -14,6 +14,9 @@ import Sheet, { CloseButton } from "@/components/Sheet";
 import { usePagerLevel } from "@/components/SwipePager";
 import Icon from "@/components/Icon";
 import { InfoRow } from "@/components/kit";
+import { wrote } from "@/lib/wrote";
+import { refusalText } from "@/lib/refusal";
+import { useApp } from "./AppProvider";
 
 type CLink = { id: string; event_id: string | null; stop_id: string | null; play_key: string | null };
 import BrandCalendar from "./BrandCalendar";
@@ -90,6 +93,7 @@ function VideoThumb({ src }: { src: string }) {
 
 export default function Studio() {
   const { setSection } = useOperatorSection();
+  const { toast } = useApp();
   const goCompanyCal = () => goPlanTab("calendar", { setSection });
   const { user, profile } = useAuth();
   // The door to the one copy editor is drawn only for those Settings shows it to: an owner or an
@@ -153,7 +157,11 @@ export default function Studio() {
   const reorderFeed = async (orderedIds: string[]) => {
     if (!supabase) return;
     setDragOrder(orderedIds);
-    await Promise.all(orderedIds.map((idv, i) => supabase!.from("content_items").update({ grid_sort: i }).eq("id", idv)));
+    // The feed's order is the database's once every tile's place is (R12b, F4): a refused one was dropped unread, and
+    // the grid snapped back on the next read with nothing said.
+    const answers = await Promise.all(orderedIds.map((idv, i) => supabase!.from("content_items").update({ grid_sort: i }).eq("id", idv)));
+    const refused = answers.find((a) => a.error);
+    if (refused) wrote(refused, toast, "Couldn't keep the feed's new order");
     await load();
     setDragOrder(null);
   };
@@ -303,6 +311,8 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   const [links, setLinks] = useState<CLink[]>([]); // many-to-many: events + stops + plays (0169)
   const [peers, setPeers] = useState<{ id: string; name: string }[]>([]);
   const [savedAt, setSavedAt] = useState<string>("");
+  // A save that did not land says so where "Saved" stood (R12b, F4): it read "Saved 3:41 PM" over a refused write.
+  const [saveErr, setSaveErr] = useState<string | null>(null);
   const [versions, setVersions] = useState<Version[]>([]);
   const [showVers, setShowVers] = useState(false);
   const [itemFailed, setItemFailed] = useState(false); // read failed ≠ still loading
@@ -403,7 +413,9 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
   const persist = useCallback(async (patch: Record<string, any>) => {
     if (!supabase) return;
-    await supabase.from("content_items").update({ ...patch, updated_by: me.id }).eq("id", id);
+    const { error } = await supabase.from("content_items").update({ ...patch, updated_by: me.id }).eq("id", id);
+    if (error) { setSaveErr(refusalText(error) ?? error.message ?? "try again"); return; }
+    setSaveErr(null);
     setSavedAt(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
   }, [id, me.id]);
 
@@ -486,10 +498,11 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
   const snapshot = async (label: string) => {
     if (!supabase) return;
-    await supabase.from("content_versions").insert({
+    const { error } = await supabase.from("content_versions").insert({
       content_id: id, title, hook, caption, status, label,
       hashtags: tags.split(",").map((s) => s.trim()).filter(Boolean), edited_by: me.id,
     });
+    if (error) setSaveErr(`the version wasn't kept — ${refusalText(error) ?? error.message}`);
     loadVersions();
   };
 
@@ -678,7 +691,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         <div className="studio-presence">
           <span className={`k-tag${STATUS[status]?.tone ?? ""}`}>{STATUS[status]?.label ?? status}</span>
           {peers.map((p) => <span key={p.id} className="studio-peer" title={`${p.name} is here`}>{p.name.slice(0, 1).toUpperCase()}</span>)}
-          {savedAt && <span className="studio-saved">Saved {savedAt}</span>}
+          {saveErr ? <Said as="span" className="studio-saved text-red-hover" assertive>Not saved — {saveErr}</Said> : savedAt && <span className="studio-saved">Saved {savedAt}</span>}
         </div>
       </div>
 
@@ -720,7 +733,8 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
                 <button type="button" aria-label={`Unlink ${label}`} onClick={async () => {
                   if (!supabase) return;
                   setLinks((p) => p.filter((x) => x.id !== l.id));
-                  await supabase.from("content_links").delete().eq("id", l.id);
+                  const { error } = await supabase.from("content_links").delete().eq("id", l.id);
+                  if (error) { setLinks((p) => [...p, l]); setSaveErr(`couldn't unlink ${label} — ${refusalText(error) ?? error.message}`); return; }
                   if (l.event_id && l.event_id === eventId) { setEventId(""); persist({ event_id: null }); }
                   if (l.stop_id && l.stop_id === stopId) { setStopId(""); persist({ stop_id: null }); }
                 }}><Icon name="close" /></button>
@@ -884,7 +898,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         {status === "published" && <button type="button" className="btn-ter" onClick={() => setStage("approved", {}, "unpublished")}>↩ Unpublish</button>}
         <button type="button" className="btn-sec btn-sm" onClick={() => setKitOpen(true)}><Icon name="package" /> Post kit</button>
         <button type="button" className="btn-ter" onClick={() => setShowVers((s) => !s)}>History ({versions.length})</button>
-        <button type="button" className="btn-del" onClick={async () => { if (supabase && (await confirm({ title: "Delete this piece?", body: "This can't be undone.", confirmLabel: "Delete", danger: true }))) { await supabase.from("content_items").delete().eq("id", id); onClose(); } }}>Delete</button>
+        <button type="button" className="btn-del" onClick={async () => { if (supabase && (await confirm({ title: "Delete this piece?", body: "This can't be undone.", confirmLabel: "Delete", danger: true }))) { const { error } = await supabase.from("content_items").delete().eq("id", id); if (error) { setSaveErr(`not deleted — ${refusalText(error) ?? error.message}`); return; } onClose(); } }}>Delete</button>
       </div>
       {status === "changes" && item.review_note && <p className="insp-foot">Requested: {item.review_note}</p>}
 

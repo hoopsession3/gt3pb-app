@@ -11,6 +11,7 @@ import { createEventTask } from "@/lib/tasks";
 import VendorResolve from "./VendorResolve";
 import Icon from "@/components/Icon";
 import Button from "./Button";
+import { wrote } from "@/lib/wrote";
 
 // OPS PLAN (chief-of-staff) — turn a meeting note into a build-able operations plan. Calls the
 // opsplan agent, then lets the operator tap "Create" on each proposed op (event/stop, vendor,
@@ -90,26 +91,31 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
         const dk = whenToDate(op.when);
         const vid = await vendorFor(op.who || op.title);
         if (vid === "asked") return;
-        const { data: s } = await supabase.from("stops").insert({ name: (op.who || op.title).slice(0, 120), location_text: op.who || null, starts_at: new Date(`${dk}T11:00:00`).toISOString(), status: "upcoming", sort: 0, vendor_id: vid }).select("id").single();
-        if (s) await supabase.from("meeting_notes").update({ stop_id: (s as { id: string }).id }).eq("id", noteId);
+        // Made, and tied to the note — or said which of the two did not happen (R12b, F4): a refused insert came back as no
+        // row, and "Stop created" was said anyway.
+        const { data: s, error: sErr } = await supabase.from("stops").insert({ name: (op.who || op.title).slice(0, 120), location_text: op.who || null, starts_at: new Date(`${dk}T11:00:00`).toISOString(), status: "upcoming", sort: 0, vendor_id: vid }).select("id").single();
+        if (sErr || !s) { toast(`Couldn't create the stop — ${sErr?.message ?? "try again"}`, "error"); return; }
+        if (!wrote(await supabase.from("meeting_notes").update({ stop_id: (s as { id: string }).id }).eq("id", noteId), toast, "The stop is made, but the note isn't linked to it")) return;
       } else if (op.type === "event") {
         // An EVENT is a booked show — it belongs in the events table, not stops (the old code
         // mis-routed both into stops).
         const dk = whenToDate(op.when);
         const vid = await vendorFor(op.who || op.title);
         if (vid === "asked") return;
-        const { data: e } = await supabase.from("events").insert({ title: op.title.slice(0, 160), day: dk, category: "event", location_text: op.who || null, vendor_id: vid }).select("id").single();
-        if (e) await supabase.from("meeting_notes").update({ event_id: (e as { id: string }).id }).eq("id", noteId);
+        const { data: e, error: eErr } = await supabase.from("events").insert({ title: op.title.slice(0, 160), day: dk, category: "event", location_text: op.who || null, vendor_id: vid }).select("id").single();
+        if (eErr || !e) { toast(`Couldn't create the event — ${eErr?.message ?? "try again"}`, "error"); return; }
+        if (!wrote(await supabase.from("meeting_notes").update({ event_id: (e as { id: string }).id }).eq("id", noteId), toast, "The event is made, but the note isn't linked to it")) return;
       } else if (op.type === "vendor") {
         const vid = await vendorFor(op.who || op.title);
         if (vid === "asked") return;
-        if (vid) await supabase.from("meeting_notes").update({ vendor_id: vid }).eq("id", noteId);
+        if (vid && !wrote(await supabase.from("meeting_notes").update({ vendor_id: vid }).eq("id", noteId), toast, "Couldn't link the vendor to the note")) return;
       } else if (op.type === "pipeline") {
         const vid = await vendorFor(op.who || op.title);
         if (vid === "asked") return;
         if (vid) {
-          const { data: opp } = await supabase.from("opportunities").insert({ vendor_id: vid, next_step: (op.details || "Make first contact").slice(0, 300), created_by: user.id }).select("id").single();
-          if (opp) await supabase.from("meeting_notes").update({ opportunity_id: (opp as { id: string }).id, vendor_id: vid }).eq("id", noteId);
+          const { data: opp, error: oErr } = await supabase.from("opportunities").insert({ vendor_id: vid, next_step: (op.details || "Make first contact").slice(0, 300), created_by: user.id }).select("id").single();
+          if (oErr || !opp) { toast(`Couldn't add it to the pipeline — ${oErr?.message ?? "try again"}`, "error"); return; }
+          if (!wrote(await supabase.from("meeting_notes").update({ opportunity_id: (opp as { id: string }).id, vendor_id: vid }).eq("id", noteId), toast, "It's in the pipeline, but the note isn't linked to it")) return;
         }
       }
       setDone((s) => ({ ...s, [i]: true })); haptic("success"); toast(`${TYPE_LABEL[op.type] ?? "Op"} created`);

@@ -31,11 +31,15 @@ async function post(req: Request) {
     if (action === "export") {
       if (!item.canva_design_id) return NextResponse.json({ ok: false, error: "make the design first" }, { status: 400 });
       const url = await canvaExport(item.canva_design_id, "png");
-      await supabaseAdmin.from("content_items").update({ export_url: url }).eq("id", content_id).eq("tenant_id", tenant);
+      // The export is the piece's once it is kept on it (R12b, F4: an ok over a dropped write showed no export on reload).
+      const kept = await supabaseAdmin.from("content_items").update({ export_url: url }).eq("id", content_id).eq("tenant_id", tenant);
+      if (kept.error) return NextResponse.json({ ok: false, error: `Exported, but the piece didn't keep it — here it is: ${url}` }, { status: 500 });
       return NextResponse.json({ ok: true, export_url: url });
     }
     const { id, editUrl } = await canvaAutofill({ title: item.title || "", hook: item.hook || "", caption: item.caption || "" });
-    await supabaseAdmin.from("content_items").update({ canva_design_id: id, canva_edit_url: editUrl }).eq("id", content_id).eq("tenant_id", tenant);
+    const kept = await supabaseAdmin.from("content_items").update({ canva_design_id: id, canva_edit_url: editUrl }).eq("id", content_id).eq("tenant_id", tenant);
+    // Made in Canva but not tied to the piece is said, with the design's address (R12b, F4) — a second tap made another.
+    if (kept.error) return NextResponse.json({ ok: false, error: `The design is made in Canva, but the piece didn't keep it — open it here: ${editUrl}` }, { status: 500 });
     return NextResponse.json({ ok: true, canva_design_id: id, canva_edit_url: editUrl });
   } catch (e) {
     return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });

@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
 import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import { edited } from "@/lib/formGuard";
+import { wrote } from "@/lib/wrote";
 
 // Your GT3 profile — photo, name, title, bio. Team culture: a face + a line on who you are, feeding
 // the org chart in Leadership. Avatar goes to the 'avatars' bucket under your own uid folder.
@@ -32,8 +33,10 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
     const up = await uploadToBucket({ bucket: "avatars", file, path: `${user.id}/avatar.${ext || "jpg"}`, upsert: true });
     if ("error" in up) { toast(`Upload failed — ${up.error}`, "error"); setBusy(false); return; }
     const url = `${up.url}?v=${Date.now()}`;
+    // The photo is yours once the profile says so (R12b, F4): "Photo updated" was said over a refused update, and the
+    // sheet showed a picture the account never kept.
+    if (!wrote(await supabase.from("profiles").update({ avatar_url: url }).eq("id", user.id), toast, "Couldn't set the photo")) { setBusy(false); return; }
     setAvatar(url);
-    await supabase.from("profiles").update({ avatar_url: url }).eq("id", user.id);
     await refreshProfile();
     setBusy(false);
     toast("Photo updated");
