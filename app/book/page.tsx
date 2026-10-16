@@ -121,7 +121,7 @@ export default function BookScreen() {
         {/* For bots only: off screen, out of the tab order, hidden from screen readers — and named so no autofill
             profile matches it (a "Website" field was one a password manager's identity fills, and that person's
             request was dropped). */}
-        <div aria-hidden="true" className="hp-park">
+        <div aria-hidden="true" className="absolute left-[-10000px] top-auto size-px overflow-hidden">
           <label htmlFor="b-hp-leave">Leave this empty</label>
           <input id="b-hp-leave" name="hp_leave_empty" tabIndex={-1} autoComplete="off" data-1p-ignore="true" data-lpignore="true" data-form-type="other"
             value={website} onChange={(e) => setWebsite(e.target.value)} />
