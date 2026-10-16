@@ -4,7 +4,6 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { raiseAlertOnce } from "@/lib/serverAlerts";
 import { switchOffPaylink, type LinkOff } from "@/lib/officeLink";
 import { isUuid } from "@/lib/uuid";
-import { isMissingColumn, writeAcrossSkew } from "@/lib/schemaSkew";
 import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
@@ -28,18 +27,16 @@ async function post(req: Request) {
 
   let body: { orderId?: unknown; reason?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ ok: false, error: "Bad request." }, { status: 400 }); }
+  if (!body || typeof body !== "object") return NextResponse.json({ ok: false, error: "Bad request." }, { status: 400 });
   const orderId = isUuid(body.orderId) ? body.orderId : "";
   const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 200) : "";
   if (!orderId) return NextResponse.json({ ok: false, error: "Which order?" }, { status: 400 });
 
-  type Row = { id: string; company: string | null; payment_status: string | null; paylink_url: string | null; paylink_id?: string | null; square_order_id: string | null; canceled_at: string | null };
-  // arrives-with: 0417 — until it is pasted the link's id is no column: read without it (lib/officeLink finds the link at
-  // Square by the order it carries), and the cancel writes without it.
+  type Row = { id: string; company: string | null; payment_status: string | null; paylink_url: string | null; paylink_id: string | null; square_order_id: string | null; canceled_at: string | null };
   // scoped-by: tenant_id = the caller's own tenant; the id is the caller's to name only within it.
-  const BASE = "id, company, payment_status, paylink_url, square_order_id, canceled_at";
-  let read = await supabaseAdmin.from("business_orders").select(`${BASE}, paylink_id`).eq("tenant_id", tenant).eq("id", orderId).maybeSingle();
-  // scoped-by: the same order, in the caller's tenant
-  if (read.error && isMissingColumn(read.error)) read = await supabaseAdmin.from("business_orders").select(BASE).eq("tenant_id", tenant).eq("id", orderId).maybeSingle();
+  const read = await supabaseAdmin.from("business_orders")
+    .select("id, company, payment_status, paylink_url, paylink_id, square_order_id, canceled_at")
+    .eq("tenant_id", tenant).eq("id", orderId).maybeSingle();
   if (read.error) return NextResponse.json({ ok: false, error: "Couldn't read the order — nothing was canceled." }, { status: 503 });
   const o = read.data as Row | null;
   if (!o) return NextResponse.json({ ok: false, error: "That order isn't on the books." }, { status: 404 });
@@ -54,15 +51,12 @@ async function post(req: Request) {
   }
 
   // scoped-by: tenant_id = the caller's own tenant, the id just read in it, and only while it is not canceled.
-  let gone: { id: string }[] | null = null;
-  const { error } = await writeAcrossSkew(async (row) => {
-    const r = await supabaseAdmin!.from("business_orders").update(row).eq("tenant_id", tenant).eq("id", orderId).is("canceled_at", null).select("id");
-    gone = (r.data as { id: string }[] | null) ?? null;
-    return r;
-  }, { canceled_at: new Date().toISOString(), status: "issue", canceled_reason: reason || "canceled by the crew",
-    ...(link === "off" ? { paylink_url: null, paylink_id: null } : {}) } as Record<string, unknown>, ["paylink_id"]);
-  if (error) return NextResponse.json({ ok: false, error: "Couldn't cancel it — try again." }, { status: 500 });
-  if (!(gone as { id: string }[] | null)?.length) return NextResponse.json({ ok: true, already: true });
+  const gone = await supabaseAdmin.from("business_orders")
+    .update({ canceled_at: new Date().toISOString(), status: "issue", canceled_reason: reason || "canceled by the crew",
+      ...(link === "off" ? { paylink_url: null, paylink_id: null } : {}) })
+    .eq("tenant_id", tenant).eq("id", orderId).is("canceled_at", null).select("id");
+  if (gone.error) return NextResponse.json({ ok: false, error: "Couldn't cancel it — try again." }, { status: 500 });
+  if (!gone.data?.length) return NextResponse.json({ ok: true, already: true });
 
   if (link === "unknown") {
     await raiseAlertOnce({

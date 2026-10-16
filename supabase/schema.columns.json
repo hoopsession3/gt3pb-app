@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-16T11:06:42.933Z",
+    "pulled_at": "2026-10-16T14:42:51.270Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
     "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
     "relations": 227,
-    "columns": 2891
+    "columns": 2897
   },
   "academy_acknowledgements": [
     "user_id",
@@ -539,7 +539,8 @@
     "gallons_changed_at",
     "moved_from",
     "moved_at",
-    "client_note"
+    "client_note",
+    "paylink_id"
   ],
   "changelog": [
     "id",
@@ -784,7 +785,8 @@
     "user_id",
     "cents",
     "by_user",
-    "created_at"
+    "created_at",
+    "idem_key"
   ],
   "cup_reminders": [
     "id",
@@ -1555,7 +1557,8 @@
     "points",
     "note",
     "created_at",
-    "by_user"
+    "by_user",
+    "idem_key"
   ],
   "maintenance_log": [
     "id",
@@ -2319,7 +2322,8 @@
     "status_changed_by",
     "refund_amount_cents",
     "apliiq_submit_started_at",
-    "ship_by"
+    "ship_by",
+    "apliiq_submit_unknown_at"
   ],
   "shop_products": [
     "id",
@@ -3127,7 +3131,9 @@
     "closed",
     "age_hours",
     "ship_by",
-    "ship_risk"
+    "ship_risk",
+    "apliiq_submit_started_at",
+    "apliiq_submit_unknown_at"
   ],
   "v_shop_queue": [
     "orders",

@@ -76,8 +76,14 @@ export const CEILING = {
   // shared link opens — its number, where it is, its drinks, what is due — by a key made for sharing, nothing that changes
   // the order and nothing of the card, the tip or refunds; granted to anon and authenticated by name). 0409–0412, 0414 and
   // 0415 redefined functions already counted, and refund_words (0409) is granted to no one.
+  // 2026-10-16, snapshot at ledger 0418: definerExec 119 → 121 — four in, two out. In: void_stop_orders (0416: a stop called
+  // off voids its open cups one write each, owners and admins inside), use_credit and give_free_cup (0416: the scan
+  // screen's two spends keyed per tap, staff inside, never the caller's own card), shop_apliiq_checked (0417: what the crew
+  // found at Apliiq, staff inside) — each granted to authenticated by name. Out: spend_credit and redeem_free_cup, now
+  // invoker wrappers over the two keyed ones. The refund flag triggers, refund_counts_against and refunds_counted are
+  // granted to no one; nothing new is callable signed out (anon 15).
   publicRead: 3,       // tables with a world-readable SELECT policy: live_status, site_copy, stops — the truck's public face
-  definerExec: 119,    // SECURITY DEFINER functions the API roles may call (none of them a trigger any more)
+  definerExec: 121,    // SECURITY DEFINER functions the API roles may call (none of them a trigger any more)
   // …and of them, the ones a caller with NO session may call: the anon key every phone carries. Supabase grants anon by
   // name, so this is what is left once each migration has said who keeps a function (0401). First measured on the
   // snapshot at ledger 0401 (2026-10-14): 55 before 0401, 14 after.

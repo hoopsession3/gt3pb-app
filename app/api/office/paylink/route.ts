@@ -3,12 +3,11 @@ import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { SQUARE_BASE, squareHeaders, safeIdemKey } from "@/lib/squareServer";
 import { switchOffPaylink } from "@/lib/officeLink";
-import { isMissingColumn, writeAcrossSkew } from "@/lib/schemaSkew";
+import { isUuid } from "@/lib/uuid";
 import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // OFFICE PAYMENT LINK — the app creates the Square payment link for a prepaid office order (crew used
 // to text one by hand from Square, so the app never saw the payment id). The link's Square order id is
 // stored on the business_order; when the customer pays, the webhook matches payment.order_id →
@@ -28,24 +27,26 @@ async function post(req: Request) {
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
   if (!token || !locationId) return NextResponse.json({ ok: false, error: "Square isn't configured" }, { status: 503 });
 
-  let orderId = "", off = false;
-  try { ({ orderId, off = false } = await req.json()); } catch { /* */ }
+  let body: { orderId?: unknown; off?: unknown } = {};
+  try { const raw: unknown = await req.json(); if (raw && typeof raw === "object") body = raw; } catch { /* an empty body names no order: said below */ }
+  // An id that is not one is a bad request, never a read the database refuses (that was a 503 "try again").
+  const orderId = isUuid(body.orderId) ? body.orderId : "";
+  const off = body.off === true;
   if (!orderId) return NextResponse.json({ ok: false, error: "orderId required" }, { status: 400 });
 
-  type Row = { id: string; company: string | null; gallons: number | null; total_cents: number | null; payment_status: string | null; paylink_url: string | null; paylink_id?: string | null; square_order_id: string | null; canceled_at: string | null };
-  // arrives-with: 0417 — until it is pasted the link's id is no column: read without it (a link is then found at Square by
-  // the order it carries, lib/officeLink), and a new link is kept without it.
-  const BASE = "id, company, gallons, total_cents, payment_status, paylink_url, square_order_id, canceled_at";
-  let read = await supabaseAdmin.from("business_orders").select(`${BASE}, paylink_id`).eq("tenant_id", tenant).eq("id", orderId).maybeSingle();
-  if (read.error && isMissingColumn(read.error)) read = await supabaseAdmin.from("business_orders").select(BASE).eq("tenant_id", tenant).eq("id", orderId).maybeSingle();
+  type Row = { id: string; company: string | null; gallons: number | null; total_cents: number | null; payment_status: string | null; paylink_url: string | null; paylink_id: string | null; square_order_id: string | null; canceled_at: string | null };
+  // scoped-by: tenant_id = the caller's own tenant; the id is the caller's to name only within it.
+  const read = await supabaseAdmin.from("business_orders")
+    .select("id, company, gallons, total_cents, payment_status, paylink_url, paylink_id, square_order_id, canceled_at")
+    .eq("tenant_id", tenant).eq("id", orderId).maybeSingle();
   if (read.error) return NextResponse.json({ ok: false, error: "Couldn't read the order — try again." }, { status: 503 });
   const o = read.data as Row | null;
   if (!o) return NextResponse.json({ ok: false, error: "order not found" }, { status: 404 });
-  if (off === true) {
+  if (off) {
     // Paid another way: the link goes, so it cannot be paid a second time. Said back as off, none or unknown.
     const link = await switchOffPaylink(token, o);
     // scoped-by: the order just read in the caller's tenant
-    if (link === "off") await writeAcrossSkew((row) => supabaseAdmin!.from("business_orders").update(row).eq("tenant_id", tenant).eq("id", o.id), { paylink_url: null, paylink_id: null }, ["paylink_id"]);
+    if (link === "off") await supabaseAdmin.from("business_orders").update({ paylink_url: null, paylink_id: null }).eq("tenant_id", tenant).eq("id", o.id);
     return NextResponse.json({ ok: link !== "unknown", link });
   }
   if (o.canceled_at) return NextResponse.json({ ok: false, error: "order is canceled" }, { status: 400 });
@@ -65,16 +66,18 @@ async function post(req: Request) {
       },
     }),
   });
-  const j: any = await res.json().catch(() => ({}));
-  const link = j?.payment_link;
+  type LinkReply = { payment_link?: { id?: string; url?: string; order_id?: string }; errors?: { detail?: string }[] };
+  const j = (await res.json().catch(() => ({}))) as LinkReply;
+  const link = j.payment_link;
   if (!res.ok || !link?.url) {
-    return NextResponse.json({ ok: false, error: j?.errors?.[0]?.detail ?? "Square couldn't create the link" }, { status: 502 });
+    return NextResponse.json({ ok: false, error: j.errors?.[0]?.detail ?? "Square couldn't create the link" }, { status: 502 });
   }
   // The linkage IS the feature — if it doesn't save, the webhook can never auto-mark this order paid.
   // Fail loudly; the Square idempotency key means a retry returns the very same link.
   // scoped-by: the order just read in the caller's tenant
-  const { error: linkErr } = await writeAcrossSkew((row) => supabaseAdmin!.from("business_orders").update(row).eq("tenant_id", tenant).eq("id", o.id),
-    { square_order_id: link.order_id ?? null, paylink_url: link.url, paylink_id: link.id ?? null }, ["paylink_id"]);
+  const { error: linkErr } = await supabaseAdmin.from("business_orders")
+    .update({ square_order_id: link.order_id ?? null, paylink_url: link.url, paylink_id: link.id ?? null })
+    .eq("tenant_id", tenant).eq("id", o.id);
   if (linkErr) return NextResponse.json({ ok: false, error: "Link created but didn't save — tap again" }, { status: 502 });
   return NextResponse.json({ ok: true, url: link.url });
 }
