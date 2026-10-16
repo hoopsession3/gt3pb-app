@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "@/components/AppProvider";
+import { useAuth } from "@/components/AuthProvider";
+import { canOf } from "@/lib/roles";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { mondayLabel, nextMondayKey, windowHours } from "@/lib/office";
@@ -62,6 +64,10 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
   const now = useMinute();
   const confirm = useConfirm();
   const { toast } = useApp();
+  // Settling is an owner's or an admin's (0420 settle_office_order, as is_admin() in SQL: the role, or the flag): the
+  // rest of the crew sees what is owed, and the buttons that settle it are not theirs.
+  const { profile } = useAuth();
+  const canSettle = canOf(profile).admin || !!profile?.is_admin;
   const [openId, setOpenId] = useState<string | null>(null);
   const [empties, setEmpties] = useState<Record<string, number>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -208,26 +214,19 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
     setBusyId(null); setOpenId(null); toast(`${o.company} — delivered`); reload();
   };
 
-  // Settling an office order. The status moves only from a state that still owes, so a second tap —
-  // or a second phone — finds nothing to move instead of making a second invoice. The invoice write
-  // is checked: it used to be fired and forgotten, so a refused insert left the order saying
-  // "invoiced" with no invoice behind it, owed by nobody. Its due date comes from the terms in the
-  // database (0341), which is what puts it under Needs you when it falls due.
+  // Settling an office order — ONE DOOR (R10, 0420 settle_office_order). The page wrote the order's payment status and
+  // then the invoice, two writes, and any crew member could write either (or the order's total). Now the database does
+  // both in one write, for an owner or an admin, from a state that still owes only: a second tap — or a second phone —
+  // hears "already settled" instead of making a second invoice, and an invoice that cannot be made leaves the order
+  // owing, as it was. Its due date comes from the terms in the database (0341), which puts it under Needs you.
   const setPay = async (o: BOrder, status: "paid" | "invoiced") => {
     if (!supabase || busyId) return; setBusyId(o.id);
-    const { data: moved, error } = await supabase.from("business_orders").update({ payment_status: status })
-      .eq("id", o.id).in("payment_status", ["pending", "failed"]).select("id");
-    if (error || !moved?.length) {
+    const { data, error } = await supabase.rpc("settle_office_order", { p_order: o.id, p_how: status });
+    const said = (data ?? null) as { ok?: boolean; already?: string | null } | null;
+    if (error || !said?.ok || said.already) {
       setBusyId(null);
-      toast(error ? `Didn't save — ${error.message}` : `${o.company} was already ${o.payment_status === "paid" ? "paid" : "settled"}`, error ? "error" : undefined);
+      toast(error ? `Didn't save — ${error.message}` : `${o.company} was already ${said?.already === "paid" ? "paid" : "settled"}`, error ? "error" : undefined);
       reload(); return;
-    }
-    if (status === "invoiced") {
-      const { error: invErr } = await supabase.from("invoices").insert({ business_id: o.business_id, business_order_id: o.id, amount_cents: o.total_cents, terms: o.billing_terms === "net30" ? "net30" : "net15", status: "open" });
-      if (invErr) {
-        await supabase.from("business_orders").update({ payment_status: o.payment_status }).eq("id", o.id).eq("payment_status", "invoiced");
-        setBusyId(null); toast(`Couldn't make the invoice — ${invErr.message}`, "error"); reload(); return;
-      }
     }
     // Paid another way, its payment link goes (R9): left live, it was paid a second time and nothing said so. Said back
     // when Square would not switch it off; a payment landing on it anyway is flagged by the webhook.
@@ -402,7 +401,7 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
                                 invoice could be made weeks early: the invoice fell due before the delivery, and a
                                 delivery with a link or an invoice stops following its program (a pause, new
                                 gallons). So they wait until the delivery is decided — its cutoff, or delivered. */}
-                            {(o.payment_status === "pending" || o.payment_status === "failed") && (o.status === "delivered" || !o.cutoff_at || new Date(o.cutoff_at).getTime() <= Date.now()) && (
+                            {canSettle && (o.payment_status === "pending" || o.payment_status === "failed") && (o.status === "delivered" || !o.cutoff_at || new Date(o.cutoff_at).getTime() <= Date.now()) && (
                               o.billing_terms === "prepaid"
                                 ? <>
                                     <button type="button" className="btn-sec btn-sm" onClick={() => payLink(o)} disabled={busyId === o.id}>Payment link</button>

@@ -6051,9 +6051,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\{o\.status === "delivered" && <button type="button" className="btn-ter" onClick=\{\(\) => voidSwap\(o\)\}/.test(oo)
     && /\{o\.status === "issue"\s*\? <button type="button" className="btn-sec btn-sm" onClick=\{\(\) => reopen\(o\)\}[^\n]*\n\s*: o\.status !== "delivered" && <button type="button" className="btn-sec btn-sm" onClick=\{\(\) => \{ setOpenId\(o\.id\);/.test(oo)
     && /\{o\.status !== "delivered" && <button type="button" className="btn-ter" onClick=\{\(\) => cancel\(o\)\}/.test(oo));
-  ok("office: settling moves only from a state that still owes (a second tap cannot make a second invoice), and the invoice write is checked",
-    /\.eq\("id", o\.id\)\.in\("payment_status", \["pending", "failed"\]\)\.select\("id"\);/.test(oo)
-    && /const \{ error: invErr \} = await supabase\.from\("invoices"\)\.insert\(/.test(oo) && /if \(invErr\) \{\s*await supabase\.from\("business_orders"\)\.update\(\{ payment_status: o\.payment_status \}\)/.test(oo));
+  // R10 (0420): one door — settle_office_order moves the order from a state that still owes and makes its invoice in the
+  // same write, an owner's or an admin's; the page writes neither column nor the invoice itself (db.r10.test runs it).
+  ok("office: settling is one door (0420) — from a state that still owes, the invoice in the same write; a second tap hears 'already'",
+    /const \{ data, error \} = await supabase\.rpc\("settle_office_order", \{ p_order: o\.id, p_how: status \}\);/.test(oo)
+    && /if \(error \|\| !said\?\.ok \|\| said\.already\) \{/.test(oo) && !/from\("invoices"\)\.insert\(/.test(oo) && !/update\(\{ payment_status/.test(oo)
+    && /\{canSettle && \(o\.payment_status === "pending" \|\| o\.payment_status === "failed"\)/.test(oo) && /const canSettle = canOf\(profile\)\.admin \|\| !!profile\?\.is_admin;/.test(oo));
   ok("needs you: an invoice that falls due has 'Paid' on the row — an admin's, behind a question, settling invoice and order in one write",
     /if \(r\.source === "invoices"\) return \{ label: "Paid", busy, run: \(\) => invoicePaid\(r\) \};/.test(owedSrc)
     && /if \(!way \|\| \(way === "admin" && !admin\)\) return null;/.test(owedSrc) && /const res = await markInvoicePaid\(supabase, r\.subject_id\);/.test(owedSrc)
@@ -7573,7 +7576,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && !/console\.(log|info|warn|error)/.test(am + ar) && /createHash\("sha256"\)\.update\(`gt3-address:\$\{ip\}`\)/.test(am));
     ok("address: the route is public on purpose and bounded in the shared store — 40 a minute a caller, 1,000 an hour for the app, under Apple's 25,000 a day",
       /^\/\/ public: /m.test(ar) && /const PER_CALLER = \{ windowMs: 60_000, max: 40 \};/.test(ar) && /const PER_APP = \{ windowMs: 3_600_000, max: 1_000 \};/.test(ar)
-      && /p_bucket: `address:\$\{callerKey\(req\)\}`/.test(ar) && /p_bucket: "address:all"/.test(ar) && /export const GET = route\("address", get\);/.test(ar) && !/export const POST/.test(ar));
+      && /\{ bucket: `address:\$\{callerKey\(req\)\}`, \.\.\.PER_CALLER \},\s+\{ bucket: "address:all", \.\.\.PER_APP \},/.test(ar) && /export const GET = route\("address", get\);/.test(ar) && !/export const POST/.test(ar));
   }
   const oo = code(read("components/OfficeOrder.tsx"));
   ok("office: the order starts from the office account", ["useKnownField(o?.company)", "useKnownField(o?.contact || known?.fullName)", "useKnownField(o?.phone || known?.phone)", "useKnownField(o?.street)", "useKnownField(o?.access)"].every((x) => oo.includes(x))
@@ -11439,7 +11442,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /aspect-\[2\/1\]/.test(fu) && /onError=\{\(\) => setGone\(true\)\}/.test(fu) && /\/api\/map\?stop=\$\{encodeURIComponent\(id\)\}&pin=none&v=\$\{encodeURIComponent\(at\)\}/.test(fu)
       && /^\/\/ public: /m.test(mr) && /if \(!isUuid\(id\) \|\| !mapsConfigured\(\) \|\| !supabaseAdmin\) return none\(404\);/.test(mr)
       && /\.from\("field_ops"\)\.select\("lat, lng, address, location_text"\)\.eq\("id", id\)\.eq\("is_public", true\)/.test(mr) && !/searchParams\.get\("(lat|lng|center|q|address|street)"\)/.test(mr)
-      && /p_bucket: `map:\$\{callerKey\(req\)\}`/.test(mr) && /"cache-control": "public, max-age=3600, s-maxage=86400/.test(mr)
+      && /\{ bucket: `map:\$\{callerKey\(req\)\}`, \.\.\.PER_CALLER \},\s+\{ bucket: "map:all", \.\.\.PER_APP \},/.test(mr) && /"cache-control": "public, max-age=3600, s-maxage=86400/.test(mr)
       && /const SNAPSHOT = "https:\/\/snapshot\.apple-mapkit\.com";/.test(am));
     ok("Find Us: the bottle is the pin — Apple draws the place alone (pin=none) and the page sets the GT3 bottle's photo on its centre, point down; a build that does not ask still gets Apple's red pin with its 3",
       /const pin = u\.searchParams\.get\("pin"\) === "none" \? "none" : "apple";/.test(mr) && /snapshot\(\{ lat, lng, scheme: [^}]*, pin \}\)/.test(mr)
@@ -11796,7 +11799,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   // 2 · every push is built from policy.ts's words, never from a row's
   ok("alerts: every branch that sends sets `shown` from policy.ts, and the payload is built from `shown` alone",
-    ["newOrderShown(record)", "orderStatusShown(record)", "subscriptionShown(record)", "taskShown(record, ", "liveShown(stopName)", "alertShown(record)", "escalationShown(record)", "signoffShown(record)"]
+    ["newOrderShown(record)", "orderStatusShown(record)", "subscriptionShown(record)", "taskShown(record, ", "liveShown(stopName)", "alertShown(record)", "escalationShown(record)"]
       .every((c) => fn.includes(`shown = ${c}`))
     && /const title = shown\.title, message = shown\.body;/.test(fn)
     && /const payload = JSON\.stringify\(\{ title, body: message, url, tag: shown\.tag, ring: shown\.ring \}\);/.test(fn)
@@ -11818,8 +11821,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // stillUnanswered, run by scripts/push.policy.test.mjs; this holds the function to asking it, on the whole row.
   ok("alerts: an escalation is an alerts UPDATE the function checks again before it sends — acknowledged or claimed, nothing goes",
     /\} else if \(table === "alerts" && type === "UPDATE"\) \{/.test(fn) && /if \(!isEscalation\(record, old_record\)\) return new Response\("skip: not an escalation"\);/.test(fn)
-    && /const \{ data: now \} = await supabase\.from\("alerts"\)\.select\("\*"\)\.eq\("id", record\.id\)\.maybeSingle\(\);/.test(fn)
-    && /if \(!stillUnanswered\(now, reads\)\) return new Response\("skip: acknowledged"\);/.test(fn)
+    && /const record = await rowNow\(table, named\.id\);/.test(fn) && /if \(!\("claimed_by" in record\)\) \{/.test(fn)
+    && /if \(!stillUnanswered\(record, reads\)\) return new Response\("skip: acknowledged"\);/.test(fn)
     && /const ids = await peopleFor\(record, true\);/.test(fn));
   ok("alerts: a device test goes to its person's devices alone — never Teams, never email",
     /const ownTest = record\.kind === "device_test";/.test(fn) && /if \(!ownTest\) await postTeams\(record\.severity, record\.title, record\.body \|\| ""\);/.test(fn)
@@ -14862,8 +14865,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /disabled=\{!glassReady\} onClick=\{\(\) => \{ glassTouched\.current = true; setStep\("details"\); \}\}/.test(of));
   const shop = rd("app/api/shop/checkout/route.ts");
   ok("R8 shop: a card-testing guard — six a minute an address, sixty for everyone — after a seen key is answered, before the cart is read",
-    /p_bucket: `shop-checkout:\$\{ip\}`, p_window_ms: 60_000, p_max: 6/.test(shop) && /p_bucket: "shop-checkout:global", p_window_ms: 60_000, p_max: 60/.test(shop)
-    && /if \(ipFits\.data === false \|\| allFits\.data === false\) return NextResponse\.json\(\{ error: "Too many attempts — give it a minute\." \}, \{ status: 429 \}\);/.test(shop)
+    /\{ bucket: `shop-checkout:\$\{ip\}`, windowMs: 60_000, max: 6 \},\s+\{ bucket: "shop-checkout:global", windowMs: 60_000, max: 60 \},\s+\]\)\)\) return NextResponse\.json\(\{ error: "Too many attempts — give it a minute\." \}, \{ status: 429 \}\);/.test(shop)
     && shop.indexOf("await seenBefore(") < shop.indexOf('"shop-checkout:global"') && shop.indexOf('"shop-checkout:global"') < shop.indexOf("const rawItems ="));
   ok("R8 shop: a paid order's lines and its printer mark are checked and tried twice; still refused, the crew is told what to do",
     /let \{ error: itemsErr \} = await db\.from\("shop_order_items"\)\.insert\(itemRows\);\s+if \(itemsErr\) \(\{ error: itemsErr \} = await db\.from\("shop_order_items"\)\.insert\(itemRows\)\);/.test(shop)
@@ -14910,15 +14912,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // store (rate_limit_hit, 0154) — after a seen key is answered, before anything is claimed or charged.
   const cup = strip(rd("app/api/checkout/route.ts"));
   ok("R9 doors: pay at pickup is counted — a member by their account and their orders still at the window, a guest by address, guests together",
-    /p_bucket: `checkout-later:u:\$\{caller\.id\}`, p_window_ms: 600_000, p_max: 4/.test(cup) && /p_bucket: `checkout-later:\$\{ip\}`, p_window_ms: 600_000, p_max: 20/.test(cup)
-    && /p_bucket: "checkout-later:guests", p_window_ms: 60_000, p_max: 30/.test(cup) && /const OPEN_AT_WINDOW_MAX = 3;/.test(cup)
+    /\? \[\{ bucket: `checkout-later:u:\$\{caller\.id\}`, windowMs: 600_000, max: 4 \}\]/.test(cup)
+    && /: \[\{ bucket: `checkout-later:\$\{ip\}`, windowMs: 600_000, max: 20 \}, \{ bucket: "checkout-later:guests", windowMs: 60_000, max: 30 \}\]\);/.test(cup) && /const OPEN_AT_WINDOW_MAX = 3;/.test(cup)
     && cup.indexOf("await seenBefore(") < cup.indexOf("checkout-later:") && cup.indexOf("checkout-later:") < cup.indexOf("readMenuRows(supabaseAdmin, uniq)")
     && (cup.match(/await userFromRequest\(req\)/g) || []).length === 1);
   const bookPage = strip(rd("app/book/page.tsx")), bookRoute = strip(rd("app/api/book/route.ts"));
   ok("R9 doors: a booking goes through /api/book — counted, a field only a bot fills, the fields cut — never straight from the browser",
     /authedFetch\("\/api\/book", \{/.test(bookPage) && !/from\("booking_requests"\)/.test(bookPage) && /<input id="b-hp-leave" name="hp_leave_empty" tabIndex=\{-1\}/.test(rd("app/book/page.tsx"))
     && /if \(str\(b\.website, 200\)\) \{ console\.warn\("\[book\] a request with the hidden field filled was dropped"\); return NextResponse\.json\(\{ ok: true \}\); \}/.test(bookRoute)
-    && /p_bucket: `book:\$\{ip\}`, p_window_ms: 600_000, p_max: 3/.test(bookRoute) && /p_bucket: "book:global", p_window_ms: 3_600_000, p_max: 30/.test(bookRoute)
+    && /\{ bucket: `book:\$\{ip\}`, windowMs: 600_000, max: 3 \},/.test(bookRoute) && /\{ bucket: "book:global", windowMs: 3_600_000, max: 30 \},\s+\]\)\)\) \{/.test(bookRoute)
     && /booking_requests_throttle/.test(rd("supabase/migrations/0418_every_public_door_that_rings_is_counted.sql")));
   const packR = strip(rd("app/api/reserve/route.ts")), officeR = strip(rd("app/api/office/route.ts"));
   ok("R9 doors: a pack to pay at pickup is counted, and three at most still to pay; an office booking is counted",
@@ -15069,6 +15071,112 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("R8 3MPIRE: nothing said before it is read — no made-up referral code, no 0/10 for a full card; a copy that failed gives the code",
     /const code = profile\?\.referral_code \|\| null;/.test(mp) && !/referral_code \|\| "GT3PB-3MP"/.test(mp) && /\{code && <ReferralCard code=\{code\} \/>\}/.test(mp)
     && /We couldn&apos;t load your card just now\./.test(mp) && /\) : profileStatus === "loading" \? \(\s+<div id="rewards" className="memline acs-anchor" aria-busy="true">/.test(mp) && /catch \{ toast\(`Couldn't copy it — your code is \$\{code\}`, "error"\); return; \}/.test(mp));
+}
+
+// ── R10 · ONE CALLER'S LIMIT BEFORE EVERYONE'S (the 10/10 audit, 2026-10-16) ──
+// A door with a limit for each caller and a ceiling for everyone asked both at once (Promise.all), and the store counted
+// every try, refused ones too — so one script past its own limit kept spending the count all customers share. Every such
+// door now asks through lib/rateLimit.limitsFit: in order, the caller's own first, stopping at the first "no"; 0419 stops
+// counting a refused try. What is proved here: the order and the stop (against a double holding 0419's contract), the
+// fail-open on an error or a throw, the card guard's order, and that no file asks the limiter inside a Promise.all.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const ROOTDIR = path.join(__dirname, "..");
+  const rd = (f) => fs.readFileSync(path.join(ROOTDIR, f), "utf8");
+  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  const { limitsFit, callerIp } = require("../.smoke/rateLimit.js");
+  const { cardLimits, CARD_TRIES } = require("../.smoke/cardGuard.js");
+  // A double with 0419's contract: a try is counted only when it fits; a refused try leaves the count where it was.
+  const store = () => {
+    const counts = {}, asked = [];
+    return { counts, asked, rpc: async (fn, a) => {
+      if (fn !== "rate_limit_hit") throw new Error(`unexpected rpc ${fn}`);
+      asked.push(a.p_bucket);
+      const n = counts[a.p_bucket] || 0;
+      if (n >= a.p_max) return { data: false, error: null };
+      counts[a.p_bucket] = n + 1;
+      return { data: true, error: null };
+    } };
+  };
+  PENDING.push((async () => {
+    const db = store();
+    const L = [{ bucket: "door:1.2.3.4", windowMs: 60_000, max: 6 }, { bucket: "door:all", windowMs: 60_000, max: 60 }];
+    const answers = [];
+    for (let i = 0; i < 100; i++) answers.push(await limitsFit(db, L));
+    ok("R10 limits: one address trying a hundred times gets its six — and spends six of everyone's sixty, not a hundred",
+      answers.filter(Boolean).length === 6 && db.counts["door:all"] === 6 && db.counts["door:1.2.3.4"] === 6, db.counts);
+    ok("R10 limits: a try its own limit refuses never reaches the shared one",
+      db.asked.filter((b) => b === "door:all").length === 6 && db.asked.length === 106);
+    const others = [];
+    for (let i = 0; i < 54; i++) others.push(await limitsFit(db, [{ ...L[0], bucket: `door:10.0.0.${i}` }, L[1]]));
+    ok("R10 limits: …so everyone else still has the other fifty-four, and the sixty-first try anywhere is refused",
+      others.every(Boolean) && (await limitsFit(db, [{ ...L[0], bucket: "door:10.9.9.9" }, L[1]])) === false && db.counts["door:all"] === 60);
+    const broken = { rpc: async () => ({ data: null, error: { message: "store unreachable" } }) };
+    const throwing = { rpc: async () => { throw new Error("socket hang up"); } };
+    ok("R10 limits: a store that cannot answer is not a no — an error and a throw both let the try through (fails open)",
+      (await limitsFit(broken, L)) === true && (await limitsFit(throwing, L)) === true);
+    const half = store(); half.counts["door:all"] = 60;
+    const mixed = { rpc: async (fn, a) => (a.p_bucket === "door:1.2.3.4" ? { data: null, error: { message: "x" } } : half.rpc(fn, a)) };
+    ok("R10 limits: a limit the store could not answer is passed over, and the next is still asked", (await limitsFit(mixed, L)) === false);
+    ok("R10 limits: the caller's address is the platform's first x-forwarded-for entry; none is 'anon'",
+      callerIp(new Request("https://x.test/", { headers: { "x-forwarded-for": " 9.8.7.6 , 10.0.0.1" } })) === "9.8.7.6" && callerIp(new Request("https://x.test/")) === "anon");
+    const member = cardLimits({ userId: "u-1", ip: "1.2.3.4" }).map((l) => l.bucket), guest = cardLimits({ ip: "1.2.3.4" }).map((l) => l.bucket);
+    ok("R10 card: a card try asks the person, then the address, then everyone — a guest the address, then everyone",
+      JSON.stringify(member) === JSON.stringify(["card:u:u-1", "card:1.2.3.4", "card:all"]) && JSON.stringify(guest) === JSON.stringify(["card:1.2.3.4", "card:all"])
+      && cardLimits({ userId: "u-1", ip: "x" })[0].max === CARD_TRIES.perPerson && cardLimits({ ip: "x" }).at(-1).max === CARD_TRIES.allPerMinute);
+  })());
+  // No door asks the limiter twice at once: every Promise.all's own argument is read, parentheses balanced.
+  const files = [];
+  const walk = (d) => { for (const e of fs.readdirSync(path.join(ROOTDIR, d), { withFileTypes: true })) { const p = `${d}/${e.name}`; if (e.isDirectory()) walk(p); else if (/\.(ts|tsx)$/.test(e.name)) files.push(p); } };
+  walk("app"); walk("lib"); walk("components");
+  const allArgs = (src) => {
+    const out = [];
+    for (let i = src.indexOf("Promise.all("); i >= 0; i = src.indexOf("Promise.all(", i + 1)) {
+      let depth = 0, j = i + "Promise.all".length;
+      for (; j < src.length; j++) { if (src[j] === "(") depth++; else if (src[j] === ")" && --depth === 0) break; }
+      out.push(src.slice(i, j + 1));
+    }
+    return out;
+  };
+  const together = files.filter((f) => allArgs(strip(rd(f))).some((a) => /rate_limit_hit|limitsFit\(|cardTryFits\(/.test(a)));
+  ok("R10 limits: no file asks the limiter inside a Promise.all — every door with two limits asks them in order (lib/rateLimit)", together.length === 0, together);
+  const ordered = ["app/api/checkout/route.ts", "app/api/shop/checkout/route.ts", "app/api/book/route.ts", "app/api/orders/ticket-cancel/route.ts", "app/api/concierge/route.ts",
+    "app/api/map/route.ts", "app/api/address/route.ts", "app/api/delivery/waitlist/route.ts", "lib/anthropic.ts", "lib/cardGuard.ts"];
+  ok("R10 limits: every door with a caller's limit and a shared one asks through limitsFit, the shared one last",
+    ordered.every((f) => { const c = strip(rd(f)); return /limitsFit\(/.test(c) && !/\.rpc\(\s*"rate_limit_hit"/.test(c); })
+    && ["checkout:global", "shop-checkout:global", "book:global", "ticket-cancel:global", "concierge:global", "map:all", "address:all", "ai:all"].every((g) => {
+      const f = ordered.find((x) => rd(x).includes(`"${g}"`)); const c = f ? strip(rd(f)) : ""; const at = c.indexOf(`"${g}"`);
+      return at > 0 && c.lastIndexOf("bucket: `", at) > c.lastIndexOf("limitsFit(", at);
+    }), ordered.filter((f) => !/limitsFit\(/.test(strip(rd(f)))));
+  const wl = strip(rd("app/api/delivery/waitlist/route.ts"));
+  ok("R10 waitlist: an address has its own six in ten minutes before the thirty a minute everyone shares; a null body is a 400",
+    /\{ bucket: `delivery-waitlist:\$\{callerIp\(req\)\}`, \.\.\.PER_ADDRESS \},\s+\{ bucket: "delivery-waitlist", windowMs: WINDOW_MS, max: WINDOW_MAX \},/.test(wl)
+    && /const PER_ADDRESS = \{ windowMs: 600_000, max: 6 \};/.test(wl) && /if \(!b \|\| typeof b !== "object"\) return NextResponse\.json\(\{ error: "Bad request" \}, \{ status: 400 \}\);/.test(wl));
+
+  // THE PUSH FUNCTION TAKES A POINTER, NOT A STORY (R10). It is reached with the public key; the row it is told about is
+  // read from the database with the service role, every send is built from that row, each event is news only while the
+  // row's own stamp is recent, and each is sent once (0419 push_sent). policy.ts's rules are run by push.policy.test.mjs.
+  const pfn = strip(rd("supabase/functions/push/index.ts"));
+  const branches = (pfn.match(/\} else if \(table === "[a-z_]+" && type === "(INSERT|UPDATE)"/g) || []).length + (/if \(table === "orders" && type === "INSERT"\) \{/.test(pfn) ? 1 : 0);
+  ok("R10 push: the body names a row and nothing more — the row is read from the database, and a row it does not have is not sent",
+    /const record = await rowNow\(table, named\.id\);\s+if \(!record\) return new Response\("skip: not in the database"\);/.test(pfn)
+    && /if \(!EVENT_TABLES\.has\(table\) \|\| \(typeof id !== "string" && typeof id !== "number"\)\) return null;/.test(pfn)
+    && /const \{ data, error \} = await supabase\.from\(table\)\.select\("\*"\)\.eq\("id", id\)\.maybeSingle\(\);/.test(pfn)
+    && !/const \{ table, type, record, old_record \} = await req\.json\(\);/.test(pfn) && !/event_approval_request/.test(pfn));
+  ok("R10 push: every branch sends once (push_sent, 0419) — a key already kept is 'sent already'; a store that cannot keep it still sends",
+    branches === 13 && (pfn.match(/await once\(\)/g) || []).length === 13
+    && /const \{ error \} = await supabase\.from\("push_sent"\)\.insert\(\{ event_key: key\.slice\(0, 200\) \}\);\s+if \(!error\) return true;\s+return error\.code !== "23505";/.test(pfn), branches);
+  ok("R10 push: news only — every branch but a task's asks the row's own stamp (created, status changed, updated, live since, fired, sent, escalated)",
+    ["freshRow(record.created_at, nowMs)", "freshRow(record.status_changed_at, nowMs)", "freshRow(record.updated_at, nowMs)", "freshRow(record.live_since, nowMs, LIVE_NEWS_MS)",
+      "freshRow(record.fired_at, nowMs)", "freshRow(record.sent_at, nowMs)", "freshRow(record.escalated_at, nowMs)"].every((c) => pfn.includes(c))
+    && (pfn.match(/freshRow\(/g) || []).length === 12);
+  ok("R10 push: a link is a path on this site — the tap and the email's link both go through sitePath, never the row's link as it is",
+    (pfn.match(/sitePath\(record\.link, "\/admin"\)/g) || []).length === 2 && /https:\/\/app\.gt3pb\.com\$\{sitePath\(record\.link, "\/crew\?s=day"\)\}/.test(pfn)
+    && !/record\.link \|\|/.test(pfn));
+  const m419 = rd("supabase/migrations/0419_a_push_is_sent_once_for_what_happened_and_a_limit_counts_what_it_lets_in.sql");
+  ok("R10 push: the go-live is stamped by the database alone, on every write — set on the flip, kept while live, cleared offline",
+    /create trigger a_live_since before insert or update on public\.live_status/.test(m419) && /elsif new\.is_live then\s+new\.live_since := old\.live_since;/.test(m419)
+    && /revoke all on public\.push_sent from public, anon, authenticated;/.test(m419) && /interval '90 days'/.test(m419));
 }
 
 Promise.all(PENDING).then(() => {

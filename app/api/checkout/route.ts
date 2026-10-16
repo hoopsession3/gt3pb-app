@@ -23,6 +23,7 @@ import { errorMessage } from "@/lib/errorMessage";
 import { chargeOnce, checkOnly, claimKey, couldNotConfirm, placeOnce, seenBefore, type Answer, type Stopped } from "@/lib/chargeOnce";
 import { checkoutClaims } from "@/lib/checkoutClaims";
 import { CONNECT_APP } from "@/lib/connect";
+import { callerIp, limitsFit } from "@/lib/rateLimit";
 
 const reply = (a: Answer) => NextResponse.json(a.body, { status: a.status });
 
@@ -73,14 +74,13 @@ async function post(req: Request) {
   if (body.check === true) {
     if (typeof body.idempotencyKey !== "string" || body.idempotencyKey !== safeIdemKey(body.idempotencyKey)) return NextResponse.json({ error: "Bad request" }, { status: 400 });
     const card = body.card !== false;
-    // Bounded like any write a signed-out caller can make (a key it closes is a row): a burst per phone, a ceiling for all.
-    // rate_limit_hit answers whether the caller is still UNDER its cap (0154): false is the refusal, as on every route.
-    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
-    const [ipFits, allFits] = await Promise.all([
-      supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `checkout-check:${ip}`, p_window_ms: 60_000, p_max: 10 }),
-      supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "checkout-check:global", p_window_ms: 60_000, p_max: 120 }),
-    ]);
-    if (ipFits.data === false || allFits.data === false) return NextResponse.json({ error: "Too many tries — give it a minute.", pending: true }, { status: 429 });
+    // Bounded like any write a signed-out caller can make (a key it closes is a row): a burst per phone, a ceiling for all —
+    // asked in that order (lib/rateLimit, R10), so a phone over its own burst never spends the ceiling everyone shares.
+    const ip = callerIp(req);
+    if (!(await limitsFit(supabaseAdmin, [
+      { bucket: `checkout-check:${ip}`, windowMs: 60_000, max: 10 },
+      { bucket: "checkout-check:global", windowMs: 60_000, max: 120 },
+    ]))) return NextResponse.json({ error: "Too many tries — give it a minute.", pending: true }, { status: 429 });
     return reply(await checkOnly(checkoutClaims(supabaseAdmin), body.idempotencyKey, card, () => Date.now(), stoppedAlert(drinkList(body.items), nameGiven(body.customer), true)));
   }
   const { sourceId, items, tipCents } = body;
@@ -124,15 +124,16 @@ async function post(req: Request) {
   // limiter (rate_limit_hit, 0154, shared across lambdas): a tight per-IP burst cap plus a global
   // ceiling so a rotating-IP script still can't grind cards through Square. Pay-at-pickup is exempt
   // (no charge). Fails open if the limiter is unreachable — Square's own fraud tools are the backstop.
-  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
+  // The address is asked first and the ceiling last (lib/rateLimit, R10): one address past its own six never spends
+  // the sixty every customer shares — before, its sixty-first try a minute closed card checkout for everybody.
+  const ip = callerIp(req);
   // Who is ordering, read once: the limiter below, the member's perks and the order's own row all ask it.
   const caller = await userFromRequest(req);
   if (paying) {
-    const [ipHit, allHit] = await Promise.all([
-      supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `checkout:${ip}`, p_window_ms: 60_000, p_max: 6 }),
-      supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "checkout:global", p_window_ms: 60_000, p_max: 60 }),
-    ]);
-    if (ipHit.data === false || allHit.data === false) {
+    if (!(await limitsFit(supabaseAdmin, [
+      { bucket: `checkout:${ip}`, windowMs: 60_000, max: 6 },
+      { bucket: "checkout:global", windowMs: 60_000, max: 60 },
+    ]))) {
       return NextResponse.json({ error: "Too many attempts — give it a minute." }, { status: 429 });
     }
   } else {
@@ -143,11 +144,10 @@ async function post(req: Request) {
     // (a carrier's or a venue's address is a crowd's); and guests together by a ceiling no rush at one truck reaches — a
     // flood past it is the owner's to stop with the pay-at-pickup switch (live_status, 0147). Fails open, as the card
     // guard does.
-    const hits = await Promise.all(caller
-      ? [supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `checkout-later:u:${caller.id}`, p_window_ms: 600_000, p_max: 4 })]
-      : [supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `checkout-later:${ip}`, p_window_ms: 600_000, p_max: 20 }),
-         supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "checkout-later:guests", p_window_ms: 60_000, p_max: 30 })]);
-    if (hits.some((h) => h.data === false)) {
+    const fits = await limitsFit(supabaseAdmin, caller
+      ? [{ bucket: `checkout-later:u:${caller.id}`, windowMs: 600_000, max: 4 }]
+      : [{ bucket: `checkout-later:${ip}`, windowMs: 600_000, max: 20 }, { bucket: "checkout-later:guests", windowMs: 60_000, max: 30 }]);
+    if (!fits) {
       return NextResponse.json({ error: "Too many orders to pay at the window just now — pay by card, or give it a few minutes.", charged: false }, { status: 429 });
     }
     if (caller) {

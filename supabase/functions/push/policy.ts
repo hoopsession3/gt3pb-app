@@ -193,6 +193,7 @@ export const KIND_WORDS: Readonly<Record<string, string>> = {
   client_error: "The app hit an error",
   error_storm: "Error storm — new-error alerts paused",
   heartbeat_stale: "The uptime check went quiet",
+  cron_failed: "A scheduled job is failing",                   // 0419 cron_watch: never the job's own words
   task_assigned: "A task is yours",
   task_due: "A task is past due",
   thread_reply: "New reply",
@@ -487,6 +488,60 @@ export function pushHostOk(endpoint: unknown): boolean {
 
 /** How many devices are posted to at once: a go-live ping to every subscriber went to all of them at the same moment. */
 export const SEND_AT_ONCE = 25;
+
+// ── 6 · WHAT HAPPENED IS THE DATABASE'S (R10, 2026-10-16 — the 10/10 audit) ──────────────────────────────────────────
+// The function is reached with the public key every page carries (0157: the webhook's bearer only gets past the
+// platform's gate), so the body it is sent is only ever a pointer: which table, which row. ./index.ts reads that row from
+// the database and sends from it; an event the database cannot show is not sent, and each event is sent once
+// (push_sent, 0419). These are the rules it asks.
+
+/** The tables whose rows the function reads to see what happened. */
+export const EVENT_TABLES: ReadonlySet<string> = new Set([
+  "orders", "subscriptions", "booking_requests", "profiles", "delivery_orders", "drop_orders", "event_tasks",
+  "live_status", "cup_reminders", "pack_notices", "alerts",
+]);
+
+/** A row is news for half an hour: a new order, booking, sign-up or pack told about later than that is not sent — an old
+ *  row described again is not news. A clock a minute ahead of the database's is allowed for. */
+export const NEWS_MS = 30 * 60_000;
+/** The truck going live is news for ten minutes after the database stamped the flip (0419 live_since). */
+export const LIVE_NEWS_MS = 10 * 60_000;
+export function freshRow(createdAt: unknown, nowMs: number, maxMs: number = NEWS_MS): boolean {
+  const t = typeof createdAt === "string" ? Date.parse(createdAt) : NaN;
+  return Number.isFinite(t) && nowMs - t >= -60_000 && nowMs - t <= maxMs;
+}
+
+/** Where a tap or an email's link may go: a path on this site, and nothing else. An alert's link is the crew's and the
+ *  database's to write, but an email builds `https://app.gt3pb.com${link}` — "@other.example/x" made that another site
+ *  — and the service worker opens what a push names. Anything that is not a plain path is the fallback. */
+export function sitePath(link: unknown, fallback = "/"): string {
+  return typeof link === "string" && link.length <= 300 && /^\/(?![/\\])[^\s\\]*$/.test(link) ? link : fallback;
+}
+
+/** The key an event is sent under, once (push_sent, 0419) — what happened and to which row. The go-live ping is one per
+ *  half hour per business: the truck going live twice in a few minutes is one "we're live", and a ping described again
+ *  while it is live is not another. */
+export function eventKey(table: string, type: string, row: Record<string, unknown>, nowMs: number): string | null {
+  const id = typeof row.id === "string" || typeof row.id === "number" ? String(row.id) : "";
+  if (!id) return null;
+  const k = `${table}:${type}`;
+  switch (k) {
+    case "orders:INSERT":           return `orders:new:${id}`;
+    case "orders:UPDATE":           return typeof row.status === "string" ? `orders:${id}:${row.status}` : null;
+    case "subscriptions:UPDATE":    return typeof row.status === "string" ? `subs:${id}:${row.status}` : null;
+    case "booking_requests:INSERT": return `book:${id}`;
+    case "profiles:INSERT":         return `signup:${id}`;
+    case "delivery_orders:INSERT":  return `delivery:new:${id}`;
+    case "drop_orders:INSERT":      return `pack:new:${id}`;
+    case "event_tasks:UPDATE":      return typeof row.assignee === "string" ? `task:${id}:${row.assignee}:${row.critical ? "critical" : "plain"}` : null;
+    case "live_status:UPDATE":      return `live:${typeof row.tenant_id === "string" ? row.tenant_id : "-"}:${Math.floor(nowMs / 1_800_000)}`;
+    case "cup_reminders:UPDATE":    return `remind:${id}`;
+    case "pack_notices:UPDATE":     return `notice:${id}`;
+    case "alerts:INSERT":           return `alert:${id}`;
+    case "alerts:UPDATE":           return `alert-again:${id}`;
+    default:                        return null;
+  }
+}
 
 /** lib/texts NOT_US_AREA_CODES, the same list (Deno cannot import it; scripts/push.policy.test.mjs asks both of every
  *  area code): +1 codes that are not a US phone. */

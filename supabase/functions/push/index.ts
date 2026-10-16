@@ -16,9 +16,10 @@
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
-  alertShown, channelsFor, escalationShown, isEscalation, liveShown, mayEmail, newOrderShown, orderStatusShown, orderVoidShown, packNoticeShown,
-  packNoticeTold, reminderShown, severityOf, signoffShown, stillUnanswered, stopCanceledShown, subscriptionShown, taskShown,
-  CUSTOMER_MUTE, pushHostOk, SEND_AT_ONCE, smsPlain, textNumber, textQuiet, usTextable, whoRings, type NotifPrefsRow, type Shown,
+  alertShown, channelsFor, escalationShown, eventKey, freshRow, isEscalation, liveShown, mayEmail, newOrderShown, orderStatusShown,
+  orderVoidShown, packNoticeShown, packNoticeTold, reminderShown, severityOf, sitePath, stillUnanswered, stopCanceledShown,
+  subscriptionShown, taskShown, CUSTOMER_MUTE, EVENT_TABLES, LIVE_NEWS_MS, pushHostOk, SEND_AT_ONCE, smsPlain, textNumber,
+  textQuiet, usTextable, whoRings, type NotifPrefsRow, type Shown,
 } from "./policy.ts";
 
 webpush.setVapidDetails(
@@ -110,6 +111,26 @@ async function subsFor(filter: (q: SubQuery) => SubQuery): Promise<Sub[]> {
   // One send per device - dedup by endpoint so a duplicated row can't double-notify.
   const seen = new Set<string>();
   return rows.filter((s) => (seen.has(s.endpoint) ? false : (seen.add(s.endpoint), true)));
+}
+
+// WHAT HAPPENED, FROM THE DATABASE (R10, 2026-10-16 — the 10/10 audit). This function is reached with the public key
+// every page carries, so the body it is sent is a pointer and nothing more: the row it names is read here with the service
+// role, and every push, email and text is built from that. A row the database does not have is not sent.
+// A row of any of the tables below, as the database returns it — read field by field, the way the request body was before.
+// deno-lint-ignore no-explicit-any
+type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+async function rowNow(table: string, id: unknown): Promise<Row | null> {
+  if (!EVENT_TABLES.has(table) || (typeof id !== "string" && typeof id !== "number")) return null;
+  const { data, error } = await supabase.from(table).select("*").eq("id", id).maybeSingle();
+  return error ? null : ((data as Row | null) ?? null);
+}
+
+// SENT ONCE (R10, 0419 push_sent): the first send of an event keeps its key; the same event told again finds it and is
+// not sent twice. A key that cannot be kept for any other reason (the table not there yet) is sent, as before 0419.
+async function firstSend(key: string): Promise<boolean> {
+  const { error } = await supabase.from("push_sent").insert({ event_key: key.slice(0, 200) });
+  if (!error) return true;
+  return error.code !== "23505";
 }
 
 async function nameForUser(userId: string) {
@@ -257,7 +278,18 @@ async function textMember(phone: unknown, body: string): Promise<{ result: "sent
 
 Deno.serve(async (req) => {
   try {
-    const { table, type, record, old_record } = await req.json();
+    // A POINTER, NOT A STORY (R10): the body names a table and a row; what happened is the database's (rowNow above).
+    const body = (await req.json().catch(() => null)) as { table?: unknown; type?: unknown; record?: Row | null; old_record?: Row | null } | null;
+    const table = typeof body?.table === "string" ? body.table : "", type = typeof body?.type === "string" ? body.type : "";
+    const named: Row | null = body?.record ?? null, old_record: Row | null = body?.old_record ?? null;
+    if (!EVENT_TABLES.has(table) || !named) return new Response("skip");
+    const record = await rowNow(table, named.id);
+    if (!record) return new Response("skip: not in the database");
+    const nowMs = Date.now();
+    // Sent once (push_sent, 0419): asked where each event is known to be one, before anything goes. And news only: each
+    // branch asks the row's own stamp of what happened (created, status changed, fired, sent, escalated) to be recent —
+    // an old event described again is not sent, after its key is swept as before it.
+    const once = async () => { const key = eventKey(table, type, record, nowMs); return key !== null && await firstSend(key); };
     // What the phone shows (./policy.ts — no customer name, phone, address, email or amount, whatever the row
     // holds) and where a tap opens. The row's own words stay in the app.
     let shown: Shown | null = null, url = "/";
@@ -266,6 +298,7 @@ Deno.serve(async (req) => {
     let after: (() => PromiseLike<unknown>) | null = null;
 
     if (table === "orders" && type === "INSERT") {
+      if (!freshRow(record.created_at, nowMs) || !(await once())) return new Response("skip: not news, or sent already");
       shown = newOrderShown(record);
       // A tap opens the Pass itself (2026-10-11, the KDS audit): "/admin" opened the console wherever it was last left,
       // a screen or two from the ticket. &a=kitchen-pass is the console's own jump to the Pass (app/crew/page.tsx jumpTo).
@@ -276,6 +309,8 @@ Deno.serve(async (req) => {
       // Only fire on a real status TRANSITION - this is what stops the duplicate spam
       // when the row is rewritten with the same status (optimistic + reconcile, etc.).
       if (old_record && old_record.status === record.status) return new Response("skip: no transition");
+      // The order as the database has it now: one that has moved on since (or was never so) is not said.
+      if (named.status !== record.status || !freshRow(record.status_changed_at, nowMs) || !(await once())) return new Response("skip: moved on, not news, or sent already");
       shown = orderStatusShown(record);
       // Order updates turned off on the member's Notifications screen (R6): "being made" and "ready" stay quiet. A stop
       // called off is a change to the order itself, and is said whatever the switch (below).
@@ -296,6 +331,7 @@ Deno.serve(async (req) => {
 
     } else if (table === "subscriptions" && type === "UPDATE" && record.user_id) {
       if (old_record && old_record.status === record.status) return new Response("skip: no transition");
+      if (named.status !== record.status || !freshRow(record.updated_at, nowMs) || !(await once())) return new Response("skip: moved on, not news, or sent already");
       shown = subscriptionShown(record);
       if (!shown) return new Response("skip");
       url = "/3mpire";
@@ -309,6 +345,7 @@ Deno.serve(async (req) => {
       // Producer: a new lead → inbox + Teams + email so it's chased before it goes cold. Email is
       // the one channel here that doesn't depend on a subscribed device or a configured webhook —
       // an owner who's away from the crew app for a day still finds out a lead came in, and when.
+      if (!freshRow(record.created_at, nowMs) || !(await once())) return new Response("skip: not news, or sent already");
       const message = `${record.name ?? "Someone"}${record.event_date ? " - " + record.event_date : ""}${record.location_text ? " - " + record.location_text : ""}`;
       await insertAlert({ severity: "important", category: "booking", title: "New booking lead", body: message, tenant_id: record.tenant_id });
       if (mayEmail("important", true)) await emailAdmins(
@@ -334,6 +371,7 @@ Deno.serve(async (req) => {
       // and nothing else (./policy.ts, FYI STAYS QUIET), so the rule refuses the email — no push, no Teams either. A
       // sign-up the owner wants to hear about is an 'important' one: that one word below brings back the email (asked
       // for here) with a push and a Teams card.
+      if (!freshRow(record.created_at, nowMs) || !(await once())) return new Response("skip: not news, or sent already");
       const who = record.display_name?.trim() || "Someone new";
       const role = record.role && record.role !== "member" ? ` (${record.role})` : "";
       const severity: string = "fyi";
@@ -350,6 +388,7 @@ Deno.serve(async (req) => {
       // from the route that took the order (app/api/delivery/checkout, 'important' since 2026-10-11). The alert this
       // inserted beside it carried category 'delivery', which 0232's alerts_category_canon refuses, so it had never
       // been written since — and its Teams card, posted here directly, was the only one. One event, one of each.
+      if (!freshRow(record.created_at, nowMs) || !(await once())) return new Response("skip: not news, or sent already");
       const message = `${record.pack_size ?? "?"}-bottle delivery for ${record.delivery_date ?? "soon"}`;
       if (mayEmail("important", true)) await emailAdmins(`New delivery order — ${record.pack_size ?? "?"}-pack`, [
         message + ".",
@@ -361,6 +400,7 @@ Deno.serve(async (req) => {
     } else if (table === "drop_orders" && type === "INSERT") {
       // New reserve (2026-07-30): as deliveries — the email here; the inbox line, push and Teams card from the route
       // (app/api/reserve, 'important' since 2026-10-11). The alert inserted here said category 'drop', refused by 0232.
+      if (!freshRow(record.created_at, nowMs) || !(await once())) return new Response("skip: not news, or sent already");
       const message = `${record.size ?? "?"}-pack reserved for ${record.drop_date ?? "the next drop"}${record.paid ? " · paid" : " · pay at pickup"}`;
       if (mayEmail("important", true)) await emailAdmins(`New reserve — ${record.size ?? "?"}-pack for ${record.drop_date ?? "next drop"}`, [
         message + ".",
@@ -376,6 +416,7 @@ Deno.serve(async (req) => {
       const assigneeChanged = !old_record || old_record.assignee !== record.assignee;
       const becameCritical = !!record.critical && !!old_record && !old_record.critical;
       if (!assigneeChanged && !becameCritical) return new Response("skip: no assignee/critical change");
+      if (named.assignee !== record.assignee || !(await once())) return new Response("skip: moved on, or sent already");
       shown = taskShown(record, becameCritical && !assigneeChanged);
       url = "/admin";
       targets = await subsFor((q) => q.eq("user_id", record.assignee));
@@ -410,6 +451,9 @@ Deno.serve(async (req) => {
       // guests, not crew — no alert row, no Teams, no email; the push IS the product.
       const wentLive = !!record.is_live && !!old_record && !old_record.is_live;
       if (!wentLive) return new Response("skip: not a go-live flip");
+      // The flip as the database stamped it (0419 live_since): a truck live for an hour described as going live again is
+      // not news, and two go-lives in a half hour are one push.
+      if (!freshRow(record.live_since, nowMs, LIVE_NEWS_MS) || !(await once())) return new Response("skip: not news, or said already this half hour");
       let stopName: string | null = null;
       if (record.current_stop_id) {
         // The stop's name, which the Find Us page shows anyone (stops.name is not null, 0001) — never its street.
@@ -424,6 +468,7 @@ Deno.serve(async (req) => {
       // Remind me when cup orders open (0394): the minute's run marked it sent — to that member's own devices, once.
       // The stop's name, which Find Us shows anyone; nothing else about them or the order.
       if (!record.fired_at || (old_record && old_record.fired_at)) return new Response("skip: not a reminder going out");
+      if (!freshRow(record.fired_at, nowMs) || !(await once())) return new Response("skip: not news, or sent already");
       const { data: s } = await supabase.from("stops").select("name").eq("id", record.stop_id).maybeSingle();
       shown = reminderShown(s?.name ?? null, record.stop_id);
       url = "/";
@@ -434,6 +479,7 @@ Deno.serve(async (req) => {
       // email, and a text when texts are on and their number said yes (0398). The pack and its stop are read now, so the
       // words say how things stand; what went is written back on the notice.
       if (!record.sent_at || (old_record && old_record.sent_at)) return new Response("skip: not a notice going out");
+      if (!freshRow(record.sent_at, nowMs) || !(await once())) return new Response("skip: not news, or sent already");
       const { data: pack } = await supabase.from("drop_orders")
         .select("id, user_id, size, glass, drop_date, stop_id, paid, payment_status, phone").eq("id", record.pack_id).maybeSingle();
       if (!pack?.user_id) return new Response("skip: no pack");
@@ -458,6 +504,8 @@ Deno.serve(async (req) => {
 
     } else if (table === "alerts" && type === "INSERT") {
       // Alert spine (0050) — fan one alert out to the channels its severity gets (./policy.ts: an fyi gets none).
+      // The alert as the database holds it (rowNow), new, and once (R10).
+      if (!freshRow(record.created_at, nowMs) || !(await once())) return new Response("skip: not news, or sent already");
       const ch = channelsFor(record.severity);
       // "Ring this phone" (0374): the person's own test, to their own devices — never Teams, never email.
       const ownTest = record.kind === "device_test";
@@ -471,7 +519,8 @@ Deno.serve(async (req) => {
       // there isn't. Push needs a subscribed device; a critical can't depend on that.
       if (!ownTest && mayEmail(record.severity)) {
         const subj = `Critical — ${record.title}`;
-        const bodyTxt = [record.body || record.title, "", `Open it: https://app.gt3pb.com${record.link || "/crew?s=day"}`].join("\n");
+        // A path on this site, and nothing else (./policy.ts sitePath): "@other.example/x" made this link another site's.
+        const bodyTxt = [record.body || record.title, "", `Open it: https://app.gt3pb.com${sitePath(record.link, "/crew?s=day")}`].join("\n");
         if (record.target_user_id) await emailUser(record.target_user_id, subj, bodyTxt);
         else await emailAdmins(subj, bodyTxt);
       }
@@ -479,7 +528,7 @@ Deno.serve(async (req) => {
       // each of them asked first whether this alert may ring them now (ringingNow: their mutes, their quiet hours;
       // a critical always rings).
       shown = alertShown(record);
-      url = record.link || "/admin";
+      url = sitePath(record.link, "/admin");
       const ids = await ringingNow(record, await peopleFor(record));
       targets = ids.length ? await subsFor((q) => q.in("user_id", ids)) : [];
 
@@ -488,26 +537,20 @@ Deno.serve(async (req) => {
       // minutes unacknowledged; this sends it again, once, to its own people and every admin and owner of its
       // business. Acknowledging stops it: one acknowledged between the mark and this send — "Got it" on the row, or
       // on a broadcast its claim (0383: the first Got it, kept on the alert; before 0383, anyone's alert_reads row,
-      // 0157) — is not sent (./policy.ts stillUnanswered). The whole row is read, so the claim is seen once its column
-      // exists, and this is right on either side of 0383's paste.
+      // 0157) — is not sent (./policy.ts stillUnanswered). The whole row is read (rowNow, R10: the alert as the
+      // database holds it now), so the claim is seen once its column exists, and this is right on either side of 0383.
       if (!isEscalation(record, old_record)) return new Response("skip: not an escalation");
-      const { data: now } = await supabase.from("alerts").select("*").eq("id", record.id).maybeSingle();
       let reads: number | null = null;
-      if (now && !("claimed_by" in now)) {
+      if (!("claimed_by" in record)) {
         const { count } = await supabase.from("alert_reads").select("alert_id", { count: "exact", head: true }).eq("alert_id", record.id);
         reads = count ?? 0;
       }
-      if (!stillUnanswered(now, reads)) return new Response("skip: acknowledged");
+      if (!stillUnanswered(record, reads)) return new Response("skip: acknowledged");
+      if (!freshRow(record.escalated_at, nowMs) || !(await once())) return new Response("skip: not news, or sent already");
       shown = escalationShown(record);
-      url = record.link || "/admin";
+      url = sitePath(record.link, "/admin");
       const ids = await peopleFor(record, true);
       targets = ids.length ? await subsFor((q) => q.in("user_id", ids)) : [];
-
-    } else if (table === "event_approval_request" && Array.isArray(record.approver_ids) && record.approver_ids.length) {
-      // Owner/manager prep sign-off request → ping the people who still need to approve.
-      shown = signoffShown(record);
-      url = "/admin";
-      targets = await subsFor((q) => q.in("user_id", record.approver_ids));
 
     } else {
       return new Response("skip");

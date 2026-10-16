@@ -83,10 +83,21 @@ export function classify(src) {
 // nothing else for four months, and nobody could have told from the outside.
 const WRITES = "POST|PUT|PATCH|DELETE";
 const CALLS_LIMITER = /\.rpc\(\s*["']rate_limit_hit["']/;
+// LIMITS ASKED IN ORDER (R10, 2026-10-16). A door with a limit for each caller and a ceiling for everyone asks them through
+// lib/rateLimit.limitsFit — the caller's own first, so one caller over its limit never spends the ceiling everyone shares.
+// That is a bound in the route's own code when the route takes limitsFit from lib/rateLimit (not a function of its own by
+// that name) and lib/rateLimit itself calls the limiter.
+const CALLS_IN_ORDER = /\blimitsFit\(/;
+const TAKES_IN_ORDER = /^import\s*\{[^}]*\blimitsFit\b[^}]*\}\s*from\s*["']@\/lib\/rateLimit["']/m;
 export function boundOf(src, readFile = (p) => readFileSync(join(ROOT, p), "utf8")) {
   const code = stripComments(src);
   const writes = new RegExp(`^export\\s+const\\s+(${WRITES})\\s*=\\s*route\\(`, "m").test(code);
   if (CALLS_LIMITER.test(code)) return { writes, bounded: true, via: "its own code" };
+  if (CALLS_IN_ORDER.test(code) && TAKES_IN_ORDER.test(code)) {
+    let lib = "";
+    try { lib = readFile("lib/rateLimit.ts"); } catch { return { writes, bounded: false, via: "lib/rateLimit.ts (not found)" }; }
+    return CALLS_LIMITER.test(stripComments(lib)) ? { writes, bounded: true, via: "its own code, in order (lib/rateLimit)" } : { writes, bounded: false, via: "lib/rateLimit.ts (calls no rate_limit_hit)" };
+  }
   const named = src.match(/^\s*\/\/\s*bounded-by:\s*(\S+)/m);
   if (named) {
     let other = "";

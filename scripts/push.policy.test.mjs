@@ -408,5 +408,52 @@ const shape = (s) => !!s && typeof s.title === "string" && s.title.length > 0 &&
     && /if \(after\) await after\(\);\s*return new Response\("ok"\);/.test(fn));
 }
 
+// ── 6 · A POINTER, NEWS, AND ONCE (R10, 2026-10-16 — the 10/10 audit) ───────────────────────────────────────────────
+// The function is reached with the public key every page carries. It reads the row it is told about from the database
+// (./index.ts rowNow, pinned in scripts/smoke.cjs), sends only while the row's own stamp is recent (freshRow), sends each
+// event once (eventKey → 0419 push_sent), and opens only a path on this site (sitePath). These are those rules, run.
+{
+  const now = Date.parse("2026-10-16T15:00:00Z");
+  const ago = (ms) => new Date(now - ms).toISOString();
+  ok("news: a row stamped a minute ago is news; thirty-one minutes ago is not; a database clock a minute ahead is allowed for, two are not",
+    P.freshRow(ago(60_000), now) && !P.freshRow(ago(31 * 60_000), now) && P.freshRow(ago(-50_000), now) && !P.freshRow(ago(-120_000), now));
+  ok("news: no stamp, or one that is not a time, is never news",
+    [null, undefined, "", "yesterday", 1760000000000, {}].every((x) => P.freshRow(x, now) === false));
+  ok("news: the truck going live is news for ten minutes after the database stamped it",
+    P.LIVE_NEWS_MS === 600_000 && P.freshRow(ago(9 * 60_000), now, P.LIVE_NEWS_MS) && !P.freshRow(ago(11 * 60_000), now, P.LIVE_NEWS_MS));
+  ok("links: a path on this site is kept as it is", ["/admin", "/crew?s=money&a=refunds", "/order?t=4f1d-77", "/", "/crew?s=settings&a=set-errors"].every((l) => P.sitePath(l) === l));
+  const away = ["@evil.example/x", ".evil.example", "https://evil.example", "//evil.example/x", "/\\evil.example", "/\\/evil.example", "javascript:alert(1)", "/a path", "/x\ty",
+    "/" + "a".repeat(300), "", null, undefined, 42, { href: "/admin" }];
+  ok("links: another site, a scheme, a protocol-relative or backslashed path, white space, a very long one or not a string is the fallback",
+    away.every((l) => P.sitePath(l, "/admin") === "/admin"), away.filter((l) => P.sitePath(l, "/admin") !== "/admin"));
+  ok("links: the critical's email link stays on this site whatever the row holds",
+    [...away, "/crew?s=day"].every((l) => new URL(`https://app.gt3pb.com${P.sitePath(l, "/crew?s=day")}`).host === "app.gt3pb.com"));
+  const id = "0b1e0000-0000-4000-8000-000000000001", who = "0b1e0000-0000-4000-8000-0000000000aa";
+  ok("once: an event's key says what happened and to which row",
+    P.eventKey("orders", "INSERT", { id }, now) === `orders:new:${id}` && P.eventKey("orders", "UPDATE", { id, status: "ready" }, now) === `orders:${id}:ready`
+    && P.eventKey("subscriptions", "UPDATE", { id, status: "past_due" }, now) === `subs:${id}:past_due` && P.eventKey("alerts", "INSERT", { id }, now) === `alert:${id}`
+    && P.eventKey("alerts", "UPDATE", { id }, now) === `alert-again:${id}` && P.eventKey("event_tasks", "UPDATE", { id, assignee: who, critical: true }, now) === `task:${id}:${who}:critical`
+    && P.eventKey("cup_reminders", "UPDATE", { id }, now) === `remind:${id}` && P.eventKey("pack_notices", "UPDATE", { id }, now) === `notice:${id}`);
+  ok("once: the same order said ready twice is one key; ready, then picked up, is two",
+    P.eventKey("orders", "UPDATE", { id, status: "ready" }, now) === P.eventKey("orders", "UPDATE", { id, status: "ready" }, now + 3_600_000)
+    && P.eventKey("orders", "UPDATE", { id, status: "ready" }, now) !== P.eventKey("orders", "UPDATE", { id, status: "picked_up" }, now));
+  ok("once: a task given to someone else, or turned critical, is a new key; the same again is not",
+    new Set([{ assignee: who }, { assignee: who, critical: true }, { assignee: "someone-else" }, { assignee: who }].map((r) => P.eventKey("event_tasks", "UPDATE", { id, ...r }, now))).size === 3);
+  const live = (t, at) => P.eventKey("live_status", "UPDATE", { id: 1, tenant_id: t }, at);
+  ok("once: the go-live ping is one key a business a half hour", live("t1", now) === live("t1", now + 60_000) && live("t1", now) !== live("t1", now + 31 * 60_000) && live("t1", now) !== live("t2", now));
+  ok("once: no id, no status where the status is the event, or a table and change it does not send for, is no key — and so nothing is sent",
+    P.eventKey("orders", "INSERT", {}, now) === null && P.eventKey("orders", "UPDATE", { id }, now) === null && P.eventKey("orders", "DELETE", { id }, now) === null
+    && P.eventKey("profiles", "UPDATE", { id }, now) === null && P.eventKey("event_approval_request", "INSERT", { id }, now) === null
+    && P.eventKey("event_tasks", "UPDATE", { id }, now) === null && P.eventKey("orders", "INSERT", { id: { x: 1 } }, now) === null);
+  const fnSrc = readFileSync(join(ROOT, "supabase/functions/push/index.ts"), "utf8");
+  const pairs = [...new Set([...fnSrc.matchAll(/table === "([a-z_]+)" && type === "(INSERT|UPDATE)"/g)].map((m) => `${m[1]}:${m[2]}`))];
+  const sample = { id, status: "ready", assignee: who, tenant_id: "t1" };
+  ok("tables: every table and change the function sends for is one it may read, and has a key",
+    pairs.length === 13 && pairs.every((k) => { const [t, ty] = k.split(":"); const key = P.eventKey(t, ty, sample, now); return P.EVENT_TABLES.has(t) && typeof key === "string" && key.length >= 3 && key.length <= 200; }), pairs);
+  ok("tables: it may read no table it does not send for", [...P.EVENT_TABLES].every((t) => pairs.some((k) => k.startsWith(`${t}:`))), [...P.EVENT_TABLES]);
+  const cron = P.alertShown({ id: "c-1", kind: "cron_failed", category: "system", severity: "important", title: "A scheduled job is failing — escalate-criticals" });
+  ok("a job failing (0419 cron_watch): the lock screen says so in its own words, never the job's", cron.title === "A scheduled job is failing" && cron.ring === false && leaks(cron).length === 0, cron);
+}
+
 console.log(`WHAT A PUSH SAYS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

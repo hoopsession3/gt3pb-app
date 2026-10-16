@@ -5,6 +5,7 @@ import { money } from "@/lib/money";
 import { orderNo } from "@/lib/activeOrder";
 import { isUuid } from "@/lib/uuid";
 import { route } from "@/lib/apiRoute";
+import { callerIp, limitsFit } from "@/lib/rateLimit";
 import { isGone } from "@/lib/refusal";
 
 // CANCEL FROM THE ORDER'S PAGE, AND TELL ITS MEMBER (2026-10-15, R7 of the customer re-audit).
@@ -30,13 +31,12 @@ async function post(req: Request) {
 
   // A bound every instance shares (rate_limit_hit, 0154): a few tries a minute from one address — a person cancels one
   // order once — and a ceiling for everyone, so a script guessing tickets is slowed to nothing. Fails open when the
-  // limiter can't be asked: a customer's cancel matters more than the bound.
-  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
-  const [ipHit, allHit] = await Promise.all([
-    supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `ticket-cancel:${ip}`, p_window_ms: 60_000, p_max: 6 }),
-    supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "ticket-cancel:global", p_window_ms: 60_000, p_max: 120 }),
-  ]);
-  if (ipHit.data === false || allHit.data === false) {
+  // limiter can't be asked: a customer's cancel matters more than the bound. The address is asked before the ceiling
+  // (lib/rateLimit, R10): one address past its own six never spends the count every customer's cancel shares.
+  if (!(await limitsFit(supabaseAdmin, [
+    { bucket: `ticket-cancel:${callerIp(req)}`, windowMs: 60_000, max: 6 },
+    { bucket: "ticket-cancel:global", windowMs: 60_000, max: 120 },
+  ]))) {
     return NextResponse.json({ ok: false, outcome: "error", error: "Too many tries — give it a minute." }, { status: 429 });
   }
 

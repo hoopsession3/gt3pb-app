@@ -496,6 +496,18 @@ ok("api: a guarded route with a stray public: line is still reported as guarded,
     (() => { const b = boundOf(`// bounded-by: lib/nowhere.ts\n${W}`, read); return b.bounded === false && /not found/.test(b.via); })());
   ok("bound: PUT, PATCH and DELETE are writes too",
     ["PUT", "PATCH", "DELETE"].every((m) => boundOf(`async function h() {}\nexport const ${m} = route("x", h);`, read).writes === true));
+  // R10: limits asked in order, through lib/rateLimit.limitsFit.
+  const inOrder = { ...files, "lib/rateLimit.ts": `export async function limitsFit(db, ls) { for (const l of ls) { const { data } = await db.rpc("rate_limit_hit", { p_bucket: l.bucket, p_window_ms: l.windowMs, p_max: l.max }); if (data === false) return false; } return true; }` };
+  const readIn = (p) => { if (!(p in inOrder)) throw new Error("ENOENT"); return inOrder[p]; };
+  const ASK = `if (!(await limitsFit(supabaseAdmin, [{ bucket: "b:1", windowMs: 60000, max: 6 }, { bucket: "b:all", windowMs: 60000, max: 60 }]))) return no();`;
+  ok("bound: a POST that asks its limits in order through lib/rateLimit is bounded by its own code",
+    (() => { const b = boundOf(`import { limitsFit } from "@/lib/rateLimit";\n${W}\n${ASK}`, readIn); return b.writes && b.bounded && /in order/.test(b.via); })());
+  ok("bound: a limitsFit of the route's own making (not lib/rateLimit's) is not a bound",
+    boundOf(`const limitsFit = async () => true;\n${W}\n${ASK}`, readIn).bounded === false);
+  ok("bound: limitsFit named only in a comment is not a bound",
+    boundOf(`import { limitsFit } from "@/lib/rateLimit";\n${W}\n// ${ASK}`, readIn).bounded === false);
+  ok("bound: lib/rateLimit that no longer calls the limiter bounds nothing, and says so",
+    (() => { const b = boundOf(`import { limitsFit } from "@/lib/rateLimit";\n${W}\n${ASK}`, (p) => (p === "lib/rateLimit.ts" ? "export async function limitsFit() { return true; }" : readIn(p))); return b.bounded === false && /calls no rate_limit_hit/.test(b.via); })());
 }
 
 // ── api.audit: the wrapper ─────────────────────────────────────────────────────────────────────

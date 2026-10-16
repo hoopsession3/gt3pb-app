@@ -3,6 +3,7 @@
 // The browser never talks to Anthropic directly; it calls our API routes, which call this.
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { limitsFit } from "@/lib/rateLimit";
 import { costCents } from "@/lib/aiPricing";
 
 export const MODELS = {
@@ -62,14 +63,15 @@ export async function callClaude(opts: {
   // routes instead of 27 per-route hacks. A per-copilot cap plus a global ceiling on the durable
   // Postgres limiter (rate_limit_hit, 0154), so a leaked/shared staff token or a runaway client can't
   // burn the AI budget. Fails OPEN if the limiter is unreachable — a limiter blip mustn't take AI down.
+  // The copilot's own cap is asked before the ceiling (lib/rateLimit, R10): one copilot past its forty never spends the
+  // three hundred every copilot shares.
   if (supabaseAdmin) {
     let overCap = false;
     try {
-      const [perLabel, overall] = await Promise.all([
-        supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `ai:${opts.label ?? "misc"}`, p_window_ms: 60_000, p_max: 40 }),
-        supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "ai:all", p_window_ms: 60_000, p_max: 300 }),
-      ]);
-      overCap = perLabel.data === false || overall.data === false;
+      overCap = !(await limitsFit(supabaseAdmin, [
+        { bucket: `ai:${opts.label ?? "misc"}`, windowMs: 60_000, max: 40 },
+        { bucket: "ai:all", windowMs: 60_000, max: 300 },
+      ]));
     } catch { overCap = false; }
     if (overCap) throw new Error("AI is busy — too many requests this minute. Try again in a moment.");
   }

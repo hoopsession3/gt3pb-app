@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { route } from "@/lib/apiRoute";
 import { callerKey, mapsConfigured, resolve, suggest } from "@/lib/appleMaps";
+import { limitsFit } from "@/lib/rateLimit";
 
 // public: address suggestions while a customer types one, and the address a pick names, from Apple Maps — reads only, bounded per caller and for the app in the shared store
 // ADDRESSES, AS THEY ARE TYPED (2026-10-10). components/AddressField asks here; lib/appleMaps asks Apple. Public on
@@ -19,13 +20,12 @@ async function get(req: Request) {
   const q = (u.searchParams.get("q") ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
   if (!pick && q.length < 4) return NextResponse.json({ configured: true, results: [] });
 
-  if (supabaseAdmin) {
-    const [mine, all] = await Promise.all([
-      supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `address:${callerKey(req)}`, p_window_ms: PER_CALLER.windowMs, p_max: PER_CALLER.max }),
-      supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "address:all", p_window_ms: PER_APP.windowMs, p_max: PER_APP.max }),
-    ]);
-    if (mine.data === false || all.data === false) return NextResponse.json({ configured: true, results: [], busy: true }, { status: 429 });
-  }
+  // The caller first, the app's hour last (lib/rateLimit, R10): one caller past its own forty never spends the thousand
+  // every customer typing an address shares.
+  if (supabaseAdmin && !(await limitsFit(supabaseAdmin, [
+    { bucket: `address:${callerKey(req)}`, ...PER_CALLER },
+    { bucket: "address:all", ...PER_APP },
+  ]))) return NextResponse.json({ configured: true, results: [], busy: true }, { status: 429 });
 
   const headers = { "cache-control": "no-store" };
   if (pick) return NextResponse.json({ configured: true, address: await resolve(pick).catch(() => null) }, { headers });

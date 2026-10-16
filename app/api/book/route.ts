@@ -4,11 +4,12 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { integrationTenant } from "@/lib/tenantScope";
 import { toMarket } from "@/lib/markets";
 import { route } from "@/lib/apiRoute";
+import { callerIp, limitsFit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
 // public: an event planner asks to book the bar, signed in or not — the form a guest fills in
-// bounded-by: three an address in ten minutes, three an email a day, thirty an hour for everyone (rate_limit_hit, 0154), and a field only a bot fills
+// bounded in its own code: three an address in ten minutes, three an email a day, thirty an hour for everyone (rate_limit_hit, 0154), and a field only a bot fills
 
 // BOOK THE BAR, THROUGH A DOOR THAT COUNTS (R9, 2026-10-16 — the abuse audit's second).
 //
@@ -41,14 +42,15 @@ async function post(req: Request) {
   const day = str(b.event_date, 10);
   const headcount = Number(b.headcount);
 
-  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
-  const [byIp, byEmail, all] = await Promise.all([
-    supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `book:${ip}`, p_window_ms: 600_000, p_max: 3 }),
+  // Asked in order (lib/rateLimit, R10): the address, the email, then everyone — a sender over its own three never spends
+  // the thirty every event planner shares.
+  const ip = callerIp(req);
+  if (!(await limitsFit(supabaseAdmin, [
+    { bucket: `book:${ip}`, windowMs: 600_000, max: 3 },
     // The address by a digest: the limiter's store keeps counts, not who asked.
-    supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `book:e:${createHash("sha256").update(email).digest("hex").slice(0, 24)}`, p_window_ms: 86_400_000, p_max: 3 }),
-    supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "book:global", p_window_ms: 3_600_000, p_max: 30 }),
-  ]);
-  if (byIp.data === false || byEmail.data === false || all.data === false) {
+    { bucket: `book:e:${createHash("sha256").update(email).digest("hex").slice(0, 24)}`, windowMs: 86_400_000, max: 3 },
+    { bucket: "book:global", windowMs: 3_600_000, max: 30 },
+  ]))) {
     return NextResponse.json({ ok: false, error: "We've had a lot of requests just now — give it a few minutes, or email hello@gt3pb.com." }, { status: 429 });
   }
 

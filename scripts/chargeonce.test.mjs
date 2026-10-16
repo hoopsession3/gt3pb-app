@@ -132,7 +132,7 @@ const realFetch = globalThis.fetch;
   const r = code("app/api/checkout/route.ts");
   const at = (s, from = 0) => r.indexOf(s, from);
   ok("route: the replay comes before the limiter, the stock and the truck's hours",
-    at("seenBefore(") > 0 && at("seenBefore(") < at("p_bucket: `checkout:${ip}`") && at("seenBefore(") < at("readMenuRows(", at("const seen = await seenBefore(")) && at("seenBefore(") < at("readOrdering(")
+    at("seenBefore(") > 0 && at("seenBefore(") < at("bucket: `checkout:${ip}`") && at("seenBefore(") < at("readMenuRows(", at("const seen = await seenBefore(")) && at("seenBefore(") < at("readOrdering(")
     && at("seenBefore(") < at("readStopMenu("));
   // R2 (2026-10-13): the stock is the menu's own read (lib/drinks readMenuRows), and a stop's menu is a check like the truck's
   // hours — both after the replay, both before the claim.
@@ -238,7 +238,7 @@ const realFetch = globalThis.fetch;
   ok("route: a check is answered before anything else is read, by checkOnly alone, bounded per phone",
     r.indexOf("if (body.check === true)") > 0 && r.indexOf("if (body.check === true)") < r.indexOf("const { sourceId, items, tipCents } = body;")
       && /return reply\(await checkOnly\(checkoutClaims\(supabaseAdmin\), body\.idempotencyKey, card, \(\) => Date\.now\(\), stoppedAlert\(drinkList\(body\.items\), nameGiven\(body\.customer\), true\)\)\);/.test(r)
-      && /p_bucket: `checkout-check:\$\{ip\}`/.test(r));
+      && /bucket: `checkout-check:\$\{ip\}`/.test(r));
   // R7b re-audit: rate_limit_hit answers whether the caller is UNDER its cap (0154) — the check refused every normal tap with
   // `=== true`. Every route that asks it refuses on false, and none on true.
   {
@@ -249,8 +249,9 @@ const realFetch = globalThis.fetch;
       return /rate_limit_hit/.test(src) && /\b(?:ipHit|allHit|ipFits|allFits|mine|all|under|underCap|rowFits|alertFits)\.data === true|\.data === true \|\|/.test(src);
     }).map((f) => f.replace(ROOT + "/", ""));
     ok("limits: no route reads rate_limit_hit's true as \"too many\" — true is under the cap", inverted.length === 0, inverted);
+    // R10: asked in order through lib/rateLimit.limitsFit, which refuses on the first false (scripts/smoke.cjs runs it).
     ok("route: the check's limiter refuses on false, as the Pay path's does",
-      /if \(ipFits\.data === false \|\| allFits\.data === false\) return NextResponse\.json\(\{ error: "Too many tries — give it a minute\.", pending: true \}, \{ status: 429 \}\);/.test(r));
+      /if \(!\(await limitsFit\(supabaseAdmin, \[\s+\{ bucket: `checkout-check:\$\{ip\}`, windowMs: 60_000, max: 10 \},\s+\{ bucket: "checkout-check:global", windowMs: 60_000, max: 120 \},\s+\]\)\)\) return NextResponse\.json\(\{ error: "Too many tries — give it a minute\.", pending: true \}, \{ status: 429 \}\);/.test(r));
     ok("route: a check that finds a paid order that didn't save tells the crew so — with the drinks and the name the page still holds",
       /const stoppedAlert = \(items: string\[\] \| null, customer: string \| null, checked: boolean\) => async \(\{ key, claim \}: Stopped\) => \{/.test(r)
       && /if \(claim\.card && claim\.state === "charged"\) \{\s+await raiseAlert\(\{ severity: "critical", category: "money", title: "Paid order may not have recorded — check the pass"/.test(r)

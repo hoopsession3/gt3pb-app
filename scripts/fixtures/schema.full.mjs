@@ -51,6 +51,8 @@ export const SUPABASE_STANDINS = `
   create or replace function storage.filename(name text) returns text language sql immutable as $$ select (string_to_array(name, '/'))[array_length(string_to_array(name, '/'), 1)] $$;
   create or replace function storage.extension(name text) returns text language sql immutable as $$ select split_part(name, '.', 2) $$;
   create table cron.job (jobid bigserial primary key, jobname text, schedule text, command text);
+  -- pg_cron's run log, the columns 0419's cron_watch reads (and prunes): one row per run of a job.
+  create table cron.job_run_details (runid bigserial primary key, jobid bigint, job_pid int, database text, username text, command text, status text, return_message text, start_time timestamptz, end_time timestamptz);
   create or replace function cron.schedule(job_name text, schedule text, command text) returns bigint language sql as $$ insert into cron.job (jobname, schedule, command) values (job_name, schedule, command) returning jobid $$;
   create or replace function cron.unschedule(job_name text) returns boolean language sql as $$ delete from cron.job where jobname = job_name returning true $$;
   create or replace function net.http_post(url text, body jsonb default '{}'::jsonb, params jsonb default '{}'::jsonb, headers jsonb default '{}'::jsonb, timeout_milliseconds int default 5000) returns bigint language sql as $$ select 1::bigint $$;

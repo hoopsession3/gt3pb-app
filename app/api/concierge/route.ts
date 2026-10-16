@@ -12,6 +12,7 @@ import { money } from "@/lib/money";
 import { closedWords, liveSwitchOn, readyWords, type NamedStop, type Ordering } from "@/lib/ordering";
 import { orderingFrom, readOrdering } from "@/lib/orderingRead";
 import { route } from "@/lib/apiRoute";
+import { callerIp, limitsFit } from "@/lib/rateLimit";
 import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
@@ -83,18 +84,18 @@ function truckWords(o: Ordering): string | null {
 
 async function post(req: Request) {
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "Chat isn't available right now." }, { status: 503 });
-  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
+  const ip = callerIp(req);
   if (throttled(ip)) return NextResponse.json({ ok: false, error: "One sec — too many messages. Try again in a moment." }, { status: 429 });
   // Durable, cross-instance cap (the in-memory throttle above resets on every cold start and is
   // per-lambda, so it can't stop a real spend-DoS). Postgres rate_limit_hit (0154) is shared across
   // all instances: a per-IP burst cap AND a global ceiling, so nobody can burn the AI budget by
-  // rotating IPs or spraying many lambdas. Fails open if the limiter itself is unreachable.
+  // rotating IPs or spraying many lambdas. Fails open if the limiter itself is unreachable. Asked in order (lib/rateLimit,
+  // R10): one address past its own twenty never spends the ceiling every customer's question shares.
   if (supabaseAdmin) {
-    const [ipHit, allHit] = await Promise.all([
-      supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `concierge:${ip}`, p_window_ms: 60_000, p_max: 20 }),
-      supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "concierge:global", p_window_ms: 60_000, p_max: 240 }),
-    ]);
-    if (ipHit.data === false || allHit.data === false) {
+    if (!(await limitsFit(supabaseAdmin, [
+      { bucket: `concierge:${ip}`, windowMs: 60_000, max: 20 },
+      { bucket: "concierge:global", windowMs: 60_000, max: 240 },
+    ]))) {
       return NextResponse.json({ ok: false, error: "One sec — the concierge is catching its breath. Try again in a moment." }, { status: 429 });
     }
   }

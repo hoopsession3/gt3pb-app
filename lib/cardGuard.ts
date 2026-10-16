@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { callerIp, limitsFit, type Limit } from "./rateLimit";
 
 // A CARD TRIED HERE, COUNTED (R9, 2026-10-16 — the abuse audit's fifth).
 //
@@ -13,18 +14,19 @@ export const CARD_TRIES = { perPerson: 6, perAddress: 10, windowMs: 600_000, all
 
 export const CARD_TRIES_WORDS = "Too many card tries just now — give it a few minutes. Nothing was charged.";
 
-/** The address a request came from, as the platform says it (Vercel sets x-forwarded-for; its first entry is the caller). */
-export function callerAddress(req: Request): string {
-  return (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
+/** The address a request came from, as the platform says it (lib/rateLimit.callerIp). */
+export const callerAddress = callerIp;
+
+/** The counts one card try is asked against, in order: the person, then the address, then everyone (R10). */
+export function cardLimits(who: { userId?: string | null; ip: string }): Limit[] {
+  return [
+    ...(who.userId ? [{ bucket: `card:u:${who.userId}`, windowMs: CARD_TRIES.windowMs, max: CARD_TRIES.perPerson }] : []),
+    { bucket: `card:${who.ip}`, windowMs: CARD_TRIES.windowMs, max: CARD_TRIES.perAddress },
+    { bucket: "card:all", windowMs: 60_000, max: CARD_TRIES.allPerMinute },
+  ];
 }
 
-/** May this card try go to Square? False only when one of the counts is over. */
-export async function cardTryFits(db: SupabaseClient, who: { userId?: string | null; ip: string }): Promise<boolean> {
-  const asks = [
-    db.rpc("rate_limit_hit", { p_bucket: `card:${who.ip}`, p_window_ms: CARD_TRIES.windowMs, p_max: CARD_TRIES.perAddress }),
-    db.rpc("rate_limit_hit", { p_bucket: "card:all", p_window_ms: 60_000, p_max: CARD_TRIES.allPerMinute }),
-  ];
-  if (who.userId) asks.push(db.rpc("rate_limit_hit", { p_bucket: `card:u:${who.userId}`, p_window_ms: CARD_TRIES.windowMs, p_max: CARD_TRIES.perPerson }));
-  const hits = await Promise.all(asks);
-  return !hits.some((h) => (h as { data?: unknown }).data === false);
+/** May this card try go to Square? False at the first count that is over — the person's own before everyone's (R10). */
+export async function cardTryFits(db: Pick<SupabaseClient, "rpc">, who: { userId?: string | null; ip: string }): Promise<boolean> {
+  return limitsFit(db, cardLimits(who));
 }

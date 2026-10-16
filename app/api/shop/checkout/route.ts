@@ -17,6 +17,7 @@ import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
 import { chargeOnce, claimKey, seenBefore, type Answer, type Say, type Stopped } from "@/lib/chargeOnce";
 import { checkoutClaims } from "@/lib/checkoutClaims";
+import { callerIp, limitsFit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 // After the charge, Apliiq is given 25 seconds (lib/apliiq APLIIQ_SUBMIT_TIMEOUT_MS): the function outlives the wait.
@@ -94,13 +95,13 @@ async function post(req: Request) {
   // place to run stolen cards through Square — and every try wrote a claim. A tight burst per address and a ceiling for
   // everyone, in the store every instance shares (rate_limit_hit, 0154 — true is UNDER the cap, false the refusal). Asked
   // after a seen key is answered, so a retry of a payment already made is never turned away. Fails open if the limiter
-  // can't be asked: Square's own fraud tools are the backstop.
-  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
-  const [ipFits, allFits] = await Promise.all([
-    supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `shop-checkout:${ip}`, p_window_ms: 60_000, p_max: 6 }),
-    supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "shop-checkout:global", p_window_ms: 60_000, p_max: 60 }),
-  ]);
-  if (ipFits.data === false || allFits.data === false) return NextResponse.json({ error: "Too many attempts — give it a minute." }, { status: 429 });
+  // can't be asked: Square's own fraud tools are the backstop. The address is asked before the ceiling (lib/rateLimit,
+  // R10), so one address past its own six never spends the sixty every customer shares.
+  const ip = callerIp(req);
+  if (!(await limitsFit(supabaseAdmin, [
+    { bucket: `shop-checkout:${ip}`, windowMs: 60_000, max: 6 },
+    { bucket: "shop-checkout:global", windowMs: 60_000, max: 60 },
+  ]))) return NextResponse.json({ error: "Too many attempts — give it a minute." }, { status: 429 });
 
   // Rebuild the cart from trusted product ids only, and price it from the catalog.
   const rawItems = Array.isArray(body.items) ? body.items.slice(0, 40) : [];

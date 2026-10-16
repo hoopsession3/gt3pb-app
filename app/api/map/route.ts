@@ -3,6 +3,7 @@ import { route } from "@/lib/apiRoute";
 import { callerKey, mapsConfigured, placeOf, snapshot } from "@/lib/appleMaps";
 import { mapStreet } from "@/lib/maps";
 import { isUuid } from "@/lib/uuid";
+import { limitsFit } from "@/lib/rateLimit";
 
 // public: the map image of a public stop's or event's own place on Find Us, from Apple Maps — by the row's id, never a point a caller names; bounded in the shared store
 // THE MAP ON FIND US (2026-10-10, Find Us 10). The page asks for the picture of the place it already shows — the
@@ -22,11 +23,11 @@ async function get(req: Request) {
   const u = new URL(req.url);
   const id = u.searchParams.get("stop") ?? "";
   if (!isUuid(id) || !mapsConfigured() || !supabaseAdmin) return none(404);
-  const [mine, all] = await Promise.all([
-    supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `map:${callerKey(req)}`, p_window_ms: PER_CALLER.windowMs, p_max: PER_CALLER.max }),
-    supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "map:all", p_window_ms: PER_APP.windowMs, p_max: PER_APP.max }),
-  ]);
-  if (mine.data === false || all.data === false) return none(429);
+  // The caller first, the app's hour last (lib/rateLimit, R10): one caller past its own sixty never spends the app's.
+  if (!(await limitsFit(supabaseAdmin, [
+    { bucket: `map:${callerKey(req)}`, ...PER_CALLER },
+    { bucket: "map:all", ...PER_APP },
+  ]))) return none(429);
   // scoped-by: is_public — only a public row, one a storefront shows anyone signed out, answers, and only with Apple's
   // picture of its own place; a private row of any tenant, or no row, is the same 404.
   const { data } = await supabaseAdmin.from("field_ops").select("lat, lng, address, location_text").eq("id", id).eq("is_public", true).maybeSingle();
