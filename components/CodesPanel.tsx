@@ -222,7 +222,7 @@ export default function CodesPanel() {
                   sub={targetText(r)}
                   trailing={
                     <span className="codes-trail">
-                      <button type="button" className="btn-sec btn-sm" onClick={() => copyQr(r)} aria-label={`Copy QR link for ${r.code}`}>QR ⧉</button>
+                      <button type="button" className="btn-sec btn-sm" onClick={() => copyQr(r)} aria-label={`QR — copy the link for ${r.code}`}>QR ⧉</button>
                       <button type="button" className={`k-chip sm ok${r.active ? " on" : ""}`} onClick={() => toggle(r)} role="switch" aria-checked={r.active} aria-label={`${r.code} ${r.active ? "active" : "paused"}`}>
                         {r.active ? "Active" : "Paused"}
                       </button>

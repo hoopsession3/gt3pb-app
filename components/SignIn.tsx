@@ -326,7 +326,10 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
                   required
                   minLength={isNew ? 8 : 1}
                 />
-                <button type="button" className="auth-show-pass" onClick={() => setShowPass((v) => !v)} tabIndex={-1}>
+                {/* Reachable and named (R12 — the 10/10 audit, F17): it was out of the Tab order (tabIndex -1) and read only as
+                    "Show". Its word stays "Show"/"Hide", so Voice Control's "Tap Show" still finds it. */}
+                <button type="button" className="auth-show-pass" onClick={() => setShowPass((v) => !v)}
+                  aria-label={showPass ? "Hide password" : "Show password"} aria-pressed={showPass} aria-controls="pw-pass">
                   {showPass ? "Hide" : "Show"}
                 </button>
               </div>

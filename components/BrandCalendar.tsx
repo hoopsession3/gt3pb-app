@@ -13,9 +13,8 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
-import { clickable } from "@/lib/a11y";
 import { goPlanTab } from "@/lib/planNav";
-import { Segmented } from "@/components/controls";
+import { Segmented, tabPanel } from "@/components/controls";
 
 // BRAND CALENDAR — the planning brain of Studio. Posts (scheduled content) + events roll onto one
 // month view so Ryan + Kayla see the whole picture and build FROM it.
@@ -33,6 +32,12 @@ type Board = { content: CItem[]; events: EvItem[]; backlog: CItem[] };
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const longDate = (d: Date) => `${WEEKDAY[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+// What a month day's button says (R12 — the 10/10 audit, F15): the date in words and what is on it — the cell was a
+// button holding buttons, and a screen reader reached none of them.
+const dayWords = (d: Date, posts: number, evs: number) => `${longDate(d)} — ${posts === 0 && evs === 0 ? "nothing planned"
+  : [posts ? `${posts} ${posts === 1 ? "piece" : "pieces"}` : "", evs ? `${evs} ${evs === 1 ? "event" : "events"}` : ""].filter(Boolean).join(", ")}`;
 const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: string) => void; onCreate: (iso: string, eventId?: string | null) => void }) {
@@ -174,7 +179,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
             <button type="button" className="k-icon-btn" onClick={goNext} aria-label={view === "week" ? "Next week" : "Next month"}><Icon name="chevronRight" /></button>
           </div>
           <div className="cal-barx">
-            <Segmented label="Calendar view" value={view} onChange={setCalView} options={[{ key: "week", label: "Week" }, { key: "month", label: "Month" }]} />
+            <Segmented label="Calendar view" panelId="bcal-view" value={view} onChange={setCalView} options={[{ key: "week", label: "Week" }, { key: "month", label: "Month" }]} />
             <button type="button" className="btn-sec btn-sm" onClick={goToday}>Today</button>
           </div>
         </div>
@@ -192,7 +197,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
 
       {view === "week" ? (
         // On the desk (2026-10-09, redesign 5) the seven days stand side by side, as a desktop's week does — a phone's is a list.
-        <div className="calw desk:grid desk:grid-cols-7 desk:gap-2">
+        <div className="calw desk:grid desk:grid-cols-7 desk:gap-2" {...tabPanel("bcal-view", view)}>
           {weekDays.map((d) => {
             const k = key(d); const cell = byDay[k] ?? { posts: [], evs: [] };
             const isToday = k === todayKey; const dayEv = cell.evs[0]?.id ?? null;
@@ -204,7 +209,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
                   <span className="calw-dow">{DOW[d.getDay()]}</span>
                   <span className="calw-date">{d.getDate()}</span>
                   {isToday && <span className="k-tag gold fill">Today</span>}
-                  <button type="button" className="btn-ter ml-auto" onClick={() => onCreate(iso9(), dayEv)} aria-label={`New piece ${DOW[d.getDay()]}`}>+ Add</button>
+                  <button type="button" className="btn-ter ml-auto" onClick={() => onCreate(iso9(), dayEv)} aria-label={`Add a piece on ${DOW[d.getDay()]}`}>+ Add</button>
                 </div>
                 <div className="calw-items">
                   {cell.evs.map((e) => (
@@ -220,16 +225,18 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
           })}
         </div>
       ) : (
-      <div className="cal-grid">
+      <div className="cal-grid" {...tabPanel("bcal-view", view)}>
         {days.map((d) => {
           const k = key(d); const cell = byDay[k]; const dim = d.getMonth() !== cursor.getMonth();
           const dayEv = cell.evs[0]?.id ?? null;
           return (
-            <div key={k} {...clickable(() => setDayOpen(k))} className={`cal-cell${dim ? " dim" : ""}${over === k ? " over" : ""}${k === todayKey ? " today" : ""}`}
+            // The cell opens its day to a finger or a pointer anywhere on it; to a keyboard and a screen reader its date is the
+            // button that does (R12, F15) — beside Add and the pieces, never around them.
+            <div key={k} onClick={() => setDayOpen(k)} className={`cal-cell${dim ? " dim" : ""}${over === k ? " over" : ""}${k === todayKey ? " today" : ""}`}
               onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => (o === k ? null : o))} onDrop={() => drop(k)}>
               <div className="cal-cell-h">
-                <span className="cal-date">{d.getDate()}</span>
-                <button type="button" className="cal-add hit-44" onClick={(e) => { e.stopPropagation(); onCreate(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9, 0).toISOString(), dayEv); }} aria-label="New piece this day">+</button>
+                <button type="button" className="cal-date cal-date-btn" onClick={(e) => { e.stopPropagation(); setDayOpen(k); }} aria-label={dayWords(d, cell.posts.length, cell.evs.length)}>{d.getDate()}</button>
+                <button type="button" className="cal-add hit-44" onClick={(e) => { e.stopPropagation(); onCreate(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9, 0).toISOString(), dayEv); }} aria-label={`New piece on ${longDate(d)}`}>+</button>
               </div>
               <div className="cal-items">
                 {cell.evs.map((e) => (

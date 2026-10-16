@@ -15,7 +15,7 @@ type Suggestion = { line1: string; line2: string; pick: string };
 
 let none = false; // this page asked, and the server has no Maps key
 
-export default function AddressField({ value, onChange, onPick, near, className, placeholder, label, maxLength = 120 }: {
+export default function AddressField({ value, onChange, onPick, near, className, placeholder, label, maxLength = 120, id, autoComplete = "address-line1" }: {
   value: string;
   onChange: (v: string) => void;
   onPick: (a: PickedAddress) => void;
@@ -25,6 +25,10 @@ export default function AddressField({ value, onChange, onPick, near, className,
   placeholder?: string;
   label: string;
   maxLength?: number;
+  /** For a visible <label htmlFor> above it (R12, F9); the aria-label stays the same words. */
+  id?: string;
+  /** "shipping address-line1" where the address is where a parcel goes. */
+  autoComplete?: string;
 }) {
   const [items, setItems] = useState<Suggestion[]>([]);
   const [active, setActive] = useState(-1);
@@ -80,8 +84,8 @@ export default function AddressField({ value, onChange, onPick, near, className,
 
   return (
     <div className="relative">
-      <input className={className} placeholder={placeholder} aria-label={label} value={value} maxLength={maxLength}
-        autoComplete="address-line1" role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls={list}
+      <input id={id} className={className} placeholder={placeholder} aria-label={label} value={value} maxLength={maxLength}
+        autoComplete={autoComplete} role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls={list}
         aria-activedescendant={open && active >= 0 ? `${list}-${active}` : undefined}
         onChange={(e) => { typed.current = true; if (e.target.value.trim().length < 4) setItems([]); onChange(e.target.value); }} onKeyDown={keys}
         onBlur={() => setTimeout(() => setItems([]), 150)} />

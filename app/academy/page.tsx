@@ -21,6 +21,7 @@ import {
 import { staffAccess } from "@/lib/access";
 import { useBackStep } from "@/components/useBackStep";
 import Button from "@/components/Button";
+import Said from "@/components/Said";
 
 // What a level is held to, as opposed to what it has been taught. Four separate things on purpose:
 // what the role owns, the non-negotiables, the rhythm it keeps, and how it is actually judged.
@@ -254,7 +255,7 @@ export default function AcademyPage() {
       <Masthead eyebrow="GT3 Academy" />
       <h1 className="h-title">Your <em className="it">path.</em></h1>
       <div className="subm" style={{ marginTop: 10 }}>{roleLabel} track · {reqDone}/{required.length} modules</div>
-      {loadErr && <p className="subm" role="status">Could not refresh your record — {loadErr}. This is what was last read.</p>}
+      {loadErr && <Said as="p" className="subm">Could not refresh your record — {loadErr}. This is what was last read.</Said>}
 
       {/* progress + certifications */}
       <div className="ac-top">

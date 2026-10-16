@@ -8,6 +8,7 @@ import { useOperatorSection, sectionsForRole, SECTION_LABEL, type OpSection } fr
 import { readTopRecents } from "./recents";
 import type { Recent } from "@/lib/recents";
 import { APP_BUILD } from "@/lib/native";
+import Said from "./Said";
 
 // COMMAND PALETTE — ⌘K / Ctrl-K quick-jump for the crew console. Type to jump to any role-allowed
 // section or run a quick action, keyboard-first (↑↓ ⏎ esc). The "this is a real product" flourish.
@@ -105,15 +106,21 @@ export default function CommandPalette() {
   return (
     <div className="cmdk-scrim" onMouseDown={() => setOpen(false)}>
       <div className="cmdk" role="dialog" aria-modal="true" aria-label="Jump to" onMouseDown={(e) => e.stopPropagation()}>
-        <input autoFocus className="cmdk-in" placeholder="Jump to a section or action…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onInputKey} aria-label="Search" />
-        <div className="cmdk-list">
+        {/* A COMBOBOX, SAID AS ONE (R12 — the 10/10 audit, F8): ↑ ↓ moved a highlight a screen reader never heard. The field
+            says it controls a list of options and which one is picked (aria-activedescendant), as the address field's
+            does; the options are the list's; "No match" is said when it comes. */}
+        <input autoFocus className="cmdk-in" placeholder="Jump to a section or action…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onInputKey}
+          aria-label="Jump to" role="combobox" aria-autocomplete="list" aria-expanded={filtered.length > 0} aria-controls="cmdk-list"
+          aria-activedescendant={filtered[sel] ? `cmdk-opt-${sel}` : undefined} />
+        <div className="cmdk-list" id="cmdk-list" role="listbox" aria-label="Sections and actions">
           {filtered.map((i, idx) => (
-            <button key={i.id} type="button" className={`cmdk-item${idx === sel ? " on" : ""}`} onMouseEnter={() => setSel(idx)} onClick={() => activate(i)}>
+            <button key={i.id} id={`cmdk-opt-${idx}`} type="button" role="option" aria-selected={idx === sel} tabIndex={-1}
+              className={`cmdk-item${idx === sel ? " on" : ""}`} onMouseEnter={() => setSel(idx)} onClick={() => activate(i)}>
               <span>{i.label}</span><em>{i.hint}</em>
             </button>
           ))}
-          {filtered.length === 0 && <div className="cmdk-empty">No match</div>}
         </div>
+        {filtered.length === 0 && <Said className="cmdk-empty">No match</Said>}
         {/* keys, for a keyboard: a touch screen — a phone, the iPhone app — has none of them (2026-10-11, the App Store audit) */}
         <div className="cmdk-foot pointer-coarse:hidden">↑↓ move · ⏎ go · esc close</div>
       </div>

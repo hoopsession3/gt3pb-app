@@ -10,6 +10,7 @@ import Icon from "@/components/Icon";
 import { scrollToTop } from "@/lib/appScroll";
 import { haptic } from "@/lib/haptics";
 import Gt3Mark from "./Gt3Mark";
+import { rovingTab } from "./roving";
 import { DESK_QUERY } from "@/lib/surfaces";
 
 // Is the bar a sidebar right now (the desk, 2026-10-09)? Asked on the client; the server and the first paint say
@@ -187,8 +188,12 @@ export default function OperatorNav() {
     setSection("settings");
     setMoreOpen(false);
   };
-  // Roving arrow-key nav for the tablist (WAI-ARIA): ←/→ move + activate, Home/End jump to ends. On the desk the
-  // list stands up as a sidebar, so ↑/↓ are its arrows (and the list says it is vertical).
+  // Roving arrow-key nav for the tablist (WAI-ARIA): ←/→ move, Home/End jump to ends. On the desk the list stands up
+  // as a sidebar, so ↑/↓ are its arrows (and the list says it is vertical).
+  // THE ARROWS LOOK, ENTER OPENS (R12 — the 10/10 audit's accessibility pass, F7). Each arrow used to open the lane it
+  // passed — a new screen, a tick and a fetch per key press for someone only looking for the fourth lane. The arrows
+  // move focus now; Enter or Space opens the lane, as a press does. The lit lane (the first, when the place you are is
+  // under More) is the list's one stop in the Tab order. More is not a tab: it opens a sheet, and says so.
   const onNavKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (!["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
     const tabs = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
@@ -201,8 +206,8 @@ export default function OperatorNav() {
     else if (e.key === "End") next = tabs.length - 1;
     e.preventDefault();
     tabs[next]?.focus();
-    tabs[next]?.click();
   };
+  const litAt = groups.findIndex((g) => g.id === currentId);
   return (
     <>
     {/* Landmark so screen-reader users can jump straight to primary nav — role="tablist" alone is a
@@ -221,22 +226,26 @@ export default function OperatorNav() {
       <Gt3Mark tone="cream" className="font-display text-title3 tracking-[.3px] text-cream" />
       <span className="font-sans font-semibold text-caption tracking-eyebrow uppercase text-cream-muted">Crew console</span>
     </div>
-    <div className="opnav-tabs" role="tablist" aria-label="Crew console" aria-orientation={desk ? "vertical" : "horizontal"} onKeyDown={onNavKey}>
-      {groups.map((g) => {
-        const on = currentId === g.id;
-        return (
-          <button key={g.id} role="tab" aria-selected={on} className={`tab${on ? " on" : ""}`} onClick={() => {
-            if (!on) { openGroup(g); return; }
-            // ON the lane already: it goes back to the lane's first screen, as a tab bar does (2026-10-04),
-            // and from there to the top (2026-10-05). What is waiting is the bell's, in the header.
-            if (section !== g.members[0]) setSection(g.members[0]); else scrollToTop();
-          }}>
-            <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{g.id === "today" ? ICONS.day : streamIcon(g.icon)}</svg></span>
-            <span className="tl leading-none">{g.label}</span>
-          </button>
-        );
-      })}
-      <button role="tab" aria-selected={moreOn} className={`tab${moreOn ? " on" : ""}`} onClick={() => setMoreOpen(true)}>
+    {/* The bar lays out the lanes and More side by side; only the lanes are the tab list (F7, above). The lanes' row
+        takes a share of the bar per lane, so every button is the width it was. */}
+    <div className="opnav-tabs">
+      <div className="opnav-lanes" role="tablist" aria-label="Crew console" aria-orientation={desk ? "vertical" : "horizontal"} onKeyDown={onNavKey} style={{ "--lanes": groups.length } as React.CSSProperties}>
+        {groups.map((g, i) => {
+          const on = currentId === g.id;
+          return (
+            <button key={g.id} type="button" role="tab" aria-selected={on} tabIndex={rovingTab(i, litAt)} className={`tab${on ? " on" : ""}`} onClick={() => {
+              if (!on) { openGroup(g); return; }
+              // ON the lane already: it goes back to the lane's first screen, as a tab bar does (2026-10-04),
+              // and from there to the top (2026-10-05). What is waiting is the bell's, in the header.
+              if (section !== g.members[0]) setSection(g.members[0]); else scrollToTop();
+            }}>
+              <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{g.id === "today" ? ICONS.day : streamIcon(g.icon)}</svg></span>
+              <span className="tl leading-none">{g.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <button type="button" className={`tab${moreOn ? " on" : ""}`} aria-haspopup="dialog" aria-current={moreOn ? "page" : undefined} onClick={() => setMoreOpen(true)}>
         <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{STREAM_ICONS.more}</svg></span>
         <span className="tl leading-none">More</span>
       </button>

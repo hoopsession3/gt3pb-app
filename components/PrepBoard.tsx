@@ -14,6 +14,7 @@ import Icon from "@/components/Icon";
 import { targetIsCurrent } from "@/lib/readiness";
 import { localToday } from "@/lib/dates";
 import { useCrew, crewLabel } from "./useCrew";
+import { rovingKeys, rovingTab } from "./roving";
 
 // PREP BOARD — the aggregate readiness triage surface. Every open prep task, ROLLED UP into
 // collapsible groups by the INITIATIVE it's assigned to (0201/0237) — falling back to its event/stop
@@ -148,9 +149,10 @@ export default function PrepBoard() {
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load prep" emptyTitle="Nothing here yet">
       {() => (
         <div className="pbd">
-          <div className="pbd-filters" role="tablist" aria-label="Filter prep">
-            {(["all", "critical", "mine", "overdue"] as Filter[]).map((f) => (
-              <button key={f} type="button" role="tab" aria-selected={filter === f} className={`k-chip${filter === f ? " on" : ""}${f === "critical" && counts.critical ? " crit" : ""}`} onClick={() => setFilter(f)}>
+          {/* A filter, so a radio group: one Tab stop, arrows along it (R12 — the 10/10 audit, F7). */}
+          <div className="pbd-filters" role="radiogroup" aria-label="Filter prep" onKeyDown={(e) => rovingKeys(e, 4, (["all", "critical", "mine", "overdue"] as Filter[]).indexOf(filter), (i) => setFilter((["all", "critical", "mine", "overdue"] as Filter[])[i]))}>
+            {(["all", "critical", "mine", "overdue"] as Filter[]).map((f, i) => (
+              <button key={f} type="button" role="radio" aria-checked={filter === f} tabIndex={rovingTab(i, (["all", "critical", "mine", "overdue"] as Filter[]).indexOf(filter))} className={`k-chip${filter === f ? " on" : ""}${f === "critical" && counts.critical ? " crit" : ""}`} onClick={() => setFilter(f)}>
                 {f[0].toUpperCase() + f.slice(1)} <b>{counts[f]}</b>
               </button>
             ))}

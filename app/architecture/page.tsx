@@ -11,7 +11,7 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { ARCHITECTURE, ARCH_OVERVIEW, DATABASES, BUSINESS, BUSINESS_OVERVIEW, BUILD_STATS, MANAGE_LABEL, STATUS_LABEL, sotUrl, type ArchLayer, type ArchComponent, type ArchStatus, STATUS_TONE, MANAGE_TONE } from "@/lib/architecture";
 import { moneyRound } from "@/lib/money";
-import { Segmented } from "@/components/controls";
+import { Segmented, tabPanel } from "@/components/controls";
 // The sign-in is for a visitor who is signed out — staff signed in never download it (2026-10-09).
 const SignIn = dynamic(() => import("@/components/SignIn"));
 
@@ -137,10 +137,10 @@ export default function ArchitecturePage() {
         <>
           <div className="h-title">System architecture</div>
           <div className="h-sub">High level first, then tap in. {live ? "Status is live — read from the running platform." : "Loading live status…"}</div>
-          <Segmented label="View" className="mt-3" value={view} onChange={setView}
+          <Segmented label="View" className="mt-3" panelId="arch-view" value={view} onChange={setView}
             options={[{ key: "progress", label: "Progress" }, { key: "business", label: "Business" }, { key: "layers", label: "Layers" }, { key: "databases", label: "Databases" }]} />
           {view === "progress" ? (
-            <div className="arch-prog">
+            <div className="arch-prog" {...tabPanel("arch-view", view)}>
               <div className="arch-overview">
                 <div className="arch-ov-t">What we&apos;ve built <span className="arch-ov-when">· snapshot {BUILD_STATS.asOf}</span></div>
                 <p className="arch-ov-b">The platform itself, by the numbers — everything shipped to run GT3PB.</p>
@@ -170,7 +170,7 @@ export default function ArchitecturePage() {
               )}
             </div>
           ) : view === "business" ? (
-            <div className="arch-biz">
+            <div className="arch-biz" {...tabPanel("arch-view", view)}>
               <div className="arch-overview">
                 <div className="arch-ov-t">What we&apos;ve built — for the business</div>
                 <p className="arch-ov-b">{BUSINESS_OVERVIEW}</p>
@@ -192,7 +192,7 @@ export default function ArchitecturePage() {
               ))}
             </div>
           ) : view === "databases" ? (
-            <div className="arch-db">
+            <div className="arch-db" {...tabPanel("arch-view", view)}>
               <div className="arch-overview">
                 <div className="arch-ov-t">Database review</div>
                 <p className="arch-ov-b"><b>{DATABASES.filter((d) => d.manage === "full").length} of {DATABASES.length}</b> tables are fully manageable in the app. The rest are partial, read-only, or system-managed by design.</p>
@@ -204,8 +204,8 @@ export default function ArchitecturePage() {
                 </div>
               ))}
             </div>
-          ) : (<>
-          <input className="arch-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search every layer & component…" />
+          ) : (<div {...tabPanel("arch-view", view)}>
+          <input className="arch-search" aria-label="Search every layer and component" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search every layer & component…" />
           {q.trim() ? (
             <div className="arch-comps" style={{ marginTop: 6 }}>
               {results.length === 0 ? <div className="h-sub">No components match.</div> : results.map(({ c, l }) => <Comp key={`${l.id}-${c.name}`} c={c} color={l.color} layerTag={l.tag} />)}
@@ -237,7 +237,7 @@ export default function ArchitecturePage() {
               <a className="arch-sot-all" href="https://github.com/hoopsession3/gt3pb-app" target="_blank" rel="noreferrer">Live source <Icon name="externalLink" /> hoopsession3/gt3pb-app</a>
             </>
           )}
-          </>)}
+          </div>)}
         </>
       )}
       <ClosingBeat />

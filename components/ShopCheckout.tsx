@@ -78,7 +78,12 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
   // Asking about a held payment, or making one — read when Pay is tapped (the hold opens as the first send leaves).
   const [rechecking, setRechecking] = useState(false);
   const payCents = frozen ? frozen.cents : agreed && agreed.sig === cartSig ? agreed.cents : total;
-  const canPay = ready && !busy && !heldElsewhere && cart.length > 0 && ship.name && ship.street && ship.city && ship.state && ship.zip && (isMember || ship.email);
+  // WHAT'S MISSING, SAID ON THE BUTTON (R12 — the 10/10 audit, F9). Pay stayed "Pay $32.00" and dimmed until every field
+  // was filled, and nothing said which one wasn't — VoiceOver heard "Pay $32, dimmed". It says the first missing field
+  // now, the way the cup checkout says "Add a name above".
+  const missing = !ship.name ? "Add your name above" : !ship.street ? "Add your street address above" : !ship.city ? "Add your city above"
+    : !ship.state ? "Choose your state above" : !ship.zip ? "Add your ZIP above" : !isMember && !ship.email ? "Add your email above" : null;
+  const canPay = ready && !busy && !heldElsewhere && cart.length > 0 && !missing;
 
   const pay = async () => {
     if (!payRef.current) return;
@@ -147,21 +152,37 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
       <div className="shop-ship">
         <EditableCopy k="checkout.ship_to" value={t("checkout.ship_to")} as="div" className="shop-ship-n" />
         {fromLast && <p className="known-note">From your {known?.shipFrom === "shop" ? "last order" : "last delivery"} — change anything that&apos;s different.</p>}
-        <input placeholder={t("checkout.ph_name")} value={ship.name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-        <AddressField placeholder={t("checkout.ph_street")} label={t("checkout.ph_street")} value={ship.street} onChange={setStreet}
+        {/* LABELS YOU CAN SEE (R12 — the 10/10 audit, F9). These were placeholders and nothing else, and the fields are
+            filled from the last order: a returning shopper saw "123 Main St" and "29601" with no word for either, and a
+            screen reader heard the owner-editable placeholder copy as the field's name. Each field has its label above it
+            now (the same words), and the browser's autofill knows they are the shipping address. */}
+        <label className="fld-l block mt-0.5 mb-[5px]" htmlFor="ship-name">{t("checkout.ph_name")}</label>
+        <input id="ship-name" value={ship.name} onChange={(e) => setName(e.target.value)} autoComplete="shipping name" />
+        <label className="fld-l block mt-0.5 mb-[5px]" htmlFor="ship-street">{t("checkout.ph_street")}</label>
+        <AddressField id="ship-street" autoComplete="shipping address-line1" label={t("checkout.ph_street")} value={ship.street} onChange={setStreet}
           onPick={(a) => { setStreet(a.street); if (a.city) setCity(a.city); if (US_STATES.some(([c]) => c === a.state)) setShipState(a.state); if (a.zip) setZip(a.zip); }} />
-        <input placeholder={t("checkout.ph_city")} value={ship.city} onChange={(e) => setCity(e.target.value)} autoComplete="address-level2" />
+        <label className="fld-l block mt-0.5 mb-[5px]" htmlFor="ship-city">{t("checkout.ph_city")}</label>
+        <input id="ship-city" value={ship.city} onChange={(e) => setCity(e.target.value)} autoComplete="shipping address-level2" />
         {/* THE STATE IS A PICK (lib/usAddress). It was a 90px text box, and the printer was sent its
             first two letters: "New York" shipped as NE. The list keeps the code; a browser's saved
             address fills it by name or code alike. The city has its own line so the state's name fits. */}
         <div className="shop-ship-row">
-          <select aria-label={t("checkout.ph_state")} value={ship.state} onChange={(e) => setShipState(e.target.value)} autoComplete="address-level1" className={ship.state ? undefined : "ph"}>
-            <option value="">{t("checkout.ph_state")}</option>
-            {US_STATES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
-          </select>
-          <input placeholder={t("checkout.ph_zip")} value={ship.zip} onChange={(e) => setZip(e.target.value)} autoComplete="postal-code" inputMode="numeric" maxLength={10} style={{ maxWidth: 120 }} />
+          <div className="flex-1 min-w-0 [&_select]:w-full">
+            <label className="fld-l block mt-0.5 mb-[5px]" htmlFor="ship-state">{t("checkout.ph_state")}</label>
+            <select id="ship-state" value={ship.state} onChange={(e) => setShipState(e.target.value)} autoComplete="shipping address-level1" className={ship.state ? undefined : "ph"}>
+              <option value="">Choose…</option>
+              {US_STATES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+            </select>
+          </div>
+          <div className="flex-[0_0_120px] min-w-0">
+            <label className="fld-l block mt-0.5 mb-[5px]" htmlFor="ship-zip">{t("checkout.ph_zip")}</label>
+            <input id="ship-zip" value={ship.zip} onChange={(e) => setZip(e.target.value)} autoComplete="shipping postal-code" inputMode="numeric" maxLength={10} />
+          </div>
         </div>
-        {!isMember && <input placeholder={t("checkout.ph_email")} value={ship.email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" type="email" />}
+        {!isMember && <>
+          <label className="fld-l block mt-0.5 mb-[5px]" htmlFor="ship-email">{t("checkout.ph_email")}</label>
+          <input id="ship-email" value={ship.email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" type="email" />
+        </>}
       </div>
 
       <div className="shop-pay">
@@ -171,7 +192,7 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
             <PaymentCard ref={payRef} onReady={setReady} onError={(m) => setErr(m)} />
             {err && <div className="shop-err" role="alert">{err}</div>}
             {/* Pay button + 'Charging…' loading label inside a <button> → plain t()/fillCopy. */}
-            <button type="button" className="btn-pri btn-wide mt-3.5" onClick={pay} disabled={!canPay}>{busy ? (rechecking ? "Checking…" : "Charging…") : frozen ? "Check on my payment" : fillCopy(t("checkout.pay"), { total: money(payCents) })}</button>
+            <button type="button" className="btn-pri btn-wide mt-3.5" onClick={pay} disabled={!canPay}>{busy ? (rechecking ? "Checking…" : "Charging…") : frozen ? "Check on my payment" : missing ?? fillCopy(t("checkout.pay"), { total: money(payCents) })}</button>
             <EditableCopy k="checkout.fine" value={t("checkout.fine")} as="p" className="shop-fine" multiline />
           </>
         ) : (

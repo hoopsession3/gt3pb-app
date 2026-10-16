@@ -62,11 +62,13 @@ export function usePagerLevel(level: Level | null): void {
   usePageTick(level);
 }
 
-export default function SwipePager({ levels: own = [], children, className = "" }: {
+export default function SwipePager({ levels: own = [], children, className = "", panel }: {
   /** The tab rows the screen rendering this pager owns; a row not showing is left out (or null). */
   levels?: readonly (Level | null | false)[];
   children: ReactNode;
   className?: string;
+  /** The tab panel its tab row switches (components/controls tabPanel — R12, F7): the pages are what the tabs show. */
+  panel?: { role: "tabpanel"; id: string; "aria-labelledby": string };
 }) {
   const offered = useRef(new Map<string, Level>());
   const box = useRef<HTMLDivElement>(null);
@@ -82,7 +84,7 @@ export default function SwipePager({ levels: own = [], children, className = "" 
 
   return (
     <Ctx.Provider value={set}>
-      <div ref={box} className={`swipe-pager${className ? ` ${className}` : ""}`}>{children}</div>
+      <div ref={box} className={`swipe-pager${className ? ` ${className}` : ""}`} {...panel}>{children}</div>
       <PagerMotion box={box} surface={surface} levels={levels} />
       {/* Each row's place in `levels` is the row: the screen lists its rows in a fixed order. */}
       {own.map((l, i) => <PageTick key={i} level={l || null} />)}

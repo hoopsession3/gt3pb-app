@@ -30,7 +30,9 @@ const pause = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const CARD_STYLE: Record<string, object> = {
   paper: {
     input: { backgroundColor: "#FFFFFF", color: "#221F18" },
-    "input::placeholder": { color: "#9a8f7c" },
+    // The placeholders ("Card number", "MM/YY", "CVV", "ZIP") are this form's only visible labels: #6c6256, the paper's
+    // --muted2-onLight, 5.9:1 on the white field (R12 — the 10/10 audit, F6; #9a8f7c was 3.2:1).
+    "input::placeholder": { color: "#6c6256" },
     ".input-container": { borderColor: "#D8CFBB", borderRadius: "10px" },
     ".input-container.is-focus": { borderColor: "#6e4c1e" },
   },

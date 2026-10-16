@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -11,6 +11,8 @@ import EditCopyPill from "@/components/EditCopyPill";
 import EditableCopy from "@/components/EditableCopy";
 import Watermark from "@/components/Watermark";
 import Icon from "@/components/Icon";
+import { announce } from "@/components/Announcer";
+import { useStepFocus } from "@/components/useStepFocus";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
 import OrderFunnel from "@/components/OrderFunnel";
@@ -22,7 +24,7 @@ import { variantLabel, type Variant, type Product, type CartLine } from "@/lib/s
 import type { ShopReceipt } from "@/lib/receipt";
 import SwipePager from "@/components/SwipePager";
 import { haptic } from "@/lib/haptics";
-import { Segmented } from "@/components/controls";
+import { Segmented, tabPanel } from "@/components/controls";
 import { useStuck } from "@/components/useStuck";
 
 /** The most of one line the shop ships (app/api/shop/checkout clamps each to it). */
@@ -52,7 +54,7 @@ function AisleRow({ section, onChange, labels }: { section: Aisle; onChange: (a:
   const [ref, stuck] = useStuck<HTMLDivElement>();
   return (
     <div ref={ref} className={stuck ? "menu-chips shop-sections is-stuck" : "menu-chips shop-sections"}>
-      <Segmented label="Shop" fill value={section} onChange={onChange}
+      <Segmented label="Shop" fill panelId="shop-aisle" value={section} onChange={onChange}
         options={[{ key: "bottles", label: labels[0] }, { key: "merch", label: labels[1] }]} />
     </div>
   );
@@ -62,6 +64,12 @@ export default function Shop() {
   const { user } = useAuth();
   const t = useSiteCopy();
   const [view, setView] = useState<"grid" | "product" | "checkout" | "done">("grid");
+  // Each view replaces the last (R12 — the 10/10 audit, F5): focus goes to the new view's heading — and back from a
+  // product, to the card it was opened from — so a screen reader hears where things stand and a keyboard goes on from
+  // there, not from the top of the page.
+  const root = useRef<HTMLElement>(null);
+  const opened = useRef<string | null>(null);
+  useStepFocus(view, root, { pick: () => (view === "grid" && opened.current ? root.current?.querySelector<HTMLElement>(`[data-shop-card="${CSS.escape(opened.current)}"]`) : null) });
   const [active, setActive] = useState<Product | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [doneRef, setDoneRef] = useState<{ warn?: string; emailed?: boolean; receipt?: ShopReceipt } | null>(null);
@@ -115,7 +123,7 @@ export default function Shop() {
   };
 
   return (
-    <section className="screen" id="s-shop">
+    <section className="screen" id="s-shop" ref={root}>
       {/* DARK, LIKE THE REST OF ITS TAB (2026-10-14, R6 — decided by Ryan: "All dark"). The Shop tab lit three pages, and
           /shop alone was paper: Reserve and Delivery, a tap away under the same tab, were the app's charcoal. The shop's
           own rules read the theme's tokens now (app/globals.css .shop-*), so its aisles, merch and checkout are the
@@ -139,7 +147,8 @@ export default function Shop() {
       {/* The two aisles are pages: a sideways swipe on the shop turns from Bottles to Merch and back
           (components/SwipePager) — the tap on the aisle row, by the thumb. Inside a product, the cart or
           the receipt there is no row, and nothing turns. */}
-      <SwipePager levels={[(section === "bottles" || view === "grid") && { keys: SHOP_AISLES, current: section, go: (k) => setSection(k as Aisle), depth: 0 }]}>
+      <SwipePager levels={[(section === "bottles" || view === "grid") && { keys: SHOP_AISLES, current: section, go: (k) => setSection(k as Aisle), depth: 0 }]}
+        panel={section === "bottles" || view === "grid" ? tabPanel("shop-aisle", section) : undefined}>
       {section === "bottles" && (
         <>
           <EditableCopy k="reserve.headline" value={t("reserve.headline")} as="p" className="shop-stmt" multiline />
@@ -172,7 +181,7 @@ export default function Shop() {
           {board.status === "ready" && products.length === 0 && <EditableCopy k="shop.empty" value={t("shop.empty")} as="div" className="shop-note" />}
           <div className="shop-grid">
             {products.map((p) => (
-              <button type="button" key={p.id} className="shop-card" onClick={() => { setActive(p); setView("product"); }}>
+              <button type="button" key={p.id} className="shop-card" data-shop-card={p.id} onClick={() => { opened.current = p.id; setActive(p); setView("product"); }}>
                 <div className="shop-thumb">{(() => { const m = readMedia(p); const cover = coverOf(m); return cover
                   ? <><img src={cover} alt={p.title} loading="lazy" />{m.length > 1 && <span className="k-tag glass shop-story-dot" aria-hidden>{hasVideo(m) ? "▶" : m.length}</span>}</>
                   : <span className="shop-thumb-ph"><Icon name="package" /></span>; })()}</div>
@@ -187,7 +196,7 @@ export default function Shop() {
       )}
 
       {section === "merch" && view === "product" && active && (
-        <ProductDetail product={active} onBack={() => setView("grid")} onAdd={(v, q) => { addToCart(active, v, q); setView("grid"); }} />
+        <ProductDetail product={active} onBack={() => setView("grid")} onAdd={(v, q) => { addToCart(active, v, q); setView("grid"); announce(`${active.public_title || active.title} — ${q} added to your bag.`); }} />
       )}
 
       {section === "merch" && view === "checkout" && (

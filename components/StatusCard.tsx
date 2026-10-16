@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import { saveFile, shareImage } from "@/lib/deviceActions";
 import Sheet, { CloseButton } from "./Sheet";
 import Icon from "@/components/Icon";
+import { rovingKeys, rovingTab } from "./roving";
 import EditableCopy from "@/components/EditableCopy";
 import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
@@ -380,7 +381,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
       {/* Member card group is just this one key — 100% inline coverage — so the Edit pill that used
           to sit in this header (jump to the copy editor's Member card group) came off, 2026-07-17,
           same reasoning as Menu: a working inline field right here made the jump-away redundant. */}
-      {founding && <EditableCopy k="card.founding_thanks" value={t("card.founding_thanks")} as="div" className="fc-founding" role="status" />}
+      {founding && <EditableCopy k="card.founding_thanks" value={t("card.founding_thanks")} as="div" className="fc-founding" />}
 
       {/* the object they own — tap to spin, drag to tilt */}
       <div className={`fc-scene f-${finish}${founding ? " founding" : ""}`}>
@@ -421,9 +422,9 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
       {/* make it theirs — a luxury-configurator finish selector: real material swatches with a
           polished sheen + machined edge, gold ring + check on the one that's set. */}
       <div className="fc-fin-cap">Choose your finish</div>
-      <div className="fc-finishes" role="radiogroup" aria-label="Card finish">
-        {FINISHES.map((f) => (
-          <button key={f.key} type="button" role="radio" aria-checked={finish === f.key}
+      <div className="fc-finishes" role="radiogroup" aria-label="Card finish" onKeyDown={(e) => rovingKeys(e, FINISHES.length, FINISHES.findIndex((f) => f.key === finish), (i) => pickFinish(FINISHES[i].key))}>
+        {FINISHES.map((f, i) => (
+          <button key={f.key} type="button" role="radio" aria-checked={finish === f.key} tabIndex={rovingTab(i, FINISHES.findIndex((x) => x.key === finish))}
             className={`fc-fin fin-${f.key}${finish === f.key ? " on" : ""}`} onClick={() => pickFinish(f.key)}>
             <span className="fc-fin-sw" aria-hidden /><span className="fc-fin-lb">{f.label}</span>
           </button>

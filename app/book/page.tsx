@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
 import EditCopyPill from "@/components/EditCopyPill";
@@ -12,6 +12,7 @@ import { etToday } from "@/lib/dates";
 import { useCustomerKnown, useKnownField } from "@/components/useCustomerKnown";
 import { useViewerMarket } from "@/components/useViewerMarket";
 import { nextOnEnter } from "@/lib/formKeys";
+import { useStepFocus } from "@/components/useStepFocus";
 
 // "Book the bar" intake — captures B2B/event requests into Supabase (admins manage them
 // in the back office). Booking Tool v5 stays the rate source of truth; the app never quotes.
@@ -31,6 +32,10 @@ export default function BookScreen() {
   const { market: viewerMarket } = useViewerMarket();
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  // Sent, the form gives way to "Request received" (R12 — the 10/10 audit, F5): focus goes to it, so a screen reader
+  // hears the request went — there is no toast on purpose (below), and the Send button pressed is gone.
+  const root = useRef<HTMLElement>(null);
+  useStepFocus(done, root, { pick: () => root.current?.querySelector<HTMLElement>(".bookcard h2") });
   // A field no person sees or fills (R9): a bot that fills every field is thanked by /api/book and its request dropped.
   const [website, setWebsite] = useState("");
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
@@ -73,7 +78,7 @@ export default function BookScreen() {
 
   if (done) {
     return (
-      <section className="screen bookwrap" id="s-book">
+      <section className="screen bookwrap" id="s-book" ref={root}>
         <Masthead eyebrow={<EditableCopy k="book.eyebrow" value={t("book.eyebrow")} />} right={<div className="mast-right"><EditCopyPill group="Book" /><AccountPill /></div>} />
         <div className="bookcard">
           <EditableCopy k="book.done_eye" value={t("book.done_eye")} as="div" className="eyb" />
@@ -89,7 +94,7 @@ export default function BookScreen() {
   }
 
   return (
-    <section className="screen bookwrap" id="s-book">
+    <section className="screen bookwrap" id="s-book" ref={root}>
       <Masthead eyebrow={<EditableCopy k="book.eyebrow" value={t("book.eyebrow")} />} right={<div className="mast-right"><EditCopyPill group="Book" /><AccountPill /></div>} />
       <div className="bookcard">
         <EditableCopy k="book.eye" value={t("book.eye")} as="div" className="eyb" />

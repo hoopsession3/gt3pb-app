@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { buildIcs, googleCalUrl, withBuffer, type CalEvent } from "@/lib/ics";
 import { addToCalendar } from "@/lib/deviceActions";
 import { APP_BUILD } from "@/lib/native";
@@ -8,6 +8,7 @@ import { appleDevice } from "@/lib/ios";
 import { useApp } from "@/components/AppProvider";
 import Icon from "@/components/Icon";
 import Button from "./Button";
+import { rovingKeys, rovingTab } from "./roving";
 
 const BUFFERS: { v: number; label: string }[] = [
   { v: 0, label: "None" }, { v: 30, label: "30m" }, { v: 60, label: "1h" }, { v: 90, label: "90m" }, { v: 120, label: "2h" },
@@ -24,6 +25,7 @@ export default function AddToCalendar({ ev, label = "Add to calendar", defaultBu
   const [open, setOpen] = useState(false);
   const [buffer, setBuffer] = useState(defaultBuffer);
   const ref = useRef<HTMLDivElement>(null);
+  const panelId = useId();
   // Reset the buffer when the caller changes its default. This used to be
   // useEffect(() => setBuffer(defaultBuffer), [defaultBuffer]), which renders ONCE with the stale
   // buffer, then commits, then renders again — so a sheet opened with a new default briefly showed
@@ -44,6 +46,8 @@ export default function AddToCalendar({ ev, label = "Add to calendar", defaultBu
   }, [open]);
   if (!ev) return null;
   const out = withBuffer(ev, buffer);
+  const opts = BUFFERS.some((b) => b.v === defaultBuffer) ? BUFFERS : [...BUFFERS, { v: defaultBuffer, label: `${defaultBuffer}m` }].sort((a, b) => a.v - b.v);
+  const optAt = opts.findIndex((b) => b.v === buffer);
 
   const add = async () => {
     setOpen(false);
@@ -55,25 +59,29 @@ export default function AddToCalendar({ ev, label = "Add to calendar", defaultBu
     else if (how === "failed") toast("Couldn't add it to your calendar — try Google Calendar.", "error");
   };
 
+  // A DISCLOSURE, NOT A MENU (R12 — the 10/10 audit, F7). It said role="menu" — a promise of arrow keys and of focus
+  // taken into it — and kept neither, and a menu may hold only menu items, not the buffer's chips. It is what it does:
+  // a button that shows a panel under it, reached by Tab, closed by Escape back to the button. The buffer is one choice
+  // of five, a radio group the arrows move along.
   return (
     <div className="atc" ref={ref}>
-      <Button type="button" kind="quiet" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}><Icon name="calendar" /> {label}</Button>
+      <Button type="button" kind="quiet" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls={open ? panelId : undefined}><Icon name="calendar" /> {label}</Button>
       {open && (
-        <div className="atc-menu" role="menu">
+        <div className="atc-menu" id={panelId} role="group" aria-label={label}>
           {/* The crew's drive-and-setup buffer — not for a customer's reminder (R7b: it wrote "Leave/setup buffer" into it). */}
           {!ev.allDay && buffers && (
             <div className="atc-buf">
-              <span className="atc-buf-h">Buffer before</span>
-              <div className="atc-buf-row">
-                {(BUFFERS.some((b) => b.v === defaultBuffer) ? BUFFERS : [...BUFFERS, { v: defaultBuffer, label: `${defaultBuffer}m` }].sort((a, b) => a.v - b.v)).map((b) => (
-                  <button key={b.v} type="button" className={`k-chip sm flex-1${buffer === b.v ? " on" : ""}`} onClick={() => setBuffer(b.v)} aria-pressed={buffer === b.v}>{b.label}</button>
+              <span className="atc-buf-h" id={`${panelId}-buf`}>Buffer before</span>
+              <div className="atc-buf-row" role="radiogroup" aria-labelledby={`${panelId}-buf`} onKeyDown={(e) => rovingKeys(e, opts.length, optAt, (i) => setBuffer(opts[i].v))}>
+                {opts.map((b, i) => (
+                  <button key={b.v} type="button" role="radio" aria-checked={buffer === b.v} tabIndex={rovingTab(i, optAt)} className={`k-chip sm flex-1${buffer === b.v ? " on" : ""}`} onClick={() => setBuffer(b.v)}>{b.label}</button>
                 ))}
               </div>
             </div>
           )}
-          {/* Drawn once the menu is opened, in the browser alone, so the device's name never meets a server render. */}
-          <button type="button" className="atc-item" role="menuitem" onClick={add}>{APP_BUILD ? <>Calendar <span>on this {appleDevice()}</span></> : <>Apple / Outlook <span>.ics file</span></>}</button>
-          <a className="atc-item" role="menuitem" href={googleCalUrl(out)} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}>Google Calendar <span>opens Google</span></a>
+          {/* Drawn once the panel is opened, in the browser alone, so the device's name never meets a server render. */}
+          <button type="button" className="atc-item" onClick={add}>{APP_BUILD ? <>Calendar <span>on this {appleDevice()}</span></> : <>Apple / Outlook <span>.ics file</span></>}</button>
+          <a className="atc-item" href={googleCalUrl(out)} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}>Google Calendar <span>opens Google</span></a>
         </div>
       )}
     </div>

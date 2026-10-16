@@ -36,6 +36,8 @@ import CryptoKit
 ///                            for GT3 in Settings is signed out of the app (Apple's TN3194).
 ///   · openSettings         — GT3's page in the iPhone's Settings (its notifications), for an alert turned off
 ///                            there (components/AppAlerts' Open Settings).
+///   · displayPrefs         — Bold Text and Reduce Transparency, which a WKWebView does not pass on to a page
+///                            (Increase Contrast it does, as prefers-contrast); lib/displayPrefs marks the page.
 @objc(GT3DevicePlugin)
 public class GT3DevicePlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "GT3DevicePlugin"
@@ -47,7 +49,8 @@ public class GT3DevicePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "addPass", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "signInWithApple", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "appleCredentialState", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "openSettings", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "openSettings", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "displayPrefs", returnType: CAPPluginReturnPromise)
     ]
 
     private lazy var store = EKEventStore()
@@ -297,6 +300,17 @@ public class GT3DevicePlugin: CAPPlugin, CAPBridgedPlugin {
             UIApplication.shared.open(url, options: [:]) { opened in
                 call.resolve(["opened": opened])
             }
+        }
+    }
+
+    /// Two of the phone's Display & Text Size settings, as the page asks for them at launch and whenever the app comes
+    /// back (R12 — the 10/10 audit, F19). Read on the main thread, where UIKit answers.
+    @objc func displayPrefs(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            call.resolve([
+                "boldText": UIAccessibility.isBoldTextEnabled,
+                "reduceTransparency": UIAccessibility.isReduceTransparencyEnabled
+            ])
         }
     }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import { edited } from "@/lib/formGuard";
 import Gt3Mark from "@/components/Gt3Mark";
@@ -13,6 +13,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { OFFICE, officeQuote, mondayLabel } from "@/lib/office";
 import { useOfficeSettings } from "./useOfficeSettings";
 import { zipMarket } from "@/lib/delivery";
+import { useStepFocus } from "./useStepFocus";
 import { marketServes } from "@/lib/markets";
 import { money } from "@/lib/money";
 
@@ -59,7 +60,12 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
   // Mirrors the server check in /api/office exactly, so the button and the API agree.
   const zoneMarket = zipMarket(zip);
   const zoneOk = !!zoneMarket && marketServes(zoneMarket, "corporate");
-  const ready = company.trim() && street.trim() && city.trim() && zip.trim().length >= 5 && zoneOk && gallons >= settings.minGallons && (!needsPhone || phone.trim().length > 0);
+  // What is still missing, first first — said on the Book button (R12 — the 10/10 audit, F9), which was dimmed with its
+  // price on it and nothing about why.
+  const missing = !company.trim() ? "Add your company above" : !street.trim() ? "Add the street address above" : !city.trim() ? "Add the city above"
+    : zip.trim().length < 5 ? "Add the ZIP above" : !zoneOk ? "That ZIP is outside our delivery area"
+    : needsPhone && !phone.trim() ? "Add a phone for the payment link" : gallons < settings.minGallons ? `${settings.minGallons} gallons is the least we bring` : null;
+  const ready = !missing;
 
   const submit = async () => {
     if (busy) return;
@@ -90,6 +96,11 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
     }
   };
 
+  // Booked, the form and its Book button give way to "You're on the Monday route." in the same sheet (R12 — the 10/10
+  // audit, F5): focus goes to that line, so a screen reader hears the booking went through.
+  const doneRoot = useRef<HTMLDivElement>(null);
+  useStepFocus(done ? "booked" : "form", doneRoot);
+
   const header = (
     <div className="office-head">
       <span className="office-head-t"><Gt3Mark tone="cream" /> Office delivery</span>
@@ -106,7 +117,7 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
   if (done) {
     return (
       <Sheet open onClose={onClose} label="Office delivery order" header={header} className="office-sheet">
-        <div className="office-done">
+        <div className="office-done" ref={doneRoot}>
           <div className="office-done-ic"><Icon name="jar" /></div>
           <h2>You&rsquo;re on the Monday route.</h2>
           <p>{done.gallons} gallons of cold-extract, <b>{mondayLabel(done.date)}, 5–8 AM</b>, in amber glass jugs. We&rsquo;ll {billing === "prepaid" ? "text a payment link to confirm" : "send an invoice"} and swap empties for full every week{standing ? "" : " (this order)"}.</p>
@@ -118,7 +129,7 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
 
   return (
     <Sheet open onClose={onClose} label="Office delivery order" header={header} className="office-sheet" dirty={typed} dismissible={!busy} detents={false}
-      footer={<button type="button" className="btn-pri btn-wide mt-4.5" onClick={submit} disabled={busy || !ready}><span>{busy ? "Booking…" : `Book ${q.gallons} gal · ${money(q.totalCents)}`}</span></button>}>
+      footer={<button type="button" className="btn-pri btn-wide mt-4.5" onClick={submit} disabled={busy || !ready}><span>{busy ? "Booking…" : missing ?? `Book ${q.gallons} gal · ${money(q.totalCents)}`}</span></button>}>
 
       <p className="office-lede">Fresh cold-extract for the whole team — <b>amber gallon jugs</b>, delivered <b>{OFFICE.windowLabel}</b>, empties swapped for full each week. 3-gallon minimum.</p>
 
@@ -140,21 +151,39 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
       {/* who + where */}
       <div className="office-fields">
         {fromAccount && <p className="known-note">From your office account — change anything that&apos;s different.</p>}
-        <input className="auth-input" placeholder="Company / office name" value={company} onChange={(e) => setCompany(e.target.value)} autoComplete="organization" maxLength={80} aria-label="Company" />
+        {/* A label you can see over each field (R12 — the 10/10 audit, F9): filled from the account, a field showed only
+            what was in it. */}
+        <label className="fld-l block mt-2.5 mb-[5px]" htmlFor="of-company">Company / office name</label>
+        <input id="of-company" className="auth-input" value={company} onChange={(e) => setCompany(e.target.value)} autoComplete="organization" maxLength={80} />
         <div className="office-two">
-          <input className="auth-input" placeholder="Contact name" value={contact} onChange={(e) => setContact(e.target.value)} autoComplete="name" maxLength={60} aria-label="Contact name" />
-          <input className="auth-input" placeholder="# of people" inputMode="numeric" value={headcount} onChange={(e) => setHeadcount(e.target.value.replace(/\D/g, "").slice(0, 4))} aria-label="Headcount" />
+          <div className="min-w-0 flex-1">
+            <label className="fld-l block mt-2.5 mb-[5px]" htmlFor="of-contact">Contact name</label>
+            <input id="of-contact" className="auth-input" value={contact} onChange={(e) => setContact(e.target.value)} autoComplete="name" maxLength={60} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <label className="fld-l block mt-2.5 mb-[5px]" htmlFor="of-headcount">People</label>
+            <input id="of-headcount" className="auth-input" inputMode="numeric" value={headcount} onChange={(e) => setHeadcount(e.target.value.replace(/\D/g, "").slice(0, 4))} />
+          </div>
         </div>
-        <input className="auth-input" placeholder="Phone (for the driver)" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
+        <label className="fld-l block mt-2.5 mb-[5px]" htmlFor="of-phone">Phone (for the driver)</label>
+        <input id="of-phone" className="auth-input" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} />
         {/* What the number is for, as it is (R7b): no delivery text is sent from here — it is the driver's, on the day. */}
         <p className="tel-consent">For the driver, if they can&apos;t find you on delivery day — never marketing.</p>
-        <AddressField className="auth-input" placeholder="Street address" label="Street" value={street} onChange={setStreet}
+        <label className="fld-l block mt-2.5 mb-[5px]" htmlFor="of-street">Street address</label>
+        <AddressField id="of-street" className="auth-input" label="Street address" value={street} onChange={setStreet}
           onPick={(a) => { setStreet(a.street); if (a.city) setCity(a.city); if (a.zip) setZip(a.zip); }} />
         <div className="office-two">
-          <input className="auth-input" placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} autoComplete="address-level2" maxLength={60} aria-label="City" />
-          <input className="auth-input" inputMode="numeric" autoComplete="postal-code" maxLength={5} placeholder="ZIP" value={zip} onChange={(e) => setZip(e.target.value.replace(/\D/g, ""))} aria-label="ZIP" />
+          <div className="min-w-0 flex-1">
+            <label className="fld-l block mt-2.5 mb-[5px]" htmlFor="of-city">City</label>
+            <input id="of-city" className="auth-input" value={city} onChange={(e) => setCity(e.target.value)} autoComplete="address-level2" maxLength={60} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <label className="fld-l block mt-2.5 mb-[5px]" htmlFor="of-zip">ZIP</label>
+            <input id="of-zip" className="auth-input" inputMode="numeric" autoComplete="postal-code" maxLength={5} value={zip} onChange={(e) => setZip(e.target.value.replace(/\D/g, ""))} />
+          </div>
         </div>
-        <input className="auth-input" placeholder="Suite / access notes (optional)" value={access} onChange={(e) => setAccess(e.target.value)} maxLength={200} aria-label="Access" />
+        <label className="fld-l block mt-2.5 mb-[5px]" htmlFor="of-access">Suite / access notes (optional)</label>
+        <input id="of-access" className="auth-input" value={access} onChange={(e) => setAccess(e.target.value)} maxLength={200} />
       </div>
 
       {/* standing */}

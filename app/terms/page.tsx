@@ -5,7 +5,7 @@
 // STOP, the help contact, carriers not liable, a link to the Privacy policy).
 import { TermsText } from "@/components/legal/LegalText";
 
-export const metadata = { title: "Terms — GT3 Performance Bar" };
+export const metadata = { title: "Terms" };
 
 export default function TermsPage() {
   return (

@@ -55,14 +55,8 @@ export const PAGED = {
 };
 export const NOT_PAGES = {
   "components/OperatorNav.tsx#Crew console": "the bottom tab bar — on a phone a tab bar is tapped, not swiped; the lane's sections above it swipe",
-  "app/crew/page.tsx#Event stage": "an event's stage is a fact being set, not a page to turn to",
-  "app/menu/page.tsx#Menu categories": "jumps within one long menu — the categories are places on one page, scrolled to",
-  "components/OrderFunnel.tsx#Fulfillment": "pickup or delivery — a choice in the order form",
   "components/ReviewsAdmin.tsx#Reviews": "pending or live — two halves of one list, a filter",
-  "components/BrewPlanner.tsx#Size it by": "a unit for the size being typed",
-  "components/FunnelReport.tsx#Window": "the time range a report covers — a filter",
   "components/BrandCalendar.tsx#Calendar view": "the content calendar's month or list, inside Studio's Calendar view — a swipe there turns Studio's views",
-  "components/PrepBoard.tsx#Filter prep": "a filter on one board",
   "components/CompanyCalendar.tsx#Calendar view": "how the same dates are shown — agenda, week, month; a swipe on the calendar walks its dates (‹ ›)",
   "components/RoadFlyer.tsx#Slide": "the slide of the flyer being made — inside Studio's Flyer view, where a swipe turns Studio's views",
   "components/CogsCalculator.tsx#COGS": "per drink or per batch — two tables of one calculator inside a section, where a swipe turns the sections",

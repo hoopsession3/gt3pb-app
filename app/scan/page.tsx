@@ -13,6 +13,7 @@ import { haptic } from "@/lib/haptics";
 import { cardOf, freeWords, STAMP_GOAL } from "@/lib/loyalty";
 import { money } from "@/lib/money";
 import { isNetworkError } from "@/components/offline";
+import Said from "@/components/Said";
 // The sign-in is for a visitor who is signed out — staff signed in never download it (2026-10-09).
 const SignIn = dynamic(() => import("@/components/SignIn"));
 
@@ -235,9 +236,11 @@ function ScanInner() {
           ) : (
             <button type="button" className="btn-pri btn-wide" onClick={inApp ? () => setStampAsk(true) : addStamp} disabled={busy || redeem === "busy"}>{busy ? "Adding…" : <><Icon name="plus" /> Stamp a walk-up cup</>}</button>
           )}
-          {state === "added" && <div className="scan-added">Stamp added — now {member.points} points.</div>}
-          {state === "error" && <div className="h-sub">That didn&apos;t record — tap to try again.</div>}
-          {state === "limit" && <div className="h-sub" role="status">That&apos;s 6 walk-up stamps for {first} in 10 minutes, the most at once. Try again in a few minutes.</div>}
+          {/* Each answer is said as it comes (R12 — the 10/10 audit, F12): inserted already holding its words, VoiceOver let
+              "Free cup given" and "Couldn't use the credit" pass in silence; a failure interrupts. */}
+          {state === "added" && <Said className="scan-added">Stamp added — now {member.points} points.</Said>}
+          {state === "error" && <Said className="h-sub" assertive>That didn&apos;t record — tap to try again.</Said>}
+          {state === "limit" && <Said className="h-sub" assertive>That&apos;s 6 walk-up stamps for {first} in 10 minutes, the most at once. Try again in a few minutes.</Said>}
           {card.free > 0 && !ownCard && redeem !== "ask" && redeem !== "busy" && (
             <button type="button" className="btn-sec btn-wide mt-2.5" onClick={() => setRedeem("ask")}>Redeem a free cup</button>
           )}
@@ -248,26 +251,27 @@ function ScanInner() {
               <button type="button" className="btn-ter self-center" onClick={() => setRedeem("idle")} disabled={redeem === "busy"}>Keep it for later</button>
             </div>
           )}
-          {redeem === "done" && <div className="scan-added" role="status">Free cup given. {card.free > 0 ? `${freeWords(card.free)} still.` : `${card.toNext} more till the next one.`}</div>}
-          {redeem === "none" && <div className="h-sub" role="status">No free cup on this card any more — it may have just been given.</div>}
-          {redeem === "failed" && <div className="h-sub" role="status">Couldn&apos;t redeem{refusal ? ` — ${refusal}` : ""}. Nothing was taken off the card.</div>}
+          {redeem === "done" && <Said className="scan-added">Free cup given. {card.free > 0 ? `${freeWords(card.free)} still.` : `${card.toNext} more till the next one.`}</Said>}
+          {redeem === "none" && <Said className="h-sub">No free cup on this card any more — it may have just been given.</Said>}
+          {redeem === "failed" && <Said className="h-sub" assertive>Couldn&apos;t redeem{refusal ? ` — ${refusal}` : ""}. Nothing was taken off the card.</Said>}
           {redeem === "unclear" && (
-            <div className="h-sub" role="status">
+            <Said className="h-sub">
               No answer came back — the card above is as it stands now. If the cup came off, tapping again won&apos;t give a second.
               <button type="button" className="btn-sec btn-wide mt-2.5" onClick={giveFreeCup}>Try the free cup again</button>
-            </div>
+            </Said>
           )}
           {creditCents > 0 && !ownCard && credit !== "ask" && credit !== "busy" && (
             <button type="button" className="btn-sec btn-wide mt-2.5" onClick={() => { setCreditNote(""); setCredit("ask"); }}>Use credit · {money(creditCents)} on the card</button>
           )}
           {(credit === "ask" || credit === "busy") && (
             <div className="mt-2.5 flex flex-col gap-2" role="group" aria-label="Use credit">
-              {creditNote && <div className="h-sub" role="status">{creditNote}</div>}
+              {creditNote && <Said className="h-sub">{creditNote}</Said>}
               <label className="h-sub" htmlFor="scan-order-total">What&apos;s {first}&apos;s order? Up to {money(creditCents)} of credit comes off it.</label>
+              {/* What the credit does is read with the field (aria-describedby), not re-announced at every keystroke (F12). */}
               <input id="scan-order-total" className="auth-input" inputMode="decimal" enterKeyHint="done" autoComplete="off" placeholder="Order total, e.g. 6.50"
-                value={orderStr} onChange={(e) => setOrderStr(e.target.value)} disabled={credit === "busy"} />
+                value={orderStr} onChange={(e) => setOrderStr(e.target.value)} disabled={credit === "busy"} aria-describedby={useCents > 0 ? "scan-credit-use" : undefined} />
               {useCents > 0 && (
-                <div className="h-sub" role="status">
+                <div className="h-sub" id="scan-credit-use">
                   Use {money(useCents)} — ring it up at {money(orderCents - useCents)}{creditCents - useCents > 0 ? `; ${money(creditCents - useCents)} stays on the card` : ""}.
                 </div>
               )}
@@ -277,14 +281,14 @@ function ScanInner() {
               <button type="button" className="btn-ter self-center" onClick={() => { setCredit("idle"); setOrderStr(""); }} disabled={credit === "busy"}>Keep it for later</button>
             </div>
           )}
-          {credit === "done" && <div className="scan-added" role="status">Credit used — {money(spent)} off.{creditCents > 0 ? ` ${money(creditCents)} still on the card.` : ""}</div>}
-          {credit === "none" && <div className="h-sub" role="status">No credit on this card any more — it may have just been used.</div>}
-          {credit === "failed" && <div className="h-sub" role="status">Couldn&apos;t use the credit{refusal ? ` — ${refusal}` : ""}. Nothing was taken off.</div>}
+          {credit === "done" && <Said className="scan-added">Credit used — {money(spent)} off.{creditCents > 0 ? ` ${money(creditCents)} still on the card.` : ""}</Said>}
+          {credit === "none" && <Said className="h-sub">No credit on this card any more — it may have just been used.</Said>}
+          {credit === "failed" && <Said className="h-sub" assertive>Couldn&apos;t use the credit{refusal ? ` — ${refusal}` : ""}. Nothing was taken off.</Said>}
           {credit === "unclear" && (
-            <div className="h-sub" role="status">
+            <Said className="h-sub">
               No answer came back — the card above is as it stands now. If the credit came off, tapping again won&apos;t take it twice.
               {creditRetry > 0 && <button type="button" className="btn-sec btn-wide mt-2.5" onClick={() => void takeCredit(creditRetry)}>Try {money(creditRetry)} again</button>}
-            </div>
+            </Said>
           )}
         </div>
       )}

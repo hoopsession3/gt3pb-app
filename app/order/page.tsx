@@ -28,6 +28,7 @@ import { apiUrl } from "@/lib/native";
 import { canceledHere } from "@/lib/activeOrder";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { refusalText } from "@/lib/refusal";
+import Said from "@/components/Said";
 
 // THE TICKET (2026-10-13, R3b of the customer audit — board 09 "Every order gets a ticket", approved). One order, to
 // whoever holds its link: a guest who paid had the "Order in." screen and nothing after it; a member had the bar and
@@ -74,7 +75,8 @@ function Held() {
       <Watermark variant="landing" />
       <Masthead eyebrow="Your order" right={<div className="mast-right"><AccountPill /></div>} />
       <h1 className="k-title lg">Your orders</h1>
-      {held === null ? <div className="mt-5 min-h-[120px]" aria-busy="true" /> : held.length ? (
+      {/* Loading says so (R12, F12): an empty aria-busy box said nothing at all to a screen reader. */}
+      {held === null ? <div className="mt-5 min-h-[120px]" aria-busy="true"><p className="sr-only">Loading your orders…</p></div> : held.length ? (
         <div className="k-rows mt-5">
           {held.map((h) => (
             <InfoRow key={h.t} lead="Order" name={h.no} sub={`Placed ${etDay(new Date(h.at).toISOString())}, ${clockTime(new Date(h.at).toISOString())}`}
@@ -142,7 +144,7 @@ function TicketView({ t, shared = false }: { t: string; shared?: boolean }) {
       </section>
     );
   }
-  if (!tk) return <section className="screen" id="s-ticket"><div className="mt-24 min-h-[320px]" aria-busy="true" /></section>;
+  if (!tk) return <section className="screen" id="s-ticket"><div className="mt-24 min-h-[320px]" aria-busy="true"><p className="sr-only">Loading the order…</p></div></section>;
 
   const active = ACTIVE.has(tk.status), canceled = tk.status === "void";
   const ahead = tk.status === "new" && waitingToOpen({ created_at: tk.placed_at, ready_from: tk.ready_from });
@@ -231,13 +233,15 @@ function TicketView({ t, shared = false }: { t: string; shared?: boolean }) {
       <Masthead eyebrow={shared ? "A shared order" : "Your order"} right={<div className="mast-right"><AccountPill /></div>} />
       <h1 className="k-title lg">{tk.no}</h1>
       {sub && <p className="k-sub">{sub}</p>}
-      <div className="k-card mt-5 flex flex-col gap-3" role="status" aria-live="polite">
+      {/* Not a live region (R12 — the 10/10 audit, F12): the card re-read its buttons and its Share link at each change.
+          Where the order stands is said when it changes. */}
+      <div className="k-card mt-5 flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
           <Eyebrow live={active}>{drinksWords(tk.items, nameOf)}</Eyebrow>
           <span className={`k-tag ${canceled ? "crit" : tk.status === "new" ? "gold" : "ok"}`}>{tag}</span>
         </div>
         <div className="flex items-start justify-between gap-3">
-          <p className="k-rsub min-w-0 whitespace-normal">{canceled ? note : line}{stale ? " Offline — the last we heard." : ""}</p>
+          <Said as="p" className="k-rsub min-w-0 whitespace-normal" quietFirst>{canceled ? note : line}{stale ? " Offline — the last we heard." : ""}</Said>
           {paidWords && <span className="whitespace-nowrap font-mono text-subhead text-cream-muted">{paidWords}</span>}
         </div>
         {!canceled && <OrderSteps at={stepOf(tk.status)} />}

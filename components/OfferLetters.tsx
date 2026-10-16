@@ -26,6 +26,7 @@ import { useCrew } from "./useCrew";
 import { fullestName } from "@/lib/customerKnown";
 import { readParam, dropParam } from "@/lib/urlParam";
 import { usePersonFacts, withFacts } from "@/lib/personFacts";
+import Said from "./Said";
 
 // OFFER LETTERS (0281) — the owner's side of hiring someone.
 //
@@ -245,7 +246,7 @@ export default function OfferLetters() {
           </button>
         </div>
 
-        {arrivedNote && <p className="ofr-stat-why" role="status">{arrivedNote}</p>}
+        {arrivedNote && <Said as="p" className="ofr-stat-why">{arrivedNote}</Said>}
         {rows.length === 0 && !draft && <p className="ofr-empty">No offers yet. The first one starts with a name and a title.</p>}
 
         {/* ── the list ── */}

@@ -58,6 +58,8 @@ export type GT3DevicePlugin = {
   appleCredentialState(o: { user: string }): Promise<{ state: AppleState }>;
   /** GT3's page in the iPhone's Settings — its notifications (components/AppAlerts, an alert turned off there). */
   openSettings(): Promise<{ opened: boolean }>;
+  /** Bold Text and Reduce Transparency, which a WKWebView does not pass on (lib/displayPrefs — R12, F19). */
+  displayPrefs(): Promise<{ boldText: boolean; reduceTransparency: boolean }>;
 };
 
 /** What the iPhone app does instead: GT3Device, and the share sheet (@capacitor/share Share.share). */

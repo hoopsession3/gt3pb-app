@@ -166,6 +166,8 @@ const ANSWERS = {
   "PushNotifications.checkPermissions": { receive: "prompt" },
   "PushNotifications.requestPermissions": { receive: "granted" },
   "GT3Device.openSettings": { opened: true },
+  // The phone's Bold Text and Reduce Transparency (R12, F19): both off, as most phones have them.
+  "GT3Device.displayPrefs": { boldText: false, reduceTransparency: false },
 };
 
 // The phone's side of the bridge, in the page: window.webkit.messageHandlers.bridge is where
@@ -1133,8 +1135,28 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await page.goto(`${BASE}/crew?s=day`, { waitUntil: "load" });
     await page.waitForSelector(".opnav", { timeout: 8000 }).catch(() => {});
     await page.waitForTimeout(500); await page.evaluate(SETTLE);
-    const tabs = await page.$$eval('.opnav [role="tab"]', (els) => els.filter((e) => e.getBoundingClientRect().width > 0).length);
+    const tabs = await page.$$eval('.opnav .tab', (els) => els.filter((e) => e.getBoundingClientRect().width > 0).length);
     ok("chrome: the crew's bar holds an iPhone's five tabs at most — Today, three lanes and More", tabs >= 2 && tabs <= 5, `${tabs} tabs`);
+    // THE ARROWS LOOK, ENTER OPENS (R12 — the 10/10 audit, F7): one stop in the Tab order, the lit lane; an arrow moves
+    // focus and opens nothing; More is a button that opens a sheet, outside the tab list.
+    const lanes = await page.evaluate(() => {
+      const list = document.querySelector('.opnav [role="tablist"]');
+      const tabsIn = [...(list?.querySelectorAll('[role="tab"]') ?? [])];
+      const more = [...document.querySelectorAll(".opnav .tab")].find((b) => b.textContent.trim() === "More");
+      return { stops: tabsIn.filter((t) => t.tabIndex === 0).length, lit: tabsIn.findIndex((t) => t.getAttribute("aria-selected") === "true"),
+        zeroAt: tabsIn.findIndex((t) => t.tabIndex === 0), n: tabsIn.length,
+        moreOk: !!more && !list?.contains(more) && more.getAttribute("aria-haspopup") === "dialog" && !more.hasAttribute("role") };
+    });
+    ok("a11y: the crew's lanes are one Tab stop — the lit lane — and More is a button that opens a sheet, outside the tab list",
+      lanes.n >= 1 && lanes.stops === 1 && lanes.zeroAt === Math.max(0, lanes.lit) && lanes.moreOk, JSON.stringify(lanes));
+    if (lanes.n > 1) {
+      const before = await page.url();
+      await page.focus('.opnav [role="tab"][tabindex="0"]');
+      await page.keyboard.press("ArrowRight");
+      await page.waitForTimeout(250);
+      const moved = await page.evaluate(() => ({ focusedTab: document.activeElement?.getAttribute("role") === "tab", selected: document.activeElement?.getAttribute("aria-selected") }));
+      ok("a11y: an arrow in the crew's lanes moves focus and opens nothing — Enter does", moved.focusedTab && moved.selected === "false" && page.url() === before, JSON.stringify(moved));
+    }
     const fab = await page.evaluate(() => [...document.querySelectorAll(".qd-fab, .rail")].some((el) => getComputedStyle(el).display !== "none" && el.getBoundingClientRect().width > 0));
     ok("chrome: no floating quick-actions button or rail over the crew's screen", !fab);
     const spark = page.locator('.toprow-actions button[aria-label^="Quick actions"]').first();
@@ -1483,7 +1505,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   {
     const tierOf = (page) => page.evaluate(() => {
       const app = document.querySelector(".app"), body = document.getElementById("body");
-      return { tier: [1, 2, 3].find((t) => app?.classList.contains(`rd-t${t}`)) ?? 0, zoom: body ? getComputedStyle(body).zoom : null };
+      return { tier: [1, 2, 3, 4, 5, 6].find((t) => app?.classList.contains(`rd-t${t}`)) ?? 0, zoom: body ? getComputedStyle(body).zoom : null };
     });
     const ctx = await phoneContext(MAIN);
     const page = await ctx.newPage();
@@ -1516,6 +1538,45 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       picked.tier === 0 && forgot.tier === 3, JSON.stringify({ picked, forgot }));
     ok("text size: no errors", errors.length === 0 && errors2.length === 0, [...errors, ...errors2].join(" | "));
     await big.close();
+    // TO TWICE ITS SIZE (R12 — the 10/10 audit, F1): a phone at one of its accessibility sizes (34pt body, AX2) draws the
+    // app at 200%, and the page reflows — nothing on Today, the menu, Find Us or the shop runs off the right of the phone.
+    const ax = await phoneContext(MAIN);
+    await ax.addInitScript(() => {
+      const put = () => { if (!document.head) return false; const st = document.createElement("style"); st.textContent = "body{font-size:34px}"; document.head.appendChild(st); return true; };
+      if (!put()) new MutationObserver((_, o) => { if (put()) o.disconnect(); }).observe(document, { childList: true, subtree: true });
+    });
+    const p3 = await ax.newPage();
+    await insetsOn(p3, MAIN.top, MAIN.bottom);
+    const errors3 = watch(p3);
+    const wide = [];
+    let twice = null;
+    for (const route of ["/", "/menu", "/truck", "/shop", "/3mpire", "/events", "/delivery", "/book"]) {
+      await p3.goto(`${BASE}${route}`, { waitUntil: "load" });
+      await p3.waitForTimeout(700); await p3.evaluate(SETTLE);
+      if (route === "/menu") twice = await tierOf(p3);
+      const over = await p3.evaluate(() => {
+        const body = document.getElementById("body");
+        return { page: document.documentElement.scrollWidth - window.innerWidth, body: body ? body.scrollWidth - body.clientWidth : 0 };
+      });
+      if (over.page > 1 || over.body > 1) wide.push(`${route} ${JSON.stringify(over)}`);
+      // A control clipped at the edge is lost as surely as one that scrolls off (the account button was, at 200%): every
+      // one on the screen sits inside the phone, unless it rides a row that scrolls sideways (the menu's chips).
+      const clipped = await p3.evaluate(() => {
+        const W = window.innerWidth, out = [];
+        const scrolls = (el) => { for (let a = el.parentElement; a; a = a.parentElement) { const cs = getComputedStyle(a); if (/(auto|scroll)/.test(cs.overflowX) && a.scrollWidth > a.clientWidth + 1) return true; } return false; };
+        for (const el of document.querySelectorAll('#body :is(a[href],button,input,select,textarea,[role="button"])')) {
+          const r = el.getBoundingClientRect();
+          if (!r.width || !r.height || el.closest('[aria-hidden="true"],[inert],[hidden]') || getComputedStyle(el).visibility === "hidden") continue;
+          if ((r.right > W + 1 || r.left < -1) && !scrolls(el)) out.push((el.getAttribute("aria-label") || el.textContent || el.tagName).trim().slice(0, 30));
+        }
+        return out;
+      });
+      if (clipped.length) wide.push(`${route} clipped: ${clipped.join(", ")}`);
+    }
+    ok("text size: a phone at an accessibility size (34pt body) draws the app at twice its size", twice?.tier === 6 && twice.zoom === "2", JSON.stringify(twice));
+    ok("text size: at twice its size Today, the menu, Find Us, the shop, the 3mpire, events, delivery and Book reflow — nothing runs off the right, nothing is clipped at the edge", wide.length === 0, wide.join(" | "));
+    ok("text size: no errors at twice the size", errors3.length === 0, errors3.join(" | "));
+    await ax.close();
   }
 
   // ── 5g · ONE SET OF BUTTONS (2026-10-09, the button round — Ryan approved proposal 7) ──

@@ -5,6 +5,7 @@ import { useThemeChoice, setTheme, type ThemeChoice } from "@/lib/theme";
 import { THEME_LABELS } from "@/lib/settingsGlance";
 import { unlockAudio } from "@/lib/chime";
 import { haptic } from "@/lib/haptics";
+import { rovingKeys, rovingTab } from "./roving";
 
 // SETTINGS › YOU — two of this phone's own settings (2026-10-06, the settings round). Since Settings
 // went by category the same day they are parts of their topic's row: Pass sound inside Notifications,
@@ -59,9 +60,9 @@ export function Appearance() {
     <div className="set-stack">
       <div className="pay-row-t">Appearance</div>
       <div className="pay-row-s">{SAYS[choice]}</div>
-      <div className="set-seg" role="radiogroup" aria-label="Appearance">
-        {LOOKS.map((l) => (
-          <button key={l} type="button" role="radio" aria-checked={choice === l} className={choice === l ? "on" : undefined} onClick={() => pick(l)}>{THEME_LABELS[l]}</button>
+      <div className="set-seg" role="radiogroup" aria-label="Appearance" onKeyDown={(e) => rovingKeys(e, LOOKS.length, LOOKS.indexOf(choice), (i) => pick(LOOKS[i]))}>
+        {LOOKS.map((l, i) => (
+          <button key={l} type="button" role="radio" aria-checked={choice === l} tabIndex={rovingTab(i, LOOKS.indexOf(choice))} className={choice === l ? "on" : undefined} onClick={() => pick(l)}>{THEME_LABELS[l]}</button>
         ))}
       </div>
     </div>

@@ -23,6 +23,7 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import dynamic from "next/dynamic";
 import { isMissingColumn } from "@/lib/schemaSkew";
 import { type PortfolioStream, milestoneStream } from "@/lib/portfolio";
+import Said from "./Said";
 
 // The manage sheet is an admin's, opened from a milestone's ⋯ — loaded then, not with the board.
 const MilestoneSheet = dynamic(() => import("./MilestoneSheet"), { ssr: false });
@@ -331,7 +332,7 @@ export default function CommandBoard() {
                         Show the other {ov.more} overdue <span aria-hidden="true">›</span>
                       </button>
                     )}
-                    {data.namesErr && <p className="pnl-note" role="status">Who each one is waiting on couldn&rsquo;t be read just now — the list is still current.</p>}
+                    {data.namesErr && <Said as="p" className="pnl-note">Who each one is waiting on couldn&rsquo;t be read just now — the list is still current.</Said>}
                   </div>
                 )}
                 <div className="k-rows">

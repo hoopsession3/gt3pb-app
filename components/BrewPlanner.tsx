@@ -28,6 +28,7 @@ import { errorMessage } from "@/lib/errorMessage";
 import Button from "./Button";
 import { IconButton } from "@/components/controls";
 import { RowMenu } from "@/components/LongPress";
+import { rovingKeys, rovingTab } from "./roving";
 
 // BREW — recipes + a back-scheduled batch plan. Pick a recipe, set the batch size in GALLONS (the
 // recipe scales exactly to it and hits its OG/Signal-Score spec), tie it to the event it's for, and
@@ -1022,11 +1023,18 @@ function BrewSheet({ recipe, events, stops, vessels, inv, initialTarget, onClose
                 </div>
                 {/* Three ways to say one batch. Pills, not a menu: a menu looked like a text box with
                     stripes, and nobody knew it opened. */}
-                <div className="k-seg bq-units" role="tablist" aria-label="Size it by">
-                  {([["drinks", "Drinks"], ["gal", "Gallons"], ...(sizeBy ? [["ing", `Coffee (${sizeBy.unit})`]] : [])] as [Unit, string][]).map(([u, label]) => (
-                    <button key={u} type="button" role="tab" aria-selected={unit === u} className={`k-seg-opt${unit === u ? " on" : ""}`} onClick={() => { setTyped(null); setUnit(u); }}>{label}</button>
-                  ))}
-                </div>
+                {/* A choice, so a radio group: one Tab stop, arrows along it (R12 — the 10/10 audit, F7). */}
+                {(() => {
+                  const units = ([["drinks", "Drinks"], ["gal", "Gallons"], ...(sizeBy ? [["ing", `Coffee (${sizeBy.unit})`]] : [])] as [Unit, string][]);
+                  const at = units.findIndex(([u]) => u === unit);
+                  return (
+                    <div className="k-seg bq-units" role="radiogroup" aria-label="Size it by" onKeyDown={(e) => rovingKeys(e, units.length, at, (i) => { setTyped(null); setUnit(units[i][0]); })}>
+                      {units.map(([u, label], i) => (
+                        <button key={u} type="button" role="radio" aria-checked={unit === u} tabIndex={rovingTab(i, at)} className={`k-seg-opt${unit === u ? " on" : ""}`} onClick={() => { setTyped(null); setUnit(u); }}>{label}</button>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* 2. THE ANSWER, LIVE */}

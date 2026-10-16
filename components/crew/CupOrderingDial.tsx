@@ -8,6 +8,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { haptic } from "@/lib/haptics";
 import { leadLabel } from "@/lib/settingsGlance";
 import AsyncSection from "@/components/AsyncSection";
+import { rovingKeys, rovingTab } from "@/components/roving";
 
 // THE CUP-ORDERING DIAL (0137) — when cup pre-orders open: only while the truck is live, or 2, 4 or 8
 // hours before a stop starts. Same rule everywhere — the menu sheet, checkout and the charge API
@@ -62,9 +63,11 @@ export default function CupOrderingDial() {
         return (
           <div className="adm-lead">
             <span className="adm-lead-k">Cup orders open</span>
-            <div className="adm-lead-opts" role="radiogroup" aria-label="When cup pre-orders open">
-              {LEADS.map(([h, label]) => (
-                <button key={h} type="button" role="radio" aria-checked={on === h} disabled={busy}
+            {/* The arrows look and a press sets it — it is the business's setting, not a pick-as-you-pass (R12, F7). While
+                a save is out the chips say so and keep focus: a disabled button drops it to the top of the page. */}
+            <div className="adm-lead-opts" role="radiogroup" aria-label="When cup pre-orders open" aria-busy={busy || undefined} onKeyDown={(e) => rovingKeys(e, LEADS.length, LEADS.findIndex(([x]) => x === on))}>
+              {LEADS.map(([h, label], i) => (
+                <button key={h} type="button" role="radio" aria-checked={on === h} aria-disabled={busy || undefined} tabIndex={rovingTab(i, LEADS.findIndex(([x]) => x === on))}
                   className={`k-chip${on === h ? " on" : ""}`} onClick={() => pick(h)}>{label}</button>
               ))}
             </div>

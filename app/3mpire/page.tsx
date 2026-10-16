@@ -26,6 +26,7 @@ import { orderTag } from "@/lib/orderWords";
 import { publicOrigin } from "@/lib/native";
 import { shareLink } from "@/lib/deviceActions";
 import { cardOf, freeWords, STAMP_GOAL } from "@/lib/loyalty";
+import { scrollMotion } from "@/lib/motion";
 
 const RING = 232; // 2πr for r=37, matches prototype stroke-dasharray
 
@@ -165,7 +166,7 @@ function MpireReal() {
   useEffect(() => {
     const h = typeof window !== "undefined" ? window.location.hash.slice(1) : "";
     if (!h) return;
-    const t = setTimeout(() => { document.getElementById(h)?.scrollIntoView({ behavior: "smooth", block: "start" }); }, 260);
+    const t = setTimeout(() => { document.getElementById(h)?.scrollIntoView({ behavior: scrollMotion(), block: "start" }); }, 260);
     return () => clearTimeout(t);
   }, []);
 

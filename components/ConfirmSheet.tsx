@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useId, useRef, useState, type ReactNode } from "react";
 import Sheet, { CloseButton } from "./Sheet";
 
 // CONFIRM SHEET — the one home for "are you sure?", standing in for window.confirm().
@@ -48,6 +48,7 @@ export function useConfirm(): Ask { return useContext(Ctx); }
 
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [opts, setOpts] = useState<ConfirmOpts | null>(null);
+  const bodyId = useId();
   const resolver = useRef<((v: boolean) => void) | null>(null);
 
   const settle = useCallback((v: boolean) => {
@@ -67,12 +68,17 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider value={ask}>
       {children}
       {opts && (
-        <Sheet open onClose={() => settle(false)} label={opts.title}
+        // THE SAFE ANSWER IS THE FIRST ONE (R12 — the 10/10 audit, F14). Focus opened on the confirming button whatever it
+        // did, so "Void order?", "Delete…?" and a customer's "Cancel this order?" each opened with the irreversible answer
+        // under Enter and under VoiceOver's first double-tap. An irreversible one (danger) now opens on the way back — as
+        // the app's own "Discard your changes?" opens on "Keep editing"; a benign one keeps focus on yes. And it is an
+        // alertdialog that names what it says will happen, so a screen reader reads the consequence, not only the title.
+        <Sheet open onClose={() => settle(false)} label={opts.title} alert describedBy={opts.body ? bodyId : undefined}
           header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{opts.title}</b><CloseButton onClick={() => settle(false)} /></div>}>
-          {opts.body && <div className="dp-hint cfm-body">{opts.body}</div>}
+          {opts.body && <div className="dp-hint cfm-body" id={bodyId}>{opts.body}</div>}
           <div className="prod-actions cfm-actions">
-            <button type="button" className="btn-ter" onClick={() => settle(false)}>{opts.cancelLabel ?? "Keep it"}</button>
-            <button type="button" className={opts.danger ? "btn-del" : "btn-pri"} autoFocus onClick={() => settle(true)}>{opts.confirmLabel ?? "Yes"}</button>
+            <button type="button" className="btn-ter" autoFocus={!!opts.danger} onClick={() => settle(false)}>{opts.cancelLabel ?? "Keep it"}</button>
+            <button type="button" className={opts.danger ? "btn-del" : "btn-pri"} autoFocus={!opts.danger} onClick={() => settle(true)}>{opts.confirmLabel ?? "Yes"}</button>
           </div>
         </Sheet>
       )}

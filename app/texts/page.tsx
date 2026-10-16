@@ -8,7 +8,7 @@ import Link from "next/link";
 import { TEXTS_HELP_EMAIL, TEXT_YES_CONFIRMATION } from "@/lib/texts";
 import TextsOptInDemo from "@/components/TextsOptInDemo";
 
-export const metadata = { title: "Texts — GT3 Performance Bar", description: "What GT3 Performance Bar texts, how you say yes, and how you stop." };
+export const metadata = { title: "Texts", description: "What GT3 Performance Bar texts, how you say yes, and how you stop." };
 
 export default function TextsPage() {
   return (

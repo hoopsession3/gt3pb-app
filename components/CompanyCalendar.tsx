@@ -20,7 +20,6 @@ import { useRecord } from "./RecordSheet";
 import { useConfirm } from "./ConfirmSheet";
 import { prepHandoffKey, prepHandoffValue, stageLabel, placeBesideTitle } from "@/lib/eventRecord";
 import { useOperatorSection } from "./OperatorNav";
-import { clickable } from "@/lib/a11y";
 import { edited, isBlank } from "@/lib/formGuard";
 import VenuePick from "./VenuePickLazy";
 import type { VenueFill } from "@/lib/venues";
@@ -29,7 +28,7 @@ import { createTodo, updateTask, deleteTask } from "@/lib/tasks";
 import FieldOpSheet from "./FieldOpSheet";
 import Sheet, { CloseButton, LeaveButton, useSheetDoor } from "@/components/Sheet";
 import Icon from "@/components/Icon";
-import { Segmented } from "@/components/controls";
+import { Segmented, tabPanel } from "@/components/controls";
 import { SectionHeader } from "@/components/kit";
 import { useOutlookStatus, outlookLine } from "./OutlookConnect";
 import GoLine from "./GoLine";
@@ -51,6 +50,8 @@ const FILTERS = ["all", ...Object.keys(CAT)];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const MON3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const longDate = (d: Date) => `${WEEKDAY[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}`;
 const pad = (n: number) => String(n).padStart(2, "0");
 const key = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const addDaysKey = (iso: string, n: number) => { const d = new Date(`${iso}T00:00:00`); d.setDate(d.getDate() + n); return key(d); };
@@ -74,6 +75,17 @@ type Meeting = { id: string; title: string | null; met_on: string };
 // writers and no reader, which is why an agenda row said "Wine Express Saturday" and not that it
 // runs 11:00am-2:00pm at Wine Express, with both facts already in the row the query returned.
 // `at` is the 24h sort key, so a day reads in the order it happens.
+// WHAT A DAY'S BUTTON SAYS (R12 — the 10/10 audit, F15). A month cell was a button holding a button, named "16 Add 3":
+// no month, no weekday, and its kinds were coloured dots only. It says the date in words, how many things are on it and
+// of what kinds, and the warn ring's reason — the words DayView opens with.
+function dayWords(d: Date, items: { cat: string; kind: string }[], warn: boolean, today: boolean): string {
+  const kinds = [...new Set(items.map((it) => CAT[it.cat]?.label).filter(Boolean))];
+  const what = items.length === 0 ? "nothing on it" : `${items.length} ${items.length === 1 ? "thing" : "things"}: ${kinds.join(", ")}`;
+  const heads = !warn ? "" : items.some((i) => i.kind === "event") && items.some((i) => i.kind === "stop")
+    ? " — heads up: an event and a truck stop share it" : " — heads up: a brew is past its latest start";
+  return `${longDate(d)}${today ? ", today" : ""} — ${what}${heads}`;
+}
+
 type Item = { id: string; title: string; cat: string; kind: "event" | "content" | "todo" | "stop" | "task" | "brew" | "drop" | "delivery" | "goal" | "lead" | "pipe" | "meeting"; done?: boolean; warn?: boolean; meta?: string; at?: string | null; go: () => void; toggle?: () => void };
 // EVERY single-row kind opens + edits in place now (2026-08-01, Ryan: "every item on the calendar
 // can be opened and edited right on screen, pop out screen, same standard as all others"). The one
@@ -433,19 +445,33 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
   // Two lines when there is a second thing worth saying, one when there is not — the sub line is
   // never an empty row holding space. All three callers (Agenda, Week, Board) are full-width rows;
   // the month grid renders coloured marks, not chips, so nothing here can crowd a calendar cell.
-  const Chip = ({ it, onOpen }: { it: Item; onOpen?: () => void }) => (
-    <button type="button" draggable={!readOnly && DRAG.has(it.kind)} className={`cc-chip${it.done ? " done" : ""}${it.meta ? " two" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}
-      onDragStart={() => { if (!readOnly && DRAG.has(it.kind) && isEditable(it.kind)) dragId.current = { kind: it.kind, id: it.id }; }}
-      onClick={(e) => { e.stopPropagation(); if (onOpen && !readOnly && isEditable(it.kind)) onOpen(); else it.go(); }}
-      title={`${CAT[it.cat]?.label}: ${it.title}${it.meta ? ` — ${it.meta}` : ""}`}>
-      {it.kind === "todo" && it.toggle && <span className="cc-check" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }}>{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</span>}
-      <span className="cc-dot" style={{ background: CAT[it.cat]?.color }} />
-      <span className="cc-bd">
-        <span className="cc-title">{it.title}</span>
-        {it.meta && <span className="cc-sub">{it.meta}</span>}
+  // THE DONE MARK IS ITS OWN CONTROL (R12 — the 10/10 audit, F15). It was a <span onClick> inside the chip's button: no
+  // name, no key, nothing a screen reader could reach (a button's insides are not controls), and the chip never said
+  // done. It is a checkbox laid over the mark's place, beside the chip, and the chip says done when it is.
+  const Chip = ({ it, onOpen }: { it: Item; onOpen?: () => void }) => {
+    const check = it.kind === "todo" && it.toggle;
+    const chip = (
+      <button type="button" draggable={!readOnly && DRAG.has(it.kind)} className={`cc-chip${it.done ? " done" : ""}${it.meta ? " two" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}
+        onDragStart={() => { if (!readOnly && DRAG.has(it.kind) && isEditable(it.kind)) dragId.current = { kind: it.kind, id: it.id }; }}
+        onClick={(e) => { e.stopPropagation(); if (onOpen && !readOnly && isEditable(it.kind)) onOpen(); else it.go(); }}
+        title={`${CAT[it.cat]?.label}: ${it.title}${it.meta ? ` — ${it.meta}` : ""}`}>
+        {check && <span className="cc-check" aria-hidden="true">{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</span>}
+        <span className="cc-dot" style={{ background: CAT[it.cat]?.color }} />
+        <span className="cc-bd">
+          <span className="cc-title">{it.title}</span>
+          {it.meta && <span className="cc-sub">{it.meta}</span>}
+          <span className="sr-only">{`, ${CAT[it.cat]?.label ?? it.kind}${it.done ? ", done" : ""}`}</span>
+        </span>
+      </button>
+    );
+    if (!check) return chip;
+    return (
+      <span className="cc-chip-wrap">
+        {chip}
+        <button type="button" role="checkbox" aria-checked={!!it.done} aria-label={`Done: ${it.title}`} className="cc-check-btn" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }} />
       </span>
-    </button>
-  );
+    );
+  };
 
   return (
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the calendar" emptyTitle="Nothing here yet">
@@ -475,7 +501,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
         </div>
         <div className="cal-views">
           {/* the views are one switch, as Calendar's Day · Week · Month · Year is (the kit's segmented control) */}
-          <Segmented label="Calendar view" className="min-w-0" value={view} onChange={setV} options={shownViews.map((v) => ({ key: v, label: VLABEL[v] }))} />
+          <Segmented label="Calendar view" className="min-w-0" panelId="cal-pane" value={view} onChange={setV} options={shownViews.map((v) => ({ key: v, label: VLABEL[v] }))} />
           {phone && <button type="button" className="btn-ter" aria-expanded={moreViews} onClick={() => setMoreViews((m) => !m)}>{moreViews ? "Fewer" : "More"}</button>}
           <Button type="button" kind="secondary" compact className="ml-auto" onClick={() => setFilterSheet(true)} aria-haspopup="dialog">
             {filter === "all" ? "Filter" : laneFilter ? <><span className="cc-dot" style={{ background: laneFilter.color }} />{laneFilter.label}</> : <><span className="cc-dot" style={{ background: CAT[filter].color }} />{CAT[filter].label}</>}
@@ -510,14 +536,15 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
 
       {/* ── MONTH ── */}
       {view === "month" && (
-        <div className="cal-grid">
+        <div className="cal-grid" {...tabPanel("cal-pane", view)}>
           {gridMonth(cursor).map((d) => {
             const k = key(d); const items = byDay[k] || []; const dim = d.getMonth() !== cursor.getMonth();
             return (
-              <div key={k} {...clickable(() => setDayOpen(k))} className={`cal-cell${dim ? " dim" : ""}${k === todayKey ? " today" : ""}${over === k ? " over" : ""}${warnDays.has(k) ? " heat" : ""}`}
+              <div key={k} className={`cal-cell${dim ? " dim" : ""}${k === todayKey ? " today" : ""}${over === k ? " over" : ""}${warnDays.has(k) ? " heat" : ""}`}
                 onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => o === k ? null : o)} onDrop={() => { setOver(null); const dg = dragId.current; dragId.current = null; if (dg) reschedule(dg.kind, dg.id, k); }}>
-                <div className="cal-cell-h"><span className="cal-date">{d.getDate()}</span>{!readOnly && <button type="button" className="cal-add hit-44" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button>}</div>
-                <div className="cal-marks">
+                <button type="button" className="cal-open" onClick={() => setDayOpen(k)} aria-label={dayWords(d, items, warnDays.has(k), k === todayKey)} />
+                <div className="cal-cell-h"><span className="cal-date" aria-hidden="true">{d.getDate()}</span>{!readOnly && <button type="button" className="cal-add hit-44" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label={`Add on ${longDate(d)}`}>+</button>}</div>
+                <div className="cal-marks" aria-hidden="true">
                   {[...new Set(items.map((it) => it.cat))].slice(0, 4).map((c) => <span key={c} className="cal-mark" style={{ background: CAT[c]?.color }} />)}
                   {items.length > 0 && <span className="cal-mark-n">{items.length}</span>}
                 </div>
@@ -529,13 +556,13 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
 
       {/* ── WEEK ── */}
       {view === "week" && (
-        <div className="cal-week">
+        <div className="cal-week" {...tabPanel("cal-pane", view)}>
           {gridWeek(cursor).map((d) => {
             const k = key(d); const items = byDay[k] || [];
             return (
               <div key={k} className={`cal-wrow${k === todayKey ? " today" : ""}${over === k ? " over" : ""}${warnDays.has(k) ? " heat" : ""}`}
                 onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => o === k ? null : o)} onDrop={() => { setOver(null); const dg = dragId.current; dragId.current = null; if (dg) reschedule(dg.kind, dg.id, k); }}>
-                <div className="cal-wday" {...clickable(() => setDayOpen(k))}><b>{DOW[d.getDay()]}</b><span>{d.getDate()}</span>{!readOnly && <button type="button" className="cal-add hit-44 wk" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button>}</div>
+                <div className="cal-wday"><button type="button" className="cal-open" onClick={() => setDayOpen(k)} aria-label={dayWords(d, items, warnDays.has(k), k === todayKey)} /><b aria-hidden="true">{DOW[d.getDay()]}</b><span aria-hidden="true">{d.getDate()}</span>{!readOnly && <button type="button" className="cal-add hit-44 wk" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label={`Add on ${longDate(d)}`}>+</button>}</div>
                 <div className="cal-witems">{items.length === 0 ? <span className="cal-wnone">—</span> : items.map((it) => <Chip key={`${it.kind}-${it.id}`} it={it} onOpen={() => openItem(it, k)} />)}</div>
               </div>
             );
@@ -548,7 +575,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
         const out: { d: Date; items: Item[] }[] = [];
         for (let dt = new Date(range.start); dt <= range.end; dt.setDate(dt.getDate() + 1)) { const k = key(dt); if (byDay[k]?.length) out.push({ d: new Date(dt), items: byDay[k] }); }
         return (
-          <div className="cal-list">
+          <div className="cal-list" {...tabPanel("cal-pane", view)}>
             {out.length === 0 ? <EmptyState title="Nothing scheduled" sub="Nothing in the next three months." /> : out.map(({ d, items }) => {
               const k = key(d);
               return (
@@ -585,7 +612,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
         // read-only: parked-work management is a manager surface, and "drop here →" hints would lie
         const showCols = readOnly ? cols.filter((c) => c.id !== "backlog").map((c) => ({ ...c, sub: undefined })) : cols;
         return (
-          <div className="cal-board">
+          <div className="cal-board" {...tabPanel("cal-pane", view)}>
             {showCols.map((col) => {
               const rows = col.id === "backlog" ? backlogItems.map((it) => ({ k: "", it })) : buckets[col.id];
               return (
@@ -622,13 +649,13 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
                 <span>{CAT[it.cat]?.label}{it.meta ? ` · ${it.meta}` : ""}{it.warn ? " · past latest start" : ""}{k === todayKey ? " · today" : ""}</span>
               </button>
               {it.kind === "todo" && it.toggle
-                ? <button type="button" className="dv-go" title="Mark done" onClick={() => it.toggle?.()}>{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</button>
-                : <button type="button" className="dv-go" title="Open" onClick={() => it.go()}><Icon name="externalLink" /></button>}
+                ? <button type="button" className="dv-go" role="checkbox" aria-checked={!!it.done} aria-label={`Done: ${it.title}`} title="Mark done" onClick={() => it.toggle?.()}>{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</button>
+                : <button type="button" className="dv-go" aria-label={`Open ${it.title}`} title="Open" onClick={() => it.go()}><Icon name="externalLink" /></button>}
             </div>
           );
         };
         return (
-          <div className="cal-cards">
+          <div className="cal-cards" {...tabPanel("cal-pane", view)}>
             {overdue.length > 0 && <><div className="dv-sub" style={{ marginTop: 12 }}>Overdue · {overdue.length}</div>{overdue.map(card)}</>}
             <div className="dv-sub" style={{ marginTop: 12 }}>Up next</div>
             {up.length === 0 ? <EmptyState title="Nothing coming up" sub="Nothing in the next two months." /> : up.map(card)}
@@ -638,7 +665,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
 
       {/* ── QUARTER / YEAR (mini-months, tap to open) ── */}
       {(view === "quarter" || view === "year") && (
-        <div className={`cal-multi ${view}`}>
+        <div className={`cal-multi ${view}`} {...tabPanel("cal-pane", view)}>
           {(view === "quarter" ? [0, 1, 2].map((i) => new Date(cursor.getFullYear(), qStart(cursor) + i, 1)) : Array.from({ length: 12 }, (_, i) => new Date(cursor.getFullYear(), i, 1))).map((mDate) => (
             <MiniMonth key={key(mDate)} mDate={mDate} byDay={byDay} todayKey={todayKey} onOpen={() => { setCur(new Date(mDate.getFullYear(), mDate.getMonth(), 1)); setV("month"); }} />
           ))}
@@ -1005,9 +1032,10 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
 function MiniMonth({ mDate, byDay, todayKey, onOpen }: { mDate: Date; byDay: Record<string, Item[]>; todayKey: string; onOpen: () => void }) {
   const days = gridMonth(mDate);
   return (
-    <button type="button" className="mini-m" onClick={onOpen}>
-      <div className="mini-h">{MONTHS[mDate.getMonth()]}</div>
-      <div className="mini-grid">
+    <button type="button" className="mini-m" onClick={onOpen}
+      aria-label={(() => { const n = days.filter((d) => d.getMonth() === mDate.getMonth()).reduce((s, d) => s + (byDay[key(d)]?.length ?? 0), 0); return `${MONTHS[mDate.getMonth()]} — ${n === 0 ? "nothing on it" : `${n} ${n === 1 ? "thing" : "things"}`}`; })()}>
+      <div className="mini-h" aria-hidden="true">{MONTHS[mDate.getMonth()]}</div>
+      <div className="mini-grid" aria-hidden="true">
         {days.map((d) => {
           const k = key(d); const items = byDay[k] || []; const dim = d.getMonth() !== mDate.getMonth();
           const cats = Array.from(new Set(items.map((i) => i.cat))).slice(0, 3);

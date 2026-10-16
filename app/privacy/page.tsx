@@ -8,7 +8,7 @@
 // components/legal/LegalText, so the yes to texts at checkout opens them in a sheet over the order.
 import { PrivacyText } from "@/components/legal/LegalText";
 
-export const metadata = { title: "Privacy policy — GT3 Performance Bar" };
+export const metadata = { title: "Privacy policy" };
 
 export default function PrivacyPage() {
   return (

@@ -6,6 +6,8 @@ import { payHeldOpen } from "@/lib/payHold";
 import { useCupAvailability } from "@/components/useCupAvailability";
 import { haptic } from "@/lib/haptics";
 import { apiUrl } from "@/lib/native";
+import { announce } from "@/components/Announcer";
+import { TOAST_AFTER_HOLD_MS, toastHoldMs } from "@/lib/toastTiming";
 
 type ToastVariant = "success" | "error" | "info";
 /** One thing the toast can do — "Undo" after a swipe cleared a flag (2026-10-05, the gesture round). */
@@ -19,6 +21,8 @@ interface AppCtx {
   toastVariant: ToastVariant;
   toastAction: ToastAction | null;
   hideToast: () => void;
+  /** A finger on the toast or focus in it (true) stops its clock; letting go (false) starts what was left. */
+  holdToast: (on: boolean) => void;
   // cart (pre-order) — quantity per drink
   cart: Record<string, number>;
   cartCount: number;
@@ -71,13 +75,27 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const [toastVariant, setToastVariant] = useState<ToastVariant>("success");
   const [toastAction, setToastAction] = useState<ToastAction | null>(null);
   const tRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The shown toast's clock: what it had left when last started, when that was, and whether someone is holding it.
+  const left = useRef(0);
+  const since = useRef(0);
+  const held = useRef(false);
 
   const hideToast = useCallback(() => {
     if (tRef.current) clearTimeout(tRef.current);
+    tRef.current = null;
+    held.current = false;
     setToastShown(false);
     setToastAction(null);
   }, []);
-  // A toast with something to do stays long enough to reach for it.
+  const runToast = useCallback((ms: number) => {
+    if (tRef.current) clearTimeout(tRef.current);
+    left.current = ms;
+    since.current = Date.now();
+    tRef.current = setTimeout(() => { tRef.current = null; held.current = false; setToastShown(false); setToastAction(null); }, ms);
+  }, []);
+  // HOW LONG, AND SAID (R12 — the 10/10 audit, F3): the words set the time (lib/toastTiming), and every toast is said to a
+  // screen reader as it shows (components/Announcer — the toast is no longer a live region of its own), an error
+  // assertively; one with something to do says where that is.
   //
   // AN ERROR IS FELT (2026-10-05, the haptics round). Every error toast in the app comes through here,
   // so this is the one home for the error feel: a screen that says it with toast() is not to buzz it
@@ -88,9 +106,23 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     setToastVariant(variant);
     setToastAction(opts?.action ?? null);
     setToastShown(true);
-    if (tRef.current) clearTimeout(tRef.current);
-    tRef.current = setTimeout(() => { setToastShown(false); setToastAction(null); }, opts?.action ? 5000 : variant === "error" ? 4200 : 3000);
-  }, []);
+    held.current = false;
+    runToast(toastHoldMs(msg, variant, !!opts?.action));
+    announce(opts?.action ? `${msg}. ${opts.action.label} is in the message at the bottom of the screen.` : msg, variant === "error" ? "assertive" : "polite");
+  }, [runToast]);
+  const holdToast = useCallback((on: boolean) => {
+    if (on) {
+      if (held.current || !tRef.current) return;
+      held.current = true;
+      clearTimeout(tRef.current);
+      tRef.current = null;
+      left.current = Math.max(0, left.current - (Date.now() - since.current));
+    } else {
+      if (!held.current) return;
+      held.current = false;
+      runToast(Math.max(TOAST_AFTER_HOLD_MS, left.current));
+    }
+  }, [runToast]);
 
   // One source of truth for the menu and its prices: the Catalog, via /api/menu (lib/drinks). Shared so the cart bar,
   // the menu, the drink sheet and checkout can never show three different drinks or totals. Until it lands — and when it
@@ -273,8 +305,8 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   }, [toast, soldOut, menu, rows, holding]);
 
   const value = useMemo<AppCtx>(
-    () => ({ toast, toastMsg, toastShown, toastVariant, toastAction, hideToast, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents, menu, menuRead: rows !== null, drinkOf, nameOf, refreshMenu }),
-    [toast, toastMsg, toastShown, toastVariant, toastAction, hideToast, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents, menu, rows, drinkOf, nameOf, refreshMenu]
+    () => ({ toast, toastMsg, toastShown, toastVariant, toastAction, hideToast, holdToast, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents, menu, menuRead: rows !== null, drinkOf, nameOf, refreshMenu }),
+    [toast, toastMsg, toastShown, toastVariant, toastAction, hideToast, holdToast, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents, menu, rows, drinkOf, nameOf, refreshMenu]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

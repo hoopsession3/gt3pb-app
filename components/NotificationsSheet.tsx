@@ -15,6 +15,7 @@ import { NATIVE_PUSH_ON } from "@/lib/nativePush";
 import { haptic } from "@/lib/haptics";
 import { ALWAYS_SENT, CUSTOMER_KINDS, kindMuted, withKind, type CustomerKind } from "@/lib/customerNotify";
 import { writeMuted } from "@/lib/notifMuted";
+import Said from "./Said";
 
 // NOTIFICATIONS, ONE SCREEN (2026-10-14, R6 of the customer audit — decided by Ryan: every kind but receipts). The account
 // had one switch, the truck-live chip on Find Us; order alerts stopped only in the phone's own Settings, the emails not at
@@ -94,7 +95,7 @@ function NotificationsBody() {
         </div>
       )}
       {!user && <div className="rows mt-3.5"><TruckLive /></div>}
-      {readFailed && <p className={NOTE} role="status">Couldn&rsquo;t read your choices just now — close this and open it again.</p>}
+      {readFailed && <Said as="p" className={NOTE}>Couldn&rsquo;t read your choices just now — close this and open it again.</Said>}
       <p className={NOTE}>{ALWAYS_SENT}</p>
     </div>
   );

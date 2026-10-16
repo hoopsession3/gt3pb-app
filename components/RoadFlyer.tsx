@@ -11,7 +11,7 @@ import Icon from "@/components/Icon";
 import { saveFile } from "@/lib/deviceActions";
 import { APP_BUILD } from "@/lib/native";
 import Button from "./Button";
-import { Segmented } from "@/components/controls";
+import { Segmented, tabPanel } from "@/components/controls";
 
 // ROAD FLYER — the locked GT3 house graphics, drawn on a canvas so they're pixel-identical every
 // time. A five-slide set (Announce · Menu · Sub-menu · Details · Photo) that reads as ONE luxury
@@ -484,9 +484,11 @@ export default function RoadFlyer() {
           <button key={t.id} type="button" className={`k-chip sm${tpl === i ? " on" : ""}`} aria-pressed={tpl === i} onClick={() => pickTpl(i)} title={t.note}>{t.name}</button>
         ))}
       </div>
-      <Segmented label="Slide" size="sm" fill value={tile} onChange={setTile}
+      <Segmented label="Slide" size="sm" fill panelId="rf-slide" value={tile} onChange={setTile}
         options={([["announce", "Announce"], ["menu", "Menu"], ["submenu", "Sub-menu"], ["details", "Details"], ["photo", "Photo"]] as const).map(([k, l]) => ({ key: k, label: l }))} />
       <div className="rf-note">Pick a template up top — 10 cuts of the GT3 look. Then a slide (Announce → Menu → Sub-menu → Details), fill it in, and download or save to the feed.</div>
+      {/* What the Slide tabs show — the slide's fields and its picture (R12 — the 10/10 audit, F7: a tab panel). */}
+      <div className="flex flex-col gap-[9px] min-w-0" {...tabPanel("rf-slide", tile)}>
       {opts.length > 0 && tile === "announce" && (
         <select className="rf-pick" defaultValue="" onChange={(e) => e.target.value && pick(e.target.value)}>
           <option value="">⚡ Prefill from an event / stop…</option>
@@ -509,6 +511,7 @@ export default function RoadFlyer() {
       <div className="rf-actions">
         <button type="button" className="btn-sec flex-1" onClick={download}>{APP_BUILD ? "Save or share" : "Download"}</button>
         <button type="button" className="btn-pri flex-1" onClick={saveToFeed} disabled={busy}>{busy ? "Saving…" : <><Icon name="star" /> Save to feed</>}</button>
+      </div>
       </div>
     </div>
   );

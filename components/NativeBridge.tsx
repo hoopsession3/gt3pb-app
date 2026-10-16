@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { BROWSER_CLOSED_EVENT, isNativeApp, lessonHref, nativePlatform, WEB_ORIGIN } from "@/lib/native";
 import { setNativeHaptics, type UIKitStep } from "@/lib/haptics";
 import { saveFromUrl, setNativeDevice, type GT3DevicePlugin } from "@/lib/deviceActions";
+import { applyDisplayPrefs } from "@/lib/displayPrefs";
 import { opensOutside as linkOut } from "@/lib/nativeLinks";
 import { appleCredentialState, appleSession, markAppleSession } from "@/lib/appleAuth";
 import { NATIVE_PUSH_ON, alertTarget, keepAppDevice, setNativePush, type AppAlertState } from "@/lib/nativePush";
@@ -156,10 +157,20 @@ export default function NativeBridge() {
         signInWithApple: (o) => device.signInWithApple(o),
         appleCredentialState: (o) => device.appleCredentialState(o),
         openSettings: () => device.openSettings(),
+        displayPrefs: () => device.displayPrefs(),
         share: (o) => Share.share(o),
       });
       undo.push(() => setNativeDevice(null));
       setDeviceReady(true);
+
+      // BOLD TEXT, REDUCE TRANSPARENCY (R12 — the 10/10 audit, F19): read from the phone at launch and whenever the app
+      // comes back (they are set in Settings, outside it), and marked on the page for app/globals.css (lib/displayPrefs).
+      // Its own errand: a build without the method leaves the page unmarked, and nothing waits on it.
+      const readPrefs = () => { void device.displayPrefs().then(applyDisplayPrefs, () => {}); };
+      readPrefs();
+      const prefsAgain = () => { if (document.visibilityState === "visible") readPrefs(); };
+      document.addEventListener("visibilitychange", prefsAgain);
+      undo.push(() => { document.removeEventListener("visibilitychange", prefsAgain); applyDisplayPrefs(null); });
 
       // WHICH BUILD THIS PHONE RUNS (2026-10-11): the app's version and build, for Live Ops' list of the devices on the
       // Pass (lib/heartbeat). Its own errand: a phone that cannot say leaves the build blank, and nothing waits on it.

@@ -113,12 +113,13 @@ export const flipToast = (name: string, to86: boolean): string =>
 
 // ── THE UNDO ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 // An 86 is frequent and it is undone by a second tap, so it does not ask first: it is done, and the toast holds an
-// Undo. The toast keeps an action on screen for 5 seconds (components/AppProvider, "a toast with something to do
-// stays long enough to reach for it"); the undo honours the same window, so an Undo tapped on a toast that outlived
-// it does nothing. And it is conditional on the row still holding what the 86 wrote — if the Pass flipped it back in
-// those seconds, the undo changes nothing and says so.
+// Undo. The toast keeps an action on screen ten seconds and more, and holds it while a finger or focus is on it
+// (R12 — the 10/10 audit, F3: lib/toastTiming, components/AppProvider) — a VoiceOver user reaching for Undo is not to
+// find it gone, nor dead. So the undo honours a minute, which no toast outlives unheld; an Undo from a toast held open
+// past it does nothing. And it is conditional on the row still holding what the 86 wrote — if the Pass flipped it back
+// since, the undo changes nothing and says so.
 // The clock is read here, where the window is defined, and only from a tap — the one that 86'd and the one on Undo.
-export const UNDO_MS = 5000;
+export const UNDO_MS = 60_000;
 /** The moment an 86 landed: when its undo window opens. */
 export const undoStart = (): number => Date.now();
 /** True while an Undo for an 86 that landed at `at` may still act. */

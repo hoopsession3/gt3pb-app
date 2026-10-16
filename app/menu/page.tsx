@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
+import { useCartSaid } from "@/components/useCartSaid";
 import AccountPill from "@/components/AccountPill";
 import EditableCopy from "@/components/EditableCopy";
 import Watermark from "@/components/Watermark";
@@ -18,10 +19,17 @@ import { isSeedSlug, lineSubKey, sectionsOf } from "@/lib/drinks";
 import { CUP_MARKETS } from "@/lib/markets";
 import { PACK_SIZES, PACK_TAG, packTotal, dollars } from "@/lib/orderAhead";
 import Icon from "@/components/Icon";
+import { scrollMotion } from "@/lib/motion";
+import Said from "@/components/Said";
 
 export default function MenuScreen() {
   const router = useRouter();
   const { openDrink, qtyOf, bump, inc, dec, menu, menuRead, refreshMenu, priceCents } = useApp();
+  // A drink added or taken out from its row is said, and focus stays in the row (R12 — the 10/10 audit, F2): the "+ $10"
+  // pill becomes its counter and the counter's − at one becomes the pill again, so the button pressed is gone — focus
+  // goes to the + that took its place, or back to the pill.
+  const track = useCartSaid((id, _was, now) => document.querySelector(`[data-drink-row="${CSS.escape(id)}"]`)
+    ?.querySelector<HTMLElement>(now === 0 ? '[data-cart-act="add"]' : '[data-cart-act="more"]'));
   const t = useSiteCopy();
   const { soldOut } = useCupAvailability();
   // IS THIS A MENU YOU CAN ORDER FROM RIGHT NOW? (2026-10-04) With the truck closed the page still
@@ -73,7 +81,14 @@ export default function MenuScreen() {
     Object.values(catRefs.current).forEach((el) => el && obs.observe(el));
     return () => obs.disconnect();
   }, [sectionsKey]);
-  const jumpTo = (name: string) => catRefs.current[name]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const jumpTo = (name: string) => {
+    const at = catRefs.current[name];
+    at?.scrollIntoView({ behavior: scrollMotion(), block: "start" });
+    const head = at?.querySelector<HTMLElement>("h2, h3");
+    if (!head) return;
+    if (!head.hasAttribute("tabindex")) head.setAttribute("tabindex", "-1");
+    head.focus({ preventScroll: true });
+  };
 
   return (
     <section className="screen menu" id="s-menu">
@@ -92,14 +107,17 @@ export default function MenuScreen() {
           (menu.integrity says it); the chemistry and Primal follow the menu; a drink is one line. */}
       <Masthead tone="light" right={<AccountPill />} />
       {stateLine
-        ? <div className="mast-order mast-state" role="status">{stateLine}</div>
+        ? <Said className="mast-order mast-state" quietFirst>{stateLine}</Said>
         : <EditableCopy k="menu.order_line" value={t("menu.order_line")} as="div" className="mast-order" />}
 
-      <div className="menu-chips" role="tablist" aria-label="Menu categories">
+      {/* JUMPS, NOT TABS (R12 — the 10/10 audit, F7): these scroll the one menu to a section — there is no panel for a
+          tab to show — so they are a row of links-in-the-page, the one you are in marked current; and a jump takes focus to
+          the section's heading, not only the eye. */}
+      <nav className="menu-chips" aria-label="Menu categories">
         {sections.map((sec) => (
-          <button key={sec.line} type="button" role="tab" aria-selected={active === sec.line} className={`k-chip sm${active === sec.line ? " on" : ""}`} onClick={() => jumpTo(sec.line)}>{sec.line}</button>
+          <button key={sec.line} type="button" aria-current={active === sec.line ? "true" : undefined} className={`k-chip sm${active === sec.line ? " on" : ""}`} onClick={() => jumpTo(sec.line)}>{sec.line}</button>
         ))}
-      </div>
+      </nav>
 
       {/* The Catalog answered and nothing is on sale: said, never a blank page. */}
       {menuRead && sections.length === 0 && <EditableCopy k="menu.empty" value={t("menu.empty")} as="p" className="menu-integrity" />}
@@ -133,7 +151,7 @@ export default function MenuScreen() {
               // drink's sheet and adding took a second tap there. Now, while the truck takes orders, the pill adds the drink
               // and becomes its counter (− 1 · $10 +); the rest of the row opens the sheet. Two buttons side by side, never
               // one inside the other: the row's is stretched across it (.entry-open), the pill's sits above it.
-              <div className={`entry relative${off ? " entry-86" : ""}`} key={id}>
+              <div className={`entry relative${off ? " entry-86" : ""}`} key={id} data-drink-row={id}>
                 <button type="button" className="entry-open absolute inset-0 cursor-pointer appearance-none border-0 bg-transparent p-0" onClick={() => openDrink(id)}
                   aria-label={`${d.name}, ${out ? "sold out today" : notHere ? "not at this stop" : priceLabel(id)}${qty ? `, ${qty} in your order` : ""}, view details`} />
                 <div className="entry-head">
@@ -148,12 +166,12 @@ export default function MenuScreen() {
                     : qty > 0 ? (
                       <span role="group" aria-label={`${d.name}: ${qty} in your order`}
                         className="entry-qty relative z-[1] inline-flex flex-none items-center gap-1 whitespace-nowrap rounded-pill font-mono text-footnote font-semibold">
-                        <button type="button" className="hit-44 px-2.5 py-1 cursor-pointer appearance-none border-0 bg-transparent text-inherit [font:inherit]" aria-label={`Remove one ${d.name}`} onClick={() => dec(id)}>−</button>
+                        <button type="button" className="hit-44 px-2.5 py-1 cursor-pointer appearance-none border-0 bg-transparent text-inherit [font:inherit]" aria-label={`Remove one ${d.name}`} onClick={() => { track(id); dec(id); }}>−</button>
                         <span>{qty} · {priceLabel(id)}</span>
-                        <button type="button" className="hit-44 px-2.5 py-1 cursor-pointer appearance-none border-0 bg-transparent text-inherit [font:inherit]" aria-label={`Add one more ${d.name}`} onClick={() => inc(id)}>+</button>
+                        <button type="button" className="hit-44 px-2.5 py-1 cursor-pointer appearance-none border-0 bg-transparent text-inherit [font:inherit]" aria-label={`Add one more ${d.name}`} data-cart-act="more" onClick={() => { track(id); inc(id); }}>+</button>
                       </span>
                     )
-                    : <button type="button" className="entry-px order hit-44 z-[1] cursor-pointer appearance-none bg-transparent" aria-label={`Add ${d.name}, ${priceLabel(id)}`} onClick={() => bump(id)}>{priceLabel(id)}</button>}
+                    : <button type="button" className="entry-px order hit-44 z-[1] cursor-pointer appearance-none bg-transparent" aria-label={`Add ${d.name}, ${priceLabel(id)}`} data-cart-act="add" onClick={() => { track(id); bump(id); }}>{priceLabel(id)}</button>}
                 </div>
                 {/* One line: why you would pick it, and the Catalog's facts. What is in it is the drink's own sheet. */}
                 <div className="entry-body">

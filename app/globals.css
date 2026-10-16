@@ -201,7 +201,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
      screen corners. .app is position:relative, so absolute anchors to it. The quick-actions
      button, the theme toggle and the update prompt live in .fab-dock now (2026-10-04) and are
      absolute against it at every width, so they are no longer listed here. */
-  .app > .rail,.app > .offline-bar{position:absolute}  /* the rail and the offline bar ride the frame, not the window (2026-10-08) */
+  .app > .rail{position:absolute}  /* the rail rides the frame, not the window (2026-10-08); the offline bar is in the column now (R12) */
 }
 .body{flex:1;overflow-y:auto;overflow-x:hidden;position:relative;-webkit-overflow-scrolling:touch}
 .body::-webkit-scrollbar{display:none}
@@ -240,7 +240,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 /* ===== TRUCK ===== */
 @keyframes lv{0%{box-shadow:0 0 0 0 rgba(70,193,74,.55)}70%{box-shadow:0 0 0 8px rgba(70,193,74,0)}100%{box-shadow:0 0 0 0 rgba(70,193,74,0)}}
 .stop{display:flex;align-items:center;gap:14px;background:transparent;border:none;border-bottom:1px solid var(--line);padding:15px 2px;cursor:pointer}
-.stop.now .when b{color:var(--red)}
+.stop.now .when b{color:var(--red-h)}
 .stop .when{flex:0 0 50px;text-align:center}
 .stop .when b{font-family:'Archivo Black';font-size:15px;display:block;line-height:1}
 .stop .when span{font-family:'Inter';font-size:11px;letter-spacing:.1em;color:var(--cream-m);text-transform:uppercase}
@@ -248,7 +248,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .stop .info b{font-family:'Inter';font-weight:600;font-size:15px;letter-spacing:.2px;display:block}
 .stop .info span{font-size:12px;color:var(--cream-m)}
 .stop .tag{font-family:'Inter';font-size:11px;font-weight:650;letter-spacing:.1em;text-transform:uppercase;flex:0 0 auto}
-.tag.live{color:var(--red)}.tag.soon{color:var(--cream-m)}
+.tag.live{color:var(--red-h)}.tag.soon{color:var(--cream-m)}
 
 /* ── truck · editorial dispatch (no card/tiles/clock) ── */
 .livedot{width:8px;height:8px;border-radius:50%;background:#46c14a;margin-right:8px;box-shadow:0 0 0 4px rgba(70,193,74,.16);animation:lv 1.8s infinite}
@@ -295,7 +295,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .drink{display:flex;align-items:center;gap:15px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:13px;margin-bottom:11px;box-shadow:0 6px 16px rgba(0,0,0,.16);cursor:pointer}
 .drink .sw{flex:0 0 56px;height:56px;border-radius:15px;display:flex;align-items:center;justify-content:center;font-family:'Archivo Black';font-size:12px;color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.15)}
 .drink .px{font-family:'DM Mono';font-weight:500;font-size:15px;color:var(--cream)}
-.drink .plus{width:32px;height:32px;border-radius:50%;background:color-mix(in srgb, var(--brand-red) 16%, transparent);color:var(--red);display:flex;align-items:center;justify-content:center;font-family:'Archivo Black';font-size:17px}
+.drink .plus{width:32px;height:32px;border-radius:50%;background:color-mix(in srgb, var(--brand-red) 16%, transparent);color:var(--red-h);display:flex;align-items:center;justify-content:center;font-family:'Archivo Black';font-size:17px}
 .drink .plus.on{background:var(--ok);color:#fff}
 
 /* ===== EVENTS ===== */
@@ -352,7 +352,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .sub-status .sub-dot{width:9px;height:9px;border-radius:50%;background:var(--cream-m);flex:0 0 auto}
 .sub-status.active{color:var(--ok)}.sub-status.active .sub-dot{background:var(--ok);box-shadow:0 0 0 4px rgba(106,160,92,.18)}
 .sub-status.paused{color:var(--warn)}.sub-status.paused .sub-dot{background:var(--warn)}
-.sub-status.past_due{color:var(--red)}.sub-status.past_due .sub-dot{background:var(--red)}
+.sub-status.past_due{color:var(--red-h)}.sub-status.past_due .sub-dot{background:var(--red)}
 .sub-rest{font-family:'Fraunces';font-style:italic;font-size:13px;line-height:1.5;color:var(--cream-m);margin:0 0 14px}
 .sub-actions{display:flex;gap:9px}
 .sub-actions button{flex:1;font-family:'Inter';font-weight:650;font-size:13px;color:var(--cream);background:color-mix(in srgb, var(--brand-cream) 8%, transparent);border:1px solid var(--line2);border-radius:11px;padding:11px;cursor:pointer}
@@ -455,7 +455,7 @@ html:not([data-viewer="guest"]) .tab[data-for="guest"]{display:none}
 /* never cover the CartBar (2026-08-01 audit: "Added — keep building" landed ON the Review bar it
    was pointing at) — with the bar in the shell, the toast rides one story higher. */
 .app:has(.cartbar) .toast{bottom:calc(150px + env(safe-area-inset-bottom,0px))}
-.toast.show{transform:translateY(0);opacity:1}.toast svg{width:18px;height:18px;flex:0 0 auto}
+.toast.show{transform:translateY(0);opacity:1;visibility:visible;transition:transform .3s,opacity .3s,visibility 0s}.toast svg{width:18px;height:18px;flex:0 0 auto}
 .toast.err{background:var(--red)}.toast.err svg{stroke:#fff}
 /* ABOVE THE SHEET (2026-10-05, the gesture round). The toast sat at z 60 and every sheet's scrim at 80,
    so anything said while a sheet was open — "Saved", "Couldn't save" — was said under the blur. The
@@ -464,6 +464,12 @@ html:not([data-viewer="guest"]) .tab[data-for="guest"]{display:none}
 .toast.has-act.show{pointer-events:auto}
 .toast-act{margin-left:auto;flex:0 0 auto;min-height:40px;padding:8px 4px 8px 14px;background:none;border:none;color:#fff;font-family:'Inter';font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;text-decoration:underline;text-underline-offset:3px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .toast-act:focus-visible{outline:2px solid #fff;outline-offset:2px}
+/* R12 (the 10/10 audit, F3): gone is gone — hidden from a screen reader's swipe and from Tab once it has faded, not
+   only see-through; and the way to close one that has something to do. */
+.toast{visibility:hidden;transition:transform .3s,opacity .3s,visibility 0s linear .3s}
+.toast-x{all:unset;flex:0 0 auto;display:grid;place-items:center;width:44px;height:44px;margin:-10px -12px -10px -6px;border-radius:var(--r-lg);color:#fff;cursor:pointer}
+.toast .toast-x svg{width:16px;height:16px}
+.toast-x:focus-visible{outline:2px solid #fff;outline-offset:-6px}
 
 /* ---- Type System v1 refinement (Inter + Apple discipline) ---- */
 body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
@@ -870,6 +876,12 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ev-arch-when{flex:0 0 auto;font-family:'Inter';font-size:12px;color:var(--cream-m);font-variant-numeric:tabular-nums}
 @media(max-width:380px){.ev-grid{grid-template-columns:repeat(2,1fr)}}
 .app:is(.rd-t2,.rd-t3) .ev-grid{grid-template-columns:repeat(2,1fr)}
+.app:is(.rd-t4,.rd-t5,.rd-t6) .ev-grid{grid-template-columns:1fr}
+/* At 150% and up the masthead's buttons drop under the mark, the pack tiles stack, and a chip's words wrap — at 200% the
+   account button and the bigger packs ran off the phone's edge, clipped where no one could reach them (R12, F1). */
+.app:is(.rd-t4,.rd-t5,.rd-t6) .k-mast{flex-wrap:wrap;gap:10px 12px}
+.app:is(.rd-t4,.rd-t5,.rd-t6) .oa-tiles{grid-template-columns:1fr}
+.app:is(.rd-t4,.rd-t5,.rd-t6) .k-chip{white-space:normal;max-width:100%}
 
 /* event economics — telemetry P&L / ROI panel */
 .ev-pnl-gauges{display:flex;gap:9px}
@@ -917,7 +929,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .cat-live-tag{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border-radius:5px;background:rgba(127,168,107,.14);color:#9fc48b;border:1px solid rgba(127,168,107,.35)}
 .app.crew-day .cat-live-tag{color:var(--green-onLight);background:rgba(107,148,87,.13);border-color:rgba(90,130,70,.4)}
 /* COGS calculator */
-.cogs-bm.ok{color:var(--ok)}.cogs-bm.gold{color:var(--gold2)}.cogs-bm.red{color:var(--red)}
+.cogs-bm.ok{color:var(--ok)}.cogs-bm.gold{color:var(--gold2)}.cogs-bm.red{color:var(--red-h)}
 /* minmax tracks so the grid can compress on 320px viewports at rd-t2/t3 zoom (CSS audit pack 2026-07) */
 .cogs-head,.cogs-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(44px,64px) minmax(44px,64px) minmax(40px,56px);gap:6px;align-items:center}
 .cogs-head{padding:0 13px 4px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-d)}
@@ -987,7 +999,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .adm-req .meta a{color:var(--gold2)}
 .adm-status{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .sub-renew.soon{color:var(--gold2)}
-.sub-renew.due{color:var(--red);font-weight:600}
+.sub-renew.due{color:var(--red-h);font-weight:600}
 /* kitchen orders */
 .adm-order{position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--r-2xl);padding:12px 14px;margin-top:9px;border-left:3px solid var(--cream-m)}
 .adm-order.st-new{border-left-color:var(--red)}
@@ -1087,7 +1099,12 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .menu-chips::-webkit-scrollbar{display:none}
 /* A chip's jump lands its section below the chips, which stay stuck at the top (and below the status
    bar of a phone that draws under one). */
-.menu [data-cat]{scroll-margin-top:calc(env(safe-area-inset-top,0px) + 60px)}
+/* FOCUS IS NEVER UNDER A STICKY BAR (R12 — the 10/10 audit, F20): a control scrolled into view by a Tab or by VoiceOver
+   lands below the title bar, or below the menu's chips, not under them (2.4.11). The menu's category jump keeps its place:
+   its room is the scroller's padding now, not the target's margin. */
+.body:has(>[data-tbar][data-resting]){scroll-padding-top:calc(52px + env(safe-area-inset-top,0px))}
+.body:has(.menu-chips){scroll-padding-top:calc(env(safe-area-inset-top,0px) + 60px)}
+.menu [data-cat]{scroll-margin-top:0}
 /* Shop's two-aisle switch (Bottles · Merch) reuses the Menu category-chip grammar on the same light
    paper surface; just give the aisle content a little breathing room below the sticky chip band. */
 .shop-sections{margin-bottom:6px}
@@ -1179,7 +1196,8 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 
 /* Employee Mode — operator console (distinct from the customer shell) */
 .opnav{border-top:1px solid var(--gold2)}
-.opnav-tabs{display:flex;flex:1;min-width:0}   /* the tablist inside nav.nav.opnav (components/OperatorNav.tsx, 2026-10-04) */
+.opnav-tabs{display:flex;flex:1;min-width:0}   /* the bar inside nav.nav.opnav (components/OperatorNav.tsx, 2026-10-04) */
+.opnav-lanes{display:flex;flex:var(--lanes,4) 1 0%;min-width:0}   /* the lanes, the tab list: a share of the bar per lane, More the last share (R12, F7) */
 .opnav .tab.on{color:var(--gold2)}
 /* Top pad dropped 2px→0 (2026-07-16, ground-up redesign): pulls the title flush up against
    .toprow so the two read as one header zone instead of two stacked bands. */
@@ -1241,7 +1259,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .prep-card.live{border-color:color-mix(in srgb, var(--brand-red) 45%, transparent);box-shadow:0 6px 16px rgba(0,0,0,.16),inset 3px 0 0 var(--red)}
 .prep-card-top{display:flex;align-items:center;justify-content:space-between;gap:6px}
 .prep-card-when{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.4px;color:var(--gold2)}
-.prep-card-livetag{font-family:'Inter';font-weight:700;font-size:11px;letter-spacing:.05em;color:var(--red)}
+.prep-card-livetag{font-family:'Inter';font-weight:700;font-size:11px;letter-spacing:.05em;color:var(--red-h)}
 .prep-card-title{font-family:'Inter';font-weight:600;font-size:15px;color:var(--cream);line-height:1.2}
 .prep-card-loc{font-size:12px;color:var(--cream-m);line-height:1.3}
 .prep-card-foot{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:4px}
@@ -1302,7 +1320,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
    chip's height, so this is the smaller AA-consistent target, not the 44px used on standalone
    controls elsewhere. */
 .adm-crew-chip .crew-mgr{background:none;border:none;color:var(--gold2);font-size:15px;cursor:pointer;padding:6px;-webkit-appearance:none;appearance:none}
-.adm-crew-chip.mgr .crew-mgr{color:var(--red)}
+.adm-crew-chip.mgr .crew-mgr{color:var(--red-h)}
 .adm-crew-chip .crew-name{padding:0 2px}
 .adm-crew-chip .crew-x{background:none;border:none;color:inherit;opacity:.6;font-size:12px;cursor:pointer;padding:6px;-webkit-appearance:none;appearance:none}
 
@@ -1681,7 +1699,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .tl-bar.warn .tl-bar-fill{background:var(--gold2)}
 .tl-bar.over .tl-bar-fill{background:var(--red)}
 .tl-bar-note{font-family:'Inter';font-size:11px;color:var(--cream-m);margin-top:4px}
-.tl-bar.over .tl-bar-note{color:var(--red);font-weight:600}
+.tl-bar.over .tl-bar-note{color:var(--red-h);font-weight:600}
 .tl-space{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:9px}
 .tl-space-h{display:flex;align-items:center;justify-content:space-between;gap:10px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--gold2)}
 .tl-plan{margin-top:4px;display:flex;flex-direction:column;gap:10px;padding:11px 12px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:var(--r-xl)}
@@ -2312,7 +2330,7 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 .studio-lint-row{display:flex;align-items:flex-start;gap:7px;font-family:'Inter';font-size:12px;line-height:1.4;color:var(--cream-m);padding:6px 9px;border-radius:var(--r-md);background:rgba(207,154,74,.1);border:1px solid rgba(207,154,74,.25)}
 .studio-lint-row.warn{background:color-mix(in srgb, var(--brand-red) 10%, transparent);border-color:color-mix(in srgb, var(--brand-red) 30%, transparent)}
 .studio-lint-tag{flex:0 0 auto;font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--warn);background:rgba(207,154,74,.16);border-radius:var(--r-xs);padding:2px 5px;margin-top:1px}
-.studio-lint-row.warn .studio-lint-tag{color:var(--red);background:color-mix(in srgb, var(--brand-red) 16%, transparent)}
+.studio-lint-row.warn .studio-lint-tag{color:var(--red-h);background:color-mix(in srgb, var(--brand-red) 16%, transparent)}
 /* studio post media uploader + format-accurate mockup */
 .studio-media{margin:10px 0 6px}
 .studio-media-fmt{display:flex;align-items:center;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--bronze);margin-bottom:6px}
@@ -2435,8 +2453,15 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 .cal-cell.today{border-color:var(--gold2)}
 .cal-cell.over{border-color:var(--gold);background:rgba(212,165,92,.1)}
 .cal-cell-h{display:flex;align-items:center;justify-content:space-between}
+.cal-date-btn{all:unset;cursor:pointer}   /* unset first, so .cal-date below gives it its face (R12, F15) */
 .cal-date{font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m)}
 .cal-add{opacity:0;background:none;border:none;color:var(--gold2);font-size:16px;line-height:1;cursor:pointer;padding:0 3px}
+/* A day's own button (R12 — the 10/10 audit, F15): laid over its cell, so the cell is the target it always was, and no
+   control sits inside another — Add stands above it. Its ring is the cell's edge. */
+.cal-cell{position:relative}
+.cal-open{all:unset;position:absolute;inset:0;z-index:0;border-radius:var(--r-lg);cursor:pointer}
+.cal-open:focus-visible{outline:2px solid var(--gold2);outline-offset:-2px}
+.cal-add{z-index:1}
 .cal-add:focus{opacity:1}
 @media (hover:hover){.cal-cell:hover .cal-add{opacity:1}}
 @media (hover:none){.cal-add{opacity:1}}
@@ -2703,6 +2728,7 @@ body:has(.conc-sheet) .rail{display:flex}
 .rdg-sizes{display:flex;gap:6px}
 .rdg-size{flex:1;height:44px;border-radius:9px;border:1px solid var(--line2);background:transparent;color:var(--cream);font-family:'Fraunces',serif;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .rdg-size.on{border-color:var(--gold);background:rgba(184,144,47,.14);color:var(--gold)}
+.rdg-size-pct{font-family:'Inter',sans-serif;font-size:12px;font-weight:650;letter-spacing:.2px}
 .rdg-opt{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px;border-radius:var(--r-lg);border:1px solid var(--line2);background:transparent;color:var(--cream);font-family:'Inter';font-size:13px;cursor:pointer}
 .rdg-opt.on{border-color:var(--gold);background:rgba(184,144,47,.14)}
 .rdg-opt>span:last-child{font-family:var(--mono);font-size:11px;color:var(--cream-m)}
@@ -2713,15 +2739,28 @@ body:has(.conc-sheet) .rail{display:flex}
 .app.rd-t1 .body{zoom:1.08}
 .app.rd-t2 .body{zoom:1.16}
 .app.rd-t3 .body{zoom:1.26}
+/* TO TWICE ITS SIZE (R12 — the 10/10 audit, F1): the accessibility sizes, the page reflowing at each. */
+.app.rd-t4 .body{zoom:1.5}
+.app.rd-t5 .body{zoom:1.75}
+.app.rd-t6 .body{zoom:2}
 /* The text size reaches what is drawn beside the page (R6): sheets (portaled beside .body), the bars' insides and the tab
-   labels take the same step — not the panels or bars themselves, whose places are fixed. lib/phoneText ZOOMS. */
-.app.rd-t1{--rd-z:1.08}
-.app.rd-t2{--rd-z:1.16}
-.app.rd-t3{--rd-z:1.26}
-.app:is(.rd-t1,.rd-t2,.rd-t3) :is(.sheet2-head,.sheet2-body,.sheet2-foot,.cartbar,.toast,.orderbar-wrap)>*,
-.app:is(.rd-t1,.rd-t2,.rd-t3) .nav .tl{zoom:var(--rd-z)}
-.app.rd-bold :is(.body,.sheet2,.cartbar,.toast,.orderbar-wrap){font-weight:600}
-.app.rd-bold :is(.body,.sheet2,.cartbar,.toast,.orderbar-wrap) :is(b,strong){font-weight:800}
+   labels take the same step — not the panels or bars themselves, whose places are fixed. lib/phoneText ZOOMS.
+   Past Largest, a sheet's own body takes the whole step; its title row, its footer, the cart and order bars and the toast
+   stop at 150%, and the tab labels at Largest — five tabs share a phone's width, and a bar that grew with the text would
+   cover the page it serves (an iPhone's own bars do the same, and its labels stop growing first). */
+.app.rd-t1{--rd-z:1.08;--rd-bar-z:1.08;--rd-tab-z:1.08}
+.app.rd-t2{--rd-z:1.16;--rd-bar-z:1.16;--rd-tab-z:1.16}
+.app.rd-t3{--rd-z:1.26;--rd-bar-z:1.26;--rd-tab-z:1.26}
+.app.rd-t4{--rd-z:1.5;--rd-bar-z:1.5;--rd-tab-z:1.26}
+.app.rd-t5{--rd-z:1.75;--rd-bar-z:1.5;--rd-tab-z:1.26}
+.app.rd-t6{--rd-z:2;--rd-bar-z:1.5;--rd-tab-z:1.26}
+.app:is(.rd-t1,.rd-t2,.rd-t3,.rd-t4,.rd-t5,.rd-t6) .sheet2-body>*{zoom:var(--rd-z)}
+.app:is(.rd-t1,.rd-t2,.rd-t3,.rd-t4,.rd-t5,.rd-t6) :is(.sheet2-head,.sheet2-foot,.cartbar,.toast,.orderbar-wrap)>*{zoom:var(--rd-bar-z)}
+.app:is(.rd-t1,.rd-t2,.rd-t3,.rd-t4,.rd-t5,.rd-t6) .nav .tl{zoom:var(--rd-tab-z)}
+/* Bold, by the Display panel's switch — or by the iPhone's own Bold Text (html[data-phone-bold], components/NativeBridge;
+   the app's Inter does not answer it on its own — R12, F19). */
+:is(.app.rd-bold,html[data-phone-bold] .app) :is(.body,.sheet2,.cartbar,.toast,.orderbar-wrap){font-weight:600}
+:is(.app.rd-bold,html[data-phone-bold] .app) :is(.body,.sheet2,.cartbar,.toast,.orderbar-wrap) :is(b,strong){font-weight:800}
 .app.rd-roomy :is(.body,.sheet2-body){line-height:1.7;letter-spacing:.1px}
 .app.rd-roomy :is(.body,.sheet2-body) :where(p,li){margin-bottom:.45em}
 .app.rd-roomy .body :where(.sec,.h-title,.adm-prep-label){margin-bottom:.35em}
@@ -2810,6 +2849,11 @@ body:has(.conc-sheet) .rail{display:flex}
 .app.crew-day .cc-chip{background:var(--ink-onLight-04)}
 .cc-chip.done{opacity:.5;text-decoration:line-through}
 .cc-check{flex:0 0 auto;font-size:11px;color:var(--cream-m);cursor:pointer}
+/* The done mark's checkbox (R12, F15): beside the chip in the tree, over the mark on the screen — the mark's column and
+   the chip's height, 26 points or more to a finger. */
+.cc-chip-wrap{position:relative;display:block;min-width:0;max-width:100%}
+.cc-check-btn{all:unset;position:absolute;left:0;top:0;bottom:0;width:26px;z-index:1;cursor:pointer}
+.cc-check-btn:focus-visible{outline:2px solid var(--gold2);outline-offset:-2px}
 .cc-title{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:1.3;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 /* Two-line chip (2026-09-09). The agenda row read "Wine Express Saturday" and nothing else, while
    the query that fetched it already held 11:00am-2:00pm and the venue and threw both away. `.two`
@@ -3343,7 +3387,9 @@ body:has(.conc-sheet) .rail{display:flex}
 .onhand-of b.shy{color:var(--warn)}
 .task-qty{margin-left:7px;font-family:'DM Mono';font-size:11px;color:var(--gold2);background:color-mix(in srgb, var(--brand-gold) 14%, transparent);border-radius:5px;padding:1px 5px}
 .task-due{margin-left:7px;font-family:'DM Mono';font-size:11px;color:var(--cream-d);background:rgba(127,127,127,.12);border-radius:5px;padding:1px 5px;white-space:nowrap}
-.task-due.over{color:var(--red);background:color-mix(in srgb, var(--brand-red) 12%, transparent)}
+/* R12 (F6): the red as text is its text tone, and the overdue mark is an outline — a red tint under red text took it
+   under 4.5:1 on a card. */
+.task-due.over{color:var(--red-h);background:transparent;box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--red-h) 45%, transparent)}
 
 /* ── Smart intake: known-asset KB pull ── */
 .intake-kb{margin-top:10px;background:color-mix(in srgb, var(--brand-gold) 12%, transparent);border:1px solid var(--gold2);border-radius:11px;padding:11px}
@@ -3719,10 +3765,13 @@ body:has(.conc-sheet) .rail{display:flex}
 .app.crew-day .dops-prog.done{color:var(--green-onLight)}
 
 /* 86 / sold out — one visual language everywhere */
-.entry-86{opacity:.55}
-.entry-86 .entry-px{text-decoration:line-through;opacity:.7}
+/* R12 (the 10/10 audit, F6): the whole row at .55 took its SOLD OUT tag to 2.4:1 and its name to 3.6:1 on the menu's
+   paper — the one word that mattered was the least legible. What the row no longer offers dims; the name and the tag
+   say why at full strength. */
+.entry-86 :is(.entry-dot,.entry-why,.entry-tag){opacity:.55}
+.entry-86 .entry-px{text-decoration:line-through;opacity:.55}
 .entry-out{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#a13c34;border:1px solid rgba(161,60,52,.4);border-radius:var(--r-4xl);padding:2px 8px;margin-left:8px;vertical-align:2px;white-space:nowrap}
-.co-86{font-family:'Inter';font-size:12px;line-height:1.5;color:#c98e8e;border:1px dashed rgba(200,90,90,.45);border-radius:var(--r-lg);padding:9px 12px;margin:10px 0}
+.co-86{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--red-h);border:1px dashed color-mix(in srgb, var(--red-h) 45%, transparent);border-radius:var(--r-lg);padding:9px 12px;margin:10px 0}
 /* timing dot on a menu row — BEFORE gold · DURING teal · AFTER red, same palette as the customer
    pillars; hollow when no timing is set */
 .prod-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;background:transparent;border:1px solid var(--line2)}
@@ -4762,7 +4811,7 @@ button.mkpi-tile:active{transform:scale(.98)}
 .dl-note{font-family:'Inter';font-size:12px;color:var(--cream-m);margin:0}
 .dl-ziprow{display:flex;gap:8px}
 .dl-ziprow .auth-input{flex:1;min-width:0}
-.dl-zip{flex:0 0 90px !important;opacity:.7}
+.dl-zip{flex:0 0 90px !important}  /* read-only, in the field's own ink — .7 opacity took its digits under 4.5:1 (R12, F9) */
 .dl-out{border:1px solid var(--line);border-radius:var(--r-2xl);padding:14px;display:flex;flex-direction:column;gap:10px}
 .dl-ctr{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:var(--r-xl);padding:10px 12px}
 .dl-ctr.sm{border-style:dashed;padding:8px 12px}
@@ -4785,9 +4834,9 @@ button.mkpi-tile:active{transform:scale(.98)}
 .dl-quote{display:flex;flex-direction:column;gap:4px;font-family:'Inter';font-size:13px;color:var(--cream-m);border:1px solid var(--line);border-radius:var(--r-xl);padding:12px 14px}
 .dl-quote b{font-family:var(--mono);font-weight:500;color:var(--gold2,#C8A661)}
 .dl-quote-t{border-top:1px solid var(--line);padding-top:6px;margin-top:4px;color:var(--cream)}
-.dl-err{font-family:'Inter';font-size:13px;color:#e08b88;margin:0}
+.dl-err{font-family:'Inter';font-size:13px;color:var(--red-h);margin:0}
 .dl-back{align-self:flex-start;display:inline-flex;align-items:center;min-height:44px;min-width:44px;background:none;border:none;font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m);padding:14px 2px;cursor:pointer;-webkit-appearance:none;appearance:none}  /* 44 (R6) */
-.dl-held{color:#e08b88;font-style:normal}
+.dl-held{color:var(--red-h);font-style:normal}
 
 /* ─────────── the playbook (/playbook, owner) ─────────── */
 .pb-loop{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:8px}
@@ -4914,7 +4963,7 @@ button.mkpi-tile:active{transform:scale(.98)}
 .tel-consent{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m);margin:4px 2px 0}  /* the SMS consent is read before agreeing: 12px in --cream-m, not 10px faded (2026-10-08) */
 .legal-link{position:relative;display:inline;padding:0;border:0;background:none;font:inherit;color:var(--cream);text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px;cursor:pointer}  /* Terms and Privacy under a yes to texts (R6) */
 .row:has(+ .texts-fine){border-bottom:0}  /* the texts switch keeps its terms under it, inside one rule (R6) */
-.offline-bar{position:fixed;top:0;left:0;right:0;z-index:95;background:#3a2f16;color:#e8ddc2;border-bottom:1px solid color-mix(in srgb, var(--brand-gold2) 40%, transparent);font-family:'Inter';font-weight:600;font-size:12px;text-align:center;padding:calc(8px + env(safe-area-inset-top)) 14px 8px}
+.offline-bar{position:relative;flex:0 0 auto;z-index:95;background:#3a2f16;color:#e8ddc2;border-bottom:1px solid color-mix(in srgb, var(--brand-gold2) 40%, transparent);font-family:'Inter';font-weight:600;font-size:12px;text-align:center;padding:calc(8px + env(safe-area-inset-top)) 14px 8px}
 .dops-batchsel{max-width:150px}
 .dops-batchsel.set{border-color:rgba(184,144,47,.45);color:var(--gold2)}
 /* note rename (2026-08-01) — the quiet edit affordance the title never had */
@@ -6197,7 +6246,7 @@ div.owed-row-go{cursor:default}
    adds is a real <label>, a hint, and an error that says a word rather than turning a border red. */
 .fld{display:flex;flex-direction:column;gap:4px;margin-top:9px}
 .fld-l{font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m)}
-.fld-req{color:var(--red)}
+.fld-req{color:var(--red-h)}
 .fld-in{-webkit-appearance:none;appearance:none}
 .app.crew-day .fld-in{background:var(--card)}
 .fld-in:focus{border-color:var(--gold2)}
@@ -6208,7 +6257,7 @@ div.owed-row-go{cursor:default}
 .fld-wrap .fld-in{border-radius:0 var(--r-md) var(--r-md) 0}
 .fld-hint{margin:0;font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m)}
 /* colour is never the only signal — the message itself is the signal, and role="alert" announces it */
-.fld-err{margin:0;font-family:'Inter';font-size:12px;line-height:1.5;color:var(--red)}
+.fld-err{margin:0;font-family:'Inter';font-size:12px;line-height:1.5;color:var(--red-h)}
 .fld.bad .fld-in{border-color:var(--red)}
 
 /* the roster's door into all of the above */
@@ -6413,9 +6462,9 @@ div.owed-row-go{cursor:default}
 }
 .shop-stmt{font-family:'Fraunces';font-style:italic;font-size:16px;line-height:1.5;color:var(--cream-m);margin:14px 0 20px;max-width:52ch}
 .shop-note{margin:24px 0;text-align:center;font-family:'Inter';font-size:15px;color:var(--cream-m)}
-.shop-note.err{color:var(--red)}
+.shop-note.err{color:var(--red-h)}
 .shop-h1{font-family:'Fraunces';font-weight:600;font-size:clamp(34px,10vw,50px);line-height:1;letter-spacing:-.5px;color:var(--cream);margin:8px 0 0}
-.shop-h1 i{font-style:italic;color:var(--red)}
+.shop-h1 i{font-style:italic;color:var(--red-h)}
 .shop-h1.sm{font-size:clamp(26px,7vw,34px);margin:12px 0 0}
 /* grid */
 .shop-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:6px 0 0}
@@ -6472,7 +6521,7 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
    know (lib/customerKnown). Quiet: it explains the filled boxes, it is not an alert. */
 .known-note{font-family:'Inter';font-size:13px;line-height:1.45;margin:0 0 9px;opacity:.85}
 .shop-ship .known-note{color:var(--cream-d);opacity:1}
-.shop-err{font-family:'Inter';font-size:13px;color:var(--red);margin:10px 0}
+.shop-err{font-family:'Inter';font-size:13px;color:var(--red-h);margin:10px 0}
 .shop-fine{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-d);margin:12px 0 0;text-align:center}
 /* done */
 .shop-done{text-align:center;margin:44px 0}
@@ -7287,3 +7336,37 @@ z-index:5;width:100%;display:flex;align-items:center;justify-content:space-betwe
 .acs-line i{font-style:normal;color:var(--cream-d)}
 
 /* The calendar's "More" pill on a phone (CompanyCalendar: three views shown, four behind it). */
+
+/* ═══ MORE CONTRAST, LESS GLASS (R12 — the 10/10 audit, F19) ═══════════════════════════════════════════════════════
+   What the phone's Display settings ask, answered. INCREASE CONTRAST (prefers-contrast: more — WebKit passes it to the
+   app's WKWebView and to Safari): the quiet tiers step up in every palette — the dim and the muted words, the hairlines
+   and field edges, the inactive tabs — and nothing changes for anyone who has not asked. REDUCE TRANSPARENCY
+   (prefers-reduced-transparency; in the iPhone app html[data-less-glass], which components/NativeBridge sets from the
+   phone, since WebKit does not pass that one on): the frosted bars and glass chips go solid. A CONTRAST THEME
+   (forced-colors, Windows on the desk): the chosen option keeps a mark the theme's colours cannot paint over. */
+@media (prefers-contrast: more){
+  :root{--cream-m:color-mix(in srgb, var(--brand-cream) 86%, transparent);--cream-d:color-mix(in srgb, var(--brand-cream) 74%, transparent);--muted:color-mix(in srgb, var(--brand-cream) 80%, transparent);--line:color-mix(in srgb, var(--brand-cream) 32%, transparent);--line2:color-mix(in srgb, var(--brand-cream) 46%, transparent);--ink-whisper:color-mix(in srgb, var(--brand-cream) 74%, transparent);--oa-cream-dim:color-mix(in srgb, var(--brand-cream) 82%, transparent);--oa-cream-faint:color-mix(in srgb, var(--brand-cream) 74%, transparent);--oa-hair:color-mix(in srgb, var(--brand-cream) 34%, transparent)}
+  :is(.app.crew-day,.menu,.sheet.paper,.sheet2.paper){--cream-m:color-mix(in srgb, var(--cream) 88%, transparent);--cream-d:color-mix(in srgb, var(--cream) 80%, transparent);--muted:color-mix(in srgb, var(--cream) 80%, transparent);--line:color-mix(in srgb, var(--cream) 34%, transparent);--line2:color-mix(in srgb, var(--cream) 50%, transparent);--ink-whisper:color-mix(in srgb, var(--cream) 80%, transparent)}
+  :is(.menu,.sheet,.sheet2) .drop{--cream-m:color-mix(in srgb, var(--brand-cream) 86%, transparent);--cream-d:color-mix(in srgb, var(--brand-cream) 74%, transparent);--line:color-mix(in srgb, var(--brand-cream) 32%, transparent);--line2:color-mix(in srgb, var(--brand-cream) 46%, transparent);--ink-whisper:color-mix(in srgb, var(--brand-cream) 74%, transparent)}
+  .nav .tab{opacity:.86}
+}
+@media (prefers-reduced-transparency: reduce){
+  .nav,#s-shop .menu-chips.is-stuck{background:#0f0e0b;-webkit-backdrop-filter:none;backdrop-filter:none}
+  .app.crew-day>.nav{background:#f7f2e8}
+  .app .glass-bar{background-color:var(--color-ground, var(--char));-webkit-backdrop-filter:none;backdrop-filter:none}
+  .app .k-icon-btn.glass{background:var(--char2);-webkit-backdrop-filter:none;backdrop-filter:none}
+  .app .k-tag.glass{--k-wash:var(--char2);-webkit-backdrop-filter:none;backdrop-filter:none}
+  .cmdk-scrim,.qd-scrim{-webkit-backdrop-filter:none;backdrop-filter:none}
+}
+html[data-less-glass] :is(.nav,#s-shop .menu-chips.is-stuck){background:#0f0e0b;-webkit-backdrop-filter:none;backdrop-filter:none}
+html[data-less-glass] .app.crew-day .nav{background:#f7f2e8}
+html[data-less-glass] .app .glass-bar{background-color:var(--color-ground, var(--char));-webkit-backdrop-filter:none;backdrop-filter:none}
+html[data-less-glass] .k-icon-btn.glass{background:var(--char2);-webkit-backdrop-filter:none;backdrop-filter:none}
+html[data-less-glass] .k-tag.glass{--k-wash:var(--char2);-webkit-backdrop-filter:none;backdrop-filter:none}
+html[data-less-glass] :is(.cmdk-scrim,.qd-scrim){-webkit-backdrop-filter:none;backdrop-filter:none}
+@media (forced-colors: active){
+  :is(.k-seg-opt,.k-chip,.tab,[role="tab"],[role="radio"])[aria-selected="true"],:is(.k-seg-opt,.k-chip,[role="radio"],[role="checkbox"])[aria-checked="true"],:is(.k-chip,button)[aria-pressed="true"],.tab.on{outline:2px solid Highlight;outline-offset:-2px}
+  .k-seg .k-seg-thumb{display:none}
+  .k-switch[aria-checked="true"]{background:Highlight}
+}
+

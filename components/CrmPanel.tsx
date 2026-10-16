@@ -10,6 +10,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
+import { rovingKeys, rovingTab } from "./roving";
 import { downloadCsv } from "@/lib/csv";
 import { money, moneyPlain } from "@/lib/money";
 
@@ -50,6 +51,7 @@ type Detail = { orders: CrmOrder[]; loyalty: Loyalty; perks: Perk[]; hasProof: b
 // view over the two real columns (tier, vip_verified) so the radiogroup below can render one
 // mutually-exclusive choice instead of a tier toggle plus a disconnected VIP note.
 type UiTier = "member" | "founding" | "founding_vip";
+const TIERS: readonly UiTier[] = ["member", "founding", "founding_vip"];
 
 export function CrmDetail({ c }: { c: Customer }) {
   const { toast } = useApp();
@@ -146,21 +148,30 @@ export function CrmDetail({ c }: { c: Customer }) {
   // "Founding" while currently Founding VIP clears vip — a direct, visible click on a specific
   // button, not an incidental side effect, so it doesn't run into 0249's "shouldn't quietly vanish"
   // concern (that was about automatic/hidden clearing, not a deliberate 3-way pick).
+  // A REFUSED TIER GOES BACK (R12 — the 10/10 audit, F4). The chips moved before the database answered and stayed
+  // moved when it refused: "Founding" lit on a customer the database still had as a member. What was there comes back,
+  // and one change is out at a time.
+  const [tierBusy, setTierBusy] = useState(false);
   const setUiTier = async (target: UiTier) => {
-    if (!supabase || !c.user_id) return;
+    if (!supabase || !c.user_id || tierBusy) return;
     const targetTier = target === "member" ? "member" : "founding";
     const targetVip = target === "founding_vip";
     const tierChanged = targetTier !== tier, vipChanged = targetVip !== vip;
+    if (!tierChanged && !vipChanged) return;
+    const was = { tier, vip, founding };
     setTier(targetTier); setVip(targetVip); setFounding(targetTier === "founding");
-    if (tierChanged) {
-      const { error } = await supabase.rpc("admin_set_customer_tier", { p_user: c.user_id, p_tier: targetTier });
-      if (error) { toast(`Couldn't set tier — ${error.message}`, "error"); return; }
-    }
-    if (vipChanged) {
-      const { error } = await supabase.rpc("admin_set_customer_vip", { p_user: c.user_id, p_vip: targetVip });
-      if (error) { toast(`Couldn't set VIP — ${error.message}`, "error"); return; }
-    }
-    toast(target === "founding_vip" ? "★ Founding VIP — perks are live" : target === "founding" ? "★ Founding member — perks are live" : `Set to ${targetTier}`);
+    setTierBusy(true);
+    try {
+      if (tierChanged) {
+        const { error } = await supabase.rpc("admin_set_customer_tier", { p_user: c.user_id, p_tier: targetTier });
+        if (error) { setTier(was.tier); setVip(was.vip); setFounding(was.founding); toast(`Couldn't set tier — ${error.message}`, "error"); return; }
+      }
+      if (vipChanged) {
+        const { error } = await supabase.rpc("admin_set_customer_vip", { p_user: c.user_id, p_vip: targetVip });
+        if (error) { setVip(was.vip); toast(`Couldn't set VIP — ${error.message}`, "error"); return; }
+      }
+      toast(target === "founding_vip" ? "★ Founding VIP — perks are live" : target === "founding" ? "★ Founding member — perks are live" : `Set to ${targetTier}`);
+    } finally { setTierBusy(false); }
   };
 
   const lifetime = orders.filter((o) => o.payment_status === "paid").reduce((s, o) => s + (o.total_cents ?? 0), 0);
@@ -196,9 +207,9 @@ export function CrmDetail({ c }: { c: Customer }) {
                     Founding (0249/0250's design, kept as-is per Ryan); this just gives staff a
                     direct button for it instead of requiring an actual bottle-photo verification. */}
                 {canTier ? (
-                  <div className="crm-tier-seg" role="radiogroup" aria-label="Member tier and VIP status">
-                    {(["member", "founding", "founding_vip"] as const).map((t) => (
-                      <button key={t} type="button" role="radio" aria-checked={uiTier === t}
+                  <div className="crm-tier-seg" role="radiogroup" aria-label="Member tier and VIP status" onKeyDown={(e) => rovingKeys(e, TIERS.length, TIERS.indexOf(uiTier))}>
+                    {TIERS.map((t, i) => (
+                      <button key={t} type="button" role="radio" aria-checked={uiTier === t} tabIndex={rovingTab(i, TIERS.indexOf(uiTier))} aria-disabled={tierBusy || undefined}
                         className={`k-chip${uiTier === t ? " on" : ""}`}
                         onClick={() => setUiTier(t)}>
                         {t === "founding_vip" ? <><Icon name="star" /> Founding VIP</> : t === "founding" ? <><Icon name="star" /> Founding</> : "Member"}

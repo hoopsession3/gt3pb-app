@@ -7,6 +7,7 @@ import { useAuth } from "./AuthProvider";
 import { useCustomerKnown, useKnownField, invalidateCustomerKnown } from "./useCustomerKnown";
 import { usePayAtPickup } from "./usePayAtPickup";
 import OrderConfirm from "@/components/OrderConfirm";
+import { useStepFocus } from "./useStepFocus";
 import EditableCopy from "@/components/EditableCopy";
 import { useSiteCopy, fillCopy } from "@/lib/copy";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
@@ -38,6 +39,8 @@ import { useIdemKey, type Attempt } from "./useIdemKey";
 import { isSettled } from "@/lib/settled";
 import { apiUrl } from "@/lib/native";
 import AddressField from "./AddressField";
+import Said from "./Said";
+import { rovingKeys } from "./roving";
 
 // ORDER FUNNEL — one screen, two fulfillment modes. Pickup (Saturday truck-stop reserve →
 // /api/reserve) and Delivery (Sunday prepaid → /api/delivery/checkout) were separate screens with
@@ -98,6 +101,10 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   // Funnel analytics (anonymous, no PII): which flow the visitor entered.
   useEffect(() => { trackFunnel(mode === "delivery" ? "delivery" : "reserve", "start"); }, [mode]);
   const [step, setStep] = useState<Step>(initialMode === "delivery" ? "start" : "size");
+  // Each step replaces the last, and its Continue goes with it (R12 — the 10/10 audit, F5): focus goes to the new step's
+  // heading. The receipt focuses its own (OrderConfirm).
+  const stepRoot = useRef<HTMLDivElement>(null);
+  useStepFocus(step, stepRoot, { skip: step === "done", pick: () => stepRoot.current?.querySelector<HTMLElement>("h2.dl-h") });
   // Delivery fork: a home order (residential Sunday packs, the flow below) vs an office order (B2B
   // bulk, Monday 5–8 AM, amber gallon jugs — a purpose-built sheet, never the pack cart).
   // /delivery?for=office opens on the office side (2026-10-12, A2 of the account audit): Shop's "For your office" and
@@ -584,6 +591,9 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   };
 
   const targetDayKey = () => (mode === "delivery" ? (slot?.deliveryDateKey ?? "") : dropDateKey(drop.sat));
+  // The first field still empty, said on the button (R12 — the 10/10 audit, F9), as the cup checkout says "Add a name above".
+  const pickupMissing = !name.trim() ? "Add your name above" : !phone.trim() ? "Add your phone above" : null;
+  const deliveryMissing = pickupMissing ?? (!street.trim() ? "Add your street address above" : !city.trim() ? "Add your city above" : null);
   const toPayment = async () => {
     const key = targetDayKey();
     if (!supabase || !user || !key || dupOk === key) { setStep("pay"); return; }
@@ -617,11 +627,12 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   // ── segmented toggle (shown through the shopping phase) ──
   const showToggle = step === "start" || step === "size" || step === "build" || step === "glass";
   const Toggle = (
-    <div className="of-seg" role="tablist" aria-label="Fulfillment">
-      <button type="button" role="tab" aria-selected={mode === "pickup"} className={mode === "pickup" ? "on" : ""} onClick={() => switchMode("pickup")}>
+    // A choice of how it reaches you, so a radio group: one Tab stop, arrows along it (R12 — the 10/10 audit, F7).
+    <div className="of-seg" role="radiogroup" aria-label="Fulfillment" onKeyDown={(e) => rovingKeys(e, 2, mode === "delivery" ? 1 : 0, (i) => switchMode(i === 1 ? "delivery" : "pickup"))}>
+      <button type="button" role="radio" aria-checked={mode === "pickup"} tabIndex={mode === "delivery" ? -1 : 0} className={mode === "pickup" ? "on" : ""} onClick={() => switchMode("pickup")}>
         <b><Icon name="package" /> {t("funnel.toggle_pickup")}</b><span>{t("funnel.toggle_pickup_sub")}</span>
       </button>
-      <button type="button" role="tab" aria-selected={mode === "delivery"} className={mode === "delivery" ? "on" : ""} onClick={() => switchMode("delivery")}>
+      <button type="button" role="radio" aria-checked={mode === "delivery"} tabIndex={mode === "delivery" ? 0 : -1} className={mode === "delivery" ? "on" : ""} onClick={() => switchMode("delivery")}>
         <b><Icon name="truck" /> {t("funnel.toggle_delivery")}</b><span>{t("funnel.toggle_delivery_sub")}</span>
       </button>
     </div>
@@ -666,7 +677,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
         </div>
       )}
       {codeState === "bad" && <p className="oa-code-bad" role="alert">That code isn&rsquo;t valid — check it and try again.</p>}
-      {codeState === "ok" && codeDiscountCents === 0 && <p className="oa-code-note" role="status">Saved — this one applies to cups at the bar, not this pack.</p>}
+      {codeState === "ok" && codeDiscountCents === 0 && <Said as="p" className="oa-code-note">Saved — this one applies to cups at the bar, not this pack.</Said>}
     </div>
   ) : null;
 
@@ -677,7 +688,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
     : <EditableCopy k="reserve.cutoff" value={t("reserve.cutoff")} displayValue={fillCopy(t("reserve.cutoff"), { cutoff: pickupCutoffVal, pickup: pickupPickupVal })} />;
 
   return (
-    <div className="of">
+    <div className="of" ref={stepRoot}>
       {showToggle && Toggle}
 
       {mode === "pickup" && step === "size" && (
@@ -985,33 +996,49 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
           ) : mode === "delivery" ? (
             <>
               {streetKnown && <p className="dl-sub known-note">From your last delivery — change anything that&apos;s different.</p>}
-              <input className="auth-input" placeholder={t("funnel.f_name")} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={80} aria-label="Name" />
-              <input className="auth-input" placeholder={t("funnel.f_phone_del")} type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
+              {/* A label you can see over each field (R12 — the 10/10 audit, F9): these are filled from the last delivery, and a
+                  filled field showed no word for what it was. The placeholder's words, now above it. */}
+              <label className="fld-l block mt-2.5 mb-[5px]" htmlFor="pk-name">{t("funnel.f_name")}</label>
+              <input id="pk-name" className="auth-input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={80} />
+              <label className="fld-l block mt-2.5 mb-[5px]" htmlFor="pk-phone">{t("funnel.f_phone_del")}</label>
+              <input id="pk-phone" className="auth-input" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} />
               <TextYes phone={phone} checked={textYes} onChange={setTextYes} />
               {/* The street finds itself (components/AddressField): a pick fills the city too, near the ZIP the zone check passed. */}
-              <AddressField className="auth-input" placeholder={t("funnel.f_street")} label="Street address" value={street} onChange={setStreet} near={zip}
+              <label className="fld-l block mt-2.5 mb-[5px]" htmlFor="pk-street">{t("funnel.f_street")}</label>
+              <AddressField id="pk-street" autoComplete="shipping address-line1" className="auth-input" label={t("funnel.f_street")} value={street} onChange={setStreet} near={zip}
                 onPick={(a) => { setStreet(a.street); if (a.city) setCity(a.city); setPickedZip(a.zip); }} />
               {pickedZip && zip && pickedZip !== zip && (
                 <p className="dl-sub" role="status">That address is in {pickedZip}. Delivery was checked for {zip}: pick an address in {zip}, or go back and check {pickedZip}.</p>
               )}
               <div className="dl-ziprow">
-                <input className="auth-input" placeholder={t("funnel.f_city")} value={city} onChange={(e) => setCity(e.target.value)} autoComplete="address-level2" maxLength={60} aria-label="City" />
-                <input className="auth-input dl-zip" value={zip} readOnly aria-label="ZIP (from your zone check)" />
+                <div className="min-w-0 flex-1">
+                  <label className="fld-l block mt-2.5 mb-[5px]" htmlFor="pk-city">{t("funnel.f_city")}</label>
+                  <input id="pk-city" className="auth-input" value={city} onChange={(e) => setCity(e.target.value)} autoComplete="shipping address-level2" maxLength={60} />
+                </div>
+                <div className="flex-[0_0_90px] min-w-0 [&_.auth-input]:w-full">
+                  <label className="fld-l block mt-2.5 mb-[5px]" htmlFor="pk-zip">ZIP</label>
+                  <input id="pk-zip" className="auth-input dl-zip" value={zip} readOnly aria-describedby="pk-zip-why" />
+                  <span id="pk-zip-why" className="sr-only">From your zone check</span>
+                </div>
               </div>
-              <input className="auth-input" placeholder={t("funnel.f_access")} value={access} onChange={(e) => setAccess(e.target.value)} maxLength={200} aria-label="Access instructions" />
-              <button type="button" className="btn-pri btn-wide" disabled={!name.trim() || !phone.trim() || !street.trim() || !city.trim()} onClick={toPayment}>{t("funnel.details_pay")} <Icon name="arrowRight" /></button>
+              <label className="fld-l block mt-2.5 mb-[5px]" htmlFor="pk-access">{t("funnel.f_access")}</label>
+              <input id="pk-access" className="auth-input" value={access} onChange={(e) => setAccess(e.target.value)} maxLength={200} />
+              {/* What is missing, on the button (F9): it was "Payment", dimmed, and said nothing of why. */}
+              <button type="button" className="btn-pri btn-wide" disabled={!!deliveryMissing} onClick={toPayment}>{deliveryMissing ?? <>{t("funnel.details_pay")} <Icon name="arrowRight" /></>}</button>
             </>
           ) : (
             <>
-              <input className="auth-input" placeholder={t("funnel.f_name")} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={80} aria-label="Name" />
-              <input className="auth-input" placeholder={t("funnel.f_phone_pickup")} type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
+              <label className="fld-l block mt-2.5 mb-[5px]" htmlFor="pk-name">{t("funnel.f_name")}</label>
+              <input id="pk-name" className="auth-input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={80} />
+              <label className="fld-l block mt-2.5 mb-[5px]" htmlFor="pk-phone">{t("funnel.f_phone_pickup")}</label>
+              <input id="pk-phone" className="auth-input" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} />
               <TextYes phone={phone} checked={textYes} onChange={setTextYes} />
               <div className="dl-quote">
                 <span>{count} bottles · {bringBack ? "bring-back" : "new glass"}</span>
                 <span>pickup {dayName(drop.sat)}{stop?.name ? ` · ${stop.name}` : ""}</span>
                 <span className="dl-quote-t">total <b>{money(pickupTotalCents)}</b></span>
               </div>
-              <button type="button" className="btn-pri btn-wide" disabled={!name.trim() || !phone.trim()} onClick={toPayment}>{t("funnel.details_pay")} <Icon name="arrowRight" /></button>
+              <button type="button" className="btn-pri btn-wide" disabled={!!pickupMissing} onClick={toPayment}>{pickupMissing ?? <>{t("funnel.details_pay")} <Icon name="arrowRight" /></>}</button>
             </>
           )}
         </div>

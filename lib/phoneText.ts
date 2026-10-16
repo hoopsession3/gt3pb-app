@@ -10,10 +10,13 @@
 /** The body text's size at the phone's standard Text Size, in points (px on the page). */
 export const STANDARD_BODY = 17;
 
-/** The page's scale at each of the app's text sizes: app/globals.css .app.rd-t1 … rd-t3 .body{zoom}. */
-export const ZOOMS = [1, 1.08, 1.16, 1.26] as const;
+/** The page's scale at each of the app's text sizes: app/globals.css .app.rd-t1 … rd-t6 .body{zoom}.
+ *  TO TWICE ITS SIZE (R12 — the 10/10 audit, F1): every larger size used to stop at 1.26, so an iPhone set to one of
+ *  its accessibility sizes (28 to 53pt, 165% to 312% of standard) drew the app at 126% — and the app's web view takes
+ *  no pinch (it scrolls inside the page, not itself). Three more steps reach 200%, the page reflowing at each. */
+export const ZOOMS = [1, 1.08, 1.16, 1.26, 1.5, 1.75, 2] as const;
 
-export type TextTier = 0 | 1 | 2 | 3;
+export type TextTier = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 /** The app's text size nearest the phone's, from the phone's body size in px. Standard below it. */
 export function tierForBody(px: number): TextTier {

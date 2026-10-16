@@ -19,6 +19,7 @@ import type { VenueFill } from "@/lib/venues";
 import { haptic } from "@/lib/haptics";
 import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import { edited } from "@/lib/formGuard";
+import Said from "@/components/Said";
 
 // OWNER DETAILS — the edit sheet behind a truck stop or an event.
 //
@@ -385,7 +386,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
           <div className="ownerdet-typehint">{isEvent
             ? <><Icon name="calendar" /> Event — a booked gig with prep, a crew & a run-of-show. (A quick roll-up-and-serve visit is a Truck stop.)</>
             : <><Icon name="pin" /> Truck stop — you roll up, serve, and leave. (A booked gig with prep & crew should be an Event.)</>}</div>
-          {dupWarn && <div className="ownerdet-warn" role="status"><Icon name="warning" /> {dupWarn}</div>}
+          {dupWarn && <Said className="ownerdet-warn"><Icon name="warning" /> {dupWarn}</Said>}
           <div className="prod-grid mt-2">
             <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
             {!isEvent && <label className="prod-f"><span>Start time</span><input type="time" value={timeVal} onChange={(e) => onTime(e.target.value)} /></label>}

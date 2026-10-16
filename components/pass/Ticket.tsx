@@ -126,7 +126,7 @@ export const DoneTicket = memo(function DoneTicket({ o, me, admin, act, nameOf }
         <Items items={o.items} nameOf={nameOf} />
         <div className="meta">{money(o.total_cents)} · <span className={isSettled(o) ? "kds-paid" : "unp"}>{passWord(o, true)}</span></div>
         <div className="adm-actions-row">
-          <button type="button" className="btn-sec shrink-0" onClick={() => act.recall(o)} aria-label={`Bring ${o.customer ?? "order"} back to ready`}>↩ Recall</button>
+          <button type="button" className="btn-sec shrink-0" onClick={() => act.recall(o)} aria-label={`Recall ${o.customer ?? "order"} to ready`}>↩ Recall</button>
           {/* Handed over unpaid and settled a minute later — a regular squaring up — is
               still money taken at the window, and this tray is where that order still is. */}
           {canCollect(o) && <button type="button" className="btn-sec shrink-0" onClick={() => act.collect(o)}>Collect {money(o.total_cents)}</button>}

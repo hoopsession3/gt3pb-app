@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import { rovingKeys, rovingTab } from "./roving";
 
 // FUNNELS — where people drop off, from anonymous step counts (funnel_events, 0199). No cookies, no
 // personal data: each funnel is a fixed step sequence and we show the count at each step as a bar
@@ -41,9 +42,10 @@ export default function FunnelReport() {
     <div className="fn">
       <div className="fn-head">
         <span className="fn-sub">Anonymous step counts — no cookies, no personal data.</span>
-        <div className="fn-days" role="tablist" aria-label="Window">
-          {[7, 14, 30].map((d) => (
-            <button key={d} type="button" role="tab" aria-selected={days === d} className={`fn-day${days === d ? " on" : ""}`} onClick={() => setDays(d)}>{d}d</button>
+        {/* A filter, so a radio group: one Tab stop, arrows along it (R12 — the 10/10 audit, F7). */}
+        <div className="fn-days" role="radiogroup" aria-label="Window" onKeyDown={(e) => rovingKeys(e, 3, [7, 14, 30].indexOf(days), (i) => setDays([7, 14, 30][i]))}>
+          {[7, 14, 30].map((d, i) => (
+            <button key={d} type="button" role="radio" aria-checked={days === d} tabIndex={rovingTab(i, [7, 14, 30].indexOf(days))} className={`fn-day${days === d ? " on" : ""}`} onClick={() => setDays(d)}>{d}d</button>
           ))}
         </div>
       </div>

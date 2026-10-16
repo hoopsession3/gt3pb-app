@@ -37,6 +37,7 @@ import { drinksWords, etDay, orderable, orderNo, stepOf, todayLead, usualOf, typ
 import { orderLine, orderTag } from "@/lib/orderWords";
 import OrderSteps from "@/components/today/OrderSteps";
 import Eyebrow from "@/components/today/Eyebrow";
+import Said from "@/components/Said";
 
 // TODAY, BY STATE (2026-10-13, R3 of the customer audit — boards 03–06, approved). The page leads with what is true now —
 // the order being made, the usual one tap from a priced checkout, or the truck off and when cup orders open — and the
@@ -108,7 +109,9 @@ function MakingCard({ order, more, stale, reload }: { order: Order; more: number
     </Button>
   );
   return (
-    <div className="k-card mt-5 flex flex-col gap-3" role="status" aria-live="polite">
+    // Not a live region (R12 — the 10/10 audit, F12): the whole card re-read its buttons ("Running late ✓", "Canceling…")
+    // at each change. Its line — where the order stands — is said when it changes.
+    <div className="k-card mt-5 flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
         <Eyebrow live>Order {orderNo(order.id)}</Eyebrow>
         <span className={`k-tag ${order.status === "new" ? "gold" : "ok"}`}>{tag}</span>
@@ -116,7 +119,7 @@ function MakingCard({ order, more, stale, reload }: { order: Order; more: number
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-title2 font-bold text-cream">{drinksWords(order.items, nameOf)}</div>
-          <p className="k-rsub whitespace-normal">{line}{more > 0 ? ` +${more} more on the way.` : ""}{stale ? " Offline — the last we heard." : ""}</p>
+          <Said as="p" className="k-rsub whitespace-normal" quietFirst>{line}{more > 0 ? ` +${more} more on the way.` : ""}{stale ? " Offline — the last we heard." : ""}</Said>
         </div>
         {total && <span className="whitespace-nowrap font-mono text-subhead text-cream-muted">{paid ? `Paid ${total}` : `${total} at the window`}</span>}
       </div>
@@ -344,10 +347,10 @@ export default function TodayHome({ t }: { t: T }) {
       {isStaff(profile) && !sideChosen && <CrewWelcomeRow />}
 
       {failed && lead.kind !== "making" && (
-        <p className="k-rsub mt-4 whitespace-normal" role="status">
+        <Said as="p" className="k-rsub mt-4 whitespace-normal">
           We couldn&apos;t check for an order in progress just now.{" "}
           <button type="button" className="btn-ter" onClick={() => { void reload(); }}>Check again</button>
-        </p>
+        </Said>
       )}
 
       {lead.kind === "making"

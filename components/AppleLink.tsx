@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { haptic } from "@/lib/haptics";
 import { appleIdentity, linkAppleHere, takeFreshApple, FRESH_APPLE, type FreshApple } from "@/lib/appleAuth";
 import { useApp } from "./AppProvider";
+import Said from "./Said";
 
 // AN APPLE SIGN-IN FINDS THE ACCOUNT IT BELONGS TO (2026-10-15, A3 of the account audit; decided by Ryan on 2026-10-13:
 // "right after a first Apple sign-in, offer 'Already a member with another email? Link it', verified by a code sent to
@@ -182,11 +183,11 @@ export default function AppleLink() {
         </form>
       )}
 
-      {step === "linking" && <p className="dp-hint" role="status">Linking your accounts…</p>}
+      {step === "linking" && <Said as="p" className="dp-hint">Linking your accounts…</Said>}
 
       {step === "done" && (
         <div>
-          <p className="cfm-body" role="status">Linked.</p>
+          <Said as="p" className="cfm-body">Linked.</Said>
           <p className="dp-hint">This is your account, with your stamps, orders and rewards. Continue with Apple opens it from now on.</p>
           <div className="prod-actions cfm-actions">
             <button type="button" className="btn-pri" onClick={close}>Done</button>

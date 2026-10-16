@@ -15,6 +15,8 @@ import CartBar from "./CartBar";
 import OrderStatus from "./OrderStatus";
 import DrinkSheet from "./DrinkSheet";
 import Toast from "./Toast";
+import Announcer from "./Announcer";
+import OfflineBanner from "./OfflineBanner";
 import Notifications from "./Notifications";
 import ServiceWorkerRegister from "./ServiceWorkerRegister";
 import FreshTab from "./FreshTab";
@@ -32,6 +34,7 @@ import { isNativeApp } from "@/lib/native";
 import { surfaceOf, showsCommerce, deskRoute } from "@/lib/surfaces";
 import { holdFocusZoom } from "@/lib/ios";
 import dynamic from "next/dynamic";
+import { scrollMotion } from "@/lib/motion";
 
 // CODE-SPLIT WHAT A GUEST NEVER SEES (2026-10-02). Measured on the built /menu at phone width: the
 // staff console's dock, copilot and command palette — and the concierge chat with its dictation
@@ -177,7 +180,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       // password-gate exception (see the popout scroll contract). The five legacy sheet
       // classes this used to list no longer exist in the DOM.
       if (el && el.matches?.("input, textarea, select") && el.closest(".sheet2, .qd-sheet")) {
-        setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 280);
+        setTimeout(() => el.scrollIntoView({ block: "center", behavior: scrollMotion() }), 280);
       }
     };
     document.addEventListener("focusin", onFocusIn);
@@ -230,6 +233,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className={"app desk-shell" + (inAdmin && theme === "day" ? " crew-day" : "") + (disp ? ` ${disp}` : "")} data-surface={surface} data-desk={desk ? "" : undefined}>
         {/* Skip link — first focusable element; keyboard users jump past the chrome to the content. */}
         <a href="#body" className="skip-link">Skip to content</a>
+        {/* Offline, said above the page — in the column, so it pushes the page down instead of lying over the Back
+            button and the title (R12 — the 10/10 audit, F22). */}
+        <Fence name="offline"><OfflineBanner /></Fence>
         {/* Live broadcast bar — an operator-published message/ad, shown to every user in real time. */}
         {!isShare && <Fence name="broadcast"><BroadcastBanner /></Fence>}
         {/* The one <main> landmark (a11y: landmark-one-main / region). A per-route sr-only <h1> gives
@@ -250,6 +256,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             tried again on the next screen; one a person asked for says it didn't open, and the next ask tries again. */}
         <Fence name="drink" again={openId} fallback={() => <NotOpened open={openId != null} close={closeDrink} what="That drink" toast={toast} />}><DrinkSheet /></Fence>
         {checkoutWanted && <Fence name="checkout" again={coOpen} fallback={() => <NotOpened open={coOpen} close={closeCheckout} what="Checkout" toast={toast} />}><Checkout /></Fence>}
+        {/* The app's one pair of live regions (R12, F12): what is said without moving focus — toasts, a drink added, a
+            step that replaced the last. Always on the page, empty until something is said. */}
+        <Fence name="announcer"><Announcer /></Fence>
         <Fence name="toast"><Toast /></Fence>
         <Fence name="notifications"><Notifications /></Fence>
         <Fence name="order-status">{customerSurface ? <OrderStatus /> : null}</Fence>

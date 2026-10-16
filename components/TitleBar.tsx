@@ -111,12 +111,12 @@ export default function TitleBar() {
   const shown = resting || compact;
   const ground = compact || (resting && under);
   return (
-    <div data-tbar="" data-compact={compact ? "" : undefined}
+    <div data-tbar="" data-compact={compact ? "" : undefined} data-resting={resting ? "" : undefined}
       className={`sticky top-0 z-20 ${resting ? "h-11" : "h-0"}`}>
-      <div className={`absolute inset-x-0 top-0 pt-safe [.app:has(>.bcast)_&]:pt-0 ${shown ? "" : "pointer-events-none"}`}>
+      <div className={`absolute inset-x-0 top-0 pt-safe [.app:has(>.bcast)_&]:pt-0 [.app:has(>.offline-bar)_&]:pt-0 ${shown ? "" : "pointer-events-none"}`}>
         {/* The ground: the screen's own (the status bar's, in the app), blurred, with a hairline. Never hit by a
             tap or a look at what is under the status bar (components/NativeBridge reads the screen's ground there). */}
-        <div aria-hidden className={`pointer-events-none absolute inset-0 border-b border-line bg-ground/86 [-webkit-backdrop-filter:blur(24px)_saturate(1.5)] [backdrop-filter:blur(24px)_saturate(1.5)] transition-opacity duration-200 ${ground ? "opacity-100" : "opacity-0"}`} />
+        <div aria-hidden className={`glass-bar pointer-events-none absolute inset-0 border-b border-line bg-ground/86 [-webkit-backdrop-filter:blur(24px)_saturate(1.5)] [backdrop-filter:blur(24px)_saturate(1.5)] transition-opacity duration-200 ${ground ? "opacity-100" : "opacity-0"}`} />
         <div ref={rowRef} className="relative flex h-11 items-center px-1">
           {way && (
             <button type="button" onClick={way.go} aria-label={`Back to ${way.label}`}

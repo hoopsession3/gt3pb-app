@@ -272,6 +272,7 @@
     .app.crew-day[data-desk] > &.opnav { --desk-lit: color-mix(in srgb, var(--gold) 14%, transparent); }
     .app[data-desk] > &::-webkit-scrollbar { display: none; }
     .app[data-desk] > & > .opnav-tabs { flex: 0 0 auto; flex-direction: column; gap: 2px; }
+    .app[data-desk] > & > .opnav-tabs > .opnav-lanes { flex: 0 0 auto; flex-direction: column; gap: 2px; }
     .app[data-desk] > & .tab {
       flex: 0 0 auto; flex-direction: row; justify-content: flex-start; gap: 12px; min-height: 44px; padding: 0 12px;
       border-radius: var(--r-lg); opacity: .74; transition: opacity .15s, background-color .15s, transform .1s;
@@ -288,6 +289,10 @@
   }
   @media (min-width: 1024px) and (orientation: landscape) and (hover: hover) {
     .app[data-desk] > & .tab:not(.on):hover { opacity: 1; background: var(--desk-hover); }
+  }
+  /* Increase Contrast (R12, F19): the rows not lit step up, as the phone's bar does (app/globals.css). */
+  @media (min-width: 1024px) and (orientation: landscape) and (prefers-contrast: more) {
+    .app[data-desk] > & .tab { opacity: .92; }
   }
 }
 /* Two columns (components/kit Columns, Column). Anywhere but the desk neither is a box at all, so a phone's page is

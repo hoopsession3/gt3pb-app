@@ -12,6 +12,7 @@ import { orderLine } from "@/lib/orderWords";
 import { money } from "@/lib/money";
 import { forgetRef, useHeldRef, type HeldRef } from "@/lib/paidRef";   // not lib/tickets: every page mounts this bar
 import { useMyActiveOrders, useOrderActions, ETA_WORDS } from "./useMyOrders";
+import Said from "./Said";
 
 // A live "your order" banner for signed-in members — preparing → ready in realtime,
 // no push permission required (RLS lets a member read only their own orders). A guest's
@@ -56,10 +57,12 @@ function OrderBar() {
 
   return (
     <div className={`orderbar-wrap st-${o.status}`}>
-      <div className={`orderbar st-${o.status}`} role="status" aria-live="polite">
+      {/* Not a live region (R12 — the 10/10 audit, F12): the bar re-read its Cancel and its number at each change. Where
+          the order stands is said when it changes. */}
+      <div className={`orderbar st-${o.status}`}>
         <span className="orderbar-dot" />
         <div className="orderbar-main">
-          <b>{label}</b>
+          <Said as="b" quietFirst>{label}</Said>
           <span>{items}{orders.length > 1 ? ` · +${orders.length - 1} more` : ""}{stale ? " · offline — last known" : ""}</span>
         </div>
         {/* Paid at the window, the order is the crew's to cancel: the database refuses it from a
@@ -97,13 +100,13 @@ function RefBar({ r }: { r: HeldRef }) {
   const said = r.ref ? `Show ref #${r.ref} at the window` : "Show this at the window";
   return (
     <div className="orderbar-wrap st-new">
-      <div className="orderbar st-new" role="status" aria-live="polite">
+      <div className="orderbar st-new">
         <span className="orderbar-dot" />
         <div className="orderbar-main">
-          <b>{said}</b>
+          <Said as="b" quietFirst>{said}</Said>
           <span>Paid {money(r.cents)} — the crew is adding your order.</span>
         </div>
-        <button type="button" className="eta-change hit-44" onClick={forgetRef} aria-label={`${said}. Dismiss — the crew has my order`}>Got it</button>
+        <button type="button" className="eta-change hit-44" onClick={forgetRef} aria-label={`Got it — the crew has my order. ${said}`}>Got it</button>
       </div>
     </div>
   );

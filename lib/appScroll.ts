@@ -7,9 +7,11 @@
 // written out twice in components/OrderFunnel; and it is its own small file, not lib/anchors (the
 // crew's jumps into a panel), because the tab bar is on every guest's page and the panel jumps are not.
 
+import { scrollMotion } from "./motion";
+
 export function scrollToTop(): void {
   if (typeof document === "undefined") return;
-  document.getElementById("body")?.scrollTo({ top: 0, behavior: "smooth" });
+  document.getElementById("body")?.scrollTo({ top: 0, behavior: scrollMotion() });
 }
 
 // EACH TAB KEEPS ITS PLACE (2026-10-08, the iPhone chrome round, approved). An iPhone app's tabs each

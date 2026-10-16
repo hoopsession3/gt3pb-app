@@ -16,7 +16,7 @@ import { usePhoneTextTier } from "./usePhoneText";
 // the rail shows when it opens. Before, the rail read its copy once when it mounted, and its next
 // tap would have written the old size back over the new one.
 
-export type Display = { scale: 0 | 1 | 2 | 3; bold: boolean; roomy: boolean };
+export type Display = { scale: 0 | 1 | 2 | 3 | 4 | 5 | 6; bold: boolean; roomy: boolean };
 export const DISPLAY_KEY = "gt3-display";
 const DISPLAY = devicePref(DISPLAY_KEY);
 const DEFAULT: Display = { scale: 0, bold: false, roomy: false };
@@ -26,7 +26,7 @@ export function displayFrom(raw: string | null | undefined): Display {
   try {
     const v = JSON.parse(raw || "{}");
     return {
-      scale: [0, 1, 2, 3].includes(v.scale) ? v.scale : 0,
+      scale: [0, 1, 2, 3, 4, 5, 6].includes(v.scale) ? v.scale : 0,
       bold: !!v.bold, roomy: !!v.roomy,
     };
   } catch { return DEFAULT; }
@@ -47,6 +47,8 @@ function write(d: Display) {
 }
 
 const SIZES: readonly Display["scale"][] = [0, 1, 2, 3];
+// The accessibility sizes (R12, F1): half again, three-quarters again and twice — named by their percentage.
+const BIG_SIZES: readonly Display["scale"][] = [4, 5, 6];
 
 /** Text size, bold and spacing. Drawn in the rail's panel and in Settings › You. */
 export function DisplayControls() {
@@ -61,6 +63,11 @@ export function DisplayControls() {
         {/* Each "A" is named for what it does (lib/textSize's words — Settings' row says the one picked). */}
         {SIZES.map((v) => (
           <button key={v} type="button" className={`rdg-size${d.scale === v ? " on" : ""}`} style={{ fontSize: 12 + v * 3 }} onClick={() => set({ scale: v })} aria-pressed={d.scale === v} aria-label={`Text size: ${TEXT_SIZE_WORDS[v]}`}>A</button>
+        ))}
+      </div>
+      <div className="rdg-sizes" role="group" aria-label="Accessibility text sizes">
+        {BIG_SIZES.map((v) => (
+          <button key={v} type="button" className={`rdg-size rdg-size-pct${d.scale === v ? " on" : ""}`} onClick={() => set({ scale: v })} aria-pressed={d.scale === v} aria-label={`Text size: ${TEXT_SIZE_WORDS[v]}`}>{TEXT_SIZE_WORDS[v]}</button>
         ))}
       </div>
       <button type="button" className={`rdg-opt${d.bold ? " on" : ""}`} onClick={() => set({ bold: !d.bold })} aria-pressed={d.bold}>
@@ -104,7 +111,7 @@ export default function DisplayToggle() {
       )}
       <button type="button" className="rdg-fab" onClick={() => setOpen((o) => !o)} aria-haspopup="dialog" aria-expanded={open} aria-label="Display & text size">
         <span className="rdg-aa" aria-hidden><span className="rdg-a" style={{ fontSize: 12 }}>A</span><span className="rdg-a" style={{ fontSize: 18 }}>A</span></span>
-        <span className="rail-txt"><b>Display</b><i>text size · contrast</i></span>
+        <span className="rail-txt"><b>Display</b><i>text size · spacing</i></span>
       </button>
     </div>
   );

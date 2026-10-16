@@ -6,6 +6,7 @@ import { useAsyncData, type AsyncStatus } from "@/lib/useAsyncData";
 import { isMissingFunction } from "@/lib/schemaSkew";
 import { DEVICES_POLL_MS, deviceView, passPhones, type DeviceRow, type PassPhones } from "@/lib/heartbeat";
 import { InfoRow, SectionHeader } from "@/components/kit";
+import Said from "@/components/Said";
 
 // WHO IS ON THE PASS, AND CAN THEY HEAR AN ORDER (2026-10-11, the KDS program — devices). Live Ops, for the managers,
 // under the truck: each phone or iPad heard from in the last ten minutes (0375 crew_devices), one row each — who is
@@ -83,7 +84,7 @@ export function DevicesCard() {
   return (
     <section aria-label="Devices on the Pass">
       <SectionHeader label="Devices" annotation="seen in the last 10 min" />
-      {failed && <p className="load-failed" role="status">Couldn&rsquo;t check again just now — these are from the last answer.</p>}
+      {failed && <Said as="p" className="load-failed">Couldn&rsquo;t check again just now — these are from the last answer.</Said>}
       <div className="k-rows">
         {data.rows.map((r) => {
           const v = deviceView(r, r.seen_s + since);

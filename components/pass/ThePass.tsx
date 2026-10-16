@@ -12,7 +12,7 @@ import EmptyState from "@/components/EmptyState";
 import Fence from "@/components/Fence";
 import Icon from "@/components/Icon";
 import PourFill from "@/components/PourFill";
-import Sheet, { CloseButton } from "@/components/Sheet";
+import Sheet, { CloseButton, sheetOpen } from "@/components/Sheet";
 import { queueOrderStatus, queueCollectCup, isNetworkError } from "@/components/offline";
 import { canCollect, collectPayment, undoCollection, collectedPatch, undonePatch, paidHow, viaOf, VIA_LABEL, VIA_UNDO, type CollectVia } from "@/lib/collect";
 import { authedFetch } from "@/lib/authedFetch";
@@ -34,6 +34,7 @@ import { DoneTicket, Ticket, type TicketActs } from "./Ticket";
 import { usePassBoard, usePassScope, setPassScope } from "./usePassBoard";
 import { useBoardNow } from "./clock";
 import { useFollowFocus } from "./focus";
+import Said from "@/components/Said";
 
 // THE PASS (2026-10-11, the KDS program, wave 2). The crew console's service screen, in a module of its own: it was the
 // Kitchen function and the service-mode block inside app/crew/page.tsx, 6,500 lines that held everything else too. The
@@ -53,13 +54,35 @@ import { useFollowFocus } from "./focus";
  *  ITS OWN BELL (2026-10-11, the KDS audit): the Pass covers the header, and with it the bell — a refund
  *  to make or a paid order that didn't record went unseen on the one phone working the pass. The same
  *  count, the same inbox, above the Pass: the page hands it in (`bell`), with today's critical alert strip (`strip`). */
+const PASS_FOCUSABLE = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
 export default function ThePass({ bell, strip, canPlan, onExit }: { bell: ReactNode; strip: ReactNode; canPlan: boolean; onExit: () => void }) {
   // 86 ONE TAP AWAY ON A PHONE (2026-10-11). On a phone the rail is under the whole board, so running out of a flavor
   // meant scrolling past every ticket or leaving the Pass. The bar's "86 board" opens it in a sheet — and goes where the
   // rail is beside the board (pass-narrow).
   const [eightySix, setEightySix] = useState(false);
+  // A DIALOG THAT HOLDS FOCUS (R12 — the 10/10 audit, F8). The Pass is a modal dialog over Live Ops, and the button that
+  // opened it goes as it comes; nothing took focus, Tab walked into the header and the nav painted under it, and Exit
+  // gave focus to nothing. Focus goes to the Pass as it opens, Tab and Shift-Tab go round inside it (a sheet over it keeps
+  // its own), and the crew page gives focus back to the Pass's row on Live Ops when it closes.
+  const frame = useRef<HTMLDivElement>(null);
+  useEffect(() => { frame.current?.focus({ preventScroll: true }); }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const box = frame.current;
+      if (e.key !== "Tab" || !box || sheetOpen()) return;
+      const items = [...box.querySelectorAll<HTMLElement>(PASS_FOCUSABLE)].filter((el) => el.offsetParent !== null);
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1], at = document.activeElement;
+      if (!box.contains(at)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+      else if (e.shiftKey && (at === first || at === box)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
   return (
-    <div className="svc-full text-cream pass-frame" role="dialog" aria-modal="true" aria-label="The Pass">
+    <div className="svc-full text-cream pass-frame" role="dialog" aria-modal="true" aria-label="The Pass" ref={frame} tabIndex={-1}>
       <div className="svc-bar">
         <b>The Pass</b>
         <span className="flex items-center gap-2">
@@ -307,7 +330,7 @@ function PassBoard() {
             options={[{ key: "all", label: "All" }, { key: "here", label: "Here", title: "Only what is sold at the live stop or event" }]} />
         )}
         {/* The feed down while reads still land: a quiet word beside the count, not a banner — the reconcile keeps the board. */}
-        {!live && !down && <span className="k-count soon" role="status">Reconnecting…</span>}
+        {!live && !down && <Said as="span" className="k-count soon">Reconnecting…</Said>}
         {active.length > 0 && <span className="k-count">{active.length} active</span>}
         {soundLocked && !muted
           ? <button type="button" className="k-chip sm text-gold2" onClick={unlockAudio}><Icon name="bell" /> Tap for sound</button>

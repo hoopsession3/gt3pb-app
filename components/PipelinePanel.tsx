@@ -21,6 +21,7 @@ import { useCrew, crewLabel } from "./useCrew";
 import PersonPick from "./PersonPick";
 import { localToday } from "@/lib/dates";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { scrollMotion } from "@/lib/motion";
 
 // PIPELINE — the sales funnel (0165). Vendor (the account) × deal (from the owner's catalog,
 // gated per vendor type) × rep × stage. The owner articulates what's on the table in the Deal
@@ -653,7 +654,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
           if ((s.key === "expand" || s.key === "lost") && n === 0) return null;
           return (
             <button key={s.key} type="button" className="k-chip sm" disabled={n === 0}
-              onClick={() => document.getElementById(`pipe-stage-${s.key}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+              onClick={() => document.getElementById(`pipe-stage-${s.key}`)?.scrollIntoView({ behavior: scrollMotion(), block: "start" })}>
               <span className="cc-dot" style={{ background: STAGE_COLOR[s.key] }} />{s.label}<b>{n}</b>
             </button>
           );

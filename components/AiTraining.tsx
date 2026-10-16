@@ -9,6 +9,7 @@ import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 import Prose from "@/components/Prose";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { scrollMotion } from "@/lib/motion";
 
 // TRAIN THE AI (Settings › AI › Train the AI, owner — it was on Team until 2026-10-06, the settings
 // round; Team keeps a line to it) — the correction loop for the freeform agents.
@@ -101,7 +102,7 @@ export default function AiTraining() {
     setAgent(c.agent);
     setTitle(c.question ? c.question.slice(0, 70) : "Correction");
     setBody("");
-    try { formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); } catch { /* */ }
+    try { formRef.current?.scrollIntoView({ behavior: scrollMotion(), block: "center" }); } catch { /* */ }
   };
 
   const shown = rows.filter((r) => agent === "all" ? true : r.agent === agent || r.agent === "all");

@@ -148,7 +148,7 @@ export default function DrinkSheet() {
               {/* Ordered ahead of a stop it is made when the truck opens — not "the moment you order". A stop that doesn't
                   pour it is named, so the customer knows it's this stop, not the drink. */}
               {notHere && !on
-                ? <div className="sheet-signoff" role="status">{d.name} isn&apos;t poured at {o?.stop?.name || "this stop"}.</div>
+                ? <div className="sheet-signoff">{d.name} isn&apos;t poured at {o?.stop?.name || "this stop"}.</div>
                 : o?.state === "ahead"
                 ? <div className="sheet-signoff">{readyWords(o)}</div>
                 : <EditableCopy k="sheet.made_moment" value={t("sheet.made_moment")} as="div" className="sheet-signoff" />}

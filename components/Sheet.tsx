@@ -52,7 +52,7 @@ const handedFrom = (from: HTMLElement | null): HTMLElement | null => {
 // pull makes leaving one flick away, so the second promise is what keeps it from costing anyone a form.
 export default function Sheet({
   open, onClose, header, footer, children, className = "", labelledBy, label, bodyRef,
-  dirty = false, dismissible = true, page, detents = true,
+  dirty = false, dismissible = true, page, detents = true, alert = false, describedBy,
 }: {
   open: boolean;
   onClose: () => void;
@@ -65,6 +65,10 @@ export default function Sheet({
   // or `label` for a plain string. If neither is given we fall back to "Dialog" so the modal is never
   // nameless — every caller SHOULD pass one of them, but the fallback guarantees axe never fails here.
   label?: string;
+  /** A question that needs an answer before anything else (ConfirmSheet, R12 — the 10/10 audit, F14): an alertdialog,
+   *  so a screen reader reads it as one, with `describedBy` naming what it says will happen. */
+  alert?: boolean;
+  describedBy?: string;
   // Optional ref onto the scroll body — for a sheet that needs to control its own scroll position
   // (e.g. auto-scrolling a chat transcript to the latest message). Every sheet shares this one scroll
   // region by contract; this just exposes a handle to it instead of a per-sheet nested scroll div.
@@ -337,7 +341,7 @@ export default function Sheet({
   const keep = () => { setAsk(null); requestAnimationFrame(() => panelRef.current?.focus()); };
   return createPortal(
     <div className={`sheet2-scrim${out}`} ref={scrimRef} onClick={attempt}>
-      <div className={`sheet2 sheet-detent ${className}${out}`} ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={labelledBy}
+      <div className={`sheet2 sheet-detent ${className}${out}`} ref={panelRef} tabIndex={-1} role={alert ? "alertdialog" : "dialog"} aria-modal="true" aria-labelledby={labelledBy} aria-describedby={describedBy}
         aria-label={labelledBy ? undefined : (label ?? "Dialog")} inert={ask ? true : undefined}
         onClick={(e) => e.stopPropagation()} onFocus={(e) => { if (e.target.matches?.("input, select, textarea")) expand(); }}>
         {live && <SheetMotion panel={panelRef} scrim={scrimRef} body={ownBody} asking={!!ask} dismissible={dismissible} unsaved={unsaved}

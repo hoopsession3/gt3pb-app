@@ -33,6 +33,7 @@
 // has started reading: a scroll, a swipe or a key before the jump lands, and it does not happen.
 
 import { settingsHolder } from "./settingsLayout";
+import { scrollMotion } from "./motion";
 
 /** window event: `detail` is the panel's id. Every <Panel> opens itself on hearing its own id. */
 export const OPEN_PANEL_EVENT = "gt3-open-panel";
@@ -92,7 +93,7 @@ export function scrollToAnchor(anchor?: string): void {
     if (top === lastTop) stable += 1; else { stable = 0; lastTop = top; }
     if (stable < 3 && Date.now() < deadline) { setTimeout(tick, 80); return; }
 
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    el.scrollIntoView({ behavior: scrollMotion(), block: "start" });
     setTimeout(() => {
       watch(false);
       if (takenBack) return;

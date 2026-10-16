@@ -139,8 +139,8 @@ export function RowMenu({ title, items, onClose, label }: { title: string; items
       <div className="acs-rows select-none" data-row-menu="">
         {items.map((it) => (
           <button key={it.key} type="button" className="acs-row min-h-11" aria-current={it.current ? "true" : undefined} onClick={() => { onClose(); it.run(); }}>
-            <span className="acs-row-x"><b className={it.danger ? "text-red!" : undefined}>{it.label}</b></span>
-            {it.icon && <span className={`acs-row-c${it.danger ? " text-red!" : ""}${it.current ? " text-gold2!" : ""}`} aria-hidden><Icon name={it.icon} /></span>}
+            <span className="acs-row-x"><b className={it.danger ? "text-red-hover!" : undefined}>{it.label}</b></span>
+            {it.icon && <span className={`acs-row-c${it.danger ? " text-red-hover!" : ""}${it.current ? " text-gold2!" : ""}`} aria-hidden><Icon name={it.icon} /></span>}
           </button>
         ))}
       </div>

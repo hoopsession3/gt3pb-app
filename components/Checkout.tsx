@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "./AppProvider";
+import { useCartSaid } from "./useCartSaid";
 import { useAuth } from "./AuthProvider";
 import { useCustomerKnown, useKnownField, invalidateCustomerKnown } from "./useCustomerKnown";
 import { authedFetch } from "@/lib/authedFetch";
@@ -54,6 +55,9 @@ function restoredTip(): number {
 
 export default function Checkout() {
   const { cart, inc, dec, toast, checkout, coOpen: open, closeCheckout: onClose, priceCents, nameOf } = useApp();
+  // A − or + here is said (R12 — the 10/10 audit, F2): the new count of that drink and of the order. A − that takes the
+  // last of a line out removes the button pressed with the line, so focus goes to the sheet itself, not the page under it.
+  const track = useCartSaid(() => document.querySelector<HTMLElement>('[role="dialog"][aria-labelledby="checkout-title"]'));
   const router = useRouter();
   // The confirmation moment — same shape as pickup/delivery's OrderConfirm. Lines/name are captured
   // at success time because checkout() clears the cart right after (lines would otherwise read empty
@@ -485,11 +489,11 @@ export default function Checkout() {
               <p className="sr-only" role="status" aria-live="polite">{blockedWords}</p>
               <div className="spec-label" style={{ marginTop: 16 }}>Your pre-order</div>
               {lines.map(([id, q]) => (
-                <div className="co-line" key={id}>
+                <div className="co-line" key={id} data-co-line={id}>
                   <span className="co-qty">
-                    <button type="button" className="k-icon-btn" aria-label={`Remove one ${nameOf(id)}`} onClick={() => dec(id)} disabled={busy || held}>−</button>
+                    <button type="button" className="k-icon-btn" aria-label={`Remove one ${nameOf(id)}`} onClick={() => { track(id); dec(id); }} disabled={busy || held}>−</button>
                     <b>{q}</b>
-                    <button type="button" className="k-icon-btn" aria-label={`Add one ${nameOf(id)}`} onClick={() => inc(id)} disabled={busy || held}>+</button>
+                    <button type="button" className="k-icon-btn" aria-label={`Add one ${nameOf(id)}`} onClick={() => { track(id); inc(id); }} disabled={busy || held}>+</button>
                     {nameOf(id)}
                     {lineOf(id)?.perk && <em className="ml-1.5 not-italic text-caption2 text-gold2">{lineOf(id)!.perk}</em>}
                   </span>

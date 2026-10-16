@@ -37,7 +37,9 @@ export default function CartBar() {
     <button
       className="cartbar"
       onClick={openCheckout}
-      aria-label={`Review order, ${cartCount} ${cartCount === 1 ? "item" : "items"}${cents !== null ? `, ${money(cents)}` : ""}`}
+      // The words on it first (R12 — the 10/10 audit, F16): "Review 2 drinks", as it reads, so Voice Control's "Tap Review"
+      // and a screen reader say the same thing.
+      aria-label={`Review ${cartCount} drink${cartCount === 1 ? "" : "s"}${cents !== null ? `, ${money(cents)}` : ""}`}
     >
       <span className="cartbar-l">Review <b>{cartCount}</b> drink{cartCount === 1 ? "" : "s"}</span>
       {cents !== null && <span className="cartbar-p">{money(cents)}</span>}

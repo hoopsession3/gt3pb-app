@@ -11,7 +11,7 @@ import Icon from "@/components/Icon";
 const SHARE_KEY = "gt3-built-k7m9x4q2";
 
 export const metadata = {
-  title: "GT3 Performance Bar — what we've built",
+  title: { absolute: "GT3 Performance Bar — what we've built" },
   robots: { index: false, follow: false },
 };
 

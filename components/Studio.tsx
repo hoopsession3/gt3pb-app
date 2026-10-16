@@ -29,6 +29,9 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { canOf } from "@/lib/roles";
 import GoLine from "@/components/GoLine";
 import Button from "./Button";
+import Said from "./Said";
+import { rovingKeys, rovingTab } from "./roving";
+import { segTabId, tabPanel } from "./controls";
 
 // STUDIO — the collaborative marketing studio. Her money-maker, his taste → built around
 // collaboration: real-time co-editing (Supabase Realtime presence + broadcast), real version
@@ -166,22 +169,24 @@ export default function Studio() {
   return (
     <div className="adm-sec">
       {board.status === "error" && (
-        <p className="load-failed" role="status">
+        <Said as="p" className="load-failed">
           Couldn&apos;t load the studio — this is not &ldquo;no content&rdquo;. Nothing here has been lost.{" "}
           <button type="button" className="btn-ter" onClick={() => load()}>Try again</button>
-        </p>
+        </Said>
       )}
       <div className="studio-top">
         {/* Six views: chips that wrap, so every one is in sight on a phone (a segmented control of six scrolled two
             of them out of view). They are pages — a swipe turns them — so the row is a tab list. */}
-        <div className="flex flex-wrap gap-2 min-w-0" role="tablist" aria-label="View">
-          {STUDIO_VIEWS.map((x) => (
-            <button key={x.key} type="button" role="tab" aria-selected={view === x.key} className={`k-chip sm${view === x.key ? " on" : ""}`} onClick={() => pickView(x.key)}>{x.label}</button>
+        <div className="flex flex-wrap gap-2 min-w-0" role="tablist" aria-label="View" onKeyDown={(e) => rovingKeys(e, STUDIO_VIEWS.length, STUDIO_VIEWS.findIndex((x) => x.key === view), (i) => pickView(STUDIO_VIEWS[i].key))}>
+          {STUDIO_VIEWS.map((x, i) => (
+            <button key={x.key} type="button" role="tab" aria-selected={view === x.key} id={segTabId("studio-view", x.key)} aria-controls="studio-view" tabIndex={rovingTab(i, STUDIO_VIEWS.findIndex((v) => v.key === view))} className={`k-chip sm${view === x.key ? " on" : ""}`} onClick={() => pickView(x.key)}>{x.label}</button>
           ))}
         </div>
         {view !== "brand" && view !== "flyer" && view !== "letter" && <button type="button" className="btn-pri btn-sm shrink-0" onClick={() => create()}><Icon name="sparkles" /> New piece</button>}
       </div>
 
+      {/* The view the tabs show (R12 — the 10/10 audit, F7: a tab panel). */}
+      <div {...tabPanel("studio-view", view)}>
       {view === "flyer" ? (
         <RoadFlyer />
       ) : view === "letter" ? (
@@ -243,7 +248,7 @@ export default function Studio() {
                     {vid && <span className="ig-reel">▶</span>}
                     {(it.media?.length ?? 0) > 1 && <span className="ig-multi">▦</span>}
                     {(img || vid) && it.status !== "published" && (
-                      <span className={`ig-tag ${STATUS[it.status]?.cls ?? ""}`} role="status" aria-label={STATUS[it.status]?.label ?? it.status} title={STATUS[it.status]?.label ?? it.status} />
+                      <span className={`ig-tag ${STATUS[it.status]?.cls ?? ""}`} role="img" aria-label={STATUS[it.status]?.label ?? it.status} title={STATUS[it.status]?.label ?? it.status} />
                     )}
                   </button>
                 );
@@ -280,6 +285,7 @@ export default function Studio() {
           )}
         </>
       )}
+      </div>
     </div>
   );
 }
@@ -654,10 +660,10 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
   if (!item && itemFailed) return (
     <div className="adm-sec">
-      <p className="load-failed" role="status">
+      <Said as="p" className="load-failed">
         Couldn&apos;t open this piece. It hasn&apos;t been changed — the read failed.{" "}
         <button type="button" className="btn-ter" onClick={onClose}>Back to the studio</button>
-      </p>
+      </Said>
     </div>
   );
   if (!item) return <div className="adm-sec"><div className="oa-empty">Loading…</div></div>;
@@ -834,7 +840,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         <div className="oa-input">
           <input value={brief} onChange={(e) => setBrief(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") draft(); }} placeholder="Brief — e.g. 'promote Saturday market; lead with why no oxalates'" />
           <button type="button" className="btn-pri" onClick={draft} disabled={drafting || !brief.trim()}>{drafting ? "Drafting…" : "Draft"}</button>
-          {draftErr && <div className="oa-err" role="status">Couldn&apos;t draft that — {draftErr}</div>}
+          {draftErr && <Said className="oa-err" assertive>Couldn&apos;t draft that — {draftErr}</Said>}
         </div>
         {options.map((o, i) => (
           <div key={i} className="studio-opt">

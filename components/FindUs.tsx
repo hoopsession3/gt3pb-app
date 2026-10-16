@@ -26,6 +26,7 @@ import Icon from "@/components/Icon";
 import { useLivePing } from "@/components/useLivePing";
 import Skeleton from "@/components/Skeleton";
 import { apiUrl } from "@/lib/native";
+import Said from "./Said";
 
 // FIND US — the one answer to "where's GT3?", on the field_ops spine. Stops and events used to
 // live on two strangers of pages; they're one chronological road now, each row self-typing:
@@ -380,7 +381,7 @@ export default function FindUs() {
         </div>
       )}
 
-      {canceledNext && <p className="k-sub" role="status"><span className="k-tag crit">Canceled</span> {canceledLine(canceledNext)}</p>}
+      {canceledNext && <Said as="p" className="k-sub"><span className="k-tag crit">Canceled</span> {canceledLine(canceledNext)}</Said>}
       <h1 className="k-title lg">{hero?.name ?? (board.status === "error" ? "Couldn't load" : board.status === "ready" ? t("findus.no_stops") : "…")}</h1>
       {hero && (
         <p className="k-sub">

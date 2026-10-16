@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { cleanReview, isDisplayable } from "@/lib/reviews";
 import { SectionHeader } from "@/components/kit";
-import { Segmented } from "@/components/controls";
+import { Segmented, tabPanel } from "@/components/controls";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
@@ -116,11 +116,12 @@ export default function ReviewsAdmin() {
             </div>
           )}
 
-          <Segmented className="mb-3.5" label="Reviews" value={tab} onChange={setTab} options={[
+          <Segmented className="mb-3.5" label="Reviews" panelId="rv-tab" value={tab} onChange={setTab} options={[
             { key: "pending", label: <>Pending{pending.length > 0 && <span className="k-seg-n">{pending.length}</span>}</> },
             { key: "live", label: <>Live{live.length > 0 && <span className="k-seg-n">{live.length}</span>}</> },
           ]} />
 
+          <div {...tabPanel("rv-tab", tab)}>
           {shown.length === 0 && (
             <EmptyState title={tab === "pending" ? "No reviews waiting" : "Nothing live yet"} sub={tab === "pending" ? undefined : "Approve or add some."} />
           )}
@@ -151,11 +152,12 @@ export default function ReviewsAdmin() {
                         <button className="btn-pri btn-sm" onClick={() => setApproved(r.id, true)} disabled={!okd} title={okd ? "" : "Below the display bar — simplify or edit it"}>Approve</button>
                         <button className="btn-sec btn-sm" onClick={() => simplify(r)} disabled={busyId === r.id || !r.body?.trim()}>{busyId === r.id ? "…" : <><Icon name="sparkles" /> Simplify</>}</button>
                       </>}
-                  <button className="k-icon-btn sm" onClick={() => remove(r.id)} aria-label="Delete"><Icon name="close" /></button>
+                  <button className="k-icon-btn sm" onClick={() => remove(r.id)} aria-label={`Delete the review from ${c.who}`}><Icon name="close" /></button>
                 </div>
               </div>
             );
           })}
+          </div>
         </div>
       )}
     </AsyncSection>

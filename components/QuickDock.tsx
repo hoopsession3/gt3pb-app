@@ -11,7 +11,8 @@ import LogPurchase from "./LogPurchase";
 import CopilotLauncher from "./CopilotLauncher";
 import Sheet, { CloseButton, useUnsaved } from "@/components/Sheet";
 import Icon from "@/components/Icon";
-import { Segmented } from "@/components/controls";
+import { rovingKeys, rovingTab } from "./roving";
+import { Segmented, tabPanel } from "@/components/controls";
 import { useDictation } from "./useDictation";
 import { canOf } from "@/lib/roles";
 import PourFill from "./PourFill";
@@ -109,12 +110,14 @@ export default function QuickDock() {
       </button>
 
       {open && (
-        <Sheet open onClose={() => setOpen(false)} label="Quick actions" header={<div className="flex items-center gap-2"><Segmented label="Quick actions" value={mode} onChange={setMode} options={[{ key: "do", label: <><Icon name="sparkles" /> Do</> }, { key: "ask", label: "Ask GT3" }, { key: "note", label: "Note" }, { key: "spend", label: "Spend" }, ...(manage ? [{ key: "file" as const, label: "File" }] : [])]} /><CloseButton onClick={() => setOpen(false)} /></div>}>
+        <Sheet open onClose={() => setOpen(false)} label="Quick actions" header={<div className="flex items-center gap-2"><Segmented label="Quick actions" panelId="qd-mode" value={mode} onChange={setMode} options={[{ key: "do", label: <><Icon name="sparkles" /> Do</> }, { key: "ask", label: "Ask GT3" }, { key: "note", label: "Note" }, { key: "spend", label: "Spend" }, ...(manage ? [{ key: "file" as const, label: "File" }] : [])]} /><CloseButton onClick={() => setOpen(false)} /></div>}>
+          <div {...tabPanel("qd-mode", mode)}>
           {mode === "do" ? <CopilotLauncher role={role} onPick={(s) => { setSection(s); setOpen(false); }} />
             : mode === "ask" ? <AskGT3 />
             : mode === "spend" ? <LogPurchase onDone={() => setOpen(false)} />
             : mode === "file" && manage ? <><SmartIntake /><DocsFiled /></>
             : <QuickNote userId={user?.id ?? null} onSaved={() => setOpen(false)} />}
+          </div>
         </Sheet>
       )}
     </>
@@ -164,9 +167,9 @@ function QuickNote({ userId, onSaved }: { userId: string | null; onSaved: () => 
         {dictate.supported && <button type="button" className={`k-icon-btn oa-mic${dictate.listening ? " on" : ""}`} onClick={dictate.toggle}
           aria-label={dictate.listening ? "Stop listening" : "Speak your note"} aria-pressed={dictate.listening}><Icon name="mic" size={19} /></button>}
       </div>
-      <div className="qd-note-vis" role="radiogroup" aria-label="Who can see this note">
-        {QN_VIS.map((o) => (
-          <button key={o.v} type="button" role="radio" aria-checked={vis === o.v} className={`k-chip${vis === o.v ? " on" : ""}`} onClick={() => setVis(o.v)}><Icon name={o.icon} /> {o.label}</button>
+      <div className="qd-note-vis" role="radiogroup" aria-label="Who can see this note" onKeyDown={(e) => rovingKeys(e, QN_VIS.length, QN_VIS.findIndex((o) => o.v === vis), (i) => setVis(QN_VIS[i].v))}>
+        {QN_VIS.map((o, i) => (
+          <button key={o.v} type="button" role="radio" aria-checked={vis === o.v} tabIndex={rovingTab(i, QN_VIS.findIndex((x) => x.v === vis))} className={`k-chip${vis === o.v ? " on" : ""}`} onClick={() => setVis(o.v)}><Icon name={o.icon} /> {o.label}</button>
         ))}
       </div>
       <div className="qd-note-foot">

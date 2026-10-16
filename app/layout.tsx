@@ -5,12 +5,13 @@ import "./tailwind.css";
 import AuthProvider from "@/components/AuthProvider";
 import AppProvider from "@/components/AppProvider";
 import AppShell from "@/components/AppShell";
-import OfflineBanner from "@/components/OfflineBanner";
 import { APP_BUILD } from "@/lib/native";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://app.gt3pb.com"),
-  title: "GT3 Performance Bar — Only the best for you",
+  // Each screen names itself (its route's layout or page, R12 — the 10/10 audit, F11): "Menu — GT3 Performance Bar".
+  // Today, and any screen without a name of its own, keep the house line.
+  title: { default: "GT3 Performance Bar — Only the best for you", template: "%s — GT3 Performance Bar" },
   // Every link to the app previews with this line (Messages, search). It said "slow-simmered broth, made to
   // order" until 2026-10-10, which read as "simmered to order" — Ryan: take it off. What the drinks are, then
   // what the app does.
@@ -97,7 +98,6 @@ export default function RootLayout({
       <body>
         <AuthProvider>
           <AppProvider>
-            <OfflineBanner />
             <AppShell>{children}</AppShell>
           </AppProvider>
         </AuthProvider>

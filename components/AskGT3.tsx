@@ -7,6 +7,7 @@ import EventGenerator from "./EventGenerator";
 import Prose from "./Prose";
 import Icon from "./Icon";
 import { useDictation } from "./useDictation";
+import { scrollMotion } from "@/lib/motion";
 
 // Ask GT3 — the crew's grounded pocket-brain chat (recipes, the why, gear, stock, how-to).
 // Shared by the Ask tab and the floating QuickDock so there's ONE assistant, not two. Voice in
@@ -49,7 +50,7 @@ export default function AskGT3() {
   const [busy, setBusy] = useState(false);
   const [genNotes, setGenNotes] = useState<string | null>(null); // non-null → event builder open
   const endRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, busy]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: scrollMotion() }); }, [msgs, busy]);
 
   const send = async (text: string) => {
     const q = text.trim();

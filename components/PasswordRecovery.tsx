@@ -63,7 +63,7 @@ export default function PasswordRecovery({ updatePassword, onDone, onCancel }: {
               <label className="auth-label" htmlFor="rec-pass">New password</label>
               <div className="auth-pass-wrap">
                 <input id="rec-pass" className="auth-input" enterKeyHint="next" onKeyDown={nextOnEnter} type={show ? "text" : "password"} autoComplete="new-password" placeholder="New password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoFocus />
-                <button type="button" className="auth-show-pass" onClick={() => setShow((v) => !v)} tabIndex={-1}>{show ? "Hide" : "Show"}</button>
+                <button type="button" className="auth-show-pass" onClick={() => setShow((v) => !v)} aria-label={show ? "Hide passwords" : "Show passwords"} aria-pressed={show} aria-controls="rec-pass rec-confirm">{show ? "Hide" : "Show"}</button>
               </div>
               <label className="auth-label" htmlFor="rec-confirm">Confirm password</label>
               <input id="rec-confirm" className="auth-input" enterKeyHint="go" type={show ? "text" : "password"} autoComplete="new-password" placeholder="Repeat password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />

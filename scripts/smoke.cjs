@@ -3545,7 +3545,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
         /import \{[^}]*\bscaleIngredients\b[^}]*\} from "@\/lib\/brewMath"/.test(route) && !/function scaleIngredients/.test(route));
       ok("one scaler: the sheet previews with the same function", /\bscaleIngredients\(recipe\.ingredients, factor\)/.test(sheet));
       ok("the sheet asks for drinks first, in those words", /How many drinks do you need\?/.test(sheet));
-      ok("the sheet's units are the kit's segmented control, not a <select> (the one the day theme striped)", /className="k-seg bq-units" role="tablist"/.test(sheet) && !/<select aria-label="Size this batch by"/.test(sheet));
+      ok("the sheet's units are the kit's segmented control, not a <select> (the one the day theme striped)", /className="k-seg bq-units" role="radiogroup" aria-label="Size it by"/.test(sheet) && !/<select aria-label="Size this batch by"/.test(sheet));
       ok("the sheet reads the event's expected headcount for its suggestion", /expected_attendance, going_count/.test(sheet));
       ok("the sheet states the water as something pourable", /pourable\(gal\)/.test(sheet) && /water\.display/.test(sheet));
     }
@@ -5766,7 +5766,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const \{ error \} = await supabase\.from\(table\)\.update\(patch\)\.eq\("id", ownerId\);\s*if \(error\) \{ setF\(before\); toast\(/.test(crewSrc));
   ok("prep: the controls that measured 22–28px have the 44 every other one there has (Add to calendar is the kit's quiet button, 44 to the thumb)",
     !/adm-prep-back/.test(css) && /className="btn-ter ml-auto"/.test(read("components/crew/OwnerDetails.tsx"))
-    && /<Button type="button" kind="quiet" onClick=\{\(\) => setOpen\(\(o\) => !o\)\} aria-haspopup="menu"/.test(read("components/AddToCalendar.tsx")));
+    && /<Button type="button" kind="quiet" onClick=\{\(\) => setOpen\(\(o\) => !o\)\} aria-expanded=\{open\} aria-controls=\{open \? panelId : undefined\}>/.test(read("components/AddToCalendar.tsx")));
   ok("prep: the screen is painted and held by the design ratchet", /scripts\/fixtures\/prep-target\.html/.test(read("scripts/design.ratchet.mjs"))
     && /export const PREP_TARGET = \{ depth: 2, tap: 44, text: 11 \};/.test(read("scripts/design.ratchet.mjs")));
   // 2026-10-11, Ryan: "the bread crumb trail is not flawless .. and after you complete an edit or save something you
@@ -5971,7 +5971,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("pass: overlapping reads land in order — only the newest asked for is applied", /const ask = \+\+loadSeq\.current;/.test(kit) && /if \(ask !== loadSeq\.current\) return;/.test(kit));
   ok("pass: the feed says when it drops, reads the board again the moment it is back, and the screen coming back reads it too",
     /\.subscribe\(\(status\) => \{\s*if \(!alive\) return;\s*if \(status === "SUBSCRIBED"\) \{ setLive\(true\); if \(broke\) \{ broke = false; load\(\); void loadHere\(\); \} return; \}\s*broke = true; setLive\(false\);\s*if \(status === "CLOSED"\) retry = window\.setTimeout\(join, 5000\);/.test(kit)
-    && /\{!live && !down && <span className="k-count soon" role="status">Reconnecting…<\/span>\}/.test(kit)
+    && /\{!live && !down && <Said as="span" className="k-count soon">Reconnecting…<\/Said>\}/.test(kit)
     && /const onVis = \(\) => \{ if \(document\.visibilityState === "visible"\) \{ load\(\); void loadHere\(\); \} \};/.test(kit) && /document\.addEventListener\("visibilitychange", onVis\);/.test(kit));
   ok("pass: every new order rings once — the feed's or the reconcile's, whichever brings it first — and never for the first read",
     /const fresh = seeded\.current \? rows\.filter\(\(o\) => o\.status === "new" && !known\.current\.has\(o\.id\)\) : \[\];/.test(kit) && /fresh\.forEach\(announceNew\);/.test(kit)
@@ -6305,7 +6305,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\/\/ vocab: compliance_checks\.outcome\nexport const CHECK_OUTCOMES/.test(read("lib/complianceCheck.ts")) && /\/\/ vocab: compliance_rules\.lead_basis\nexport const LEAD_BASES/.test(read("lib/complianceCheck.ts")));
   ok("permits: the database test runs in db:test", /node scripts\/db\.compliance\.test\.mjs/.test(require("../package.json").scripts["db:test"]));
   ok("permits: the rule sheet is painted and held by the design ratchet — its forms are sections, not boxes in a box",
-    /scripts\/fixtures\/rule-sheet\.html/.test(read("scripts/design.ratchet.mjs")) && /export const RULE_SHEET = \{ depth: 2, tap: 44, text: 11 \};/.test(read("scripts/design.ratchet.mjs"))
+    /scripts\/fixtures\/rule-sheet\.html/.test(read("scripts/design.ratchet.mjs")) && /export const RULE_SHEET = \{ depth: 3, tap: 44, text: 11 \};/.test(read("scripts/design.ratchet.mjs"))
     && /className=\{`k-chip\$\{leadBasis === b \? " on" : ""\}`\}/.test(read("components/ComplianceRuleRecord.tsx")) && /\.k-chip::after\{content:"";position:absolute;inset:-4px 0\}/.test(read("app/globals.css")));
 }
 
@@ -6473,7 +6473,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     })());
   ok("navigation: the name is said once — over a lane's row of sections the title names the lane, as its tab does; a lane of one names its section",
     /<h1 className="op-head-t" data-large-title>\{lane\.members\.length >= 2 \? lane\.label : SEC_LABEL\[sec\]\}<\/h1>/.test(crew)
-    && /<Segmented fill className=\{`lane-tabs mb-3\.5\$\{switcher \|\| inView \? " hidden! desk:flex!" : ""\}`\} label=\{lane\.label\} value=\{sec\}/.test(crew));
+    && /<Segmented fill className=\{`lane-tabs mb-3\.5\$\{switcher \|\| inView \? " hidden! desk:flex!" : ""\}`\} label=\{lane\.label\} panelId="lane-panel" value=\{sec\}/.test(crew));
   // A LANE TOO LONG FOR ITS ROW (2026-10-10, the 9→10 round): Business's six on a phone ran off both edges ("Te", "ney").
   {
     const css = read("app/globals.css"), lp = read("components/LongPress.tsx"), ic = read("components/Icon.tsx");
@@ -7148,7 +7148,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("Find Us: the live row's Pre-order chip follows the same rule", /rowLive && ordering\?\.open !== false && <button/.test(fu));
   ok("menu: closed, the order line is the truck's state and the price is a price",
     /const closed = o !== null && !o\.open;/.test(menu) && /: off \|\| closed \? <span className=\{`entry-px\$\{off \? "" : " shut"\}`\}>\{priceLabel\(id\)\}<\/span>/.test(menu) && /\.entry-px\.shut\{border:1px solid transparent;padding:3px 10px\}/.test(read("app/globals.css"))
-    && /className="mast-order mast-state" role="status"/.test(menu)
+    && /<Said className="mast-order mast-state" quietFirst>\{stateLine\}<\/Said>/.test(menu)
     && /closedWords\(o, \{ closing: t\("findus\.cta_closed"\) \}\) : openWords\(o\)/.test(menu));
   // ONE LINE, THEN THE CHOICES (2026-10-09, round 2 step 2; Ryan, on /menu: "This shit still cluttered").
   ok("menu: one line, then the choices — no eyebrow repeating the tab, no statement, no links and no hint above the chips",
@@ -7312,9 +7312,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("weight: the merch checkout loads when it is wanted, not with the grid",
     /const ShopCheckout = dynamic\(\(\) => import\("\.\/ShopCheckout"\)\)/.test(shopGrid) && !/import ShopCheckout from/.test(shopGrid)
     && !/US_STATES|PaymentCard/.test(shopGrid) && /if \(hasCart\) void import\("\.\/ShopCheckout"\)/.test(shopGrid));
-  const stateSel = shop.slice(shop.indexOf("<select aria-label={t(\"checkout.ph_state\")}"), shop.indexOf("</select>", shop.indexOf("checkout.ph_state")));
-  ok("shop: the state is a pick list over US_STATES, autofilled as address-level1",
-    stateSel.includes("value={ship.state}") && stateSel.includes('autoComplete="address-level1"') && /US_STATES\.map\(/.test(stateSel));
+  const stateSel = shop.slice(shop.indexOf('<select id="ship-state"'), shop.indexOf("</select>", shop.indexOf('<select id="ship-state"')));
+  ok("shop: the state is a pick list over US_STATES, autofilled as the shipping address-level1 — under a label you can see (R12)",
+    stateSel.includes("value={ship.state}") && stateSel.includes('autoComplete="shipping address-level1"') && /US_STATES\.map\(/.test(stateSel)
+      && /<label className="fld-l block mt-0\.5 mb-\[5px\]" htmlFor="ship-state">\{t\("checkout\.ph_state"\)\}<\/label>/.test(shop));
   ok("shop: no free-text state box remains", !/<input[^>]*value=\{ship\.state\}/.test(shop));
   const shopRoute = code(read("app/api/shop/checkout/route.ts"));
   ok("shop checkout: the state and ZIP are read by lib/usAddress BEFORE the card is charged",
@@ -7562,7 +7563,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("delivery: ZIP, street, city, gate code, name and phone start from their last delivery",
     ["useKnownField(known?.delivery?.zip)", "useKnownField(known?.delivery?.street)", "useKnownField(known?.delivery?.city)", "useKnownField(known?.delivery?.access)", "useKnownField(known?.fullName || profile?.display_name)", "useKnownField(known?.phone)"].every((x) => of.includes(x)));
   ok("delivery: the fields say what they are, so a guest's phone fills them",
-    /<AddressField className="auth-input" placeholder=\{t\("funnel\.f_street"\)\} label="Street address" value=\{street\} onChange=\{setStreet\}/.test(of) && /autoComplete="address-line1" role="combobox"/.test(read("components/AddressField.tsx")) && /value=\{city\} onChange=\{\(e\) => setCity\(e\.target\.value\)\} autoComplete="address-level2"/.test(of) && /autoComplete="postal-code" placeholder=\{t\("funnel\.zip_ph"\)\}/.test(of) && /autoComplete="email" placeholder="you@email\.com"/.test(of));
+    /<AddressField id="pk-street" autoComplete="shipping address-line1" className="auth-input" label=\{t\("funnel\.f_street"\)\} value=\{street\} onChange=\{setStreet\}/.test(of)
+      && /autoComplete = "address-line1", \}|autoComplete = "address-line1" \}/.test(read("components/AddressField.tsx")) && /autoComplete=\{autoComplete\} role="combobox"/.test(read("components/AddressField.tsx"))
+      && /value=\{city\} onChange=\{\(e\) => setCity\(e\.target\.value\)\} autoComplete="shipping address-level2"/.test(of) && /autoComplete="postal-code" placeholder=\{t\("funnel\.zip_ph"\)\}/.test(of) && /autoComplete="email" placeholder="you@email\.com"/.test(of));
   ok("delivery: it says where the details came from", /\{streetKnown && <p className="dl-sub known-note">From your last delivery/.test(of));
   ok("weight: the office order loads when an office is chosen, not with every visit to /reserve and /delivery",
     /const OfficeOrder = dynamic\(\(\) => import\("\.\/OfficeOrder"\)\)/.test(of) && !/import OfficeOrder from/.test(of) && /setAudience\("office"\); void import\("\.\/OfficeOrder"\);/.test(of));
@@ -7572,10 +7575,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   {
     const af = read("components/AddressField.tsx"), am = read("lib/appleMaps.ts"), ar = read("app/api/address/route.ts");
     ok("address: the street suggests real addresses as it is typed — on delivery (near the zone's ZIP), the office order and the shop's parcel — and a pick fills the rest",
-      /<AddressField className="auth-input"[^>]*near=\{zip\}\s*onPick=\{\(a\) => \{ setStreet\(a\.street\); if \(a\.city\) setCity\(a\.city\); setPickedZip\(a\.zip\); \}\}/.test(of)
+      /<AddressField id="pk-street"[^>]*near=\{zip\}\s*onPick=\{\(a\) => \{ setStreet\(a\.street\); if \(a\.city\) setCity\(a\.city\); setPickedZip\(a\.zip\); \}\}/.test(of)
       && /pickedZip && zip && pickedZip !== zip/.test(of)
-      && /<AddressField className="auth-input" placeholder="Street address" label="Street"[^>]*onPick=\{\(a\) => \{ setStreet\(a\.street\); if \(a\.city\) setCity\(a\.city\); if \(a\.zip\) setZip\(a\.zip\); \}\}/.test(read("components/OfficeOrder.tsx"))
-      && /<AddressField placeholder=\{t\("checkout\.ph_street"\)\}[\s\S]{0,300}?if \(US_STATES\.some\(\(\[c\]\) => c === a\.state\)\) setShipState\(a\.state\);/.test(read("components/ShopCheckout.tsx")));
+      && /<AddressField id="of-street" className="auth-input" label="Street address"[^>]*onPick=\{\(a\) => \{ setStreet\(a\.street\); if \(a\.city\) setCity\(a\.city\); if \(a\.zip\) setZip\(a\.zip\); \}\}/.test(read("components/OfficeOrder.tsx"))
+      && /<AddressField id="ship-street" autoComplete="shipping address-line1" label=\{t\("checkout\.ph_street"\)\}[\s\S]{0,300}?if \(US_STATES\.some\(\(\[c\]\) => c === a\.state\)\) setShipState\(a\.state\);/.test(read("components/ShopCheckout.tsx")));
     ok("address: the field is a combobox — four suggestions after four letters and a pause, ↑ ↓ Return Esc, nothing over a filled-in address until it is edited, and quiet for good when the server has no key",
       /if \(text\.length < 4\) return;/.test(af) && /if \(e\.target\.value\.trim\(\)\.length < 4\) setItems\(\[\]\);/.test(af) && /\}, 300\);/.test(af) && /if \(none \|\| !typed\.current\) return;/.test(af)
       && /if \(j\?\.configured === false\) \{ none = true;/.test(af) && /role="listbox"/.test(af) && /role="option" aria-selected=\{i === active\} tabIndex=\{-1\}/.test(af)
@@ -9074,8 +9077,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   }
   ok("pages: Studio's views and the shop's aisles page too, each from its one list",
     /usePagerLevel\(\{ keys: STUDIO_VIEWS\.map\(\(x\) => x\.key\), current: view, go: \(k\) => pickView\(k as StudioView\), depth: 1 \}\);/.test(read("components/Studio.tsx"))
-    && /\{STUDIO_VIEWS\.map\(\(x\) => \(/.test(read("components/Studio.tsx"))
-    && /<SwipePager levels=\{\[\(section === "bottles" \|\| view === "grid"\) && \{ keys: SHOP_AISLES, current: section, go: \(k\) => setSection\(k as Aisle\), depth: 0 \}\]\}>/.test(read("components/Shop.tsx")));
+    && /\{STUDIO_VIEWS\.map\(\(x, i\) => \(/.test(read("components/Studio.tsx"))
+    && /<SwipePager levels=\{\[\(section === "bottles" \|\| view === "grid"\) && \{ keys: SHOP_AISLES, current: section, go: \(k\) => setSection\(k as Aisle\), depth: 0 \}\]\}\s+panel=\{section === "bottles" \|\| view === "grid" \? tabPanel\("shop-aisle", section\) : undefined\}>/.test(read("components/Shop.tsx")));
   const sp = code(read("components/SwipePager.tsx")), pm = code(read("components/PagerMotion.tsx"));
   ok("pages: the whole screen turns the page — the finger is followed on the scroll container, the content moves",
     /surface\.current = box\.current\?\.closest<HTMLElement>\("main"\) \?\? box\.current;/.test(sp) && /useGesture\(surface, \{/.test(pm) && /<PagerMotion box=\{box\} surface=\{surface\} levels=\{levels\} \/>/.test(sp));
@@ -9122,7 +9125,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /input\.setAttribute\("switch", ""\);/.test(read("lib/haptics.ts")) && /navigator\.userActivation && !navigator\.userActivation\.hasBeenActive/.test(read("lib/haptics.ts")));
   ok("tab bar: the tab you are on, tapped again, goes back to the top", /scrollToTop\(\)/.test(read("components/OperatorNav.tsx")) && /if \(pathname === tab\.href && !window\.location\.search\) \{ e\.preventDefault\(\); scrollToTop\(\); return; \}/.test(read("components/BottomNav.tsx")));
   ok("scroll to top: one home (lib/appScroll) — the tab bars and the order form call it; no copy of it, and not in the crew's panel jumps every guest would carry",
-    /export function scrollToTop\(\): void/.test(read("lib/appScroll.ts")) && /document\.getElementById\("body"\)\?\.scrollTo\(\{ top: 0, behavior: "smooth" \}\);/.test(read("lib/appScroll.ts")) && !/scrollToTop/.test(read("lib/anchors.ts"))
+    /export function scrollToTop\(\): void/.test(read("lib/appScroll.ts")) && /document\.getElementById\("body"\)\?\.scrollTo\(\{ top: 0, behavior: scrollMotion\(\) \}\);/.test(read("lib/appScroll.ts")) && !/scrollToTop/.test(read("lib/anchors.ts"))
     && ["components/BottomNav.tsx", "components/OperatorNav.tsx", "components/OrderFunnel.tsx"].every((f) => /import \{ (?:returnToPlace, )?scrollToTop \} from "@\/lib\/appScroll";/.test(read(f)))
     && !/getElementById\("body"\)\?\.scrollTo\(\{ top: 0/.test(read("components/OrderFunnel.tsx")));
   ok("viewer: a product's photos follow the finger down, and a pull is neither a tap nor a hold (no \"Paused\" riding down with it)", /useGesture\(stageRef, \{/.test(read("components/StoryViewer.tsx")) && /if \(pulled\.current\) \{ pulled\.current = false; return; \}/.test(read("components/StoryViewer.tsx"))
@@ -9416,7 +9419,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("settings door: in Settings, More is the lit tab — no lane is current, and Today no longer lights by default",
     /const inSettings = section === "settings";/.test(nav) && /const currentId = inSettings \? "settings" : activeGroup\.id;/.test(nav)
     && /const moreOn = inSettings \|\| overflow\.some\(\(g\) => g\.id === activeGroup\.id\);/.test(nav)
-    && /<button role="tab" aria-selected=\{moreOn\} className=\{`tab\$\{moreOn \? " on" : ""\}`\} onClick=\{\(\) => setMoreOpen\(true\)\}>/.test(nav)
+    && /<button type="button" className=\{`tab\$\{moreOn \? " on" : ""\}`\} aria-haspopup="dialog" aria-current=\{moreOn \? "page" : undefined\} onClick=\{\(\) => setMoreOpen\(true\)\}>/.test(nav)
     && /const on = currentId === g\.id;/.test(nav) && !/const on = activeGroup\.id === g\.id;/.test(nav));
   ok("settings door: no default lane holds Settings — which is why the lane lookup fell through to Today",
     !/sections: \[[^\]]*"settings"/.test(code(read("lib/streams.ts"))));
@@ -9769,7 +9772,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /const LOOKS: readonly ThemeChoice\[\] = \["day", "dark", "auto"\];/.test(read("components/YouPrefs.tsx")) && /\{THEME_LABELS\[l\]\}/.test(read("components/YouPrefs.tsx"))
     && /export const THEME_LABELS: Readonly<Record<ThemeChoice, string>> = \{ day: "Day", dark: "Dark", auto: "Auto" \};/.test(read("lib/settingsGlance.ts"))
     && !/THEME_LABELS/.test(read("lib/theme.ts")) && /import \{ THEME_LABELS \} from "@\/lib\/settingsGlance";/.test(read("components/YouPrefs.tsx"))
-    && /<div className="set-seg" role="radiogroup" aria-label="Appearance">/.test(read("components/YouPrefs.tsx"))
+    && /<div className="set-seg" role="radiogroup" aria-label="Appearance" onKeyDown=\{\(e\) => rovingKeys\(e, LOOKS\.length, LOOKS\.indexOf\(choice\), \(i\) => pick\(LOOKS\[i\]\)\)\}>/.test(read("components/YouPrefs.tsx"))
     && !appFiles.some((f) => /className="theme-toggle"/.test(read(f))) && !/\.theme-toggle/.test(read("app/globals.css").replace(/\/\*[\s\S]*?\*\//g, "")));
   ok("one home: Auto follows the phone as it changes — the console reads the media query as a store, light on the server",
     /const phoneDark = useSyncExternalStore\(subscribePhone, readPhoneDark, \(\) => false\);\s*return themeFrom\(raw, phoneDark\);/.test(code(read("lib/theme.ts")))
@@ -9863,7 +9866,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && SG.notifyGlance(null, 22, 7) === null && SG.hourShort(0) === "12am" && SG.hourShort(12) === "12pm" && SG.hourShort(13) === "1pm" && SG.hourShort(23) === "11pm");
     ok("settings values: text size in words, the lanes counted, and Outlook never \"not connected\" on a read that failed",
       SG.displayGlance({ scale: 0, bold: false, roomy: false }, "day").text === "Day · Standard" && SG.displayGlance({ scale: 2, bold: true, roomy: true }, "dark").text === "Dark · Larger · bold · roomy"
-      && SG.displayGlance({ scale: 9, bold: false, roomy: false }, "auto").text === "Auto · Standard" && require("../.smoke/textSize.js").TEXT_SIZE_WORDS.join() === "Standard,Large,Larger,Largest"
+      && SG.displayGlance({ scale: 9, bold: false, roomy: false }, "auto").text === "Auto · Standard" && require("../.smoke/textSize.js").TEXT_SIZE_WORDS.join() === "Standard,Large,Larger,Largest,150%,175%,200%"
+      && SG.displayGlance({ scale: 6, bold: false, roomy: false }, "day").text === "Day · 200%"
       && SG.lanesGlance(5, 5).text === "All owned" && SG.lanesGlance(2, 5).text === "2 of 5 owned" && SG.lanesGlance(0, 5).warn === true && !SG.lanesGlance(2, 5).warn && SG.lanesGlance(0, 0) === null
       && SG.outlookGlance(null) === null && SG.outlookGlance({ configured: true, connected: true }).text === "Connected"
       && SG.outlookGlance({ configured: true, connected: false }).text === "Not connected" && SG.outlookGlance({ configured: false, connected: false }).text === "Not set up");
@@ -10149,7 +10153,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const contract = /export type GT3DevicePlugin = \{([\s\S]*?)\n\};/.exec(da)?.[1] ?? "";
   const tsMethods = [...contract.matchAll(/^\s*(\w+)\(/gm)].map((m) => m[1]).sort();
   ok("device: the page and the phone agree on GT3Device — the same methods in lib/deviceActions and native/ios/GT3Device.swift, under the name the page asks for, registered by the app's view controller",
-    swiftMethods.length === 7 && JSON.stringify(swiftMethods) === JSON.stringify(tsMethods) && /public let jsName = "GT3Device"/.test(swift)
+    swiftMethods.length === 8 && JSON.stringify(swiftMethods) === JSON.stringify(tsMethods) && /public let jsName = "GT3Device"/.test(swift)
     && /override func capacitorDidLoad\(\) \{\s*bridge\?\.registerPluginInstance\(GT3DevicePlugin\(\)\)/.test(read("ios/App/App/GT3ViewController.swift"))
     && read("ios/App/App/GT3Device.swift") === swift, { swift: swiftMethods, ts: tsMethods });
   // ── SIGN IN WITH APPLE (2026-10-11, Ryan: "you have permission to do anything") ──
@@ -10396,7 +10400,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && (header.match(/<IconButton icon="(sparkles|search|bell)"/g) || []).length === 3 && /<BackButton label=\{backWay\.label\} onClick=\{backWay\.go\} \/>/.test(header)
     && !/<button\b/.test(header) && /badge=\{hdrToday\.length\} crit=\{hdrTodayCrit > 0\}/.test(header));
   ok("pills: the lane's sections are the kit's segmented control, the whole row wide",
-    /<Segmented fill className=\{`lane-tabs mb-3\.5\$\{switcher \|\| inView \? " hidden! desk:flex!" : ""\}`\} label=\{lane\.label\} value=\{sec\}/.test(crew));
+    /<Segmented fill className=\{`lane-tabs mb-3\.5\$\{switcher \|\| inView \? " hidden! desk:flex!" : ""\}`\} label=\{lane\.label\} panelId="lane-panel" value=\{sec\}/.test(crew));
   // 2026-10-11, Ryan: "Is the service page service for just the event? … am I managing one event or am I in a menu?"
   {
     const ctl2 = read("components/BackButton.tsx");
@@ -11038,7 +11042,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /onContextMenu: \(e\) => \{\s*if \(!ours\(e\)\) return;\s*e\.preventDefault\(\);/.test(lp) && /if \(e\.pointerType === "mouse" \|\| e\.button !== 0 \|\| !ours\(e\)\) return;/.test(lp)
     && /window\.addEventListener\("contextmenu", hush, true\);\s*return \(\) => window\.removeEventListener\("contextmenu", hush, true\);/.test(lp));
   ok("long press: the menu is a sheet of the row's actions by name — 44pt rows, the sign on the right, the one that cannot be taken back in red — and the phone ticks as it rises",
-    /<Sheet open onClose=\{onClose\} label=\{label \?\? `\$\{title\} — actions`\}/.test(lp) && /className="acs-row min-h-11"/.test(lp) && /it\.danger \? "text-red!"/.test(lp)
+    /<Sheet open onClose=\{onClose\} label=\{label \?\? `\$\{title\} — actions`\}/.test(lp) && /className="acs-row min-h-11"/.test(lp) && /it\.danger \? "text-red-hover!"/.test(lp) && !/"text-red!"/.test(lp)
     && /onClick=\{\(\) => \{ onClose\(\); it\.run\(\); \}\}/.test(lp) && /haptic\("medium"\);/.test(lp));
   ok("long press: on a touch screen the row's words start no selection and iOS shows no callout, its fields still select, and a mouse still selects",
     /@utility pressable \{\s*-webkit-touch-callout: none;\s*@media \(pointer: coarse\) \{\s*-webkit-user-select: none;\s*user-select: none;\s*& :is\(input, textarea, \[contenteditable\]\) \{ -webkit-user-select: text; user-select: text; \}/.test(read("app/tailwind.css")));
@@ -11082,11 +11086,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("type: the theme names the ten steps after Apple's text styles, and Tailwind's own sizes are off",
     /--text-\*: initial;\s*--text-caption2: 11px;\s*--text-caption: 12px;\s*--text-footnote: 13px;\s*--text-subhead: 15px;\s*--text-callout: 16px;\s*--text-body: 17px;\s*--text-title3: 20px;\s*--text-title2: 22px;\s*--text-title1: 28px;\s*--text-large: 34px;/.test(tw));
   ok("type: the title bar's name and Back are the body style (17)", (read("components/TitleBar.tsx").match(/text-body/g) || []).length === 2 && !/text-\[17px\]/.test(read("components/TitleBar.tsx")));
-  ok("text size: the phone's standard size and anything under it is the app's standard; larger ones take the nearest of the app's three",
-    PT.tierForBody(17) === 0 && PT.tierForBody(14) === 0 && PT.tierForBody(16) === 0 && PT.tierForBody(19) === 1 && PT.tierForBody(21) === 3 && PT.tierForBody(23) === 3 && PT.tierForBody(53) === 3
-    && PT.tierForBody(NaN) === 0 && PT.tierForBody(0) === 0);
-  const zooms = [1, ...[1, 2, 3].map((t) => Number((g.match(new RegExp(`\\.app\\.rd-t${t} \\.body\\{zoom:([\\d.]+)\\}`)) || [])[1]))];
-  ok("text size: the app's three larger sizes are the zooms the stylesheet draws", JSON.stringify(zooms) === JSON.stringify([...PT.ZOOMS]));
+  // To twice its size (R12 — the 10/10 audit, F1): the accessibility sizes (28 to 53pt) reach 175% and 200%, not 126%.
+  ok("text size: the phone's standard size and anything under it is the app's standard; larger ones take the nearest of the app's six, to 200%",
+    PT.tierForBody(17) === 0 && PT.tierForBody(14) === 0 && PT.tierForBody(16) === 0 && PT.tierForBody(19) === 1 && PT.tierForBody(21) === 3 && PT.tierForBody(23) === 3
+    && PT.tierForBody(28) === 5 && PT.tierForBody(33) === 6 && PT.tierForBody(53) === 6 && PT.tierForBody(NaN) === 0 && PT.tierForBody(0) === 0);
+  const zooms = [1, ...[1, 2, 3, 4, 5, 6].map((t) => Number((g.match(new RegExp(`\\.app\\.rd-t${t} \\.body\\{zoom:([\\d.]+)\\}`)) || [])[1]))];
+  ok("text size: the app's six larger sizes are the zooms the stylesheet draws", JSON.stringify(zooms) === JSON.stringify([...PT.ZOOMS]) && PT.ZOOMS[PT.ZOOMS.length - 1] === 2);
   const pt = read("components/usePhoneText.ts"), dt = read("components/DisplayToggle.tsx"), dp = read("lib/devicePref.ts");
   ok("text size: in the iPhone app it is read from WebKit's own body face, and again when the app comes back to the screen; the website's bundle carries none of it",
     /font:-apple-system-body/.test(pt) && /if \(!isNativeApp\(\)\) return \(\) => \{\};/.test(pt) && /document\.addEventListener\("visibilitychange", again\);/.test(pt)
@@ -11133,7 +11138,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("buttons: the 31 recipes and the sheets' copies are gone — no rule styles one, no screen names one", named.length === 0, named.join(", "));
   const cs = read("components/ConfirmSheet.tsx");
   ok("buttons: a question's yes is the kit's primary, and red words when the step cannot be undone (as iOS draws an alert's)",
-    /className=\{opts\.danger \? "btn-del" : "btn-pri"\} autoFocus/.test(cs) && /className="btn-ter" onClick=\{\(\) => settle\(false\)\}/.test(cs));
+    /className=\{opts\.danger \? "btn-del" : "btn-pri"\} autoFocus=\{!opts\.danger\}/.test(cs) && /className="btn-ter" autoFocus=\{!!opts\.danger\} onClick=\{\(\) => settle\(false\)\}/.test(cs));
+  // R12 (the 10/10 audit, F14): an irreversible question opens on its way back, and is an alertdialog that names what it does.
+  ok("buttons: a question that cannot be undone opens on Keep it, not on its red yes — and reads as an alert with its consequence",
+    /<Sheet open onClose=\{\(\) => settle\(false\)\} label=\{opts\.title\} alert describedBy=\{opts\.body \? bodyId : undefined\}/.test(cs)
+      && /<div className="dp-hint cfm-body" id=\{bodyId\}>/.test(cs) && /role=\{alert \? "alertdialog" : "dialog"\}/.test(read("components/Sheet.tsx")));
   // A drink's Delete is on its own page since 2026-10-12 (the Catalog round), where the expander's was.
   ok("buttons: Delete is red words wherever it was gold words",
     ["components/ProductPage.tsx", "components/PlanEditor.tsx", "components/LessonsManager.tsx"].every((f) => /className="btn-del" onClick=\{del\}>Delete</.test(read(f)))
@@ -11210,8 +11219,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /className="k-chip pri" onClick=\{\(\) => router\.push\("\/menu"\)\}/.test(read("components/FindUs.tsx")) && !/marginLeft: 8/.test(read("components/FindUs.tsx")));
   const cc = read("components/CompanyCalendar.tsx"), qd = read("components/QuickDock.tsx");
   ok("switches: a sheet's modes and the calendar's views are the kit's segmented control — a switch that looks like one — with More as quiet words beside it",
-    /<Segmented label="Quick actions" value=\{mode\} onChange=\{setMode\}/.test(qd) && /<Segmented label="What to add" kind="choice"/.test(cc)
-    && /<Segmented label="Calendar view" className="min-w-0" value=\{view\} onChange=\{setV\}/.test(cc) && /className="btn-ter" aria-expanded=\{moreViews\}/.test(cc));
+    /<Segmented label="Quick actions" panelId="qd-mode" value=\{mode\} onChange=\{setMode\}/.test(qd) && /<Segmented label="What to add" kind="choice"/.test(cc)
+    && /<Segmented label="Calendar view" className="min-w-0" panelId="cal-pane" value=\{view\} onChange=\{setV\}/.test(cc) && /className="btn-ter" aria-expanded=\{moreViews\}/.test(cc));
   ok("buttons: the follow-up row and the + Add that shared .note-fu-add — the row was drawn as a gold pill — are a row and quiet words",
     /<button type="button" className="btn-ter" onClick=\{\(\) => setCActions\(/.test(read("app/crew/page.tsx")) && !/\.note-fu-add\{font-family/.test(g) && /\.note-fu-add\{display:flex;gap:9px;margin-top:12px\}/.test(g));
   const files = require("node:child_process").execSync("git ls-files app components", { cwd: require("node:path").join(__dirname, "..") }).toString().split("\n").filter((f) => f.endsWith(".tsx"));
@@ -11290,7 +11299,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /export function deskNow\(\): boolean \{[\s\S]*?window\.matchMedia\(DESK_QUERY\)\.matches && !!document\.querySelector\("\.app\[data-desk\]"\)/.test(surf));
   ok("desk: a strip of numbers is one row; Studio's week is seven columns; the notes two to a row; an office's invitation a card's width",
     ["components/CustomerKpis.tsx", "components/CrewKpis.tsx"].every((f) => /className="mkpi desk:grid-cols-none desk:grid-flow-col desk:auto-cols-fr"/.test(read(f)))
-    && /<div className="calw desk:grid desk:grid-cols-7 desk:gap-2">/.test(read("components/BrandCalendar.tsx"))
+    && /<div className="calw desk:grid desk:grid-cols-7 desk:gap-2" \{\.\.\.tabPanel\("bcal-view", view\)\}>/.test(read("components/BrandCalendar.tsx"))
     && /<div className="contents desk:grid desk:grid-cols-2 desk:gap-x-3 desk:items-start">/.test(pg) && (read("app/office/page.tsx").match(/className="op-none desk:max-w-130 desk:mx-auto"/g) || []).length === 2);
   // Since 2026-10-12 (the Command audit) Goals' head is its row, the count beside it, and its screen's title once opened.
   ok("desk: Command says GOALS once — Goals' row says it with the count, its screen's title once opened, and no head stands above either",
@@ -11329,11 +11338,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     !/<Segmented/.test(read("components/SignIn.tsx"))
     && seg("components/Checkout.tsx", /<Segmented label="Tip" kind="choice" fill className="mt-0\.5 mb-1\.5" value=\{String\(tipPct\)\} onChange=\{\(k\) => setTipPct\(Number\(k\)\)\}/)
     && seg("components/EventCopilot.tsx", /<Segmented label="Kind" kind="choice" fill className="mb-2\.5" value=\{draft\.kind\}/)
-    && seg("components/CogsCalculator.tsx", /<Segmented label="COGS" fill className="mt-1 mb-2\.5" value=\{tab\} onChange=\{setTab\}/)
+    && seg("components/CogsCalculator.tsx", /<Segmented label="COGS" fill className="mt-1 mb-2\.5" panelId="cogs-tab" value=\{tab\} onChange=\{setTab\}/)
     && seg("components/Reports.tsx", /<Segmented label="Range" kind="choice" size="sm" value=\{String\(days\)\} onChange=\{\(k\) => setDays\(Number\(k\)\)\}/)
-    && seg("components/RoadFlyer.tsx", /<Segmented label="Slide" size="sm" fill value=\{tile\} onChange=\{setTile\}/)
-    && seg("components/Shop.tsx", /<div ref=\{ref\} className=\{stuck \? "menu-chips shop-sections is-stuck" : "menu-chips shop-sections"\}>\s*<Segmented label="Shop" fill value=\{section\} onChange=\{onChange\}/)
-    && seg("app/architecture/page.tsx", /<Segmented label="View" className="mt-3" value=\{view\} onChange=\{setView\}/));
+    && seg("components/RoadFlyer.tsx", /<Segmented label="Slide" size="sm" fill panelId="rf-slide" value=\{tile\} onChange=\{setTile\}/)
+    && seg("components/Shop.tsx", /<div ref=\{ref\} className=\{stuck \? "menu-chips shop-sections is-stuck" : "menu-chips shop-sections"\}>\s*<Segmented label="Shop" fill panelId="shop-aisle" value=\{section\} onChange=\{onChange\}/)
+    && seg("app/architecture/page.tsx", /<Segmented label="View" className="mt-3" panelId="arch-view" value=\{view\} onChange=\{setView\}/));
   ok("recipes: a customer's one primary is the kit's — reserve a bottle, share your code, add to the order (and its closed and sold-out words), share your status; a code's Apply is the secondary",
     /<button type="button" className="btn-pri btn-wide mt-1" onClick=\{\(\) => buy\(r\)\}>Reserve yours · \{price\}<\/button>/.test(read("components/Reserves.tsx"))
     && /<button type="button" className="btn-pri btn-wide mt-2\.5" onClick=\{share\}>/.test(read("app/3mpire/page.tsx"))
@@ -11355,7 +11364,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\.subnav\{display:flex;align-items:center;gap:6px;overflow-x:auto;padding:8px 0;margin:-6px 0 4px;/.test(g) && /\.rf-tpls\{display:flex;gap:6px;overflow-x:auto;padding:8px 0;margin:-8px 0 5px;/.test(g)
     && /\.k-chip\.sm::after\{inset:-8px 0\}/.test(g));
   ok("recipes: Studio's six views are chips that wrap — every one in sight on a phone — in a tab list, each a tab, the chosen one selected; New piece keeps its line",
-    /<div className="flex flex-wrap gap-2 min-w-0" role="tablist" aria-label="View">\s*\{STUDIO_VIEWS\.map\(\(x\) => \(\s*<button key=\{x\.key\} type="button" role="tab" aria-selected=\{view === x\.key\} className=\{`k-chip sm\$\{view === x\.key \? " on" : ""\}`\}/.test(read("components/Studio.tsx"))
+    /<div className="flex flex-wrap gap-2 min-w-0" role="tablist" aria-label="View" onKeyDown=\{[^\n]*\}>\s*\{STUDIO_VIEWS\.map\(\(x, i\) => \(\s*<button key=\{x\.key\} type="button" role="tab" aria-selected=\{view === x\.key\} id=\{segTabId\("studio-view", x\.key\)\} aria-controls="studio-view" tabIndex=\{rovingTab\(i, [^\n]*\)\} className=\{`k-chip sm\$\{view === x\.key \? " on" : ""\}`\}/.test(read("components/Studio.tsx"))
     && /className="btn-pri btn-sm shrink-0" onClick=\{\(\) => create\(\)\}/.test(read("components/Studio.tsx")));
   ok("recipes: filters are not tabs — Studio's and the flyer studio's rows are groups of chips, each chosen one pressed",
     (read("components/Studio.tsx").match(/<div className="subnav" role="group" aria-label="Filter">/g) || []).length === 2
@@ -11370,7 +11379,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /<button key=\{t\.id\} type="button" className="k-chip sm min-w-11"/.test(read("components/DeliveryOps.tsx"))
     && /export function greyButtonsIn\(root, styled\)/.test(audit) && /const grey = greyButtonsIn\(root, /.test(audit));
   ok("recipes: Studio's calendar's Week · Month is the segmented control, and its bar wraps — on a phone Today ran past the edge",
-    /<Segmented label="Calendar view" value=\{view\} onChange=\{setCalView\}/.test(read("components/BrandCalendar.tsx"))
+    /<Segmented label="Calendar view" panelId="bcal-view" value=\{view\} onChange=\{setCalView\}/.test(read("components/BrandCalendar.tsx"))
     && /\.cal-bar\{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;/.test(g) && !/\.cal-vt\b/.test(g));
   ok("recipes: the note composer's follow-up row — critical and remove are icon buttons; Summarize is a compact secondary under the transcript",
     /className=\{`k-icon-btn self-center\$\{a\.critical \? " on" : ""\}`\}/.test(pg) && /className="btn-sec btn-sm btn-wide mt-0\.5 mb-1" onClick=\{summarize\}/.test(pg));
@@ -11637,7 +11646,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("pass recall: the last picked up stay in reach under Ready, Recall one tap on each — through the move, from the status it showed",
     /\{st\.key === "ready" && done\.length > 0 && \(/.test(tp) && /\(trayOpen \? done : done\.slice\(0, TRAY_SHOWN\)\)\.map\(\(o\) => <DoneTicket/.test(tp)
     && /const done = lanes\.done\.filter\(\(o\) => canRecall\(o, now\)\);/.test(tp) && /const recall = useCallback\(\(o: Order\) => \(bounce\(o\) \? undefined : move\(o, PREV\[o\.status\]\)\), \[move, bounce\]\);/.test(tp)
-    && /<button type="button" className="btn-sec shrink-0" onClick=\{\(\) => act\.recall\(o\)\} aria-label=\{`Bring \$\{o\.customer \?\? "order"\} back to ready`\}>↩ Recall<\/button>/.test(tk));
+    && /<button type="button" className="btn-sec shrink-0" onClick=\{\(\) => act\.recall\(o\)\} aria-label=\{`Recall \$\{o\.customer \?\? "order"\} to ready`\}>↩ Recall<\/button>/.test(tk));
 
   // ── accessibility on the Pass ──
   ok("pass a11y: each lane's heading is a heading, 44 points tall, with its count in its name",
@@ -12534,7 +12543,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && !/<AlertsOffLine|<DevicesCard|<ServicePulse/.test(nowSec) && /export function useAlertsOffHere\(\): boolean \{/.test(code(rd("components/DeviceAlerts.tsx"))));
   ok("pass: the phones are one read (useDevices) — asked only for a manager, whom crew_devices answers — and a later read that fails is said over the last answer",
     /export function useDevices\(enabled: boolean = true\): Devices \{/.test(dev) && /useAsyncData\(enabled \? readDevices : readNothing, \[enabled\]\)/.test(dev)
-      && /failed: error !== null,/.test(dev) && /\{failed && <p className="load-failed" role="status">Couldn&rsquo;t check again just now — these are from the last answer\.<\/p>\}/.test(dev));
+      && /failed: error !== null,/.test(dev) && /\{failed && <Said as="p" className="load-failed">Couldn&rsquo;t check again just now — these are from the last answer\.<\/Said>\}/.test(dev));
 
   // CONTROLS BY ROLE (approved item 4) — the database's own test.
   const is035 = rd("supabase/migrations/0035_admin_guard_fix.sql");
@@ -12883,10 +12892,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /<p className="sr-only" aria-live="polite">\{said\}<\/p>/.test(maud));
   // R6: every sheet's head, body and foot take the page's step (app/globals.css --rd-z), so the audit carries no zoom of
   // its own any more — the osr-type utility it had is gone.
-  const rdZ = [1, ...[1, 2, 3].map((t) => Number((g.match(new RegExp(`\\.app\\.rd-t${t}\\{--rd-z:([\\d.]+)\\}`)) || [])[1]))];
-  ok("monday audit: the phone's text size zooms it as it zooms the page — every sheet's head, body and foot take the page's three zooms (R6), so it carries none of its own — and its rows wrap",
+  const rdZ = [1, ...[1, 2, 3, 4, 5, 6].map((t) => Number((g.match(new RegExp(`\\.app\\.rd-t${t}\\{--rd-z:([\\d.]+);`)) || [])[1]))];
+  ok("monday audit: the phone's text size zooms it as it zooms the page — every sheet's body takes the page's zoom to 200%, its head and foot to 150% (R6, R12), so it carries none of its own — and its rows wrap",
     JSON.stringify(rdZ) === JSON.stringify([...PT.ZOOMS]) && !/\bosr-type\b/.test(maud) && !/osr-type/.test(tw)
-      && /\.app:is\(\.rd-t1,\.rd-t2,\.rd-t3\) :is\(\.sheet2-head,\.sheet2-body,\.sheet2-foot,\.cartbar,\.toast,\.orderbar-wrap\)>\*,\n\.app:is\(\.rd-t1,\.rd-t2,\.rd-t3\) \.nav \.tl\{zoom:var\(--rd-z\)\}/.test(g)
+      && /\.app:is\(\.rd-t1,\.rd-t2,\.rd-t3,\.rd-t4,\.rd-t5,\.rd-t6\) \.sheet2-body>\*\{zoom:var\(--rd-z\)\}/.test(g)
+      && /\.app:is\(\.rd-t1,\.rd-t2,\.rd-t3,\.rd-t4,\.rd-t5,\.rd-t6\) :is\(\.sheet2-head,\.sheet2-foot,\.cartbar,\.toast,\.orderbar-wrap\)>\*\{zoom:var\(--rd-bar-z\)\}/.test(g)
+      && /\.app\.rd-t6\{--rd-z:2;--rd-bar-z:1\.5;--rd-tab-z:1\.26\}/.test(g)
       && /<div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line py-3">/.test(maud) && !/truncate|text-ellipsis|whitespace-nowrap/.test(maud), rdZ);
   ok("monday audit: Reduce Motion — it adds no motion of its own (the Sheet's arrival and the thumb answer to the house guard), and a new stream starts at its top without a scroll",
     !/animate-|transition|behavior: "smooth"/.test(maud) && /bodyRef\.current\?\.scrollTo\(\{ top: 0 \}\);/.test(maud)
@@ -13227,10 +13238,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const next = !p\.sold_out;\s*if \(next\) haptic\("toggleOn"\); else haptic\("toggleOff"\);/.test(mm)
     && /if \(next\) haptic\("toggleOff"\); else haptic\("toggleOn"\);/.test(mm)
     && /if \(next\) haptic\("toggleOn"\); else haptic\("toggleOff"\);/.test(code(rd("components/EightySix.tsx"))));
-  ok("catalog: the undo window is the action toast's — 5 seconds, open from the 86, shut at the end, never before it",
-    K.UNDO_MS === 5000 && K.undoOpen(1000, 1000) && K.undoOpen(1000, 5999) && !K.undoOpen(1000, 6000) && !K.undoOpen(1000, 999)
+  ok("catalog: the undo window outlasts the action toast — a minute, open from the 86, shut at the end, never before it (R12: the toast holds while touched or focused)",
+    K.UNDO_MS === 60000 && K.undoOpen(1000, 1000) && K.undoOpen(1000, 60999) && !K.undoOpen(1000, 61000) && !K.undoOpen(1000, 999)
     && K.undoOpen(K.undoStart()) && !K.undoOpen(K.undoStart() - K.UNDO_MS)
-    && /opts\?\.action \? 5000 :/.test(rd("components/AppProvider.tsx")));
+    && /const floor = hasAction \? 10_000 : kind === "error" \? 6_000 : 4_000;/.test(rd("lib/toastTiming.ts")) && /const ceiling = hasAction \? 15_000 : 12_000;/.test(rd("lib/toastTiming.ts"))
+    && /runToast\(toastHoldMs\(msg, variant, !!opts\?\.action\)\);/.test(rd("components/AppProvider.tsx")));
   ok("catalog: an 86 asks nothing first — it is done and the toast holds Undo, which writes back only over what the 86 wrote",
     /toast\(flipToast\(nameOf\(p\), next\), "success", \{ action: \{ label: "Undo", run: \(\) => \{ void undo\(row, next, at\); \} \} \}\);/.test(mm)
     && /const at = undoStart\(\);/.test(mm) && /if \(!supabase \|\| !undoOpen\(at\) /.test(mm) && !/Date\.now\(\)/.test(mm)
@@ -13789,8 +13801,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && !/facts\.length > 0 && !notHere/.test(menuPage));
   ok("menu: the price adds the drink and becomes its counter; the row opens the sheet — two sibling buttons, never one in the other, each 44 to the thumb",
     /<button type="button" className="entry-open absolute inset-0 cursor-pointer appearance-none border-0 bg-transparent p-0" onClick=\{\(\) => openDrink\(id\)\}/.test(menuPage)
-    && /<button type="button" className="entry-px order hit-44 z-\[1\] cursor-pointer appearance-none bg-transparent" aria-label=\{`Add \$\{d\.name\}, \$\{priceLabel\(id\)\}`\} onClick=\{\(\) => bump\(id\)\}>/.test(menuPage)
-    && /aria-label=\{`Remove one \$\{d\.name\}`\} onClick=\{\(\) => dec\(id\)\}>−<\/button>/.test(menuPage) && /aria-label=\{`Add one more \$\{d\.name\}`\} onClick=\{\(\) => inc\(id\)\}>\+<\/button>/.test(menuPage)
+    && /<button type="button" className="entry-px order hit-44 z-\[1\] cursor-pointer appearance-none bg-transparent" aria-label=\{`Add \$\{d\.name\}, \$\{priceLabel\(id\)\}`\} data-cart-act="add" onClick=\{\(\) => \{ track\(id\); bump\(id\); \}\}>/.test(menuPage)
+    && /aria-label=\{`Remove one \$\{d\.name\}`\} onClick=\{\(\) => \{ track\(id\); dec\(id\); \}\}>−<\/button>/.test(menuPage) && /aria-label=\{`Add one more \$\{d\.name\}`\} data-cart-act="more" onClick=\{\(\) => \{ track\(id\); inc\(id\); \}\}>\+<\/button>/.test(menuPage)
     && !/role="button"/.test(menuPage) && !/clickable\(/.test(menuPage));
   // The first build's buttons wore the browser's grey face — the stretched one over the whole row — and its counter was 4px
   // shorter than the pill, so every row under it jumped (smoke:ui and the captures caught both, 2026-10-13). Their resets are
@@ -14009,7 +14021,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("the ticket: its card is Today's — the drinks, the state once on its tag, the line with the money beside it, the steps — and it tells the truck through the ticket",
     /const line = orderLine\(tk\.status, ahead/.test(pg) && /const tag = orderTag\(tk\.status, ahead\);/.test(pg)
     && /<Eyebrow live=\{active\}>\{drinksWords\(tk\.items, nameOf\)\}<\/Eyebrow>\s*<span className=\{`k-tag \$\{canceled \? "crit" : tk\.status === "new" \? "gold" : "ok"\}`\}>\{tag\}<\/span>/.test(pg)
-    && /<p className="k-rsub min-w-0 whitespace-normal">\{canceled \? note : line\}\{stale \? " Offline — the last we heard\." : ""\}<\/p>\s*\{paidWords && <span className="whitespace-nowrap font-mono text-subhead text-cream-muted">\{paidWords\}<\/span>\}/.test(pg)
+    && /<Said as="p" className="k-rsub min-w-0 whitespace-normal" quietFirst>\{canceled \? note : line\}\{stale \? " Offline — the last we heard\." : ""\}<\/Said>\s*\{paidWords && <span className="whitespace-nowrap font-mono text-subhead text-cream-muted">\{paidWords\}<\/span>\}/.test(pg)
     && /<OrderSteps at=\{stepOf\(tk\.status\)\} \/>/.test(pg)
     && /supabase\.rpc\("ticket_eta", \{ p_ticket: t, p_eta: next \}\)/.test(pg) && /\{eta\("on_way"\)\}\{eta\("outside"\)\}/.test(pg));
   ok("the ticket: a canceled order says why and what happens to the money — never a refund it can't promise as done",
@@ -14493,7 +14505,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /header=\{<div className="co-head"><div className="oa-kicker" id="checkout-title">Checkout<\/div><CloseButton onClick=\{onClose\} \/><\/div>\}/.test(co)
     && /\{err && <div className="auth-err" role="alert">\{err\}<\/div>\}/.test(co) && /<p className="sr-only" role="status" aria-live="polite">\{blockedWords\}<\/p>/.test(co)
     && /const blockedNote = blocked > 0 \? <div className="co-86">\{blockedWords\}<\/div> : null;/.test(co)
-    && /<div className="sheet-top">\s*<div className="sheet-pillar">[\s\S]{0,80}<CloseButton onClick=\{closeDrink\} \/>/.test(dsh) && /<div className="sheet-signoff" role="status">/.test(dsh));
+    && /<div className="sheet-top">\s*<div className="sheet-pillar">[\s\S]{0,80}<CloseButton onClick=\{closeDrink\} \/>/.test(dsh) && /<div className="sheet-signoff">\{d\.name\} isn&apos;t poured at /.test(dsh) && /t\("sheet\.not_here"\)/.test(dsh)); // read with the sheet, and on its button (R12, F12)
   // ── R7 of the customer re-audit (2026-10-15): the card's number said once, every customer error read out, no dead button ──
   ok("R7 loyalty: the card's number is STAMP_GOAL in the words too — the badge's default, the join pitch, the demo card's ring and line",
     /default: `Free cup at \$\{STAMP_GOAL\}` \}/.test(rd("lib/copy.ts")) && !/Free cup at 10|Buy 10,/.test(rd("lib/copy.ts") + rd("components/SignIn.tsx") + rd("app/3mpire/page.tsx"))
@@ -14542,7 +14554,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const shop = rd("components/Shop.tsx");
   const shopRules = gc.split("\n").filter((l) => /^\.shop-|^@media \(hover:hover\)\{\.shop-/.test(l)).join("\n");
   ok("shop: the Shop tab is dark on all three of its pages — /shop takes the theme's tokens, the dark mark and masthead",
-    /<section className="screen" id="s-shop">/.test(shop) && /<Watermark variant="landing" \/>/.test(shop) && !/tone="light"/.test(shop)
+    /<section className="screen" id="s-shop" ref=\{root\}>/.test(shop) && /<Watermark variant="landing" \/>/.test(shop) && !/tone="light"/.test(shop)
     && !/\n\.shop\{/.test(g) && !/#221F18|#7a5a1e|#FBF8EF|#EFE7D6|rgba\(34,31,24/.test(shopRules) && !/ tone="paper"/.test(rd("components/ShopCheckout.tsx")));
   const cal = rd("components/CompanyCalendar.tsx");
   ok("shop: the aisle row is part of the page at rest and the tab bar's glass, edge to edge in every frame, once it has stuck — told by its own sticky top (components/useStuck), as the crew calendar's month row is now; the quantity's buttons are 44 points",
@@ -14719,7 +14731,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("R7b access: the account sheet and the duplicate-order sheet are named; Ask us is a log; Bold and Roomy reach sheets and bars",
     (rd("components/AccountSheet.tsx").match(/<Sheet open onClose=\{onClose\} (dismissible=\{!deleteBusy\} )?label=/g) || []).length === 4 && /label="Already on the books"/.test(of)
     && /<div role="log" aria-live="polite" aria-label="Conversation">/.test(rd("components/Concierge.tsx"))
-    && /\.app\.rd-bold :is\(\.body,\.sheet2,\.cartbar,\.toast,\.orderbar-wrap\)\{font-weight:600\}/.test(rd("app/globals.css")));
+    && /:is\(\.app\.rd-bold,html\[data-phone-bold\] \.app\) :is\(\.body,\.sheet2,\.cartbar,\.toast,\.orderbar-wrap\)\{font-weight:600\}/.test(rd("app/globals.css")));
   // ── the re-audit of R7b (2026-10-16): two fresh reviews of R7b's own diff, every finding fixed and pinned here ──
   const fakeSb = (answer) => ({
     from(table) {
@@ -14836,7 +14848,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const attempt = await idem\.begin\(\{ cart: cartSig, cents: payCents \}, \(\) => card\.tokenize\(\), \[\{ cart \}\]\);/.test(sc)
     && sc.indexOf("idem.sent(attempt.key, true);") > 0 && sc.indexOf("idem.sent(attempt.key, true);") < sc.indexOf('authedFetch("/api/shop/checkout"')
     && /onClick=\{onBack\} disabled=\{!!frozen\}/.test(sc) && /onClick=\{\(\) => setQty\(i, l\.qty - 1\)\} disabled=\{!!frozen\}/.test(sc) && /disabled=\{l\.qty >= 20 \|\| !!frozen\}/.test(sc)
-    && /const canPay = ready && !busy && !heldElsewhere && /.test(sc) && /frozen \? "Check on my payment" : fillCopy\(t\("checkout\.pay"\)/.test(sc));
+    && /const canPay = ready && !busy && !heldElsewhere && /.test(sc) && /frozen \? "Check on my payment" : missing \?\? fillCopy\(t\("checkout\.pay"\)/.test(sc));
   const oldSig = ID.idemSignature(null, { cart: [{ product: { id: "p1" }, qty: 2 }] });
   const keptOld = ID.attemptFor({ sig: oldSig, key: "k-old", token: "tok" }, { cart: "[[\"p1\",null,2]]", cents: 5000 }, () => "k-new", [{ cart: [{ product: { id: "p1" }, qty: 2 }] }]);
   const other = ID.attemptFor({ sig: oldSig, key: "k-old", token: "tok" }, { cart: "[[\"p2\",null,1]]", cents: 900 }, () => "k-new", [{ cart: [{ product: { id: "p2" }, qty: 1 }] }]);
@@ -15428,6 +15440,147 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /navigator\.serviceWorker\.removeEventListener\("message", onMessage\);/.test(swr));
   ok("R11 intake: one bug is one row across deploys — the fingerprint takes where it was thrown, not the chunk's hash and line",
     /createHash\("sha256"\)\.update\(`\$\{stableErrorKey\(message\)\}\|\$\{stableFrame\(stack\)\}\|\$\{path\}`\)/.test(rd("lib/errorIntake.ts")));
+}
+
+// ── R12 · WHAT A SCREEN READER, A KEYBOARD AND LARGE TEXT GET (2026-10-16, the 10/10 audit's accessibility pass) ──
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  // F12 · one pair of live regions, always there, empty until something is said
+  const an = strip(rd("components/Announcer.tsx")), shell = rd("components/AppShell.tsx");
+  ok("R12 announce: two regions (polite, assertive) are always on the page and empty until said; the same words said twice are said twice; a message clears itself",
+    /role="status" aria-live="polite" aria-atomic="true" data-announcer="polite">\{polite\}/.test(an) && /role="alert" aria-live="assertive" aria-atomic="true" data-announcer="assertive">\{assertive\}/.test(an)
+      && /set\(""\);\s+timers\[politeness\] = \[setTimeout\(\(\) => set\(text\), 50\), setTimeout\(\(\) => set\(""\), 50 \+ HOLD_MS\)\];/.test(an)
+      && /if \(!listeners\.size\) \{ waiting = \{ text: words, politeness \}; return; \}/.test(an) && /<Fence name="announcer"><Announcer \/><\/Fence>/.test(shell));
+  // F3 · the toast
+  const TT = require("../.smoke/toastTiming.js"), toast = strip(rd("components/Toast.tsx")), ap = strip(rd("components/AppProvider.tsx"));
+  ok("R12 toast: its words set its time — four seconds at least, six for an error, ten with something to do, up to twelve or fifteen",
+    TT.toastHoldMs("Saved", "success", false) === 4000 && TT.toastHoldMs("Saved", "error", false) === 6000 && TT.toastHoldMs("Undo me", "info", true) === 10000
+      && TT.toastHoldMs("x".repeat(90), "error", false) === 6900 && TT.toastHoldMs("x".repeat(400), "error", false) === 12000 && TT.toastHoldMs("x".repeat(400), "info", true) === 15000);
+  ok("R12 toast: it is said, not a live region of its own; gone is hidden from everyone; a finger or focus holds it; one with an action can be closed and gives focus back",
+    !/role=|aria-live/.test(toast.replace(/aria-hidden=\{toastShown \? undefined : true\}/, "")) && /aria-hidden=\{toastShown \? undefined : true\}/.test(toast)
+      && /onPointerEnter=\{\(\) => holdToast\(true\)\}/.test(toast) && /onFocus=\{\(e\) => \{/.test(toast) && /className="toast-x" aria-label="Dismiss" onClick=\{hideToast\}/.test(toast)
+      && /const to = cameFrom\.current\?\.isConnected \? cameFrom\.current : document\.getElementById\("body"\);/.test(toast)
+      && /announce\(opts\?\.action \? `\$\{msg\}\. \$\{opts\.action\.label\} is in the message at the bottom of the screen\.` : msg, variant === "error" \? "assertive" : "polite"\);/.test(ap)
+      && /\.toast\{visibility:hidden;transition:transform \.3s,opacity \.3s,visibility 0s linear \.3s\}/.test(rd("app/globals.css")));
+  // F2 · the order, said; focus kept
+  const CS = require("../.smoke/cartSaid.js"), ucs = strip(rd("components/useCartSaid.ts"));
+  ok("R12 order: a change to the order is said — the drink first, then where the order stands",
+    CS.cartSaid("Cold Brew", 0, 1, 1) === "Cold Brew added — 1 drink in your order." && CS.cartSaid("Cold Brew", 1, 2, 3) === "2 Cold Brew — 3 drinks in your order."
+      && CS.cartSaid("Cold Brew", 1, 0, 0) === "Cold Brew taken out — your order is empty." && CS.cartSaid("Cold Brew", 2, 0, 1) === "Cold Brew taken out — 1 drink in your order."
+      && CS.cartSaid("Cold Brew", 2, 2, 2) === "");
+  ok("R12 order: when the button pressed is gone, focus goes to what took its place — never the top of the page; a change refused says nothing here",
+    /const lost = !document\.activeElement \|\| document\.activeElement === document\.body \|\| !document\.activeElement\.isConnected;/.test(ucs)
+      && /if \(now === p\.was\) return;/.test(ucs) && /useCartSaid\(\(id, _was, now\) => document\.querySelector\(`\[data-drink-row="\$\{CSS\.escape\(id\)\}"\]`\)/.test(rd("app/menu/page.tsx"))
+      && /onClick=\{\(\) => \{ track\(id\); dec\(id\); \}\} disabled=\{busy \|\| held\}>−<\/button>/.test(rd("components/Checkout.tsx")));
+  // F5 · a new step is where focus goes
+  const sf = strip(rd("components/useStepFocus.ts"));
+  ok("R12 steps: a view that replaces the last takes focus to its heading — the shop, the pack wizard, the office order, Book the bar — never on the first draw",
+    /if \(Object\.is\(prev\.current, step\)\) return;/.test(sf) && /el\.focus\(\{ preventScroll: true \}\);/.test(sf)
+      && /useStepFocus\(view, root, \{ pick:/.test(rd("components/Shop.tsx")) && /useStepFocus\(step, stepRoot, \{ skip: step === "done", pick:/.test(rd("components/OrderFunnel.tsx"))
+      && /useStepFocus\(done \? "booked" : "form", doneRoot\);/.test(rd("components/OfficeOrder.tsx")) && /useStepFocus\(done, root, \{ pick:/.test(rd("app/book/page.tsx")));
+  // F6 · reds you can read
+  const g = rd("app/globals.css");
+  ok("R12 contrast: no light-on-light red on the paper checkout, and the brand red is not text on the charcoal",
+    !/\.(co-86|dl-err|dl-held)\{[^}]*#(c98e8e|e08b88)/.test(g) && /\.co-86\{[^}]*color:var\(--red-h\)/.test(g) && /\.dl-err\{[^}]*color:var\(--red-h\)/.test(g)
+      && !/\.(fld-err|shop-err|tag\.live|sub-renew\.due|fld-req)\{[^}]*color:var\(--red\)[;}]/.test(g) && /"input::placeholder": \{ color: "#6c6256" \}/.test(rd("components/PaymentCard.tsx"))
+      && /\.entry-86 :is\(\.entry-dot,\.entry-why,\.entry-tag\)\{opacity:\.55\}/.test(g) && !/\.entry-86\{opacity/.test(g));
+  // F9 · labels you can see; what's missing on the button
+  const sc = rd("components/ShopCheckout.tsx"), of = rd("components/OrderFunnel.tsx"), oo = rd("components/OfficeOrder.tsx");
+  ok("R12 forms: the shop's parcel, the pack wizard's details and the office order have a label over every field, and their button names what is missing",
+    ["ship-name", "ship-street", "ship-city", "ship-state", "ship-zip", "ship-email"].every((id) => sc.includes(`htmlFor="${id}"`) && sc.includes(`id="${id}"`))
+      && ["pk-name", "pk-phone", "pk-street", "pk-city", "pk-access"].every((id) => of.includes(`htmlFor="${id}"`))
+      && ["of-company", "of-contact", "of-headcount", "of-phone", "of-street", "of-city", "of-zip", "of-access"].every((id) => oo.includes(`htmlFor="${id}"`))
+      && /missing \?\? fillCopy\(t\("checkout\.pay"\)/.test(sc) && /disabled=\{!!deliveryMissing\} onClick=\{toPayment\}>\{deliveryMissing \?\?/.test(of)
+      && /\{busy \? "Booking…" : missing \?\? `Book/.test(oo) && !/<input placeholder=\{t\("checkout\.ph_/.test(sc));
+  // F11 · each screen names itself
+  const titled = ["menu", "truck", "events", "3mpire", "book", "craft", "reserve", "delivery", "academy", "agreement", "offer", "architecture", "scan", "playbook", "office", "driver", "display", "crew", "order"];
+  ok("R12 titles: every screen's document title is its name (Next announces a route change only when the title changes); a crew section names itself and is said",
+    /title: \{ default: "GT3 Performance Bar — Only the best for you", template: "%s — GT3 Performance Bar" \}/.test(rd("app/layout.tsx"))
+      && titled.every((r) => new RegExp(`export const metadata: Metadata = \\{ title: titleOf\\("/${r}"\\) \\};`).test(rd(`app/${r}/layout.tsx`)))
+      && /title: "Shop" \}/.test(rd("app/shop/page.tsx")) && /title: \{ absolute: "GT3 Performance Bar — what we've built" \}/.test(rd("app/built/[key]/page.tsx"))
+      && /document\.title = `\$\{name\} — GT3 Performance Bar`;/.test(rd("app/crew/page.tsx")) && /if \(saidSection\.current !== null && saidSection\.current !== sec\) announce\(name\);/.test(rd("app/crew/page.tsx")));
+  // F17 · the password toggle
+  ok("R12 sign-in: Show is in the Tab order, says what it shows, and says whether it is on",
+    !/auth-show-pass[^>]*tabIndex=\{-1\}/.test(rd("components/SignIn.tsx")) && /aria-label=\{showPass \? "Hide password" : "Show password"\} aria-pressed=\{showPass\} aria-controls="pw-pass"/.test(rd("components/SignIn.tsx"))
+      && !/auth-show-pass[^>]*tabIndex=\{-1\}/.test(rd("components/PasswordRecovery.tsx")) && /aria-pressed=\{show\} aria-controls="rec-pass rec-confirm"/.test(rd("components/PasswordRecovery.tsx")));
+  // F21 · Reduce Motion reaches a script's scroll
+  const smoothLeft = ["lib/appScroll.ts", "lib/anchors.ts", "components/AppShell.tsx", "app/menu/page.tsx", "app/3mpire/page.tsx", "app/crew/page.tsx", "components/AskGT3.tsx", "components/AiTraining.tsx", "components/PipelinePanel.tsx"].filter((f) => /behavior: "smooth"/.test(rd(f)));
+  ok("R12 motion: no script asks for a smooth scroll on its own word — each asks lib/motion, which says auto under Reduce Motion",
+    smoothLeft.length === 0 && /matchMedia\("\(prefers-reduced-motion: reduce\)"\)\.matches \? "auto" : "smooth"/.test(rd("lib/motion.ts")), smoothLeft);
+  // F22, F20 · the offline bar in the column; focus clear of sticky bars
+  ok("R12 offline: the bar is in the app's column (it pushes the page down), said when it comes and goes; the title bar gives it the status bar's room",
+    /<Fence name="offline"><OfflineBanner \/><\/Fence>/.test(shell) && !/<OfflineBanner \/>/.test(rd("app/layout.tsx")) && /\.offline-bar\{position:relative;flex:0 0 auto;/.test(g)
+      && /announce\(OFFLINE_WORDS\)/.test(rd("components/OfflineBanner.tsx")) && /\[\.app:has\(>\.offline-bar\)_&\]:pt-0/.test(rd("components/TitleBar.tsx")));
+  ok("R12 focus: a control scrolled into view lands below the title bar and the menu's chips, not under them",
+    /\.body:has\(>\[data-tbar\]\[data-resting\]\)\{scroll-padding-top:calc\(52px \+ env\(safe-area-inset-top,0px\)\)\}/.test(g) && /data-resting=\{resting \? "" : undefined\}/.test(rd("components/TitleBar.tsx")) && /\.menu \[data-cat\]\{scroll-margin-top:0\}/.test(g));
+  // F16 · label in name
+  ok("R12 names: each name starts with the button's words — Got it, Review 2 drinks, Recall, + Add, QR",
+    /aria-label=\{`Got it — the crew has my order\. \$\{said\}`\}>Got it<\/button>/.test(rd("components/OrderStatus.tsx")) && /aria-label=\{`Review \$\{cartCount\} drink/.test(rd("components/CartBar.tsx"))
+      && /aria-label=\{`Recall \$\{o\.customer/.test(rd("components/pass/Ticket.tsx")) && /aria-label=\{`Add a piece on/.test(rd("components/BrandCalendar.tsx")) && /aria-label=\{`QR — copy the link for/.test(rd("components/CodesPanel.tsx")));
+  // F7 · one stop, arrows inside; a tab has its panel; a menu that was not one is a disclosure
+  const nav = strip(rd("components/OperatorNav.tsx")), rov = strip(rd("components/roving.ts")), ctl = strip(rd("components/controls.tsx"));
+  const navKey = nav.slice(nav.indexOf("const onNavKey"), nav.indexOf("const litAt"));
+  ok("R12 keys: the crew's lanes — an arrow looks, Enter opens; the lit lane is the one Tab stop; More is a button that opens a sheet, outside the tab list",
+    navKey.length > 0 && !/\.click\(\)/.test(navKey) && /tabs\[next\]\?\.focus\(\);/.test(navKey)
+      && /<div className="opnav-lanes" role="tablist" aria-label="Crew console"/.test(nav) && /tabIndex=\{rovingTab\(i, litAt\)\}/.test(nav)
+      && /<\/div>\s*<button type="button" className=\{`tab\$\{moreOn \? " on" : ""\}`\} aria-haspopup="dialog"/.test(nav) && /\.opnav-lanes\{display:flex;flex:var\(--lanes,4\) 1 0%;min-width:0\}/.test(g));
+  const radios = { "components/BrewPlanner.tsx": "Size it by", "components/FunnelReport.tsx": "Window", "components/OrderFunnel.tsx": "Fulfillment", "components/PrepBoard.tsx": "Filter prep",
+    "components/QuickDock.tsx": "Who can see this note", "components/StatusCard.tsx": "Card finish", "components/YouPrefs.tsx": "Appearance", "app/crew/page.tsx": "Who can see this note",
+    "components/CrmPanel.tsx": "Member tier and VIP status", "components/crew/CupOrderingDial.tsx": "When cup pre-orders open" };
+  const unroved = Object.entries(radios).filter(([f, label]) => !new RegExp(`role="radiogroup" aria-label="${label}"[^>]*onKeyDown=\\{\\(e\\) => rovingKeys\\(e,`).test(rd(f)));
+  ok("R12 keys: every radio group is one Tab stop the arrows move along — and where a choice writes what someone gets (a customer's tier, when cups open) the arrows only look and a press chooses",
+    unroved.length === 0 && /if \(choose && choose\(to\) === false\) return;/.test(rov) && /const from = !choose && focused >= 0 \? focused : at >= 0 \? at : 0;/.test(rov)
+      && /rovingKeys\(e, TIERS\.length, TIERS\.indexOf\(uiTier\)\)\}/.test(rd("components/CrmPanel.tsx")) && /rovingKeys\(e, LEADS\.length, LEADS\.findIndex\(\(\[x\]\) => x === on\)\)\}/.test(rd("components/crew/CupOrderingDial.tsx"))
+      && !/disabled=\{busy\}/.test(rd("components/crew/CupOrderingDial.tsx")) && /setTier\(was\.tier\); setVip\(was\.vip\); setFounding\(was\.founding\);/.test(rd("components/CrmPanel.tsx")), unroved.map(([f]) => f));
+  const panels = { "components/Shop.tsx": "shop-aisle", "app/crew/page.tsx": "lane-panel", "components/CompanyCalendar.tsx": "cal-pane", "components/BrandCalendar.tsx": "bcal-view", "components/QuickDock.tsx": "qd-mode",
+    "components/ReviewsAdmin.tsx": "rv-tab", "components/RoadFlyer.tsx": "rf-slide", "components/CogsCalculator.tsx": "cogs-tab", "app/architecture/page.tsx": "arch-view" };
+  const tabsAlone = Object.entries(panels).filter(([f, id]) => !(rd(f).includes(`panelId="${id}"`) && rd(f).includes(`tabPanel("${id}", `)));
+  const segTabs = [...require("node:child_process").execSync("git ls-files app components", { cwd: path.join(__dirname, "..") }).toString().split("\n").filter((f) => f.endsWith(".tsx"))]
+    .flatMap((f) => [...rd(f).matchAll(/<Segmented\b[^>]*?(?:\/>|>)/g)].map((m) => ({ f, tag: m[0] }))).filter(({ tag }) => !/kind="choice"/.test(tag) && !/panelId=/.test(tag));
+  ok("R12 tabs: every row of tabs names the view it shows — a tab panel, labelled by the chosen tab — Studio's six too",
+    tabsAlone.length === 0 && segTabs.length === 0 && /id=\{tabs && panelId \? segTabId\(panelId, o\.key\) : undefined\} aria-controls=\{tabs && panelId \? panelId : undefined\}/.test(ctl)
+      && /export const tabPanel = \(panelId: string, key: string\) => \(\{ role: "tabpanel" as const, id: panelId, "aria-labelledby": segTabId\(panelId, key\) \}\);/.test(ctl)
+      && /<div \{\.\.\.tabPanel\("studio-view", view\)\}>/.test(rd("components/Studio.tsx")) && /\{\.\.\.panel\}>\{children\}<\/div>/.test(rd("components/SwipePager.tsx")), [...tabsAlone.map(([f]) => f), ...segTabs.map((x) => x.f)]);
+  const atc = strip(rd("components/AddToCalendar.tsx"));
+  ok("R12 menus: Add to calendar is what it does — a button that shows a panel (no menu role it kept no promise of), its buffer a radio group",
+    !/role="menu"|role="menuitem"|aria-haspopup="menu"/.test(atc) && /<div className="atc-menu" id=\{panelId\} role="group" aria-label=\{label\}>/.test(atc)
+      && /role="radiogroup" aria-labelledby=\{`\$\{panelId\}-buf`\}/.test(atc));
+  // F8 · the crew's overlays keep focus
+  const pass = strip(rd("components/pass/ThePass.tsx")), cmdk = strip(rd("components/CommandPalette.tsx"));
+  ok("R12 overlays: the Pass takes focus as it opens, keeps Tab inside (a sheet over it keeps its own), and the crew page gives focus back to the Pass's row when it closes",
+    /useEffect\(\(\) => \{ frame\.current\?\.focus\(\{ preventScroll: true \}\); \}, \[\]\);/.test(pass) && /if \(e\.key !== "Tab" \|\| !box \|\| sheetOpen\(\)\) return;/.test(pass)
+      && /role="dialog" aria-modal="true" aria-label="The Pass" ref=\{frame\} tabIndex=\{-1\}/.test(pass)
+      && /document\.querySelector<HTMLElement>\('section\[aria-label="The Pass"\] button'\)\?\.focus\(\)/.test(rd("app/crew/page.tsx")));
+  ok("R12 overlays: ⌘K is a combobox a screen reader hears — the field controls the list and names the picked option; No match is said",
+    /role="combobox" aria-autocomplete="list" aria-expanded=\{filtered\.length > 0\} aria-controls="cmdk-list"/.test(cmdk) && /aria-activedescendant=\{filtered\[sel\] \? `cmdk-opt-\$\{sel\}` : undefined\}/.test(cmdk)
+      && /id=\{`cmdk-opt-\$\{idx\}`\} type="button" role="option" aria-selected=\{idx === sel\} tabIndex=\{-1\}/.test(cmdk) && /<Said className="cmdk-empty">No match<\/Said>/.test(cmdk));
+  // F12 · said when it changes, not a region born full
+  const said = strip(rd("components/Said.tsx"));
+  ok("R12 said: a line is said when it appears or changes — a failure assertively — and a card's line already on the page is not said twice",
+    /if \(last\.current === null && quietFirst\) \{ last\.current = words; return; \}/.test(said) && /announce\(words, assertive \? "assertive" : "polite"\);/.test(said)
+      && /<Said as="b" quietFirst>\{label\}<\/Said>/.test(rd("components/OrderStatus.tsx")) && !/className="orderbar st-[^"]*" role="status"/.test(rd("components/OrderStatus.tsx"))
+      && /<Said as="span" className="k-count soon">Reconnecting…<\/Said>/.test(pass) && !/role="status" aria-live="polite">\s*<div className="flex items-center justify-between gap-3">/.test(rd("app/order/page.tsx")));
+  // F15 · the calendars: no control inside a control; a day says its date and what is on it
+  const cc = strip(rd("components/CompanyCalendar.tsx")), bc = strip(rd("components/BrandCalendar.tsx"));
+  ok("R12 calendar: a day is a button laid over its cell (Add above it), named by its date in words, its count and its kinds; a to-do's done mark is a checkbox beside its chip; a mini month is its name",
+    !/clickable/.test(cc + bc) && (cc.match(/<button type="button" className="cal-open" onClick=\{\(\) => setDayOpen\(k\)\} aria-label=\{dayWords\(d, items, warnDays\.has\(k\), k === todayKey\)\} \/>/g) || []).length === 2
+      && /aria-label=\{`Add on \$\{longDate\(d\)\}`\}/.test(cc) && /role="checkbox" aria-checked=\{!!it\.done\} aria-label=\{`Done: \$\{it\.title\}`\} className="cc-check-btn"/.test(cc)
+      && !/<span className="cc-check" onClick/.test(cc) && /className="cal-date cal-date-btn"/.test(bc) && /\.cal-open\{all:unset;position:absolute;inset:0;z-index:0;/.test(g) && /\.cal-add\{z-index:1\}/.test(g)
+      && /<div className="mini-grid" aria-hidden="true">/.test(cc));
+  // F19 · the phone's Display settings
+  const tail = g.slice(g.indexOf("MORE CONTRAST, LESS GLASS"));
+  const swift = rd("native/ios/GT3Device.swift");
+  ok("R12 display: Increase Contrast steps up the quiet tiers in every palette; Reduce Transparency (and the app's mark of it) makes the glass solid; a contrast theme keeps the chosen mark",
+    /@media \(prefers-contrast: more\)\{\s*:root\{--cream-m:/.test(tail) && /:is\(\.app\.crew-day,\.menu,\.sheet\.paper,\.sheet2\.paper\)\{--cream-m:color-mix\(in srgb, var\(--cream\) 88%, transparent\)/.test(tail)
+      && /@media \(prefers-reduced-transparency: reduce\)\{/.test(tail) && /html\[data-less-glass\] \.app \.glass-bar\{/.test(tail) && /@media \(forced-colors: active\)\{/.test(tail)
+      && /className=\{`glass-bar pointer-events-none absolute inset-0/.test(rd("components/TitleBar.tsx")));
+  ok("R12 display: the iPhone's Bold Text and Reduce Transparency reach the page — the app asks its plugin at launch and on coming back, and marks the page",
+    /"boldText": UIAccessibility\.isBoldTextEnabled,\s*"reduceTransparency": UIAccessibility\.isReduceTransparencyEnabled/.test(swift) && /CAPPluginMethod\(name: "displayPrefs", returnType: CAPPluginReturnPromise\)/.test(swift)
+      && /displayPrefs\(\): Promise<\{ boldText: boolean; reduceTransparency: boolean \}>;/.test(rd("lib/deviceActions.ts"))
+      && /void device\.displayPrefs\(\)\.then\(applyDisplayPrefs, \(\) => \{\}\);/.test(rd("components/NativeBridge.tsx")) && /document\.addEventListener\("visibilitychange", prefsAgain\);/.test(rd("components/NativeBridge.tsx"))
+      && /html\.toggleAttribute\("data-phone-bold", !!p\?\.boldText\);/.test(rd("lib/displayPrefs.ts")) && !/contrast/.test(rd("components/DisplayToggle.tsx")));
 }
 
 Promise.all(PENDING).then(() => {

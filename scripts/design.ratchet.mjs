@@ -43,7 +43,7 @@ const FIXTURE = join(ROOT, "scripts/fixtures/plan-screen.html");
 // bordered track, inside the sheet); 31 px was the house chip (.ts-chip) — every chip in the console was that height.
 // The chip round (2026-10-09) made that decision for all of them: the kit's chip is 36pt and reaches 44.
 const BREW_FIXTURE = join(ROOT, "scripts/fixtures/brew-sheet.html");
-export const BREW_SHEET = { depth: 3, tap: 40, text: 11 };  // tap 32 → 40 (2026-10-09, the chip round): the chips are the kit's, 36pt and 44 to the thumb
+export const BREW_SHEET = { depth: 3, tap: 44, text: 11 };  // tap 40 → 44 (2026-10-16, R12: the sheet's units are a radio group of the kit's options, each 44 to the thumb); tap 32 → 40 (2026-10-09, the chip round): the chips are the kit's, 36pt and 44 to the thumb
 // The event record sheet with its ways out (2026-10-03). Depth 6 is the box inside the finding
 // inside the gaps block inside the sheet — an honest nesting, since the finding IS the form. The
 // floor that matters is the tap: 44, because the box these controls share with OwnerDetails
@@ -82,7 +82,7 @@ export const COLLECT_SHEET = { depth: 2, tap: 44, text: 12 };
 // form and the owner's correction form, the deadline's counts as chips. Filled in on a phone, often
 // on the call to the county; the limits are what it measured when it was built.
 const RULE_FIXTURE = join(ROOT, "scripts/fixtures/rule-sheet.html");
-export const RULE_SHEET = { depth: 2, tap: 44, text: 11 };
+export const RULE_SHEET = { depth: 3, tap: 44, text: 11 };  // depth 2 → 3 (2026-10-16, R12): the sheet › its id row's rule › the NOT CONFIRMED pill, as drawn since 0342 — the pill measured a hair under the 24px a box needs and now measures 24 (the base commit measures 3 here too); nothing was added
 // The checkout, for an order placed before the stop opens (2026-10-04, 0343): the pickup block —
 // where, then when it is made — above the money, and the confirmation the server's answer fills.
 // A guest at the window with a drink in the other hand. Measured when built: depth 4 is a quantity

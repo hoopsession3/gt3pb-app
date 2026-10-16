@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Children, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { Children, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useApp } from "@/components/AppProvider";
 import { SectionHeader, InfoRow, Columns, Column } from "@/components/kit";
 import FoldCard from "@/components/crew/FoldCard";
-import { Segmented, IconButton } from "@/components/controls";
+import { Segmented, IconButton, tabPanel } from "@/components/controls";
 import { BackButton } from "@/components/BackButton";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
 import { SENIORITY, roleLabel, tierOf, toRole, canOf, type Role, type Tier } from "@/lib/roles";
@@ -221,9 +221,12 @@ import { alertHome } from "@/lib/liveOps";
 import { staffAccess } from "@/lib/access";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { SECTION_TITLE } from "@/lib/routeTitles";
+import { announce } from "@/components/Announcer";
 import Button from "@/components/Button";
 import { orderNo } from "@/lib/activeOrder";
 import { STATUS_WORD } from "@/lib/orderStatus";
+import { scrollMotion } from "@/lib/motion";
+import { rovingKeys, rovingTab } from "@/components/roving";
 
 // The sections' names have one home now (lib/routeTitles): this heading, the guide, and the title bar's
 // title and its ‹ read the same words (2026-10-08, the navigation round).
@@ -2581,6 +2584,8 @@ const fmtNoteDate = (iso: string) => {
 // Meeting notes live in Supabase (operational, relational, tenant-scoped) — not Notion. A note's
 // follow-ups become event_tasks owned by meeting_note_id, so they ride the same assign + My Tasks +
 // push engine as event/stop prep. Leadership-only (RLS gates to event_manager/crew/owner).
+// Who can see a note, in the order its chips are drawn (the arrows move along them — R12, F7).
+const NOTE_VIS = ["private", "team", "collab"] as const;
 function MeetingNotes() {
   const confirm = useConfirm();
   const { user, profile } = useAuth();
@@ -2774,9 +2779,9 @@ function MeetingNotes() {
                 </optgroup>
               </select>
             </div>
-            <div className="note-vis-chips" role="radiogroup" aria-label="Who can see this note">
-              {([["private",<><Icon name="lock" /> Just me</>],["team",<><Icon name="team" /> Team</>],["collab",<><Icon name="partners" /> Team + comments</>]] as const).map(([v,l]) => (
-                <button key={v} type="button" role="radio" aria-checked={cVis === v} className={`k-chip${cVis === v ? " on" : ""}`} onClick={() => { setCVis(v); setVisTouched(true); }}>{l}</button>
+            <div className="note-vis-chips" role="radiogroup" aria-label="Who can see this note" onKeyDown={(e) => rovingKeys(e, NOTE_VIS.length, NOTE_VIS.indexOf(cVis), (i) => { setCVis(NOTE_VIS[i]); setVisTouched(true); })}>
+              {([["private",<><Icon name="lock" /> Just me</>],["team",<><Icon name="team" /> Team</>],["collab",<><Icon name="partners" /> Team + comments</>]] as const).map(([v,l], i) => (
+                <button key={v} type="button" role="radio" aria-checked={cVis === v} tabIndex={rovingTab(i, NOTE_VIS.indexOf(cVis))} className={`k-chip${cVis === v ? " on" : ""}`} onClick={() => { setCVis(v); setVisTouched(true); }}>{l}</button>
               ))}
             </div>
             <textarea className="note-area" placeholder="The note — a thought, a plan, a recap…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={cSummary.length > 200 ? 10 : 3} />
@@ -3445,7 +3450,7 @@ function Bookings() {
             <span className="adm-ctl-k">Turn it into</span>
             <button className="btn-sec btn-sm" onClick={() => makeEvent(r)}><Icon name="arrowRight" /> An event</button>
             {r.opportunity_id ? (
-              <button className="btn-sec btn-sm" onClick={() => document.getElementById("pipeline-board")?.scrollIntoView({ behavior: "smooth", block: "start" })}>On the pipeline <Icon name="arrowRight" /></button>
+              <button className="btn-sec btn-sm" onClick={() => document.getElementById("pipeline-board")?.scrollIntoView({ behavior: scrollMotion(), block: "start" })}>On the pipeline <Icon name="arrowRight" /></button>
             ) : (
               <button className="btn-sec btn-sm" onClick={() => promote(r)} disabled={promoting === r.id}>{promoting === r.id ? "Promoting…" : <><Icon name="arrowRight" /> A pipeline account</>}</button>
             )}
@@ -4341,12 +4346,14 @@ function EventCard({ e, today, open, onToggle, onUpdate, onRemove, onSetLive, on
       {open && (
         <div className="ev-body">
           {/* Lifecycle — where this event stands. Live is set by the green flag below; the rest you set. */}
-          <div className="ev-stage" role="tablist" aria-label="Event stage">
+          {/* Setting the stage writes the event, so these are buttons that say which is set (aria-pressed), each its own
+              stop — not tabs, which a screen reader expects to show a view (R12 — the 10/10 audit, F7). */}
+          <div className="ev-stage" role="group" aria-label="Event stage">
             {EVENT_STAGES.map((k) => {
               const cur = st === k;
               const settable = !e.is_live && k !== "live"; // Live is driven by the green flag, not a tap
               return (
-                <button key={k} type="button" role="tab" aria-selected={cur} disabled={!settable && !cur}
+                <button key={k} type="button" aria-pressed={cur} disabled={!settable && !cur}
                   className={`k-chip sm hue${cur ? " on" : ""}`} style={{ ["--k-tone" as string]: STAGE_COLOR[k] }}
                   onClick={() => { if (settable && !cur) onUpdate({ stage: k }); }}>{stageLabel(k)}</button>
               );
@@ -5081,11 +5088,11 @@ function SectionGuide({ allowed, current, start, onGo, onClose }: { allowed: OpS
           </div>
           <button type="button" className="k-icon-btn ml-auto" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
         </div>
-        <Segmented label="Guide" size="sm" value={page} onChange={setPage}
+        <Segmented label="Guide" size="sm" panelId="guide-page" value={page} onChange={setPage}
           options={[{ key: "start", label: "Start here" }, { key: "sections", label: "Every section" }]} />
       </div>}>
       {/* The two pages turn with a sideways swipe too, like every row of tabs (the gesture round). */}
-      <SwipePager levels={[{ keys: GUIDE_PAGES, current: page, go: (k) => setPage(k as "start" | "sections"), depth: 0 }]}>
+      <SwipePager levels={[{ keys: GUIDE_PAGES, current: page, go: (k) => setPage(k as "start" | "sections"), depth: 0 }]} panel={tabPanel("guide-page", page)}>
       {page === "start" ? (
         <CrewStart onSection={(s, anchor) => { onGo(s); if (anchor) scrollToAnchor(anchor); }} onClose={onClose} />
       ) : (<>
@@ -5446,6 +5453,17 @@ export default function AdminPage() {
   // a prep deep-link should land somewhere that explains itself, and the URL/localStorage must not
   // keep re-teleporting her on every cold open.
   const sec: OpSection = allowed.includes(section) ? section : "day";
+  // THE SECTION'S NAME, AS THE PAGE'S TITLE — AND SAID (R12 — the 10/10 audit, F11). A section changes by the address's ?s=
+  // alone (OperatorSection pushes it), which Next does not hear as a navigation: the title stayed the console's and a screen
+  // reader was told nothing. The title names the section now, and a change of section is said (not the first, which the
+  // page's load says).
+  const saidSection = useRef<OpSection | null>(null);
+  useLayoutEffect(() => {
+    const name = SECTION_TITLE[sec] ?? "Crew";
+    document.title = `${name} — GT3 Performance Bar`;
+    if (saidSection.current !== null && saidSection.current !== sec) announce(name);
+    saidSection.current = sec;
+  }, [sec]);
   const [planTab, setPlanTab] = useState<PlanTab>("calendar");
   // THE GUIDE OPENS ON A PAGE (2026-10-08): "start" — the first day (components/CrewStart) — or
   // "sections", what each section is for. ?guide=start is the welcome letter's link (lib/crewStart
@@ -5536,6 +5554,16 @@ export default function AdminPage() {
   const openPass = () => { unlockAudio(); setSvc(true); };
   // Closed on purpose: the phone forgets it was open.
   const closePass = () => { keepPassOpen(false); setSvc(false); };
+  // Closed, focus goes back to the Pass's row on Live Ops (R12 — the 10/10 audit, F8): the Pass took the focus with it, and
+  // Exit, Escape or leaving left it on nothing — the top of the page, for a keyboard or VoiceOver.
+  const passWas = useRef(svc);
+  useEffect(() => {
+    if (passWas.current && !svc) {
+      const lost = !document.activeElement || document.activeElement === document.body;
+      if (lost) requestAnimationFrame(() => document.querySelector<HTMLElement>('section[aria-label="The Pass"] button')?.focus());
+    }
+    passWas.current = svc;
+  }, [svc]);
   useEffect(() => {
     if (!svc) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented && !sheetOpen()) { keepPassOpen(false); setSvc(false); } };
@@ -5782,7 +5810,7 @@ export default function AdminPage() {
       {/* Past three (the switch, above), the row is the desk's alone. */}
       {lane.members.length >= 2 && (
         <OpViewAware>{(inView) => (
-          <Segmented fill className={`lane-tabs mb-3.5${switcher || inView ? " hidden! desk:flex!" : ""}`} label={lane.label} value={sec}
+          <Segmented fill className={`lane-tabs mb-3.5${switcher || inView ? " hidden! desk:flex!" : ""}`} label={lane.label} panelId="lane-panel" value={sec}
             options={lane.members.map((m: OpSection) => ({ key: m, label: SECTION_LABEL[m] }))} onChange={(m) => inLane(m)}
             onReselect={(m) => { if (m === "plan" && planOver) setPlanTab("calendar"); }} />
         )}</OpViewAware>
@@ -5806,7 +5834,9 @@ export default function AdminPage() {
       {/* Shared-axis transition: keying on `sec` remounts the body on each section change so it
           fades+slides in. planTab changes keep the same key, so sub-tabs don't re-animate.
           role=region + focus-on-change: keyboard/SR users land in the new section, not adrift. */}
-      <div className="op-trans" key={sec} ref={opBodyRef} tabIndex={-1} role="region" aria-label={`${SEC_LABEL[sec]} section`}>
+      {/* The lane's row of sections is a tab list, and the section its panel (R12 — the 10/10 audit, F7); a lane of one
+          section has no row, and the section is a named region. */}
+      <div className="op-trans" key={sec} ref={opBodyRef} tabIndex={-1} {...(lane.members.length >= 2 ? tabPanel("lane-panel", sec) : { role: "region", "aria-label": `${SEC_LABEL[sec]} section` })}>
       {sec === "day" && (
         <>
           {/* P3 (2026-08-03): a leader's day opens with the headline — today's op + top 3 due —
