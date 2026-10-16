@@ -16,7 +16,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { libLoader, fakeSquare, memoryClaims, branches } from "./fixtures/chargeonce.mjs";
+import { libLoader, fakeSquare, memoryClaims, branches, clock } from "./fixtures/chargeonce.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 let pass = 0, fail = 0;
@@ -82,6 +82,11 @@ const realFetch = globalThis.fetch;
   ok("page: \"still confirming\" is unknown, whatever its status", V(409, { pending: true }) === "unknown" && V(502, { pending: true }) === "unknown");
   ok("page: a 5xx is unknown", V(500, { ok: false }) === "unknown" && V(503, {}) === "unknown");
   ok("page: turned away before the money (sold out, closed, too many tries) is refused", V(409, { error: "RISE just sold out" }) === "refused" && V(429, { error: "Too many attempts" }) === "refused" && V(400, { error: "Add a name for pickup" }) === "refused");
+  // R7b: a server error that says nothing was charged — the menu or the truck's hours unread, the claims store down — is
+  // turned away, not a lost answer: nothing is held for it. Without the word, a 5xx may have charged.
+  ok("page: a 5xx that says charged: false is refused — and the claims store's own refusal says it (R7b)",
+    V(503, { error: "We couldn't check the truck's schedule", charged: false }) === "refused" && V(500, { charged: false }) === "refused"
+    && C.cannotStart(true).body.charged === false && C.cannotStart(false).body.charged === false && V(503, C.cannotStart(true).body) === "refused");
   const a = { sig: "s", key: "k-0000001", token: "cnon:TEST-1" };
   ok("page: settled forgets the key and the token", I.afterAttempt(a, "settled") === I.NO_ATTEMPT);
   ok("page: unknown keeps both", I.afterAttempt(a, "unknown") === a);
@@ -121,7 +126,7 @@ const realFetch = globalThis.fetch;
   const r = code("app/api/checkout/route.ts");
   const at = (s, from = 0) => r.indexOf(s, from);
   ok("route: the replay comes before the limiter, the stock and the truck's hours",
-    at("seenBefore(") > 0 && at("seenBefore(") < at("rate_limit_hit") && at("seenBefore(") < at("readMenuRows(") && at("seenBefore(") < at("readOrdering(")
+    at("seenBefore(") > 0 && at("seenBefore(") < at("p_bucket: `checkout:${ip}`") && at("seenBefore(") < at("readMenuRows(", at("const seen = await seenBefore(")) && at("seenBefore(") < at("readOrdering(")
     && at("seenBefore(") < at("readStopMenu("));
   // R2 (2026-10-13): the stock is the menu's own read (lib/drinks readMenuRows), and a stop's menu is a check like the truck's
   // hours — both after the replay, both before the claim.
@@ -162,6 +167,102 @@ const realFetch = globalThis.fetch;
     && /const held = idem\.isOpen\(\);/.test(co) && (co.match(/disabled=\{busy \|\| held\}/g) || []).length === 3
     && /keep\(afterAttempt\(cur, verdict\), verdict === "unknown"\)/.test(readFileSync(join(ROOT, "components/useIdemKey.ts"), "utf8"))
     && /if \(payHeldOpen\(\)\) return;/.test(readFileSync(join(ROOT, "components/AppProvider.tsx"), "utf8")));
+}
+
+// ── "Check on my payment" (R7b, lib/chargeOnce.checkOnly) ─────────────────────────────────────────────────────────
+// A payment whose answer never came holds the page; Check asks about that key alone — never Square, never an order.
+{
+  const now = clock();
+  const store = memoryClaims();
+  const told = [];
+  const stopped = async (st) => { told.push(st.key); };
+  const never = await C.checkOnly(store, "check-key-unseen-01", true, now, stopped);
+  ok("check: a key never seen was never charged — said so, and the key closed",
+    never.status === 200 && never.body.checked === true && never.body.charged === false && /never reached us — nothing was charged/.test(never.body.error)
+      && store.rows.get("check-key-unseen-01")?.state === "done", never);
+  const late = await C.seenBefore(store, "check-key-unseen-01", true, now, stopped);
+  ok("…so the request it belonged to, arriving late, is answered that — not charged", "answer" in late && late.answer.body.checked === true && late.answer.body.charged === false, late);
+  ok("…and checking again says the same", (await C.checkOnly(store, "check-key-unseen-01", true, now, stopped)).body.charged === false);
+  const pre = await C.checkOnly(store, "check-key-unseen-02", false, now, stopped);
+  ok("check: a pre-order's never reached us is said as an order, not a payment", /never reached us — nothing was placed/.test(pre.body.error) && pre.body.charged === false);
+  store.rows.set("check-key-paid-0003", { state: "done", card: true, amount_cents: 1000, payment_id: "pay-3", status: 200, answer: { ok: true, paid: true, amount: 1000, no: "#AB12" }, note: null, updated_at: new Date(now()).toISOString() });
+  const paid = await C.checkOnly(store, "check-key-paid-0003", true, now, stopped);
+  ok("check: a payment that went through is answered with its order — the first answer, word for word", paid.status === 200 && paid.body.ok === true && paid.body.no === "#AB12", paid);
+  store.rows.set("check-key-flight-04", { state: "started", card: true, amount_cents: 1000, payment_id: null, status: null, answer: null, note: null, updated_at: new Date(now()).toISOString() });
+  const flight = await C.checkOnly(store, "check-key-flight-04", true, now, stopped);
+  ok("check: one still being asked of Square is \"still confirming\" — held, not released", flight.body.pending === true && store.rows.get("check-key-flight-04").state === "started", flight);
+  now.advance(C.IN_FLIGHT_MS + 1000);
+  const dead = await C.checkOnly(store, "check-key-flight-04", true, now, stopped);
+  ok("…one whose request died is \"we couldn't confirm\", and the crew is told once", dead.body.pending === true && /couldn't confirm/.test(dead.body.error) && told.filter((k) => k === "check-key-flight-04").length === 1, dead);
+  store.failing = "missing";
+  const noTable = await C.checkOnly(store, "check-key-missing-5", true, now, stopped);
+  ok("check: with no claims to read (0371 not pasted) it can't say — the crew can", noTable.body.pending === true && /ask the crew/.test(noTable.body.error), noTable);
+  store.failing = "boom";
+  const down = await C.checkOnly(store, "check-key-down-0006", true, now, stopped);
+  ok("check: a claims store that won't answer releases nothing — the page keeps holding, and is never told \"nothing was charged\" (R7b re-audit)",
+    down.body.checked !== true && down.status === 503 && down.body.pending === true && !/nothing was charged/.test(down.body.error) && /couldn't check on that payment/.test(down.body.error), down);
+  store.failing = null;
+  // R7b re-audit: a payment still in flight is said as a check says it — Pay is waiting on this very check.
+  store.rows.set("check-key-flight-07", { state: "charged", card: true, amount_cents: 1200, payment_id: "pay-7", status: null, answer: null, note: null, updated_at: new Date(now()).toISOString() });
+  const flight7 = await C.checkOnly(store, "check-key-flight-07", true, now, stopped);
+  ok("check: one still in flight says \"check again\", never \"tap Pay\"", flight7.body.pending === true && /check again in a minute/.test(flight7.body.error) && !/tap Pay/.test(flight7.body.error), flight7);
+  // …and a paid one whose request died is found by the check: paid, not saved — the crew told once, by the check.
+  now.advance(C.IN_FLIGHT_MS + 1000);
+  const paidDead = await C.checkOnly(store, "check-key-flight-07", true, now, stopped);
+  ok("check: a payment that went through and stopped before the order saved is answered paid-not-recorded, and the crew told once",
+    paidDead.status === 200 && paidDead.body.ok === true && paidDead.body.recorded === false && paidDead.body.ref === "PAY-7"
+      && told.filter((k) => k === "check-key-flight-07").length === 1 && store.rows.get("check-key-flight-07").state === "done", paidDead);
+  // A decline is answered as the decline it was — the page lets the key go on it (Checkout's checkHeld).
+  store.rows.set("check-key-decl-0008", { state: "done", card: true, amount_cents: 900, payment_id: null, status: 400, answer: { error: "Card declined.", declined: true }, note: null, updated_at: new Date(now()).toISOString() });
+  const decl = await C.checkOnly(store, "check-key-decl-0008", true, now, stopped);
+  ok("check: a declined payment is answered declined — a definitive no, settled by the page", decl.status === 400 && decl.body.declined === true && I.attemptVerdict(decl.status, decl.body) === "settled", decl);
+  // A claim that can't be written is "we couldn't check" too, and nothing is left behind.
+  const ws = memoryClaims();
+  const wsClaim = ws.claim;
+  ws.claim = async () => ({ ok: false, missing: false, error: "boom" });
+  const nowrite = await C.checkOnly(ws, "check-key-nowrite-9", true, now, stopped);
+  ok("check: a claim that can't be written keeps the page holding, in the check's words", nowrite.status === 503 && nowrite.body.pending === true && !ws.rows.has("check-key-nowrite-9"), nowrite);
+  ws.claim = wsClaim;
+  const wm = memoryClaims();
+  wm.move = async () => false;
+  const nomove = await C.checkOnly(wm, "check-key-nomove-10", true, now, stopped);
+  ok("check: claimed but not closed gives the key back — no half claim to read later as a payment that stopped", nomove.status === 503 && nomove.body.pending === true && !wm.rows.has("check-key-nomove-10"), nomove);
+
+  const r = readFileSync(join(ROOT, "app/api/checkout/route.ts"), "utf8");
+  ok("route: a check is answered before anything else is read, by checkOnly alone, bounded per phone",
+    r.indexOf("if (body.check === true)") > 0 && r.indexOf("if (body.check === true)") < r.indexOf("const { sourceId, items, tipCents } = body;")
+      && /return reply\(await checkOnly\(checkoutClaims\(supabaseAdmin\), body\.idempotencyKey, card, \(\) => Date\.now\(\), stoppedAlert\(drinkList\(body\.items\), nameGiven\(body\.customer\), true\)\)\);/.test(r)
+      && /p_bucket: `checkout-check:\$\{ip\}`/.test(r));
+  // R7b re-audit: rate_limit_hit answers whether the caller is UNDER its cap (0154) — the check refused every normal tap with
+  // `=== true`. Every route that asks it refuses on false, and none on true.
+  {
+    const { readdirSync, statSync } = await import("node:fs");
+    const walk = (d) => readdirSync(d).flatMap((n) => { const f = join(d, n); return statSync(f).isDirectory() ? walk(f) : /\.tsx?$/.test(n) ? [f] : []; });
+    const inverted = [...walk(join(ROOT, "app")), ...walk(join(ROOT, "lib"))].filter((f) => {
+      const src = readFileSync(f, "utf8");
+      return /rate_limit_hit/.test(src) && /\b(?:ipHit|allHit|ipFits|allFits|mine|all|under|underCap|rowFits|alertFits)\.data === true|\.data === true \|\|/.test(src);
+    }).map((f) => f.replace(ROOT + "/", ""));
+    ok("limits: no route reads rate_limit_hit's true as \"too many\" — true is under the cap", inverted.length === 0, inverted);
+    ok("route: the check's limiter refuses on false, as the Pay path's does",
+      /if \(ipFits\.data === false \|\| allFits\.data === false\) return NextResponse\.json\(\{ error: "Too many tries — give it a minute\.", pending: true \}, \{ status: 429 \}\);/.test(r));
+    ok("route: a check that finds a paid order that didn't save tells the crew so — with the drinks and the name the page still holds",
+      /const stoppedAlert = \(items: string\[\] \| null, customer: string \| null, checked: boolean\) => async \(\{ key, claim \}: Stopped\) => \{/.test(r)
+      && /if \(claim\.card && claim\.state === "charged"\) \{\s+await raiseAlert\(\{ severity: "critical", category: "money", title: "Paid order may not have recorded — check the pass"/.test(r)
+      && /const stopped = stoppedAlert\(items\.map\(String\), customer, false\);/.test(r));
+  }
+  const co = readFileSync(join(ROOT, "components/Checkout.tsx"), "utf8");
+  ok("page: a send is held open as it leaves, and Check asks about the held key (R7b)",
+    /idem\.sent\(attempt\.key, true\);/.test(co) && /idem\.sent\(attempt\.key, false\);/.test(co)
+      && /body: JSON\.stringify\(\{ check: true, idempotencyKey: idem\.heldKey\(\), card, items, customer: customer \|\| undefined \}\)/.test(co)
+      && /if \(data\?\.checked === true && data\.charged === false\) \{/.test(co)
+      // R7b re-audit: a decline found by a check lets the key go; an answer about a key let go meanwhile changes nothing;
+      // nothing sends and nothing lets go while a check is out; and only `ok: true` is an order placed.
+      && /if \(data\?\.declined === true\) \{[\s\S]{0,400}idem\.settle\(key, res\.status, data\); setLetGo\(false\);/.test(co)
+      && /if \(idem\.heldKey\(\) !== key\) return;/.test(co)
+      && /if \(busy \|\| sending\.current \|\| checkingNow\.current\) return;/.test(co)
+      && (co.match(/disabled=\{checking\}/g) || []).length >= 3
+      && /if \(!res\.ok \|\| data\?\.ok !== true\) \{/.test(co) && /if \(!res\.ok \|\| data\?\.ok !== true\) \{ repriced\(data\);/.test(co)
+      && /disabled=\{held \|\| !ready \|\| busy/.test(co));
 }
 
 // ── every branch ───────────────────────────────────────────────────────────────────────────────
@@ -205,7 +306,9 @@ const realFetch = globalThis.fetch;
     ok(`${label}: its own words for "paid, not saved" and "couldn't confirm"`, /const say: Say = \{\s*paidNotRecorded:/.test(r) && /couldNotConfirm: /.test(r) && /stopped, say\)/.test(r));
   }
   const rs = code("app/api/reserve/route.ts");
-  ok("reserve: pay at pickup is written under its claim, and a pack not written gives the key back (placeOnce)", /if \(!wantsCharge\) return reply\(await placeOnce\(\{ claims: held\.claims, key: idemKey, now, place: \(\) => recordPack\(null, false\) \}\)\);/.test(rs));
+  ok("reserve: pay at pickup — or a pack on us, never sent to Square — is written under its claim, and a pack not written gives the key back (placeOnce)",
+    /if \(!charging\) return reply\(await placeOnce\(\{ claims: held\.claims, key: idemKey, now, place: \(\) => recordPack\(null, false\) \}\)\);/.test(rs)
+    && /const charging = wantsCharge && !free;/.test(rs) && /card: charging, amountCents: amount/.test(rs));
   for (const rel of ["app/api/delivery/checkout/route.ts", "app/api/shop/checkout/route.ts"]) {
     const sayBlock = (code(rel).match(/const say: Say = \{[\s\S]*?\n  \};/) || [""])[0];
     ok(`${rel.replace("app/api/", "").replace("/route.ts", "")}: nothing it says sends anyone to a window`, sayBlock.length > 0 && !/window/i.test(sayBlock), sayBlock.slice(0, 120));

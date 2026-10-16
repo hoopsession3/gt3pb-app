@@ -1,7 +1,7 @@
 "use client";
 
 import CountUp from "./CountUp";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import Icon from "@/components/Icon";
 
 export type ReceiptRow = { label: string; value: string };
@@ -27,10 +27,19 @@ export default function OrderConfirm({
   secondaryLabel?: string;
   onSecondary?: () => void;
 }) {
+  // Said when it appears (R7b): the button that was pressed is gone, and focus with it — VoiceOver heard nothing of "Order
+  // #4F2A is in". Focus moves to the headline, inside the sheet, so the screen reader reads where things stand.
+  const head = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    // From the top (the re-audit of R7b): the sheet kept the scroll Pay was tapped at, so on an iPhone SE the crest and the
+    // headline sat above the fold and the screen opened on the receipt.
+    head.current?.closest(".sheet2-body")?.scrollTo({ top: 0 });
+    head.current?.focus({ preventScroll: true });
+  }, []);
   return (
     <div className="dl-step dl-done">
       <div className="dl-crest"><span><Icon name="check" /></span></div>
-      <h2 className="dl-h serif dl-done-h">{title}</h2>
+      <h2 ref={head} tabIndex={-1} className="dl-h serif dl-done-h">{title}</h2>
       {sub && <p className="dl-done-sub">{sub}</p>}
       <div className="dl-done-total" data-eyebrow={totalLabel}><CountUp cents={totalCents} /></div>
       {rows.length > 0 && (

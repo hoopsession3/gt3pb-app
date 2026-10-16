@@ -21,6 +21,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { squareClientReady } from "@/lib/square";
 import { haptic } from "@/lib/haptics";
 import { packClosesAt, closesWords, PICKUP_STOPS_READ } from "@/lib/pickupDay";
+import { packRoad } from "@/lib/packRoad";
 import TextYes from "./TextYes";
 import { scrollToTop } from "@/lib/appScroll";
 import {
@@ -151,6 +152,9 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   const [stops, setStops] = useState<{ id: string; name: string | null; starts_at: string }[]>([]);
   // Whether the stops have been read yet — until then the Saturday picker keeps its place (below).
   const [stopsRead, setStopsRead] = useState(false);
+  // No city taking packs (R7b re-audit — lib/packRoad): no stop left, and the founding city, whose Saturday the cadence is,
+  // held closed. Said where the pickup is, before the size — not after Pay is tapped.
+  const [packsPaused, setPacksPaused] = useState(false);
   const [stopIdx, setStopIdx] = useState(0);
   const [now, setNow] = useState(0);
   const [replacing, setReplacing] = useState<MyPack | null>(null);
@@ -230,7 +234,24 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
     if (codeBenefit.kind === "amount_off" && wholeOrder && typeof codeBenefit.value_cents === "number") return Math.min(baseTotalCents, codeBenefit.value_cents);   // the $5-off QR card (0268)
     return 0;
   }, [codeState, codeBenefit, baseTotalCents, mode, bringBack]);
-  const totalCents = Math.max(0, baseTotalCents - codeDiscountCents);
+  // THE SERVER'S PRICE FOR THIS PACK (R7b, /api/reserve/quote): a signed-in member's perks — a founding member's
+  // bring-back refill is on us (0176) — are the server's to apply, and the page priced a pack from the grid and a code
+  // alone: "Pay $42.00" for a pack the server prices at $0. Asked whenever the pack, its glass or the code changes; until
+  // it answers (or when it can't), the page's own number, which the charge refuses only upward (lib/shownTotal).
+  const packSig = mode === "pickup" && count && user ? JSON.stringify([count, bringBack, codeState === "ok" ? codeClean : null]) : null;
+  const [packQuote, setPackQuote] = useState<{ sig: string; cents: number; perk: string | null } | null>(null);
+  useEffect(() => {
+    if (!packSig) return;
+    let alive = true;
+    const [size, back, code] = JSON.parse(packSig) as [number, boolean, string | null];
+    authedFetch("/api/reserve/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ size, glass: back ? "return" : "new", code: code ?? undefined }) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d && typeof d.totalCents === "number") setPackQuote({ sig: packSig, cents: d.totalCents, perk: typeof d.perk === "string" ? d.perk : null }); })
+      .catch(() => { /* the page's own number stands; the charge refuses only upward */ });
+    return () => { alive = false; };
+  }, [packSig]);
+  const quoted = packQuote && packQuote.sig === packSig ? packQuote : null;
+  const totalCents = quoted ? quoted.cents : Math.max(0, baseTotalCents - codeDiscountCents);
   // THE TOTAL ON THE PAY BUTTON IS THE MOST IT CHARGES (R5, lib/shownTotal). It goes with the order; a server total above
   // it comes back refused, with that total, and is shown here for this cart — the next tap agrees to it. A change to the
   // cart (size, flavours, glass, empties, day, code) takes it back to the page's own number.
@@ -239,6 +260,9 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
     : ["pickup", count, bringBack, mix, dropDateKey(drop.sat), codeState === "ok" ? codeClean : null]);
   const [agreed, setAgreed] = useState<{ sig: string; cents: number } | null>(null);
   const payCents = agreed && agreed.sig === cartSig ? agreed.cents : totalCents;
+  // On us: nothing to pay, and no card to ask for — the server reserves it settled. Not once the server has said a higher
+  // total for this cart (a code that lapsed between the quote and the tap): the card form is back, with that total.
+  const onUs = mode === "pickup" && !!quoted && quoted.cents === 0 && payCents === 0;
   const raisedTotal = useCallback((data: { totalChanged?: unknown; totalCents?: unknown }) => {
     if (data?.totalChanged === true && typeof data.totalCents === "number") setAgreed({ sig: cartSig, cents: data.totalCents });
   }, [cartSig]);
@@ -263,16 +287,22 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
 
   // pickup: the next scheduled stops = the pickup choices (deduped by drop day, still open).
   useEffect(() => {
-    if (!supabase) return;
+    const sb = supabase;
+    if (!sb) return;
     let live = true;
-    supabase.from("stops").select("id, name, starts_at").is("archived_at", null).is("canceled_at", null).neq("status", "done").not("starts_at", "is", null)
+    sb.from("stops").select("id, name, starts_at, market").is("archived_at", null).is("canceled_at", null).neq("status", "done").not("starts_at", "is", null)
       .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(PICKUP_STOPS_READ)
-      .then(({ data }) => {
+      .then(async ({ data }) => {
+        // Not a stop in a city held closed, or not open yet (0412, R7b re-audit — lib/packRoad): the server refuses a pack
+        // there. A read of the cities that fails offers what the road has, and the server says.
+        const all = (data ?? []) as { id: string; name: string | null; starts_at: string; market?: string | null }[];
+        const road = data ? await packRoad(sb, all).catch(() => null) : null;
         if (!live) return;
         setStopsRead(true);
         if (!data) return;
+        setPacksPaused(!!road && road.error === null && road.taking.length === 0 && road.foundingHeld);
         const seen = new Set<string>();
-        const uniq = (data as { id: string; name: string | null; starts_at: string }[]).filter((st) => {
+        const uniq = (road && road.error === null ? road.taking : all).filter((st) => {
           if (dropForStop(st.starts_at).cutoff.getTime() <= Date.now()) return false;
           // The ET day, as the server keys it (dropDateKey) — a UTC slice put a stop after 8pm Eastern on the next day (R5).
           const k = dropDateKey(new Date(st.starts_at));
@@ -390,6 +420,15 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
 
   // pickup: change / reload
   const startChange = (p: MyPack) => {
+    // A change keeps the pack's day (R7b): the day picker's first day went with the change, and a 6-pack for Saturday paid
+    // up to 12 bottles for Thursday. Its own stop, else its day; a day no longer offered can't be changed here. With no
+    // stop on the schedule the day is the Saturday cadence's (the server's fallback too), and until the stops are read
+    // nothing is said about the day at all (the re-audit of R7b: both read as "not open for changes").
+    if (!stopsRead) { toast("One moment — the pickup days are still loading."); return; }
+    const fallbackDay = stops.length === 0 && dropDateKey(nextDrop().sat) === p.drop_date;
+    const at = fallbackDay ? 0 : stops.findIndex((st) => (p.stop_id ? st.id === p.stop_id : dropDateKey(dropForStop(st.starts_at).sat) === p.drop_date));
+    if (at < 0) { toast("This pack's day isn't open for changes any more — cancel it from My packs, or ask the crew."); return; }
+    setStopIdx(at);
     setMode("pickup"); setCount(p.size); glassTouched.current = true; setBringBack(p.glass === "return");
     const pm = packMix(p); setMix({ rise: pm.RISE || 0, flow: pm.FLOW || 0, dusk: pm.DUSK || 0 });
     setName(p.name); setPhone(p.phone ?? ""); setReplacing(p); setStep("size"); setErr("");
@@ -578,10 +617,10 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
       {!codeOpen && codeState !== "ok" ? (
         <button type="button" className="oa-code-toggle hit-44" onClick={() => setCodeOpen(true)}>{t("funnel.have_code")}</button>
       ) : codeState === "ok" && codeBenefit ? (
-        <div className="oa-code-ok">
+        <div className="oa-code-ok" role="status">
           <span className="oa-code-tag">{codeClean}</span>
           <span className="oa-code-lbl">{codeDiscountCents > 0 ? `${money(codeDiscountCents)} off applied` : codeBenefit.label}</span>
-          <button type="button" className="oa-code-x" onClick={clearCode} aria-label="Remove code"><Icon name="close" /></button>
+          <button type="button" className="oa-code-x hit-44" onClick={clearCode} aria-label="Remove code"><Icon name="close" /></button>
         </div>
       ) : (
         <div className="oa-code-in">
@@ -591,8 +630,8 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
           <button type="button" className="btn-sec shrink-0" onClick={checkCode} disabled={!codeClean || codeState === "checking"}>{codeState === "checking" ? "…" : t("funnel.code_apply")}</button>
         </div>
       )}
-      {codeState === "bad" && <p className="oa-code-bad">That code isn&rsquo;t valid — check it and try again.</p>}
-      {codeState === "ok" && codeDiscountCents === 0 && <p className="oa-code-note">Saved — this one applies to cups at the bar, not this pack.</p>}
+      {codeState === "bad" && <p className="oa-code-bad" role="alert">That code isn&rsquo;t valid — check it and try again.</p>}
+      {codeState === "ok" && codeDiscountCents === 0 && <p className="oa-code-note" role="status">Saved — this one applies to cups at the bar, not this pack.</p>}
     </div>
   ) : null;
 
@@ -618,8 +657,8 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
           <MyPacks onChange={startChange} refreshKey={packsKey} collapsible />
           {replacing && (
             <div className="oa-editing">
-              Changing your {replacing.size}-pack for {packDayLabel(replacing)} — only the difference is charged or refunded.
-              <button type="button" onClick={() => setReplacing(null)}>Keep it as is</button>
+              Changing your {replacing.size}-pack for {packDayLabel(replacing)}{dropDateKey(drop.sat) !== replacing.drop_date ? `, and moving it to ${dayName(drop.sat)}` : ""} — only the difference is charged or refunded.
+              <button type="button" className="hit-44" onClick={() => setReplacing(null)}>Keep it as is</button>
             </div>
           )}
         </>
@@ -736,10 +775,17 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
             <>
               <EditableCopy k="funnel.pickup_one_label" value={t("funnel.pickup_one_label")} as="div" className="oa-slabel" />
               <div className="dl-days">
-                <div className="oa-day sel cursor-default active:transform-none">
-                  <b>{dayName(drop.sat)}</b>
-                  <span>{stop?.name ? `${stop.name} · ` : ""}order by {closesAt(drop.cutoff)}</span>
-                </div>
+                {packsPaused ? (
+                  <div className="oa-day cursor-default active:transform-none" role="status">
+                    <b>Packs are paused</b>
+                    <span>We&apos;re not taking pack orders right now — check back soon.</span>
+                  </div>
+                ) : (
+                  <div className="oa-day sel cursor-default active:transform-none">
+                    <b>{dayName(drop.sat)}</b>
+                    <span>{stop?.name ? `${stop.name} · ` : ""}order by {closesAt(drop.cutoff)}</span>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -761,7 +807,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
             ? <EditableCopy k="funnel.delivery_fee_note" value={t("funnel.delivery_fee_note")} displayValue={fillCopy(t("funnel.delivery_fee_note"), { fee: money(DELIVERY_PRICING.feeCents), min: String(DELIVERY_PRICING.feeWaivedAt) })} as="p" className="dl-note" />
             : <div className="dl-note">{count ? <>That&rsquo;s <b>{PACK_HINT[count]}</b></> : null}</div>}
           {count != null && (
-            <button type="button" className="btn-pri btn-wide" disabled={!count} onClick={() => setStep("build")}>{t("funnel.build_cta")} <Icon name="arrowRight" /></button>
+            <button type="button" className="btn-pri btn-wide" disabled={!count || (mode === "pickup" && packsPaused)} onClick={() => setStep("build")}>{t("funnel.build_cta")} <Icon name="arrowRight" /></button>
           )}
           {mode === "pickup" && <button type="button" className="btn-ter self-center" onClick={() => setHowOpen(true)}>How it works</button>}
           {howOpen && (
@@ -788,7 +834,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
               <span className="dl-ctr-n">{FLAV_LABEL[k]} <em>{FLAV_DESC[k]}</em></span>
               <div className="dl-ctr-b">
                 <button type="button" onClick={() => bump(k, -1)} disabled={mix[k] === 0} aria-label={`Fewer ${k}`}>−</button>
-                <b>{mix[k]}</b>
+                <b aria-live="polite">{mix[k]}</b>
                 <button type="button" onClick={() => bump(k, 1)} disabled={picked >= count} aria-label={`More ${k}`}>+</button>
               </div>
             </div>
@@ -801,7 +847,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
                   <span className="dl-ctr-n">{it.name}</span>
                   <div className="dl-ctr-b">
                     <button type="button" onClick={() => bumpPremium(it.slug, -1)} disabled={!premiums[it.slug]} aria-label={`Fewer ${it.name}`}>−</button>
-                    <b>{premiums[it.slug] || 0}</b>
+                    <b aria-live="polite">{premiums[it.slug] || 0}</b>
                     <button type="button" onClick={() => bumpPremium(it.slug, 1)} disabled={picked >= count} aria-label={`More ${it.name}`}>+</button>
                   </div>
                 </div>
@@ -828,9 +874,9 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
                 <div className="dl-loop">
                   <label className="dl-sub" htmlFor="of-ref">{t("funnel.empties_q")} <em>(up to {refillCap})</em></label>
                   <div className="dl-ctr-b lone">
-                    <button type="button" onClick={() => { if (refillCount > 0) haptic("decrease"); else haptic("boundary"); setRefills(Math.max(0, refillCount - 1)); }} aria-label="Fewer">−</button>
-                    <b id="of-ref">{refillCount}</b>
-                    <button type="button" onClick={() => { if (refillCount < refillCap) haptic("increase"); else haptic("boundary"); setRefills(Math.min(refillCap, refillCount + 1)); }} aria-label="More">+</button>
+                    <button type="button" onClick={() => { if (refillCount > 0) haptic("decrease"); else haptic("boundary"); setRefills(Math.max(0, refillCount - 1)); }} aria-label="Fewer empties">−</button>
+                    <b id="of-ref" aria-live="polite">{refillCount}</b>
+                    <button type="button" onClick={() => { if (refillCount < refillCap) haptic("increase"); else haptic("boundary"); setRefills(Math.min(refillCap, refillCount + 1)); }} aria-label="More empties">+</button>
                   </div>
                   {refillCount > 0 && (
                     <>
@@ -879,7 +925,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
 
       {/* ── DETAILS ── */}
       {dupRows && (
-        <Sheet open onClose={() => setDupRows(null)} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Already on the books</b><CloseButton onClick={() => setDupRows(null)} /></div>}>
+        <Sheet open onClose={() => setDupRows(null)} label="Already on the books" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Already on the books</b><CloseButton onClick={() => setDupRows(null)} /></div>}>
           <p className="dl-sub" style={{ marginTop: 0 }}>You already have {dupRows.length === 1 ? "an order" : `${dupRows.length} orders`} for <b>{mode === "delivery" ? (slot?.deliveryLabel ?? "that day") : dayName(drop.sat)}</b>:</p>
           <div className="dup-list">
             {dupRows.map((r, i) => <div key={i} className="dup-row">{r.kind === "pickup" ? <Icon name="bell" /> : <Icon name="truck" />} {r.label}</div>)}
@@ -955,14 +1001,24 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
           <EditableCopy k="funnel.pay_h" value={t("funnel.pay_h")} as="h2" className="dl-h" />
           <div className="dl-quote">
             <span>{count} bottles{mode === "delivery" ? "" : ` · pickup ${dayName(drop.sat)}`}</span>
-            <span className="dl-quote-t">{codeDiscountCents > 0 ? <><s className="dl-was">{money(baseTotalCents)}</s> <b>{money(payCents)}</b></> : <>total <b>{money(payCents)}</b></>}</span>
+            <span className="dl-quote-t">{onUs ? <><s className="dl-was">{money(baseTotalCents)}</s> <b>on us</b></> : payCents < baseTotalCents ? <><s className="dl-was">{money(baseTotalCents)}</s> <b>{money(payCents)}</b></> : <>total <b>{money(payCents)}</b></>}</span>
           </div>
 
           {codeBox}
 
-          {squareClientReady ? (
+          {onUs ? (
+            // Nothing to pay (R7b): the perk said by its own name, and one button — no card form for a $0 charge.
             <>
-              <p className="dl-sub">{mode === "delivery" ? t("funnel.pay_sub_del") : t("funnel.pay_sub_pickup")}</p>
+              <p className="dl-sub">{quoted?.perk ? `${quoted.perk} — nothing to pay.` : "This pack is on us — nothing to pay."}</p>
+              {err && <p className="dl-err" role="alert">{err}</p>}
+              <button type="button" className="btn-pri btn-wide" onClick={() => submitPickup(null)} disabled={busy}>
+                {busy ? "Reserving…" : "Reserve it — on us"}
+              </button>
+            </>
+          ) : squareClientReady ? (
+            <>
+              {/* "Pay now, or reserve and pay at pickup" only where that second way is offered (R7b). */}
+              {(mode === "delivery" || payLater.on) && <p className="dl-sub">{mode === "delivery" ? t("funnel.pay_sub_del") : t("funnel.pay_sub_pickup")}</p>}
               <PaymentCard ref={paymentRef} className="sq-card" onReady={setCardReady} onError={(m) => setErr(m ?? "")} />
               {err && <p className="dl-err" role="alert">{err}</p>}
               <button type="button" className="btn-pri btn-wide" disabled={!cardReady || busy} onClick={mode === "delivery" ? payDelivery : payPickupCard}>
@@ -996,7 +1052,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
           sub={mode === "delivery" ? t("funnel.done_sub_del") : fillCopy(t("funnel.done_sub_pickup"), { day: weekdayOf(dropDateKey(drop.sat)), name: name ? `, ${name.split(" ")[0]}` : "" })}
           // A change's big number is what moved — charged, or on its way back — and the pack's total when nothing did.
           totalCents={done.change ? (done.change.charged || done.change.refunded + done.change.pending || done.total) : done.total}
-          totalLabel={done.change?.charged ? "charged" : done.change && done.change.refunded + done.change.pending > 0 ? "back to your card" : done.paid ? "paid" : "due at pickup"}
+          totalLabel={done.change?.charged ? "charged" : done.change && done.change.refunded + done.change.pending > 0 ? "back to your card" : done.total === 0 ? "on us" : done.paid ? "paid" : "due at pickup"}
           warn={done.warn}
           // Sourced from the copy system now (reserve.confirm_return / reserve.confirm_new) instead
           // of duplicated here — this text used to be hand-typed and happened to match those keys'
@@ -1021,7 +1077,8 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
                   ...(done.change?.charged ? [{ label: "Charged", value: money(done.change.charged) }] : []),
                   ...(done.change?.refunded ? [{ label: "Refunded", value: money(done.change.refunded) }] : []),
                   ...(done.change?.pending ? [{ label: "The crew is refunding", value: money(done.change.pending) }] : []),
-                  { label: done.change ? (done.paid ? "Pack total" : "Pay at pickup") : done.paid ? "Paid" : "Pay at pickup", value: money(done.total) },
+                  // A pack on us (R7b) says so — not "Pay at pickup $0.00".
+                  done.total === 0 && !done.change ? { label: "Price", value: "On us" } : { label: done.change ? (done.paid ? "Pack total" : "Pay at pickup") : done.paid ? "Paid" : "Pay at pickup", value: money(done.total) },
                 ]),
           ]}
           ctaLabel={mode === "delivery" ? t("funnel.done_cta_del") : t("funnel.done_cta_pickup")}

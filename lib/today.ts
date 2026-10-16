@@ -27,7 +27,7 @@ export type TodayLead<T extends TodayOrder = TodayOrder> =
   | { kind: "open"; stop: OrderingStop | null; pouring: boolean; readyFrom: string | null }
   | { kind: "closing"; stop: OrderingStop | null }
   | { kind: "later"; stop: OrderingStop | null; opensAt: string | null }
-  | { kind: "none" };
+  | { kind: "none"; held?: boolean };
 
 
 /** What Today leads with. `ordering` null = not read yet (or never readable): the page claims nothing about the truck. */
@@ -41,7 +41,7 @@ export function todayLead<T extends TodayOrder>(orders: readonly T[], ordering: 
     case "ahead": return { kind: "open", stop: ordering.stop, pouring: false, readyFrom: ordering.readyFrom };
     case "closing": return { kind: "closing", stop: ordering.stop };
     case "early": return { kind: "later", stop: ordering.stop, opensAt: ordering.opensAt };
-    default: return { kind: "none" };
+    default: return ordering.held ? { kind: "none", held: true } : { kind: "none" };
   }
 }
 

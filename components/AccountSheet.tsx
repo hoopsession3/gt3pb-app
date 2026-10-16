@@ -204,7 +204,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   // and before the signed-out sheet.
   if (deleting) {
     return (
-      <Sheet open onClose={onClose} header={head("Delete your account")} className="acs-sheet">
+      <Sheet open onClose={onClose} label="Delete your account" header={head("Delete your account")} className="acs-sheet">
         <DeleteAccount staff={staff} onKeep={() => setDeleting(false)}
           onDeleted={() => { onClose(); signOut(); toast("Your account is deleted."); router.push("/"); }} />
       </Sheet>
@@ -213,7 +213,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
 
   if (!user) {
     return (
-      <Sheet open onClose={onClose} header={head("Membership")} className="acs-sheet">
+      <Sheet open onClose={onClose} label="Membership" header={head("Membership")} className="acs-sheet">
         <div className="acs-guest">
           <div className="acs-guest-t">Stamps · order ahead · reserves</div>
           <p>Sign in to earn stamps, track your orders, and carry your GT3 member card.</p>
@@ -229,7 +229,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   if (view !== "menu") {
     const back = <button ref={backRef} type="button" className="btn-ter mb-1" aria-label="Back to Your account" onClick={() => setView("menu")}><span aria-hidden="true">‹</span> Your account</button>;
     return (
-      <Sheet open onClose={onClose} header={head(view === "settings" ? "Settings & privacy" : "Help")} className="acs-sheet">
+      <Sheet open onClose={onClose} label={view === "settings" ? "Settings & privacy" : "Help"} header={head(view === "settings" ? "Settings & privacy" : "Help")} className="acs-sheet">
         {back}
         {view === "settings" ? (
           <div className="acs-rows">
@@ -264,7 +264,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   const side = surfaceOf(pathname) === "customer" ? "customer" : "crew";
 
   return (
-    <Sheet open onClose={onClose} header={head("Your account")} className="acs-sheet">
+    <Sheet open onClose={onClose} label="Your account" header={head("Your account")} className="acs-sheet">
       {/* Identity — who, which tier, how close to free — and the one way to the hub. */}
       <button type="button" className="acs-hero acs-hero-go" onClick={() => go("/3mpire")} aria-label="Open your member hub">
         <div className={`acs-av${photo ? " ph" : ""}`} style={photo ? { backgroundImage: `url(${photo})` } : undefined}>

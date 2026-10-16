@@ -7,7 +7,7 @@ import EditCopyPill from "@/components/EditCopyPill";
 import EditableCopy from "@/components/EditableCopy";
 import { Masthead, SectionHeader, InfoRow, ClosingBeat } from "@/components/kit";
 import { RsvpRow } from "@/components/RsvpRow";
-import { openDirections, openAddress, mapStreet, directionsTo } from "@/lib/maps";
+import { openDirections, openAddress, openStop as goToStop, mapStreet, directionsTo } from "@/lib/maps";
 import { supabase } from "@/lib/supabase";
 import { useSiteCopy } from "@/lib/copy";
 import { marketsPresent, rowInMarket, shouldOfferMarketChoice, MARKET_LABEL } from "@/lib/markets";
@@ -279,8 +279,12 @@ export default function FindUs() {
   const startedId = ordering?.state === "started" ? ordering.stop?.id ?? null : null;
   const liveId = isLive ? live?.current_stop_id ?? null : startedId;
   const onNow = isLive || !!startedId;
+  // PACKING UP, SAID AS THAT (R7b): in a stop's last hour the order button is closed (lib/ordering "closing") and the
+  // truck is still there. This page said "Next stop" over the stop the truck was at, while Today said Packing up.
+  const closingId = !onNow && ordering?.state === "closing" ? ordering.stop?.id ?? null : null;
   // the hero is the next PLACE TO FIND US — the stop on now first, else first upcoming stop or event
-  const hero = (liveId && upcoming.find((r) => r.id === liveId)) || upcoming[0];
+  const hero = (liveId && upcoming.find((r) => r.id === liveId)) || (closingId && upcoming.find((r) => r.id === closingId)) || upcoming[0];
+  const packingUp = !!closingId && hero?.id === closingId;
   // A CANCELED STOP SAYS SO (H5, 0391): the soonest one called off that would still be on before this page's next
   // stop — not over yet, and starting no later — is said above it, with the reason. It was a row that vanished.
   const heroStartMs = hero?.starts_at ? Date.parse(hero.starts_at) : Number.POSITIVE_INFINITY;
@@ -346,7 +350,7 @@ export default function FindUs() {
   return (
     <section className="screen truck" id="s-find">
       <Masthead
-        eyebrow={onNow ? t("findus.eyebrow_live") : hero?.kind === "event" ? t("findus.eyebrow_event") : t("findus.eyebrow_stop")}
+        eyebrow={onNow ? t("findus.eyebrow_live") : packingUp ? "Packing up" : hero?.kind === "event" ? t("findus.eyebrow_event") : t("findus.eyebrow_stop")}
         live={onNow}
         right={<div className="mast-right"><EditCopyPill group="Truck" /><AccountPill /></div>}
       />
@@ -487,7 +491,7 @@ export default function FindUs() {
                         {(r.location_text || r.address) && (
                           <div className="k-det-row"><span className="k-det-k">Where</span>
                             <a href={`https://maps.google.com/?q=${encodeURIComponent((r.address ?? r.location_text) as string)}`} target="_blank" rel="noreferrer"
-                              onClick={(e) => { e.preventDefault(); openAddress((r.address ?? r.location_text) as string); }}><Icon name="pin" /> {r.location_text ?? r.address}</a>
+                              onClick={(e) => { e.preventDefault(); goToStop({ lat: r.lat, lng: r.lng, to: r.address ?? r.location_text }); }}><Icon name="pin" /> {r.location_text ?? r.address}</a>
                           </div>
                         )}
                         <p>{(r.notes ?? r.note) ?? <EditableCopy k="truck.stop_note" value={t("truck.stop_note")} as="span" />}</p>
@@ -497,7 +501,7 @@ export default function FindUs() {
                         {(r.lat != null && r.lng != null) ? (
                           <button type="button" className={`k-chip${rowLive && ordering?.open !== false ? " ml-2" : ""}`} onClick={() => openDirections(r.lat as number, r.lng as number)}>{t("findus.directions")}</button>
                         ) : (r.location_text || r.address) ? (
-                          <button type="button" className={`k-chip${rowLive && ordering?.open !== false ? " ml-2" : ""}`} onClick={() => openAddress((r.address ?? r.location_text) as string)}>{t("findus.directions")}</button>
+                          <button type="button" className={`k-chip${rowLive && ordering?.open !== false ? " ml-2" : ""}`} onClick={() => goToStop({ lat: r.lat, lng: r.lng, to: r.address ?? r.location_text })}>{t("findus.directions")}</button>
                         ) : null}
                       </div>
                     )}

@@ -18,22 +18,23 @@ import { readyWords, waitingToOpen } from "@/lib/ordering";
 // pages carry none of it.
 //
 // CANCELED, IT SAYS SO (2026-10-15, R7 of the customer re-audit). A guest's order the crew canceled left the bar without a
-// word — a guest has no email or push with us, so the bar was the only place to hear it. For the hour after, the bar says
-// Canceled and what becomes of the money, and a tap opens the order's page.
+// word — a guest has no email or push with us, so the bar was the only place to hear it. The bar says Canceled and what
+// becomes of the money, and a tap opens the order's page — until that page has been seen (R7b: it said so for an hour,
+// and a 7am pre-order canceled at 8 was news to nobody at 10:40), a day at most.
 
 const ACTIVE = new Set(["new", "preparing", "ready"]);
 const POLL_MS = 20_000;   // the member's bar hears the row change; a guest's reads it again while it is in front of them
-const CANCELED_SAID_MS = 60 * 60 * 1000;   // a canceled order rides the bar for the hour after
+const CANCELED_SAID_MS = 24 * 60 * 60 * 1000;   // a canceled order rides the bar until its page is seen, a day at most
 type Seen = { no: string; status: string; items: string[]; ready_from: string | null; placed_at: string;
   moved_at?: string | null; paid?: boolean; at_window?: boolean; recentlyCanceled?: boolean };
 
 export default function GuestOrderBar() {
   const held = useHeldTickets();
   const lead = held?.[0] ?? null;
-  return lead ? <TicketBar t={lead.t} /> : null;
+  return lead ? <TicketBar t={lead.t} voidSeen={!!lead.seenVoid} /> : null;
 }
 
-function TicketBar({ t }: { t: string }) {
+function TicketBar({ t, voidSeen }: { t: string; voidSeen: boolean }) {
   const { nameOf } = useApp();
   const seen = useAsyncData<Seen | null>(async () => {
     if (!supabase) return null;
@@ -53,7 +54,7 @@ function TicketBar({ t }: { t: string }) {
     document.addEventListener("visibilitychange", tick);
     return () => { clearInterval(id); document.removeEventListener("visibilitychange", tick); };
   }, [live, reload]);
-  if (o?.recentlyCanceled) {
+  if (o?.recentlyCanceled && !voidSeen) {
     const money = o.at_window ? "What you paid at the window comes back there." : o.paid ? "Your card is being refunded in full." : "Nothing was charged.";
     return (
       <div className="orderbar-wrap st-void" role="status" aria-live="polite">

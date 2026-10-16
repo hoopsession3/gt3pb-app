@@ -8,6 +8,8 @@ import { InfoRow } from "@/components/kit";
 import Eyebrow from "@/components/today/Eyebrow";
 import { useCupAvailability } from "@/components/useCupAvailability";
 import { money } from "@/lib/money";
+import { payHeldOpen } from "@/lib/payHold";
+import { MAX_CUPS } from "@/lib/drinks";
 import type { Ordering } from "@/lib/ordering";
 import { CAFFEINE, DAYS, PREFS, SLOT_WORD, STACK_KEY, missingWords, parseAnswers, stackButton, stackFor, type Day, type Pref } from "@/lib/dailyStack";
 
@@ -24,7 +26,10 @@ type Props = { ordering: Ordering | null; stopMenu: ReadonlySet<string> | null }
 const saved = () => { try { return parseAnswers(localStorage.getItem(STACK_KEY)); } catch { return null; } };
 
 export default function DailyStack({ ordering, stopMenu }: Props) {
-  const { menu, menuRead, bump, isInCart, toast, openCheckout, openDrink } = useApp();
+  const { menu, menuRead, bump, isInCart, toast, openCheckout, openDrink, cartCount, refreshMenu } = useApp();
+  // The menu read again as the stack opens (R7b): a menu that failed at start said "try again in a moment" and nothing on
+  // Today ever read it again.
+  useEffect(() => { refreshMenu(); }, [refreshMenu]);
   const { user } = useAuth();
   const { soldOut } = useCupAvailability();
   // The sheet mounts on a tap, never on the server: the phone's last answers are read once, as it opens.
@@ -74,6 +79,10 @@ export default function DailyStack({ ordering, stopMenu }: Props) {
 
   const go = () => {
     if (!stack || !button || !stack.picks.length) return;
+    // What the cart won't take is said as that, and nothing is "saved" (R7b): a payment still being confirmed holds the
+    // cart (lib/payHold) — checkout opens on it — and an order holds MAX_CUPS.
+    if (adding.length && payHeldOpen()) { toast("Your last payment hasn't been confirmed yet — check on it before changing your order", "error"); openCheckout(); return; }
+    if (cartCount + adding.length > MAX_CUPS) { toast(`${MAX_CUPS} drinks is the most one order holds`, "error"); return; }
     for (const p of adding) bump(p.drink.slug);
     if (button.kind === "save") { toast(allIn ? "It's in your cart — there when cup orders open." : "Saved in your cart — it's there when cup orders open."); return; }
     openCheckout();
@@ -105,7 +114,8 @@ export default function DailyStack({ ordering, stopMenu }: Props) {
               <div className="k-rows">
                 {stack.picks.map((p) => (
                   <InfoRow key={p.slot} lead={SLOT_WORD[p.slot]} name={p.drink.name} sub={p.why}
-                    trailing={p.drink.priceCents !== null ? <span className="font-mono text-subhead text-cream">{money(p.drink.priceCents)}</span> : undefined}
+                    // A guest's price is the menu's; a member's perks are checkout's to price (R7b: as the button above).
+                    trailing={!user && p.drink.priceCents !== null ? <span className="font-mono text-subhead text-cream">{money(p.drink.priceCents)}</span> : undefined}
                     onClick={() => openDrink(p.drink.slug)} ariaLabel={`${p.drink.name} — ${p.why}`} />
                 ))}
               </div>

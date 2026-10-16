@@ -10,7 +10,7 @@
 import { FRESH_PER_BOTTLE_CENTS, FLAT_BRING_BACK_CENTS, PICKUP_PACK_BRING_BACK_DOLLARS } from "./bottlePricing";
 import { etDayKey } from "./dates";
 import { etAt } from "./etDay";
-import { PACK_LEAD_MS, packClosesAt } from "./pickupDay";
+import { PACK_LEAD_MS, packClosesAt } from "./packClose";   // the rule alone — lib/pickupDay is its words, and every page loads this
 
 export const PRICING = {
   // order-ahead + bring bottles back — pickup's own bulk-discount schedule (see lib/bottlePricing.ts)

@@ -15,6 +15,7 @@
 --     about the card, the tip or refunds. An unknown link is refused in words, as a 4xx (PT404, 0360).
 --   · order_ticket(t) — 0396's view, and the share key, so the ticket's Share link sends that one.
 -- The ticket stays the key to its order for whoever already holds it — links shared before this keep working.
+-- Adding the key writes every order once and builds its index under the table's lock: run it outside service hours.
 -- changelog: below.
 
 alter table public.orders add column if not exists share uuid default gen_random_uuid();
@@ -92,7 +93,7 @@ begin
     'status',     o.status,
     'items',      to_jsonb(o.items),
     -- the drinks and how many, never what they cost
-    'lines',      (select jsonb_agg(jsonb_build_object('slug', l->>'slug', 'name', l->>'name', 'qty', coalesce((l->>'qty')::int, 1)))
+    'lines',      (select jsonb_agg(jsonb_build_object('slug', l->>'slug', 'name', l->>'name', 'qty', case when (l->>'qty') ~ '^[0-9]{1,4}$' then (l->>'qty')::int else 1 end))
                      from jsonb_array_elements(case when jsonb_typeof(o.lines) = 'array' then o.lines else '[]'::jsonb end) l),
     'paid',       v_paid,
     -- what the person picking it up pays at the window, if anything

@@ -59,7 +59,7 @@ async function post(req: Request) {
           email: await accountEmail(row.user_id),
           subject: "Your GT3PB order is canceled",
           message: `Your cup order ${orderNo(row.id)} is canceled.${row.paid
-            ? ` You paid ${money(charged)} — we've flagged it for a refund and the crew will process it. If you don't see it on your card within a few business days, reach out and we'll sort it.`
+            ? ` You paid ${money(charged)} — your card is being refunded in full; the crew processes it in Square. If you don't see it on your card within a few business days, reach out and we'll sort it.`
             : " Nothing was charged."}`,
         });
       }

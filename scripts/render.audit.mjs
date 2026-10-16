@@ -85,7 +85,11 @@ import { readFileSync, existsSync } from "node:fs";
 //
 // 2026-10-14: 95 → 94 (R5 of the customer audit, a Limited Reserve is paid to hold): the reserve card loaded its list from
 // an effect that set state (components/Reserves) — it reads through useAsyncData now, with no effect of its own.
-export const BASELINE = 94;
+//
+// 2026-10-16: 94 → 93 (R7 and R7b of the customer audit): Today set its greeting's clock inside an effect
+// (components/today/TodayHome) — it reads the time through lib/visibleNow (useSyncExternalStore) now, again whenever the
+// app comes back to the front.
+export const BASELINE = 93;
 
 const RULE = "react-hooks/set-state-in-effect";
 

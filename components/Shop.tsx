@@ -25,6 +25,9 @@ import { haptic } from "@/lib/haptics";
 import { Segmented } from "@/components/controls";
 import { useStuck } from "@/components/useStuck";
 
+/** The most of one line the shop ships (app/api/shop/checkout clamps each to it). */
+const MAX_LINE = 20;
+
 // THE SHOP (0273) — GT3 merch on the 0271 storefront spine. Reads published merch through RLS, a simple
 // cart in memory, and the shared Square card mount + /api/shop/checkout for a real one-time charge that
 // records a shop_orders row and hands print-on-demand to Apliiq. Same paper-editorial checkout language
@@ -95,18 +98,20 @@ export default function Shop() {
   const hasCart = count > 0;
   useEffect(() => { if (hasCart) void import("./ShopCheckout"); }, [hasCart]);
 
+  // Twenty of a line at most — what the checkout ships (app/api/shop/checkout clamps each line to 20, R7b: the cart said
+  // 25 and 20 were charged and sent).
   const addToCart = (product: Product, variant: Variant | null, qty: number) => {
     haptic("medium");
     setCart((c) => {
       const i = c.findIndex((l) => l.product.id === product.id && variantLabel(l.variant) === variantLabel(variant));
-      if (i >= 0) { const next = [...c]; next[i] = { ...next[i], qty: next[i].qty + qty }; return next; }
-      return [...c, { product, variant, qty }];
+      if (i >= 0) { const next = [...c]; next[i] = { ...next[i], qty: Math.min(MAX_LINE, next[i].qty + qty) }; return next; }
+      return [...c, { product, variant, qty: Math.min(MAX_LINE, qty) }];
     });
   };
   // Which way the line went is read from the cart on screen, before the update (the updater stays pure).
   const setQty = (idx: number, qty: number) => {
     if (qty > (cart[idx]?.qty ?? 0)) haptic("increase"); else haptic("decrease");
-    setCart((c) => (qty <= 0 ? c.filter((_, i) => i !== idx) : c.map((l, i) => (i === idx ? { ...l, qty } : l))));
+    setCart((c) => (qty <= 0 ? c.filter((_, i) => i !== idx) : c.map((l, i) => (i === idx ? { ...l, qty: Math.min(MAX_LINE, qty) } : l))));
   };
 
   return (
@@ -286,9 +291,9 @@ function ProductDetail({ product, onBack, onAdd }: { product: Product; onBack: (
         </label>
       )}
       <div className="shop-qty">
-        <button type="button" onClick={() => { if (qty > 1) haptic("decrease"); else haptic("boundary"); setQty((q) => Math.max(1, q - 1)); }} aria-label="Fewer">–</button>
-        <span>{qty}</span>
-        <button type="button" onClick={() => { if (qty < 20) haptic("increase"); else haptic("boundary"); setQty((q) => Math.min(20, q + 1)); }} aria-label="More">+</button>
+        <button type="button" onClick={() => { if (qty > 1) haptic("decrease"); else haptic("boundary"); setQty((q) => Math.max(1, q - 1)); }} aria-label={`One fewer ${product.title}`}>–</button>
+        <span aria-live="polite">{qty}</span>
+        <button type="button" onClick={() => { if (qty < MAX_LINE) haptic("increase"); else haptic("boundary"); setQty((q) => Math.min(MAX_LINE, q + 1)); }} aria-label={`One more ${product.title}`}>+</button>
       </div>
       <button type="button" className="btn-pri btn-wide" onClick={() => onAdd(variant, qty)}>{t("shop.add_cart")} · {money(product.price_cents * qty)}</button>
     </div>

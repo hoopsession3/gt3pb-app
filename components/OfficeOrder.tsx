@@ -145,8 +145,9 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
           <input className="auth-input" placeholder="Contact name" value={contact} onChange={(e) => setContact(e.target.value)} autoComplete="name" maxLength={60} aria-label="Contact name" />
           <input className="auth-input" placeholder="# of people" inputMode="numeric" value={headcount} onChange={(e) => setHeadcount(e.target.value.replace(/\D/g, "").slice(0, 4))} aria-label="Headcount" />
         </div>
-        <input className="auth-input" placeholder="Phone (delivery-morning texts)" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
-        <p className="tel-consent">Your number gets delivery texts from GT3 only — never marketing. Reply STOP anytime.</p>
+        <input className="auth-input" placeholder="Phone (for the driver)" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
+        {/* What the number is for, as it is (R7b): no delivery text is sent from here — it is the driver's, on the day. */}
+        <p className="tel-consent">For the driver, if they can&apos;t find you on delivery day — never marketing.</p>
         <AddressField className="auth-input" placeholder="Street address" label="Street" value={street} onChange={setStreet}
           onPick={(a) => { setStreet(a.street); if (a.city) setCity(a.city); if (a.zip) setZip(a.zip); }} />
         <div className="office-two">

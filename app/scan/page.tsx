@@ -64,6 +64,7 @@ function ScanInner() {
   const [spent, setSpent] = useState(0);
   // The order's total, as the crew types it from the register — the most credit this order can use (R7).
   const [orderStr, setOrderStr] = useState("");
+  const [creditNote, setCreditNote] = useState("");
   // A member with an app order today is asked about once before a walk-up stamp (R7): its cups stamp themselves at
   // pickup, and the note above the button was all that stood between that order and a second stamp for it.
   const [stampAsk, setStampAsk] = useState(false);
@@ -113,10 +114,19 @@ function ScanInner() {
       setSpent(data);
       setMember((m) => (m ? { ...m, credit_cents: Math.max((m.credit_cents ?? 0) - data, 0) } : m));
       setOrderStr("");
+      setCreditNote("");
       setCredit("done");
       haptic("success");
     }
-    else { setCredit(/no credit|not that much/i.test(error?.message ?? "") ? "none" : "failed"); haptic("error"); }
+    else if (/not that much/i.test(error?.message ?? "")) {
+      // The card holds less than this screen read — spent at another window, or a referral undone (0411) since. Read it
+      // again and ask again: the amount below is what comes off now (R7b), never "no credit" while some is still there.
+      haptic("error");
+      await load();
+      setCreditNote("Less credit on the card than this screen had — the amount below is what's on it now.");
+      setCredit("ask");
+    }
+    else { setCredit(/no credit/i.test(error?.message ?? "") ? "none" : "failed"); haptic("error"); }
   };
 
   // "Staff only" is only honest once we know. While the profile is unknown, say that instead —
@@ -191,7 +201,7 @@ function ScanInner() {
           )}
           {(redeem === "ask" || redeem === "busy") && (
             <div className="mt-2.5 flex flex-col gap-2" role="group" aria-label="Redeem a free cup">
-              <div className="h-sub">Give {first} a free cup? It takes ten points off the card.</div>
+              <div className="h-sub">Give {first} a free cup? It takes {GOAL} points off the card.</div>
               <button type="button" className="btn-pri btn-wide" onClick={giveFreeCup} disabled={redeem === "busy"}>{redeem === "busy" ? "Redeeming…" : "Redeem — ring it up at $0"}</button>
               <button type="button" className="btn-ter self-center" onClick={() => setRedeem("idle")} disabled={redeem === "busy"}>Keep it for later</button>
             </div>
@@ -200,10 +210,11 @@ function ScanInner() {
           {redeem === "none" && <div className="h-sub" role="status">No free cup on this card any more — it may have just been given.</div>}
           {redeem === "failed" && <div className="h-sub" role="status">Couldn&apos;t redeem — nothing was taken off the card. Try again.</div>}
           {creditCents > 0 && !ownCard && credit !== "ask" && credit !== "busy" && (
-            <button type="button" className="btn-sec btn-wide mt-2.5" onClick={() => setCredit("ask")}>Use credit · {money(creditCents)} on the card</button>
+            <button type="button" className="btn-sec btn-wide mt-2.5" onClick={() => { setCreditNote(""); setCredit("ask"); }}>Use credit · {money(creditCents)} on the card</button>
           )}
           {(credit === "ask" || credit === "busy") && (
             <div className="mt-2.5 flex flex-col gap-2" role="group" aria-label="Use credit">
+              {creditNote && <div className="h-sub" role="status">{creditNote}</div>}
               <label className="h-sub" htmlFor="scan-order-total">What&apos;s {first}&apos;s order? Up to {money(creditCents)} of credit comes off it.</label>
               <input id="scan-order-total" className="auth-input" inputMode="decimal" enterKeyHint="done" autoComplete="off" placeholder="Order total, e.g. 6.50"
                 value={orderStr} onChange={(e) => setOrderStr(e.target.value)} disabled={credit === "busy"} />

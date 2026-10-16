@@ -95,7 +95,7 @@ async function post(req: Request) {
   // variable — a whitespace-only phone is truthy, so it sailed past "phone is required" straight
   // into `s(b.phone, 30)` trimming it to "", storing `null`, and silently skipping the delivery-
   // morning SMS the error message itself promises.
-  if (!b.sourceId || !name || !phone || !street || !city || !zip) return NextResponse.json({ error: "Missing delivery details — a phone is required for the delivery-morning text." }, { status: 400 });
+  if (!b.sourceId || !name || !phone || !street || !city || !zip) return NextResponse.json({ error: "Missing delivery details — add a name, a phone the driver can call, and the address." }, { status: 400 });
   if (!zipInZone(zip)) return NextResponse.json({ error: "That ZIP isn't in the delivery zone." }, { status: 400 });
 
   const packSize = n(b.packSize);

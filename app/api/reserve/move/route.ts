@@ -7,6 +7,7 @@ import { packClosesAt, packIsOpen, pickupDayWords, PICKUP_STOPS_READ, type PackS
 import { route } from "@/lib/apiRoute";
 import { isSettled } from "@/lib/settled";
 import { isMissingColumn, writeAcrossSkew } from "@/lib/schemaSkew";
+import { packRoad, PACK_ROAD_WORDS } from "@/lib/packRoad";
 
 type MovedPack = { id: string; user_id: string; drop_date: string; stop_id?: string | null; size: number; glass: string; name: string; paid: boolean | null; payment_status: string | null; picked_up: boolean | null; stage: string | null; canceled_at: string | null };
 
@@ -35,13 +36,18 @@ async function post(req: Request) {
   // NOT marked scoped-by, deliberately. This reads the PUBLIC schedule — the same upcoming stops any guest already sees on
   // Find Us — so it leaks nothing today. But it IS unscoped, and with a second market it would offer a Greenville
   // customer Atlanta's drop dates. It stays counted until it is actually fixed.
-  const { data: nextStops } = await supabaseAdmin.from("stops").select("id, starts_at")
+  const { data: nextStops } = await supabaseAdmin.from("stops").select("id, starts_at, market")
     .is("archived_at", null).is("canceled_at", null).neq("status", "done").not("starts_at", "is", null)
     .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(PICKUP_STOPS_READ);
-  const upcoming = (nextStops ?? []) as { id: string; starts_at: string }[];
+  // Not to a stop in a city held closed, or not open yet (0412, R7b re-audit — lib/packRoad).
+  const road = await packRoad(supabaseAdmin, (nextStops ?? []) as { id: string; starts_at: string; market?: string | null }[]);
+  if (road.error !== null) return NextResponse.json({ error: PACK_ROAD_WORDS.unread }, { status: 503 });
+  const named = stopId ? ((nextStops ?? []) as { id: string; market?: string | null }[]).find((st) => st.id === stopId) : undefined;
+  if (named && road.heldCity(named)) return NextResponse.json({ error: PACK_ROAD_WORDS.heldStop }, { status: 409 });
+  const upcoming = road.taking;
   const onDay = upcoming.filter((st) => dropDateKey(new Date(st.starts_at)) === toDate);
   const target = onDay.find((st) => st.id === stopId) ?? onDay.find((st) => packIsOpen(toDate, st)) ?? onDay[0] ?? null;
-  const fallback = upcoming.length === 0 ? nextDrop() : null;
+  const fallback = upcoming.length === 0 && !road.foundingHeld ? nextDrop() : null;
   const toCloses = target ? packClosesAt(toDate, target) : fallback && dropDateKey(fallback.sat) === toDate ? fallback.cutoff : null;
   if (!toCloses) return NextResponse.json({ error: "That day isn't on the pickup schedule." }, { status: 400 });
   if (Date.now() > toCloses.getTime()) return NextResponse.json({ error: "Ordering for that day has closed — pick a later one." }, { status: 400 });

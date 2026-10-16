@@ -282,6 +282,8 @@ Deno.serve(async (req) => {
       }
       if (!shown && record.status === "void") shown = orderVoidShown(record);
       if (!shown) return new Response("skip");
+      // A canceled order opens its own page — why, and what becomes of the money (R7b); Today has nothing to say of it.
+      if (record.status === "void" && typeof record.ticket === "string" && record.ticket) url = `/order?t=${encodeURIComponent(record.ticket)}`;
       targets = await subsFor((q) => q.eq("user_id", record.user_id));
 
     } else if (table === "subscriptions" && type === "UPDATE" && record.user_id) {

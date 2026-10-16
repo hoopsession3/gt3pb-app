@@ -16,14 +16,14 @@ import { ETA_WORDS } from "@/components/useMyOrders";
 import { supabase } from "@/lib/supabase";
 import { money } from "@/lib/money";
 import { clockTime, timeRange } from "@/lib/dates";
-import { openAddress } from "@/lib/maps";
+import { openStop } from "@/lib/maps";
 import { shareLink } from "@/lib/deviceActions";
 import { publicOrigin } from "@/lib/native";
 import { readyWords, waitingToOpen } from "@/lib/ordering";
 import { cancelWords, orderLine, orderTag, stepOf } from "@/lib/orderWords";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { drinksWords, etDay } from "@/lib/today";
-import { holdTicket, isTicket, sharePath, ticketPath, useHeldTickets } from "@/lib/tickets";
+import { markVoidSeen, holdTicket, isTicket, sharePath, ticketPath, useHeldTickets } from "@/lib/tickets";
 import { apiUrl } from "@/lib/native";
 import { canceledHere } from "@/lib/activeOrder";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -50,7 +50,7 @@ type Ticket = {
   at_window?: boolean;   // paid at the window (0396): the crew's to cancel there
   placed_at: string; moved_at: string | null; ready_from: string | null; eta: "on_way" | "outside" | "late" | null;
   for: string | null;
-  stop: { name: string; place: string | null; starts_at: string | null; ends_at: string | null; canceled: boolean; cancel_reason: string | null } | null;
+  stop: { name: string; place: string | null; starts_at: string | null; ends_at: string | null; lat?: number | null; lng?: number | null; canceled: boolean; cancel_reason: string | null } | null;
   share?: string | null;   // the key of its shared link (0413) — the ticket's own view carries it; a shared view does not
   due_cents?: number;      // a shared view's "due at the window" (0413), in place of the money it does not show
 };
@@ -126,6 +126,9 @@ function TicketView({ t, shared = false }: { t: string; shared?: boolean }) {
   // The phone keeps the link, so the order is not lost with the tab (lib/tickets).
   const no = tk?.no ?? null;
   useEffect(() => { if (no && !shared) holdTicket(t, no); }, [t, no, shared]);
+  // A canceled order, seen here, is told (R7b): the bar stops saying Canceled once this page has said why.
+  const voided = tk?.status === "void";
+  useEffect(() => { if (voided && !shared) markVoidSeen(t); }, [voided, t, shared]);
 
   if (err) {
     return (
@@ -153,7 +156,8 @@ function TicketView({ t, shared = false }: { t: string; shared?: boolean }) {
   // A canceled order that was never charged says so once, in its line ("Nothing was charged.") — the money column is empty.
   const paidWords = shared ? (canceled ? null : tk.paid ? "Paid" : `${money(total)} at the window`)
     : refundedAll ? `Refunded ${money(refunded)}` : canceled && !tk.paid ? null : tk.paid ? `Paid ${money(total)}` : `${money(total)} at the window`;
-  const moneyBack = refundedAll ? "Refunded in full." : tk.refund_pending || refunded > 0 ? "The refund is on its way to your card." : "The crew is refunding your card in full.";
+  // One refund sentence, as the bar, the toast, the push and the email say it (R7b).
+  const moneyBack = refundedAll ? "Refunded in full." : tk.refund_pending || refunded > 0 ? "The refund is on its way to your card." : "Your card is being refunded in full.";
   // Money back on an order that was made (a drink remade, a charge fixed) is said too — Square's word, not ours.
   const backOnCard = !canceled && !refundedAll && refunded > 0 ? `${money(refunded)} went back to your card. ` : !canceled && tk.refund_pending ? "A refund is on its way to your card. " : "";
   const note = canceled && shared
@@ -266,7 +270,7 @@ function TicketView({ t, shared = false }: { t: string; shared?: boolean }) {
       {tk.stop && !tk.stop.canceled && !canceled && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-footnote text-cream-muted">{tk.stop.name}{tk.stop.starts_at ? ` · ${etDay(tk.stop.starts_at)} ${timeRange(tk.stop.starts_at, tk.stop.ends_at)}` : ""}</span>
-          {tk.stop.place && <button type="button" className="k-chip sm" onClick={() => openAddress(tk.stop!.place!)}><Icon name="pin" /> Directions</button>}
+          {(tk.stop.place || (tk.stop.lat != null && tk.stop.lng != null)) && <button type="button" className="k-chip sm" onClick={() => openStop({ lat: tk.stop!.lat, lng: tk.stop!.lng, to: tk.stop!.place })}><Icon name="pin" /> Directions</button>}
         </div>
       )}
 

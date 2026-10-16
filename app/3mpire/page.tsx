@@ -63,13 +63,14 @@ function OrderHistory() {
             {/* Its number and where it ended (R3b): a canceled order said nothing here and read like one picked up. */}
             <span>{histDate(o.created_at)} · {orderNo(o.id)} · {orderTag(o.status)}{o.status === "void" ? "" : isSettled(o) ? " · paid" : " · pay at the window"}</span>
           </div>
-          <span className="hist-px">{money(o.total_cents)}</span>
-          <button className="k-icon-btn shrink-0" onClick={() => reorder(o.items)} aria-label="Order this again">↻</button>
+          {/* What the card was charged — the drinks and the tip (R7b), as Today, the order's page and the refund say it. */}
+          <span className="hist-px">{money(o.total_cents + (o.tip_cents ?? 0))}</span>
+          <button className="k-icon-btn shrink-0" onClick={() => reorder(o.items)} aria-label={`Order ${o.items.map(nameOf).join(", ")} again`}>↻</button>
         </div>
       ))}
       {orders.length > 4 && (
-        <button type="button" className="hist-more" onClick={() => setShowAll((v) => !v)} aria-expanded={showAll}>
-          {showAll ? "Fewer ▴" : `All ${orders.length} ▸`}
+        <button type="button" className="hist-more hit-y-44" onClick={() => setShowAll((v) => !v)} aria-expanded={showAll}>
+          {showAll ? "Fewer ▴" : `Your last ${orders.length} ▸`}
         </button>
       )}
     </>
@@ -97,13 +98,19 @@ function ReferralCard({ code }: { code: string }) {
   const [copyLbl, setCopyLbl] = useState(t("account.copy"));
   const [stats, setStats] = useState<{ n: number; earned: number } | null>(null);
 
-  // Real earned-credit stats from the referral ledger (referrer = me).
+  // Real earned-credit stats from the referral ledger (referrer = me): the friends whose first order stands (0411 — one
+  // canceled or refunded took its $5 back, until their next order). arrives-with: 0411 — reversed_at is its column;
+  // before it is pasted nothing has been undone, and every referral counts, as before.
   useEffect(() => {
     if (!supabase || !user) return;
-    supabase.from("referral_events").select("referrer_credit_cents").eq("referrer", user.id)
-      .then(({ data }) => {
-        if (data) setStats({ n: data.length, earned: data.reduce((s, r) => s + (r.referrer_credit_cents ?? 0), 0) });
-      });
+    const sb = supabase;
+    let alive = true;
+    void (async () => {
+      let r = await sb.from("referral_events").select("referrer_credit_cents").eq("referrer", user.id).is("reversed_at", null);
+      if (r.error && (r.error.code === "42703" || /reversed_at/.test(r.error.message))) r = await sb.from("referral_events").select("referrer_credit_cents").eq("referrer", user.id);
+      if (alive && r.data) setStats({ n: r.data.length, earned: r.data.reduce((s, x) => s + (x.referrer_credit_cents ?? 0), 0) });
+    })();
+    return () => { alive = false; };
   }, [user]);
 
   const link = typeof window !== "undefined" ? `${publicOrigin()}/?ref=${encodeURIComponent(code)}` : "";

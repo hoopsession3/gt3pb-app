@@ -17,10 +17,13 @@ import { canceledHere } from "@/lib/activeOrder";
 // progress). The order bar (components/OrderStatus) read them for itself; Today's order card reads the same, the same
 // way: the member's own rows (RLS), realtime, every 20 seconds and on coming back to the page, and offline the last
 // answer for 90 minutes, labelled as such (a festival dead zone). Moved out of OrderStatus unchanged.
-export function useMyActiveOrders(): { orders: Order[]; stale: boolean; reload: () => void } {
+export function useMyActiveOrders(): { orders: Order[]; stale: boolean; reload: () => void; failed: boolean } {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [stale, setStale] = useState(false);
+  // FAILED IS NOT NONE (R7b): a first read that failed, with nothing kept from before, was an empty list — and Today led
+  // with "Order again" over an order being made. The page says it couldn't check instead.
+  const [failed, setFailed] = useState(false);
   const loadedOnce = useRef(false);
 
   // Nothing is set before the read answers (a signed-out phone simply has no orders: see the return).
@@ -33,14 +36,15 @@ export function useMyActiveOrders(): { orders: Order[]; stale: boolean; reload: 
       .in("status", ["new", "preparing", "ready"])
       .order("created_at", { ascending: false });
     if (data) {
-      setOrders(data as Order[]); setStale(false); loadedOnce.current = true;
+      setOrders(data as Order[]); setStale(false); setFailed(false); loadedOnce.current = true;
       saveSnapshot(`gt3-order-snap-${user.id}`, data);
       return;
     }
     if (error && !loadedOnce.current && isNetworkError(error.message)) {
       const snap = readSnapshot<Order[]>(`gt3-order-snap-${user.id}`);
-      if (snap && snapshotUsable(snap.at, Date.now(), 90 * 60 * 1000) && snap.data.length > 0) { setOrders(snap.data); setStale(true); }
+      if (snap && snapshotUsable(snap.at, Date.now(), 90 * 60 * 1000) && snap.data.length > 0) { setOrders(snap.data); setStale(true); return; }
     }
+    if (error && !loadedOnce.current) setFailed(true);
   }, [user]);
 
   useEffect(() => {
@@ -62,7 +66,7 @@ export function useMyActiveOrders(): { orders: Order[]; stale: boolean; reload: 
     };
   }, [reload, user]);
 
-  return { orders: user ? orders : [], stale: !!user && stale, reload };
+  return { orders: user ? orders : [], stale: !!user && stale, reload, failed: !!user && failed };
 }
 
 export type Eta = "on_way" | "outside" | "late";

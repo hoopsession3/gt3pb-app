@@ -25,12 +25,13 @@ import { fillCopy } from "@/lib/copy";
 import { clockTime, etWhen, timeRange } from "@/lib/dates";
 import { cardOf, freeWords, STAMP_GOAL } from "@/lib/loyalty";
 import { CUP_MARKETS } from "@/lib/markets";
-import { openAddress } from "@/lib/maps";
+import { openStop } from "@/lib/maps";
 import { money } from "@/lib/money";
 import { closedWords, readyWords, waitingToOpen, type Ordering } from "@/lib/ordering";
 import { isSettled } from "@/lib/settled";
 import { supabase } from "@/lib/supabase";
 import { readMode } from "@/lib/mode";
+import { useVisibleNow } from "@/lib/visibleNow";
 import type { Order } from "@/lib/db";
 import { drinksWords, etDay, orderable, orderNo, stepOf, todayLead, usualOf, type TodayLead } from "@/lib/today";
 import { orderLine, orderTag } from "@/lib/orderWords";
@@ -202,17 +203,17 @@ function Lead({ lead, usual, stopMenu, t }: { lead: Exclude<TodayLead<Order>, { 
     return (
       <div className="mt-5 flex flex-col gap-2.5">
         <Eyebrow>{t("today.off_eyebrow")}</Eyebrow>
+        {/* The stop in two lines (R7b): its name, then when and where in one — Remind me sat five lines down. */}
         {s && (
           <div>
             <div className="font-display text-title2 leading-tight text-cream">{s.name || "The next stop"}</div>
-            <div className="mt-1 text-callout font-semibold text-cream">{[etDay(s.starts_at), timeRange(s.starts_at, s.ends_at)].filter(Boolean).join(" · ")}</div>
-            {s.where && <div className="text-subhead text-cream-muted">{s.where.replace(/\s+\d{5}(?:-\d{4})?\s*$/, "")}</div>}
+            <div className="mt-1 text-subhead text-cream-muted"><b className="font-semibold text-cream">{[etDay(s.starts_at), timeRange(s.starts_at, s.ends_at)].filter(Boolean).join(" · ")}</b>{s.where ? ` · ${s.where.replace(/\s+\d{5}(?:-\d{4})?\s*$/, "")}` : ""}</div>
           </div>
         )}
         <p className="k-rsub whitespace-normal">{opens}</p>
         {s && lead.opensAt && <RemindMe stopId={s.id} opensAt={lead.opensAt} stopName={s.name} where={s.where ?? null} t={t} />}
         <div className="flex flex-wrap items-center gap-2">
-          {(s?.to || s?.where) && <button type="button" className="k-chip sm" onClick={() => openAddress((s.to || s.where)!)}><Icon name="pin" /> {t("today.directions")}</button>}
+          {(s?.pin || s?.to || s?.where) && <button type="button" className="k-chip sm" onClick={() => openStop({ ...s.pin, to: s.to || s.where })}><Icon name="pin" /> {t("today.directions")}</button>}
           {menuChip}
         </div>
       </div>
@@ -220,6 +221,17 @@ function Lead({ lead, usual, stopMenu, t }: { lead: Exclude<TodayLead<Order>, { 
   }
 
   if (lead.kind === "none") {
+    // Held closed (0412): the city takes no orders of any kind just now — not "no stop on the calendar", which it may have.
+    if (lead.held) {
+      return (
+        <div className="mt-5 flex flex-col gap-2.5">
+          <Eyebrow>Paused here</Eyebrow>
+          <div className="font-display text-title2 leading-tight text-cream">Online orders are paused</div>
+          <p className="k-rsub whitespace-normal">{closedWords({ state: "none", open: false, stop: null, opensAt: null, readyFrom: null, held: true })} Find Us says where the truck is.</p>
+          <div className="flex flex-wrap items-center gap-2"><Link href="/truck" className="k-chip sm"><Icon name="pin" /> {t("today.find_us")}</Link>{menuChip}</div>
+        </div>
+      );
+    }
     return (
       <div className="mt-5 flex flex-col gap-2.5">
         <Eyebrow>{t("today.none_eyebrow")}</Eyebrow>
@@ -304,10 +316,11 @@ function Rows({ t, quiet, first, ordering, stopMenu }: { t: T; quiet: boolean; f
 export default function TodayHome({ t }: { t: T }) {
   const { user, profile } = useAuth();
   const name = firstName(profile, user?.email);
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => { setNow(new Date()); }, []);
+  // The greeting and the date are read again when the page comes back (R7b, lib/visibleNow): an app left open overnight
+  // said "Evening" and yesterday's date the next morning.
+  const now = useVisibleNow();
   const [sideChosen] = useState(() => readMode() !== null);
-  const { orders, stale, reload } = useMyActiveOrders();
+  const { orders, stale, reload, failed } = useMyActiveOrders();
   const usual = useUsual();
   const { market } = useViewerMarket(CUP_MARKETS);
   const oo = useOrderingOpen(true, market);
@@ -329,6 +342,13 @@ export default function TodayHome({ t }: { t: T }) {
       </div>
 
       {isStaff(profile) && !sideChosen && <CrewWelcomeRow />}
+
+      {failed && lead.kind !== "making" && (
+        <p className="k-rsub mt-4 whitespace-normal" role="status">
+          We couldn&apos;t check for an order in progress just now.{" "}
+          <button type="button" className="btn-ter" onClick={() => { void reload(); }}>Check again</button>
+        </p>
+      )}
 
       {lead.kind === "making"
         ? <MakingCard order={lead.order} more={lead.more} stale={stale} reload={reload} />

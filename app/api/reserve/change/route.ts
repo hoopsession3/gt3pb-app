@@ -12,6 +12,7 @@ import { packChangeStore, packChangeMissing } from "@/lib/packChangeStore";
 import { isUuid } from "@/lib/uuid";
 import { route } from "@/lib/apiRoute";
 import { isMissingColumn } from "@/lib/schemaSkew";
+import { packRoad, PACK_ROAD_WORDS } from "@/lib/packRoad";
 
 // CHANGE A RESERVED PACK IN PLACE (0388, 2026-10-12 — C5 of the customer audit, approved). The pack itself changes —
 // size, flavors, glass, day, name, phone — and only the difference moves: more is charged to a card, less is refunded
@@ -87,13 +88,23 @@ async function post(req: Request) {
   if ("error" in p) return NextResponse.json({ error: p.error }, { status: p.status });
 
   // NOT marked scoped-by, as in /api/reserve/move: the public schedule, unscoped until a second market is real.
-  const { data: nextStops } = await sb.from("stops").select("starts_at")
+  const { data: nextStops } = await sb.from("stops").select("starts_at, market")
     .is("archived_at", null).is("canceled_at", null).neq("status", "done").not("starts_at", "is", null)
     .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(PICKUP_STOPS_READ);
-  const offered = offeredDays(nextStops as { starts_at: string }[] | null);
+  // A city held closed, or not open yet, takes no pack at its stops (0412, R7b re-audit — lib/packRoad): a pack there can
+  // still be canceled from My packs; it is not changed into a new order there.
+  const road = await packRoad(sb, (nextStops ?? []) as { starts_at: string; market?: string | null }[]);
+  if (road.error !== null) return NextResponse.json({ error: PACK_ROAD_WORDS.unread }, { status: 503 });
   const day = requestedDay(body.dropDate);
-  const cutoff = offered.get(day);
-  if (!cutoff) return NextResponse.json({ error: "That pickup day just changed — refresh to see the current stops." }, { status: 409 });
+  // The Saturday cadence (no stop left) is the founding city's: offered only while that city takes orders.
+  const noneTaking = !road.taking.length && road.foundingHeld;
+  const cutoff = noneTaking ? undefined : offeredDays(road.taking).get(day);
+  if (!cutoff) {
+    const heldDay = noneTaking || ((nextStops ?? []) as { starts_at: string; market?: string | null }[]).some((st) => requestedDay(st.starts_at) === day && road.heldCity(st));
+    return NextResponse.json({ error: heldDay
+      ? "That stop's city isn't taking orders right now — you can still cancel the pack from My packs."
+      : "That pickup day just changed — refresh to see the current stops." }, { status: 409 });
+  }
   if (Date.now() > cutoff.getTime()) return NextResponse.json({ error: "That drop has closed — pick the next pickup day." }, { status: 400 });
 
   // arrives-with: 0397 — stop_id is read here. Until it is pasted the column is not there (lib/schemaSkew): the pack is

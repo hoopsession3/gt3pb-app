@@ -8,6 +8,8 @@ import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
 import { packClosesAt, closesWords, type PackStop } from "@/lib/pickupDay";
 import { orderNo } from "@/lib/activeOrder";
+import { deliveryCancelClosesAt } from "@/lib/delivery";
+import { TEXTS_HELP_EMAIL } from "@/lib/texts";
 import { isMissingColumn } from "@/lib/schemaSkew";
 
 // CANCEL A CUSTOMER ORDER — one route for all three channels (cup / pickup pack / Sunday delivery).
@@ -77,6 +79,12 @@ async function post(req: Request) {
       const why = await whyNotPack(id, user.id, !!error);
       return NextResponse.json({ ok: false, ...why.body }, { status: why.status });
     }
+    // A DELIVERY SAYS WHICH TOO (R7b): canceled already, on its way or delivered, or past its cancel time — with when. It
+    // was a bare { ok: false }, and the page said "too late — text us" with no number, whatever the reason.
+    if (channel === "delivery") {
+      const why = await whyNotDelivery(id, user.id, !!error);
+      return NextResponse.json({ ok: false, ...why.body }, { status: why.status });
+    }
     return NextResponse.json({ ok: false }, { status: 200 });
   }
 
@@ -104,7 +112,7 @@ async function post(req: Request) {
     // system has no follow-up, no retry, and had just told the customer something it can't enforce.
     // Say what's actually true instead of a promise this route can't keep.
     const refundLine = info.paid
-      ? ` You paid ${money(info.total_cents)} — we've flagged it for a refund and the crew will process it. If you don't see it on your card within a few business days, reach out and we'll sort it.`
+      ? ` You paid ${money(info.total_cents)} — your card is being refunded in full; the crew processes it in Square. If you don't see it on your card within a few business days, reach out and we'll sort it.`
       : " Nothing was charged.";
     await notifyCustomer({
       phone: info.phone,
@@ -152,6 +160,20 @@ async function whyNotPack(id: string, userId: string, failed: boolean): Promise<
   if (closes && Date.now() >= closes.getTime()) return { status: 409, body: { outcome: "too_late", now: "closed", error: `Its drop closed ${closesWords(closes)} — we may already be brewing it. Ask at the truck.` } };
   return failed ? { status: 500, body: { outcome: "error", error: "Couldn't cancel it just now — try again, or ask at the truck." } }
     : { status: 409, body: { outcome: "too_late", error: "Couldn't cancel it — ask at the truck." } };
+}
+
+async function whyNotDelivery(id: string, userId: string, failed: boolean): Promise<{ status: number; body: { outcome: string; now?: string; error: string } }> {
+  // scoped-by: user_id = the caller, whose token the cancel was just refused for — only ever their own delivery.
+  const { data, error } = await supabaseAdmin!.from("delivery_orders").select("delivery_date, status, canceled_at").eq("id", id).eq("user_id", userId).maybeSingle();
+  if (error) return { status: 500, body: { outcome: "error", error: "Couldn't cancel it just now — try again in a minute." } };
+  const d = data as { delivery_date: string; status: string; canceled_at: string | null } | null;
+  if (!d) return { status: 404, body: { outcome: "not_yours", error: "That delivery isn't on your account." } };
+  if (d.canceled_at) return { status: 409, body: { outcome: "too_late", now: "canceled", error: "That delivery is already canceled." } };
+  if (d.status !== "received") return { status: 409, body: { outcome: "too_late", now: d.status, error: `It's already on its way to you — email ${TEXTS_HELP_EMAIL} and we'll sort it out.` } };
+  const closes = deliveryCancelClosesAt(d.delivery_date);
+  if (Date.now() >= closes.getTime()) return { status: 409, body: { outcome: "too_late", now: "closed", error: `Online cancels closed ${closesWords(closes)} — we're already brewing it. Email ${TEXTS_HELP_EMAIL} and we'll sort it out.` } };
+  return failed ? { status: 500, body: { outcome: "error", error: "Couldn't cancel it just now — try again in a minute." } }
+    : { status: 409, body: { outcome: "too_late", error: `Couldn't cancel it — email ${TEXTS_HELP_EMAIL} and we'll sort it out.` } };
 }
 
 // Read the just-canceled row with the service role (RLS-bypassing) but re-scope to the caller's

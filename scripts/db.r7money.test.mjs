@@ -110,20 +110,28 @@ ok("a member still cannot spend anyone's credit", /staff only/.test((await as(SA
 // ── 0411 · a referral follows its order ──────────────────────────────────────────────────────────────────────
 await q(`update public.profiles set referred_by = $2, referral_converted = false, credit_cents = 0 where id = $1`, [NEW, REF]);
 await q(`update public.profiles set credit_cents = 0 where id = $1`, [REF]);
+const stake = async () => q1(`select s.referee_cents f, s.referrer_cents b from public.referral_stakes s join public.referral_events e on e.id = s.event_id where e.referee = $1`, [NEW]);
 const first = await order({ user: NEW, total: 900, paid: true, payment: "sq-411-a", customer: "Nia Park" });
 await setStatus(first.id, "done");
 ok("the referee's first order of $5 or more converts it: $5 each", (await credit(NEW)) === 500 && (await credit(REF)) === 500);
 await setStatus(first.id, "void");
-const ev1 = await q1(`select reversed_at is not null r, referee_back_cents f, referrer_back_cents b, reversed_why w from public.referral_events where referee = $1`, [NEW]);
-ok("voided, its stamps come off — and the referral with them: $5 back off each card, the event says so",
-  (await credit(NEW)) === 0 && (await credit(REF)) === 0 && ev1?.r === true && ev1.f === 500 && ev1.b === 500 && ev1.w === "order voided / undone"
+const ev1 = await q1(`select reversed_at is not null r from public.referral_events where referee = $1`, [NEW]);
+ok("voided, its stamps come off — and the referral with them: $5 back off each card, the event says when",
+  (await credit(NEW)) === 0 && (await credit(REF)) === 0 && ev1?.r === true
     && (await q1(`select referral_converted c from public.profiles where id = $1`, [NEW])).c === false, ev1);
-ok("…and the change log has the line", (await q1(`select count(*)::int n from public.admin_audit where table_name = 'referral_events' and summary like 'referral undone with its order%'`)).n === 1);
+ok("…what came off each card is the next conversion's to give back, kept where neither side reads it",
+  ((st) => st?.f === 500 && st.b === 500)(await stake())
+    && (await as(REF, `select count(*)::int n from public.referral_stakes`)).error !== null
+    && (await as(NEW, `select count(*)::int n from public.referral_stakes`)).error !== null);
+ok("…the event carries no amount either side could read the other's balance from",
+  (await q(`select column_name from information_schema.columns where table_name = 'referral_events' and column_name like '%back%'`)).length === 0);
+ok("…and the change log has the line, with the amounts", (await q1(`select count(*)::int n from public.admin_audit where table_name = 'referral_events'
+  and summary like 'referral undone with its order (order voided / undone): $5.00 back from the referee, $5.00 from the referrer'`)).n === 1);
 
 const second = await order({ user: NEW, total: 700, paid: true, payment: "sq-411-b", customer: "Nia Park" });
 await setStatus(second.id, "done");
 const ev2 = await q1(`select reversed_at, converting_order o from public.referral_events where referee = $1`, [NEW]);
-ok("the referee's next real order converts it again — the same event, re-stamped with this order",
+ok("the referee's next real order converts it again — the same event, re-stamped with this order — and gives back what came off",
   (await credit(NEW)) === 500 && (await credit(REF)) === 500 && ev2.reversed_at === null && ev2.o === second.id
     && (await q1(`select count(*)::int n from public.referral_events where referee = $1`, [NEW])).n === 1, ev2);
 
@@ -133,18 +141,23 @@ const before = await points(NEW);
 await setStatus(second.id, "ready");                                                 // the Pass's Recall
 await setStatus(second.id, "void");
 ok("Recall then Void takes the stamps back", (await points(NEW)) === before - 1, { before, now: await points(NEW) });
-const ev3 = await q1(`select referee_back_cents f, referrer_back_cents b from public.referral_events where referee = $1`, [NEW]);
 ok("…and the referral: what is still on each card, never below zero — $2 of the referee's $5, all of the referrer's",
-  (await credit(NEW)) === 0 && (await credit(REF)) === 0 && ev3.f === 200 && ev3.b === 500, ev3);
+  (await credit(NEW)) === 0 && (await credit(REF)) === 0 && ((st) => st?.f === 200 && st.b === 500)(await stake()), await stake());
 
-// Refunded in full in Square: the same undoing, from the refund's clawback.
+// The leak R7's first 0411 had: re-earning paid the whole $5 again over a $5 already spent.
 const third = await order({ user: NEW, total: 800, paid: true, payment: "sq-411-c", customer: "Nia Park" });
 await setStatus(third.id, "done");
-ok("a third order converts it again", (await credit(NEW)) === 500 && (await credit(REF)) === 500);
+ok("a third order converts it again — and gives back only what came off: $2 to the referee (whose $3 was spent), $5 to the referrer",
+  (await credit(NEW)) === 200 && (await credit(REF)) === 500, { fee: await credit(NEW), ref: await credit(REF) });
 await q(`insert into public.square_refunds (id, payment_id, amount_cents, status) values ('rf-411-c', 'sq-411-c', 800, 'COMPLETED')`);
-ok("refunded in full in Square: its stamps come off, and the referral with them",
-  (await credit(NEW)) === 0 && (await credit(REF)) === 0
-    && (await q1(`select reversed_why w from public.referral_events where referee = $1`, [NEW])).w === "refunded in Square");
+ok("refunded in full in Square: its stamps come off, and the referral with them — never more than this conversion gave",
+  (await credit(NEW)) === 0 && (await credit(REF)) === 0 && ((st) => st?.f === 200 && st.b === 500)(await stake())
+    && (await q1(`select count(*)::int n from public.admin_audit where table_name = 'referral_events' and summary like 'referral undone with its order (refunded in Square)%'`)).n === 1);
+// Undone and redone as often as you like: across the referral's life each side holds at most its $5.
+const fourth = await order({ user: NEW, total: 800, paid: true, payment: "sq-411-d", customer: "Nia Park" });
+await setStatus(fourth.id, "done");
+ok("…and converted again, the referee has $2 and the referrer $5 — what the referral is worth to each, less what was spent",
+  (await credit(NEW)) === 200 && (await credit(REF)) === 500);
 
 // An order that converted nothing undoes nothing.
 await q(`update public.profiles set credit_cents = 700 where id = $1`, [SAM]);
@@ -153,6 +166,33 @@ await setStatus(plain.id, "done");
 await setStatus(plain.id, "void");
 ok("an order that converted no referral takes back its stamps and nothing else", (await credit(SAM)) === 700);
 ok("the trigger is the database's: nobody calls it", (await q1(`select has_function_privilege('authenticated', 'public.referral_follows_its_order()', 'execute') a`)).a === false);
+
+// A take-back is never refused: a void after the stamps were given as a free cup.
+const ZOE = "0c409000-0000-4000-8000-0000000000c3";
+await q(`insert into auth.users (id, email) values ($1, 'zoe@example.test')`, [ZOE]);
+await q(`update public.profiles set role = 'member', tenant_id = $2, display_name = 'Zoe Hart' where id = $1`, [ZOE, T1]);
+const zo = await order({ user: ZOE, items: ["flow", "tide"], total: 2200, paid: true, customer: "Zoe Hart" });
+await setStatus(zo.id, "done");
+await q(`insert into public.loyalty_ledger (user_id, channel, kind, points, note) values ($1, 'admin', 'adjust', 8, 'test: eight more')`, [ZOE]);
+const freeCup = await as(KAY, `select public.redeem_free_cup($1) r`, [await codeOf(ZOE)]);
+const voidAfter = await q(`update public.orders set status = 'void' where id = $1 returning status`, [zo.id]).then((r) => ({ r, error: null })).catch((e) => ({ r: null, error: String(e.message || e) }));
+ok("a void after the stamps went on a free cup goes through — the card is two below zero until it is earned back",
+  freeCup.rows[0]?.r === 0 && !voidAfter.error && (await points(ZOE)) === -2
+    && (await q1(`select count(*)::int n from pg_constraint where conname = 'profiles_points_nonneg'`)).n === 0, { freeCup, voidAfter, pts: await points(ZOE) });
+
+// A friend's link is for someone who has not bought yet.
+await q(`update public.profiles set referred_by = null, referral_converted = false where id = $1`, [SAM]);
+await as(SAM, `select public.attach_referral($1)`, [await codeOf(REF)]);
+ok("a member who has bought before doesn't attach a friend's link — their next order is not a first order",
+  (await q1(`select referred_by r from public.profiles where id = $1`, [SAM])).r === null);
+const TED = "0c409000-0000-4000-8000-0000000000c4";
+await q(`insert into auth.users (id, email) values ($1, 'ted@example.test')`, [TED]);
+await q(`update public.profiles set role = 'member', tenant_id = $2, display_name = 'Ted Ruiz' where id = $1`, [TED, T1]);
+await as(TED, `select public.attach_referral($1)`, [await codeOf(REF)]);
+ok("…a new account still does", (await q1(`select referred_by r from public.profiles where id = $1`, [TED])).r === REF);
+ok("attach_referral is a signed-in caller's only", (await q1(`select has_function_privilege('anon', 'public.attach_referral(text)', 'execute') a,
+  has_function_privilege('authenticated', 'public.attach_referral(text)', 'execute') b`)).a === false
+  && (await q1(`select has_function_privilege('authenticated', 'public.attach_referral(text)', 'execute') b`)).b === true);
 
 console.log(`R7 MONEY (0409 · 0410 · 0411, in Postgres): ${pass} passed, ${fail} failed`);
 await db.close();

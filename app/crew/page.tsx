@@ -3755,11 +3755,13 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
   const save = async () => {
     setBusy(true);
     if (name !== (m.display_name ?? "")) await supabase!.rpc("admin_set_display_name", { member: m.id, name });
+    // Only what was changed goes (0414): the points, the credit or Founding as read when the form loaded would write back
+    // over a spend at the window or a referral's undoing made since — null leaves each as the database has it.
     const { error } = await supabase!.rpc("admin_set_member", {
       member: m.id,
-      new_points: pts,
-      new_credit_cents: Math.max(0, Math.round(parseFloat(credit || "0") * 100)),
-      new_founding: founding,
+      new_points: pts !== m.points ? pts : null,
+      new_credit_cents: credit !== moneyPlain(m.credit_cents) ? Math.max(0, Math.round(parseFloat(credit || "0") * 100)) : null,
+      new_founding: founding !== m.founding_member ? founding : null,
     });
     setBusy(false);
     toast(error ? `Error: ${error.message}` : `Saved ${m.display_name ?? "member"}`, error ? "error" : undefined);

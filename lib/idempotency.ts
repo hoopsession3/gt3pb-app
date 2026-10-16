@@ -138,11 +138,14 @@ export function attemptFor(
 export type AttemptVerdict = "settled" | "unknown" | "refused";
 
 export function attemptVerdict(status: number | null | undefined, body: unknown): AttemptVerdict {
-  const b = (body && typeof body === "object" ? body : {}) as { pending?: unknown; declined?: unknown };
+  const b = (body && typeof body === "object" ? body : {}) as { pending?: unknown; declined?: unknown; charged?: unknown };
   if (typeof status !== "number" || !Number.isFinite(status)) return "unknown";
   if (b.pending === true) return "unknown";
   if (status >= 200 && status < 300) return "settled";
   if (b.declined === true) return "settled";
+  // A server error that says nothing was charged (R7b: refused before the claim — the menu, the truck's hours, the claims
+  // store unread) is a refusal, not a lost answer: nothing is held for it. Any other 5xx may have charged: it is unknown.
+  if (b.charged === false) return "refused";
   if (status >= 500) return "unknown";
   return "refused";
 }
@@ -171,7 +174,9 @@ export function payErrorText(raw: string | null | undefined): string {
   if (/idempotency_key/i.test(s)) {
     return "That attempt expired. Tap Pay again — you have not been charged.";
   }
-  if (/CARD_DECLINED|declined/i.test(s)) {
+  // Square's decline codes all say "declin…" — CARD_DECLINED, its _CALL_ISSUER and _VERIFICATION_REQUIRED, GENERIC_DECLINE (R7b:
+  // "Authorization error: 'GENERIC_DECLINE'" was passed through to the page as it came).
+  if (/CARD_DECLINED|declin/i.test(s)) {
     return "Your card was declined — nothing was charged. Try another card.";
   }
   if (/CVV|cvv_failure/i.test(s)) return "The security code didn't match — check it and try again.";

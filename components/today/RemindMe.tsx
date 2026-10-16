@@ -37,8 +37,10 @@ export default function RemindMe({ stopId, opensAt, stopName, where, t }: { stop
   const [busy, setBusy] = useState(false);
   // The phone's half is there only in the app on a phone; the app's build opened in a plain browser (a test run) is the web.
   const [native] = useState(() => APP_BUILD && isNativeApp());
-  const webPush = !native && perm !== "unknown" && perm !== "unsupported" && typeof window !== "undefined" && "PushManager" in window && "serviceWorker" in navigator;
-  const appPush = native && NATIVE_PUSH_ON && app.state !== "unknown" && app.state !== "unavailable";
+  // A phone that has said no to alerts can't take this push — the calendar can (R7b: "Remind me" was drawn, and could only
+  // end in "Your phone said no").
+  const webPush = !native && perm !== "unknown" && perm !== "unsupported" && perm !== "denied" && typeof window !== "undefined" && "PushManager" in window && "serviceWorker" in navigator;
+  const appPush = native && NATIVE_PUSH_ON && app.state !== "unknown" && app.state !== "unavailable" && app.state !== "denied";
   // An answer from the phone that never comes (its half failed to load) is no answer: after 3 seconds, no button.
   const [waited, setWaited] = useState(false);
   useEffect(() => { const id = setTimeout(() => setWaited(true), 3000); return () => clearTimeout(id); }, []);
@@ -89,12 +91,13 @@ export default function RemindMe({ stopId, opensAt, stopName, where, t }: { stop
   };
 
   // Its room is kept while the answers come in (the phone's, then the row's), so the rows under it do not jump.
-  const maybe = native ? NATIVE_PUSH_ON && app.state !== "unavailable" && !(app.state === "unknown" && waited) : webPush;
-  // No push here (an iPhone's Safari tab; alerts the app can't have): the calendar, at the minute they open.
+  const maybe = native ? NATIVE_PUSH_ON && app.state !== "unavailable" && app.state !== "denied" && !(app.state === "unknown" && waited) : webPush;
+  // No push here (an iPhone's Safari tab; alerts the app can't have, or turned off): the calendar, at the minute they open,
+  // with its own alert at that minute (R7b) and none of the crew's buffer — said as what it is, an event on their calendar.
   const calendar = (
-    <AddToCalendar label={fillCopy(t("today.remind"), { time: at })} ev={{
+    <AddToCalendar label={`Add ${at} to my calendar`} buffers={false} ev={{
       uid: `cups-open-${stopId}@gt3pb`, title: `GT3 cup orders open${stopName ? ` — ${stopName}` : ""}`,
-      start: new Date(opensAt), end: new Date(Date.parse(opensAt) + OPEN_FOR_MS), allDay: false,
+      start: new Date(opensAt), end: new Date(Date.parse(opensAt) + OPEN_FOR_MS), allDay: false, alarmMinutes: 0,
       location: where ?? undefined, description: "Cup orders are open — pre-order in the GT3 app and skip the line.", url: `${publicOrigin()}/menu`,
     }} />
   );

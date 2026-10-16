@@ -351,7 +351,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
                       name={o.name}
                       nameExtra={<span className={`dops-chip ${o.glass === "return" ? "ret" : "new"}`}>{o.glass === "return" ? `GLASS BACK ×${o.size}` : "NEW GLASS"}</span>}
                       meta={<>{mixSummary(o.mix)}{o.phone ? <><br /><a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>{o.phone}</a></> : null}</>}
-                      trailing={<span className="dops-total">{dollars(o.total_cents / 100)} {isSettled(o) ? <Icon name="check" /> : <em className="dops-owe">due</em>}</span>}
+                      trailing={<span className="dops-total">{o.total_cents === 0 ? <>on us <Icon name="check" /></> : <>{dollars(o.total_cents / 100)} {isSettled(o) ? <Icon name="check" /> : <em className="dops-owe">due</em>}</>}</span>}
                     />
                   </div>
                   {/* Fulfillment stepper — tap a stage to jump, or the primary button to advance one.

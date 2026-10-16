@@ -687,31 +687,47 @@ export const PROD_ROUTE = {
 // only. The chunk that holds the card on /reserve (43 989 bytes raw) is two files now (21 540 + 27 328): the bundler
 // split the group once the card grew — the same code, one request more. The stylesheet's 30 bytes are the card's and
 // the crew list's utilities.
+// 2026-10-16 (R7 and R7b of the customer re-audit): every route's script +1.9 to +2.7 KB (gzip), the pack pages +3.2 to
+// +4.4 KB, and /delivery and /shop a chunk more. Built 018b5f8 and this commit and gzipped what each route's prerendered
+// HTML references (/privacy 274 320 → 276 461, /menu 278 471 → 280 691, /reserve 303 225 → 306 954, /shop 307 419 →
+// 311 895); every stylesheet +88 (90 218 → 90 306), inside its line. What every page carries now: the order bar's
+// reference for a charge that didn't record (lib/paidRef), the cart bar's member price — it asks the quote (lib/useAsyncData)
+// — the hold a payment whose answer never came puts on the cart (lib/payHold), the guest bar's Canceled until the order's
+// page is seen, a city held closed in the ordering read (lib/ordering, lib/orderingRead — 0412), the pack close's one rule
+// (lib/packClose) and the stamp goal in the copy's own words (lib/loyalty). /, /scan, /order and /3mpire a little more —
+// Today's paused city and failed read, the scanner's balance re-read, the order's page, the referral card. The pack pages:
+// the funnel's server price (/api/reserve/quote) and "on us", a change that keeps its day, and the cities held
+// (lib/packRoad); the bundler split the funnel's group one file further on /delivery and /shop — the same code, one
+// request more. Trimmed on the way, build to build: the paid reference out of lib/tickets, which stays with the order's
+// page, and the pack rule's words and their two date formats out of the module every page loads (lib/pickupDay, the rule
+// alone in lib/packClose) — −505 bytes on every route between them, the re-audit's own fixes included. Crossed the
+// rounding line upward on every route, recorded. /3mpire is 287.49 KB (294 393 bytes), nine bytes under a rounding line:
+// its ceiling is the line above, 288, so the same code built twice does not fail on a few bytes of gzip.
 export const WEIGHT = {
-  "/truck":                    { js: 284, css: 89, chunks: 16 },
-  "/events":                   { js: 284, css: 89, chunks: 16 },
-  "/menu":                     { js: 272, css: 90, chunks: 15 },
-  "/reserve":                  { js: 296, css: 90, chunks: 17 },
-  "/delivery":                 { js: 293, css: 90, chunks: 16 },
-  "/3mpire":                   { js: 285, css: 90, chunks: 15 },
-  "/craft":                    { js: 271, css: 90, chunks: 15 },
-  "/book":                     { js: 272, css: 90, chunks: 15 },
-  "/academy":                  { js: 324, css: 90, chunks: 16 },
-  "/office":                   { js: 280, css: 90, chunks: 15 },
-  "/scan":                     { js: 271, css: 90, chunks: 15 },
-  "/architecture":             { js: 281, css: 90, chunks: 15 },
-  "/playbook":                 { js: 279, css: 90, chunks: 15 },
-  "/driver":                   { js: 278, css: 89, chunks: 15 },
-  "/agreement":                { js: 273, css: 90, chunks: 15 },
-  "/offer":                    { js: 283, css: 90, chunks: 15 },
-  "/built/gt3-built-k7m9x4q2": { js: 269, css: 90, chunks: 15 },
-  "/display":                  { js: 270, css: 90, chunks: 15 },
-  "/shop":                     { js: 300, css: 90, chunks: 16 },
-  "/primal":                   { js: 272, css: 90, chunks: 15 },
-  "/privacy":                  { js: 268, css: 90, chunks: 14 },
-  "/terms":                    { js: 268, css: 90, chunks: 14 },
-  "/":                         { js: 277, css: 90, chunks: 15 },
-  "/order":                    { js: 276, css: 88, chunks: 15 },
+  "/truck":                    { js: 286, css: 89, chunks: 16 },
+  "/events":                   { js: 286, css: 89, chunks: 16 },
+  "/menu":                     { js: 274, css: 90, chunks: 15 },
+  "/reserve":                  { js: 300, css: 90, chunks: 17 },
+  "/delivery":                 { js: 297, css: 90, chunks: 17 },
+  "/3mpire":                   { js: 288, css: 90, chunks: 15 },
+  "/craft":                    { js: 273, css: 90, chunks: 15 },
+  "/book":                     { js: 274, css: 90, chunks: 15 },
+  "/academy":                  { js: 326, css: 90, chunks: 16 },
+  "/office":                   { js: 282, css: 90, chunks: 15 },
+  "/scan":                     { js: 274, css: 90, chunks: 15 },
+  "/architecture":             { js: 283, css: 90, chunks: 15 },
+  "/playbook":                 { js: 281, css: 90, chunks: 15 },
+  "/driver":                   { js: 280, css: 89, chunks: 15 },
+  "/agreement":                { js: 275, css: 90, chunks: 15 },
+  "/offer":                    { js: 285, css: 90, chunks: 15 },
+  "/built/gt3-built-k7m9x4q2": { js: 271, css: 90, chunks: 15 },
+  "/display":                  { js: 272, css: 90, chunks: 15 },
+  "/shop":                     { js: 305, css: 90, chunks: 17 },
+  "/primal":                   { js: 274, css: 90, chunks: 15 },
+  "/privacy":                  { js: 270, css: 90, chunks: 14 },
+  "/terms":                    { js: 270, css: 90, chunks: 14 },
+  "/":                         { js: 280, css: 90, chunks: 15 },
+  "/order":                    { js: 279, css: 88, chunks: 15 },
 };
 
 // 2026-10-09 (the button round: redesign 7): every route's stylesheet -1 628 bytes and its script +188 to +245 (gzip).

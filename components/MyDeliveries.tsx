@@ -9,6 +9,8 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
+import { deliveryCancelClosesAt } from "@/lib/delivery";
+import { closesWords } from "@/lib/pickupDay";
 import { useConfirm } from "./ConfirmSheet";
 
 // YOUR DELIVERIES — the customer's own Sunday-delivery orders, on /3mpire. The delivery success
@@ -77,19 +79,21 @@ export default function MyDeliveries() {
     // only flags it for a staff-processed refund, same fix as /api/orders/cancel's customer message.
     const ok0 = await confirm({
       title: `Cancel your ${p.pack_size}-bottle delivery for ${dayLabel(p.delivery_date)}?`,
-      body: p.payment_status === "paid" ? `You paid ${money(p.total_cents)} — we'll flag it for a refund and the crew will process it.` : undefined,
+      body: p.payment_status === "paid" ? `You paid ${money(p.total_cents)} — your card is being refunded in full; the crew processes it in Square.` : undefined,
       confirmLabel: "Cancel delivery", cancelLabel: "Keep it", danger: true,
     });
     if (!ok0) return;
     setBusy(p.id);
     // Route (not the raw RPC) so canceling also pings the crew + texts/emails the customer.
-    const ok = await authedFetch("/api/orders/cancel", {
+    const said = await authedFetch("/api/orders/cancel", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ channel: "delivery", id: p.id }),
-    }).then((r) => r.ok ? r.json() : null).then((d) => d?.ok === true).catch(() => false);
+    }).then((r) => r.json()).catch(() => null) as { ok?: boolean; error?: string } | null;
     setBusy(null);
-    if (!ok) { toast("Too late to cancel online — it's already being brewed. Text us and we'll help.", "error"); load(); return; }
-    toast(p.payment_status === "paid" ? "Canceled — flagged for a refund" : "Delivery canceled");
+    // The server says why when it won't (R7b): canceled already, on its way, or past its cancel time — and offline is
+    // offline, not "too late".
+    if (said?.ok !== true) { toast(said?.error || "Couldn't reach us to cancel — check your connection and try again.", "error"); load(); return; }
+    toast(p.payment_status === "paid" ? "Canceled — your card is being refunded in full" : "Delivery canceled");
     load();
   };
 
@@ -146,11 +150,16 @@ export default function MyDeliveries() {
                     </>
                   );
                 })()}
-                {p.status === "received" && (
-                  <div className="mypack-actions">
-                    <button type="button" className="btn-del" onClick={() => cancel(p)} disabled={busy === p.id}>{busy === p.id ? "Canceling…" : "Cancel"}</button>
-                  </div>
-                )}
+                {p.status === "received" && (() => {
+                  // Cancel only while it can work — the database's own cutoff (lib/delivery), said either way (R7b).
+                  const closes = deliveryCancelClosesAt(p.delivery_date);
+                  return Date.now() < closes.getTime() ? (
+                    <div className="mypack-actions">
+                      <span className="text-footnote text-cream-dim">Cancel until {closesWords(closes)}</span>
+                      <button type="button" className="btn-del" onClick={() => cancel(p)} disabled={busy === p.id}>{busy === p.id ? "Canceling…" : "Cancel"}</button>
+                    </div>
+                  ) : <div className="text-footnote text-cream-dim">Online cancels closed {closesWords(closes)} — we&apos;re brewing it.</div>;
+                })()}
               </>
             )}
           </div>

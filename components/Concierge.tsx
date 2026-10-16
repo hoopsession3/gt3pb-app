@@ -63,10 +63,13 @@ export function ConciergeChat({ open, onClose }: { open: boolean; onClose: () =>
           This file used to carry its own rich(): bold and internal links, no lists, no steps —
           the same job as the crew side's, implemented once here and not at all there. Its link
           rule was the good part and moved into lib/prose as isInternalHref, tested. */}
-      {msgs.map((m, i) => m.role === "assistant"
-        ? <Prose key={i} text={m.content} className={`conc-msg ${m.role}`} />
-        : <div key={i} className={`conc-msg ${m.role}`}>{m.content}</div>)}
-      {busy && <div className="conc-msg assistant conc-typing"><span /><span /><span /></div>}
+      {/* Read out as they come (R7b): a reply landed in silence for VoiceOver — the log is there before it fills. */}
+      <div role="log" aria-live="polite" aria-label="Conversation">
+        {msgs.map((m, i) => m.role === "assistant"
+          ? <Prose key={i} text={m.content} className={`conc-msg ${m.role}`} />
+          : <div key={i} className={`conc-msg ${m.role}`}>{m.content}</div>)}
+        {busy && <><span className="sr-only">Writing a reply…</span><div className="conc-msg assistant conc-typing" aria-hidden="true"><span /><span /><span /></div></>}
+      </div>
       {msgs.length === 1 && (
         <div className="conc-chips">
           {CHIPS.map((c) => <button key={c} type="button" className="k-chip whitespace-normal text-left" onClick={() => send(c)}>{c}</button>)}

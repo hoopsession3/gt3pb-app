@@ -10,7 +10,7 @@ import { readyWords, waitingToOpen } from "@/lib/ordering";
 import { leadOrder, orderNo } from "@/lib/activeOrder";   // not lib/today: every page mounts this bar
 import { orderLine } from "@/lib/orderWords";
 import { money } from "@/lib/money";
-import { forgetRef, useHeldRef, type HeldRef } from "@/lib/tickets";
+import { forgetRef, useHeldRef, type HeldRef } from "@/lib/paidRef";   // not lib/tickets: every page mounts this bar
 import { useMyActiveOrders, useOrderActions, ETA_WORDS } from "./useMyOrders";
 
 // A live "your order" banner for signed-in members — preparing → ready in realtime,
@@ -32,13 +32,14 @@ export default function OrderStatus() {
   const { ready, user } = useAuth();
   const paidRef = useHeldRef();
   // A charge that didn't record (R7): its reference, on every page — Today too, which has no card for an order the crew
-  // has yet to add — until the person says the crew has it.
-  if (paidRef) return <RefBar r={paidRef} />;
+  // has yet to add — until the person says the crew has it. Above the order bar, not in its place (R7b): a later order's
+  // "Ready — grab it" was kept out of the bar for as long as the reference stayed.
+  const ref = paidRef ? <RefBar r={paidRef} /> : null;
   // Not on Today (its card is the order) and not on the order's own page (it is the order).
-  if (path === "/" || path === "/order") return null;
-  if (user) return <OrderBar />;
+  if (path === "/" || path === "/order") return ref;
+  if (user) return <>{ref}<OrderBar /></>;
   // Not before the session is known: a member is never shown the guest's bar for a moment.
-  return ready ? <GuestOrderBar /> : null;
+  return ready ? <>{ref}<GuestOrderBar /></> : ref;
 }
 
 function OrderBar() {
@@ -91,7 +92,7 @@ function OrderBar() {
   );
 }
 
-/** Paid, and the order not saved: what to show at the window, kept for the day (lib/tickets holdRef). */
+/** Paid, and the order not saved: what to show at the window, kept for the day (lib/paidRef holdRef). */
 function RefBar({ r }: { r: HeldRef }) {
   const said = r.ref ? `Show ref #${r.ref} at the window` : "Show this at the window";
   return (

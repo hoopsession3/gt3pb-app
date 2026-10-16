@@ -11,27 +11,20 @@
 -- WHAT.
 --   · admin_set_member — the owner's edit (0392's, verbatim but for this): a change to Founding sets the tier with it —
 --     founding on is the founding tier; off is the member tier, where it was founding.
---   · Where the two already disagree, they are made one: founding where either said so — the owner's switch or a tier the
---     crew picked was someone's word, and taking a perk away by accident is the worse mistake. Each change is a line in the
---     change log (admin_audit, 0260): a tier's by 0392's own trigger (audit_customers_tier), a card's here.
+--   · Where the two already disagree, they are made one — the card's way. Every other way a tier is set (the crew's tier
+--     picker, the VIP queue: admin_set_customer_tier) writes the card with it; only the owner's edit wrote the card alone.
+--     So a card that disagrees is the owner's latest word: on, the price comes up to founding; off, it comes down to
+--     member. Each change is a line in the change log (admin_audit, 0260, by 0392's own trigger: audit_customers_tier).
+--   · The owner's edit locks the member's row while it writes, and the editors send only what was changed — a save of the
+--     points no longer writes back a credit balance read before a spend at the window, or a referral's undoing (0411).
 -- changelog: below.
 
--- ── one founding, where either said so ─────────────────────────────────────────────────────────────────────────────
--- The price follows the card: its line in the change log is 0392's trigger's ("tier: member → founding").
-update public.customers c set tier = 'founding', updated_at = now()
+-- ── one founding: the card's, where the two disagree ───────────────────────────────────────────────────────────────
+-- The price follows the card: its line in the change log is 0392's trigger's ("tier: member → founding", or back).
+update public.customers c
+   set tier = case when coalesce(p.founding_member, false) then 'founding' else 'member' end, updated_at = now()
   from public.profiles p
- where p.id = c.user_id and coalesce(p.founding_member, false) and c.tier <> 'founding';
-
-with fixed as (
-  update public.profiles p set founding_member = true
-    from public.customers c
-   where c.user_id = p.id and c.tier = 'founding' and not coalesce(p.founding_member, false)
-  returning p.id
-)
-insert into public.admin_audit (actor, action, table_name, row_pk, summary, old_row, new_row)
-select null, 'UPDATE', 'customers', f.id::text, 'Founding member: off → on (0414: the card follows the price)',
-       jsonb_build_object('founding_member', false), jsonb_build_object('founding_member', true)
-  from fixed f;
+ where p.id = c.user_id and coalesce(p.founding_member, false) <> (coalesce(c.tier, '') = 'founding');
 
 -- ── the owner's edit sets the tier with the switch (0392's, one statement more) ──────────────────────────────────────
 create or replace function public.admin_set_member(member uuid, new_points int, new_credit_cents int, new_founding boolean)
@@ -39,6 +32,8 @@ returns void language plpgsql security definer set search_path = public as $$
 declare cur int; delta int; was boolean;
 begin
   if not public.is_owner() then raise exception 'not authorized'; end if;
+  -- One edit at a time, and none between a read and its write (0414): the member's row is held for this one.
+  perform 1 from public.profiles where id = member for update;
   if new_points is not null then
     select coalesce(points, 0) into cur from public.profiles where id = member;
     delta := new_points - coalesce(cur, 0);
@@ -72,7 +67,7 @@ insert into public.changelog (title, category, area, summary, shipped_on, highli
 select v.title, v.category, v.area, v.summary, v.shipped_on::date, v.highlight
 from (values
   ('Founding is one switch', 'fix', 'Loyalty',
-   'Making someone a founding member from their profile now gives them the founding prices too, and taking it off takes them away — the card and the price always agree. Anyone the two disagreed about is a founding member now.',
+   'Making someone a founding member from their profile now gives them the founding prices too, and taking it off takes them away — the card and the price always agree. Where the two disagreed, the card (the last word from a profile) now sets the price.',
    '2026-10-15', false)
 ) as v(title, category, area, summary, shipped_on, highlight)
 where not exists (select 1 from public.changelog c where c.title = v.title);

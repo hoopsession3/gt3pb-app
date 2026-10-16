@@ -229,41 +229,59 @@ select public.record_migration('0410_your_own_card_is_another_crew_members');
 -- SQL Editor → Run. A second run changes nothing.
 --
 -- WHY. A referred member's first order of $5 or more, handed over, gives them and the member who referred them $5 of
--- credit each (credit_wallet, 0229 — once per referee, ever: referral_events). When that order was voided or refunded in
--- full its stamps came off (claw_wallet, 0229; square_refund_claws, 0390/0400) and the $10 stayed — spendable at the
--- window (0389) — and because the referral was marked converted, the referee's next real order never counted. And a void
--- took the stamps back only from a picked-up order: Recall (done → ready) and then Void kept both the stamps and the
--- referral.
+-- credit each (credit_wallet, 0229 — once per referee: referral_events). When that order was voided or refunded in full
+-- its stamps came off (claw_wallet, 0229; square_refund_claws, 0390/0400) and the $10 stayed — spendable at the window
+-- (0389) — and because the referral was marked converted, the referee's next real order never counted. A void took the
+-- stamps back only from a picked-up order: Recall (done → ready) and then Void kept both. And a link from a friend,
+-- opened by a member who had been buying for months, made their next order a "first order": $5 each.
 --
 -- WHAT.
---   · Whenever the order that converted a referral has its stamps taken back — voided, or refunded in full in Square —
+--   · Whenever the order that converted a referral has its stamps taken back — voided, refunded in full in Square, or a
+--     pickup or delivery marked back (0229: an order whose stamps came off nets zero until the owner says otherwise) —
 --     the referral is undone with it: each side's $5 comes off, as far as it is still on the card (credit already spent
---     at the window was spent in good faith, and a balance never goes below zero); the referee's referral is open again,
---     so their next real order converts it; the event says when, why and how much came back; and the change log
---     (admin_audit, 0260) has a line.
---   · A converting order after an undone one converts the same referral again (referral_events keeps one row per
---     referee: it is re-stamped with the new order, and the change log keeps the first).
---   · A void takes the stamps back from any order that earned them — a recalled one too (award_points).
--- Nothing else about stamps, credit or referrals changes: the $5 floor, the one conversion per referee at a time, the
+--     at the window was spent in good faith, and a balance never goes below zero); the referee's referral is open again;
+--     the event says when; and the change log (admin_audit, 0260) has a line with the amounts.
+--   · The next converting order gives back what came off — no more: a $5 already spent is not paid out a second time,
+--     however many times an order is undone (referral_stakes: what each side's next conversion gives and the most an
+--     undoing takes — private, the database's own, so neither side reads the other's balance from it).
+--   · A void takes the stamps back from any order that earned them — a recalled one too (award_points). A take-back is
+--     never refused: stamps already given as a free cup leave the balance below zero until they are earned back, as the
+--     ledger was built to (0229: "the counter is the sum"). 0042's guard refused the void instead — the stop canceled
+--     with it, a refund that never recorded.
+--   · A referral attaches to an account that has not bought yet (attach_referral): a first order is a first order.
+-- Nothing else about stamps, credit or referrals changes: the $5 floor, one conversion per referee at a time, the
 -- ledger's once-per-order award and clawback.
 -- changelog: below.
 
 alter table public.referral_events add column if not exists reversed_at timestamptz;
-alter table public.referral_events add column if not exists reversed_why text;
-alter table public.referral_events add column if not exists referrer_back_cents integer;
-alter table public.referral_events add column if not exists referee_back_cents integer;
 comment on column public.referral_events.reversed_at is
-  'When the order that converted this referral was undone — voided, or refunded in full — and its credit taken back (0411). Null: it stands.';
+  'When the order that converted this referral was undone — voided, refunded in full, or marked back — and its credit taken back (0411). Null: it stands.';
+
+-- What each side's next conversion gives back, and the most an undoing takes: the $5 the first time (no row), then what
+-- the last undoing took. The database's own — RLS on, no policy, nothing granted: the two sides read referral_events,
+-- and what came off one card is not the other's to read.
+create table if not exists public.referral_stakes (
+  event_id       uuid primary key references public.referral_events(id) on delete cascade,
+  referee_cents  integer not null check (referee_cents between 0 and 500),
+  referrer_cents integer not null check (referrer_cents between 0 and 500),
+  updated_at     timestamptz not null default now()
+);
+alter table public.referral_stakes enable row level security;
+revoke all on table public.referral_stakes from public, anon, authenticated;
+comment on table public.referral_stakes is
+  'A referral''s stake per side (0411): what its next conversion gives back and the most an undoing takes. No row: the $5 grant. Private to the database — written and read only by referral_follows_its_order and credit_wallet.';
 
 -- ── the referral, undone with its order ────────────────────────────────────────────────────────────────────────────
 create or replace function public.referral_follows_its_order() returns trigger
   language plpgsql security definer set search_path = public as $$
 declare
-  e        public.referral_events%rowtype;
-  have_fee integer;
-  have_ref integer;
-  back_fee integer;
-  back_ref integer;
+  e         public.referral_events%rowtype;
+  stake_fee integer;
+  stake_ref integer;
+  have_fee  integer;
+  have_ref  integer;
+  back_fee  integer;
+  back_ref  integer;
 begin
   if new.kind <> 'clawback' or new.order_id is null then return new; end if;
   select * into e from public.referral_events
@@ -272,19 +290,24 @@ begin
    for update;
   if not found then return new; end if;
 
-  -- What is still there, at most what was given: never below zero.
+  -- The most this undoing takes from each side: what this conversion gave.
+  select s.referee_cents, s.referrer_cents into stake_fee, stake_ref from public.referral_stakes s where s.event_id = e.id for update;
+  stake_fee := coalesce(stake_fee, e.referee_credit_cents, 500);
+  stake_ref := coalesce(stake_ref, e.referrer_credit_cents, 500);
+  -- What is still there, at most that: never below zero.
   select greatest(coalesce(credit_cents, 0), 0) into have_fee from public.profiles where id = e.referee for update;
   select greatest(coalesce(credit_cents, 0), 0) into have_ref from public.profiles where id = e.referrer for update;
-  back_fee := least(coalesce(have_fee, 0), coalesce(e.referee_credit_cents, 0));
-  back_ref := least(coalesce(have_ref, 0), coalesce(e.referrer_credit_cents, 0));
+  back_fee := least(coalesce(have_fee, 0), stake_fee);
+  back_ref := least(coalesce(have_ref, 0), stake_ref);
   update public.profiles set credit_cents = greatest(coalesce(credit_cents, 0) - back_fee, 0), referral_converted = false
    where id = e.referee;
   update public.profiles set credit_cents = greatest(coalesce(credit_cents, 0) - back_ref, 0)
    where id = e.referrer;
-  update public.referral_events
-     set reversed_at = now(), reversed_why = coalesce(nullif(new.note, ''), 'order undone'),
-         referee_back_cents = back_fee, referrer_back_cents = back_ref
-   where id = e.id;
+  -- The next conversion gives back what came off, and no more.
+  insert into public.referral_stakes as s (event_id, referee_cents, referrer_cents, updated_at)
+  values (e.id, back_fee, back_ref, now())
+  on conflict (event_id) do update set referee_cents = excluded.referee_cents, referrer_cents = excluded.referrer_cents, updated_at = now();
+  update public.referral_events set reversed_at = now() where id = e.id;
 
   insert into public.admin_audit (actor, action, table_name, row_pk, summary, old_row, new_row)
   values (auth.uid(), 'UPDATE', 'referral_events', e.id::text,
@@ -298,15 +321,15 @@ begin
 end $$;
 revoke all on function public.referral_follows_its_order() from public, anon, authenticated;
 comment on function public.referral_follows_its_order() is
-  'The referral a voided or fully refunded order converted, undone with it (0411): each side''s credit back as far as it is still on the card, the referral open again, the event and the change log saying so.';
+  'The referral an undone order converted, undone with it (0411): each side''s credit back as far as it is still on the card and no more than this conversion gave, the referral open again, its stake kept for the next conversion, the change log saying so.';
 drop trigger if exists loyalty_clawback_referral on public.loyalty_ledger;
 create trigger loyalty_clawback_referral after insert on public.loyalty_ledger
   for each row when (new.kind = 'clawback') execute function public.referral_follows_its_order();
 
--- ── a converting order after an undone one converts it again (0229's, the event re-stamped) ─────────────────────────
+-- ── a converting order after an undone one gives back what came off (0229's, the event re-stamped) ─────────────────
 create or replace function public.credit_wallet(p_user_id uuid, p_points int, p_total_cents int, p_order_id uuid, p_channel text)
 returns void language plpgsql security definer set search_path = public as $$
-declare ref uuid; ev public.referral_events%rowtype; grant_cents int := 500; floor_cents int := 500;
+declare ref uuid; ev public.referral_events%rowtype; give_fee int; give_ref int; grant_cents int := 500; floor_cents int := 500;
 begin
   if p_user_id is null then return; end if;
 
@@ -325,14 +348,21 @@ begin
         insert into public.referral_events (referrer, referee, converting_order, converting_channel, referrer_credit_cents, referee_credit_cents)
           values (ref, p_user_id, p_order_id, p_channel, grant_cents, grant_cents);
       elsif ev.reversed_at is not null then
-        -- Its first converting order was undone (0411): this one converts it.
-        update public.profiles set referral_converted = true, credit_cents = credit_cents + grant_cents where id = p_user_id;
-        update public.profiles set credit_cents = credit_cents + grant_cents where id = ref;
+        -- Its converting order was undone (0411): this one converts it again, giving back what the undoing took.
+        select s.referee_cents, s.referrer_cents into give_fee, give_ref from public.referral_stakes s where s.event_id = ev.id for update;
+        give_fee := coalesce(give_fee, 0);
+        give_ref := coalesce(give_ref, 0);
+        update public.profiles set referral_converted = true, credit_cents = credit_cents + give_fee where id = p_user_id;
+        update public.profiles set credit_cents = credit_cents + give_ref where id = ev.referrer;
         update public.referral_events
-           set referrer = ref, converting_order = p_order_id, converting_channel = p_channel,
-               referrer_credit_cents = grant_cents, referee_credit_cents = grant_cents,
-               reversed_at = null, reversed_why = null, referrer_back_cents = null, referee_back_cents = null
+           set converting_order = p_order_id, converting_channel = p_channel, reversed_at = null
          where id = ev.id;
+        insert into public.admin_audit (actor, action, table_name, row_pk, summary, old_row, new_row)
+        values (auth.uid(), 'UPDATE', 'referral_events', ev.id::text,
+                format('referral converted again: $%s back to the referee, $%s to the referrer',
+                       to_char((give_fee / 100.0)::numeric, 'FM999990.00'), to_char((give_ref / 100.0)::numeric, 'FM999990.00')),
+                jsonb_build_object('converting_order', ev.converting_order, 'reversed', true),
+                jsonb_build_object('converting_order', p_order_id, 'reversed', false, 'referee_given_cents', give_fee, 'referrer_given_cents', give_ref));
       end if;
     end if;
   end if;
@@ -355,19 +385,41 @@ begin
 end $$;
 -- the trigger already exists (0012) — redefining the function is enough.
 
+-- ── a take-back is never refused (0229: the counter is the sum; readers show an empty card below zero) ──────────────
+alter table public.profiles drop constraint if exists profiles_points_nonneg;
+
+-- ── a first order is a first order: a referral attaches before an account has bought (0013's, one condition more) ───
+create or replace function public.attach_referral(code text)
+returns void language plpgsql security definer set search_path = public as $$
+declare ref uuid;
+begin
+  if code is null or btrim(code) = '' then return; end if;
+  select id into ref from public.profiles where referral_code = upper(btrim(code));
+  if ref is null or ref = auth.uid() then return; end if;
+  -- Already a customer — a stamp for any purchase, by any channel — is not a friend's first order (0411).
+  if exists (select 1 from public.loyalty_ledger l where l.user_id = auth.uid() and l.kind = 'award') then return; end if;
+  update public.profiles
+    set referred_by = ref
+    where id = auth.uid() and referred_by is null and referral_converted = false;
+end; $$;
+revoke all on function public.attach_referral(text) from public, anon, authenticated;
+grant execute on function public.attach_referral(text) to authenticated;
+
 insert into public.changelog (title, category, area, summary, shipped_on, highlight)
 select v.title, v.category, v.area, v.summary, v.shipped_on::date, v.highlight
 from (values
   ('A referral follows its order', 'fix', 'Loyalty',
-   'The $5 you and a friend you referred each get comes from their first order. If that order is canceled or refunded, the $5 comes back off both cards (never below zero), and their next order counts instead.',
+   'The $5 you and a friend you referred each get comes from their first order. If that order is canceled or refunded, the $5 comes back off both cards (what''s still there), and their next order gives it back — a $5 already spent is never paid twice. And a friend''s link counts only for someone who hasn''t bought from us yet.',
    '2026-10-15', false)
 ) as v(title, category, area, summary, shipped_on, highlight)
 where not exists (select 1 from public.changelog c where c.title = v.title);
 
 -- verify (numbers and booleans only):
 --   select count(*) from pg_trigger where tgname = 'loyalty_clawback_referral';                                   -- 1
---   select count(*) from information_schema.columns where table_name = 'referral_events' and column_name like '%back_cents'; -- 2
---   select prosrc like '%old.status is distinct from ''void''%' from pg_proc where proname = 'award_points';      -- true
+--   select relrowsecurity from pg_class where oid = 'public.referral_stakes'::regclass;                           -- true
+--   select has_table_privilege('authenticated', 'public.referral_stakes', 'select');                              -- false
+--   select count(*) from pg_constraint where conname = 'profiles_points_nonneg';                                  -- 0
+--   select prosrc like '%l.kind = ''award''%' from pg_proc where proname = 'attach_referral';                     -- true
 select public.record_migration('0411_a_referral_follows_its_order');
 
 -- ============================================================
@@ -386,7 +438,10 @@ select public.record_migration('0411_a_referral_follows_its_order');
 --
 -- WHAT. A city's switch can hold it closed (false), and nothing more: null — and true, as an owner may have left it —
 -- follow the truck. Taking orders is the truck live AND the city not held closed AND its opening day reached. Every
--- column of the view is 0285's, in its order; only is_live's rule changes. A city that runs its own truck one day
+-- column of the view is 0285's, in its order; only is_live's rule changes — and one column more, at the end: held_closed,
+-- the city's switch at false. Held closed is closed to every order, not only the "truck is live" kind: a stop under way
+-- that nobody flipped live, and a stop's pre-order window, are open on their own (lib/ordering), and the ordering read
+-- closes them for a held city — or one whose opening day has not come — with this. A city that runs its own truck one day
 -- needs its own live pointer too (lib/orderingRead says so) — the day it does, its switch can mean "open" again.
 -- changelog: below.
 
@@ -398,19 +453,151 @@ select m.slug                                                    as market,
        coalesce(m.preorder_lead_h, ls.preorder_lead_h, 4)         as preorder_lead_h,
        coalesce(m.pay_at_pickup,   ls.pay_at_pickup,   true)      as pay_at_pickup,
        m.opens_on,
-       (m.opens_on is not null and m.opens_on > current_date)     as pre_launch
+       (m.opens_on is not null and m.opens_on > current_date)     as pre_launch,
+       (m.is_live is not distinct from false)                     as held_closed
   from public.markets m
   left join (select is_live, preorder_lead_h, pay_at_pickup
                from public.live_status where id = 1) ls on true;
 
+-- ── the readiness board's storefront check (0297's view, its first check only) ────────────────────────────────────
+-- 0297 read market_live.is_live for "Storefront switched on", a blocking launch check — which, with is_live now the
+-- truck's switch too, would block every city whenever the truck is offline and say "the company-wide switch is off and
+-- this market has no override" of a city set to follow it. The check asks what a launch needs: the city is not held
+-- closed and its day has come. Every other check is 0297's, word for word; security_invoker as 0321 set it.
+create or replace view public.v_market_readiness with (security_invoker = on) as
+with mk as (
+  select m.slug, m.name, m.state, m.opens_on,
+         -- Whether this city can take orders at all (0412): not held closed, and its opening day come. Whether the truck
+         -- is live right now is Live Ops' to say, every hour of every day — not a launch check's.
+         coalesce(ml.held_closed, false) as held,
+         coalesce(ml.pre_launch, false)  as pre
+    from public.markets m
+    left join public.market_live ml on ml.market = m.slug
+   where coalesce(m.active, true))
+
+select m.slug as market, 'Launch' as area, 'Storefront switched on' as check_name,
+       case when m.held or m.pre then 'blocked' else 'ready' end as status,
+       case when m.held then 'Held closed in Settings › Locations & markets — no orders here until it is let go.'
+            when m.pre
+              then 'Not live yet — held until ' || to_char(m.opens_on, 'Mon FMDD, YYYY') || '.'
+            else 'Takes orders whenever the truck is live (Live Ops).' end as detail,
+       true as blocking
+  from mk m
+
+union all
+select m.slug, 'Crew', 'Someone leads this market',
+       case when count(c.id) > 0 then 'ready' else 'blocked' end,
+       case when count(c.id) > 0
+            then string_agg(coalesce(c.display_name, 'unnamed'), ', ') || ' leads it.'
+            else 'No lead. Set one with set_market_lead so role changes and equity have an owner.' end,
+       true
+  from mk m
+  left join public.v_market_crew c on c.leads_market = m.slug
+ group by m.slug
+
+union all
+select m.slug, 'Compliance', 'Critical rules confirmed',
+       -- count(f.id), never count(*): this is a LEFT JOIN, so a market with no matching rule still
+       -- produces one row and count(*) would report 1. Counting the joined column is what makes
+       -- "nothing recorded" distinguishable from "recorded and failing", which is the whole point.
+       case when count(f.id) = 0 then 'unknown'
+            when count(f.id) filter (where f.freshness <> 'fresh') > 0 then 'blocked'
+            else 'ready' end,
+       case when count(f.id) = 0
+            then 'No critical rules recorded for ' || coalesce(m.state, 'this state') || ' at all.'
+            when count(f.id) filter (where f.freshness <> 'fresh') > 0
+            then count(f.id) filter (where f.freshness <> 'fresh')::text || ' of ' || count(f.id)::text ||
+                 ' need re-checking: ' || string_agg(f.label, '; ') filter (where f.freshness <> 'fresh')
+            else 'All ' || count(f.id)::text || ' confirmed within the last six months.' end,
+       true
+  from mk m
+  left join public.v_compliance_freshness f
+         on f.critical and (f.state = m.state or f.state is null)
+ group by m.slug, m.state
+
+union all
+select m.slug, 'Prep', 'Every recipe line can be drawn',
+       case when count(g.ingredient) = 0 then 'ready' else 'blocked' end,
+       case when count(g.ingredient) = 0
+            then 'Every ingredient in every live recipe resolves to a shelf here.'
+            else count(g.ingredient)::text || ' cannot: ' || string_agg(g.ingredient, '; ') end,
+       true
+  from mk m
+  left join public.v_recipe_ingredient_gaps g on g.market = m.slug
+ group by m.slug
+
+union all
+select m.slug, 'Equipment', 'A vessel to brew in',
+       case when coalesce(c.vessels, 0) > 0 then 'ready' else 'unknown' end,
+       case when coalesce(c.vessels, 0) > 0
+            then c.vessels::text || ' vessel(s); biggest single batch ' || c.largest_gal::text ||
+                 ' gal, ' || c.total_gal::text || ' gal across all of them.'
+            else 'No vessel recorded here. If the Toddys have arrived, add them so the planner knows the ceiling.' end,
+       true
+  from mk m
+  left join lateral public.market_brew_capacity(m.slug) c on true
+
+union all
+select m.slug, 'Packaging', 'Bottles on the shelf',
+       case when count(i.id) = 0 then 'unknown'
+            when count(i.id) filter (where s.effective_on_hand > 0) > 0 then 'ready'
+            else 'blocked' end,
+       case when count(i.id) = 0 then 'No packaging item exists for this market.'
+            when count(i.id) filter (where s.effective_on_hand > 0) = 0
+            then 'Every packaging line is at zero.'
+            else count(i.id) filter (where s.effective_on_hand > 0)::text || ' packaging line(s) in stock.' end,
+       true
+  from mk m
+  left join public.inventory_items i on i.market = m.slug and i.kind = 'packaging'
+  left join public.inventory_status s on s.name = i.name and s.market = i.market
+ group by m.slug
+
+union all
+select m.slug, 'Prep', 'Ingredient shelves have stock',
+       case when count(i.id) = 0 then 'unknown'
+            when count(i.id) filter (where coalesce(s.effective_on_hand, 0) <= 0) > 0 then 'blocked'
+            else 'ready' end,
+       case when count(i.id) = 0 then 'No ingredient shelves exist for this market yet.'
+            when count(i.id) filter (where coalesce(s.effective_on_hand, 0) <= 0) > 0
+            then count(i.id) filter (where coalesce(s.effective_on_hand, 0) <= 0)::text || ' of ' ||
+                 count(i.id)::text || ' at zero: ' ||
+                 string_agg(i.name, '; ') filter (where coalesce(s.effective_on_hand, 0) <= 0)
+            else 'All ' || count(i.id)::text || ' have stock.' end,
+       true
+  from mk m
+  left join public.inventory_items i on i.market = m.slug and i.kind = 'ingredient'
+  left join public.inventory_status s on s.name = i.name and s.market = i.market
+ group by m.slug
+
+union all
+select m.slug, 'Prep', 'Every item says what kind it is',
+       case when count(g.id) = 0 then 'ready' else 'blocked' end,
+       case when count(g.id) = 0 then 'All items classified.'
+            else count(g.id)::text || ' unclassified: ' || string_agg(g.name, '; ') end,
+       false
+  from mk m
+  left join public.v_item_kind_gaps g on g.market = m.slug
+ group by m.slug
+
+union all
+select m.slug, 'Prep', 'Every batch accounted for',
+       case when count(u.batch_id) = 0 then 'ready' else 'blocked' end,
+       case when count(u.batch_id) = 0 then 'Every batch says what it drank.'
+            else count(u.batch_id)::text || ' batch(es) brewed without being fully logged.' end,
+       false
+  from mk m
+  left join public.v_unaccounted_batches u on u.market = m.slug
+ group by m.slug;;
+
 -- security_invoker: market_live — definer on purpose, as 0285 made it: markets is the crew's to read (its RLS is staff
 -- only), and a signed-out menu has to know whether its city is taking orders. The view carries that answer and the
--- checkout's own settings — the lead time, pay at pickup, the opening day — and nothing else of a city.
+-- checkout's own settings — the lead time, pay at pickup, the opening day, whether it is held closed — and nothing else of
+-- a city.
 revoke all on public.market_live from public;
 grant select on public.market_live to anon, authenticated;
 
 comment on view public.market_live is
-  'Is this city taking orders right now (0412): the truck is live (live_status — Live Ops'' Go live and Go offline), the city is not held closed (markets.is_live = false), and its opening day has come. A city''s switch holds it closed and never keeps it open.';
+  'Is this city taking orders right now (0412): the truck is live (live_status — Live Ops'' Go live and Go offline), the city is not held closed (markets.is_live = false), and its opening day has come. A city''s switch holds it closed and never keeps it open. held_closed: the switch at false — no orders here of any kind, a scheduled stop''s included (lib/orderingRead).';
 comment on column public.markets.is_live is
   'False holds this city closed whatever the truck does (0412). Null — or true, which reads the same — follows the truck: Go live and Go offline are every city''s until a city runs its own truck with its own live pointer.';
 
@@ -418,7 +605,7 @@ insert into public.changelog (title, category, area, summary, shipped_on, highli
 select v.title, v.category, v.area, v.summary, v.shipped_on::date, v.highlight
 from (values
   ('Go offline stops every order', 'fix', 'Service',
-   'Going offline in Live Ops now stops orders in every city it serves, every time. A city''s own switch in Settings › Locations & markets can hold that city closed; it can no longer keep a city taking orders while the truck is off the road.',
+   'Going offline in Live Ops now stops orders in every city it serves, every time. A city''s own switch in Settings › Locations & markets can hold that city closed — no orders at all there, scheduled stops included — and it can no longer keep a city taking orders while the truck is off the road.',
    '2026-10-15', false)
 ) as v(title, category, area, summary, shipped_on, highlight)
 where not exists (select 1 from public.changelog c where c.title = v.title);
@@ -427,6 +614,7 @@ where not exists (select 1 from public.changelog c where c.title = v.title);
 --   select pg_get_viewdef('public.market_live'::regclass) like '%IS DISTINCT FROM false%';                       -- true
 --   select count(*) from public.market_live ml join public.live_status ls on true where ml.is_live and not ls.is_live; -- 0
 --   select has_table_privilege('anon', 'public.market_live', 'select');                                           -- true
+--   select count(*) from information_schema.columns where table_name = 'market_live' and column_name = 'held_closed'; -- 1
 select public.record_migration('0412_go_offline_stops_every_order');
 
 -- ============================================================
@@ -449,6 +637,7 @@ select public.record_migration('0412_go_offline_stops_every_order');
 --     about the card, the tip or refunds. An unknown link is refused in words, as a 4xx (PT404, 0360).
 --   · order_ticket(t) — 0396's view, and the share key, so the ticket's Share link sends that one.
 -- The ticket stays the key to its order for whoever already holds it — links shared before this keep working.
+-- Adding the key writes every order once and builds its index under the table's lock: run it outside service hours.
 -- changelog: below.
 
 alter table public.orders add column if not exists share uuid default gen_random_uuid();
@@ -526,7 +715,7 @@ begin
     'status',     o.status,
     'items',      to_jsonb(o.items),
     -- the drinks and how many, never what they cost
-    'lines',      (select jsonb_agg(jsonb_build_object('slug', l->>'slug', 'name', l->>'name', 'qty', coalesce((l->>'qty')::int, 1)))
+    'lines',      (select jsonb_agg(jsonb_build_object('slug', l->>'slug', 'name', l->>'name', 'qty', case when (l->>'qty') ~ '^[0-9]{1,4}$' then (l->>'qty')::int else 1 end))
                      from jsonb_array_elements(case when jsonb_typeof(o.lines) = 'array' then o.lines else '[]'::jsonb end) l),
     'paid',       v_paid,
     -- what the person picking it up pays at the window, if anything
@@ -576,27 +765,20 @@ select public.record_migration('0413_a_shared_link_shows_the_order');
 -- WHAT.
 --   · admin_set_member — the owner's edit (0392's, verbatim but for this): a change to Founding sets the tier with it —
 --     founding on is the founding tier; off is the member tier, where it was founding.
---   · Where the two already disagree, they are made one: founding where either said so — the owner's switch or a tier the
---     crew picked was someone's word, and taking a perk away by accident is the worse mistake. Each change is a line in the
---     change log (admin_audit, 0260): a tier's by 0392's own trigger (audit_customers_tier), a card's here.
+--   · Where the two already disagree, they are made one — the card's way. Every other way a tier is set (the crew's tier
+--     picker, the VIP queue: admin_set_customer_tier) writes the card with it; only the owner's edit wrote the card alone.
+--     So a card that disagrees is the owner's latest word: on, the price comes up to founding; off, it comes down to
+--     member. Each change is a line in the change log (admin_audit, 0260, by 0392's own trigger: audit_customers_tier).
+--   · The owner's edit locks the member's row while it writes, and the editors send only what was changed — a save of the
+--     points no longer writes back a credit balance read before a spend at the window, or a referral's undoing (0411).
 -- changelog: below.
 
--- ── one founding, where either said so ─────────────────────────────────────────────────────────────────────────────
--- The price follows the card: its line in the change log is 0392's trigger's ("tier: member → founding").
-update public.customers c set tier = 'founding', updated_at = now()
+-- ── one founding: the card's, where the two disagree ───────────────────────────────────────────────────────────────
+-- The price follows the card: its line in the change log is 0392's trigger's ("tier: member → founding", or back).
+update public.customers c
+   set tier = case when coalesce(p.founding_member, false) then 'founding' else 'member' end, updated_at = now()
   from public.profiles p
- where p.id = c.user_id and coalesce(p.founding_member, false) and c.tier <> 'founding';
-
-with fixed as (
-  update public.profiles p set founding_member = true
-    from public.customers c
-   where c.user_id = p.id and c.tier = 'founding' and not coalesce(p.founding_member, false)
-  returning p.id
-)
-insert into public.admin_audit (actor, action, table_name, row_pk, summary, old_row, new_row)
-select null, 'UPDATE', 'customers', f.id::text, 'Founding member: off → on (0414: the card follows the price)',
-       jsonb_build_object('founding_member', false), jsonb_build_object('founding_member', true)
-  from fixed f;
+ where p.id = c.user_id and coalesce(p.founding_member, false) <> (coalesce(c.tier, '') = 'founding');
 
 -- ── the owner's edit sets the tier with the switch (0392's, one statement more) ──────────────────────────────────────
 create or replace function public.admin_set_member(member uuid, new_points int, new_credit_cents int, new_founding boolean)
@@ -604,6 +786,8 @@ returns void language plpgsql security definer set search_path = public as $$
 declare cur int; delta int; was boolean;
 begin
   if not public.is_owner() then raise exception 'not authorized'; end if;
+  -- One edit at a time, and none between a read and its write (0414): the member's row is held for this one.
+  perform 1 from public.profiles where id = member for update;
   if new_points is not null then
     select coalesce(points, 0) into cur from public.profiles where id = member;
     delta := new_points - coalesce(cur, 0);
@@ -637,7 +821,7 @@ insert into public.changelog (title, category, area, summary, shipped_on, highli
 select v.title, v.category, v.area, v.summary, v.shipped_on::date, v.highlight
 from (values
   ('Founding is one switch', 'fix', 'Loyalty',
-   'Making someone a founding member from their profile now gives them the founding prices too, and taking it off takes them away — the card and the price always agree. Anyone the two disagreed about is a founding member now.',
+   'Making someone a founding member from their profile now gives them the founding prices too, and taking it off takes them away — the card and the price always agree. Where the two disagreed, the card (the last word from a profile) now sets the price.',
    '2026-10-15', false)
 ) as v(title, category, area, summary, shipped_on, highlight)
 where not exists (select 1 from public.changelog c where c.title = v.title);

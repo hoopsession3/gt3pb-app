@@ -229,7 +229,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     // right before calling checkout() pass silentToast — otherwise this generic one and the caller's
     // fire in the same batched render pass, and only the LAST setState-triggered toast ever renders.
     // That used to silently swallow a customer's "show this ref at the window" fallback message.
-    if (!opts?.silentToast) toast(`${count} drinks pre-ordered — ready in ~8 min`);
+    if (!opts?.silentToast) toast(`${count} drinks pre-ordered — ready in about 8 minutes`);
     setCart({});
   }, [cart, toast]);
 

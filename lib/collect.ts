@@ -60,8 +60,10 @@ export type CollectKind = "cup" | "pickup";
  * record it — a `select("*")` row carries `collected_at` once 0341 is applied, and before that the
  * key is simply absent. The row says what the database can do; no second flag to keep in step.
  */
-export function canCollect(r: Collectable): boolean {
-  return "collected_at" in r && !isSettled(r);
+export function canCollect(r: Collectable & { total_cents?: number | null }): boolean {
+  // Nothing owed on $0 (R7b): a pack on us — a founding member's refill — is reserved as nothing charged, and the window
+  // asked the crew to collect $0.00 from it, at the button and again at the hand-off.
+  return "collected_at" in r && !isSettled(r) && r.total_cents !== 0;
 }
 
 /** How it was paid: at the window by one of the two ways, online by card, paid some other way, or not. */

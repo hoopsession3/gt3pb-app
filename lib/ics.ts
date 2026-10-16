@@ -12,6 +12,7 @@ export interface CalEvent {
   location?: string | null;
   description?: string | null;
   url?: string | null;
+  alarmMinutes?: number | null;   // an alert this many minutes before it starts (0: as it starts) — R7b, Remind me
 }
 
 const p2 = (n: number) => String(n).padStart(2, "0");
@@ -42,6 +43,10 @@ export function buildIcs(ev: CalEvent, stamp: Date): string {
     ev.location ? `LOCATION:${esc(ev.location)}` : "",
     ev.description ? `DESCRIPTION:${esc(ev.description)}` : "",
     ev.url ? `URL:${esc(ev.url)}` : "",
+    // A reminder that rings (R7b): "Remind me at 7:00" added an event and nothing to wake the phone at 7.
+    ...(typeof ev.alarmMinutes === "number" && ev.alarmMinutes >= 0 && !allDay
+      ? ["BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${esc(ev.title)}`, ev.alarmMinutes ? `TRIGGER:-PT${Math.round(ev.alarmMinutes)}M` : "TRIGGER:PT0M", "END:VALARM"]
+      : []),
     "END:VEVENT",
     "END:VCALENDAR",
   ].filter(Boolean);

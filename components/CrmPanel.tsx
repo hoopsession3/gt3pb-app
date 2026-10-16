@@ -121,15 +121,23 @@ export function CrmDetail({ c }: { c: Customer }) {
   const saveLoyalty = async () => {
     if (!supabase || !c.user_id) return;
     setSaving(true);
+    // Only what was changed goes (0414): what the form read when it loaded would write back over a spend at the window or
+    // a referral's undoing made since — null leaves each as the database has it.
+    const was = board.data?.loyalty;
+    // Compared as typed (R7b re-audit): a balance below zero — a referral undone after its points were spent (0411) — shows
+    // as it is, and was clamped to 0 before the comparison, so an edit to Founding alone wrote it back up to 0.
+    const typedPts = Math.round(Number(pts) || 0);
+    const nextPts = Math.max(0, typedPts), nextCredit = Math.max(0, Math.round((Number(credit) || 0) * 100));
     const { error } = await supabase.rpc("admin_set_member", {
       member: c.user_id,
-      new_points: Math.max(0, Math.round(Number(pts) || 0)),
-      new_credit_cents: Math.max(0, Math.round((Number(credit) || 0) * 100)),
-      new_founding: founding,
+      new_points: was && typedPts === (was.points ?? 0) ? null : nextPts,
+      new_credit_cents: was && nextCredit === (was.credit_cents ?? 0) ? null : nextCredit,
+      new_founding: was && founding === Boolean(was.founding_member) ? null : founding,
     });
     setSaving(false);
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
     toast("Loyalty updated");
+    void board.reload();   // what the next save compares against is what was just saved
   };
 
   // One entry point for all three states (0252) — picking a target button may need to change tier,

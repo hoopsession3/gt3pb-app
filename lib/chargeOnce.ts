@@ -106,9 +106,10 @@ export function couldNotConfirm(card: boolean): Answer {
     : "We couldn't confirm your order went in, and the crew has been told. Check with them at the window before ordering again." } };
 }
 
-/** The claim could not be read or written, so nothing is charged or placed. Safe to tap again. */
+/** The claim could not be read or written, so nothing is charged or placed. Safe to tap again. `charged: false` tells the
+ *  page this 5xx is not a lost answer (lib/idempotency.attemptVerdict): nothing is held for it (R7b). */
 export function cannotStart(card: boolean): Answer {
-  return { status: 503, body: { error: card
+  return { status: 503, body: { charged: false, error: card
     ? "We couldn't start the payment — nothing was charged. Give it another tap in a moment."
     : "That didn't go through — give it another tap" } };
 }
@@ -178,6 +179,55 @@ export async function seenBefore(
   if (!r.ok) return r.missing ? { claims: null } : { answer: cannotStart(card) };
   if (!r.claim) return { claims: store };
   return { answer: await answerFor(store, key, r.claim, now, stopped, say) };
+}
+
+/**
+ * "Check on my payment" (R7b, 2026-10-16): what became of THIS key — never Square, never a new order. A payment whose
+ * answer never came holds the page (components/useIdemKey), and this is its way through. A claim answers as it would a
+ * retry (order in · declined · couldn't confirm · paid and not saved — the crew told once, by whichever finds it first). A
+ * key the claims have never seen was never charged or placed: it is closed now — a 'done' claim whose answer is "never
+ * reached us" — so the request it belonged to, should it still arrive, is told that instead of being charged, and the
+ * page can start a new checkout.
+ *
+ * Every other answer is said as a check says it (the re-audit of R7b): the page's Pay is waiting on this very check, so
+ * nothing here says "tap Pay", and a store that would not answer is "we couldn't check", never cannotStart's "nothing
+ * was charged" — it was a payment's outcome that could not be read. `{ claims: null }` (0371 not pasted) cannot be
+ * checked: the crew can.
+ */
+export async function checkOnly(
+  store: ClaimStore, key: string, card: boolean, now: () => number, stopped: (s: Stopped) => Promise<void>, channel = "cups", say: Say = {},
+): Promise<Answer> {
+  const cannotCheck: Answer = { status: 409, body: { pending: true, error: card
+    ? "We can't check that payment from here — ask the crew at the window before paying again."
+    : "We can't check that order from here — ask the crew at the window before ordering again." } };
+  const tryAgain: Answer = { status: 503, body: { pending: true, error: card
+    ? "We couldn't check on that payment just now — try again in a minute. Don't pay again until it answers."
+    : "We couldn't check on that order just now — try again in a minute. Don't send it again until it answers." } };
+  const still: Answer = { status: 409, body: { pending: true, error: card
+    ? "Still confirming that payment — check again in a minute. You won't be charged twice."
+    : "Still sending that order — check again in a minute." } };
+  const inFlight = (c: Claim) => (c.state === "started" || c.state === "charged") && !(now() - Date.parse(c.updated_at) > IN_FLIGHT_MS);
+  const answer = (c: Claim) => (inFlight(c) ? still : answerFor(store, key, c, now, stopped, say));
+
+  const r = await store.read(key);
+  if (!r.ok) return r.missing ? cannotCheck : tryAgain;
+  if (r.claim) return answer(r.claim);
+
+  const never: Answer = { status: 200, body: { ok: false, checked: true, charged: false, error: card
+    ? "That payment never reached us — nothing was charged. You can pay now."
+    : "That order never reached us — nothing was placed. You can send it now." } };
+  const c = await store.claim(key, { channel, card, amountCents: 0 }, iso(now()));
+  if (!c.ok) return c.missing ? cannotCheck : tryAgain;
+  if (!c.claimed) {
+    // It arrived between the read and the claim: its own answer.
+    const again = await store.read(key);
+    return again.ok && again.claim ? answer(again.claim) : still;
+  }
+  if (await store.move(key, { state: "done", answer: never }, iso(now()))) return never;
+  // Claimed and not closed: given back, so the claim cannot later read as a payment that stopped half way. The page keeps
+  // holding the key, and the request it belongs to, should it still arrive, is charged under it — and found by the next check.
+  await store.release(key);
+  return tryAgain;
 }
 
 /** Claim the key — the last step before the money. The unique key decides between two taps. */

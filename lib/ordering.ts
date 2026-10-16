@@ -53,6 +53,7 @@ export type OrderingStop = {
   ends_at: string | null;
   where: string | null;   // location_text, else address — what Find Us prints under Where
   to?: string | null;     // address, else location_text — where directions go: the street, not the place's name (R7)
+  pin?: { lat: number; lng: number } | null;   // the stop's own pin, where it has one: directions go there first (R7b)
   leadMs: number;         // resolved: the stop's own order-ahead lead, else the city's
   pickup: boolean;        // the stop's pickup switch (0191)
 };
@@ -63,12 +64,13 @@ export type Ordering = {
   stop: OrderingStop | null;   // the stop an order placed now is for (closed: the one it is waiting on)
   opensAt: string | null;      // early: when cup orders open; null = when the truck goes live
   readyFrom: string | null;    // ahead: the stop's start; null = made as soon as it is in
+  held?: boolean;              // none, because the city is held closed or not open yet (0412) — not for want of a stop
 };
 
 // ── a stops row, as the reader fetches it ──────────────────────────────────────────────────────
 export type StopRow = {
   id: string; name?: string | null; starts_at?: string | null; ends_at?: string | null;
-  location_text?: string | null; address?: string | null;
+  location_text?: string | null; address?: string | null; lat?: number | null; lng?: number | null;
   order_ahead_enabled?: boolean | null; order_ahead_lead_min?: number | null; pickup_enabled?: boolean | null;
 };
 
@@ -81,6 +83,7 @@ export function orderingStop(r: StopRow, cityLeadMs: number): OrderingStop | nul
     id: r.id, name: r.name?.trim() || null, starts_at: r.starts_at, ends_at: r.ends_at ?? null,
     where: r.location_text?.trim() || r.address?.trim() || null,
     to: r.address?.trim() || r.location_text?.trim() || null,
+    pin: typeof r.lat === "number" && typeof r.lng === "number" && Number.isFinite(r.lat) && Number.isFinite(r.lng) ? { lat: r.lat, lng: r.lng } : null,
     leadMs: own ?? cityLeadMs, pickup: !!r.pickup_enabled,
   };
 }
@@ -140,7 +143,10 @@ export function liveSwitchOn(nowMs: number, isLive: boolean, liveStopId: string 
  * order; `liveStopId` is live_status.current_stop_id — trusted only when it is one of them; `named`
  * is that stop's row when it is not (lib/orderingRead reads it by id — see liveSwitchOn).
  */
-export function orderingNow(nowMs: number, isLive: boolean, stops: readonly OrderingStop[], liveStopId: string | null = null, named?: NamedStop | null): Ordering {
+export function orderingNow(nowMs: number, isLive: boolean, stops: readonly OrderingStop[], liveStopId: string | null = null, named?: NamedStop | null, held: boolean = false): Ordering {
+  // HELD CLOSED IS CLOSED (R7b, 0412): a city its owner holds closed — or one whose opening day has not come — takes no
+  // order of any kind. A stop under way and a stop's pre-order window open on their own (below), so they are closed here.
+  if (held) return result("none", null, { held: true });
   const all = stops.map(span).filter((p): p is Span => p !== null);
   const pointer = liveStopId ? all.find((p) => p.s.id === liveStopId) ?? null : null;
   // A switch left on past the end of the stop it was flipped at is not a truck pouring: nobody is
@@ -189,16 +195,20 @@ export function preorderWindow(nowMs: number, isLive: boolean, nextStartISO: str
 // Said once, here, because the server says them too (the 409 and the confirmation email) and a
 // promise worded two ways is two promises.
 
+/** The made-now promise, in one wording everywhere it is made (R7b): the sheet, the confirmation, the order's own line,
+ *  the toast, Today and the email said "~8 min", "about 8 minutes" and "about 8 min after you order". */
+export const READY_SOON = "Ready in about 8 minutes";
+
 /** When it will be made — the line the confirmation screen and email both lead with. */
 export function readyWords(o: Pick<Ordering, "state" | "readyFrom">, nowMs: number = Date.now()): string {
   if (o.state === "ahead" && o.readyFrom) return `We make it when we open — ${etWhen(o.readyFrom, nowMs)}.`;
-  return "Ready in ~8 min.";
+  return `${READY_SOON}.`;
 }
 
 /** The confirmation screen's line under "Order in." — the made-when promise and the money half. The
  *  made-now wording is the one this screen has always used; only an order placed ahead reads new. */
 export function confirmWords(readyFrom: string | null | undefined, paid: boolean, nowMs: number = Date.now()): string {
-  if (!readyFrom) return paid ? "Ready in ~8 min — we'll have it waiting at the window." : "Ready in ~8 min — pay at the truck when you arrive.";
+  if (!readyFrom) return paid ? `${READY_SOON} — we'll have it waiting at the window.` : `${READY_SOON} — pay at the truck when you arrive.`;
   return `${readyWords({ state: "ahead", readyFrom }, nowMs)} ${paid ? "It'll be waiting at the window." : "Pay at the truck when you arrive."}`;
 }
 
@@ -234,15 +244,15 @@ export function closedWords(o: Ordering, opts: { nowMs?: number; closing?: strin
     case "early": return o.opensAt
       ? `Cup orders open ${etWhen(o.opensAt, nowMs)}${opts.named !== false && o.stop?.name ? ` for ${o.stop.name}` : ""}.`
       : "Cup orders open when the truck goes live.";
-    case "none": return "Cup orders open when the next stop is posted.";
+    case "none": return o.held ? "We're not taking online orders here right now." : "Cup orders open when the next stop is posted.";
     default: return null;
   }
 }
 
-/** The server's refusal (409), in the same words the page showed. */
+/** The server's refusal (409), in the same words the page showed. A city held closed takes no pack either (R7b): no pitch. */
 export function refusalWords(o: Ordering, nowMs: number = Date.now()): string {
   const why = closedWords(o, { nowMs }) ?? "The truck isn’t taking cup orders right now.";
-  return o.state === "closing" ? why : `${why} Reserve a pack instead.`;
+  return o.state === "closing" || o.held ? why : `${why} Reserve a pack instead.`;
 }
 
 // ── THE CREW'S CLOCK ───────────────────────────────────────────────────────────────────────────

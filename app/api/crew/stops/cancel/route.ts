@@ -50,11 +50,26 @@ async function post(req: Request) {
   // scoped-by: orders.stop_id = this stop, which an owner or admin just canceled through the database's own check.
   const { data: cupRows } = await supabaseAdmin.from("orders").select("id, user_id, items, paid, total_cents, tip_cents, payment_id")
     .eq("stop_id", id).in("status", ["new", "preparing", "ready"]);
-  const cups = (cupRows ?? []) as { id: string; user_id: string | null; items: string[] | null; paid: boolean; total_cents: number; tip_cents?: number | null; payment_id: string | null }[];
-  if (cups.length) {
+  type CupRow = { id: string; user_id: string | null; items: string[] | null; paid: boolean; total_cents: number; tip_cents?: number | null; payment_id: string | null };
+  const openCups = (cupRows ?? []) as CupRow[];
+  // Voided together, and only the ones that were are told (R7b): one order the database refused used to stop the whole
+  // update, and every member was still emailed "canceled". Refused together, they are voided one at a time, and the ones
+  // still refused are named to the crew, who void them on the Pass.
+  let voided = new Set<string>();
+  if (openCups.length) {
     // scoped-by: the ids just read for this stop.
-    await supabaseAdmin.from("orders").update({ status: "void" }).in("id", cups.map((c) => c.id)).in("status", ["new", "preparing", "ready"]);
+    const all = await supabaseAdmin.from("orders").update({ status: "void" }).in("id", openCups.map((c) => c.id)).in("status", ["new", "preparing", "ready"]).select("id");
+    if (!all.error) voided = new Set(((all.data ?? []) as { id: string }[]).map((r) => r.id));
+    else {
+      for (const c of openCups) {
+        // scoped-by: one id just read for this stop.
+        const one = await supabaseAdmin.from("orders").update({ status: "void" }).eq("id", c.id).in("status", ["new", "preparing", "ready"]).select("id");
+        if (!one.error && (one.data ?? []).length) voided.add(c.id);
+      }
+    }
   }
+  const cups = openCups.filter((c) => voided.has(c.id));
+  const stuck = openCups.filter((c) => !voided.has(c.id)).map((c) => orderNo(c.id));
   // Told: a member, by email here and on their phone by the push function (the void, R3b). A guest has no address with
   // us — their order's page (the ticket, 0395) says it was called off, and why. The crew's toast counts which is which.
   let told = 0;
@@ -99,9 +114,10 @@ async function post(req: Request) {
   // What each card was charged — the drinks and the tip (R7): the list said "of drinks", and that is what was refunded.
   const paidCups = cups.filter((c) => c.paid).map((c) => ({ no: orderNo(c.id), ref: (c.payment_id || c.id).slice(-6).toUpperCase(), cents: c.total_cents + (c.tip_cents ?? 0) }));
   const line = crewWords(stop, { cups: cups.length, told, paidCups, packs: packs.length });
-  await raiseAlert({ severity: paidCups.length ? "critical" : "important", category: paidCups.length ? "money" : "order", kind: "stop_canceled",
-    subjectId: id, title: line.title, body: line.body, link: "/crew?s=now" });
-  return NextResponse.json({ ok: true, cups: cups.length, told, paid: paidCups.length, packs: packs.length });
+  const stuckLine = stuck.length ? ` ${stuck.length === 1 ? "One order" : `${stuck.length} orders`} couldn't be canceled here — void ${stuck.length === 1 ? "it" : "them"} on the Pass: ${stuck.join(", ")}.` : "";
+  await raiseAlert({ severity: paidCups.length || stuck.length ? "critical" : "important", category: paidCups.length ? "money" : "order", kind: "stop_canceled",
+    subjectId: id, title: line.title, body: line.body + stuckLine, link: "/crew?s=now" });
+  return NextResponse.json({ ok: true, cups: cups.length, told, paid: paidCups.length, packs: packs.length, stuck: stuck.length });
 }
 
 export const POST = route("crew/stops/cancel", post);

@@ -46,6 +46,12 @@ export type CheckoutKey = {
   isOpen: () => boolean;
   /** Let the held key go, by the customer's own choice, once the crew has said the first payment did not go through. */
   forget: () => void;
+  /** The send is about to leave (R7b): the key is held open until its answer, so an app closed mid-payment reopens
+   *  holding it — not as a fresh cart whose next change is a second charge. `card`: a card send, or a pre-order's. */
+  sent: (key: string, card: boolean) => void;
+  /** The key being held, and whether its send was a card's — what "Check on my payment" asks about (R7b). */
+  heldKey: () => string;
+  heldCard: () => boolean;
 };
 
 // DURABLE (2026-10-12, C7 of the customer audit, approved): the cart survives the app being closed — it is kept in
@@ -58,12 +64,15 @@ export type CheckoutKey = {
 //
 // OPEN (2026-10-15, R7 of the customer re-audit): the record says whether the last answer under the key never came, so a
 // restart knows the cart is waiting on a payment (lib/payHold) — and the page knows to hold the cart and tip still.
+// FROM THE SEND (R7b, 2026-10-16): open is written as the send leaves, not when its answer is found lost — an app swiped
+// away mid-payment never finds out, and reopened as a fresh cart whose next change went out under a new key. The answer
+// closes it again; the two hours count from the last send; and the record says whether the send was a card's.
 const storage = (durable: boolean): Storage | null => {
   try { return durable ? window.localStorage : window.sessionStorage; } catch { return null; }
 };
 
-type Held = { attempt: PayAttempt; open: boolean; at: number | null };
-const NOTHING: Held = { attempt: EMPTY, open: false, at: null };
+type Held = { attempt: PayAttempt; open: boolean; at: number | null; card: boolean };
+const NOTHING: Held = { attempt: EMPTY, open: false, at: null, card: true };
 
 /** The key a reload (or, durable, a restart) left behind, if any. Never a card token: those are not written anywhere. */
 function stored(persist?: string, durable = false): Held {
@@ -73,7 +82,7 @@ function stored(persist?: string, durable = false): Held {
     const parsed = JSON.parse(st?.getItem(persist) ?? "null");
     if (parsed && typeof parsed.sig === "string" && typeof parsed.key === "string") {
       if (durable && !(typeof parsed.at === "number" && Date.now() - parsed.at < DURABLE_KEY_MS)) { st?.removeItem(persist); return NOTHING; }
-      return { attempt: { sig: parsed.sig, key: parsed.key, token: null }, open: parsed.open === true, at: typeof parsed.at === "number" ? parsed.at : null };
+      return { attempt: { sig: parsed.sig, key: parsed.key, token: null }, open: parsed.open === true, at: typeof parsed.at === "number" ? parsed.at : null, card: parsed.card !== false };
     }
   } catch { /* a blocked or cleared store is not a reason to fail a checkout */ }
   return NOTHING;
@@ -94,19 +103,23 @@ export function useIdemKey(persist?: string, durable = false): CheckoutKey {
   // without re-creating the handler every render. All the state lives in the ref.
   return useMemo<CheckoutKey>(() => {
     const now = (): Held => held.current ?? NOTHING;
+    const write = (h: Held) => {
+      if (!persist || typeof window === "undefined") return;
+      try {
+        const st = storage(durable);
+        const a = h.attempt;
+        if (a.key) st?.setItem(persist, JSON.stringify(durable ? { sig: a.sig, key: a.key, at: h.at ?? Date.now(), open: h.open, card: h.card } : { sig: a.sig, key: a.key, open: h.open, card: h.card }));
+        else st?.removeItem(persist);
+      } catch { /* ignore */ }
+    };
     const keep = (next: PayAttempt, open: boolean) => {
       const cur = now();
       const keyChanged = next.key !== cur.attempt.key;
       const changed = keyChanged || next.sig !== cur.attempt.sig || open !== cur.open;
       const at = keyChanged ? (next.key ? Date.now() : null) : cur.at;
-      held.current = { attempt: next, open, at };
+      held.current = { attempt: next, open, at, card: keyChanged ? true : cur.card };
       setOpen(open);
-      if (!changed || !persist || typeof window === "undefined") return;
-      try {
-        const st = storage(durable);
-        if (next.key) st?.setItem(persist, JSON.stringify(durable ? { sig: next.sig, key: next.key, at: at ?? Date.now(), open } : { sig: next.sig, key: next.key, open }));
-        else st?.removeItem(persist);
-      } catch { /* ignore */ }
+      if (changed) write(held.current);
     };
     return {
       async begin(details, tokenize, was) {
@@ -136,6 +149,15 @@ export function useIdemKey(persist?: string, durable = false): CheckoutKey {
       },
       isOpen: () => now().open && now().attempt.key !== "",
       forget() { keep(EMPTY, false); },
+      sent(key, card) {
+        const cur = now();
+        if (!cur.attempt.key || cur.attempt.key !== key) return;
+        held.current = { ...cur, open: true, at: Date.now(), card };
+        setOpen(true);
+        write(held.current);
+      },
+      heldKey: () => now().attempt.key,
+      heldCard: () => now().card,
     };
   }, [persist, durable]);
 }

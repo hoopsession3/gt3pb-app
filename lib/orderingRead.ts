@@ -30,33 +30,47 @@ import type { Market } from "./markets";
 // `named` (C1, 2026-10-12): the stop the live switch names, read by id when the road does not have it — the road drops
 // a stop once it is archived, done or a day old, which is exactly when a switch left on is wrong. null = no such stop in
 // this city; absent = the switch names none, or the road has it. lib/ordering's liveSwitchOn judges it.
-export type OrderingInputs = { isLive: boolean; liveStopId: string | null; stops: OrderingStop[]; named?: NamedStop | null };
+export type OrderingInputs = { isLive: boolean; liveStopId: string | null; stops: OrderingStop[]; named?: NamedStop | null; held?: boolean };
 export type OrderingRead = { inputs: OrderingInputs; error: null } | { inputs: null; error: string };
 
 /** The rule over a read — the one call the phone and the server make, so neither can forget an input. */
-export const orderingFrom = (i: OrderingInputs, nowMs: number): Ordering => orderingNow(nowMs, i.isLive, i.stops, i.liveStopId, i.named);
+export const orderingFrom = (i: OrderingInputs, nowMs: number): Ordering => orderingNow(nowMs, i.isLive, i.stops, i.liveStopId, i.named, i.held);
 
 const LOOK_BACK_MS = 24 * 60 * 60 * 1000;
-type Flags = { is_live?: boolean | null; preorder_lead_h?: number | null; current_stop_id?: string | null };
+type Flags = { is_live?: boolean | null; preorder_lead_h?: number | null; current_stop_id?: string | null; held_closed?: boolean | null; pre_launch?: boolean | null };
+// HELD CLOSED (R7b, 0412): the city's switch at false, and the opening day not come, close every order here — a stop under
+// way and a pre-order window included. arrives-with: 0412 — held_closed is its column; until it is pasted the city is
+// read without it (pre_launch is 0285's), and a held city reads as one whose truck is off, as before.
+const CITY_COLS = "is_live, preorder_lead_h, pre_launch, held_closed";
+const CITY_COLS_BEFORE_0412 = "is_live, preorder_lead_h, pre_launch";
+export const lacksHeld = (e: { code?: string; message?: string } | null): boolean => !!e && (e.code === "42703" || /held_closed/.test(e.message ?? ""));
 
 export async function readOrdering(sb: SupabaseClient, market: Market, nowMs: number = Date.now()): Promise<OrderingRead> {
-  const [city, single, road] = await Promise.all([
-    sb.from("market_live").select("is_live, preorder_lead_h").eq("market", market).maybeSingle(),
+  const [cityRead, single, road] = await Promise.all([
+    sb.from("market_live").select(CITY_COLS).eq("market", market).maybeSingle(),
     sb.from("live_status").select("is_live, preorder_lead_h, current_stop_id").maybeSingle(),
     sb.from("stops")
-      .select("id, name, starts_at, ends_at, location_text, address, order_ahead_enabled, order_ahead_lead_min, pickup_enabled")
+      .select("id, name, starts_at, ends_at, location_text, address, lat, lng, order_ahead_enabled, order_ahead_lead_min, pickup_enabled")
       .is("archived_at", null).neq("status", "done").is("completed_at", null).not("starts_at", "is", null)
       .eq("market", market)
       .gte("starts_at", new Date(nowMs - LOOK_BACK_MS).toISOString())
       .order("starts_at", { ascending: true }).limit(12),
   ]);
+  const city = lacksHeld(cityRead.error) ? await sb.from("market_live").select(CITY_COLS_BEFORE_0412).eq("market", market).maybeSingle() : cityRead;
   if (road.error) return { inputs: null, error: road.error.message };
   const truck = single.data as Flags | null;
   // The truck's own switch is part of every answer now (below): unread, there is no answer.
   if (!truck && single.error) return { inputs: null, error: single.error.message };
+  // Nor is there one when the city's own row could not be read (R7b re-audit): it is what says the city is held closed,
+  // and reading past it to the truck's switch took cards in a held city whenever the truck was live. A city with no row
+  // (data null, no error) follows the truck, as it always has.
+  if (city.error) return { inputs: null, error: city.error.message };
   const flags = (city.data as Flags | null) ?? truck;
-  if (!flags && city.error) return { inputs: null, error: city.error.message };
   const lead = preorderLeadMs(flags?.preorder_lead_h);
+  const cityRow = city.data as Flags | null;
+  if (cityRow && (cityRow.held_closed === true || cityRow.pre_launch === true)) {
+    return { inputs: { isLive: false, liveStopId: null, stops: [], held: true }, error: null };
+  }
   const stops = ((road.data ?? []) as StopRow[]).map((r) => orderingStop(r, lead)).filter((s): s is OrderingStop => s !== null);
   // GO OFFLINE STOPS EVERY ORDER (2026-10-15, R7 — 0412). A city's switch holds it closed and never keeps it open: once a
   // city had been switched on, Go offline cleared the truck and the city's switch kept taking cards, with no stop to pour

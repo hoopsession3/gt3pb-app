@@ -55,12 +55,30 @@ await q(`update public.markets set is_live = null where slug = 'greenville'`);
 ok("…a city that follows the truck takes orders while it is live", (await liveIn("greenville")) === true);
 await q(`update public.markets set is_live = false where slug = 'greenville'`);
 ok("a city held closed takes none, whatever the truck does", (await liveIn("greenville")) === false);
+const heldIn = async (market) => (await q1(`select held_closed from public.market_live where market = $1`, [market]))?.held_closed;
+ok("…and says it is held, so a scheduled stop's own windows close too (lib/orderingRead)", (await heldIn("greenville")) === true);
+await q(`update public.markets set is_live = null where slug = 'greenville'`);
+ok("a city that follows the truck is not held", (await heldIn("greenville")) === false);
+await q(`update public.markets set is_live = true where slug = 'greenville'`);
+ok("…nor one an owner left on", (await heldIn("greenville")) === false);
 await q(`update public.markets set is_live = null where slug = 'greenville'`);
 await q(`update public.markets set is_live = null, opens_on = current_date + 10 where slug = 'atlanta'`);
 ok("a city before its opening day takes none, truck live or not", (await liveIn("atlanta")) === false);
 ok("the view is still the storefront's to read, signed out", (await as(null, `select count(*)::int n from public.market_live`)).rows[0]?.n >= 2);
-ok("its columns are 0285's, in order", (await q(`select attname from pg_attribute where attrelid = 'public.market_live'::regclass and attnum > 0 order by attnum`))
-  .map((r) => r.attname).join() === "market,is_live,preorder_lead_h,pay_at_pickup,opens_on,pre_launch");
+ok("its columns are 0285's, in order, and held_closed after them", (await q(`select attname from pg_attribute where attrelid = 'public.market_live'::regclass and attnum > 0 order by attnum`))
+  .map((r) => r.attname).join() === "market,is_live,preorder_lead_h,pay_at_pickup,opens_on,pre_launch,held_closed");
+
+// The readiness board's storefront check asks what a launch needs, not whether the truck is live this hour.
+const storefront = async (market) => q1(`select status, detail from public.v_market_readiness where market = $1 and check_name = 'Storefront switched on'`, [market]);
+await q(`update public.live_status set is_live = false where id = 1`);
+ok("readiness: a city that follows the truck is ready for launch with the truck offline", ((r) => r?.status === "ready" && /whenever the truck is live/.test(r.detail))(await storefront("greenville")), await storefront("greenville"));
+await q(`update public.markets set is_live = false where slug = 'greenville'`);
+ok("…held closed, it blocks, and says where it is held", ((r) => r?.status === "blocked" && /Held closed in Settings/.test(r.detail))(await storefront("greenville")), await storefront("greenville"));
+await q(`update public.markets set is_live = null where slug = 'greenville'`);
+ok("…before its opening day, it blocks with the day", ((r) => r?.status === "blocked" && /held until/.test(r.detail))(await storefront("atlanta")), await storefront("atlanta"));
+ok("…and the board is still an invoker view", (await q1(`select coalesce((select option_value from pg_options_to_table(reloptions) where option_name = 'security_invoker'), 'off') v
+  from pg_class where oid = 'public.v_market_readiness'::regclass`)).v === "on");
+await q(`update public.live_status set is_live = true where id = 1`);
 
 // ── 0413 · a shared link shows the order ─────────────────────────────────────────────────────────────────────
 const WX = (await q1(`insert into public.stops (name, status, starts_at, ends_at, address)
@@ -95,7 +113,7 @@ const OWN = "0c414000-0000-4000-8000-0000000000a1";   // the owner
 const KIT = "0c414000-0000-4000-8000-0000000000a2";   // crew
 const HAL = "0c414000-0000-4000-8000-0000000000b1";   // a member the owner makes founding — before 0414, the bug
 const FAY = "0c414000-0000-4000-8000-0000000000b2";   // the card said founding, the price did not
-const GUS = "0c414000-0000-4000-8000-0000000000b3";   // the price said founding, the card did not
+const GUS = "0c414000-0000-4000-8000-0000000000b3";   // the price said founding, the card did not — the owner took it off
 const IVY = "0c414000-0000-4000-8000-0000000000b4";   // a member, founding nowhere
 for (const [id, role, name] of [[OWN, "owner", "Ola Grant"], [KIT, "server", "Kit Rowe"], [HAL, "member", "Hal Moss"],
   [FAY, "member", "Fay Diaz"], [GUS, "member", "Gus Park"], [IVY, "member", "Ivy Chen"]]) {
@@ -120,17 +138,17 @@ const SQL14 = sqlOf("0414_founding_is_one_switch.sql");
 await db.exec(SQL14);
 await db.exec(SQL14);   // a second run changes nothing
 ok("0414 loads on 0413, and loads again", true);
-ok("where the card and the price disagreed they agree now — founding, where either said so",
-  ((h, f, g, i) => h.tier === "founding" && h.f && f.tier === "founding" && f.f && g.tier === "founding" && g.f && i.tier === "member" && !i.f)(
-    await card(HAL), await card(FAY), await card(GUS), await card(IVY)));
+ok("where the card and the price disagreed they agree now — the card's way, the owner's last word",
+  ((h, f, g, i) => h.tier === "founding" && h.f && f.tier === "founding" && f.f && g.tier === "member" && !g.f && i.tier === "member" && !i.f)(
+    await card(HAL), await card(FAY), await card(GUS), await card(IVY)), [await card(HAL), await card(FAY), await card(GUS), await card(IVY)]);
 ok("no member's card and price disagree", (await q1(`select count(*)::int n from public.customers c join public.profiles p on p.id = c.user_id
   where coalesce(p.founding_member, false) <> (c.tier = 'founding')`)).n === 0);
 const added = async (id) => (await logged(id)) - loggedBefore[id];
-ok("each one made one is a single line in the change log, however often 0414 runs — the price's by its trigger, the card's by 0414",
+ok("each one made one is a single line in the change log, however often 0414 runs — the price's, by its own trigger",
   (await added(FAY)) === 1 && (await lines(FAY, "tier: member → founding")) === 1
     && (await added(HAL)) === 1 && (await lines(HAL, "tier: member → founding")) === 1
-    && (await added(GUS)) === 1 && (await lines(GUS, "Founding member: off → on (0414%")) === 1
-    && (await added(IVY)) === 0);
+    && (await added(GUS)) === 1 && (await lines(GUS, "tier: founding → member")) === 1
+    && (await added(IVY)) === 0, { FAY: await added(FAY), HAL: await added(HAL), GUS: await added(GUS), IVY: await added(IVY) });
 
 const on = await setFounding(OWN, IVY, true);
 ok("the owner's switch on: the founding card and the founding price, together", !on.error && ((c) => c.f && c.tier === "founding")(await card(IVY)), on);
@@ -138,8 +156,10 @@ const off = await setFounding(OWN, FAY, false);
 ok("…and off: both go, and the member's tier is left — never guest", !off.error && ((c) => !c.f && c.tier === "member")(await card(FAY)), off);
 ok("…each a line about the switch and one about the price, with who", (await q1(`select count(*)::int n from public.admin_audit
   where row_pk = $1 and actor = $2 and (summary = 'Founding member: on → off' or summary = 'tier: founding → member')`, [FAY, OWN])).n === 2);
+await q(`update public.profiles set credit_cents = 700 where id = $1`, [HAL]);
 await as(OWN, `select public.admin_set_member($1, 40, null, null)`, [HAL]);
-ok("points alone leave the tier where it is", ((c) => c.f && c.tier === "founding")(await card(HAL)));
+ok("points alone leave the tier where it is — and the credit, which the editors no longer send unchanged",
+  ((c) => c.f && c.tier === "founding")(await card(HAL)) && (await q1(`select credit_cents c from public.profiles where id = $1`, [HAL])).c === 700);
 const crew = await setFounding(KIT, IVY, false);
 ok("the crew can't make or unmake a founding member here — the owner's edit only", /not authorized/.test(crew.error ?? "")
   && ((c) => c.f && c.tier === "founding")(await card(IVY)), crew);

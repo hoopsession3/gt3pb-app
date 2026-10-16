@@ -104,9 +104,9 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
               {variantLabel(l.variant) && <span className="shop-line-v">{variantLabel(l.variant)}</span>}
             </div>
             <div className="shop-line-qty">
-              <button type="button" onClick={() => setQty(i, l.qty - 1)} aria-label="Fewer">–</button>
-              <span>{l.qty}</span>
-              <button type="button" onClick={() => setQty(i, l.qty + 1)} aria-label="More">+</button>
+              <button type="button" className="hit-44" onClick={() => setQty(i, l.qty - 1)} aria-label={l.qty <= 1 ? `Remove ${l.product.title}` : `One fewer ${l.product.title}`}>–</button>
+              <span aria-live="polite">{l.qty}</span>
+              <button type="button" className="hit-44" onClick={() => setQty(i, l.qty + 1)} disabled={l.qty >= 20} aria-label={`One more ${l.product.title}`}>+</button>
             </div>
             <span className="shop-line-px">{money(l.product.price_cents * l.qty)}</span>
           </div>

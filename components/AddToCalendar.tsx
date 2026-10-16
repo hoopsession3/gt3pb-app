@@ -19,7 +19,7 @@ const BUFFERS: { v: number; label: string }[] = [
 // app the first choice is the phone's own New Event sheet instead of a file it could not open
 // (lib/deviceActions addToCalendar), and it saves to any calendar on the phone.
 
-export default function AddToCalendar({ ev, label = "Add to calendar", defaultBuffer = 0 }: { ev: CalEvent | null; label?: string; defaultBuffer?: number }) {
+export default function AddToCalendar({ ev, label = "Add to calendar", defaultBuffer = 0, buffers = true }: { ev: CalEvent | null; label?: string; defaultBuffer?: number; buffers?: boolean }) {
   const { toast } = useApp();
   const [open, setOpen] = useState(false);
   const [buffer, setBuffer] = useState(defaultBuffer);
@@ -60,7 +60,8 @@ export default function AddToCalendar({ ev, label = "Add to calendar", defaultBu
       <Button type="button" kind="quiet" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}><Icon name="calendar" /> {label}</Button>
       {open && (
         <div className="atc-menu" role="menu">
-          {!ev.allDay && (
+          {/* The crew's drive-and-setup buffer — not for a customer's reminder (R7b: it wrote "Leave/setup buffer" into it). */}
+          {!ev.allDay && buffers && (
             <div className="atc-buf">
               <span className="atc-buf-h">Buffer before</span>
               <div className="atc-buf-row">

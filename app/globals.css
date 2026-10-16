@@ -2720,10 +2720,10 @@ body:has(.conc-sheet) .rail{display:flex}
 .app.rd-t3{--rd-z:1.26}
 .app:is(.rd-t1,.rd-t2,.rd-t3) :is(.sheet2-head,.sheet2-body,.sheet2-foot,.cartbar,.toast,.orderbar-wrap)>*,
 .app:is(.rd-t1,.rd-t2,.rd-t3) .nav .tl{zoom:var(--rd-z)}
-.app.rd-bold .body{font-weight:600}
-.app.rd-bold .body b,.app.rd-bold .body strong{font-weight:800}
-.app.rd-roomy .body{line-height:1.7;letter-spacing:.1px}
-.app.rd-roomy .body :where(p,li){margin-bottom:.45em}
+.app.rd-bold :is(.body,.sheet2,.cartbar,.toast,.orderbar-wrap){font-weight:600}
+.app.rd-bold :is(.body,.sheet2,.cartbar,.toast,.orderbar-wrap) :is(b,strong){font-weight:800}
+.app.rd-roomy :is(.body,.sheet2-body){line-height:1.7;letter-spacing:.1px}
+.app.rd-roomy :is(.body,.sheet2-body) :where(p,li){margin-bottom:.45em}
 .app.rd-roomy .body :where(.sec,.h-title,.adm-prep-label){margin-bottom:.35em}
 
 /* ── System architecture map (owner) ── */

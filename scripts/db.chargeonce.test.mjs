@@ -192,6 +192,33 @@ ok(`the branches ran here (${pass + fail - before} assertions), and left answere
     && (await q1("select state from public.checkout_claims where idempotency_key = 'clock-check-key-0001'")).state === "unknown", { soon: soon.body, late: late.body, told });
 }
 
+// ── 4b · "Check on my payment" (R7b), against this table ──────────────────────────────────────────────────────────
+// lib/chargeOnce.checkOnly through the REAL lib/checkoutClaims: a key never seen is closed as "never reached us" (a claim
+// of $0 the table must take), the request it belonged to is answered that when it arrives late, and a paid claim whose
+// request died is found by the check — paid, not saved, the crew told once.
+{
+  const now = clock("2026-10-16T15:00:00.000Z");
+  const told = [];
+  const tell = async (st) => { told.push(st.key); };
+  const never = await C.checkOnly(store, "check-db-unseen-0001", true, now, tell);
+  const row = await q1("select state, card, amount_cents, status, answer from public.checkout_claims where idempotency_key = 'check-db-unseen-0001'");
+  ok("check: a key never seen is closed here — a $0 claim, done, its answer \"never reached us\"",
+    never.status === 200 && never.body.checked === true && never.body.charged === false && row?.state === "done" && row.amount_cents === 0 && row.status === 200 && row.answer?.charged === false, { never: never.body, row });
+  const late = await C.seenBefore(store, "check-db-unseen-0001", true, now, tell);
+  ok("…and the request it belonged to, arriving late, is told that — never charged", "answer" in late && late.answer.body.checked === true && late.answer.body.charged === false, late);
+  await C.claimKey(store, "check-db-paid-00002", { channel: "cups", card: true, amountCents: 1200 }, now, tell);
+  await store.move("check-db-paid-00002", { state: "charged", paymentId: "pay_TEST-check2" }, new Date(now()).toISOString());
+  const flight = await C.checkOnly(store, "check-db-paid-00002", true, now, tell);
+  ok("check: a payment still in flight says check again, and nothing moves", flight.body.pending === true && /check again in a minute/.test(flight.body.error)
+    && (await q1("select state from public.checkout_claims where idempotency_key = 'check-db-paid-00002'")).state === "charged", flight.body);
+  now.advance(C.IN_FLIGHT_MS + 1000);
+  const found = await C.checkOnly(store, "check-db-paid-00002", true, now, tell);
+  const again = await C.checkOnly(store, "check-db-paid-00002", true, now, tell);
+  ok("check: a paid one whose request died is answered paid-not-recorded, the claim done, the crew told once — not twice",
+    found.status === 200 && found.body.ok === true && found.body.recorded === false && again.body.recorded === false
+    && told.filter((k) => k === "check-db-paid-00002").length === 1 && (await q1("select state from public.checkout_claims where idempotency_key = 'check-db-paid-00002'")).state === "done", { found: found.body, told });
+}
+
 // ── 5 · again ────────────────────────────────────────────────────────────────────────────────────
 ok("it says so in the changelog, once", (await q1("select count(*)::int as n from public.changelog where title = 'A card is charged once, however many times Pay is tapped' and category = 'fix'")).n === 1);
 ok("it records itself", (await q1("select applied_count from public.schema_migrations where version = '0371_a_card_is_charged_once'"))?.applied_count === 1);

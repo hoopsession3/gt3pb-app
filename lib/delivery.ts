@@ -8,6 +8,14 @@
 
 import { FRESH_PER_BOTTLE_CENTS, FLAT_BRING_BACK_CENTS } from "./bottlePricing";
 import { MARKETS, FOUNDING_MARKET, type Market } from "./markets";
+import { addDays, etWallMs } from "./dates";
+
+/** When a delivery can no longer be canceled online — the database's own rule (0242 cancel_own_delivery): 6pm Eastern,
+ *  two days before it comes (a Sunday's, Friday at 6). Said where the Cancel button is, so the button isn't shown after
+ *  it can only fail (R7b). */
+export function deliveryCancelClosesAt(deliveryDate: string): Date {
+  return new Date(etWallMs(addDays(deliveryDate, -2), "18:00"));
+}
 
 export type DeliveryChannel = "direct" | "uber_eats" | "doordash" | "instacart";
 export type DeliveryPackSize = 6 | 12 | 24;

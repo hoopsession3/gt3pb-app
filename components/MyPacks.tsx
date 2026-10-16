@@ -10,6 +10,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { haptic } from "@/lib/haptics";
 import { nearDay, timeRange } from "@/lib/dates";
 import { packClosesAt, closesWords, PICKUP_STOPS_READ } from "@/lib/pickupDay";
+import { packRoad } from "@/lib/packRoad";
 import Icon from "@/components/Icon";
 import { useConfirm } from "./ConfirmSheet";
 import { isSettled } from "@/lib/settled";
@@ -66,13 +67,20 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
   // can only land on a day the truck will actually be out.
   const [days, setDays] = useState<{ key: string; label: string; stopId: string | null }[]>([]);
   useEffect(() => {
-    if (!supabase || !user) return;
-    supabase.from("stops").select("id, starts_at").is("archived_at", null).is("canceled_at", null).neq("status", "done").not("starts_at", "is", null)
+    const sb = supabase;
+    if (!sb || !user) return;
+    let live = true;
+    sb.from("stops").select("id, starts_at, market").is("archived_at", null).is("canceled_at", null).neq("status", "done").not("starts_at", "is", null)
       .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(PICKUP_STOPS_READ)
-      .then(({ data }) => {
+      .then(async ({ data }) => {
+        // Not to a stop in a city held closed, or not open yet (0412, R7b re-audit — lib/packRoad); a failed read of the
+        // cities offers what the road has, and the server says.
+        const all = (data ?? []) as { id: string; starts_at: string; market?: string | null }[];
+        const road = data ? await packRoad(sb, all).catch(() => null) : null;
+        if (!live) return;
         const seen = new Set<string>();
         const opts: { key: string; label: string; stopId: string | null }[] = [];
-        for (const st of (data ?? []) as { id: string; starts_at: string }[]) {
+        for (const st of road && road.error === null ? road.taking : all) {
           const d = dropForStop(st.starts_at);
           if (d.cutoff.getTime() <= Date.now()) continue;
           // The Eastern day, as the server keys it — a UTC slice put a stop after 8pm Eastern on the next day (R5).
@@ -80,13 +88,14 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
           if (seen.has(key)) continue; seen.add(key);
           opts.push({ key, label: packDayLabel({ drop_date: key }), stopId: st.id });
         }
-        // Same fallback the reserve API uses: no scheduled stops → the Saturday cadence.
-        if (opts.length === 0 && (data ?? []).length === 0) {
+        // Same fallback the reserve API uses: no stop left to pick up at → the Saturday cadence, the founding city's.
+        if (opts.length === 0 && (road && road.error === null ? road.taking.length === 0 && !road.foundingHeld : all.length === 0)) {
           const fb = nextDrop();
           opts.push({ key: dropDateKey(fb.sat), label: packDayLabel({ drop_date: dropDateKey(fb.sat) }), stopId: null });
         }
         setDays(opts.slice(0, 4));
       });
+    return () => { live = false; };
   }, [user]);
 
   const moveDay = async (p: MyPack, toDate: string, stopId: string | null) => {
@@ -194,7 +203,7 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
             </button>
             {isOpen && (
               <>
-                <div className="mypack-mix">{mixSummary(packMix(p)) || "—"} · {p.glass === "return" ? "bringing bottles back" : "new glass"} · {dollars(p.total_cents / 100)}</div>
+                <div className="mypack-mix">{mixSummary(packMix(p)) || "—"} · {p.glass === "return" ? "bringing bottles back" : "new glass"} · {p.total_cents === 0 ? "on us" : dollars(p.total_cents / 100)}</div>
                 {/* Where and when it is picked up (0397: a pack belongs to its stop) — or that the truck called it off. */}
                 {p.stop && (p.stop.canceled_at
                   ? <p className="mypack-paidnote text-warn">{p.stop.name ?? "The stop"} was called off{p.stop.cancel_reason ? ` — ${p.stop.cancel_reason}` : ""}. Move it to another day, or cancel it.</p>

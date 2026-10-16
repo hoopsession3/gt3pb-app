@@ -28,7 +28,8 @@ import type { CupLine } from "@/lib/cupPrice";
 import { payErrorText } from "@/lib/idempotency";
 import { haptic } from "@/lib/haptics";
 import { Segmented } from "@/components/controls";
-import { holdRef, holdTicket, isTicket, ticketPath } from "@/lib/tickets";
+import { holdTicket, isTicket, ticketPath } from "@/lib/tickets";
+import { holdRef } from "@/lib/paidRef";
 
 // THE TIP SIGNS THE KEY (2026-10-12, C7 of the customer audit, approved). What is bought and what it costs — the items
 // and the tip — are the checkout key's whole signature (lib/idempotency attemptFor), and the key is kept beside the cart
@@ -73,7 +74,20 @@ export default function Checkout() {
   const idem = useIdemKey(CO_IDEM, true);
   // A payment whose answer never came (R7): the cart and the tip hold still until it is answered, or the customer lets it go.
   const held = idem.isOpen();
+  const heldCard = idem.heldCard();
   const [letGo, setLetGo] = useState(false);
+  // "Check on my payment" (R7b): asks the server about the held key alone — never charges, never places an order. While it
+  // is out nothing else sends and nothing lets the key go (the ref reaches a fast tap a render before `checking` does): an
+  // answer about one key must never land on another.
+  const [checking, setChecking] = useState(false);
+  const checkingNow = useRef(false);
+  // Where focus goes when the hold box it sat in goes away (R7b): to the button that now sends.
+  const sendBtn = useRef<HTMLButtonElement>(null);
+  const focusSend = useRef(false);
+  useEffect(() => { if (!held && focusSend.current) { focusSend.current = false; sendBtn.current?.focus(); } }, [held]);
+  const [checkWords, setCheckWords] = useState("");
+  // A word that is not an error, said where Pay is: "that payment never reached us — you can pay now".
+  const [payNote, setPayNote] = useState("");
   // Both buttons send through here, one at a time: a tap on either while the other is still answering
   // is turned away before it reaches the network (`busy` reaches a fast second tap a render late).
   const sending = useRef(false);
@@ -116,22 +130,29 @@ export default function Checkout() {
   // perk missing — and nothing said they might not be the price. The menu's prices still stand in, Pay still refuses an
   // amount it would not take, and the sheet says so, with a tap to ask again.
   const [quoteMissed, setQuoteMissed] = useState<string | null>(null);   // the cart whose quote didn't answer
+  // A quote that REFUSED the cart (409 — a drink off the menu, or sold out since it was added: lib/catalog cartRefusal) is
+  // said as what it is, and Pay waits for the cart to change (R7b) — "we couldn't check" with Check again never could.
+  const [quoteRefused, setQuoteRefused] = useState<{ key: string; words: string } | null>(null);
   const [quoteTry, setQuoteTry] = useState(0);
   useEffect(() => {
     if (!open || !itemsKey) return;
     let alive = true;
     authedFetch("/api/checkout/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: itemsKey.split(",") }) })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
+      .then(async (r) => ({ status: r.status, d: await r.json().catch(() => null) }))
+      .then(({ status, d }) => {
         if (!alive) return;
-        if (d && typeof d.subtotalCents === "number" && Array.isArray(d.lines)) { setQuote({ key: itemsKey, subtotalCents: d.subtotalCents, lines: d.lines }); setQuoteMissed(null); }
-        else setQuoteMissed(itemsKey);
+        if (status >= 200 && status < 300 && d && typeof d.subtotalCents === "number" && Array.isArray(d.lines)) {
+          setQuote({ key: itemsKey, subtotalCents: d.subtotalCents, lines: d.lines }); setQuoteMissed(null); setQuoteRefused(null);
+        } else if (status === 409 && d && typeof d.error === "string") {
+          setQuoteRefused({ key: itemsKey, words: d.error }); setQuoteMissed(null);
+        } else setQuoteMissed(itemsKey);
       })
       .catch(() => { if (alive) setQuoteMissed(itemsKey); });
     return () => { alive = false; };
   }, [open, itemsKey, quoteTry]);
   const priced = quote && quote.key === itemsKey ? quote : null;
   const unquoted = !priced && quoteMissed === itemsKey;
+  const refusedNow = quoteRefused && quoteRefused.key === itemsKey ? quoteRefused.words : null;
   const lineOf = (id: string) => priced?.lines.find((l) => l.slug === id) ?? null;
   const subtotalCents = priced ? priced.subtotalCents : totalCents;
   const repriced = (d: { priceChanged?: boolean; subtotalCents?: unknown; lines?: unknown }) => {
@@ -146,8 +167,11 @@ export default function Checkout() {
   const stopName = o?.stop?.name ?? null;
   // A drink that is sold out is said once, as sold out — not twice.
   const notHere = offStopMenu(items.filter((id) => !soldOut.has(id)), ordering.stopMenu ? [...ordering.stopMenu] : null).map(nameOf);
-  const blocked = blocked86.length + notHere.length;
-  const blockedWords = blocked > 0 ? `${[
+  // The server's own refusal of the cart (the quote's 409, R7b) blocks the same way, in its words, when nothing on the
+  // phone has said it already.
+  const refusedOnly = !!refusedNow && !blocked86.length && !notHere.length;
+  const blocked = blocked86.length + notHere.length + (refusedOnly ? 1 : 0);
+  const blockedWords = refusedOnly ? `${refusedNow} Remove it with the − button to continue.` : blocked > 0 ? `${[
     blocked86.length ? `${blocked86.join(" · ")} just sold out` : "",
     notHere.length ? `${notHere.join(" · ")} ${notHere.length === 1 ? "isn't" : "aren't"} poured at ${stopName ?? "this stop"}` : "",
   ].filter(Boolean).join(", and ")} — remove ${blocked === 1 ? "it" : "them"} with the − button to continue.` : "";
@@ -155,7 +179,7 @@ export default function Checkout() {
   // inserted already holding its words is one VoiceOver often skips — sold-out changes live, often while focus is on the
   // card form. The note on screen is the same words; the region below the name field is what is read.
   const blockedNote = blocked > 0 ? <div className="co-86">{blockedWords}</div> : null;
-  const blockedLabel = blocked86.length ? "Remove sold-out items" : "Remove what this stop doesn't pour";
+  const blockedLabel = refusedOnly ? "Remove what isn't on the menu" : blocked86.length ? "Remove sold-out items" : "Remove what this stop doesn't pour";
   // A name is required so the operator can call the order at pickup. It starts from what we know
   // (lib/customerKnown: what they asked to be called, else the name on their record or their last
   // order — not only display_name, which is often empty) and is theirs the moment they type. A guest
@@ -202,21 +226,23 @@ export default function Checkout() {
   // follows an account). A member on the web whose browser has not been asked gets "Ping me when it's ready" on the
   // confirmation; it runs inside that tap (a user gesture), as the browser requires.
   // Read while drawing the confirmation — a screen only a tap in this browser ever reaches, so no server draws it.
-  const [alertAsked, setAlertAsked] = useState(false);
+  // What it says after the tap is what the browser answered (R7b): "We'll ping you" only once alerts are on — not after a
+  // No, and not for the next order in this session (the sheet stays mounted; placed() asks afresh). Not offered for a
+  // charge that didn't record: there is no order yet to ping about.
+  const [alertAsked, setAlertAsked] = useState<"no" | "asking" | "on" | "off">("no");
   const canAskAlerts = (() => {
-    if (!done || !profile) return false;
+    if (!done || !profile || (done.warn && !done.ticket)) return false;
     try { return typeof Notification !== "undefined" && Notification.permission === "default" && "serviceWorker" in navigator && "PushManager" in window; }
     catch { return false; }   // no Notification here: nothing to offer
   })();
-  const alertAsk: "ask" | "asked" | null = alertAsked ? "asked" : canAskAlerts ? "ask" : null;
+  const alertAsk: "ask" | "asking" | "on" | "off" | null = alertAsked !== "no" ? alertAsked : canAskAlerts ? "ask" : null;
   const enableAlerts = async () => {
-    setAlertAsked(true);
+    setAlertAsked("asking");
     try {
-      if (typeof Notification !== "undefined") {
-        if (Notification.permission === "default") await Notification.requestPermission();
-        if (Notification.permission === "granted") subscribePush(!!profile?.is_admin);
-      }
-    } catch { /* */ }
+      if (typeof Notification !== "undefined" && Notification.permission === "default") await Notification.requestPermission();
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") setAlertAsked((await subscribePush(!!profile?.is_admin)) ? "on" : "off");
+      else setAlertAsked("off");
+    } catch { setAlertAsked("off"); }
   };
   // WHAT WENT IN, SAID ONCE (2026-10-11). One key covers this checkout whichever button sent it, so an
   // answer can belong to the other button: a payment that went through while its answer was lost comes
@@ -225,6 +251,8 @@ export default function Checkout() {
   type Placed = { paid?: boolean; warn?: string; ref?: string; readyFrom?: string | null; pickup?: string; amount?: number; no?: string; ticket?: string | null };
   const placed = (data: Placed, byCard: boolean) => {
     try { localStorage.removeItem(CO_TIP); } catch { /* ignore */ }
+    // The next order in this session starts from no tip and is asked about alerts afresh (R7b): the sheet stays mounted.
+    setTipPct(0); setAlertAsked("no"); setPayNote(""); setCheckWords("");
     const capturedLines = [...lines], capturedName = customer;
     const p = promised(data);
     // The order's number and its ticket (R3b — board 09): the link that shows this order to whoever holds it, guests too.
@@ -234,7 +262,7 @@ export default function Checkout() {
     if (typeof data.paid === "boolean" ? data.paid : byCard) {
       trackFunnel("order", "paid");
       haptic("paid");
-      toast(data.warn || `Paid ${total} — order in. ${p.readyFrom ? readyWords({ state: "ahead", readyFrom: p.readyFrom }) : "Ready in ~8 min."}`);
+      toast(data.warn || `Paid ${total} — order in. ${readyWords(p.readyFrom ? { state: "ahead", readyFrom: p.readyFrom } : { state: "live", readyFrom: null })}`);
       checkout({ silentToast: true }); // clears cart — this toast already fired above
       // data.warn/data.ref carry the "charged but not yet recorded" fallback (server alerted the
       // crew and generated a reference code) — capture them into `done` so the PERSISTENT confirm
@@ -249,7 +277,7 @@ export default function Checkout() {
     } else {
       trackFunnel("order", "pickup");
       haptic("success");
-      toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ${p.readyFrom ? "made when we open" : "ready in ~8 min"}`);
+      toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ${p.readyFrom ? "made when we open" : "ready in about 8 minutes"}`);
       checkout({ silentToast: true }); // clears cart — this toast already fired above
       setDone({ paid: false, total: typeof data.amount === "number" ? data.amount : subtotalCents, lines: capturedLines, name: capturedName, ...p, ...t });
       invalidateCustomerKnown();   // the next form starts from this order
@@ -263,6 +291,7 @@ export default function Checkout() {
   const recordPreOrder = async (): Promise<{ error: { message: string } | null; data?: Placed }> => {
     keepTip();
     const attempt = await idem.begin(signed, undefined, signedBefore);
+    idem.sent(attempt.key, false);   // held open until its answer (R7b): an app closed now reopens holding it
     try {
       const res = await authedFetch("/api/checkout", {
         method: "POST",
@@ -271,7 +300,8 @@ export default function Checkout() {
       });
       const data = await res.json();
       idem.settle(attempt.key, res.status, data);
-      if (!res.ok) { repriced(data); return { error: { message: data?.error || "That didn't go through — try again." } }; }
+      // Placed is `ok: true`, nothing less (R7b): a key a check closed answers 200 with "never reached us".
+      if (!res.ok || data?.ok !== true) { repriced(data); return { error: { message: data?.error || "That didn't go through — try again." } }; }
       return { error: null, data };
     } catch {
       idem.settle(attempt.key, null, null);
@@ -284,9 +314,9 @@ export default function Checkout() {
   // Used to just toast-and-close with no confirmation screen at all; now shows the same OrderConfirm
   // the paid path gets.
   const sendPreOrder = async () => {
-    if (busy || sending.current) return; // guard against a double-tap firing two pre-orders the kitchen makes
+    if (busy || sending.current || checkingNow.current) return; // guard against a double-tap firing two pre-orders the kitchen makes
     setErr("");
-    if (blocked > 0) { setErr(blocked86.length ? "Remove the sold-out items first" : "Remove what this stop doesn't pour first"); return; }
+    if (blocked > 0) { setErr(refusedOnly ? "Remove what isn't on the menu first" : blocked86.length ? "Remove the sold-out items first" : "Remove what this stop doesn't pour first"); return; }
     if (!customer) { setErr("Add a name for pickup"); return; }
     if (items.length === 0) return;
     setBusy(true);
@@ -303,9 +333,51 @@ export default function Checkout() {
     }
   };
 
+  // "Check on my payment" (R7b): asks /api/checkout about the held key alone (lib/chargeOnce.checkOnly) — its claim's own
+  // answer, or "never reached us" with the key closed so a late arrival can't charge. Nothing is charged or placed by it;
+  // the drinks and the name go along for the crew's alert, should the check find a payment that stopped half way.
+  const checkHeld = async () => {
+    if (checkingNow.current || sending.current) return;
+    const key = idem.heldKey(), card = idem.heldCard();
+    if (!key) return;   // the key this checkout's holder began and still holds — the only one a check asks about
+    checkingNow.current = true;
+    setChecking(true); setCheckWords(""); setErr("");
+    try {
+      const res = await authedFetch("/api/checkout", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ check: true, idempotencyKey: idem.heldKey(), card, items, customer: customer || undefined }),
+      });
+      const data = await res.json().catch(() => null);
+      if (idem.heldKey() !== key) return;   // let go meanwhile: this answer is about a checkout that is no longer here
+      if (data?.checked === true && data.charged === false) {
+        // Never reached us: the key is closed on the server, and here; the cart is the customer's again.
+        focusSend.current = true;
+        idem.forget(); setLetGo(false);
+        setPayNote(typeof data.error === "string" ? data.error : "That never reached us — nothing was charged.");
+        return;
+      }
+      if (res.ok && data?.ok === true) { idem.settle(key, res.status, data); placed(data, card); return; }
+      if (data?.declined === true) {
+        // Square refused the card that payment was sent with: nothing was charged, and the checkout is theirs again (it was
+        // held for as long as two hours, each check repeating Square's raw words).
+        focusSend.current = true;
+        idem.settle(key, res.status, data); setLetGo(false);
+        const why = payErrorText(data.error);
+        setErr(/nothing was charged|not been charged/i.test(why) ? why : `Your last payment didn't go through — nothing was charged. ${why}`);
+        return;
+      }
+      setCheckWords(typeof data?.error === "string" ? data.error : "We couldn't check just now — try again in a moment.");
+    } catch {
+      setCheckWords("We're offline — check again when you have signal. You won't be charged twice.");
+    } finally {
+      checkingNow.current = false;
+      setChecking(false);
+    }
+  };
+
   const pay = async () => {
-    if (busy || sending.current) return; // guard a fast double-tap before the button's disabled attribute takes effect
-    setErr("");
+    if (busy || sending.current || checkingNow.current) return; // guard a fast double-tap before the button's disabled attribute takes effect
+    setErr(""); setPayNote("");
     if (!customer) { setErr("Add a name for pickup"); return; }
     if (!ready) return;
     // The weight of committing money — felt once the tap is going to charge, not on a tap the guards
@@ -325,6 +397,7 @@ export default function Checkout() {
       }
       trackFunnel("order", "pay_start");
       sent = attempt.key;
+      idem.sent(attempt.key, true);   // held open until its answer (R7b): an app closed now reopens holding it
       const res = await authedFetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -332,7 +405,17 @@ export default function Checkout() {
       });
       const data = await res.json();
       idem.settle(attempt.key, res.status, data);
-      if (!res.ok) { repriced(data); setErr(payErrorText(data.error)); return; }
+      // Paid is `ok: true`, nothing less (R7b): a key a check closed (another tab's) answers 200 with "never reached us".
+      if (!res.ok || data?.ok !== true) {
+        repriced(data);
+        // The price changed (C2): the server's sentence carried the old tip in cents; the button re-tips the new subtotal.
+        // Said from what the button will now say, so the two never name different totals (R7b).
+        if (data?.priceChanged && typeof data.subtotalCents === "number") {
+          const next = data.subtotalCents + Math.round(data.subtotalCents * tipPct);
+          setErr(`The price changed — your total is now ${money(next)}. Nothing was charged; tap Pay to pay ${money(next)}.`);
+        } else setErr(payErrorText(data.error));
+        return;
+      }
       placed(data, true);
     } catch {
       // Nothing sent: the card form itself failed. Sent and no answer: we can't tell whether the card
@@ -346,6 +429,10 @@ export default function Checkout() {
     }
   };
 
+  // "That never reached us — you can pay now", from a status region that is on the page before its words are (a region
+  // inserted already holding them is one VoiceOver often skips), in whichever way this checkout sends (R7b).
+  const payNoteRegion = <p className={payNote ? "text-footnote text-cream-dim" : "sr-only"} role="status">{payNote}</p>;
+
   return (
     // Held while the card is being charged (2026-10-05): every way out of the sheet — the pull, a tap
     // outside, Escape — gives and stays put until the charge answers. A do-nothing onClose used to stand
@@ -354,8 +441,10 @@ export default function Checkout() {
       header={<div className="co-head"><div className="oa-kicker" id="checkout-title">Checkout</div><CloseButton onClick={onClose} /></div>}>
       {done ? (
         <OrderConfirm
-          title={done.no ? `Order ${done.no} is in.` : "Order in."}
-          sub={confirmWords(done.readyFrom, done.paid)}
+          // A charge that didn't record is not "Order in" with a check and "ready in about 8 minutes" (R7b): it is paid, and the
+          // reference is what the window needs — said first, with what happens next.
+          title={done.warn && !done.ticket ? (done.ref ? `Paid — show ref #${done.ref} at the window` : "Paid — show this at the window") : done.no ? `Order ${done.no} is in.` : "Order in."}
+          sub={done.warn && !done.ticket ? "Your order didn't save, so the crew has been told to add it. Your order bar keeps the ref until they have it." : confirmWords(done.readyFrom, done.paid)}
           totalCents={done.total}
           totalLabel={done.paid ? "paid" : "due at the truck"}
           warn={done.warn}
@@ -374,8 +463,8 @@ export default function Checkout() {
           secondaryLabel={done.ticket ? "Done" : undefined}
           onSecondary={done.ticket ? onClose : undefined}
           aside={alertAsk ? (
-            <button type="button" className="sub-link" disabled={alertAsk === "asked"} onClick={() => { void enableAlerts(); }}>
-              {alertAsk === "asked" ? "We'll ping you when it's ready" : "Ping me when it's ready"}
+            <button type="button" className="sub-link" disabled={alertAsk !== "ask"} onClick={() => { void enableAlerts(); }}>
+              {alertAsk === "on" ? "We'll ping you when it's ready" : alertAsk === "off" ? "Alerts are off on this browser — your order bar shows where it is" : alertAsk === "asking" ? "Turning alerts on…" : "Ping me when it's ready"}
             </button>
           ) : undefined}
         />
@@ -428,12 +517,42 @@ export default function Checkout() {
                 </div>
               )}
 
+              {/* A SEND WHOSE ANSWER NEVER CAME (R7, R7b): said first, above everything that may have changed since — the truck
+                  closing, a drink selling out — with the one action that answers it: ask about that payment, never pay again.
+                  The drinks and the tip hold still until it is answered (and while this phone is sending, nothing is said). */}
+              {held && !busy && (
+                <div className="honest" role="status">
+                  <b>{heldCard ? "Your last payment hasn't been confirmed yet." : "Your last order hasn't been confirmed yet."}</b>{" "}
+                  {heldCard
+                    ? "Check on it before paying again — you won't be charged twice, and your drinks and tip stay as they are until it's answered."
+                    : "Check on it before sending it again — your drinks stay as they are until it's answered."}
+                  <button type="button" className="btn-pri btn-wide mt-3" onClick={() => { void checkHeld(); }} disabled={checking}>
+                    <span>{checking ? "Checking…" : heldCard ? "Check on my payment" : "Check on my order"}</span>
+                  </button>
+                  {checkWords && <span className="block mt-2" role="alert">{checkWords}</span>}
+                  {letGo ? (
+                    <>
+                      <span className="block mt-2">Only start over if the crew says it didn&apos;t go through — otherwise this would be a second order.</span>
+                      <button type="button" className="co-paylater" disabled={checking} onClick={() => { if (checkingNow.current) return; focusSend.current = true; idem.forget(); setLetGo(false); setErr(""); setCheckWords(""); }}><b>Start over</b></button>
+                      <button type="button" className="co-paylater" onClick={() => setLetGo(false)}>Keep waiting</button>
+                    </>
+                  ) : (
+                    <button type="button" className="co-paylater" disabled={checking} onClick={() => setLetGo(true)}>The crew says it didn&apos;t go through? <b>Start over</b></button>
+                  )}
+                </div>
+              )}
+
               {!ordering.open ? (
                 <div className="co-closed">
                   <div className="co-closed-t"><Icon name="coffee" /> The truck isn&apos;t taking online orders right now</div>
                   {o && <p className="co-closed-s">{closedWords(o, { closing: t("findus.cta_closed") })}</p>}
-                  <p className="co-closed-s">Want it locked in anyway? A <b>pack reserve</b> is brewed to your order and waiting at the next drop.</p>
-                  <button type="button" className="btn-pri btn-wide mt-4.5" onClick={() => { onClose(); router.push("/reserve"); }}><span>Reserve a pack instead</span></button>
+                  {/* A city held closed takes no pack either (0412, R7b re-audit): no pitch for one it would refuse. */}
+                  {!o?.held && (
+                    <>
+                      <p className="co-closed-s">Want it locked in anyway? A <b>pack reserve</b> is brewed to your order and waiting at the next drop.</p>
+                      <button type="button" className="btn-pri btn-wide mt-4.5" onClick={() => { onClose(); router.push("/reserve"); }}><span>Reserve a pack instead</span></button>
+                    </>
+                  )}
                   <div className="signoff">Your cart stays right here for when we&apos;re pouring.</div>
                 </div>
               ) : squareClientReady ? (
@@ -454,33 +573,16 @@ export default function Checkout() {
                     {!ready && <div className="sk sq-sk-bar" />}
                   </div>
                   {err && <div className="auth-err" role="alert">{err}</div>}
-                  {/* A PAYMENT WHOSE ANSWER NEVER CAME (R7): said once, here, with the way out the customer owns — the crew is
-                      the one who can see whether it went through. Until then the drinks and the tip hold still (above). */}
-                  {held && (
-                    <div className="honest" role="status">
-                      <b>Your last payment hasn&apos;t been confirmed yet.</b>{" "}Tap Pay to check on it: if it went through, you&apos;ll
-                      see your order; if it didn&apos;t, it&apos;s paid once now. You won&apos;t be charged twice — so your drinks and tip
-                      stay as they are until it&apos;s answered.
-                      {letGo ? (
-                        <>
-                          <span className="block mt-2">Only start over if the crew says that payment didn&apos;t go through — otherwise this would be a second order.</span>
-                          <button type="button" className="co-paylater" onClick={() => { idem.forget(); setLetGo(false); setErr(""); }}><b>Start over</b></button>
-                          <button type="button" className="co-paylater" onClick={() => setLetGo(false)}>Keep waiting</button>
-                        </>
-                      ) : (
-                        <button type="button" className="co-paylater" onClick={() => setLetGo(true)}>The crew says it didn&apos;t go through? <b>Start over</b></button>
-                      )}
-                    </div>
-                  )}
                   <div className="co-foot">
                     {blockedNote}
+                    {payNoteRegion}
                     <div className="co-line co-total"><span>Total</span><span>{total}</span></div>
-                    <button type="button" className="btn-pri btn-wide mt-4.5" onClick={pay} disabled={!ready || busy || items.length === 0 || !customer || blocked > 0}>
-                      <span>{busy ? "Charging…" : blocked > 0 ? blockedLabel : !customer ? "Add a name above" : ready ? `Pay ${total}` : "Loading card…"}</span>
+                    <button ref={sendBtn} type="button" className="btn-pri btn-wide mt-4.5" onClick={pay} disabled={held || !ready || busy || items.length === 0 || !customer || blocked > 0}>
+                      <span>{busy ? "Charging…" : held ? "Check on your last payment first" : blocked > 0 ? blockedLabel : !customer ? "Add a name above" : ready ? `Pay ${total}` : "Loading card…"}</span>
                     </button>
                     {/* Card is primary; pay-at-pickup is the secondary path when the operator allows it. */}
                     {payLater.on && (
-                      <button type="button" className="co-paylater" onClick={sendPreOrder} disabled={busy || items.length === 0 || !customer || blocked > 0}>
+                      <button type="button" className="co-paylater" onClick={sendPreOrder} disabled={held || busy || items.length === 0 || !customer || blocked > 0}>
                         or <b>pay at the truck</b> — send pre-order
                       </button>
                     )}
@@ -491,12 +593,13 @@ export default function Checkout() {
                 <>
                   {blockedNote}
                   {err && <div className="auth-err" role="alert">{err}</div>}
+                  {payNoteRegion}
                   <div className="co-line co-total"><span>Total</span><span>{money(subtotalCents)}</span></div>
                   <div className="honest" style={{ marginTop: 16 }}>
                     This is a <b>pre-order</b>{" "}— we&apos;ll have it ready and you pay at the truck.
                   </div>
-                  <button type="button" className="btn-pri btn-wide mt-4.5" onClick={sendPreOrder} disabled={busy || !customer || items.length === 0 || blocked > 0}>
-                    <span>{busy ? "Sending…" : blocked > 0 ? blockedLabel : "Send pre-order"}</span>
+                  <button ref={sendBtn} type="button" className="btn-pri btn-wide mt-4.5" onClick={sendPreOrder} disabled={held || busy || !customer || items.length === 0 || blocked > 0}>
+                    <span>{busy ? "Sending…" : held ? "Check on your last order first" : blocked > 0 ? blockedLabel : "Send pre-order"}</span>
                   </button>
                 </>
               ) : (

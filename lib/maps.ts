@@ -30,6 +30,13 @@ export function openAddress(address: string) {
   }
 }
 
+/** A stop's directions, the same from every screen (R7b): its pin when it has one — Find Us went there while Today and the
+ *  order's page sent people to Maps' guess at its name — else its street, else its place. */
+export function openStop(s: { lat?: number | null; lng?: number | null; to?: string | null }) {
+  if (typeof s.lat === "number" && typeof s.lng === "number" && Number.isFinite(s.lat) && Number.isFinite(s.lng)) openDirections(s.lat, s.lng);
+  else if (s.to) openAddress(s.to);
+}
+
 /** Where a map should take someone: the street first, then the place name — the opposite of how a stop is said. */
 export function directionsTo(row: { address?: string | null; location_text?: string | null }): string | null {
   return row.address?.trim() || row.location_text?.trim() || null;

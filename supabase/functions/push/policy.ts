@@ -112,7 +112,8 @@ export function orderVoidShown(order: { id?: unknown; paid?: unknown; collected_
   const paid = order.paid === true || atWindow || order.payment_status === "paid";
   return {
     title: no ? `Order ${no} · Canceled` : "Order canceled",
-    body: atWindow ? "Canceled — what you paid at the window comes back there." : paid ? "Canceled — your card is being refunded in full." : "Canceled — nothing was charged.",
+    // The title says Canceled; the body says what becomes of the money, once (R7b: "Canceled —" twice on one lock screen).
+    body: atWindow ? "What you paid at the window comes back there." : paid ? "Your card is being refunded in full." : "Nothing was charged.",
     tag: `order:${idOf(order.id)}:void`, ring: false,
   };
 }

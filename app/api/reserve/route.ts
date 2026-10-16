@@ -16,6 +16,7 @@ import { checkoutClaims } from "@/lib/checkoutClaims";
 import { money } from "@/lib/money";
 import { aboveShown, shownCents } from "@/lib/shownTotal";
 import { writeAcrossSkew } from "@/lib/schemaSkew";
+import { packRoad, PACK_ROAD_WORDS } from "@/lib/packRoad";
 
 // ORDER-AHEAD reserve — records a one-off Saturday-drop reservation. Price + cutoff are recomputed
 // SERVER-SIDE from lib/orderAhead (never trust the client), the charge is a Square ONE-TIME payment
@@ -95,17 +96,23 @@ async function post(req: Request) {
   // authoritative; the Saturday cadence is the fallback when the route is empty). The client's
   // dropDate must match one of them, and its drop must still be open, or we reject — regardless
   // of what the client clock or a stale page said.
-  const { data: nextStops } = await supabaseAdmin.from("stops").select("id, starts_at")
+  const { data: nextStops } = await supabaseAdmin.from("stops").select("id, starts_at, market")
     .is("archived_at", null).is("canceled_at", null).neq("status", "done").not("starts_at", "is", null)
     .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(PICKUP_STOPS_READ);
-  const offered = offeredDays(nextStops as { starts_at: string }[] | null); // dropDate key → its order cutoff
+  // A city held closed, or not open yet, takes no pack at its stops (0412, R7b re-audit — lib/packRoad): before any claim.
+  const road = await packRoad(supabaseAdmin, (nextStops ?? []) as { id: string; starts_at: string; market?: string | null }[]);
+  if (road.error !== null) return NextResponse.json({ error: PACK_ROAD_WORDS.unread, charged: false }, { status: 503 });
+  const named = ((nextStops ?? []) as { id: string; market?: string | null }[]).find((st) => st.id === body.stopId);
+  if (named && road.heldCity(named)) return NextResponse.json({ error: PACK_ROAD_WORDS.heldStop }, { status: 409 });
+  if (!road.taking.length && road.foundingHeld) return NextResponse.json({ error: PACK_ROAD_WORDS.none }, { status: 409 });
+  const offered = offeredDays(road.taking); // dropDate key → its order cutoff
   // Accept a plain day key or a full ISO instant; an instant resolves through the same ET
   // day-key rule the offered map uses (post-8pm-ET stops are otherwise off by one UTC day).
   const requested = requestedDay(body.dropDate);
   // The stop the customer picked on that day (R5, 0397: a pack is picked up at a stop); none named — an app from before
   // R5 sends none — the day's first stop still taking packs, then its first. Its drop closes by the one rule
   // (lib/pickupDay) — the map above holds one cutoff per DAY, the last stop's when there are two.
-  const onDay = ((nextStops ?? []) as { id: string; starts_at: string }[]).filter((st) => requestedDay(st.starts_at) === requested);
+  const onDay = road.taking.filter((st) => requestedDay(st.starts_at) === requested);
   const atStop = onDay.find((st) => st.id === body.stopId) ?? onDay.find((st) => packIsOpen(requested, st)) ?? onDay[0] ?? null;
   const cutoff = atStop ? packClosesAt(requested, atStop) : offered.get(requested);
   if (!cutoff) {
@@ -128,13 +135,28 @@ async function post(req: Request) {
   // would be. Less goes through — a member's perk the page cannot see — and the confirmation says the amount charged.
   const raised = aboveShown(amount, shownCents(body.expectedCents));
   if (raised) return NextResponse.json(raised, { status: 409 });
+  // ON US (R7b): a pack the caller's perks price at $0 — a founding member's bring-back refill (0176) — is never sent to
+  // Square, which refuses a $0 charge (the founding refill failed at Pay). It is reserved as nothing charged — not as
+  // paid, which every cancel path reads as a card to refund ("refund needed — $0.00") — and nothing is due at the window
+  // (lib/collect canCollect: nothing to collect on $0).
+  const free = amount === 0;
+  const charging = wantsCharge && !free;
+  // Pay at pickup is the owner's dial for packs as for cups (live_status.pay_at_pickup, 0147). The funnel offers it only
+  // while the dial is on; the server holds the same line (R7b) — a page left open across the switch still reserved packs
+  // to be paid at the truck. Read before the key is claimed, so a refusal leaves nothing behind.
+  if (!charging && !free) {
+    const { data: dial } = await supabaseAdmin.from("live_status").select("pay_at_pickup").maybeSingle();
+    if ((dial as { pay_at_pickup?: boolean } | null)?.pay_at_pickup === false) {
+      return NextResponse.json({ error: "Pay at pickup isn't available right now — pay by card instead." }, { status: 409 });
+    }
+  }
 
   // ONE KEY, ONE CHARGE (R5, 2026-10-13 — lib/chargeOnce, 0371, as the cup checkout). The key is claimed before Square is
   // asked, or before a pay-at-pickup pack is written: a second tap while the first is still out hears "still confirming",
   // and an answer Square never gave stays "we couldn't confirm" — the crew told, nothing under that key sent to Square
   // again. It was a bare 502, "Reservation service unavailable", with nobody told, whether Square's answer was lost or
   // the pack failed to save after the card was charged.
-  const held = await claimKey(seen.claims, idemKey, { channel: "packs", card: wantsCharge, amountCents: amount }, now, stopped, say);
+  const held = await claimKey(seen.claims, idemKey, { channel: "packs", card: charging, amountCents: amount }, now, stopped, say);
   if ("answer" in held) return reply(held.answer);
 
   // The pack, written once the money is settled — charged (paid) or due at pickup. Its answer is kept on the claim and
@@ -183,7 +205,7 @@ async function post(req: Request) {
         }
         const ref = (paymentId || "").slice(-6).toUpperCase();
         const title = paid ? "Paid reservation didn't record — add it" : "Reservation didn't record — add it";
-        await raiseAlert({ severity: "critical", category: paid ? "money" : "order", kind: "ops_incident", title, body: `${paid ? `A card payment succeeded (${paymentId}, ${money(amount)}) but the` : "A pre-order"} reservation didn't save. ${name} · ${size}-pack ${glass} · ${mixSummary(mix)} · pickup ${pickupDayWords(dropDate)}.${paid ? " Add it and confirm in Square." : " Add it to the drop."}` });
+        await raiseAlert({ severity: "critical", category: paid ? "money" : "order", kind: "ops_incident", title, body: `${paid && paymentId ? `A card payment succeeded (${paymentId}, ${money(amount)}) but the` : paid ? "A paid" : amount === 0 ? "A pack on us (nothing charged): the" : "A pre-order"} reservation didn't save. ${name} · ${size}-pack ${glass} · ${mixSummary(mix)} · pickup ${pickupDayWords(dropDate)}.${paid ? " Add it and confirm in Square." : " Add it to the drop."}` });
         return { status: 200, body: { ok: true, paid, recorded: false, ref, warn: `Reserved${ref ? ` — ref ${ref}` : ""}. We've alerted the crew; show this at pickup.` } };
       }
 
@@ -201,7 +223,7 @@ async function post(req: Request) {
         // list price, so a founding member whose refills are free read "$40 at pickup" for a pack that was $0. The day is
         // a day ("Sat, Oct 17"), not the key the row keeps.
         subject: `GT3 — ${size}-pack reserved for ${pickupDayWords(dropDate)}`,
-        message: `GT3: your ${size}-pack (${mixSummary(mix)}) is reserved for pickup ${pickupDayWords(dropDate)}${paid ? ` — ${money(amount)} paid ✓` : ` — ${money(amount)} at pickup`}. We brew it fresh for pickup day.${glass === "return" ? " Rinse your empties and bring them along." : ""}`,
+        message: `GT3: your ${size}-pack (${mixSummary(mix)}) is reserved for pickup ${pickupDayWords(dropDate)}${amount === 0 ? " — on us ✓" : paid ? ` — ${money(amount)} paid ✓` : ` — ${money(amount)} at pickup`}. We brew it fresh for pickup day.${glass === "return" ? " Rinse your empties and bring them along." : ""}`,
       });
 
       // 'important' (2026-10-11): an fyi reaches the inbox only now (supabase/functions/push/policy.ts), and this is the
@@ -215,9 +237,9 @@ async function post(req: Request) {
     }
   };
 
-  // Pay at pickup: nothing is charged; the claim makes a retry hear this pack's answer instead of writing a second one,
-  // and a pack that was not written gives the key back.
-  if (!wantsCharge) return reply(await placeOnce({ claims: held.claims, key: idemKey, now, place: () => recordPack(null, false) }));
+  // Pay at pickup, or a pack on us: nothing is charged; the claim makes a retry hear this pack's answer instead of writing
+  // a second one, and a pack that was not written gives the key back.
+  if (!charging) return reply(await placeOnce({ claims: held.claims, key: idemKey, now, place: () => recordPack(null, false) }));
 
   // buyerEmail → Square emails the customer a receipt (enterprise round P3). Read before the charge, so a failure
   // reading it is a failure before anything was charged.
