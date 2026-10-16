@@ -71,10 +71,11 @@ async function post(req: Request) {
   // is subscribed, and told so — and none means that try made nothing, so its row goes and this one carries on. A try
   // still minutes old is left to finish.
   // scoped-by: user_id = the caller's own id, from their verified session — only this member's rows.
-  // arrives-with: 0421 — before it is pasted this read is refused (no column) and taken as no such row, the stamp below is
-  // refused and ignored, and the self-heal's filter fails with it: the route runs exactly as it did before 0421.
-  const { data: asked } = await supabaseAdmin.from("subscriptions").select("id, square_asked_at")
+  // A read that fails is not "none" (0421 is applied, 2026-10-16): a try Square may have started is never stepped past
+  // unseen — the member is asked to give it a minute.
+  const { data: asked, error: askedErr } = await supabaseAdmin.from("subscriptions").select("id, square_asked_at")
     .eq("user_id", user.id).eq("status", "pending").is("square_subscription_id", null).not("square_asked_at", "is", null);
+  if (askedErr) return NextResponse.json({ error: "We couldn't check on your last try just now — give it a minute.", pending: true }, { status: 503 });
   if (asked && asked.length) {
     const young = asked.some((r) => Date.now() - Date.parse(String((r as { square_asked_at: string }).square_asked_at)) < 120_000);
     if (young) return NextResponse.json({ error: "We're still confirming your last try with Square — give it a couple of minutes.", pending: true }, { status: 409 });
@@ -154,8 +155,11 @@ async function post(req: Request) {
 
     // 3) create the subscription — the row says Square was asked, BEFORE it is (R10b), so a request that dies waiting is
     // never taken for one that made nothing.
+    // A stamp that did not take stops here, before Square is asked (0421 is applied): the row would not say so, and a try
+    // that then died waiting would be taken for one that made nothing. The card is saved; nothing is charged.
     // scoped-by: rowId came from this request's own INSERT (user_id: user.id from the verified session), never from the caller
-    await supabaseAdmin.from("subscriptions").update({ square_asked_at: new Date().toISOString() }).eq("id", rowId);
+    const stamped = await supabaseAdmin.from("subscriptions").update({ square_asked_at: new Date().toISOString() }).eq("id", rowId);
+    if (stamped.error) throw new Error("Couldn't set up billing just now — nothing was charged. Try again in a minute.");
     let subRes: Response;
     try {
       subRes = await fetch(`${SQUARE_BASE}/v2/subscriptions`, {

@@ -15317,6 +15317,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     sub.indexOf('update({ square_asked_at: new Date().toISOString() })') > 0 && sub.indexOf('update({ square_asked_at: new Date().toISOString() })') < sub.indexOf("fetch(`${SQUARE_BASE}/v2/subscriptions`")
       && /throw new SubscriptionUnknown\(/.test(sub) && /kind: "subscription_unknown", subjectId: rowId/.test(sub) && /status: 202/.test(sub)
       && /\.is\("square_asked_at", null\)\s+\.lt\("created_at"/.test(sub));
+  // 0421 applied (2026-10-16): the before-the-paste path is gone — a failed read of the asked rows is not "none", and a
+  // stamp that did not take stops before Square is asked.
+  ok("0421 applied: the subscription door answers a failed read of its unanswered tries, and stops before Square when the stamp did not take — no marker",
+    !/arrives-with: 0421/.test(rd("app/api/subscriptions/create/route.ts"))
+      && /const \{ data: asked, error: askedErr \} = await supabaseAdmin\.from\("subscriptions"\)\.select\("id, square_asked_at"\)/.test(sub)
+      && /if \(askedErr\) return NextResponse\.json\(\{ error: "We couldn't check on your last try just now — give it a minute\.", pending: true \}, \{ status: 503 \}\);/.test(sub)
+      && sub.indexOf("const stamped = await supabaseAdmin") > 0 && sub.indexOf("if (stamped.error) throw new Error(") > sub.indexOf("const stamped = await supabaseAdmin")
+      && sub.indexOf("if (stamped.error) throw new Error(") < sub.indexOf("fetch(`${SQUARE_BASE}/v2/subscriptions`"));
 }
 
 // ── R11 · WHAT KEEPS WORKING WHEN SOMETHING GOES WRONG (2026-10-16, the 10/10 audit's front end) ──

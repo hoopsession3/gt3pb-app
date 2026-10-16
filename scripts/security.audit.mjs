@@ -82,8 +82,12 @@ export const CEILING = {
   // found at Apliiq, staff inside) — each granted to authenticated by name. Out: spend_credit and redeem_free_cup, now
   // invoker wrappers over the two keyed ones. The refund flag triggers, refund_counts_against and refunds_counted are
   // granted to no one; nothing new is callable signed out (anon 15).
+  // 2026-10-16, snapshot at ledger 0421: definerExec 121 → 122 — settle_office_order (0420: the office board's settle, one
+  // door — owners and admins inside, the order locked, from a state that still owes only, the invoice made in the same
+  // write), granted to authenticated by name. cron_watch, sweep_rate_limits (0419) and reap_stale_pending_subs (0421) are
+  // the cron's and granted to no API role; nothing new is callable signed out (anon 15).
   publicRead: 3,       // tables with a world-readable SELECT policy: live_status, site_copy, stops — the truck's public face
-  definerExec: 121,    // SECURITY DEFINER functions the API roles may call (none of them a trigger any more)
+  definerExec: 122,    // SECURITY DEFINER functions the API roles may call (none of them a trigger any more)
   // …and of them, the ones a caller with NO session may call: the anon key every phone carries. Supabase grants anon by
   // name, so this is what is left once each migration has said who keeps a function (0401). First measured on the
   // snapshot at ledger 0401 (2026-10-14): 55 before 0401, 14 after.

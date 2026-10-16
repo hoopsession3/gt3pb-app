@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-16T14:42:51.270Z",
+    "pulled_at": "2026-10-16T19:56:06.807Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
     "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
-    "relations": 227,
-    "columns": 2897
+    "relations": 228,
+    "columns": 2901
   },
   "academy_acknowledgements": [
     "user_id",
@@ -1530,7 +1530,8 @@
     "subscriptions_enabled",
     "office_price_cents",
     "office_min_gallons",
-    "digest_cadence"
+    "digest_cadence",
+    "live_since"
   ],
   "loop_txns": [
     "id",
@@ -2145,6 +2146,10 @@
     "created_at",
     "market"
   ],
+  "push_sent": [
+    "event_key",
+    "sent_at"
+  ],
   "push_subscriptions": [
     "id",
     "user_id",
@@ -2483,7 +2488,8 @@
     "created_at",
     "updated_at",
     "tenant_id",
-    "customer_id"
+    "customer_id",
+    "square_asked_at"
   ],
   "team_invites": [
     "id",
