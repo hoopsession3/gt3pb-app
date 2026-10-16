@@ -7,7 +7,6 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { businessMonthStart, categoryLabel, type SpendCategory } from "@/lib/spend";
 import { moneyAttention, attentionCounts, type AttnRow, type ShopWait, type Drift, type BudgetLine } from "@/lib/moneyAttention";
 import { etDayKey, etToday } from "@/lib/dates";
-import { isMissingColumn } from "@/lib/schemaSkew";
 import { daysBetween } from "@/lib/dayWords";
 import { markInvoicePaid } from "@/lib/collect";
 import AsyncSection from "./AsyncSection";
@@ -37,12 +36,8 @@ export default function MoneyAttention() {
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { rows: [] };
     const [shop, dsp, inv, drift, spend, cats] = await Promise.all([
-      // arrives-with: 0407 — an order's promise (ship_by, ship_risk); before the paste the columns are not there, and
-      // the read is asked again without them (the old 24-hour rule then stands, lib/moneyAttention).
-      supabase.from("v_shop_orders").select("id, who, total_cents, age_hours, items, ship_by, ship_risk").eq("waiting_on_us", true)
-        .then(async (r) => (r.error && isMissingColumn(r.error) && supabase
-          ? await supabase.from("v_shop_orders").select("id, who, total_cents, age_hours, items").eq("waiting_on_us", true)
-          : r)),
+      // An order's promise (0407: ship_by, ship_risk) grades its row.
+      supabase.from("v_shop_orders").select("id, who, total_cents, age_hours, items, ship_by, ship_risk").eq("waiting_on_us", true),
       supabase.from("square_disputes").select("id, amount_cents, due_at, shop_orders(ship_name, email)").not("state", "in", "(WON,LOST,ACCEPTED)"),
       supabase.from("invoices").select("id, amount_cents, due_at, business_accounts(company)").in("status", ["open", "sent"]).not("due_at", "is", null),
       supabase.from("v_shop_money_drift").select("order_id, who, gap_cents, open_disputes").neq("verdict", "Agrees."),

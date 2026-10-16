@@ -59,9 +59,10 @@ await db.exec(`
   alter table public.os_workstreams add column if not exists owner_user_id uuid references public.profiles(id) on delete set null;
 `);
 const snap = JSON.parse(readFileSync(join(ROOT, "supabase/schema.columns.json"), "utf8"));
-// Production's columns as they stood before 0350: the snapshot's, less the one column 0350 adds. The
-// snapshot was pulled again once 0350 was applied in production (2026-10-05), so it carries the link.
-const ADDS = { initiative_milestones: ["workstream_id"] };
+// Production's columns as they stood before 0350: the snapshot's, less the one column 0350 adds — and less what came
+// after it. The snapshot was pulled again once 0350 was applied in production (2026-10-05), so it carries the link; and
+// again once 0405 was (2026-10-15), so a workstream carries 0405's updated_at (the audit's save checks it).
+const ADDS = { initiative_milestones: ["workstream_id"], os_workstreams: ["updated_at"] };
 const before350 = (t) => (snap[t] ?? []).filter((c) => !(ADDS[t] ?? []).includes(c));
 const colsOf = async (t) => (await rows(`select attname from pg_attribute where attrelid = ('public.' || $1)::regclass and attnum > 0 and not attisdropped order by attnum`, [t])).map((r) => r.attname);
 for (const t of ["initiatives", "initiative_milestones", "initiative_milestone_links", "os_workstreams"]) {

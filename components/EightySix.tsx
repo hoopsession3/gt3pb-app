@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
-import { isMissingTable } from "@/lib/schemaSkew";
 import { homeMarket } from "@/lib/homeMarket";
 import { FOUNDING_MARKET, MARKET_LABEL } from "@/lib/markets";
 import { useApp } from "./AppProvider";
@@ -18,8 +17,7 @@ import { SectionHeader } from "@/components/kit";
 // AN 86 IS FOR ONE CITY (2026-10-15, 0408 — Ryan: "Pass: its city. Catalog: all"). A tap here sells the item out in this
 // crew member's city only (set_eighty_six → product_86), so the day a second city pours, one truck running out never
 // empties another's menu. An item the Catalog sold out everywhere (products.sold_out) shows as out in every city, and a
-// tap here still brings it back, as the board always could. Until 0408 is pasted there is no city to 86 in, and a tap is
-// the everywhere 86 it always was.
+// tap here still brings it back, as the board always could.
 type Prod = { id: string; slug: string; name: string; sold_out: boolean; sold_out_at: string | null };
 
 export default function EightySix() {
@@ -28,17 +26,15 @@ export default function EightySix() {
   const market = homeMarket(profile) ?? FOUNDING_MARKET;
   const [rows, setRows] = useState<Prod[]>([]);
   const [here, setHere] = useState<ReadonlyMap<string, string>>(new Map());   // product id → when it was 86'd in this city
-  const [byCity, setByCity] = useState(true);                                // false until 0408 is pasted
   const load = useCallback(async () => {
     if (!supabase) return;
     const [p, c] = await Promise.all([
       supabase.from("products").select("id, slug, name, sold_out, sold_out_at").eq("active", true).order("sort"),
-      // arrives-with: 0408
       supabase.from("product_86").select("product_id, sold_out_at").eq("market", market),
     ]);
     if (p.data) setRows(p.data as Prod[]);
-    if (!c.error) { setByCity(true); setHere(new Map(((c.data as { product_id: string; sold_out_at: string }[] | null) ?? []).map((r) => [r.product_id, r.sold_out_at]))); }
-    else if (isMissingTable(c.error)) setByCity(false);
+    // A city's 86s that did not answer keep what the board last knew — never "none out here".
+    if (!c.error) setHere(new Map(((c.data as { product_id: string; sold_out_at: string }[] | null) ?? []).map((r) => [r.product_id, r.sold_out_at])));
   }, [market]);
   useEffect(() => { load(); }, [load]);
   useRealtimeTable(["products", "product_86"], load);
@@ -47,7 +43,7 @@ export default function EightySix() {
     if (!supabase) return;
     const outHere = here.has(p.id);
     // Out everywhere (the Catalog's 86): the tap brings it back everywhere, as it always did.
-    if (p.sold_out || !byCity) {
+    if (p.sold_out) {
       const next = !p.sold_out;
       if (next) haptic("toggleOn"); else haptic("toggleOff");
       setRows((r) => r.map((x) => (x.id === p.id ? { ...x, sold_out: next } : x))); // optimistic
@@ -73,18 +69,16 @@ export default function EightySix() {
     <div className="adm-sec">
       <SectionHeader label="86 board" />
       {outCount > 0 && <span className="k-count due">{outCount} out</span>}
-      <div className="es-note">{byCity
-        ? <>Tap what you&rsquo;ve run out of — {MARKET_LABEL[market]}&rsquo;s menu updates instantly, orders for it there are refused, and everything resets at 4am.</>
-        : <>Tap what you&rsquo;ve run out of — the live menu updates instantly, orders for it are refused, and everything resets at 4am.</>}</div>
+      <div className="es-note">Tap what you&rsquo;ve run out of — {MARKET_LABEL[market]}&rsquo;s menu updates instantly, orders for it there are refused, and everything resets at 4am.</div>
       <div className="k-chips">
         {rows.map((p) => {
           const out = isOut(p);
           const at = p.sold_out ? p.sold_out_at : here.get(p.id) ?? null;
           return (
             <button key={p.id} type="button" className={`k-chip${out ? " crit on" : ""}`} onClick={() => flip(p)} aria-pressed={out}
-              aria-label={p.sold_out && byCity ? `${p.name}, 86'd in every city` : undefined}>
+              aria-label={p.sold_out ? `${p.name}, 86'd in every city` : undefined}>
               {out ? <s>{p.name}</s> : p.name}
-              {p.sold_out && byCity && <span className="font-mono text-caption2 opacity-80">all cities</span>}
+              {p.sold_out && <span className="font-mono text-caption2 opacity-80">all cities</span>}
               {out && at && <span className="font-mono text-caption2 opacity-80">{new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>}
             </button>
           );

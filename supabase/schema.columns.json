@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-15T00:36:16.949Z",
+    "pulled_at": "2026-10-16T00:24:17.652Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
-    "source": "migrations through 0402 (less the held 0376): the snapshot at 0400 with 0402's change — live_status's three position columns gone, truck_position's four in the order 0402 makes them; production's own names matched it exactly through the Supabase connector after 0402 was applied (222 relations, 2851 columns, the same fingerprint over production's order and over the names alone), and keep production's column order",
-    "relations": 222,
-    "columns": 2851
+    "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
+    "relations": 226,
+    "columns": 2884
   },
   "academy_acknowledgements": [
     "user_id",
@@ -387,9 +387,9 @@
     "alerted_overextract",
     "alerted_hold_soon",
     "alerted_hold_expired",
-    "brewer",
     "coffee_lot",
     "taste_notes",
+    "brewer",
     "stop_id",
     "drop_date",
     "field_op_id",
@@ -968,6 +968,17 @@
     "collected_by",
     "stop_id"
   ],
+  "erasure_followups": [
+    "id",
+    "kind",
+    "ref",
+    "ticket",
+    "created_at",
+    "attempts",
+    "claimed_at",
+    "last_error",
+    "handed_off_at"
+  ],
   "event_approvals": [
     "id",
     "event_id",
@@ -1069,8 +1080,8 @@
     "created_at",
     "link",
     "warn",
-    "tenant_id",
     "stop_id",
+    "tenant_id",
     "meeting_note_id",
     "ai_proposal",
     "ai_has_answer",
@@ -1893,7 +1904,8 @@
     "sort",
     "created_at",
     "market",
-    "owner_user_id"
+    "owner_user_id",
+    "updated_at"
   ],
   "outlook_connection": [
     "id",
@@ -1987,6 +1999,12 @@
     "completed_at",
     "created_at",
     "updated_at"
+  ],
+  "product_86": [
+    "product_id",
+    "market",
+    "sold_out_at",
+    "sold_out_by"
   ],
   "product_components": [
     "id",
@@ -2291,7 +2309,8 @@
     "status_changed_at",
     "status_changed_by",
     "refund_amount_cents",
-    "apliiq_submit_started_at"
+    "apliiq_submit_started_at",
+    "ship_by"
   ],
   "shop_products": [
     "id",
@@ -3097,7 +3116,9 @@
     "waiting_on_printer",
     "waiting_on_carrier",
     "closed",
-    "age_hours"
+    "age_hours",
+    "ship_by",
+    "ship_risk"
   ],
   "v_shop_queue": [
     "orders",
@@ -3213,6 +3234,11 @@
     "owner_profile",
     "state"
   ],
+  "v_workstream_weeks": [
+    "workstream_id",
+    "week_of",
+    "total"
+  ],
   "vendor_locations": [
     "id",
     "vendor_id",
@@ -3286,6 +3312,21 @@
     "sort",
     "created_at",
     "icon"
+  ],
+  "workstream_audit_superseded": [
+    "id",
+    "workstream_id",
+    "week_of",
+    "c_owner",
+    "c_next",
+    "c_blockers",
+    "c_artifacts",
+    "c_signal",
+    "total",
+    "note",
+    "audited_by",
+    "created_at",
+    "superseded_at"
   ],
   "workstream_audits": [
     "id",

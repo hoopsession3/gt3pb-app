@@ -8,7 +8,6 @@ import { readPulse } from "@/lib/passBoard";
 import { localToday } from "@/lib/dates";
 import { homeMarket } from "@/lib/homeMarket";
 import { FOUNDING_MARKET } from "@/lib/markets";
-import { isMissingTable } from "@/lib/schemaSkew";
 import { passSays, serviceExceptions, exceptionSays, type ReadState } from "@/lib/liveOps";
 import { useAuth } from "@/components/AuthProvider";
 import type { MyFlag } from "@/lib/useMyAlerts";
@@ -42,12 +41,11 @@ export function PassRow({ onOpenPass, canManage }: { onOpenPass: () => void; can
     const [o, p, c] = await Promise.all([
       readPulse(supabase, Date.now()),
       supabase.from("products").select("id, sold_out").eq("active", true),
-      // arrives-with: 0408
       supabase.from("product_86").select("product_id").eq("market", market),
     ]);
     if (o.pass === null || o.ahead === null) throw new Error("The Pass's count did not answer");
     if (p.error) throw new Error(p.error.message);
-    if (c.error && !isMissingTable(c.error)) throw new Error(c.error.message);
+    if (c.error) throw new Error(c.error.message);
     const here = new Set(((c.data as { product_id: string }[] | null) ?? []).map((r) => r.product_id));
     const out = ((p.data as { id: string; sold_out: boolean }[] | null) ?? []).filter((r) => r.sold_out || here.has(r.id)).length;
     return { pass: o.pass, ahead: o.ahead, out };

@@ -12757,14 +12757,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // writes while the database's side waited for its yes; it is one save now — save_workstream_audit, with the stream as
   // this page read it, so a colleague's newer save is read in rather than overwritten — and the two writes are what
   // saves only until 0405 is pasted.
-  ok("monday audit: one save — save_workstream_audit with the stream as it was read, the details, the five scores or none and the note only with them; a refusal said in its own words, a colleague's newer save read in; the two old writes only until 0405, the week's row before the stream",
-    /\/\/ arrives-with: 0405\n\s*const \{ data, error \} = await supabase\.rpc\("save_workstream_audit", \{\s*p_workstream: auditing\.id, p_seen: auditing\.updated_at \?\? null, p_details: details,/.test(maudRaw)
+  ok("monday audit: one save — save_workstream_audit with the stream as it was read, the details, the five scores or none and the note only with them; a refusal said in its own words, a colleague's newer save read in; with 0405 live the function is the only writer of either",
+    /const \{ data, error \} = await supabase\.rpc\("save_workstream_audit", \{\s*p_workstream: auditing\.id, p_seen: auditing\.updated_at \?\? null, p_details: details,/.test(maudRaw) && !/arrives-with: 0405/.test(maudRaw)
       && /p_scores: scored \? \{ c_owner: scores\.c_owner, c_next: scores\.c_next, c_blockers: scores\.c_blockers, c_artifacts: scores\.c_artifacts, c_signal: scores\.c_signal \} : null,\s*p_note: scored \? draft\.note\.trim\(\) \|\| null : null,/.test(maud)
-      && /if \(error && isMissingFunction\(error\)\) \{/.test(maud) && maud.indexOf("isMissingFunction(error)") < maud.indexOf('.from("workstream_audits").upsert(')
-      && maud.indexOf('.from("workstream_audits").upsert(') < maud.indexOf('.from("os_workstreams").update(')
+      && !/isMissingFunction/.test(maud) && /if \(error\) \{ setSaving\(false\); haptic\("error"\); toast\(`Couldn't save — \$\{error\.message\}`, "error"\); return; \}/.test(maud)
       && /toast\(r\.words \|\| "Couldn't save — try again\.", "error"\);/.test(maud) && /if \(r\.code === "changed"\) onReload\(\);/.test(maud)
       && /toast\(!scored \? "Stream updated"/.test(maud)
-      && writes(maud, "workstream_audits").join() === "upsert" && writes(maud, "os_workstreams").join() === "update,delete"
+      && writes(maud, "workstream_audits").length === 0 && writes(maud, "os_workstreams").join() === "delete"
       && writes(osr, "workstream_audits").length === 0 && writes(osr, "os_workstreams").join() === "insert"
       && /if \(error\?\.code === "23503"\) \{ toast\("It has audit history, so it stays on the record — set its status to Parked instead\.", "error"\); return; \}/.test(maud));
   ok("monday audit: saved, its draft goes and the walk moves on — where the sheet closed",
@@ -13274,10 +13273,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /cartRefusal\(cart, cupRows\.map\(\(r\) => \(here\.out\.has\(r\.slug\) \? \{ \.\.\.r, sold_out: true \} : r\)\)/.test(api)
       && api.indexOf("readCityOut(") > api.indexOf("readOrdering(") && api.indexOf("readCityOut(") < api.indexOf("chargeCard(")
       && /const all = sb\.from\("product_86"\)\.select\("products!inner\(slug\)"\)\.eq\("market", market\);\s*const r = slugs \? await all\.in\("products\.slug", \[\.\.\.slugs\]\) : await all;/.test(dr)
-      && /if \(r\.error\) return isMissingTable\(r\.error\) \? \{ out: new Set\(\), error: null \} : \{ out: new Set\(\), error: r\.error\.message \};/.test(dr));
+      && /if \(r\.error\) return \{ out: new Set\(\), error: r\.error\.message \};/.test(dr) && !/arrives-with: 0408/.test(dr));
     ok("86 for one city: every guest-facing read asks its own city's 86s — the cup screens the viewer's, checkout its city's, the truck's board its own — and a city read that fails keeps what the menu knew",
       /export function useAvailability\(market: Market = FOUNDING_MARKET\): Availability \{/.test(av)
-      && /supabase\.from\("product_86"\)\.select\("product_id"\)\.eq\("market", market\)/.test(av) && /if \(city\.error && !\(await import\("@\/lib\/schemaSkew"\)\)\.isMissingTable\(city\.error\)\) return;/.test(av) && !/from "\.\/schemaSkew"|from "@\/lib\/schemaSkew"/.test(av)
+      && /supabase\.from\("product_86"\)\.select\("product_id"\)\.eq\("market", market\)/.test(av) && /if \(city\.error\) return;/.test(av) && !/schemaSkew/.test(av)
       && /useRealtimeTable\(\["products", "product_86"\], load, \{ loadOnMount: true \}\);/.test(av)
       && /return useAvailability\(market\);/.test(cup) && /useViewerMarket\(CUP_MARKETS\)/.test(cup)
       && /const \{ soldOut \} = useAvailability\(viewerMarket\);/.test(code(rd("components/Checkout.tsx")))
@@ -13287,10 +13286,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("86 for one city: the concierge speaks for live_status's truck — the founding city's — and calls 86'd what is out there, everywhere or by the Pass",
       /readCityOut\(supabaseAdmin, FOUNDING_MARKET\),/.test(code(rd("app/api/concierge/route.ts")))
       && /drinks = menuOf\(pr\.rows\.map\(\(r\) => \(here\.out\.has\(r\.slug\) \? \{ \.\.\.r, sold_out: true \} : r\)\)\);/.test(code(rd("app/api/concierge/route.ts"))));
-    ok("86 for one city: the Pass's board 86s in the crew member's city (set_eighty_six), the Catalog's 86 is every city's and still comes back from the board; before 0408 a tap is the everywhere 86 it was",
+    ok("86 for one city: the Pass's board 86s in the crew member's city (set_eighty_six), the Catalog's 86 is every city's and still comes back from the board; a city read that fails keeps what the board knew",
       /const market = homeMarket\(profile\) \?\? FOUNDING_MARKET;/.test(es)
       && /supabase\.rpc\("set_eighty_six", \{ p_product: p\.id, p_market: market, p_out: next \}\)/.test(es)
-      && /if \(p\.sold_out \|\| !byCity\) \{/.test(es) && /else if \(isMissingTable\(c\.error\)\) setByCity\(false\);/.test(es)
+      && /if \(p\.sold_out\) \{/.test(es) && !/byCity|isMissingTable/.test(es)
+      && /if \(!c\.error\) setHere\(new Map\(/.test(es)
       && /useRealtimeTable\(\["products", "product_86"\], load\);/.test(es));
     ok("86 for one city: the Catalog reads every city's 86s beside the list, live, says a failed read, and the page puts one back in its city",
       /supabase\.from\("product_86"\)\.select\("product_id, market, sold_out_at, sold_out_by"\)/.test(mm2) && /useRealtimeTable\("product_86", city\.reload\);/.test(mm2)

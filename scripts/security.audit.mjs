@@ -69,8 +69,11 @@ export const CEILING = {
   // shows fewer; raising one means naming the new member in that commit's message.
   // 2026-10-14, snapshot at ledger 0400: definerExec 162 → 116. 0381's revokes closed 60 (every trigger among them,
   // and the jobs only the cron runs); 0383–0400 opened 14, each granted by name in its migration.
+  // 2026-10-16, snapshot at ledger 0408: definerExec 116 → 118 — save_workstream_audit (0405: the Monday audit and its
+  // stream saved as one, an owner's or an admin's) and set_eighty_six (0408: the Pass's 86 for one city, the crew's), each
+  // granted to authenticated by name and each refusing anyone else inside. Nothing new is callable signed out (anon 14).
   publicRead: 3,       // tables with a world-readable SELECT policy: live_status, site_copy, stops — the truck's public face
-  definerExec: 116,    // SECURITY DEFINER functions the API roles may call (none of them a trigger any more)
+  definerExec: 118,    // SECURITY DEFINER functions the API roles may call (none of them a trigger any more)
   // …and of them, the ones a caller with NO session may call: the anon key every phone carries. Supabase grants anon by
   // name, so this is what is left once each migration has said who keeps a function (0401). First measured on the
   // snapshot at ledger 0401 (2026-10-14): 55 before 0401, 14 after.

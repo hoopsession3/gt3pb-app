@@ -3,7 +3,6 @@
 import { useCallback, useState } from "react";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
-import { isMissingTable } from "@/lib/schemaSkew";
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -51,18 +50,14 @@ export default function OsRegistry() {
   const loader = useCallback(async (): Promise<{ rows: Ws[]; recent: Audit[] }> => {
     if (!supabase) return { rows: [], recent: [] };
     // EIGHT WEEKS A STREAM (2026-10-15, 0405): each stream's own last eight weekly totals (v_workstream_weeks). The 40
-    // newest audits across the portfolio could leave a stream audited less often with none to show. Until 0405 is
-    // pasted the view is not there, and the 40 newest are read, as before.
+    // newest audits across the portfolio could leave a stream audited less often with none to show.
     const [w, v] = await Promise.all([
       supabase.from("os_workstreams").select("*").order("sort"),
-      // arrives-with: 0405
       supabase.from("v_workstream_weeks").select("workstream_id, week_of, total").order("week_of", { ascending: false }),
     ]);
     if (w.error) throw new Error(w.error.message);
-    const a = v.error && isMissingTable(v.error)
-      ? await supabase.from("workstream_audits").select("workstream_id, week_of, total").order("week_of", { ascending: false }).limit(40)
-      : v;
-    return { rows: (w.data as Ws[]) ?? [], recent: (a.data as Audit[]) ?? [] };
+    if (v.error) throw new Error(v.error.message);
+    return { rows: (w.data as Ws[]) ?? [], recent: (v.data as Audit[]) ?? [] };
   }, []);
   const state = useAsyncData(loader, []);
   const { reload } = state;

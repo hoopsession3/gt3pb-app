@@ -13,7 +13,6 @@ import {
   FILTERS, availabilityOf, citiesByProduct, emptyLine, filterCounts, flipToast, nameOf, outInLine, rowSpoken, shownGroups, shownRow,
   undoOpen, undoStart, type CatalogFilter, type CatalogProduct, type City86,
 } from "@/lib/catalog";
-import { isMissingTable } from "@/lib/schemaSkew";
 import AsyncSection from "./AsyncSection";
 import ProductPage, { AvailSwitch } from "./ProductPage";
 
@@ -76,9 +75,8 @@ export default function MenuManager() {
   // Each city's 86s (0408). A read that failed is not "out nowhere": the list says so above the rows.
   const cityLoader = useCallback(async (): Promise<City86[]> => {
     if (!supabase) return [];
-    // arrives-with: 0408
     const { data, error } = await supabase.from("product_86").select("product_id, market, sold_out_at, sold_out_by");
-    if (error) { if (isMissingTable(error)) return []; throw new Error(error.message); }
+    if (error) throw new Error(error.message);
     return (data as City86[]) ?? [];
   }, []);
   const city = useAsyncData(cityLoader, []);
