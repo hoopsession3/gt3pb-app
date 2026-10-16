@@ -974,7 +974,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
 
       {/* ── DETAILS ── */}
       {dupRows && (
-        <Sheet open onClose={() => setDupRows(null)} label="Already on the books" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Already on the books</b><CloseButton onClick={() => setDupRows(null)} /></div>}>
+        <Sheet open onClose={() => setDupRows(null)} label="Already on the books" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>Already on the books</b><CloseButton onClick={() => setDupRows(null)} /></div>}>
           <p className="dl-sub" style={{ marginTop: 0 }}>You already have {dupRows.length === 1 ? "an order" : `${dupRows.length} orders`} for <b>{mode === "delivery" ? (slot?.deliveryLabel ?? "that day") : dayName(drop.sat)}</b>:</p>
           <div className="dup-list">
             {dupRows.map((r, i) => <div key={i} className="dup-row">{r.kind === "pickup" ? <Icon name="bell" /> : <Icon name="truck" />} {r.label}</div>)}

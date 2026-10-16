@@ -200,7 +200,7 @@ function LogSheet({ asset, from, onClose, onSaved }: { asset: Asset; from: Log |
   return (
     <Sheet open onClose={onClose} label="Maintenance log"
       dirty={summary.trim() !== (from?.summary ?? "").trim() || howTo.trim() !== (from?.how_to ?? "").trim() || !!cost.trim() || nextTouched}
-      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Log · {asset.name}</b><CloseButton onClick={onClose} /></div>}>
+      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>Log · {asset.name}</b><CloseButton onClick={onClose} /></div>}>
           <div className="ts-chips">
             {KINDS.map((k) => <button key={k} type="button" className={`k-chip${kind === k ? " on" : ""}`} aria-pressed={kind === k} onClick={() => onKind(k)}>{KIND_ICON[k]} {k}</button>)}
           </div>

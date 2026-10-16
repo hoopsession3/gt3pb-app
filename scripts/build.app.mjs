@@ -128,6 +128,12 @@ try {
 
   rmSync(OUT, { recursive: true, force: true });
   renameSync(join(WORK, "out"), OUT);
+  // THE BRAND KIT'S LARGEST MASTERS STAY ON THE WEB (R13 — the 10/10 audit, F14): 4 MB the app would carry for a link
+  // few will open. The kit shows their thumbnails (public/brand/thumb) and links the web's copy (lib/brandThumbs).
+  const { thumbs, webOnly } = JSON.parse(readFileSync(join(ROOT, "lib", "brandAssets.json"), "utf8"));
+  for (const u of webOnly) rmSync(join(OUT, ...u.split("/").filter(Boolean)), { force: true });
+  const noThumb = Object.values(thumbs).filter((u) => !existsSync(join(OUT, ...u.split("/").filter(Boolean))));
+  if (noThumb.length) throw new Error(`the export is missing the Brand Kit's thumbnails ${noThumb.join(", ")}`);
   if (SMOKE) writeFileSync(join(OUT, "gt3-smoke-build.json"), JSON.stringify({ smoke: true, backend: SMOKE_BACKEND.NEXT_PUBLIC_SUPABASE_URL, why: "scripts/build.app.mjs --smoke: for scripts/smoke.native.mjs only — never ship this out/" }, null, 2) + "\n");
 
   // What the app cannot do without — held here, so a build that quietly lost a page fails now, not

@@ -132,10 +132,13 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
   })();
   const todayKey = key(now);
 
-  const Chip = ({ c, inCell }: { c: CItem; inCell?: boolean }) => {
+  // Render functions, not components written in here (R13 — the 10/10 audit's performance pass, F13): a component made in
+  // a render is a new type each render, so every chip was mounted again on each hover and each reload, and the chip being
+  // dragged left the page as the dragover set the drop target.
+  const chip = (c: CItem, inCell?: boolean) => {
     const linked = !!c.event_id; const lit = focusEvent && c.event_id === focusEvent;
     return (
-      <button type="button" draggable className={`cal-chip${inCell ? "" : " backlog"}${lit ? " lit" : ""}`} style={{ borderLeftColor: STC[c.status] ?? "#9a8f7c" }}
+      <button key={c.id} type="button" draggable className={`cal-chip${inCell ? "" : " backlog"}${lit ? " lit" : ""}`} style={{ borderLeftColor: STC[c.status] ?? "#9a8f7c" }}
         onDragStart={() => { dragId.current = c.id; }} onClick={(e) => { e.stopPropagation(); onOpen(c.id); }}
         onMouseEnter={() => linked && setFocusEvent(c.event_id)} onMouseLeave={() => setFocusEvent(null)}
         title={`${c.title} · ${c.status}${linked ? ` · ↔ ${evTitle(c.event_id)}` : ""}`}>
@@ -146,12 +149,12 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
 
   // Week view uses a fuller, full-width chip — a status rail + title + a sub line (status · channel ·
   // time). More room than a month cell, so we say more.
-  const WChip = ({ c }: { c: CItem }) => {
+  const wchip = (c: CItem) => {
     const linked = !!c.event_id;
     const t = c.scheduled_for ? new Date(c.scheduled_for) : null;
     const time = t ? t.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
     return (
-      <button type="button" draggable className="calw-chip" style={{ ["--st" as string]: STC[c.status] ?? "#9a8f7c" }}
+      <button key={c.id} type="button" draggable className="calw-chip" style={{ ["--st" as string]: STC[c.status] ?? "#9a8f7c" }}
         onDragStart={() => { dragId.current = c.id; }} onClick={() => onOpen(c.id)}
         title={`${c.title} · ${c.status}${linked ? ` · ↔ ${evTitle(c.event_id)}` : ""}`}>
         <span className="calw-chip-rail" />
@@ -191,7 +194,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
         <div className="cal-backlog cal-backlog-top">
           <div className="insp-lbl">Unscheduled · {backlog.length} — tap to open &amp; set a date, or drag onto a day</div>
           <div className="cal-backlog-row">
-            {backlog.map((c) => <Chip key={c.id} c={c} />)}
+            {backlog.map((c) => chip(c))}
           </div>
         </div>
       )}
@@ -216,7 +219,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
                   {cell.evs.map((e) => (
                     <button key={e.id} type="button" className="calw-ev" onClick={() => setDayOpen(k)} title={e.title || "Event"}><Icon name="pin" /> {e.title || e.day_label || "Event"}</button>
                   ))}
-                  {cell.posts.map((c) => <WChip key={c.id} c={c} />)}
+                  {cell.posts.map((c) => wchip(c))}
                   {cell.posts.length === 0 && cell.evs.length === 0 && (
                     <button type="button" className="btn-ter self-start" onClick={() => onCreate(iso9(), null)}>+ plan something</button>
                   )}
@@ -244,7 +247,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
                   <div key={e.id} className={`cal-ev${focusEvent === e.id ? " lit" : ""}`} title={e.title || "Event"}
                     onMouseEnter={() => setFocusEvent(e.id)} onMouseLeave={() => setFocusEvent(null)}><Icon name="pin" /> {e.title || e.day_label || "Event"}</div>
                 ))}
-                {cell.posts.map((c) => <Chip key={c.id} c={c} inCell />)}
+                {cell.posts.map((c) => chip(c, true))}
               </div>
             </div>
           );
@@ -270,7 +273,7 @@ function DayView({ dayKey, posts, evs, evTitle, onClose, onEdit, onOpenFull, onA
   const d = new Date(`${dayKey}T00:00:00`);
   const heading = d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   return (
-    <Sheet open onClose={onClose} label="Content day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{heading}</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Content day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>{heading}</b><CloseButton onClick={onClose} /></div>}>
           {posts.length === 0 && evs.length === 0 && <EmptyState title="Nothing this day" sub="Tap + New piece to start one." />}
           <div className="dv-list">
             {evs.map((e) => (
@@ -324,7 +327,7 @@ function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string;
   };
   const unschedule = async () => { if (!supabase) return; setSaving(true); const ok = wrote(await supabase.from("content_items").update({ scheduled_for: null }).eq("id", id), toast, "Couldn't unschedule it"); setSaving(false); if (ok) onSaved(); };
   if (!f && loadFailed) return (
-    <Sheet open onClose={onClose} label="Edit content piece" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Edit piece</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Edit content piece" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>Edit piece</b><CloseButton onClick={onClose} /></div>}>
       <p className="load-failed" role="status">Couldn&apos;t load this piece — nothing has been changed. Close and try again.</p>
     </Sheet>
   );
@@ -333,7 +336,7 @@ function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string;
   const timeVal = f.scheduled_for ? localTime(f.scheduled_for) : "09:00";
   const setDT = (date: string, time: string) => { if (!date) { set("scheduled_for", null); return; } set("scheduled_for", new Date(`${date}T${time || "09:00"}:00`).toISOString()); };
   return (
-    <Sheet open onClose={onClose} label="Edit content piece" dirty={edited(f, loaded, ["title", "scheduled_for", "status", "event_id"])} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Edit piece</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Edit content piece" dirty={edited(f, loaded, ["title", "scheduled_for", "status", "event_id"])} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>Edit piece</b><CloseButton onClick={onClose} /></div>}>
           <input className="note-in" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="Title" autoFocus />
           <div className="prod-grid" style={{ marginTop: 10 }}>
             <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => setDT(e.target.value, timeVal)} /></label>

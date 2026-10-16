@@ -189,7 +189,7 @@ export default function MarketingSplash() {
       <div className="spl-lockup" aria-hidden="true">
         <span className="spl-kicker">{t("splash.welcome")}</span>
         <span className="spl-rule" />
-        <span className="spl-sign">{t("splash.sign_pre")} <img className="spl-sign-3" src="/brand/gt3-3.png" alt="" />{t("splash.sign_suf")}</span>
+        <span className="spl-sign">{t("splash.sign_pre")} <img className="spl-sign-3" src="/brand/gt3-3-glyph.png" width={181} height={240} alt="" />{t("splash.sign_suf")}</span>
       </div>
     </div>
   );

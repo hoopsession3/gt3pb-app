@@ -43,7 +43,9 @@ export default function PlaybookPage() {
       </section>
     );
   }
-  const Discuss = ({ k, label }: { k: string; label: string }) => (
+  // A render function, not a component (R13 — F13): declared inside the screen, a component is a new type every render,
+  // so pressing Discuss rebuilt the button it was pressed on — focus fell to the page and the open thread's draft went.
+  const discuss = (k: string, label: string) => (
     <>
       <button type="button" className="st-discuss" onClick={() => setOpen(open === k ? null : k)} aria-expanded={open === k}><Icon name="chat" /> {open === k ? "Close" : "Discuss"}</button>
       {open === k && <StrategyThread k={k} label={label} />}
@@ -67,7 +69,7 @@ export default function PlaybookPage() {
         <div className="pb-block" key={b.h}>
           <div className="pb-block-h">{b.h}</div>
           {b.lines.map((l, i) => <p key={i} className="pb-line">{l}</p>)}
-          <Discuss k={"core:" + b.h.toLowerCase().replace(/[^a-z0-9]+/g, "-")} label={b.h} />
+          {discuss("core:" + b.h.toLowerCase().replace(/[^a-z0-9]+/g, "-"), b.h)}
         </div>
       ))}
 
@@ -91,7 +93,7 @@ export default function PlaybookPage() {
           {(d.projected_revenue || d.payback) && <p className="pb-roi"><b>{[d.projected_revenue, d.payback && `payback ${d.payback}`].filter(Boolean).join(" · ")}</b></p>}
           {d.in_app && <p className="pb-inapp">{d.in_app}</p>}
           <p className="st-when">drafted by {d.author_name?.split(" ")[0] || "an owner"}</p>
-          <Discuss k={"draft:" + d.id} label={`Draft: ${d.name}`} />
+          {discuss("draft:" + d.id, `Draft: ${d.name}`)}
           {/* The retire the query has been filtering for since day one. */}
           <button type="button" className="btn-sec btn-sm btn-wide mt-2"
                   onClick={async () => { if (await confirm({ title: `Retire “${d.name}”?`, body: "It comes off the playbook. The draft and anything said about it are kept.", confirmLabel: "Retire" })) { const why = await retire(d.id); toast(why ? `Couldn't retire it — ${why}` : `“${d.name}” retired`, why ? "error" : undefined); } }}>
@@ -109,7 +111,7 @@ export default function PlaybookPage() {
           <p className="pb-roi"><b>{p.roi}</b> · payback {p.payback}</p>
           <p className="pb-inapp">{p.inApp}</p>
           <div className="st-row">
-            <Discuss k={keyFor(p.name)} label={p.name} />
+            {discuss(keyFor(p.name), p.name)}
             {!builder && <button type="button" className="st-discuss" onClick={() => setBuilder({ prefill: p })}>⟳ Overhaul</button>}
           </div>
         </div>

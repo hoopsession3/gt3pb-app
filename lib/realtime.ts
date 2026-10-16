@@ -44,13 +44,40 @@ function watchResume() {
 }
 
 
-type Change = { table: string; filter?: string };
+export type Change = { table: string; filter?: string };
+export type Tables = string | Change | (string | Change)[];
+
+/** THE CHANNEL ITSELF, OUTSIDE ANY ONE SCREEN (R13 — the 10/10 audit's performance pass, F5). Watch these tables and run
+ *  `read` once for a burst of changes (lib/rush), once after the channel comes back from a drop, on pull to refresh, and on
+ *  a return to the app after RESUME_MS. Answers the stop. useRealtimeTable below is this, for one screen; lib/shared's
+ *  stores are this, for every screen that shows the same thing. */
+export function watchTables(tables: Tables, read: { current: () => void }): () => void {
+  if (!supabase) return () => {};
+  const sb = supabase;
+  watchResume();
+  loaders.add(read);
+  const list: Change[] = (Array.isArray(tables) ? tables : [tables]).map((t) => (typeof t === "string" ? { table: t } : t));
+  const rush = coalesce(() => read.current());
+  let ch = sb.channel(`rt-${list.map((t) => t.table).join("-")}-${++chanSeq}`);
+  for (const t of list) {
+    ch = ch.on("postgres_changes", { event: "*", schema: "public", table: t.table, ...(t.filter ? { filter: t.filter } : {}) }, () => rush.poke());
+  }
+  // CAUGHT UP AFTER A DROP (R11). Supabase rejoins a dropped channel by itself and replays nothing, so a list stayed as it
+  // was before the drop, saying nothing, until some later change woke it (the Pass's own board already read again here —
+  // components/pass/usePassBoard). Every screen does now: a rejoin after a break reads once.
+  let broke = false;
+  ch.subscribe((status) => {
+    if (status === "SUBSCRIBED") { if (broke) { broke = false; read.current(); } }
+    else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") broke = true;
+  });
+  return () => { rush.cancel(); loaders.delete(read); void sb.removeChannel(ch); };
+}
 
 // Subscribe to postgres changes on one or more tables and run `onChange` on any hit (plus once on
 // mount, so callers can pass their `load` directly and drop their separate initial-load effect if
 // they want — passing loadOnMount:false keeps it notification-only).
 export function useRealtimeTable(
-  tables: string | Change | (string | Change)[],
+  tables: Tables,
   onChange: () => void,
   opts: { enabled?: boolean; loadOnMount?: boolean } = {},
 ) {
@@ -62,24 +89,8 @@ export function useRealtimeTable(
 
   useEffect(() => {
     if (!enabled || !supabase) return;
-    watchResume();
-    loaders.add(cb);
     if (loadOnMount) cb.current();
-    const list: Change[] = (Array.isArray(tables) ? tables : [tables]).map((t) => (typeof t === "string" ? { table: t } : t));
-    const rush = coalesce(() => cb.current());
-    let ch = supabase.channel(`rt-${list.map((t) => t.table).join("-")}-${++chanSeq}`);
-    for (const t of list) {
-      ch = ch.on("postgres_changes", { event: "*", schema: "public", table: t.table, ...(t.filter ? { filter: t.filter } : {}) }, () => rush.poke());
-    }
-    // CAUGHT UP AFTER A DROP (R11). Supabase rejoins a dropped channel by itself and replays nothing, so a list stayed as it
-    // was before the drop, saying nothing, until some later change woke it (the Pass's own board already read again here —
-    // components/pass/usePassBoard). Every screen does now: a rejoin after a break reads once.
-    let broke = false;
-    ch.subscribe((status) => {
-      if (status === "SUBSCRIBED") { if (broke) { broke = false; cb.current(); } }
-      else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") broke = true;
-    });
-    return () => { rush.cancel(); loaders.delete(cb); supabase?.removeChannel(ch); };
+    return watchTables(tables, cb);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, enabled]);
 }

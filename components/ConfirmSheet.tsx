@@ -74,7 +74,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         // the app's own "Discard your changes?" opens on "Keep editing"; a benign one keeps focus on yes. And it is an
         // alertdialog that names what it says will happen, so a screen reader reads the consequence, not only the title.
         <Sheet open onClose={() => settle(false)} label={opts.title} alert describedBy={opts.body ? bodyId : undefined}
-          header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{opts.title}</b><CloseButton onClick={() => settle(false)} /></div>}>
+          header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>{opts.title}</b><CloseButton onClick={() => settle(false)} /></div>}>
           {opts.body && <div className="dp-hint cfm-body" id={bodyId}>{opts.body}</div>}
           <div className="prod-actions cfm-actions">
             <button type="button" className="btn-ter" autoFocus={!!opts.danger} onClick={() => settle(false)}>{opts.cancelLabel ?? "Keep it"}</button>

@@ -39,7 +39,7 @@ export default function FreshTab() {
       awaySince = 0;
       asking = true;
       try {
-        const r = await fetch(apiUrl("/api/health"), { cache: "no-store" });
+        const r = await fetch(apiUrl("/api/health?from=app-build"), { cache: "no-store" });   // which build — no database, no heartbeat (R13)
         const live = r.ok ? (await r.json())?.build?.commit : null;
         if (typeof live === "string" && live && live !== mine && !busyHere(document)) window.location.reload();
       } catch { /* offline: the next return asks again */ } finally { asking = false; }

@@ -8,6 +8,8 @@ import Icon from "@/components/Icon";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { wrote } from "@/lib/wrote";
 import { useApp } from "./AppProvider";
+import { brandMaster, brandThumb } from "@/lib/brandThumbs";
+import { APP_BUILD, publicOrigin } from "@/lib/native";
 
 // BRAND KIT — GT3's logos, palette, fonts & voice, in the Studio. Seeded with the real brand;
 // leadership can edit voice/tagline, the wordmark, and the palette. The reference both of you
@@ -95,7 +97,7 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
         </p>
       )}
       <div className="brand-head">
-        {k.wordmark_url ? <img src={k.wordmark_url} alt="GT3 wordmark" className="brand-word" /> : <span className="brand-name">GT3</span>}
+        {k.wordmark_url ? <img src={brandThumb(k.wordmark_url)} alt="GT3 wordmark" className="brand-word" decoding="async" /> : <span className="brand-name">GT3</span>}
         {canEdit && state.status !== "error" && <button type="button" className="btn-sec btn-sm" onClick={() => { if (edit) save(); else { setDraft(kit); setEdit(true); } }} disabled={saving}>{edit ? (saving ? "Saving…" : "Save") : "Edit"}</button>}
       </div>
 
@@ -155,8 +157,8 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
           <div className="brand-assets">
             {assets.map((a) => (
               <div key={a.id} className="brand-asset-wrap">
-                <a className="brand-asset" href={a.url} target="_blank" rel="noreferrer" title={a.notes || a.label}>
-                  <span className={`brand-asset-img${a.kind === "photo" ? " photo" : ""}`}><img src={a.url} alt={a.label} /></span>
+                <a className="brand-asset" href={brandMaster(a.url, APP_BUILD, publicOrigin())} target="_blank" rel="noreferrer" title={a.notes || a.label}>
+                  <span className={`brand-asset-img${a.kind === "photo" ? " photo" : ""}`}><img src={brandThumb(a.url)} alt={a.label} loading="lazy" decoding="async" /></span>
                   <span className="brand-asset-l">{a.label}</span>
                 </a>
                 {canEdit && <button type="button" className="k-icon-btn sm glass brand-asset-x" onClick={() => delAsset(a.id)} aria-label={`Delete ${a.label}`}><Icon name="close" /></button>}

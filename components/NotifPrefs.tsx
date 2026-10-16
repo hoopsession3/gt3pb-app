@@ -152,7 +152,7 @@ export function NotifPrefs({ userId }: { userId: string | null }) {
  *  wonders whether their phone will ring for the next alert. */
 export function NotifPrefsSheet({ userId, onClose }: { userId: string | null; onClose: () => void }) {
   return (
-    <Sheet open onClose={onClose} label="Notifications" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Notifications</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Notifications" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>Notifications</b><CloseButton onClick={onClose} /></div>}>
       <div className="mb-3"><RingThisPhone /></div>
       <NotifPrefs userId={userId} />
     </Sheet>

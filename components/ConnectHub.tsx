@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import QRCode from "qrcode";
 import Gt3Mark from "@/components/Gt3Mark";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { CONNECT_GROUPS, CONNECT_LEADERSHIP, CONNECT_PRIMARY } from "@/lib/connect";
@@ -29,10 +28,15 @@ export function ConnectBody({ onGo }: { onGo: () => void }) {
   // NO QR IN THE IPHONE APP (2026-10-11, the App Store audit): "Scan to keep GT3 in your pocket" asks someone to scan
   // the website off a phone that is already running the app. The web keeps it — a desk's screen, a friend's phone.
   // APP_BUILD is fixed when the bundle is made (lib/native), so the web's bundle carries no trace of this.
+  // The QR maker comes down when the sheet opens, not with every page (R13 — the 10/10 audit's performance pass, F11): it
+  // rode in every route's first load, 9 KB for a code drawn when someone opens Connect.
   useEffect(() => {
     if (APP_BUILD) return;
-    QRCode.toDataURL(CONNECT_PRIMARY, { margin: 1, width: 320, color: { dark: "#15120D", light: "#ffffff" } })
-      .then(setQr).catch(() => setQr(""));
+    let live = true;
+    import("qrcode")
+      .then((m) => m.default.toDataURL(CONNECT_PRIMARY, { margin: 1, width: 320, color: { dark: "#15120D", light: "#ffffff" } }))
+      .then((u) => { if (live) setQr(u); }, () => { if (live) setQr(""); });
+    return () => { live = false; };
   }, []);
 
   return (

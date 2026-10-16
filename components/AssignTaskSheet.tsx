@@ -71,7 +71,7 @@ export default function AssignTaskSheet({
   );
 
   return (
-    <Sheet open onClose={onClose} label="Assign a task" dirty={!createdId && (title.trim() !== defaultTitle.trim() || !!assignee || due !== (dueOn || "") || visibility !== "team")} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{createdId ? <>Task assigned <Icon name="check" /></> : "Create a task?"}</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Assign a task" dirty={!createdId && (title.trim() !== defaultTitle.trim() || !!assignee || due !== (dueOn || "") || visibility !== "team")} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>{createdId ? <>Task assigned <Icon name="check" /></> : "Create a task?"}</b><CloseButton onClick={onClose} /></div>}>
           {!createdId ? (
             <>
               <label className="prod-f"><span>Task</span><input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={140} /></label>

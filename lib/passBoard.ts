@@ -241,15 +241,18 @@ export type BoardRead = { rows: Order[]; more: number; doneMore: boolean; error:
 /** THE BOARD'S READ, BOUNDED. It read every order not void and not picked up more than half an hour ago, however many
  *  there were — no limit, no age — so a pass left with yesterday's tickets on it read them all, every 15 seconds, and drew
  *  them all. Two reads now, side by side:
- *    · the open tickets (new, in progress, ready), oldest first as the board shows them, at most `cap` of them, with the
- *      count of all of them — so `more` says how many were not read, and the board says so (never an order hidden in
- *      silence). Its filter is 0238's partial index, word for word (status <> 'done' and status <> 'void');
+ *    · the open tickets (new, in progress, ready), at most `cap` of them, with the count of all of them — so `more` says
+ *      how many were not read, and the board says so (never an order hidden in silence). Its filter is 0238's partial
+ *      index, word for word (status <> 'done' and status <> 'void'). THE NEWEST `cap` (R13 — the 10/10 audit, F15): read
+ *      oldest first, a board past the cap left out the orders just placed — and the 15-second reconcile took back the one
+ *      the feed had just put up. Those past the cap are now the oldest (yesterday's left open, most likely); the board
+ *      still draws oldest first;
  *    · what was picked up in the last half hour, newest first, at most DONE_CAP (`doneMore`: there were more).
  *  Each row is held to the read it came from, so an answer that sends a row twice draws it once. */
 export async function readBoard(sb: SupabaseClient, nowMs: number, cap: number = OPEN_CAP): Promise<BoardRead> {
   const recentISO = new Date(nowMs - RECENT_MS).toISOString();
   const [open, done] = await Promise.all([
-    sb.from("orders").select("*", { count: "exact" }).neq("status", "void").neq("status", "done").order("created_at").limit(cap),
+    sb.from("orders").select("*", { count: "exact" }).neq("status", "void").neq("status", "done").order("created_at", { ascending: false }).limit(cap),
     sb.from("orders").select("*").eq("status", "done").gte("status_changed_at", recentISO).order("status_changed_at", { ascending: false }).limit(DONE_CAP + 1),
   ]);
   const error = open.error ?? done.error ?? null;
@@ -264,6 +267,15 @@ export async function readBoard(sb: SupabaseClient, nowMs: number, cap: number =
     doneMore: doneRows.length > DONE_CAP,
     error: null,
   };
+}
+
+/** THE BOARD KEPT ON THE PHONE IS WRITTEN WHEN IT CHANGED (R13 — the 10/10 audit's performance pass, F15): it was written
+ *  on every reconcile, up to 400 orders into the phone's storage every 15 seconds, changed or not. Unchanged, it is written
+ *  again every SNAP_EVERY_MS, so the time it says stays near enough to now for a cold start with no signal (lib/offline
+ *  snapshotUsable: two hours). Pure. */
+export const SNAP_EVERY_MS = 5 * 60_000;
+export function snapDue(last: { rows: readonly Order[]; at: number } | null, rows: readonly Order[], nowMs: number): boolean {
+  return !last || nowMs - last.at >= SNAP_EVERY_MS || keepSame(last.rows, rows) !== last.rows;
 }
 
 /** The line under the board when the read stopped short: "+12 more open orders". */

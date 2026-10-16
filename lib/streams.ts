@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabase";
-import { useRealtimeTable } from "./realtime";
+import { sharedStore } from "./shared";
+import { sameJson } from "./sharedCore";
 
 // Work streams — the business's operating lanes (0159). Categories stay atomic; a stream rolls
 // many of them into one accountable lane with an owner. Table-backed so tenants reshape their own
@@ -41,16 +41,20 @@ const DEFAULT_STREAMS: WorkStream[] = [
 export const streamOfCategory = (cat: string | null | undefined, streams: WorkStream[]): WorkStream | null =>
   (cat && streams.find((s) => s.categories.includes(cat))) || null;
 
-export function useWorkStreams() {
-  const [streams, setStreams] = useState<WorkStream[]>(DEFAULT_STREAMS);
-  const load = useCallback(async () => {
-    if (!supabase) return;
+// One copy for every screen (R13 — the 10/10 audit's performance pass, F5, lib/shared): nine screens read the lanes, each
+// with its own read and its own channel.
+const lanes = sharedStore<WorkStream[]>({
+  initial: DEFAULT_STREAMS,
+  tables: () => "work_streams",
+  read: async () => {
+    if (!supabase) return undefined;
     const { data } = await supabase.from("work_streams")
       .select("id, key, label, color, icon, categories, sections, owner_role, owner_user_id, sort")
       .order("sort");
-    if (data?.length) setStreams(data as WorkStream[]);
-  }, []);
-  useEffect(() => { load(); }, [load]);
-  useRealtimeTable("work_streams", load);
-  return streams;
+    return data?.length ? (data as WorkStream[]) : undefined;
+  },
+  equal: sameJson,
+});
+export function useWorkStreams(): WorkStream[] {
+  return lanes.use("all");
 }

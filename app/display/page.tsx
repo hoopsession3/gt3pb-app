@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import QRCode from "qrcode";
 import { lineSubKey, sectionsOf } from "@/lib/drinks";
 import { useSiteCopy } from "@/lib/copy";
 import { CUP_MARKETS } from "@/lib/markets";
@@ -45,9 +44,17 @@ export default function DisplayPage() {
   const { stopMenu } = useOrderingOpen(true, market);
   const sections = sectionsOf(stopMenu ? menu.filter((d) => stopMenu.has(d.slug)) : menu);
 
+  // The QR maker comes down with the board's first moment, not before it (R13 — the 10/10 audit, F11): the codes draw a
+  // beat after the menu.
   useEffect(() => {
-    QRCode.toDataURL(SCAN_TO_ORDER, { margin: 1, width: 640, color: { dark: "#15120D", light: "#ffffff" } }).then(setQr).catch(() => setQr(""));
-    QRCode.toDataURL(`${CONNECT_APP}/craft`, { margin: 1, width: 640, color: { dark: "#15120D", light: "#ffffff" } }).then(setCraftQr).catch(() => setCraftQr(""));
+    let live = true;
+    void import("qrcode").then(({ default: QRCode }) => {
+      const at = (url: string, set: (s: string) => void) => QRCode.toDataURL(url, { margin: 1, width: 640, color: { dark: "#15120D", light: "#ffffff" } })
+        .then((u) => { if (live) set(u); }, () => { if (live) set(""); });
+      void at(SCAN_TO_ORDER, setQr);
+      void at(`${CONNECT_APP}/craft`, setCraftQr);
+    }, () => { /* no codes: the board's words still say where */ });
+    return () => { live = false; };
   }, []);
 
   useEffect(() => {

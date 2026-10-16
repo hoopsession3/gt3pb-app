@@ -1,4 +1,5 @@
 import { refusalText } from "./refusal";
+import { reportFailure } from "./failureReport";
 
 /** A write's answer: supabase-js's {error}, or lib/tasks' {error?: string} — its one write path's. */
 type WriteAnswer = { error?: { code?: string | null; message?: string | null } | string | null };
@@ -14,5 +15,8 @@ export function wrote(res: WriteAnswer, toast: Toast, what: string): boolean {
   if (!e) return true;
   const words = typeof e === "string" ? e : refusalText(e) ?? (e.message?.trim() || "try again in a moment");
   toast(`${what} — ${words}`, "error");
+  // …and a failure that is ours to fix — a column or a grant the database does not have — reaches the error report too
+  // (R13, F17, lib/failureReport); a refusal in a person's words and a lost signal are only said here.
+  reportFailure("save", e, what);
   return false;
 }

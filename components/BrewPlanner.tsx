@@ -602,7 +602,7 @@ function StartBrewSheet({ batch, lotBoard, onClose, onStart }: { batch: Batch; l
   const [busy, setBusy] = useState(false);
   const hrs = Number(batch.extraction_hours) || 20;
   return (
-    <Sheet open onClose={onClose} label="Start brew" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Start brew · {batch.recipe_name}</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Start brew" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>Start brew · {batch.recipe_name}</b><CloseButton onClick={onClose} /></div>}>
           <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""} · {hrs}h cold extraction → ready ~{new Date(Date.now() + hrs * 3600000).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}</div>
           <CoffeeLotPick label="Coffee lot — the bag this batch is made from" value={lot} onChange={setLot} lots={lotBoard.lots} failed={lotBoard.lotsErr}
                          market={batch.market} cityName={cityOf(batch.market)} use={lotBoard.use} needGrams={coffeeGrams(batch, lotBoard.recipes)}
@@ -634,7 +634,7 @@ function BrewAdjust({ batch, onClose, onSaveTime, onStop, onUndo, onRemove }: { 
   const readyPreview = start ? new Date(new Date(start).getTime() + hrs * 3600000) : null;
   const run = async (fn: () => Promise<void>) => { setBusy(true); await fn(); onClose(); };
   return (
-    <Sheet open onClose={onClose} label="Adjust brew" dirty={start !== was && !busy} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Adjust brew · {batch.recipe_name}</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Adjust brew" dirty={start !== was && !busy} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>Adjust brew · {batch.recipe_name}</b><CloseButton onClick={onClose} /></div>}>
           <label className="prod-f"><span>When it actually started brewing</span><input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} /></label>
           {readyPreview && <div className="brew-spec">Ready ~{readyPreview.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })} · {hrs}h extraction</div>}
           <div className="prod-actions" style={{ marginTop: 12 }}>
@@ -722,7 +722,7 @@ function BatchLog({ batch, events, stops, lotBoard, onClose, onSaved, onRemove }
     if (removed) onSaved();
   };
   return (
-    <Sheet open onClose={onClose} label="Batch log" dirty={dirty} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Batch log · {batch.recipe_name}</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Batch log" dirty={dirty} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>Batch log · {batch.recipe_name}</b><CloseButton onClick={onClose} /></div>}>
           <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""}{batch.target_spec ? ` · ${batch.target_spec}` : ""}<br />Brewed {fmtTs(batch.brew_started_at)} → ready {fmtTs(batch.ready_at)}</div>
           <div className="prod-grid">
             <label className="prod-f"><span>Status</span>

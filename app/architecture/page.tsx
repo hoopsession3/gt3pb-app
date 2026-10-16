@@ -99,11 +99,13 @@ export default function ArchitecturePage() {
     );
   }
 
-  const Comp = ({ c, color, layerTag }: { c: ArchComponent; color: string; layerTag?: string }) => {
+  // A render function, not a component (R13 — F13): declared here, a component is a new type on every render, so opening
+  // one card rebuilt every card — the pressed button among them, and the keyboard's place went with it.
+  const compCard = (key: string, c: ArchComponent, color: string, layerTag?: string) => {
     const x = comp === c.name;
     const st = statusOf(c);
     return (
-      <div className={`arch-comp${x ? " open" : ""}`} style={{ ["--c" as string]: color }}>
+      <div key={key} className={`arch-comp${x ? " open" : ""}`} style={{ ["--c" as string]: color }}>
         <button type="button" className="arch-comp-head" onClick={() => setComp(x ? null : c.name)}>
           <span className="arch-comp-n">{layerTag && <span className="arch-comp-layer">{layerTag}</span>}{c.name}</span>
           <span className={`k-tag${STATUS_TONE[st]}`}>{STATUS_LABEL[st]}{live && LIVE_KEY[c.name] ? " ·" : ""}</span>
@@ -131,7 +133,7 @@ export default function ArchitecturePage() {
             <div className="h-title" style={{ marginTop: 6 }} data-large-title data-title={open.label}>{open.label}</div>
             <div className="h-sub">{open.blurb}</div>
           </div>
-          <div className="arch-comps">{open.components.map((c) => <Comp key={c.name} c={c} color={open.color} />)}</div>
+          <div className="arch-comps">{open.components.map((c) => compCard(c.name, c, open.color))}</div>
         </>
       ) : (
         <>
@@ -208,7 +210,7 @@ export default function ArchitecturePage() {
           <input className="arch-search" aria-label="Search every layer and component" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search every layer & component…" />
           {q.trim() ? (
             <div className="arch-comps" style={{ marginTop: 6 }}>
-              {results.length === 0 ? <div className="h-sub">No components match.</div> : results.map(({ c, l }) => <Comp key={`${l.id}-${c.name}`} c={c} color={l.color} layerTag={l.tag} />)}
+              {results.length === 0 ? <div className="h-sub">No components match.</div> : results.map(({ c, l }) => compCard(`${l.id}-${c.name}`, c, l.color, l.tag))}
             </div>
           ) : (
             <>

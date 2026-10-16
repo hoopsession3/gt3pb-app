@@ -45,7 +45,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "@/components/AsyncSection";
 import Owed from "@/components/Owed";  // daily path: the overdue list is on the default screen
 import HomeNumbers from "@/components/HomeNumbers";  // daily path: the home's three numbers
-import MoneyAttention from "@/components/MoneyAttention";  // Money's first screen, under Performance
+const MoneyAttention = dynamic(() => import("@/components/MoneyAttention"), { loading: () => <PourFill label="Loading…" /> });  // Money's first screen, under Performance
 import TodayList from "@/components/TodayList";      // daily path: the home's Today list
 import ComingUp from "@/components/ComingUp";        // daily path: the home's next seven days
 import { flagIsToday, rhythmDay, RHYTHM_TABLES } from "@/lib/home";
@@ -79,9 +79,13 @@ import { wrote } from "@/lib/wrote";
 // PrepBoard, CommandBoard/Goals) stay static imports on purpose — the morning screen and service
 // screen must never wait on a chunk. Once fetched, the SW's cache-first asset rule keeps each
 // chunk available offline. next/dynamic on a default export keeps full prop-type inference.
+// THE CONSOLE LOADS THE SECTION IT OPENS ON (R13 — the 10/10 audit's performance pass, F11). A phone opening the Pass
+// downloaded every section first — 1.76 MB of script, the Academy's whole course text among it (AcademyCard, at the
+// foot of Team). My Day, Live Ops and the Pass load with the page; Command, Prep, Money, Customers, Team, the garage
+// and the plans' tools come down when they are opened, as the sixty-odd panels below already did.
 const TrailerLoadout = dynamic(() => import("@/components/TrailerLoadout"), { loading: () => <PourFill label="Loading…" /> });
 import DropOps from "@/components/DropOps";
-import ReserveClaims from "@/components/crew/ReserveClaims";
+const ReserveClaims = dynamic(() => import("@/components/crew/ReserveClaims"), { loading: () => <PourFill label="Loading…" /> });
 import { reserveStopLabel } from "@/lib/reservePickup";
 import ThePass from "@/components/pass/ThePass";
 import OfficeOrders from "@/components/OfficeOrders";
@@ -94,10 +98,10 @@ const CrewStart = dynamic(() => import("@/components/CrewStart"), { loading: () 
 const AiSpend = dynamic(() => import("@/components/AiSpend"), { loading: () => <PourFill label="Loading…" /> });
 const BroadcastEditor = dynamic(() => import("@/components/BroadcastEditor"), { loading: () => <PourFill label="Loading…" /> });
 const MaintenanceLog = dynamic(() => import("@/components/MaintenanceLog"), { loading: () => <PourFill label="Loading…" /> });
-import OpsPlan from "@/components/OpsPlan";
+const OpsPlan = dynamic(() => import("@/components/OpsPlan"), { loading: () => <PourFill label="Loading…" /> });
 import NoteAttach from "@/components/NoteAttach";
 import { noteAnchor, pendingNoteAsk, clearNoteAsk, onNoteAsk, focusNoteWhenThere } from "@/lib/noteLink";
-import Goals from "@/components/Goals";
+const Goals = dynamic(() => import("@/components/Goals"), { loading: () => <PourFill label="Loading…" /> });
 import { useLocationSuggestions } from "@/components/useLocationSuggestions";
 import { completeTask, createEventTask, createEventTasks, deleteTask, deleteTasks, deleteTasksForParent, type NewEventTask, type TaskParent } from "@/lib/tasks";
 import { loadMyTasks, type MyTaskRow } from "@/lib/myTasks";
@@ -106,7 +110,7 @@ const PromoEditor = dynamic(() => import("@/components/PromoEditor"), { loading:
 const ReviewsAdmin = dynamic(() => import("@/components/ReviewsAdmin"), { loading: () => <PourFill label="Loading…" /> });
 import DeliveryOps from "@/components/DeliveryOps";
 import DueList, { useDueFeeds } from "@/components/crew/DueList";
-import PackPlan from "@/components/PackPlan";
+const PackPlan = dynamic(() => import("@/components/PackPlan"), { loading: () => <PourFill label="Loading…" /> });
 const OrgChart = dynamic(() => import("@/components/OrgChart"), { loading: () => <PourFill label="Loading…" /> });
 const WorkloadBoard = dynamic(() => import("@/components/WorkloadBoard"), { loading: () => <PourFill label="Loading…" /> });
 const OperatingRhythm = dynamic(() => import("@/components/OperatingRhythm"), { loading: () => <PourFill label="Loading…" /> });
@@ -121,18 +125,20 @@ const AddTeammate = dynamic(() => import("@/components/AddTeammate"), { loading:
 const CrmPanel = dynamic(() => import("@/components/CrmPanel"), { loading: () => <PourFill label="Loading…" /> });
 const CodesPanel = dynamic(() => import("@/components/CodesPanel"), { loading: () => <PourFill label="Loading…" /> });
 const PerksPanel = dynamic(() => import("@/components/PerksPanel"), { loading: () => <PourFill label="Loading…" /> });
-import CustomerKpis from "@/components/CustomerKpis";
+const CustomerKpis = dynamic(() => import("@/components/CustomerKpis"), { loading: () => <PourFill label="Loading…" /> });
 const VipQueue = dynamic(() => import("@/components/VipQueue"), { loading: () => <PourFill label="Loading…" /> });
 const FunnelReport = dynamic(() => import("@/components/FunnelReport"), { loading: () => <PourFill label="Loading…" /> });
-import { TeamKpis, PrepKpis, GarageKpis } from "@/components/CrewKpis";
-import PrepBoard from "@/components/PrepBoard";
+const TeamKpis = dynamic(() => import("@/components/CrewKpis").then((m) => m.TeamKpis), { loading: () => <PourFill label="Loading…" /> });
+const PrepKpis = dynamic(() => import("@/components/CrewKpis").then((m) => m.PrepKpis), { loading: () => <PourFill label="Loading…" /> });
+const GarageKpis = dynamic(() => import("@/components/CrewKpis").then((m) => m.GarageKpis), { loading: () => <PourFill label="Loading…" /> });
+const PrepBoard = dynamic(() => import("@/components/PrepBoard"), { loading: () => <PourFill label="Loading…" /> });
 import InlineCreate from "@/components/InlineCreate";
 const Changelog = dynamic(() => import("@/components/Changelog"), { loading: () => <PourFill label="Loading…" /> });
 // Settings › You › Account (2026-10-06, the settings-by-category round): the account menu's door, as a
 // row — the avatar's own menu and sheets (components/AccountPill useAccountDoor), so it has one home.
 const AccountRow = dynamic(() => import("@/components/AccountRow"), { loading: () => <PourFill label="Loading…" /> });
-import CommandBoard from "@/components/CommandBoard";
-import { CommandViews } from "@/components/CommandFold";
+const CommandBoard = dynamic(() => import("@/components/CommandBoard"), { loading: () => <PourFill label="Loading…" /> });
+const CommandViews = dynamic(() => import("@/components/CommandFold").then((m) => m.CommandViews), { loading: () => <PourFill label="Loading…" /> });
 // Free-text times from before the field became type="time" still have to render. Anything the
 // input can accept is handed through; anything it cannot (a bare "9", "9am", "2 pm") is normalised
 // where that is unambiguous and otherwise left for the person to re-enter, rather than silently
@@ -209,7 +215,7 @@ import { resolveVendor, addVendorLocation, type VendorMatch, type ResolveDecisio
 const VendorResolve = dynamic(() => import("@/components/VendorResolve"), { loading: () => <PourFill label="Loading…" /> });
 import Icon, { type IconName } from "@/components/Icon";
 import { useJurisdictions } from "@/components/useJurisdictions";
-import AcademyCard from "@/components/AcademyCard";
+const AcademyCard = dynamic(() => import("@/components/AcademyCard"), { loading: () => <PourFill label="Loading…" /> });
 import { money, moneyPlain, moneyRound } from "@/lib/money";
 import { FOUNDING_MARKET, toMarket } from "@/lib/markets";
 import { setStock as planStock, setLeft as planLeft, goneOf, type StockChange } from "@/lib/reserveStock";
@@ -577,9 +583,12 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
   const myLane = (cat: string | null) => streams.some((s) => s.owner_user_id === userId && s.categories.includes(normalizeCategory(cat)));
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
-  const loadCounts = useCallback(async () => { setCounts(await commentCounts("alert_id", mine.map((r) => r.id))); }, [mine]);
+  // The counts are read for the alerts listed: again when that list changes — not on every read of the alerts — and when
+  // a comment on one of them changes — not on every comment anywhere in the business (R13 — the 10/10 audit, F15).
+  const ids = useMemo(() => mine.map((r) => r.id).sort().join(","), [mine]);
+  const loadCounts = useCallback(async () => { setCounts(await commentCounts("alert_id", ids ? ids.split(",") : [])); }, [ids]);
   useEffect(() => { loadCounts(); }, [loadCounts]);
-  useRealtimeTable("comments", loadCounts);
+  useRealtimeTable({ table: "comments", filter: `alert_id=in.(${ids})` }, loadCounts, { enabled: !!ids });
   // Respond immediately: reservation alerts pop the drop sheet right here; everything else jumps
   // to the screen that owns it.
   const [dropSheet, setDropSheet] = useState(false);
@@ -5782,7 +5791,7 @@ export default function AdminPage() {
       </div>
       {guide && <SectionGuide allowed={allowed} current={sec} start={guide === "start"} onGo={setSection} onClose={() => setGuide(null)} />}
       {inboxOpen && (
-        <Sheet open onClose={() => setInboxOpen(false)} label="Inbox" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="bell" /> Inbox</b><CloseButton onClick={() => setInboxOpen(false)} /></div>}>
+        <Sheet open onClose={() => setInboxOpen(false)} label="Inbox" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}><Icon name="bell" /> Inbox</b><CloseButton onClick={() => setInboxOpen(false)} /></div>}>
           <AlertsInbox userId={user?.id ?? null} title="Flags & pings for you" onNavigate={() => setInboxOpen(false)} />
         </Sheet>
       )}

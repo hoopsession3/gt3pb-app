@@ -186,7 +186,7 @@ function ShotDraftPanel({ shootId, onClose, onAdd }: { shootId: string; onClose:
   };
 
   return (
-    <Sheet open onClose={onClose} label="Draft the shot list" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="sparkles" /> Draft shots</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Draft the shot list" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}><Icon name="sparkles" /> Draft shots</b><CloseButton onClick={onClose} /></div>}>
       {!shotList && (
         <>
           <div className="dp-hint">A few notes — the setting, what you want to show off, anything specific — and AI proposes a shot list. You approve what to keep.</div>

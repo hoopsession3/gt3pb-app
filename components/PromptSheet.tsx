@@ -33,7 +33,7 @@ export default function PromptSheet({
 
   return (
     <Sheet open={open} onClose={onCancel} label={title}
-      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{title}</b><CloseButton onClick={onCancel} /></div>}>
+      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>{title}</b><CloseButton onClick={onCancel} /></div>}>
       {hint && <div className="dp-hint">{hint}</div>}
       {multiline ? (
         <textarea className="note-in" rows={3} autoFocus value={value} placeholder={placeholder} onChange={(e) => setValue(e.target.value)} />

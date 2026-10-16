@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
 import { supabase } from "./supabase";
-import { useRealtimeTable } from "./realtime";
+import { sharedStore } from "./shared";
 import { FOUNDING_MARKET, type Market } from "./markets";
 
 // Live availability for the à-la-carte menu. Two axes, from public.products:
@@ -16,8 +15,9 @@ import { FOUNDING_MARKET, type Market } from "./markets";
 // Realtime, so an 86 flipped mid-rush lands on every open menu without a refresh. The server
 // re-checks at charge time regardless — this hook is honesty for the screen, not the enforcement.
 //
-// Several components use this hook at once (menu, drink sheet, checkout, AppProvider);
-// useRealtimeTable gives each instance its own uniquely-named channel, so they stay independent.
+// Several components use this hook at once (menu, drink sheet, checkout, AppProvider, Today, Find Us): ONE copy per city
+// for all of them (R13 — the 10/10 audit's performance pass, F5, lib/shared). Each kept its own channel and its own read —
+// one 86 flipped mid-rush made every open menu read the menu again three or four times.
 // `names` (2026-10-13, R2 — the Catalog is the menu): each product's name as the Catalog says it, live — so a drink added
 // mid-shift prints by its name on the Pass the moment its row exists, and the crew (who read every row) see a drink taken
 // off the menu by its name in the history. AppProvider's nameOf reads it after the menu's own rows.
@@ -27,27 +27,35 @@ import { FOUNDING_MARKET, type Market } from "./markets";
 // board). `market` is whose menu this is — the viewer's (useViewerMarket), the truck's, the crew member's — and, given
 // none, the founding city, as every market-aware reader here defaults (lib/markets).
 type Availability = { soldOut: Set<string>; inactive: Set<string>; activeTotal: number; names: ReadonlyMap<string, string> };
-export function useAvailability(market: Market = FOUNDING_MARKET): Availability {
-  const [state, setState] = useState<Availability>({ soldOut: new Set(), inactive: new Set(), activeTotal: 0, names: new Map() });
-  const load = useCallback(async () => {
-    if (!supabase) return;
+const NONE: Availability = { soldOut: new Set(), inactive: new Set(), activeTotal: 0, names: new Map() };
+const sameSet = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.size && [...a].every((x) => b.has(x));
+const sameAvailability = (a: Availability, b: Availability) =>
+  a.activeTotal === b.activeTotal && sameSet(a.soldOut, b.soldOut) && sameSet(a.inactive, b.inactive)
+  && a.names.size === b.names.size && [...a.names].every(([k, v]) => b.names.get(k) === v);
+const menuNow = sharedStore<Availability>({
+  initial: NONE,
+  tables: () => ["products", "product_86"],
+  read: async (market) => {
+    if (!supabase) return undefined;
     const [{ data }, city] = await Promise.all([
       supabase.from("products").select("id, slug, sold_out, active, name"),
       supabase.from("product_86").select("product_id").eq("market", market),
     ]);
-    if (!data) return;
+    if (!data) return undefined;
     // A city's 86s that could not be read are not "none": keep what this menu last knew rather than say an item is back.
-    if (city.error) return;
+    if (city.error) return undefined;
     const cityOut = new Set(((city.data as { product_id: string }[] | null) ?? []).map((r) => r.product_id));
     const rows = data as { id: string; slug: string; sold_out: boolean | null; active: boolean | null; name: string | null }[];
     const inactive = new Set(rows.filter((p) => p.active === false).map((p) => p.slug));
-    setState({
+    return {
       soldOut: new Set(rows.filter((p) => p.sold_out || cityOut.has(p.id)).map((p) => p.slug)),
       inactive,
       activeTotal: rows.length - inactive.size,
       names: new Map(rows.filter((p) => (p.name ?? "").trim()).map((p) => [p.slug, (p.name as string).trim()])),
-    });
-  }, [market]);
-  useRealtimeTable(["products", "product_86"], load, { loadOnMount: true });
-  return state;
+    };
+  },
+  equal: sameAvailability,
+});
+export function useAvailability(market: Market = FOUNDING_MARKET): Availability {
+  return menuNow.use(market);
 }

@@ -10,7 +10,7 @@ import { devicePref, useDevicePref } from "@/lib/devicePref";
 import { isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
 import { snapshotUsable } from "@/lib/offline";
 import {
-  readBoard, keepSame, mergeRow, feedState, readHere, hereAfter, scopeFrom, newOrderWords, newOrdersWords, outsideWords,
+  readBoard, keepSame, snapDue, mergeRow, feedState, readHere, hereAfter, scopeFrom, newOrderWords, newOrdersWords, outsideWords,
   holdMove, underHeld, heldFromQueue, heldKey,
   OPEN_CAP, NOWHERE, PASS_FEED_EVENT, type BoardDown, type Here, type Scope, type Held, type HeldKind,
 } from "@/lib/passBoard";
@@ -84,6 +84,8 @@ export function usePassBoard() {
   // OVERLAPPING READS LAND IN ORDER (2026-10-11): the reconcile, a return to the screen, a reconnect and a drained queue
   // can all ask at once. Only the newest read asked for is applied — a slow old answer never puts an older board back.
   const loadSeq = useRef(0);
+  // The board as the phone last kept it, and when (lib/passBoard snapDue).
+  const lastSnap = useRef<{ rows: readonly Order[]; at: number } | null>(null);
   // WHAT THIS PHONE HAS MOVED AND NOT YET HEARD BACK (R11, lib/passBoard holdMove/underHeld): every read and every feed row
   // is drawn under these, so a read that lands before a write (or while the write waits in the queue for signal) no longer
   // puts a ticket back in its old lane, or a collection back to unpaid. A reload starts from the moves still queued.
@@ -124,7 +126,8 @@ export function usePassBoard() {
     for (const o of rows) known.current.add(o.id);
     seeded.current = true;
     setOrders((prev) => keepSame(prev, rows)); setBoardAt(Date.now()); setDown(""); setMore(res.more);
-    saveSnapshot("gt3-kds-snap", rows);
+    const at = Date.now();
+    if (snapDue(lastSnap.current, rows, at)) { saveSnapshot("gt3-kds-snap", rows); lastSnap.current = { rows, at }; }
     fresh.forEach(announceNew);
     if (fresh.length > 1) say(newOrdersWords(fresh.length));
   }, [announceNew, say, drawn]);

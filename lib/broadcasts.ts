@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import { useRealtimeTable } from "./realtime";
+import { inWindow, nextEdge, LONGEST_WAIT_MS } from "./broadcastWindow";
 
 // BROADCASTS (0196) — the operator's live announcement bar. RLS decides visibility (a guest only ever
 // receives an active, in-window, audience='all' row), so the client just reads and renders. Realtime-
@@ -22,21 +23,26 @@ export type Broadcast = {
   created_at: string;
 };
 
-// The broadcasts THIS viewer should currently see (RLS already filters to active/in-window/audience;
-// we re-check the window client-side so a scheduled end hides it without waiting for a refetch).
+// The broadcasts THIS viewer should currently see (RLS already filters to active/in-window/audience; the screen keeps
+// each one's window too, so a scheduled end takes it down on time — lib/broadcastWindow, R13).
 export function useLiveBroadcasts(): Broadcast[] {
   const [rows, setRows] = useState<Broadcast[]>([]);
+  const [now, setNow] = useState(() => Date.now());
   const load = async () => {
     if (!supabase) return;
     // A failed read pulled every banner off the site — including one announcing a closure.
     const { data, error } = await supabase.from("broadcasts").select("*").eq("active", true).order("created_at", { ascending: false });
     if (error) return;
-    const now = Date.now();
-    setRows(((data as Broadcast[]) ?? []).filter((b) =>
-      (!b.starts_at || new Date(b.starts_at).getTime() <= now) &&
-      (!b.ends_at || new Date(b.ends_at).getTime() >= now)));
+    setRows((data as Broadcast[]) ?? []);
+    setNow(Date.now());
   };
-  useEffect(() => { load(); }, []);
-  useRealtimeTable(["broadcasts"], load);
-  return rows;
+  useRealtimeTable(["broadcasts"], load, { loadOnMount: true });
+  // Look again at the next start or end.
+  useEffect(() => {
+    const at = nextEdge(rows, now);
+    if (at === null) return;
+    const t = setTimeout(() => setNow(Date.now()), Math.min(at - now, LONGEST_WAIT_MS));
+    return () => clearTimeout(t);
+  }, [rows, now]);
+  return useMemo(() => rows.filter((b) => inWindow(b, now)), [rows, now]);
 }

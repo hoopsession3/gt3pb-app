@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { supabase } from "./supabase";
-import { useRealtimeTable } from "./realtime";
+import { sharedStore } from "./shared";
+import { sameJson } from "./sharedCore";
 import { LINE_SUB, lineSubKey } from "./drinks";
 import { STAMP_GOAL } from "./loyalty";
 
@@ -524,15 +525,24 @@ export function copyGroupRoute(group: string): string {
 // one-time fetch) so a save from EITHER editor — the SiteCopyEditor form or an inline EditableCopy
 // on the live page itself — lands in every open t() consumer, including a "View live" tab someone
 // left open, without a manual reload. Falls back to defaults if Supabase isn't configured.
-export function useSiteCopy(): (key: string) => string {
-  const [over, setOver] = useState<Record<string, string>>({});
-  const load = useCallback(async () => {
-    if (!supabase) return;
+//
+// ONE COPY OF THE WORDS FOR EVERY SCREEN (R13 — the 10/10 audit's performance pass, F5): the nav, the drink sheet, the
+// splash and the page each read site_copy for themselves and kept a channel of their own — four reads and four channels
+// on a guest's first /menu. One store now (lib/shared): one read, one channel, the same words everywhere. A failed read
+// keeps the words already here (the defaults, before any read has landed).
+const siteCopy = sharedStore<Record<string, string>>({
+  initial: {},
+  tables: () => "site_copy",
+  read: async () => {
+    if (!supabase) return undefined;
     const { data } = await supabase.from("site_copy").select("key, value");
-    if (data) setOver(Object.fromEntries((data as { key: string; value: string }[]).map((r) => [r.key, r.value])));
-  }, []);
-  useRealtimeTable("site_copy", load, { loadOnMount: true });
-  return (key: string) => over[key] ?? COPY_DEFAULTS[key] ?? "";
+    return data ? Object.fromEntries((data as { key: string; value: string }[]).map((r) => [r.key, r.value])) : undefined;
+  },
+  equal: sameJson,
+});
+export function useSiteCopy(): (key: string) => string {
+  const over = siteCopy.use("all");
+  return useCallback((key: string) => over[key] ?? COPY_DEFAULTS[key] ?? "", [over]);
 }
 
 // Shared write path for BOTH copy editors (SiteCopyEditor's form, EditableCopy's inline popover) —
@@ -544,10 +554,12 @@ export async function saveCopy(key: string, value: string, userId?: string | nul
   const trimmed = value.trim();
   if (!trimmed) return { error: "Copy can't be empty — use Reset to go back to the default" };
   const { error } = await supabase.from("site_copy").upsert({ key, value: trimmed, updated_by: userId ?? null, updated_at: new Date().toISOString() });
+  if (!error) void siteCopy.reload("all");   // every screen showing it, at once — realtime says it again a moment later
   return error ? { error: error.message } : {};
 }
 export async function resetCopy(key: string): Promise<{ error?: string }> {
   if (!supabase) return { error: "Not connected" };
   const { error } = await supabase.from("site_copy").delete().eq("key", key);
+  if (!error) void siteCopy.reload("all");
   return error ? { error: error.message } : {};
 }

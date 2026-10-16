@@ -1,0 +1,21 @@
+{
+  "thumbs": {
+    "/brand/gt3-brew-crown.png": "/brand/thumb/gt3-brew-crown.webp",
+    "/brand/gt3-brew-soccer.png": "/brand/thumb/gt3-brew-soccer.webp",
+    "/brand/gt3-soccer-badge.png": "/brand/thumb/gt3-soccer-badge.webp",
+    "/brand/gt3pb-bar-01.png": "/brand/thumb/gt3pb-bar-01.webp",
+    "/brand/gt3pb-bar-02.jpg": "/brand/thumb/gt3pb-bar-02.webp",
+    "/brand/gt3pb-handle.png": "/brand/thumb/gt3pb-handle.webp",
+    "/brand/gt3pb-photo-01.jpg": "/brand/thumb/gt3pb-photo-01.webp",
+    "/brand/pb-tagline-on-red.png": "/brand/thumb/pb-tagline-on-red.webp",
+    "/brand/tagline-red-transparent.png": "/brand/thumb/tagline-red-transparent.webp"
+  },
+  "webOnly": [
+    "/brand/gt3-brew-crown.png",
+    "/brand/gt3-brew-soccer.png",
+    "/brand/gt3-soccer-badge.png",
+    "/brand/gt3pb-bar-01.png",
+    "/brand/gt3pb-bar-02.jpg",
+    "/brand/gt3pb-photo-01.jpg"
+  ]
+}

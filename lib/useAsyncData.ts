@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { reportFailure } from "./failureReport";
 
 // THE fetch-state hook (Wave 2, 2026-07-15). An audit found 59 sites across 41 files where a failed
 // fetch renders identically to genuine emptiness — "no reservations," "$0 revenue," "you're all
@@ -46,6 +47,9 @@ export function useAsyncData<T>(loader: () => Promise<T>, deps: React.Dependency
       })
       .catch((err) => {
         if (gen.current !== myGen) return;
+        // A read the database refused for a reason that is ours — a column, a grant, a view — is reported, not only drawn
+        // as "couldn't load" (R13 — the 10/10 audit, F17, lib/failureReport). A lost signal and a person's refusal are not.
+        reportFailure("load", err as { code?: string; message?: string });
         setRefreshing(false);
         setError(err instanceof Error ? err : new Error(String(err)));
         // Same principle for failures: a transient refetch error with data already on screen

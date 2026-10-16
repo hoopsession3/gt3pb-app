@@ -375,7 +375,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   if (!open) return null;
   return (
     <Sheet open onClose={onClose} label="Member card & status" className="status-lux"
-      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Your member card &amp; status</b><CloseButton onClick={onClose} /></div>}
+      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>Your member card &amp; status</b><CloseButton onClick={onClose} /></div>}
       footer={<button type="button" className="btn-pri btn-wide" onClick={share} disabled={!ready}>Share your status <Icon name="externalLink" /></button>}>
 
       {/* Member card group is just this one key — 100% inline coverage — so the Edit pill that used

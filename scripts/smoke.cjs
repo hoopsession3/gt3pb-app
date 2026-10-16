@@ -6361,7 +6361,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /<p className="dl-sub">\{story\.d\}<\/p>/.test(craft) && /<Sheet open onClose=\{\(\) => setStory\(null\)\}/.test(craft) && !/\.craft-ing-x p\{/.test(css));
   ok("craft: the menu is one button under the opening, a screen in — and still at the close",
     (craft.match(/<Button kind="primary" onClick=\{\(\) => router\.push\("\/menu"\)\}>\{t\("craft\.cta_menu"\)\}<\/Button>/g) || []).length === 2
-    && craft.indexOf('router.push("/menu")') < craft.indexOf('<Pillar k="act" />'));
+    && craft.indexOf('router.push("/menu")') < craft.indexOf('{pillar("act")}'));
   ok("craft: the philosophy band that said the lede again is gone, from the page, the stylesheet and the editor",
     !/craft\.fuel|craft-fuel/.test(craft + css) && !/key: "craft\.fuel"/.test(copy));
 }
@@ -6662,7 +6662,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /className=\{`k-count\$\{TONE\[head\.tone\]\}`\}/.test(today) && /const TONE = \{ plain: "", warn: " soon", ok: " ok" \} as const;/.test(read("components/TodayList.tsx")));
   ok("the op card: Make it live is the screen's one primary, and the display face is the event's name alone (it drew Wear and Details)",
     /<Button kind="primary" compact onClick=\{\(\) => makeLive\(op\.id\)\}/.test(code(read("components/DayHeadline.tsx")))
-    && /\.dayhead-op-t>b\{font-family:'Archivo Black'/.test(read("app/globals.css")) && !/\.dayhead-op b\{/.test(read("app/globals.css")));
+    && /\.dayhead-op-t>b\{font-family:var\(--display\)/.test(read("app/globals.css")) && !/\.dayhead-op b\{/.test(read("app/globals.css")));
   ok("one drop day: the home's number and the pickup board ask lib/dropDate which day 'this drop' is",
     /nextDropDay\(sb\)/.test(nums) && /nextDropDay\(supabase\)/.test(dops) && !/\.gte\("starts_at", new Date\(\)\.toISOString\(\)\)/.test(dops));
   {
@@ -7190,7 +7190,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const conn = read("lib/connect.ts"), disp = code(read("app/display/page.tsx")), splash = code(read("components/MarketingSplash.tsx"));
   const proxy = code(read("proxy.ts")), home = code(read("app/page.tsx")), hint = read("lib/viewerHint.ts");
   ok("QR: the truck screen's Scan to order opens the menu, not the front door",
-    /export const SCAN_TO_ORDER = `\$\{CONNECT_APP\}\/menu`;/.test(conn) && /QRCode\.toDataURL\(SCAN_TO_ORDER,/.test(disp) && !/QRCode\.toDataURL\(CONNECT_APP,/.test(disp));
+    /export const SCAN_TO_ORDER = `\$\{CONNECT_APP\}\/menu`;/.test(conn) && /void at\(SCAN_TO_ORDER, setQr\);/.test(disp) && !/at\(CONNECT_APP,/.test(disp));
   ok("splash: /truck is the front door only when the hop from '/' said so — no door set, asked after auth",
     !/FRONT_DOORS/.test(splash) && /if \(pathname === "\/truck" && !cameThroughFrontDoor\(\)\) return;/.test(splash)
     && splash.indexOf("cameThroughFrontDoor()") > splash.indexOf("if (!ready || user) return;"));
@@ -8342,7 +8342,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     !/\.ev-title\{[^}]*nowrap/.test(cssP) && /\.ev-stage\{display:flex;flex-wrap:wrap;gap:5px 4px;/.test(cssP) && /className=\{`k-chip sm hue\$\{cur \? " on" : ""\}`\}/.test(read("app/crew/page.tsx")) && /\.k-chip\.sm\{min-height:28px;padding:4px 11px;/.test(cssP));
   ok("card css: the light is drawn only as the live dot, and the hours read in sentence case",
     /\.ev-led\{flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:var\(--red\)/.test(cssP) && !/\.ev-card\.live \.ev-led\{/.test(cssP)
-    && /\.ev-sub\{font-family:'Inter';font-weight:500;font-size:12px;color:var\(--cream-m\)/.test(cssP) && !/\.ev-sub\{[^}]*uppercase/.test(cssP));
+    && /\.ev-sub\{font-family:var\(--sans\);font-weight:500;font-size:12px;color:var\(--cream-m\)/.test(cssP) && !/\.ev-sub\{[^}]*uppercase/.test(cssP));
 
   // ── the calendar ──
   const cal = code(read("components/CompanyCalendar.tsx"));
@@ -9121,7 +9121,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /useGesture\("root", \{\s+axis: "x",\s+capture: true,\s+begin: \(target, x\) => x <= BACK\.edge && !!way && !sheetOpen\(\) && !deskNow\(\) && !target\.closest\('\[role="dialog"\]'\),/.test(read("components/SwipeBack.tsx"))
     && /const way = useBack\(\);/.test(read("components/SwipeBack.tsx")) && /if \(!cancelled && backGoes\(d\.dx, d\.vx\)\) way\?\.go\(\);/.test(read("components/SwipeBack.tsx")));
   ok("refresh: the pull reads every live screen again (lib/realtime's loaders), and so does coming back to the app after 30s away",
-    /export function refreshLive\(\): Promise<void>/.test(read("lib/realtime.ts")) && /loaders\.add\(cb\);/.test(read("lib/realtime.ts")) && /const RESUME_MS = 30_000;/.test(read("lib/realtime.ts"))
+    /export function refreshLive\(\): Promise<void>/.test(read("lib/realtime.ts")) && /loaders\.add\(read\);/.test(read("lib/realtime.ts")) && /const RESUME_MS = 30_000;/.test(read("lib/realtime.ts"))
     && /\{inAdmin && <PullToRefresh \/>\}/.test(read("components/AppShell.tsx")) && /refreshLive\(\)/.test(read("components/PullToRefresh.tsx")));
   ok("haptics: an iPhone before iOS 26.5 ticks (the switch's own haptic) where vibrate does not exist, and nothing buzzes before a tap",
     /input\.setAttribute\("switch", ""\);/.test(read("lib/haptics.ts")) && /navigator\.userActivation && !navigator\.userActivation\.hasBeenActive/.test(read("lib/haptics.ts")));
@@ -11178,7 +11178,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const read = (f) => require("node:fs").readFileSync(require("node:path").join(__dirname, "..", f), "utf8");
   const g = read("app/globals.css");
   ok("chips: one chip — 36pt with 15pt semibold words on a wash of the surface's own ink, a capsule, and 44 to the thumb",
-    /\.k-chip\{position:relative;display:inline-flex;[^}]*min-height:36px;padding:6px 14px;border:0;border-radius:var\(--r-pill\);background:color-mix\(in srgb, var\(--cream\) 8%, transparent\);color:var\(--cream\);font-family:'Inter';font-weight:600;font-size:15px;[^}]*text-transform:none;/.test(g)
+    /\.k-chip\{position:relative;display:inline-flex;[^}]*min-height:36px;padding:6px 14px;border:0;border-radius:var\(--r-pill\);background:color-mix\(in srgb, var\(--cream\) 8%, transparent\);color:var\(--cream\);font-family:var\(--sans\);font-weight:600;font-size:15px;[^}]*text-transform:none;/.test(g)
     && /\.k-chip::after\{content:"";position:absolute;inset:-4px 0\}/.test(g));
   ok("chips: the small one is 28pt with 13pt words, and still 44 to the thumb",
     /\.k-chip\.sm\{min-height:28px;padding:4px 11px;gap:4px;font-size:13px\}/.test(g) && /\.k-chip\.sm::after\{inset:-8px 0\}/.test(g));
@@ -11193,7 +11193,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\.k-tag\{display:inline-flex;[^}]*height:22px;padding:0 8px;border:0;border-radius:var\(--r-pill\);background:var\(--k-wash,color-mix\(in srgb, var\(--cream\) 8%, transparent\)\);color:var\(--k-ink,var\(--cream-m\)\);font-family:var\(--mono\);[^}]*font-size:11px;line-height:1;letter-spacing:var\(--track-eyebrow\);text-transform:uppercase;/.test(g)
     && ["ok", "gold", "warn", "crit", "blue"].every((t) => new RegExp(`\\.k-tag\\.${t}\\{--k-ink:var\\(--tone-${t}\\);--k-wash:color-mix\\(in srgb, var\\(--tone-${t}\\) 1[46]%, transparent\\)\\}`).test(g))
     && /\.k-tag\.fill\{--k-wash:var\(--k-ink,var\(--cream-m\)\);color:var\(--char\)\}/.test(g)
-    && /\.k-tag\.txt\{font-family:'Inter';font-weight:600;font-size:12px;letter-spacing:0;text-transform:none\}/.test(g) && /\.k-tag\.glass\{/.test(g));
+    && /\.k-tag\.txt\{font-family:var\(--sans\);font-weight:600;font-size:12px;letter-spacing:0;text-transform:none\}/.test(g) && /\.k-tag\.glass\{/.test(g));
   ok("tags: the tones are tokens, declared once, and the crew's light look and paper restate them — a tag holds 4.5:1 wherever it lands",
     /--tone-ok:var\(--ok\); --tone-gold:var\(--gold2\); --tone-warn:var\(--warn\); --tone-crit:var\(--red-h\); --tone-blue:#6fa8dc;/.test(g.slice(0, 4000))
     // R6: the crew's light look and paper are ONE light palette — one block restates the tones for both.
@@ -11397,7 +11397,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const audit = read("scripts/css.audit.mjs"), g = read("app/globals.css"), pg = read("app/crew/page.tsx");
   const baseAt = g.indexOf(".app :where(select),.app :where(input:not([type=\"checkbox\"]):not([type=\"radio\"])),.app :where(textarea){");
   ok("fields: the base field is 16px, and says what it weighs — one class, outranked by a container's rule and by any rule below it, never by a one-class rule above it",
-    baseAt > 0 && /padding:10px 12px;color:var\(--cream\);font-family:'Inter';font-size:16px;line-height:1\.2;/.test(g.slice(baseAt, baseAt + 400))
+    baseAt > 0 && /padding:10px 12px;color:var\(--cream\);font-family:var\(--sans\);font-size:16px;line-height:1\.2;/.test(g.slice(baseAt, baseAt + 400))
     && /the rule\s+weighs one class/.test(g) && /a ONE-class rule written ABOVE it loses every property it sets/.test(g) && !/Zero specificity, so it is a floor and never a ceiling/.test(g));
   ok("fields: the console's forms, the gear library's, the pipeline's, a goal's, the delivery loop's and the shop's checkout draw 16px words",
     [/\.prod-f input,\.prod-f textarea,\.prod-f select,\.prod-addc select,\.prod-addc input\{[^}]*font-size:16px/, /\.ev-f input,\.ev-f select\{[^}]*font-size:16px/,
@@ -11415,9 +11415,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     [".auth-code{", ".ec-in{", ".ec-multi{", ".isheet-in{", ".isheet-area{", ".studio-title{", ".cmdk-in{", ".lp-amt{", ".note-lux-title{", ".conc-in{"].every((s) => own(s).length === 1 && below(s))
     && /10\. A FIELD THAT IS NOT A FORM'S FIELD/.test(g));
   ok("fields: the emailed code reads in big mono digits; the copy editor takes the copy's own type and height; the concierge's composer is round, at 16px, beside its round send",
-    /\.auth-code\{font-family:'DM Mono';letter-spacing:8px;text-align:center;font-size:22px\}/.test(g)
+    /\.auth-code\{font-family:var\(--mono\);letter-spacing:8px;text-align:center;font-size:22px\}/.test(g)
     && /\.ec-in\{display:block;width:100%;min-height:0;box-sizing:border-box;font:inherit;color:inherit;letter-spacing:inherit;line-height:inherit;/.test(g)
-    && /\.conc-in\{flex:1;background:#0f0e0a;border:1px solid #36332a;border-radius:var\(--r-pill\);padding:11px 15px;color:#f4ead6;font-family:'Inter';font-size:16px\}/.test(g));
+    && /\.conc-in\{flex:1;background:#0f0e0a;border:1px solid #36332a;border-radius:var\(--r-pill\);padding:11px 15px;color:#f4ead6;font-family:var\(--sans\);font-size:16px\}/.test(g));
   ok("fields: the CSS audit's rule 12 — a rule that sets a field's words under 16px fails, so does a one-class field rule above the base, and so does a base under 16px; a field is read from every class list on one and from a component that hands it its className",
     /\/\/  12\. ONE FIELD/.test(audit) && /export function fieldClassesIn\(root\)/.test(audit) && /export function fieldRulesIn\(ast, fieldClasses\)/.test(audit)
     && /export function relaysIn\(root, files, tags\)/.test(audit) && /const fields = fieldRulesIn\(ast, fieldClassesIn\(root\)\);/.test(audit)
@@ -11521,7 +11521,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       // An open tab comes back current (2026-10-10): Ryan's Safari tab showed the menu from before the night's release.
       const ft = read("components/FreshTab.tsx"), shell = read("components/AppShell.tsx"), cfg = read("next.config.ts");
       ok("an open tab that comes back after a minute away asks which build is live, and reloads into a newer one",
-        /export const AWAY_MS = 60_000;/.test(ft) && /fetch\(apiUrl\("\/api\/health"\), \{ cache: "no-store" \}\)/.test(ft)
+        /export const AWAY_MS = 60_000;/.test(ft) && /fetch\(apiUrl\("\/api\/health\?from=app-build"\), \{ cache: "no-store" \}\)/.test(ft)
         && /live !== mine && !busyHere\(document\)\) window\.location\.reload\(\);/.test(ft) && /if \(e\.persisted\)/.test(ft));
       ok("…never while someone is typing or a sheet is open, never in the iPhone app, never in a build that doesn't know its commit",
         /if \(doc\.querySelector\('\[role="dialog"\]'\)\) return true;/.test(ft) && /if \(!mine \|\| process\.env\.NEXT_PUBLIC_GT3_TARGET === "app"\) return;/.test(ft)
@@ -11627,7 +11627,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /& \.pass-item \{ display: block; \}/.test(util("pass-board")) && /& \.pass-sep \{ display: none; \}/.test(util("pass-board"))
     && /font-family: var\(--mono\); font-size: 13px;[^@]*@container pass \(width >= 900px\) \{ font-family: "Archivo Black"[^}]*font-size: 28px;/.test(util("pass-no"))
     && [...tw.slice(tw.indexOf("THE PASS AT ARM'S LENGTH")).matchAll(/font-size: (\d+)px/g)].every((m) => [11, 12, 13, 15, 16, 17, 20, 22, 28, 34].includes(Number(m[1])))
-    && /\.adm-order-top b\{font-family:'Inter';font-weight:650;font-size:15px;line-height:1\.2\}/.test(gl) && /\.adm-items\{font-family:'Inter';font-weight:600;font-size:15px;/.test(gl));
+    && /\.adm-order-top b\{font-family:var\(--sans\);font-weight:650;font-size:15px;line-height:1\.2\}/.test(gl) && /\.adm-items\{font-family:var\(--sans\);font-weight:600;font-size:15px;/.test(gl));
   ok("pass type: the ticket's number is up top beside the name, and its drinks are lib/passBoard's lines",
     /<span className="pass-no">\{ticketNo\(o\.id\)\}<\/span>/.test(tk) && /itemLines\(items, nameOf\)\.map\(\(l, i\) => \(/.test(tk) && /<span key=\{l\.key\} className="pass-item">\{i > 0 && <span className="pass-sep"> · <\/span>\}/.test(tk)
     && /groupItems\(items\)\.map\(\(\{ id, qty \}\) => \(\{ key: id, qty, name: nameOf\(id\) \}\)\)/.test(pb) && /nameOf: \(id: string\) => string = \(id\) => nameFrom\(null, id\)/.test(pb));
@@ -12423,7 +12423,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("needs sorting: the list reads again on a change to the tables its diagnoses come from — and with every refresh (lib/realtime)",
     /useRealtimeTable\(SCHEDULE_GAP_TABLES, state\.reload\);/.test(sg)
       && tables.join() === "events,event_ops,event_tasks,event_sales,stops,stop_ops,vendors,live_status"
-      && /loaders\.add\(cb\);/.test(rd("lib/realtime.ts")) && /export function refreshLive\(\)/.test(rd("lib/realtime.ts")), tables);
+      && /loaders\.add\(read\);/.test(rd("lib/realtime.ts")) && /export function refreshLive\(\)/.test(rd("lib/realtime.ts")), tables);
   const views = ["0348_tonight_is_not_the_past", "0315_a_stop_is_a_visit_not_a_name", "0316_a_list_that_says_what_it_found", "0324_one_schedule_one_list"]
     .map((f) => rd(`supabase/migrations/${f}.sql`)).join("\n");
   ok("needs sorting: each table it listens to is one those views read", tables.length === 8 && tables.every((t) => new RegExp(`(from|join) public\\.${t}\\b`).test(views)),
@@ -13278,7 +13278,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   // ── live ──
   ok("catalog: the list is live — every change to products reads it again, so the crew's 86 from the Pass shows at once, and it is on the app's refresh (lib/realtime)",
-    /useRealtimeTable\("products", reload\);/.test(mm) && /loaders\.add\(cb\);/.test(rd("lib/realtime.ts")));
+    /useRealtimeTable\("products", reload\);/.test(mm) && /loaders\.add\(read\);/.test(rd("lib/realtime.ts")));
   const row = (o) => ({ id: "p", sold_out: false, updated_at: "2026-10-12T14:03:22.123456+00:00", ...o });
   ok("catalog: the newest version of a row is the one on screen — the list's, or the answer to this screen's own write, whichever is later — with an 86 on its way on top",
     K.freshest(row({}), row({ updated_at: "2026-10-12T14:05:00+00:00", sold_out: true })).sold_out === true
@@ -13352,8 +13352,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /if \(r\.error\) return \{ out: new Set\(\), error: r\.error\.message \};/.test(dr) && !/arrives-with: 0408/.test(dr));
     ok("86 for one city: every guest-facing read asks its own city's 86s — the cup screens the viewer's, checkout its city's, the truck's board its own — and a city read that fails keeps what the menu knew",
       /export function useAvailability\(market: Market = FOUNDING_MARKET\): Availability \{/.test(av)
-      && /supabase\.from\("product_86"\)\.select\("product_id"\)\.eq\("market", market\)/.test(av) && /if \(city\.error\) return;/.test(av) && !/schemaSkew/.test(av)
-      && /useRealtimeTable\(\["products", "product_86"\], load, \{ loadOnMount: true \}\);/.test(av)
+      && /supabase\.from\("product_86"\)\.select\("product_id"\)\.eq\("market", market\)/.test(av) && /if \(city\.error\) return undefined;/.test(av) && !/schemaSkew/.test(av)
+      && /tables: \(\) => \["products", "product_86"\],/.test(av) && /return menuNow\.use\(market\);/.test(av)
       && /return useAvailability\(market\);/.test(cup) && /useViewerMarket\(CUP_MARKETS\)/.test(cup)
       && /const \{ soldOut \} = useAvailability\(viewerMarket\);/.test(code(rd("components/Checkout.tsx")))
       && /const \{ soldOut \} = useAvailability\(market\);/.test(code(rd("app/display/page.tsx")))
@@ -14724,7 +14724,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /head\.current\?\.focus\(\{ preventScroll: true \}\);/.test(rd("components/OrderConfirm.tsx"))
     && /head\.current\?\.closest\("\.sheet2-body"\)\?\.scrollTo\(\{ top: 0 \}\);/.test(rd("components/OrderConfirm.tsx")));
   ok("R7b today: an open-orders read that failed is said, and the greeting and date are read again when the page comes back",
-    /if \(error && !loadedOnce\.current\) setFailed\(true\);/.test(rd("components/useMyOrders.ts")) && /We couldn&apos;t check for an order in progress just now\./.test(th)
+    /if \(error && !cur\.loaded\) return \{ \.\.\.cur, failed: true \};/.test(rd("components/useMyOrders.ts")) && /We couldn&apos;t check for an order in progress just now\./.test(th)
     && /const now = useVisibleNow\(\);/.test(th) && !/setNow\(/.test(th) && /document\.addEventListener\("visibilitychange", onVisible\);/.test(rd("lib/visibleNow.ts"))
     && /return useSyncExternalStore\(subscribe, snapshot, onServer\);/.test(rd("lib/visibleNow.ts")) && /const onServer = \(\): Date \| null => null;/.test(rd("lib/visibleNow.ts")));
   ok("R7b guest bar: Canceled until the order's page has been seen, a day at most",
@@ -15316,7 +15316,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     JSON.stringify(accountKeysIn(keys)) === JSON.stringify(["gt3-kds-snap", "gt3-order-snap-u1", "gt3geo:1 Main St", "gt3-audit-draft:2026-W42", "gt3-paid-ref"]));
   const ap = strip(rd("components/AuthProvider.tsx"));
   ok("R10b sign-out: wiped on Sign out and on every SIGNED_OUT, and the queue told who is signed in",
-    /setProfile\(null\);\s+wipeAccountData\(\);/.test(ap) && /if \(event === "SIGNED_OUT"\) wipeAccountData\(\);/.test(ap) && /setQueueOwner\(u\?\.id \?\? null\);/.test(ap));
+    /setProfile\(null\);\s+wipeAccountData\(\);\s+forgetPersonal\(\);/.test(ap) && /if \(event === "SIGNED_OUT"\) \{ wipeAccountData\(\); forgetPersonal\(\); \}/.test(ap) && /setQueueOwner\(u\?\.id \?\? null\);/.test(ap));
   const qd = [orderStatusOp("o1", "ready", 1, "new", "kay"), collectCupOp("o2", "cash", 2, "lee"), orderStatusOp("o3", "done", 3)];
   ok("R10b offline: a parked write is replayed only for the person who made it (a write from before stamping, for anyone)",
     nextOwnOp(qd, "lee")?.id === "o2" && nextOwnOp(qd, "kay")?.id === "o1" && nextOwnOp(qd, "moe")?.id === "o3" && nextOwnOp(qd.slice(0, 2), "moe") === undefined
@@ -15400,8 +15400,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // the feed
   const rt = strip(rd("lib/realtime.ts")), nt = strip(rd("components/Notifications.tsx"));
   ok("R11 feed: a burst of changes is one read, a rejoin after a break reads once, and the signal coming back reads every screen",
-    /import \{ coalesce \} from "\.\/rush";/.test(rt) && /const rush = coalesce\(\(\) => cb\.current\(\)\);/.test(rt) && /\(\) => rush\.poke\(\)\);/.test(rt)
-      && /if \(status === "SUBSCRIBED"\) \{ if \(broke\) \{ broke = false; cb\.current\(\); \} \}/.test(rt) && /window\.addEventListener\("online", \(\) => \{ void refreshLive\(\); \}\);/.test(rt));
+    /import \{ coalesce \} from "\.\/rush";/.test(rt) && /const rush = coalesce\(\(\) => read\.current\(\)\);/.test(rt) && /\(\) => rush\.poke\(\)\);/.test(rt)
+      && /if \(status === "SUBSCRIBED"\) \{ if \(broke\) \{ broke = false; read\.current\(\); \} \}/.test(rt) && /window\.addEventListener\("online", \(\) => \{ void refreshLive\(\); \}\);/.test(rt));
   ok("R11 feed: the member's and the admin's alerts open a channel of their own each time, keyed on the person — never a name still being left",
     /\.channel\(`notify-me-\$\{\+\+notifySeq\}`\)/.test(nt) && /\.channel\(`notify-admin-\$\{\+\+notifySeq\}`\)/.test(nt) && /\}, \[uid\]\);/.test(nt) && /\}, \[isAdmin\]\);/.test(nt)
       && /filter: `user_id=eq\.\$\{uid\}`/.test(nt));
@@ -15614,6 +15614,77 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("R12b server: a paid office order that could not be marked raises an alert; an Outlook event pushed but not remembered is taken back; a sign-out the database could not release unsubscribes the browser",
     /kind: "office_paid_unmarked"/.test(sq) && /if \(mapped\.error\) \{ unmapped\+\+; try \{ await graph\(token, `\$\{base\}\/events\/\$\{g\.id\}`, \{ method: "DELETE" \}\);/.test(os)
       && /if \(!released\) await Promise\.race\(\[forgetThisDevice\(\)/.test(pr));
+}
+
+// ── R13 · THE WEIGHT AND THE WIRING (2026-10-16, the 10/10 audit's performance pass, and operations F6 and F17) ──────────
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const code = (s) => s.replace(/\/\/[^\n]*/g, "");
+  // one copy for every screen (F5): the five shared reads go through lib/shared, with no read or channel of their own
+  const shared = { "lib/copy.ts": "siteCopy", "lib/availability.ts": "menuNow", "lib/streams.ts": "lanes", "components/useMyOrders.ts": "myOrders", "lib/useMyAlerts.ts": "myAlerts" };
+  ok("R13 shared: the site's words, the menu's 86s, the lanes, a member's orders and a person's alerts are one store each, read once for every screen",
+    Object.entries(shared).every(([f, name]) => { const c = code(rd(f)); return new RegExp(`const ${name} = sharedStore<`).test(c) && new RegExp(`${name}\\.use\\(`).test(c) && !/useRealtimeTable\(/.test(c); })
+      && /personal: true,/.test(rd("components/useMyOrders.ts")) && /personal: true,/.test(rd("lib/useMyAlerts.ts"))
+      && /every: \{ ms: 20_000, when: \(cur, tick\) => cur\.orders\.length > 0 \|\| tick % 3 === 0 \},/.test(rd("components/useMyOrders.ts")));
+  ok("R13 shared: the store is wired to the one channel helper and to React's external store; a sign-out forgets a person's copies",
+    /watch: \(key, run\) => watchTables\(tables\(key\), \{ current: run \}\)/.test(rd("lib/shared.ts")) && /return useSyncExternalStore\(subscribe, snapshot, initial\);/.test(rd("lib/shared.ts"))
+      && /export function watchTables\(tables: Tables, read: \{ current: \(\) => void \}\): \(\) => void \{/.test(rd("lib/realtime.ts"))
+      && /return watchTables\(tables, cb\);/.test(rd("lib/realtime.ts")));
+  // the toast's words apart (F19)
+  const ap = rd("components/AppProvider.tsx");
+  ok("R13 toast: the toast's words live in their own context — read by the toast alone — so a toast no longer draws every screen",
+    /const ToastCtx = createContext<ToastState>/.test(ap) && !/toastMsg, toastShown, toastVariant, toastAction, hideToast/.test(ap)
+      && /<Ctx\.Provider value=\{value\}><ToastCtx\.Provider value=\{toastState\}>\{children\}<\/ToastCtx\.Provider><\/Ctx\.Provider>/.test(ap)
+      && /const \{ toastMsg, toastShown, toastVariant, toastAction \} = useToastState\(\);/.test(rd("components/Toast.tsx")));
+  // the faces (F14)
+  const g = rd("app/globals.css"), lay = rd("app/layout.tsx");
+  const faces = g.replace(/@font-face\{[^}]*\}/g, "");
+  ok("R13 type: every rule names a face through its stack — none alone — and each stack has a stand-in of its own measure",
+    !/font-family:'(Inter|Archivo Black|DM Mono|Fraunces)'/.test(faces)
+      && /--sans:'Inter','Inter Fallback',system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;/.test(g) && /--mono:'DM Mono','DM Mono Fallback',ui-monospace,monospace;/.test(g)
+      && /@font-face\{font-family:'Inter Fallback';src:local\('Arial'\),local\('ArialMT'\),local\('Liberation Sans'\);size-adjust:107\.64%;ascent-override:90%;descent-override:22\.43%;line-gap-override:0%\}/.test(g)
+      && ["Archivo Black", "DM Mono", "Fraunces"].every((f) => g.includes(`@font-face{font-family:'${f} Fallback';`)));
+  ok("R13 type: the text face and the display face are asked for with the page, not found after the stylesheet",
+    /<link rel="preload" href="\/fonts\/inter-variable\.woff2" as="font" type="font\/woff2" crossOrigin="anonymous" \/>/.test(lay)
+      && /<link rel="preload" href="\/fonts\/archivo-black-400\.woff2" as="font" type="font\/woff2" crossOrigin="anonymous" \/>/.test(lay));
+  // the pictures at the size they're shown (F14)
+  const bk = rd("components/BrandKit.tsx"), ba = rd("scripts/build.app.mjs");
+  ok("R13 pictures: the glyph is the 240-pixel export; the Brand Kit's tiles show thumbnails and link the masters — the app's largest on the web",
+    ["components/Gt3Mark.tsx", "components/Mpire.tsx"].every((f) => /src="\/brand\/gt3-3-glyph\.png" width=\{181\} height=\{240\}/.test(rd(f)))
+      && /<img src=\{brandThumb\(a\.url\)\} alt=\{a\.label\} loading="lazy" decoding="async" \/>/.test(bk) && /href=\{brandMaster\(a\.url, APP_BUILD, publicOrigin\(\)\)\}/.test(bk)
+      && /for \(const u of webOnly\) rmSync\(join\(OUT, \.\.\.u\.split\("\/"\)\.filter\(Boolean\)\), \{ force: true \}\);/.test(ba));
+  // the bundle (F11)
+  const crew = rd("app/crew/page.tsx");
+  ok("R13 weight: the QR maker comes down when a code is drawn; the console's other sections when they are opened",
+    !/import QRCode from "qrcode";/.test(rd("components/ConnectHub.tsx") + rd("components/MembershipCard.tsx") + rd("app/display/page.tsx")) && /import\("qrcode"\)/.test(rd("components/ConnectHub.tsx"))
+      && ["OpsPlan", "Goals", "PackPlan", "CustomerKpis", "PrepBoard", "CommandBoard", "AcademyCard", "ReserveClaims", "MoneyAttention"].every((c) => new RegExp(`const ${c} = dynamic\\(\\(\\) => import\\(`).test(crew))
+      && /const CommandViews = dynamic\(\(\) => import\("@\/components\/CommandFold"\)\.then\(\(m\) => m\.CommandViews\)/.test(crew)
+      && /^import ThePass from "@\/components\/pass\/ThePass";$/m.test(crew) && /^import DropOps from "@\/components\/DropOps";$/m.test(crew));
+  // components made while drawing (F13)
+  ok("R13 remounts: no screen declares a component inside another — the calendar's chips, the kit's chips, the integrations' rows, the craft's pillars, the playbook's Discuss, the map's cards",
+    /^function CalChip\(/m.test(rd("components/CompanyCalendar.tsx")) && /^function IntegrationRow\(/m.test(rd("components/IntegrationsPanel.tsx"))
+      && /const pillar = \(k: "act" \| "hyd" \| "reb"\) => \(/.test(rd("app/craft/page.tsx")) && /const discuss = \(k: string, label: string\) => \(/.test(rd("app/playbook/page.tsx"))
+      && /const compCard = \(key: string, c: ArchComponent, color: string, layerTag\?: string\) => \{/.test(rd("app/architecture/page.tsx"))
+      && !/const (Chip|WChip|Row|Pillar|Discuss|Comp) = \(\{/.test(["components/CompanyCalendar.tsx", "components/BrandCalendar.tsx", "components/IntegrationsPanel.tsx", "app/craft/page.tsx", "app/playbook/page.tsx", "app/architecture/page.tsx"].map(rd).join("\n")));
+  // smaller races (F15)
+  const pb = rd("lib/passBoard.ts"), upb = rd("components/pass/usePassBoard.ts"), bc = rd("lib/broadcasts.ts");
+  ok("R13 races: the Pass reads the newest open tickets and keeps its board when it changed; a banner comes down at its end; the inbox counts only its alerts' comments",
+    /\.neq\("status", "done"\)\.order\("created_at", \{ ascending: false \}\)\.limit\(cap\),/.test(pb)
+      && /if \(snapDue\(lastSnap\.current, rows, at\)\) \{ saveSnapshot\("gt3-kds-snap", rows\); lastSnap\.current = \{ rows, at \}; \}/.test(upb)
+      && /const at = nextEdge\(rows, now\);/.test(bc) && /return useMemo\(\(\) => rows\.filter\(\(b\) => inWindow\(b, now\)\), \[rows, now\]\);/.test(bc)
+      && /useRealtimeTable\(\{ table: "comments", filter: `alert_id=in\.\(\$\{ids\}\)` \}, loadCounts, \{ enabled: !!ids \}\);/.test(crew));
+  // operations: the heartbeat and the failures
+  const hl = rd("app/api/health/route.ts");
+  ok("R13 heartbeat: the app's own questions don't feed the watchdog — the probe does",
+    /if \(from === "app-build"\) return NextResponse\.json\(\{ ok: true, build \}, \{ headers: noStore \}\);/.test(hl) && /if \(from !== "app"\) \{\s+const beat = await supabaseAdmin\.from\("ops_heartbeat"\)/.test(hl)
+      && /\/api\/health\?from=app-build/.test(rd("components/FreshTab.tsx")) && /\/api\/health\?from=app"/.test(rd("components/IntegrationsPanel.tsx")));
+  ok("R13 failures: a read and a write the database refused for a reason that is ours reach the error report — wired where every read and every write answer goes",
+    /reportFailure\("load", err as \{ code\?: string; message\?: string \}\);/.test(rd("lib/useAsyncData.ts")) && /reportFailure\("save", e, what\);/.test(rd("lib/wrote.ts"))
+      && /setFailureSender\(\(message\) => reportClientError\(\{ message, stack: "", fatal: false \}\)\);/.test(rd("components/ErrorReporter.tsx")));
+  const W = require("../.smoke/wrote.js");
+  ok("R13 failures: wrote still says it and answers false (the report is beside it, never instead of it)",
+    W.wrote({ error: { code: "42703", message: "column x does not exist" } }, () => {}, "Couldn't save") === false);
 }
 
 Promise.all(PENDING).then(() => {

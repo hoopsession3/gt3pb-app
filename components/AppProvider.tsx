@@ -16,10 +16,6 @@ export type ToastAction = { label: string; run: () => void };
 interface AppCtx {
   // toast
   toast: (msg: string, variant?: ToastVariant, opts?: { action?: ToastAction }) => void;
-  toastMsg: string;
-  toastShown: boolean;
-  toastVariant: ToastVariant;
-  toastAction: ToastAction | null;
   hideToast: () => void;
   /** A finger on the toast or focus in it (true) stops its clock; letting go (false) starts what was left. */
   holdToast: (on: boolean) => void;
@@ -67,6 +63,16 @@ export function useApp() {
   const v = useContext(Ctx);
   if (!v) throw new Error("useApp must be used within AppProvider");
   return v;
+}
+
+// WHAT THE TOAST SAYS, APART FROM WHAT THE APP DOES (R13 — the 10/10 audit's performance pass, F19). The toast's words and
+// whether it is up lived in the one context every screen reads (useApp, 149 places), so each toast — up, then down a few
+// seconds later — drew the whole app twice: the chrome, every sheet, and on the Pass every lane. Only the toast itself
+// reads them now (components/Toast); `toast()` and the rest stay where they were, and do not change.
+type ToastState = { toastMsg: string; toastShown: boolean; toastVariant: ToastVariant; toastAction: ToastAction | null };
+const ToastCtx = createContext<ToastState>({ toastMsg: "", toastShown: false, toastVariant: "success", toastAction: null });
+export function useToastState(): ToastState {
+  return useContext(ToastCtx);
 }
 
 export default function AppProvider({ children }: { children: React.ReactNode }) {
@@ -305,9 +311,10 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   }, [toast, soldOut, menu, rows, holding]);
 
   const value = useMemo<AppCtx>(
-    () => ({ toast, toastMsg, toastShown, toastVariant, toastAction, hideToast, holdToast, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents, menu, menuRead: rows !== null, drinkOf, nameOf, refreshMenu }),
-    [toast, toastMsg, toastShown, toastVariant, toastAction, hideToast, holdToast, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents, menu, rows, drinkOf, nameOf, refreshMenu]
+    () => ({ toast, hideToast, holdToast, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents, menu, menuRead: rows !== null, drinkOf, nameOf, refreshMenu }),
+    [toast, hideToast, holdToast, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents, menu, rows, drinkOf, nameOf, refreshMenu]
   );
+  const toastState = useMemo<ToastState>(() => ({ toastMsg, toastShown, toastVariant, toastAction }), [toastMsg, toastShown, toastVariant, toastAction]);
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={value}><ToastCtx.Provider value={toastState}>{children}</ToastCtx.Provider></Ctx.Provider>;
 }

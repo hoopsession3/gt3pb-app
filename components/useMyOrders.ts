@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
+import { sharedStore } from "@/lib/shared";
+import { sameJson } from "@/lib/sharedCore";
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { useConfirm } from "./ConfirmSheet";
@@ -15,58 +17,53 @@ import { canceledHere } from "@/lib/activeOrder";
 
 // A MEMBER'S OPEN CUP ORDERS, READ ONCE FOR EVERY SCREEN THAT SHOWS ONE (2026-10-13, R3 — Today leads with an order in
 // progress). The order bar (components/OrderStatus) read them for itself; Today's order card reads the same, the same
-// way: the member's own rows (RLS), realtime, every 20 seconds and on coming back to the page, and offline the last
-// answer for 90 minutes, labelled as such (a festival dead zone). Moved out of OrderStatus unchanged.
-export function useMyActiveOrders(): { orders: Order[]; stale: boolean; reload: () => void; failed: boolean } {
-  const { user } = useAuth();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [stale, setStale] = useState(false);
-  // FAILED IS NOT NONE (R7b): a first read that failed, with nothing kept from before, was an empty list — and Today led
-  // with "Order again" over an order being made. The page says it couldn't check instead.
-  const [failed, setFailed] = useState(false);
-  const loadedOnce = useRef(false);
-
-  // Nothing is set before the read answers (a signed-out phone simply has no orders: see the return).
-  const reload = useCallback(async () => {
-    if (!supabase || !user) return;
+// way: the member's own rows (RLS), realtime, on a clock and on coming back to the page, and offline the last answer for
+// 90 minutes, labelled as such (a festival dead zone). Moved out of OrderStatus unchanged.
+//
+// ONE COPY, AND THE NEWEST ANSWER (R13 — the 10/10 audit's performance pass, F5 and F15, lib/shared). Today showed it
+// twice — the bar and the card — each with its own channel, its own 20-second clock (hidden or not, an open order or
+// none) and its own reads, and reads that overlapped could land out of order: "Being made" after "Ready", until the next
+// read. One store per person now: one channel, one clock that reads only while the page is on screen — every 20 seconds
+// with an order open, every minute with none — and an older answer never lands over a newer one.
+type Mine = { orders: Order[]; stale: boolean; failed: boolean; loaded: boolean };
+const NONE: Mine = { orders: [], stale: false, failed: false, loaded: false };
+const myOrders = sharedStore<Mine>({
+  initial: NONE,
+  personal: true,
+  tables: (uid) => ({ table: "orders", filter: `user_id=eq.${uid}` }),
+  every: { ms: 20_000, when: (cur, tick) => cur.orders.length > 0 || tick % 3 === 0 },
+  back: true,
+  equal: sameJson,
+  read: async (uid, cur) => {
+    if (!supabase) return undefined;
     const { data, error } = await supabase
       .from("orders")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", uid)
       .in("status", ["new", "preparing", "ready"])
       .order("created_at", { ascending: false });
     if (data) {
-      setOrders(data as Order[]); setStale(false); setFailed(false); loadedOnce.current = true;
-      saveSnapshot(`gt3-order-snap-${user.id}`, data);
-      return;
+      saveSnapshot(`gt3-order-snap-${uid}`, data);
+      return { orders: data as Order[], stale: false, failed: false, loaded: true };
     }
-    if (error && !loadedOnce.current && isNetworkError(error.message)) {
-      const snap = readSnapshot<Order[]>(`gt3-order-snap-${user.id}`);
-      if (snap && snapshotUsable(snap.at, Date.now(), 90 * 60 * 1000) && snap.data.length > 0) { setOrders(snap.data); setStale(true); return; }
+    // FAILED IS NOT NONE (R7b): a first read that failed, with nothing kept from before, was an empty list — and Today led
+    // with "Order again" over an order being made. The page says it couldn't check instead.
+    if (error && !cur.loaded && isNetworkError(error.message)) {
+      const snap = readSnapshot<Order[]>(`gt3-order-snap-${uid}`);
+      if (snap && snapshotUsable(snap.at, Date.now(), 90 * 60 * 1000) && snap.data.length > 0) return { ...cur, orders: snap.data, stale: true };
     }
-    if (error && !loadedOnce.current) setFailed(true);
-  }, [user]);
+    if (error && !cur.loaded) return { ...cur, failed: true };
+    return undefined;
+  },
+});
 
-  useEffect(() => {
-    void reload();
-    if (!supabase || !user) return;
-    const interval = setInterval(reload, 20000);
-    const onVis = () => { if (document.visibilityState === "visible") void reload(); };
-    document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("focus", reload);
-    const ch = supabase
-      .channel(`my-orders-${Math.random().toString(36).slice(2, 8)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `user_id=eq.${user.id}` }, () => { void reload(); })
-      .subscribe();
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("focus", reload);
-      supabase?.removeChannel(ch);
-    };
-  }, [reload, user]);
-
-  return { orders: user ? orders : [], stale: !!user && stale, reload, failed: !!user && failed };
+export function useMyActiveOrders(): { orders: Order[]; stale: boolean; reload: () => void; failed: boolean } {
+  const { user } = useAuth();
+  const uid = user?.id ?? null;
+  const mine = myOrders.use(uid);
+  const reload = useCallback(() => { if (uid) void myOrders.reload(uid); }, [uid]);
+  // A signed-out phone simply has no orders.
+  return { orders: uid ? mine.orders : [], stale: !!uid && mine.stale, reload, failed: !!uid && mine.failed };
 }
 
 export type Eta = "on_way" | "outside" | "late";

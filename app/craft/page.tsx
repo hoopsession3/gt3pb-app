@@ -40,8 +40,10 @@ export default function CraftScreen() {
   const t = useSiteCopy();
   const [story, setStory] = useState<{ n: string; d: string } | null>(null);
 
-  const Pillar = ({ k }: { k: "act" | "hyd" | "reb" }) => (
-    <div className="craft-sec">
+  // A render function, not a component: a component declared inside CraftScreen is a NEW type on every render, so
+  // React threw the whole pillar away and rebuilt it each time (R13 — the 10/10 audit's performance pass, F13).
+  const pillar = (k: "act" | "hyd" | "reb") => (
+    <div className="craft-sec" key={k}>
       <EditableCopy k={`craft.${k}_label`} value={t(`craft.${k}_label`)} as="span" className="craft-sec-n" />
       <EditableCopy k={`craft.${k}_title`} value={t(`craft.${k}_title`)} as="h2" className="craft-sec-h" />
       <EditableCopy k={`craft.${k}_intro`} value={t(`craft.${k}_intro`)} as="p" className="craft-body" multiline />
@@ -88,9 +90,9 @@ export default function CraftScreen() {
       </div>
 
       {/* THE THREE PILLARS — every ingredient, by purpose */}
-      <Pillar k="act" />
-      <Pillar k="hyd" />
-      <Pillar k="reb" />
+      {pillar("act")}
+      {pillar("hyd")}
+      {pillar("reb")}
 
       {/* THE MARK (the molecule = GT3) */}
       <div className="craft-sec">

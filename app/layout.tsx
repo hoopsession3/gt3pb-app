@@ -62,6 +62,12 @@ export default function RootLayout({
             This MUST live in a raw <style> — the CSS-module minifier strips `text-size-adjust`
             from globals.css, so the rule never reaches the browser from there. Inline it survives. */}
         <style dangerouslySetInnerHTML={{ __html: "html{-webkit-text-size-adjust:100%;-moz-text-size-adjust:100%;text-size-adjust:100%}" }} />
+        {/* THE TWO FACES EVERY SCREEN OPENS WITH, ASKED FOR AT ONCE (R13 — the 10/10 audit's performance pass, F14). A face
+            named only in the stylesheet is found once that whole stylesheet has come down and been read; asked for here it
+            comes down beside it. The text, the wordmark and the mastheads. The other two arrive as they are met, behind
+            stand-ins of their own size (app/globals.css, --sans and friends). */}
+        <link rel="preload" href="/fonts/inter-variable.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <link rel="preload" href="/fonts/archivo-black-400.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         {/* Warm the connection to Supabase (auth/session + the first data query) so its TLS handshake
             overlaps with the initial render instead of starting only when the auth layer fires. */}
         {process.env.NEXT_PUBLIC_SUPABASE_URL && (

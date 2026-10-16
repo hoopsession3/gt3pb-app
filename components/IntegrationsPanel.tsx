@@ -18,10 +18,22 @@ type Probe = { health: boolean | null; outlook: { configured: boolean; connected
 
 const PUSH_READY = Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
 
+// One integration's line (R13 — the 10/10 audit's performance pass, F13: written inside the panel, a new component type
+// each render, so every row was mounted again on each one).
+function IntegrationRow({ name, ok, sub, note }: { name: string; ok: boolean | null; sub: string; note?: string }) {
+  return (
+    <div className="intg-row">
+      <span className={`intg-dot ${ok === true ? "ok" : ok === false ? "bad" : "unk"}`} aria-hidden />
+      <span className="intg-x"><b>{name}</b><span>{sub}</span></span>
+      {note && <span className="intg-note">{note}</span>}
+    </div>
+  );
+}
+
 export default function IntegrationsPanel() {
   const loader = useCallback(async (): Promise<Probe> => {
     const out: Probe = { health: null, outlook: null, notify: null };
-    try { const r = await fetch(apiUrl("/api/health"), { cache: "no-store" }); out.health = r.ok; } catch { out.health = false; }
+    try { const r = await fetch(apiUrl("/api/health?from=app"), { cache: "no-store" }); out.health = r.ok; } catch { out.health = false; }   // the real check, not the heartbeat (R13)
     try { const r = await authedFetch("/api/outlook/status"); const j = await r.json(); if (j.ok) out.outlook = { configured: !!j.configured, connected: !!j.connected }; } catch { /* leave null */ }
     try { const r = await authedFetch("/api/notify"); const j = await r.json(); if (j.ok && j.providers) out.notify = { email: !!j.providers.email, sms: !!j.providers.sms }; } catch { /* leave null */ }
     return out;
@@ -30,29 +42,21 @@ export default function IntegrationsPanel() {
   const [test, setTest] = useState<{ sent: boolean; detail: string | null; to: string } | null>(null);
   const [testing, setTesting] = useState(false);
 
-  const Row = ({ name, ok, sub, note }: { name: string; ok: boolean | null; sub: string; note?: string }) => (
-    <div className="intg-row">
-      <span className={`intg-dot ${ok === true ? "ok" : ok === false ? "bad" : "unk"}`} aria-hidden />
-      <span className="intg-x"><b>{name}</b><span>{sub}</span></span>
-      {note && <span className="intg-note">{note}</span>}
-    </div>
-  );
-
   return (
     <AsyncSection state={board} isEmpty={() => false} emptyTitle="Nothing to check" errorTitle="Couldn't check integrations">
       {(p) => (
         <div className="intg">
-          <Row name="Square payments" ok={squareClientReady} sub={squareClientReady ? `${SQUARE_ENV} · app ${SQUARE_APP_ID.slice(0, 10)}…` : "app ID / location not set"} note="one environment, app + token from the same Square application" />
-          <Row name="App & database" ok={p.health} sub={p.health === false ? "health check failing — see alerts" : "health check live · outage watchdog on"} />
-          <Row name="Web push" ok={PUSH_READY} sub={PUSH_READY ? "keys set — go-live pings & alerts deliver" : "VAPID keys not set"} />
+          <IntegrationRow name="Square payments" ok={squareClientReady} sub={squareClientReady ? `${SQUARE_ENV} · app ${SQUARE_APP_ID.slice(0, 10)}…` : "app ID / location not set"} note="one environment, app + token from the same Square application" />
+          <IntegrationRow name="App & database" ok={p.health} sub={p.health === false ? "health check failing — see alerts" : "health check live · outage watchdog on"} />
+          <IntegrationRow name="Web push" ok={PUSH_READY} sub={PUSH_READY ? "keys set — go-live pings & alerts deliver" : "VAPID keys not set"} />
           {/* Connecting is the Outlook panel's job, just below in Settings › Integrations (2026-10-06,
               the settings round) — it was a button under the calendar. */}
-          <Row name="Outlook calendar" ok={p.outlook ? (p.outlook.connected ? true : p.outlook.configured ? null : false) : null} sub={p.outlook?.connected ? "connected — two-way sync" : p.outlook?.configured ? "configured — the owner connects it in the Outlook panel below" : "needs the one-time Microsoft app setup (developer)"} />
+          <IntegrationRow name="Outlook calendar" ok={p.outlook ? (p.outlook.connected ? true : p.outlook.configured ? null : false) : null} sub={p.outlook?.connected ? "connected — two-way sync" : p.outlook?.configured ? "configured — the owner connects it in the Outlook panel below" : "needs the one-time Microsoft app setup (developer)"} />
           {/* These two were a permanent grey dot and a sentence saying they work "when the key is
               set in Vercel". On 2026-09-29 the first cap order sent no receipt and no screen in the
               app could say whether email was off or broken — this panel included, which is the one
               place it should have been visible. Now it asks. */}
-          <Row name="Email (Resend)" ok={p.notify ? (test?.sent === false ? false : p.notify.email) : null}
+          <IntegrationRow name="Email (Resend)" ok={p.notify ? (test?.sent === false ? false : p.notify.email) : null}
             sub={p.notify === null ? "couldn't check"
               : !p.notify.email ? "NO KEY — every customer receipt is silently skipped"
               : test?.sent === true ? `sent — check ${test.to}`
@@ -78,11 +82,11 @@ export default function IntegrationsPanel() {
           </div>
           {/* A text needs a yes (R5, 0398): keys alone no longer mean "texts send" — only to a number that said yes and
               has not said STOP, 8am–9pm Eastern, once texts are switched on. */}
-          <Row name="SMS (Twilio)" ok={p.notify ? (!p.notify.sms ? false : textsOn() ? true : null) : null}
+          <IntegrationRow name="SMS (Twilio)" ok={p.notify ? (!p.notify.sms ? false : textsOn() ? true : null) : null}
             sub={p.notify === null ? "couldn't check" : !p.notify.sms ? "no keys — texts are skipped"
               : textsOn() ? "keys set — texts go to numbers that said yes, 8am–9pm ET" : "keys set — texts stay off until the number is registered"}
             note={p.notify?.sms && !textsOn() ? "then set NEXT_PUBLIC_TEXTS_ON=1 in Vercel" : undefined} />
-          <Row name="Teams alerts" ok={null} sub="server-side — critical fan-out posts when the webhook is set in Vercel" />
+          <IntegrationRow name="Teams alerts" ok={null} sub="server-side — critical fan-out posts when the webhook is set in Vercel" />
           <div className="intg-sec">
             <b>Security</b>
             <span>Sign-in codes, links &amp; sessions run on Supabase Auth. Two-factor for staff accounts is enabled per-account in Supabase (a developer task today — ask for it when the team grows). Payment card data never touches this app — Square hosts the fields end to end.</span>

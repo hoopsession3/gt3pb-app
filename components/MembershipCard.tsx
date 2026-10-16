@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import QRCode from "qrcode";
 import { useAuth } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import Gt3Mark from "@/components/Gt3Mark";
@@ -31,11 +30,15 @@ export default function MembershipCard() {
   // points to another phone platform's (App Review Guideline 2.3.10).
   const googleReady = process.env.NEXT_PUBLIC_GOOGLE_WALLET === "1" && !APP_BUILD;
 
+  // The QR maker comes down with the card, not with /3mpire's first load (R13 — the 10/10 audit, F11: 9 KB).
   useEffect(() => {
     if (!code || typeof window === "undefined") return;
     const url = `${publicOrigin()}/scan?m=${encodeURIComponent(code)}`;
-    QRCode.toDataURL(url, { margin: 1, width: 320, color: { dark: "#15120D", light: "#ffffff" } })
-      .then(setQr).catch(() => setQr(""));
+    let live = true;
+    import("qrcode")
+      .then((m) => m.default.toDataURL(url, { margin: 1, width: 320, color: { dark: "#15120D", light: "#ffffff" } }))
+      .then((u) => { if (live) setQr(u); }, () => { if (live) setQr(""); });
+    return () => { live = false; };
   }, [code]);
 
   if (!profile || !user) return null;

@@ -101,15 +101,17 @@ ok("calm under 4 minutes, warn from 4, late from 8",
   const voided = order({ id: "void-1", status: "void", created_at: at(-1) });
   const db = fakeDb({ orders: [...open, ...done, voided] });
   const r = await P.readBoard(db, T0, 5);
-  ok("open tickets: the oldest 5 of 7, and `more` says 2 were not read", r.rows.filter((o) => o.status !== "done").map((o) => o.id).join() === "open-0,open-1,open-2,open-3,open-4" && r.more === 2, r);
+  // THE NEWEST, PAST THE CAP (R13 — the 10/10 audit, F15): read oldest first, the orders just placed were the ones left out,
+  // and the reconcile took back the one the feed had just put up. The two left out now are the oldest.
+  ok("open tickets: the newest 5 of 7, and `more` says the 2 oldest were not read", r.rows.filter((o) => o.status !== "done").map((o) => o.id).join() === "open-2,open-3,open-4,open-5,open-6" && r.more === 2, r);
   ok("picked up in the last half hour only — the 31-minute one is not read", r.rows.filter((o) => o.status === "done").map((o) => o.id).sort().join() === "done-1,done-2");
   ok("a void is never read", !r.rows.some((o) => o.status === "void"));
   ok("the board comes back oldest first, done ones in their place", r.rows.map((o) => o.created_at).every((c, i, a) => i === 0 || a[i - 1] <= c));
   ok("nothing left out: more is 0 and the line is not needed", (await P.readBoard(db, T0, 300)).more === 0);
   const [o1, d1] = db.calls.slice(0, 2);
   const sh = (c) => c.ops.map((x) => JSON.stringify(x)).join(" ");
-  ok("the open read is 0238's partial index word for word (status <> 'void' and <> 'done'), counted, oldest first, capped",
-    o1.table === "orders" && sh(o1) === '["select","*",{"count":"exact"}] ["neq","status","void"] ["neq","status","done"] ["order","created_at",{}] ["limit",5]', sh(o1));
+  ok("the open read is 0238's partial index word for word (status <> 'void' and <> 'done'), counted, newest first, capped",
+    o1.table === "orders" && sh(o1) === '["select","*",{"count":"exact"}] ["neq","status","void"] ["neq","status","done"] ["order","created_at",{"ascending":false}] ["limit",5]', sh(o1));
   ok("the picked-up read: done in the last 30 minutes, newest first, capped one past DONE_CAP (to know there were more)",
     sh(d1) === `["select","*",{}] ["eq","status","done"] ["gte","status_changed_at","${at(-30)}"] ["order","status_changed_at",{"ascending":false}] ["limit",${P.DONE_CAP + 1}]`, sh(d1));
   ok("the caps: 300 open, 100 picked up", P.OPEN_CAP === 300 && P.DONE_CAP === 100);

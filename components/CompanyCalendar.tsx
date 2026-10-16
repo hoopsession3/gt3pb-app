@@ -116,6 +116,40 @@ const qStart = (cursor: Date) => Math.floor(cursor.getMonth() / 3) * 3;
 // readOnly (2026-08-01): crew roles open this exact calendar from their own Plan tab — same data,
 // same views, zero write affordances (no add / edit / drag / check / tidy). The shared schedule is
 // the team's anchor; My Day stays each person's actionable lens on it.
+// A calendar chip: one thing on a day, tapped to open it in place (CalEdit, FieldOpSheet) or to go to its own surface.
+// Two lines when there is a second thing worth saying, one when there is not — the sub line is never an empty row holding
+// space. All three callers (Agenda, Week, Board) are full-width rows; the month grid renders coloured marks, not chips.
+// A COMPONENT OF THE MODULE (R13 — the 10/10 audit's performance pass, F13): written inside the calendar, it was a new
+// type each render, so every chip was unmounted and mounted again on each reload — focus lost, and the chip being dragged
+// taken out of the page mid-drag by the dragover that sets the drop target.
+// THE DONE MARK IS ITS OWN CONTROL (R12 — the 10/10 audit, F15). It was a <span onClick> inside the chip's button: no
+// name, no key, nothing a screen reader could reach (a button's insides are not controls), and the chip never said
+// done. It is a checkbox laid over the mark's place, beside the chip, and the chip says done when it is.
+function CalChip({ it, onOpen, readOnly, dragRef }: { it: Item; onOpen?: () => void; readOnly: boolean; dragRef: { current: { kind: EditKind; id: string } | null } }) {
+  const check = it.kind === "todo" && it.toggle;
+  const chip = (
+    <button type="button" draggable={!readOnly && DRAG.has(it.kind)} className={`cc-chip${it.done ? " done" : ""}${it.meta ? " two" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}
+      onDragStart={() => { if (!readOnly && DRAG.has(it.kind) && isEditable(it.kind)) dragRef.current = { kind: it.kind, id: it.id }; }}
+      onClick={(e) => { e.stopPropagation(); if (onOpen && !readOnly && isEditable(it.kind)) onOpen(); else it.go(); }}
+      title={`${CAT[it.cat]?.label}: ${it.title}${it.meta ? ` — ${it.meta}` : ""}`}>
+      {check && <span className="cc-check" aria-hidden="true">{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</span>}
+      <span className="cc-dot" style={{ background: CAT[it.cat]?.color }} />
+      <span className="cc-bd">
+        <span className="cc-title">{it.title}</span>
+        {it.meta && <span className="cc-sub">{it.meta}</span>}
+        <span className="sr-only">{`, ${CAT[it.cat]?.label ?? it.kind}${it.done ? ", done" : ""}`}</span>
+      </span>
+    </button>
+  );
+  if (!check) return chip;
+  return (
+    <span className="cc-chip-wrap">
+      {chip}
+      <button type="button" role="checkbox" aria-checked={!!it.done} aria-label={`Done: ${it.title}`} className="cc-check-btn" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }} />
+    </span>
+  );
+}
+
 export default function CompanyCalendar({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { setSection } = useOperatorSection();
   const { toast } = useApp();
@@ -443,40 +477,9 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
     return () => mq.removeEventListener("change", apply);
   }, []);
   const shownViews = !phone || moreViews ? VIEWS : VIEWS.filter((v) => PHONE_VIEWS.includes(v) || v === view);
-  // Chip tap = open the pop-out editor in place (the "same standard as all others" rule) —
-  // teleporting to another section on a bare tap is reserved for the aggregates (drop/delivery)
-  // that have no single row to edit. Each editor still carries a jump link to its full surface.
-  // Two lines when there is a second thing worth saying, one when there is not — the sub line is
-  // never an empty row holding space. All three callers (Agenda, Week, Board) are full-width rows;
-  // the month grid renders coloured marks, not chips, so nothing here can crowd a calendar cell.
-  // THE DONE MARK IS ITS OWN CONTROL (R12 — the 10/10 audit, F15). It was a <span onClick> inside the chip's button: no
-  // name, no key, nothing a screen reader could reach (a button's insides are not controls), and the chip never said
-  // done. It is a checkbox laid over the mark's place, beside the chip, and the chip says done when it is.
-  const Chip = ({ it, onOpen }: { it: Item; onOpen?: () => void }) => {
-    const check = it.kind === "todo" && it.toggle;
-    const chip = (
-      <button type="button" draggable={!readOnly && DRAG.has(it.kind)} className={`cc-chip${it.done ? " done" : ""}${it.meta ? " two" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}
-        onDragStart={() => { if (!readOnly && DRAG.has(it.kind) && isEditable(it.kind)) dragId.current = { kind: it.kind, id: it.id }; }}
-        onClick={(e) => { e.stopPropagation(); if (onOpen && !readOnly && isEditable(it.kind)) onOpen(); else it.go(); }}
-        title={`${CAT[it.cat]?.label}: ${it.title}${it.meta ? ` — ${it.meta}` : ""}`}>
-        {check && <span className="cc-check" aria-hidden="true">{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</span>}
-        <span className="cc-dot" style={{ background: CAT[it.cat]?.color }} />
-        <span className="cc-bd">
-          <span className="cc-title">{it.title}</span>
-          {it.meta && <span className="cc-sub">{it.meta}</span>}
-          <span className="sr-only">{`, ${CAT[it.cat]?.label ?? it.kind}${it.done ? ", done" : ""}`}</span>
-        </span>
-      </button>
-    );
-    if (!check) return chip;
-    return (
-      <span className="cc-chip-wrap">
-        {chip}
-        <button type="button" role="checkbox" aria-checked={!!it.done} aria-label={`Done: ${it.title}`} className="cc-check-btn" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }} />
-      </span>
-    );
-  };
-
+  // A chip's tap opens the pop-out editor in place (the "same standard as all others" rule) — teleporting to another
+  // section on a bare tap is reserved for the aggregates (drop/delivery) that have no single row to edit; each editor
+  // still carries a jump link to its full surface. The chip is CalChip, above.
   return (
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the calendar" emptyTitle="Nothing here yet">
       {() => (
@@ -567,7 +570,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
               <div key={k} className={`cal-wrow${k === todayKey ? " today" : ""}${over === k ? " over" : ""}${warnDays.has(k) ? " heat" : ""}`}
                 onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => o === k ? null : o)} onDrop={() => { setOver(null); const dg = dragId.current; dragId.current = null; if (dg) reschedule(dg.kind, dg.id, k); }}>
                 <div className="cal-wday"><button type="button" className="cal-open" onClick={() => setDayOpen(k)} aria-label={dayWords(d, items, warnDays.has(k), k === todayKey)} /><b aria-hidden="true">{DOW[d.getDay()]}</b><span aria-hidden="true">{d.getDate()}</span>{!readOnly && <button type="button" className="cal-add hit-44 wk" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label={`Add on ${longDate(d)}`}>+</button>}</div>
-                <div className="cal-witems">{items.length === 0 ? <span className="cal-wnone">—</span> : items.map((it) => <Chip key={`${it.kind}-${it.id}`} it={it} onOpen={() => openItem(it, k)} />)}</div>
+                <div className="cal-witems">{items.length === 0 ? <span className="cal-wnone">—</span> : items.map((it) => <CalChip readOnly={readOnly} dragRef={dragId} key={`${it.kind}-${it.id}`} it={it} onOpen={() => openItem(it, k)} />)}</div>
               </div>
             );
           })}
@@ -585,7 +588,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
               return (
                 <div key={k} className={`cal-lrow${k === todayKey ? " today" : ""}`}>
                   <div className="cal-ldate"><b>{d.getDate()}</b><span>{DOW[d.getDay()]}</span><span className="cal-lmon">{MON3[d.getMonth()]}</span></div>
-                  <div className="cal-litems">{items.map((it) => <Chip key={`${it.kind}-${it.id}`} it={it} onOpen={() => openItem(it, k)} />)}</div>
+                  <div className="cal-litems">{items.map((it) => <CalChip readOnly={readOnly} dragRef={dragId} key={`${it.kind}-${it.id}`} it={it} onOpen={() => openItem(it, k)} />)}</div>
                 </div>
               );
             })}
@@ -629,7 +632,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
                   {rows.length === 0 ? <div className="bd-empty">{col.id === "overdue" ? "nothing slipped" : "clear"}</div> : rows.map(({ k, it }) => (
                     <div key={`${it.kind}-${it.id}-${k}`} className="bd-card">
                       {k && <span className="bd-date">{fmtK(k)}{it.warn ? <> <Icon name="warning" /></> : ""}</span>}
-                      <Chip it={it} onOpen={() => openItem(it, k || undefined)} />
+                      <CalChip readOnly={readOnly} dragRef={dragId} it={it} onOpen={() => openItem(it, k || undefined)} />
                     </div>
                   ))}
                 </div>
@@ -765,7 +768,7 @@ function DayView({ dayKey, items, events, readOnly = false, onClose, onAdd, onSa
   const brewLate = items.some((i) => i.warn);
   return (
     <>
-    <Sheet open onClose={onClose} label="Calendar day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{heading}</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Calendar day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>{heading}</b><CloseButton onClick={onClose} /></div>}>
           {items.length === 0 && archived.length === 0 && <EmptyState title="Nothing scheduled this day" sub="Tap Add to put something here." />}
           {clash && <div className="dv-heads">Heads up: event + truck stop share this day.</div>}
           {brewLate && <div className="dv-heads">Heads up: a brew here is past its latest start.</div>}
@@ -968,7 +971,7 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
   })();
   return (
     <>
-    <Sheet open onClose={onClose} className="dp-form" label="Edit calendar item" dirty={edited(f, loaded, CAL_SAVES)} page={page} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{`Edit ${cfg.noun}`}</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} className="dp-form" label="Edit calendar item" dirty={edited(f, loaded, CAL_SAVES)} page={page} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>{`Edit ${cfg.noun}`}</b><CloseButton onClick={onClose} /></div>}>
           {kind === "pipe" && f.vendors?.name && <div className="dv-sub" style={{ marginBottom: 6 }}>Account · {f.vendors.name}</div>}
           <input className="note-in" value={f[cfg.nameCol] ?? ""} onChange={(e) => set(cfg.nameCol, e.target.value)} placeholder={kind === "pipe" ? "Next step — e.g. send the proposal" : `${cfg.noun[0].toUpperCase() + cfg.noun.slice(1)} name`} autoFocus />
           <div className="prod-grid" style={{ marginTop: 10 }}>

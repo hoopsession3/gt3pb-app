@@ -12,7 +12,7 @@
 export default function Mpire({ className }: { className?: string }) {
   return (
     <span className={`mp3${className ? ` ${className}` : ""}`} role="img" aria-label="3MPIRE">
-      <img className="mp3-3" src="/brand/gt3-3.png" alt="" aria-hidden="true" />
+      <img className="mp3-3" src="/brand/gt3-3-glyph.png" width={181} height={240} alt="" aria-hidden="true" />
       <span aria-hidden="true">MPIRE</span>
     </span>
   );

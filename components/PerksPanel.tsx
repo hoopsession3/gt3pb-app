@@ -166,7 +166,7 @@ export default function PerksPanel() {
           {tier === "founding" && (
             <label className="codes-f" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <input type="checkbox" checked={vip} onChange={(e) => setVip(e.target.checked)} style={{ width: 16, height: 16 }} />
-              <span style={{ textTransform: "none", fontSize: 13, letterSpacing: 0, fontFamily: "'Inter'", color: "var(--cream)" }}>
+              <span style={{ textTransform: "none", fontSize: 13, letterSpacing: 0, fontFamily: "var(--sans)", color: "var(--cream)" }}>
                 <Icon name="star" /> Founding VIP only — verified bottle owners, not every Founding member
               </span>
             </label>

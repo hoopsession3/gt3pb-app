@@ -324,7 +324,7 @@ function ItemForm({ item, start, venueFor, onSite, onClose, onSave }: {
   const isOn = (n: string) => whoList.some((x) => x.toLowerCase() === n.toLowerCase());
   const toggleWho = (n: string) => set("who", (isOn(n) ? whoList.filter((x) => x.toLowerCase() !== n.toLowerCase()) : [...whoList, n]).join(", "));
   return (
-    <Sheet open onClose={onClose} label="Day-of block" dirty={edited(f, first, ["title", "kind", "start_time", "end_time", "location", "address", "details", "who"])} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{item ? "Edit block" : "New block"}</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Day-of block" dirty={edited(f, first, ["title", "kind", "start_time", "end_time", "location", "address", "details", "who"])} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>{item ? "Edit block" : "New block"}</b><CloseButton onClick={onClose} /></div>}>
           <input className="note-in" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="What's happening? e.g. Arrive Airbnb" autoFocus />
           <div className="dp-kinds">
             {KINDS.map((k) => (
@@ -387,7 +387,7 @@ function DraftPanel({ ownerType = "event", eventId, dayIndex, onClose, onAdd }: 
   };
 
   return (
-    <Sheet open onClose={onClose} label="Draft the day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="sparkles" /> Draft day {dayIndex}</b><CloseButton onClick={onClose} /></div>}>
+    <Sheet open onClose={onClose} label="Draft the day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}><Icon name="sparkles" /> Draft day {dayIndex}</b><CloseButton onClick={onClose} /></div>}>
           {!rows && (
             <>
               <div className="dp-hint">A few notes — where you&apos;re leaving from, when the event opens, where you&apos;re staying — and AI proposes the day. You approve what to keep.</div>

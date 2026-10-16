@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { classifyCrash, readSkewMemory } from "@/lib/deploySkew";
 import { APP_BUILD, apiUrl } from "@/lib/native";
 import { shareableUrl } from "@/lib/reportUrl";
+import { setFailureSender } from "@/lib/failureReport";
 
 // ERROR REPORTER — the sending end of /api/errors/report. Catches what the console used to eat
 // (window errors + unhandled promise rejections) and what the error boundary catches (fatal), and
@@ -84,7 +85,9 @@ export default function ErrorReporter() {
     };
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onReject);
-    return () => { window.removeEventListener("error", onError); window.removeEventListener("unhandledrejection", onReject); };
+    // A read or a write the database refused for a reason that is ours (lib/failureReport, R13 — F17) comes here too.
+    setFailureSender((message) => reportClientError({ message, stack: "", fatal: false }));
+    return () => { window.removeEventListener("error", onError); window.removeEventListener("unhandledrejection", onReject); setFailureSender(null); };
   }, []);
   return null;
 }

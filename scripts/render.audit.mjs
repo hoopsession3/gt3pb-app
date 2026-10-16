@@ -89,7 +89,12 @@ import { readFileSync, existsSync } from "node:fs";
 // 2026-10-16: 94 → 93 (R7 and R7b of the customer audit): Today set its greeting's clock inside an effect
 // (components/today/TodayHome) — it reads the time through lib/visibleNow (useSyncExternalStore) now, again whenever the
 // app comes back to the front.
-export const BASELINE = 93;
+//
+// 2026-10-16: 93 → 89 (R13 of the 10/10 audit, the performance pass): the lanes, a member's open orders and a person's
+// alerts loaded from an effect each, in every screen that showed them (lib/streams, components/useMyOrders,
+// lib/useMyAlerts) — they read through one shared store now (lib/shared, useSyncExternalStore), with no effect of their
+// own; and the banners load through lib/realtime's loadOnMount, not an effect beside it (lib/broadcasts).
+export const BASELINE = 89;
 
 const RULE = "react-hooks/set-state-in-effect";
 
